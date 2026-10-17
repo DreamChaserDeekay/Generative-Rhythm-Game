@@ -104,6 +104,7 @@ export function generationParams(prefs: GenerationPrefs, keyMode: KeyModeId): Re
   const params: Record<string, unknown> = { style: prefs.style, rhythmSource: prefs.rhythmSource };
   if (prefs.instrumentMapping !== null) params.instrumentMapping = prefs.instrumentMapping;
   if (prefs.repeatConsistency !== null) params.repeatConsistency = prefs.repeatConsistency;
+  if (prefs.patternEngine !== 'designer') params.patternEngine = prefs.patternEngine;
   if (prefs.density !== null) params.density = prefs.density;
   if (prefs.longNoteRatio !== null) params.longNoteRatio = prefs.longNoteRatio;
   if (prefs.maxChord !== null) params.maxChord = prefs.maxChord;
@@ -163,7 +164,19 @@ export function GenerationPanel({ settings, onSettingsChange, keyMode }: Setting
           onChange={(e) => set({ instrumentMapping: Number(e.target.value) })}
         />
         <span className="value">{(g.instrumentMapping ?? 0.6) === 0 ? '끔' : `${Math.round((g.instrumentMapping ?? 0.6) * 100)}%`}</span>
-        <span className="hint">드럼 킥은 왼쪽·하이햇은 오른쪽, 베이스는 왼쪽으로 모읍니다</span>
+        <span className="hint">드럼 소리마다 자기 키를 지킵니다(킥은 낮은 쪽, 하이햇은 높은 쪽). 베이스는 왼쪽으로 모읍니다</span>
+      </div>
+      <span className="label">패턴 배치</span>
+      <div className="row">
+        <div className="segmented" data-testid="pattern-engine">
+          <button className={g.patternEngine === 'designer' ? 'active' : ''} onClick={() => set({ patternEngine: 'designer' })}>
+            악구·패턴
+          </button>
+          <button className={g.patternEngine === 'classic' ? 'active' : ''} data-testid="pattern-engine-classic" onClick={() => set({ patternEngine: 'classic' })}>
+            이전 방식
+          </button>
+        </div>
+        <span className="hint">악구마다 계단·트릴 같은 모양을 정해 놓습니다. "이전 방식"은 비교용으로, 음높이를 따라 노트를 하나씩 놓습니다</span>
       </div>
       <span className="label">반복 구간</span>
       <label className="row check">

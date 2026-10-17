@@ -725,6 +725,7 @@ export function SongSelectScreen(props: Props) {
                     onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
                   >
                     생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
+                    {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : ''}
                   </button>
                   <label className="row check">
                     <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => togglePractice(e.target.checked)} data-testid="practice-toggle" />

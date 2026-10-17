@@ -12,6 +12,15 @@ describe('settings', () => {
     expect(s.generation.style).toBe('balanced');
   });
 
+  it('keeps the pattern engine choice and the difficulty basis, dropping unknown ones', () => {
+    expect(sanitizeSettings({}).generation.patternEngine).toBe('designer');
+    expect(sanitizeSettings({ generation: { patternEngine: 'classic' } as never }).generation.patternEngine).toBe('classic');
+    expect(sanitizeSettings({ generation: { patternEngine: 'random' } as never }).generation.patternEngine).toBe('designer');
+    const ez = sanitizeSettings({ difficultySystem: 'EZ2ON', lastDifficulty: 'NORMAL' });
+    expect([ez.difficultySystem, ez.lastDifficulty]).toEqual(['EZ2ON', 'NM']);
+    expect(sanitizeSettings({ difficultySystem: 'PUMP' as never }).difficultySystem).toBe(DEFAULT_SETTINGS.difficultySystem);
+  });
+
   it('computes the green number from SUDDEN+ and LIFT (not HIDDEN+)', () => {
     const base = { ...DEFAULT_SETTINGS, hiSpeed: 4 };
     expect(greenNumber(4, activeCovers(base))).toBeCloseTo(1250, 9);

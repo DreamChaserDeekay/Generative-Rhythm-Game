@@ -28,7 +28,7 @@
     "keysound": { "stem": "vocals", "share": 0.36, "shares": { "drums": 0.41, "bass": 0.08, "vocals": 0.36, "other": 0.15 } },
     "repeatConsistency": 0.97,
     "generator": {
-      "version": "0.3.0",
+      "version": "0.4.0",
       "analyzer": "core-1.1.0",
       "seed": 3735928559,
       "params": {
@@ -74,10 +74,10 @@
 | `densityLimited` | 곡에 들리는 소리가 부족해 목표 레벨까지 올리지 못했으면 `true`. |
 | `skillset` | 0–1 스킬 프로필: stream, chord, jack, longNote, technical, stamina. |
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
-| `patterns` | 패턴 성향: 키 노트 중 계단(`stairs`, 한 칸씩 이어지는 3개 이상의 단타)·트릴(`trills`, 두 레인을 번갈아 치는 4개 이상)·동치(`chords`)·연타(`jacks`, 같은 레인을 260ms 안에 다시)·롱잡(`holdTaps`, 다른 레인의 롱노트를 잡은 채 치는 노트)의 비율과, 빠른 단타(260ms 이하 간격) 이동 중 세 칸 이상 건너뛰는 비율(`leaps`). 생성·편집·가져온 채보 모두 있다(`difficulty/patterns.py`). |
+| `patterns` | 패턴 성향: 키 노트 중 계단(`stairs`, 400ms 안으로 이어지는 단타가 한 칸씩 3개 이상)·트릴(`trills`, 같은 단타 줄기에서 두 레인을 4번 이상 번갈아)·동치(`chords`)·연타(`jacks`, 같은 레인을 260ms 안에 다시)·롱잡(`holdTaps`, 다른 레인의 롱노트를 잡은 채 치는 노트)의 비율과, 빠른 단타(260ms 이하 간격) 이동 중 세 칸 이상 건너뛰는 비율(`leaps`). 생성·편집·가져온 채보 모두 있다(`difficulty/patterns.py`). |
 | `keysound` | 채보 정보에 보이는 주 키음 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 실제 키음은 클라이언트가 노트의 `src`로 노트마다 만든다(노트의 10% 이상이 따르는 스템). 분석에 스템 정보가 없으면 `null`(키음을 켜도 원곡 그대로 재생). |
 | `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
-| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). 생성 채보에만 있다. |
+| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성, 기본 기준이 아니면 `system`, 이전 배치로 만들었으면 `patternEngine: "classic"`). 생성 채보에만 있다. |
 | `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
 | `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE 또는 난이도·레벨, 에디터에서 정한 이름). `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–3 EASY … 13–15 MASTER)이다. |
 | `keysoundGain` | 가져온 키음 채보: 키음을 모두 섞어도 클리핑하지 않게 하는 게인. BGM과 노트 소리에 같이 곱한다. |
@@ -129,6 +129,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - 사이드 트랙 노트를 놓치면 BREAK가 아니라 MAX 1%다.
 - 배치 옵션(MIRROR·RANDOM 등)과 연습 구간은 클라이언트가 플레이 직전에 노트의 `lane`을 바꾸거나 일부만 골라 적용한다. 채보 파일과 `chartId`는 바뀌지 않는다.
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
+- `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
 - `difficultySystem`·`levelScale`은 난이도 기준(DJMAX · EZ2ON)과 함께 추가됐다. 없으면 기본 기준이다. 생성기 파라미터의 `system`도 기본 기준이 아닐 때만 있어서, 기본 기준 채보의 `chartId`는 그대로다.
 

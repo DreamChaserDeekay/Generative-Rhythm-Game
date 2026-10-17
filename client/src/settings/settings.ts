@@ -28,6 +28,8 @@ export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100';
 
 export type GenStyle = 'balanced' | 'stream' | 'chord' | 'jack' | 'longnote' | 'technical' | 'melody';
 export type RhythmSource = 'auto' | 'drum' | 'bass' | 'melody' | 'vocal';
+/** designer = patterns planned per phrase; classic = the earlier note-by-note placement (to compare). */
+export type PatternEngine = 'designer' | 'classic';
 
 /** Advanced generation options; null leaves the difficulty preset's value. */
 export interface GenerationPrefs {
@@ -42,6 +44,7 @@ export interface GenerationPrefs {
   instrumentMapping: number | null;
   /** 1 = reuse lane patterns in repeated sections, 0 = off (null = server default). */
   repeatConsistency: number | null;
+  patternEngine: PatternEngine;
 }
 
 export const GEN_STYLES: GenStyle[] = ['balanced', 'stream', 'chord', 'jack', 'longnote', 'technical', 'melody'];
@@ -56,6 +59,7 @@ export const DEFAULT_GENERATION: GenerationPrefs = {
   specialRate: null,
   instrumentMapping: null,
   repeatConsistency: null,
+  patternEngine: 'designer',
 };
 
 export interface Settings {
@@ -220,6 +224,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
     specialRate: optional(g.specialRate, 0, 0.2),
     instrumentMapping: optional(g.instrumentMapping, 0, 1),
     repeatConsistency: optional(g.repeatConsistency, 0, 1),
+    patternEngine: pick(g.patternEngine, ['designer', 'classic'] as PatternEngine[], DEFAULT_GENERATION.patternEngine),
   };
   return s;
 }

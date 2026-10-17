@@ -21,6 +21,18 @@ test('charts are generated on the DJMAX, EZ2ON and original difficulty scales', 
   expect(mx).toBeGreaterThanOrEqual(8);
   // the chart's pattern profile: six shares in percent
   await expect(page.getByTestId('pattern-mix').locator('.pattern-chip')).toHaveText([/계단 \d+%/, /트릴 \d+%/, /동치 \d+%/, /연타 \d+%/, /롱잡 \d+%/, /도약 \d+%/]);
+  // the earlier note-by-note placement stays available to compare
+  const classic = page.waitForRequest(
+    (r) => r.method() === 'POST' && new URL(r.url()).pathname.endsWith('/charts') && (r.postData() ?? '').includes('"patternEngine":"classic"'),
+  );
+  await page.getByTestId('toggle-generation').click();
+  await page.getByTestId('pattern-engine-classic').click();
+  await page.getByTestId('generate-button').click();
+  await classic;
+  await expect(page.getByTestId('toggle-generation')).toContainText('이전 배치');
+  await page.getByTestId('pattern-engine').getByRole('button', { name: '악구·패턴' }).click();
+  await page.getByTestId('toggle-generation').click();
+  await expect(page.getByTestId('toggle-generation')).not.toContainText('이전 배치');
   await page.getByRole('button', { name: /^SC/ }).click();
   await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toHaveText(/^SC \d+$/, { timeout: 30_000 });
