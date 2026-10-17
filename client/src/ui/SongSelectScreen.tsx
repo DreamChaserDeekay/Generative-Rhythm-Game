@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { api, ApiError, type Health, type ServerChart, type Song } from '../api/client';
-import { songBuffer, forgetSongBuffer, stemBuffer } from '../audio/bufferCache';
+import {
+  api,
+  ApiError,
+  EXPORT_LABELS,
+  exportFormats,
+  type Health,
+  type ImportResult,
+  type SavedChart,
+  type ServerChart,
+  type Song,
+} from '../api/client';
+import { forgetSongBuffer } from '../audio/bufferCache';
 import { enabledKeyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
@@ -10,6 +20,7 @@ import { AnalysisView } from './AnalysisView';
 import { ChartMinimap } from './ChartMinimap';
 import { lampClass } from './lamps';
 import { GenerationPanel, generationParams, PlayRulesPanel, PracticePanel, STYLE_LABELS } from './PlayOptions';
+import { buildPlayRequest } from './playRequest';
 import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
@@ -18,6 +29,8 @@ interface Props {
   onPlay: (request: PlayRequest) => void;
   onCalibrate: () => void;
   onOpenSettings: () => void;
+  /** Open the chart editor on a chart of the selected song. */
+  onEdit: (chart: ServerChart, song: Song) => void;
   selectedSongId: string | null;
   onSelectSong: (id: string | null) => void;
 }
@@ -34,6 +47,10 @@ const SKILL_LABELS: [string, string][] = [
 ];
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
+const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
+const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
+const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
+const KIND_LABELS: Record<string, string> = { edited: '편집', imported: '가져옴' };
 const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
 const BACKEND_KIND_LABELS: Record<string, string> = { stems: '스템', beats: '비트', pitch: '음높이', structure: '구조' };
 
@@ -69,7 +86,11 @@ export function SongSelectScreen(props: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<'none' | 'rules' | 'generation'>('none');
   const [practice, setPractice] = useState<PracticeOptions | null>(null);
+  const [savedCharts, setSavedCharts] = useState<SavedChart[]>([]);
+  const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const preview = useRef<HTMLAudioElement | null>(null);
 
@@ -124,6 +145,22 @@ export function SongSelectScreen(props: Props) {
     setPractice(null);
   }, [selectedSongId, keyMode, difficulty, targetLevel, generationKey]);
 
+  // Edited and imported charts of the selected song.
+  const loadSaved = useCallback(async (songId: string | null) => {
+    if (!songId) {
+      setSavedCharts([]);
+      return;
+    }
+    try {
+      setSavedCharts(await api.savedCharts(songId));
+    } catch {
+      setSavedCharts([]);
+    }
+  }, []);
+  useEffect(() => {
+    void loadSaved(selectedSongId);
+  }, [selectedSongId, loadSaved]);
+
   // Highlight preview of the selected song.
   useEffect(() => {
     preview.current?.pause();
@@ -159,6 +196,50 @@ export function SongSelectScreen(props: Props) {
       }
     }
     setBusy(null);
+  };
+
+  /** Chart packages: files picked one by one, a picked folder, or .zip/.osz archives. */
+  const importFiles = async (list: FileList | File[]) => {
+    const files = Array.from(list)
+      .filter((f) => IMPORT_FILE.test(f.name))
+      .map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
+    if (!files.some((f) => CHART_FILE.test(f.file.name))) {
+      setError('가져올 채보 파일이 없습니다 (.osz · .zip · .osu · .bms · .bme · .bml · .bmson)');
+      return;
+    }
+    setBusy('채보 가져오는 중… (키음이 많으면 시간이 걸립니다)');
+    setError(null);
+    setImportReport(null);
+    try {
+      const result = await api.importPackage(files);
+      setImportReport(result);
+      await refresh();
+      if (result.songs.length > 0) {
+        onSelectSong(result.songs[0].id);
+        await loadSaved(result.songs[0].id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(null);
+  };
+
+  const pickSaved = async (c: SavedChart) => {
+    setError(null);
+    setPractice(null);
+    try {
+      setChart(await api.chart(c.chartId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const deleteSaved = async (c: SavedChart) => {
+    if (!window.confirm(`"${c.name}" 채보를 지울까요? 이 채보의 기록도 함께 지워집니다.`)) return;
+    await api.deleteChart(c.chartId).catch((e: Error) => setError(e.message));
+    if (chart?.meta.chartId === c.chartId) setChart(null);
+    await loadSaved(selectedSongId);
+    await refresh();
   };
 
   const addDemo = async () => {
@@ -201,22 +282,14 @@ export function SongSelectScreen(props: Props) {
     const c = chart ?? (await generate());
     if (!c) return;
     preview.current?.pause();
-    const songId = selected.id;
     const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
-    const lead = settings.keysound ? c.meta.keysound?.stem : undefined;
-    onPlay({
-      chart: c,
-      autoPlay,
-      loadAudio: () => songBuffer(songId),
-      loadLead: lead ? () => stemBuffer(songId, lead) : undefined,
-      best: best ? { score: best.score, rate: best.rate } : null,
-      practice: practice ?? undefined,
-      background: {
-        coverUrl: selected.hasCover ? api.coverUrl(songId) : null,
-        bgaUrl: selected.hasBga ? api.bgaUrl(songId) : null,
-        bgaOffsetMs: selected.bgaOffsetMs ?? 0,
-      },
-    });
+    onPlay(
+      buildPlayRequest(selected, c, settings, {
+        autoPlay,
+        best: best ? { score: best.score, rate: best.rate } : null,
+        practice: practice ?? undefined,
+      }),
+    );
   };
 
   const reanalyze = async () => {
@@ -320,7 +393,9 @@ export function SongSelectScreen(props: Props) {
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    if (e.dataTransfer.files.length > 0) void upload(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.some((f) => CHART_FILE.test(f.name))) void importFiles(files);
+    else if (files.length > 0) void upload(files);
   };
 
   const records = (selected?.records ?? []).filter((r) => r.keyMode === keyMode);
@@ -362,6 +437,38 @@ export function SongSelectScreen(props: Props) {
               곡 추가
             </button>
             <button data-testid="demo-button" onClick={() => void addDemo()} disabled={health === 'offline'}>데모 곡</button>
+            <button data-testid="import-button" onClick={() => importInput.current?.click()} disabled={health === 'offline'} title="osu!mania(.osz·.osu) · BMS · bmson 채보 파일이나 압축 파일">
+              채보 가져오기
+            </button>
+            <button data-testid="import-folder-button" onClick={() => folderInput.current?.click()} disabled={health === 'offline'} title="BMS·bmson 폴더(키음 포함)">
+              폴더
+            </button>
+            <input
+              ref={importInput}
+              type="file"
+              accept={IMPORT_ACCEPT}
+              multiple
+              hidden
+              data-testid="import-input"
+              onChange={(e) => {
+                if (e.target.files) void importFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <input
+              ref={(el) => {
+                folderInput.current = el;
+                el?.setAttribute('webkitdirectory', '');
+              }}
+              type="file"
+              multiple
+              hidden
+              data-testid="import-folder-input"
+              onChange={(e) => {
+                if (e.target.files) void importFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
             <input
               ref={fileInput}
               type="file"
@@ -375,6 +482,20 @@ export function SongSelectScreen(props: Props) {
               }}
             />
           </div>
+          {importReport && (
+            <div className="import-report" data-testid="import-report">
+              <div className="row">
+                <strong>채보 {importReport.charts.length}개를 가져왔습니다</strong>
+                <button className="small" onClick={() => setImportReport(null)}>닫기</button>
+              </div>
+              {importReport.warnings.length > 0 && (
+                <details>
+                  <summary>알림 {importReport.warnings.length}개</summary>
+                  <ul>{importReport.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                </details>
+              )}
+            </div>
+          )}
           <input type="search" className="search" placeholder="제목·아티스트 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className={`song-list ${dragOver ? 'drag' : ''}`} data-testid="song-list">
             {filtered.length === 0 && (
@@ -512,12 +633,32 @@ export function SongSelectScreen(props: Props) {
                 {error && <p className="error" data-testid="select-error">{error}</p>}
               </section>
 
+              {savedCharts.length > 0 && (
+                <section className="panel saved-charts" data-testid="saved-charts">
+                  <h3>저장된 채보</h3>
+                  {savedCharts.map((c) => (
+                    <div key={c.chartId} className={`saved-chart ${chart?.meta.chartId === c.chartId ? 'active' : ''}`} data-testid="saved-chart">
+                      <span className={`kind kind-${c.kind}`}>{KIND_LABELS[c.kind] ?? c.kind}</span>
+                      <span className="name">{c.name || `${c.keyMode} ${c.difficulty}`}</span>
+                      <span className="sub">
+                        {c.keyMode} · Lv.{c.level} · 노트 {c.noteCount}
+                      </span>
+                      <button className="small" data-testid="pick-saved" onClick={() => void pickSaved(c)}>
+                        고르기
+                      </button>
+                      <button className="small danger" onClick={() => void deleteSaved(c)}>삭제</button>
+                    </div>
+                  ))}
+                </section>
+              )}
+
               {chart && (
                 <ChartPreview
                   chart={chart}
                   palette={settings.palette}
                   practice={practice}
                   onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
+                  onEdit={() => props.onEdit(chart, selected)}
                 />
               )}
 
@@ -620,6 +761,7 @@ function ChartPreview(props: {
   palette: Palette;
   practice: PracticeOptions | null;
   onSelectRange: (startMs: number, endMs: number) => void;
+  onEdit: () => void;
 }) {
   const { chart } = props;
   const m = chart.meta;
@@ -652,7 +794,26 @@ function ChartPreview(props: {
               <span className="label">반복 패턴 일치</span> {Math.round(m.repeatConsistency * 100)}%
             </div>
           )}
+          {m.source && m.source.kind !== 'generated' && (
+            <div data-testid="chart-source">
+              <span className="label">{KIND_LABELS[m.source.kind] ?? m.source.kind}</span> {m.chartName ?? ''}
+              {m.source.format ? ` (${EXPORT_LABELS[m.source.format]})` : ''}
+              {(chart.sounds?.length ?? 0) > 0 ? ` · 키음 ${chart.sounds?.length}개` : ''}
+            </div>
+          )}
         </div>
+      </div>
+      <div className="row preview-actions">
+        <button className="small" data-testid="edit-chart" onClick={props.onEdit}>
+          채보 편집
+        </button>
+        <span className="label">내보내기</span>
+        {exportFormats(m.keyMode).map((f) => (
+          <a key={f} className="button small" href={api.exportUrl(m.chartId, f)} download data-testid={`export-${f}`}>
+            {EXPORT_LABELS[f]}
+          </a>
+        ))}
+        <span className="hint">음원은 넣지 않고 파일 이름만 적습니다</span>
       </div>
       {m.keysound && (
         <div className="stem-mix" data-testid="stem-mix" title="노트가 따라가는 악기(스템) 비율">

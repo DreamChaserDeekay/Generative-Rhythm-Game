@@ -29,6 +29,8 @@ export class AudioEngine implements SongClock {
   readonly clock: AudioClock;
   /** Taps the music for the background visualizer. */
   readonly analyser: AnalyserNode;
+  /** Note keysounds of imported charts join the music here (music volume and visualizer). */
+  readonly keysoundBus: GainNode;
   private readonly musicGain: GainNode;
   private readonly sfxGain: GainNode;
   private buffer: AudioBuffer | null = null;
@@ -49,6 +51,8 @@ export class AudioEngine implements SongClock {
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = ANALYSER_FFT;
     this.analyser.smoothingTimeConstant = 0.75;
+    this.keysoundBus = this.ctx.createGain();
+    this.keysoundBus.connect(this.musicGain);
     this.musicGain.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
     this.sfxGain.connect(this.ctx.destination);
@@ -180,6 +184,11 @@ export class AudioEngine implements SongClock {
   songTimeAtPerf(perfMs: number): number {
     if (this.pausedSongMs !== null) return this.pausedSongMs;
     return (this.clock.contextTimeAtPerf(perfMs) - this.anchorSec) * 1000 * this.placement.rate;
+  }
+
+  /** AudioContext time at which song time `songMs` plays (to schedule sounds on the song). */
+  contextTimeForSong(songMs: number): number {
+    return this.anchorSec + songMs / 1000 / this.placement.rate;
   }
 
   perfAtSongTime(songMs: number): number {

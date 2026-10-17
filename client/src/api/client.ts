@@ -9,11 +9,47 @@ export interface ScoreRecord {
   difficulty: string;
   level: number;
   seed: number;
+  kind?: 'generated' | 'edited' | 'imported';
+  name?: string;
   score: number;
   rate: number;
   maxCombo: number;
   lamp: string;
   plays: number;
+}
+
+/** An edited or imported chart kept in the library. */
+export interface SavedChart {
+  chartId: string;
+  songId: string;
+  keyMode: KeyModeId;
+  difficulty: string;
+  level: number;
+  noteCount: number;
+  kind: 'edited' | 'imported';
+  name: string;
+  createdAt: number;
+}
+
+export interface ImportResult {
+  songs: Song[];
+  charts: { chartId: string; songId: string; keyMode: KeyModeId; level: number; name: string; noteCount: number }[];
+  warnings: string[];
+}
+
+export interface KeysoundIndex {
+  sampleRate: number;
+  gain: number;
+  /** [first sample, length] of every sound in the sprite. */
+  sounds: Record<string, [number, number]>;
+}
+
+export type ExportFormat = 'osu' | 'bms' | 'bmson';
+export const EXPORT_LABELS: Record<ExportFormat, string> = { osu: 'osu!mania', bms: 'BMS', bmson: 'bmson' };
+
+/** Formats a key mode can be exported to (BMS players know 5K and 7K+1S only). */
+export function exportFormats(keyMode: KeyModeId): ExportFormat[] {
+  return keyMode === '5K' || keyMode === '7K+1S' ? ['osu', 'bms', 'bmson'] : ['osu'];
 }
 
 export interface Song {
@@ -41,6 +77,8 @@ export interface Song {
   outdated?: boolean;
   hasBga: boolean;
   bgaOffsetMs: number;
+  /** File name of the uploaded audio (exports refer to it). */
+  originalName?: string;
   records?: ScoreRecord[];
 }
 
@@ -175,6 +213,24 @@ export const api = {
     return (await request<{ song: Song }>(`/api/songs/${id}/bga`, { method: 'POST', body: form })).song;
   },
   deleteBga: (id: string) => request<void>(`/api/songs/${id}/bga`, { method: 'DELETE' }),
+  savedCharts: async (songId: string) => (await request<{ charts: SavedChart[] }>(`/api/songs/${songId}/charts`)).charts,
+  chart: async (chartId: string) => (await request<{ chart: ServerChart }>(`/api/charts/${chartId}`)).chart,
+  saveEditedChart: async (songId: string, baseChartId: string, notes: Chart['notes'], name: string) =>
+    (await request<{ chart: ServerChart }>(`/api/songs/${songId}/charts/custom`, json({ baseChartId, notes, name }))).chart,
+  deleteChart: (chartId: string) => request<void>(`/api/charts/${chartId}`, { method: 'DELETE' }),
+  /** Chart packages: `files` with their paths inside a picked folder (or a .zip/.osz). */
+  importPackage: (files: { file: File; path: string }[]) => {
+    const form = new FormData();
+    for (const { file, path } of files) {
+      form.append('files', file, file.name);
+      form.append('paths', path);
+    }
+    return request<ImportResult>('/api/import', { method: 'POST', body: form });
+  },
+  keysoundIndex: (songId: string) => request<KeysoundIndex>(`/api/songs/${songId}/keysounds.json`),
+  keysoundUrl: (songId: string) => `/api/songs/${songId}/keysounds.flac`,
+  exportUrl: (chartId: string, format: ExportFormat, offsetMs = 0) =>
+    `/api/charts/${chartId}/export?format=${format}${offsetMs ? `&offsetMs=${offsetMs}` : ''}`,
   audioUrl: (id: string) => `/api/songs/${id}/audio`,
   stemUrl: (id: string, stem: StemName) => `/api/songs/${id}/stems/${stem}`,
   coverUrl: (id: string) => `/api/songs/${id}/cover`,

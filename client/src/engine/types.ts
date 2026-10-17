@@ -16,6 +16,21 @@ export interface ChartNote {
   endT?: number;
   /** Stem whose sound the note follows (charts generated from stem analysis). */
   src?: StemName;
+  /** Keysound (index into `Chart.sounds`) played when the note is pressed (imported BMS/bmson). */
+  snd?: number;
+  /** Start that many ms into the sound (bmson channels that continue a sliced stem). */
+  so?: number;
+  /** Stop the sound after that many ms (the next start of the same sound). */
+  sl?: number;
+}
+
+/** A keysound that plays on its own, whatever the player does (BMS background channel). */
+export interface ChartBgmEvent {
+  beat: number;
+  t: number;
+  snd: number;
+  so?: number;
+  sl?: number;
 }
 
 /** SDVX-style camera cue: `tilt` eases the track to `value` (-1..1), `zoom` is a pulse (0..1). */
@@ -72,6 +87,12 @@ export interface ChartMeta {
   /** Lead stem for the stem keysound mode and the share of notes following each stem. */
   keysound?: { stem: StemName; share: number; shares: Record<StemName, number> } | null;
   repeatConsistency?: number | null;
+  /** Where the chart came from: generated (absent), edited in the editor or imported from a file. */
+  source?: { kind: 'generated' | 'edited' | 'imported'; format?: 'osu' | 'bms' | 'bmson'; file?: string; from?: string };
+  /** Display name of an edited/imported chart (osu! Version, BMS difficulty …). */
+  chartName?: string;
+  /** Gain applied to the keysounds of an imported chart so the full mix does not clip. */
+  keysoundGain?: number;
   generator?: {
     version: string;
     analyzer: string;
@@ -87,4 +108,8 @@ export interface Chart {
   sections?: ChartSection[];
   effects?: ChartEffect[];
   notes: ChartNote[];
+  /** Keysound file names of an imported chart (`snd` indexes into it). */
+  sounds?: string[];
+  /** Background keysound events of an imported chart. */
+  bgm?: ChartBgmEvent[];
 }

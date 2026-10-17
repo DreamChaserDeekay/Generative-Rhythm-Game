@@ -138,6 +138,10 @@ export interface SessionNote {
   broken: boolean;
   /** Stem the note follows (stem keysound mode). */
   src?: StemName;
+  /** Keysound of an imported chart (see ChartNote). */
+  snd?: number;
+  so?: number;
+  sl?: number;
 }
 
 /**
@@ -208,6 +212,9 @@ export class GameSession {
         tailDone: !isHold,
         broken: false,
         src: n.src,
+        snd: n.snd,
+        so: n.so,
+        sl: n.sl,
       };
     });
     this.notes = this.runtime;

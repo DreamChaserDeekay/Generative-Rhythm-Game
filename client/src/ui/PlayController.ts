@@ -1,5 +1,6 @@
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
+import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
 import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
@@ -38,6 +39,8 @@ export interface PlaySetup {
   buffer: AudioBuffer | null;
   /** Lead stem for the keysound mode (null = off). */
   lead: AudioBuffer | null;
+  /** Note keysounds of an imported chart (null = none). */
+  keysounds?: KeysoundBank | null;
   /** Where the buffer sits on the song timeline (practice buffers are stretched segments). */
   bufferPlacement: BufferPlacement;
   settings: Settings;
@@ -75,6 +78,10 @@ const HI_SPEED_STEP = 0.1;
 const HI_SPEED_STEP_BIG = 0.5;
 const COVER_STEP = 0.025;
 const FEVER_KEY = 'Enter';
+/** Autoplay keysounds are scheduled this far ahead so they land exactly on the notes. */
+const KEYSOUND_LOOKAHEAD_MS = 120;
+/** An empty press plays the lane's next note if it is at most this far ahead (BMS). */
+const EMPTY_PRESS_REACH_MS = 1000;
 /** Judgement text and combo distance up the track, as shares of the travel distance. */
 const HUD_POSITIONS = { low: [0.08, 0.36], mid: [0.16, 0.42], high: [0.32, 0.56] } as const;
 
@@ -101,6 +108,13 @@ export class PlayController {
   private readonly background: PlayBackground;
   /** Notes whose miss dips the keysound stem (by session note index). */
   private readonly keysoundStem: string | null;
+  /** Note keysounds (imported BMS/bmson charts). */
+  private readonly voices: KeysoundVoices | null;
+  /** Session note indices of each lane in time order (empty presses play the next one). */
+  private readonly laneNotes: number[][];
+  private nextAutoKeysound = 0;
+  /** Note judged by the press being handled (to play its keysound). */
+  private pressJudged: number | null = null;
   private settings: Settings;
   private scroll!: ScrollModel;
   private session!: GameSession;
@@ -140,6 +154,12 @@ export class PlayController {
     });
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.keysoundStem = setup.lead ? (this.chart.meta.keysound?.stem ?? null) : null;
+    this.voices =
+      setup.keysounds && this.chart.sounds
+        ? new KeysoundVoices(this.engine.ctx, this.engine.keysoundBus, setup.keysounds, this.chart.sounds)
+        : null;
+    this.engine.keysoundBus.gain.value = setup.keysounds?.gain ?? 1;
+    this.laneNotes = [];
     this.background = new PlayBackground({
       root: setup.bgRoot,
       coverUrl: request.background?.coverUrl ?? null,
@@ -208,6 +228,7 @@ export class PlayController {
     if (this.state !== 'running') return;
     this.input.releaseAll();
     this.input.enabled = false;
+    this.voices?.stopAll();
     this.engine.pause();
     this.state = 'paused';
     this.callbacks.onPauseChange(true);
@@ -217,6 +238,9 @@ export class PlayController {
     if (this.state !== 'paused') return;
     const at = this.engine.songTimeAtPerf(performance.now());
     this.engine.start(at, RESUME_LEAD_IN_MS);
+    // autoplay keysounds already past were cancelled by the pause; continue from here
+    this.nextAutoKeysound = this.session.notes.findIndex((n) => n.t >= at);
+    if (this.nextAutoKeysound < 0) this.nextAutoKeysound = this.session.notes.length;
     this.input.enabled = true;
     this.state = 'running';
     this.callbacks.onPauseChange(false);
@@ -261,10 +285,13 @@ export class PlayController {
     });
     this.renderer.reset();
     this.unsubscribe = this.session.on(this.onSessionEvent);
+    this.laneNotes.length = 0;
+    for (const n of this.session.notes) (this.laneNotes[n.lane] ??= []).push(n.index);
+    this.nextAutoKeysound = 0;
     this.input = new InputManager(
       this.engine,
       bindingsFor(settings, this.chart.meta.keyMode),
-      { press: (lane, t) => this.session.press(lane, t), release: (lane, t) => this.session.release(lane, t) },
+      { press: (lane, t) => this.onPress(lane, t), release: (lane, t) => this.session.release(lane, t) },
       settings.inputOffsetMs * this.rate,
     );
     this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
@@ -285,7 +312,39 @@ export class PlayController {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.input?.detach();
+    this.voices?.stopAll();
     this.engine.stop();
+  }
+
+  /** A press: judged by the session, and with keysounds the judged (or the lane's next) note sounds. */
+  private onPress(lane: number, timeMs: number): void {
+    this.pressJudged = null;
+    this.session.press(lane, timeMs);
+    if (!this.voices || this.setup.request.autoPlay) return;
+    const index = this.pressJudged ?? this.nextNoteOf(lane, timeMs);
+    const note = index !== null ? this.session.notes[index] : undefined;
+    // the key went down at (judgement time + input offset); that moment has passed, so it sounds now
+    if (note) this.voices.play(note, this.engine.contextTimeForSong(timeMs + this.settings.inputOffsetMs * this.rate));
+  }
+
+  private nextNoteOf(lane: number, timeMs: number): number | null {
+    const notes = this.session.notes;
+    for (const i of this.laneNotes[lane] ?? []) {
+      if (notes[i].t >= timeMs) return notes[i].t - timeMs <= EMPTY_PRESS_REACH_MS * this.rate ? i : null;
+    }
+    return null;
+  }
+
+  /** Autoplay: schedule upcoming note keysounds on the song clock. */
+  private scheduleAutoKeysounds(songNow: number): void {
+    const voices = this.voices;
+    if (!voices) return;
+    const notes = this.session.notes;
+    const horizon = songNow + KEYSOUND_LOOKAHEAD_MS * this.rate;
+    while (this.nextAutoKeysound < notes.length && notes[this.nextAutoKeysound].t <= horizon) {
+      const n = notes[this.nextAutoKeysound++];
+      if (n.t >= songNow - KEYSOUND_LOOKAHEAD_MS * this.rate) voices.play(n, this.engine.contextTimeForSong(n.t));
+    }
   }
 
   private rebuildScroll(): void {
@@ -321,7 +380,10 @@ export class PlayController {
     const session = this.session;
 
     if (this.state === 'running') {
-      if (this.auto) for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
+      if (this.auto) {
+        for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
+        this.scheduleAutoKeysounds(songNow);
+      }
       session.update(judgeNow);
       const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
       if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
@@ -418,6 +480,7 @@ export class PlayController {
   private readonly onSessionEvent = (e: SessionEvent): void => {
     const now = performance.now();
     if (e.type === 'judge') {
+      if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
       if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
       if (this.keysoundStem) {
@@ -430,7 +493,7 @@ export class PlayController {
       }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
-    } else if (e.type === 'key' && e.down && this.settings.hitSound) {
+    } else if (e.type === 'key' && e.down && this.settings.hitSound && !this.voices) {
       this.engine.playHitSound();
     } else if (e.type === 'fail') {
       this.beginEnding(now, true);

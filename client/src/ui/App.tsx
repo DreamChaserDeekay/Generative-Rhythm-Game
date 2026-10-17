@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ServerChart, Song } from '../api/client';
+import type { KeysoundBank } from '../audio/keysounds';
 import type { Chart } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
+import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
 import { SettingsScreen } from './SettingsScreen';
+import { buildPlayRequest } from './playRequest';
 import { SongSelectScreen } from './SongSelectScreen';
 
 export interface PracticeOptions {
@@ -32,6 +36,10 @@ export interface PlayRequest {
   loadLead?: () => Promise<AudioBuffer | null>;
   /** Background layer: blurred jacket and the user's video. */
   background?: { coverUrl: string | null; bgaUrl: string | null; bgaOffsetMs: number };
+  /** Imported keysound chart: the sounds the notes play (`loadAudio` gives the rendered background). */
+  loadKeysounds?: () => Promise<KeysoundBank>;
+  /** Test play from the chart editor: leaving the play (or its result) returns to the editor. */
+  fromEditor?: boolean;
 }
 
 type Screen =
@@ -39,12 +47,14 @@ type Screen =
   | { name: 'play'; request: PlayRequest; runId: number }
   | { name: 'result'; request: PlayRequest; outcome: PlayOutcome }
   | { name: 'calibration' }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'editor' };
 
 export function App() {
   const [settings, setSettingsState] = useState<Settings>(() => loadSettings());
   const [screen, setScreen] = useState<Screen>({ name: 'select' });
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorSession | null>(null);
 
   const setSettings = useCallback((next: Settings) => {
     setSettingsState(next);
@@ -58,6 +68,16 @@ export function App() {
 
   const play = useCallback((request: PlayRequest) => setScreen({ name: 'play', request, runId: Date.now() }), []);
   const toSelect = useCallback(() => setScreen({ name: 'select' }), []);
+  const leavePlay = (request: PlayRequest) => setScreen(request.fromEditor && editor ? { name: 'editor' } : { name: 'select' });
+  const openEditor = useCallback((chart: ServerChart, song: Song) => {
+    setEditor(newEditorSession(song, chart));
+    setScreen({ name: 'editor' });
+  }, []);
+  const testFromEditor = (chart: Chart, startMs: number) => {
+    if (!editor) return;
+    const endMs = Math.max(editor.song.durationMs, ...chart.notes.map((n) => n.endT ?? n.t)) + 1;
+    play(buildPlayRequest(editor.song, chart, settings, { autoPlay: false, practice: { startMs, endMs, rate: 1, loop: false }, fromEditor: true }));
+  };
 
   switch (screen.name) {
     case 'select':
@@ -68,6 +88,7 @@ export function App() {
           onPlay={play}
           onCalibrate={() => setScreen({ name: 'calibration' })}
           onOpenSettings={() => setScreen({ name: 'settings' })}
+          onEdit={openEditor}
           selectedSongId={selectedSongId}
           onSelectSong={setSelectedSongId}
         />
@@ -80,7 +101,7 @@ export function App() {
           settings={settings}
           onSettingsChange={setSettings}
           onFinish={(outcome) => setScreen({ name: 'result', request: screen.request, outcome })}
-          onQuit={toSelect}
+          onQuit={() => leavePlay(screen.request)}
         />
       );
     case 'result':
@@ -91,12 +112,26 @@ export function App() {
           settings={settings}
           onSettingsChange={setSettings}
           onRetry={() => play(screen.request)}
-          onBack={toSelect}
+          onBack={() => leavePlay(screen.request)}
         />
       );
     case 'calibration':
       return <CalibrationScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
     case 'settings':
       return <SettingsScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
+    case 'editor':
+      if (!editor) return null;
+      return (
+        <EditorScreen
+          session={editor}
+          settings={settings}
+          onExit={() => {
+            setEditor(null);
+            setScreen({ name: 'select' });
+          }}
+          onTestPlay={testFromEditor}
+          onSaved={() => undefined}
+        />
+      );
   }
 }

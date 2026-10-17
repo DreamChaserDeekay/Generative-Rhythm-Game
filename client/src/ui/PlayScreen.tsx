@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
+import type { KeysoundBank } from '../audio/keysounds';
 import { practiceAudio } from '../audio/practiceAudio';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
@@ -30,6 +31,12 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
       try {
         const engine = getAudioEngine();
         await engine.unlock();
+        let keysounds: KeysoundBank | null = null;
+        if (request.loadKeysounds) {
+          setLoadingText('키음 불러오는 중…');
+          keysounds = await request.loadKeysounds();
+          setLoadingText('배경음 준비 중…');
+        }
         let buffer = await request.loadAudio();
         let lead: AudioBuffer | null = null;
         if (request.loadLead && buffer) {
@@ -47,7 +54,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         }
         if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) return;
         controller = new PlayController(
-          { request, buffer, lead, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
+          { request, buffer, lead, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;
