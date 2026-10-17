@@ -205,7 +205,8 @@ def place(analysis: dict, mode: str, tier: str, level: int | None = None, system
     n_keys = sum(1 for l in lanes if l.kind == "key")
     cands = build_candidates(analysis, tempo, params, float(difficulty_config()["snapToleranceMs"]))
     slots = select_slots(cands, params, tempo, 4.0, None, n_keys)
-    plan = plan_patterns(slots, analysis["sections"], params, n_keys, tempo) if engine == "designer" else None
+    hands = tuple(l.hand for l in lanes if l.kind == "key")
+    plan = plan_patterns(slots, analysis["sections"], params, hands, tempo) if engine == "designer" else None
     notes = notes_from_choices(slots, lane_search(slots, lanes, params, tempo, np.random.default_rng(5), plan=plan), tempo)
     return {"meta": {"keyMode": mode}, "notes": notes}
 
@@ -283,8 +284,15 @@ def test_djmax_5k_repeated_notes_become_a_laser() -> None:
     params = resolve_params("5K", "HD", 10, system="DJMAX")
     assert params.thumb_jack_ms == 150.0 and resolve_params("5K", "HD", 10, system="EZ2ON").thumb_jack_ms == 0.0
     chart = place(analysis, "5K", "HD", 10, system="DJMAX")
-    center = [seq.count(2) / max(1, len(seq)) for seq in key_sequence(chart, bars["repeat"])]
-    assert min(center) >= 0.75, center
+    def longest_center_run(seq: list[int]) -> int:
+        best = run = 0
+        for k in seq:
+            run = run + 1 if k == 2 else 0
+            best = max(best, run)
+        return best
+
+    runs = [longest_center_run(seq) for seq in key_sequence(chart, bars["repeat"])]
+    assert min(runs) >= 5, runs  # the middle key repeated by both thumbs
     ez = place(analysis, "5K", "HD", 10, system="EZ2ON")
     # EZ2ON has no laser: the same repeated notes alternate between two keys
     assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
@@ -307,3 +315,110 @@ def test_the_classic_engine_stays_available(dense_song: dict) -> None:
     assert "patternEngine" not in designer["meta"]["generator"]["params"]
     assert classic["meta"]["generator"]["params"]["patternEngine"] == "classic"
     assert classic["meta"]["chartId"] != designer["meta"]["chartId"] and classic["notes"] != designer["notes"]
+
+
+# ---------- P4: roles, sound homes, styles ----------
+
+from rhythm_server.generator.planner import vocabulary  # noqa: E402
+
+
+def groove_analysis(bpm: float = 120.0) -> dict:
+    """Drums on the beats (kick, snare) and a melody on the off-beats, two repetition groups of
+    eight bars each (A, B, A, B)."""
+    beat = 60000.0 / bpm
+    offset = 500.0
+    onsets = []
+    melody = [72, 74, 76, 77, 79, 77, 76, 74]
+    for bar in range(32):
+        for i in range(8):
+            t = offset + (bar * 4 + i / 2) * beat
+            if i % 2 == 0:
+                kick = i % 4 == 0
+                onsets.append({"t": t, "strength": 1.0 if kick else 0.85, "band": "low" if kick else "mid",
+                               "bands": [0.85, 0.1, 0.05] if kick else [0.2, 0.6, 0.2], "pitch": None, "harmonic": 0.1,
+                               "sustainEnd": None, "source": "drums", "sources": [0.9, 0.04, 0.03, 0.03]})
+            else:
+                pitch = melody[(bar * 4 + i // 2) % len(melody)] + (0 if bar % 16 < 8 else 5)
+                onsets.append({"t": t, "strength": 0.8, "band": "mid", "bands": [0.15, 0.6, 0.25], "pitch": float(pitch),
+                               "harmonic": 0.8, "sustainEnd": None, "source": "other", "sources": [0.05, 0.05, 0.1, 0.8]})
+    duration = offset + 32 * 4 * beat + 2000.0
+    sections = []
+    for k in range(4):
+        sections.append({"t": offset + k * 32 * beat, "endT": offset + (k + 1) * 32 * beat, "startBeat": k * 32,
+                         "label": "verse" if k % 2 == 0 else "chorus", "group": "AB"[k % 2], "energy": 0.8, "leader": "drums"})
+    return {
+        "audioHash": f"sha256:groove-{bpm}",
+        "analyzer": {"name": "core", "version": ANALYZER_VERSION},
+        "durationMs": duration,
+        "timing": {"offsetMs": offset, "tempoMap": [{"beat": 0, "bpm": bpm}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]},
+        "onsets": onsets,
+        "sections": sections,
+        "energy": {"frameMs": 100, "values": [0.8] * int(duration / 100)},
+        "overrides": {},
+    }
+
+
+def hand_sides(chart: dict, mode: str) -> dict[tuple[str, str], list[str]]:
+    """Hands of the single notes by (section group, role)."""
+    lanes = lane_infos(mode)
+    by_t: dict[float, list[dict]] = {}
+    for n in chart["notes"]:
+        by_t.setdefault(round(n["t"], 3), []).append(n)
+    out: dict[tuple[str, str], list[str]] = {}
+    for ns in by_t.values():
+        if len(ns) != 1 or lanes[ns[0]["lane"]].kind != "key":
+            continue
+        n = ns[0]
+        group = "AB"[int(n["beat"] // 32) % 2]
+        role = "drums" if abs(n["beat"] - round(n["beat"])) < 1e-6 else "melody"
+        out.setdefault((group, role), []).append(lanes[n["lane"]].hand)
+    return out
+
+
+def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:
+    a = groove_analysis()
+
+    def side(hands: list[str]) -> tuple[str, float]:
+        main = max(set(hands), key=hands.count)
+        return main, hands.count(main) / len(hands)
+
+    for system, tier, level, flips in (("DJMAX", "MX", 13, True), ("EZ2ON", "HD", 14, False)):
+        sides = hand_sides(place(a, "6K", tier, level, system=system), "6K")
+        drums_a, share_da = side(sides[("A", "drums")])
+        melody_a, share_ma = side(sides[("A", "melody")])
+        drums_b, _ = side(sides[("B", "drums")])
+        assert drums_a != melody_a and share_da >= 0.85 and share_ma >= 0.85, (system, sides)
+        assert (drums_b != drums_a) == flips, system  # DJMAX swaps sides per repetition group, EZ2ON keeps them
+    # easy charts do not split the hands
+    assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NM", 4, system="DJMAX"), "6K").values() if len(h) > 8)
+
+
+def test_ez2on_drums_keep_their_keys_for_the_whole_song() -> None:
+    a = groove_analysis()
+    chart = place(a, "6K", "HD", 14, system="EZ2ON")
+    by_beat: dict[float, list[int]] = {}
+    for n in chart["notes"]:
+        by_beat.setdefault(n["beat"], []).append(n["lane"])
+    kicks: dict[str, list[int]] = {}
+    for beat, lanes in by_beat.items():
+        if abs(beat % 2) < 1e-6 and len(lanes) == 1:  # single-note kicks (beats 1 and 3; downbeats are often chords)
+            kicks.setdefault("AB"[int(beat // 32) % 2], []).append(lanes[0])
+    main = {g: max(set(v), key=v.count) for g, v in kicks.items()}
+    assert main["A"] == main["B"]
+    assert all(v.count(main[g]) / len(v) >= 0.8 for g, v in kicks.items())
+
+
+def test_key_mode_habits_of_each_game(dense_song: dict) -> None:
+    def weight(mode: str, system: str, tier: str) -> float:
+        return vocabulary(resolve_params(mode, tier, system=system)).get("jack", {}).get("weight", 0.0)
+
+    assert weight("4K", "DJMAX", "MX") > weight("6K", "DJMAX", "MX") and weight("4K", "DJMAX", "MX") > weight("4K", "EZ2ON", "HD")
+    assert resolve_params("8K", "HD", system="EZ2ON").chord_size_power < resolve_params("8K", "MX", system="DJMAX").chord_size_power
+
+    def big_chords(chart: dict) -> float:
+        sizes = [len(c) for c in chords_of(chart)]
+        return sum(1 for x in sizes if x >= 3) / max(1, len(sizes))
+
+    designer = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON")
+    classic = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON", overrides={"patternEngine": "classic"})
+    assert big_chords(designer) > big_chords(classic) + 0.05

@@ -82,6 +82,7 @@ def generate_chart(
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")
 
     key_count = sum(1 for l in lanes if l.kind == "key")
+    key_hands = tuple(l.hand for l in lanes if l.kind == "key")
     factor = params.level_factor
     table = params.level_table
     lo, hi = params.levels
@@ -98,7 +99,7 @@ def generate_chart(
     sections = analysis.get("sections", [])
     for _ in range(int(cfg["maxAdjustIterations"])):
         slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-        plan = plan_patterns(slots, sections, params, key_count, tempo) if params.pattern_engine == "designer" else None
+        plan = plan_patterns(slots, sections, params, key_hands, tempo) if params.pattern_engine == "designer" else None
         choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = notes_from_choices(slots, choices, tempo)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)

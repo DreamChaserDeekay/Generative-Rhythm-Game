@@ -170,7 +170,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
     for rank, i in enumerate(order):
         top = rank / max(1, len(order))
         extra = max_chord - 2
-        size = 2 + (int(round(extra * (1.0 - top) ** 3)) if extra > 0 else 0)
+        size = 2 + (int(round(extra * (1.0 - top) ** params.chord_size_power)) if extra > 0 else 0)
         slots[i].size = max(2, min(max_chord, size))
 
 

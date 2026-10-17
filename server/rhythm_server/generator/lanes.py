@@ -157,7 +157,7 @@ def lane_search(
     hands = [l.hand for l in lanes]
     # a shared middle key can be hit by either thumb, so it may repeat faster (DJMAX 5K "laser")
     min_gap = [params.thumb_jack_ms if l.hand == "T" and params.thumb_jack_ms else params.min_jack_ms for l in lanes]
-    ctx: MotifContext | None = motif_context(lanes, params.skill) if plan else None
+    ctx: MotifContext | None = motif_context(lanes, params.skill, params.instrument_mapping, params.system) if plan else None
     combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = {}
     neg = -1e9
     beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None)]

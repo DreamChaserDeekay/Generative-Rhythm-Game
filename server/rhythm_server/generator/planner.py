@@ -18,7 +18,7 @@ from .repeat import repeat_references
 from .select import Slot
 from .tempo import TempoMap
 
-DRUMS = STEM_NAMES.index("drums")
+DRUMS, BASS = STEM_NAMES.index("drums"), STEM_NAMES.index("bass")
 
 
 @dataclass
@@ -173,6 +173,13 @@ def _pedal_notes(slots: list[Slot], idx: list[int]) -> list[bool]:
     return [p == pedal for p in pitches]
 
 
+def layer_of(slot: Slot) -> str:
+    """"rhythm" for drums and bass (the low end, one hand on hard charts), else "melody"."""
+    if slot.sources is None:
+        return "melody" if slot.pitch is not None else "rhythm"
+    return "rhythm" if int(np.argmax(slot.sources)) in (DRUMS, BASS) else "melody"
+
+
 def _sound(slot: Slot) -> tuple[Any, ...]:
     """What makes two slots "the same sound": stem and pitch, or stem and loudest band."""
     src = slot.src
@@ -258,11 +265,20 @@ def phrases_of(slots: list[Slot], sections: list[dict[str, Any]], tempo: TempoMa
     return out
 
 
+def _idioms(params: GenParams) -> list[dict[str, Any]]:
+    """Key mode habits of the chart's system (config "idioms")."""
+    return [
+        i for i in pattern_config()["idioms"]
+        if i.get("keyMode", params.key_mode) == params.key_mode and i.get("system", params.system) == params.system
+    ]
+
+
 def vocabulary(params: GenParams) -> dict[str, dict[str, Any]]:
     """Patterns this chart may use, with their weight for its system, style and key mode."""
     cfg = pattern_config()
     style = cfg["styles"].get(params.system, {})
     bias = cfg["styleBias"].get(params.style, {})
+    idiom = {i["motif"]: float(i["weight"]) for i in _idioms(params) if "motif" in i}
     out = {}
     for name, m in cfg["motifs"].items():
         if params.skill < float(m["minSkill"]):
@@ -271,7 +287,10 @@ def vocabulary(params: GenParams) -> dict[str, dict[str, Any]]:
             continue
         if "systems" in m and params.system not in m["systems"]:
             continue
-        out[name] = {"complexity": float(m["complexity"]), "weight": float(style.get(name, 1.0)) * float(bias.get(name, 1.0))}
+        out[name] = {
+            "complexity": float(m["complexity"]),
+            "weight": float(style.get(name, 1.0)) * float(bias.get(name, 1.0)) * idiom.get(name, 1.0),
+        }
     return out
 
 
@@ -395,9 +414,67 @@ def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple
     return out
 
 
-def plan_patterns(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, n_keys: int, tempo: TempoMap) -> list[SlotPlan]:
+def chord_size_power(params: GenParams) -> float | None:
+    """How often chords grow past two notes on this system and key mode (EZ2ON 8K: often)."""
+    powers = [float(i["chordSizePower"]) for i in _idioms(params) if "chordSizePower" in i]
+    return powers[0] if powers else None
+
+
+def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, hands: tuple[str, ...]) -> list[dict[str, tuple[int, int]] | None]:
+    """Where rhythm and melody go in phrases that have both: two overlapping thirds of the keys
+    from the middle skill, one hand each on hard charts. Systems in flipSystems swap sides from one
+    repetition group to the next; the others keep them for the whole song."""
+    cfg = pattern_config()["roles"]
+    n = len(hands)
+    split_at = cfg["handSplitSkill8K"] if params.key_mode == "8K" else cfg["handSplitSkill"]
+    groups: list[Any] = []
+    for p in phrases:
+        key = p.group if p.group is not None else p.section
+        if key not in groups:
+            groups.append(key)
+    out: list[dict[str, tuple[int, int]] | None] = []
+    for p in phrases:
+        layers = [layer_of(slots[i]) for i in p.slots]
+        if params.skill < cfg["melodySkill"] or min(layers.count("rhythm"), layers.count("melody")) < 2:
+            out.append(None)
+            continue
+        if params.skill >= split_at and n >= 5:
+            left = [k for k, h in enumerate(hands) if h in ("L", "T")]
+            right = [k for k, h in enumerate(hands) if h in ("R", "T")]
+            rhythm, melody = (left[0], left[-1]), (right[0], right[-1])
+        else:
+            third = max(1, n // 3)
+            rhythm, melody = (0, n - 1 - third), (third, n - 1)
+        flip = params.system in cfg["flipSystems"] and groups.index(p.group if p.group is not None else p.section) % 2 == 1
+        if flip:
+            rhythm, melody = (n - 1 - rhythm[1], n - 1 - rhythm[0]), (n - 1 - melody[1], n - 1 - melody[0])
+        out.append({"rhythm": rhythm, "melody": melody})
+    return out
+
+
+def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int) -> list[int | None]:
+    """A home key for each drum hit: kick low, snare in the middle, hats high, inside the rhythm
+    region when the phrase has one. The region changes only between repetition groups (or never on
+    song-home systems), so a drum sound keeps its key through a section."""
+    song = params.system in pattern_config()["roles"]["songHomes"]
+    first = next((r for r in regions if r is not None), None)
+    out: list[int | None] = [None] * len(slots)
+    for p, region in zip(phrases, regions):
+        lo, hi = (first if song and first else region or {}).get("rhythm", (0, n_keys - 1))
+        for i in p.slots:
+            s = slots[i]
+            if s.sources is None or int(np.argmax(s.sources)) != DRUMS or _melodic(s):
+                continue
+            band = int(np.argmax(s.bands))  # 0 low (kick), 1 mid (snare), 2 high (hats)
+            out[i] = int(round(lo + (hi - lo) * (0.15, 0.5, 0.85)[band]))
+    return out
+
+
+def plan_patterns(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, hands: tuple[str, ...], tempo: TempoMap) -> list[SlotPlan]:
+    """The pattern of every slot; `hands` are the key lanes' hands (L, R, T for a shared key)."""
     if not slots:
         return []
+    n_keys = len(hands)
     phrases = phrases_of(slots, sections, tempo)
     motifs = choose_motifs(phrases, params)
     # repeated sections play their first occurrence's patterns
@@ -411,10 +488,13 @@ def plan_patterns(slots: list[Slot], sections: list[dict[str, Any]], params: Gen
                 motifs[n] = motifs[ref]
     wins = windows(phrases, params, n_keys)
     textures = [chord_texture(p, params) for p in phrases]
+    regions = role_regions(slots, phrases, params, hands)
+    homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
     plan: list[SlotPlan] = [None] * len(slots)  # type: ignore[list-item]  # every slot is in a phrase
     for n, (p, motif, win) in enumerate(zip(phrases, motifs, wins)):
         # rhythm phrases have no melodic direction: alternate it so stairs and rolls vary
         direction = p.direction if p.gesture != "rhythm" else (1 if n % 2 == 0 else -1)
+        layers = [layer_of(slots[i]) for i in p.slots]
         for k, i in enumerate(p.slots):
             mirror_ref = k - p.halves if motif == "callResponse" and p.halves is not None and k >= p.halves else None
             plan[i] = SlotPlan(
@@ -430,5 +510,9 @@ def plan_patterns(slots: list[Slot], sections: list[dict[str, Any]], params: Gen
                 cell_ref=None if mirror_ref is not None else p.cells[k],
                 mirror_ref=mirror_ref,
                 wide=p.wide[k],
+                region=regions[n][layers[k]] if regions[n] else None,
+                home=homes[i],
+                layer=layers[k],
+                same_layer=tuple(j for j in range(k) if layers[j] == layers[k]) if regions[n] else None,
             )
     return plan

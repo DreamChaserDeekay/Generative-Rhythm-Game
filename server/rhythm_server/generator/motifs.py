@@ -35,6 +35,12 @@ class SlotPlan:
     cell_ref: int | None  # earlier position in the phrase with the same sound: same lanes
     mirror_ref: int | None  # position this slot answers in a call and response: mirrored lanes
     wide: bool  # an accent with strong lows and highs: a wide chord
+    region: tuple[int, int] | None = None  # key indices of this slot's role (rhythm / melody hand)
+    home: int | None = None  # the key this drum sound keeps across the section (or the song)
+    # with rhythm and melody in one phrase: this slot's role, and the earlier positions of that role
+    # (the shape follows the melody's own notes; drums keep their homes)
+    layer: str = "melody"
+    same_layer: tuple[int, ...] | None = None
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
@@ -54,9 +60,10 @@ class MotifContext:
     pitch_weight: dict[str, float]
     weak_trill_skill: float
     readability_ms: float
+    home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
 
 
-def motif_context(lanes: list[Any], skill: float) -> MotifContext:
+def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
     cfg = pattern_config()
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
@@ -73,6 +80,10 @@ def motif_context(lanes: list[Any], skill: float) -> MotifContext:
         pitch_weight={name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
+        # song-home systems (EZ2ON) keep every drum on its key whatever the level; the others less
+        # so as charts get harder
+        home_scale=instrument_mapping
+        * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
     )
 
 
@@ -88,7 +99,11 @@ def _mismatch(keys: tuple[int, ...], want: tuple[int, ...]) -> float:
 
 
 def _bounds(ctx: MotifContext, sp: SlotPlan) -> tuple[int, int]:
-    return sp.window if sp.window is not None else (0, len(ctx.hand) - 1)
+    """Keys a shape may use: the phrase's window and this slot's role region."""
+    lo, hi = sp.window if sp.window is not None else (0, len(ctx.hand) - 1)
+    if sp.region is not None and max(lo, sp.region[0]) <= min(hi, sp.region[1]):
+        lo, hi = max(lo, sp.region[0]), min(hi, sp.region[1])
+    return lo, hi
 
 
 def _step(ctx: MotifContext, sp: SlotPlan, prev: int, d: int, wrap: bool) -> int:
@@ -118,7 +133,12 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
         d = sp.direction if lo <= min(prev_chord) + sp.direction and max(prev_chord) + sp.direction <= hi else -sp.direction
         moved = tuple(x + d for x in prev_chord)
         return moved if lo <= min(moved) and max(moved) <= hi else None
-    singles = [h[0] for h in hist if len(h) == 1]
+    if sp.same_layer is not None:
+        if sp.layer == "rhythm":
+            return None  # drums under a melody keep their homes
+        singles = [hist[j][0] for j in sp.same_layer if j < len(hist) and len(hist[j]) == 1]
+    else:
+        singles = [h[0] for h in hist if len(h) == 1]
     m = sp.motif
     if m == "laser" and ctx.center is not None:
         return (ctx.center,)
@@ -222,8 +242,13 @@ def motif_cost(
     if sp.window is not None:
         lo, hi = sp.window
         cost += w["window"] * sum(max(0, lo - k, k - hi) for k in keys)
+    if sp.region is not None:
+        lo, hi = sp.region
+        cost += w["region"] * sum(max(0, lo - k, k - hi) for k in keys)
     if not keys:
         return cost
+    if sp.home is not None and len(keys) == 1:
+        cost += w["home"] * ctx.home_scale * _mismatch(keys, (sp.home,))
     if sp.cell_ref is not None and sp.cell_ref < len(hist) and hist[sp.cell_ref]:
         cost += w["cell"] * (1.0 - 0.3 * ctx.skill) * _mismatch(keys, hist[sp.cell_ref])
     elif sp.mirror_ref is not None and sp.mirror_ref < len(hist) and hist[sp.mirror_ref]:

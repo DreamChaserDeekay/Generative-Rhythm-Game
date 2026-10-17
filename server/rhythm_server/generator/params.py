@@ -60,6 +60,8 @@ class GenParams:
     pattern_engine: str = "designer"
     # shortest repeat on a shared middle key (either thumb can hit it); 0 = min_jack_ms
     thumb_jack_ms: float = 0.0
+    # how fast chord sizes fall off from two notes (smaller = more three- and four-note chords)
+    chord_size_power: float = 3.0
     extra: dict[str, Any] = field(default_factory=dict)
 
     def public(self) -> dict[str, Any]:
@@ -232,6 +234,10 @@ def resolve_params(
             params.repeat_consistency = max(0.0, min(1.0, float(value)))
         elif key == "patternEngine" and value in PATTERN_ENGINES:
             params.pattern_engine = value
+    if params.pattern_engine == "designer":
+        for idiom in load_config("patterns")["idioms"]:
+            if "chordSizePower" in idiom and idiom.get("keyMode") == key_mode and idiom.get("system", params.system) == params.system:
+                params.chord_size_power = float(idiom["chordSizePower"])
     laser = load_config("patterns")["motifs"]["laser"]
     if (
         params.pattern_engine == "designer"
