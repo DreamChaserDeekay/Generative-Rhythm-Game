@@ -1,5 +1,6 @@
 {
   "name": "generative-rhythm-desktop",
+  "productName": "Generative Rhythm",
   "version": "0.1.0",
   "private": true,
   "description": "Generative Rhythm Game desktop app: Electron window + bundled analysis server",
@@ -17,7 +18,6 @@
   },
   "build": {
     "appId": "dev.generative-rhythm.app",
-    "productName": "Generative Rhythm",
     "directories": {
       "output": "dist"
     },
@@ -32,19 +32,39 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Generative Rhythm",
+      "artifactName": "GenerativeRhythm-Setup-${version}.${ext}",
+      "installerLanguages": [
+        "ko_KR",
+        "en_US"
+      ],
+      "multiLanguageInstaller": true
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Game"
+      "category": "Game",
+      "icon": "build/icon.png"
     },
     "publish": null
   }

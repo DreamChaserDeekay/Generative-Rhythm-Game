@@ -4,6 +4,12 @@ packed next to it, then runs the normal command line (`--port`, `--data`, ...)."
 import os
 import sys
 
+# Logs are Korean; a piped stdout on Windows uses the ANSI code page (cp1252 on English Windows),
+# which cannot encode them, so always write UTF-8.
+for stream in (sys.stdout, sys.stderr):
+    if stream is not None and hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 if getattr(sys, "frozen", False):
     bundle = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     os.environ.setdefault("GRG_CONFIG_DIR", os.path.join(bundle, "config"))

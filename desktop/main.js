@@ -8,16 +8,22 @@ const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
 
-const HEALTH_TIMEOUT_MS = 60_000;
+// generous: on a first launch antivirus scanners look at every DLL of the bundled server
+const HEALTH_TIMEOUT_MS = 120_000;
 const isWindows = process.platform === 'win32';
 
 // keep timers and audio steady when the window is in the background, allow audio before a click
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// The game draws with WebGL: without usable GPU drivers (VMs, remote desktop) let Chromium fall back
+// to its software renderer, which it no longer does on its own. The window only ever shows the
+// game's own local page (see will-navigate below), so untrusted pages never reach that renderer.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 
 let server = null;
 let quitting = false;
+let gameOrigin = null;
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -67,7 +73,11 @@ async function startServer() {
   const dataDir = process.env.GRG_DATA_DIR || path.join(app.getPath('userData'), 'library');
   fs.mkdirSync(dataDir, { recursive: true });
   const { cmd, args, env } = serverCommand(port, dataDir);
-  server = spawn(cmd, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  server = spawn(cmd, args, {
+    env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
   const log = fs.createWriteStream(path.join(app.getPath('userData'), 'server.log'), { flags: 'a' });
   server.stdout.pipe(log);
   server.stderr.pipe(log);
@@ -98,15 +108,21 @@ async function createWindow() {
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent('<body style="background:#05070f;color:#8d98c4;font:16px sans-serif;display:grid;place-items:center;height:100vh">분석 서버를 시작하는 중…</body>')}`);
   try {
     const port = await startServer();
-    await win.loadURL(`http://127.0.0.1:${port}/`);
+    gameOrigin = `http://127.0.0.1:${port}`;
+    await win.loadURL(`${gameOrigin}/`);
   } catch (e) {
     const message = String(e instanceof Error ? e.message : e).replace(/</g, '&lt;');
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<body style="background:#05070f;color:#ff8fa3;font:16px sans-serif;padding:40px">${message}<br><br>로그: ${path.join(app.getPath('userData'), 'server.log')}</body>`)}`);
   }
-  // links to other sites open in the system browser
+  // links to other sites open in the system browser, the window stays on the game
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    if (gameOrigin && url.startsWith(`${gameOrigin}/`)) return;
+    event.preventDefault();
+    if (/^https?:\/\//.test(url)) shell.openExternal(url);
   });
 }
 
