@@ -11,10 +11,11 @@ import {
   type Song,
 } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
+import { keysoundStems } from '../audio/stemKeysounds';
 import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
-import type { KeyModeId } from '../engine/types';
+import type { KeyModeId, StemName } from '../engine/types';
 import type { Palette, Settings } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
@@ -760,6 +761,7 @@ export function SongSelectScreen(props: Props) {
                 <ChartPreview
                   chart={chart}
                   palette={settings.palette}
+                  keysound={settings.keysound}
                   practice={practice}
                   onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
                   onEdit={() => props.onEdit(chart, selected)}
@@ -865,6 +867,8 @@ function BpmInput({ onApply, disabled }: { onApply: (bpm: number) => void; disab
 function ChartPreview(props: {
   chart: ServerChart;
   palette: Palette;
+  /** Keysounds of generated charts are on (the keysounded stems are marked). */
+  keysound: boolean;
   practice: PracticeOptions | null;
   onSelectRange: (startMs: number, endMs: number) => void;
   onEdit: () => void;
@@ -881,6 +885,7 @@ function ChartPreview(props: {
   const step = graph.length > 1 ? w / (graph.length - 1) : w;
   const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
   const holds = chart.notes.filter((n) => n.type === 'hold').length;
+  const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
   return (
     <section className="panel chart-preview" data-testid="chart-preview">
       <div className="preview-head">
@@ -930,10 +935,10 @@ function ChartPreview(props: {
         <span className="hint">음원은 넣지 않고 파일 이름만 적습니다</span>
       </div>
       {m.keysound && (
-        <div className="stem-mix" data-testid="stem-mix" title="노트가 따라가는 악기(스템) 비율">
-          {(Object.entries(m.keysound.shares) as [string, number][]).map(([stem, share]) =>
+        <div className="stem-mix" data-testid="stem-mix" title="노트가 따라가는 악기(스템) 비율 · 밑줄은 키음이 나는 악기">
+          {(Object.entries(m.keysound.shares) as [StemName, number][]).map(([stem, share]) =>
             share > 0 ? (
-              <span key={stem} className={`stem stem-${stem} ${stem === m.keysound?.stem ? 'lead' : ''}`} style={{ flexGrow: share }}>
+              <span key={stem} className={`stem stem-${stem} ${keyed.includes(stem) ? 'lead' : ''}`} style={{ flexGrow: share }}>
                 {share >= 0.08 ? `${STEM_LABELS[stem] ?? stem} ${Math.round(share * 100)}%` : ''}
               </span>
             ) : null,

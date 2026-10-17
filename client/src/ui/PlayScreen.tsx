@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
 import type { KeysoundBank } from '../audio/keysounds';
 import { practiceAudio } from '../audio/practiceAudio';
+import type { StemName } from '../engine/types';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { PlayController, type PlayOutcome } from './PlayController';
@@ -37,24 +38,22 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           keysounds = await request.loadKeysounds();
           setLoadingText('배경음 준비 중…');
         }
-        let buffer = await request.loadAudio();
-        let lead: AudioBuffer | null = null;
-        if (request.loadLead && buffer) {
-          setLoadingText('스템 키음 준비 중… (처음 한 번은 분리하느라 오래 걸립니다)');
-          try {
-            lead = await request.loadLead();
-          } catch {
-            lead = null; // keysound is optional: play the plain mix
-          }
-        }
+        if (request.loadStems) setLoadingText('키음 준비 중… (처음 한 번은 스템을 나누느라 오래 걸릴 수 있습니다)');
+        // keysounds are optional: without their stems the plain mix plays
+        const [loaded, loadedStems] = await Promise.all([
+          request.loadAudio(),
+          request.loadStems?.().catch(() => null) ?? Promise.resolve(null),
+        ]);
+        let buffer = loaded;
+        let stems = buffer && loadedStems ? loadedStems : new Map<StemName, AudioBuffer>();
         let bufferPlacement: BufferPlacement = { originMs: 0, rate: 1 };
         if (request.practice && buffer) {
           setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
-          ({ buffer, lead, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, lead));
+          ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, stems));
         }
         if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) return;
         controller = new PlayController(
-          { request, buffer, lead, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
+          { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;

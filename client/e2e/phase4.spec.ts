@@ -78,6 +78,8 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   // test play from the cursor, then back to the editor with the edit intact
   await page.getByTestId('editor-test').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
+  // the play starts once its audio (and keysound stems) are loaded
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(1500);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();

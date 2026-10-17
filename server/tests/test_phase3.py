@@ -317,6 +317,22 @@ def test_stems_endpoint_separates_once_and_caches(client: TestClient, tmp_path) 
     assert {b["kind"] for b in health["backends"]} == {"stems", "beats", "pitch", "structure"}
 
 
+def test_stems_are_separated_in_the_background_after_analysis(tmp_path) -> None:
+    """Keysounds need the stems; the analysis queue separates them right after the analysis so
+    the first play does not wait for them."""
+    import time
+
+    app = create_app(tmp_path / "data", client_dist=None)
+    with TestClient(app) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 128, "bars": 8}).json()["song"]["id"]
+        deadline = time.monotonic() + 120
+        while c.get(f"/api/songs/{sid}/stems").json()["cached"] is False:
+            assert time.monotonic() < deadline, "stems were not separated after the analysis"
+            time.sleep(0.2)
+        assert c.get(f"/api/songs/{sid}").json()["song"]["status"] == "ready"
+        assert c.get(f"/api/songs/{sid}/stems").json()["method"] == "core-dsp"
+
+
 def test_background_video_upload_and_offset(client: TestClient) -> None:
     sid = client.post("/api/songs/demo", json={"bpm": 120, "bars": 8}).json()["song"]["id"]
     assert client.post(f"/api/songs/{sid}/bga", files={"file": ("clip.avi", b"x", "video/avi")}).status_code == 415

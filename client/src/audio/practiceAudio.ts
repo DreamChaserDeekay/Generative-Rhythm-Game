@@ -14,32 +14,39 @@ const TAIL_MS = 2000;
 
 /**
  * Audio for a practice run: the A–B segment (plus pre-roll), time-stretched off the main thread
- * when the speed is not 1. The keysound lead stem, if any, is stretched together with the mix
- * (one shared alignment), so the two stay sample-aligned. Returns where the new buffers sit on
- * the song timeline.
+ * when the speed is not 1. The keysound stems are stretched together with the mix (one shared
+ * alignment), so they stay sample-aligned with it. Returns where the new buffers sit on the song
+ * timeline.
  */
-export async function practiceAudio(
+export async function practiceAudio<K>(
   ctx: BaseAudioContext,
   source: AudioBuffer,
   segment: PracticeSegment,
-  lead: AudioBuffer | null = null,
-): Promise<{ buffer: AudioBuffer; lead: AudioBuffer | null; placement: BufferPlacement }> {
-  if (Math.abs(segment.rate - 1) < 1e-6) return { buffer: source, lead, placement: { originMs: 0, rate: 1 } };
+  stems: ReadonlyMap<K, AudioBuffer> = new Map(),
+): Promise<{ buffer: AudioBuffer; stems: Map<K, AudioBuffer>; placement: BufferPlacement }> {
+  const aligned = [...stems].filter(([, b]) => b.length === source.length);
+  if (Math.abs(segment.rate - 1) < 1e-6) return { buffer: source, stems: new Map(aligned), placement: { originMs: 0, rate: 1 } };
   const sr = source.sampleRate;
   const from = Math.max(0, Math.floor(((segment.startMs - PREROLL_MS) / 1000) * sr));
   const to = Math.min(source.length, Math.ceil(((segment.endMs + TAIL_MS) / 1000) * sr));
   const cut = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c).slice(from, Math.max(from + 1, to)));
   const mixChannels = cut(source);
-  const leadChannels = lead && lead.length === source.length ? cut(lead) : [];
-  const stretched = await stretchOffThread([...mixChannels, ...leadChannels], segment.rate);
+  const stemChannels = aligned.map(([, b]) => cut(b));
+  const stretched = await stretchOffThread([...mixChannels, ...stemChannels.flat()], segment.rate);
   const build = (channels: Float32Array[]) => {
     const b = ctx.createBuffer(channels.length, channels[0].length, sr);
     channels.forEach((data, c) => b.copyToChannel(data as Float32Array<ArrayBuffer>, c));
     return b;
   };
+  let next = mixChannels.length;
+  const stretchedStems = new Map<K, AudioBuffer>();
+  aligned.forEach(([key], i) => {
+    stretchedStems.set(key, build(stretched.slice(next, next + stemChannels[i].length)));
+    next += stemChannels[i].length;
+  });
   return {
     buffer: build(stretched.slice(0, mixChannels.length)),
-    lead: leadChannels.length > 0 ? build(stretched.slice(mixChannels.length)) : null,
+    stems: stretchedStems,
     placement: { originMs: (from / sr) * 1000, rate: segment.rate },
   };
 }

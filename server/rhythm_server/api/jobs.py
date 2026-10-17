@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import traceback
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 
 from .. import audio_io
@@ -16,9 +17,14 @@ PROGRESS_INTERVAL_S = 0.25
 
 
 class AnalysisQueue:
-    def __init__(self, library: Library, synchronous: bool = False):
+    """`after_analysis` runs for each analyzed song once the queued analyses are done (the stems
+    for keysounds are separated there, so a first play does not wait for them). Synchronous
+    queues (tests, command line) skip it."""
+
+    def __init__(self, library: Library, synchronous: bool = False, after_analysis: Callable[[str], None] | None = None):
         self.library = library
         self.synchronous = synchronous
+        self.after_analysis = after_analysis
         self._executor = None if synchronous else ThreadPoolExecutor(max_workers=1, thread_name_prefix="analysis")
         self._futures: dict[str, Future[None]] = {}
 
@@ -81,3 +87,17 @@ class AnalysisQueue:
                 lib.update_song(song_id, status="error", error=str(e) or e.__class__.__name__, progress_label="실패")
             except Exception:
                 pass
+            return
+        if self.after_analysis is not None and self._executor is not None:
+            # queued behind the analyses waiting now: every song becomes playable first
+            try:
+                self._executor.submit(self._after, song_id)
+            except RuntimeError:
+                pass  # shutting down
+
+    def _after(self, song_id: str) -> None:
+        try:
+            assert self.after_analysis is not None
+            self.after_analysis(song_id)
+        except Exception as e:
+            log.warning("post-analysis step failed for %s: %s", song_id, e)

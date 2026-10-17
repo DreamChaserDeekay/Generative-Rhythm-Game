@@ -3,7 +3,7 @@ import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge } from '../input/gamepad';
-import type { Chart } from '../engine/types';
+import type { Chart, StemName } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
@@ -35,8 +35,8 @@ export interface PlayRequest {
   best?: { score: number; rate: number } | null;
   /** Fixed seed for the RANDOM family (tests); a new one is drawn per play otherwise. */
   placementSeed?: number;
-  /** Stem keysound mode: loads the chart's lead stem (same length as the song audio). */
-  loadLead?: () => Promise<AudioBuffer | null>;
+  /** Keysounds of a generated chart: loads the stems its notes play (same length as the song audio). */
+  loadStems?: () => Promise<Map<StemName, AudioBuffer>>;
   /** Background layer: blurred jacket and the user's video. */
   background?: { coverUrl: string | null; bgaUrl: string | null; bgaOffsetMs: number };
   /** Imported keysound chart: the sounds the notes play (`loadAudio` gives the rendered background). */

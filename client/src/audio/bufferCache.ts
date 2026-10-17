@@ -4,8 +4,11 @@ import { getAudioEngine } from './AudioEngine';
 import { loadKeysoundBank, renderBgm, type KeysoundBank } from './keysounds';
 
 const MAX_ENTRIES = 3;
+/** One song's stems (a keysound play needs up to all four at once). */
+const MAX_STEM_ENTRIES = 4;
 const MAX_KEYSOUND_ENTRIES = 2;
 const cache = new Map<string, Promise<AudioBuffer>>();
+const stems = new Map<string, Promise<AudioBuffer>>();
 const banks = new Map<string, Promise<KeysoundBank>>();
 const bgms = new Map<string, Promise<AudioBuffer>>();
 
@@ -46,10 +49,17 @@ export function songBuffer(songId: string): Promise<AudioBuffer> {
 
 /** Decoded stem audio (the server separates it on first request). */
 export function stemBuffer(songId: string, stem: StemName): Promise<AudioBuffer> {
-  return cached(`${songId}:${stem}`, api.stemUrl(songId, stem));
+  return lru(stems, `${songId}:${stem}`, () => getAudioEngine().load(api.stemUrl(songId, stem)), MAX_STEM_ENTRIES);
+}
+
+/** The stems a generated chart's keysounds play, by stem. */
+export async function stemBuffers(songId: string, names: readonly StemName[]): Promise<Map<StemName, AudioBuffer>> {
+  const buffers = await Promise.all(names.map((n) => stemBuffer(songId, n)));
+  return new Map(names.map((n, i) => [n, buffers[i]]));
 }
 
 export function forgetSongBuffer(songId: string): void {
-  for (const key of [...cache.keys()]) if (key === songId || key.startsWith(`${songId}:`)) cache.delete(key);
+  cache.delete(songId);
+  for (const key of [...stems.keys()]) if (key.startsWith(`${songId}:`)) stems.delete(key);
   banks.delete(songId);
 }

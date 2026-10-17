@@ -1,11 +1,12 @@
 import instrumentsJson from '@config/instruments.json';
 import { AudioClock, type SongClock } from './clock';
+import { scheduleStemCut } from './stemKeysounds';
 
 /** Scheduling margin so `start()` never asks Web Audio to begin in the past. */
 const START_MARGIN_SEC = 0.1;
 const ANALYSER_FFT = 512;
-/** Lead-stem duck when a keysound note is missed (config/instruments.json). */
-const DUCK = instrumentsJson.keysound.duck;
+/** Ramp where a stem leaves or rejoins the mix (config/instruments.json). */
+const CUT_FADE_SEC = instrumentsJson.keysound.fadeMs / 1000;
 
 export interface BufferPlacement {
   /** Song time (ms) of the buffer's first sample. */
@@ -14,32 +15,39 @@ export interface BufferPlacement {
   rate: number;
 }
 
+/** A stem taken out of the mix over song-time ranges, where its keysounds play instead. */
+export interface StemCut {
+  /** Same length and placement as the song buffer. */
+  buffer: AudioBuffer;
+  /** Song-ms ranges, in order and apart. */
+  ranges: readonly (readonly [number, number])[];
+}
+
 /**
  * Plays one song buffer and exposes song time on the `performance.now()` timeline.
  * Song time 0 is the first sample of the song; negative values are lead-in. A practice buffer
  * holds only a stretched segment, so it carries its origin and rate.
  *
- * Stem keysound mode adds the lead stem as a second source, sample-aligned with the mix and
- * phase-inverted through `leadGain`: at gain 0 the mix plays untouched, and ducking the gain
- * towards -1 subtracts the lead from the mix (mix - lead = accompaniment), so no separate
- * accompaniment buffer is needed.
+ * Keysounds of a generated chart take their stems out of the mix: each stem plays as another
+ * source, sample-aligned with the mix and phase-inverted, whose gain steps from 0 (mix untouched)
+ * to -1 (mix - stem) over the stem's keysound ranges. No accompaniment buffer is needed, and the
+ * stems sum to the mix, so the hits put the song back together exactly.
  */
 export class AudioEngine implements SongClock {
   readonly ctx: AudioContext;
   readonly clock: AudioClock;
   /** Taps the music for the background visualizer. */
   readonly analyser: AnalyserNode;
-  /** Note keysounds of imported charts join the music here (music volume and visualizer). */
+  /** Note keysounds join the music here (music volume and visualizer). */
   readonly keysoundBus: GainNode;
   private readonly musicGain: GainNode;
   private readonly sfxGain: GainNode;
   private buffer: AudioBuffer | null = null;
-  private lead: AudioBuffer | null = null;
+  private cuts: StemCut[] = [];
   private placement: BufferPlacement = { originMs: 0, rate: 1 };
   private source: AudioBufferSourceNode | null = null;
-  private leadSource: AudioBufferSourceNode | null = null;
+  private cutSources: AudioBufferSourceNode[] = [];
   private sourceGain: GainNode | null = null;
-  private leadGain: GainNode | null = null;
   private anchorSec = 0;
   private pausedSongMs: number | null = 0;
 
@@ -69,39 +77,12 @@ export class AudioEngine implements SongClock {
     return this.ctx.decodeAudioData(await res.arrayBuffer());
   }
 
-  /** `lead` (same length and placement as `buffer`) enables the stem keysound mode. */
-  setBuffer(buffer: AudioBuffer | null, placement: BufferPlacement = { originMs: 0, rate: 1 }, lead: AudioBuffer | null = null): void {
+  /** `cuts` (stems with the same length and placement as `buffer`) leave the mix to keysounds. */
+  setBuffer(buffer: AudioBuffer | null, placement: BufferPlacement = { originMs: 0, rate: 1 }, cuts: readonly StemCut[] = []): void {
     this.stop();
     this.buffer = buffer;
     this.placement = placement;
-    this.lead = buffer && lead && lead.length === buffer.length ? lead : null;
-  }
-
-  get hasLead(): boolean {
-    return this.lead !== null;
-  }
-
-  /** Turn the lead stem down for a moment (a missed keysound note). */
-  duckLead(level = DUCK.level, attackMs = DUCK.attackMs, holdMs = DUCK.holdMs, releaseMs = DUCK.releaseMs): void {
-    const g = this.leadGain?.gain;
-    if (!g) return;
-    const t = this.ctx.currentTime;
-    const down = -(1 - level);
-    g.cancelScheduledValues(t);
-    g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(down, t + attackMs / 1000);
-    g.setValueAtTime(down, t + (attackMs + holdMs) / 1000);
-    g.linearRampToValueAtTime(0, t + (attackMs + holdMs + releaseMs) / 1000);
-  }
-
-  /** Back to full volume right away (the player hit a keysound note). */
-  restoreLead(): void {
-    const g = this.leadGain?.gain;
-    if (!g || g.value === 0) return;
-    const t = this.ctx.currentTime;
-    g.cancelScheduledValues(t);
-    g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0, t + DUCK.restoreMs / 1000);
+    this.cuts = buffer ? cuts.filter((c) => c.buffer.length === buffer.length && c.ranges.length > 0) : [];
   }
 
   get rate(): number {
@@ -139,17 +120,16 @@ export class AudioEngine implements SongClock {
     src.start(at, offsetSec);
     this.source = src;
     this.sourceGain = gain;
-    if (this.lead) {
+    for (const cut of this.cuts) {
       // same start time and offset as the mix: sample-aligned, so the inverted copy cancels exactly
-      const lead = this.ctx.createBufferSource();
-      lead.buffer = this.lead;
-      const leadGain = this.ctx.createGain();
-      leadGain.gain.value = 0;
-      lead.connect(leadGain);
-      leadGain.connect(gain);
-      lead.start(at, offsetSec);
-      this.leadSource = lead;
-      this.leadGain = leadGain;
+      const stem = this.ctx.createBufferSource();
+      stem.buffer = cut.buffer;
+      const cutGain = this.ctx.createGain();
+      scheduleStemCut(cutGain.gain, cut.ranges, fromMs, at, (ms) => this.contextTimeForSong(ms), CUT_FADE_SEC);
+      stem.connect(cutGain);
+      cutGain.connect(gain);
+      stem.start(at, offsetSec);
+      this.cutSources.push(stem);
     }
   }
 
@@ -159,7 +139,7 @@ export class AudioEngine implements SongClock {
     const t = this.ctx.currentTime;
     this.sourceGain.gain.setValueAtTime(this.sourceGain.gain.value, t);
     this.sourceGain.gain.linearRampToValueAtTime(0, t + ms / 1000);
-    for (const node of [this.source, this.leadSource]) {
+    for (const node of [this.source, ...this.cutSources]) {
       try {
         node?.stop(t + ms / 1000 + 0.05);
       } catch {
@@ -220,7 +200,7 @@ export class AudioEngine implements SongClock {
   }
 
   private stopSource(): void {
-    for (const node of [this.source, this.leadSource]) {
+    for (const node of [this.source, ...this.cutSources]) {
       if (!node) continue;
       try {
         node.stop();
@@ -230,11 +210,9 @@ export class AudioEngine implements SongClock {
       node.disconnect();
     }
     this.sourceGain?.disconnect();
-    this.leadGain?.disconnect();
     this.source = null;
-    this.leadSource = null;
+    this.cutSources = [];
     this.sourceGain = null;
-    this.leadGain = null;
   }
 }
 

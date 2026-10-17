@@ -99,7 +99,8 @@ class ScoreRequest(BaseModel):
 
 def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST, synchronous_jobs: bool = False) -> FastAPI:
     library = Library(root or data_dir())
-    queue = AnalysisQueue(library, synchronous=synchronous_jobs)
+    # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
+    queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id: ensure_stems(song_id))
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):

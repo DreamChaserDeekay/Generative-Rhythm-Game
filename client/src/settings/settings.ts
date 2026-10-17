@@ -101,7 +101,7 @@ export interface Settings {
   palette: Palette;
   pacemaker: Pacemaker;
   generation: GenerationPrefs;
-  /** Stem keysound mode: the lead stem dips when its notes are missed. */
+  /** Keysounds on generated charts: a hit plays its slice of the stem it follows, a miss leaves it out. */
   keysound: boolean;
   /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
   cameraFx: number;
@@ -155,7 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   palette: 'default',
   pacemaker: 'OFF',
   generation: DEFAULT_GENERATION,
-  keysound: false,
+  keysound: true,
   cameraFx: 0.6,
   skin: 'neon',
   customSkin: null,

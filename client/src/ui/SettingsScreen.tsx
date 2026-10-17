@@ -296,7 +296,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </label>
         <label className="row check">
           <input type="checkbox" checked={settings.keysound} data-testid="keysound-toggle" onChange={(e) => set('keysound', e.target.checked)} />
-          스템 키음 — 노트가 주로 따라가는 악기(보컬·멜로디 등)를 분리해, 그 노트를 놓치면 잠깐 작아지게 합니다
+          키음 — 생성 채보의 노트마다 그 노트가 따라가는 악기 소리를 붙여, 치면 그 소리가 나고 놓치면 빠집니다 (가져온 BMS·bmson은 항상 원래 키음)
         </label>
       </section>
 

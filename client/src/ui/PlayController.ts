@@ -1,6 +1,7 @@
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
+import { planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel, type StemKeysoundPlan } from '../audio/stemKeysounds';
 import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, difficultyLabel, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
@@ -10,7 +11,7 @@ import { Ruleset, rulesetConfigs } from '../engine/ruleset';
 import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
 import { TempoMap } from '../engine/tempo';
-import type { Chart } from '../engine/types';
+import type { Chart, StemName } from '../engine/types';
 import { GamepadPoller, type PadEvent } from '../input/gamepad';
 import { InputManager } from '../input/InputManager';
 import { CameraFx } from '../render/cameraFx';
@@ -34,14 +35,12 @@ import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 
-const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
-
 export interface PlaySetup {
   request: PlayRequest;
   /** Decoded audio; null plays the chart silently (tests). */
   buffer: AudioBuffer | null;
-  /** Lead stem for the keysound mode (null = off). */
-  lead: AudioBuffer | null;
+  /** Stems a generated chart's keysounds play (same placement as `buffer`; empty = no keysounds). */
+  stems?: ReadonlyMap<StemName, AudioBuffer>;
   /** Note keysounds of an imported chart (null = none). */
   keysounds?: KeysoundBank | null;
   /** Where the buffer sits on the song timeline (practice buffers are stretched segments). */
@@ -111,10 +110,11 @@ export class PlayController {
   private readonly paceTarget: number | null;
   private readonly cameraFx: CameraFx;
   private readonly background: PlayBackground;
-  /** Notes whose miss dips the keysound stem (by session note index). */
-  private readonly keysoundStem: string | null;
   /** Note keysounds (imported BMS/bmson charts). */
   private readonly voices: KeysoundVoices | null;
+  /** Keysounds of a generated chart: slices of the stems, planned for each run's notes. */
+  private stemPlan: StemKeysoundPlan | null = null;
+  private stemVoices: StemKeysoundVoices | null = null;
   /** Session note indices of each lane in time order (empty presses play the next one). */
   private readonly laneNotes: number[][];
   private nextAutoKeysound = 0;
@@ -168,7 +168,6 @@ export class PlayController {
       skin: skinById(settings.skin, settings.customSkin),
     });
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
-    this.keysoundStem = setup.lead ? (this.chart.meta.keysound?.stem ?? null) : null;
     this.voices =
       setup.keysounds && this.chart.sounds
         ? new KeysoundVoices(this.engine.ctx, this.engine.keysoundBus, setup.keysounds, this.chart.sounds)
@@ -212,7 +211,7 @@ export class PlayController {
           judgementConfig.modes[settings.judgementMode].label,
           rules.label,
           settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
-          setup.lead && this.keysoundStem ? `키음 ${STEM_LABELS[this.keysoundStem] ?? this.keysoundStem}` : null,
+          this.keysoundLabel(),
           request.autoPlay ? 'AUTO' : null,
           request.replay ? 'REPLAY' : null,
         ]
@@ -245,6 +244,7 @@ export class PlayController {
     this.input.releaseAll();
     this.input.enabled = false;
     this.voices?.stopAll();
+    this.stemVoices?.stopAll();
     this.engine.pause();
     this.state = 'paused';
     this.callbacks.onPauseChange(true);
@@ -323,7 +323,12 @@ export class PlayController {
       this.pad = new GamepadPoller(this.onPad);
       this.pad.start();
     }
-    this.engine.setBuffer(buffer, bufferPlacement, this.setup.lead);
+    const stems = this.setup.stems ?? new Map<StemName, AudioBuffer>();
+    this.stemPlan = stems.size > 0 && !this.voices ? planStemKeysounds(this.session.notes, this.durationMs, [...stems.keys()]) : null;
+    const plan = this.stemPlan;
+    this.stemVoices = plan ? new StemKeysoundVoices(this.engine.ctx, this.engine.keysoundBus, plan, stems, bufferPlacement) : null;
+    const cuts = plan ? plan.stems.map((stem) => ({ buffer: stems.get(stem) as AudioBuffer, ranges: plan.ranges[stem] ?? [] })) : [];
+    this.engine.setBuffer(buffer, bufferPlacement, cuts);
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
     if (this.practice) {
@@ -342,6 +347,7 @@ export class PlayController {
     this.pad?.stop();
     this.pad = null;
     this.voices?.stopAll();
+    this.stemVoices?.stopAll();
     this.engine.stop();
   }
 
@@ -380,14 +386,25 @@ export class PlayController {
 
   /** Autoplay: schedule upcoming note keysounds on the song clock. */
   private scheduleAutoKeysounds(songNow: number): void {
-    const voices = this.voices;
-    if (!voices) return;
+    const { voices, stemVoices, stemPlan } = this;
+    if (!voices && !stemVoices) return;
     const notes = this.session.notes;
     const horizon = songNow + KEYSOUND_LOOKAHEAD_MS * this.rate;
     while (this.nextAutoKeysound < notes.length && notes[this.nextAutoKeysound].t <= horizon) {
       const n = notes[this.nextAutoKeysound++];
-      if (n.t >= songNow - KEYSOUND_LOOKAHEAD_MS * this.rate) voices.play(n, this.engine.contextTimeForSong(n.t));
+      if (n.t < songNow - KEYSOUND_LOOKAHEAD_MS * this.rate) continue;
+      if (voices) voices.play(n, this.engine.contextTimeForSong(n.t));
+      const slice = stemPlan?.noteSlice[n.index] ?? null;
+      if (stemVoices && slice !== null) stemVoices.play(slice, this.engine.contextTimeForSong(stemPlan!.slices[slice].startMs));
     }
+  }
+
+  /** "키음 드럼·보컬" for a generated chart with keysounds. */
+  private keysoundLabel(): string | null {
+    const stems = this.setup.stems;
+    if (!stems || stems.size === 0 || this.voices) return null;
+    const plan = planStemKeysounds(this.chart.notes, this.durationMs, [...stems.keys()]);
+    return plan ? stemKeysoundLabel(plan) : null;
   }
 
   private rebuildScroll(): void {
@@ -557,17 +574,14 @@ export class PlayController {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
       if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
-      if (this.keysoundStem) {
-        // the lead stem dips on a missed lead note and comes straight back on the next hit
-        const src = this.session.notes[e.noteIndex]?.src;
-        if (src === undefined || src === this.keysoundStem) {
-          if (e.isBreak) this.engine.duckLead();
-          else this.engine.restoreLead();
-        }
+      if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && !e.isBreak && e.errorMs !== null) {
+        // a hit plays its slice of the stem right away; a missed note leaves it silent
+        const slice = this.stemPlan?.noteSlice[e.noteIndex] ?? null;
+        if (slice !== null) this.stemVoices.play(slice, this.engine.ctx.currentTime);
       }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
-    } else if (e.type === 'key' && e.down && this.settings.hitSound && !this.voices) {
+    } else if (e.type === 'key' && e.down && this.settings.hitSound && !this.voices && !this.stemVoices) {
       this.engine.playHitSound();
     } else if (e.type === 'fail') {
       this.beginEnding(now, true);

@@ -1,5 +1,6 @@
 import { api, type Song } from '../api/client';
-import { keysoundBank, keysoundBgm, songBuffer, stemBuffer } from '../audio/bufferCache';
+import { keysoundBank, keysoundBgm, songBuffer, stemBuffers } from '../audio/bufferCache';
+import { keysoundStems } from '../audio/stemKeysounds';
 import type { Chart } from '../engine/types';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
@@ -9,17 +10,18 @@ export function buildPlayRequest(
   song: Song,
   chart: Chart,
   settings: Settings,
-  options: Omit<PlayRequest, 'chart' | 'loadAudio' | 'loadKeysounds' | 'loadLead' | 'background'>,
+  options: Omit<PlayRequest, 'chart' | 'loadAudio' | 'loadKeysounds' | 'loadStems' | 'background'>,
 ): PlayRequest {
   const songId = song.id;
   const keysounded = (chart.sounds?.length ?? 0) > 0;
-  const lead = settings.keysound && !keysounded ? chart.meta.keysound?.stem : undefined;
+  // a generated chart's notes play the stems they follow (imported charts bring their own sounds)
+  const stems = settings.keysound && !keysounded ? keysoundStems(chart.notes) : [];
   return {
     ...options,
     chart,
     loadAudio: keysounded ? () => keysoundBgm(songId, chart) : () => songBuffer(songId),
     loadKeysounds: keysounded ? () => keysoundBank(songId) : undefined,
-    loadLead: lead ? () => stemBuffer(songId, lead) : undefined,
+    loadStems: stems.length > 0 ? () => stemBuffers(songId, stems) : undefined,
     background: {
       coverUrl: song.hasCover ? api.coverUrl(songId) : null,
       bgaUrl: song.hasBga ? api.bgaUrl(songId) : null,
