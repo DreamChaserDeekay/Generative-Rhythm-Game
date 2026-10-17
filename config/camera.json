@@ -1,0 +1,11 @@
+{
+  "description": "SDVX식 3D 트랙 카메라 프리셋. 단위는 월드 좌표(트랙 폭 trackWidth 기준). 판정선은 z=0, 트랙은 -z 방향으로 trackLength만큼 뻗는다. 16:9 화면에서 판정선이 화면 높이의 약 84%, 트랙 끝이 약 12%에 오도록 맞춘 값이다.",
+  "trackWidth": 8.0,
+  "trackLength": 40.0,
+  "presets": {
+    "FLAT": { "label": "약한 원근", "height": 17.0, "distance": 17.2, "lookAhead": 10.2, "fov": 35 },
+    "SDVX": { "label": "SDVX", "height": 8.73, "distance": 10.73, "lookAhead": 7.8, "fov": 40 },
+    "LOW": { "label": "강한 원근", "height": 6.06, "distance": 6.47, "lookAhead": 8.11, "fov": 55 }
+  },
+  "default": "SDVX"
+}

@@ -1,0 +1,78 @@
+{
+  "description": "키 모드별 레인 구성. hand: L(왼손) / R(오른손) / T(엄지), finger: 0 엄지, 1 검지, 2 중지, 3 약지, 4 새끼. width는 레인 폭 비율.",
+  "modes": {
+    "4K": {
+      "label": "4K",
+      "lanes": [
+        { "id": "1", "kind": "key", "color": "white", "hand": "L", "finger": 2, "width": 1.0 },
+        { "id": "2", "kind": "key", "color": "blue", "hand": "L", "finger": 1, "width": 1.0 },
+        { "id": "3", "kind": "key", "color": "blue", "hand": "R", "finger": 1, "width": 1.0 },
+        { "id": "4", "kind": "key", "color": "white", "hand": "R", "finger": 2, "width": 1.0 }
+      ],
+      "bindings": {
+        "default": ["KeyD", "KeyF", "KeyJ", "KeyK"]
+      }
+    },
+    "5K": {
+      "label": "5K",
+      "lanes": [
+        { "id": "1", "kind": "key", "color": "white", "hand": "L", "finger": 2, "width": 1.0 },
+        { "id": "2", "kind": "key", "color": "blue", "hand": "L", "finger": 1, "width": 1.0 },
+        { "id": "3", "kind": "key", "color": "gold", "hand": "T", "finger": 0, "width": 1.0 },
+        { "id": "4", "kind": "key", "color": "blue", "hand": "R", "finger": 1, "width": 1.0 },
+        { "id": "5", "kind": "key", "color": "white", "hand": "R", "finger": 2, "width": 1.0 }
+      ],
+      "bindings": {
+        "default": ["KeyD", "KeyF", "Space", "KeyJ", "KeyK"]
+      }
+    },
+    "6K": {
+      "label": "6K",
+      "lanes": [
+        { "id": "1", "kind": "key", "color": "white", "hand": "L", "finger": 3, "width": 1.0 },
+        { "id": "2", "kind": "key", "color": "blue", "hand": "L", "finger": 2, "width": 1.0 },
+        { "id": "3", "kind": "key", "color": "white", "hand": "L", "finger": 1, "width": 1.0 },
+        { "id": "4", "kind": "key", "color": "white", "hand": "R", "finger": 1, "width": 1.0 },
+        { "id": "5", "kind": "key", "color": "blue", "hand": "R", "finger": 2, "width": 1.0 },
+        { "id": "6", "kind": "key", "color": "white", "hand": "R", "finger": 3, "width": 1.0 }
+      ],
+      "bindings": {
+        "default": ["KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL"]
+      }
+    },
+    "7K+1S": {
+      "label": "7K+1S",
+      "lanes": [
+        { "id": "SC", "kind": "scratch", "color": "scratch", "hand": "L", "finger": 4, "width": 1.6 },
+        { "id": "1", "kind": "key", "color": "white", "hand": "L", "finger": 3, "width": 1.0 },
+        { "id": "2", "kind": "key", "color": "blue", "hand": "L", "finger": 2, "width": 1.0 },
+        { "id": "3", "kind": "key", "color": "white", "hand": "L", "finger": 1, "width": 1.0 },
+        { "id": "4", "kind": "key", "color": "gold", "hand": "T", "finger": 0, "width": 1.0 },
+        { "id": "5", "kind": "key", "color": "white", "hand": "R", "finger": 1, "width": 1.0 },
+        { "id": "6", "kind": "key", "color": "blue", "hand": "R", "finger": 2, "width": 1.0 },
+        { "id": "7", "kind": "key", "color": "white", "hand": "R", "finger": 3, "width": 1.0 }
+      ],
+      "bindings": {
+        "default": ["ShiftLeft", "KeyS", "KeyD", "KeyF", "Space", "KeyJ", "KeyK", "KeyL"],
+        "BMS": ["ShiftLeft", "KeyZ", "KeyS", "KeyX", "KeyD", "KeyC", "KeyF", "KeyV"]
+      }
+    },
+    "8K": {
+      "label": "8K",
+      "lanes": [
+        { "id": "1", "kind": "key", "color": "white", "hand": "L", "finger": 4, "width": 1.0 },
+        { "id": "2", "kind": "key", "color": "blue", "hand": "L", "finger": 3, "width": 1.0 },
+        { "id": "3", "kind": "key", "color": "white", "hand": "L", "finger": 2, "width": 1.0 },
+        { "id": "4", "kind": "key", "color": "blue", "hand": "L", "finger": 1, "width": 1.0 },
+        { "id": "5", "kind": "key", "color": "blue", "hand": "R", "finger": 1, "width": 1.0 },
+        { "id": "6", "kind": "key", "color": "white", "hand": "R", "finger": 2, "width": 1.0 },
+        { "id": "7", "kind": "key", "color": "blue", "hand": "R", "finger": 3, "width": 1.0 },
+        { "id": "8", "kind": "key", "color": "white", "hand": "R", "finger": 4, "width": 1.0 }
+      ],
+      "bindings": {
+        "default": ["KeyA", "KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL", "Semicolon"]
+      }
+    }
+  },
+  "enabled": ["4K", "7K+1S"]
+}

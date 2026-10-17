@@ -1,0 +1,23 @@
+# dependencies / builds
+node_modules/
+client/dist/
+client/test-results/
+client/playwright-report/
+*.tsbuildinfo
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# local library data (uploaded audio, analysis cache, charts, scores)
+data/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,14 @@
+{
+  "description": "게이지 규칙(%). gain은 판정 % 비율만큼 곱해 회복하고, MAX 1%는 증감이 없다(DJMAX 규칙). total은 노트 수 기반으로 자동 산정한다(BMS #TOTAL 개념).",
+  "types": {
+    "NORMAL": {
+      "label": "NORMAL",
+      "start": 20,
+      "clear": 80,
+      "failAtZero": false,
+      "total": { "base": 160, "perEvent": 0.16, "max": 320 },
+      "breakPenalty": 5
+    }
+  },
+  "default": "NORMAL"
+}
