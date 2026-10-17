@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api, type BackendStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import {
@@ -17,6 +18,7 @@ import {
   type ScrollMode,
   type Settings,
 } from '../settings/settings';
+import { BUILTIN_SKINS, sanitizeSkin, skinById } from '../render/skins';
 import { KeyGhostTest } from './KeyGhostTest';
 import { PlayRulesPanel } from './PlayOptions';
 
@@ -26,10 +28,31 @@ interface Props {
   onBack: () => void;
 }
 
+const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
+
 export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const [rebinding, setRebinding] = useState<{ mode: KeyModeId; lane: number } | null>(null);
   const [ghostMode, setGhostMode] = useState<KeyModeId | null>(null);
+  const [skinText, setSkinText] = useState('');
+  const [backends, setBackends] = useState<BackendStatus[] | null>(null);
+  useEffect(() => {
+    api
+      .health()
+      .then((h) => setBackends(h.backends ?? []))
+      .catch(() => setBackends(null));
+  }, []);
+  const [skinError, setSkinError] = useState<string | null>(null);
+  const applySkinText = () => {
+    try {
+      const skin = sanitizeSkin(JSON.parse(skinText));
+      if (!skin) throw new Error('스킨 JSON 객체가 아닙니다');
+      setSkinError(null);
+      onSettingsChange({ ...settings, skin: 'custom', customSkin: skin });
+    } catch (e) {
+      setSkinError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const green = Math.round(greenNumber(settings.hiSpeed, activeCovers(settings)));
   const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
@@ -190,12 +213,67 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </div>
         <label className="row check">
           <input type="checkbox" checked={settings.reducedFlash} onChange={(e) => set('reducedFlash', e.target.checked)} />
-          번쩍임 줄이기 (타격 효과·FEVER 연출 약하게)
+          번쩍임 줄이기 (타격 효과·FEVER·카메라 연출 약하게)
+        </label>
+        <div className="row">
+          <span className="label">카메라 연출</span>
+          <input type="range" min={0} max={1} step={0.1} value={settings.cameraFx} data-testid="camera-fx" onChange={(e) => set('cameraFx', Number(e.target.value))} />
+          <span className="value">{settings.cameraFx === 0 ? '끔' : `${Math.round(settings.cameraFx * 100)}%`}</span>
+          <span className="hint">드롭·후렴에서 트랙 기울기와 줌 (SDVX식)</span>
+        </div>
+        <div className="row">
+          <span className="label">배경 밝기</span>
+          <input type="range" min={0} max={1} step={0.05} value={settings.bgBrightness} onChange={(e) => set('bgBrightness', Number(e.target.value))} />
+          <span className="value">{Math.round(settings.bgBrightness * 100)}%</span>
+        </div>
+        <label className="row check">
+          <input type="checkbox" checked={settings.visualizer} onChange={(e) => set('visualizer', e.target.checked)} />
+          배경 비주얼라이저 (음악에 반응하는 스펙트럼)
+        </label>
+        <label className="row check">
+          <input type="checkbox" checked={settings.bga} onChange={(e) => set('bga', e.target.checked)} />
+          곡에 등록한 배경 영상(BGA) 재생
         </label>
         <label className="row check">
           <input type="checkbox" checked={settings.showErrorMs} onChange={(e) => set('showErrorMs', e.target.checked)} />
           판정에 ms 오차 표시
         </label>
+      </section>
+
+      <section className="panel" data-testid="skin-settings">
+        <h2>스킨</h2>
+        <div className="row">
+          <div className="segmented wrap">
+            {BUILTIN_SKINS.map((k) => (
+              <button key={k.id} className={settings.skin === k.id ? 'active' : ''} data-testid={`skin-${k.id}`} onClick={() => set('skin', k.id)}>
+                {k.label}
+              </button>
+            ))}
+            {settings.customSkin !== null && (
+              <button className={settings.skin === 'custom' ? 'active' : ''} onClick={() => set('skin', 'custom')}>
+                {(settings.customSkin as { label?: string }).label ?? '사용자 스킨'}
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="hint">노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·none)와 트랙 색을 JSON으로 바꿀 수 있습니다.</p>
+        <textarea
+          className="skin-json"
+          rows={6}
+          spellCheck={false}
+          placeholder='{"label": "내 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff3b3b"}}'
+          value={skinText}
+          onChange={(e) => setSkinText(e.target.value)}
+        />
+        <div className="row">
+          <button className="small" onClick={applySkinText} disabled={!skinText.trim()}>
+            사용자 스킨 적용
+          </button>
+          <button className="small" onClick={() => setSkinText(JSON.stringify(skinById(settings.skin, settings.customSkin), null, 2))}>
+            현재 스킨 JSON 보기
+          </button>
+          {skinError && <span className="error">{skinError}</span>}
+        </div>
       </section>
 
       <section className="panel">
@@ -213,6 +291,10 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         <label className="row check">
           <input type="checkbox" checked={settings.hitSound} onChange={(e) => set('hitSound', e.target.checked)} />
           타격음
+        </label>
+        <label className="row check">
+          <input type="checkbox" checked={settings.keysound} data-testid="keysound-toggle" onChange={(e) => set('keysound', e.target.checked)} />
+          스템 키음 — 노트가 주로 따라가는 악기(보컬·멜로디 등)를 분리해, 그 노트를 놓치면 잠깐 작아지게 합니다
         </label>
       </section>
 
@@ -256,6 +338,34 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         ))}
         {ghostMode && <KeyGhostTest mode={ghostMode} bindings={bindingsFor(settings, ghostMode)} onClose={() => setGhostMode(null)} />}
         <p className="hint">키를 누른 뒤 원하는 키를 입력하세요. 이미 쓰는 키를 고르면 서로 바뀝니다. 한글 입력 상태와 무관하게 동작합니다.</p>
+      </section>
+
+      <section className="panel" data-testid="backend-status">
+        <h2>분석 백엔드</h2>
+        <p className="hint">
+          기본 분석(numpy·scipy)은 항상 동작합니다. 아래 ML 라이브러리를 서버에 설치하면 다음 분석부터 자동으로 쓰이고, 곡 정보의 &quot;다시 분석&quot;으로 기존 곡에도 적용할 수 있습니다.
+        </p>
+        {backends === null ? (
+          <p className="hint">분석 서버에 연결할 수 없습니다.</p>
+        ) : (
+          <table className="backend-table">
+            <tbody>
+              {backends.map((b) => (
+                <tr key={b.kind}>
+                  <td>{BACKEND_LABELS[b.kind] ?? b.kind}</td>
+                  <td>{b.name}</td>
+                  <td className={b.active ? 'ok' : 'off'}>{b.active ? `사용 중 (${b.version})` : b.installed ? '설치됨 · 꺼짐' : '설치 안 됨'}</td>
+                  <td className="hint">{b.license}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <pre className="install-hint">
+          {'cd server\n'}
+          {'.venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu\n'}
+          {'.venv/bin/pip install -e ".[ml]"     # demucs · beat-this (+ basic-pitch: Python 3.11)'}
+        </pre>
       </section>
 
       <div className="row buttons center">

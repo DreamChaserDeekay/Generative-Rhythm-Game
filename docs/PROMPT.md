@@ -195,7 +195,7 @@
 |---|---|
 | 4K | D F J K |
 | 5K | D F Space J K |
-| 6K | S D F J K L |
+| 6K | S D F K L ; |
 | 7K+1S | 스크래치 Left Shift + S D F Space J K L (BMS식 Z S X D C F V 프리셋도 제공) |
 | 8K | A S D F J K L ; |
 | 사이드(FX) 레인 | Left Shift / Right Shift — 4K·6K에 좌우 사이드 레인 추가 (DJMAX 사이드 트랙 방식) |

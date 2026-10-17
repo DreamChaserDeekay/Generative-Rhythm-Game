@@ -25,13 +25,16 @@
     "densityLimited": false,
     "skillset": { "stream": 0.3, "chord": 0.49, "jack": 0.18, "longNote": 0.37, "technical": 0.23, "stamina": 0.63 },
     "handLoad": { "L": 0.54, "R": 0.46 },
+    "keysound": { "stem": "vocals", "share": 0.36, "shares": { "drums": 0.41, "bass": 0.08, "vocals": 0.36, "other": 0.15 } },
+    "repeatConsistency": 0.97,
     "generator": {
-      "version": "0.2.0",
-      "analyzer": "core-1.0.0",
+      "version": "0.3.0",
+      "analyzer": "core-1.1.0",
       "seed": 3735928559,
       "params": {
         "difficulty": "HARD", "targetLevel": null, "density": 1.0, "longNoteRatio": 0.15, "maxChord": 3,
-        "scratchRate": 0.05, "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto"
+        "scratchRate": 0.05, "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto",
+        "instrumentMapping": 0.6, "repeatConsistency": 1.0
       }
     }
   },
@@ -41,10 +44,14 @@
     "meter": [{ "measure": 0, "beatsPerMeasure": 4 }]
   },
   "sections": [{ "startBeat": 0, "label": "verse", "energy": 0.66 }],
+  "effects": [
+    { "beat": 64.0, "t": 30536.0, "type": "zoom", "value": 0.62, "durationBeats": 2 },
+    { "beat": 64.0, "t": 30536.0, "type": "tilt", "value": 0.86, "durationBeats": 2 }
+  ],
   "notes": [
-    { "beat": 4.0, "t": 2411.0, "lane": 3, "type": "tap" },
-    { "beat": 4.5, "t": 2645.375, "lane": 6, "type": "hold", "endBeat": 6.0, "endT": 3348.5 },
-    { "beat": 6.0, "t": 3348.5, "lane": 0, "type": "tap" }
+    { "beat": 4.0, "t": 2411.0, "lane": 3, "type": "tap", "src": "drums" },
+    { "beat": 4.5, "t": 2645.375, "lane": 6, "type": "hold", "src": "vocals", "endBeat": 6.0, "endT": 3348.5 },
+    { "beat": 6.0, "t": 3348.5, "lane": 0, "type": "tap", "src": "bass" }
   ]
 }
 ```
@@ -65,13 +72,28 @@
 | `densityLimited` | 곡에 들리는 소리가 부족해 목표 레벨까지 올리지 못했으면 `true`. |
 | `skillset` | 0–1 스킬 프로필: stream, chord, jack, longNote, technical, stamina. |
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
-| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율). |
+| `keysound` | 스템 키음 모드에서 줄일 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 분석에 스템 정보가 없으면 `null`(키음 모드를 켜도 키음 없이 재생). |
+| `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
+| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). |
 
 ### timing
 
 - `offsetMs`: 0박(첫 다운비트)의 시각.
 - `tempoMap`: `{beat, bpm}` 구간별 고정 템포. 첫 항목은 반드시 `beat: 0`. 0박보다 앞선 박은 첫 구간의 템포를 거꾸로 적용한다.
 - `meter`: `{measure, beatsPerMeasure}`. 마디선 계산에 쓴다.
+
+### effects
+
+SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 판정·노트 시간과는 무관한 연출 데이터다(없어도 되고, 클라이언트는 설정에서 끌 수 있다).
+
+| 필드 | 설명 |
+|---|---|
+| `beat` / `t` | 시작 박과 시각(ms). |
+| `type` | `tilt`(트랙 기울기) 또는 `zoom`(줌 펄스). |
+| `value` | `tilt`: −1–1, 이전 기울기에서 이 값으로 `durationBeats` 동안 부드럽게 옮겨 가 다음 `tilt`까지 유지(0이면 수평). `zoom`: 0–1, 시작에 가장 세고 `durationBeats` 동안 사라진다. |
+| `durationBeats` | 전환·펄스 길이(박). |
+
+클라이언트의 최대 기울기(±1일 때 7°)와 줌 깊이(1일 때 시야각 7% 축소)는 `config/camera.json`의 `fx`이고, 설정의 카메라 연출 세기(0–1)를 곱한다.
 
 ### notes
 
@@ -82,6 +104,7 @@
 | `lane` | `meta.lanes` 인덱스. |
 | `type` | `tap` 또는 `hold`. |
 | `endBeat` / `endT` | 롱노트 끝(`hold`만). |
+| `src` | 그 노트를 만든 소리의 주 스템(drums · bass · vocals · other). 분석에 스템 정보가 있을 때만 있다. 스템 키음 모드에서 `meta.keysound.stem`과 같은 노트(또는 `src`가 없는 노트)를 놓치면 그 스템을 줄인다. |
 
 노트는 `t`, `lane` 순으로 정렬되어 있다. 같은 레인·같은 시각 중복, 롱노트 겹침은 없다(린터가 보장).
 
@@ -90,5 +113,6 @@
 - 롱노트는 DJMAX 방식으로 판정한다: 시작 타이밍 판정 → 누르는 동안 1/4박마다 콤보 틱 → 끝까지 누르면 끝 판정 MAX 100%, 끝 100ms 전보다 일찍 떼면 BREAK.
 - 사이드 트랙 노트를 놓치면 BREAK가 아니라 MAX 1%다.
 - 배치 옵션(MIRROR·RANDOM 등)과 연습 구간은 클라이언트가 플레이 직전에 노트의 `lane`을 바꾸거나 일부만 골라 적용한다. 채보 파일과 `chartId`는 바뀌지 않는다.
+- `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - 판정 대상 수 = 노트 수 + 롱노트 수(롱노트는 시작과 끝 두 번 판정).
 - 틱 위치는 `beat`/`endBeat`와 `tempoMap`에서 계산한다.

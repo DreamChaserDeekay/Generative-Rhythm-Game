@@ -296,6 +296,36 @@ button.small.active {
   display: block;
 }
 
+/* background under the transparent track canvas */
+.play-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.play-bg > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.bg-cover {
+  background-size: cover;
+  background-position: center;
+  filter: blur(28px) saturate(1.2);
+  transform: scale(1.15);
+}
+
+.bg-video {
+  object-fit: cover;
+}
+
+.bg-dim {
+  background: #000;
+}
+
 .play-overlay {
   position: absolute;
   inset: 0;
@@ -770,6 +800,73 @@ button.small.active {
   margin-left: 6px;
 }
 
+.stem-mix {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  margin-top: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.stem-mix .stem {
+  min-width: 2px;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #0b1024;
+  font-weight: 700;
+}
+
+.stem-mix .stem-drums { background: #8fa3c8; }
+.stem-mix .stem-bass { background: #ff9a6b; }
+.stem-mix .stem-vocals { background: #7cf7ff; }
+.stem-mix .stem-other { background: #c58bff; }
+.stem-mix .stem.lead { box-shadow: inset 0 -3px 0 #fff; }
+
+.sub.backends {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.backend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.backend-table td {
+  padding: 5px 8px 5px 0;
+  vertical-align: top;
+}
+
+.backend-table .ok { color: var(--g-high); white-space: nowrap; }
+.backend-table .off { color: var(--muted); white-space: nowrap; }
+
+.install-hint {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.skin-json {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
 .chart-minimap {
   width: 100%;
   display: block;
@@ -1155,6 +1252,7 @@ button.danger {
   vertical-align: middle;
 }
 
+.analysis-legend .dot[style]::before { background: var(--dot); }
 .analysis-legend .dot.low::before { background: #ff7a59; }
 .analysis-legend .dot.mid::before { background: #7cf7ff; }
 .analysis-legend .dot.high::before { background: #c58bff; }

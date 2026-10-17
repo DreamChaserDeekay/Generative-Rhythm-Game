@@ -102,6 +102,8 @@ export function PlayRulesPanel({ settings, onSettingsChange }: SettingsProps) {
 export function generationParams(prefs: GenerationPrefs, keyMode: KeyModeId): Record<string, unknown> {
   const kinds = new Set(keyModes[keyMode].lanes.map((l) => l.kind));
   const params: Record<string, unknown> = { style: prefs.style, rhythmSource: prefs.rhythmSource };
+  if (prefs.instrumentMapping !== null) params.instrumentMapping = prefs.instrumentMapping;
+  if (prefs.repeatConsistency !== null) params.repeatConsistency = prefs.repeatConsistency;
   if (prefs.density !== null) params.density = prefs.density;
   if (prefs.longNoteRatio !== null) params.longNoteRatio = prefs.longNoteRatio;
   if (prefs.maxChord !== null) params.maxChord = prefs.maxChord;
@@ -149,6 +151,25 @@ export function GenerationPanel({ settings, onSettingsChange, keyMode }: Setting
         onChange={(v) => set({ longNoteRatio: v })}
       />
       <OptionalSlider label="최대 동시 노트" value={g.maxChord} min={1} max={Math.max(2, Math.ceil(keyCount * 0.6) + 1)} step={1} auto={2} format={(v) => `${v}개`} onChange={(v) => set({ maxChord: v })} />
+      <span className="label">악기별 레인</span>
+      <div className="row">
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.1}
+          value={g.instrumentMapping ?? 0.6}
+          data-testid="instrument-mapping"
+          onChange={(e) => set({ instrumentMapping: Number(e.target.value) })}
+        />
+        <span className="value">{(g.instrumentMapping ?? 0.6) === 0 ? '끔' : `${Math.round((g.instrumentMapping ?? 0.6) * 100)}%`}</span>
+        <span className="hint">드럼 킥은 왼쪽·하이햇은 오른쪽, 베이스는 왼쪽으로 모읍니다</span>
+      </div>
+      <span className="label">반복 구간</span>
+      <label className="row check">
+        <input type="checkbox" checked={(g.repeatConsistency ?? 1) > 0} onChange={(e) => set({ repeatConsistency: e.target.checked ? 1 : 0 })} />
+        같은 후렴·절이 다시 나오면 같은 패턴을 씁니다
+      </label>
       {special && (
         <OptionalSlider
           label={`${special} 비율`}

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import random
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -13,17 +15,21 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .. import __version__
+from .. import __version__, audio_io
 from ..analysis.analyzer import ANALYZER_NAME, ANALYZER_VERSION
+from ..analysis.backends import detect as detect_backends, status as backend_status
+from ..analysis.stems import STEM_NAMES, separate
 from ..audio_io import SUPPORTED_EXTENSIONS
 from ..config import CLIENT_DIST, data_dir, difficulty_config, load_config
 from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
 from ..generator.params import resolve_params
 from ..synth import make_song
 from .jobs import AnalysisQueue
-from .library import Library, SongNotFound
+from .library import BGA_EXTENSIONS, Library, SongNotFound
 
+log = logging.getLogger("rhythm_server.api")
 MAX_UPLOAD_BYTES = 300 * 1024 * 1024
+MAX_BGA_BYTES = 1024 * 1024 * 1024
 
 
 class ChartRequest(BaseModel):
@@ -41,6 +47,7 @@ class SongPatch(BaseModel):
     bpm: float | None = Field(default=None, gt=20, lt=400)
     clearBpm: bool = False
     offsetShiftMs: float | None = Field(default=None, ge=-2000, le=2000)
+    bgaOffsetMs: float | None = Field(default=None, ge=-60000, le=60000)
 
 
 class DemoRequest(BaseModel):
@@ -82,6 +89,46 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         except SongNotFound:
             raise HTTPException(404, "곡을 찾을 수 없습니다") from None
 
+    def annotate(songs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Marks songs whose analysis predates the current analyzer or the installed backends."""
+        active = {kind: b.name for kind, b in detect_backends().items()}
+        out = []
+        for song in songs:
+            info = song.get("analyzer") or {}
+            used = info.get("backends") or {}
+            outdated = song["status"] == "ready" and (
+                info.get("version") != ANALYZER_VERSION or any(not str(used.get(k, "")).startswith(name) for k, name in active.items())
+            )
+            out.append(dict(song, outdated=outdated))
+        return out
+
+    stem_locks: dict[str, threading.Lock] = {}
+    stem_locks_guard = threading.Lock()
+
+    def ensure_stems(song_id: str) -> dict[str, Any]:
+        """Cached stems, separating them first (ML separator when installed, else the core one)."""
+        info = library.stems_info(song_id)
+        if info is not None:
+            return info
+        with stem_locks_guard:
+            lock = stem_locks.setdefault(song_id, threading.Lock())
+        with lock:
+            info = library.stems_info(song_id)
+            if info is not None:
+                return info
+            pcm, sr = audio_io.read_canonical(library.audio_path(song_id))
+            stems, method = None, "core-dsp"
+            backend = detect_backends().get("stems")
+            if backend is not None:
+                try:
+                    stems, method = backend.module().separate(pcm, sr, backend.options), backend.label
+                except Exception as e:
+                    log.warning("stem backend %s failed, using the core separator: %s", backend.label, e)
+            if stems is None:
+                stems = separate(pcm, sr)
+            library.save_stems(song_id, stems, method)
+            return library.stems_info(song_id) or {}
+
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         keymodes = load_config("keymodes")
@@ -93,11 +140,13 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             "keyModes": keymodes["enabled"],
             "difficulties": difficulty_config()["order"],
             "formats": sorted(SUPPORTED_EXTENSIONS),
+            "backends": backend_status(),
+            "stems": list(STEM_NAMES),
         }
 
     @app.get("/api/songs")
     def list_songs() -> dict[str, Any]:
-        return {"songs": library.list_songs()}
+        return {"songs": annotate(library.list_songs())}
 
     @app.post("/api/songs", status_code=201)
     def upload_song(file: UploadFile = File(...)) -> dict[str, Any]:
@@ -123,7 +172,7 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         if created or song["status"] == "error":
             queue.submit(song["id"])
             song = library.get_song(song["id"])
-        return {"song": song, "created": created}
+        return {"song": annotate([song])[0], "created": created}
 
     @app.post("/api/songs/demo", status_code=201)
     def add_demo(req: DemoRequest) -> dict[str, Any]:
@@ -132,12 +181,67 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         if song["status"] != "ready":
             queue.submit(song["id"])
             song = library.get_song(song["id"])
-        return {"song": song}
+        return {"song": annotate([song])[0]}
 
     @app.get("/api/songs/{song_id}")
     def get_song(song_id: str) -> dict[str, Any]:
-        song = song_or_404(song_id)
+        song = annotate([song_or_404(song_id)])[0]
         return {"song": dict(song, records=library.best_scores(song_id))}
+
+    @app.post("/api/songs/{song_id}/reanalyze")
+    def reanalyze(song_id: str) -> dict[str, Any]:
+        song_or_404(song_id)
+        queue.submit(song_id)
+        return {"song": annotate([library.get_song(song_id)])[0]}
+
+    @app.get("/api/songs/{song_id}/stems")
+    def stems_status(song_id: str) -> dict[str, Any]:
+        song_or_404(song_id)
+        info = library.stems_info(song_id)
+        backend = detect_backends().get("stems")
+        return {"names": list(STEM_NAMES), "cached": info is not None, "method": info["method"] if info else (backend.label if backend else "core-dsp")}
+
+    @app.get("/api/songs/{song_id}/stems/{name}")
+    async def stem_audio(song_id: str, name: str) -> FileResponse:
+        song = song_or_404(song_id)
+        if name not in STEM_NAMES:
+            raise HTTPException(404, "알 수 없는 스템입니다")
+        if song["status"] != "ready":
+            raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
+        await run_in_threadpool(ensure_stems, song_id)
+        return FileResponse(library.stem_path(song_id, name), media_type="audio/flac")
+
+    @app.post("/api/songs/{song_id}/bga", status_code=201)
+    def upload_bga(song_id: str, file: UploadFile = File(...)) -> dict[str, Any]:
+        song_or_404(song_id)
+        ext = Path(file.filename or "").suffix.lower()
+        if ext not in BGA_EXTENSIONS:
+            raise HTTPException(415, f"지원하지 않는 영상 형식입니다: {ext or '(확장자 없음)'} — mp4·webm을 쓰세요")
+        tmp = library.tmp_path(ext)
+        size = 0
+        with open(tmp, "wb") as out:
+            while chunk := file.file.read(1 << 20):
+                size += len(chunk)
+                if size > MAX_BGA_BYTES:
+                    out.close()
+                    tmp.unlink(missing_ok=True)
+                    raise HTTPException(413, "영상이 너무 큽니다 (최대 1GB)")
+                out.write(chunk)
+        library.save_bga(song_id, tmp, ext)
+        return {"song": annotate([library.get_song(song_id)])[0]}
+
+    @app.get("/api/songs/{song_id}/bga")
+    def get_bga(song_id: str) -> FileResponse:
+        song_or_404(song_id)
+        path = library.bga_path(song_id)
+        if path is None:
+            raise HTTPException(404, "배경 영상이 없습니다")
+        return FileResponse(path, media_type=BGA_EXTENSIONS.get(path.suffix, "application/octet-stream"))
+
+    @app.delete("/api/songs/{song_id}/bga", status_code=204)
+    def delete_bga(song_id: str) -> None:
+        song_or_404(song_id)
+        library.delete_bga(song_id)
 
     @app.patch("/api/songs/{song_id}")
     def patch_song(song_id: str, patch: SongPatch) -> dict[str, Any]:
@@ -147,6 +251,8 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             fields["title"] = patch.title.strip() or song["title"]
         if patch.artist is not None:
             fields["artist"] = patch.artist.strip()
+        if patch.bgaOffsetMs is not None:
+            fields["bga_offset_ms"] = patch.bgaOffsetMs
         overrides = dict(song["overrides"])
         if patch.clearBpm:
             overrides.pop("bpm", None)
@@ -161,7 +267,7 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         if reanalyze:
             queue.submit(song_id)
             song = library.get_song(song_id)
-        return {"song": song, "reanalyzing": reanalyze}
+        return {"song": annotate([song])[0], "reanalyzing": reanalyze}
 
     @app.delete("/api/songs/{song_id}", status_code=204)
     def delete_song(song_id: str) -> None:

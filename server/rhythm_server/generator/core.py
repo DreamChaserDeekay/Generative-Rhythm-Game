@@ -8,16 +8,19 @@ from typing import Any
 
 import numpy as np
 
-from ..config import difficulty_config, key_modes
+from ..analysis.stems import STEM_NAMES
+from ..config import difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
 from .candidates import build_candidates
-from .lanes import assign_lanes, lane_infos
+from .effects import camera_effects
+from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .linter import lint
 from .params import GenParams, resolve_params
-from .select import MAX_CHORD_RATIO, select_slots
+from .repeat import consistency, repeat_references, repeat_targets
+from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.2.0"
+GENERATOR_VERSION = "0.3.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least
@@ -85,15 +88,16 @@ def generate_chart(
     floor_nps = float(cfg["presets"][params.difficulty]["avgNps"][0]) * factor * DENSITY_FLOOR
     scale = 1.0
     chord_scale = 1.0
-    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any]] | None = None
+    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice]] | None = None
     exhausted = False
     for _ in range(int(cfg["maxAdjustIterations"])):
         slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-        notes = assign_lanes(slots, lanes, params, tempo, np.random.default_rng(seed))
+        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed))
+        notes = notes_from_choices(slots, choices, tempo)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         if best is None or rank < best[0]:
-            best = (rank, notes, est)
+            best = (rank, notes, est, slots, choices)
         if rank[0] == 0 and rank[1] <= 0.75:
             break
         eff = max(0.3, est["effectiveNps"])
@@ -116,7 +120,13 @@ def generate_chart(
         scale = new_scale
 
     assert best is not None
-    _, notes, est = best
+    _, notes, est, slots, choices = best
+    repeat_score = None
+    if params.repeat_consistency > 0:
+        consistent = _repeat_consistent(slots, choices, analysis.get("sections", []), lanes, params, tempo, seed)
+        if consistent is not None:
+            notes, repeat_score = consistent
+            est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms)
     problems = lint(notes, lanes, params, tempo)
     if problems:
         raise GenerationError("생성된 채보가 플레이 규칙을 어겼습니다: " + "; ".join(problems[:5]))
@@ -150,6 +160,8 @@ def generate_chart(
             "densityLimited": exhausted,
             "skillset": est["skillset"],
             "handLoad": est["handLoad"],
+            "keysound": _keysound(notes),
+            "repeatConsistency": None if repeat_score is None else round(repeat_score, 3),
             "generator": {
                 "version": GENERATOR_VERSION,
                 "analyzer": f"{analysis['analyzer']['name']}-{analysis['analyzer']['version']}",
@@ -159,5 +171,49 @@ def generate_chart(
         },
         "timing": analysis["timing"],
         "sections": sections,
+        "effects": camera_effects(analysis.get("sections", []), tempo),
         "notes": notes,
     }
+
+
+def _repeat_consistent(
+    slots: list[Slot],
+    choices: list[Choice],
+    sections: list[dict[str, Any]],
+    lanes: list[LaneInfo],
+    params: GenParams,
+    tempo: TempoMap,
+    seed: int,
+) -> tuple[list[dict[str, Any]], float | None] | None:
+    """Re-runs the lane search so repeated sections reuse their first occurrence's lanes.
+    References come from the previous pass and are refreshed until they stop changing."""
+    refs, occurrence = repeat_references(slots, sections)
+    if not any(r is not None for r in refs):
+        return None
+    cfg = load_config("instruments")["repeat"]
+    mirror = cfg.get("variant") == "mirror"
+    chosen = key_lanes_of(choices, len(slots), lanes)
+    for _ in range(int(cfg.get("passes", 2))):
+        targets = repeat_targets(refs, occurrence, chosen, lanes, mirror)
+        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), targets)
+        updated = key_lanes_of(choices, len(slots), lanes)
+        if updated == chosen:
+            break
+        chosen = updated
+    return notes_from_choices(slots, choices, tempo), consistency(refs, occurrence, chosen, lanes, mirror)
+
+
+def _keysound(notes: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The lead stem the client ducks when its notes are missed: the pitched stem (vocals,
+    other, bass) most notes follow, or the drums when the notes hardly follow any of those."""
+    counts = {name: 0 for name in STEM_NAMES}
+    for n in notes:
+        if n.get("src") in counts:
+            counts[n["src"]] += 1
+    total = sum(counts.values())
+    if total == 0:
+        return None
+    pitched = max(("vocals", "other", "bass"), key=lambda k: counts[k])
+    min_share = load_config("instruments")["keysound"]["minShare"]
+    stem = pitched if counts[pitched] >= min_share * total else "drums"
+    return {"stem": stem, "share": round(counts[stem] / total, 3), "shares": {k: round(v / total, 3) for k, v in counts.items()}}

@@ -19,6 +19,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27"]
+# Optional ML analysis backends. Install PyTorch for your machine first (CPU build:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu), then this extra.
+# basic-pitch pins TensorFlow < 2.15.1, which has no wheels past Python 3.11; on newer Pythons
+# pitch tracking stays on the core analysis.
+ml = ["demucs>=4.0", "beat-this>=1.0", "basic-pitch>=0.3; python_version < '3.12'"]
 
 [project.scripts]
 rhythm-server = "rhythm_server.__main__:main"

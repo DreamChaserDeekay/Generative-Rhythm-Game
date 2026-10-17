@@ -10,7 +10,9 @@ import { GameSession, type SessionEvent, type SessionResult } from '../engine/se
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { InputManager } from '../input/InputManager';
+import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
+import { skinById } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import {
   activeCovers,
@@ -26,16 +28,22 @@ import {
 import type { PlayRequest, PracticeOptions } from './App';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
+import { PlayBackground } from './PlayBackground';
+
+const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
 
 export interface PlaySetup {
   request: PlayRequest;
   /** Decoded audio; null plays the chart silently (tests). */
   buffer: AudioBuffer | null;
+  /** Lead stem for the keysound mode (null = off). */
+  lead: AudioBuffer | null;
   /** Where the buffer sits on the song timeline (practice buffers are stretched segments). */
   bufferPlacement: BufferPlacement;
   settings: Settings;
   canvas: HTMLCanvasElement;
   hudRoot: HTMLElement;
+  bgRoot: HTMLElement;
 }
 
 export interface PlayOutcome {
@@ -89,6 +97,10 @@ export class PlayController {
   private readonly durationMs: number;
   private readonly boundCodes: Set<string>;
   private readonly paceTarget: number | null;
+  private readonly cameraFx: CameraFx;
+  private readonly background: PlayBackground;
+  /** Notes whose miss dips the keysound stem (by session note index). */
+  private readonly keysoundStem: string | null;
   private settings: Settings;
   private scroll!: ScrollModel;
   private session!: GameSession;
@@ -124,6 +136,20 @@ export class PlayController {
       palette: settings.palette,
       reducedFlash: settings.reducedFlash,
       covers: activeCovers(settings),
+      skin: skinById(settings.skin, settings.customSkin),
+    });
+    this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
+    this.keysoundStem = setup.lead ? (this.chart.meta.keysound?.stem ?? null) : null;
+    this.background = new PlayBackground({
+      root: setup.bgRoot,
+      coverUrl: request.background?.coverUrl ?? null,
+      bgaUrl: settings.bga ? (request.background?.bgaUrl ?? null) : null,
+      bgaOffsetMs: request.background?.bgaOffsetMs ?? 0,
+      rate: setup.bufferPlacement.rate,
+      brightness: settings.bgBrightness,
+      visualizer: settings.visualizer,
+      reducedFlash: settings.reducedFlash,
+      analyser: setup.buffer ? this.engine.analyser : null,
     });
     this.table = new JudgementTable(judgementConfig, settings.judgementMode, this.rate);
     this.ruleset = new Ruleset(settings.ruleset);
@@ -151,6 +177,7 @@ export class PlayController {
           judgementConfig.modes[settings.judgementMode].label,
           rules.label,
           settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
+          setup.lead && this.keysoundStem ? `키음 ${STEM_LABELS[this.keysoundStem] ?? this.keysoundStem}` : null,
           request.autoPlay ? 'AUTO' : null,
         ]
           .filter(Boolean)
@@ -210,6 +237,7 @@ export class PlayController {
     this.resizeObserver.disconnect();
     this.renderer.dispose();
     this.hud.dispose();
+    this.background.dispose();
   }
 
   private gaugeRule() {
@@ -241,7 +269,7 @@ export class PlayController {
     );
     this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
     if (!request.autoPlay) this.input.attach();
-    this.engine.setBuffer(buffer, bufferPlacement);
+    this.engine.setBuffer(buffer, bufferPlacement, this.setup.lead);
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
     if (this.practice) {
@@ -309,9 +337,11 @@ export class PlayController {
         keyDown: (lane) => session.isKeyDown(lane),
         barTimes: this.barTimes,
         fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
+        camera: this.cameraFx.enabled ? this.cameraFx.at(songNow) : undefined,
       },
       perfNow,
     );
+    this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
     const start = this.practice ? this.firstNoteMs : 0;
     const end = this.practice ? this.lastNoteEndMs : this.durationMs;
     this.hud.update(perfNow, {
@@ -390,6 +420,14 @@ export class PlayController {
     if (e.type === 'judge') {
       this.hud.showJudge(e, now);
       if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
+      if (this.keysoundStem) {
+        // the lead stem dips on a missed lead note and comes straight back on the next hit
+        const src = this.session.notes[e.noteIndex]?.src;
+        if (src === undefined || src === this.keysoundStem) {
+          if (e.isBreak) this.engine.duckLead();
+          else this.engine.restoreLead();
+        }
+      }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
     } else if (e.type === 'key' && e.down && this.settings.hitSound) {

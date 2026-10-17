@@ -14,6 +14,9 @@ from scipy.signal import butter, sosfilt
 from .config import SAMPLE_RATE
 
 PENTATONIC = [0, 3, 5, 7, 10]  # minor pentatonic degrees
+STEM_NAMES = ("drums", "bass", "vocals", "other")
+# which stem each synthesized instrument belongs to (the lead plays the "vocal" melody)
+INSTRUMENT_STEM = {"kick": "drums", "snare": "drums", "hihat": "drums", "crash": "drums", "bass": "bass", "lead": "vocals", "pad": "other"}
 
 
 @dataclass
@@ -26,6 +29,7 @@ class SynthSong:
     tempo_segments: list[tuple[float, float]] = field(default_factory=list)  # (start time s, bpm)
     sustains: list[tuple[float, float, float]] = field(default_factory=list)  # (start, end, midi)
     sections: list[tuple[float, str]] = field(default_factory=list)  # (start time s, label)
+    stems: dict[str, np.ndarray] = field(default_factory=dict)  # ground-truth stems; sum == pcm
 
     @property
     def duration(self) -> float:
@@ -95,7 +99,9 @@ def _midi_to_hz(m: float) -> float:
     return 440.0 * 2 ** ((m - 69) / 12)
 
 
-def _add(buf: np.ndarray, sig: np.ndarray, start: int, gain: float, pan: float = 0.0) -> None:
+def _add(buf: np.ndarray, sig: np.ndarray, start: int, gain: float, pan: float = 0.0, stem: np.ndarray | None = None) -> None:
+    if stem is not None:
+        _add(stem, sig, start, gain, pan)
     if start >= len(buf):
         return
     end = min(len(buf), start + len(sig))
@@ -113,12 +119,18 @@ def make_song(
     tempo_change: tuple[int, float] | None = None,
     beats_per_bar: int = 4,
     tail: float = 2.0,
+    with_stems: bool = False,
+    repeat_melody: bool = False,
 ) -> SynthSong:
     """Build a song in 8-bar sections: intro, verse, chorus, verse, chorus, ...
 
     `tempo_change=(bar, new_bpm)` switches tempo at the start of that bar.
+    `with_stems` also returns the drums / bass / vocals (lead) / other (pads) stems.
+    `repeat_melody` makes every verse and every chorus play the same lead line, like a real song
+    (the default draws new notes each time, which keeps older test fixtures unchanged).
     """
     rng = np.random.default_rng(seed)
+    melody_rng = np.random.default_rng(seed + 7919)
     # beat times
     beat_times: list[float] = []
     segments: list[tuple[float, float]] = []
@@ -135,6 +147,19 @@ def make_song(
     end_time = t
     n = int((end_time + tail) * sample_rate)
     buf = np.zeros((n, 2), dtype=np.float64)
+    stems = {name: np.zeros((n, 2), dtype=np.float64) for name in STEM_NAMES} if with_stems else {}
+
+    def stem_of(instrument: str) -> np.ndarray | None:
+        return stems.get(INSTRUMENT_STEM[instrument])
+
+    melodies: dict[tuple[str, int, int], int] = {}
+
+    def melody_note(kind: str, bar_in_section: int, step: int) -> int:
+        key = (kind, bar_in_section, step)
+        if key not in melodies:
+            degree = PENTATONIC[int(melody_rng.integers(0, len(PENTATONIC)))]
+            melodies[key] = root + 12 + degree + (12 if melody_rng.random() < 0.25 else 0)
+        return melodies[key]
 
     kick, snare, crash = _kick(sample_rate, rng), _snare(sample_rate, rng), _crash(sample_rate, rng)
     hat = _hihat(sample_rate, rng)
@@ -164,17 +189,17 @@ def make_song(
             bt = beat_times[bi]
             beat_len = (beat_times[bi + 1] if bi + 1 < len(beat_times) else end_time) - bt
             # kick: every beat (four on the floor) except intro off-beats
-            _add(buf, kick, at(bt), 0.9)
+            _add(buf, kick, at(bt), 0.9, stem=stem_of("kick"))
             onsets["kick"].append(bt)
             if kind != "intro" and beat % 2 == 1:
-                _add(buf, snare, at(bt), 0.6)
+                _add(buf, snare, at(bt), 0.6, stem=stem_of("snare"))
                 onsets["snare"].append(bt)
             # hi-hats: 8ths in intro/verse, 16ths in chorus
             steps = 4 if kind == "chorus" else 2
             for s in range(steps):
                 ht = sub_time(bi, s / steps)
                 is_open = kind == "chorus" and s == 2
-                _add(buf, open_hat if is_open else hat, at(ht), 0.22 if s % 2 == 0 else 0.16, pan=0.3)
+                _add(buf, open_hat if is_open else hat, at(ht), 0.22 if s % 2 == 0 else 0.16, pan=0.3, stem=stem_of("hihat"))
                 onsets["hihat"].append(ht)
             # bass on every beat (8ths in chorus)
             if kind != "intro":
@@ -183,13 +208,13 @@ def make_song(
                     bt2 = sub_time(bi, s / bass_steps)
                     dur = beat_len / bass_steps * 0.85
                     note = root - 12 + chord + (7 if s == 1 else 0)
-                    _add(buf, _tone(_midi_to_hz(note), dur, sample_rate, 6, 0.003, 0.02, 0.25), at(bt2), 0.32)
+                    _add(buf, _tone(_midi_to_hz(note), dur, sample_rate, 6, 0.003, 0.02, 0.25), at(bt2), 0.32, stem=stem_of("bass"))
                     onsets["bass"].append(bt2)
             # pads: one chord per bar
             if beat == 0:
                 bar_len = beat_len * beats_per_bar
                 for interval in (0, 3, 7):
-                    _add(buf, _tone(_midi_to_hz(root + chord + interval), bar_len * 0.95, sample_rate, 2, 0.08, 0.2), at(bt), 0.05)
+                    _add(buf, _tone(_midi_to_hz(root + chord + interval), bar_len * 0.95, sample_rate, 2, 0.08, 0.2), at(bt), 0.05, stem=stem_of("pad"))
                 onsets["pad"].append(bt)
         # lead line
         if kind == "verse":
@@ -199,24 +224,29 @@ def make_song(
             pattern = [(0, 0.5), (0.5, 0.5), (1, 0.25), (1.25, 0.25), (1.5, 0.5), (2, 1.5), (3.5, 0.25), (3.75, 0.25)]
         else:
             pattern = []
-        for start_beat, length in pattern:
+        for step, (start_beat, length) in enumerate(pattern):
             bi = bar * beats_per_bar + int(start_beat)
             frac = start_beat - int(start_beat)
             st = sub_time(bi, frac)
             beat_len = (beat_times[bi + 1] if bi + 1 < len(beat_times) else end_time) - beat_times[bi]
             dur = length * beat_len * 0.92
-            degree = PENTATONIC[int(rng.integers(0, len(PENTATONIC)))]
-            midi = root + 12 + degree + (12 if rng.random() < 0.25 else 0)
-            _add(buf, _tone(_midi_to_hz(midi), dur, sample_rate, 5, 0.004, 0.04), at(st), 0.2, pan=-0.2)
+            if repeat_melody:
+                midi = melody_note(kind, bar % 8, step)
+            else:
+                degree = PENTATONIC[int(rng.integers(0, len(PENTATONIC)))]
+                midi = root + 12 + degree + (12 if rng.random() < 0.25 else 0)
+            _add(buf, _tone(_midi_to_hz(midi), dur, sample_rate, 5, 0.004, 0.04), at(st), 0.2, pan=-0.2, stem=stem_of("lead"))
             onsets["lead"].append(st)
             sustains.append((st, st + dur, float(midi)))
         if kind == "chorus" and bar % 8 == 0:
-            _add(buf, crash, at(beat_times[bar * beats_per_bar]), 0.3)
+            _add(buf, crash, at(beat_times[bar * beats_per_bar]), 0.3, stem=stem_of("crash"))
             onsets["crash"].append(beat_times[bar * beats_per_bar])
 
     peak = np.max(np.abs(buf))
     if peak > 0:
         buf *= 0.89 / peak
+        for stem in stems.values():
+            stem *= 0.89 / peak
     downbeats = beat_times[::beats_per_bar]
     return SynthSong(
         pcm=buf.astype(np.float32),
@@ -227,4 +257,5 @@ def make_song(
         tempo_segments=segments,
         sustains=sustains,
         sections=sections,
+        stems={name: s.astype(np.float32) for name, s in stems.items()},
     )

@@ -14,7 +14,10 @@ from typing import Any
 
 import numpy as np
 
+import soundfile as sf
+
 from .. import audio_io
+from ..analysis.stems import STEM_NAMES
 from ..config import SAMPLE_RATE, load_config
 
 SCHEMA = """
@@ -75,6 +78,14 @@ def lamp_rank(lamp: str) -> int:
     return LAMP_ORDER.index(lamp) if lamp in LAMP_ORDER else 0
 
 
+# Columns added after the first release; created on start-up when an older library is opened.
+MIGRATIONS = {
+    "analyzer": "TEXT NOT NULL DEFAULT '{}'",
+    "bga_ext": "TEXT",
+    "bga_offset_ms": "REAL NOT NULL DEFAULT 0",
+}
+BGA_EXTENSIONS = {".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".mov": "video/quicktime", ".ogv": "video/ogg"}
+
 SONG_ID = re.compile(r"^[0-9a-f]{16}$")
 CHART_ID = re.compile(r"^c[0-9a-f]{20}$")
 
@@ -100,6 +111,10 @@ class Library:
         self._db.row_factory = sqlite3.Row
         with self._lock:
             self._db.executescript(SCHEMA)
+            have = {r["name"] for r in self._db.execute("PRAGMA table_info(songs)")}
+            for column, decl in MIGRATIONS.items():
+                if column not in have:
+                    self._db.execute(f"ALTER TABLE songs ADD COLUMN {column} {decl}")
             self._db.commit()
 
     # ---------- paths ----------
@@ -116,6 +131,21 @@ class Library:
         for p in self.song_dir(song_id).glob("cover.*"):
             return p
         return None
+
+    def stems_dir(self, song_id: str) -> Path:
+        return self.song_dir(song_id) / "stems"
+
+    def stem_path(self, song_id: str, name: str) -> Path:
+        if name not in STEM_NAMES:
+            raise SongNotFound(name)
+        return self.stems_dir(song_id) / f"{name}.flac"
+
+    def bga_path(self, song_id: str) -> Path | None:
+        row = self._row(_checked(SONG_ID, song_id))
+        if row is None or not row["bga_ext"]:
+            return None
+        p = self.song_dir(song_id) / f"bga{row['bga_ext']}"
+        return p if p.exists() else None
 
     def chart_path(self, chart_id: str) -> Path:
         return self.root / "charts" / f"{_checked(CHART_ID, chart_id)}.json"
@@ -190,10 +220,14 @@ class Library:
         return [dict(self._song_json(r), records=bests.get(r["id"], [])) for r in rows]
 
     def update_song(self, song_id: str, **fields: Any) -> dict[str, Any]:
-        allowed = {"title", "artist", "status", "progress", "progress_label", "error", "bpm", "bpm_min", "bpm_max", "preview_ms", "analyzed_at", "overrides"}
+        allowed = {
+            "title", "artist", "status", "progress", "progress_label", "error", "bpm", "bpm_min", "bpm_max",
+            "preview_ms", "analyzed_at", "overrides", "analyzer", "bga_ext", "bga_offset_ms",
+        }  # fmt: skip
         sets = {k: v for k, v in fields.items() if k in allowed}
-        if "overrides" in sets and not isinstance(sets["overrides"], str):
-            sets["overrides"] = json.dumps(sets["overrides"])
+        for key in ("overrides", "analyzer"):
+            if key in sets and not isinstance(sets[key], str):
+                sets[key] = json.dumps(sets[key])
         if sets:
             with self._lock:
                 self._db.execute(
@@ -238,6 +272,9 @@ class Library:
             "overrides": json.loads(row["overrides"] or "{}"),
             "createdAt": row["created_at"],
             "analyzedAt": row["analyzed_at"],
+            "analyzer": json.loads(row["analyzer"] or "{}"),
+            "hasBga": bool(row["bga_ext"]),
+            "bgaOffsetMs": row["bga_offset_ms"] or 0.0,
         }
 
     # ---------- analysis ----------
@@ -249,6 +286,40 @@ class Library:
     def load_analysis(self, song_id: str) -> dict[str, Any] | None:
         p = self.analysis_path(song_id)
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    # ---------- stems ----------
+    def stems_info(self, song_id: str) -> dict[str, Any] | None:
+        p = self.stems_dir(song_id) / "stems.json"
+        if not p.exists() or not all(self.stem_path(song_id, n).exists() for n in STEM_NAMES):
+            return None
+        return json.loads(p.read_text(encoding="utf-8"))
+
+    def save_stems(self, song_id: str, stems: dict[str, np.ndarray], method: str) -> None:
+        """Stores separated stems as 16-bit FLAC next to the canonical audio."""
+        d = self.stems_dir(song_id)
+        d.mkdir(parents=True, exist_ok=True)
+        for name in STEM_NAMES:
+            tmp = d / f"{name}.tmp.flac"
+            sf.write(tmp, np.clip(stems[name], -1.0, 1.0), SAMPLE_RATE, subtype="PCM_16", format="FLAC")
+            tmp.replace(self.stem_path(song_id, name))
+        (d / "stems.json").write_text(json.dumps({"method": method, "names": list(STEM_NAMES), "createdAt": time.time()}), encoding="utf-8")
+
+    def clear_stems(self, song_id: str) -> None:
+        shutil.rmtree(self.stems_dir(song_id), ignore_errors=True)
+
+    # ---------- background video ----------
+    def save_bga(self, song_id: str, src: Path, ext: str) -> None:
+        old = self.bga_path(song_id)
+        if old is not None:
+            old.unlink(missing_ok=True)
+        shutil.move(str(src), self.song_dir(song_id) / f"bga{ext}")
+        self.update_song(song_id, bga_ext=ext)
+
+    def delete_bga(self, song_id: str) -> None:
+        old = self.bga_path(song_id)
+        if old is not None:
+            old.unlink(missing_ok=True)
+        self.update_song(song_id, bga_ext=None)
 
     # ---------- charts ----------
     def save_chart(self, chart: dict[str, Any], song_id: str) -> None:

@@ -31,6 +31,12 @@ class Slot:
     score: float
     subdivision: int
     strength: float
+    sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
+
+    @property
+    def src(self) -> int | None:
+        """Dominant stem index, or None without stem analysis."""
+        return int(np.argmax(self.sources)) if self.sources is not None else None
 
 
 def active_seconds(cands: list[Candidate]) -> float:
@@ -125,6 +131,7 @@ def select_slots(
             score=c.score,
             subdivision=c.subdivision,
             strength=c.strength,
+            sources=c.sources,
         )
         for c in chosen
     ]

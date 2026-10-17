@@ -5,6 +5,7 @@ import { defaultRuleset, rulesetIds, type RulesetId } from '../engine/ruleset';
 import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
+import { BUILTIN_SKINS, sanitizeSkin } from '../render/skins';
 
 export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
@@ -24,6 +25,10 @@ export interface GenerationPrefs {
   maxChord: number | null;
   /** Scratch or side-note rate, depending on the key mode. */
   specialRate: number | null;
+  /** Pull of drum / bass notes toward their lane regions (null = server default). */
+  instrumentMapping: number | null;
+  /** 1 = reuse lane patterns in repeated sections, 0 = off (null = server default). */
+  repeatConsistency: number | null;
 }
 
 export const GEN_STYLES: GenStyle[] = ['balanced', 'stream', 'chord', 'jack', 'longnote', 'technical', 'melody'];
@@ -36,6 +41,8 @@ export const DEFAULT_GENERATION: GenerationPrefs = {
   longNoteRatio: null,
   maxChord: null,
   specialRate: null,
+  instrumentMapping: null,
+  repeatConsistency: null,
 };
 
 export interface Settings {
@@ -76,6 +83,17 @@ export interface Settings {
   palette: Palette;
   pacemaker: Pacemaker;
   generation: GenerationPrefs;
+  /** Stem keysound mode: the lead stem dips when its notes are missed. */
+  keysound: boolean;
+  /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
+  cameraFx: number;
+  skin: string;
+  /** User skin (JSON object), used when `skin` is "custom". */
+  customSkin: unknown;
+  /** Background: blurred jacket, visualizer and user video under a dimming layer. */
+  bgBrightness: number;
+  visualizer: boolean;
+  bga: boolean;
 }
 
 export const BASE_VISIBLE_MS = 5000;
@@ -117,6 +135,13 @@ export const DEFAULT_SETTINGS: Settings = {
   palette: 'default',
   pacemaker: 'OFF',
   generation: DEFAULT_GENERATION,
+  keysound: false,
+  cameraFx: 0.6,
+  skin: 'neon',
+  customSkin: null,
+  bgBrightness: 0.35,
+  visualizer: true,
+  bga: true,
 };
 
 const PACEMAKERS: Pacemaker[] = ['OFF', 'BEST', '90', '95', '98', '99', '100'];
@@ -148,6 +173,14 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
   s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
+  s.keysound = Boolean(s.keysound);
+  s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
+  s.skin = pick(s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
+  s.customSkin = sanitizeSkin(s.customSkin);
+  if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
+  s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);
+  s.visualizer = s.visualizer !== false;
+  s.bga = s.bga !== false;
   const g = { ...DEFAULT_GENERATION, ...raw.generation };
   const optional = (v: unknown, min: number, max: number) => (v === null || v === undefined ? null : num(v, min, max, min));
   s.generation = {
@@ -157,6 +190,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
     longNoteRatio: optional(g.longNoteRatio, 0, 0.5),
     maxChord: optional(g.maxChord, 1, 8),
     specialRate: optional(g.specialRate, 0, 0.2),
+    instrumentMapping: optional(g.instrumentMapping, 0, 1),
+    repeatConsistency: optional(g.repeatConsistency, 0, 1),
   };
   return s;
 }

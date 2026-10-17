@@ -28,6 +28,10 @@ export interface PlayRequest {
   best?: { score: number; rate: number } | null;
   /** Fixed seed for the RANDOM family (tests); a new one is drawn per play otherwise. */
   placementSeed?: number;
+  /** Stem keysound mode: loads the chart's lead stem (same length as the song audio). */
+  loadLead?: () => Promise<AudioBuffer | null>;
+  /** Background layer: blurred jacket and the user's video. */
+  background?: { coverUrl: string | null; bgaUrl: string | null; bgaOffsetMs: number };
 }
 
 type Screen =

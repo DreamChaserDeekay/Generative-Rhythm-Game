@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from ..config import difficulty_config, key_modes
+from ..config import difficulty_config, key_modes, load_config
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
@@ -35,6 +35,8 @@ class GenParams:
     density: float = 1.0
     style: str = "balanced"
     rhythm_source: str = "auto"
+    instrument_mapping: float = 0.6  # 0 = off, 1 = strong pull of drums/bass toward their lane regions
+    repeat_consistency: float = 1.0  # 0 = off, 1 = reuse the first occurrence's lanes in repeated sections
     extra: dict[str, Any] = field(default_factory=dict)
 
     def public(self) -> dict[str, Any]:
@@ -49,6 +51,8 @@ class GenParams:
             "sideRate": round(self.side_rate, 3),
             "style": self.style,
             "rhythmSource": self.rhythm_source,
+            "instrumentMapping": round(self.instrument_mapping, 3),
+            "repeatConsistency": round(self.repeat_consistency, 3),
         }
 
     def weight(self, name: str, default: float = 1.0) -> float:
@@ -108,6 +112,9 @@ def resolve_params(
     if style in STYLES:
         params.style = style
     _apply_style(params, cfg["styles"].get(params.style, {}))
+    instruments = load_config("instruments")
+    params.instrument_mapping = float(instruments["laneMapping"]["strength"])
+    params.repeat_consistency = float(instruments["repeat"]["strength"])
     limits = cfg["overrideLimits"]
 
     def clamp(key: str, value: Any) -> float:
@@ -128,6 +135,10 @@ def resolve_params(
             params.side_rate = clamp("sideRate", value)
         elif key == "rhythmSource" and value in RHYTHM_SOURCES:
             params.rhythm_source = value
+        elif key == "instrumentMapping":
+            params.instrument_mapping = max(0.0, min(1.0, float(value)))
+        elif key == "repeatConsistency":
+            params.repeat_consistency = max(0.0, min(1.0, float(value)))
     return params
 
 

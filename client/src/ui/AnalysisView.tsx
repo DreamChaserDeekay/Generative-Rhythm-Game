@@ -4,6 +4,8 @@ import { api, type AnalysisResult } from '../api/client';
 const PX_PER_SECOND = 60;
 const HEIGHT = 150;
 const BAND_COLORS = { low: '#ff7a59', mid: '#7cf7ff', high: '#c58bff' } as const;
+const STEM_COLORS: Record<string, string> = { drums: '#8fa3c8', bass: '#ff9a6b', vocals: '#7cf7ff', other: '#c58bff' };
+const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
 const SECTION_COLORS = ['#2b3b7a', '#5a2b6e', '#1f5a52', '#6e5a2b', '#3b2b6e', '#2b5a6e'];
 
 /** Developer view of the analysis: waveform, onsets by band, beat grid and sections. */
@@ -46,7 +48,7 @@ export function AnalysisView({ songId }: { songId: string }) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#e8eeff';
       ctx.font = '11px sans-serif';
-      ctx.fillText(`${s.label} (${s.group})`, x(s.t) + 4, 13);
+      ctx.fillText(`${s.label} (${s.group})${s.leader ? ` · ${STEM_LABELS[s.leader] ?? s.leader}` : ''}`, x(s.t) + 4, 13);
     });
     const mid = 18 + (HEIGHT - 18) / 2 - 12;
     ctx.fillStyle = 'rgba(120, 150, 255, 0.45)';
@@ -65,7 +67,7 @@ export function AnalysisView({ songId }: { songId: string }) {
     }
     const rowY = { low: HEIGHT - 8, mid: HEIGHT - 14, high: HEIGHT - 20 } as const;
     for (const o of analysis.onsets) {
-      ctx.fillStyle = BAND_COLORS[o.band];
+      ctx.fillStyle = o.source ? STEM_COLORS[o.source] : BAND_COLORS[o.band];
       ctx.globalAlpha = 0.35 + 0.65 * Math.min(1, o.strength);
       ctx.fillRect(x(o.t) - 1, rowY[o.band] - 3, 2, 6);
       if (o.sustainEnd) ctx.fillRect(x(o.t), rowY[o.band] - 0.5, x(o.sustainEnd) - x(o.t), 1);
@@ -81,9 +83,22 @@ export function AnalysisView({ songId }: { songId: string }) {
         <span>BPM {analysis.tempo.constant ? analysis.tempo.bpm.toFixed(2) : `${analysis.tempo.bpmMin.toFixed(1)}–${analysis.tempo.bpmMax.toFixed(1)}`}</span>
         <span>신뢰도 {Math.round(analysis.tempo.confidence * 100)}%</span>
         <span>온셋 {analysis.onsets.length}</span>
-        <span className="dot low">저역</span>
-        <span className="dot mid">중역</span>
-        <span className="dot high">고역</span>
+        {analysis.stems ? (
+          <>
+            <span>스템 {analysis.stems.method === 'core-dsp' ? '기본 분리' : analysis.stems.method}</span>
+            {analysis.stems.names.map((n) => (
+              <span key={n} className="dot" style={{ ['--dot' as string]: STEM_COLORS[n] }}>
+                {STEM_LABELS[n] ?? n}
+              </span>
+            ))}
+          </>
+        ) : (
+          <>
+            <span className="dot low">저역</span>
+            <span className="dot mid">중역</span>
+            <span className="dot high">고역</span>
+          </>
+        )}
         <span className="dot down">마디선</span>
       </div>
       <div className="analysis-scroll">

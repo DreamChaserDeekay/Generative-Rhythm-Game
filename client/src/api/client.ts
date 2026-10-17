@@ -1,4 +1,4 @@
-import type { Chart, KeyModeId } from '../engine/types';
+import type { Chart, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
 
@@ -35,7 +35,22 @@ export interface Song {
   overrides: { bpm?: number; offsetShiftMs?: number };
   createdAt: number;
   analyzedAt: number | null;
+  /** Analyzer version and the backend used for each part (core-dsp / demucs-4.1.0 / ...). */
+  analyzer: { version?: string; backends?: Record<string, string>; errors?: Record<string, string> };
+  /** The analysis predates the current analyzer or the installed ML backends. */
+  outdated?: boolean;
+  hasBga: boolean;
+  bgaOffsetMs: number;
   records?: ScoreRecord[];
+}
+
+export interface BackendStatus {
+  kind: 'stems' | 'beats' | 'pitch' | 'structure';
+  name: string;
+  installed: boolean;
+  active: boolean;
+  version: string | null;
+  license: string;
 }
 
 export interface Health {
@@ -46,6 +61,7 @@ export interface Health {
   keyModes: KeyModeId[];
   difficulties: string[];
   formats: string[];
+  backends: BackendStatus[];
 }
 
 export interface GeneratedChartMeta {
@@ -65,8 +81,18 @@ export interface AnalysisResult {
   tempo: { bpm: number; bpmMin: number; bpmMax: number; constant: boolean; confidence: number };
   timing: Chart['timing'];
   beats: { t: number; isDownbeat: boolean }[];
-  onsets: { t: number; strength: number; band: 'low' | 'mid' | 'high'; pitch: number | null; sustainEnd: number | null }[];
-  sections: { t: number; endT: number; label: string; group: string; energy: number }[];
+  onsets: {
+    t: number;
+    strength: number;
+    band: 'low' | 'mid' | 'high';
+    pitch: number | null;
+    sustainEnd: number | null;
+    source?: StemName;
+    sources?: number[];
+  }[];
+  sections: { t: number; endT: number; label: string; group: string; energy: number; stems?: number[]; leader?: StemName }[];
+  stems?: { names: StemName[]; method: string; energyShare: number[] };
+  analyzer?: { name: string; version: string; backends?: Record<string, string>; errors?: Record<string, string> };
   waveform: { frameMs: number; peaks: number[] };
   previewMs: number;
 }
@@ -125,7 +151,7 @@ export const api = {
     return request<{ song: Song; created: boolean }>('/api/songs', { method: 'POST', body: form });
   },
   addDemo: async (bpm = 128, bars = 48) => (await request<{ song: Song }>('/api/songs/demo', json({ bpm, bars }))).song,
-  patchSong: (id: string, patch: { title?: string; artist?: string; bpm?: number; clearBpm?: boolean; offsetShiftMs?: number }) =>
+  patchSong: (id: string, patch: { title?: string; artist?: string; bpm?: number; clearBpm?: boolean; offsetShiftMs?: number; bgaOffsetMs?: number }) =>
     request<{ song: Song; reanalyzing: boolean }>(`/api/songs/${id}`, { ...json(patch), method: 'PATCH' }),
   deleteSong: (id: string) => request<void>(`/api/songs/${id}`, { method: 'DELETE' }),
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),
@@ -141,6 +167,16 @@ export const api = {
     breaks: number;
     detail?: Record<string, unknown>;
   }) => request<{ id: number; records: ScoreRecord[] }>('/api/scores', json(record)),
+  reanalyze: async (id: string) => (await request<{ song: Song }>(`/api/songs/${id}/reanalyze`, { method: 'POST' })).song,
+  stemsStatus: (id: string) => request<{ names: StemName[]; cached: boolean; method: string }>(`/api/songs/${id}/stems`),
+  uploadBga: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await request<{ song: Song }>(`/api/songs/${id}/bga`, { method: 'POST', body: form })).song;
+  },
+  deleteBga: (id: string) => request<void>(`/api/songs/${id}/bga`, { method: 'DELETE' }),
   audioUrl: (id: string) => `/api/songs/${id}/audio`,
+  stemUrl: (id: string, stem: StemName) => `/api/songs/${id}/stems/${stem}`,
   coverUrl: (id: string) => `/api/songs/${id}/cover`,
+  bgaUrl: (id: string) => `/api/songs/${id}/bga`,
 };

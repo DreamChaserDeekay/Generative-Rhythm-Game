@@ -70,6 +70,8 @@ export interface CameraConfig {
   trackLength: number;
   presets: Record<string, CameraPreset>;
   default: string;
+  /** Strength of the chart's camera cues (see render/cameraFx.ts). */
+  fx: { maxTiltDeg: number; zoomDepth: number };
 }
 
 export const judgementConfig = judgementJson as unknown as JudgementConfig;

@@ -14,22 +14,34 @@ const TAIL_MS = 2000;
 
 /**
  * Audio for a practice run: the A–B segment (plus pre-roll), time-stretched off the main thread
- * when the speed is not 1. Returns where the new buffer sits on the song timeline.
+ * when the speed is not 1. The keysound lead stem, if any, is stretched together with the mix
+ * (one shared alignment), so the two stay sample-aligned. Returns where the new buffers sit on
+ * the song timeline.
  */
 export async function practiceAudio(
   ctx: BaseAudioContext,
   source: AudioBuffer,
   segment: PracticeSegment,
-): Promise<{ buffer: AudioBuffer; placement: BufferPlacement }> {
-  if (Math.abs(segment.rate - 1) < 1e-6) return { buffer: source, placement: { originMs: 0, rate: 1 } };
+  lead: AudioBuffer | null = null,
+): Promise<{ buffer: AudioBuffer; lead: AudioBuffer | null; placement: BufferPlacement }> {
+  if (Math.abs(segment.rate - 1) < 1e-6) return { buffer: source, lead, placement: { originMs: 0, rate: 1 } };
   const sr = source.sampleRate;
   const from = Math.max(0, Math.floor(((segment.startMs - PREROLL_MS) / 1000) * sr));
   const to = Math.min(source.length, Math.ceil(((segment.endMs + TAIL_MS) / 1000) * sr));
-  const channels = Array.from({ length: source.numberOfChannels }, (_, c) => source.getChannelData(c).slice(from, Math.max(from + 1, to)));
-  const stretched = await stretchOffThread(channels, segment.rate);
-  const buffer = ctx.createBuffer(stretched.length, stretched[0].length, sr);
-  stretched.forEach((data, c) => buffer.copyToChannel(data as Float32Array<ArrayBuffer>, c));
-  return { buffer, placement: { originMs: (from / sr) * 1000, rate: segment.rate } };
+  const cut = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c).slice(from, Math.max(from + 1, to)));
+  const mixChannels = cut(source);
+  const leadChannels = lead && lead.length === source.length ? cut(lead) : [];
+  const stretched = await stretchOffThread([...mixChannels, ...leadChannels], segment.rate);
+  const build = (channels: Float32Array[]) => {
+    const b = ctx.createBuffer(channels.length, channels[0].length, sr);
+    channels.forEach((data, c) => b.copyToChannel(data as Float32Array<ArrayBuffer>, c));
+    return b;
+  };
+  return {
+    buffer: build(stretched.slice(0, mixChannels.length)),
+    lead: leadChannels.length > 0 ? build(stretched.slice(mixChannels.length)) : null,
+    placement: { originMs: (from / sr) * 1000, rate: segment.rate },
+  };
 }
 
 function stretchOffThread(channels: Float32Array[], rate: number): Promise<Float32Array[]> {

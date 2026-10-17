@@ -1,18 +1,13 @@
 import * as THREE from 'three';
-import type { CameraPreset, KeyModeConfig, LaneColor } from '../engine/config';
+import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
+import type { CameraPoseFx } from './cameraFx';
 import { cameraPose, computeTrackGeometry, type TrackGeometry } from './layout';
-import { FEVER_COLORS, LANE_PALETTES, type Palette } from './palette';
+import { FEVER_COLORS, type Palette } from './palette';
+import { hex, laneColorsFor, type Skin } from './skins';
 
 const MISSED_COLOR = 0x4a5068;
-const TRACK_NEAR = new THREE.Color(0x16224a);
-const TRACK_FAR = new THREE.Color(0x060a1a);
-const FOG_COLOR = 0x060a1a;
-const RAIL_LEFT = 0x37e2ff;
-const RAIL_RIGHT = 0xff4fd8;
-const COVER_COLOR = 0x0a1030;
-const COVER_EDGE = 0x5fe7ff;
 /** How far the track extends below the judgement line, toward the camera. */
 const TRACK_TAIL = 4;
 const NOTE_HEIGHT = 0.2;
@@ -41,6 +36,8 @@ export interface TrackFrame {
   keyDown: (lane: number) => boolean;
   barTimes: readonly number[];
   fever: FeverFrame;
+  /** Camera tilt and zoom from the chart's effects (absent = neutral camera). */
+  camera?: CameraPoseFx;
 }
 
 export interface CoverLayout {
@@ -57,6 +54,7 @@ export interface TrackRendererOptions {
   palette: Palette;
   reducedFlash: boolean;
   covers: CoverLayout;
+  skin: Skin;
 }
 
 /** Renders the SDVX-style perspective track with Three.js. */
@@ -65,9 +63,14 @@ export class TrackRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly colors: Record<LaneColor, number>;
+  /** Colour of each lane (palette, skin overrides and lane layout applied). */
+  private readonly laneColors: number[];
+  private readonly skin: Skin;
   private readonly reducedFlash: boolean;
-  private readonly noteGeometry = createNoteGeometry();
+  private readonly noteGeometry: THREE.BufferGeometry;
+  private readonly baseQuaternion = new THREE.Quaternion();
+  private baseFov = 40;
+  private appliedFx = { roll: 0, fovScale: 1 };
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
@@ -83,6 +86,7 @@ export class TrackRenderer {
   private readonly holdGlows: THREE.Sprite[] = [];
   private readonly effects: { sprite: THREE.Sprite; start: number; lane: number }[] = [];
   private readonly glowTexture = radialTexture();
+  private readonly ringTexture = ringTexture();
   private readonly judgeGroup = new THREE.Group();
   private readonly judgeGlowMaterial: THREE.MeshBasicMaterial;
   private readonly rails: THREE.MeshBasicMaterial[] = [];
@@ -100,7 +104,9 @@ export class TrackRenderer {
 
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
     this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength);
-    this.colors = LANE_PALETTES[options.palette];
+    this.skin = options.skin;
+    this.laneColors = laneColorsFor(options.skin, options.palette, options.mode);
+    this.noteGeometry = createNoteGeometry(options.skin.noteShape);
     this.reducedFlash = options.reducedFlash;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
@@ -117,26 +123,28 @@ export class TrackRenderer {
     this.buildBeams();
 
     const coverWidth = this.geometry.width + 0.34;
-    this.suddenCover = this.flat(COVER_COLOR, 0.97, 9);
-    this.hiddenCover = this.flat(COVER_COLOR, 0.97, 9);
-    this.liftCover = this.flat(0x0d1538, 0.98, 9);
-    this.suddenEdge = this.flat(COVER_EDGE, 0.9, 9.2, { fog: false });
-    this.hiddenEdge = this.flat(COVER_EDGE, 0.9, 9.2, { fog: false });
+    const coverColor = hex(this.skin.colors.cover);
+    const edgeColor = hex(this.skin.colors.coverEdge);
+    this.suddenCover = this.flat(coverColor, 0.97, 9);
+    this.hiddenCover = this.flat(coverColor, 0.97, 9);
+    this.liftCover = this.flat(coverColor, 0.98, 9);
+    this.suddenEdge = this.flat(edgeColor, 0.9, 9.2, { fog: false });
+    this.hiddenEdge = this.flat(edgeColor, 0.9, 9.2, { fog: false });
     for (const m of [this.suddenCover, this.hiddenCover, this.liftCover, this.suddenEdge, this.hiddenEdge]) m.scale.x = coverWidth;
     this.setCovers(options.covers);
 
     this.notePool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.colors.white));
+      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.laneColors[0]));
       mesh.renderOrder = 4;
       return mesh;
     });
     this.bodyPool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.flatGeometry, this.bodyMaterial(this.colors.white, 'idle'));
+      const mesh = new THREE.Mesh(this.flatGeometry, this.bodyMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3;
       return mesh;
     });
     const barMaterial = new THREE.MeshBasicMaterial({
-      color: 0x9fb4ff,
+      color: hex(this.skin.colors.bar),
       transparent: true,
       opacity: 0.35,
       depthWrite: false,
@@ -151,13 +159,16 @@ export class TrackRenderer {
 
   setCamera(preset: CameraPreset): void {
     const pose = cameraPose(preset);
+    this.baseFov = pose.fov;
     this.camera.fov = pose.fov;
     this.camera.position.set(...pose.position);
     this.camera.lookAt(new THREE.Vector3(...pose.target));
+    this.baseQuaternion.copy(this.camera.quaternion);
+    this.appliedFx = { roll: 0, fovScale: 1 };
     this.camera.updateProjectionMatrix();
     const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(this.camera.position);
     const mid = new THREE.Vector3(0, 0, -this.geometry.length * 0.55).distanceTo(this.camera.position);
-    this.scene.fog = new THREE.Fog(FOG_COLOR, mid, far);
+    this.scene.fog = new THREE.Fog(hex(this.skin?.colors.fog ?? '#060a1a'), mid, far);
   }
 
   /** Moves SUDDEN+ / HIDDEN+ / LIFT (all shares, see settings). */
@@ -211,8 +222,9 @@ export class TrackRenderer {
 
   /** Burst at the judgement line of a lane. */
   hitEffect(lane: number, color: number, perfNow: number): void {
+    if (this.skin.hitEffect === 'none') return;
     const material = new THREE.SpriteMaterial({
-      map: this.glowTexture,
+      map: this.skin.hitEffect === 'ring' ? this.ringTexture : this.glowTexture,
       color,
       blending: THREE.AdditiveBlending,
       transparent: true,
@@ -235,7 +247,19 @@ export class TrackRenderer {
     this.drawBeams(frame, dt);
     this.drawEffects(perfNow);
     this.drawFever(frame);
+    this.applyCameraFx(frame.camera);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private applyCameraFx(fx: CameraPoseFx | undefined): void {
+    const roll = fx?.roll ?? 0;
+    const fovScale = fx?.fovScale ?? 1;
+    if (roll === this.appliedFx.roll && fovScale === this.appliedFx.fovScale) return;
+    this.appliedFx = { roll, fovScale };
+    this.camera.quaternion.copy(this.baseQuaternion);
+    if (roll !== 0) this.camera.rotateZ(roll);
+    this.camera.fov = this.baseFov * fovScale;
+    this.camera.updateProjectionMatrix();
   }
 
   dispose(): void {
@@ -247,6 +271,7 @@ export class TrackRenderer {
       }
     });
     this.glowTexture.dispose();
+    this.ringTexture.dispose();
     this.renderer.dispose();
   }
 
@@ -262,7 +287,7 @@ export class TrackRenderer {
       const n = notes[i];
       if (scroll.distance(n.t, timeMs) > scroll.travel) break;
       const lane = this.geometry.lanes[n.lane];
-      const color = this.colors[lane.color];
+      const color = this.laneColors[n.lane];
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
       if (n.type === 'tap') {
         if (!n.headDone) this.placeNote(lane.x, lane.width, z(n.t), color, height);
@@ -362,9 +387,9 @@ export class TrackRenderer {
       // Fade out over the last fifth of the fever so its end is readable.
       overlay.opacity = (0.06 + 0.07 * pulse) * Math.min(1, remaining * 5);
     }
-    this.rails[0]?.color.setHex(active ? tint : RAIL_LEFT);
-    this.rails[1]?.color.setHex(active ? tint : RAIL_RIGHT);
-    this.judgeGlowMaterial.color.setHex(active ? tint : 0x5fe7ff);
+    this.rails[0]?.color.setHex(active ? tint : hex(this.skin.colors.railLeft));
+    this.rails[1]?.color.setHex(active ? tint : hex(this.skin.colors.railRight));
+    this.judgeGlowMaterial.color.setHex(active ? tint : hex(this.skin.colors.judgeGlow));
   }
 
   private buildTrack(): void {
@@ -374,9 +399,11 @@ export class TrackRenderer {
     const pos = base.getAttribute('position');
     const colors = new Float32Array(pos.count * 3);
     const c = new THREE.Color();
+    const near = new THREE.Color(hex(this.skin.colors.trackNear));
+    const far = new THREE.Color(hex(this.skin.colors.trackFar));
     for (let i = 0; i < pos.count; i++) {
       const depth = Math.min(1, Math.max(0, -pos.getZ(i) / length));
-      c.copy(TRACK_NEAR).lerp(TRACK_FAR, depth);
+      c.copy(near).lerp(far, depth);
       c.toArray(colors, i * 3);
     }
     base.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -391,27 +418,34 @@ export class TrackRenderer {
       return mesh.material as THREE.MeshBasicMaterial;
     };
     lanes.forEach((lane) => {
-      if (lane.color === 'blue') strip(lane.x, lane.width, 0x1b3d7a, 0.35);
+      if (lane.color === 'blue' && this.skin.laneLayout === 'mode') strip(lane.x, lane.width, this.laneColors[lane.index], 0.08);
       if (lane.kind === 'scratch') strip(lane.x, lane.width, 0x5a1438, 0.35);
-      if (lane.kind === 'side') strip(lane.x, lane.width, this.colors[lane.color], 0.1);
+      if (lane.kind === 'side') strip(lane.x, lane.width, this.laneColors[lane.index], 0.1);
     });
+    const divider = hex(this.skin.colors.divider);
     for (let i = 1; i < lanes.length; i++) {
       const sideEdge = lanes[i].kind === 'side' || lanes[i - 1].kind === 'side';
-      strip(lanes[i].x - lanes[i].width / 2, sideEdge ? 0.05 : 0.025, sideEdge ? 0x6a5cb0 : 0x3a4c86, 0.9);
+      strip(lanes[i].x - lanes[i].width / 2, sideEdge ? 0.05 : 0.025, divider, 0.9);
     }
-    this.rails.push(strip(-width / 2 - 0.08, 0.14, RAIL_LEFT, 0.95), strip(width / 2 + 0.08, 0.14, RAIL_RIGHT, 0.95));
+    this.rails.push(
+      strip(-width / 2 - 0.08, 0.14, hex(this.skin.colors.railLeft), 0.95),
+      strip(width / 2 + 0.08, 0.14, hex(this.skin.colors.railRight), 0.95),
+    );
   }
 
   private buildJudgementLine(): THREE.MeshBasicMaterial {
     const { width } = this.geometry;
     // Transparent so it sorts after the covers (renderOrder) and stays on top of them.
-    const line = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
+    const line = new THREE.Mesh(
+      this.flatGeometry,
+      new THREE.MeshBasicMaterial({ color: hex(this.skin.colors.judgeLine), transparent: true, depthWrite: false }),
+    );
     line.scale.set(width + 0.3, 1, 0.16);
     line.position.set(0, 0.06, 0);
     line.renderOrder = 9.5;
     const glowMaterial = new THREE.MeshBasicMaterial({
       map: this.glowTexture,
-      color: 0x5fe7ff,
+      color: hex(this.skin.colors.judgeGlow),
       transparent: true,
       opacity: this.reducedFlash ? 0.35 : 0.55,
       blending: THREE.AdditiveBlending,
@@ -433,7 +467,7 @@ export class TrackRenderer {
         this.flatGeometry,
         new THREE.MeshBasicMaterial({
           map: texture,
-          color: this.colors[lane.color],
+          color: this.laneColors[lane.index],
           transparent: true,
           opacity: 0,
           blending: THREE.AdditiveBlending,
@@ -451,7 +485,7 @@ export class TrackRenderer {
       const glow = new THREE.Sprite(
         new THREE.SpriteMaterial({
           map: this.glowTexture,
-          color: this.colors[lane.color],
+          color: this.laneColors[lane.index],
           blending: THREE.AdditiveBlending,
           transparent: true,
           depthWrite: false,
@@ -516,9 +550,20 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
   return n.headDone && n.tailDone && n.endT < timeMs - MISSED_VISIBLE_MS - 100;
 }
 
-/** Unit box whose faces are shaded by vertex color (bright top, darker front and sides). */
-function createNoteGeometry(): THREE.BufferGeometry {
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
+/**
+ * Unit-sized note shape (scaled per lane): a box, a thin plate or a rounded capsule, shaded by
+ * vertex colour (bright top, darker front and sides).
+ */
+function createNoteGeometry(shape: Skin['noteShape']): THREE.BufferGeometry {
+  let geometry: THREE.BufferGeometry;
+  if (shape === 'round') {
+    // capsule lying across the lane, normalised to a 1×1×1 box
+    geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 10).rotateZ(Math.PI / 2).scale(0.5, 1, 1);
+  } else if (shape === 'flat') {
+    geometry = new THREE.BoxGeometry(1, 0.35, 1).translate(0, -0.325, 0);
+  } else {
+    geometry = new THREE.BoxGeometry(1, 1, 1);
+  }
   const normals = geometry.getAttribute('normal');
   const colors = new Float32Array(normals.count * 3);
   for (let i = 0; i < normals.count; i++) {
@@ -529,6 +574,22 @@ function createNoteGeometry(): THREE.BufferGeometry {
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return geometry;
+}
+
+function ringTexture(): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.28, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.95)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 function radialTexture(): THREE.Texture {

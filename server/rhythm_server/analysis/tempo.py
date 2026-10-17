@@ -204,7 +204,10 @@ def estimate_tempo(
     frame_rate: float,
     duration: float,
     bpm_override: float | None = None,
+    bpm_hint: float | None = None,
 ) -> TempoResult:
+    """`bpm_hint` (e.g. from an ML beat tracker) picks the beat level instead of the
+    autocorrelation; the grid is still fitted to the onsets."""
     if len(times) < 8:
         bpm = bpm_override or 120.0
         period = 60.0 / bpm
@@ -212,7 +215,7 @@ def estimate_tempo(
 
     # Kicks and bass carry the beat; weight them up so off-beat hi-hats do not steal the phase.
     weights = strengths.astype(np.float64) * (1.0 + 1.2 * low_fraction.astype(np.float64))
-    bpm0 = bpm_override if bpm_override else _choose_level(times, weights, odf, frame_rate)
+    bpm0 = bpm_override if bpm_override else (bpm_hint if bpm_hint else _choose_level(times, weights, odf, frame_rate))
     fit = fit_grid(times, weights, bpm0, search=0.002 if bpm_override else 0.01)
     if bpm_override:
         fit = GridFit(bpm=bpm_override, phase=_best_phase(times, weights, 60.0 / bpm_override)[0], score=fit.score)

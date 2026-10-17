@@ -55,8 +55,13 @@ class AnalysisQueue:
             song = lib.get_song(song_id)
             progress(0.01, "오디오 읽는 중")
             pcm, sr = audio_io.read_canonical(lib.audio_path(song_id))
-            result = analyze(pcm, sr, song["audioHash"], overrides=song["overrides"], progress=progress)
+            stems: dict = {}
+            result = analyze(pcm, sr, song["audioHash"], overrides=song["overrides"], progress=progress, stems_out=stems)
             lib.save_analysis(song_id, result)
+            # stems cached from an earlier analysis may come from another separator
+            lib.clear_stems(song_id)
+            if stems:
+                lib.save_stems(song_id, stems, result["analyzer"]["backends"]["stems"])
             lib.update_song(
                 song_id,
                 status="ready",
@@ -67,6 +72,7 @@ class AnalysisQueue:
                 bpm_max=result["tempo"]["bpmMax"],
                 preview_ms=result["previewMs"],
                 analyzed_at=time.time(),
+                analyzer={"version": result["analyzer"]["version"], "backends": result["analyzer"]["backends"], "errors": result["analyzer"].get("errors", {})},
                 error=None,
             )
         except Exception as e:  # report the failure on the song instead of crashing the worker

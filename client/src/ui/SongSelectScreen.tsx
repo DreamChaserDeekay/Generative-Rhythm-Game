@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { api, ApiError, type Health, type ServerChart, type Song } from '../api/client';
-import { songBuffer, forgetSongBuffer } from '../audio/bufferCache';
+import { songBuffer, forgetSongBuffer, stemBuffer } from '../audio/bufferCache';
 import { enabledKeyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
@@ -33,6 +33,14 @@ const SKILL_LABELS: [string, string][] = [
   ['stamina', '스태미나'],
 ];
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
+const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
+const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
+const BACKEND_KIND_LABELS: Record<string, string> = { stems: '스템', beats: '비트', pitch: '음높이', structure: '구조' };
+
+function backendLabel(name: string | undefined): string {
+  if (!name || name === 'core' || name === 'core-dsp') return '기본';
+  return name.replace(/-[\d.]+$/, '');
+}
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000);
@@ -62,6 +70,7 @@ export function SongSelectScreen(props: Props) {
   const [panel, setPanel] = useState<'none' | 'rules' | 'generation'>('none');
   const [practice, setPractice] = useState<PracticeOptions | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const preview = useRef<HTMLAudioElement | null>(null);
 
   const keyMode = settings.lastKeyMode;
@@ -194,13 +203,51 @@ export function SongSelectScreen(props: Props) {
     preview.current?.pause();
     const songId = selected.id;
     const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
+    const lead = settings.keysound ? c.meta.keysound?.stem : undefined;
     onPlay({
       chart: c,
       autoPlay,
       loadAudio: () => songBuffer(songId),
+      loadLead: lead ? () => stemBuffer(songId, lead) : undefined,
       best: best ? { score: best.score, rate: best.rate } : null,
       practice: practice ?? undefined,
+      background: {
+        coverUrl: selected.hasCover ? api.coverUrl(songId) : null,
+        bgaUrl: selected.hasBga ? api.bgaUrl(songId) : null,
+        bgaOffsetMs: selected.bgaOffsetMs ?? 0,
+      },
     });
+  };
+
+  const reanalyze = async () => {
+    if (!selected) return;
+    setError(null);
+    try {
+      await api.reanalyze(selected.id);
+      forgetSongBuffer(selected.id);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const uploadBga = async (file: File) => {
+    if (!selected) return;
+    setBusy('배경 영상 올리는 중…');
+    setError(null);
+    try {
+      await api.uploadBga(selected.id, file);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(null);
+  };
+
+  const removeBga = async () => {
+    if (!selected) return;
+    await api.deleteBga(selected.id).catch((e: Error) => setError(e.message));
+    await refresh();
   };
 
   const togglePractice = (on: boolean) => {
@@ -372,6 +419,19 @@ export function SongSelectScreen(props: Props) {
                     {formatTime(selected.durationMs)} · BPM {bpmLabel(selected)}
                     {selected.overrides.bpm ? ' (보정됨)' : ''}
                   </p>
+                  {selected.status === 'ready' && selected.analyzer?.backends && (
+                    <p className="sub backends" data-testid="analysis-backends">
+                      분석:{' '}
+                      {Object.entries(selected.analyzer.backends)
+                        .map(([kind, name]) => `${BACKEND_KIND_LABELS[kind] ?? kind} ${backendLabel(name)}`)
+                        .join(' · ')}
+                      {selected.outdated && (
+                        <button className="small" data-testid="reanalyze" onClick={() => void reanalyze()} title="분석기가 바뀌었거나 ML 백엔드가 새로 설치되었습니다">
+                          다시 분석
+                        </button>
+                      )}
+                    </p>
+                  )}
                   {selected.status !== 'ready' && (
                     <div data-testid="analysis-status">
                       <p className="hint">
@@ -480,6 +540,36 @@ export function SongSelectScreen(props: Props) {
                 </div>
                 <p className="hint">비트가 어긋나 보이면 보정하세요. 보정하면 곡을 다시 분석하고 채보를 새로 만듭니다.</p>
                 <div className="row">
+                  <span className="label">배경 영상</span>
+                  {selected.hasBga ? (
+                    <>
+                      <span className="value" data-testid="bga-status">등록됨</span>
+                      {[-100, -10, 10, 100].map((d) => (
+                        <button key={d} className="small" onClick={() => void patch({ bgaOffsetMs: (selected.bgaOffsetMs ?? 0) + d })}>
+                          {d > 0 ? `+${d}` : d}ms
+                        </button>
+                      ))}
+                      <span className="value">{selected.bgaOffsetMs ? `${selected.bgaOffsetMs > 0 ? '+' : ''}${selected.bgaOffsetMs}ms` : '0ms'}</span>
+                      <button className="small" onClick={() => void removeBga()}>지우기</button>
+                    </>
+                  ) : (
+                    <button className="small" data-testid="bga-upload" onClick={() => videoInput.current?.click()}>
+                      영상 고르기 (mp4·webm)
+                    </button>
+                  )}
+                  <input
+                    ref={videoInput}
+                    type="file"
+                    accept={VIDEO_ACCEPT}
+                    hidden
+                    data-testid="bga-input"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) void uploadBga(e.target.files[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                <div className="row">
                   <button className="small" data-testid="toggle-analysis" disabled={selected.status !== 'ready'} onClick={() => setShowAnalysis((v) => !v)}>
                     {showAnalysis ? '분석 보기 닫기' : '분석 보기'}
                   </button>
@@ -557,8 +647,24 @@ function ChartPreview(props: {
               <span className="label">왼손 / 오른손</span> {Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}
             </div>
           )}
+          {m.repeatConsistency != null && (
+            <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴을 쓴 비율">
+              <span className="label">반복 패턴 일치</span> {Math.round(m.repeatConsistency * 100)}%
+            </div>
+          )}
         </div>
       </div>
+      {m.keysound && (
+        <div className="stem-mix" data-testid="stem-mix" title="노트가 따라가는 악기(스템) 비율">
+          {(Object.entries(m.keysound.shares) as [string, number][]).map(([stem, share]) =>
+            share > 0 ? (
+              <span key={stem} className={`stem stem-${stem} ${stem === m.keysound?.stem ? 'lead' : ''}`} style={{ flexGrow: share }}>
+                {share >= 0.08 ? `${STEM_LABELS[stem] ?? stem} ${Math.round(share * 100)}%` : ''}
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
       {m.densityLimited && <p className="hint">곡의 소리 밀도가 낮아 목표 레벨까지 올리지 못했습니다. 없는 소리에 노트를 만들지 않기 때문입니다.</p>}
       <ChartMinimap
         chart={chart}

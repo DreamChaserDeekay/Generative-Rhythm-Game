@@ -26,19 +26,24 @@
 | 표준 오디오 | 44.1kHz 스테레오 16bit FLAC. 분석과 재생이 같은 PCM을 쓴다. |
 | 데이터 위치 | 저장소 루트의 `data/` (환경 변수 `GRG_DATA_DIR`로 변경 가능, git에서 제외). |
 | 판정 범위 수치 | MAX 100%(±41.67ms)만 정설이고 나머지는 커뮤니티 실측 추정·보간값이다. `config/judgement.json`에 출처와 함께 둔다. |
-| ML 백엔드 | Phase 1은 numpy·scipy 기본 분석만 쓴다. beat_this·Demucs 등은 Phase 3에서 선택 설치형으로 붙인다. |
+| ML 백엔드 | 기본 분석(numpy·scipy)이 항상 동작한다. Demucs(스템)·beat_this(박·다운비트)·basic-pitch(음높이)·allin1(곡 구조)는 선택 설치형으로, 설치되어 있으면 단계마다 자동으로 쓰고 실패하면 그 단계만 기본 분석으로 대체한다. PyTorch 등 수 GB 의존성과 라이선스 때문에 기본 설치에 넣지 않는다. |
+| 스템 | 드럼 · 베이스 · 보컬 · 그 외(other) 4개(Demucs와 같은 구성). ML이 없으면 기본 DSP 분리를 쓴다. 품질은 낮지만 온셋 악기 태깅과 키음에는 충분하다. |
+| 스템 키음 | BMS처럼 노트마다 소리를 잘라 붙이지 않는다. 채보가 주로 따르는 스템 하나를 정하고, 그 스템의 노트를 놓치면 잠깐 줄였다가 맞히면 되돌린다. 박 단위로 자른 소리가 어색하게 끊기는 일이 없고, 곡 시간·판정은 믹스 그대로다. |
+| 카메라 연출 | 채보에 들어 있는 `effects`(구간 에너지에서 생성)로 트랙 기울기(카메라 roll)와 줌(FOV)만 바꾼다. 노트 시간·판정선·레인 순서는 바뀌지 않는다. |
+| BGA · 스킨 | BGA는 사용자가 곡마다 올리는 mp4·webm(소리 없이 곡 시간에 맞춰 재생). 스킨은 외부 이미지 없이 색·모양 파라미터로만 만들고, 사용자 스킨은 JSON이다. 다른 게임의 에셋은 쓰지 않는다. |
 
 ## 3. 전체 구조
 
 ```
-┌──────────── 브라우저 클라이언트 (TypeScript) ────────────┐        ┌──────── 로컬 Python 서버 (FastAPI) ────────┐
-│ ui/      곡 선택 · 설정 · 결과 · HUD (React, DOM)        │  HTTP  │ api/        라우트, 라이브러리(SQLite+파일) │
-│ render/  Three.js SDVX식 트랙                            │◀──────▶│ audio_io    디코딩 → 표준 FLAC, 태그·커버   │
-│ engine/  판정 · 롱노트 · 점수 · 게이지 · 오토 플레이      │        │ analysis/   기본 분석 (+ML 백엔드 어댑터)   │
-│ input/   키보드 → 레인, 타임스탬프 변환                   │        │ generator/  채보 생성 · 린터               │
-│ audio/   표준 오디오 재생, 오디오 클럭                    │        │ difficulty/ 레벨 산정                      │
-└──────────────────────────────────────────────────────────┘        └────────────────────────────────────────────┘
-                         config/ (판정 · 키 모드 · 게이지 · 카메라 · 난이도) 공용
+┌──────────── 브라우저 클라이언트 (TypeScript) ────────────┐        ┌───────── 로컬 Python 서버 (FastAPI) ──────────┐
+│ ui/       곡 선택 · 설정 · 결과 · HUD · 배경(BGA)        │  HTTP  │ api/        라우트, 라이브러리(SQLite+파일)   │
+│ render/   Three.js SDVX식 트랙 · 카메라 연출 · 스킨      │◀──────▶│ audio_io    디코딩 → 표준 FLAC, 태그·커버     │
+│ engine/   판정 · 롱노트 · 점수 · 게이지 · 오토 플레이    │        │ analysis/   기본 분석 · 스템 분리 · 악기 태깅 │
+│ input/    키보드 → 레인, 타임스탬프 변환                 │        │   backends/ ML 어댑터 (Demucs · beat_this 등) │
+│ audio/    표준 오디오 재생, 오디오 클럭, 스템 키음       │        │ generator/  채보 생성 · 린터 · 연출 신호      │
+│ settings/ 설정 · 사용자 스킨 (localStorage)              │        │ difficulty/ 레벨 산정                         │
+└──────────────────────────────────────────────────────────┘        └───────────────────────────────────────────────┘
+                    config/ (판정 · 키 모드 · 게이지 · 카메라 · 난이도 · 분석 · 악기) 공용
 ```
 
 - 업로드 → 서버가 표준 FLAC 생성 → 분석(백그라운드 작업, 진행률) → `AnalysisResult` 캐시.
@@ -56,6 +61,7 @@
 - 오프셋 부호: 판정 오프셋 +20ms = "평균 20ms 늦게 치는 사람을 위한 보정", 표시 오프셋 +10ms = "노트를 10ms 앞당겨 그림".
 - **늦은 미스 판정**은 프레임 갱신에서 하되, 아직 처리되지 않은 입력 이벤트가 있을 수 있으므로 `missMarginMs`(50ms)만큼 늦게 확정한다. 입력이 들어오면 그 레인의 지난 노트를 먼저 정리한 뒤 판정한다.
 - **리드인**: 첫 노트가 2초보다 빠르면 오디오 시작 전에 대기 시간을 넣는다. 이 동안 곡 시간은 음수다.
+- **스템 키음**: 키음 스템은 믹스와 길이가 같은 두 번째 버퍼로, 믹스와 같은 `start(when)`에 시작해 샘플 단위로 정렬된다. 위상을 뒤집어 더하므로(`leadGain`이 평소 0, 덕일 때 −(1 − level)) 따로 반주 버퍼를 만들지 않아도 믹스 − k × 스템이 된다. 연습 모드는 믹스와 스템 채널을 한 번에 스트레치해(모노 합으로 정한 정렬을 공유) 정렬이 유지된다. 곡 시간·판정은 믹스 소스 기준이고 키음은 음량만 바꾼다.
 
 ## 5. 판정 모델 (DJMAX RESPECT V 기준)
 
@@ -90,6 +96,9 @@
 - 트랙 끝은 안개(fog)로 자연스럽게 사라지고, 레인 구분선·마디선으로 원근 속에서도 박을 읽기 쉽게 한다.
 - 노트·롱노트 몸통·마디선은 오브젝트 풀에서 꺼내 쓰고, 화면에 보이는 구간만 갱신한다.
 - 판정·콤보 텍스트는 트랙 위 3D 지점을 화면 좌표로 투영해 DOM HUD로 그린다.
+- **카메라 연출**(`render/cameraFx.ts`): 채보의 tilt는 이전 기울기에서 새 값으로 smoothstep으로 옮겨 가 유지하고, zoom은 (1 − 진행률)²로 감쇠하는 펄스다. 매 프레임 기본 카메라 자세(쿼터니언·FOV)에 roll(최대 7°)과 FOV 축소(최대 7%)를 얹는다. 세기는 설정값(0–1, "번쩍임 줄이기"면 절반)을 곱한다. 수치는 `config/camera.json`의 `fx`.
+- **스킨**(`render/skins.ts`): 노트 모양(상자·납작·캡슐), 레인 색 배치(키 모드 색·단색·무지개), 타격 이펙트(폭발·링·없음)와 트랙·레일·구분선·마디선·판정선·커버·안개 색. 기본 4종 + JSON 사용자 스킨(알 수 없는 값은 버리고 색은 `#rrggbb`만 받는다). 색각 보정 팔레트를 켜면 레인 색은 팔레트가 우선한다.
+- **배경**(`ui/PlayBackground.ts`): 트랙 캔버스 뒤 DOM 층. 흐린 앨범아트, 사용자 영상(BGA, 소리 없음, 곡 시간 − 오프셋에 맞춰 재생하고 0.12초 넘게 어긋나면 최대 0.5초에 한 번 다시 맞춤), `AnalyserNode` 스펙트럼(30fps, 로그 간격 48밴드 좌우 대칭), 밝기 조절용 어두운 막. 판정·클럭과는 무관하다.
 
 ## 7. 서버
 
@@ -97,17 +106,22 @@
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| GET | `/api/health` | 서버 상태, 분석기 버전 |
-| GET | `/api/songs` | 곡 목록 |
+| GET | `/api/health` | 서버 상태, 분석기·생성기 버전, 분석 백엔드 상태(설치·사용 여부·버전·라이선스), 스템 이름 |
+| GET | `/api/songs` | 곡 목록. 곡마다 `analyzer`(분석에 쓴 백엔드), `outdated`(분석기 버전이나 쓸 수 있는 백엔드가 바뀌었으면 true), `hasBga`, `bgaOffsetMs` |
 | POST | `/api/songs` | 곡 업로드(multipart). 표준 FLAC 생성 후 분석 작업 시작 |
 | POST | `/api/songs/demo` | 합성 데모 곡 추가(음악 파일 없이 체험) |
 | GET | `/api/songs/{id}` | 곡 정보, 분석 진행률, 기록 |
-| PATCH | `/api/songs/{id}` | 제목·아티스트·BPM·첫 박 오프셋 보정 → 재분석 |
+| PATCH | `/api/songs/{id}` | 제목·아티스트·BPM·첫 박 오프셋 보정 → 재분석, BGA 오프셋(`bgaOffsetMs`) |
+| POST | `/api/songs/{id}/reanalyze` | 다시 분석(새 백엔드·분석기 반영, 저장된 스템도 새로 만듦) |
+| GET | `/api/songs/{id}/stems` | 스템 이름, 저장 여부, 분리 방법 |
+| GET | `/api/songs/{id}/stems/{name}` | 스템 FLAC(drums · bass · vocals · other). 없으면 그때 분리해 저장(곡마다 잠금) |
+| POST | `/api/songs/{id}/bga` | 배경 영상 업로드(mp4 · webm · m4v · mov · ogv, 최대 1GB) |
+| GET / DELETE | `/api/songs/{id}/bga` | 배경 영상(Range 요청 지원) / 삭제 |
 | DELETE | `/api/songs/{id}` | 곡 삭제 |
 | GET | `/api/songs/{id}/audio` | 표준 FLAC |
 | GET | `/api/songs/{id}/cover` | 앨범아트 |
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
-| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate) — 같은 chartId면 캐시 |
+| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency) — 같은 chartId면 캐시 |
 | GET | `/api/charts/{chartId}` | 채보 |
 | POST | `/api/scores` | 플레이 기록 저장 |
 | GET | `/api/songs/{id}/scores` | 채보별 최고 기록 |
@@ -122,33 +136,59 @@ data/
     audio.flac             표준 오디오
     cover.<ext>            앨범아트(있으면)
     analysis.json          AnalysisResult
+    stems/<name>.flac      분리한 스템(16bit FLAC 4개, 합 = 표준 오디오) + stems.json(분리 방법)
+    bga.<ext>              배경 영상(있으면)
   charts/<chartId>.json    생성된 채보
 ```
 
-`songId`는 원본 파일의 SHA-256 앞 16자리다. 같은 파일을 다시 올리면 같은 곡으로 처리한다.
+`songId`는 원본 파일의 SHA-256 앞 16자리다. 같은 파일을 다시 올리면 같은 곡으로 처리한다. 이전 버전의 `library.sqlite3`는 서버가 시작할 때 빠진 열을 추가해(`ALTER TABLE … ADD COLUMN`) 그대로 쓴다.
+
+### 분석 백엔드 (`analysis/backends/`)
+
+- 종류는 stems · beats · pitch · structure 네 가지이고, 어댑터마다 라이브러리를 **처음 쓸 때만** 불러온다. 설치 여부는 `importlib.util.find_spec`으로만 확인하므로 PyTorch가 설치되어 있어도 서버 시작이 느려지지 않는다.
+- 옵션은 `config/analysis.json`의 `ml`(모델 이름·장치·shifts 등). `ml.enabled=false` 또는 `GRG_ML=0`이면 모두 끈다.
+- 분석기는 단계마다 ML 결과가 있으면 쓰고, 예외가 나면 그 단계만 기본 분석으로 돌린 뒤 `analyzer.errors[단계]`에 남긴다. 실제로 쓴 백엔드는 `analyzer.backends`(예: `{"stems": "demucs-4.1.0", "beats": "beat_this-1.1.0", "pitch": "core", "structure": "core"}`)에 기록한다.
+- ML 결과는 기본 분석의 입력으로 들어간다: beat_this 박 간격은 템포 추정의 BPM 힌트와 박자·첫 다운비트(그리드는 여전히 전곡 온셋 정렬로 정밀 맞춤), basic-pitch 노트는 가까운 온셋의 음높이, allin1 구간은 마디에 스냅해 구조로, Demucs 스템은 온셋 태깅·구간 주도 악기·키음 스템으로 쓴다.
+- 곡 목록의 `outdated`는 저장된 분석의 분석기 버전이 다르거나, 지금 쓸 수 있는 백엔드가 분석 때 쓴 것과 다르면 true다. 클라이언트는 이때 "다시 분석" 버튼을 보인다.
 
 ## 8. 디렉터리 구조
 
 ```
 client/          브라우저 클라이언트 (Vite + TypeScript + React + Three.js)
   src/api/       서버 API 클라이언트
-  src/audio/     오디오 엔진, 오디오 클럭, 클릭 트랙 합성, WSOLA 타임 스트레치(워커)
+  src/audio/     오디오 엔진(스템 키음 포함), 오디오 클럭, 버퍼 캐시, 클릭 트랙 합성, WSOLA 타임 스트레치(워커)
   src/engine/    판정·룰셋·게이지·FEVER·배치 옵션·스크롤·오토 플레이 (DOM 의존 없음, Vitest)
   src/input/     키보드 입력, 키 바인딩
-  src/render/    Three.js 트랙 렌더러, 카메라, 투영
-  src/ui/        화면(React)과 HUD
+  src/render/    Three.js 트랙 렌더러, 카메라, 투영, 카메라 연출, 스킨
+  src/ui/        화면(React), HUD, 플레이 배경(BGA·비주얼라이저)
   src/settings/  설정(localStorage)
   e2e/           Playwright E2E
 server/          로컬 분석 서버 (Python, FastAPI)
-  rhythm_server/ analysis · generator · difficulty · formats · api
+  rhythm_server/ analysis(+backends) · generator · difficulty · formats · api
   tests/         pytest (합성 음원 기반)
 config/          서버·클라이언트 공용 튜닝 값
-docs/            PROMPT · ARCHITECTURE · CHART_FORMAT
+docs/            PROMPT · ARCHITECTURE · GENERATION · CHART_FORMAT
 ```
 
 ## 9. 작업 계획과 결과
 
-Phase 0–2를 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+Phase 0–3을 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+
+### Phase 3 결과
+
+모든 측정은 코드로 합성한 곡(드럼·베이스·리드 멜로디를 따로 만들어 섞은 것이라 스템 정답이 있음)에서 했다.
+
+| 항목 | 구현 | 검증 |
+|---|---|---|
+| 스템 분리(기본 DSP) | HPSS + 배음 빗살 마스크(베이스는 배음 합 f0 추적, 보컬·멜로디는 지배 f0), 저역 타격 직후의 드럼 몸통 마스크, 스테레오 중앙 가중. 마스크 합이 1이고 other = 원음 − 나머지 | pytest: 4스템 합 = 원음(오차 < 1e-4), 정답 스템과 상관 드럼 0.89 · 보컬 0.95 · 베이스 0.47, SDR 드럼 5.6 · 보컬 9.2 · 베이스 0.8 · other −0.8 dB |
+| ML 백엔드 | Demucs · beat_this · basic-pitch · allin1 어댑터, 단계별 대체, 버전·오류 기록, 설정 화면 상태표 | pytest: 가짜 라이브러리로 결과 변환·실패 대체 / 실제 라이브러리(Python 3.11, CPU): Demucs SDR 드럼 24.8 · 베이스 13.3 dB, beat_this 박 오차 중앙값 5ms·다운비트 일치, basic-pitch 노트가 온셋 음높이에 반영. 4분 곡 분석 242초(기본 18초). **allin1은 실제 라이브러리로 검증하지 않음** |
+| 온셋 악기 태깅 | 스템별 로그 스펙트럴 플럭스를 각 스템의 p95로 정규화해 온셋마다 주 스템(`source`)과 비율(`sources`), 구간마다 주도 스템(`leader`) | pytest: 드럼만 친 온셋의 70% 이상이 drums, 리드 온셋의 60% 이상에서 보컬·other 비율 ≥ 0.25 |
+| 악기별 레인 매핑 | 드럼·베이스가 뚜렷한 타격(지배도 0.4 → 0.7 사이 선형)에만 킥 왼쪽·하이햇 오른쪽·베이스 왼쪽 비용 항. 음높이 있는 소리는 기존 음높이 → 레인 매핑 | pytest: 세기 1에서 하이햇 평균 레인 − 킥 평균 레인 > 0.25(건반 폭 0–1 기준), 세기 0보다 0.2 이상 큼(측정: 세기 0 −0.03, 0.6 0.41, 1.0 0.43, 왼손 부담 0.54 → 0.58) |
+| 반복 구간 일관성 | 같은 그룹 두 번째 이후 구간의 슬롯을 첫 구간의 같은 박 위치 슬롯에 대응시켜, 다듬기 패스에서 같은 레인을 고르면 보너스(`variant: mirror`면 반복마다 좌우 반전) | pytest: 켜면 일관성 ≥ 0.9, 끈 채보보다 0.2 이상 높음(측정: 켜면 0.98–0.99, 끄면 0.35–0.69). 멜로디가 반복마다 다른 곡에서는 0.6–0.94 |
+| 스템 키음 | 키음 스템 = 노트의 `src`가 가장 많이 따르는 음높이 스템(15% 미만이면 드럼). 미스에 −14dB 덕(25 / 280 / 260ms), 맞히면 40ms 안에 복귀 | E2E: 키음 HUD 표시, 키음 켠 채 오토 PERFECT PLAY |
+| 카메라 연출 | 채보 `effects`: 에너지가 0.25 넘게 오르는 구간 시작에 줌, 에너지 0.7 이상 구간마다 좌우 교대 기울기 | Vitest: smoothstep 기울기·줌 감쇠·세기 0 / E2E 스크린샷 |
+| 배경 | 흐린 앨범아트 · 스펙트럼 · BGA 동기 · 밝기 | E2E: 합성 VP8 영상이 곡 시간에 맞춰 재생(9초 시점 재생 위치 > 1초), 비주얼라이저 캔버스 |
+| 스킨 | 기본 4종 + JSON 사용자 스킨(검증 후 기본값으로 채움) | Vitest: 잘못된 값 거르기·팔레트 우선 / E2E: 사용자 스킨 적용 후 플레이 |
 
 ### Phase 2 결과
 
@@ -174,7 +214,7 @@ Phase 0–2를 완료했다. 분석·생성 알고리즘의 세부와 측정값�
 | 같은 입력·시드 → 같은 채보 | pytest로 검증, 기본 시드는 오디오 해시에서 파생 |
 | 모든 난이도 채보가 린터 통과 | 4K·7K+1S × 5단계 × 2곡 |
 | 난이도가 오를수록 노트 수·평균 NPS·레벨 단조 증가 | pytest로 검증 |
-| 4분 곡 분석 30초·재생성 3초 이내 | 분석 약 15초, 재생성 0.6~2.2초(Phase 2 기준, 7K+1S MASTER가 가장 느림) |
+| 4분 곡 분석 30초·재생성 3초 이내 | Phase 3 기준(스템 활동량 포함, ML 없이) 분석 18.0초, 재생성 0.8~2.1초(7K+1S MASTER가 가장 느림). Phase 2는 분석 약 15초 |
 
 ### Phase 0 — 설계와 기술 검증
 

@@ -1,21 +1,32 @@
-"""Core analyzer (numpy/scipy only): canonical PCM -> AnalysisResult dict."""
+"""Analyzer: canonical PCM -> AnalysisResult dict.
+
+The core path needs only numpy/scipy. Installed ML backends (analysis/backends) refine it:
+Demucs stems, beat_this beats and downbeats, basic-pitch notes, allin1 sections. Any backend that
+is missing or fails leaves the core result for that part.
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 
+from . import ml
+from .backends import Backend, detect as detect_backends
 from .meter import beat_cues, estimate_meter
 from .onsets import detect_onsets
 from .pitch import analyze_notes
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
+from .stems import STEM_NAMES, stem_activity, tag_onsets
 from .structure import beat_sync, find_sections
 from .tempo import estimate_tempo
 
+log = logging.getLogger("rhythm_server.analysis")
+
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.0.0"
+ANALYZER_VERSION = "1.1.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -84,9 +95,43 @@ def analyze(
     audio_hash: str = "",
     overrides: dict[str, Any] | None = None,
     progress: Progress | None = None,
+    backends: dict[str, Backend] | None = None,
+    stems_out: dict[str, np.ndarray] | None = None,
 ) -> dict[str, Any]:
-    report = progress or (lambda _p, _m: None)
+    """`backends` defaults to the installed ML backends (pass {} for the core analysis only).
+    When an ML separator runs, its stems are put into `stems_out` so they can be cached."""
+    outer = progress or (lambda _p, _m: None)
     overrides = overrides or {}
+    active = detect_backends() if backends is None else backends
+    used = {"stems": "core-dsp", "beats": "core", "pitch": "core", "structure": "core"}
+    errors: dict[str, str] = {}
+    # ML steps (slow) take the first 60% of the progress bar when any is active
+    base = 0.6 if active else 0.0
+
+    def report(p: float, label: str) -> None:
+        outer(base + p * (1.0 - base), label)
+
+    def run_ml(kind: str, step: float, label: str, fn: Callable[[Any, dict[str, Any]], Any]) -> Any:
+        backend = active.get(kind)
+        if backend is None:
+            return None
+        outer(step, label)
+        try:
+            result = fn(backend.module(), backend.options)
+        except Exception as e:  # a broken backend must not break the analysis
+            log.warning("%s backend %s failed: %s", kind, backend.label, e)
+            errors[kind] = f"{type(e).__name__}: {e}"
+            return None
+        used[kind] = backend.label
+        return result
+
+    ml_stems = run_ml("stems", 0.02, "스템 분리 (Demucs)", lambda m, o: m.separate(pcm, sr, o))
+    ml_beats = run_ml("beats", 0.35, "비트 추적 (beat_this)", lambda m, o: m.track(pcm, sr, o))
+    ml_notes = run_ml("pitch", 0.42, "음 전사 (basic-pitch)", lambda m, o: m.notes(pcm, sr, o))
+    ml_struct = run_ml("structure", 0.5, "곡 구조 (allin1)", lambda m, o: m.structure(pcm, sr, o))
+    if ml_stems is not None and stems_out is not None:
+        stems_out.update(ml_stems)
+
     mono = pcm.mean(axis=1) if pcm.ndim == 2 else pcm
     mono = mono.astype(np.float32)
     duration = len(mono) / sr
@@ -106,8 +151,9 @@ def analyze(
     coarse_rate = sr / COARSE_HOP
 
     report(0.45, "템포 분석")
+    hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
     tempo = estimate_tempo(
-        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm")
+        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint
     )
     beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
     beats = beats[(beats >= 0) & (beats <= duration)]
@@ -120,12 +166,24 @@ def analyze(
     novelty = np.zeros(len(beats))
     if len(beats) > 1:
         novelty[1:] = 1.0 - np.sum(unit[1:] * unit[:-1], axis=1)
-    meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty))
+    meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None else None
+    if meter is None:
+        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty))
     bpb = meter.beats_per_bar
     beat0 = meter.first_downbeat_index if len(beats) else 0
 
     report(0.7, "음 길이·음높이 분석")
     notes = analyze_notes(od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
+
+    report(0.75, "악기 구분")
+    if ml_stems is not None:
+        stem_act = ml.activity_from_stems(ml_stems, COARSE_NFFT, COARSE_HOP, float(np.max(mag)))
+    else:
+        stem_act = stem_activity(mag, harmonic, percussive, freqs, coarse_rate)
+    sources, shares = tag_onsets(od.times, stem_act, coarse_rate)
+    pitch_arr, sustain_arr = notes.pitch, notes.sustain_end
+    if ml_notes is not None:
+        pitch_arr, sustain_arr = ml.apply_notes(od.times, ml_notes, pitch_arr, sustain_arr, sources)
 
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
@@ -136,7 +194,11 @@ def analyze(
     )
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
     beat_energy = beat_sync(rms_db[:, None], coarse_rate, beats)[:, 0] if len(beats) else np.zeros(0)
-    sections = find_sections(features, beat_energy, beat0, bpb) if len(beats) >= 8 else []
+    sections = []
+    if ml_struct is not None and len(beats) >= 8:
+        sections = ml.sections_from_segments(ml_struct["segments"], beats, beat0, bpb, beat_energy)
+    if not sections and len(beats) >= 8:
+        sections = find_sections(features, beat_energy, beat0, bpb)
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
@@ -155,8 +217,8 @@ def analyze(
 
     onsets = []
     for i, t in enumerate(od.times):
-        p = notes.pitch[i]
-        end = notes.sustain_end[i]
+        p = pitch_arr[i]
+        end = sustain_arr[i]
         onsets.append(
             {
                 "t": round(float(t) * 1000.0, 3),
@@ -166,6 +228,8 @@ def analyze(
                 "pitch": None if not np.isfinite(p) else round(float(p), 2),
                 "harmonic": round(float(notes.harmonic_ratio[i]), 3),
                 "sustainEnd": round(float(end) * 1000.0, 3) if end > t else None,
+                "source": STEM_NAMES[int(sources[i])],
+                "sources": [round(float(x), 3) for x in shares[i]],
             }
         )
     sustains = [
@@ -174,9 +238,25 @@ def analyze(
         if o["sustainEnd"] is not None
     ]
     bpms = [s.bpm for s in tempo.segments] or [120.0]
+    section_rows = [
+        {
+            "t": round(float(beat_ms[s.start_beat]), 3),
+            "endT": round(float(beat_ms[s.end_beat]) if s.end_beat < len(beat_ms) else duration * 1000.0, 3),
+            "startBeat": s.start_beat - beat0,
+            "label": s.label,
+            "group": s.group,
+            "energy": round(s.energy, 3),
+        }
+        for s in sections
+    ]
+    ml.section_stems(section_rows, od.times * 1000.0, od.strength, shares)
+    stem_energy = stem_act.energy.sum(axis=0)
+    analyzer_info: dict[str, Any] = {"name": ANALYZER_NAME, "version": ANALYZER_VERSION, "backends": used}
+    if errors:
+        analyzer_info["errors"] = errors
     return {
         "version": RESULT_VERSION,
-        "analyzer": {"name": ANALYZER_NAME, "version": ANALYZER_VERSION},
+        "analyzer": analyzer_info,
         "audioHash": audio_hash,
         "sampleRate": sr,
         "durationMs": round(duration * 1000.0, 3),
@@ -195,17 +275,12 @@ def analyze(
         "beats": [{"t": round(float(t), 3), "isDownbeat": (i - beat0) % bpb == 0} for i, t in enumerate(beat_ms)],
         "onsets": onsets,
         "sustains": sustains,
-        "sections": [
-            {
-                "t": round(float(beat_ms[s.start_beat]), 3),
-                "endT": round(float(beat_ms[s.end_beat]) if s.end_beat < len(beat_ms) else duration * 1000.0, 3),
-                "startBeat": s.start_beat - beat0,
-                "label": s.label,
-                "group": s.group,
-                "energy": round(s.energy, 3),
-            }
-            for s in sections
-        ],
+        "sections": section_rows,
+        "stems": {
+            "names": list(STEM_NAMES),
+            "method": used["stems"],
+            "energyShare": [round(float(v / (stem_energy.sum() + 1e-12)), 3) for v in stem_energy],
+        },
         "energy": {"frameMs": 100, "values": [round(float(v), 3) for v in energy]},
         "waveform": {"frameMs": 20, "peaks": _waveform(mono, sr, 20)},
         "previewMs": round(preview_ms, 1),

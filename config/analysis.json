@@ -1,0 +1,17 @@
+{
+  "description": "분석 백엔드. 기본 분석(numpy·scipy)은 항상 동작하고, 아래 ML 백엔드는 해당 패키지가 설치되어 있으면 자동으로 쓴다. enabled=false거나 환경 변수 GRG_ML=0이면 ML을 쓰지 않는다. 실패하면 기본 분석으로 대체하고 분석 결과의 analyzer.errors에 남긴다.",
+  "ml": {
+    "enabled": true,
+    "device": "cpu",
+    "stems": { "backend": "demucs", "model": "htdemucs", "shifts": 1, "overlap": 0.25 },
+    "beats": { "backend": "beat_this", "checkpoint": "final0" },
+    "pitch": { "backend": "basic_pitch", "minNoteMs": 120 },
+    "structure": { "backend": "allin1", "model": "harmonix-all" }
+  },
+  "licenses": {
+    "demucs": "코드 MIT. 사전학습 가중치의 라이선스는 저장소에 따로 명시되어 있지 않다 — 배포 전 확인",
+    "beat_this": "코드와 공개 가중치 모두 MIT",
+    "basic_pitch": "코드·모델 Apache-2.0",
+    "allin1": "코드 MIT. 가중치 라이선스는 따로 명시되어 있지 않고, 의존성 madmom의 사전학습 모델은 비상업(CC BY-NC-SA) — 상용 배포 시 주의"
+  }
+}

@@ -80,7 +80,8 @@ def find_sections(
 
     raw = []
     for a, b in zip(bounds, bounds[1:]):
-        raw.append((a, b, float(np.mean(beat_energy[a:b])), feat[a:b].mean(axis=0)))
+        # median: the silent tail after the last note must not drag the closing section down
+        raw.append((a, b, float(np.median(beat_energy[a:b])), feat[a:b].mean(axis=0)))
     energies = np.array([r[2] for r in raw])
     e_min, e_max = float(np.min(energies)), float(np.max(energies))
     norm_e = (energies - e_min) / (e_max - e_min) if e_max - e_min > 1e-9 else np.full(len(raw), 0.5)

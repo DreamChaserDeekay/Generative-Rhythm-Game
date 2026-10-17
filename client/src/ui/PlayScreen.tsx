@@ -16,6 +16,7 @@ interface Props {
 export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQuit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
+  const bgRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<PlayController | null>(null);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,14 +31,23 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         const engine = getAudioEngine();
         await engine.unlock();
         let buffer = await request.loadAudio();
+        let lead: AudioBuffer | null = null;
+        if (request.loadLead && buffer) {
+          setLoadingText('스템 키음 준비 중… (처음 한 번은 분리하느라 오래 걸립니다)');
+          try {
+            lead = await request.loadLead();
+          } catch {
+            lead = null; // keysound is optional: play the plain mix
+          }
+        }
         let bufferPlacement: BufferPlacement = { originMs: 0, rate: 1 };
         if (request.practice && buffer) {
           setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
-          ({ buffer, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice));
+          ({ buffer, lead, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, lead));
         }
-        if (cancelled || !canvasRef.current || !hudRef.current) return;
+        if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) return;
         controller = new PlayController(
-          { request, buffer, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current },
+          { request, buffer, lead, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;
@@ -66,6 +76,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
 
   return (
     <div className="play-screen" data-testid="play-screen">
+      <div ref={bgRef} className="play-bg" data-testid="play-bg" />
       <canvas ref={canvasRef} className="play-canvas" />
       <div ref={hudRef} className="hud" />
       {loading && !error && <div className="play-overlay"><div className="spinner" />{loadingText}</div>}

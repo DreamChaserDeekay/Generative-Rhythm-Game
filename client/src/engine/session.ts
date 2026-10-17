@@ -4,7 +4,7 @@ import { Gauge, type GaugeSample } from './gauge';
 import type { Grade, JudgementTable } from './judgement';
 import { Ruleset, type RulesetId, type RulesetRow } from './ruleset';
 import { TempoMap } from './tempo';
-import type { Chart, NoteType } from './types';
+import type { Chart, NoteType, StemName } from './types';
 
 export type { ClearLamp } from './config';
 
@@ -136,6 +136,8 @@ export interface SessionNote {
   headDone: boolean;
   tailDone: boolean;
   broken: boolean;
+  /** Stem the note follows (stem keysound mode). */
+  src?: StemName;
 }
 
 /**
@@ -205,6 +207,7 @@ export class GameSession {
         headDone: false,
         tailDone: !isHold,
         broken: false,
+        src: n.src,
       };
     });
     this.notes = this.runtime;
