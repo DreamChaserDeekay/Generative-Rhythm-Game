@@ -192,7 +192,7 @@ config/          서버·클라이언트 공용 튜닝 값
 desktop/         Electron 셸(main.js): 서버를 빈 포트에 띄우고 창을 연다
 packaging/       PyInstaller 스펙, 서버 진입점, 데스크톱 빌드 스크립트, 설치 확인 스크립트(smoke_server.ps1 · smoke_desktop.cjs)
 .github/workflows/desktop-windows.yml  Windows 설치 파일 빌드 → 서버 확인 → 무인 설치 → 설치된 앱 실행 확인 → Artifacts
-docs/            PROMPT · ARCHITECTURE · GENERATION · CHART_FORMAT · TESTING(집에서 테스트하기) · screenshots
+docs/            PROMPT · ARCHITECTURE · GENERATION · PATTERN_DESIGN(패턴 생성 설계안) · CHART_FORMAT · TESTING(집에서 테스트하기) · screenshots
 ```
 
 ## 9. 작업 계획과 결과
