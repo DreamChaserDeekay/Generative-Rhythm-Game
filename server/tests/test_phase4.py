@@ -320,3 +320,26 @@ def test_edited_charts_are_saved_validated_and_deleted(client: TestClient) -> No
     assert client.get(f"/api/charts/{edited['meta']['chartId']}/export", params={"format": "bms"}).status_code == 400
     assert client.delete(f"/api/charts/{edited['meta']['chartId']}").status_code == 204
     assert client.get(f"/api/songs/{sid}/charts").json()["charts"] == []
+
+
+def test_scores_keep_their_replays(client: TestClient, tmp_path: Path) -> None:
+    sid = client.post("/api/songs/demo", json={"bpm": 128, "bars": 10, "seed": 5}).json()["song"]["id"]
+    chart = client.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "EASY"}).json()["chart"]
+    cid = chart["meta"]["chartId"]
+    replay = {"version": 1, "chartId": cid, "songId": sid, "recordedAt": 1, "settings": {}, "log": [1, 0, 1000.5, 0, 0, 1040.25], "result": {}}
+    score = {"chartId": cid, "songId": sid, "score": 812345, "rate": 81.2, "maxCombo": 40, "lamp": "CLEAR"}
+    first = client.post("/api/scores", json={**score, "replay": replay})
+    assert first.status_code == 201
+    best = first.json()["records"][0]
+    assert best["hasReplay"] is True and best["bestScoreId"] == first.json()["id"]
+    assert client.get(f"/api/scores/{best['bestScoreId']}/replay").json()["log"] == replay["log"]
+    # a lower score without a replay leaves the best (and its replay) in place
+    second = client.post("/api/scores", json={**score, "score": 700000}).json()
+    assert second["records"][0]["bestScoreId"] == first.json()["id"] and second["records"][0]["plays"] == 2
+    assert client.get(f"/api/scores/{second['id']}/replay").status_code == 404
+    bad = client.post("/api/scores", json={**score, "replay": {**replay, "chartId": "c" + "0" * 20}})
+    assert bad.status_code == 422
+    bad = client.post("/api/scores", json={**score, "replay": {**replay, "log": [1, 0]}})
+    assert bad.status_code == 422
+    client.delete(f"/api/songs/{sid}")
+    assert client.get(f"/api/scores/{best['bestScoreId']}/replay").status_code == 404

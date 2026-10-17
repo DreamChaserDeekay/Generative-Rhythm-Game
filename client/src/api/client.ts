@@ -1,3 +1,4 @@
+import type { ReplayData } from '../engine/replay';
 import type { Chart, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
@@ -16,6 +17,9 @@ export interface ScoreRecord {
   maxCombo: number;
   lamp: string;
   plays: number;
+  /** Score id of the best play and whether its replay was kept. */
+  bestScoreId?: number;
+  hasReplay?: boolean;
 }
 
 /** An edited or imported chart kept in the library. */
@@ -204,7 +208,9 @@ export const api = {
     judgementMode: string;
     breaks: number;
     detail?: Record<string, unknown>;
+    replay?: ReplayData | null;
   }) => request<{ id: number; records: ScoreRecord[] }>('/api/scores', json(record)),
+  replay: (scoreId: number) => request<ReplayData>(`/api/scores/${scoreId}/replay`),
   reanalyze: async (id: string) => (await request<{ song: Song }>(`/api/songs/${id}/reanalyze`, { method: 'POST' })).song,
   stemsStatus: (id: string) => request<{ names: StemName[]; cached: boolean; method: string }>(`/api/songs/${id}/stems`),
   uploadBga: async (id: string, file: File) => {

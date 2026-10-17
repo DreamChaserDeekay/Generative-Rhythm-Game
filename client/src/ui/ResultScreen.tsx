@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { gaugeRules, judgementConfig } from '../engine/config';
+import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
@@ -15,14 +16,18 @@ interface Props {
   onSettingsChange: (s: Settings) => void;
   onRetry: () => void;
   onBack: () => void;
+  onWatchReplay: (replay: ReplayData) => void;
 }
 
 function signedMs(v: number | null): string {
   return v === null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}ms`;
 }
 
-export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack }: Props) {
+export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack, onWatchReplay }: Props) {
   const { result, chart, placement, practice } = outcome;
+  // what was played: the recorded settings of a replay, or the current ones
+  const played = request.replay?.settings ?? outcome.replay?.settings ?? settings;
+  const replay = outcome.replay ?? request.replay ?? null;
   const meta = request.chart.meta;
   const rules = rulesetConfigs[result.ruleset];
   const suggestion = (() => {
@@ -39,7 +44,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   // Store the play once (generated charts only; autoplay, practice and the sync test are not records).
   useEffect(() => {
     const songId = meta.songId;
-    if (saved.current || request.autoPlay || practice || !songId) return;
+    if (saved.current || request.autoPlay || request.replay || practice || !songId) return;
     saved.current = true;
     (async () => {
       try {
@@ -51,7 +56,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
           rate: Math.round(result.rate * 100) / 100,
           maxCombo: result.maxCombo,
           lamp: result.lamp,
-          judgementMode: settings.judgementMode,
+          judgementMode: played.judgementMode,
           breaks: result.breaks,
           detail: {
             fast: result.fast,
@@ -60,11 +65,12 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             ruleset: result.ruleset,
             exScore: result.exScore,
             gauge: result.gaugeLabel,
-            placement: settings.placement,
+            placement: played.placement,
             laneOrder: placement.laneOrder,
             feverBonus: result.fever.bonus,
             failedAtMs: result.failedAtMs,
           },
+          replay: outcome.replay,
         });
         if (!before) setSaveState('첫 기록이 저장되었습니다');
         else if (result.score > before.score) setSaveState(`최고 기록 갱신! (+${(result.score - before.score).toLocaleString('en-US')})`);
@@ -73,7 +79,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
         setSaveState(`기록을 저장하지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
       }
     })();
-  }, [meta, request.autoPlay, practice, result, settings.judgementMode, settings.placement, placement.laneOrder]);
+  }, [meta, request.autoPlay, request.replay, practice, result, played.judgementMode, played.placement, placement.laneOrder, outcome.replay]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -93,9 +99,10 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
           <h1>{meta.title}</h1>
           <p className="sub">
             {meta.artist} · {meta.keyMode} · {meta.difficulty}
-            {meta.level > 0 ? ` Lv.${meta.level}` : ''} · {judgementConfig.modes[settings.judgementMode].label} · {rules.label}
-            {settings.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
+            {meta.level > 0 ? ` Lv.${meta.level}` : ''} · {judgementConfig.modes[played.judgementMode].label} · {rules.label}
+            {played.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
             {request.autoPlay ? ' · AUTO' : ''}
+            {request.replay ? ' · REPLAY' : ''}
           </p>
           {practice && (
             <p className="sub">
@@ -209,9 +216,29 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       <div className="row buttons center">
         <button className="primary" data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>Enter</kbd></button>
         <button data-testid="result-back" onClick={onBack}>메뉴로 <kbd>Esc</kbd></button>
+        {replay && (
+          <>
+            <button data-testid="watch-replay" onClick={() => onWatchReplay(replay)}>
+              리플레이 보기
+            </button>
+            <button data-testid="download-replay" onClick={() => downloadReplay(replay, meta.title)}>
+              리플레이 파일 저장
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+function downloadReplay(replay: ReplayData, title: string): void {
+  const blob = new Blob([JSON.stringify(replay)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.replace(/[\\/:*?"<>|]/g, '_')} ${new Date(replay.recordedAt).toISOString().slice(0, 19).replace(/[T:]/g, '-')}.grgreplay.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function formatTime(ms: number): string {

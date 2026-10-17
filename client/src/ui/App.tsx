@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ServerChart, Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
+import type { ReplayData } from '../engine/replay';
 import type { Chart } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
@@ -40,6 +41,8 @@ export interface PlayRequest {
   loadKeysounds?: () => Promise<KeysoundBank>;
   /** Test play from the chart editor: leaving the play (or its result) returns to the editor. */
   fromEditor?: boolean;
+  /** Watch a recorded play instead of playing (inputs come from the replay). */
+  replay?: ReplayData;
 }
 
 type Screen =
@@ -111,8 +114,9 @@ export function App() {
           outcome={screen.outcome}
           settings={settings}
           onSettingsChange={setSettings}
-          onRetry={() => play(screen.request)}
+          onRetry={() => play({ ...screen.request, replay: undefined })}
           onBack={() => leavePlay(screen.request)}
+          onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
         />
       );
     case 'calibration':

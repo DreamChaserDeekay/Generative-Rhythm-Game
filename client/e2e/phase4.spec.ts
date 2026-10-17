@@ -124,3 +124,44 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
   expect(errors).toEqual([]);
 });
+
+test('a played run keeps its replay, and watching it gives the same result', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  const demo = await page.request.post('/api/songs/demo', { data: { bpm: 140, bars: 8, seed: 11 } });
+  expect(demo.ok()).toBe(true);
+  await page.reload();
+  await page.getByTestId('song-item').first().click();
+  await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  await page.getByRole('button', { name: '4K', exact: true }).click();
+  await page.getByRole('button', { name: /NORMAL/ }).first().click();
+  await page.getByTestId('play-button').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  // sloppy keyboard play until the result screen appears
+  const keys = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
+  for (let i = 0; i < 400; i++) {
+    if (await page.getByTestId('result-screen').isVisible()) break;
+    const key = keys[i % 4];
+    await page.keyboard.down(key);
+    await page.waitForTimeout(40);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(60 + (i % 3) * 25);
+  }
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('save-state')).toBeVisible({ timeout: 10_000 });
+  const score = await page.getByTestId('result-score').textContent();
+  const rate = await page.getByTestId('result-rate').textContent();
+
+  await page.getByTestId('watch-replay').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.locator('.hud-chart')).toContainText('REPLAY');
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
+  expect(await page.getByTestId('result-score').textContent()).toBe(score);
+  expect(await page.getByTestId('result-rate').textContent()).toBe(rate);
+
+  // the best play's replay is offered on the chart again
+  await page.getByTestId('result-back').click();
+  await page.getByTestId('generate-button').click();
+  await expect(page.getByTestId('watch-best')).toBeVisible({ timeout: 30_000 });
+  expect(errors).toEqual([]);
+});

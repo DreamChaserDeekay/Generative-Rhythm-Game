@@ -40,6 +40,7 @@ log = logging.getLogger("rhythm_server.api")
 MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 MAX_BGA_BYTES = 1024 * 1024 * 1024
 MAX_IMPORT_BYTES = 4 * 1024**3
+MAX_REPLAY_ENTRIES = 200_000
 
 
 class ChartRequest(BaseModel):
@@ -88,6 +89,8 @@ class ScoreRequest(BaseModel):
     breaks: int = Field(default=0, ge=0)
     autoPlay: bool = False
     detail: dict[str, Any] = Field(default_factory=dict)
+    # the inputs of the play (client format, see engine/replay.ts); kept next to the score
+    replay: dict[str, Any] | None = None
 
 
 def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST, synchronous_jobs: bool = False) -> FastAPI:
@@ -491,8 +494,20 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         song_or_404(req.songId)
         if library.load_chart(req.chartId) is None:
             raise HTTPException(404, "채보를 찾을 수 없습니다")
-        score_id = library.add_score(req.model_dump())
+        replay = req.replay
+        if replay is not None:
+            log = replay.get("log")
+            if replay.get("chartId") != req.chartId or not isinstance(log, list) or len(log) % 3 or len(log) > MAX_REPLAY_ENTRIES * 3:
+                raise HTTPException(422, "리플레이 데이터가 올바르지 않습니다")
+        score_id = library.add_score(req.model_dump(exclude={"replay"}), replay)
         return {"id": score_id, "records": library.best_scores(req.songId)}
+
+    @app.get("/api/scores/{score_id}/replay")
+    def score_replay(score_id: int) -> dict[str, Any]:
+        replay = library.load_replay(score_id)
+        if replay is None:
+            raise HTTPException(404, "리플레이가 없습니다")
+        return replay
 
     @app.get("/api/songs/{song_id}/scores")
     def song_scores(song_id: str) -> dict[str, Any]:

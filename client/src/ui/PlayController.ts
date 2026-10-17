@@ -5,6 +5,7 @@ import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
 import { applyPlacement, placementLabels, type PlacementResult } from '../engine/placement';
+import { REPLAY_VERSION, ReplayPlayer, ReplayRecorder, type ReplayData } from '../engine/replay';
 import { Ruleset, rulesetConfigs } from '../engine/ruleset';
 import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
@@ -55,6 +56,8 @@ export interface PlayOutcome {
   chart: Chart;
   placement: PlacementResult & { label: string };
   practice: PracticeOptions | null;
+  /** The inputs of this play (null for autoplay, practice, replays and the sync test). */
+  replay: ReplayData | null;
 }
 
 export interface PlayCallbacks {
@@ -120,6 +123,11 @@ export class PlayController {
   private session!: GameSession;
   private input!: InputManager;
   private auto: AutoPlayer | null = null;
+  /** Logs the inputs of a real play. */
+  private recorder: ReplayRecorder | null = null;
+  /** Feeds a recorded play back (watching a replay). */
+  private replayer: ReplayPlayer | null = null;
+  private readonly placementSeed: number;
   private unsubscribe: (() => void) | null = null;
   private state: PlayState = 'running';
   private finishAtPerf = 0;
@@ -130,12 +138,15 @@ export class PlayController {
   constructor(setup: PlaySetup, callbacks: PlayCallbacks) {
     this.setup = setup;
     this.callbacks = callbacks;
-    this.settings = setup.settings;
-    const { request, settings } = setup;
+    const { request } = setup;
+    // a replay plays under the judgement settings it was recorded with
+    const settings = request.replay ? { ...setup.settings, ...judgementSettingsOf(request.replay) } : setup.settings;
+    this.settings = settings;
     this.practice = request.practice ?? null;
     this.rate = setup.bufferPlacement.rate;
 
-    const seed = request.placementSeed ?? Math.floor(Math.random() * 2 ** 31);
+    const seed = request.replay?.settings.placementSeed ?? request.placementSeed ?? Math.floor(Math.random() * 2 ** 31);
+    this.placementSeed = seed;
     const placed = applyPlacement(request.chart, settings.placement, seed);
     this.placement = { ...placed, label: placementLabels[settings.placement] };
     this.chart = this.practice ? segmentOf(placed.chart, this.practice) : placed.chart;
@@ -199,6 +210,7 @@ export class PlayController {
           settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
           setup.lead && this.keysoundStem ? `키음 ${STEM_LABELS[this.keysoundStem] ?? this.keysoundStem}` : null,
           request.autoPlay ? 'AUTO' : null,
+          request.replay ? 'REPLAY' : null,
         ]
           .filter(Boolean)
           .join(' · '),
@@ -288,14 +300,20 @@ export class PlayController {
     this.laneNotes.length = 0;
     for (const n of this.session.notes) (this.laneNotes[n.lane] ??= []).push(n.index);
     this.nextAutoKeysound = 0;
+    const recording = !request.autoPlay && !request.replay && !this.practice;
+    this.recorder = recording ? new ReplayRecorder(this.session) : null;
+    this.replayer = request.replay ? new ReplayPlayer(request.replay.log) : null;
     this.input = new InputManager(
       this.engine,
       bindingsFor(settings, this.chart.meta.keyMode),
-      { press: (lane, t) => this.onPress(lane, t), release: (lane, t) => this.session.release(lane, t) },
+      {
+        press: (lane, t) => this.onPress(lane, t),
+        release: (lane, t) => (this.recorder ? this.recorder.release(lane, t) : this.session.release(lane, t)),
+      },
       settings.inputOffsetMs * this.rate,
     );
     this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
-    if (!request.autoPlay) this.input.attach();
+    if (!request.autoPlay && !request.replay) this.input.attach();
     this.engine.setBuffer(buffer, bufferPlacement, this.setup.lead);
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
@@ -319,7 +337,12 @@ export class PlayController {
   /** A press: judged by the session, and with keysounds the judged (or the lane's next) note sounds. */
   private onPress(lane: number, timeMs: number): void {
     this.pressJudged = null;
-    this.session.press(lane, timeMs);
+    if (this.recorder) this.recorder.press(lane, timeMs);
+    else this.session.press(lane, timeMs);
+    this.pressSound(lane, timeMs);
+  }
+
+  private pressSound(lane: number, timeMs: number): void {
     if (!this.voices || this.setup.request.autoPlay) return;
     const index = this.pressJudged ?? this.nextNoteOf(lane, timeMs);
     const note = index !== null ? this.session.notes[index] : undefined;
@@ -384,7 +407,17 @@ export class PlayController {
         for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
         this.scheduleAutoKeysounds(songNow);
       }
-      session.update(judgeNow);
+      if (this.replayer && !this.replayer.done) {
+        // only the recorded calls, in the recorded order: the same result whatever the frame rate
+        this.replayer.feed(session, judgeNow, (lane, t) => {
+          this.pressJudged = null;
+          this.pressSound(lane, t);
+        });
+      } else if (this.recorder) {
+        this.recorder.update(judgeNow);
+      } else {
+        session.update(judgeNow);
+      }
       const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
       if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
     }
@@ -474,7 +507,28 @@ export class PlayController {
   private finish(): void {
     this.state = 'done';
     this.engine.stop();
-    this.callbacks.onFinish({ result: this.session.result(), chart: this.chart, placement: this.placement, practice: this.practice });
+    const result = this.session.result();
+    const s = this.settings;
+    const replay: ReplayData | null = this.recorder
+      ? {
+          version: REPLAY_VERSION,
+          chartId: this.chart.meta.chartId,
+          songId: this.chart.meta.songId ?? null,
+          recordedAt: Date.now(),
+          settings: {
+            judgementMode: s.judgementMode,
+            ruleset: s.ruleset,
+            gaugeType: s.gaugeType,
+            fever: s.fever,
+            placement: s.placement,
+            placementSeed: this.placementSeed,
+            hiSpeed: s.hiSpeed,
+          },
+          log: this.recorder.log,
+          result: { score: result.score, rate: result.rate, maxCombo: result.maxCombo, lamp: result.lamp },
+        }
+      : null;
+    this.callbacks.onFinish({ result, chart: this.chart, placement: this.placement, practice: this.practice, replay });
   }
 
   private readonly onSessionEvent = (e: SessionEvent): void => {
@@ -502,7 +556,9 @@ export class PlayController {
 
   private updateSettings(next: Settings, toast: string): void {
     this.settings = next;
-    this.callbacks.onSettingsChange(next);
+    // a replay runs on its recorded judgement settings; keep only the viewer's visual changes
+    const replay = this.setup.request.replay;
+    this.callbacks.onSettingsChange(replay ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
     this.rebuildScroll();
     this.layout();
     const green = Math.round(greenNumber(next.hiSpeed, activeCovers(next)));
@@ -524,9 +580,11 @@ export class PlayController {
         if (this.state !== 'done') this.restart();
         return;
       case FEVER_KEY:
-        if (this.state === 'running' && s.fever === 'MANUAL') {
+        if (this.state === 'running' && s.fever === 'MANUAL' && !this.setup.request.replay) {
           e.preventDefault();
-          this.session.activateFever(this.engine.songTimeAtPerf(performance.now()) - s.inputOffsetMs * this.rate);
+          const t = this.engine.songTimeAtPerf(performance.now()) - s.inputOffsetMs * this.rate;
+          if (this.recorder) this.recorder.activateFever(t);
+          else this.session.activateFever(t);
         }
         return;
       case 'ArrowUp':
@@ -559,6 +617,13 @@ export class PlayController {
       }
     }
   };
+}
+
+/** The settings a replay must be judged with (or, with no replay, those of `base`). */
+function judgementSettingsOf(replay: ReplayData | null, base?: Settings): Partial<Settings> {
+  const src = replay?.settings ?? base;
+  if (!src) return {};
+  return { judgementMode: src.judgementMode, ruleset: src.ruleset, gaugeType: src.gaugeType, fever: src.fever, placement: src.placement };
 }
 
 /** Notes whose head lies inside the practice segment. */

@@ -12,6 +12,7 @@ import {
 } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { enabledKeyModes } from '../engine/config';
+import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
 import type { Palette, Settings } from '../settings/settings';
@@ -90,6 +91,7 @@ export function SongSelectScreen(props: Props) {
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
+  const replayInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const preview = useRef<HTMLAudioElement | null>(null);
@@ -222,6 +224,37 @@ export function SongSelectScreen(props: Props) {
       setError(e instanceof Error ? e.message : String(e));
     }
     setBusy(null);
+  };
+
+  const watchReplay = async (replay: ReplayData, song: Song | null = selected) => {
+    setError(null);
+    try {
+      const target = song && song.id === replay.songId ? song : replay.songId ? await api.song(replay.songId) : null;
+      if (!target) throw new Error('리플레이의 곡이 라이브러리에 없습니다');
+      const c = chart?.meta.chartId === replay.chartId ? chart : await api.chart(replay.chartId);
+      preview.current?.pause();
+      onPlay(buildPlayRequest(target, c, settings, { autoPlay: false, replay }));
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 404 ? '리플레이의 채보를 찾을 수 없습니다' : e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const openReplayFile = async (file: File) => {
+    try {
+      const data: unknown = JSON.parse(await file.text());
+      if (!isReplay(data)) throw new Error('리플레이 파일이 아닙니다');
+      await watchReplay(data, null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const watchBest = async (scoreId: number) => {
+    try {
+      await watchReplay(await api.replay(scoreId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const pickSaved = async (c: SavedChart) => {
@@ -414,6 +447,20 @@ export function SongSelectScreen(props: Props) {
         <nav className="row">
           <button data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
           <button data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
+          <button data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
+            리플레이 열기
+          </button>
+          <input
+            ref={replayInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            data-testid="replay-input"
+            onChange={(e) => {
+              if (e.target.files?.[0]) void openReplayFile(e.target.files[0]);
+              e.target.value = '';
+            }}
+          />
           <button data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
         </nav>
       </header>
@@ -659,6 +706,8 @@ export function SongSelectScreen(props: Props) {
                   practice={practice}
                   onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
                   onEdit={() => props.onEdit(chart, selected)}
+                  bestReplay={(selected.records ?? []).find((r) => r.chartId === chart.meta.chartId && r.hasReplay)?.bestScoreId ?? null}
+                  onWatchBest={(id) => void watchBest(id)}
                 />
               )}
 
@@ -762,6 +811,9 @@ function ChartPreview(props: {
   practice: PracticeOptions | null;
   onSelectRange: (startMs: number, endMs: number) => void;
   onEdit: () => void;
+  /** Score id of the best play of this chart when its replay was kept. */
+  bestReplay: number | null;
+  onWatchBest: (scoreId: number) => void;
 }) {
   const { chart } = props;
   const m = chart.meta;
@@ -807,6 +859,11 @@ function ChartPreview(props: {
         <button className="small" data-testid="edit-chart" onClick={props.onEdit}>
           채보 편집
         </button>
+        {props.bestReplay !== null && (
+          <button className="small" data-testid="watch-best" onClick={() => props.onWatchBest(props.bestReplay as number)}>
+            최고 기록 리플레이
+          </button>
+        )}
         <span className="label">내보내기</span>
         {exportFormats(m.keyMode).map((f) => (
           <a key={f} className="button small" href={api.exportUrl(m.chartId, f)} download data-testid={`export-${f}`}>

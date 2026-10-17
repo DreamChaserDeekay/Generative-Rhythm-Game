@@ -89,6 +89,7 @@ CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
 }
+SCORE_MIGRATIONS = {"has_replay": "INTEGER NOT NULL DEFAULT 0"}
 SAVED_CHART_KINDS = ("edited", "imported")
 BGA_EXTENSIONS = {".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".mov": "video/quicktime", ".ogv": "video/ogg"}
 
@@ -110,14 +111,14 @@ def _checked(pattern: re.Pattern[str], value: str) -> str:
 class Library:
     def __init__(self, root: Path):
         self.root = root
-        for sub in ("songs", "charts", "tmp"):
+        for sub in ("songs", "charts", "replays", "tmp"):
             (root / sub).mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._db = sqlite3.connect(str(root / "library.sqlite3"), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         with self._lock:
             self._db.executescript(SCHEMA)
-            for table, migrations in (("songs", MIGRATIONS), ("charts", CHART_MIGRATIONS)):
+            for table, migrations in (("songs", MIGRATIONS), ("charts", CHART_MIGRATIONS), ("scores", SCORE_MIGRATIONS)):
                 have = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
                 for column, decl in migrations.items():
                     if column not in have:
@@ -156,6 +157,19 @@ class Library:
 
     def chart_path(self, chart_id: str) -> Path:
         return self.root / "charts" / f"{_checked(CHART_ID, chart_id)}.json"
+
+    def replay_path(self, score_id: int) -> Path:
+        return self.root / "replays" / f"{int(score_id)}.json"
+
+    def load_replay(self, score_id: int) -> dict[str, Any] | None:
+        p = self.replay_path(score_id)
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    def _drop_replays(self, where: str, value: str) -> None:
+        with self._lock:
+            ids = [r["id"] for r in self._db.execute(f"SELECT id FROM scores WHERE {where} = ? AND has_replay = 1", (value,))]
+        for score_id in ids:
+            self.replay_path(score_id).unlink(missing_ok=True)
 
     def tmp_path(self, suffix: str) -> Path:
         return self.root / "tmp" / f"{time.time_ns()}{suffix}"
@@ -258,6 +272,7 @@ class Library:
         return self.get_song(song_id)
 
     def delete_song(self, song_id: str) -> None:
+        self._drop_replays("song_id", song_id)
         with self._lock:
             charts = [r["id"] for r in self._db.execute("SELECT id FROM charts WHERE song_id = ?", (song_id,))]
             self._db.execute("DELETE FROM scores WHERE song_id = ?", (song_id,))
@@ -400,6 +415,7 @@ class Library:
         return row["song_id"] if row else None
 
     def delete_chart(self, chart_id: str) -> None:
+        self._drop_replays("chart_id", chart_id)
         with self._lock:
             self._db.execute("DELETE FROM scores WHERE chart_id = ?", (chart_id,))
             self._db.execute("DELETE FROM charts WHERE id = ?", (chart_id,))
@@ -413,11 +429,11 @@ class Library:
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     # ---------- scores ----------
-    def add_score(self, record: dict[str, Any]) -> int:
+    def add_score(self, record: dict[str, Any], replay: dict[str, Any] | None = None) -> int:
         with self._lock:
             cur = self._db.execute(
-                "INSERT INTO scores (chart_id, song_id, played_at, score, rate, max_combo, lamp, judgement_mode, breaks, detail) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO scores (chart_id, song_id, played_at, score, rate, max_combo, lamp, judgement_mode, breaks, detail, has_replay) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record["chartId"],
                     record["songId"],
@@ -429,10 +445,14 @@ class Library:
                     record.get("judgementMode", "NORMAL"),
                     int(record.get("breaks", 0)),
                     json.dumps(record.get("detail", {})),
+                    int(replay is not None),
                 ),
             )
             self._db.commit()
-            return int(cur.lastrowid)
+            score_id = int(cur.lastrowid)
+        if replay is not None:
+            self.replay_path(score_id).write_text(json.dumps(replay, separators=(",", ":")), encoding="utf-8")
+        return score_id
 
     def best_scores(self, song_id: str) -> list[dict[str, Any]]:
         return self._best_by_song(song_id).get(song_id, [])
@@ -462,10 +482,12 @@ class Library:
                     "maxCombo": r["max_combo"],
                     "lamp": r["lamp"],
                     "plays": 0,
+                    "bestScoreId": r["id"],
+                    "hasReplay": bool(r["has_replay"]),
                 }
             cur["plays"] += 1
             if r["score"] > cur["score"]:
-                cur.update(score=r["score"], rate=r["rate"], maxCombo=r["max_combo"])
+                cur.update(score=r["score"], rate=r["rate"], maxCombo=r["max_combo"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
             if lamp_rank(r["lamp"]) > lamp_rank(cur["lamp"]):
                 cur["lamp"] = r["lamp"]
         out: dict[str, list[dict[str, Any]]] = {}
