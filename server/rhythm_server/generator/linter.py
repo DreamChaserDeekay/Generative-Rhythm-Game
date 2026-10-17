@@ -44,6 +44,10 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
     for t, ns in chords.items():
         if len(ns) > max(1, params.max_chord):
             problems.append(f"chord of {len(ns)} at {t}ms exceeds {params.max_chord}")
+        pressed = {n["lane"] for n in ns}
+        for chord in params.pad_forbidden:
+            if pressed.issuperset(chord):
+                problems.append(f"chord {'+'.join(str(i) for i in chord)} at {t}ms cannot be pressed on a pad")
         per_hand: dict[str, int] = defaultdict(int)
         for n in ns:
             per_hand[lanes[n["lane"]].hand] += 1

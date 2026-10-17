@@ -50,6 +50,11 @@ class GenParams:
     source_mix: dict[str, float] | None = None
     # "SC" for DJMAX SC charts, whose levels are a scale of their own
     level_scale: str | None = None
+    # 0..1 position on the five-step scale (GRG levels 1..15) whatever the difficulty system: rules
+    # that grow with difficulty use it instead of tier names
+    skill: float = 0.5
+    # chords a pad cannot press (sets of lane indices), for the DJMAX tiers below SC
+    pad_forbidden: tuple[tuple[int, ...], ...] = ()
     extra: dict[str, Any] = field(default_factory=dict)
 
     def public(self) -> dict[str, Any]:
@@ -91,6 +96,29 @@ def resolve_tier(system: dict[str, Any], difficulty: str) -> str:
         if str(tier.get("label", "")).upper() == difficulty.upper():
             return tier_id
     raise ValueError(f"unknown difficulty: {difficulty}")
+
+
+def skill_for_rating(rating: float) -> float:
+    """A five-step rating (GRG levels 1..15) as a 0..1 skill value."""
+    return max(0.0, min(1.0, (rating - 1.0) / 14.0))
+
+
+def chart_skill(tier: dict[str, Any], levels: tuple[int, int]) -> float:
+    """Skill value of the level a tier aims at (the middle of its range). Level numbers mean about
+    the same on every system and key mode (DJMAX and EZ2ON have nearly the same density per level
+    up to 15, and GRG levels were made on the same scale); a tier with a scale of its own maps onto
+    it with "levelEquivalent" [offset, slope] (DJMAX SC: SC 2 / 4 / 6 / 8 = levels 12 / 13 / 14 / 15)."""
+    lo, hi = levels
+    rating = (lo + hi) / 2 + 0.5
+    if "levelEquivalent" in tier:
+        offset, slope = tier["levelEquivalent"]
+        rating = float(offset) + float(slope) * rating
+    return skill_for_rating(rating)
+
+
+def pad_forbidden_lanes(system: dict[str, Any], key_mode: str) -> tuple[tuple[int, ...], ...]:
+    ids = [lane["id"] for lane in key_modes()[key_mode]["lanes"]]
+    return tuple(tuple(sorted(ids.index(x) for x in chord)) for chord in system["padForbiddenChords"].get(key_mode, []))
 
 
 def _at(value: Any, frac: float) -> float:
@@ -160,6 +188,8 @@ def resolve_params(
         side_hold_share=float(p.get("sideHoldShare", SIDE_HOLD_SHARE)),
         source_mix={k: float(v) for k, v in p["sourceMix"].items()} if "sourceMix" in p else None,
         level_scale=p.get("levelScale"),
+        skill=chart_skill(p, levels),
+        pad_forbidden=pad_forbidden_lanes(sys_cfg, key_mode) if p.get("padPlayable") else (),
     )
     overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
     style = overrides.get("style")

@@ -340,6 +340,9 @@ def _valid_combos(
             if count > limit:
                 ok = False
                 break
+        if ok and params.pad_forbidden:
+            pressed = set(combo)
+            ok = not any(pressed.issuperset(chord) for chord in params.pad_forbidden)
         if ok:
             out.append(combo)
         if len(out) >= MAX_COMBOS * 4:

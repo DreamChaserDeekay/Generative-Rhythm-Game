@@ -15,6 +15,7 @@ from .common import (
     FormatError,
     ParsedChart,
     ascii_text,
+    difficulty_label,
     drop_conflicts,
     lane_ids,
     measures,
@@ -58,7 +59,7 @@ def export_osu(chart: dict[str, Any], audio_name: str, preview_ms: float | None 
     for s in timing.get("stops") or []:
         add(float(s["beat"]), tempo.beat_to_ms(float(s["beat"])) + float(s["durationMs"]))
 
-    version = meta.get("chartName") or f"{key_mode} {meta['difficulty']}" + (f" Lv.{meta['level']}" if meta.get("level") else "")
+    version = meta.get("chartName") or f"{key_mode} {difficulty_label(meta)}"
     lines = [
         "osu file format v14",
         "",

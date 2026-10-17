@@ -10,7 +10,7 @@ from typing import Any
 
 from .bms import LANE_COLUMNS, export_bms, parse_bms
 from .bmson import export_bmson, parse_bmson
-from .common import FormatError, ParsedChart, assemble_chart, safe_filename
+from .common import FormatError, ParsedChart, assemble_chart, difficulty_label, safe_filename
 from .osu import export_osu, parse_osu
 
 EXPORT_FORMATS = ("osu", "bms", "bmson")
@@ -37,7 +37,7 @@ def export_formats(key_mode: str) -> list[str]:
 def export_chart(chart: dict[str, Any], fmt: str, audio_name: str, preview_ms: float | None = None, offset_ms: float = 0.0) -> tuple[bytes, str, str]:
     """(file bytes, file name, media type) of a chart in `fmt`."""
     meta = chart["meta"]
-    label = meta.get("chartName") or f"{meta['keyMode']} {meta['difficulty']}"
+    label = meta.get("chartName") or f"{meta['keyMode']} {difficulty_label(meta, with_level=False)}"
     stem = safe_filename(f"{meta['title']} [{label}]")
     if fmt == "osu":
         text = export_osu(chart, audio_name, preview_ms, offset_ms)

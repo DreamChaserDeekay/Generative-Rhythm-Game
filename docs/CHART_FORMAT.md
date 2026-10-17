@@ -145,6 +145,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - **템포**: BMS는 #BPMxx(채널 08), bmson은 `bpm_events`, osu!는 빨간 타이밍 포인트. osu!는 STOP이 없어 STOP 끝에 타이밍 포인트를 다시 둔다(시각은 정확, 스크롤만 다름). BMS #STOP 값은 4/4 마디의 1/192 단위다.
 - **롱노트**: BMS는 LNTYPE 1(채널 5x의 시작·끝 쌍)으로 쓰고, 읽을 때는 #LNOBJ도 받는다. bmson은 `l`(펄스 길이), osu!는 타입 128.
 - **BMS 위치 해상도**: 마디·채널마다 모든 오브젝트가 0.5ms 안에 들어가는 가장 작은 분할(1 … 3840)을 고른다.
+- **난이도 이름**: osu! `Version`은 "5K HARD Lv.9" · "5K DJMAX MX Lv.12" · "5K DJMAX SC 8", bmson `chart_name`은 "HARD" · "DJMAX MX", BMS `#DIFFICULTY`는 5단계 EASY 1 … MASTER 5, DJMAX NM 2 · HD 3 · MX 4 · SC 5, EZ2ON EZ 1 · NM 2 · HD 3 · SHD 4(`config/difficulty.json`의 `bmsDifficulty`). 편집·가져온 채보는 `chartName`을 쓴다.
 - **가져올 때 정리**: 같은 레인·같은 시각이나 롱노트 안에 겹친 노트는 하나만 남기고 알림에 개수를 적는다. 레벨·NPS·스킬 지표는 우리 난이도 모델로 다시 계산한다.
 
 ## 리플레이 (`replays/<scoreId>.json`)

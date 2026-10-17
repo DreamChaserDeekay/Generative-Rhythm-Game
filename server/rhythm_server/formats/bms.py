@@ -12,6 +12,7 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from ..config import DEFAULT_SYSTEM, difficulty_config
 from ..generator.tempo import TempoMap
 from .common import (
     FormatError,
@@ -32,6 +33,16 @@ LN_CHANNEL = {c: ch for ch, c in P1_LN.items()}
 LANE_COLUMNS = {"7K+1S": [0, 1, 2, 3, 4, 5, 6, 7], "5K": [1, 2, 3, 4, 5]}
 DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "MASTER": 5}
 DIFFICULTY_NAMES = {1: "BEGINNER", 2: "NORMAL", 3: "HYPER", 4: "ANOTHER", 5: "INSANE"}
+
+
+def bms_difficulty(meta: dict[str, Any]) -> int:
+    """#DIFFICULTY: the tier's bmsDifficulty on DJMAX / EZ2ON, from the five-step name otherwise."""
+    system = meta.get("difficultySystem")
+    if system and system != DEFAULT_SYSTEM:
+        tier = difficulty_config().get("systems", {}).get(system, {}).get("tiers", {}).get(meta.get("difficulty", ""), {})
+        if "bmsDifficulty" in tier:
+            return int(tier["bmsDifficulty"])
+    return DIFFICULTY_LEVEL.get(meta.get("difficulty", ""), 3)
 RESOLUTIONS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 192, 384, 768, 960, 1536, 1920, 3840]
 POSITION_TOLERANCE_MS = 0.5
 STOP_UNITS_PER_BEAT = 48  # #STOP values count 1/192 of a 4/4 measure
@@ -93,7 +104,7 @@ def export_bms(chart: dict[str, Any], audio_name: str) -> tuple[str, str]:
         f"#PLAYLEVEL {meta.get('level') or 1}",
         "#RANK 2",
         f"#TOTAL {_num(bms_total(len(notes) + sum(1 for n in notes if n['type'] == 'hold')))}",
-        f"#DIFFICULTY {DIFFICULTY_LEVEL.get(meta.get('difficulty', ''), 3)}",
+        f"#DIFFICULTY {bms_difficulty(meta)}",
         "#LNTYPE 1",
         "",
     ]

@@ -20,7 +20,7 @@ from .repeat import consistency, repeat_references, repeat_targets
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.3.0"
+GENERATOR_VERSION = "0.3.1"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least

@@ -12,7 +12,7 @@ from typing import Any
 
 from ..generator.tempo import TempoMap
 from .bms import LEAD_IN_MIN_MS
-from .common import FormatError, ParsedChart, choke_slices, drop_conflicts, measures, meter_from_lengths
+from .common import FormatError, ParsedChart, choke_slices, difficulty_label, drop_conflicts, measures, meter_from_lengths
 
 RESOLUTION = 960
 # our lane index -> bmson x, per key mode (x 8 is the scratch in beat-* modes)
@@ -68,7 +68,7 @@ def export_bmson(chart: dict[str, Any], audio_name: str) -> dict[str, Any]:
             "subartists": [],
             "genre": meta.get("genre") or "Generative",
             "mode_hint": MODE_HINT[key_mode],
-            "chart_name": meta.get("chartName") or meta.get("difficulty", ""),
+            "chart_name": meta.get("chartName") or difficulty_label(meta, with_level=False),
             "level": int(meta.get("level") or 1),
             "init_bpm": 60000.0 / ms0,
             "judge_rank": 100,

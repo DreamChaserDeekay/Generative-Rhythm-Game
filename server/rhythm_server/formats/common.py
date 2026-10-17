@@ -9,7 +9,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import DEFAULT_SYSTEM, difficulty_system, key_modes, level_table_for
+from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, level_table_for
 from ..difficulty.estimator import estimate
 from ..generator.tempo import TempoMap
 
@@ -45,6 +45,18 @@ class ParsedChart:
     # notes removed because they overlapped others in the file
     dropped: int = 0
     warnings: list[str] = field(default_factory=list)
+
+
+def difficulty_label(meta: dict[str, Any], with_level: bool = True) -> str:
+    """"HARD Lv.9", "DJMAX MX Lv.12", "DJMAX SC 8" (as the client shows it); without the level
+    "HARD", "DJMAX MX"."""
+    system = meta.get("difficultySystem")
+    head = ""
+    if system and system != DEFAULT_SYSTEM:
+        head = str(difficulty_config().get("systems", {}).get(system, {}).get("label", system)) + " "
+    level = int(meta.get("level") or 0)
+    tail = (f" {level}" if meta.get("levelScale") else f" Lv.{level}") if level > 0 and with_level else ""
+    return f"{head}{meta.get('difficulty', '')}{tail}"
 
 
 def lane_ids(key_mode: str) -> list[str]:

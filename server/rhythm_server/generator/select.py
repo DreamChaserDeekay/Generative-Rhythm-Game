@@ -8,13 +8,17 @@ from dataclasses import dataclass
 import numpy as np
 
 from .candidates import Candidate
-from .params import GenParams
+from .params import GenParams, skill_for_rating
 from .tempo import TempoMap
 
 MAX_GAP_S = 4.0  # silences longer than this do not count toward the target density
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
 MAX_CHORD_RATIO = 0.6
+# Easy charts (five-step levels 1-3) put chords on downbeats only; up to level 6 long notes end on
+# half beats.
+DOWNBEAT_CHORDS_BELOW = skill_for_rating(4.0)
+HALF_BEAT_HOLDS_BELOW = skill_for_rating(7.0)
 
 
 @dataclass
@@ -153,7 +157,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
         total = float(np.sum(c.bands)) + 1e-9
         spread = int(np.sum(c.bands / total > 0.22))
         w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
-        if params.difficulty == "EASY" and not c.downbeat:
+        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat:
             w = 0.0
         worth.append(w)
     # On few keys every chord eats a large share of the lanes; keep them rarer.
@@ -173,7 +177,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
 def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenParams, tempo: TempoMap) -> None:
     if params.long_note_ratio <= 0 or not slots:
         return
-    step = 0.5 if params.difficulty in ("EASY", "NORMAL") else 0.25
+    step = 0.5 if params.skill < HALF_BEAT_HOLDS_BELOW else 0.25
     picks = []
     for i, c in enumerate(chosen):
         if c.sustain_beats >= params.min_ln_beats:
