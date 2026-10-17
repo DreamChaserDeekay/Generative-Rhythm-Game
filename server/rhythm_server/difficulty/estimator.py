@@ -10,6 +10,7 @@ so it reads as an "effective NPS", which maps onto the level table in config/dif
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 from typing import Any
 
@@ -104,10 +105,11 @@ def effective_nps(notes: list[dict[str, Any]], hands: tuple[int, ...]) -> tuple[
     return float(np.interp(value, cal_v, cal_r)), {"L": round(left / total, 3), "R": round(right / total, 3)}
 
 
-def level_for(eff_nps: float, key_mode: str) -> tuple[int, float]:
+def level_for(eff_nps: float, key_mode: str, level_table: Sequence[float] | None = None, factor: float | None = None) -> tuple[int, float]:
+    """Level on a level table (effective NPS at levels 1..N, 4K; the GRG table by default)."""
     cfg = difficulty_config()
-    table = np.asarray(cfg["levelEffectiveNps"], dtype=np.float64)
-    x = eff_nps / float(cfg["keyModeNpsFactor"].get(key_mode, 1.0))
+    table = np.asarray(level_table if level_table else cfg["levelEffectiveNps"], dtype=np.float64)
+    x = eff_nps / (factor if factor is not None else float(cfg["keyModeNpsFactor"].get(key_mode, 1.0)))
     level = int(np.clip(np.searchsorted(table, x, side="right"), 1, len(table)))
     # fractional rating for display: position between this level's threshold and the next
     rating = float(np.interp(x, table, np.arange(1, len(table) + 1)))
@@ -215,12 +217,20 @@ def skillset(notes: list[dict[str, Any]], min_jack_ms: float) -> dict[str, float
     }
 
 
-def estimate(notes: list[dict[str, Any]], key_mode: str, n_lanes: int, duration_ms: float, min_jack_ms: float) -> dict[str, Any]:
+def estimate(
+    notes: list[dict[str, Any]],
+    key_mode: str,
+    n_lanes: int,
+    duration_ms: float,
+    min_jack_ms: float,
+    level_table: Sequence[float] | None = None,
+    factor: float | None = None,
+) -> dict[str, Any]:
     hands = lane_hands(key_mode)
     if len(hands) != n_lanes:
         raise ValueError(f"{key_mode} has {len(hands)} lanes, not {n_lanes}")
     eff, hand_load = effective_nps(notes, hands)
-    level, rating = level_for(eff, key_mode)
+    level, rating = level_for(eff, key_mode, level_table, factor)
     return {
         "level": level,
         "rating": rating,

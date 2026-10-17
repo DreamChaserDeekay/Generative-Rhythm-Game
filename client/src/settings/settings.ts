@@ -1,4 +1,16 @@
-import { cameraConfig, defaultGauge, gaugeTypeIds, judgementConfig, keyModes, type GaugeTypeId, type JudgementModeId } from '../engine/config';
+import {
+  cameraConfig,
+  defaultGauge,
+  difficultySystemIds,
+  difficultySystems,
+  gaugeTypeIds,
+  judgementConfig,
+  keyModes,
+  tierOf,
+  type DifficultySystemId,
+  type GaugeTypeId,
+  type JudgementModeId,
+} from '../engine/config';
 import type { FeverMode } from '../engine/fever';
 import { placementIds, type PlacementId } from '../engine/placement';
 import { defaultRuleset, rulesetIds, type RulesetId } from '../engine/ruleset';
@@ -64,7 +76,10 @@ export interface Settings {
   /** Gamepad / controller control per lane (null = none), alongside the keyboard keys. */
   padBindings: Partial<Record<KeyModeId, (string | null)[]>>;
   lastKeyMode: KeyModeId;
+  /** Difficulty tier of `difficultySystem` (NM, MX, SHD …). */
   lastDifficulty: string;
+  /** Which game's difficulties and levels the generator follows (GRG = the original five steps). */
+  difficultySystem: DifficultySystemId;
   ruleset: RulesetId;
   gaugeType: GaugeTypeId;
   fever: FeverMode;
@@ -124,6 +139,7 @@ export const DEFAULT_SETTINGS: Settings = {
   padBindings: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
+  difficultySystem: difficultySystemIds.includes('DJMAX') ? 'DJMAX' : 'GRG',
   ruleset: defaultRuleset,
   gaugeType: defaultGauge,
   fever: 'AUTO',
@@ -172,6 +188,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
   s.cameraPreset = pick(s.cameraPreset, Object.keys(cameraConfig.presets), d.cameraPreset);
   s.lastKeyMode = pick(s.lastKeyMode, Object.keys(keyModes) as KeyModeId[], d.lastKeyMode);
+  s.difficultySystem = pick(s.difficultySystem, difficultySystemIds, d.difficultySystem);
+  s.lastDifficulty = tierOf(difficultySystems[s.difficultySystem], String(s.lastDifficulty)).id;
   s.ruleset = pick(s.ruleset, rulesetIds, d.ruleset);
   s.gaugeType = pick(s.gaugeType, gaugeTypeIds, d.gaugeType);
   s.fever = pick(s.fever, ['AUTO', 'MANUAL', 'OFF'] as FeverMode[], d.fever);

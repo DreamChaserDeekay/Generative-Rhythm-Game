@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from ..config import difficulty_config, key_modes, load_config
+from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, level_table_for, load_config
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
+SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds (default)
 
 
 @dataclass
@@ -37,11 +38,25 @@ class GenParams:
     rhythm_source: str = "auto"
     instrument_mapping: float = 0.6  # 0 = off, 1 = strong pull of drums/bass toward their lane regions
     repeat_consistency: float = 1.0  # 0 = off, 1 = reuse the first occurrence's lanes in repeated sections
+    system: str = DEFAULT_SYSTEM
+    # effective NPS at levels 1..N of this tier's scale, and what divides a chart's effective NPS
+    # before the lookup (the key mode factor for a 4K table, 1 for a table of this key mode)
+    level_table: tuple[float, ...] = ()
+    level_factor: float = 1.0
+    # lowest average NPS of the tier (density floor of the adjustment loop), key mode factor included
+    min_avg_nps: float = 0.0
+    side_hold_share: float = SIDE_HOLD_SHARE
+    # stem weights for the automatic rhythm source (which instruments the tier follows)
+    source_mix: dict[str, float] | None = None
+    # "SC" for DJMAX SC charts, whose levels are a scale of their own
+    level_scale: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
     def public(self) -> dict[str, Any]:
         """The user-facing subset stored in chart meta (and hashed into the chart id)."""
+        system = {} if self.system == DEFAULT_SYSTEM else {"system": self.system}
         return {
+            **system,
             "difficulty": self.difficulty,
             "targetLevel": self.target_level,
             "density": round(self.density, 3),
@@ -64,26 +79,58 @@ class GenParams:
         return asdict(self)
 
 
+def resolve_tier(system: dict[str, Any], difficulty: str) -> str:
+    """A tier id of the system from its id, an alias (the five GRG names) or its label."""
+    tiers = system["tiers"]
+    if difficulty in tiers:
+        return difficulty
+    alias = system["aliases"].get(difficulty.upper())
+    if alias in tiers:
+        return alias
+    for tier_id, tier in tiers.items():
+        if str(tier.get("label", "")).upper() == difficulty.upper():
+            return tier_id
+    raise ValueError(f"unknown difficulty: {difficulty}")
+
+
+def _at(value: Any, frac: float) -> float:
+    """A preset value, or [low, high] across the tier's level range."""
+    if isinstance(value, (list, tuple)):
+        return float(value[0]) + frac * (float(value[1]) - float(value[0]))
+    return float(value)
+
+
 def resolve_params(
     key_mode: str,
     difficulty: str,
     target_level: int | None = None,
     overrides: dict[str, Any] | None = None,
+    system: str | None = None,
 ) -> GenParams:
     cfg = difficulty_config()
     if key_mode not in key_modes():
         raise ValueError(f"unknown key mode: {key_mode}")
-    order = cfg["order"]
+    sys_cfg = difficulty_system(system)
+    tiers = sys_cfg["tiers"]
+    difficulty = resolve_tier(sys_cfg, difficulty)
     if target_level is not None:
-        target_level = max(1, min(15, int(target_level)))
-        difficulty = next(d for d in order if cfg["presets"][d]["levels"][0] <= target_level <= cfg["presets"][d]["levels"][1])
-    if difficulty not in cfg["presets"]:
-        raise ValueError(f"unknown difficulty: {difficulty}")
-    p = cfg["presets"][difficulty]
+        target_level = max(1, min(int(sys_cfg["maxLevel"]), int(target_level)))
+        lo, hi = tiers[difficulty]["levels"]
+        own_scale = "levelEffectiveNps" in tiers[difficulty]
+        if not own_scale and not lo <= target_level <= hi:
+            # another tier on the system's level scale covers that level
+            covering = [
+                d for d in sys_cfg["order"] if "levelEffectiveNps" not in tiers[d] and tiers[d]["levels"][0] <= target_level <= tiers[d]["levels"][1]
+            ]
+            if covering:
+                difficulty = covering[0]
+    p = tiers[difficulty]
     lo, hi = p["levels"]
-    factor = float(cfg["keyModeNpsFactor"].get(key_mode, 1.0))
-    # Position of the target inside the preset's level range picks the starting density.
-    frac = 0.5 if target_level is None else (target_level - lo) / max(1, hi - lo)
+    factor = float(sys_cfg["keyModeNpsFactor"].get(key_mode, 1.0))
+    table, level_factor = level_table_for(sys_cfg, difficulty, key_mode)
+    # Position of the target inside the preset's level range picks the starting density and the
+    # tier's level-dependent character (chords, long notes, side notes).
+    frac = 0.5 if target_level is None else min(1.0, max(0.0, (target_level - lo) / max(1, hi - lo)))
     avg = p["avgNps"][0] + frac * (p["avgNps"][1] - p["avgNps"][0])
     levels = (target_level, target_level) if target_level is not None else (lo, hi)
     params = GenParams(
@@ -96,16 +143,23 @@ def resolve_params(
         subdivisions=tuple(int(s) for s in p["subdivisions"]),
         partial={int(k): float(v) for k, v in p.get("partialSubdivisions", {}).items()},
         max_chord=int(p["maxChord"]),
-        chord_ratio=float(p["chordRatio"]),
-        long_note_ratio=float(p["longNoteRatio"]),
+        chord_ratio=_at(p["chordRatio"], frac),
+        long_note_ratio=_at(p["longNoteRatio"], frac),
         min_ln_beats=float(p["minLnBeats"]),
         min_jack_ms=float(p["minJackMs"]),
         hand_chord_limit=int(p["handChordLimit"]),
         hold_hand_limit=int(p["holdHandLimit"]),
         max_holds_per_hand=int(p.get("maxHoldsPerHand", 1)),
-        scratch_rate=float(p["scratchRate"]),
-        side_rate=float(p.get("sideRate", 0.0)),
+        scratch_rate=_at(p["scratchRate"], frac),
+        side_rate=_at(p.get("sideRate", 0.0), frac),
         high_band_weight=float(p["highBandWeight"]),
+        system=sys_cfg["id"],
+        level_table=tuple(table),
+        level_factor=level_factor,
+        min_avg_nps=float(p["avgNps"][0]) * factor,
+        side_hold_share=float(p.get("sideHoldShare", SIDE_HOLD_SHARE)),
+        source_mix={k: float(v) for k, v in p["sourceMix"].items()} if "sourceMix" in p else None,
+        level_scale=p.get("levelScale"),
     )
     overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
     style = overrides.get("style")

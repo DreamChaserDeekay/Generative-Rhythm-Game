@@ -145,9 +145,11 @@ def _stem_source_weight(c: Candidate, params: GenParams, cfg: dict[str, Any]) ->
     if c.sources is None:
         return None
     if params.rhythm_source == "auto":
-        if c.leader is None:
-            return 1.0
-        return cfg["autoBase"] + cfg["autoGain"] * float(c.sources[c.leader])
+        auto = 1.0 if c.leader is None else cfg["autoBase"] + cfg["autoGain"] * float(c.sources[c.leader])
+        if params.source_mix:
+            # the tier's instruments: a NORMAL chart follows the melody, MAXIMUM every instrument
+            auto *= sum(float(c.sources[i]) * params.source_mix.get(name, 1.0) for i, name in enumerate(STEM_NAMES))
+        return auto
     mix = cfg["sources"].get(params.rhythm_source, {})
     share = sum(float(c.sources[STEM_NAMES.index(name)]) * w for name, w in mix.items())
     return cfg["base"] + cfg["gain"] * min(1.0, share)

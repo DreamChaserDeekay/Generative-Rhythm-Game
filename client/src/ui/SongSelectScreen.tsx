@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   api,
   ApiError,
@@ -11,7 +11,7 @@ import {
   type Song,
 } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
-import { enabledKeyModes } from '../engine/config';
+import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
@@ -36,8 +36,6 @@ interface Props {
   onSelectSong: (id: string | null) => void;
 }
 
-const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER'];
-const DIFF_SHORT: Record<string, string> = { EASY: 'EZ', NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', MASTER: 'MX' };
 const SKILL_LABELS: [string, string][] = [
   ['stream', '스트림'],
   ['chord', '동치'],
@@ -97,7 +95,9 @@ export function SongSelectScreen(props: Props) {
   const preview = useRef<HTMLAudioElement | null>(null);
 
   const keyMode = settings.lastKeyMode;
-  const difficulty = settings.lastDifficulty;
+  const system = difficultySystems[settings.difficultySystem];
+  const tiers = system.tiers;
+  const difficulty = tierOf(system, settings.lastDifficulty).id;
   const selected = songs.find((s) => s.id === selectedSongId) ?? null;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -146,10 +146,11 @@ export function SongSelectScreen(props: Props) {
   useEffect(() => {
     const picked = pickedChart.current;
     pickedChart.current = null;
-    setChart(picked && picked.meta.keyMode === keyMode && picked.meta.difficulty === difficulty ? picked : null);
+    // set right before the tab switch it causes, so this run is that switch
+    setChart(picked && picked.meta.keyMode === keyMode ? picked : null);
     setError(null);
     setPractice(null);
-  }, [selectedSongId, keyMode, difficulty, targetLevel, generationKey]);
+  }, [selectedSongId, keyMode, difficulty, system.id, targetLevel, generationKey]);
 
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
@@ -266,12 +267,24 @@ export function SongSelectScreen(props: Props) {
     setPractice(null);
     try {
       const picked = await api.chart(c.chartId);
-      const { keyMode: mode, difficulty: diff } = picked.meta;
-      // show its key mode and difficulty on the tabs (an imported 7K+1S chart while 4K is selected)
-      if ((mode !== keyMode || diff !== difficulty) && enabledKeyModes.includes(mode) && DIFFICULTIES.includes(diff)) {
+      const { keyMode: mode, difficulty: diff, difficultySystem } = picked.meta;
+      // show its key mode on the tabs (an imported 7K+1S chart while 4K is selected), and its
+      // difficulty too when it is on the selected system or was made on DJMAX / EZ2ON; an
+      // imported chart (five-step scale) leaves the chosen difficulty system alone
+      const next = { ...settings };
+      if (enabledKeyModes.includes(mode)) next.lastKeyMode = mode;
+      const pickedSystem = difficultySystem && difficultySystem !== 'GRG' ? difficultySystem : null;
+      if (pickedSystem && difficultySystems[pickedSystem]?.tiers.some((t) => t.id === diff)) {
+        next.difficultySystem = pickedSystem;
+        next.lastDifficulty = diff;
+      } else if (system.tiers.some((t) => t.id === diff)) {
+        next.lastDifficulty = diff;
+      }
+      const changed = next.lastKeyMode !== keyMode || next.difficultySystem !== system.id || next.lastDifficulty !== difficulty;
+      if (changed) {
         pickedChart.current = picked;
         setTargetLevel(null);
-        onSettingsChange({ ...settings, lastKeyMode: mode, lastDifficulty: diff });
+        onSettingsChange(next);
       } else {
         setChart(picked);
       }
@@ -309,6 +322,7 @@ export function SongSelectScreen(props: Props) {
       const { chart: c } = await api.generate(selected.id, {
         keyMode,
         difficulty,
+        system: system.id,
         targetLevel,
         newSeed,
         params: generationParams(settings.generation, keyMode),
@@ -408,6 +422,14 @@ export function SongSelectScreen(props: Props) {
     setTargetLevel(null);
     onSettingsChange({ ...settings, lastDifficulty: d });
   };
+  const setSystem = (id: DifficultySystemId) => {
+    setTargetLevel(null);
+    // the same step of the new system (NORMAL → NM …), else its second tier
+    const next = difficultySystems[id];
+    const index = Math.min(tiers.findIndex((t) => t.id === difficulty), next.tiers.length - 1);
+    const tier = next.tiers.find((t) => t.id === next.aliases[difficulty]) ?? next.tiers[Math.max(0, index)] ?? next.tiers[0];
+    onSettingsChange({ ...settings, difficultySystem: id, lastDifficulty: tier.id });
+  };
 
   // Keyboard navigation: arrows pick song/difficulty, Enter plays, Tab switches key mode.
   useEffect(() => {
@@ -421,8 +443,8 @@ export function SongSelectScreen(props: Props) {
         onSelectSong(filtered[next < 0 ? 0 : next].id);
       } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         e.preventDefault();
-        const d = DIFFICULTIES.indexOf(difficulty) + (e.code === 'ArrowRight' ? 1 : -1);
-        if (d >= 0 && d < DIFFICULTIES.length) setDifficulty(DIFFICULTIES[d]);
+        const d = tiers.findIndex((t) => t.id === difficulty) + (e.code === 'ArrowRight' ? 1 : -1);
+        if (d >= 0 && d < tiers.length) setDifficulty(tiers[d].id);
       } else if (e.code === 'Enter') {
         e.preventDefault();
         void play();
@@ -637,13 +659,32 @@ export function SongSelectScreen(props: Props) {
                   </div>
                   <span className="hint">Tab</span>
                 </div>
+                <div className="row">
+                  <span className="label">난이도 기준</span>
+                  <div className="segmented" data-testid="difficulty-system">
+                    {difficultySystemIds.map((id) => (
+                      <button key={id} className={id === system.id ? 'active' : ''} onClick={() => setSystem(id)} data-testid={`system-${id}`}>
+                        {difficultySystems[id].label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="hint">
+                    {system.id === 'GRG' ? '이 게임의 5단계 (Lv.1–15)' : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel})`}
+                  </span>
+                </div>
                 <div className="difficulty-row" data-testid="difficulty-row">
-                  {DIFFICULTIES.map((d) => {
-                    const best = bestFor(d);
+                  {tiers.map((t) => {
+                    const best = bestFor(t.id);
                     return (
-                      <button key={d} className={`difficulty diff-${d.toLowerCase()} ${d === difficulty && targetLevel === null ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
-                        <span className="diff-name">{d}</span>
-                        <span className="diff-short">{DIFF_SHORT[d]}</span>
+                      <button
+                        key={t.id}
+                        className={`difficulty ${t.id === difficulty && targetLevel === null ? 'active' : ''}`}
+                        style={{ ['--diff' as string]: t.color } as CSSProperties}
+                        onClick={() => setDifficulty(t.id)}
+                        title={t.levelScale ? `${t.label}: 레벨이 따로 매겨지는 고난도 채보 (${t.levelScale} 1–15)` : `보통 Lv.${t.levels[0]}–${t.levels[1]}`}
+                      >
+                        <span className="diff-name">{t.label}</span>
+                        <span className="diff-short">{t.short}</span>
                         {best && <span className={`diff-lamp ${lampClass(best.lamp)}`}>{best.rate.toFixed(2)}%</span>}
                       </button>
                     );
@@ -656,8 +697,8 @@ export function SongSelectScreen(props: Props) {
                   </label>
                   {targetLevel !== null && (
                     <>
-                      <input type="range" min={1} max={15} value={targetLevel} onChange={(e) => setTargetLevel(Number(e.target.value))} />
-                      <span className="value">Lv.{targetLevel}</span>
+                      <input type="range" min={1} max={system.maxLevel} value={Math.min(targetLevel, system.maxLevel)} onChange={(e) => setTargetLevel(Number(e.target.value))} />
+                      <span className="value">{tierOf(system, difficulty).levelScale ?? 'Lv.'}{tierOf(system, difficulty).levelScale ? ' ' : ''}{Math.min(targetLevel, system.maxLevel)}</span>
                     </>
                   )}
                   <label className="row check">
@@ -843,9 +884,9 @@ function ChartPreview(props: {
   return (
     <section className="panel chart-preview" data-testid="chart-preview">
       <div className="preview-head">
-        <div className={`level-badge diff-${m.difficulty.toLowerCase()}`}>
-          <span>{m.difficulty}</span>
-          <strong data-testid="chart-level">Lv.{m.level}</strong>
+        <div className="level-badge" style={{ ['--diff' as string]: chartTier(m).color } as CSSProperties} title={chartTier(m).label}>
+          <span>{m.difficultySystem && m.difficultySystem !== 'GRG' ? `${m.difficultySystem} ${m.difficulty}` : m.difficulty}</span>
+          <strong data-testid="chart-level">{m.levelScale ? `${m.levelScale} ${m.level}` : `Lv.${m.level}`}</strong>
         </div>
         <div className="preview-stats">
           <div><span className="label">노트</span> <strong data-testid="chart-notes">{m.noteCount}</strong></div>
@@ -920,4 +961,10 @@ function ChartPreview(props: {
       </div>
     </section>
   );
+}
+
+/** The tier a chart's difficulty belongs to (imported charts use the five GRG steps). */
+function chartTier(m: { difficulty: string; difficultySystem?: DifficultySystemId }) {
+  const system = difficultySystems[m.difficultySystem ?? 'GRG'] ?? difficultySystems.GRG;
+  return system.tiers.find((t) => t.id === m.difficulty) ?? { id: m.difficulty, label: m.difficulty, short: m.difficulty, levels: [1, 15] as [number, number], color: '#9fb4ff' };
 }

@@ -9,7 +9,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import key_modes
+from ..config import DEFAULT_SYSTEM, difficulty_system, key_modes, level_table_for
 from ..difficulty.estimator import estimate
 from ..generator.tempo import TempoMap
 
@@ -202,9 +202,12 @@ def assemble_chart(
     extra_meta: dict[str, Any] | None = None,
     sounds: list[str] | None = None,
     bgm: list[dict[str, Any]] | None = None,
+    system: str = DEFAULT_SYSTEM,
+    level_scale: str | None = None,
 ) -> dict[str, Any]:
     """A chart we did not generate (edited or imported): validated, rated with our estimator and
-    identified by its content, so the same notes always get the same chartId."""
+    identified by its content, so the same notes always get the same chartId. An edited chart is
+    rated on the level scale of the difficulty system it came from."""
     lanes = lane_ids(key_mode)
     tempo = TempoMap(timing)
     notes = normalize_notes(notes, tempo)
@@ -215,7 +218,8 @@ def assemble_chart(
         raise FormatError("채보 구조 오류: " + "; ".join(problems[:5]))
     last = max(n.get("endT", n["t"]) for n in notes)
     duration = float(duration_ms) if duration_ms else last + 2000.0
-    est = estimate(notes, key_mode, len(lanes), max(duration, last + 1.0), IMPORTED_MIN_JACK_MS)
+    table, factor = level_table_for(difficulty_system(system), difficulty, key_mode)
+    est = estimate(notes, key_mode, len(lanes), max(duration, last + 1.0), IMPORTED_MIN_JACK_MS, table, factor)
     timing = {k: v for k, v in timing.items() if k in ("offsetMs", "tempoMap", "meter", "stops") and v is not None}
     payload = {"audioHash": audio_hash, "keyMode": key_mode, "timing": timing, "notes": notes, "bgm": bgm or [], "sounds": sounds or []}
     meta: dict[str, Any] = {
@@ -227,6 +231,8 @@ def assemble_chart(
         "keyMode": key_mode,
         "lanes": lanes,
         "difficulty": difficulty,
+        **({"difficultySystem": system} if system != DEFAULT_SYSTEM else {}),
+        **({"levelScale": level_scale} if level_scale else {}),
         "level": est["level"],
         "rating": est["rating"],
         "durationMs": duration,

@@ -2,7 +2,7 @@ import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
 import { AutoPlayer } from '../engine/autoplay';
-import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
+import { cameraConfig, difficultyLabel, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
 import { applyPlacement, placementLabels, type PlacementResult } from '../engine/placement';
 import { REPLAY_VERSION, ReplayPlayer, ReplayRecorder, type ReplayData } from '../engine/replay';
@@ -208,7 +208,7 @@ export class PlayController {
         artist: this.chart.meta.artist,
         chartLine: [
           this.chart.meta.keyMode,
-          `${this.chart.meta.difficulty}${this.chart.meta.level > 0 ? ` Lv.${this.chart.meta.level}` : ''}`,
+          difficultyLabel(this.chart.meta),
           judgementConfig.modes[settings.judgementMode].label,
           rules.label,
           settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,

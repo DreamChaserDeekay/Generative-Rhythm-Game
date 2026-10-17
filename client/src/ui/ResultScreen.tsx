@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, EXPORT_LABELS, exportFormats } from '../api/client';
-import { gaugeRules, judgementConfig } from '../engine/config';
+import { difficultyLabel, gaugeRules, judgementConfig } from '../engine/config';
 import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
 import type { Settings } from '../settings/settings';
@@ -100,8 +100,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
         <div>
           <h1>{meta.title}</h1>
           <p className="sub">
-            {meta.artist} · {meta.keyMode} · {meta.difficulty}
-            {meta.level > 0 ? ` Lv.${meta.level}` : ''} · {judgementConfig.modes[played.judgementMode].label} · {rules.label}
+            {meta.artist} · {meta.keyMode} · {difficultyLabel(meta)} · {judgementConfig.modes[played.judgementMode].label} · {rules.label}
             {played.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
             {request.autoPlay ? ' · AUTO' : ''}
             {request.replay ? ' · REPLAY' : ''}

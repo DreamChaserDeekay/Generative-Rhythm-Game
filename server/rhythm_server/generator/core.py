@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from ..config import difficulty_config, key_modes, load_config
+from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
 from .candidates import build_candidates
 from .effects import camera_effects
@@ -30,9 +30,10 @@ class GenerationError(RuntimeError):
     pass
 
 
-def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None) -> int:
+def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None, system: str = DEFAULT_SYSTEM) -> int:
     """Stable per song/mode/difficulty, so the default chart of a song never changes."""
-    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{difficulty}|{target_level}".encode()).hexdigest()
+    tier = difficulty if system == DEFAULT_SYSTEM else f"{system}:{difficulty}"
+    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{tier}|{target_level}".encode()).hexdigest()
     return int(digest[:8], 16)
 
 
@@ -62,10 +63,11 @@ def generate_chart(
     seed: int | None = None,
     overrides: dict[str, Any] | None = None,
     meta: dict[str, Any] | None = None,
+    system: str | None = None,
 ) -> dict[str, Any]:
-    params = resolve_params(key_mode, difficulty, target_level, overrides)
+    params = resolve_params(key_mode, difficulty, target_level, overrides, system)
     if seed is None:
-        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level)
+        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level, params.system)
     tempo = TempoMap(analysis["timing"])
     cfg = difficulty_config()
     lanes = lane_infos(key_mode)
@@ -77,15 +79,15 @@ def generate_chart(
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")
 
     key_count = sum(1 for l in lanes if l.kind == "key")
-    factor = float(cfg["keyModeNpsFactor"].get(key_mode, 1.0))
-    table = cfg["levelEffectiveNps"]
+    factor = params.level_factor
+    table = params.level_table
     lo, hi = params.levels
     # Aim at the middle of the level range: the effective NPS halfway through it (4K scale).
     target_rating = (lo + hi) / 2 + 0.5
     target_eff = float(np.interp(target_rating, np.arange(1, len(table) + 1), table)) * factor
     # Never thin a chart below the preset's density floor just because chords/jacks rate it high;
     # this keeps note counts increasing from one difficulty to the next.
-    floor_nps = float(cfg["presets"][params.difficulty]["avgNps"][0]) * factor * DENSITY_FLOOR
+    floor_nps = params.min_avg_nps * DENSITY_FLOOR
     scale = 1.0
     chord_scale = 1.0
     best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice]] | None = None
@@ -94,7 +96,7 @@ def generate_chart(
         slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
         choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed))
         notes = notes_from_choices(slots, choices, tempo)
-        est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms)
+        est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         if best is None or rank < best[0]:
             best = (rank, notes, est, slots, choices)
@@ -126,7 +128,7 @@ def generate_chart(
         consistent = _repeat_consistent(slots, choices, analysis.get("sections", []), lanes, params, tempo, seed)
         if consistent is not None:
             notes, repeat_score = consistent
-            est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms)
+            est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
     problems = lint(notes, lanes, params, tempo)
     if problems:
         raise GenerationError("생성된 채보가 플레이 규칙을 어겼습니다: " + "; ".join(problems[:5]))
@@ -151,6 +153,8 @@ def generate_chart(
             "keyMode": key_mode,
             "lanes": [l["id"] for l in mode_cfg["lanes"]],
             "difficulty": params.difficulty,
+            "difficultySystem": params.system,
+            **({"levelScale": params.level_scale} if params.level_scale else {}),
             "level": est["level"],
             "rating": est["rating"],
             "durationMs": duration,

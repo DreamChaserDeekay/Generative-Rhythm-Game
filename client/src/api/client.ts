@@ -1,4 +1,5 @@
 import type { ReplayData } from '../engine/replay';
+import type { DifficultySystemId } from '../engine/config';
 import type { Chart, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
@@ -142,6 +143,8 @@ export interface AnalysisResult {
 export interface ChartRequest {
   keyMode: KeyModeId;
   difficulty: string;
+  /** Difficulty system the tier belongs to (GRG, DJMAX, EZ2ON). */
+  system?: DifficultySystemId;
   targetLevel?: number | null;
   seed?: number | null;
   newSeed?: boolean;

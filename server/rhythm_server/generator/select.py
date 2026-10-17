@@ -15,7 +15,6 @@ MAX_GAP_S = 4.0  # silences longer than this do not count toward the target dens
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
 MAX_CHORD_RATIO = 0.6
-SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds
 
 
 @dataclass
@@ -206,7 +205,8 @@ def _assign_scratch(slots: list[Slot], params: GenParams) -> None:
 
 def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) -> None:
     """DJMAX-style side notes: mostly long holds over sustained sounds (pads, strings, long vocals,
-    whose attacks are soft) plus a few big accents as taps."""
+    whose attacks are soft) plus a few big accents as taps (none when the tier wants only holds,
+    like DJMAX's own side tracks)."""
     n = int(round(params.side_rate * len(slots)))
     if n == 0:
         return
@@ -220,7 +220,7 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) 
     hold_score = [0.0] * len(slots)
     for value, i in holds:
         hold_score[i] = value
-    picked = _spaced_picks(slots, hold_score, int(round(n * SIDE_HOLD_SHARE)), gap, positive_only=True)
+    picked = _spaced_picks(slots, hold_score, int(round(n * params.side_hold_share)), gap, positive_only=True)
     for i in picked:
         # the sustained sound becomes the side hold; a key long note on the same slot turns into a tap
         slot, c = slots[i], chosen[i]
@@ -229,7 +229,8 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) 
         slot.hold_end_beat = c.beat + float(min(MAX_LN_BEATS, np.floor(c.sustain_beats * 2) / 2))
     impact = [s.strength * (1.3 if s.subdivision == 1 else 0.8) * (0.7 + 0.6 * c.intensity) for s, c in zip(slots, chosen)]
     taken = [slots[i].t for i in picked]
-    for i in _spaced_picks(slots, impact, n - len(picked), gap, avoid=taken):
+    taps = n - len(picked) if params.side_hold_share < 1.0 else 0
+    for i in _spaced_picks(slots, impact, taps, gap, avoid=taken):
         slots[i].special = "side"
 
 
