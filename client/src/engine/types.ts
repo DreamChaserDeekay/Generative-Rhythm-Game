@@ -1,4 +1,4 @@
-export type KeyModeId = '4K' | '5K' | '6K' | '7K+1S' | '8K';
+export type KeyModeId = '4K' | '4K+FX' | '5K' | '6K' | '6K+FX' | '7K+1S' | '8K';
 
 export type NoteType = 'tap' | 'hold';
 

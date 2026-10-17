@@ -215,7 +215,7 @@ describe('GameSession results', () => {
 
 describe('AutoPlayer', () => {
   it('scores PERFECT PLAY on the sync test charts', () => {
-    for (const keyMode of ['4K', '7K+1S'] as const) {
+    for (const keyMode of ['4K', '4K+FX', '5K', '6K', '6K+FX', '7K+1S', '8K'] as const) {
       const chart = buildSyncTestChart({ keyMode, bpm: 120, firstBeatMs: 2000, beats: 48 });
       const { s } = session(chart);
       const auto = new AutoPlayer(chart);

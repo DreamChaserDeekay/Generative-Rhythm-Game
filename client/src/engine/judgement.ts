@@ -20,9 +20,14 @@ export class JudgementTable {
   readonly breakLabel: string;
   readonly topGrade: Grade;
 
-  constructor(config: JudgementConfig, mode: JudgementModeId) {
-    const scale = config.modes[mode]?.scale;
-    if (scale === undefined) throw new Error(`unknown judgement mode: ${mode}`);
+  /**
+   * `timeScale` converts real ms to song ms (the practice playback rate), so the windows stay the
+   * same length in real time whatever the speed.
+   */
+  constructor(config: JudgementConfig, mode: JudgementModeId, timeScale = 1) {
+    const modeScale = config.modes[mode]?.scale;
+    if (modeScale === undefined) throw new Error(`unknown judgement mode: ${mode}`);
+    const scale = modeScale * timeScale;
     this.mode = mode;
     this.grades = [...config.grades]
       .sort((a, b) => a.windowMs - b.windowMs)

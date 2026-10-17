@@ -1,28 +1,56 @@
 import { getAudioEngine } from '../audio/AudioEngine';
+import type { BufferPlacement } from '../audio/AudioEngine';
 import { AutoPlayer } from '../engine/autoplay';
-import { cameraConfig, gaugeRules, defaultGauge, judgementConfig, keyModes } from '../engine/config';
+import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
+import { applyPlacement, placementLabels, type PlacementResult } from '../engine/placement';
+import { Ruleset, rulesetConfigs } from '../engine/ruleset';
+import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { InputManager } from '../input/InputManager';
+import { GRADE_PALETTES } from '../render/palette';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { bindingsFor, visibleTimeMs, type Settings } from '../settings/settings';
-import { GRADE_COLORS, gradeClass, Hud } from './Hud';
+import {
+  activeCovers,
+  bindingsFor,
+  clampHiSpeed,
+  greenNumber,
+  MAX_COVER,
+  MAX_LIFT,
+  visibleTimeMs,
+  withCovers,
+  type Settings,
+} from '../settings/settings';
+import type { PlayRequest, PracticeOptions } from './App';
+import { Hud } from './Hud';
+import { LAMP_CLASS } from './lamps';
 
 export interface PlaySetup {
-  chart: Chart;
-  /** Decoded canonical audio; null plays the chart silently (tests). */
+  request: PlayRequest;
+  /** Decoded audio; null plays the chart silently (tests). */
   buffer: AudioBuffer | null;
+  /** Where the buffer sits on the song timeline (practice buffers are stretched segments). */
+  bufferPlacement: BufferPlacement;
   settings: Settings;
-  autoPlay: boolean;
   canvas: HTMLCanvasElement;
   hudRoot: HTMLElement;
 }
 
+export interface PlayOutcome {
+  result: SessionResult;
+  /** The chart as played (after the placement option and the practice segment). */
+  chart: Chart;
+  placement: PlacementResult & { label: string };
+  practice: PracticeOptions | null;
+}
+
 export interface PlayCallbacks {
-  onFinish(result: SessionResult): void;
+  onFinish(outcome: PlayOutcome): void;
   onPauseChange(paused: boolean): void;
+  /** In-play adjustments (hi-speed, covers) are kept for the next play. */
+  onSettingsChange(settings: Settings): void;
 }
 
 type PlayState = 'running' | 'paused' | 'ending' | 'done';
@@ -31,9 +59,18 @@ const MIN_LEAD_IN_MS = 1500;
 const FIRST_NOTE_DELAY_MS = 3000;
 const RESUME_LEAD_IN_MS = 1500;
 const END_AFTER_LAST_NOTE_MS = 1500;
+const PRACTICE_PREROLL_MS = 2000;
+const PRACTICE_END_MS = 900;
 const BANNER_MS = 1800;
+const FAIL_FADE_MS = 700;
+const HI_SPEED_STEP = 0.1;
+const HI_SPEED_STEP_BIG = 0.5;
+const COVER_STEP = 0.025;
+const FEVER_KEY = 'Enter';
+/** Judgement text and combo distance up the track, as shares of the travel distance. */
+const HUD_POSITIONS = { low: [0.08, 0.36], mid: [0.16, 0.42], high: [0.32, 0.56] } as const;
 
-/** Wires audio, input, judgement, rendering and HUD together for one play. */
+/** Wires audio, input, judgement, rendering and HUD together for one play (or practice loop). */
 export class PlayController {
   private readonly setup: PlaySetup;
   private readonly callbacks: PlayCallbacks;
@@ -41,58 +78,100 @@ export class PlayController {
   private readonly renderer: TrackRenderer;
   private readonly hud: Hud;
   private readonly table: JudgementTable;
+  private readonly ruleset: Ruleset;
+  private readonly chart: Chart;
+  private readonly placement: PlayOutcome['placement'];
+  private readonly practice: PracticeOptions | null;
+  private readonly rate: number;
   private readonly barTimes: number[];
-  private readonly visibleMs: number;
   private readonly firstNoteMs: number;
   private readonly lastNoteEndMs: number;
   private readonly durationMs: number;
+  private readonly boundCodes: Set<string>;
+  private readonly paceTarget: number | null;
+  private settings: Settings;
+  private scroll!: ScrollModel;
   private session!: GameSession;
   private input!: InputManager;
   private auto: AutoPlayer | null = null;
   private unsubscribe: (() => void) | null = null;
   private state: PlayState = 'running';
   private finishAtPerf = 0;
+  private loops = 0;
   private raf = 0;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(setup: PlaySetup, callbacks: PlayCallbacks) {
     this.setup = setup;
     this.callbacks = callbacks;
-    const { chart, settings } = setup;
-    const mode = keyModes[chart.meta.keyMode];
+    this.settings = setup.settings;
+    const { request, settings } = setup;
+    this.practice = request.practice ?? null;
+    this.rate = setup.bufferPlacement.rate;
+
+    const seed = request.placementSeed ?? Math.floor(Math.random() * 2 ** 31);
+    const placed = applyPlacement(request.chart, settings.placement, seed);
+    this.placement = { ...placed, label: placementLabels[settings.placement] };
+    this.chart = this.practice ? segmentOf(placed.chart, this.practice) : placed.chart;
+
+    const mode = keyModes[this.chart.meta.keyMode];
     const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
     this.renderer = new TrackRenderer(setup.canvas, {
       mode,
       camera,
       trackWidth: cameraConfig.trackWidth * settings.laneWidthScale,
       trackLength: cameraConfig.trackLength,
+      palette: settings.palette,
+      reducedFlash: settings.reducedFlash,
+      covers: activeCovers(settings),
     });
-    this.table = new JudgementTable(judgementConfig, settings.judgementMode);
+    this.table = new JudgementTable(judgementConfig, settings.judgementMode, this.rate);
+    this.ruleset = new Ruleset(settings.ruleset);
+    this.boundCodes = new Set(bindingsFor(settings, this.chart.meta.keyMode));
+
+    const notes = this.chart.notes;
+    this.firstNoteMs = notes.length > 0 ? Math.min(...notes.map((n) => n.t)) : 0;
+    this.lastNoteEndMs = notes.length > 0 ? Math.max(...notes.map((n) => n.endT ?? n.t)) : 0;
+    const { originMs } = setup.bufferPlacement;
+    const audioMs = setup.buffer ? originMs + setup.buffer.duration * 1000 * this.rate : 0;
+    this.durationMs = Math.max(audioMs, request.chart.meta.durationMs ?? 0, this.lastNoteEndMs);
+    this.barTimes = new TempoMap(this.chart.timing).barLines(this.durationMs);
+    this.paceTarget = paceTarget(settings, request);
+
+    const gauge = this.gaugeRule();
+    const rules = rulesetConfigs[settings.ruleset];
     this.hud = new Hud(
       setup.hudRoot,
       {
-        title: chart.meta.title,
-        artist: chart.meta.artist,
-        keyMode: chart.meta.keyMode,
-        difficulty: chart.meta.difficulty,
-        level: chart.meta.level,
-        autoPlay: setup.autoPlay,
-        judgementLabel: judgementConfig.modes[settings.judgementMode].label,
+        title: this.chart.meta.title,
+        artist: this.chart.meta.artist,
+        chartLine: [
+          this.chart.meta.keyMode,
+          `${this.chart.meta.difficulty}${this.chart.meta.level > 0 ? ` Lv.${this.chart.meta.level}` : ''}`,
+          judgementConfig.modes[settings.judgementMode].label,
+          rules.label,
+          settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
+          request.autoPlay ? 'AUTO' : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        scoreLabel: rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE',
+        subLabel: rules.scoring === 'exscore' ? 'RANK' : 'RATE',
+        gaugeLabel: gauge.label,
+        gaugeClear: gauge.clear,
+        survivalGauge: gauge.failAtZero,
+        feverEnabled: settings.fever !== 'OFF',
+        feverManualKey: settings.fever === 'MANUAL' ? FEVER_KEY : null,
+        pacemakerLabel: this.paceTarget === null ? null : settings.pacemaker === 'BEST' ? 'vs BEST' : `vs ${settings.pacemaker}%`,
+        practiceLabel: this.practiceLabel(),
       },
-      gaugeRules[defaultGauge].clear,
       settings.showErrorMs,
     );
-    this.visibleMs = visibleTimeMs(settings.hiSpeed);
-    const notes = chart.notes;
-    this.firstNoteMs = notes.length > 0 ? Math.min(...notes.map((n) => n.t)) : 0;
-    this.lastNoteEndMs = notes.length > 0 ? Math.max(...notes.map((n) => n.endT ?? n.t)) : 0;
-    const audioMs = setup.buffer ? setup.buffer.duration * 1000 : 0;
-    this.durationMs = Math.max(audioMs, chart.meta.durationMs ?? 0, this.lastNoteEndMs);
-    this.barTimes = new TempoMap(chart.timing).barLines(this.durationMs);
 
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(setup.canvas);
     window.addEventListener('keydown', this.onControlKey);
+    this.rebuildScroll();
     this.layout();
     this.begin();
     this.raf = requestAnimationFrame(this.frame);
@@ -133,28 +212,44 @@ export class PlayController {
     this.hud.dispose();
   }
 
+  private gaugeRule() {
+    // Practice never fails: it always runs on the NORMAL gauge.
+    return this.practice ? gaugeRules.NORMAL : gaugeRules[this.settings.gaugeType];
+  }
+
   private begin(): void {
-    const { chart, settings, buffer, autoPlay } = this.setup;
-    this.session = new GameSession(chart, this.table, {
-      gauge: gaugeRules[defaultGauge],
+    const { request, buffer, bufferPlacement } = this.setup;
+    const settings = this.settings;
+    this.session = new GameSession(this.chart, this.table, {
+      gauge: this.gaugeRule(),
       holdTickBeats: judgementConfig.hold.tickBeats,
-      releaseGraceMs: judgementConfig.hold.releaseGraceMs,
-      missMarginMs: judgementConfig.missMarginMs,
+      releaseGraceMs: judgementConfig.hold.releaseGraceMs * this.rate,
+      missMarginMs: judgementConfig.missMarginMs * this.rate,
+      ruleset: this.ruleset,
+      sideLanes: sideLanesOf(this.chart.meta.keyMode),
+      sideMissPercent: judgementConfig.sideMissPercent,
+      fever: settings.fever,
+      timeScale: this.rate,
     });
     this.renderer.reset();
     this.unsubscribe = this.session.on(this.onSessionEvent);
     this.input = new InputManager(
       this.engine,
-      bindingsFor(settings, chart.meta.keyMode),
+      bindingsFor(settings, this.chart.meta.keyMode),
       { press: (lane, t) => this.session.press(lane, t), release: (lane, t) => this.session.release(lane, t) },
-      settings.inputOffsetMs,
+      settings.inputOffsetMs * this.rate,
     );
-    this.auto = autoPlay ? new AutoPlayer(chart) : null;
-    if (!autoPlay) this.input.attach();
-    this.engine.setBuffer(buffer);
+    this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
+    if (!request.autoPlay) this.input.attach();
+    this.engine.setBuffer(buffer, bufferPlacement);
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
-    this.engine.start(0, Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
+    if (this.practice) {
+      const from = Math.max(bufferPlacement.originMs, this.firstNoteMs - PRACTICE_PREROLL_MS * this.rate);
+      this.engine.start(from, 300);
+    } else {
+      this.engine.start(0, Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
+    }
     this.state = 'running';
   }
 
@@ -165,13 +260,28 @@ export class PlayController {
     this.engine.stop();
   }
 
+  private rebuildScroll(): void {
+    const covers = activeCovers(this.settings);
+    this.scroll = new ScrollModel({
+      trackLength: this.renderer.geometry.length,
+      visibleMs: visibleTimeMs(this.settings.hiSpeed),
+      lift: covers.lift,
+      mode: this.settings.scrollMode,
+      timing: this.chart.timing,
+      rate: this.rate,
+      durationMs: this.durationMs,
+    });
+    this.renderer.setCovers(covers);
+  }
+
   private layout(): void {
     const rect = this.setup.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
-    const L = this.renderer.geometry.length;
+    const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
+    const { judgeZ, travel } = this.scroll;
     this.hud.place({
-      combo: this.renderer.project(0, 0, -L * 0.42),
-      judge: this.renderer.project(0, 0, -L * 0.16),
+      combo: this.renderer.project(0, 0, judgeZ - travel * combo),
+      judge: this.renderer.project(0, 0, judgeZ - travel * judge),
     });
   }
 
@@ -179,68 +289,189 @@ export class PlayController {
     this.raf = requestAnimationFrame(this.frame);
     this.engine.clock.sample();
     const songNow = this.engine.songTimeAtPerf(perfNow);
-    const judgeNow = songNow - this.setup.settings.inputOffsetMs;
+    const judgeNow = songNow - this.settings.inputOffsetMs * this.rate;
+    const session = this.session;
 
     if (this.state === 'running') {
       if (this.auto) for (const i of this.auto.take(judgeNow)) this.input.injectAt(i.lane, i.down, i.timeMs);
-      this.session.update(judgeNow);
-      if (this.session.finished && judgeNow > this.lastNoteEndMs + END_AFTER_LAST_NOTE_MS) this.beginEnding(perfNow);
+      session.update(judgeNow);
+      const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
+      if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
     }
-    if (this.state === 'ending' && perfNow >= this.finishAtPerf) {
-      this.state = 'done';
-      this.engine.stop();
-      this.callbacks.onFinish(this.session.result());
-    }
+    if (this.state === 'ending' && perfNow >= this.finishAtPerf) this.finish();
 
     this.renderer.render(
       {
-        timeMs: songNow + this.setup.settings.visualOffsetMs,
-        visibleMs: this.visibleMs,
-        notes: this.session.notes,
-        heldNote: (lane) => this.session.heldNoteIndex(lane),
-        keyDown: (lane) => this.session.isKeyDown(lane),
+        timeMs: songNow + this.settings.visualOffsetMs * this.rate,
+        scroll: this.scroll,
+        notes: session.notes,
+        heldNote: (lane) => session.heldNoteIndex(lane),
+        keyDown: (lane) => session.isKeyDown(lane),
         barTimes: this.barTimes,
+        fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
       },
       perfNow,
     );
+    const start = this.practice ? this.firstNoteMs : 0;
+    const end = this.practice ? this.lastNoteEndMs : this.durationMs;
     this.hud.update(perfNow, {
-      score: this.session.currentScore,
-      rate: this.session.currentRate,
-      gauge: this.session.gauge.value,
-      progress: this.durationMs > 0 ? songNow / this.durationMs : 0,
-      ready: this.state === 'paused' ? '' : songNow < this.firstNoteMs - this.visibleMs ? 'READY' : '',
+      score: this.scoreValue(),
+      sub: this.subValue(),
+      gauge: session.gauge.value,
+      progress: end > start ? (songNow - start) / (end - start) : 0,
+      ready: this.state === 'paused' ? '' : songNow < this.firstNoteMs - visibleTimeMs(this.settings.hiSpeed) * this.rate ? 'READY' : '',
+      fever: {
+        gauge: session.fever.gauge,
+        active: session.fever.active,
+        multiplier: session.fever.multiplier,
+        remaining: session.fever.remaining(judgeNow),
+        ready: session.fever.ready,
+      },
+      pace: this.pace(),
     });
   };
 
-  private beginEnding(perfNow: number): void {
+  private scoreValue(): number {
+    switch (rulesetConfigs[this.settings.ruleset].scoring) {
+      case 'weighted':
+        return this.session.currentWeightedScore;
+      case 'exscore':
+        return this.session.currentExScore;
+      default:
+        return this.session.currentScore;
+    }
+  }
+
+  private subValue(): string {
+    const s = this.session;
+    if (rulesetConfigs[this.settings.ruleset].scoring !== 'exscore') return `${(Math.floor(s.currentRate * 100) / 100).toFixed(2)}%`;
+    const ratio = s.exPace > 0 ? s.currentExScore / s.exPace : 1;
+    return `${this.ruleset.rank(ratio)} · ${(ratio * 100).toFixed(1)}%`;
+  }
+
+  /** Score difference to the pacemaker target at this point of the chart. */
+  private pace(): number | null {
+    if (this.paceTarget === null || this.session.judgeable === 0) return null;
+    const share = this.session.judgedCount / this.session.judgeable;
+    return this.session.currentScore - this.paceTarget * share * 1_000_000;
+  }
+
+  private practiceLabel(): string | null {
+    const p = this.practice;
+    if (!p) return null;
+    return `PRACTICE ${this.rate.toFixed(2)}x · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
+  }
+
+  private beginEnding(perfNow: number, failed: boolean): void {
+    if (this.state === 'ending' || this.state === 'done') return;
+    if (this.practice?.loop && !failed) {
+      this.loops++;
+      this.hud.setPracticeLabel(this.practiceLabel() ?? '');
+      this.restart();
+      return;
+    }
     this.state = 'ending';
     this.finishAtPerf = perfNow + BANNER_MS;
     this.input.detach();
+    if (failed) this.engine.fadeOut(FAIL_FADE_MS);
     const lamp = this.session.result().lamp;
-    const kind = lamp === 'PERFECT PLAY' ? 'perfect' : lamp === 'MAX COMBO' ? 'maxcombo' : lamp === 'CLEAR' ? 'clear' : 'failed';
-    this.hud.showBanner(lamp, kind);
+    if (this.practice) this.hud.showBanner('PRACTICE END', 'clear');
+    else this.hud.showBanner(lamp, LAMP_CLASS[lamp]);
+  }
+
+  private finish(): void {
+    this.state = 'done';
+    this.engine.stop();
+    this.callbacks.onFinish({ result: this.session.result(), chart: this.chart, placement: this.placement, practice: this.practice });
   }
 
   private readonly onSessionEvent = (e: SessionEvent): void => {
     const now = performance.now();
     if (e.type === 'judge') {
       this.hud.showJudge(e, now);
-      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_COLORS[gradeClass(e.percent, false)], now);
+      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
-    } else if (e.type === 'key' && e.down && this.setup.settings.hitSound) {
+    } else if (e.type === 'key' && e.down && this.settings.hitSound) {
       this.engine.playHitSound();
+    } else if (e.type === 'fail') {
+      this.beginEnding(now, true);
     }
   };
 
+  private updateSettings(next: Settings, toast: string): void {
+    this.settings = next;
+    this.callbacks.onSettingsChange(next);
+    this.rebuildScroll();
+    this.layout();
+    const green = Math.round(greenNumber(next.hiSpeed, activeCovers(next)));
+    this.hud.showToast(`${toast} · HI-SPEED ${next.hiSpeed.toFixed(2)} · 녹색 ${green}`, performance.now());
+  }
+
   private readonly onControlKey = (e: KeyboardEvent): void => {
-    if (e.code === 'Escape') {
-      e.preventDefault();
-      if (this.state === 'running') this.pause();
-      else if (this.state === 'paused') this.resume();
-    } else if (e.code === 'F2') {
-      e.preventDefault();
-      if (this.state !== 'done') this.restart();
+    if (this.boundCodes.has(e.code) && !this.setup.request.autoPlay) return;
+    const s = this.settings;
+    const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+    switch (e.code) {
+      case 'Escape':
+        e.preventDefault();
+        if (this.state === 'running') this.pause();
+        else if (this.state === 'paused') this.resume();
+        return;
+      case 'F2':
+        e.preventDefault();
+        if (this.state !== 'done') this.restart();
+        return;
+      case FEVER_KEY:
+        if (this.state === 'running' && s.fever === 'MANUAL') {
+          e.preventDefault();
+          this.session.activateFever(this.engine.songTimeAtPerf(performance.now()) - s.inputOffsetMs * this.rate);
+        }
+        return;
+      case 'ArrowUp':
+      case 'ArrowDown': {
+        e.preventDefault();
+        const step = (e.shiftKey ? HI_SPEED_STEP_BIG : HI_SPEED_STEP) * (e.code === 'ArrowUp' ? 1 : -1);
+        this.updateSettings({ ...s, hiSpeed: clampHiSpeed(s.hiSpeed + step) }, 'SPEED');
+        return;
+      }
+      case 'PageUp':
+      case 'PageDown': {
+        e.preventDefault();
+        const dir = e.code === 'PageDown' ? 1 : -1;
+        if (e.shiftKey) {
+          const lift = Math.min(MAX_LIFT, Math.max(0, s.lift + dir * COVER_STEP));
+          const next = withCovers(s, { lift });
+          this.updateSettings(next, `LIFT ${pct(next.lift)}`);
+        } else {
+          const sudden = Math.min(MAX_COVER, Math.max(0, s.sudden + dir * COVER_STEP));
+          const next = withCovers(s, { sudden, coversOn: true });
+          this.updateSettings(next, `SUDDEN+ ${pct(next.sudden)}`);
+        }
+        return;
+      }
+      case 'Home': {
+        e.preventDefault();
+        const next = withCovers(s, { coversOn: !s.coversOn });
+        this.updateSettings(next, next.coversOn ? '커버 켬' : '커버 끔');
+        return;
+      }
     }
   };
+}
+
+/** Notes whose head lies inside the practice segment. */
+function segmentOf(chart: Chart, p: PracticeOptions): Chart {
+  return { ...chart, notes: chart.notes.filter((n) => n.t >= p.startMs && n.t <= p.endMs) };
+}
+
+function paceTarget(settings: Settings, request: PlayRequest): number | null {
+  if (request.practice || settings.pacemaker === 'OFF') return null;
+  if (settings.pacemaker === 'BEST') return request.best ? request.best.score / 1_000_000 : null;
+  return Number(settings.pacemaker) / 100;
+}
+
+function formatMs(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

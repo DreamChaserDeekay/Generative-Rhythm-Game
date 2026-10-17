@@ -18,10 +18,11 @@
 |---|---|
 | 실행 형태 | 같은 PC에서 Python 서버(`127.0.0.1:8765`)를 띄우고 브라우저로 접속. 빌드된 클라이언트는 서버가 같은 주소에서 함께 제공한다(명령 하나로 실행). 개발 중에는 Vite 개발 서버가 `/api`를 서버로 프록시한다. |
 | 지원 브라우저 | 최신 Chrome / Edge. |
-| MVP 키 모드 | 4K, 7K+1S. 나머지(5K·6K·8K·사이드 레인)는 Phase 2. |
+| 키 모드 | 4K · 4K+FX · 5K · 6K · 6K+FX · 7K+1S · 8K. FX는 양 끝에 DJMAX식 사이드 트랙 2개(L-Shift / R-Shift). |
 | 판정 기본값 | NORMAL. 설정에서 HARD / MAX JUDGEMENT 선택. |
-| 게이지 | MVP는 NORMAL 게이지 하나(중간 실패 없음, 끝날 때 80% 이상이면 CLEAR). |
-| 배속 정의 | 배속 1.0 = 노트가 트랙 끝에서 판정선까지 5000ms. 기본 배속 4.0(1250ms). |
+| 게이지 | 기본 NORMAL(중간 실패 없음, 끝날 때 80% 이상이면 CLEAR). ASSIST EASY · EASY · HARD · EX-HARD · HAZARD 선택. |
+| 배속 정의 | 배속 1.0 = 노트가 트랙 끝에서 (LIFT 없는) 판정선까지 5000ms. 기본 배속 4.0(1250ms). 녹색 숫자 = SUDDEN+ 아래로 노트가 나타난 뒤 판정선까지의 시간. |
+| 룰셋 표기 | 판정 범위는 하나(DJMAX)로 두고, 표기·점수·콤보 규칙만 프리셋으로 바꾼다(정밀 % / 등급형 / EX-SCORE). 실제 EZ2ON·BMS 판정 폭을 흉내 내지 않는다. |
 | 표준 오디오 | 44.1kHz 스테레오 16bit FLAC. 분석과 재생이 같은 PCM을 쓴다. |
 | 데이터 위치 | 저장소 루트의 `data/` (환경 변수 `GRG_DATA_DIR`로 변경 가능, git에서 제외). |
 | 판정 범위 수치 | MAX 100%(±41.67ms)만 정설이고 나머지는 커뮤니티 실측 추정·보간값이다. `config/judgement.json`에 출처와 함께 둔다. |
@@ -64,16 +65,28 @@
   - 1% 구간보다 이르고 간접 미스 구간(1% + 40ms × 배율) 이내 → 노트를 소모하며 BREAK.
   - 그보다 이르면 무시(빈 입력).
 - 롱노트: 시작은 타이밍 판정 → 누르는 동안 1/4박마다 콤보 틱 → 끝까지 누르고 있으면 끝 판정 MAX 100% → 끝 100ms 이전에 떼면 끝 판정 BREAK. 시작이 BREAK면 끝도 BREAK.
-- 콤보: 판정 대상(일반 노트, 롱노트 시작, 롱노트 끝)과 틱마다 +1. BREAK에서만 0.
+- 콤보: 판정 대상(일반 노트, 롱노트 시작, 롱노트 끝)과 틱마다 +1. BREAK에서만 0(EX-SCORE 룰셋은 BAD에서도 0).
 - 정확도(Rate) = 판정 %의 평균. 점수 = Rate × 10,000 (1,000,000점 만점).
-- 게이지(NORMAL): 20%에서 시작. 판정 %에 비례해 회복(총합 TOTAL = 160 + 0.16 × 판정 수, 최대 320), MAX 1%는 변화 없음, BREAK −5%. 끝날 때 80% 이상이면 CLEAR.
-- 클리어 램프: PERFECT PLAY(전부 MAX 100%) > MAX COMBO(BREAK 없음) > CLEAR > FAILED.
+- 사이드 트랙(FX 레인)의 노트를 놓치면 BREAK가 아니라 MAX 1%다(콤보 유지, 게이지 변화 없음, DJMAX PC 규칙). `judgement.json`의 `sideMissPercent`.
+- 게이지(`config/gauge.json`): 판정 %에 비례해 회복하고 MAX 1%는 변화 없음.
+  - 회복형(ASSIST EASY · EASY · NORMAL): 20%에서 시작, 총 회복량 TOTAL = 160 + 0.16 × 판정 수(최대 320), BREAK −2.5 / −4 / −5%. 끝날 때 클리어 선(60 / 80 / 80%) 이상이면 클리어.
+  - 생존형(HARD · EX-HARD · HAZARD): 100%에서 시작, 판정마다 고정 회복, BREAK −9 / −18 / −100%(HARD는 30% 미만에서 피해 절반). 0%가 되는 순간 실패하고 곡이 멈춘다(음악 페이드아웃 → FAILED). 끝까지 버티면 클리어.
+- 클리어 램프(낮은 것부터): FAILED < ASSIST CLEAR < EASY CLEAR < CLEAR < HARD CLEAR < EX-HARD CLEAR < MAX COMBO(콤보 끊김 없음) < PERFECT PLAY(전부 MAX 100%). 서버도 같은 순서(`gauge.json`의 `lampOrder`)로 최고 램프를 고른다.
+- 룰셋(`config/rulesets.json`)은 DJMAX 판정 %를 표기·점수로 바꾸는 층이다.
+  - 정밀 %(RESPECT): MAX 100% ~ 1% / BREAK, 점수 = Rate × 10,000.
+  - 등급형(GRADE, EZ2ON 참고): PERFECT ≥100% · GREAT ≥70% · GOOD ≥10% · BAD ≥1% / MISS, 가중치 1 / 0.75 / 0.4 / 0.1로 1,000,000점 환산.
+  - EX-SCORE(BMS 참고): PERFECT 2점 · GREAT 1점 · GOOD · BAD 0점 / POOR, BAD와 POOR에서 콤보가 끊긴다. 등급 AAA(8/9) ~ F.
+  - 기록 비교용 기본 점수(정밀 % 점수)는 룰셋과 무관하게 항상 같이 저장한다.
+- FEVER(`config/fever.json`): 판정 %만큼 FEVER 게이지가 차고(46노트 MAX 100%면 가득), 가득 차면 자동(또는 수동: Enter)으로 14.5초간 발동. BREAK 없이 이어 가면 다음 배율이 x2 → x5까지 오르고, 발동 중 BREAK가 나면 끝나며 배율이 x2로 돌아간다. 보너스는 기본 점수와 따로 표시한다.
+- 연습 모드: 재생 속도 r(0.5~1.5)에서 곡 시간은 실제 시간의 r배로 흐른다. 판정 구간·롱노트 유예·미스 여유를 곡 시간으로 ×r 해서 **실제 시간 기준 판정 폭이 그대로** 유지되고, 결과의 오차(ms)도 실제 시간으로 되돌려 보여 준다. 게이지는 실패 없는 NORMAL, 기록은 저장하지 않는다.
 
 ## 6. 렌더링 모델 (SDVX식 3D 트랙)
 
-- 좌표계: 트랙은 y=0 평면, 판정선은 z=0, 트랙은 −z 방향으로 `trackLength`(60)만큼 뻗는다. 트랙 폭 `trackWidth`(8)를 레인 폭 비율로 나눈다(스크래치 1.6배).
+- 좌표계: 트랙은 y=0 평면, 판정선은 z=0(LIFT가 있으면 z = −LIFT × trackLength), 트랙은 −z 방향으로 `trackLength`(40)만큼 뻗는다. 트랙 폭 `trackWidth`(8)를 레인 폭 비율로 나눈다(스크래치 1.6배, 사이드 트랙 0.75배).
 - 카메라: `(0, height, distance)`에서 `(0, 0, −lookAhead)`를 바라보는 원근 카메라. 프리셋 FLAT / SDVX / LOW(`config/camera.json`).
-- 노트 위치: `z = −(노트 시간 − 표시 시간) / 가시 시간 × trackLength`. 배속은 월드 좌표의 속도로 정의되므로 원근과 무관하게 일정하다.
+- 노트 위치(`engine/scroll.ts`): `z = 판정선 z − 거리`. 시간 고정 스크롤은 `거리 = (노트 시간 − 표시 시간) × trackLength / 가시 시간`, BPM 연동 스크롤은 박 차이 × 주 BPM의 박 길이로 거리를 잡아 빠른 구간에서 노트도 빨라진다(주 BPM 구간에서는 두 방식이 같다). 배속은 월드 좌표의 속도로 정의되므로 원근과 무관하게 일정하다.
+- 레인 커버: SUDDEN+(먼 쪽) · HIDDEN+(판정선 쪽)는 노트·롱노트·마디선 재질에 공유 클리핑 평면 두 개를 걸어 정확히 잘라내고, 그 위에 커버 판과 경계선을 그린다. LIFT는 판정선·키 빔·이펙트를 위로 옮기고 판정선 아래를 덮는다. 플레이 중 단축키로 바꾸면 클리핑 평면 상수만 움직인다(재컴파일 없음). "녹색 숫자 유지"를 켜면 커버·LIFT를 움직일 때 배속을 다시 계산해 녹색 숫자를 유지한다.
+- FEVER 중에는 트랙에 배율별 색(x2 하늘 · x3 초록 · x4 노랑 · x5 분홍)을 더하고 레일·판정선 빛을 같은 색으로 바꾼다. "번쩍임 줄이기"는 맥동·타격 이펙트·키 빔을 약하게 한다. 색각 보정 팔레트(Okabe–Ito)는 레인·판정 색을 함께 바꾼다.
 - 트랙 끝은 안개(fog)로 자연스럽게 사라지고, 레인 구분선·마디선으로 원근 속에서도 박을 읽기 쉽게 한다.
 - 노트·롱노트 몸통·마디선은 오브젝트 풀에서 꺼내 쓰고, 화면에 보이는 구간만 갱신한다.
 - 판정·콤보 텍스트는 트랙 위 3D 지점을 화면 좌표로 투영해 DOM HUD로 그린다.
@@ -94,7 +107,7 @@
 | GET | `/api/songs/{id}/audio` | 표준 FLAC |
 | GET | `/api/songs/{id}/cover` | 앨범아트 |
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
-| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`) — 같은 chartId면 캐시 |
+| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate) — 같은 chartId면 캐시 |
 | GET | `/api/charts/{chartId}` | 채보 |
 | POST | `/api/scores` | 플레이 기록 저장 |
 | GET | `/api/songs/{id}/scores` | 채보별 최고 기록 |
@@ -119,8 +132,8 @@ data/
 ```
 client/          브라우저 클라이언트 (Vite + TypeScript + React + Three.js)
   src/api/       서버 API 클라이언트
-  src/audio/     오디오 엔진, 오디오 클럭, 클릭 트랙 합성
-  src/engine/    판정·점수·게이지·오토 플레이 (DOM 의존 없음, Vitest)
+  src/audio/     오디오 엔진, 오디오 클럭, 클릭 트랙 합성, WSOLA 타임 스트레치(워커)
+  src/engine/    판정·룰셋·게이지·FEVER·배치 옵션·스크롤·오토 플레이 (DOM 의존 없음, Vitest)
   src/input/     키보드 입력, 키 바인딩
   src/render/    Three.js 트랙 렌더러, 카메라, 투영
   src/ui/        화면(React)과 HUD
@@ -133,9 +146,25 @@ config/          서버·클라이언트 공용 튜닝 값
 docs/            PROMPT · ARCHITECTURE · CHART_FORMAT
 ```
 
-## 9. Phase 0–1 작업 계획
+## 9. 작업 계획과 결과
 
-두 단계 모두 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+Phase 0–2를 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+
+### Phase 2 결과
+
+| 항목 | 구현 | 검증 |
+|---|---|---|
+| 5K · 6K · 8K · 사이드(FX) 레인 | 키 모드 7종. 사이드 노트는 서스테인 소리 위 롱노트 위주(60%) + 강한 타격 탭, 저역은 왼쪽·고역은 오른쪽 | pytest: 7모드 × 5난이도 린터 통과·레벨 단조, FX 롱노트 존재 / Vitest: 7모드 싱크 테스트 오토 PERFECT PLAY |
+| 룰셋 표기 · FEVER | `engine/ruleset.ts`, `engine/fever.ts` | Vitest: EX-SCORE·등급형 환산, BAD 콤보 끊김, FEVER 자동·수동·배율 / E2E: EX-SCORE AAA, FEVER 보너스 |
+| 게이지 6종 · 램프 8종 | 생존형은 0%에서 곡 중단 | Vitest: HAZARD 즉시 실패 후 판정 중지, HARD CLEAR / E2E: HAZARD FAILED |
+| 배치 옵션 | MIRROR · RANDOM · R-RANDOM · S-RANDOM · H-RANDOM (시드 고정 PRNG, 스크래치 고정, 사이드 좌우 교환) | Vitest: 매핑·결정성·회전·플레이 가능성, H-RANDOM 연타 0 |
+| 레인 커버 · 가시 시간 | SUDDEN+ · HIDDEN+ · LIFT, 녹색 숫자 유지, 시간/BPM 연동 스크롤, 플레이 중 단축키 | Vitest: 녹색 숫자 계산·유지, BPM 연동 속도 / E2E: 커버·LIFT 상태로 오토 PERFECT PLAY |
+| 연습 모드 | A–B 구간(미니맵 드래그, 마디 단위), 0.5~1.5배 WSOLA(음정 유지, 웹 워커), 반복 | Vitest: 길이 1/r·주파수 유지·채널 정렬 / E2E: 0.75배 오토 100% |
+| 결과 분석 | 게이지 그래프, 밀도 + BREAK 표시, 타이밍 산점도, 히스토그램 + 중앙값, 절사 평균 오프셋 추천 | E2E 스크린샷 |
+| 난이도 산정 · 생성 옵션 | 손별 strain 항, 스킬 지표 개선(런·LN 커버리지·리듬 엔트로피), 스타일 7종과 개별 덮어쓰기 | pytest: 스타일별 스킬 지표 방향, 덮어쓰기 한계 |
+| 미니맵 · 접근성 | 채보 전체 미니맵(구간 선택 겸용), 키 동시 입력 테스트, 판정 위치, 번쩍임 줄이기, 색각 보정, 페이스메이커 | E2E: 동시 입력 4/4, 팔레트 클래스 |
+
+### Phase 0–1 결과
 
 | 완료 조건 | 결과 |
 |---|---|
@@ -145,7 +174,7 @@ docs/            PROMPT · ARCHITECTURE · CHART_FORMAT
 | 같은 입력·시드 → 같은 채보 | pytest로 검증, 기본 시드는 오디오 해시에서 파생 |
 | 모든 난이도 채보가 린터 통과 | 4K·7K+1S × 5단계 × 2곡 |
 | 난이도가 오를수록 노트 수·평균 NPS·레벨 단조 증가 | pytest로 검증 |
-| 4분 곡 분석 30초·재생성 3초 이내 | 분석 약 15초, 재생성 1초 이내 |
+| 4분 곡 분석 30초·재생성 3초 이내 | 분석 약 15초, 재생성 0.6~2.2초(Phase 2 기준, 7K+1S MASTER가 가장 느림) |
 
 ### Phase 0 — 설계와 기술 검증
 

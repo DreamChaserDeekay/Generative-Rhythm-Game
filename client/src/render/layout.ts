@@ -1,4 +1,4 @@
-import type { CameraPreset, KeyModeConfig, LaneColor } from '../engine/config';
+import type { CameraPreset, KeyModeConfig, LaneColor, LaneKind } from '../engine/config';
 
 export interface LaneGeom {
   index: number;
@@ -6,7 +6,7 @@ export interface LaneGeom {
   x: number;
   width: number;
   color: LaneColor;
-  kind: 'key' | 'scratch';
+  kind: LaneKind;
 }
 
 export interface TrackGeometry {
@@ -27,11 +27,6 @@ export function computeTrackGeometry(mode: KeyModeConfig, trackWidth: number, tr
     return lane;
   });
   return { lanes, width: trackWidth, length: trackLength };
-}
-
-/** World z of an event: 0 at the judgement line, -trackLength when it is `visibleMs` away. */
-export function noteZ(eventMs: number, nowMs: number, visibleMs: number, trackLength: number): number {
-  return -((eventMs - nowMs) / visibleMs) * trackLength;
 }
 
 export interface CameraPose {

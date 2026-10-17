@@ -1,4 +1,5 @@
-"""Density control: pick which candidates become notes, then chords, long notes and scratches."""
+"""Density control: pick which candidates become notes, then chords, long notes and special
+(scratch / side) notes."""
 
 from __future__ import annotations
 
@@ -14,15 +15,17 @@ MAX_GAP_S = 4.0  # silences longer than this do not count toward the target dens
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
 MAX_CHORD_RATIO = 0.6
+SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds
 
 
 @dataclass
 class Slot:
     beat: float
     t: float
-    size: int  # total notes at this instant (including the scratch note)
+    size: int  # total notes at this instant (including the special note)
     hold_end_beat: float | None  # one note of the slot is a long note ending here
-    scratch: bool
+    special: str | None  # "scratch" or "side": one note goes to a special lane
+    special_hold: bool  # the special note (not a key) carries the long note
     pitch: float | None
     bands: np.ndarray
     score: float
@@ -42,7 +45,7 @@ def select_slots(
     params: GenParams,
     tempo: TempoMap,
     density_scale: float,
-    has_scratch: bool,
+    special_kind: str | None,
     key_count: int,
     chord_scale: float = 1.0,
 ) -> list[Slot]:
@@ -115,7 +118,8 @@ def select_slots(
             t=c.t,
             size=1,
             hold_end_beat=None,
-            scratch=False,
+            special=None,
+            special_hold=False,
             pitch=c.pitch,
             bands=c.bands,
             score=c.score,
@@ -126,8 +130,10 @@ def select_slots(
     ]
     _assign_chords(slots, chosen, params, key_count, chord_scale)
     _assign_long_notes(slots, chosen, params, tempo)
-    if has_scratch:
-        _assign_scratch(slots, params, tempo)
+    if special_kind == "scratch":
+        _assign_scratch(slots, params)
+    elif special_kind == "side":
+        _assign_side(slots, chosen, params)
     return slots
 
 
@@ -175,24 +181,69 @@ def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenPa
             slots[i].hold_end_beat = c.beat + float(length)
 
 
-def _assign_scratch(slots: list[Slot], params: GenParams, tempo: TempoMap) -> None:
+def _assign_scratch(slots: list[Slot], params: GenParams) -> None:
+    """Scratches go on hard-hitting low+high impacts (kick + crash), kept short and spaced."""
     n = int(round(params.scratch_rate * len(slots)))
     if n == 0:
         return
     impact = []
-    for i, s in enumerate(slots):
+    for s in slots:
         total = float(np.sum(s.bands)) + 1e-9
         low, high = s.bands[0] / total, s.bands[2] / total
         impact.append(s.strength * (0.5 + low + high) * (1.3 if s.subdivision == 1 else 1.0))
-    min_gap = max(params.min_jack_ms, 250.0)
-    taken: list[float] = []
-    for i in sorted(range(len(slots)), key=lambda k: -impact[k]):
-        if len(taken) >= n:
-            break
-        t = slots[i].t
-        if any(abs(t - u) < min_gap for u in taken):
-            continue
-        slots[i].scratch = True
+    for i in _spaced_picks(slots, impact, n, max(params.min_jack_ms, 250.0)):
+        slots[i].special = "scratch"
         if slots[i].size == 1 and slots[i].hold_end_beat is not None:
             slots[i].hold_end_beat = None  # keep scratch notes short
-        taken.append(t)
+
+
+def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) -> None:
+    """DJMAX-style side notes: mostly long holds over sustained sounds (pads, strings, long vocals,
+    whose attacks are soft) plus a few big accents as taps."""
+    n = int(round(params.side_rate * len(slots)))
+    if n == 0:
+        return
+    min_hold = max(1.0, params.min_ln_beats)
+    gap = max(params.min_jack_ms, 450.0)
+    holds = [
+        (c.sustain_beats * (0.5 + c.harmonic), i)
+        for i, c in enumerate(chosen)
+        if c.sustain_beats >= min_hold and slots[i].subdivision <= 2
+    ]
+    hold_score = [0.0] * len(slots)
+    for value, i in holds:
+        hold_score[i] = value
+    picked = _spaced_picks(slots, hold_score, int(round(n * SIDE_HOLD_SHARE)), gap, positive_only=True)
+    for i in picked:
+        # the sustained sound becomes the side hold; a key long note on the same slot turns into a tap
+        slot, c = slots[i], chosen[i]
+        slot.special = "side"
+        slot.special_hold = True
+        slot.hold_end_beat = c.beat + float(min(MAX_LN_BEATS, np.floor(c.sustain_beats * 2) / 2))
+    impact = [s.strength * (1.3 if s.subdivision == 1 else 0.8) * (0.7 + 0.6 * c.intensity) for s, c in zip(slots, chosen)]
+    taken = [slots[i].t for i in picked]
+    for i in _spaced_picks(slots, impact, n - len(picked), gap, avoid=taken):
+        slots[i].special = "side"
+
+
+def _spaced_picks(
+    slots: list[Slot],
+    score: list[float],
+    n: int,
+    min_gap_ms: float,
+    avoid: list[float] | None = None,
+    positive_only: bool = False,
+) -> list[int]:
+    """Highest-scoring slots, at least `min_gap_ms` apart from each other and from `avoid`."""
+    picks: list[int] = []
+    taken: list[float] = list(avoid or [])
+    for i in sorted(range(len(slots)), key=lambda k: -score[k]):
+        if len(picks) >= n:
+            break
+        if positive_only and score[i] <= 0:
+            break
+        if slots[i].special is not None or any(abs(slots[i].t - u) < min_gap_ms for u in taken):
+            continue
+        picks.append(i)
+        taken.append(slots[i].t)
+    return picks

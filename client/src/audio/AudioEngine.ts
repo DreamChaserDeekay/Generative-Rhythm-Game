@@ -3,9 +3,17 @@ import { AudioClock, type SongClock } from './clock';
 /** Scheduling margin so `start()` never asks Web Audio to begin in the past. */
 const START_MARGIN_SEC = 0.1;
 
+export interface BufferPlacement {
+  /** Song time (ms) of the buffer's first sample. */
+  originMs: number;
+  /** Song ms per real ms: the buffer was time-stretched by this factor (practice speed). */
+  rate: number;
+}
+
 /**
  * Plays one song buffer and exposes song time on the `performance.now()` timeline.
- * Song time 0 is the first sample of the buffer; negative values are lead-in.
+ * Song time 0 is the first sample of the song; negative values are lead-in. A practice buffer
+ * holds only a stretched segment, so it carries its origin and rate.
  */
 export class AudioEngine implements SongClock {
   readonly ctx: AudioContext;
@@ -13,7 +21,9 @@ export class AudioEngine implements SongClock {
   private readonly musicGain: GainNode;
   private readonly sfxGain: GainNode;
   private buffer: AudioBuffer | null = null;
+  private placement: BufferPlacement = { originMs: 0, rate: 1 };
   private source: AudioBufferSourceNode | null = null;
+  private sourceGain: GainNode | null = null;
   private anchorSec = 0;
   private pausedSongMs: number | null = 0;
 
@@ -37,34 +47,59 @@ export class AudioEngine implements SongClock {
     return this.ctx.decodeAudioData(await res.arrayBuffer());
   }
 
-  setBuffer(buffer: AudioBuffer | null): void {
+  setBuffer(buffer: AudioBuffer | null, placement: BufferPlacement = { originMs: 0, rate: 1 }): void {
     this.stop();
     this.buffer = buffer;
+    this.placement = placement;
   }
 
+  get rate(): number {
+    return this.placement.rate;
+  }
+
+  /** Song time at which the buffer ends. */
   get durationMs(): number {
-    return this.buffer ? this.buffer.duration * 1000 : 0;
+    return this.buffer ? this.placement.originMs + this.buffer.duration * 1000 * this.placement.rate : 0;
   }
 
   get isPaused(): boolean {
     return this.pausedSongMs !== null;
   }
 
-  /** Start playback so that song time `fromMs` is heard `leadInMs` from now. */
+  /** Start playback so that song time `fromMs` is heard `leadInMs` (real ms) from now. */
   start(fromMs: number, leadInMs: number): void {
     this.stopSource();
+    const { originMs, rate } = this.placement;
     const when = this.ctx.currentTime + START_MARGIN_SEC + leadInMs / 1000;
-    this.anchorSec = when - fromMs / 1000;
+    this.anchorSec = when - fromMs / 1000 / rate;
     this.pausedSongMs = null;
     this.clock.sample();
     if (!this.buffer) return;
-    const offsetSec = Math.max(0, fromMs / 1000);
+    // Position inside the (stretched) buffer, in buffer seconds.
+    const bufferSec = (fromMs - originMs) / 1000 / rate;
+    const offsetSec = Math.max(0, bufferSec);
     if (offsetSec >= this.buffer.duration) return;
     const src = this.ctx.createBufferSource();
     src.buffer = this.buffer;
-    src.connect(this.musicGain);
-    src.start(when + Math.max(0, -fromMs / 1000), offsetSec);
+    const gain = this.ctx.createGain();
+    src.connect(gain);
+    gain.connect(this.musicGain);
+    src.start(when + Math.max(0, -bufferSec), offsetSec);
     this.source = src;
+    this.sourceGain = gain;
+  }
+
+  /** Fade the music out (failed play) and stop it. */
+  fadeOut(ms: number): void {
+    if (!this.source || !this.sourceGain) return;
+    const t = this.ctx.currentTime;
+    this.sourceGain.gain.setValueAtTime(this.sourceGain.gain.value, t);
+    this.sourceGain.gain.linearRampToValueAtTime(0, t + ms / 1000);
+    try {
+      this.source.stop(t + ms / 1000 + 0.05);
+    } catch {
+      // already stopped
+    }
   }
 
   /** Freeze song time at the current position and stop the audio. */
@@ -82,11 +117,11 @@ export class AudioEngine implements SongClock {
 
   songTimeAtPerf(perfMs: number): number {
     if (this.pausedSongMs !== null) return this.pausedSongMs;
-    return (this.clock.contextTimeAtPerf(perfMs) - this.anchorSec) * 1000;
+    return (this.clock.contextTimeAtPerf(perfMs) - this.anchorSec) * 1000 * this.placement.rate;
   }
 
   perfAtSongTime(songMs: number): number {
-    return this.clock.perfAtContextTime(this.anchorSec + songMs / 1000);
+    return this.clock.perfAtContextTime(this.anchorSec + songMs / 1000 / this.placement.rate);
   }
 
   setMusicVolume(volume: number): void {
@@ -121,7 +156,9 @@ export class AudioEngine implements SongClock {
       // already stopped
     }
     this.source.disconnect();
+    this.sourceGain?.disconnect();
     this.source = null;
+    this.sourceGain = null;
   }
 }
 

@@ -2,22 +2,86 @@
   "system": "DJMAX RESPECT V (PC)",
   "description": "판정 범위(ms, 이른/늦은 입력 대칭). PC판 V처럼 BPM과 무관하게 ms로 고정한다. HARD/MAX JUDGEMENT는 모든 범위에 scale을 곱한다.",
   "modes": {
-    "NORMAL": { "label": "NORMAL", "scale": 1.0 },
-    "HARD": { "label": "HARD JUDGEMENT", "scale": 0.5 },
-    "MAX": { "label": "MAX JUDGEMENT", "scale": 0.25 }
+    "NORMAL": {
+      "label": "NORMAL",
+      "scale": 1.0
+    },
+    "HARD": {
+      "label": "HARD JUDGEMENT",
+      "scale": 0.5
+    },
+    "MAX": {
+      "label": "MAX JUDGEMENT",
+      "scale": 0.25
+    }
   },
   "grades": [
-    { "percent": 100, "label": "MAX 100%", "windowMs": 41.67, "source": "consensus: 2.5 frames at 60fps (namu.wiki)" },
-    { "percent": 90, "label": "MAX 90%", "windowMs": 60.0, "source": "community measurement estimate (dcinside djmaxrespect #80266)" },
-    { "percent": 80, "label": "MAX 80%", "windowMs": 78.0, "source": "community measurement estimate (dcinside djmaxrespect #80266)" },
-    { "percent": 70, "label": "MAX 70%", "windowMs": 89.71, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 60, "label": "MAX 60%", "windowMs": 101.43, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 50, "label": "MAX 50%", "windowMs": 113.14, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 40, "label": "MAX 40%", "windowMs": 124.86, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 30, "label": "MAX 30%", "windowMs": 136.57, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 20, "label": "MAX 20%", "windowMs": 148.29, "source": "interpolated between 78ms and 160ms" },
-    { "percent": 10, "label": "MAX 10%", "windowMs": 160.0, "source": "community measurement estimate, boundary ambiguous (~159ms)" },
-    { "percent": 1, "label": "MAX 1%", "windowMs": 180.0, "source": "community measurement estimate (177-180ms)" }
+    {
+      "percent": 100,
+      "label": "MAX 100%",
+      "windowMs": 41.67,
+      "source": "consensus: 2.5 frames at 60fps (namu.wiki)"
+    },
+    {
+      "percent": 90,
+      "label": "MAX 90%",
+      "windowMs": 60.0,
+      "source": "community measurement estimate (dcinside djmaxrespect #80266)"
+    },
+    {
+      "percent": 80,
+      "label": "MAX 80%",
+      "windowMs": 78.0,
+      "source": "community measurement estimate (dcinside djmaxrespect #80266)"
+    },
+    {
+      "percent": 70,
+      "label": "MAX 70%",
+      "windowMs": 89.71,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 60,
+      "label": "MAX 60%",
+      "windowMs": 101.43,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 50,
+      "label": "MAX 50%",
+      "windowMs": 113.14,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 40,
+      "label": "MAX 40%",
+      "windowMs": 124.86,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 30,
+      "label": "MAX 30%",
+      "windowMs": 136.57,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 20,
+      "label": "MAX 20%",
+      "windowMs": 148.29,
+      "source": "interpolated between 78ms and 160ms"
+    },
+    {
+      "percent": 10,
+      "label": "MAX 10%",
+      "windowMs": 160.0,
+      "source": "community measurement estimate, boundary ambiguous (~159ms)"
+    },
+    {
+      "percent": 1,
+      "label": "MAX 1%",
+      "windowMs": 180.0,
+      "source": "community measurement estimate (177-180ms)"
+    }
   ],
   "breakLabel": "BREAK",
   "earlyBreakExtraMs": 40,
@@ -26,5 +90,7 @@
     "tickBeats": 0.25,
     "releaseGraceMs": 100
   },
-  "missMarginMs": 50
+  "missMarginMs": 50,
+  "sideMissPercent": 1,
+  "sideMissSource": "PC판 DJMAX RESPECT V: 사이드 노트는 처리하지 않아도 BREAK 대신 MAX 1% (namu.wiki)"
 }

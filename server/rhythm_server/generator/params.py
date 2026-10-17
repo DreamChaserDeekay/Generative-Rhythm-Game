@@ -30,6 +30,7 @@ class GenParams:
     hold_hand_limit: int
     max_holds_per_hand: int
     scratch_rate: float
+    side_rate: float
     high_band_weight: float
     density: float = 1.0
     style: str = "balanced"
@@ -44,9 +45,16 @@ class GenParams:
             "density": round(self.density, 3),
             "longNoteRatio": round(self.long_note_ratio, 3),
             "maxChord": self.max_chord,
+            "scratchRate": round(self.scratch_rate, 3),
+            "sideRate": round(self.side_rate, 3),
             "style": self.style,
             "rhythmSource": self.rhythm_source,
         }
+
+    def weight(self, name: str, default: float = 1.0) -> float:
+        """A style weight (see "styles" in config/difficulty.json)."""
+        value = self.extra.get(name, default)
+        return float(value) if isinstance(value, (int, float)) else default
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -92,19 +100,49 @@ def resolve_params(
         hold_hand_limit=int(p["holdHandLimit"]),
         max_holds_per_hand=int(p.get("maxHoldsPerHand", 1)),
         scratch_rate=float(p["scratchRate"]),
+        side_rate=float(p.get("sideRate", 0.0)),
         high_band_weight=float(p["highBandWeight"]),
     )
-    for key, value in (overrides or {}).items():
-        if value is None:
-            continue
+    overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
+    style = overrides.get("style")
+    if style in STYLES:
+        params.style = style
+    _apply_style(params, cfg["styles"].get(params.style, {}))
+    limits = cfg["overrideLimits"]
+
+    def clamp(key: str, value: Any) -> float:
+        lo, hi = limits[key]
+        return max(float(lo), min(float(hi), float(value)))
+
+    # Explicit values from the UI win over the style.
+    for key, value in overrides.items():
         if key == "density":
-            params.density = max(0.5, min(1.5, float(value)))
+            params.density = clamp("density", value)
         elif key == "longNoteRatio":
-            params.long_note_ratio = max(0.0, min(0.5, float(value)))
+            params.long_note_ratio = clamp("longNoteRatio", value)
         elif key == "maxChord":
-            params.max_chord = max(1, min(params.max_chord, int(value)))
-        elif key == "style" and value in STYLES:
-            params.style = value
+            params.max_chord = max(1, min(int(p["maxChord"]) + 1, int(value)))
+        elif key == "scratchRate":
+            params.scratch_rate = clamp("scratchRate", value)
+        elif key == "sideRate":
+            params.side_rate = clamp("sideRate", value)
         elif key == "rhythmSource" and value in RHYTHM_SOURCES:
             params.rhythm_source = value
     return params
+
+
+def _apply_style(params: GenParams, style: dict[str, Any]) -> None:
+    """Scale the preset by a style; weights for scoring and lane costs go to `extra`."""
+    params.chord_ratio = min(0.6, params.chord_ratio * float(style.get("chordRatio", 1.0)))
+    params.density = max(0.5, min(1.5, params.density * float(style.get("density", 1.0))))
+    params.long_note_ratio = min(0.5, params.long_note_ratio * float(style.get("longNoteRatio", 1.0)))
+    params.min_ln_beats = max(0.5, params.min_ln_beats * float(style.get("minLnScale", 1.0)))
+    params.min_jack_ms = max(90.0, params.min_jack_ms * float(style.get("minJackScale", 1.0)))
+    params.max_chord += int(style.get("maxChordBonus", 0))
+    scale = float(style.get("partialScale", 1.0))
+    params.partial = {k: min(1.0, v * scale) for k, v in params.partial.items()}
+    for key in ("jackWeight", "jackBonus", "alternateWeight", "pitchWeight", "contourWeight", "offbeatBoost", "downbeatBoost", "harmonicBoost"):
+        if key in style:
+            params.extra[key] = float(style[key])
+    if "subdivisionBoost" in style:
+        params.extra["subdivisionBoost"] = {int(k): float(v) for k, v in style["subdivisionBoost"].items()}

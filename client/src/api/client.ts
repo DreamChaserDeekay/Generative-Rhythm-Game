@@ -54,6 +54,8 @@ export interface GeneratedChartMeta {
   nps: { avg: number; peak: number; graph: number[]; binMs: number };
   effectiveNps: number;
   densityLimited: boolean;
+  /** Share of the strain carried by each hand (difficulty model). */
+  handLoad?: { L: number; R: number };
 }
 
 export type ServerChart = Chart & { meta: Chart['meta'] & GeneratedChartMeta };

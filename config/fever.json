@@ -1,0 +1,9 @@
+{
+  "description": "FEVER: 높은 판정으로 게이지를 채워 발동하는 연출·보너스(DJMAX 참고). fillPerNote는 MAX 100% 한 번에 차는 양(46노트면 가득), 롱노트 틱은 tickFill. 발동 중 BREAK가 나면 FEVER가 끝나고 다음 배율이 x2로 돌아간다. 보너스는 기본 점수(1,000,000점 만점)와 따로 표시한다.",
+  "fillPerNote": 0.0217,
+  "tickFill": 0.0109,
+  "durationMs": 14500,
+  "startMultiplier": 2,
+  "maxMultiplier": 5,
+  "bonusTotal": 100000
+}

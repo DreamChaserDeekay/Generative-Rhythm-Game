@@ -1,42 +1,51 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import type { SessionResult } from '../engine/session';
+import { gaugeRules, judgementConfig } from '../engine/config';
+import { gradeClass, rulesetConfigs } from '../engine/ruleset';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
-import { gradeClass } from './Hud';
+import { lampClass } from './lamps';
+import type { PlayOutcome } from './PlayController';
+import { GaugeGraph, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
 
 interface Props {
   request: PlayRequest;
-  result: SessionResult;
+  outcome: PlayOutcome;
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onRetry: () => void;
   onBack: () => void;
 }
 
-const LAMP_CLASS: Record<SessionResult['lamp'], string> = {
-  'PERFECT PLAY': 'perfect',
-  'MAX COMBO': 'maxcombo',
-  CLEAR: 'clear',
-  FAILED: 'failed',
-};
+function signedMs(v: number | null): string {
+  return v === null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}ms`;
+}
 
-export function ResultScreen({ request, result, settings, onSettingsChange, onRetry, onBack }: Props) {
-  const { chart } = request;
-  const suggestion = result.meanErrorMs !== null && result.hits.length >= 10 ? Math.round(result.meanErrorMs) : null;
+export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack }: Props) {
+  const { result, chart, placement, practice } = outcome;
+  const meta = request.chart.meta;
+  const rules = rulesetConfigs[result.ruleset];
+  const suggestion = (() => {
+    const s = suggestOffset(result.hits);
+    return s === null ? null : Math.round(s);
+  })();
   const [saveState, setSaveState] = useState<string | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const saved = useRef(false);
+  const gauge = Object.values(gaugeRules).find((g) => g.label === result.gaugeLabel) ?? gaugeRules.NORMAL;
+  const startMs = practice ? practice.startMs : 0;
+  const endMs = practice ? practice.endMs : Math.max(meta.durationMs ?? 0, ...chart.notes.map((n) => n.endT ?? n.t), 1);
 
-  // Store the play once (generated charts only; autoplay and the sync test are not records).
+  // Store the play once (generated charts only; autoplay, practice and the sync test are not records).
   useEffect(() => {
-    const songId = chart.meta.songId;
-    if (saved.current || request.autoPlay || !songId) return;
+    const songId = meta.songId;
+    if (saved.current || request.autoPlay || practice || !songId) return;
     saved.current = true;
     (async () => {
       try {
-        const before = (await api.song(songId)).records?.find((r) => r.chartId === chart.meta.chartId);
+        const before = (await api.song(songId)).records?.find((r) => r.chartId === meta.chartId);
         await api.saveScore({
-          chartId: chart.meta.chartId,
+          chartId: meta.chartId,
           songId,
           score: result.score,
           rate: Math.round(result.rate * 100) / 100,
@@ -44,7 +53,18 @@ export function ResultScreen({ request, result, settings, onSettingsChange, onRe
           lamp: result.lamp,
           judgementMode: settings.judgementMode,
           breaks: result.breaks,
-          detail: { fast: result.fast, slow: result.slow, meanErrorMs: result.meanErrorMs },
+          detail: {
+            fast: result.fast,
+            slow: result.slow,
+            meanErrorMs: result.meanErrorMs,
+            ruleset: result.ruleset,
+            exScore: result.exScore,
+            gauge: result.gaugeLabel,
+            placement: settings.placement,
+            laneOrder: placement.laneOrder,
+            feverBonus: result.fever.bonus,
+            failedAtMs: result.failedAtMs,
+          },
         });
         if (!before) setSaveState('첫 기록이 저장되었습니다');
         else if (result.score > before.score) setSaveState(`최고 기록 갱신! (+${(result.score - before.score).toLocaleString('en-US')})`);
@@ -53,7 +73,7 @@ export function ResultScreen({ request, result, settings, onSettingsChange, onRe
         setSaveState(`기록을 저장하지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
       }
     })();
-  }, [chart, request.autoPlay, result, settings.judgementMode]);
+  }, [meta, request.autoPlay, practice, result, settings.judgementMode, settings.placement, placement.laneOrder]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -64,68 +84,118 @@ export function ResultScreen({ request, result, settings, onSettingsChange, onRe
     return () => window.removeEventListener('keydown', onKey);
   }, [onRetry, onBack]);
 
+  const mainScore = rules.scoring === 'exscore' ? result.exScore : rules.scoring === 'weighted' ? result.weightedScore : result.score;
+  const lamp = practice ? 'PRACTICE' : result.lamp;
   return (
     <div className="result-screen" data-testid="result-screen">
       <header className="result-header">
         <div>
-          <h1>{chart.meta.title}</h1>
+          <h1>{meta.title}</h1>
           <p className="sub">
-            {chart.meta.artist} · {chart.meta.keyMode} · {chart.meta.difficulty}
-            {chart.meta.level > 0 ? ` Lv.${chart.meta.level}` : ''}
+            {meta.artist} · {meta.keyMode} · {meta.difficulty}
+            {meta.level > 0 ? ` Lv.${meta.level}` : ''} · {judgementConfig.modes[settings.judgementMode].label} · {rules.label}
+            {settings.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
             {request.autoPlay ? ' · AUTO' : ''}
           </p>
+          {practice && (
+            <p className="sub">
+              연습 모드 · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
+            </p>
+          )}
         </div>
-        <div className={`lamp ${LAMP_CLASS[result.lamp]}`} data-testid="result-lamp">{result.lamp}</div>
+        <div className={`lamp ${practice ? 'clear' : lampClass(result.lamp)}`} data-testid="result-lamp">{lamp}</div>
       </header>
       {saveState && <p className="hint save-state" data-testid="save-state">{saveState}</p>}
 
       <div className="result-grid">
         <section className="panel">
           <div className="big-stat">
+            <span className="label">{rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE'}</span>
+            <span className="value" data-testid="result-score">
+              {mainScore.toLocaleString('en-US')}
+              {rules.scoring === 'exscore' && <small> / {result.exMax.toLocaleString('en-US')} · {result.rank}</small>}
+            </span>
+          </div>
+          <div className="big-stat">
             <span className="label">RATE</span>
             <span className="value" data-testid="result-rate">{result.rate.toFixed(2)}%</span>
           </div>
-          <div className="big-stat">
-            <span className="label">SCORE</span>
-            <span className="value">{result.score.toLocaleString('en-US')}</span>
-          </div>
+          {rules.scoring !== 'rate' && (
+            <div className="stat-row"><span>정밀 % 점수</span><span>{result.score.toLocaleString('en-US')}</span></div>
+          )}
+          {result.fever.enabled && (
+            <div className="stat-row" data-testid="result-fever">
+              <span>FEVER 보너스</span>
+              <span>+{result.fever.bonus.toLocaleString('en-US')} (최고 x{result.fever.bestMultiplier} · {result.fever.activations}회)</span>
+            </div>
+          )}
           <div className="stat-row"><span>MAX COMBO</span><span>{result.maxCombo} / {result.maxPossibleCombo}</span></div>
-          <div className="stat-row"><span>게이지</span><span>{Math.round(result.gauge)}%</span></div>
+          <div className="stat-row">
+            <span>게이지 ({result.gaugeLabel})</span>
+            <span>{result.failed ? `실패 · ${formatTime(result.failedAtMs ?? 0)}` : `${Math.round(result.gauge)}%`}</span>
+          </div>
           <div className="stat-row"><span>FAST / SLOW</span><span>{result.fast} / {result.slow}</span></div>
           <div className="stat-row">
-            <span>평균 오차</span>
+            <span>평균 / 중앙값 오차</span>
             <span>
-              {result.meanErrorMs === null ? '-' : `${result.meanErrorMs > 0 ? '+' : ''}${result.meanErrorMs.toFixed(1)}ms`}
+              {signedMs(result.meanErrorMs)} / {signedMs(result.medianErrorMs)}
               {result.stdErrorMs !== null ? ` (σ ${result.stdErrorMs.toFixed(1)}ms)` : ''}
             </span>
           </div>
         </section>
 
         <section className="panel">
-          <h2>판정</h2>
-          <table className="grade-table">
+          <h2>판정 · {rules.label}</h2>
+          <table className="grade-table" data-testid="grade-table">
             <tbody>
-              {result.counts.map((c) => (
-                <tr key={c.percent}>
-                  <td className={gradeClass(c.percent, false)}>{c.label}</td>
-                  <td>{c.count}</td>
+              {result.rows.map((r) => (
+                <tr key={r.label}>
+                  <td className={r.cls}>{r.label}</td>
+                  <td data-testid={r.cls === 'g-break' ? 'result-breaks' : undefined}>{r.count}</td>
                 </tr>
               ))}
-              <tr>
-                <td className="g-break">BREAK</td>
-                <td data-testid="result-breaks">{result.breaks}</td>
-              </tr>
             </tbody>
           </table>
+          {result.ruleset !== 'RESPECT' && (
+            <>
+              <button className="small" onClick={() => setShowDetail((v) => !v)}>{showDetail ? 'DJMAX % 접기' : 'DJMAX % 보기'}</button>
+              {showDetail && (
+                <table className="grade-table detail">
+                  <tbody>
+                    {result.counts.map((c) => (
+                      <tr key={c.percent}>
+                        <td className={gradeClass(c.percent, false)}>{c.label}</td>
+                        <td>{c.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </section>
+
+        <section className="panel wide">
+          <h2>게이지</h2>
+          <GaugeGraph
+            history={result.gaugeHistory}
+            clear={gauge.clear}
+            survival={gauge.failAtZero}
+            startMs={startMs}
+            endMs={endMs}
+            failedAtMs={result.failedAtMs}
+          />
+          <h2>밀도 · BREAK · 타이밍</h2>
+          <TimelineGraph chart={chart} hits={result.hits} breakTimes={result.breakTimes} windowMs={180} startMs={startMs} endMs={endMs} />
         </section>
 
         <section className="panel wide">
           <h2>타이밍 분포</h2>
-          <TimingHistogram result={result} />
+          <TimingHistogram hits={result.hits} median={result.medianErrorMs} />
           {suggestion !== null && !request.autoPlay && Math.abs(suggestion) >= 3 && (
-            <div className="row">
+            <div className="row" data-testid="offset-suggestion">
               <span className="hint">
-                평균적으로 {Math.abs(suggestion)}ms {suggestion > 0 ? '늦게' : '빨리'} 쳤습니다. 판정 오프셋을{' '}
+                절사 평균으로 {Math.abs(suggestion)}ms {suggestion > 0 ? '늦게' : '빨리'} 쳤습니다. 판정 오프셋을{' '}
                 {settings.inputOffsetMs + suggestion}ms로 바꾸면 보정됩니다.
               </span>
               <button onClick={() => onSettingsChange({ ...settings, inputOffsetMs: settings.inputOffsetMs + suggestion })}>
@@ -144,30 +214,7 @@ export function ResultScreen({ request, result, settings, onSettingsChange, onRe
   );
 }
 
-const HIST_RANGE_MS = 180;
-const HIST_BINS = 36;
-
-function TimingHistogram({ result }: { result: SessionResult }) {
-  const bins = new Array(HIST_BINS).fill(0);
-  for (const h of result.hits) {
-    const i = Math.floor(((h.errorMs + HIST_RANGE_MS) / (2 * HIST_RANGE_MS)) * HIST_BINS);
-    if (i >= 0 && i < HIST_BINS) bins[i]++;
-  }
-  const max = Math.max(1, ...bins);
-  const w = 360;
-  const h = 90;
-  const bw = w / HIST_BINS;
-  return (
-    <svg className="histogram" viewBox={`0 0 ${w} ${h + 16}`} role="img" aria-label="타이밍 오차 분포">
-      {bins.map((count, i) => {
-        const center = -HIST_RANGE_MS + (i + 0.5) * ((2 * HIST_RANGE_MS) / HIST_BINS);
-        const bh = (count / max) * h;
-        const cls = Math.abs(center) <= 41.67 ? 'bar-max' : center < 0 ? 'bar-fast' : 'bar-slow';
-        return <rect key={i} className={cls} x={i * bw + 1} y={h - bh} width={bw - 2} height={bh} />;
-      })}
-      <line x1={w / 2} x2={w / 2} y1={0} y2={h} className="zero-line" />
-      <text x={4} y={h + 13} className="axis">FAST −{HIST_RANGE_MS}ms</text>
-      <text x={w - 4} y={h + 13} className="axis" textAnchor="end">+{HIST_RANGE_MS}ms SLOW</text>
-    </svg>
-  );
+function formatTime(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

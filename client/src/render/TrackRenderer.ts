@@ -1,36 +1,52 @@
 import * as THREE from 'three';
 import type { CameraPreset, KeyModeConfig, LaneColor } from '../engine/config';
+import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
-import { cameraPose, computeTrackGeometry, noteZ, type TrackGeometry } from './layout';
+import { cameraPose, computeTrackGeometry, type TrackGeometry } from './layout';
+import { FEVER_COLORS, LANE_PALETTES, type Palette } from './palette';
 
-const LANE_COLORS: Record<LaneColor, number> = {
-  white: 0xeaf6ff,
-  blue: 0x4fc3ff,
-  gold: 0xffc94f,
-  scratch: 0xff5c8a,
-};
 const MISSED_COLOR = 0x4a5068;
 const TRACK_NEAR = new THREE.Color(0x16224a);
 const TRACK_FAR = new THREE.Color(0x060a1a);
 const FOG_COLOR = 0x060a1a;
 const RAIL_LEFT = 0x37e2ff;
 const RAIL_RIGHT = 0xff4fd8;
+const COVER_COLOR = 0x0a1030;
+const COVER_EDGE = 0x5fe7ff;
 /** How far the track extends below the judgement line, toward the camera. */
 const TRACK_TAIL = 4;
 const NOTE_HEIGHT = 0.2;
 const NOTE_DEPTH = 0.7;
+const SIDE_NOTE_HEIGHT = 0.12;
 const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
+const COVER_Y = 0.05;
+/** Clip-plane constant that keeps everything (plane effectively disabled). */
+const FAR_AWAY = 1e4;
+
+export interface FeverFrame {
+  active: boolean;
+  multiplier: number;
+  /** 0..1 of the fever time left. */
+  remaining: number;
+}
 
 export interface TrackFrame {
   /** Display time (song time + visual offset). */
   timeMs: number;
-  visibleMs: number;
+  scroll: ScrollModel;
   notes: readonly Readonly<SessionNote>[];
   heldNote: (lane: number) => number | null;
   keyDown: (lane: number) => boolean;
   barTimes: readonly number[];
+  fever: FeverFrame;
+}
+
+export interface CoverLayout {
+  sudden: number;
+  hidden: number;
+  lift: number;
 }
 
 export interface TrackRendererOptions {
@@ -38,6 +54,9 @@ export interface TrackRendererOptions {
   camera: CameraPreset;
   trackWidth: number;
   trackLength: number;
+  palette: Palette;
+  reducedFlash: boolean;
+  covers: CoverLayout;
 }
 
 /** Renders the SDVX-style perspective track with Three.js. */
@@ -46,8 +65,14 @@ export class TrackRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
+  private readonly colors: Record<LaneColor, number>;
+  private readonly reducedFlash: boolean;
   private readonly noteGeometry = createNoteGeometry();
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
+  private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
+  private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
+  private readonly clipPlanes = [this.farClip, this.nearClip];
   private readonly noteMaterials = new Map<number, THREE.MeshBasicMaterial>();
   private readonly bodyMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly notePool: MeshPool;
@@ -58,6 +83,16 @@ export class TrackRenderer {
   private readonly holdGlows: THREE.Sprite[] = [];
   private readonly effects: { sprite: THREE.Sprite; start: number; lane: number }[] = [];
   private readonly glowTexture = radialTexture();
+  private readonly judgeGroup = new THREE.Group();
+  private readonly judgeGlowMaterial: THREE.MeshBasicMaterial;
+  private readonly rails: THREE.MeshBasicMaterial[] = [];
+  private readonly feverOverlay: THREE.Mesh;
+  private readonly suddenCover: THREE.Mesh;
+  private readonly suddenEdge: THREE.Mesh;
+  private readonly hiddenCover: THREE.Mesh;
+  private readonly hiddenEdge: THREE.Mesh;
+  private readonly liftCover: THREE.Mesh;
+  private judgeZ = 0;
   private firstLive = 0;
   private lastFrameMs = 0;
   private cssWidth = 1;
@@ -65,26 +100,48 @@ export class TrackRenderer {
 
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
     this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength);
+    this.colors = LANE_PALETTES[options.palette];
+    this.reducedFlash = options.reducedFlash;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
+    this.renderer.localClippingEnabled = true;
     this.camera = new THREE.PerspectiveCamera(options.camera.fov, 16 / 9, 0.1, 500);
     this.setCamera(options.camera);
 
     this.buildTrack();
-    this.buildJudgementLine();
+    this.feverOverlay = this.flat(0xffffff, 0, 1.5, { additive: true });
+    this.feverOverlay.scale.set(this.geometry.width, 1, this.geometry.length);
+    this.feverOverlay.position.set(0, 0.008, -this.geometry.length / 2);
+    this.feverOverlay.visible = false;
+    this.judgeGlowMaterial = this.buildJudgementLine();
     this.buildBeams();
 
+    const coverWidth = this.geometry.width + 0.34;
+    this.suddenCover = this.flat(COVER_COLOR, 0.97, 9);
+    this.hiddenCover = this.flat(COVER_COLOR, 0.97, 9);
+    this.liftCover = this.flat(0x0d1538, 0.98, 9);
+    this.suddenEdge = this.flat(COVER_EDGE, 0.9, 9.2, { fog: false });
+    this.hiddenEdge = this.flat(COVER_EDGE, 0.9, 9.2, { fog: false });
+    for (const m of [this.suddenCover, this.hiddenCover, this.liftCover, this.suddenEdge, this.hiddenEdge]) m.scale.x = coverWidth;
+    this.setCovers(options.covers);
+
     this.notePool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(LANE_COLORS.white));
+      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.colors.white));
       mesh.renderOrder = 4;
       return mesh;
     });
     this.bodyPool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.flatGeometry, this.bodyMaterial(LANE_COLORS.white, 'idle'));
+      const mesh = new THREE.Mesh(this.flatGeometry, this.bodyMaterial(this.colors.white, 'idle'));
       mesh.renderOrder = 3;
       return mesh;
     });
-    const barMaterial = new THREE.MeshBasicMaterial({ color: 0x9fb4ff, transparent: true, opacity: 0.35, depthWrite: false });
+    const barMaterial = new THREE.MeshBasicMaterial({
+      color: 0x9fb4ff,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+      clippingPlanes: this.clipPlanes,
+    });
     this.barPool = new MeshPool(this.scene, () => {
       const mesh = new THREE.Mesh(this.flatGeometry, barMaterial);
       mesh.renderOrder = 2;
@@ -101,6 +158,29 @@ export class TrackRenderer {
     const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(this.camera.position);
     const mid = new THREE.Vector3(0, 0, -this.geometry.length * 0.55).distanceTo(this.camera.position);
     this.scene.fog = new THREE.Fog(FOG_COLOR, mid, far);
+  }
+
+  /** Moves SUDDEN+ / HIDDEN+ / LIFT (all shares, see settings). */
+  setCovers(c: CoverLayout): void {
+    const L = this.geometry.length;
+    this.judgeZ = -c.lift * L;
+    const travel = L + this.judgeZ;
+    this.judgeGroup.position.z = this.judgeZ;
+    this.beams.forEach((beam) => (beam.position.z = this.judgeZ - BEAM_LENGTH / 2));
+    this.holdGlows.forEach((g) => (g.position.z = this.judgeZ));
+
+    const suddenZ = this.judgeZ - travel * (1 - c.sudden);
+    const hiddenZ = this.judgeZ - travel * c.hidden;
+    this.farClip.constant = c.sudden > 0 ? -suddenZ : FAR_AWAY;
+    // Under LIFT nothing passes the judgement line; otherwise missed notes run on toward the camera.
+    const nearLimit = c.hidden > 0 ? hiddenZ : c.lift > 0 ? this.judgeZ + NOTE_DEPTH / 2 : FAR_AWAY;
+    this.nearClip.constant = nearLimit;
+
+    this.span(this.suddenCover, -L - 0.5, suddenZ, c.sudden > 0);
+    this.span(this.suddenEdge, suddenZ - 0.06, suddenZ + 0.06, c.sudden > 0);
+    this.span(this.hiddenCover, hiddenZ, this.judgeZ, c.hidden > 0);
+    this.span(this.hiddenEdge, hiddenZ - 0.06, hiddenZ + 0.06, c.hidden > 0);
+    this.span(this.liftCover, this.judgeZ, TRACK_TAIL, c.lift > 0);
   }
 
   resize(cssWidth: number, cssHeight: number): void {
@@ -141,8 +221,8 @@ export class TrackRenderer {
     });
     const sprite = new THREE.Sprite(material);
     const g = this.geometry.lanes[lane];
-    sprite.position.set(g.x, 0.25, 0);
-    sprite.renderOrder = 8;
+    sprite.position.set(g.x, 0.25, this.judgeZ);
+    sprite.renderOrder = 10;
     this.scene.add(sprite);
     this.effects.push({ sprite, start: perfNow, lane });
   }
@@ -154,6 +234,7 @@ export class TrackRenderer {
     this.drawBars(frame);
     this.drawBeams(frame, dt);
     this.drawEffects(perfNow);
+    this.drawFever(frame);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -170,27 +251,28 @@ export class TrackRenderer {
   }
 
   private drawNotes(frame: TrackFrame): void {
-    const { notes, timeMs, visibleMs } = frame;
+    const { notes, timeMs, scroll } = frame;
     const L = this.geometry.length;
-    const z = (t: number) => noteZ(t, timeMs, visibleMs, L);
+    const z = (t: number) => scroll.z(t, timeMs);
     while (this.firstLive < notes.length && isGone(notes[this.firstLive], timeMs)) this.firstLive++;
 
     this.notePool.begin();
     this.bodyPool.begin();
     for (let i = this.firstLive; i < notes.length; i++) {
       const n = notes[i];
-      if (n.t > timeMs + visibleMs) break;
+      if (scroll.distance(n.t, timeMs) > scroll.travel) break;
       const lane = this.geometry.lanes[n.lane];
-      const color = LANE_COLORS[lane.color];
+      const color = this.colors[lane.color];
+      const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
       if (n.type === 'tap') {
-        if (!n.headDone) this.placeNote(lane.x, lane.width, z(n.t), color);
-        else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR);
+        if (!n.headDone) this.placeNote(lane.x, lane.width, z(n.t), color, height);
+        else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height);
         continue;
       }
       const held = frame.heldNote(n.lane) === n.index;
       if (n.tailDone && !n.broken) continue;
       if (n.broken && n.endT < timeMs - MISSED_VISIBLE_MS) continue;
-      const headZ = held ? 0 : z(n.t);
+      const headZ = held ? this.judgeZ : z(n.t);
       const tailZ = Math.max(-L, z(n.endT));
       const state = n.broken ? 'missed' : held ? 'held' : 'idle';
       const bodyColor = n.broken ? MISSED_COLOR : color;
@@ -200,38 +282,39 @@ export class TrackRenderer {
         body.scale.set(lane.width * 0.72, 1, headZ - tailZ);
         body.position.set(lane.x, 0.02, (headZ + tailZ) / 2);
       }
-      if (!n.headDone || held || n.broken) this.placeNote(lane.x, lane.width, headZ, bodyColor);
-      if (tailZ > -L) this.placeNote(lane.x, lane.width * 0.8, tailZ, bodyColor, 0.6);
+      if (!n.headDone || held || n.broken) this.placeNote(lane.x, lane.width, headZ, bodyColor, height);
+      if (tailZ > -L) this.placeNote(lane.x, lane.width * 0.8, tailZ, bodyColor, height, 0.6);
     }
     this.notePool.end();
     this.bodyPool.end();
     this.updateHoldGlows(frame);
   }
 
-  private placeNote(x: number, laneWidth: number, z: number, color: number, depthScale = 1): void {
+  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, depthScale = 1): void {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color);
-    mesh.scale.set(laneWidth * 0.9, NOTE_HEIGHT, NOTE_DEPTH * depthScale);
-    mesh.position.set(x, NOTE_HEIGHT / 2, z);
+    mesh.scale.set(laneWidth * 0.9, height, NOTE_DEPTH * depthScale);
+    mesh.position.set(x, height / 2, z);
   }
 
   private drawBars(frame: TrackFrame): void {
-    const L = this.geometry.length;
+    const { scroll, timeMs } = frame;
     this.barPool.begin();
     for (const t of frame.barTimes) {
-      if (t < frame.timeMs - 300) continue;
-      if (t > frame.timeMs + frame.visibleMs) break;
+      if (t < timeMs - 300) continue;
+      if (scroll.distance(t, timeMs) > scroll.travel) break;
       const bar = this.barPool.next();
       bar.scale.set(this.geometry.width, 1, 0.05);
-      bar.position.set(0, 0.012, noteZ(t, frame.timeMs, frame.visibleMs, L));
+      bar.position.set(0, 0.012, scroll.z(t, timeMs));
     }
     this.barPool.end();
   }
 
   private drawBeams(frame: TrackFrame, dt: number): void {
     const decay = Math.exp(-dt / 70);
+    const peak = this.reducedFlash ? 0.24 : 0.42;
     this.beams.forEach((beam, lane) => {
-      const level = frame.keyDown(lane) ? 0.42 : this.beamLevels[lane] * decay;
+      const level = frame.keyDown(lane) ? peak : this.beamLevels[lane] * decay;
       this.beamLevels[lane] = level;
       (beam.material as THREE.MeshBasicMaterial).opacity = level;
       beam.visible = level > 0.01;
@@ -243,7 +326,7 @@ export class TrackRenderer {
       const held = frame.heldNote(lane) !== null;
       glow.visible = held;
       if (held) {
-        const pulse = 1 + 0.12 * Math.sin(frame.timeMs / 45);
+        const pulse = this.reducedFlash ? 1 : 1 + 0.12 * Math.sin(frame.timeMs / 45);
         const w = this.geometry.lanes[lane].width;
         glow.scale.set(Math.min(w, 1.6) * 1.3 * pulse, Math.min(w, 1.6) * 1.3 * pulse, 1);
       }
@@ -251,6 +334,7 @@ export class TrackRenderer {
   }
 
   private drawEffects(perfNow: number): void {
+    const strength = this.reducedFlash ? 0.45 : 1;
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i];
       const p = (perfNow - e.start) / EFFECT_MS;
@@ -261,10 +345,26 @@ export class TrackRenderer {
         continue;
       }
       const w = this.geometry.lanes[e.lane].width;
-      const s = Math.min(w, 1.6) * (0.9 + 1.0 * p);
+      const s = Math.min(w, 1.6) * (0.9 + (this.reducedFlash ? 0.4 : 1.0) * p);
       e.sprite.scale.set(s * 1.25, s, 1);
-      e.sprite.material.opacity = (1 - p) * (1 - p);
+      e.sprite.material.opacity = strength * (1 - p) * (1 - p);
     }
+  }
+
+  private drawFever(frame: TrackFrame): void {
+    const { active, multiplier, remaining } = frame.fever;
+    const overlay = this.feverOverlay.material as THREE.MeshBasicMaterial;
+    this.feverOverlay.visible = active;
+    const tint = FEVER_COLORS[Math.min(5, Math.max(2, multiplier))] ?? FEVER_COLORS[2];
+    if (active) {
+      overlay.color.setHex(tint);
+      const pulse = this.reducedFlash ? 0.5 : 0.5 + 0.5 * Math.sin(frame.timeMs / 110);
+      // Fade out over the last fifth of the fever so its end is readable.
+      overlay.opacity = (0.06 + 0.07 * pulse) * Math.min(1, remaining * 5);
+    }
+    this.rails[0]?.color.setHex(active ? tint : RAIL_LEFT);
+    this.rails[1]?.color.setHex(active ? tint : RAIL_RIGHT);
+    this.judgeGlowMaterial.color.setHex(active ? tint : 0x5fe7ff);
   }
 
   private buildTrack(): void {
@@ -284,48 +384,46 @@ export class TrackRenderer {
     track.renderOrder = 0;
     this.scene.add(track);
 
-    const strip = (x: number, w: number, color: number, opacity: number, order: number) => {
-      const mesh = new THREE.Mesh(
-        this.flatGeometry,
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
-      );
+    const strip = (x: number, w: number, color: number, opacity: number) => {
+      const mesh = this.flat(color, opacity, 1);
       mesh.scale.set(w, 1, length + TRACK_TAIL);
-      mesh.position.set(x, 0.005 * order, (TRACK_TAIL - length) / 2);
-      mesh.renderOrder = order;
-      this.scene.add(mesh);
+      mesh.position.set(x, 0.005, (TRACK_TAIL - length) / 2);
+      return mesh.material as THREE.MeshBasicMaterial;
     };
     lanes.forEach((lane) => {
-      if (lane.color === 'blue') strip(lane.x, lane.width, 0x1b3d7a, 0.35, 1);
-      if (lane.kind === 'scratch') strip(lane.x, lane.width, 0x5a1438, 0.35, 1);
+      if (lane.color === 'blue') strip(lane.x, lane.width, 0x1b3d7a, 0.35);
+      if (lane.kind === 'scratch') strip(lane.x, lane.width, 0x5a1438, 0.35);
+      if (lane.kind === 'side') strip(lane.x, lane.width, this.colors[lane.color], 0.1);
     });
-    for (let i = 1; i < lanes.length; i++) strip(lanes[i].x - lanes[i].width / 2, 0.025, 0x3a4c86, 0.9, 1);
-    strip(-width / 2 - 0.08, 0.14, RAIL_LEFT, 0.95, 1);
-    strip(width / 2 + 0.08, 0.14, RAIL_RIGHT, 0.95, 1);
+    for (let i = 1; i < lanes.length; i++) {
+      const sideEdge = lanes[i].kind === 'side' || lanes[i - 1].kind === 'side';
+      strip(lanes[i].x - lanes[i].width / 2, sideEdge ? 0.05 : 0.025, sideEdge ? 0x6a5cb0 : 0x3a4c86, 0.9);
+    }
+    this.rails.push(strip(-width / 2 - 0.08, 0.14, RAIL_LEFT, 0.95), strip(width / 2 + 0.08, 0.14, RAIL_RIGHT, 0.95));
   }
 
-  private buildJudgementLine(): void {
+  private buildJudgementLine(): THREE.MeshBasicMaterial {
     const { width } = this.geometry;
-    const line = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }));
+    // Transparent so it sorts after the covers (renderOrder) and stays on top of them.
+    const line = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
     line.scale.set(width + 0.3, 1, 0.16);
-    line.position.set(0, 0.03, 0);
-    line.renderOrder = 5;
-    this.scene.add(line);
-
-    const glow = new THREE.Mesh(
-      this.flatGeometry,
-      new THREE.MeshBasicMaterial({
-        map: this.glowTexture,
-        color: 0x5fe7ff,
-        transparent: true,
-        opacity: 0.55,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    );
+    line.position.set(0, 0.06, 0);
+    line.renderOrder = 9.5;
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      map: this.glowTexture,
+      color: 0x5fe7ff,
+      transparent: true,
+      opacity: this.reducedFlash ? 0.35 : 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const glow = new THREE.Mesh(this.flatGeometry, glowMaterial);
     glow.scale.set(width + 1.2, 1, 1.4);
-    glow.position.set(0, 0.035, 0);
-    glow.renderOrder = 5;
-    this.scene.add(glow);
+    glow.position.set(0, 0.065, 0);
+    glow.renderOrder = 9.6;
+    this.judgeGroup.add(line, glow);
+    this.scene.add(this.judgeGroup);
+    return glowMaterial;
   }
 
   private buildBeams(): void {
@@ -335,7 +433,7 @@ export class TrackRenderer {
         this.flatGeometry,
         new THREE.MeshBasicMaterial({
           map: texture,
-          color: LANE_COLORS[lane.color],
+          color: this.colors[lane.color],
           transparent: true,
           opacity: 0,
           blending: THREE.AdditiveBlending,
@@ -353,7 +451,7 @@ export class TrackRenderer {
       const glow = new THREE.Sprite(
         new THREE.SpriteMaterial({
           map: this.glowTexture,
-          color: LANE_COLORS[lane.color],
+          color: this.colors[lane.color],
           blending: THREE.AdditiveBlending,
           transparent: true,
           depthWrite: false,
@@ -361,17 +459,42 @@ export class TrackRenderer {
         }),
       );
       glow.position.set(lane.x, 0.3, 0);
-      glow.renderOrder = 7;
+      glow.renderOrder = 10;
       glow.visible = false;
       this.scene.add(glow);
       this.holdGlows.push(glow);
     });
   }
 
+  /** A flat (XZ) quad added to the scene. */
+  private flat(color: number, opacity: number, order: number, o: { additive?: boolean; fog?: boolean } = {}): THREE.Mesh {
+    const mesh = new THREE.Mesh(
+      this.flatGeometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        fog: o.fog ?? true,
+        blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      }),
+    );
+    mesh.renderOrder = order;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  /** Stretch a flat cover quad between two z values. */
+  private span(mesh: THREE.Mesh, zFrom: number, zTo: number, visible: boolean): void {
+    mesh.visible = visible && zTo > zFrom;
+    mesh.scale.z = Math.max(0.001, zTo - zFrom);
+    mesh.position.set(0, COVER_Y, (zFrom + zTo) / 2);
+  }
+
   private noteMaterial(color: number): THREE.MeshBasicMaterial {
     let m = this.noteMaterials.get(color);
     if (!m) {
-      m = new THREE.MeshBasicMaterial({ color, vertexColors: true });
+      m = new THREE.MeshBasicMaterial({ color, vertexColors: true, clippingPlanes: this.clipPlanes });
       this.noteMaterials.set(color, m);
     }
     return m;
@@ -382,7 +505,7 @@ export class TrackRenderer {
     let m = this.bodyMaterials.get(key);
     if (!m) {
       const opacity = state === 'held' ? 0.6 : state === 'missed' ? 0.25 : 0.4;
-      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, clippingPlanes: this.clipPlanes });
       this.bodyMaterials.set(key, m);
     }
     return m;

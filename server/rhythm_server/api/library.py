@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from .. import audio_io
-from ..config import SAMPLE_RATE
+from ..config import SAMPLE_RATE, load_config
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS songs (
@@ -67,7 +67,12 @@ CREATE INDEX IF NOT EXISTS idx_charts_song ON charts(song_id);
 CREATE INDEX IF NOT EXISTS idx_scores_chart ON scores(chart_id);
 """
 
-LAMP_ORDER = ["FAILED", "CLEAR", "MAX COMBO", "PERFECT PLAY"]
+# Worst to best; the client sends one of these with every score (config/gauge.json is the source).
+LAMP_ORDER: list[str] = load_config("gauge")["lampOrder"]
+
+
+def lamp_rank(lamp: str) -> int:
+    return LAMP_ORDER.index(lamp) if lamp in LAMP_ORDER else 0
 
 
 SONG_ID = re.compile(r"^[0-9a-f]{16}$")
@@ -298,7 +303,6 @@ class Library:
         best: dict[str, dict[str, Any]] = {}
         for r in rows:
             cur = best.get(r["chart_id"])
-            lamp_rank = LAMP_ORDER.index(r["lamp"]) if r["lamp"] in LAMP_ORDER else 0
             if cur is None:
                 best[r["chart_id"]] = cur = {
                     "chartId": r["chart_id"],
@@ -316,7 +320,7 @@ class Library:
             cur["plays"] += 1
             if r["score"] > cur["score"]:
                 cur.update(score=r["score"], rate=r["rate"], maxCombo=r["max_combo"])
-            if lamp_rank > LAMP_ORDER.index(cur["lamp"]):
+            if lamp_rank(r["lamp"]) > lamp_rank(cur["lamp"]):
                 cur["lamp"] = r["lamp"]
         out: dict[str, list[dict[str, Any]]] = {}
         for rec in best.values():

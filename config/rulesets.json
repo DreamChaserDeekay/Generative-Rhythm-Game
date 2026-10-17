@@ -1,0 +1,37 @@
+{
+  "description": "판정 표기·점수·콤보 규칙 프리셋. 판정 범위(ms)는 모두 config/judgement.json의 DJMAX 기준을 공유하고, 여기서는 DJMAX 판정 %를 어떻게 묶어 보여 줄지만 정한다. groups는 minPercent 이상인 첫 그룹으로 분류된다.",
+  "default": "RESPECT",
+  "rulesets": {
+    "RESPECT": {
+      "label": "정밀 %",
+      "reference": "DJMAX RESPECT V",
+      "scoring": "rate",
+      "missLabel": "BREAK"
+    },
+    "GRADE": {
+      "label": "등급형",
+      "reference": "EZ2ON REBOOT : R",
+      "scoring": "weighted",
+      "missLabel": "MISS",
+      "groups": [
+        { "label": "PERFECT", "minPercent": 100, "weight": 1.0, "cls": "g-max" },
+        { "label": "GREAT", "minPercent": 70, "weight": 0.75, "cls": "g-high" },
+        { "label": "GOOD", "minPercent": 10, "weight": 0.4, "cls": "g-mid" },
+        { "label": "BAD", "minPercent": 1, "weight": 0.1, "cls": "g-low" }
+      ]
+    },
+    "EXSCORE": {
+      "label": "EX-SCORE",
+      "reference": "BMS (beatoraja · LR2)",
+      "scoring": "exscore",
+      "missLabel": "POOR",
+      "groups": [
+        { "label": "PERFECT", "minPercent": 100, "ex": 2, "cls": "g-max" },
+        { "label": "GREAT", "minPercent": 80, "ex": 1, "cls": "g-high" },
+        { "label": "GOOD", "minPercent": 10, "ex": 0, "cls": "g-mid" },
+        { "label": "BAD", "minPercent": 1, "ex": 0, "cls": "g-low", "breaksCombo": true }
+      ],
+      "ranks": [["AAA", 0.8889], ["AA", 0.7778], ["A", 0.6667], ["B", 0.5556], ["C", 0.4444], ["D", 0.3333], ["E", 0.2222], ["F", 0]]
+    }
+  }
+}

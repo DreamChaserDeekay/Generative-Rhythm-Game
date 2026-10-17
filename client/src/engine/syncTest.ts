@@ -20,6 +20,7 @@ export function buildSyncTestChart(spec: SyncTestSpec = DEFAULT_SYNC_TEST): Char
   const mode = keyModes[spec.keyMode];
   const keyLanes = mode.lanes.map((l, i) => ({ l, i })).filter(({ l }) => l.kind === 'key').map(({ i }) => i);
   const scratch = mode.lanes.findIndex((l) => l.kind === 'scratch');
+  const sides = mode.lanes.flatMap((l, i) => (l.kind === 'side' ? [i] : []));
   const timing = { offsetMs: spec.firstBeatMs, tempoMap: [{ beat: 0, bpm: spec.bpm }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
   const tempo = new TempoMap(timing);
   const notes: ChartNote[] = [];
@@ -37,6 +38,7 @@ export function buildSyncTestChart(spec: SyncTestSpec = DEFAULT_SYNC_TEST): Char
       tap(b, left[0]);
       tap(b, right[right.length - 1]);
       if (scratch >= 0) tap(b, scratch);
+      if (sides.length > 0) tap(b, sides[(b / 4) % sides.length]);
     } else {
       tap(b, left[b % left.length]);
     }
@@ -45,6 +47,8 @@ export function buildSyncTestChart(spec: SyncTestSpec = DEFAULT_SYNC_TEST): Char
 
   for (let b = third * 2; b + 2 <= spec.beats; b += 4) {
     hold(b, b + 2, left[0]);
+    // Side tracks: a long note after the left-hand hold, alternating sides.
+    if (sides.length > 0) hold(b + 2, b + 4, sides[(b / 4) % sides.length]);
     tap(b, right[0]);
     tap(b + 1, right[right.length - 1]);
     tap(b + 2, right[0]);

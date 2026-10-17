@@ -1,14 +1,65 @@
 {
-  "description": "게이지 규칙(%). gain은 판정 % 비율만큼 곱해 회복하고, MAX 1%는 증감이 없다(DJMAX 규칙). total은 노트 수 기반으로 자동 산정한다(BMS #TOTAL 개념).",
+  "description": "게이지 규칙(%). 판정 %에 비례해 회복하고 MAX 1%는 증감이 없다(DJMAX 규칙). total은 노트 수 기반 자동 산정(BMS #TOTAL 개념), fixedGain은 판정마다 고정 회복량. failAtZero 게이지는 0%가 되는 순간 실패하고, 끝까지 버티면 클리어다. lowHealth는 체력이 낮을 때 피해를 줄인다.",
   "types": {
+    "ASSIST_EASY": {
+      "label": "ASSIST EASY",
+      "start": 20,
+      "clear": 60,
+      "failAtZero": false,
+      "total": { "base": 160, "perEvent": 0.16, "max": 320 },
+      "gainScale": 1.2,
+      "breakPenalty": 2.5,
+      "lamp": "ASSIST CLEAR"
+    },
+    "EASY": {
+      "label": "EASY",
+      "start": 20,
+      "clear": 80,
+      "failAtZero": false,
+      "total": { "base": 160, "perEvent": 0.16, "max": 320 },
+      "gainScale": 1.0,
+      "breakPenalty": 4,
+      "lamp": "EASY CLEAR"
+    },
     "NORMAL": {
       "label": "NORMAL",
       "start": 20,
       "clear": 80,
       "failAtZero": false,
       "total": { "base": 160, "perEvent": 0.16, "max": 320 },
-      "breakPenalty": 5
+      "gainScale": 1.0,
+      "breakPenalty": 5,
+      "lamp": "CLEAR"
+    },
+    "HARD": {
+      "label": "HARD",
+      "start": 100,
+      "clear": 0,
+      "failAtZero": true,
+      "fixedGain": 0.16,
+      "breakPenalty": 9,
+      "lowHealth": { "below": 30, "factor": 0.5 },
+      "lamp": "HARD CLEAR"
+    },
+    "EX_HARD": {
+      "label": "EX-HARD",
+      "start": 100,
+      "clear": 0,
+      "failAtZero": true,
+      "fixedGain": 0.16,
+      "breakPenalty": 18,
+      "lamp": "EX-HARD CLEAR"
+    },
+    "HAZARD": {
+      "label": "HAZARD",
+      "start": 100,
+      "clear": 0,
+      "failAtZero": true,
+      "fixedGain": 0,
+      "breakPenalty": 100,
+      "lamp": "EX-HARD CLEAR"
     }
   },
-  "default": "NORMAL"
+  "default": "NORMAL",
+  "lampOrder": ["FAILED", "ASSIST CLEAR", "EASY CLEAR", "CLEAR", "HARD CLEAR", "EX-HARD CLEAR", "MAX COMBO", "PERFECT PLAY"]
 }

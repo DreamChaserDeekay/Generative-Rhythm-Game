@@ -112,3 +112,51 @@ def test_long_notes_and_chords_scale_with_difficulty(charts: dict) -> None:
         for n in hard:
             chord_sizes_hard[n["t"]] = chord_sizes_hard.get(n["t"], 0) + 1
         assert max(chord_sizes_hard.values()) >= 2
+
+
+ALL_MODES = ("4K", "4K+FX", "5K", "6K", "6K+FX", "7K+1S", "8K")
+
+
+def test_every_key_mode_generates_playable_charts(analysis128: dict) -> None:
+    for mode in ALL_MODES:
+        lanes = lane_infos(mode)
+        levels = []
+        for d in ORDER:
+            chart = generate_chart(analysis128, mode, d, seed=7)
+            params = resolve_params(mode, d)
+            assert lint(chart["notes"], lanes, params, TempoMap(chart["timing"])) == [], (mode, d)
+            assert len(chart["meta"]["lanes"]) == len(lanes)
+            levels.append(chart["meta"]["level"])
+        assert levels == sorted(levels), (mode, levels)
+
+
+def test_side_lanes_get_taps_and_long_notes_from_hard_up(analysis128: dict) -> None:
+    for mode in ("4K+FX", "6K+FX"):
+        side = [l.index for l in lane_infos(mode) if l.kind == "side"]
+        easy = generate_chart(analysis128, mode, "EASY", seed=7)["notes"]
+        assert all(n["lane"] not in side for n in easy)
+        notes = generate_chart(analysis128, mode, "EXPERT", seed=7)["notes"]
+        on_side = [n for n in notes if n["lane"] in side]
+        assert on_side, mode
+        assert any(n["type"] == "hold" for n in on_side), mode
+        assert {n["lane"] for n in on_side} == set(side), mode
+
+
+def test_styles_move_the_skillset_in_their_direction(analysis128: dict) -> None:
+    def skills(style: str) -> dict:
+        return generate_chart(analysis128, "7K+1S", "HARD", seed=42, overrides={"style": style})["meta"]["skillset"]
+
+    base = skills("balanced")
+    assert skills("stream")["stream"] > base["stream"]
+    assert skills("chord")["chord"] > base["chord"]
+    assert skills("jack")["jack"] > base["jack"]
+    assert skills("longnote")["longNote"] > base["longNote"]
+
+
+def test_overrides_are_clamped_to_the_configured_limits() -> None:
+    p = resolve_params("6K+FX", "HARD", overrides={"density": 9, "longNoteRatio": -1, "sideRate": 0.9, "maxChord": 99})
+    assert p.density == 1.5
+    assert p.long_note_ratio == 0.0
+    assert p.side_rate == 0.2
+    assert p.max_chord == resolve_params("6K+FX", "HARD").max_chord + 1
+    assert resolve_params("4K", "HARD", overrides={"style": "nonsense"}).style == "balanced"

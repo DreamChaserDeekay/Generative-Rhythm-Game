@@ -1,8 +1,12 @@
-import type { GaugeRule } from './config';
-import { Gauge } from './gauge';
+import type { ClearLamp, GaugeRule } from './config';
+import { Fever, type FeverMode } from './fever';
+import { Gauge, type GaugeSample } from './gauge';
 import type { Grade, JudgementTable } from './judgement';
+import { Ruleset, type RulesetId, type RulesetRow } from './ruleset';
 import { TempoMap } from './tempo';
 import type { Chart, NoteType } from './types';
+
+export type { ClearLamp } from './config';
 
 export type JudgeKind = 'tap' | 'head' | 'tail';
 
@@ -11,9 +15,13 @@ export interface JudgeEvent {
   noteIndex: number;
   lane: number;
   kind: JudgeKind;
+  /** DJMAX percent (0 for BREAK). */
   percent: number;
+  /** Label and colour class under the active ruleset. */
   label: string;
+  cls: string;
   isBreak: boolean;
+  comboBreak: boolean;
   /** Signed timing error (+ = late); null when the judgement was not a timed press. */
   errorMs: number | null;
   timeMs: number;
@@ -43,9 +51,19 @@ export interface KeyEvent {
   timeMs: number;
 }
 
-export type SessionEvent = JudgeEvent | TickEvent | HoldEvent | KeyEvent;
+export interface FeverEvent {
+  type: 'fever';
+  active: boolean;
+  multiplier: number;
+  timeMs: number;
+}
 
-export type ClearLamp = 'PERFECT PLAY' | 'MAX COMBO' | 'CLEAR' | 'FAILED';
+export interface FailEvent {
+  type: 'fail';
+  timeMs: number;
+}
+
+export type SessionEvent = JudgeEvent | TickEvent | HoldEvent | KeyEvent | FeverEvent | FailEvent;
 
 export interface HitRecord {
   timeMs: number;
@@ -60,6 +78,7 @@ export interface GradeCount {
 }
 
 export interface SessionResult {
+  /** Base score out of 1,000,000 from DJMAX percents (comparable across rulesets). */
   score: number;
   rate: number;
   maxCombo: number;
@@ -67,15 +86,28 @@ export interface SessionResult {
   judgeable: number;
   counts: GradeCount[];
   breaks: number;
+  comboBreaks: number;
   fast: number;
   slow: number;
   meanErrorMs: number | null;
+  medianErrorMs: number | null;
   stdErrorMs: number | null;
   gauge: number;
+  gaugeLabel: string;
+  gaugeHistory: GaugeSample[];
   cleared: boolean;
+  failed: boolean;
+  failedAtMs: number | null;
   lamp: ClearLamp;
   hits: HitRecord[];
   breakTimes: number[];
+  ruleset: RulesetId;
+  rows: RulesetRow[];
+  weightedScore: number;
+  exScore: number;
+  exMax: number;
+  rank: string;
+  fever: { enabled: boolean; bonus: number; activations: number; bestMultiplier: number };
 }
 
 export interface SessionOptions {
@@ -83,6 +115,13 @@ export interface SessionOptions {
   holdTickBeats: number;
   releaseGraceMs: number;
   missMarginMs: number;
+  ruleset?: Ruleset;
+  /** Side-track lanes: a miss there counts as `sideMissPercent` instead of BREAK. */
+  sideLanes?: number[];
+  sideMissPercent?: number;
+  fever?: FeverMode;
+  /** Song ms per real ms (practice rate); reported timing errors are converted back to real ms. */
+  timeScale?: number;
 }
 
 /** Runtime state of a note; `index` is its position in time order. */
@@ -108,6 +147,8 @@ export class GameSession {
   readonly judgeable: number;
   readonly maxPossibleCombo: number;
   readonly gauge: Gauge;
+  readonly fever: Fever;
+  readonly ruleset: Ruleset;
   combo = 0;
   maxCombo = 0;
 
@@ -120,21 +161,30 @@ export class GameSession {
   private readonly laneNext: number[];
   private readonly holding: (SessionNote | null)[];
   private readonly keyDown: boolean[];
+  private readonly sideLanes: Set<number>;
+  private readonly sideGrade: Grade | null;
   private readonly listeners: ((e: SessionEvent) => void)[] = [];
   private readonly counts = new Map<number, number>();
   private readonly hits: HitRecord[] = [];
   private readonly breakTimes: number[] = [];
   private sumPercent = 0;
+  private sumWeight = 0;
+  private exScore = 0;
   private judged = 0;
   private breaks = 0;
+  private comboBreaks = 0;
   private fast = 0;
   private slow = 0;
   private remaining: number;
+  private failed = false;
 
   constructor(chart: Chart, table: JudgementTable, options: SessionOptions) {
     this.table = table;
     this.options = options;
+    this.ruleset = options.ruleset ?? new Ruleset();
     this.laneCount = chart.meta.lanes.length;
+    this.sideLanes = new Set(options.sideLanes ?? []);
+    this.sideGrade = table.grades.find((g) => g.percent === (options.sideMissPercent ?? 1)) ?? null;
     const tempo = new TempoMap(chart.timing);
 
     const sorted = chart.notes
@@ -170,6 +220,7 @@ export class GameSession {
     this.maxPossibleCombo = this.judgeable + holds.reduce((sum, n) => sum + n.ticks.length, 0);
     this.remaining = this.judgeable;
     this.gauge = new Gauge(options.gauge, this.judgeable);
+    this.fever = new Fever(options.fever ?? 'OFF', this.judgeable);
     for (const g of table.grades) this.counts.set(g.percent, 0);
   }
 
@@ -185,14 +236,37 @@ export class GameSession {
     return this.remaining === 0;
   }
 
+  get hasFailed(): boolean {
+    return this.failed;
+  }
+
+  /** Judgement events recorded so far (heads, taps and tails). */
+  get judgedCount(): number {
+    return this.judged;
+  }
+
   /** Average judgement percent so far (DJMAX "Rate"). */
   get currentRate(): number {
     return this.judged > 0 ? this.sumPercent / this.judged : 100;
   }
 
-  /** Score accumulated so far, out of 1,000,000. */
+  /** Base score accumulated so far, out of 1,000,000. */
   get currentScore(): number {
     return this.judgeable > 0 ? Math.round((this.sumPercent / (this.judgeable * 100)) * 1_000_000) : 0;
+  }
+
+  /** Grade-weighted score so far (등급형 ruleset), out of 1,000,000. */
+  get currentWeightedScore(): number {
+    return this.judgeable > 0 ? Math.round((this.sumWeight / this.judgeable) * 1_000_000) : 0;
+  }
+
+  get currentExScore(): number {
+    return this.exScore;
+  }
+
+  /** EX-SCORE of the notes judged so far if they had all been perfect. */
+  get exPace(): number {
+    return this.judged * 2;
   }
 
   isKeyDown(lane: number): boolean {
@@ -205,7 +279,7 @@ export class GameSession {
   }
 
   press(lane: number, timeMs: number): void {
-    if (lane < 0 || lane >= this.laneCount || this.keyDown[lane]) return;
+    if (this.failed || lane < 0 || lane >= this.laneCount || this.keyDown[lane]) return;
     this.keyDown[lane] = true;
     this.emit({ type: 'key', lane, down: true, timeMs });
 
@@ -230,6 +304,7 @@ export class GameSession {
     if (lane < 0 || lane >= this.laneCount || !this.keyDown[lane]) return;
     this.keyDown[lane] = false;
     this.emit({ type: 'key', lane, down: false, timeMs });
+    if (this.failed) return;
 
     const hold = this.holding[lane];
     if (!hold) return;
@@ -241,8 +316,9 @@ export class GameSession {
     }
   }
 
-  /** Per-frame update: hold ticks, hold completion and late misses. */
+  /** Per-frame update: hold ticks, hold completion, late misses and FEVER timing. */
   update(timeMs: number): void {
+    if (this.failed) return;
     const settled = timeMs - this.options.missMarginMs;
     for (let lane = 0; lane < this.laneCount; lane++) {
       const hold = this.holding[lane];
@@ -252,6 +328,16 @@ export class GameSession {
       }
       this.expireLane(lane, settled);
     }
+    const wasActive = this.fever.active;
+    this.fever.update(timeMs);
+    if (wasActive && !this.fever.active) this.emit({ type: 'fever', active: false, multiplier: 1, timeMs });
+  }
+
+  /** MANUAL fever key. */
+  activateFever(timeMs: number): boolean {
+    if (this.failed || !this.fever.activate(timeMs)) return false;
+    this.emit({ type: 'fever', active: true, multiplier: this.fever.multiplier, timeMs });
+    return true;
   }
 
   result(): SessionResult {
@@ -261,11 +347,17 @@ export class GameSession {
       mean !== null && timed.length > 1
         ? Math.sqrt(timed.reduce((a, b) => a + (b - mean) ** 2, 0) / (timed.length - 1))
         : null;
+    const sortedErrors = [...timed].sort((a, b) => a - b);
+    const median = sortedErrors.length > 0 ? sortedErrors[Math.floor(sortedErrors.length / 2)] : null;
     const rate = this.judgeable > 0 ? this.sumPercent / this.judgeable : 0;
-    const allTop = this.judged === this.judgeable && (this.counts.get(this.table.topGrade.percent) ?? 0) === this.judgeable;
+    const complete = this.judged === this.judgeable && !this.failed;
+    const allTop = complete && (this.counts.get(this.table.topGrade.percent) ?? 0) === this.judgeable;
     let lamp: ClearLamp;
-    if (this.judged === this.judgeable && this.breaks === 0) lamp = allTop ? 'PERFECT PLAY' : 'MAX COMBO';
-    else lamp = this.gauge.cleared ? 'CLEAR' : 'FAILED';
+    if (this.failed) lamp = 'FAILED';
+    else if (complete && this.comboBreaks === 0) lamp = allTop ? 'PERFECT PLAY' : 'MAX COMBO';
+    else lamp = this.gauge.cleared && complete ? this.gauge.rule.lamp : 'FAILED';
+    const counts = this.table.grades.map((g) => ({ label: g.label, percent: g.percent, count: this.counts.get(g.percent) ?? 0 }));
+    const exMax = this.judgeable * 2;
 
     return {
       score: this.currentScore,
@@ -273,17 +365,35 @@ export class GameSession {
       maxCombo: this.maxCombo,
       maxPossibleCombo: this.maxPossibleCombo,
       judgeable: this.judgeable,
-      counts: this.table.grades.map((g) => ({ label: g.label, percent: g.percent, count: this.counts.get(g.percent) ?? 0 })),
+      counts,
       breaks: this.breaks,
+      comboBreaks: this.comboBreaks,
       fast: this.fast,
       slow: this.slow,
       meanErrorMs: mean,
+      medianErrorMs: median,
       stdErrorMs: std,
       gauge: this.gauge.value,
+      gaugeLabel: this.gauge.rule.label,
+      gaugeHistory: [...this.gauge.history],
       cleared: this.gauge.cleared,
+      failed: this.failed,
+      failedAtMs: this.gauge.failedAt,
       lamp,
       hits: [...this.hits],
       breakTimes: [...this.breakTimes],
+      ruleset: this.ruleset.id,
+      rows: this.ruleset.rows(counts, this.breaks),
+      weightedScore: this.currentWeightedScore,
+      exScore: this.exScore,
+      exMax,
+      rank: this.ruleset.rank(exMax > 0 ? this.exScore / exMax : 0),
+      fever: {
+        enabled: this.fever.enabled,
+        bonus: Math.round(this.fever.bonus),
+        activations: this.fever.activations,
+        bestMultiplier: this.fever.bestMultiplier,
+      },
     };
   }
 
@@ -294,7 +404,7 @@ export class GameSession {
   }
 
   private expireLane(lane: number, limitMs: number): void {
-    for (let note = this.peekLane(lane); note; note = this.peekLane(lane)) {
+    for (let note = this.peekLane(lane); note && !this.failed; note = this.peekLane(lane)) {
       if (note.t + this.table.outerMs >= limitMs) break;
       this.breakNote(note, note.t + this.table.outerMs, null);
     }
@@ -344,6 +454,8 @@ export class GameSession {
       hold.nextTick++;
       this.combo++;
       this.maxCombo = Math.max(this.maxCombo, this.combo);
+      this.fever.onTick(tickTime);
+      this.emitFeverStart(tickTime);
       this.emit({ type: 'tick', noteIndex: hold.index, lane: hold.lane, timeMs: tickTime, combo: this.combo });
     }
   }
@@ -357,16 +469,24 @@ export class GameSession {
     errorMs: number | null,
     timeMs: number,
   ): void {
+    if (errorMs !== null) errorMs /= this.options.timeScale ?? 1;
+    if (isBreak && this.sideGrade && this.sideLanes.has(note.lane)) {
+      // DJMAX (PC): a missed side-track note is MAX 1%, never BREAK.
+      percent = this.sideGrade.percent;
+      label = this.sideGrade.label;
+      isBreak = false;
+      errorMs = null;
+    }
+    const c = this.ruleset.classify(percent, isBreak, label);
     this.judged++;
     this.remaining--;
     this.sumPercent += percent;
+    this.sumWeight += c.weight;
+    this.exScore += c.ex;
     if (isBreak) {
-      this.combo = 0;
       this.breaks++;
       this.breakTimes.push(timeMs);
     } else {
-      this.combo++;
-      this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.counts.set(percent, (this.counts.get(percent) ?? 0) + 1);
       if (errorMs !== null) {
         this.hits.push({ timeMs, errorMs, percent });
@@ -376,19 +496,46 @@ export class GameSession {
         }
       }
     }
-    this.gauge.apply(percent, isBreak);
+    if (c.breaksCombo) {
+      this.combo = 0;
+      this.comboBreaks++;
+    } else {
+      this.combo++;
+      this.maxCombo = Math.max(this.maxCombo, this.combo);
+    }
+    const feverWasActive = this.fever.active;
+    this.fever.onJudge(percent, isBreak, timeMs);
+    if (feverWasActive && !this.fever.active) this.emit({ type: 'fever', active: false, multiplier: 1, timeMs });
+    this.emitFeverStart(timeMs);
+    this.gauge.apply(percent, isBreak, timeMs);
     this.emit({
       type: 'judge',
       noteIndex: note.index,
       lane: note.lane,
       kind,
       percent,
-      label,
+      label: c.label,
+      cls: c.cls,
       isBreak,
+      comboBreak: c.breaksCombo,
       errorMs,
       timeMs,
       combo: this.combo,
     });
+    if (this.gauge.hasFailed && !this.failed) {
+      this.failed = true;
+      this.emit({ type: 'fail', timeMs });
+    }
+  }
+
+  private feverAnnounced = 0;
+
+  /** Emit a fever start once per activation (AUTO mode fires inside onJudge/onTick). */
+  private emitFeverStart(timeMs: number): void {
+    if (this.fever.active && this.fever.activations !== this.feverAnnounced) {
+      this.feverAnnounced = this.fever.activations;
+      this.emit({ type: 'fever', active: true, multiplier: this.fever.multiplier, timeMs });
+    }
   }
 
   private emit(event: SessionEvent): void {

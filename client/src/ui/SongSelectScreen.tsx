@@ -2,10 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { api, ApiError, type Health, type ServerChart, type Song } from '../api/client';
 import { songBuffer, forgetSongBuffer } from '../audio/bufferCache';
 import { enabledKeyModes } from '../engine/config';
+import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
-import type { Settings } from '../settings/settings';
-import type { PlayRequest } from './App';
+import type { Palette, Settings } from '../settings/settings';
+import type { PlayRequest, PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
+import { ChartMinimap } from './ChartMinimap';
+import { lampClass } from './lamps';
+import { GenerationPanel, generationParams, PlayRulesPanel, PracticePanel, STYLE_LABELS } from './PlayOptions';
 import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
@@ -20,7 +24,6 @@ interface Props {
 
 const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER'];
 const DIFF_SHORT: Record<string, string> = { EASY: 'EZ', NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', MASTER: 'MX' };
-const LAMP_CLASS: Record<string, string> = { 'PERFECT PLAY': 'perfect', 'MAX COMBO': 'maxcombo', CLEAR: 'clear', FAILED: 'failed' };
 const SKILL_LABELS: [string, string][] = [
   ['stream', '스트림'],
   ['chord', '동치'],
@@ -56,6 +59,8 @@ export function SongSelectScreen(props: Props) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [targetLevel, setTargetLevel] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [panel, setPanel] = useState<'none' | 'rules' | 'generation'>('none');
+  const [practice, setPractice] = useState<PracticeOptions | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const preview = useRef<HTMLAudioElement | null>(null);
 
@@ -102,11 +107,13 @@ export function SongSelectScreen(props: Props) {
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
-  // Any change of selection invalidates the generated chart.
+  // Any change of selection (or of the generation options) invalidates the generated chart.
+  const generationKey = JSON.stringify(settings.generation);
   useEffect(() => {
     setChart(null);
     setError(null);
-  }, [selectedSongId, keyMode, difficulty, targetLevel]);
+    setPractice(null);
+  }, [selectedSongId, keyMode, difficulty, targetLevel, generationKey]);
 
   // Highlight preview of the selected song.
   useEffect(() => {
@@ -163,7 +170,13 @@ export function SongSelectScreen(props: Props) {
     setBusy(newSeed ? '새 패턴 생성 중…' : '채보 생성 중…');
     setError(null);
     try {
-      const { chart: c } = await api.generate(selected.id, { keyMode, difficulty, targetLevel, newSeed });
+      const { chart: c } = await api.generate(selected.id, {
+        keyMode,
+        difficulty,
+        targetLevel,
+        newSeed,
+        params: generationParams(settings.generation, keyMode),
+      });
       setChart(c);
       return c;
     } catch (e) {
@@ -180,7 +193,29 @@ export function SongSelectScreen(props: Props) {
     if (!c) return;
     preview.current?.pause();
     const songId = selected.id;
-    onPlay({ chart: c, autoPlay, loadAudio: () => songBuffer(songId) });
+    const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
+    onPlay({
+      chart: c,
+      autoPlay,
+      loadAudio: () => songBuffer(songId),
+      best: best ? { score: best.score, rate: best.rate } : null,
+      practice: practice ?? undefined,
+    });
+  };
+
+  const togglePractice = (on: boolean) => {
+    if (!on || !chart) {
+      setPractice(null);
+      return;
+    }
+    // Start on the bar of the first note and take eight bars.
+    const bars = new TempoMap(chart.timing).barLines(chart.meta.durationMs ?? 0);
+    const first = Math.min(...chart.notes.map((n) => n.t));
+    let i = bars.findIndex((b) => b > first);
+    i = i < 0 ? Math.max(0, bars.length - 1) : Math.max(0, i - 1);
+    const startMs = bars[i] ?? 0;
+    const endMs = bars[Math.min(bars.length - 1, i + 8)] ?? chart.meta.durationMs ?? startMs + 15000;
+    setPractice({ startMs, endMs: endMs > startMs ? endMs : startMs + 15000, rate: 1, loop: true });
   };
 
   const patch = async (body: Parameters<typeof api.patchSong>[1]) => {
@@ -365,7 +400,7 @@ export function SongSelectScreen(props: Props) {
                       <button key={d} className={`difficulty diff-${d.toLowerCase()} ${d === difficulty && targetLevel === null ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
                         <span className="diff-name">{d}</span>
                         <span className="diff-short">{DIFF_SHORT[d]}</span>
-                        {best && <span className={`diff-lamp ${LAMP_CLASS[best.lamp] ?? ''}`}>{best.rate.toFixed(2)}%</span>}
+                        {best && <span className={`diff-lamp ${lampClass(best.lamp)}`}>{best.rate.toFixed(2)}%</span>}
                       </button>
                     );
                   })}
@@ -386,9 +421,28 @@ export function SongSelectScreen(props: Props) {
                     오토 플레이
                   </label>
                 </div>
+                <div className="row">
+                  <button className={`small ${panel === 'rules' ? 'active' : ''}`} data-testid="toggle-rules" onClick={() => setPanel(panel === 'rules' ? 'none' : 'rules')}>
+                    플레이 옵션
+                  </button>
+                  <button
+                    className={`small ${panel === 'generation' ? 'active' : ''}`}
+                    data-testid="toggle-generation"
+                    onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
+                  >
+                    생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
+                  </button>
+                  <label className="row check">
+                    <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => togglePractice(e.target.checked)} data-testid="practice-toggle" />
+                    연습 모드
+                  </label>
+                </div>
+                {panel === 'rules' && <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />}
+                {panel === 'generation' && <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={keyMode} />}
+                {practice && <PracticePanel practice={practice} onChange={setPractice} />}
                 <div className="row buttons">
                   <button className="primary" data-testid="play-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void play()}>
-                    {chart ? '플레이' : '채보 생성 & 플레이'} <kbd>Enter</kbd>
+                    {practice ? '연습 시작' : chart ? '플레이' : '채보 생성 & 플레이'} <kbd>Enter</kbd>
                   </button>
                   <button data-testid="generate-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void generate(chart !== null)}>
                     {chart ? '다른 패턴' : '채보 미리보기'}
@@ -398,7 +452,14 @@ export function SongSelectScreen(props: Props) {
                 {error && <p className="error" data-testid="select-error">{error}</p>}
               </section>
 
-              {chart && <ChartPreview chart={chart} />}
+              {chart && (
+                <ChartPreview
+                  chart={chart}
+                  palette={settings.palette}
+                  practice={practice}
+                  onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
+                />
+              )}
 
               <section className="panel">
                 <div className="row">
@@ -464,7 +525,13 @@ function BpmInput({ onApply, disabled }: { onApply: (bpm: number) => void; disab
   );
 }
 
-function ChartPreview({ chart }: { chart: ServerChart }) {
+function ChartPreview(props: {
+  chart: ServerChart;
+  palette: Palette;
+  practice: PracticeOptions | null;
+  onSelectRange: (startMs: number, endMs: number) => void;
+}) {
+  const { chart } = props;
   const m = chart.meta;
   const graph = m.nps.graph;
   const max = Math.max(1, ...graph);
@@ -485,9 +552,20 @@ function ChartPreview({ chart }: { chart: ServerChart }) {
           <div><span className="label">롱노트</span> {holds}</div>
           <div><span className="label">평균 / 최대 NPS</span> {m.nps.avg} / {m.nps.peak}</div>
           <div><span className="label">세부 난이도</span> {m.rating.toFixed(2)}</div>
+          {m.handLoad && (
+            <div title="손별 부담 (난이도 모델의 손 strain 비율)">
+              <span className="label">왼손 / 오른손</span> {Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}
+            </div>
+          )}
         </div>
       </div>
       {m.densityLimited && <p className="hint">곡의 소리 밀도가 낮아 목표 레벨까지 올리지 못했습니다. 없는 소리에 노트를 만들지 않기 때문입니다.</p>}
+      <ChartMinimap
+        chart={chart}
+        palette={props.palette}
+        selection={props.practice ? [props.practice.startMs, props.practice.endMs] : null}
+        onSelect={props.practice ? props.onSelectRange : undefined}
+      />
       <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
         <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
         <polyline points={points} className="nps-line" />

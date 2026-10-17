@@ -29,6 +29,27 @@ USAGE_DECAY = 0.9
 
 
 @dataclass(frozen=True)
+class _Weights:
+    """Cost weights after the style multipliers (resolved once per chart, not per combo)."""
+
+    pitch: float
+    contour: float
+    alternate: float
+    jack: float
+    jack_bonus: float
+
+    @staticmethod
+    def of(params: GenParams) -> "_Weights":
+        return _Weights(
+            pitch=W_PITCH * params.weight("pitchWeight"),
+            contour=W_CONTOUR * params.weight("contourWeight"),
+            alternate=W_ALTERNATE * params.weight("alternateWeight"),
+            jack=W_JACK * params.weight("jackWeight"),
+            jack_bonus=params.weight("jackBonus", 0.0),
+        )
+
+
+@dataclass(frozen=True)
 class LaneInfo:
     index: int
     kind: str
@@ -83,8 +104,9 @@ def _pitch_targets(slots: list[Slot]) -> list[float | None]:
 def assign_lanes(slots: list[Slot], lanes: list[LaneInfo], params: GenParams, tempo: TempoMap, rng: np.random.Generator) -> list[dict[str, Any]]:
     n_lanes = len(lanes)
     key_lanes = [l.index for l in lanes if l.kind == "key"]
-    scratch_lanes = [l.index for l in lanes if l.kind == "scratch"]
+    special_lanes = [l.index for l in lanes if l.kind in ("scratch", "side")]
     targets = _pitch_targets(slots)
+    weights = _Weights.of(params)
     neg = -1e9
     beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None)]
 
@@ -103,16 +125,14 @@ def assign_lanes(slots: list[Slot], lanes: list[LaneInfo], params: GenParams, te
             for i in range(n_lanes):
                 if state.hold_end[i] > t:
                     holding_hands[lanes[i].hand] = holding_hands.get(lanes[i].hand, 0) + 1
-            scratch_ok = any(
-                i in free and (not holding_hands.get(lanes[i].hand) or params.hold_hand_limit >= 1) for i in scratch_lanes
-            )
-            use_scratch = slot.scratch and scratch_ok
-            want_keys = slot.size - (1 if use_scratch else 0)
+            special = _special_lane(slot, state, free, special_lanes, lanes, holding_hands, params, hold_end_t)
+            mean_use = sum(state.usage[i] for i in key_lanes) / max(1, len(key_lanes))
+            want_keys = slot.size - (1 if special is not None else 0)
             free_keys = [i for i in free if i in key_lanes]
             combos: list[tuple[int, ...]] = []
             dropped = 0
             for k in range(min(want_keys, len(free_keys)), -1, -1):
-                combos = _valid_combos(free_keys, k, lanes, params, holding_hands, use_scratch, scratch_lanes)
+                combos = _valid_combos(free_keys, k, lanes, params, holding_hands, special)
                 if combos or k == 0:
                     dropped = want_keys - k
                     break
@@ -120,13 +140,15 @@ def assign_lanes(slots: list[Slot], lanes: list[LaneInfo], params: GenParams, te
                 combos = [()]
             scored = []
             for combo in combos:
-                lanes_used = combo + ((scratch_lanes[0],) if use_scratch else ())
+                lanes_used = combo + ((special,) if special is not None else ())
                 if not lanes_used:
                     scored.append((W_DROP * slot.size, lanes_used, None))
                     continue
-                cost = dropped * W_DROP + _cost(state, combo, lanes, slot, target, t, params) + rng.random() * W_NOISE
+                cost = dropped * W_DROP + _cost(state, combo, lanes, slot, target, t, weights, mean_use) + rng.random() * W_NOISE
                 ln_lane = None
-                if hold_end_t is not None and combo:
+                if hold_end_t is not None and slot.special_hold and special is not None:
+                    ln_lane = special
+                elif hold_end_t is not None and combo:
                     # a hand may only hold so many long notes at once
                     options = [i for i in combo if holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand]
                     if options:
@@ -180,22 +202,56 @@ def assign_lanes(slots: list[Slot], lanes: list[LaneInfo], params: GenParams, te
     return notes
 
 
+def _special_lane(
+    slot: Slot,
+    state: _State,
+    free: list[int],
+    special_lanes: list[int],
+    lanes: list[LaneInfo],
+    holding_hands: dict[str, int],
+    params: GenParams,
+    hold_end_t: float | None,
+) -> int | None:
+    """Pick the scratch/side lane for a slot that wants one (None when none is playable now)."""
+    if slot.special is None:
+        return None
+    options = []
+    for i in special_lanes:
+        if i not in free:
+            continue
+        hand = lanes[i].hand
+        if holding_hands.get(hand) and params.hold_hand_limit < 1:
+            continue
+        if slot.special_hold and hold_end_t is not None and holding_hands.get(hand, 0) >= params.max_holds_per_hand:
+            continue
+        options.append(i)
+    if not options:
+        return None
+    if len(options) == 1:
+        return options[0]
+    # Two side lanes: low-heavy sounds go left, bright ones right; then prefer the less recent one.
+    total = float(np.sum(slot.bands)) + 1e-9
+    brightness = (slot.bands[2] - slot.bands[0]) / total
+    def cost(i: int) -> float:
+        side = -1.0 if lanes[i].hand == "L" else 1.0
+        return -side * brightness + 0.3 * (state.last[i] > state.prev_t - 1e-6)
+    return min(options, key=cost)
+
+
 def _valid_combos(
     free_keys: list[int],
     k: int,
     lanes: list[LaneInfo],
     params: GenParams,
     holding_hands: dict[str, int],
-    use_scratch: bool,
-    scratch_lanes: list[int],
+    special: int | None,
 ) -> list[tuple[int, ...]]:
     if k == 0:
         return [()]
     out = []
     base: dict[str, int] = {}
-    if use_scratch:
-        for i in scratch_lanes[:1]:
-            base[lanes[i].hand] = base.get(lanes[i].hand, 0) + 1
+    if special is not None:
+        base[lanes[special].hand] = 1
     for combo in itertools.combinations(free_keys, k):
         per_hand = dict(base)
         for i in combo:
@@ -219,13 +275,22 @@ def _valid_combos(
     return out
 
 
-def _cost(state: _State, combo: tuple[int, ...], lanes: list[LaneInfo], slot: Slot, target: float | None, t: float, params: GenParams) -> float:
+def _cost(
+    state: _State,
+    combo: tuple[int, ...],
+    lanes: list[LaneInfo],
+    slot: Slot,
+    target: float | None,
+    t: float,
+    w: _Weights,
+    mean_use: float,
+) -> float:
     if not combo:
         return 0.0
     cost = 0.0
     mean_pos = sum(lanes[i].pos for i in combo) / len(combo)
     if target is not None:
-        cost += W_PITCH * (mean_pos - target) ** 2
+        cost += w.pitch * (mean_pos - target) ** 2
     dt = t - state.prev_t
     prev = state.prev_lanes
     if len(combo) == 1 and len(prev) == 1:
@@ -237,15 +302,17 @@ def _cost(state: _State, combo: tuple[int, ...], lanes: list[LaneInfo], slot: Sl
             direction = np.sign(slot.pitch - state.prev_pitch)
             move = np.sign(lanes[lane].pos - lanes[prev_lane].pos)
             if direction != 0 and move != direction:
-                cost += W_CONTOUR
+                cost += w.contour
         if dt < 200 and lanes[lane].hand == lanes[prev_lane].hand:
-            cost += W_ALTERNATE * (200 - dt) / 200
+            cost += w.alternate * (200 - dt) / 200
     repeated = sum(1 for i in combo if i in prev)
-    if repeated and not (slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5):
+    same_sound = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
+    if repeated and not same_sound:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
-        cost += W_JACK * repeated * (0.6 + speed)
+        cost += w.jack * repeated * (0.6 + speed)
+    if repeated and dt < 400.0:
+        cost -= w.jack_bonus * repeated  # jack style: repeats stay on their lane
     usage = state.usage
-    mean_use = sum(usage[l.index] for l in lanes if l.kind == "key") / max(1, sum(1 for l in lanes if l.kind == "key"))
     for i in combo:
         cost += W_BALANCE * (usage[i] - mean_use) / (mean_use + 1.0)
     return cost

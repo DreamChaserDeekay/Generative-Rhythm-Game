@@ -1,5 +1,5 @@
 {
-  "description": "난이도 프리셋(4K 기준). avgNps는 생성 시 첫 목표 밀도이고, 최종 레벨은 난이도 산정 루프가 levels 범위에 맞춘다. subdivisions는 박당 분할(1=4분, 2=8분, 3=8분 셋잇단, 4=16분, 6=16분 셋잇단, 8=32분), partialSubdivisions는 해당 분할의 최대 비율.",
+  "description": "난이도 프리셋(4K 기준). avgNps는 생성 시 첫 목표 밀도이고, 최종 레벨은 난이도 산정 루프가 levels 범위에 맞춘다. subdivisions는 박당 분할(1=4분, 2=8분, 3=8분 셋잇단, 4=16분, 6=16분 셋잇단, 8=32분), partialSubdivisions는 해당 분할의 최대 비율. scratchRate/sideRate는 스크래치·사이드 노트가 붙는 슬롯 비율.",
   "order": ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER"],
   "presets": {
     "EASY": {
@@ -17,6 +17,7 @@
       "holdHandLimit": 0,
       "maxHoldsPerHand": 1,
       "scratchRate": 0.0,
+      "sideRate": 0.0,
       "highBandWeight": 0.35
     },
     "NORMAL": {
@@ -34,6 +35,7 @@
       "holdHandLimit": 0,
       "maxHoldsPerHand": 1,
       "scratchRate": 0.03,
+      "sideRate": 0.04,
       "highBandWeight": 0.5
     },
     "HARD": {
@@ -41,7 +43,9 @@
       "avgNps": [5.0, 8.0],
       "peakNps1s": 12,
       "subdivisions": [1, 2, 3, 4],
-      "partialSubdivisions": { "4": 0.15 },
+      "partialSubdivisions": {
+        "4": 0.15
+      },
       "maxChord": 3,
       "chordRatio": 0.18,
       "longNoteRatio": 0.15,
@@ -51,6 +55,7 @@
       "holdHandLimit": 1,
       "maxHoldsPerHand": 1,
       "scratchRate": 0.05,
+      "sideRate": 0.06,
       "highBandWeight": 0.7
     },
     "EXPERT": {
@@ -58,7 +63,9 @@
       "avgNps": [8.0, 12.0],
       "peakNps1s": 18,
       "subdivisions": [1, 2, 3, 4, 6],
-      "partialSubdivisions": { "6": 0.1 },
+      "partialSubdivisions": {
+        "6": 0.1
+      },
       "maxChord": 4,
       "chordRatio": 0.25,
       "longNoteRatio": 0.18,
@@ -68,6 +75,7 @@
       "holdHandLimit": 2,
       "maxHoldsPerHand": 1,
       "scratchRate": 0.07,
+      "sideRate": 0.08,
       "highBandWeight": 0.85
     },
     "MASTER": {
@@ -75,7 +83,9 @@
       "avgNps": [12.0, 16.0],
       "peakNps1s": 26,
       "subdivisions": [1, 2, 3, 4, 6, 8],
-      "partialSubdivisions": { "8": 0.08 },
+      "partialSubdivisions": {
+        "8": 0.08
+      },
       "maxChord": 6,
       "chordRatio": 0.32,
       "longNoteRatio": 0.18,
@@ -85,11 +95,36 @@
       "holdHandLimit": 2,
       "maxHoldsPerHand": 2,
       "scratchRate": 0.09,
+      "sideRate": 0.1,
       "highBandWeight": 1.0
     }
   },
-  "keyModeNpsFactor": { "4K": 1.0, "5K": 1.1, "6K": 1.2, "7K+1S": 1.3, "8K": 1.35 },
+  "keyModeNpsFactor": {
+    "4K": 1.0,
+    "4K+FX": 1.05,
+    "5K": 1.1,
+    "6K": 1.2,
+    "6K+FX": 1.25,
+    "7K+1S": 1.3,
+    "8K": 1.35
+  },
   "levelEffectiveNps": [1.4, 2.0, 2.6, 3.2, 3.9, 4.6, 5.4, 6.3, 7.3, 8.4, 9.6, 10.9, 12.3, 13.8, 15.5],
+  "styles": {
+    "description": "생성 스타일. 프리셋 값에 곱하는 배율(chordRatio·density·longNoteRatio·minLnScale·minJackScale·partialScale)과 maxChordBonus, 후보 점수 가중(subdivisionBoost·offbeatBoost·downbeatBoost·harmonicBoost), 레인 배치 비용 가중(jackWeight·jackBonus·alternateWeight·pitchWeight·contourWeight). 소리가 없는 곳에 노트를 만들지 않는 규칙은 스타일과 무관하게 유지된다.",
+    "balanced": {},
+    "stream": { "chordRatio": 0.45, "density": 1.08, "subdivisionBoost": { "2": 1.15, "4": 1.35 }, "partialScale": 1.5, "jackWeight": 1.8, "alternateWeight": 1.6 },
+    "chord": { "chordRatio": 1.8, "maxChordBonus": 1, "density": 0.9, "downbeatBoost": 1.2 },
+    "jack": { "chordRatio": 0.8, "minJackScale": 0.75, "jackWeight": 0.0, "jackBonus": 1.2, "alternateWeight": 0.6 },
+    "longnote": { "longNoteRatio": 2.4, "minLnScale": 0.6, "density": 0.92, "harmonicBoost": 0.4 },
+    "technical": { "subdivisionBoost": { "3": 1.6, "4": 1.2, "6": 1.5, "8": 1.3 }, "offbeatBoost": 1.3, "partialScale": 1.8, "pitchWeight": 0.6, "jackWeight": 1.3 },
+    "melody": { "harmonicBoost": 0.8, "chordRatio": 0.7, "pitchWeight": 1.8, "contourWeight": 2.2 }
+  },
+  "overrideLimits": {
+    "density": [0.5, 1.5],
+    "longNoteRatio": [0.0, 0.5],
+    "scratchRate": [0.0, 0.2],
+    "sideRate": [0.0, 0.2]
+  },
   "snapToleranceMs": 35,
   "lnTailGapBeats": 0.25,
   "maxAdjustIterations": 5

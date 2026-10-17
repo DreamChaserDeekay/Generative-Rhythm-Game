@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
-import { cameraPose, computeTrackGeometry, noteZ } from './layout';
+import { cameraPose, computeTrackGeometry } from './layout';
 
 function screenY(presetId: string, z: number, aspect = 16 / 9): number {
   const pose = cameraPose(cameraConfig.presets[presetId]);
@@ -24,10 +24,12 @@ describe('track layout', () => {
     expect(g.lanes[7].x + g.lanes[7].width / 2).toBeCloseTo(4, 9);
   });
 
-  it('places notes at the judgement line when due and at the track end after visibleMs', () => {
-    expect(noteZ(1000, 1000, 1250, 40)).toBeCloseTo(0, 9);
-    expect(noteZ(2250, 1000, 1250, 40)).toBeCloseTo(-40, 9);
-    expect(noteZ(500, 1000, 1250, 40)).toBeGreaterThan(0);
+  it('puts the narrower side tracks on both edges of the FX modes', () => {
+    const g = computeTrackGeometry(keyModes['6K+FX'], 8, 40);
+    expect(g.lanes.map((l) => l.kind)).toEqual(['side', 'key', 'key', 'key', 'key', 'key', 'key', 'side']);
+    expect(g.lanes[0].width / g.lanes[1].width).toBeCloseTo(0.75, 9);
+    expect(g.lanes[0].x).toBeCloseTo(-g.lanes[7].x, 9);
+    expect(g.lanes.reduce((s, l) => s + l.width, 0)).toBeCloseTo(8, 9);
   });
 
   it('frames the SDVX preset with the judgement line low and the track end high on screen', () => {

@@ -17,7 +17,7 @@ from .params import GenParams, resolve_params
 from .select import MAX_CHORD_RATIO, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.1.0"
+GENERATOR_VERSION = "0.2.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least
@@ -66,7 +66,8 @@ def generate_chart(
     tempo = TempoMap(analysis["timing"])
     cfg = difficulty_config()
     lanes = lane_infos(key_mode)
-    has_scratch = any(l.kind == "scratch" for l in lanes)
+    kinds = {l.kind for l in lanes}
+    special_kind = "scratch" if "scratch" in kinds else "side" if "side" in kinds else None
     duration = float(analysis["durationMs"])
     candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]))
     if not candidates:
@@ -87,7 +88,7 @@ def generate_chart(
     best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any]] | None = None
     exhausted = False
     for _ in range(int(cfg["maxAdjustIterations"])):
-        slots = select_slots(candidates, params, tempo, scale, has_scratch, key_count, chord_scale)
+        slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
         notes = assign_lanes(slots, lanes, params, tempo, np.random.default_rng(seed))
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
@@ -148,6 +149,7 @@ def generate_chart(
             "effectiveNps": est["effectiveNps"],
             "densityLimited": exhausted,
             "skillset": est["skillset"],
+            "handLoad": est["handLoad"],
             "generator": {
                 "version": GENERATOR_VERSION,
                 "analyzer": f"{analysis['analyzer']['name']}-{analysis['analyzer']['version']}",

@@ -122,8 +122,13 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
 
 def _score(cands: list[Candidate], params: GenParams) -> None:
     band_weight = np.array([1.0, 1.0, params.high_band_weight])
+    boosts = params.extra.get("subdivisionBoost", {})
+    offbeat = params.weight("offbeatBoost")
+    downbeat = params.weight("downbeatBoost")
+    harmonic = params.weight("harmonicBoost", 0.0)
     for c in cands:
-        metrical = DOWNBEAT_WEIGHT if c.downbeat else METRICAL_WEIGHT.get(c.subdivision, 0.3)
+        metrical = DOWNBEAT_WEIGHT * downbeat if c.downbeat else METRICAL_WEIGHT.get(c.subdivision, 0.3)
+        metrical *= boosts.get(c.subdivision, 1.0) * (offbeat if c.subdivision > 1 else 1.0)
         total = float(np.sum(c.bands)) + 1e-9
         w_band = float(np.dot(c.bands, band_weight)) / total
         source = 1.0
@@ -133,4 +138,5 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
             source = 0.5 + 1.0 * (c.bands[0] / total)
         elif params.rhythm_source in ("melody", "vocal"):
             source = 0.5 + 0.7 * c.harmonic + (0.3 if c.pitch is not None else 0.0)
+        source *= 1.0 + harmonic * c.harmonic
         c.score = (min(c.strength, 1.5) ** 0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source
