@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+
+
+class _DroppedConnectionFilter(logging.Filter):
+    """Windows' proactor event loop logs a traceback for every connection the browser drops, which
+    happens all the time with audio range requests; they are not errors."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        exc = record.exc_info[1] if record.exc_info else None
+        return not isinstance(exc, ConnectionResetError)
 
 
 def _serve(args: argparse.Namespace) -> None:
@@ -15,6 +25,7 @@ def _serve(args: argparse.Namespace) -> None:
 
     from .api.app import create_app
 
+    logging.getLogger("asyncio").addFilter(_DroppedConnectionFilter())
     if args.data:
         os.environ["GRG_DATA_DIR"] = str(Path(args.data).resolve())
     app = create_app()

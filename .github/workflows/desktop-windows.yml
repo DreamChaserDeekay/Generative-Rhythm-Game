@@ -27,15 +27,15 @@ jobs:
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: server/pyproject.toml
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -66,7 +66,7 @@ jobs:
           npm ci
           npx electron-builder --win nsis --x64 --publish never
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: GenerativeRhythm-Windows-Setup
           path: desktop/dist/GenerativeRhythm-Setup-*.exe
@@ -94,7 +94,7 @@ jobs:
           Copy-Item (Join-Path $env:RUNNER_TEMP 'grg-smoke/*.log') desktop/dist/smoke -ErrorAction SilentlyContinue
           Copy-Item (Join-Path $env:APPDATA 'Generative Rhythm/server.log') desktop/dist/smoke/desktop-server.log -ErrorAction SilentlyContinue
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: windows-smoke-test

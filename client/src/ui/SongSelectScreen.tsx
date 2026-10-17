@@ -139,10 +139,14 @@ export function SongSelectScreen(props: Props) {
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
-  // Any change of selection (or of the generation options) invalidates the generated chart.
+  // Any change of selection (or of the generation options) invalidates the generated chart,
+  // except the switch of key mode / difficulty tabs that picking a saved chart makes.
   const generationKey = JSON.stringify(settings.generation);
+  const pickedChart = useRef<ServerChart | null>(null);
   useEffect(() => {
-    setChart(null);
+    const picked = pickedChart.current;
+    pickedChart.current = null;
+    setChart(picked && picked.meta.keyMode === keyMode && picked.meta.difficulty === difficulty ? picked : null);
     setError(null);
     setPractice(null);
   }, [selectedSongId, keyMode, difficulty, targetLevel, generationKey]);
@@ -261,7 +265,16 @@ export function SongSelectScreen(props: Props) {
     setError(null);
     setPractice(null);
     try {
-      setChart(await api.chart(c.chartId));
+      const picked = await api.chart(c.chartId);
+      const { keyMode: mode, difficulty: diff } = picked.meta;
+      // show its key mode and difficulty on the tabs (an imported 7K+1S chart while 4K is selected)
+      if ((mode !== keyMode || diff !== difficulty) && enabledKeyModes.includes(mode) && DIFFICULTIES.includes(diff)) {
+        pickedChart.current = picked;
+        setTargetLevel(null);
+        onSettingsChange({ ...settings, lastKeyMode: mode, lastDifficulty: diff });
+      } else {
+        setChart(picked);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

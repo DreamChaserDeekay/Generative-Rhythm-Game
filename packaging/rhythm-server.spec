@@ -8,7 +8,8 @@ ROOT = Path(SPECPATH).parent
 datas = [(str(ROOT / "config"), "config"), (str(ROOT / "client" / "dist"), "client_dist")]
 binaries = []
 hiddenimports = collect_submodules("rhythm_server") + collect_submodules("uvicorn")
-for package in ("av", "soundfile", "_soundfile_data"):
+# soundfile is a single module (its contrib hook covers it); libsndfile ships in _soundfile_data
+for package in ("av", "_soundfile_data"):
     d, b, h = collect_all(package)
     datas += d
     binaries += b

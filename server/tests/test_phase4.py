@@ -343,3 +343,21 @@ def test_scores_keep_their_replays(client: TestClient, tmp_path: Path) -> None:
     assert bad.status_code == 422
     client.delete(f"/api/songs/{sid}")
     assert client.get(f"/api/scores/{best['bestScoreId']}/replay").status_code == 404
+
+
+def test_dropped_connection_tracebacks_are_not_logged():
+    import logging
+    import sys
+
+    from rhythm_server.__main__ import _DroppedConnectionFilter
+
+    def record(exc: Exception) -> logging.LogRecord:
+        try:
+            raise exc
+        except Exception:
+            return logging.LogRecord("asyncio", logging.ERROR, __file__, 1, "Exception in callback", None, sys.exc_info())
+
+    keep = _DroppedConnectionFilter().filter
+    assert not keep(record(ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host")))
+    assert keep(record(ValueError("a real problem")))
+    assert keep(logging.LogRecord("asyncio", logging.WARNING, __file__, 1, "slow callback", None, None))
