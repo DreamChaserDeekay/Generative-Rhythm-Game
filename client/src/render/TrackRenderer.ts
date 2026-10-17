@@ -8,6 +8,17 @@ import { FEVER_COLORS, type Palette } from './palette';
 import { hex, laneColorsFor, type Skin } from './skins';
 
 const MISSED_COLOR = 0x4a5068;
+/**
+ * Long note bodies: lighter than the lane colour and mostly opaque so they read on a dark track
+ * before they are pressed (dark lane colours such as blue vanished at 40% opacity), brighter while
+ * held, dim once broken.
+ */
+const HOLD_BODY = {
+  idle: { lighten: 0.35, opacity: 0.92 },
+  held: { lighten: 0.6, opacity: 1 },
+  missed: { lighten: 0, opacity: 0.4 },
+} as const;
+const HOLD_BODY_WIDTH = 0.8;
 /** How far the track extends below the judgement line, toward the camera. */
 const TRACK_TAIL = 4;
 const NOTE_HEIGHT = 0.2;
@@ -86,6 +97,7 @@ export class TrackRenderer {
   private readonly holdGlows: THREE.Sprite[] = [];
   private readonly effects: { sprite: THREE.Sprite; start: number; lane: number }[] = [];
   private readonly glowTexture = radialTexture();
+  private readonly holdTexture = holdBodyTexture();
   private readonly ringTexture = ringTexture();
   private readonly judgeGroup = new THREE.Group();
   private readonly judgeGlowMaterial: THREE.MeshBasicMaterial;
@@ -271,6 +283,7 @@ export class TrackRenderer {
       }
     });
     this.glowTexture.dispose();
+    this.holdTexture.dispose();
     this.ringTexture.dispose();
     this.renderer.dispose();
   }
@@ -304,7 +317,7 @@ export class TrackRenderer {
       if (headZ > tailZ) {
         const body = this.bodyPool.next();
         body.material = this.bodyMaterial(bodyColor, state);
-        body.scale.set(lane.width * 0.72, 1, headZ - tailZ);
+        body.scale.set(lane.width * HOLD_BODY_WIDTH, 1, headZ - tailZ);
         body.position.set(lane.x, 0.02, (headZ + tailZ) / 2);
       }
       if (!n.headDone || held || n.broken) this.placeNote(lane.x, lane.width, headZ, bodyColor, height);
@@ -538,8 +551,15 @@ export class TrackRenderer {
     const key = `${color}:${state}`;
     let m = this.bodyMaterials.get(key);
     if (!m) {
-      const opacity = state === 'held' ? 0.6 : state === 'missed' ? 0.25 : 0.4;
-      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, clippingPlanes: this.clipPlanes });
+      const { lighten, opacity } = HOLD_BODY[state];
+      m = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), lighten),
+        map: this.holdTexture,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        clippingPlanes: this.clipPlanes,
+      });
       this.bodyMaterials.set(key, m);
     }
     return m;
@@ -603,6 +623,26 @@ function radialTexture(): THREE.Texture {
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** Across a long note body: bright opaque edges and a slightly see-through middle. */
+function holdBodyTexture(): THREE.Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 4;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = ctx.createLinearGradient(0, 0, 64, 0);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.1, 'rgba(255,255,255,1)');
+  g.addColorStop(0.2, 'rgba(230,230,230,0.85)');
+  g.addColorStop(0.8, 'rgba(230,230,230,0.85)');
+  g.addColorStop(0.9, 'rgba(255,255,255,1)');
+  g.addColorStop(1, 'rgba(255,255,255,1)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 4);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
