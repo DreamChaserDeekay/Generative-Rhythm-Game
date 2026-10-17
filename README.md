@@ -70,8 +70,8 @@ cd server
 | 4K | D F J K |
 | 4K+FX | L-Shift(왼쪽 사이드) D F J K R-Shift(오른쪽 사이드) |
 | 5K | D F Space J K |
-| 6K | S D F J K L |
-| 6K+FX | L-Shift S D F J K L R-Shift |
+| 6K | S D F K L ; |
+| 6K+FX | L-Shift S D F K L ; R-Shift |
 | 7K+1S | L-Shift(스크래치) S D F Space J K L — 설정에서 BMS식 Z S X D C F V 배치로 바꿀 수 있음 |
 | 8K | A S D F J K L ; |
 

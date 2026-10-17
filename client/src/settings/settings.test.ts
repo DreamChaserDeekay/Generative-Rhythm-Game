@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeCovers, DEFAULT_SETTINGS, greenNumber, sanitizeSettings, withCovers } from './settings';
+import { activeCovers, bindingsFor, DEFAULT_SETTINGS, greenNumber, sanitizeSettings, withCovers } from './settings';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -29,6 +29,11 @@ describe('settings', () => {
     expect(greenNumber(next.hiSpeed, activeCovers(next))).toBeCloseTo(before, 0);
     const free = withCovers({ ...s, keepVisibleTime: false }, { sudden: 0.3 });
     expect(free.hiSpeed).toBe(4);
+  });
+
+  it('uses S D F K L ; as the default 6-key layout', () => {
+    expect(bindingsFor(DEFAULT_SETTINGS, '6K')).toEqual(['KeyS', 'KeyD', 'KeyF', 'KeyK', 'KeyL', 'Semicolon']);
+    expect(bindingsFor(DEFAULT_SETTINGS, '6K+FX').slice(1, 7)).toEqual(['KeyS', 'KeyD', 'KeyF', 'KeyK', 'KeyL', 'Semicolon']);
   });
 
   it('never lets the covers close the lane', () => {
