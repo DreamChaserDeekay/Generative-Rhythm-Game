@@ -4,6 +4,18 @@
 
 - 개발 명세(프롬프트): [docs/PROMPT.md](docs/PROMPT.md)
 - 설계: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · 분석·생성 알고리즘: [docs/GENERATION.md](docs/GENERATION.md) · 채보 포맷: [docs/CHART_FORMAT.md](docs/CHART_FORMAT.md)
+- **Windows 설치 파일**: [Actions → Desktop app (Windows)](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/workflows/desktop-windows.yml)의 최신 실행 → Artifacts · 설치와 확인 순서는 [docs/TESTING.md](docs/TESTING.md)
+
+| | |
+|---|---|
+| ![곡 선택과 생성된 채보](docs/screenshots/01-song-select.png) 곡 선택 · 생성된 채보(레벨, 스템 비율, 미니맵, 밀도) | ![곡 분석 보기](docs/screenshots/02-analysis.png) 곡 분석(박·마디선, 구간, 스템별 온셋) |
+| ![7K+1S 플레이](docs/screenshots/03-play-7k.png) 7K+1S (SDVX식 3D 트랙, DJMAX 판정) | ![연출](docs/screenshots/04-play-effects.png) BGA 영상 · 비주얼라이저 · 스템 키음 · 선셋 스킨 |
+| ![6K+FX](docs/screenshots/05-play-6kfx.png) 6K+FX 사이드 트랙 · SUDDEN+ · 클래식 스킨 | ![결과](docs/screenshots/06-result.png) 결과 화면 |
+| ![결과 그래프](docs/screenshots/07-result-graphs.png) 타이밍 그래프 · 오프셋 추천 · 내보내기 · 리플레이 | ![채보 에디터](docs/screenshots/08-editor.png) 채보 에디터 |
+| ![BMS 가져오기](docs/screenshots/09-import.png) 키음 BMS 폴더 가져오기 | ![설정](docs/screenshots/10-settings.png) 설정 |
+| ![스킨 설정](docs/screenshots/11-settings-skins.png) 스킨 · 소리 · 키 설정 | ![캘리브레이션](docs/screenshots/12-calibration.png) 오프셋 캘리브레이션 |
+
+화면의 곡·키음·영상은 모두 코드로 합성한 것입니다(`client/e2e/screenshots.spec.ts`).
 
 ## 진행 상황
 
@@ -62,7 +74,9 @@ cd server
 
 ### 데스크톱 앱 (선택)
 
-브라우저 대신 창 하나로 실행하는 앱을 만들 수 있습니다. 분석 서버를 PyInstaller로 묶어 Electron 앱에 넣고, 앱이 켜질 때 빈 로컬 포트에 서버를 띄웁니다. 라이브러리는 사용자 앱 데이터 폴더(`Generative Rhythm/library`)에 저장됩니다.
+Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)가 코드를 올릴 때마다 Windows 머신에서 만들고, 묶은 서버를 따로 띄워 데모 곡 분석·MP3 업로드·채보 생성을 확인한 뒤, 무인 설치한 앱을 Playwright로 실행해 곡 분석부터 오토 플레이까지 돌려 봅니다. 만들어진 설치 파일과 그때 찍은 화면은 실행 결과의 Artifacts에 30일간 남습니다. 받아서 설치하고 확인하는 순서는 [docs/TESTING.md](docs/TESTING.md)에 있습니다.
+
+브라우저 대신 창 하나로 실행하는 앱을 직접 만들 수도 있습니다. 분석 서버를 PyInstaller로 묶어 Electron 앱에 넣고, 앱이 켜질 때 빈 로컬 포트에 서버를 띄웁니다. 라이브러리는 사용자 앱 데이터 폴더(`Generative Rhythm/library`)에 저장됩니다.
 
 ```bash
 packaging/build_desktop.sh          # → desktop/dist (Windows: NSIS 설치 파일, macOS: dmg, Linux: AppImage)
@@ -70,7 +84,9 @@ packaging/build_desktop.sh --dir    # 설치 파일 없이 실행 폴더만 (des
 cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버로 실행 (client/dist 빌드 필요)
 ```
 
-- 빌드하는 OS용 앱만 만들어집니다(Windows 앱은 Windows에서). Linux에서 실행 폴더 빌드와 실행까지 확인했고, Windows·macOS 설치 파일은 만들어 보지 못했습니다. Windows에서는 Git Bash에서 같은 스크립트를 돌리도록 만들었지만 확인하지는 못했습니다.
+- 빌드하는 OS용 앱만 만들어집니다(Windows 앱은 Windows에서). Windows 설치 파일은 위 워크플로로, Linux는 실행 폴더 빌드와 실행까지 확인했습니다. macOS dmg는 만들어 보지 못했습니다. Windows에서 직접 빌드하려면 워크플로와 같은 순서(클라이언트 빌드 → PyInstaller → `npx electron-builder --win nsis`)를 따르세요. `build_desktop.sh`는 Git Bash용으로 만들었지만 Windows에서 그대로 돌려 보지는 않았습니다.
+- 설치 파일은 코드 서명이 없어 처음 실행할 때 SmartScreen 경고가 뜹니다(**추가 정보 → 실행**).
+- GPU 드라이버가 없는 PC(가상 머신, 원격 데스크톱)에서도 Chromium의 소프트웨어 렌더러로 화면이 나오게 했습니다(느릴 수 있음).
 - 데스크톱 앱에는 기본 분석만 들어갑니다(ML 백엔드는 용량 문제로 빼었습니다). 크기는 압축 전 약 570MB입니다.
 
 ### 플레이
@@ -192,10 +208,12 @@ MAX 1%까지는 콤보가 이어지고 게이지도 줄지 않으며, BREAK에�
 ## 테스트
 
 ```bash
-cd server && .venv/bin/python -m pytest          # 분석 정확도, 스템 분리·악기 태깅, ML 백엔드 대체 경로, 생성기 결정성·린터·난이도 단조성, 악기별 레인·반복 일관성·카메라 연출·키음, 7개 키 모드, 스타일, API(스템·BGA 포함), 채보 포맷 왕복·BMS/bmson/osu! 가져오기·편집 채보·리플레이 저장, 성능 (66개 + ML 4개 건너뜀)
+cd server && .venv/bin/python -m pytest          # 분석 정확도, 스템 분리·악기 태깅, ML 백엔드 대체 경로, 생성기 결정성·린터·난이도 단조성, 악기별 레인·반복 일관성·카메라 연출·키음, 7개 키 모드, 스타일, API(스템·BGA 포함), 채보 포맷 왕복·BMS/bmson/osu! 가져오기·편집 채보·리플레이 저장, 성능 (67개 + ML 4개 건너뜀)
 cd client && npm test                            # 판정·롱노트·룰셋·게이지·FEVER·배치 옵션·스크롤(STOP 포함)·타임 스트레치·설정·오디오 클럭·입력·카메라 투영·카메라 연출·스킨·에디터·리플레이 재현·게임패드 (84개)
 cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이, FX·EX-SCORE·커버, 연습 모드, HAZARD 실패, 키음·BGA·카메라 연출·스킨, 사용자 스킨, 에디터, BMS 폴더 가져오기·키음 플레이, 리플레이 재현, 게임패드 (12개)
 ```
+
+README와 테스트 안내의 스크린샷은 `cd client && GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts`로 다시 찍습니다(`docs/screenshots`). 평소 E2E 실행에서는 건너뜁니다.
 
 E2E는 `server/.venv`의 Python을 쓰며, 다른 Python을 쓰려면 `GRG_PYTHON` 환경 변수로 지정하세요. `tests/test_ml_integration.py`(4개)는 ML 라이브러리를 설치한 환경에서만 실제 Demucs·beat_this·basic-pitch로 돌고, 없으면 건너뜁니다.
 
@@ -205,9 +223,10 @@ E2E는 `server/.venv`의 Python을 쓰며, 다른 Python을 쓰려면 `GRG_PYTHO
 client/     브라우저 게임 (TypeScript · Vite · React · Three.js)
 server/     로컬 분석 서버 (Python · FastAPI · numpy · scipy)
 desktop/    데스크톱 앱 (Electron)
-packaging/  분석 서버 묶기(PyInstaller)와 데스크톱 빌드 스크립트
+packaging/  분석 서버 묶기(PyInstaller), 데스크톱 빌드 스크립트, Windows 설치 확인 스크립트
+.github/    Windows 설치 파일 빌드·설치 확인 워크플로
 config/     판정 범위 · 룰셋 · 키 모드 · 게이지 · FEVER · 카메라·연출 · 난이도 프리셋·생성 스타일 · 분석 백엔드 · 악기 매핑·키음 · 게임패드 (서버·클라이언트 공용)
-docs/       명세 · 설계 · 알고리즘 · 채보 포맷
+docs/       명세 · 설계 · 알고리즘 · 채보 포맷 · 테스트 안내 · 스크린샷
 ```
 
 ## 라이선스 주의

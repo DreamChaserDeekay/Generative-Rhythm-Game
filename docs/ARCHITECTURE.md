@@ -189,8 +189,9 @@ server/          로컬 분석 서버 (Python, FastAPI)
   tests/         pytest (합성 음원 기반)
 config/          서버·클라이언트 공용 튜닝 값
 desktop/         Electron 셸(main.js): 서버를 빈 포트에 띄우고 창을 연다
-packaging/       PyInstaller 스펙, 서버 진입점, 데스크톱 빌드 스크립트
-docs/            PROMPT · ARCHITECTURE · GENERATION · CHART_FORMAT
+packaging/       PyInstaller 스펙, 서버 진입점, 데스크톱 빌드 스크립트, 설치 확인 스크립트(smoke_server.ps1 · smoke_desktop.cjs)
+.github/workflows/desktop-windows.yml  Windows 설치 파일 빌드 → 서버 확인 → 무인 설치 → 설치된 앱 실행 확인 → Artifacts
+docs/            PROMPT · ARCHITECTURE · GENERATION · CHART_FORMAT · TESTING(집에서 테스트하기) · screenshots
 ```
 
 ## 9. 작업 계획과 결과
@@ -207,7 +208,7 @@ Phase 0–4를 완료했다. 분석·생성 알고리즘의 세부와 측정값�
 | 키음 플레이 | 서버: 키음 디코딩 → 전체 믹스(곡 음원, 클리핑 없게 게인) + 키음 묶음 파일. 클라이언트: BGM을 OfflineAudioContext로 렌더해 곡 버퍼로, 노트 소리는 누를 때(빈 누름은 그 레인 다음 노트), 오토 플레이는 노트 시각에 예약, 같은 소리는 다시 날 때 이전 것을 끊음 | pytest: 렌더한 곡의 킥이 BMS 박 위치에(1900ms 무음, 2000ms 소리), 분석 BPM 120 / E2E: BMS 폴더 가져오기 → 키음 오토 플레이 PERFECT PLAY |
 | 리플레이 | ReplayRecorder / ReplayPlayer, 기록과 함께 저장, 결과 화면·최고 기록·파일에서 보기 | Vitest: 지연된 입력·흔들리는 프레임으로 친 판을 다른 프레임 간격으로 재생해 결과 객체가 완전히 같음 / E2E: 키보드로 친 판의 리플레이가 같은 점수·정확도 / pytest: 저장·최고 기록 리플레이·잘못된 데이터 422·곡 삭제 시 정리 |
 | 게임패드 | 2ms 간격 폴링(브라우저 하한 약 4ms), `Gamepad.timestamp` 판정, 버튼·축 방향·턴테이블, 레인별 지정, 메뉴 브리지, Start 일시정지 | Vitest 7개(타임스탬프 사용·오래된 값 대체, 축 방향, 턴테이블 누름·방향 전환·멈춤, 축 끝 넘김, 정지 시 떼기, 키보드와 함께 한 레인) / E2E: 가짜 패드로 레인 지정·B로 메뉴 나가기 |
-| 데스크톱 | PyInstaller(기본 분석, 282MB) + Electron 44 셸, 빈 포트·사용자 데이터 폴더·종료 시 서버 정리, 빌드 스크립트 | Linux: 번들 서버 단독 실행(분석·생성·OGG 업로드·BMS 가져오기), electron-builder `--dir` 결과를 Xvfb에서 띄워 게임 화면·데모 곡 분석 확인. Windows·macOS 설치 파일은 미검증 |
+| 데스크톱 | PyInstaller(기본 분석, 282MB) + Electron 44 셸, 빈 포트·사용자 데이터 폴더·종료 시 서버 정리, 빌드 스크립트 | Windows(GitHub Actions `windows-latest`): NSIS 설치 파일(180MB) 빌드 → 번들 서버 단독 실행(데모 곡 분석·채보 생성·MP3 업로드) → 무인 설치 → 설치된 앱을 Playwright Electron 드라이버로 실행해 데모 곡 분석·채보 미리보기·오토 플레이 확인. Linux: 같은 확인을 Xvfb에서. GPU 없는 환경에서 WebGL 컨텍스트를 못 만들던 문제를 여기서 찾아 소프트웨어 렌더러 허용으로 고침. macOS dmg는 미검증 |
 
 ### Phase 3 결과
 
