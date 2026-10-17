@@ -8,12 +8,13 @@
 
 | | |
 |---|---|
-| ![곡 선택과 생성된 채보](docs/screenshots/01-song-select.png) 곡 선택 · 생성된 채보(레벨, 스템 비율, 미니맵, 밀도) | ![곡 분석 보기](docs/screenshots/02-analysis.png) 곡 분석(박·마디선, 구간, 스템별 온셋) |
-| ![7K+1S 플레이](docs/screenshots/03-play-7k.png) 7K+1S (SDVX식 3D 트랙, DJMAX 판정) | ![연출](docs/screenshots/04-play-effects.png) BGA 영상 · 비주얼라이저 · 스템 키음 · 선셋 스킨 |
-| ![6K+FX](docs/screenshots/05-play-6kfx.png) 6K+FX 사이드 트랙 · SUDDEN+ · 클래식 스킨 | ![결과](docs/screenshots/06-result.png) 결과 화면 |
-| ![결과 그래프](docs/screenshots/07-result-graphs.png) 타이밍 그래프 · 오프셋 추천 · 내보내기 · 리플레이 | ![채보 에디터](docs/screenshots/08-editor.png) 채보 에디터 |
-| ![BMS 가져오기](docs/screenshots/09-import.png) 키음 BMS 폴더 가져오기 | ![설정](docs/screenshots/10-settings.png) 설정 |
-| ![스킨 설정](docs/screenshots/11-settings-skins.png) 스킨 · 소리 · 키 설정 | ![캘리브레이션](docs/screenshots/12-calibration.png) 오프셋 캘리브레이션 |
+| ![곡 선택과 생성된 채보](docs/screenshots/01-song-select.png) 곡 선택 · DJMAX 기준 MAXIMUM 채보(레벨, 스템 비율, 미니맵, 밀도) | ![EZ2ON 기준](docs/screenshots/01b-song-select-ez2on.png) 같은 곡을 EZ2ON 기준 SUPER HARD로 (Lv.1–20) |
+| ![곡 분석 보기](docs/screenshots/02-analysis.png) 곡 분석(박·마디선, 구간, 스템별 온셋) | ![7K+1S 플레이](docs/screenshots/03-play-7k.png) 7K+1S (SDVX식 3D 트랙, DJMAX 판정, 키음) |
+| ![연출](docs/screenshots/04-play-effects.png) BGA 영상 · 비주얼라이저 · 키음 · 선셋 스킨 | ![6K+FX](docs/screenshots/05-play-6kfx.png) 6K+FX 사이드 트랙(롱노트) · SUDDEN+ · 클래식 스킨 |
+| ![결과](docs/screenshots/06-result.png) 결과 화면 | ![결과 그래프](docs/screenshots/07-result-graphs.png) 타이밍 그래프 · 오프셋 추천 · 내보내기 · 리플레이 |
+| ![채보 에디터](docs/screenshots/08-editor.png) 채보 에디터 | ![BMS 가져오기](docs/screenshots/09-import.png) 키음 BMS 폴더 가져오기 |
+| ![설정](docs/screenshots/10-settings.png) 설정 | ![스킨 설정](docs/screenshots/11-settings-skins.png) 스킨 · 소리 · 키 설정 |
+| ![캘리브레이션](docs/screenshots/12-calibration.png) 오프셋 캘리브레이션 | ![Windows 앱](docs/screenshots/13-windows-app.png) Windows에 설치한 앱 |
 
 화면의 곡·키음·영상은 모두 코드로 합성한 것입니다(`client/e2e/screenshots.spec.ts`).
 
@@ -24,6 +25,7 @@
 - [x] **Phase 2** — 5K·6K·8K·사이드(FX) 레인, 룰셋 표기 프리셋(정밀 % · 등급형 · EX-SCORE), FEVER, 게이지 6종·클리어 램프 8종, 배치 옵션, 레인 커버·녹색 숫자 유지·BPM 연동 스크롤, 연습 모드(구간 반복·음정 유지 배속), 결과 분석 그래프, 손별 난이도 산정, 생성 스타일·세부 옵션, 채보 미니맵, 접근성 옵션
 - [x] **Phase 3** — 스템 분리(기본 DSP · 선택 설치형 Demucs)와 온셋 악기 태깅, 선택 설치형 ML 백엔드(beat_this 박·다운비트, basic-pitch 음높이, allin1 곡 구조), 악기별 레인 매핑, 반복 구간 패턴 일관성, 스템 키음 모드, SDVX식 카메라 연출(기울기·줌), 배경(흐린 앨범아트·비주얼라이저·BGA 영상·밝기), 스킨 시스템(기본 4종 + JSON 사용자 스킨)
 - [x] **Phase 4** — 채보 에디터(생성 결과 수정 + 커서부터 테스트 플레이), BMS·bmson·osu!mania 가져오기/내보내기(BMS 키음·BGM 채널·BPM 변속·STOP), 리플레이, 게임패드·전용 컨트롤러(턴테이블 포함), 데스크톱 앱(Electron + 분석 서버 동봉)
+- [x] **그 뒤** — Windows 설치 파일(GitHub Actions에서 빌드·설치 확인), DJMAX RESPECT V · EZ2ON REBOOT : R 난이도 기준(공개 데이터의 레벨별 밀도·동시치기·롱노트·사이드 노트 경향), 생성 채보의 노트별 키음, 누르기 전에도 잘 보이는 롱노트
 
 ## 준비물
 
@@ -93,11 +95,13 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 
 브라우저에서 `http://127.0.0.1:8765`를 열고 **곡 추가**(또는 파일을 끌어다 놓기)로 mp3 · ogg · wav · flac · m4a를 올리세요. 분석이 끝나면 키 모드와 난이도를 고르고 **채보 생성 & 플레이**를 누르면 됩니다. 음악 파일이 없으면 **데모 곡**으로 합성 곡을 만들어 볼 수 있습니다.
 
+- **난이도 기준**: **DJMAX**(기본, NORMAL · HARD · MAXIMUM · SC, Lv.1–15, SC는 따로 매기는 SC 1–15), **EZ2ON**(EASY · NORMAL · HARD · SUPER HARD, Lv.1–20), **기본**(이 게임의 5단계). DJMAX·EZ2ON은 공개된 채보 정보(DJMAX 12,466개 · EZ2ON 9,612개의 레벨·노트 수·곡 길이)에서 레벨별 밀도를 가져와, 예를 들어 "DJMAX 4B Lv.10"이면 그 게임의 Lv.10 채보와 비슷한 밀도가 되게 만들고, 난이도마다 동시치기·롱노트·사이드 노트·따르는 악기를 그 게임처럼 바꿉니다(NORMAL은 멜로디 위주, 위 난이도일수록 모든 악기, DJMAX 사이드 노트는 롱노트만). 채보 자체를 베끼지는 않습니다. 자세한 내용은 [docs/GENERATION.md](docs/GENERATION.md#8-난이도-기준-djmax--ez2on).
+
 - **플레이 옵션**: 판정 표기(정밀 % / 등급형 / EX-SCORE), 게이지(ASSIST EASY ~ HAZARD), FEVER(자동·수동·끔), 배치(미러·랜덤·R-랜덤·S-랜덤·H-랜덤), 페이스메이커.
 - **생성 옵션**: 스타일(균형·스트림·동치·연타·롱노트·테크니컬·멜로디), 리듬 기준, 밀도·롱노트 비율·최대 동시 노트·스크래치/사이드 비율. 바꾸면 채보를 새로 만듭니다.
 - **연습 모드**: 채보를 만든 뒤 "연습 모드"를 켜고 미니맵을 드래그해 구간을 고르면, 0.5~1.5배속(음정 유지)으로 구간을 반복합니다. 연습 결과는 기록되지 않습니다.
 - **악기별 레인 · 반복 구간**(생성 옵션): 드럼 킥은 왼쪽·하이햇은 오른쪽, 베이스는 왼쪽으로 모으고(세기 0–100%), 같은 후렴·절이 다시 나오면 같은 패턴을 씁니다. 리듬 기준(드럼·베이스·멜로디·보컬)은 분리한 스템의 소리를 우선합니다.
-- **스템 키음**(설정): 채보가 주로 따르는 악기(채보 미리보기의 스템 비율 막대에 강조 표시)를, 그 악기의 노트를 놓치면 잠깐 줄였다가 맞히면 바로 되돌립니다. 스템은 분석할 때 함께 저장하고, 이전 버전에서 분석한 곡은 **다시 분석**해야 키음을 쓸 수 있습니다.
+- **키음**(설정, 기본 켬): 생성 채보도 노트마다 소리가 붙습니다. 노트가 따르는 악기(스템)를 노트부터 그 악기의 다음 노트까지 잘라 그 노트의 키음으로 쓰고, 배경음에서는 그 부분을 뺍니다. 치면 그 소리가 나고 놓치면 빠지며, 전부 맞히면 원곡 그대로입니다(DJMAX처럼). 노트의 10% 이상이 따르는 악기만 키음이 되고(채보 미리보기의 스템 비율 막대에 밑줄), 나머지는 배경음에 남습니다. 스템은 분석이 끝난 뒤 백그라운드에서 나누어 저장하므로(4분 곡 20~30초, 곡당 디스크 약 100MB) 분석 직후 바로 플레이하면 처음 한 번은 기다릴 수 있습니다. 연습 모드 배속에서도 함께 스트레치됩니다.
 - **배경**: 흐린 앨범아트 위에 음악에 반응하는 스펙트럼을 그립니다. 곡 정보에서 mp4·webm 영상을 **배경 영상(BGA)**으로 등록하면 곡 시간에 맞춰 재생하고, 영상 오프셋을 ±ms로 맞출 수 있습니다. 배경 밝기·비주얼라이저·BGA는 설정에서 켜고 끕니다.
 - **카메라 연출**: 에너지가 크게 오르는 곳(드롭·후렴 시작)에서 줌 펄스, 에너지가 높은 구간마다 트랙이 좌우로 번갈아 기울어집니다. 설정에서 세기를 0–100%로 조절하거나 끌 수 있고, "번쩍임 줄이기"를 켜면 절반으로 줄어듭니다. 판정·노트 시간에는 영향이 없습니다.
 - **스킨**(설정): 네온·클래식·모노·선셋 기본 스킨(노트 모양 상자·납작·캡슐, 레인 색 배치, 타격 이펙트, 트랙 색)과 JSON으로 붙여 넣는 사용자 스킨. 색각 보정 팔레트를 켜면 레인 색은 팔레트가 우선합니다.
@@ -208,9 +212,9 @@ MAX 1%까지는 콤보가 이어지고 게이지도 줄지 않으며, BREAK에�
 ## 테스트
 
 ```bash
-cd server && .venv/bin/python -m pytest          # 분석 정확도, 스템 분리·악기 태깅, ML 백엔드 대체 경로, 생성기 결정성·린터·난이도 단조성, 악기별 레인·반복 일관성·카메라 연출·키음, 7개 키 모드, 스타일, API(스템·BGA 포함), 채보 포맷 왕복·BMS/bmson/osu! 가져오기·편집 채보·리플레이 저장, 성능 (67개 + ML 4개 건너뜀)
-cd client && npm test                            # 판정·롱노트·룰셋·게이지·FEVER·배치 옵션·스크롤(STOP 포함)·타임 스트레치·설정·오디오 클럭·입력·카메라 투영·카메라 연출·스킨·에디터·리플레이 재현·게임패드 (84개)
-cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이, FX·EX-SCORE·커버, 연습 모드, HAZARD 실패, 키음·BGA·카메라 연출·스킨, 사용자 스킨, 에디터, BMS 폴더 가져오기·키음 플레이, 리플레이 재현, 게임패드 (12개)
+cd server && .venv/bin/python -m pytest          # DJMAX·EZ2ON 난이도 기준(레벨별 밀도·SC 척도·사이드 롱노트·악기 비중), 분석 정확도, 스템 분리·악기 태깅, ML 백엔드 대체 경로, 생성기 결정성·린터·난이도 단조성, 악기별 레인·반복 일관성·카메라 연출·키음, 7개 키 모드, 스타일, API(스템·BGA 포함), 채보 포맷 왕복·BMS/bmson/osu! 가져오기·편집 채보·리플레이 저장, 성능 (75개 + ML 4개 건너뜀)
+cd client && npm test                            # 판정·롱노트·룰셋·게이지·FEVER·배치 옵션·스크롤(STOP 포함)·타임 스트레치·설정·오디오 클럭·입력·카메라 투영·카메라 연출·스킨·에디터·리플레이 재현·게임패드·생성 채보 키음 조각 (87개)
+cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이, FX·EX-SCORE·커버, 연습 모드, HAZARD 실패, 키음·BGA·카메라 연출·스킨, 사용자 스킨, 에디터, BMS 폴더 가져오기·키음 플레이, 리플레이 재현, 게임패드, 키음 오프라인 렌더(전부 맞히면 원곡과 같고 놓친 조각만 빠지는지), DJMAX·EZ2ON·기본 난이도 기준 (14개)
 ```
 
 README와 테스트 안내의 스크린샷은 `cd client && GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts`로 다시 찍습니다(`docs/screenshots`). 평소 E2E 실행에서는 건너뜁니다.

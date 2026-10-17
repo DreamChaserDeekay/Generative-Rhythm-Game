@@ -145,7 +145,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   ]) {
     expect((await page.request.post('/api/songs/demo', { data: demo })).ok()).toBe(true);
   }
-  await selectShowcase(page, '7K+1S', 'HARD');
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
 
@@ -154,11 +154,22 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.getByTestId('analysis-view').evaluate((el) => el.scrollIntoView({ block: 'start' }));
   await page.waitForTimeout(500);
   await shot(page, '02-analysis');
+
+  // the same song on EZ2ON's scale
+  await page.getByTestId('toggle-analysis').click();
+  await page.getByTestId('system-EZ2ON').click();
+  await page.getByRole('button', { name: /SUPER HARD/ }).click();
+  await page.getByTestId('generate-button').click();
+  await expect(page.locator('.level-badge span')).toHaveText('EZ2ON SHD', { timeout: 30_000 });
+  await page.locator('.song-detail').evaluate((el) => el.scrollTo(0, 0));
+  await page.mouse.move(0, 0);
+  await shot(page, '01b-song-select-ez2on');
+  await page.getByTestId('system-DJMAX').click();
 });
 
 test('play: 7K+1S', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S', hiSpeed: 3.6 });
-  await selectShowcase(page, '7K+1S', 'HARD');
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
   await autoplayFor(page, 15_500);
   await shot(page, '03-play-7k');
 });
@@ -181,17 +192,17 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
 
 test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
   await settings(page, { lastKeyMode: '6K+FX', skin: 'classic', sudden: 0.18, hiSpeed: 3.2 });
-  await selectShowcase(page, '6K+FX', 'HARD');
+  await selectShowcase(page, '6K+FX', 'MAXIMUM');
   await autoplayFor(page, 16_000);
   await shot(page, '05-play-6kfx');
 });
 
 test('result of a good play', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'HARD');
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
   const song = songs.find((s) => s.title === SHOWCASE)!;
-  const chart = (await (await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode: '7K+1S', difficulty: 'HARD' } })).json()).chart;
+  const chart = (await (await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode: '7K+1S', difficulty: 'MX', system: 'DJMAX' } })).json()).chart;
   const file = 'test-results/showcase.grgreplay.json';
   writeFileSync(file, JSON.stringify(humanReplay(chart.notes, chart.meta.chartId, song.id)));
   await page.getByTestId('replay-input').setInputFiles(file);
@@ -206,7 +217,7 @@ test('result of a good play', async ({ page }) => {
 
 test('chart editor', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'HARD');
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
   await page.getByTestId('edit-chart').click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();
   for (let i = 0; i < 9; i++) await page.keyboard.press('Shift+ArrowUp');

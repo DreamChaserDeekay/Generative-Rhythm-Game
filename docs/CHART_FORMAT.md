@@ -66,13 +66,15 @@
 | `audioHash` | 업로드 원본의 `sha256:` 해시. |
 | `songId` | 서버 라이브러리의 곡 ID(원본 해시 앞 16자). |
 | `keyMode` / `lanes` | 키 모드와 레인 ID. `lane` 값은 이 배열의 인덱스다. 7K+1S에서 0번은 스크래치, FX 모드(4K+FX · 6K+FX)에서 처음(`FXL`)과 끝(`FXR`)은 사이드 트랙. 레인 종류는 `config/keymodes.json`의 `kind`. |
-| `difficulty` / `level` / `rating` | 난이도 프리셋, 정수 레벨(1–15), 소수 세부 난이도. |
+| `difficulty` / `level` / `rating` | 난이도(기본 기준은 EASY … MASTER, DJMAX는 NM · HD · MX · SC, EZ2ON은 EZ · NM · HD · SHD), 정수 레벨(1–15, EZ2ON은 1–20), 소수 세부 난이도. |
+| `difficultySystem` | 난이도 기준: `DJMAX`(DJMAX RESPECT V) 또는 `EZ2ON`(EZ2ON REBOOT : R). 레벨은 그 기준의 키 모드별 레벨 표로 매긴다. 기본(5단계) 기준이면 없다. |
+| `levelScale` | 레벨이 그 기준의 일반 척도와 따로 매겨질 때의 척도 이름. 지금은 DJMAX SC의 `SC`(SC 1–15)뿐이다. 없으면 일반 척도. |
 | `nps` | 평균·최대(1초 창) NPS와 2초 단위 NPS 그래프. |
 | `effectiveNps` | 난이도 산정기의 유효 NPS(동치·연타·롱잡 부담이 반영된 값). |
 | `densityLimited` | 곡에 들리는 소리가 부족해 목표 레벨까지 올리지 못했으면 `true`. |
 | `skillset` | 0–1 스킬 프로필: stream, chord, jack, longNote, technical, stamina. |
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
-| `keysound` | 스템 키음 모드에서 줄일 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 분석에 스템 정보가 없으면 `null`(키음 모드를 켜도 키음 없이 재생). |
+| `keysound` | 채보 정보에 보이는 주 키음 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 실제 키음은 클라이언트가 노트의 `src`로 노트마다 만든다(노트의 10% 이상이 따르는 스템). 분석에 스템 정보가 없으면 `null`(키음을 켜도 원곡 그대로 재생). |
 | `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
 | `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). 생성 채보에만 있다. |
 | `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
@@ -108,7 +110,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 | `lane` | `meta.lanes` 인덱스. |
 | `type` | `tap` 또는 `hold`. |
 | `endBeat` / `endT` | 롱노트 끝(`hold`만). |
-| `src` | 그 노트를 만든 소리의 주 스템(drums · bass · vocals · other). 분석에 스템 정보가 있을 때만 있다. 스템 키음 모드에서 `meta.keysound.stem`과 같은 노트(또는 `src`가 없는 노트)를 놓치면 그 스템을 줄인다. |
+| `src` | 그 노트를 만든 소리의 주 스템(drums · bass · vocals · other). 분석에 스템 정보가 있을 때만 있다. 키음을 켜면 그 노트를 칠 때 이 스템의 [이 노트, 같은 스템의 다음 노트) 구간(최대 4초) 소리가 나고, 놓치면 그 구간 소리가 빠진다. |
 | `snd` | 가져온 키음 채보: 누르면 나는 소리(`sounds`의 인덱스). |
 | `so` | 소리를 시작할 위치(ms). bmson에서 이전 노트의 소리를 이어 받는 노트(`c: true`, 잘린 스템)는 0보다 크다. |
 | `sl` | 소리를 끊는 길이(ms). 같은 소리가 다시 시작하는 시각까지(BMS의 같은 #WAV, bmson의 같은 채널). |
@@ -127,6 +129,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - 배치 옵션(MIRROR·RANDOM 등)과 연습 구간은 클라이언트가 플레이 직전에 노트의 `lane`을 바꾸거나 일부만 골라 적용한다. 채보 파일과 `chartId`는 바뀌지 않는다.
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
+- `difficultySystem`·`levelScale`은 난이도 기준(DJMAX · EZ2ON)과 함께 추가됐다. 없으면 기본 기준이다. 생성기 파라미터의 `system`도 기본 기준이 아닐 때만 있어서, 기본 기준 채보의 `chartId`는 그대로다.
 
 ## 다른 포맷과의 대응
 
