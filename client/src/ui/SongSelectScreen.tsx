@@ -484,10 +484,13 @@ export function SongSelectScreen(props: Props) {
               곡 추가
             </button>
             <button data-testid="demo-button" onClick={() => void addDemo()} disabled={health === 'offline'}>데모 곡</button>
-            <button data-testid="import-button" onClick={() => importInput.current?.click()} disabled={health === 'offline'} title="osu!mania(.osz·.osu) · BMS · bmson 채보 파일이나 압축 파일">
-              채보 가져오기
+          </div>
+          <div className="row import-row">
+            <span className="label">채보 가져오기</span>
+            <button className="small" data-testid="import-button" onClick={() => importInput.current?.click()} disabled={health === 'offline'} title="osu!mania(.osz·.osu) · BMS · bmson 채보 파일이나 압축 파일">
+              파일·압축
             </button>
-            <button data-testid="import-folder-button" onClick={() => folderInput.current?.click()} disabled={health === 'offline'} title="BMS·bmson 폴더(키음 포함)">
+            <button className="small" data-testid="import-folder-button" onClick={() => folderInput.current?.click()} disabled={health === 'offline'} title="BMS·bmson 폴더(키음 포함)">
               폴더
             </button>
             <input

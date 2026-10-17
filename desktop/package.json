@@ -1,0 +1,51 @@
+{
+  "name": "generative-rhythm-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generative Rhythm Game desktop app: Electron window + bundled analysis server",
+  "main": "main.js",
+  "author": "Generative Rhythm Game",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "dev.generative-rhythm.app",
+    "productName": "Generative Rhythm",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../server/dist/rhythm-server",
+        "to": "server"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.music"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Game"
+    },
+    "publish": null
+  }
+}

@@ -19,6 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27"]
+# desktop packaging (packaging/build_desktop.sh)
+build = ["pyinstaller>=6.10"]
 # Optional ML analysis backends. Install PyTorch for your machine first (CPU build:
 # pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu), then this extra.
 # basic-pitch pins TensorFlow < 2.15.1, which has no wheels past Python 3.11; on newer Pythons

@@ -5,6 +5,11 @@ client/test-results/
 client/playwright-report/
 *.tsbuildinfo
 
+# desktop packaging output
+server/build/
+server/dist/
+desktop/dist/
+
 # python
 __pycache__/
 *.py[cod]
