@@ -37,11 +37,18 @@ export interface MeterPoint {
   beatsPerMeasure: number;
 }
 
+/** Scroll stop (BMS/bmson): the beat clock pauses for `durationMs` at `beat`. */
+export interface StopPoint {
+  beat: number;
+  durationMs: number;
+}
+
 export interface ChartTiming {
   /** Time (ms) of beat 0. */
   offsetMs: number;
   tempoMap: TempoPoint[];
   meter: MeterPoint[];
+  stops?: StopPoint[];
 }
 
 export interface ChartSection {

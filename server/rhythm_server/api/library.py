@@ -84,6 +84,12 @@ MIGRATIONS = {
     "bga_ext": "TEXT",
     "bga_offset_ms": "REAL NOT NULL DEFAULT 0",
 }
+# charts: where a chart came from (generated / edited / imported) and its display name
+CHART_MIGRATIONS = {
+    "kind": "TEXT NOT NULL DEFAULT 'generated'",
+    "name": "TEXT NOT NULL DEFAULT ''",
+}
+SAVED_CHART_KINDS = ("edited", "imported")
 BGA_EXTENSIONS = {".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".mov": "video/quicktime", ".ogv": "video/ogg"}
 
 SONG_ID = re.compile(r"^[0-9a-f]{16}$")
@@ -111,10 +117,11 @@ class Library:
         self._db.row_factory = sqlite3.Row
         with self._lock:
             self._db.executescript(SCHEMA)
-            have = {r["name"] for r in self._db.execute("PRAGMA table_info(songs)")}
-            for column, decl in MIGRATIONS.items():
-                if column not in have:
-                    self._db.execute(f"ALTER TABLE songs ADD COLUMN {column} {decl}")
+            for table, migrations in (("songs", MIGRATIONS), ("charts", CHART_MIGRATIONS)):
+                have = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+                for column, decl in migrations.items():
+                    if column not in have:
+                        self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
             self._db.commit()
 
     # ---------- paths ----------
@@ -194,6 +201,16 @@ class Library:
         self._insert_song(song_id, title, artist, "", "", f"sha256:{digest}", len(pcm) / SAMPLE_RATE * 1000.0, False)
         return self.get_song(song_id)
 
+    def add_rendered_song(self, song_id: str, pcm: np.ndarray, title: str, artist: str, audio_hash: str) -> tuple[dict[str, Any], bool]:
+        """A song whose audio we rendered (imported keysound charts), under a given id."""
+        existing = self._row(_checked(SONG_ID, song_id))
+        if existing is not None:
+            return self._song_json(existing), False
+        self.song_dir(song_id).mkdir(parents=True, exist_ok=True)
+        audio_io.write_canonical(self.audio_path(song_id), pcm)
+        self._insert_song(song_id, title, artist, "", "", audio_hash, len(pcm) / SAMPLE_RATE * 1000.0, False)
+        return self.get_song(song_id), True
+
     def _insert_song(self, song_id: str, title: str, artist: str, album: str, original_name: str, audio_hash: str, duration_ms: float, has_cover: bool) -> None:
         with self._lock:
             self._db.execute(
@@ -206,6 +223,9 @@ class Library:
     def _row(self, song_id: str) -> sqlite3.Row | None:
         with self._lock:
             return self._db.execute("SELECT * FROM songs WHERE id = ?", (song_id,)).fetchone()
+
+    def has_song(self, song_id: str) -> bool:
+        return SONG_ID.fullmatch(song_id) is not None and self._row(song_id) is not None
 
     def get_song(self, song_id: str) -> dict[str, Any]:
         row = self._row(_checked(SONG_ID, song_id))
@@ -275,6 +295,7 @@ class Library:
             "analyzer": json.loads(row["analyzer"] or "{}"),
             "hasBga": bool(row["bga_ext"]),
             "bgaOffsetMs": row["bga_offset_ms"] or 0.0,
+            "originalName": row["original_name"],
         }
 
     # ---------- analysis ----------
@@ -307,6 +328,24 @@ class Library:
     def clear_stems(self, song_id: str) -> None:
         shutil.rmtree(self.stems_dir(song_id), ignore_errors=True)
 
+    # ---------- keysounds (imported BMS/bmson) ----------
+    def keysounds_dir(self, song_id: str) -> Path:
+        return self.song_dir(song_id) / "keysounds"
+
+    def save_keysounds(self, song_id: str, sprite: np.ndarray, index: dict[str, list[int]], gain: float) -> None:
+        d = self.keysounds_dir(song_id)
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / "sprite.tmp.flac"
+        sf.write(tmp, sprite, SAMPLE_RATE, subtype="PCM_16", format="FLAC")
+        tmp.replace(d / "sprite.flac")
+        (d / "sprite.json").write_text(json.dumps({"sampleRate": SAMPLE_RATE, "gain": gain, "sounds": index}), encoding="utf-8")
+
+    def keysounds_info(self, song_id: str) -> dict[str, Any] | None:
+        p = self.keysounds_dir(song_id) / "sprite.json"
+        if not p.exists() or not (self.keysounds_dir(song_id) / "sprite.flac").exists():
+            return None
+        return json.loads(p.read_text(encoding="utf-8"))
+
     # ---------- background video ----------
     def save_bga(self, song_id: str, src: Path, ext: str) -> None:
         old = self.bga_path(song_id)
@@ -324,14 +363,48 @@ class Library:
     # ---------- charts ----------
     def save_chart(self, chart: dict[str, Any], song_id: str) -> None:
         meta = chart["meta"]
+        source = meta.get("source") or {}
+        generator = meta.get("generator") or {}
+        kind = source.get("kind", "generated")
         self.chart_path(meta["chartId"]).write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], meta["generator"]["seed"], len(chart["notes"]), meta["generator"]["version"], time.time()),
+                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at, kind, name) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
+                    len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
+                ),
             )
             self._db.commit()
+
+    def list_charts(self, song_id: str, kinds: tuple[str, ...] = SAVED_CHART_KINDS) -> list[dict[str, Any]]:
+        """Saved (edited / imported) charts of a song, newest first."""
+        marks = ",".join("?" for _ in kinds)
+        with self._lock:
+            rows = self._db.execute(
+                f"SELECT * FROM charts WHERE song_id = ? AND kind IN ({marks}) ORDER BY created_at DESC", (_checked(SONG_ID, song_id), *kinds)
+            ).fetchall()
+        return [
+            {
+                "chartId": r["id"], "songId": r["song_id"], "keyMode": r["key_mode"], "difficulty": r["difficulty"], "level": r["level"],
+                "noteCount": r["note_count"], "kind": r["kind"], "name": r["name"], "createdAt": r["created_at"],
+            }
+            for r in rows
+            if self.chart_path(r["id"]).exists()
+        ]  # fmt: skip
+
+    def chart_song(self, chart_id: str) -> str | None:
+        with self._lock:
+            row = self._db.execute("SELECT song_id FROM charts WHERE id = ?", (chart_id,)).fetchone()
+        return row["song_id"] if row else None
+
+    def delete_chart(self, chart_id: str) -> None:
+        with self._lock:
+            self._db.execute("DELETE FROM scores WHERE chart_id = ?", (chart_id,))
+            self._db.execute("DELETE FROM charts WHERE id = ?", (chart_id,))
+            self._db.commit()
+        self.chart_path(chart_id).unlink(missing_ok=True)
 
     def load_chart(self, chart_id: str) -> dict[str, Any] | None:
         if not CHART_ID.fullmatch(chart_id):
@@ -366,7 +439,7 @@ class Library:
 
     def _best_by_song(self, song_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
         query = (
-            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed FROM scores s JOIN charts c ON c.id = s.chart_id"
+            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name FROM scores s JOIN charts c ON c.id = s.chart_id"
             + (" WHERE s.song_id = ?" if song_id else "")
         )
         with self._lock:
@@ -382,6 +455,8 @@ class Library:
                     "difficulty": r["difficulty"],
                     "level": r["level"],
                     "seed": r["seed"],
+                    "kind": r["kind"],
+                    "name": r["name"],
                     "score": r["score"],
                     "rate": r["rate"],
                     "maxCombo": r["max_combo"],

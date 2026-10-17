@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import logging
 import random
+import shutil
 import threading
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from urllib.parse import quote
+
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -21,15 +25,21 @@ from ..analysis.backends import detect as detect_backends, status as backend_sta
 from ..analysis.stems import STEM_NAMES, separate
 from ..audio_io import SUPPORTED_EXTENSIONS
 from ..config import CLIENT_DIST, data_dir, difficulty_config, load_config
+from ..formats import FormatError, assemble_chart, export_chart, export_formats
+from ..formats.common import ascii_text
+from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, safe_relpath
 from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
+from ..generator.core import keysound_meta
 from ..generator.params import resolve_params
 from ..synth import make_song
+from .imports import import_package
 from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 
 log = logging.getLogger("rhythm_server.api")
 MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 MAX_BGA_BYTES = 1024 * 1024 * 1024
+MAX_IMPORT_BYTES = 4 * 1024**3
 
 
 class ChartRequest(BaseModel):
@@ -39,6 +49,17 @@ class ChartRequest(BaseModel):
     seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
     newSeed: bool = False
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class CustomChartRequest(BaseModel):
+    """Notes edited in the chart editor, on the timing of the chart they started from."""
+
+    baseChartId: str
+    notes: list[dict[str, Any]] = Field(max_length=50_000)
+    name: str = Field(default="", max_length=80)
+
+
+NOTE_FIELDS = ("t", "lane", "type", "endT", "src", "snd", "so", "sl")
 
 
 class SongPatch(BaseModel):
@@ -335,6 +356,133 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         if chart is None:
             raise HTTPException(404, "채보를 찾을 수 없습니다")
         return {"chart": chart}
+
+    def chart_or_404(chart_id: str) -> dict[str, Any]:
+        chart = library.load_chart(chart_id)
+        if chart is None:
+            raise HTTPException(404, "채보를 찾을 수 없습니다")
+        return chart
+
+    @app.get("/api/songs/{song_id}/charts")
+    def saved_charts(song_id: str) -> dict[str, Any]:
+        song_or_404(song_id)
+        return {"charts": library.list_charts(song_id)}
+
+    @app.post("/api/songs/{song_id}/charts/custom", status_code=201)
+    def save_custom_chart(song_id: str, req: CustomChartRequest) -> dict[str, Any]:
+        song = song_or_404(song_id)
+        base = chart_or_404(req.baseChartId)
+        bmeta = base["meta"]
+        notes = [{k: n[k] for k in NOTE_FIELDS if k in n} for n in req.notes]
+        base_name = bmeta.get("chartName") or f"{bmeta['keyMode']} {bmeta['difficulty']}"
+        source = {"kind": "edited", "from": bmeta["chartId"]}
+        if (bmeta.get("source") or {}).get("format"):
+            source["format"] = bmeta["source"]["format"]
+        extra = {k: bmeta[k] for k in ("keysoundGain", "genre") if k in bmeta}
+        try:
+            chart = assemble_chart(
+                key_mode=bmeta["keyMode"],
+                timing=base["timing"],
+                notes=notes,
+                title=song["title"],
+                artist=song["artist"],
+                song_id=song_id,
+                audio_hash=bmeta.get("audioHash") or song["audioHash"],
+                difficulty=bmeta["difficulty"],
+                source=source,
+                duration_ms=bmeta.get("durationMs"),
+                chart_name=req.name.strip() or f"{base_name} (편집)",
+                sections=base.get("sections"),
+                effects=base.get("effects"),
+                extra_meta=extra,
+                sounds=base.get("sounds"),
+                bgm=base.get("bgm"),
+            )
+        except (FormatError, KeyError, TypeError, ValueError) as e:
+            raise HTTPException(422, str(e)) from e
+        chart["meta"]["keysound"] = keysound_meta(chart["notes"])
+        library.save_chart(chart, song_id)
+        return {"chart": chart}
+
+    @app.delete("/api/charts/{chart_id}", status_code=204)
+    def delete_chart(chart_id: str) -> None:
+        chart_or_404(chart_id)
+        library.delete_chart(chart_id)
+
+    @app.post("/api/import", status_code=201)
+    def import_charts(files: list[UploadFile] = File(...), paths: list[str] = Form(default=[])) -> dict[str, Any]:
+        """Chart packages: a folder's files (with their relative `paths`), a .zip or an .osz."""
+        work = library.tmp_path("-import")
+        root = work / "package"
+        root.mkdir(parents=True)
+        warnings: list[str] = []
+        try:
+            total = 0
+            for i, upload in enumerate(files):
+                name = paths[i] if i < len(paths) and paths[i] else (upload.filename or f"file{i}")
+                rel = safe_relpath(name)
+                suffix = Path(rel or "").suffix.lower()
+                if rel is None or suffix not in IMPORT_EXTENSIONS:
+                    continue
+                archive = suffix in ARCHIVE_EXTENSIONS
+                target = (work / "archives" / rel) if archive else (root / rel)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with open(target, "wb") as out:
+                    while chunk := upload.file.read(1 << 20):
+                        total += len(chunk)
+                        if total > MAX_IMPORT_BYTES:
+                            raise HTTPException(413, "가져올 파일이 너무 큽니다 (최대 4GB)")
+                        out.write(chunk)
+                if archive:
+                    try:
+                        warnings += extract_archive(target, root / Path(rel).stem)
+                    except (zipfile.BadZipFile, FormatError) as e:
+                        warnings.append(f"{rel}: 압축을 풀지 못했습니다 ({e})")
+                    target.unlink(missing_ok=True)
+            try:
+                result = import_package(library, queue, root)
+            except FormatError as e:
+                raise HTTPException(422, "; ".join([str(e), *warnings[:3]])) from e
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        result["warnings"] = warnings + result["warnings"]
+        result["songs"] = annotate(result["songs"])
+        return result
+
+    @app.get("/api/songs/{song_id}/keysounds.json")
+    def keysound_index(song_id: str) -> dict[str, Any]:
+        song_or_404(song_id)
+        info = library.keysounds_info(song_id)
+        if info is None:
+            raise HTTPException(404, "키음이 없는 곡입니다")
+        return info
+
+    @app.get("/api/songs/{song_id}/keysounds.flac")
+    def keysound_sprite(song_id: str) -> FileResponse:
+        song_or_404(song_id)
+        if library.keysounds_info(song_id) is None:
+            raise HTTPException(404, "키음이 없는 곡입니다")
+        return FileResponse(library.keysounds_dir(song_id) / "sprite.flac", media_type="audio/flac")
+
+    @app.get("/api/charts/{chart_id}/export")
+    def export_chart_file(chart_id: str, format: str = "osu", offsetMs: float = Query(default=0.0, ge=-5000, le=5000)) -> Response:
+        chart = chart_or_404(chart_id)
+        if format not in export_formats(chart["meta"]["keyMode"]):
+            raise HTTPException(400, f"{chart['meta']['keyMode']} 채보는 {format}로 내보낼 수 없습니다")
+        song_id = chart["meta"].get("songId") or library.chart_song(chart_id)
+        song: dict[str, Any] = {}
+        if song_id:
+            try:
+                song = library.get_song(song_id)
+            except SongNotFound:
+                song = {}
+        audio_name = song.get("originalName") or "audio.flac"
+        try:
+            data, filename, media = export_chart(chart, format, audio_name, song.get("previewMs"), offsetMs)
+        except FormatError as e:
+            raise HTTPException(422, str(e)) from e
+        disposition = f"attachment; filename=\"{ascii_text(filename, 'chart')}\"; filename*=UTF-8''{quote(filename)}"
+        return Response(content=data, media_type=media, headers={"Content-Disposition": disposition})
 
     @app.post("/api/scores", status_code=201)
     def add_score(req: ScoreRequest) -> dict[str, Any]:

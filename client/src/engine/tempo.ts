@@ -1,10 +1,20 @@
 import type { ChartTiming } from './types';
 
-/** Piecewise-constant tempo map converting between beats and ms. */
+const BEAT_EPS = 1e-9;
+
+/**
+ * Piecewise-constant tempo map converting between beats and ms. STOPs (imported BMS/bmson charts)
+ * pause the beat clock: a note on a stop's beat is hit when the stop starts, later ones move later.
+ */
 export class TempoMap {
   private readonly startBeat: number[] = [];
   private readonly startMs: number[] = [];
   private readonly msPerBeat: number[] = [];
+  private readonly stopBeat: number[] = [];
+  private readonly stopMs: number[] = [];
+  /** Total length of the stops before stop i. */
+  private readonly stopBefore: number[] = [];
+  private readonly stopStart: number[] = [];
   private readonly timing: ChartTiming;
 
   constructor(timing: ChartTiming) {
@@ -24,14 +34,37 @@ export class TempoMap {
       this.startMs.push(ms);
       this.msPerBeat.push(60000 / p.bpm);
     }
+    const stops = [...(timing.stops ?? [])].filter((s) => s.durationMs > 0).sort((a, b) => a.beat - b.beat);
+    let total = 0;
+    for (const s of stops) {
+      this.stopBeat.push(s.beat);
+      this.stopMs.push(s.durationMs);
+      this.stopBefore.push(total);
+      this.stopStart.push(this.plainMs(s.beat) + total);
+      total += s.durationMs;
+    }
   }
 
   beatToMs(beat: number): number {
+    // stops strictly before `beat`
+    let k = 0;
+    while (k < this.stopBeat.length && this.stopBeat[k] < beat - BEAT_EPS) k++;
+    return this.plainMs(beat) + (k > 0 ? this.stopBefore[k - 1] + this.stopMs[k - 1] : 0);
+  }
+
+  msToBeat(ms: number): number {
+    if (this.stopStart.length === 0 || ms < this.stopStart[0]) return this.plainBeat(ms);
+    const k = lastIndexAtOrBelow(this.stopStart, ms);
+    if (ms < this.stopStart[k] + this.stopMs[k]) return this.stopBeat[k];
+    return this.plainBeat(ms - this.stopBefore[k] - this.stopMs[k]);
+  }
+
+  private plainMs(beat: number): number {
     const i = this.segmentForBeat(beat);
     return this.startMs[i] + (beat - this.startBeat[i]) * this.msPerBeat[i];
   }
 
-  msToBeat(ms: number): number {
+  private plainBeat(ms: number): number {
     const i = this.segmentForMs(ms);
     return this.startBeat[i] + (ms - this.startMs[i]) / this.msPerBeat[i];
   }

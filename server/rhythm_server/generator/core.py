@@ -160,7 +160,7 @@ def generate_chart(
             "densityLimited": exhausted,
             "skillset": est["skillset"],
             "handLoad": est["handLoad"],
-            "keysound": _keysound(notes),
+            "keysound": keysound_meta(notes),
             "repeatConsistency": None if repeat_score is None else round(repeat_score, 3),
             "generator": {
                 "version": GENERATOR_VERSION,
@@ -203,7 +203,7 @@ def _repeat_consistent(
     return notes_from_choices(slots, choices, tempo), consistency(refs, occurrence, chosen, lanes, mirror)
 
 
-def _keysound(notes: list[dict[str, Any]]) -> dict[str, Any] | None:
+def keysound_meta(notes: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The lead stem the client ducks when its notes are missed: the pitched stem (vocals,
     other, bass) most notes follow, or the drums when the notes hardly follow any of those."""
     counts = {name: 0 for name in STEM_NAMES}
