@@ -11,6 +11,7 @@ from typing import Any
 
 from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, level_table_for
 from ..difficulty.estimator import estimate
+from ..difficulty.patterns import pattern_summary
 from ..generator.tempo import TempoMap
 
 FORMAT_VERSION = 1
@@ -254,6 +255,7 @@ def assemble_chart(
         "densityLimited": False,
         "skillset": est["skillset"],
         "handLoad": est["handLoad"],
+        "patterns": pattern_summary(notes, key_mode),
         "keysound": None,
         "repeatConsistency": None,
         "source": source,

@@ -74,6 +74,18 @@ export interface ChartSection {
   energy: number;
 }
 
+/** Pattern profile of a chart (server difficulty/patterns.py): shares of its key notes. */
+export interface PatternSummary {
+  stairs: number;
+  trills: number;
+  chords: number;
+  jacks: number;
+  /** Notes pressed while a long note is held on another lane. */
+  holdTaps: number;
+  /** Share of fast moves that jump three lanes or more. */
+  leaps: number;
+}
+
 export interface ChartMeta {
   chartId: string;
   audioHash: string;
@@ -90,7 +102,9 @@ export interface ChartMeta {
   songId?: string;
   durationMs?: number;
   skillset?: Record<string, number>;
-  /** Lead stem for the stem keysound mode and the share of notes following each stem. */
+  /** Share of the key notes in each pattern (stairs, trills, leaps are measured in fast runs). */
+  patterns?: PatternSummary;
+  /** Main keysound stem shown in the chart info and the share of notes following each stem. */
   keysound?: { stem: StemName; share: number; shares: Record<StemName, number> } | null;
   repeatConsistency?: number | null;
   /** Where the chart came from: generated (absent), edited in the editor or imported from a file. */

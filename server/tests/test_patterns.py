@@ -96,3 +96,44 @@ def test_exports_name_djmax_and_ez2on_difficulties(dense_song: dict) -> None:
     import json
 
     assert json.loads(export_chart(mx, "bmson", "song.ogg")[0])["info"]["chart_name"] == "DJMAX MX"
+
+
+# ---------- P1: pattern profile ----------
+
+from rhythm_server.difficulty.patterns import pattern_profile, pattern_summary  # noqa: E402
+
+
+def _taps(seq: list[tuple[float, int | tuple[int, ...]]], key_mode: str = "6K") -> list[dict]:
+    """Notes from (time, key index or chord) pairs; key indices are 0-based key lanes."""
+    keys = [l.index for l in lane_infos(key_mode) if l.kind == "key"]
+    out = []
+    for t, k in seq:
+        for x in k if isinstance(k, tuple) else (k,):
+            out.append({"t": float(t), "beat": t / 500.0, "lane": keys[x], "type": "tap"})
+    return out
+
+
+def test_pattern_profile_finds_stairs_trills_jacks_chords_and_leaps() -> None:
+    stairs = _taps([(i * 150, k) for i, k in enumerate([0, 1, 2, 3, 4, 5])])
+    p = pattern_profile(stairs, "6K")
+    assert p["stairs"] == 1.0 and p["trills"] == 0.0 and p["leaps"] == 0.0 and p["alternation"] == 0.2
+    trill = pattern_profile(_taps([(i * 150, (1, 2)[i % 2]) for i in range(8)]), "6K")  # middle + index
+    assert trill["trills"] == 1.0 and trill["stairs"] == 0.0 and trill["weakTrills"] == 0
+    assert pattern_profile(_taps([(i * 150, (0, 1)[i % 2]) for i in range(8)]), "6K")["weakTrills"] == 1  # ring + middle
+    jacks = pattern_profile(_taps([(0, 3), (200, 3), (400, 3), (2000, (0, 5)), (2200, (0, 5))]), "6K")
+    assert jacks["jacks"] == round(4 / 7, 3) and jacks["chords"] == round(4 / 7, 3)
+    assert jacks["chordShapes"] == {"adjacent": 0.0, "symmetric": 1.0, "other": 0.0}
+    leaps = pattern_profile(_taps([(i * 150, (0, 5)[i % 2]) for i in range(6)]), "6K")
+    assert leaps["leaps"] == 1.0 and leaps["alternation"] == 1.0 and leaps["sameHandLeaps"] == 0.0
+    pad = pattern_profile(_taps([(0, (0, 2)), (500, (3, 5)), (1000, (2, 3))]), "6K")
+    assert pad["padImpossible"] == 2
+    held = [{"t": 0.0, "beat": 0.0, "lane": 1, "type": "hold", "endT": 1000.0, "endBeat": 2.0}] + _taps([(200, 3), (400, 4), (1200, 5)])
+    assert pattern_profile(held, "6K")["holdTaps"] == 0.5
+    assert pattern_summary([], "6K") == {k: 0.0 for k in ("stairs", "trills", "chords", "jacks", "holdTaps", "leaps")}
+
+
+def test_charts_carry_their_pattern_summary(dense_song: dict) -> None:
+    chart = generate_chart(dense_song, "6K", "MX", 12, system="DJMAX")
+    patterns = chart["meta"]["patterns"]
+    assert set(patterns) == {"stairs", "trills", "chords", "jacks", "holdTaps", "leaps"}
+    assert all(0.0 <= v <= 1.0 for v in patterns.values()) and patterns["chords"] > 0

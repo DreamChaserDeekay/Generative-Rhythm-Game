@@ -11,6 +11,7 @@ import numpy as np
 from ..analysis.stems import STEM_NAMES
 from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
+from ..difficulty.patterns import pattern_summary
 from .candidates import build_candidates
 from .effects import camera_effects
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
@@ -164,6 +165,7 @@ def generate_chart(
             "densityLimited": exhausted,
             "skillset": est["skillset"],
             "handLoad": est["handLoad"],
+            "patterns": pattern_summary(notes, key_mode),
             "keysound": keysound_meta(notes),
             "repeatConsistency": None if repeat_score is None else round(repeat_score, 3),
             "generator": {
@@ -208,8 +210,9 @@ def _repeat_consistent(
 
 
 def keysound_meta(notes: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """The lead stem the client ducks when its notes are missed: the pitched stem (vocals,
-    other, bass) most notes follow, or the drums when the notes hardly follow any of those."""
+    """The main keysound stem shown in the chart info, and the share of notes following each stem:
+    the pitched stem (vocals, other, bass) most notes follow, or the drums when the notes hardly
+    follow any of those."""
     counts = {name: 0 for name in STEM_NAMES}
     for n in notes:
         if n.get("src") in counts:

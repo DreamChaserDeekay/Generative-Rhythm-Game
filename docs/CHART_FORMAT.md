@@ -74,6 +74,7 @@
 | `densityLimited` | 곡에 들리는 소리가 부족해 목표 레벨까지 올리지 못했으면 `true`. |
 | `skillset` | 0–1 스킬 프로필: stream, chord, jack, longNote, technical, stamina. |
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
+| `patterns` | 패턴 성향: 키 노트 중 계단(`stairs`, 한 칸씩 이어지는 3개 이상의 단타)·트릴(`trills`, 두 레인을 번갈아 치는 4개 이상)·동치(`chords`)·연타(`jacks`, 같은 레인을 260ms 안에 다시)·롱잡(`holdTaps`, 다른 레인의 롱노트를 잡은 채 치는 노트)의 비율과, 빠른 단타(260ms 이하 간격) 이동 중 세 칸 이상 건너뛰는 비율(`leaps`). 생성·편집·가져온 채보 모두 있다(`difficulty/patterns.py`). |
 | `keysound` | 채보 정보에 보이는 주 키음 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 실제 키음은 클라이언트가 노트의 `src`로 노트마다 만든다(노트의 10% 이상이 따르는 스템). 분석에 스템 정보가 없으면 `null`(키음을 켜도 원곡 그대로 재생). |
 | `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
 | `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). 생성 채보에만 있다. |

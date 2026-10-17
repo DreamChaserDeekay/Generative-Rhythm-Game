@@ -15,7 +15,7 @@ import { keysoundStems } from '../audio/stemKeysounds';
 import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
-import type { KeyModeId, StemName } from '../engine/types';
+import type { KeyModeId, PatternSummary, StemName } from '../engine/types';
 import type { Palette, Settings } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
@@ -44,6 +44,14 @@ const SKILL_LABELS: [string, string][] = [
   ['longNote', '롱노트'],
   ['technical', '테크니컬'],
   ['stamina', '스태미나'],
+];
+const PATTERN_LABELS: [keyof PatternSummary, string, string][] = [
+  ['stairs', '계단', '한 칸씩 이어지는 3개 이상의 단타'],
+  ['trills', '트릴', '두 레인을 번갈아 치는 4개 이상의 단타'],
+  ['chords', '동치', '동시에 치는 노트'],
+  ['jacks', '연타', '같은 레인을 곧바로 다시 치는 노트'],
+  ['holdTaps', '롱잡', '롱노트를 잡은 채 치는 노트'],
+  ['leaps', '도약', '빠른 구간에서 세 칸 이상 건너뛰는 이동'],
 ];
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
@@ -943,6 +951,16 @@ function ChartPreview(props: {
               </span>
             ) : null,
           )}
+        </div>
+      )}
+      {m.patterns && (
+        <div className="pattern-mix" data-testid="pattern-mix">
+          <span className="label">패턴</span>
+          {PATTERN_LABELS.map(([key, label, title]) => (
+            <span key={key} className="pattern-chip" title={title}>
+              {label} <strong>{Math.round((m.patterns?.[key] ?? 0) * 100)}%</strong>
+            </span>
+          ))}
         </div>
       )}
       {m.densityLimited && <p className="hint">곡의 소리 밀도가 낮아 목표 레벨까지 올리지 못했습니다. 없는 소리에 노트를 만들지 않기 때문입니다.</p>}

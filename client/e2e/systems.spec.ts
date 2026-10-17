@@ -19,6 +19,8 @@ test('charts are generated on the DJMAX, EZ2ON and original difficulty scales', 
   await expect(page.locator('.level-badge span')).toHaveText('DJMAX MX');
   const mx = Number((await page.getByTestId('chart-level').textContent())?.replace(/\D/g, ''));
   expect(mx).toBeGreaterThanOrEqual(8);
+  // the chart's pattern profile: six shares in percent
+  await expect(page.getByTestId('pattern-mix').locator('.pattern-chip')).toHaveText([/계단 \d+%/, /트릴 \d+%/, /동치 \d+%/, /연타 \d+%/, /롱잡 \d+%/, /도약 \d+%/]);
   await page.getByRole('button', { name: /^SC/ }).click();
   await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toHaveText(/^SC \d+$/, { timeout: 30_000 });
