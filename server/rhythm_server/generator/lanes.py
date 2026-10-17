@@ -10,6 +10,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
+from .motifs import MotifContext, SlotPlan, motif_context, motif_cost
 from .params import GenParams
 from .select import Slot
 from .tempo import TempoMap
@@ -97,6 +98,9 @@ class _State:
     prev_t: float
     parent: "_State | None"
     choice: tuple[int, tuple[int, ...], int | None] | None  # (slot index, lanes, long-note lane)
+    phrase: int = -1  # phrase of the pattern plan the history belongs to
+    hist: tuple[tuple[int, ...], ...] = ()  # key indices chosen for the earlier slots of the phrase
+    single_t: float = -1e9  # time of the phrase's latest single note
 
 
 def _pitch_targets(slots: list[Slot]) -> list[float | None]:
@@ -125,10 +129,11 @@ def assign_lanes(
     tempo: TempoMap,
     rng: np.random.Generator,
     targets_by_slot: list[tuple[int, ...] | None] | None = None,
+    plan: list[SlotPlan] | None = None,
 ) -> list[dict[str, Any]]:
     """Lane-assigned notes. `targets_by_slot` gives key lanes to prefer per slot (repeat
-    consistency); see `lane_search`."""
-    return notes_from_choices(slots, lane_search(slots, lanes, params, tempo, rng, targets_by_slot), tempo)
+    consistency), `plan` the pattern of every slot; see `lane_search`."""
+    return notes_from_choices(slots, lane_search(slots, lanes, params, tempo, rng, targets_by_slot, plan), tempo)
 
 
 def lane_search(
@@ -138,8 +143,10 @@ def lane_search(
     tempo: TempoMap,
     rng: np.random.Generator,
     targets_by_slot: list[tuple[int, ...] | None] | None = None,
+    plan: list[SlotPlan] | None = None,
 ) -> list[Choice]:
-    """Beam search over lane choices; returns the best path's (slot, lanes, long-note lane)."""
+    """Beam search over lane choices; returns the best path's (slot, lanes, long-note lane).
+    With a pattern `plan` (planner.py) every slot also pays for leaving its pattern's shape."""
     n_lanes = len(lanes)
     key_lanes = [l.index for l in lanes if l.kind == "key"]
     special_lanes = [l.index for l in lanes if l.kind in ("scratch", "side")]
@@ -148,6 +155,9 @@ def lane_search(
     repeat_targets = targets_by_slot or [None] * len(slots)
     pos = [l.pos for l in lanes]
     hands = [l.hand for l in lanes]
+    # a shared middle key can be hit by either thumb, so it may repeat faster (DJMAX 5K "laser")
+    min_gap = [params.thumb_jack_ms if l.hand == "T" and params.thumb_jack_ms else params.min_jack_ms for l in lanes]
+    ctx: MotifContext | None = motif_context(lanes, params.skill) if plan else None
     combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = {}
     neg = -1e9
     beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None)]
@@ -173,12 +183,22 @@ def lane_search(
                     clear * float(slot.sources[1]) / top,
                 )
         repeat_set = frozenset(repeat_targets[si]) if repeat_targets[si] else None
+        sp = plan[si] if plan else None
+        pitch_scale = ctx.pitch_weight.get(sp.motif, 1.0) if ctx and sp else 1.0
+        jack_scale = 0.1 if sp and sp.repeats(slot.size - (1 if slot.special else 0)) else 1.0
         expansions: list[_State] = []
         for state in beam:
             free = [
                 i for i in range(n_lanes)
-                if state.hold_end[i] + gap <= t and t - state.last[i] >= params.min_jack_ms - 1e-6
+                if state.hold_end[i] + gap <= t and t - state.last[i] >= min_gap[i] - 1e-6
             ]
+            same_phrase = sp is not None and state.phrase == sp.phrase
+            hist = state.hist if same_phrase else ()
+            single_t = state.single_t if same_phrase else state.prev_t
+            # the previous phrase's last note, when it was a single key, for leaps across phrases
+            carry = None
+            if ctx is not None and not same_phrase and len(state.prev_lanes) == 1:
+                carry = ctx.key_index.get(state.prev_lanes[0])
             holding_hands: dict[str, int] = {}
             for i in range(n_lanes):
                 if state.hold_end[i] > t:
@@ -205,20 +225,27 @@ def lane_search(
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
                 if not lanes_used:
-                    scored.append((W_DROP * slot.size, lanes_used, None))
+                    scored.append((W_DROP * slot.size, lanes_used, None, ()))
                     continue
-                cost = dropped * W_DROP + _cost(state, combo, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set) + noise[ci]
+                cost = dropped * W_DROP + _cost(state, combo, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set, pitch_scale, jack_scale) + noise[ci]
+                keys = ()
+                if ctx is not None and sp is not None:
+                    keys = tuple(sorted(ctx.key_index[i] for i in combo))
+                    cost += motif_cost(ctx, sp, list(hist), keys, t - state.prev_t, holding_hands, t - single_t, carry)
                 ln_lane = None
                 if hold_end_t is not None and slot.special_hold and special is not None:
                     ln_lane = special
                 elif hold_end_t is not None and combo:
                     # a hand may only hold so many long notes at once
                     options = [i for i in combo if holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand]
-                    if options:
+                    if options and sp is not None and sp.motif == "holdTap":
+                        # the hold goes to the outside, leaving the other lanes to the melody
+                        ln_lane = max(options, key=lambda i: abs(lanes[i].pos - 0.5))
+                    elif options:
                         ln_lane = min(options, key=lambda i: abs(lanes[i].pos - (target if target is not None else 0.5)))
-                scored.append((cost, lanes_used, ln_lane))
+                scored.append((cost, lanes_used, ln_lane, keys))
             scored.sort(key=lambda x: x[0])
-            for cost, lanes_used, ln_lane in scored[:BEAM_WIDTH]:
+            for cost, lanes_used, ln_lane, keys in scored[:BEAM_WIDTH]:
                 last = list(state.last)
                 hold = list(state.hold_end)
                 usage = [u * USAGE_DECAY for u in state.usage]
@@ -238,6 +265,9 @@ def lane_search(
                         prev_t=t,
                         parent=state,
                         choice=(si, lanes_used, ln_lane),
+                        phrase=sp.phrase if sp else -1,
+                        hist=hist + (keys,) if sp else (),
+                        single_t=t if sp and len(keys) == 1 else single_t,
                     )
                 )
         expansions.sort(key=lambda s: s.cost)
@@ -366,6 +396,8 @@ def _cost(
     mean_use: float,
     src_terms: tuple[float, float, float] | None = None,
     repeat_set: frozenset[int] | None = None,
+    pitch_scale: float = 1.0,
+    jack_scale: float = 1.0,
 ) -> float:
     if not combo:
         return 0.0
@@ -375,7 +407,7 @@ def _cost(
         total_pos += pos[i]
     mean_pos = total_pos / len(combo)
     if target is not None:
-        cost += w.pitch * (mean_pos - target) ** 2
+        cost += pitch_scale * w.pitch * (mean_pos - target) ** 2
     if src_terms is not None:
         # drums: kick-heavy hits lean left, hat-heavy hits right; bass leans left
         drum_share, drum_pos, bass_share = src_terms
@@ -395,7 +427,7 @@ def _cost(
             move = pos[lane] - pos[prev_lane]
             direction = (step > 0) - (step < 0)
             if direction != 0 and ((move > 0) - (move < 0)) != direction:
-                cost += w.contour
+                cost += pitch_scale * w.contour
         if dt < 200 and hands[lane] == hands[prev_lane]:
             cost += w.alternate * (200 - dt) / 200
     repeated = 0
@@ -405,7 +437,7 @@ def _cost(
     same_sound = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
     if repeated and not same_sound:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
-        cost += w.jack * repeated * (0.6 + speed)
+        cost += jack_scale * w.jack * repeated * (0.6 + speed)
     if repeated and dt < 400.0:
         cost -= w.jack_bonus * repeated  # jack style: repeats stay on their lane
     usage = state.usage

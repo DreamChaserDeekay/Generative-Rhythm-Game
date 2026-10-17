@@ -28,14 +28,15 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
 
     for lane, ns in by_lane.items():
         ns.sort(key=lambda n: n["t"])
+        min_gap = params.thumb_jack_ms if lanes[lane].hand == "T" and params.thumb_jack_ms else params.min_jack_ms
         for a, b in zip(ns, ns[1:]):
             if abs(a["t"] - b["t"]) < TIME_EPS:
                 problems.append(f"duplicate note lane {lane} at {a['t']}ms")
             elif a["type"] == "hold":
                 if b["t"] < a["endT"] + ln_gap_ms(tempo, a["endBeat"]) - TIME_EPS:
                     problems.append(f"note too close after hold end lane {lane} at {b['t']}ms")
-            elif b["t"] - a["t"] < params.min_jack_ms - TIME_EPS:
-                problems.append(f"jack faster than {params.min_jack_ms}ms lane {lane} at {b['t']}ms")
+            elif b["t"] - a["t"] < min_gap - TIME_EPS:
+                problems.append(f"jack faster than {min_gap}ms lane {lane} at {b['t']}ms")
 
     chords: dict[float, list[dict[str, Any]]] = defaultdict(list)
     for n in notes:

@@ -9,6 +9,7 @@ from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_m
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
+PATTERN_ENGINES = ("designer", "classic")
 SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds (default)
 
 
@@ -55,13 +56,19 @@ class GenParams:
     skill: float = 0.5
     # chords a pad cannot press (sets of lane indices), for the DJMAX tiers below SC
     pad_forbidden: tuple[tuple[int, ...], ...] = ()
+    # "designer" plans patterns per phrase (planner.py); "classic" places notes one by one
+    pattern_engine: str = "designer"
+    # shortest repeat on a shared middle key (either thumb can hit it); 0 = min_jack_ms
+    thumb_jack_ms: float = 0.0
     extra: dict[str, Any] = field(default_factory=dict)
 
     def public(self) -> dict[str, Any]:
         """The user-facing subset stored in chart meta (and hashed into the chart id)."""
         system = {} if self.system == DEFAULT_SYSTEM else {"system": self.system}
+        engine = {} if self.pattern_engine == "designer" else {"patternEngine": self.pattern_engine}
         return {
             **system,
+            **engine,
             "difficulty": self.difficulty,
             "targetLevel": self.target_level,
             "density": round(self.density, 3),
@@ -223,6 +230,16 @@ def resolve_params(
             params.instrument_mapping = max(0.0, min(1.0, float(value)))
         elif key == "repeatConsistency":
             params.repeat_consistency = max(0.0, min(1.0, float(value)))
+        elif key == "patternEngine" and value in PATTERN_ENGINES:
+            params.pattern_engine = value
+    laser = load_config("patterns")["motifs"]["laser"]
+    if (
+        params.pattern_engine == "designer"
+        and params.key_mode in laser.get("keyModes", [])
+        and params.system in laser.get("systems", [])
+        and params.skill >= float(laser["minSkill"])
+    ):
+        params.thumb_jack_ms = min(params.min_jack_ms, float(load_config("patterns")["laser"]["thumbJackMs"]))
     return params
 
 

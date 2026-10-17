@@ -137,3 +137,173 @@ def test_charts_carry_their_pattern_summary(dense_song: dict) -> None:
     patterns = chart["meta"]["patterns"]
     assert set(patterns) == {"stairs", "trills", "chords", "jacks", "holdTaps", "leaps"}
     assert all(0.0 <= v <= 1.0 for v in patterns.values()) and patterns["chords"] > 0
+
+
+# ---------- P2/P3: planner and pattern-guided placement ----------
+
+from rhythm_server.analysis.analyzer import ANALYZER_VERSION  # noqa: E402
+from rhythm_server.generator.candidates import build_candidates  # noqa: E402
+from rhythm_server.generator.planner import phrases_of  # noqa: E402
+from rhythm_server.generator.select import select_slots  # noqa: E402
+from rhythm_server.config import difficulty_config  # noqa: E402
+
+SCALE = [60, 62, 64, 65, 67, 69, 71, 72]
+GESTURE_BARS = {
+    "run": [SCALE, SCALE[::-1]],
+    "oscillate": [[60, 64] * 4, [62, 67] * 4],
+    "repeat": [[67] * 8, [65] * 8],
+    "pedal": [[60, 62, 60, 64, 60, 65, 60, 67], [60, 67, 60, 65, 60, 64, 60, 62]],
+    "arpeggio": [[60, 64, 67, 72, 67, 64, 60, 64], [62, 65, 69, 74, 69, 65, 62, 65]],
+    "rhythm": [["kick", "hat", "snare", "hat"] * 2, ["kick", "hat", "snare", "hat"] * 2],
+}
+
+
+def gesture_analysis(bpm: float = 120.0, repeats: int = 2) -> tuple[dict, dict[str, list[int]]]:
+    """Eighth notes, one gesture per pair of bars (melody on 'other', drums on 'drums'); also the
+    bars of each gesture."""
+    beat = 60000.0 / bpm
+    offset = 500.0
+    onsets, bars, bar = [], {}, 0
+    for _ in range(repeats):
+        for name, pair in GESTURE_BARS.items():
+            for notes in pair:
+                bars.setdefault(name, []).append(bar)
+                for i, n in enumerate(notes):
+                    t = offset + (bar * 4 + i / 2) * beat
+                    if isinstance(n, str):
+                        bands = {"kick": [0.85, 0.1, 0.05], "hat": [0.05, 0.1, 0.85], "snare": [0.2, 0.6, 0.2]}[n]
+                        onsets.append({"t": t, "strength": 1.0 if n == "kick" else 0.8, "band": "mid", "bands": bands, "pitch": None,
+                                       "harmonic": 0.1, "sustainEnd": None, "source": "drums", "sources": [0.9, 0.04, 0.03, 0.03]})
+                    else:
+                        onsets.append({"t": t, "strength": 0.8, "band": "mid", "bands": [0.2, 0.6, 0.2], "pitch": float(n),
+                                       "harmonic": 0.8, "sustainEnd": None, "source": "other", "sources": [0.05, 0.05, 0.1, 0.8]})
+                bar += 1
+    duration = offset + bar * 4 * beat + 2000.0
+    analysis = {
+        "audioHash": f"sha256:gestures-{bpm}",
+        "analyzer": {"name": "core", "version": ANALYZER_VERSION},
+        "durationMs": duration,
+        "timing": {"offsetMs": offset, "tempoMap": [{"beat": 0, "bpm": bpm}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]},
+        "onsets": onsets,
+        "sections": [],
+        "energy": {"frameMs": 100, "values": [0.8] * int(duration / 100)},
+        "overrides": {},
+    }
+    return analysis, bars
+
+
+def place(analysis: dict, mode: str, tier: str, level: int | None = None, system: str | None = None, engine: str = "designer") -> dict:
+    """Every sound of the song as a note (no level loop), placed by the pattern engine."""
+    import numpy as np
+
+    from rhythm_server.generator.lanes import lane_search, notes_from_choices
+    from rhythm_server.generator.planner import plan_patterns
+
+    params = resolve_params(mode, tier, level, system=system)
+    tempo = TempoMap(analysis["timing"])
+    lanes = lane_infos(mode)
+    n_keys = sum(1 for l in lanes if l.kind == "key")
+    cands = build_candidates(analysis, tempo, params, float(difficulty_config()["snapToleranceMs"]))
+    slots = select_slots(cands, params, tempo, 4.0, None, n_keys)
+    plan = plan_patterns(slots, analysis["sections"], params, n_keys, tempo) if engine == "designer" else None
+    notes = notes_from_choices(slots, lane_search(slots, lanes, params, tempo, np.random.default_rng(5), plan=plan), tempo)
+    return {"meta": {"keyMode": mode}, "notes": notes}
+
+
+def key_sequence(chart: dict, bars: list[int]) -> list[list[int]]:
+    """Key indices of the single notes in each of these bars, in time order."""
+    keys = [l.index for l in lane_infos(chart["meta"]["keyMode"]) if l.kind == "key"]
+    by_t: dict[float, list[dict]] = {}
+    for n in chart["notes"]:
+        by_t.setdefault(round(n["t"], 3), []).append(n)
+    out = []
+    for b in bars:
+        seq = [ns[0]["lane"] for t, ns in sorted(by_t.items()) if len(ns) == 1 and b * 4 <= ns[0]["beat"] < b * 4 + 4 and ns[0]["lane"] in keys]
+        out.append([keys.index(x) for x in seq])
+    return out
+
+
+def test_phrases_read_the_gesture_of_the_melody() -> None:
+    analysis, bars = gesture_analysis()
+    params = resolve_params("6K", "HARD")
+    tempo = TempoMap(analysis["timing"])
+    cands = build_candidates(analysis, tempo, params, float(difficulty_config()["snapToleranceMs"]))
+    slots = select_slots(cands, params, tempo, 4.0, None, 6)
+    phrases = phrases_of(slots, [], tempo)
+    by_bar = {int(slots[p.slots[0]].beat // 4): p for p in phrases}
+    for name, bs in bars.items():
+        for b in bs:
+            assert by_bar[b].gesture == name, (name, b, by_bar[b].gesture)
+    assert by_bar[bars["run"][0]].direction == 1 and by_bar[bars["run"][1]].direction == -1
+
+
+def test_scales_become_stairs_and_two_note_figures_trills() -> None:
+    analysis, bars = gesture_analysis()
+    designer = place(analysis, "6K", "HARD")
+    classic = place(analysis, "6K", "HARD", engine="classic")
+
+    # scales walk one lane at a time (turning at the edge of the keys)
+    moves = [b - a for seq in key_sequence(designer, bars["run"]) for a, b in zip(seq, seq[1:])]
+    assert sum(abs(m) == 1 for m in moves) / len(moves) >= 0.85, moves
+    # two-note figures become a trill (or split) on two lanes; note by note they scattered
+    def two_lane(seq: list[int]) -> bool:
+        return len(set(seq)) == 2 and all(a != b for a, b in zip(seq, seq[1:]))
+
+    assert all(two_lane(seq) for seq in key_sequence(designer, bars["oscillate"]))
+    assert not all(two_lane(seq) for seq in key_sequence(classic, bars["oscillate"]))
+    # repeated notes alternate instead of piling up as jacks
+    for seq in key_sequence(designer, bars["repeat"]):
+        assert all(a != b for a, b in zip(seq, seq[1:])), seq
+    assert any(a == b for seq in key_sequence(classic, bars["repeat"]) for a, b in zip(seq, seq[1:]))
+
+
+def test_pedals_anchor_and_drums_keep_one_lane_per_sound() -> None:
+    analysis, bars = gesture_analysis()
+    chart = place(analysis, "6K", "EXPERT")
+    for seq in key_sequence(chart, bars["pedal"]):
+        # the downbeat is a chord, so the pedal (C) falls on the odd single notes
+        pedal, others = seq[1::2], seq[0::2]
+        assert len(set(pedal)) == 1 and pedal[0] not in others, seq
+    keys = [l.index for l in lane_infos("6K") if l.kind == "key"]
+    at: dict[float, tuple[int, ...]] = {}
+    for n in chart["notes"]:
+        at[n["beat"]] = tuple(sorted(at.get(n["beat"], ()) + (keys.index(n["lane"]),)))
+    for b in bars["rhythm"]:
+        # within a bar every drum sound keeps its lanes (hats may alternate between two)
+        sounds: dict[tuple[str, int], set[tuple[int, ...]]] = {}
+        for i, name in enumerate(GESTURE_BARS["rhythm"][0]):
+            lanes = at[b * 4 + i / 2]
+            sounds.setdefault((name, len(lanes)), set()).add(lanes)
+        for (name, _), used in sounds.items():
+            assert len(used) <= (2 if name == "hat" else 1), (b, name, used)
+
+
+def test_djmax_5k_repeated_notes_become_a_laser() -> None:
+    analysis, bars = gesture_analysis(150.0)  # eighths 200 ms apart: faster than an HD jack (250 ms)
+    params = resolve_params("5K", "HD", 10, system="DJMAX")
+    assert params.thumb_jack_ms == 150.0 and resolve_params("5K", "HD", 10, system="EZ2ON").thumb_jack_ms == 0.0
+    chart = place(analysis, "5K", "HD", 10, system="DJMAX")
+    center = [seq.count(2) / max(1, len(seq)) for seq in key_sequence(chart, bars["repeat"])]
+    assert min(center) >= 0.75, center
+    ez = place(analysis, "5K", "HD", 10, system="EZ2ON")
+    # EZ2ON has no laser: the same repeated notes alternate between two keys
+    assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
+
+
+def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
+    for mode, limit in (("6K", 0.12), ("8K", 0.15)):
+        for tier, system, level in (("NORMAL", None, None), ("EZ", "EZ2ON", 4)):
+            p = pattern_profile(generate_chart(dense_song, mode, tier, level, system=system)["notes"], mode)
+            assert p["leaps"] <= limit, (mode, tier, p["leaps"])
+            assert p["stairs"] >= 0.12, (mode, tier, p["stairs"])
+    for tier, level in (("HD", 9), ("MX", 13)):
+        p = pattern_profile(generate_chart(dense_song, "6K", tier, level, system="DJMAX")["notes"], "6K")
+        assert p["topShape"] <= 0.25 and p["shapeKinds"] >= 40, (tier, p["topShape"], p["shapeKinds"])
+
+
+def test_the_classic_engine_stays_available(dense_song: dict) -> None:
+    designer = generate_chart(dense_song, "6K", "HARD")
+    classic = generate_chart(dense_song, "6K", "HARD", overrides={"patternEngine": "classic"})
+    assert "patternEngine" not in designer["meta"]["generator"]["params"]
+    assert classic["meta"]["generator"]["params"]["patternEngine"] == "classic"
+    assert classic["meta"]["chartId"] != designer["meta"]["chartId"] and classic["notes"] != designer["notes"]

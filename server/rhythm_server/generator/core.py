@@ -15,13 +15,15 @@ from ..difficulty.patterns import pattern_summary
 from .candidates import build_candidates
 from .effects import camera_effects
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
+from .motifs import SlotPlan
 from .linter import lint
 from .params import GenParams, resolve_params
+from .planner import plan_patterns
 from .repeat import consistency, repeat_references, repeat_targets
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.3.1"
+GENERATOR_VERSION = "0.4.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least
@@ -91,16 +93,18 @@ def generate_chart(
     floor_nps = params.min_avg_nps * DENSITY_FLOOR
     scale = 1.0
     chord_scale = 1.0
-    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice]] | None = None
+    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice], list[SlotPlan] | None] | None = None
     exhausted = False
+    sections = analysis.get("sections", [])
     for _ in range(int(cfg["maxAdjustIterations"])):
         slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed))
+        plan = plan_patterns(slots, sections, params, key_count, tempo) if params.pattern_engine == "designer" else None
+        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = notes_from_choices(slots, choices, tempo)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         if best is None or rank < best[0]:
-            best = (rank, notes, est, slots, choices)
+            best = (rank, notes, est, slots, choices, plan)
         if rank[0] == 0 and rank[1] <= 0.75:
             break
         eff = max(0.3, est["effectiveNps"])
@@ -123,10 +127,10 @@ def generate_chart(
         scale = new_scale
 
     assert best is not None
-    _, notes, est, slots, choices = best
+    _, notes, est, slots, choices, plan = best
     repeat_score = None
     if params.repeat_consistency > 0:
-        consistent = _repeat_consistent(slots, choices, analysis.get("sections", []), lanes, params, tempo, seed)
+        consistent = _repeat_consistent(slots, choices, sections, lanes, params, tempo, seed, plan)
         if consistent is not None:
             notes, repeat_score = consistent
             est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
@@ -190,6 +194,7 @@ def _repeat_consistent(
     params: GenParams,
     tempo: TempoMap,
     seed: int,
+    plan: list[SlotPlan] | None = None,
 ) -> tuple[list[dict[str, Any]], float | None] | None:
     """Re-runs the lane search so repeated sections reuse their first occurrence's lanes.
     References come from the previous pass and are refreshed until they stop changing."""
@@ -201,7 +206,7 @@ def _repeat_consistent(
     chosen = key_lanes_of(choices, len(slots), lanes)
     for _ in range(int(cfg.get("passes", 2))):
         targets = repeat_targets(refs, occurrence, chosen, lanes, mirror)
-        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), targets)
+        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), targets, plan)
         updated = key_lanes_of(choices, len(slots), lanes)
         if updated == chosen:
             break

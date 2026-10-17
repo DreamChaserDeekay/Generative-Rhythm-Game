@@ -9,21 +9,23 @@ from typing import Any
 
 from ..config import difficulty_config, key_modes
 
-FAST_MS = 260.0  # consecutive single notes closer than this form a run
+RUN_MS = 400.0  # consecutive single notes closer than this form a run (shapes are read in runs)
+FAST_MS = 260.0  # moves closer than this are fast (leaps, jacks)
 ALTERNATE_MS = 200.0  # moves at least this fast count toward hand alternation
 SHAPE_MOVES = 3  # moves in one shape of the variety measure
+MIN_SHAPES = 20  # fewer shapes than this say nothing about variety (topShape stays 0)
 WEAK_FINGER_PAIRS = ({2, 3}, {3, 4})  # middle-ring and ring-pinky trills
 SUMMARY_KEYS = ("stairs", "trills", "chords", "jacks", "holdTaps", "leaps")
 
 
 def _runs(events: list[tuple[float, tuple[int, ...]]]) -> list[list[tuple[float, int]]]:
-    """Stretches of single notes in a row, each closer than FAST_MS to the previous one."""
+    """Stretches of single notes in a row, each closer than RUN_MS to the previous one."""
     runs: list[list[tuple[float, int]]] = []
     current: list[tuple[float, int]] = []
     prev_t: float | None = None
     for t, lanes in events:
-        fast = prev_t is not None and t - prev_t <= FAST_MS
-        if len(lanes) == 1 and current and fast:
+        close = prev_t is not None and t - prev_t <= RUN_MS
+        if len(lanes) == 1 and current and close:
             current.append((t, lanes[0]))
         else:
             if len(current) >= 2:
@@ -79,7 +81,8 @@ def pad_forbidden_keys(key_mode: str) -> list[set[int]]:
 
 
 def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any]:
-    """Shares are of the chart's key notes unless named otherwise; moves are within runs."""
+    """Shares are of the chart's key notes unless named otherwise. Shapes (stairs, trills, variety)
+    are read in runs of single notes; leaps and alternation count only fast moves."""
     lane_cfg = key_modes()[key_mode]["lanes"]
     keys = [i for i, lane in enumerate(lane_cfg) if lane["kind"] == "key"]
     index = {lane: k for k, lane in enumerate(keys)}
@@ -138,6 +141,8 @@ def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any
                 weak += 1
         steps = [b - a for a, b in zip(lanes, lanes[1:])]
         for (ta, a), (tb, b) in zip(run, run[1:]):
+            if tb - ta > FAST_MS:
+                continue
             moves += 1
             d = abs(b - a)
             leaps += d >= 3
@@ -169,7 +174,7 @@ def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any
             "leaps": share(leaps, moves),
             "alternation": share(alt, alt_moves),
             "sameHandLeaps": share(same_hand_leaps, moves),
-            "topShape": share(shapes.most_common(1)[0][1], shape_total) if shapes else 0.0,
+            "topShape": share(shapes.most_common(1)[0][1], shape_total) if shape_total >= MIN_SHAPES else 0.0,
             "shapeKinds": len(shapes),
             "chordShapes": {
                 "adjacent": share(adjacent, len(pairs)),
