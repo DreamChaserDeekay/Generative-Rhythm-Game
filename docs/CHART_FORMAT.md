@@ -62,7 +62,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `chartId` | `c` + SHA-256 앞 20자. 오디오 해시, 분석기 버전·보정값, 키 모드, 공개 파라미터, 시드, 생성기 버전으로 만든다. 기록은 이 값에 묶인다. |
+| `chartId` | `c` + SHA-256 앞 20자. 생성 채보는 오디오 해시, 분석기 버전·보정값, 키 모드, 공개 파라미터, 시드, 생성기 버전으로, 편집·가져온 채보는 오디오 해시·키 모드·타이밍·노트·키음으로(같은 내용이면 같은 ID) 만든다. 기록은 이 값에 묶인다. |
 | `audioHash` | 업로드 원본의 `sha256:` 해시. |
 | `songId` | 서버 라이브러리의 곡 ID(원본 해시 앞 16자). |
 | `keyMode` / `lanes` | 키 모드와 레인 ID. `lane` 값은 이 배열의 인덱스다. 7K+1S에서 0번은 스크래치, FX 모드(4K+FX · 6K+FX)에서 처음(`FXL`)과 끝(`FXR`)은 사이드 트랙. 레인 종류는 `config/keymodes.json`의 `kind`. |
@@ -74,13 +74,17 @@
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
 | `keysound` | 스템 키음 모드에서 줄일 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 분석에 스템 정보가 없으면 `null`(키음 모드를 켜도 키음 없이 재생). |
 | `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
-| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). |
+| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성). 생성 채보에만 있다. |
+| `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
+| `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE 또는 난이도·레벨, 에디터에서 정한 이름). `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–3 EASY … 13–15 MASTER)이다. |
+| `keysoundGain` | 가져온 키음 채보: 키음을 모두 섞어도 클리핑하지 않게 하는 게인. BGM과 노트 소리에 같이 곱한다. |
 
 ### timing
 
 - `offsetMs`: 0박(첫 다운비트)의 시각.
 - `tempoMap`: `{beat, bpm}` 구간별 고정 템포. 첫 항목은 반드시 `beat: 0`. 0박보다 앞선 박은 첫 구간의 템포를 거꾸로 적용한다.
-- `meter`: `{measure, beatsPerMeasure}`. 마디선 계산에 쓴다.
+- `meter`: `{measure, beatsPerMeasure}`. 마디선 계산에 쓴다. 가져온 채보는 `beatsPerMeasure`가 소수일 수 있다(BMS 채널 02, osu! 타이밍 포인트 앞의 잘린 마디).
+- `stops`(선택): `{beat, durationMs}`. 그 박에서 박 시계가 `durationMs` 동안 멈춘다(BMS #STOP, bmson stop_events). 그 박에 있는 노트는 STOP이 시작할 때, 이후 노트는 그만큼 늦게 온다. `t`는 이미 STOP을 포함한 값이다.
 
 ### effects
 
@@ -105,6 +109,14 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 | `type` | `tap` 또는 `hold`. |
 | `endBeat` / `endT` | 롱노트 끝(`hold`만). |
 | `src` | 그 노트를 만든 소리의 주 스템(drums · bass · vocals · other). 분석에 스템 정보가 있을 때만 있다. 스템 키음 모드에서 `meta.keysound.stem`과 같은 노트(또는 `src`가 없는 노트)를 놓치면 그 스템을 줄인다. |
+| `snd` | 가져온 키음 채보: 누르면 나는 소리(`sounds`의 인덱스). |
+| `so` | 소리를 시작할 위치(ms). bmson에서 이전 노트의 소리를 이어 받는 노트(`c: true`, 잘린 스템)는 0보다 크다. |
+| `sl` | 소리를 끊는 길이(ms). 같은 소리가 다시 시작하는 시각까지(BMS의 같은 #WAV, bmson의 같은 채널). |
+
+### sounds · bgm (가져온 키음 채보)
+
+- `sounds`: 키음 파일 이름 목록. 실제 소리는 서버가 곡마다 하나로 이어 붙인 파일(`/api/songs/{id}/keysounds.flac`)과 위치표(`keysounds.json`)로 준다.
+- `bgm`: 플레이어와 상관없이 나는 소리 `{beat, t, snd, so?, sl?}`(BMS 채널 01, bmson x=0). 클라이언트는 이것을 한 버퍼로 렌더해 곡 오디오로 쓴다.
 
 노트는 `t`, `lane` 순으로 정렬되어 있다. 같은 레인·같은 시각 중복, 롱노트 겹침은 없다(린터가 보장).
 
@@ -114,5 +126,38 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - 사이드 트랙 노트를 놓치면 BREAK가 아니라 MAX 1%다.
 - 배치 옵션(MIRROR·RANDOM 등)과 연습 구간은 클라이언트가 플레이 직전에 노트의 `lane`을 바꾸거나 일부만 골라 적용한다. 채보 파일과 `chartId`는 바뀌지 않는다.
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
+- `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
+
+## 다른 포맷과의 대응
+
+내보낼 때 음원은 넣지 않고 파일 이름만 적는다(생성 채보는 업로드한 원본 이름, 데모 곡은 `audio.flac`). 가져오고 내보낼 때 레인은 아래처럼 맞춘다.
+
+| 우리 키 모드 | osu!mania | BMS 채널 | bmson x |
+|---|---|---|---|
+| 4K · 5K · 6K · 8K | 열 0…n−1 | — (5K만: 11–15) | — (5K만: 1–5, `beat-5k`) |
+| 4K+FX · 6K+FX | 열 0…n−1(양 끝이 사이드), `Tags`에 `grg-mode:6K+FX` | — | — |
+| 7K+1S | 8열, `SpecialStyle: 1`(0열 = 스크래치) | 스크래치 16, 1–5번 11–15, 6–7번 18–19 (롱노트 5x) | 스크래치 8, 1–7번 1–7 (`beat-7k`) |
+
+- **시간**: 우리 `t`와 osu!·BMS·bmson의 시간 0은 모두 음원 파일의 처음이다. osu!는 시각을 정수 ms로 쓴다. 첫 박(`offsetMs`)이 0보다 늦으면 BMS는 그 길이의 첫 마디(채널 02)를, bmson은 그만큼의 펄스를 앞에 넣어 이후 마디가 우리 마디선과 맞게 한다. 디코더에 따라 MP3 앞부분 지연이 다를 수 있어 내보내기에 `offsetMs`(±5000ms) 보정을 둔다.
+- **템포**: BMS는 #BPMxx(채널 08), bmson은 `bpm_events`, osu!는 빨간 타이밍 포인트. osu!는 STOP이 없어 STOP 끝에 타이밍 포인트를 다시 둔다(시각은 정확, 스크롤만 다름). BMS #STOP 값은 4/4 마디의 1/192 단위다.
+- **롱노트**: BMS는 LNTYPE 1(채널 5x의 시작·끝 쌍)으로 쓰고, 읽을 때는 #LNOBJ도 받는다. bmson은 `l`(펄스 길이), osu!는 타입 128.
+- **BMS 위치 해상도**: 마디·채널마다 모든 오브젝트가 0.5ms 안에 들어가는 가장 작은 분할(1 … 3840)을 고른다.
+- **가져올 때 정리**: 같은 레인·같은 시각이나 롱노트 안에 겹친 노트는 하나만 남기고 알림에 개수를 적는다. 레벨·NPS·스킬 지표는 우리 난이도 모델로 다시 계산한다.
+
+## 리플레이 (`replays/<scoreId>.json`)
+
+```json
+{
+  "version": 1,
+  "chartId": "c1a2b3c4d5e6f7a8b9c0d",
+  "songId": "a1b2c3d4e5f60718",
+  "recordedAt": 1792236358000,
+  "settings": { "judgementMode": "NORMAL", "ruleset": "RESPECT", "gaugeType": "NORMAL", "fever": "AUTO", "placement": "RANDOM", "placementSeed": 123456, "hiSpeed": 4.0 },
+  "log": [1, 2, 2411.8, 0, 2, 2452.1, 2, 0, 2700.0],
+  "result": { "score": 987654, "rate": 98.77, "maxCombo": 476, "lamp": "MAX COMBO" }
+}
+```
+
+`log`은 `[동작, 레인, 판정 시각(ms)]`을 이어 붙인 것이다. 동작은 0 뗌 · 1 누름 · 2 갱신(무언가 바뀐 프레임 갱신: 늦은 미스, 롱노트 틱·끝, FEVER 끝) · 3 FEVER 발동이고, 판정 엔진에 들어간 순서 그대로다. 판정 시각은 이미 입력 오프셋을 뺀 값이라 보는 사람의 오프셋과 무관하다. 같은 채보(`chartId`)·같은 `settings`로 이 순서를 다시 넣으면 결과가 정확히 같다.
 - 판정 대상 수 = 노트 수 + 롱노트 수(롱노트는 시작과 끝 두 번 판정).
 - 틱 위치는 `beat`/`endBeat`와 `tempoMap`에서 계산한다.

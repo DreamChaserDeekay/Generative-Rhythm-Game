@@ -31,19 +31,27 @@
 | 스템 키음 | BMS처럼 노트마다 소리를 잘라 붙이지 않는다. 채보가 주로 따르는 스템 하나를 정하고, 그 스템의 노트를 놓치면 잠깐 줄였다가 맞히면 되돌린다. 박 단위로 자른 소리가 어색하게 끊기는 일이 없고, 곡 시간·판정은 믹스 그대로다. |
 | 카메라 연출 | 채보에 들어 있는 `effects`(구간 에너지에서 생성)로 트랙 기울기(카메라 roll)와 줌(FOV)만 바꾼다. 노트 시간·판정선·레인 순서는 바뀌지 않는다. |
 | BGA · 스킨 | BGA는 사용자가 곡마다 올리는 mp4·webm(소리 없이 곡 시간에 맞춰 재생). 스킨은 외부 이미지 없이 색·모양 파라미터로만 만들고, 사용자 스킨은 JSON이다. 다른 게임의 에셋은 쓰지 않는다. |
+| 채보 에디터 | 노트만 편집한다(템포·박자·키음 목록은 원래 채보를 따른다). 같은 레인에서 노트가 겹치는 편집은 거부한다. 저장하면 원본은 두고 새 채보(`edited`)로 남기며, 생성 채보용 플레이어빌리티 린터 대신 구조 검사만 한다(사람이 일부러 만든 어려운 배치를 막지 않기 위해). |
+| 가져오기 | osu!mania는 들어 있는 음원을 그대로 곡으로 쓴다. BMS·bmson은 키음을 섞은 음원을 만들어 곡으로 등록한다(분석·자동 생성도 되게). BMS #RANDOM은 파일 내용에서 정한 하나의 분기로 고정하고, DP·PMS·osu! SV는 지원하지 않는다. 키음은 플레이할 때 BGM만 깔고 노트를 칠 때 낸다. |
+| 내보내기 | 음원은 넣지 않고 파일 이름만 적는다. BMS·bmson은 5K · 7K+1S만(BMS 플레이어에 다른 배치가 없음), osu!mania는 모든 모드. |
+| 리플레이 | 키 입력 기록이 아니라 **판정 엔진에 들어간 호출 순서**(누름·뗌·변화가 있었던 프레임 갱신·FEVER)를 저장한다. 같은 순서로 다시 넣으면 프레임 속도와 무관하게 결과가 정확히 같다. |
+| 게임패드 | 웹 게임패드 API는 이벤트가 없어 폴링해야 한다. 화면 프레임과 따로 짧은 간격으로 읽고, 판정 시각은 `Gamepad.timestamp`(브라우저가 패드 신호를 받은 시각)를 쓴다. 턴테이블은 축의 움직임(방향 전환·멈춤)으로 스크래치를 만든다. |
+| 데스크톱 | Electron + PyInstaller로 묶은 서버. Tauri는 macOS·Linux에서 WebKit을 쓰는데, 싱크의 기준인 `getOutputTimestamp()`·`outputLatency`가 Chromium과 다르게 동작할 수 있어(품질 우선순위 1번) 테스트한 엔진과 같은 Chromium을 싣는 쪽을 골랐다. 대신 용량이 크다(압축 전 약 570MB). |
 
 ## 3. 전체 구조
 
 ```
-┌──────────── 브라우저 클라이언트 (TypeScript) ────────────┐        ┌───────── 로컬 Python 서버 (FastAPI) ──────────┐
-│ ui/       곡 선택 · 설정 · 결과 · HUD · 배경(BGA)        │  HTTP  │ api/        라우트, 라이브러리(SQLite+파일)   │
-│ render/   Three.js SDVX식 트랙 · 카메라 연출 · 스킨      │◀──────▶│ audio_io    디코딩 → 표준 FLAC, 태그·커버     │
-│ engine/   판정 · 롱노트 · 점수 · 게이지 · 오토 플레이    │        │ analysis/   기본 분석 · 스템 분리 · 악기 태깅 │
-│ input/    키보드 → 레인, 타임스탬프 변환                 │        │   backends/ ML 어댑터 (Demucs · beat_this 등) │
-│ audio/    표준 오디오 재생, 오디오 클럭, 스템 키음       │        │ generator/  채보 생성 · 린터 · 연출 신호      │
-│ settings/ 설정 · 사용자 스킨 (localStorage)              │        │ difficulty/ 레벨 산정                         │
-└──────────────────────────────────────────────────────────┘        └───────────────────────────────────────────────┘
-                    config/ (판정 · 키 모드 · 게이지 · 카메라 · 난이도 · 분석 · 악기) 공용
+┌──────────── 브라우저 클라이언트 (TypeScript) ────────────┐        ┌────────── 로컬 Python 서버 (FastAPI) ───────────┐
+│ ui/       곡 선택 · 설정 · 결과 · HUD · 배경(BGA)        │  HTTP  │ api/        라우트, 라이브러리(SQLite+파일)     │
+│ editor/   채보 에디터 (편집 규칙 · 캔버스)               │◀──────▶│ audio_io    디코딩 → 표준 FLAC, 태그·커버       │
+│ render/   Three.js SDVX식 트랙 · 카메라 연출 · 스킨      │        │ analysis/   기본 분석 · 스템 분리 · 악기 태깅   │
+│ engine/   판정 · 점수 · 게이지 · 오토 플레이 · 리플레이  │        │   backends/ ML 어댑터 (Demucs · beat_this 등)   │
+│ input/    키보드·게임패드 → 레인, 타임스탬프 변환        │        │ generator/  채보 생성 · 린터 · 연출 신호        │
+│ audio/    표준 오디오 재생, 오디오 클럭, 키음            │        │ difficulty/ 레벨 산정                           │
+│ settings/ 설정 · 키·패드 배치 (localStorage)             │        │ formats/    osu!·BMS·bmson 가져오기/내보내기    │
+└──────────────────────────────────────────────────────────┘        └─────────────────────────────────────────────────┘
+              config/ (판정 · 키 모드 · 게이지 · 카메라 · 난이도 · 분석 · 악기 · 입력) 공용
+              desktop/ Electron 창 + PyInstaller로 묶은 서버 (선택)
 ```
 
 - 업로드 → 서버가 표준 FLAC 생성 → 분석(백그라운드 작업, 진행률) → `AnalysisResult` 캐시.
@@ -61,6 +69,9 @@
 - 오프셋 부호: 판정 오프셋 +20ms = "평균 20ms 늦게 치는 사람을 위한 보정", 표시 오프셋 +10ms = "노트를 10ms 앞당겨 그림".
 - **늦은 미스 판정**은 프레임 갱신에서 하되, 아직 처리되지 않은 입력 이벤트가 있을 수 있으므로 `missMarginMs`(50ms)만큼 늦게 확정한다. 입력이 들어오면 그 레인의 지난 노트를 먼저 정리한 뒤 판정한다.
 - **리드인**: 첫 노트가 2초보다 빠르면 오디오 시작 전에 대기 시간을 넣는다. 이 동안 곡 시간은 음수다.
+- **STOP**(가져온 BMS·bmson): 박 시계가 멈추는 구간. 노트의 `t`는 STOP을 포함한 값이라 판정에는 영향이 없고, BPM 연동 스크롤에서만 그동안 노트가 멈춘다. 서버·클라이언트의 TempoMap이 같은 규칙(STOP 박에 있는 노트는 STOP이 시작할 때)을 쓴다.
+- **게임패드 입력 시각**: 키보드의 `event.timeStamp` 대신 `Gamepad.timestamp`(브라우저가 패드 보고를 받은 시각, `performance.now()`와 같은 시간축)를 같은 변환에 넣는다. 값이 없거나 100ms보다 오래됐으면 읽은 시각을 쓴다.
+- **가져온 키음**: BGM 채널을 렌더한 버퍼가 곡 시계의 기준이다(일반 곡의 `audio.flac` 자리). 노트 소리는 누른 순간(그 시각은 이미 지났으므로 곧바로), 오토 플레이는 `contextTimeForSong(t)`에 미리 예약해 노트 시각에 정확히 낸다.
 - **스템 키음**: 키음 스템은 믹스와 길이가 같은 두 번째 버퍼로, 믹스와 같은 `start(when)`에 시작해 샘플 단위로 정렬된다. 위상을 뒤집어 더하므로(`leadGain`이 평소 0, 덕일 때 −(1 − level)) 따로 반주 버퍼를 만들지 않아도 믹스 − k × 스템이 된다. 연습 모드는 믹스와 스템 채널을 한 번에 스트레치해(모노 합으로 정한 정렬을 공유) 정렬이 유지된다. 곡 시간·판정은 믹스 소스 기준이고 키음은 음량만 바꾼다.
 
 ## 5. 판정 모델 (DJMAX RESPECT V 기준)
@@ -123,8 +134,15 @@
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
 | POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency) — 같은 chartId면 캐시 |
 | GET | `/api/charts/{chartId}` | 채보 |
-| POST | `/api/scores` | 플레이 기록 저장 |
-| GET | `/api/songs/{id}/scores` | 채보별 최고 기록 |
+| POST | `/api/scores` | 플레이 기록 저장(선택: `replay`) |
+| GET | `/api/songs/{id}/scores` | 채보별 최고 기록(최고 기록의 `bestScoreId`, `hasReplay`) |
+| GET | `/api/scores/{scoreId}/replay` | 리플레이 |
+| GET | `/api/songs/{id}/charts` | 저장된(편집·가져온) 채보 목록 |
+| POST | `/api/songs/{id}/charts/custom` | 편집한 채보 저장(`baseChartId`, `notes`, `name`) — 구조 검사, 난이도 재계산, 내용으로 정한 chartId |
+| DELETE | `/api/charts/{chartId}` | 채보 삭제(그 채보의 기록·리플레이도) |
+| GET | `/api/charts/{chartId}/export?format=osu\|bms\|bmson&offsetMs=` | 내보내기 파일 |
+| POST | `/api/import` | 채보 가져오기(multipart `files` + 폴더 안 경로 `paths`, 또는 .zip/.osz) → 곡·채보·알림 |
+| GET | `/api/songs/{id}/keysounds.json` · `.flac` | 가져온 키음의 위치표와 묶음 파일 |
 
 ### 데이터 폴더
 
@@ -138,7 +156,9 @@ data/
     analysis.json          AnalysisResult
     stems/<name>.flac      분리한 스템(16bit FLAC 4개, 합 = 표준 오디오) + stems.json(분리 방법)
     bga.<ext>              배경 영상(있으면)
-  charts/<chartId>.json    생성된 채보
+    keysounds/sprite.flac  가져온 BMS·bmson의 키음을 이어 붙인 파일 + sprite.json(각 소리의 위치, 게인)
+  charts/<chartId>.json    채보(생성·편집·가져옴; charts 테이블의 kind)
+  replays/<scoreId>.json   기록마다 그 플레이의 리플레이
 ```
 
 `songId`는 원본 파일의 SHA-256 앞 16자리다. 같은 파일을 다시 올리면 같은 곡으로 처리한다. 이전 버전의 `library.sqlite3`는 서버가 시작할 때 빠진 열을 추가해(`ALTER TABLE … ADD COLUMN`) 그대로 쓴다.
@@ -158,21 +178,36 @@ client/          브라우저 클라이언트 (Vite + TypeScript + React + Three
   src/api/       서버 API 클라이언트
   src/audio/     오디오 엔진(스템 키음 포함), 오디오 클럭, 버퍼 캐시, 클릭 트랙 합성, WSOLA 타임 스트레치(워커)
   src/engine/    판정·룰셋·게이지·FEVER·배치 옵션·스크롤·오토 플레이 (DOM 의존 없음, Vitest)
-  src/input/     키보드 입력, 키 바인딩
+  src/input/     키보드·게임패드 입력, 키 바인딩, 메뉴용 패드 브리지
   src/render/    Three.js 트랙 렌더러, 카메라, 투영, 카메라 연출, 스킨
-  src/ui/        화면(React), HUD, 플레이 배경(BGA·비주얼라이저)
+  src/ui/        화면(React), HUD, 플레이 배경(BGA·비주얼라이저), 채보 에디터 화면
+  src/editor/    에디터 문서(편집 규칙·되돌리기, DOM 없음)와 캔버스
   src/settings/  설정(localStorage)
   e2e/           Playwright E2E
 server/          로컬 분석 서버 (Python, FastAPI)
-  rhythm_server/ analysis(+backends) · generator · difficulty · formats · api
+  rhythm_server/ analysis(+backends) · generator · difficulty · formats(osu!·BMS·bmson·키음) · api
   tests/         pytest (합성 음원 기반)
 config/          서버·클라이언트 공용 튜닝 값
+desktop/         Electron 셸(main.js): 서버를 빈 포트에 띄우고 창을 연다
+packaging/       PyInstaller 스펙, 서버 진입점, 데스크톱 빌드 스크립트
 docs/            PROMPT · ARCHITECTURE · GENERATION · CHART_FORMAT
 ```
 
 ## 9. 작업 계획과 결과
 
-Phase 0–3을 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+Phase 0–4를 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`, 가져오기·내보내기 규칙은 `docs/CHART_FORMAT.md`에 있다.
+
+### Phase 4 결과
+
+| 항목 | 구현 | 검증 |
+|---|---|---|
+| 채보 에디터 | 세로 타임라인 캔버스(마디 번호·파형), 스냅 1/4–1/64, 놓기·롱노트·옮기기·길이·범위 선택·복사/잘라내기/붙이기·미러·되돌리기, 재생(타격음·키음), 실시간 입력, 커서부터 테스트 플레이(연습 모드로 돌고 에디터로 복귀), 저장(새 `edited` 채보) | Vitest 6개(스냅, 겹침 거부, 원자적 이동, 되돌리기, 박 단위 붙이기, 미러) / pytest: 저장·재저장 같은 ID·구조 오류 422·삭제 / E2E: 놓기·지우기·되돌리기·저장·테스트 플레이 후 복귀 |
+| 내보내기 | osu!mania v14(모든 모드, SpecialStyle·`grg-mode` 태그), BMS(.bme/.bms, 첫 박 앞 마디, #BPMxx·#STOPxx, LNTYPE 1, 마디마다 0.5ms 이내 최소 해상도), bmson 1.0.0(해상도 960) | pytest: 생성 채보를 내보내 다시 읽으면 노트가 같음 — osu! ≤ 0.5ms(정수 ms), BMS ≤ 0.01ms, bmson ≤ 0.5ms |
+| 가져오기 | osu!(빨간 타이밍 포인트, 잘린 마디), BMS(BPM 03/08, STOP, 마디 길이, LNTYPE 1·LNOBJ, #RANDOM/#IF, DP·PMS 거부), bmson(슬라이스 `c`, 겹친 채널), Shift_JIS·EUC-KR·UTF-8 판별, zip 이름 인코딩, 겹친 노트 정리 | pytest 9개(타이밍·STOP·롱노트·#RANDOM 고정, 모드 배치, 인코딩, bmson 슬라이스, osu! 배치·마디, API 가져오기·재가져오기 같은 곡, .osz 음원 사용, 실패 보고) |
+| 키음 플레이 | 서버: 키음 디코딩 → 전체 믹스(곡 음원, 클리핑 없게 게인) + 키음 묶음 파일. 클라이언트: BGM을 OfflineAudioContext로 렌더해 곡 버퍼로, 노트 소리는 누를 때(빈 누름은 그 레인 다음 노트), 오토 플레이는 노트 시각에 예약, 같은 소리는 다시 날 때 이전 것을 끊음 | pytest: 렌더한 곡의 킥이 BMS 박 위치에(1900ms 무음, 2000ms 소리), 분석 BPM 120 / E2E: BMS 폴더 가져오기 → 키음 오토 플레이 PERFECT PLAY |
+| 리플레이 | ReplayRecorder / ReplayPlayer, 기록과 함께 저장, 결과 화면·최고 기록·파일에서 보기 | Vitest: 지연된 입력·흔들리는 프레임으로 친 판을 다른 프레임 간격으로 재생해 결과 객체가 완전히 같음 / E2E: 키보드로 친 판의 리플레이가 같은 점수·정확도 / pytest: 저장·최고 기록 리플레이·잘못된 데이터 422·곡 삭제 시 정리 |
+| 게임패드 | 2ms 간격 폴링(브라우저 하한 약 4ms), `Gamepad.timestamp` 판정, 버튼·축 방향·턴테이블, 레인별 지정, 메뉴 브리지, Start 일시정지 | Vitest 7개(타임스탬프 사용·오래된 값 대체, 축 방향, 턴테이블 누름·방향 전환·멈춤, 축 끝 넘김, 정지 시 떼기, 키보드와 함께 한 레인) / E2E: 가짜 패드로 레인 지정·B로 메뉴 나가기 |
+| 데스크톱 | PyInstaller(기본 분석, 282MB) + Electron 44 셸, 빈 포트·사용자 데이터 폴더·종료 시 서버 정리, 빌드 스크립트 | Linux: 번들 서버 단독 실행(분석·생성·OGG 업로드·BMS 가져오기), electron-builder `--dir` 결과를 Xvfb에서 띄워 게임 화면·데모 곡 분석 확인. Windows·macOS 설치 파일은 미검증 |
 
 ### Phase 3 결과
 

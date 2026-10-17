@@ -658,7 +658,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
             <li><kbd>1</kbd>–<kbd>8</kbd> 스냅 1/4 ~ 1/64</li>
             <li><kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>X</kbd>/<kbd>V</kbd> 복사·잘라내기·커서에 붙이기</li>
             <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> 되돌리기·다시 · <kbd>M</kbd> 미러</li>
-            <li><kbd>Space</kbd> 재생 · <kbd>T</kbd> 커서부터 테스트 · <kbd>Ctrl</kbd>+<kbd>S</kbd> 저장</li>
+            <li><kbd>Space</kbd>/<kbd>P</kbd> 재생 (실시간 입력 중에는 <kbd>P</kbd>) · <kbd>T</kbd> 커서부터 테스트 · <kbd>Ctrl</kbd>+<kbd>S</kbd> 저장</li>
           </ul>
           <p className="hint">
             템포·박자는 원래 채보를 따릅니다. 저장하면 새 채보로 라이브러리에 남고(원본은 그대로), 난이도를 다시 계산합니다.

@@ -38,4 +38,14 @@ describe('TempoMap', () => {
     expect(tempo.barLines(6000)).toEqual([1000, 3000, 5000]);
     expect(tempo.barLines(7000)).toEqual([1000, 3000, 5000, 6500]);
   });
+
+  it('pauses the beat clock during stops (imported BMS/bmson)', () => {
+    const tempo = new TempoMap({ offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [], stops: [{ beat: 4, durationMs: 1000 }] });
+    expect(tempo.beatToMs(4)).toBeCloseTo(2000, 9); // a note on the stop's beat is hit when it starts
+    expect(tempo.beatToMs(4.5)).toBeCloseTo(3250, 9);
+    expect(tempo.msToBeat(2500)).toBe(4); // frozen inside the stop
+    expect(tempo.msToBeat(3250)).toBeCloseTo(4.5, 9);
+    expect(tempo.msToBeat(1000)).toBeCloseTo(2, 9);
+    expect(tempo.barLines(6000)).toEqual([0, 2000, 5000]); // the bar on the stop at its start, the next one later
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api/client';
+import { api, EXPORT_LABELS, exportFormats } from '../api/client';
 import { gaugeRules, judgementConfig } from '../engine/config';
 import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
@@ -17,13 +17,15 @@ interface Props {
   onRetry: () => void;
   onBack: () => void;
   onWatchReplay: (replay: ReplayData) => void;
+  /** Generate this key mode and difficulty again with a new seed and play it (generated charts). */
+  onRegenerate?: () => void;
 }
 
 function signedMs(v: number | null): string {
   return v === null ? '-' : `${v > 0 ? '+' : ''}${v.toFixed(1)}ms`;
 }
 
-export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack, onWatchReplay }: Props) {
+export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack, onWatchReplay, onRegenerate }: Props) {
   const { result, chart, placement, practice } = outcome;
   // what was played: the recorded settings of a replay, or the current ones
   const played = request.replay?.settings ?? outcome.replay?.settings ?? settings;
@@ -216,6 +218,17 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       <div className="row buttons center">
         <button className="primary" data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>Enter</kbd></button>
         <button data-testid="result-back" onClick={onBack}>메뉴로 <kbd>Esc</kbd></button>
+        {onRegenerate && (
+          <button data-testid="result-regenerate" onClick={onRegenerate}>
+            새 패턴으로 다시
+          </button>
+        )}
+        {meta.songId &&
+          exportFormats(meta.keyMode).map((f) => (
+            <a key={f} className="button" href={api.exportUrl(meta.chartId, f)} download data-testid={`result-export-${f}`}>
+              {EXPORT_LABELS[f]} 내보내기
+            </a>
+          ))}
         {replay && (
           <>
             <button data-testid="watch-replay" onClick={() => onWatchReplay(replay)}>

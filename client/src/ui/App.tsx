@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ServerChart, Song } from '../api/client';
+import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge } from '../input/gamepad';
@@ -11,6 +11,7 @@ import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
 import { SettingsScreen } from './SettingsScreen';
+import { generationParams } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { SongSelectScreen } from './SongSelectScreen';
 
@@ -86,6 +87,24 @@ export function App() {
     setEditor(newEditorSession(song, chart));
     setScreen({ name: 'editor' });
   }, []);
+  /** Result screen: the same key mode and difficulty with a new seed, played right away. */
+  const regenerate = async (request: PlayRequest) => {
+    const meta = request.chart.meta;
+    if (!meta.songId || !meta.generator) return;
+    try {
+      const song = await api.song(meta.songId);
+      const { chart } = await api.generate(meta.songId, {
+        keyMode: meta.keyMode,
+        difficulty: meta.difficulty,
+        targetLevel: (meta.generator.params.targetLevel as number | null | undefined) ?? null,
+        newSeed: true,
+        params: generationParams(settings.generation, meta.keyMode),
+      });
+      play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
+    } catch {
+      setScreen({ name: 'select' });
+    }
+  };
   const testFromEditor = (chart: Chart, startMs: number) => {
     if (!editor) return;
     const endMs = Math.max(editor.song.durationMs, ...chart.notes.map((n) => n.endT ?? n.t)) + 1;
@@ -127,6 +146,11 @@ export function App() {
           onRetry={() => play({ ...screen.request, replay: undefined })}
           onBack={() => leavePlay(screen.request)}
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
+          onRegenerate={
+            screen.request.chart.meta.generator && !screen.request.practice && !screen.request.replay && !screen.request.fromEditor
+              ? () => void regenerate(screen.request)
+              : undefined
+          }
         />
       );
     case 'calibration':

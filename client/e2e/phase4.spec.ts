@@ -151,6 +151,8 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   await expect(page.getByTestId('save-state')).toBeVisible({ timeout: 10_000 });
   const score = await page.getByTestId('result-score').textContent();
   const rate = await page.getByTestId('result-rate').textContent();
+  await expect(page.getByTestId('result-regenerate')).toBeVisible();
+  await expect(page.getByTestId('result-export-osu')).toBeVisible();
 
   await page.getByTestId('watch-replay').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
