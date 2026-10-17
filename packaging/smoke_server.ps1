@@ -1,5 +1,5 @@
 # Smoke test of the bundled analysis server on Windows (used by the desktop workflow):
-# starts it, analyzes a demo song, decodes an uploaded OGG file and generates a chart.
+# starts it, analyzes a demo song, generates a chart and decodes an uploaded MP3 file.
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = Split-Path -Parent $PSScriptRoot
@@ -36,13 +36,25 @@ try {
   $chart = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"7K+1S","difficulty":"HARD"}').chart
   Write-Host "chart: $($chart.meta.keyMode) $($chart.meta.difficulty) Lv.$($chart.meta.level) | $($chart.meta.noteCount) notes"
 
-  # an uploaded file goes through the bundled FFmpeg (PyAV)
-  $ogg = Join-Path $work 'upload.ogg'
-  python -c "import sys; sys.path.insert(0, sys.argv[2]); from rhythm_server.synth import make_song; import soundfile as sf; s = make_song(120.0, 8, seed=4); sf.write(sys.argv[1], s.pcm, 44100, format='OGG')" $ogg (Join-Path $root 'server')
-  $upload = curl.exe -s --fail-with-body -F "file=@$ogg" "$base/api/songs" | ConvertFrom-Json
+  # an uploaded MP3 goes through the bundled FFmpeg (PyAV)
+  $mp3 = Join-Path $work 'upload.mp3'
+  $make = Join-Path $work 'make_mp3.py'
+  Set-Content -Path $make -Encoding utf8 -Value @'
+import sys
+sys.path.insert(0, sys.argv[2])
+import soundfile as sf
+from rhythm_server.synth import make_song
+song = make_song(120.0, 8, seed=4)
+# small blocks: a single large write overflows the stack in libsndfile's encoders on Windows
+with sf.SoundFile(sys.argv[1], 'w', song.sample_rate, 2, format='MP3') as f:
+    for i in range(0, len(song.pcm), 4096):
+        f.write(song.pcm[i:i + 4096])
+'@
+  python $make $mp3 (Join-Path $root 'server')
+  $upload = curl.exe -s --fail-with-body -F "file=@$mp3" "$base/api/songs" | ConvertFrom-Json
   $s = Wait-Ready $upload.song.id
-  if ($s.status -ne 'ready') { throw "OGG analysis failed: $($s.error)" }
-  Write-Host "OGG upload analyzed: BPM $($s.bpm)"
+  if ($s.status -ne 'ready') { throw "MP3 analysis failed: $($s.error)" }
+  Write-Host "MP3 upload analyzed: BPM $($s.bpm)"
 
   $index = Invoke-WebRequest "$base/" -UseBasicParsing
   if ($index.Content -notmatch 'Generative Rhythm') { throw 'the client is not served' }

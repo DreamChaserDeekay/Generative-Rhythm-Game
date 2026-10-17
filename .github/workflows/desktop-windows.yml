@@ -9,6 +9,9 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'client/e2e/**'
+      - '**/*.test.ts'
+      - 'server/tests/**'
 
 concurrency:
   group: desktop-windows-${{ github.ref }}
