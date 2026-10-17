@@ -1,0 +1,198 @@
+"""Density control: pick which candidates become notes, then chords, long notes and scratches."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .candidates import Candidate
+from .params import GenParams
+from .tempo import TempoMap
+
+MAX_GAP_S = 4.0  # silences longer than this do not count toward the target density
+BUCKET_MS = 100.0
+MAX_LN_BEATS = 8.0
+MAX_CHORD_RATIO = 0.6
+
+
+@dataclass
+class Slot:
+    beat: float
+    t: float
+    size: int  # total notes at this instant (including the scratch note)
+    hold_end_beat: float | None  # one note of the slot is a long note ending here
+    scratch: bool
+    pitch: float | None
+    bands: np.ndarray
+    score: float
+    subdivision: int
+    strength: float
+
+
+def active_seconds(cands: list[Candidate]) -> float:
+    if len(cands) < 2:
+        return 1.0
+    gaps = np.diff([c.t for c in cands]) / 1000.0
+    return float(np.sum(np.minimum(gaps, MAX_GAP_S))) + 1.0
+
+
+def select_slots(
+    cands: list[Candidate],
+    params: GenParams,
+    tempo: TempoMap,
+    density_scale: float,
+    has_scratch: bool,
+    key_count: int,
+    chord_scale: float = 1.0,
+) -> list[Slot]:
+    if not cands:
+        return []
+    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
+    target_notes = params.avg_nps * params.density * density_scale * active_seconds(cands)
+    target_slots = max(1, int(round(target_notes / expected_chord_notes)))
+
+    end_ms = cands[-1].t + 1000.0
+    buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
+    window = int(round(1000.0 / BUCKET_MS))
+    peak_cap = params.peak_nps / expected_chord_notes
+    sub_counts: dict[int, int] = {}
+    accepted = np.zeros(len(cands), dtype=bool)
+    count = 0
+
+    def bucket(c: Candidate) -> int:
+        return int(max(0.0, c.t) / BUCKET_MS)
+
+    def window_ok(b: int) -> bool:
+        lo = max(0, b - window + 1)
+        for start in range(lo, b + 1):
+            if buckets[start : start + window].sum() + 1 > peak_cap:
+                return False
+        return True
+
+    def partial_ok(c: Candidate) -> bool:
+        limit = params.partial.get(c.subdivision)
+        if limit is None:
+            return True
+        return (sub_counts.get(c.subdivision, 0) + 1) <= max(1.0, limit * max(count, target_slots * 0.5))
+
+    def accept(i: int) -> None:
+        nonlocal count
+        accepted[i] = True
+        buckets[bucket(cands[i])] += 1
+        sub_counts[cands[i].subdivision] = sub_counts.get(cands[i].subdivision, 0) + 1
+        count += 1
+
+    for i in sorted(range(len(cands)), key=lambda k: -cands[k].score):
+        if count >= target_slots:
+            break
+        c = cands[i]
+        if partial_ok(c) and window_ok(bucket(c)):
+            accept(i)
+
+    # Floor: active bars should not go silent just because their candidates score low.
+    bpb = tempo.beats_per_bar
+    per_bar_avg = target_slots / max(1.0, (cands[-1].beat - cands[0].beat) / bpb)
+    floor = min(bpb / 2.0, 0.35 * per_bar_avg)
+    if floor >= 1.0:
+        bars: dict[int, list[int]] = {}
+        for i, c in enumerate(cands):
+            bars.setdefault(int(np.floor(c.beat / bpb)), []).append(i)
+        for idxs in bars.values():
+            have = sum(accepted[i] for i in idxs)
+            pool = sorted((i for i in idxs if not accepted[i] and cands[i].intensity > 0.15), key=lambda k: -cands[k].score)
+            for i in pool:
+                if have >= floor:
+                    break
+                if window_ok(bucket(cands[i])):
+                    accept(i)
+                    have += 1
+
+    chosen = [cands[i] for i in range(len(cands)) if accepted[i]]
+    slots = [
+        Slot(
+            beat=c.beat,
+            t=c.t,
+            size=1,
+            hold_end_beat=None,
+            scratch=False,
+            pitch=c.pitch,
+            bands=c.bands,
+            score=c.score,
+            subdivision=c.subdivision,
+            strength=c.strength,
+        )
+        for c in chosen
+    ]
+    _assign_chords(slots, chosen, params, key_count, chord_scale)
+    _assign_long_notes(slots, chosen, params, tempo)
+    if has_scratch:
+        _assign_scratch(slots, params, tempo)
+    return slots
+
+
+def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams, key_count: int, chord_scale: float) -> None:
+    # Full-hand chords on few keys (quads on 4K) are rare accents, not a texture.
+    max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
+    if max_chord < 2 or not slots:
+        return
+    worth = []
+    for s, c in zip(slots, chosen):
+        total = float(np.sum(c.bands)) + 1e-9
+        spread = int(np.sum(c.bands / total > 0.22))
+        w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
+        if params.difficulty == "EASY" and not c.downbeat:
+            w = 0.0
+        worth.append(w)
+    # On few keys every chord eats a large share of the lanes; keep them rarer.
+    ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
+    n_chords = int(round(ratio * len(slots)))
+    if n_chords == 0:
+        return
+    order = sorted(range(len(slots)), key=lambda i: -worth[i])[:n_chords]
+    order = [i for i in order if worth[i] > 0]
+    for rank, i in enumerate(order):
+        top = rank / max(1, len(order))
+        extra = max_chord - 2
+        size = 2 + (int(round(extra * (1.0 - top) ** 3)) if extra > 0 else 0)
+        slots[i].size = max(2, min(max_chord, size))
+
+
+def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenParams, tempo: TempoMap) -> None:
+    if params.long_note_ratio <= 0 or not slots:
+        return
+    step = 0.5 if params.difficulty in ("EASY", "NORMAL") else 0.25
+    picks = []
+    for i, c in enumerate(chosen):
+        if c.sustain_beats >= params.min_ln_beats:
+            picks.append((c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0), i))
+    picks.sort(reverse=True)
+    limit = int(round(params.long_note_ratio * len(slots)))
+    for _, i in picks[:limit]:
+        c = chosen[i]
+        length = min(MAX_LN_BEATS, np.floor(c.sustain_beats / step) * step)
+        if length >= params.min_ln_beats:
+            slots[i].hold_end_beat = c.beat + float(length)
+
+
+def _assign_scratch(slots: list[Slot], params: GenParams, tempo: TempoMap) -> None:
+    n = int(round(params.scratch_rate * len(slots)))
+    if n == 0:
+        return
+    impact = []
+    for i, s in enumerate(slots):
+        total = float(np.sum(s.bands)) + 1e-9
+        low, high = s.bands[0] / total, s.bands[2] / total
+        impact.append(s.strength * (0.5 + low + high) * (1.3 if s.subdivision == 1 else 1.0))
+    min_gap = max(params.min_jack_ms, 250.0)
+    taken: list[float] = []
+    for i in sorted(range(len(slots)), key=lambda k: -impact[k]):
+        if len(taken) >= n:
+            break
+        t = slots[i].t
+        if any(abs(t - u) < min_gap for u in taken):
+            continue
+        slots[i].scratch = True
+        if slots[i].size == 1 and slots[i].hold_end_beat is not None:
+            slots[i].hold_end_beat = None  # keep scratch notes short
+        taken.append(t)

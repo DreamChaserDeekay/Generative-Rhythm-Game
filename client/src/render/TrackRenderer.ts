@@ -231,7 +231,7 @@ export class TrackRenderer {
   private drawBeams(frame: TrackFrame, dt: number): void {
     const decay = Math.exp(-dt / 70);
     this.beams.forEach((beam, lane) => {
-      const level = frame.keyDown(lane) ? 0.6 : this.beamLevels[lane] * decay;
+      const level = frame.keyDown(lane) ? 0.42 : this.beamLevels[lane] * decay;
       this.beamLevels[lane] = level;
       (beam.material as THREE.MeshBasicMaterial).opacity = level;
       beam.visible = level > 0.01;
@@ -245,7 +245,7 @@ export class TrackRenderer {
       if (held) {
         const pulse = 1 + 0.12 * Math.sin(frame.timeMs / 45);
         const w = this.geometry.lanes[lane].width;
-        glow.scale.set(w * 1.6 * pulse, w * 1.6 * pulse, 1);
+        glow.scale.set(Math.min(w, 1.6) * 1.3 * pulse, Math.min(w, 1.6) * 1.3 * pulse, 1);
       }
     });
   }
@@ -381,7 +381,7 @@ export class TrackRenderer {
     const key = `${color}:${state}`;
     let m = this.bodyMaterials.get(key);
     if (!m) {
-      const opacity = state === 'held' ? 0.85 : state === 'missed' ? 0.3 : 0.5;
+      const opacity = state === 'held' ? 0.6 : state === 'missed' ? 0.25 : 0.4;
       m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
       this.bodyMaterials.set(key, m);
     }

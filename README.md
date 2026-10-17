@@ -1,29 +1,110 @@
 # Generative Rhythm Game
 
-내 음악 파일로 채보를 자동 생성해 플레이하는 건반형 리듬게임입니다. 플레이 화면은 SOUND VOLTEX식 3D 원근 트랙, 판정 범위는 DJMAX RESPECT V 기준입니다.
+내 음악 파일을 넣고 키 모드와 난이도를 고르면, 로컬 분석 서버가 곡을 분석해 그 곡만의 채보를 만들어 주고, 그 채보를 **SOUND VOLTEX식 3D 원근 트랙** 위에서 **DJMAX RESPECT V 판정 기준**으로 플레이하는 건반형 리듬게임입니다.
 
 - 개발 명세(프롬프트): [docs/PROMPT.md](docs/PROMPT.md)
-- 설계 문서: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- 설계: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · 분석·생성 알고리즘: [docs/GENERATION.md](docs/GENERATION.md) · 채보 포맷: [docs/CHART_FORMAT.md](docs/CHART_FORMAT.md)
 
 ## 진행 상황
 
 - [x] **Phase 0** — 설계, DJMAX 판정 엔진, 오디오 클럭, SDVX식 3D 트랙, 싱크 테스트, 오프셋 캘리브레이션
-- [ ] **Phase 1** — Python 분석 서버, 채보 자동 생성, 곡 업로드부터 결과까지 전체 흐름
+- [x] **Phase 1** — Python 분석 서버(표준 오디오·분석·채보 생성·난이도 산정·기록), 곡 업로드부터 결과까지 전체 흐름 (키 모드 4K · 7K+1S, 난이도 5단계)
+- [ ] **Phase 2** — 5K·6K·8K, 사이드(FX) 레인, 룰셋 표기 프리셋, FEVER, 게이지 종류, 배치 옵션, 레인 커버, 연습 모드
+- [ ] **Phase 3** — ML 분석 백엔드(스템 분리·음높이·구조), 스템 키음, SDVX식 카메라 연출, 스킨
+- [ ] **Phase 4** — 채보 에디터, BMS·bmson·osu!mania 가져오기/내보내기, 리플레이, 게임패드
 
-## 실행 (개발)
+## 준비물
+
+- Python 3.11 이상
+- Node.js 20 이상 (클라이언트 빌드용)
+- 최신 Chrome 또는 Edge
+
+## 설치와 실행
 
 ```bash
-cd client
+# 1) 분석 서버 설치
+cd server
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"        # Windows: .venv\Scripts\pip install -e ".[dev]"
+
+# 2) 클라이언트 빌드 (한 번만)
+cd ../client
 npm install
-npm run dev        # http://127.0.0.1:5173
+npm run build
+
+# 3) 실행: 서버가 게임 화면과 API를 함께 제공합니다
+cd ../server
+.venv/bin/python -m rhythm_server        # → http://127.0.0.1:8765
 ```
 
-메뉴에서 **싱크 테스트 → 오토 플레이**를 누르면 클릭 트랙에 맞춰 노트가 내려오고, 모든 노트가 MAX 100%로 판정되어야 정상입니다. **오프셋 캘리브레이션**에서 메트로놈에 맞춰 키를 누르면 판정 오프셋을 자동으로 맞출 수 있습니다.
+브라우저에서 `http://127.0.0.1:8765`를 열고 **곡 추가**(또는 파일을 끌어다 놓기)로 mp3 · ogg · wav · flac · m4a를 올리세요. 분석이 끝나면 키 모드와 난이도를 고르고 **채보 생성 & 플레이**를 누르면 됩니다. 음악 파일이 없으면 **데모 곡**으로 합성 곡을 만들어 볼 수 있습니다.
+
+업로드한 음원과 분석 결과·채보·기록은 저장소의 `data/` 폴더(또는 `--data` 경로)에만 저장되고, 서버는 `127.0.0.1`에서만 접속을 받습니다.
+
+### 개발 모드
+
+```bash
+cd server && .venv/bin/python -m rhythm_server   # 터미널 1: API (8765)
+cd client && npm run dev                         # 터미널 2: http://127.0.0.1:5173 (/api는 8765로 프록시)
+```
+
+### 터미널 도구
+
+```bash
+cd server
+.venv/bin/python -m rhythm_server synth -o demo.wav --bpm 140 --bars 32       # 테스트용 합성 곡
+.venv/bin/python -m rhythm_server analyze song.mp3 -o analysis.json            # 분석 결과 JSON
+.venv/bin/python -m rhythm_server generate song.mp3 --mode 7K+1S --difficulty HARD -o chart.json
+```
+
+## 조작
+
+| 키 모드 | 기본 키 |
+|---|---|
+| 4K | D F J K |
+| 7K+1S | L-Shift(스크래치) S D F Space J K L — 설정에서 BMS식 Z S X D C F V 배치로 바꿀 수 있음 |
+
+- 곡 선택: ↑↓ 곡, ←→ 난이도, Tab 키 모드, Enter 플레이
+- 플레이 중: Esc 일시정지, F2 즉시 재시작
+- 키는 물리 키 기준이라 한글 입력 상태와 상관없이 동작합니다. 설정에서 모든 키를 바꿀 수 있습니다.
+
+## 판정 (DJMAX RESPECT V 기준)
+
+| 판정 | NORMAL | HARD | MAX |
+|---|---|---|---|
+| MAX 100% | ±41.67ms | ±20.83ms | ±10.42ms |
+| MAX 90% / 80% | ±60 / ±78ms | ×1/2 | ×1/4 |
+| MAX 70% ~ 10% | ±78 ~ ±160ms 보간 | ×1/2 | ×1/4 |
+| MAX 1% | ±180ms | ±90ms | ±45ms |
+
+MAX 1%까지는 콤보가 이어지고 게이지도 줄지 않으며, BREAK에서만 콤보가 끊깁니다. 롱노트는 누르는 동안 콤보가 오르고 끝까지 누르면 MAX 100%입니다. MAX 100%만 커뮤니티 정설 값이고 나머지는 실측 추정·보간값이라 `config/judgement.json`에서 출처와 함께 조정할 수 있습니다.
+
+## 싱크 맞추기
+
+1. **싱크 테스트**: 클릭 트랙과 함께 오토 플레이가 돌아갑니다. 모든 노트가 MAX 100%면 판정 경로가 정상입니다.
+2. **캘리브레이션**: 메트로놈에 맞춰 키를 누르면 평균 오차로 판정 오프셋을 맞춥니다.
+3. 플레이 결과 화면의 타이밍 분포에서도 오프셋 추천을 바로 적용할 수 있습니다.
+4. 노트가 소리보다 늦게 보이면 설정의 **표시 오프셋**을 올리세요.
 
 ## 테스트
 
 ```bash
-cd client
-npm test                # 판정·롱노트·점수·게이지·오디오 클럭·입력 유닛 테스트
-npx playwright test     # 브라우저에서 오토 플레이 → PERFECT PLAY 확인
+cd server && .venv/bin/python -m pytest          # 분석 정확도, 생성기 결정성·린터·난이도 단조성, API, 성능 (33개)
+cd client && npm test                            # 판정·롱노트·점수·게이지·오디오 클럭·입력·카메라 투영 (35개)
+cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이
 ```
+
+E2E는 `server/.venv`의 Python을 쓰며, 다른 Python을 쓰려면 `GRG_PYTHON` 환경 변수로 지정하세요.
+
+## 구조
+
+```
+client/   브라우저 게임 (TypeScript · Vite · React · Three.js)
+server/   로컬 분석 서버 (Python · FastAPI · numpy · scipy)
+config/   판정 범위 · 키 모드 · 게이지 · 카메라 · 난이도 프리셋 (서버·클라이언트 공용)
+docs/     명세 · 설계 · 알고리즘 · 채보 포맷
+```
+
+## 라이선스 주의
+
+수록곡과 다른 게임의 에셋은 포함하지 않습니다. 테스트 음원은 코드로 합성합니다. 의존성은 FastAPI(MIT), numpy·scipy(BSD), PyAV(BSD, FFmpeg LGPL), soundfile(BSD), React(MIT), Three.js(MIT)로 모두 허용적 라이선스입니다. AGPL/GPL·비상업 라이선스(essentia, aubio, madmom 모델 등)는 쓰지 않습니다.

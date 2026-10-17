@@ -15,7 +15,6 @@ dependencies = [
   "scipy>=1.12",
   "soundfile>=0.12",
   "av>=12",
-  "mutagen>=1.47",
 ]
 
 [project.optional-dependencies]

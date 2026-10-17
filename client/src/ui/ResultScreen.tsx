@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
 import type { SessionResult } from '../engine/session';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
@@ -23,6 +24,36 @@ const LAMP_CLASS: Record<SessionResult['lamp'], string> = {
 export function ResultScreen({ request, result, settings, onSettingsChange, onRetry, onBack }: Props) {
   const { chart } = request;
   const suggestion = result.meanErrorMs !== null && result.hits.length >= 10 ? Math.round(result.meanErrorMs) : null;
+  const [saveState, setSaveState] = useState<string | null>(null);
+  const saved = useRef(false);
+
+  // Store the play once (generated charts only; autoplay and the sync test are not records).
+  useEffect(() => {
+    const songId = chart.meta.songId;
+    if (saved.current || request.autoPlay || !songId) return;
+    saved.current = true;
+    (async () => {
+      try {
+        const before = (await api.song(songId)).records?.find((r) => r.chartId === chart.meta.chartId);
+        await api.saveScore({
+          chartId: chart.meta.chartId,
+          songId,
+          score: result.score,
+          rate: Math.round(result.rate * 100) / 100,
+          maxCombo: result.maxCombo,
+          lamp: result.lamp,
+          judgementMode: settings.judgementMode,
+          breaks: result.breaks,
+          detail: { fast: result.fast, slow: result.slow, meanErrorMs: result.meanErrorMs },
+        });
+        if (!before) setSaveState('첫 기록이 저장되었습니다');
+        else if (result.score > before.score) setSaveState(`최고 기록 갱신! (+${(result.score - before.score).toLocaleString('en-US')})`);
+        else setSaveState(`기록 저장됨 · 최고 ${before.score.toLocaleString('en-US')}`);
+      } catch (e) {
+        setSaveState(`기록을 저장하지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    })();
+  }, [chart, request.autoPlay, result, settings.judgementMode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -46,6 +77,7 @@ export function ResultScreen({ request, result, settings, onSettingsChange, onRe
         </div>
         <div className={`lamp ${LAMP_CLASS[result.lamp]}`} data-testid="result-lamp">{result.lamp}</div>
       </header>
+      {saveState && <p className="hint save-state" data-testid="save-state">{saveState}</p>}
 
       <div className="result-grid">
         <section className="panel">

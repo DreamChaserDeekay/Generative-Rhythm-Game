@@ -87,13 +87,14 @@
 | GET | `/api/health` | 서버 상태, 분석기 버전 |
 | GET | `/api/songs` | 곡 목록 |
 | POST | `/api/songs` | 곡 업로드(multipart). 표준 FLAC 생성 후 분석 작업 시작 |
+| POST | `/api/songs/demo` | 합성 데모 곡 추가(음악 파일 없이 체험) |
 | GET | `/api/songs/{id}` | 곡 정보, 분석 진행률, 기록 |
 | PATCH | `/api/songs/{id}` | 제목·아티스트·BPM·첫 박 오프셋 보정 → 재분석 |
 | DELETE | `/api/songs/{id}` | 곡 삭제 |
 | GET | `/api/songs/{id}/audio` | 표준 FLAC |
 | GET | `/api/songs/{id}/cover` | 앨범아트 |
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
-| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드) — 캐시 우선 |
+| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`) — 같은 chartId면 캐시 |
 | GET | `/api/charts/{chartId}` | 채보 |
 | POST | `/api/scores` | 플레이 기록 저장 |
 | GET | `/api/songs/{id}/scores` | 채보별 최고 기록 |
@@ -133,6 +134,18 @@ docs/            PROMPT · ARCHITECTURE · CHART_FORMAT
 ```
 
 ## 9. Phase 0–1 작업 계획
+
+두 단계 모두 완료했다. 분석·생성 알고리즘의 세부와 측정값은 `docs/GENERATION.md`에 있다.
+
+| 완료 조건 | 결과 |
+|---|---|
+| 오토 플레이(실제 입력 경로) 전 노트 MAX 100% | 싱크 테스트 4K·7K+1S, 생성 채보 모두 PERFECT PLAY (Playwright) |
+| 캘리브레이션 평균·표준편차 표시, 오프셋 적용 | 캘리브레이션 화면 + 결과 화면 오프셋 추천 |
+| 고정 BPM 합성 음원 그리드 누적 오차 ≤ 10ms | 최대 1.4ms (97·128·140·174 BPM), 템포 변화 곡 1.3ms |
+| 같은 입력·시드 → 같은 채보 | pytest로 검증, 기본 시드는 오디오 해시에서 파생 |
+| 모든 난이도 채보가 린터 통과 | 4K·7K+1S × 5단계 × 2곡 |
+| 난이도가 오를수록 노트 수·평균 NPS·레벨 단조 증가 | pytest로 검증 |
+| 4분 곡 분석 30초·재생성 3초 이내 | 분석 약 15초, 재생성 1초 이내 |
 
 ### Phase 0 — 설계와 기술 검증
 

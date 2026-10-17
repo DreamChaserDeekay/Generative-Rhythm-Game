@@ -3,10 +3,10 @@ import type { SessionResult } from '../engine/session';
 import type { Chart } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
-import { MenuScreen } from './MenuScreen';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
 import { SettingsScreen } from './SettingsScreen';
+import { SongSelectScreen } from './SongSelectScreen';
 
 export interface PlayRequest {
   chart: Chart;
@@ -16,7 +16,7 @@ export interface PlayRequest {
 }
 
 type Screen =
-  | { name: 'menu' }
+  | { name: 'select' }
   | { name: 'play'; request: PlayRequest; runId: number }
   | { name: 'result'; request: PlayRequest; result: SessionResult }
   | { name: 'calibration' }
@@ -24,7 +24,8 @@ type Screen =
 
 export function App() {
   const [settings, setSettingsState] = useState<Settings>(() => loadSettings());
-  const [screen, setScreen] = useState<Screen>({ name: 'menu' });
+  const [screen, setScreen] = useState<Screen>({ name: 'select' });
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
 
   const setSettings = useCallback((next: Settings) => {
     setSettingsState(next);
@@ -32,17 +33,19 @@ export function App() {
   }, []);
 
   const play = useCallback((request: PlayRequest) => setScreen({ name: 'play', request, runId: Date.now() }), []);
-  const toMenu = useCallback(() => setScreen({ name: 'menu' }), []);
+  const toSelect = useCallback(() => setScreen({ name: 'select' }), []);
 
   switch (screen.name) {
-    case 'menu':
+    case 'select':
       return (
-        <MenuScreen
+        <SongSelectScreen
           settings={settings}
           onSettingsChange={setSettings}
           onPlay={play}
           onCalibrate={() => setScreen({ name: 'calibration' })}
           onOpenSettings={() => setScreen({ name: 'settings' })}
+          selectedSongId={selectedSongId}
+          onSelectSong={setSelectedSongId}
         />
       );
     case 'play':
@@ -52,7 +55,7 @@ export function App() {
           request={screen.request}
           settings={settings}
           onFinish={(result) => setScreen({ name: 'result', request: screen.request, result })}
-          onQuit={toMenu}
+          onQuit={toSelect}
         />
       );
     case 'result':
@@ -63,12 +66,12 @@ export function App() {
           settings={settings}
           onSettingsChange={setSettings}
           onRetry={() => play(screen.request)}
-          onBack={toMenu}
+          onBack={toSelect}
         />
       );
     case 'calibration':
-      return <CalibrationScreen settings={settings} onSettingsChange={setSettings} onBack={toMenu} />;
+      return <CalibrationScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
     case 'settings':
-      return <SettingsScreen settings={settings} onSettingsChange={setSettings} onBack={toMenu} />;
+      return <SettingsScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
   }
 }
