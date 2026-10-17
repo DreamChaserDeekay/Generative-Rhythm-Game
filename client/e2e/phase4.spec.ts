@@ -165,3 +165,47 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   await expect(page.getByTestId('watch-best')).toBeVisible({ timeout: 30_000 });
   expect(errors).toEqual([]);
 });
+
+test('a gamepad is bound per lane in the settings and works the menus', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    const pad = {
+      index: 0,
+      id: 'E2E Pad',
+      connected: true,
+      mapping: 'standard',
+      timestamp: 1,
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+      axes: [0, 0, 0, 0],
+    };
+    (window as unknown as { __pad: typeof pad }).__pad = pad;
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+  });
+  const press = async (button: number, down: boolean) =>
+    page.evaluate(
+      ([b, d]) => {
+        const pad = (window as unknown as { __pad: { buttons: { pressed: boolean }[]; timestamp: number } }).__pad;
+        pad.buttons[b as number].pressed = d as boolean;
+        pad.timestamp = performance.now();
+      },
+      [button, down],
+    );
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
+  const firstCap = page.getByTestId('gamepad-settings').locator('.pad-cap').first();
+  await firstCap.click();
+  await expect(firstCap).toHaveText('…');
+  await press(2, true);
+  await expect(firstCap).toHaveText('버튼 2');
+  await press(2, false);
+  // B (button 1) is Escape in the menus: back to song select (held long enough to be polled)
+  await page.waitForTimeout(100);
+  await press(1, true);
+  await page.waitForTimeout(100);
+  await press(1, false);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
+  expect(stored.padBindings['4K'][0]).toBe('Pad:B2');
+  expect(errors).toEqual([]);
+});

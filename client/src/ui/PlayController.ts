@@ -11,6 +11,7 @@ import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
+import { GamepadPoller, type PadEvent } from '../input/gamepad';
 import { InputManager } from '../input/InputManager';
 import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
@@ -20,6 +21,7 @@ import {
   activeCovers,
   bindingsFor,
   clampHiSpeed,
+  padBindingsFor,
   greenNumber,
   MAX_COVER,
   MAX_LIFT,
@@ -127,6 +129,8 @@ export class PlayController {
   private recorder: ReplayRecorder | null = null;
   /** Feeds a recorded play back (watching a replay). */
   private replayer: ReplayPlayer | null = null;
+  /** Gamepad / controller lanes, polled apart from the frames. */
+  private pad: GamepadPoller | null = null;
   private readonly placementSeed: number;
   private unsubscribe: (() => void) | null = null;
   private state: PlayState = 'running';
@@ -311,9 +315,14 @@ export class PlayController {
         release: (lane, t) => (this.recorder ? this.recorder.release(lane, t) : this.session.release(lane, t)),
       },
       settings.inputOffsetMs * this.rate,
+      padBindingsFor(settings, this.chart.meta.keyMode),
     );
     this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
-    if (!request.autoPlay && !request.replay) this.input.attach();
+    if (!request.autoPlay && !request.replay) {
+      this.input.attach();
+      this.pad = new GamepadPoller(this.onPad);
+      this.pad.start();
+    }
     this.engine.setBuffer(buffer, bufferPlacement, this.setup.lead);
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
@@ -330,9 +339,20 @@ export class PlayController {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.input?.detach();
+    this.pad?.stop();
+    this.pad = null;
     this.voices?.stopAll();
     this.engine.stop();
   }
+
+  /** Gamepad events: bound controls play lanes; Start (unbound) pauses and resumes. */
+  private readonly onPad = (e: PadEvent): void => {
+    if (this.input.handleKey(e.code, e.down, e.timeMs)) return;
+    if (e.code === 'Pad:B9' && e.down) {
+      if (this.state === 'running') this.pause();
+      else if (this.state === 'paused') this.resume();
+    }
+  };
 
   /** A press: judged by the session, and with keysounds the judged (or the lane's next) note sounds. */
   private onPress(lane: number, timeMs: number): void {

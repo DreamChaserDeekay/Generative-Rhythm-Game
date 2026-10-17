@@ -6,6 +6,7 @@ import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
 import { BUILTIN_SKINS, sanitizeSkin } from '../render/skins';
+import { isPadCode } from '../input/gamepad';
 
 export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
@@ -60,6 +61,8 @@ export interface Settings {
   hitSound: boolean;
   showErrorMs: boolean;
   bindings: Partial<Record<KeyModeId, string[]>>;
+  /** Gamepad / controller control per lane (null = none), alongside the keyboard keys. */
+  padBindings: Partial<Record<KeyModeId, (string | null)[]>>;
   lastKeyMode: KeyModeId;
   lastDifficulty: string;
   ruleset: RulesetId;
@@ -118,6 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hitSound: false,
   showErrorMs: true,
   bindings: {},
+  padBindings: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
   ruleset: defaultRuleset,
@@ -156,7 +160,13 @@ function num(value: unknown, min: number, max: number, fallback: number): number
 
 /** Fills defaults and drops values that the current config no longer knows. */
 export function sanitizeSettings(raw: Partial<Settings>): Settings {
-  const s = { ...DEFAULT_SETTINGS, ...raw, bindings: { ...raw.bindings } };
+  const s = { ...DEFAULT_SETTINGS, ...raw, bindings: { ...raw.bindings }, padBindings: {} as Settings['padBindings'] };
+  for (const [mode, codes] of Object.entries(raw.padBindings ?? {})) {
+    const lanes = keyModes[mode as KeyModeId]?.lanes.length;
+    if (lanes && Array.isArray(codes) && codes.length === lanes) {
+      s.padBindings[mode as KeyModeId] = codes.map((c) => (typeof c === 'string' && isPadCode(c) ? c : null));
+    }
+  }
   const d = DEFAULT_SETTINGS;
   s.judgementMode = pick(s.judgementMode, Object.keys(judgementConfig.modes) as JudgementModeId[], d.judgementMode);
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
@@ -219,6 +229,13 @@ export function bindingsFor(settings: Settings, mode: KeyModeId): string[] {
   const lanes = keyModes[mode].lanes.length;
   if (custom && custom.length === lanes) return custom;
   return keyModes[mode].bindings.default;
+}
+
+/** Gamepad control of every lane of a key mode (null where none is bound). */
+export function padBindingsFor(settings: Settings, mode: KeyModeId): (string | null)[] {
+  const custom = settings.padBindings[mode];
+  const lanes = keyModes[mode].lanes.length;
+  return custom && custom.length === lanes ? custom : new Array<string | null>(lanes).fill(null);
 }
 
 export function clampHiSpeed(hiSpeed: number): number {

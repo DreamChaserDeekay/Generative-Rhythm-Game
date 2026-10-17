@@ -6,6 +6,7 @@ import {
   activeCovers,
   bindingsFor,
   DEFAULT_SETTINGS,
+  padBindingsFor,
   greenNumber,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
@@ -19,6 +20,7 @@ import {
   type Settings,
 } from '../settings/settings';
 import { BUILTIN_SKINS, sanitizeSkin, skinById } from '../render/skins';
+import { GamepadPoller, padCodeLabel } from '../input/gamepad';
 import { KeyGhostTest } from './KeyGhostTest';
 import { PlayRulesPanel } from './PlayOptions';
 
@@ -340,6 +342,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         <p className="hint">키를 누른 뒤 원하는 키를 입력하세요. 이미 쓰는 키를 고르면 서로 바뀝니다. 한글 입력 상태와 무관하게 동작합니다.</p>
       </section>
 
+      <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} />
+
       <section className="panel" data-testid="backend-status">
         <h2>분석 백엔드</h2>
         <p className="hint">
@@ -404,5 +408,87 @@ function NumberRow(props: { label: string; unit: string; value: number; min: num
       <button className="small" onClick={() => props.onChange(clamp(props.value + 5))}>+5</button>
       <span className="value">{props.unit}</span>
     </div>
+  );
+}
+
+/** Connected controllers and a gamepad control per lane, captured by pressing it. */
+function GamepadPanel({ settings, onSettingsChange }: { settings: Settings; onSettingsChange: (s: Settings) => void }) {
+  const [pads, setPads] = useState<string[]>([]);
+  const [capture, setCapture] = useState<{ mode: KeyModeId; lane: number } | null>(null);
+
+  // list connected pads (a pad shows up only after one of its buttons is pressed on this page)
+  useEffect(() => {
+    const read = () =>
+      setPads((navigator.getGamepads?.() ?? []).filter((g): g is Gamepad => !!g && g.connected).map((g) => `${g.id}${g.mapping === 'standard' ? '' : ' (비표준 배치)'}`));
+    read();
+    const id = window.setInterval(read, 1000);
+    window.addEventListener('gamepadconnected', read);
+    window.addEventListener('gamepaddisconnected', read);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('gamepadconnected', read);
+      window.removeEventListener('gamepaddisconnected', read);
+    };
+  }, []);
+
+  // capture: the first control pressed (or a turntable spun) becomes the lane's control
+  useEffect(() => {
+    if (!capture) return;
+    const poller = new GamepadPoller((e) => {
+      if (!e.down) return;
+      const current = [...padBindingsFor(settings, capture.mode)];
+      const clash = current.indexOf(e.code);
+      if (clash >= 0) current[clash] = current[capture.lane]; // swap
+      current[capture.lane] = e.code;
+      onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [capture.mode]: current } });
+      setCapture(null);
+    }, { intervalMs: 8 });
+    poller.start();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      e.stopImmediatePropagation(); // cancels the capture, not the settings screen
+      setCapture(null);
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => {
+      poller.stop();
+      window.removeEventListener('keydown', onKey, { capture: true });
+    };
+  }, [capture, settings, onSettingsChange]);
+
+  return (
+    <section className="panel" data-testid="gamepad-settings">
+      <h2>게임패드 · 전용 컨트롤러</h2>
+      <p className="hint" data-testid="gamepad-status">
+        {pads.length > 0 ? `연결됨: ${pads.join(', ')}` : '연결된 패드가 없습니다. 패드의 버튼을 하나 누르면 나타납니다.'}
+      </p>
+      {enabledKeyModes.map((mode) => (
+        <div className="row" key={mode}>
+          <span className="label">{mode}</span>
+          <div className="keys">
+            {padBindingsFor(settings, mode).map((code, lane) => {
+              const active = capture?.mode === mode && capture.lane === lane;
+              return (
+                <button
+                  key={lane}
+                  className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color} ${active ? 'active' : ''}`}
+                  title={code ? padCodeLabel(code) : '지정 안 됨'}
+                  onClick={() => setCapture(active ? null : { mode, lane })}
+                >
+                  {active ? '…' : code ? padCodeLabel(code) : '-'}
+                </button>
+              );
+            })}
+          </div>
+          <button className="small" onClick={() => onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [mode]: undefined } })}>
+            지우기
+          </button>
+        </div>
+      ))}
+      <p className="hint">
+        레인을 누른 뒤 패드 버튼을 누르거나, 턴테이블을 돌리면 지정됩니다(Esc 취소). 키보드 키와 함께 쓸 수 있습니다. 패드는 화면 프레임과 따로 짧은 간격으로 읽고, 브라우저가 패드 신호를 받은 시각으로 판정합니다.
+        메뉴에서는 십자키·왼쪽 스틱이 방향키, A·Start가 Enter, B가 Esc, Y가 Tab으로 동작하고, 플레이 중 Start로 일시정지합니다.
+      </p>
+    </section>
   );
 }

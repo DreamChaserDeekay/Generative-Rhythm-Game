@@ -9,8 +9,9 @@ export interface LaneInputSink {
 const MAX_TIMESTAMP_SKEW_MS = 1000;
 
 /**
- * Maps physical keys (`KeyboardEvent.code`, so Korean IME state does not matter) to lanes and
- * converts event timestamps to judgement time: song time minus the input offset.
+ * Maps physical keys (`KeyboardEvent.code`, so Korean IME state does not matter) and gamepad
+ * controls (`Pad:…` codes fed through `handleKey`) to lanes, and converts event timestamps to
+ * judgement time: song time minus the input offset.
  */
 export class InputManager {
   enabled = true;
@@ -22,11 +23,12 @@ export class InputManager {
   private readonly laneDown: number[];
   private target: Window | null = null;
 
-  constructor(clock: SongClock, bindings: string[], sink: LaneInputSink, inputOffsetMs: number) {
+  constructor(clock: SongClock, bindings: string[], sink: LaneInputSink, inputOffsetMs: number, padBindings: readonly (string | null)[] = []) {
     this.clock = clock;
     this.sink = sink;
     this.inputOffsetMs = inputOffsetMs;
     bindings.forEach((code, lane) => this.laneByCode.set(code, lane));
+    padBindings.forEach((code, lane) => code && this.laneByCode.set(code, lane));
     this.laneDown = new Array(bindings.length).fill(0);
   }
 

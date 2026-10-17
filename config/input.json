@@ -1,0 +1,10 @@
+{
+  "description": "게임패드·전용 컨트롤러 입력. 게임패드 API는 이벤트 없이 상태를 읽어야(폴링) 해서, 화면 프레임(약 16ms)마다 읽으면 그만큼 판정 시각이 뭉개진다. 그래서 프레임과 따로 pollIntervalMs마다 읽고(브라우저가 실제로 허용하는 최소 간격은 보통 4ms), 판정 시각에는 브라우저가 패드 신호를 받은 시각(Gamepad.timestamp)을 쓴다. 그 값이 maxTimestampAgeMs보다 오래됐거나 미래면 읽은 시각을 쓴다. axisThreshold: 스틱·트리거를 방향 키로 쓸 때 눌림으로 보는 기울기. turntable: 축 하나를 턴테이블로 쓸 때 한 번 읽는 사이 이만큼(deltaThreshold) 넘게 움직이면 스크래치를 누르고, 방향이 바뀌면 다시 누르고, releaseMs 동안 멈춰 있으면 뗀다. menu: 메뉴 화면에서 십자키·스틱을 방향키로 쓸 때 처음 반복까지 repeatDelayMs, 이후 repeatMs 간격.",
+  "gamepad": {
+    "pollIntervalMs": 2,
+    "maxTimestampAgeMs": 100,
+    "axisThreshold": 0.5,
+    "turntable": { "deltaThreshold": 0.008, "releaseMs": 120 },
+    "menu": { "repeatDelayMs": 400, "repeatMs": 110 }
+  }
+}

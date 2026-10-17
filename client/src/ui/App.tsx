@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ServerChart, Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import type { ReplayData } from '../engine/replay';
+import { GamepadMenuBridge } from '../input/gamepad';
 import type { Chart } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
@@ -63,6 +64,15 @@ export function App() {
     setSettingsState(next);
     saveSettings(next);
   }, []);
+
+  // a gamepad works the menus (not during play, where its controls are lanes)
+  const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
+  useEffect(() => {
+    if (!menuPad) return;
+    const bridge = new GamepadMenuBridge();
+    bridge.start();
+    return () => bridge.stop();
+  }, [menuPad]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('palette-cb', settings.palette === 'colorblind');
