@@ -67,12 +67,14 @@ def mel_power(x: np.ndarray, sr: int, n_fft: int, hop: int, n_mels: int, fmin: f
 
 def median_along(x: np.ndarray, size: int, axis: int) -> np.ndarray:
     """`median_filter` of a 2-D array along one axis (`size` values, edges reflected): the same
-    values, several times faster. Every row is padded with its own reflected edges and all rows go
-    through one 1-D filter, which scipy (1.15+) runs with its fast 1-D rank filter; no window that
-    is kept reaches into the next row."""
+    values, several times faster. Every row is padded with its own reflected edges (mirrored again
+    and again when the row is shorter than the window, as "reflect" does) and all rows go through
+    one 1-D filter, which scipy (1.15+) runs with its fast 1-D rank filter; no window that is kept
+    reaches into the next row. Rows of two values are the exception: scipy's own 2-D filter reads
+    past them, and its result changes from call to call."""
     rows = x if axis == 1 else x.T
-    if rows.shape[1] < size:
-        return median_filter(x, size=(1, size) if axis == 1 else (size, 1), mode="reflect")
+    if rows.shape[1] == 0:  # np.pad cannot reflect an empty row
+        return x.copy()
     half = size // 2
     padded = np.pad(rows, ((0, 0), (half, half)), mode="symmetric")  # scipy's "reflect"
     filtered = median_filter(padded.reshape(-1), size=size, mode="reflect").reshape(padded.shape)

@@ -86,6 +86,20 @@ def test_fast_hpss_median_and_overlap_add_give_the_same_bits() -> None:
     assert _istft(spec, length).tobytes() == out[N_FFT // 2 : N_FFT // 2 + length].tobytes()
 
 
+def test_fast_hpss_median_reflects_rows_of_two_values() -> None:
+    # scipy's own 2-D filter reads past rows of two values (its result changes from call to call),
+    # so these are checked against the reflected rows themselves: ... b a | a b | b a ...
+    rng = np.random.default_rng(5)
+    x = rng.random((2, 60)).astype(np.float32)
+    for size in (3, 5, 17):
+        half = size // 2
+        j = np.arange(-half, 2 + half) % 4
+        ext = x[np.where(j >= 2, 3 - j, j)]
+        expected = np.stack([np.sort(ext[i : i + size], axis=0)[half] for i in range(2)])
+        assert median_along(x, size, axis=0).tobytes() == expected.tobytes(), size
+        assert median_along(x.T, size, axis=1).tobytes() == expected.T.tobytes(), size
+
+
 def test_core_stems_are_the_same_with_blocks_separated_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
     song = song_with_stems(bars=24, seed=5, bpm=128.0)  # 45 s: three blocks
     threads: set[int] = set()
@@ -104,6 +118,35 @@ def test_core_stems_are_the_same_with_blocks_separated_at_once(monkeypatch: pyte
     at_once = separate(song.pcm, song.sample_rate)
     assert len(threads) > 1
     assert all(one_by_one[name].tobytes() == at_once[name].tobytes() for name in STEM_NAMES)
+
+
+def test_core_stem_blocks_add_up_like_song_length_sums(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_block(seg, _sr, keep, weight):  # stands in for a separated block
+        return {name: seg[keep] * (k + 0.37) * weight[:, None] for k, name in enumerate(STEM_NAMES[:3])}
+
+    monkeypatch.setattr(stems, "_separate_block", fake_block)
+    sr, n = 1000, 40_500  # three 15 s blocks
+    pcm = np.random.default_rng(6).standard_normal((n, 2)).astype(np.float32)
+    got = separate(pcm, sr)
+    # the blocks added into song-length float64 sums, one after another
+    block, ctx, fade = int(stems.BLOCK_S * sr), int(stems.CONTEXT_S * sr), int(stems.CROSSFADE_S * sr)
+    sums = {name: np.zeros((n, 2)) for name in STEM_NAMES[:3]}
+    starts = list(range(0, n - fade, block - fade))
+    for bi, start in enumerate(starts):
+        end = min(n, start + block)
+        a, b = max(0, start - ctx), min(n, end + ctx)
+        weight = np.ones(end - start)
+        if bi > 0:
+            weight[:fade] = np.linspace(0.0, 1.0, fade, endpoint=False)
+        if end < n:
+            weight[-fade:] = np.minimum(weight[-fade:], np.linspace(1.0, 0.0, fade, endpoint=False))
+        for name, y in fake_block(pcm[a:b], sr, slice(start - a, end - a), weight).items():
+            sums[name][start:end] += y
+    assert len(starts) == 3
+    for name in STEM_NAMES[:3]:
+        assert got[name].tobytes() == sums[name].astype(np.float32).tobytes(), name
+    other = pcm.astype(np.float64) - (sums["drums"] + sums["bass"] + sums["vocals"])
+    assert got["other"].tobytes() == other.astype(np.float32).tobytes()
 
 
 def test_onsets_are_tagged_with_the_stem_they_come_from() -> None:
