@@ -27,9 +27,10 @@
     "handLoad": { "L": 0.54, "R": 0.46 },
     "keysound": { "stem": "vocals", "share": 0.36, "shares": { "drums": 0.41, "bass": 0.08, "vocals": 0.36, "other": 0.15 } },
     "repeatConsistency": 0.97,
+    "consistency": { "loopRhythm": 0.93, "loopLane": 0.97, "repeatSelect": 0.95, "repeatLane": 0.99, "repeatLaneMirror": 0.99, "barVariety": 0.6, "laneEntropy": 0.7 },
     "generator": {
-      "version": "0.4.1",
-      "analyzer": "core-1.1.0",
+      "version": "0.5.0",
+      "analyzer": "core-1.2.0",
       "seed": 3735928559,
       "params": {
         "difficulty": "HARD", "targetLevel": null, "density": 1.0, "longNoteRatio": 0.15, "maxChord": 3,
@@ -43,7 +44,10 @@
     "tempoMap": [{ "beat": 0, "bpm": 128.0 }],
     "meter": [{ "measure": 0, "beatsPerMeasure": 4 }]
   },
-  "sections": [{ "startBeat": 0, "label": "verse", "energy": 0.66 }],
+  "sections": [
+    { "startBeat": -1, "endBeat": 16, "label": "intro", "group": "A", "energy": 0.0, "loopBars": 1, "confidence": 0.81 },
+    { "startBeat": 16, "endBeat": 48, "label": "verse", "group": "B", "energy": 0.66, "loopBars": 4, "confidence": 0.64 }
+  ],
   "effects": [
     { "beat": 64.0, "t": 30536.0, "type": "zoom", "value": 0.62, "durationBeats": 2 },
     { "beat": 64.0, "t": 30536.0, "type": "tilt", "value": 0.86, "durationBeats": 2 }
@@ -76,11 +80,25 @@
 | `handLoad` | 난이도 모델의 손 strain이 왼손(`L`)·오른손(`R`)에 나뉜 비율. |
 | `patterns` | 패턴 성향: 키 노트 중 계단(`stairs`, 400ms 안으로 이어지는 단타가 한 칸씩 3개 이상)·트릴(`trills`, 같은 단타 줄기에서 두 레인을 4번 이상 번갈아)·동치(`chords`)·연타(`jacks`, 같은 레인을 260ms 안에 다시)·롱잡(`holdTaps`, 다른 레인의 롱노트를 잡은 채 치는 노트)의 비율과, 빠른 단타(260ms 이하 간격) 이동 중 세 칸 이상 건너뛰는 비율(`leaps`). 생성·편집·가져온 채보 모두 있다(`difficulty/patterns.py`). |
 | `keysound` | 채보 정보에 보이는 주 키음 스템(`stem`: drums · bass · vocals · other)과 그 스템을 따르는 노트 비율(`share`), 스템별 노트 비율(`shares`). 실제 키음은 클라이언트가 노트의 `src`로 노트마다 만든다(노트의 10% 이상이 따르는 스템). 분석에 스템 정보가 없으면 `null`(키음을 켜도 원곡 그대로 재생). |
-| `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 반복 구간이 없거나 옵션을 껐으면 `null`. |
-| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성, 기본 기준이 아니면 `system`, 이전 배치로 만들었으면 `patternEngine: "classic"`). 생성 채보에만 있다. |
+| `repeatConsistency` | 반복 구간에서 첫 등장과 같은 레인을 고른 슬롯 비율(0–1). 구간 엔진(0.5.0)에서는 복사한 노트 중 레인을 그대로 지킨 비율. 반복 구간이 없거나 옵션을 껐으면 `null`. |
+| `consistency` | 구간 일관성(생성기 0.5.0, `difficulty/consistency.py`, 0–1): 구간 안 한 루프 뒤 마디와의 노트 시각 겹침(`loopRhythm`)과 그중 같은 레인 비율(`loopLane`), 반복 구간과 첫 등장의 시각 겹침(`repeatSelect`)과 같은 레인 비율(`repeatLane`, 좌우 반전도 같다고 보면 `repeatLaneMirror`), 구간의 서로 다른 마디 비율(`barVariety`, 낮을수록 루프를 되풀이), 단타 레인 이동의 예측 불가능성(`laneEntropy`). 채보를 만든 구간 기준이다. 잴 수 없으면 항목이 `null`. |
+| `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성, 기본 기준이 아니면 `system`, 기본 구간 엔진이 아니면 `patternEngine: "designer"`(악구·패턴) 또는 `"classic"`(이전 배치)). 생성 채보에만 있다. |
 | `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
 | `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE 또는 난이도·레벨, 에디터에서 정한 이름). `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–3 EASY … 13–15 MASTER)이다. |
 | `keysoundGain` | 가져온 키음 채보: 키음을 모두 섞어도 클리핑하지 않게 하는 게인. BGM과 노트 소리에 같이 곱한다. |
+
+### sections
+
+곡 구조. 생성 채보에만 있다(가져온 채보는 빈 목록).
+
+- `startBeat`·`endBeat`: 구간의 시작·끝 박(0 = 첫 다운비트). 첫 구간은 0보다 앞(못갖춘마디)에서 시작할 수 있다.
+- `label`: `intro` · `verse` · `pre-chorus` · `chorus` · `bridge` · `drop` · `outro`.
+- `group`: 반복 묶음(`A`, `B` …). 같은 글자는 같은 음악이고, 구간 엔진은 같은 패턴을 놓는다.
+- `energy`: 구간 음량(곡 안에서 0–1).
+- `loopBars`: 구간의 마디가 몇 마디 뒤에 되풀이되는지(1·2·4, 루프가 없으면 구간 길이).
+- `confidence`: 분석한 경계와 묶음이 얼마나 뚜렷한지(0–1, 사용자가 고친 구간은 1).
+
+0.4.1 이하 채보의 `sections`에는 `startBeat`·`label`·`energy`만 있다.
 
 ### timing
 
@@ -131,6 +149,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
+- 생성기 0.5.0: 구간 엔진(`docs/PATTERN_DESIGN.md` 13장)이 기본이 되고, `sections`에 `endBeat`·`group`·`loopBars`·`confidence`가, `meta`에 `consistency`가 더해졌다. 채보 ID가 다시 바뀐다. 사용자가 구간을 고쳐 만든 채보는 그 구간이 ID에 들어간다.
 - `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
 - `difficultySystem`·`levelScale`은 난이도 기준(DJMAX · EZ2ON)과 함께 추가됐다. 없으면 기본 기준이다. 생성기 파라미터의 `system`도 기본 기준이 아닐 때만 있어서, 기본 기준 채보의 `chartId`는 그대로다.
 
