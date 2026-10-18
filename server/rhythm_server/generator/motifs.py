@@ -89,6 +89,8 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
 
 def _mismatch(keys: tuple[int, ...], want: tuple[int, ...]) -> float:
     """0 when the lanes are the expected ones, 0.5 per lane off by one, 1 per lane further away."""
+    if keys == want:
+        return 0.0
     if len(keys) != len(want):
         return 1.0
     total = 0.0
@@ -223,6 +225,26 @@ def _move_cost(ctx: MotifContext, singles: list[int], k: int, dt: float) -> floa
     return cost
 
 
+def _per_key_costs(ctx: MotifContext, sp: SlotPlan, fast: bool, held: tuple[str, ...]) -> list[float]:
+    """Per key: outside the phrase's window or the role's region, a weak finger on a fast note, the
+    held hand in a hold+tap phrase."""
+    w = ctx.weights
+    finger_w = w["finger"] * (1.0 - 0.5 * ctx.skill)
+    out = []
+    for k in range(len(ctx.hand)):
+        c = 0.0
+        if sp.window is not None:
+            c += w["window"] * max(0, sp.window[0] - k, k - sp.window[1])
+        if sp.region is not None:
+            c += w["region"] * max(0, sp.region[0] - k, k - sp.region[1])
+        if fast:
+            c += finger_w * (1.0 - ctx.strength[k])
+        if ctx.hand[k] in held:
+            c += w["holdHand"]
+        out.append(c)
+    return out
+
+
 def motif_cost(
     ctx: MotifContext,
     sp: SlotPlan,
@@ -237,40 +259,80 @@ def motif_cost(
     `dt` is the time since the previous slot, `single_dt` since the phrase's previous single note;
     `carry` is the previous phrase's last single note when this phrase has none yet (leaps across
     phrase boundaries are read the same way)."""
+    return motif_costs(ctx, sp, hist, [keys], dt, holding_hands, single_dt, carry)[0]
+
+
+def motif_costs(
+    ctx: MotifContext,
+    sp: SlotPlan,
+    hist: list[tuple[int, ...]] | tuple[tuple[int, ...], ...],
+    key_sets: list[tuple[int, ...]],
+    dt: float,
+    holding_hands: dict[str, int],
+    single_dt: float,
+    carry: int | None = None,
+    shape_cache: dict[tuple[bool, tuple[int, ...]], float] | None = None,
+    key_cache: dict[tuple[Any, ...], list[float]] | None = None,
+) -> list[float]:
+    """`motif_cost` of several key sets for one slot and one history: what depends only on the
+    history (expected lanes, the previous notes, per-key costs) is worked out once. The caches
+    keep shape costs and per-key costs across calls of one search."""
     w = ctx.weights
-    cost = 0.0
-    if sp.window is not None:
-        lo, hi = sp.window
-        cost += w["window"] * sum(max(0, lo - k, k - hi) for k in keys)
-    if sp.region is not None:
-        lo, hi = sp.region
-        cost += w["region"] * sum(max(0, lo - k, k - hi) for k in keys)
-    if not keys:
-        return cost
-    if sp.home is not None and len(keys) == 1:
-        cost += w["home"] * ctx.home_scale * _mismatch(keys, (sp.home,))
+    fast = dt < FAST_MS
+    held = tuple(sorted(h for h, c in holding_hands.items() if c)) if sp.hold_tap and holding_hands else ()
+    cache_key = (sp.window, sp.region, fast, held)
+    per_key = key_cache.get(cache_key) if key_cache is not None else None
+    if per_key is None:
+        per_key = _per_key_costs(ctx, sp, fast, held)
+        if key_cache is not None:
+            key_cache[cache_key] = per_key
+    ref: tuple[int, ...] | None = None
+    ref_w = 0.0
     if sp.cell_ref is not None and sp.cell_ref < len(hist) and hist[sp.cell_ref]:
-        cost += w["cell"] * (1.0 - 0.3 * ctx.skill) * _mismatch(keys, hist[sp.cell_ref])
+        ref, ref_w = hist[sp.cell_ref], w["cell"] * (1.0 - 0.3 * ctx.skill)
     elif sp.mirror_ref is not None and sp.mirror_ref < len(hist) and hist[sp.mirror_ref]:
-        cost += w["cell"] * _mismatch(keys, tuple(sorted(ctx.mirror[k] for k in hist[sp.mirror_ref])))
-    else:
-        want = expected_keys(ctx, sp, hist, len(keys))
-        if want is not None:
-            cost += w["motif"] * _mismatch(keys, want)
-    if len(keys) >= 2:
-        cost += _shape_cost(ctx, sp, keys)
-        if sp.chords == "vary":
-            chords = [h for h in hist if len(h) >= 2]
-            if chords and chords[-1] == keys:
+        ref, ref_w = tuple(sorted(ctx.mirror[k] for k in hist[sp.mirror_ref])), w["cell"]
+    wants: dict[int, tuple[int, ...] | None] = {}
+    chords = [h for h in hist if len(h) >= 2]
+    last_chord = chords[-1] if chords else None
+    singles = [h[0] for h in hist if len(h) == 1]
+    if not singles and carry is not None:
+        singles = [carry]
+    moves: dict[int, float] = {}
+    home_w = w["home"] * ctx.home_scale
+    out: list[float] = []
+    for keys in key_sets:
+        if not keys:
+            out.append(0.0)
+            continue
+        cost = 0.0
+        for k in keys:
+            cost += per_key[k]
+        size = len(keys)
+        if sp.home is not None and size == 1:
+            cost += home_w * _mismatch(keys, (sp.home,))
+        if ref is not None:
+            cost += ref_w * _mismatch(keys, ref)
+        else:
+            if size not in wants:
+                wants[size] = expected_keys(ctx, sp, list(hist), size)
+            want = wants[size]
+            if want is not None:
+                cost += w["motif"] * _mismatch(keys, want)
+        if size >= 2:
+            if shape_cache is None:
+                cost += _shape_cost(ctx, sp, keys)
+            else:
+                key = (sp.wide, keys)
+                if key not in shape_cache:
+                    shape_cache[key] = _shape_cost(ctx, sp, keys)
+                cost += shape_cache[key]
+            if sp.chords == "vary" and last_chord == keys:
                 cost += w["chordRepeat"]
-    else:
-        singles = [h[0] for h in hist if len(h) == 1]
-        if not singles and carry is not None:
-            singles = [carry]
-        if singles:
-            cost += _move_cost(ctx, singles, keys[0], single_dt)
-    if dt < FAST_MS:
-        cost += w["finger"] * sum(1.0 - ctx.strength[k] for k in keys) * (1.0 - 0.5 * ctx.skill)
-    if sp.hold_tap and holding_hands:
-        cost += w["holdHand"] * sum(1 for k in keys if holding_hands.get(ctx.hand[k]))
-    return cost
+        elif singles:
+            k = keys[0]
+            if k not in moves:
+                moves[k] = _move_cost(ctx, singles, k, single_dt)
+            cost += moves[k]
+        out.append(cost)
+    return out

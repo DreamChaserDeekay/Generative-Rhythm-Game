@@ -10,7 +10,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
-from .motifs import MotifContext, SlotPlan, motif_context, motif_cost
+from .motifs import MotifContext, SlotPlan, motif_context, motif_costs
 from .params import GenParams
 from .select import Slot
 from .tempo import TempoMap
@@ -28,6 +28,11 @@ W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
 USAGE_DECAY = 0.9
+TIME_EPS = 1e-3
+# Chord notes over several instruments, left to right when the rhythm side is on the left (low
+# instruments first), and the instruments a long note prefers (the ones that sustain).
+STEM_POSITION = {"bass": 0, "drums": 1, "other": 2, "vocals": 3}
+STEM_SUSTAIN = {"vocals": 0, "other": 1, "bass": 2, "drums": 3}
 
 
 @dataclass(frozen=True)
@@ -101,6 +106,7 @@ class _State:
     phrase: int = -1  # phrase of the pattern plan the history belongs to
     hist: tuple[tuple[int, ...], ...] = ()  # key indices chosen for the earlier slots of the phrase
     single_t: float = -1e9  # time of the phrase's latest single note
+    head: tuple[float, ...] = ()  # latest press per lane (the head of a long note, unlike `last`)
 
 
 def _pitch_targets(slots: list[Slot]) -> list[float | None]:
@@ -133,7 +139,7 @@ def assign_lanes(
 ) -> list[dict[str, Any]]:
     """Lane-assigned notes. `targets_by_slot` gives key lanes to prefer per slot (repeat
     consistency), `plan` the pattern of every slot; see `lane_search`."""
-    return notes_from_choices(slots, lane_search(slots, lanes, params, tempo, rng, targets_by_slot, plan), tempo)
+    return notes_from_choices(slots, lane_search(slots, lanes, params, tempo, rng, targets_by_slot, plan), tempo, lanes, plan)
 
 
 def lane_search(
@@ -157,10 +163,21 @@ def lane_search(
     hands = [l.hand for l in lanes]
     # a shared middle key can be hit by either thumb, so it may repeat faster (DJMAX 5K "laser")
     min_gap = [params.thumb_jack_ms if l.hand == "T" and params.thumb_jack_ms else params.min_jack_ms for l in lanes]
+    # A side note is a bar over its hand's keys: around its head that hand keeps the jack spacing
+    # (DPC judges mark notes squeezed against side notes). Key lanes watch their hand's side lanes
+    # and side lanes their hand's keys.
+    side_watch = [
+        [j for j in range(n_lanes) if lanes[j].hand == l.hand and {l.kind, lanes[j].kind} == {"key", "side"}]
+        for l in lanes
+    ]
     ctx: MotifContext | None = motif_context(lanes, params.skill, params.instrument_mapping, params.system) if plan else None
     combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = {}
+    shape_cache: dict[tuple[bool, tuple[int, ...]], float] = {}
+    keys_cache: dict[tuple[int, ...], tuple[int, ...]] = {}
+    mean_cache: dict[tuple[int, ...], float] = {}
+    per_key_cache: dict[tuple[Any, ...], list[float]] = {}
     neg = -1e9
-    beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None)]
+    beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None, head=(neg,) * n_lanes)]
 
     for si, slot in enumerate(slots):
         t = slot.t
@@ -186,11 +203,14 @@ def lane_search(
         sp = plan[si] if plan else None
         pitch_scale = ctx.pitch_weight.get(sp.motif, 1.0) if ctx and sp else 1.0
         jack_scale = 0.1 if sp and sp.repeats(slot.size - (1 if slot.special else 0)) else 1.0
-        expansions: list[_State] = []
+        # (total cost, state, lanes, long-note lane, keys, hist, single_t): states are only built
+        # for the candidates that make the beam
+        candidates: list[tuple[float, _State, tuple[int, ...], int | None, tuple[int, ...], tuple[tuple[int, ...], ...], float]] = []
         for state in beam:
             free = [
                 i for i in range(n_lanes)
                 if state.hold_end[i] + gap <= t and t - state.last[i] >= min_gap[i] - 1e-6
+                and not (side_watch[i] and any(TIME_EPS < t - state.head[j] < params.min_jack_ms - TIME_EPS for j in side_watch[i]))
             ]
             same_phrase = sp is not None and state.phrase == sp.phrase
             hist = state.hist if same_phrase else ()
@@ -221,17 +241,26 @@ def lane_search(
             if not combos:
                 combos = [()]
             noise = rng.random(len(combos)) * W_NOISE
+            combo_keys: list[tuple[int, ...]] = []
+            mcosts: list[float] = []
+            if ctx is not None and sp is not None:
+                for combo in combos:
+                    if combo not in keys_cache:
+                        keys_cache[combo] = tuple(sorted(ctx.key_index[i] for i in combo))
+                    combo_keys.append(keys_cache[combo])
+                mcosts = motif_costs(ctx, sp, hist, combo_keys, t - state.prev_t, holding_hands, t - single_t, carry, shape_cache, per_key_cache)
+            costs = _costs(state, combos, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set, pitch_scale, jack_scale, mean_cache)
             scored = []
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
                 if not lanes_used:
                     scored.append((W_DROP * slot.size, lanes_used, None, ()))
                     continue
-                cost = dropped * W_DROP + _cost(state, combo, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set, pitch_scale, jack_scale) + noise[ci]
+                cost = dropped * W_DROP + costs[ci] + noise[ci]
                 keys = ()
-                if ctx is not None and sp is not None:
-                    keys = tuple(sorted(ctx.key_index[i] for i in combo))
-                    cost += motif_cost(ctx, sp, list(hist), keys, t - state.prev_t, holding_hands, t - single_t, carry)
+                if mcosts:
+                    keys = combo_keys[ci]
+                    cost += mcosts[ci]
                 ln_lane = None
                 if hold_end_t is not None and slot.special_hold and special is not None:
                     ln_lane = special
@@ -246,32 +275,38 @@ def lane_search(
                 scored.append((cost, lanes_used, ln_lane, keys))
             scored.sort(key=lambda x: x[0])
             for cost, lanes_used, ln_lane, keys in scored[:BEAM_WIDTH]:
-                last = list(state.last)
-                hold = list(state.hold_end)
-                usage = [u * USAGE_DECAY for u in state.usage]
-                for i in lanes_used:
-                    last[i] = t if i != ln_lane else (hold_end_t or t)
-                    usage[i] += 1.0
-                if ln_lane is not None and hold_end_t is not None:
-                    hold[ln_lane] = hold_end_t
-                expansions.append(
-                    _State(
-                        cost=state.cost + cost,
-                        last=tuple(last),
-                        hold_end=tuple(hold),
-                        usage=tuple(usage),
-                        prev_lanes=tuple(i for i in lanes_used if lanes[i].kind == "key"),
-                        prev_pitch=slot.pitch,
-                        prev_t=t,
-                        parent=state,
-                        choice=(si, lanes_used, ln_lane),
-                        phrase=sp.phrase if sp else -1,
-                        hist=hist + (keys,) if sp else (),
-                        single_t=t if sp and len(keys) == 1 else single_t,
-                    )
+                candidates.append((state.cost + cost, state, lanes_used, ln_lane, keys, hist, single_t))
+        candidates.sort(key=lambda c: c[0])
+        expansions: list[_State] = []
+        for total, state, lanes_used, ln_lane, keys, hist, single_t in candidates[:BEAM_WIDTH]:
+            last = list(state.last)
+            head = list(state.head)
+            hold = list(state.hold_end)
+            usage = [u * USAGE_DECAY for u in state.usage]
+            for i in lanes_used:
+                last[i] = t if i != ln_lane else (hold_end_t or t)
+                head[i] = t
+                usage[i] += 1.0
+            if ln_lane is not None and hold_end_t is not None:
+                hold[ln_lane] = hold_end_t
+            expansions.append(
+                _State(
+                    cost=total,
+                    last=tuple(last),
+                    hold_end=tuple(hold),
+                    usage=tuple(usage),
+                    prev_lanes=tuple(i for i in lanes_used if lanes[i].kind == "key"),
+                    prev_pitch=slot.pitch,
+                    prev_t=t,
+                    parent=state,
+                    choice=(si, lanes_used, ln_lane),
+                    phrase=sp.phrase if sp else -1,
+                    hist=hist + (keys,) if sp else (),
+                    single_t=t if sp and len(keys) == 1 else single_t,
+                    head=tuple(head),
                 )
-        expansions.sort(key=lambda s: s.cost)
-        beam = expansions[:BEAM_WIDTH] or beam
+            )
+        beam = expansions or beam
 
     best = min(beam, key=lambda s: s.cost)
     choices: list[Choice] = []
@@ -291,14 +326,29 @@ def key_lanes_of(choices: list[Choice], n_slots: int, lanes: list[LaneInfo]) -> 
     return out
 
 
-def notes_from_choices(slots: list[Slot], choices: list[Choice], tempo: TempoMap) -> list[dict[str, Any]]:
+def notes_from_choices(
+    slots: list[Slot],
+    choices: list[Choice],
+    tempo: TempoMap,
+    lanes: list[LaneInfo] | None = None,
+    plan: list[SlotPlan] | None = None,
+) -> list[dict[str, Any]]:
+    """Notes of the chosen lanes. With `lanes`, the notes of a chord take the instruments sounding
+    at the hit (`note_sources`), placed by the role layout of `plan`; without, every note of a slot
+    follows its dominant instrument."""
+    share = float(load_config("instruments")["keysound"]["chordShare"])
+    n_keys = sum(1 for l in lanes if l.kind == "key") if lanes else 0
     notes: list[dict[str, Any]] = []
     for si, lanes_used, ln_lane in choices:
         slot = slots[si]
+        stems = None
+        if lanes is not None and slot.sources is not None:
+            rhythm_left = _rhythm_left(plan[si] if plan else None, n_keys)
+            stems = note_sources(slot.sources, lanes_used, ln_lane, lanes, rhythm_left, share)
         for lane in sorted(lanes_used):
             note: dict[str, Any] = {"beat": round(slot.beat, 6), "t": round(slot.t, 3), "lane": lane, "type": "tap"}
             if slot.src is not None:
-                note["src"] = STEM_NAMES[slot.src]
+                note["src"] = STEM_NAMES[stems[lane] if stems else slot.src]
             if lane == ln_lane and slot.hold_end_beat is not None:
                 note["type"] = "hold"
                 note["endBeat"] = round(slot.hold_end_beat, 6)
@@ -306,6 +356,59 @@ def notes_from_choices(slots: list[Slot], choices: list[Choice], tempo: TempoMap
             notes.append(note)
     notes.sort(key=lambda n: (n["t"], n["lane"]))
     return notes
+
+
+def note_sources(
+    sources: np.ndarray,
+    lanes_used: tuple[int, ...],
+    ln_lane: int | None,
+    lanes: list[LaneInfo],
+    rhythm_left: bool,
+    min_share: float,
+) -> dict[int, int]:
+    """Instrument (stem index) of every note of one hit. Every instrument sounding at the hit (at
+    least `min_share` of it) gets a note of its own where the chord has room, so each note plays a
+    sound of the song (DPC: notes are the song's keysounds; notes without one cost points when they
+    do not fit the music). A side long note takes the instrument that sustains best, the keys take
+    the rest from the rhythm side to the melody side (low instruments on the rhythm side), the
+    loudest of them takes any notes left over, and a key long note gets the one that sustains."""
+    dominant = int(np.argmax(sources))
+    pool = [int(i) for i in np.argsort(-sources, kind="stable") if sources[i] >= min_share] or [dominant]
+    out: dict[int, int] = {}
+    keys = sorted(i for i in lanes_used if lanes[i].kind == "key")
+    for i in lanes_used:
+        if lanes[i].kind == "key":
+            continue
+        if i == ln_lane and len(pool) > 1:
+            out[i] = min(pool, key=lambda s: STEM_SUSTAIN[STEM_NAMES[s]])
+            pool.remove(out[i])
+        else:
+            out[i] = dominant
+    if not keys:
+        return out
+    picked = pool[: len(keys)]
+    order = sorted(picked, key=lambda s: STEM_POSITION[STEM_NAMES[s]], reverse=not rhythm_left)
+    counts = {s: 1 for s in picked}
+    counts[picked[0]] += len(keys) - len(picked)
+    out.update(zip(keys, [s for s in order for _ in range(counts[s])]))
+    if ln_lane in out and len(picked) > 1 and lanes[ln_lane].kind == "key":
+        best = min(picked, key=lambda s: STEM_SUSTAIN[STEM_NAMES[s]])
+        if out[ln_lane] != best:
+            other = min((k for k in keys if out[k] == best), key=lambda k: abs(k - ln_lane))
+            out[ln_lane], out[other] = out[other], out[ln_lane]
+    return out
+
+
+def _rhythm_left(sp: SlotPlan | None, n_keys: int) -> bool:
+    """Whether the rhythm side of the slot's phrase is on the left (the default without roles)."""
+    if sp is None or sp.region is None:
+        return True
+    lo, hi = sp.region
+    mid = (n_keys - 1) / 2
+    if (lo + hi) / 2 == mid:
+        return True
+    left = (lo + hi) / 2 < mid
+    return left if sp.layer == "rhythm" else not left
 
 
 def _special_lane(
@@ -399,48 +502,86 @@ def _cost(
     pitch_scale: float = 1.0,
     jack_scale: float = 1.0,
 ) -> float:
-    if not combo:
-        return 0.0
-    cost = 0.0
-    total_pos = 0.0
-    for i in combo:
-        total_pos += pos[i]
-    mean_pos = total_pos / len(combo)
-    if target is not None:
-        cost += pitch_scale * w.pitch * (mean_pos - target) ** 2
-    if src_terms is not None:
-        # drums: kick-heavy hits lean left, hat-heavy hits right; bass leans left
-        drum_share, drum_pos, bass_share = src_terms
-        cost += w.source * (drum_share * (mean_pos - drum_pos) ** 2 + bass_share * (mean_pos - w.bass_target) ** 2)
-    if repeat_set and w.repeat > 0:
-        overlap = sum(1 for i in combo if i in repeat_set)
-        cost -= w.repeat * overlap / max(len(combo), len(repeat_set))
+    return _costs(state, [combo], pos, hands, slot, target, t, w, mean_use, src_terms, repeat_set, pitch_scale, jack_scale)[0]
+
+
+def _costs(
+    state: _State,
+    combos: list[tuple[int, ...]],
+    pos: list[float],
+    hands: list[str],
+    slot: Slot,
+    target: float | None,
+    t: float,
+    w: _Weights,
+    mean_use: float,
+    src_terms: tuple[float, float, float] | None = None,
+    repeat_set: frozenset[int] | None = None,
+    pitch_scale: float = 1.0,
+    jack_scale: float = 1.0,
+    mean_cache: dict[tuple[int, ...], float] | None = None,
+) -> list[float]:
+    """Musical and ergonomic cost of each combo for one state: pitch and instrument placement,
+    contour, hand alternation, jacks and lane balance (what depends only on the state is done once)."""
     dt = t - state.prev_t
     prev = state.prev_lanes
-    if len(combo) == 1 and len(prev) == 1:
-        lane, prev_lane = combo[0], prev[0]
-        same_pitch = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
-        if same_pitch:
-            cost += 0.0 if lane == prev_lane else W_SAME_PITCH
-        elif slot.pitch is not None and state.prev_pitch is not None:
-            step = slot.pitch - state.prev_pitch
-            move = pos[lane] - pos[prev_lane]
-            direction = (step > 0) - (step < 0)
-            if direction != 0 and ((move > 0) - (move < 0)) != direction:
-                cost += pitch_scale * w.contour
-        if dt < 200 and hands[lane] == hands[prev_lane]:
-            cost += w.alternate * (200 - dt) / 200
-    repeated = 0
-    for i in combo:
-        if i in prev:
-            repeated += 1
-    same_sound = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
-    if repeated and not same_sound:
+    same_pitch = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
+    direction = 0
+    if not same_pitch and slot.pitch is not None and state.prev_pitch is not None:
+        step = slot.pitch - state.prev_pitch
+        direction = (step > 0) - (step < 0)
+    alternate = w.alternate * (200 - dt) / 200 if dt < 200 else 0.0
+    jack = 0.0
+    if not same_pitch:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
-        cost += jack_scale * w.jack * repeated * (0.6 + speed)
-    if repeated and dt < 400.0:
-        cost -= w.jack_bonus * repeated  # jack style: repeats stay on their lane
-    usage = state.usage
-    for i in combo:
-        cost += W_BALANCE * (usage[i] - mean_use) / (mean_use + 1.0)
-    return cost
+        jack = jack_scale * w.jack * (0.6 + speed)
+    bonus = w.jack_bonus if dt < 400.0 else 0.0
+    balance = [W_BALANCE * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
+    single_prev = prev[0] if len(prev) == 1 else None
+    use_repeat = bool(repeat_set) and w.repeat > 0
+    out: list[float] = []
+    for combo in combos:
+        if not combo:
+            out.append(0.0)
+            continue
+        cost = 0.0
+        mean_pos = mean_cache.get(combo) if mean_cache is not None else None
+        if mean_pos is None:
+            total_pos = 0.0
+            for i in combo:
+                total_pos += pos[i]
+            mean_pos = total_pos / len(combo)
+            if mean_cache is not None:
+                mean_cache[combo] = mean_pos
+        if target is not None:
+            cost += pitch_scale * w.pitch * (mean_pos - target) ** 2
+        if src_terms is not None:
+            # drums: kick-heavy hits lean left, hat-heavy hits right; bass leans left
+            drum_share, drum_pos, bass_share = src_terms
+            cost += w.source * (drum_share * (mean_pos - drum_pos) ** 2 + bass_share * (mean_pos - w.bass_target) ** 2)
+        if use_repeat:
+            overlap = sum(1 for i in combo if i in repeat_set)  # type: ignore[operator]
+            cost -= w.repeat * overlap / max(len(combo), len(repeat_set))  # type: ignore[arg-type]
+        if single_prev is not None and len(combo) == 1:
+            lane = combo[0]
+            if same_pitch:
+                cost += 0.0 if lane == single_prev else W_SAME_PITCH
+            elif direction != 0:
+                move = pos[lane] - pos[single_prev]
+                if ((move > 0) - (move < 0)) != direction:
+                    cost += pitch_scale * w.contour
+            if alternate and hands[lane] == hands[single_prev]:
+                cost += alternate
+        repeated = 0
+        for i in combo:
+            if i in prev:
+                repeated += 1
+        if repeated:
+            if not same_pitch:
+                cost += jack * repeated
+            if dt < 400.0:
+                cost -= bonus * repeated  # jack style: repeats stay on their lane
+        for i in combo:
+            cost += balance[i]
+        out.append(cost)
+    return out

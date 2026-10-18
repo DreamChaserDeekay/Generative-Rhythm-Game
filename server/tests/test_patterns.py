@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from rhythm_server.analysis.analyzer import analyze
 from rhythm_server.formats import export_chart
 from rhythm_server.generator import generate_chart
-from rhythm_server.generator.lanes import lane_infos
+from rhythm_server.generator.lanes import lane_infos, note_sources
 from rhythm_server.generator.linter import lint
 from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.tempo import TempoMap
@@ -422,3 +423,71 @@ def test_key_mode_habits_of_each_game(dense_song: dict) -> None:
     designer = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON")
     classic = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON", overrides={"patternEngine": "classic"})
     assert big_chords(designer) > big_chords(classic) + 0.05
+
+
+# DPC (DJMAX PATTERN-DESIGN CHALLENGE) guidelines, docs/PATTERN_DESIGN.md 12
+
+
+def test_side_notes_keep_their_hand_clear(dense_song: dict) -> None:
+    for mode, tier, level in (("6K+FX", "HD", 9), ("4K+FX", "MX", 13), ("6K+FX", "SC", 6)):
+        params = resolve_params(mode, tier, level, system="DJMAX")
+        lanes = lane_infos(mode)
+        chart = generate_chart(dense_song, mode, tier, level, system="DJMAX")
+        side = [n for n in chart["notes"] if lanes[n["lane"]].kind == "side"]
+        keys = [n for n in chart["notes"] if lanes[n["lane"]].kind == "key"]
+        assert side and all(n["type"] == "hold" for n in side), (mode, tier)
+        squeezed = [
+            (s["t"], k["t"]) for s in side for k in keys
+            if lanes[k["lane"]].hand == lanes[s["lane"]].hand and 1e-3 < abs(k["t"] - s["t"]) < params.min_jack_ms
+        ]
+        assert squeezed == [], (mode, tier, squeezed[:3])
+        # never three keys plus the side note on one hand (6B 1+2+3+L)
+        per_hand: dict[tuple[float, str], int] = {}
+        for n in chart["notes"]:
+            key = (n["t"], lanes[n["lane"]].hand)
+            per_hand[key] = per_hand.get(key, 0) + 1
+        assert max(per_hand.values()) <= 3, (mode, tier)
+
+
+def test_the_linter_keeps_key_notes_off_a_side_note() -> None:
+    lanes = lane_infos("6K+FX")  # FXL, keys 1-3 (left hand), keys 4-6 (right hand), FXR
+    tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
+    params = resolve_params("6K+FX", "MX", 13, system="DJMAX")  # jacks from 180 ms
+    side = {"t": 1000.0, "beat": 2.0, "lane": 0, "type": "hold", "endT": 2000.0, "endBeat": 4.0}
+
+    def squeezed(lane: int, t: float) -> bool:
+        key = {"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"}
+        return any("side note" in p for p in lint([side, key], lanes, params, tempo))
+
+    assert squeezed(1, 900.0)  # the left hand, 100 ms before the side note
+    assert not squeezed(1, 1000.0)  # hit together with it
+    assert not squeezed(6, 1100.0)  # the other hand
+    assert not squeezed(1, 1200.0)  # far enough
+
+
+def test_chord_notes_take_the_instruments_of_the_hit(dense_song: dict) -> None:
+    lanes = lane_infos("6K+FX")
+    hit = np.array([0.45, 0.3, 0.05, 0.2])  # drums, bass, vocals, other
+    drums, bass, other = 0, 1, 3
+    # each sounding instrument gets a key, from the rhythm side (bass, drums) to the melody side
+    assert note_sources(hit, (1, 2, 5), None, lanes, True, 0.2) == {1: bass, 2: drums, 5: other}
+    # rhythm on the right (a swapped repetition group): the order turns round
+    assert note_sources(hit, (1, 2, 5), None, lanes, False, 0.2) == {1: other, 2: drums, 5: bass}
+    # notes left over share the loudest instrument; a single note follows it
+    assert note_sources(hit, (1, 2, 3, 5), None, lanes, True, 0.2) == {1: bass, 2: drums, 3: drums, 5: other}
+    assert note_sources(hit, (3,), None, lanes, True, 0.2) == {3: drums}
+    # a side long note takes the sound that sustains, the keys the rest
+    assert note_sources(hit, (0, 2, 3), 0, lanes, True, 0.2) == {0: other, 2: bass, 3: drums}
+    # a key long note gets the more sustained of the chord's sounds
+    assert note_sources(hit, (1, 5), 5, lanes, True, 0.2) == {1: drums, 5: bass}
+    # one instrument only: the whole chord follows it
+    assert note_sources(np.array([0.7, 0.1, 0.1, 0.1]), (1, 5), None, lanes, True, 0.2) == {1: drums, 5: drums}
+
+    chart = generate_chart(dense_song, "6K", "MX", 13, system="DJMAX")
+    by_t: dict[float, set[str]] = {}
+    sizes: dict[float, int] = {}
+    for n in chart["notes"]:
+        by_t.setdefault(n["t"], set()).add(n["src"])
+        sizes[n["t"]] = sizes.get(n["t"], 0) + 1
+    chords = [t for t, size in sizes.items() if size >= 2]
+    assert chords and sum(1 for t in chords if len(by_t[t]) >= 2) / len(chords) > 0.5

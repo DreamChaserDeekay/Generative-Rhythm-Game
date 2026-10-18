@@ -28,7 +28,7 @@
     "keysound": { "stem": "vocals", "share": 0.36, "shares": { "drums": 0.41, "bass": 0.08, "vocals": 0.36, "other": 0.15 } },
     "repeatConsistency": 0.97,
     "generator": {
-      "version": "0.4.0",
+      "version": "0.4.1",
       "analyzer": "core-1.1.0",
       "seed": 3735928559,
       "params": {
@@ -111,7 +111,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 | `lane` | `meta.lanes` 인덱스. |
 | `type` | `tap` 또는 `hold`. |
 | `endBeat` / `endT` | 롱노트 끝(`hold`만). |
-| `src` | 그 노트를 만든 소리의 주 스템(drums · bass · vocals · other). 분석에 스템 정보가 있을 때만 있다. 키음을 켜면 그 노트를 칠 때 이 스템의 [이 노트, 같은 스템의 다음 노트) 구간(최대 4초) 소리가 나고, 놓치면 그 구간 소리가 빠진다. |
+| `src` | 그 노트가 맡은 소리의 스템(drums · bass · vocals · other). 단타는 그 소리의 주 스템이고, 한 소리에 악기가 여럿 울리면 동치의 노트가 악기를 하나씩 나눠 맡는다(생성기 0.4.1부터). 분석에 스템 정보가 있을 때만 있다. 키음을 켜면 그 노트를 칠 때 이 스템의 [이 노트, 같은 스템의 다음 노트) 구간(최대 4초) 소리가 나고, 놓치면 그 구간 소리가 빠진다. |
 | `snd` | 가져온 키음 채보: 누르면 나는 소리(`sounds`의 인덱스). |
 | `so` | 소리를 시작할 위치(ms). bmson에서 이전 노트의 소리를 이어 받는 노트(`c: true`, 잘린 스템)는 0보다 크다. |
 | `sl` | 소리를 끊는 길이(ms). 같은 소리가 다시 시작하는 시각까지(BMS의 같은 #WAV, bmson의 같은 채널). |
@@ -130,6 +130,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - 배치 옵션(MIRROR·RANDOM 등)과 연습 구간은 클라이언트가 플레이 직전에 노트의 `lane`을 바꾸거나 일부만 골라 적용한다. 채보 파일과 `chartId`는 바뀌지 않는다.
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
+- 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
 - `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
 - `difficultySystem`·`levelScale`은 난이도 기준(DJMAX · EZ2ON)과 함께 추가됐다. 없으면 기본 기준이다. 생성기 파라미터의 `system`도 기본 기준이 아닐 때만 있어서, 기본 기준 채보의 `chartId`는 그대로다.
 

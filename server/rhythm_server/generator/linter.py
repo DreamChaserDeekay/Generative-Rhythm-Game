@@ -66,4 +66,15 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
         ]
         if len(overlapping) + 1 > params.max_holds_per_hand:
             problems.append(f"{len(overlapping) + 1} long notes held on hand {lanes[h['lane']].hand} at {h['t']}ms")
+    # A side note is a bar over its hand's keys: its head keeps the jack spacing from that hand's key
+    # notes, unless they are hit together.
+    key_times: dict[str, list[float]] = defaultdict(list)
+    for n in notes:
+        if lanes[n["lane"]].kind == "key":
+            key_times[lanes[n["lane"]].hand].append(n["t"])
+    for s in (n for n in notes if lanes[n["lane"]].kind == "side"):
+        hand = lanes[s["lane"]].hand
+        near = [k for k in key_times[hand] if TIME_EPS < abs(k - s["t"]) < params.min_jack_ms - TIME_EPS]
+        if near:
+            problems.append(f"key note {abs(near[0] - s['t']):.0f}ms from a side note on hand {hand} at {s['t']}ms")
     return problems

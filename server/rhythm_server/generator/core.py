@@ -23,7 +23,7 @@ from .repeat import consistency, repeat_references, repeat_targets
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.4.0"
+GENERATOR_VERSION = "0.4.1"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least
@@ -101,7 +101,7 @@ def generate_chart(
         slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
         plan = plan_patterns(slots, sections, params, key_hands, tempo) if params.pattern_engine == "designer" else None
         choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
-        notes = notes_from_choices(slots, choices, tempo)
+        notes = notes_from_choices(slots, choices, tempo, lanes, plan)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         if best is None or rank < best[0]:
@@ -212,7 +212,7 @@ def _repeat_consistent(
         if updated == chosen:
             break
         chosen = updated
-    return notes_from_choices(slots, choices, tempo), consistency(refs, occurrence, chosen, lanes, mirror)
+    return notes_from_choices(slots, choices, tempo, lanes, plan), consistency(refs, occurrence, chosen, lanes, mirror)
 
 
 def keysound_meta(notes: list[dict[str, Any]]) -> dict[str, Any] | None:
