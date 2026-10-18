@@ -99,6 +99,8 @@ export function SongSelectScreen(props: Props) {
   const [practice, setPractice] = useState<PracticeOptions | null>(null);
   const [savedCharts, setSavedCharts] = useState<SavedChart[]>([]);
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
+  // the YouTube link being typed in the song settings (null = the link form is closed)
+  const [youtubeDraft, setYoutubeDraft] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const replayInput = useRef<HTMLInputElement>(null);
@@ -111,7 +113,10 @@ export function SongSelectScreen(props: Props) {
   const tiers = system.tiers;
   const difficulty = tierOf(system, settings.lastDifficulty).id;
   const selected = songs.find((s) => s.id === selectedSongId) ?? null;
-  useEffect(() => setEditSections(false), [selected?.id]);
+  useEffect(() => {
+    setEditSections(false);
+    setYoutubeDraft(null);
+  }, [selected?.id]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q)) : songs;
@@ -384,9 +389,10 @@ export function SongSelectScreen(props: Props) {
     setBusy(null);
   };
 
+  // A form on the page, not window.prompt: the desktop app (Electron) has no prompt dialog.
   const linkYoutube = async () => {
-    const url = window.prompt('배경으로 쓸 유튜브 영상 링크를 붙여 넣으세요. 소리는 나지 않고 곡에 맞춰 재생됩니다.');
-    if (url?.trim()) await patch({ bgaYoutube: url.trim() });
+    const url = youtubeDraft?.trim();
+    if (url && (await patch({ bgaYoutube: url }))) setYoutubeDraft(null);
   };
 
   const removeBga = async () => {
@@ -410,15 +416,18 @@ export function SongSelectScreen(props: Props) {
     setPractice({ startMs, endMs: endMs > startMs ? endMs : startMs + 15000, rate: 1, loop: true });
   };
 
-  const patch = async (body: Parameters<typeof api.patchSong>[1]) => {
-    if (!selected) return;
+  /** Saves song settings; false when the server refused them (the error is shown). */
+  const patch = async (body: Parameters<typeof api.patchSong>[1]): Promise<boolean> => {
+    if (!selected) return false;
     setError(null);
     try {
       await api.patchSong(selected.id, body);
       forgetSongBuffer(selected.id);
       await refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     }
   };
 
@@ -855,7 +864,12 @@ export function SongSelectScreen(props: Props) {
                       <button className="small" data-testid="bga-upload" onClick={() => videoInput.current?.click()}>
                         영상 고르기 (mp4·webm)
                       </button>
-                      <button className="small" data-testid="bga-youtube" onClick={() => void linkYoutube()}>
+                      <button
+                        className="small"
+                        data-testid="bga-youtube"
+                        aria-expanded={youtubeDraft !== null}
+                        onClick={() => setYoutubeDraft((d) => (d === null ? '' : null))}
+                      >
                         유튜브 링크
                       </button>
                     </>
@@ -872,6 +886,41 @@ export function SongSelectScreen(props: Props) {
                     }}
                   />
                 </div>
+                {youtubeDraft !== null && !selected.hasBga && !selected.bgaYoutube && (
+                  <form
+                    className="row"
+                    data-testid="bga-youtube-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void linkYoutube();
+                    }}
+                  >
+                    <span className="label" aria-hidden="true" />
+                    <input
+                      type="text"
+                      inputMode="url"
+                      className="youtube-link"
+                      data-testid="bga-youtube-input"
+                      aria-label="유튜브 영상 링크"
+                      placeholder="유튜브 영상 링크 (youtube.com/watch?v=… · youtu.be/…)"
+                      value={youtubeDraft}
+                      autoFocus
+                      onChange={(e) => setYoutubeDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          setYoutubeDraft(null);
+                        }
+                      }}
+                    />
+                    <button className="small" type="submit" data-testid="bga-youtube-save" disabled={!youtubeDraft.trim()}>
+                      등록
+                    </button>
+                    <button className="small" type="button" onClick={() => setYoutubeDraft(null)}>
+                      취소
+                    </button>
+                  </form>
+                )}
                 {selected.bgaYoutube && (
                   <p className="hint" data-testid="bga-youtube-hint">
                     유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.

@@ -112,9 +112,21 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('demo-button').click();
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
-  page.once('dialog', (d) => void d.accept('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s'));
+  // the link is typed into the page: the desktop app (Electron) cannot show prompt dialogs
+  page.on('dialog', (d) => {
+    errors.push(`unexpected dialog: ${d.message()}`);
+    void d.dismiss();
+  });
   await page.getByTestId('bga-youtube').click();
+  // a link the server cannot read keeps the form open and says so
+  await page.getByTestId('bga-youtube-input').fill('https://example.com/video');
+  await page.getByTestId('bga-youtube-save').click();
+  await expect(page.getByTestId('select-error')).toContainText('유튜브 영상 링크');
+  await expect(page.getByTestId('bga-youtube-form')).toBeVisible();
+  await page.getByTestId('bga-youtube-input').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s');
+  await page.getByTestId('bga-youtube-input').press('Enter');
   await expect(page.getByTestId('bga-status')).toHaveText('유튜브');
+  await expect(page.getByTestId('bga-youtube-form')).toHaveCount(0);
   await expect(page.getByTestId('bga-youtube-hint')).toBeVisible();
 
   await page.getByRole('button', { name: /NORMAL/ }).first().click();

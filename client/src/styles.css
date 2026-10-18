@@ -259,6 +259,12 @@ input[type='search'] {
   width: 88px;
 }
 
+input.youtube-link {
+  flex: 1 1 260px;
+  width: auto;
+  min-width: 0;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: var(--text-dim);
