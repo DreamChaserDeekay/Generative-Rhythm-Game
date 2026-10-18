@@ -229,6 +229,7 @@ export class PlayController {
         practiceLabel: this.practiceLabel(),
       },
       settings.showErrorMs,
+      settings.reducedFlash,
     );
 
     this.resizeObserver = new ResizeObserver(() => this.layout());

@@ -743,6 +743,9 @@ p.hint {
   font-weight: 800;
   line-height: 1;
   color: var(--text);
+  /* the per-hit bump (Hud.ts) grows it upward from its baseline */
+  transform-origin: 50% 100%;
+  will-change: transform;
 }
 
 .hud-combo-label {

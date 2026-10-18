@@ -41,6 +41,9 @@ const TOAST_MS = 1400;
 /** The HUD is drawn for a 720px-high screen and grows with it, up to this much. */
 const BASE_HEIGHT = 720;
 const MAX_SCALE = 1.5;
+/** Every combo step punches the number: it starts larger and a little lower, then settles back. */
+const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
+const COMBO_BUMP_MS = 150;
 
 /** Imperative DOM overlay; only touches the DOM when a value changes. */
 export class Hud {
@@ -64,7 +67,10 @@ export class Hud {
   private readonly toast: HTMLElement;
   private readonly loop: HTMLElement;
   private readonly showErrorMs: boolean;
+  /** Off with the reduced-flash setting, like the judgement pop. */
+  private readonly bumpCombo: boolean;
   private readonly feverManualKey: string | null;
+  private comboBump: Animation | null = null;
   private judgeAt = -Infinity;
   private toastAt = -Infinity;
   private lastCombo = -1;
@@ -77,9 +83,10 @@ export class Hud {
   private lastFever = '';
   private lastScale = 0;
 
-  constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean) {
+  constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
     this.showErrorMs = showErrorMs;
+    this.bumpCombo = !reducedFlash;
     this.feverManualKey = info.feverManualKey;
     root.innerHTML = `
       <div class="hud-info">
@@ -182,9 +189,15 @@ export class Hud {
 
   setCombo(combo: number): void {
     if (combo === this.lastCombo) return;
+    const rose = combo > this.lastCombo && combo >= 2;
     this.lastCombo = combo;
     this.comboNum.textContent = combo > 0 ? String(combo) : '';
     this.comboBox.style.visibility = combo >= 2 ? 'visible' : 'hidden';
+    if (rose && this.bumpCombo) {
+      // a transform animation: runs on the compositor, no layout per hit
+      this.comboBump?.cancel();
+      this.comboBump = this.comboNum.animate(COMBO_BUMP, { duration: COMBO_BUMP_MS, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });
+    }
   }
 
   /** Short message in the middle of the screen (hi-speed, covers). */
