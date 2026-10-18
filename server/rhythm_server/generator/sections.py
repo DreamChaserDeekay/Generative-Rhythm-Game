@@ -30,7 +30,8 @@ from .candidates import Candidate
 from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, HALF_BEAT_HOLDS_BELOW, MAX_CHORD_RATIO, MAX_LN_BEATS, Slot, active_seconds
+from .rolls import coarser, mark_rolls, roll_level, rolls_config
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -403,6 +404,21 @@ def layout(
         for t in times:
             buckets[int(max(0.0, t) / BUCKET_MS)] += 1
 
+    def untake(times: list[float]) -> None:
+        for t in times:
+            buckets[int(max(0.0, t) / BUCKET_MS)] -= 1
+
+    def fits(times: list[float]) -> bool:
+        """Whether all these notes fit the peak density together (window_ok checks one at a time)."""
+        added = []
+        for t in sorted(times):
+            if not window_ok([t]):
+                break
+            take([t])
+            added.append(t)
+        untake(added)
+        return len(added) == len(times)
+
     sub_counts: dict[int, int] = {}
     picked_total = 0
 
@@ -414,7 +430,30 @@ def layout(
 
     chosen: dict[int, list[int]] = {}  # class -> picked offset keys
     unit_extra: dict[int, list[int]] = {}  # unit -> extra offset keys
+    roll_keys: dict[int, set[int]] = {}  # class -> offset keys of its drum roll notes
+    unit_rolls: dict[int, set[int]] = {}  # unit -> offset keys of a roll only it plays (a fill)
+    unit_drop: dict[int, set[int]] = {}  # unit -> class notes its own roll leaves out
     carry = 0.0
+
+    rolls_cfg = rolls_config()
+    median_strength = float(np.median([c.strength for c in cands]))
+
+    def rollish(c: Candidate) -> bool:
+        """A sound that can be a roll's hit where another repeat of the music has the roll."""
+        share = c.bands / (float(np.sum(c.bands)) + 1e-9)
+        return float(share[2]) < float(rolls_cfg["maxHighShare"]) and c.strength >= float(rolls_cfg["adoptStrength"]) * median_strength
+
+    def roll_picks(roll: dict[int, int], ms: list[int]) -> set[int]:
+        """The roll's keys (key -> subdivision) on the finest grid the tier reads that fits the
+        peak density in units `ms`; empty when only its beats would be left."""
+        level = roll_level(list(roll.values()), params) if len(roll) >= 2 else 1
+        while level > 1:
+            keep = {k for k, sub in roll.items() if level % sub == 0}
+            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]]):
+                return keep
+            level = coarser(level)
+        return set()
+
     for cls in range(n_classes):
         ms = members[cls]
         # The class plays what its lightest unit wants; the others add notes over it (build-up).
@@ -432,7 +471,31 @@ def layout(
         presence = {k: sum(1 for m in ms if k in per_unit[m]) / len(ms) for k in consensus}
         order = sorted((k for k in consensus if presence[k] >= 0.5 or len(ms) == 1), key=lambda k: (-consensus[k], k))
         picks: list[int] = []
+        # A drum roll plays first, whatever the budget (rolls.py): every hit on the finest grid the
+        # tier reads, or a coarser grid where the peak density does not allow it. A roll in most
+        # units of the class (a build-up section) is the class's; a roll in only some of them (the
+        # fill closing a verse that otherwise loops) is added to those units alone.
+        flagged = {k: [m for m in ms if k in per_unit[m] and cands[per_unit[m][k]].roll is not None] for k in consensus}
+        roll = {k: cands[per_unit[us[0]][k]].subdivision for k, us in flagged.items() if len(us) > 0.5 * len(ms) and k in order}
+        kept = roll_picks(roll, ms)
+        if kept:
+            for k in sorted(kept):
+                ts = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
+                picks.append(k)
+                take(ts)
+                sub_counts[roll[k]] = sub_counts.get(roll[k], 0) + len(ts)
+                picked_total += len(ts)
+            roll_keys[cls] = kept
+        # the roll has its span to itself: no other note between its hits (they would break the
+        # hands' turns), neither the sounds between its grid points nor the hits it leaves out
+        spans = _runs(sorted(roll), GRID) if kept else []
+
+        def inside(k: int) -> bool:
+            return k not in kept and any(a <= k <= b for a, b in spans)
+
         for k in order:
+            if k in picks or inside(k):
+                continue
             if len(picks) >= want:
                 break
             times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
@@ -448,25 +511,60 @@ def layout(
             for k in order:
                 bar_keys.setdefault(k // (GRID * bpb), []).append(k)
             for bar, keys in sorted(bar_keys.items()):
-                if any(k // (GRID * bpb) == bar for k in picks):
+                if any(k // (GRID * bpb) == bar for k in picks) or all(inside(k) for k in keys):
                     continue
-                k = keys[0]
+                k = next(k for k in keys if not inside(k))
                 times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
                 if window_ok(times):
                     picks.append(k)
                     take(times)
                     picked_total += len(times)
         chosen[cls] = sorted(picks)
+        # A roll only some units play (a fill) goes to them before their other extra notes; inside
+        # it the class's own notes give way. Detection finds a fill's ends a little differently in
+        # each repeat, so the fill is what most of the units with a roll share, and a unit whose roll
+        # was missed (one softer hit) plays it too where its sounds there are the roll's kind.
+        holders = {m: {k for k, us in flagged.items() if m in us and k not in roll} for m in ms}
+        holders = {m: ks for m, ks in holders.items() if len(ks) >= 2}
+        tally: dict[int, int] = {}
+        for ks in holders.values():
+            for k in ks:
+                tally[k] = tally.get(k, 0) + 1
+        fill = {k for k, n in tally.items() if n >= 0.5 * len(holders)}
+        for m in ms:
+            if len(fill) < 2:
+                break
+            if m in holders:
+                keys_m = {k for k in fill if k in per_unit[m]}
+            else:
+                keys_m = {k for k in fill if k in per_unit[m] and rollish(cands[per_unit[m][k]])}
+                if len(keys_m) < float(rolls_cfg["adoptShare"]) * len(fill):
+                    continue
+            own = {k: cands[per_unit[m][k]].subdivision for k in keys_m}
+            if len(own) < 2:
+                continue
+            # the class's notes inside the roll make way before the roll is fitted in
+            span = _runs(sorted(own), GRID)
+            freed = [cands[per_unit[m][k]].t for k in picks if k in per_unit[m] and any(a <= k <= b for a, b in span)]
+            untake(freed)
+            mine = roll_picks(own, [m])
+            if not mine:
+                take(freed)
+                continue
+            take([cands[per_unit[m][k]].t for k in mine])
+            picked_total += len(mine) - len(freed)
+            unit_rolls[m] = mine
+            unit_drop[m] = {k for a, b in span for k in consensus if a <= k <= b and k not in mine}
         # Units that play more than their class (repeats building up, ramps, the last chorus) add
         # notes in the class's own order, so a unit that adds more adds the same notes first and
         # every repeat plays what the earlier ones did.
-        ranked = sorted((k for k in consensus if k not in picks), key=lambda k: (-consensus[k], k))
+        ranked = sorted((k for k in consensus if k not in picks and not inside(k)), key=lambda k: (-consensus[k], k))
         for m in ms:
             u = units[m]
             n_more = int(round(unit_n[m] * (1 + u.extra))) - len(picks)
             if n_more <= 0:
                 continue
-            pool = [k for k in ranked if k in per_unit[m]]
+            pool = [k for k in ranked if k in per_unit[m] and k not in unit_rolls.get(m, ()) and k not in unit_drop.get(m, ())]
             extra: list[int] = []
             for k in pool:
                 if len(extra) >= n_more:
@@ -477,6 +575,9 @@ def layout(
                     take([t])
                     picked_total += 1
             unit_extra[m] = extra
+        for m, mine in unit_rolls.items():
+            if m in ms:
+                unit_extra[m] = sorted(set(unit_extra.get(m, [])) | mine)
 
     # slots, unit by unit
     slots: list[Slot] = []
@@ -488,7 +589,7 @@ def layout(
     # only clear sounds are filled in: a faint detection the other repeats share may be an artefact
     fill_floor = float(sectioned_config()["fillStrength"]) * float(np.median([c.strength for c in cands]))
     for u in units:
-        keys = sorted(set(chosen[u.cls]) | set(unit_extra.get(u.index, [])))
+        keys = sorted((set(chosen[u.cls]) | set(unit_extra.get(u.index, []))) - unit_drop.get(u.index, set()))
         idx = []
         ms = members[u.cls]
         for k in keys:
@@ -516,13 +617,17 @@ def layout(
             slot_key.append(k)
         unit_slots.append(idx)
 
-    # class positions: (class, key) -> slots realizing it; the first one is the reference (a note a
-    # repeat adds is copied by the later repeats that add it too)
-    positions: dict[tuple[int, int], list[int]] = {}
+    in_roll = [slot_key[i] in roll_keys.get(units[slot_unit[i]].cls, ()) or slot_key[i] in unit_rolls.get(slot_unit[i], ()) for i in range(len(slots))]
+    mark_rolls(slots, in_roll, [units[slot_unit[i]].mirror for i in range(len(slots))])
+
+    # class positions: (class, key, roll note) -> slots realizing it; the first one is the reference
+    # (a note a repeat adds is copied by the later repeats that add it too; a fill's roll notes
+    # only by the other fills, not by the plain loop's notes at the same place)
+    positions: dict[tuple[int, int, bool], list[int]] = {}
     for i in range(len(slots)):
         u = units[slot_unit[i]]
         if slot_key[i] in chosen[u.cls] or slot_key[i] in unit_extra.get(u.index, ()):
-            positions.setdefault((u.cls, slot_key[i]), []).append(i)
+            positions.setdefault((u.cls, slot_key[i], in_roll[i]), []).append(i)
     ref: list[int | None] = [None] * len(slots)
     for idxs in positions.values():
         for i in idxs[1:]:
@@ -539,6 +644,17 @@ def layout(
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
     return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys)
+
+
+def _runs(keys: list[int], gap: int) -> list[tuple[int, int]]:
+    """(first, last) of each stretch of sorted keys at most `gap` apart."""
+    out: list[tuple[int, int]] = []
+    for k in keys:
+        if out and k - out[-1][1] <= gap:
+            out[-1] = (out[-1][0], k)
+        else:
+            out.append((k, k))
+    return out
 
 
 def _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb) -> None:
@@ -595,6 +711,8 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
         return
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
+        if any(slots[i].roll is not None for i in idxs):
+            continue  # a roll is one hand at a time
         mult = blueprint(units[slot_unit[idxs[0]]].label)["chord"]
         worth = float(np.mean([_chord_worth(cands[slot_cand[i]], params) for i in idxs])) * mult
         if worth > 0:
@@ -618,26 +736,28 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
 def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams) -> None:
     if params.long_note_ratio <= 0 or not slots:
         return
-    step = 0.5 if params.skill < HALF_BEAT_HOLDS_BELOW else 0.25
     target = params.long_note_ratio * len(slots)
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
         sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
-        if min(sustains) < params.min_ln_beats:
+        if min(sustains) < params.min_ln_beats or any(slots[i].roll is not None for i in idxs):
             continue
         mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
-        value = float(np.mean([cands[slot_cand[i]].sustain_beats * (0.5 + cands[slot_cand[i]].harmonic) * (1.2 if cands[slot_cand[i]].pitch is not None else 1.0) for i in idxs])) * mult
+        value = float(np.mean([hold_value(cands[slot_cand[i]]) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))
     placed = 0
     for value, key, idxs, sustain in options:
         if placed >= target - 0.5 * len(idxs):
             break
-        length = min(MAX_LN_BEATS, math.floor(sustain / step) * step)
-        if length < params.min_ln_beats:
+        # every slot of a class position sits at the same place in its bar: one length ends them all
+        # on the same grid point
+        first = slots[idxs[0]]
+        end = hold_end(first.beat, sustain, params.min_ln_beats, params.skill)
+        if end is None:
             continue
         for i in idxs:
-            slots[i].hold_end_beat = slots[i].beat + float(length)
+            slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
         placed += len(idxs)
 
 
@@ -652,7 +772,7 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
     decisions = _realized(positions, _outside(slots, positions))
 
     def spaced(idxs: list[int]) -> bool:
-        return all(slots[i].special is None and all(abs(slots[i].t - t) >= gap for t in taken) for i in idxs)
+        return all(slots[i].special is None and slots[i].roll is None and all(abs(slots[i].t - t) >= gap for t in taken) for i in idxs)
 
     placed = 0
     if kind == "side":
@@ -661,7 +781,9 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
         for key, idxs in decisions:
             cs = [cands[slot_cand[i]] for i in idxs]
             if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs):
-                holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, min(c.sustain_beats for c in cs)))
+                sustain = min(c.sustain_beats for c in cs)
+                if hold_end(slots[idxs[0]].beat, sustain, min_hold, 0.0) is not None:
+                    holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, sustain))
         holds.sort(key=lambda o: (-o[0], str(o[1])))
         want_holds = n * params.side_hold_share
         for value, key, idxs, sustain in holds:
@@ -669,10 +791,11 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
                 break
             if not spaced(idxs):
                 continue
+            end = hold_end(slots[idxs[0]].beat, sustain, min_hold, 0.0)
             for i in idxs:
                 slots[i].special = "side"
                 slots[i].special_hold = True
-                slots[i].hold_end_beat = slots[i].beat + float(min(MAX_LN_BEATS, math.floor(sustain * 2) / 2))
+                slots[i].hold_end_beat = slots[i].beat + (end - slots[idxs[0]].beat)  # type: ignore[operator]
                 taken.append(slots[i].t)
             placed += len(idxs)
         if params.side_hold_share >= 1.0:
@@ -711,7 +834,7 @@ def _accents(slots: list[Slot], units: list[Unit], unit_slots: list[list[int]], 
         if not u.accent or not idxs:
             continue
         first = slots[idxs[0]]
-        if abs(first.beat - u.start) < 1e-6 and first.size == 1 and first.special is None:
+        if abs(first.beat - u.start) < 1e-6 and first.size == 1 and first.special is None and first.roll is None:
             first.size = 2
 
 
@@ -762,7 +885,9 @@ def place(
         if force > 0:
             targets = []
             for i in idxs:
-                r = lay.ref[i]
+                # a roll's notes are not copied: the hands' turns place them the same way, and a copy
+                # that a held note blocks would leave two notes on one hand
+                r = lay.ref[i] if lay.slots[i].roll is None else None
                 t = chosen[r] if r is not None else None
                 if t and lay.units[lay.slot_unit[r]].mirror != u.mirror:
                     t = tuple(sorted(mirror_of[l] for l in t))

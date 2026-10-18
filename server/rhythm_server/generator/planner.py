@@ -168,6 +168,8 @@ def _pedal_notes(slots: list[Slot], idx: list[int]) -> list[bool]:
 
 def layer_of(slot: Slot) -> str:
     """"rhythm" for drums and bass (the low end, one hand on hard charts), else "melody"."""
+    if slot.roll is not None:
+        return "rhythm"
     if slot.sources is None:
         return "melody" if slot.pitch is not None else "rhythm"
     return "rhythm" if int(np.argmax(slot.sources)) in (DRUMS, BASS) else "melody"
@@ -510,6 +512,11 @@ def plan_patterns(
     regions = role_regions(slots, phrases, params, hands)
     homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
     plan: list[SlotPlan] = [None] * len(slots)  # type: ignore[list-item]  # every slot is in a phrase
+    # rolls too fast for one key every other note (the jack spacing) use two keys per hand
+    roll_gap: dict[int, float] = {}
+    for a, b in zip(slots, slots[1:]):
+        if a.roll is not None and b.roll is not None and a.roll[0] == b.roll[0]:
+            roll_gap[a.roll[0]] = min(roll_gap.get(a.roll[0], math.inf), b.t - a.t)
     for n, (p, motif, win) in enumerate(zip(phrases, motifs, wins)):
         # rhythm phrases have no melodic direction: alternate it so stairs and rolls vary (by class
         # in the sectioned engine, so a loop keeps its direction)
@@ -517,6 +524,15 @@ def plan_patterns(
         direction = p.direction if p.gesture != "rhythm" else (1 if turn % 2 == 0 else -1)
         layers = [layer_of(slots[i]) for i in p.slots]
         for k, i in enumerate(p.slots):
+            if slots[i].roll is not None:
+                # a drum roll's note: the hands take turns (motifs.alternate_key), over the whole keys
+                run, pos, hits, mirrored = slots[i].roll  # type: ignore[misc]
+                plan[i] = SlotPlan(
+                    phrase=n, k=k, motif="alternate", chords=textures[n], hold_tap=p.holds > 0, direction=direction,
+                    step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False, layer="rhythm", roll=(pos, hits, run),
+                    roll_spread=2 * roll_gap.get(run, math.inf) < params.min_jack_ms, roll_mirrored=mirrored,
+                )
+                continue
             mirror_ref = k - p.halves if motif == "callResponse" and p.halves is not None and k >= p.halves else None
             plan[i] = SlotPlan(
                 phrase=n,

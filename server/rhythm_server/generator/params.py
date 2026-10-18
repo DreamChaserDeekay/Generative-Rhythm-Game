@@ -235,8 +235,8 @@ def resolve_params(
             params.scratch_rate = clamp("scratchRate", value)
         elif key == "sideRate":
             params.side_rate = clamp("sideRate", value)
-        elif key == "rhythmSource" and value in RHYTHM_SOURCES:
-            params.rhythm_source = value
+        elif key == "rhythmSource" and value in RHYTHM_SOURCES and value != "auto":
+            params.rhythm_source = value  # "auto" leaves the style's own (the melody style follows the melody)
         elif key == "instrumentMapping":
             params.instrument_mapping = max(0.0, min(1.0, float(value)))
         elif key == "repeatConsistency":
@@ -276,3 +276,5 @@ def _apply_style(params: GenParams, style: dict[str, Any]) -> None:
             params.extra[key] = float(style[key])
     if "subdivisionBoost" in style:
         params.extra["subdivisionBoost"] = {int(k): float(v) for k, v in style["subdivisionBoost"].items()}
+    if style.get("rhythmSource") in RHYTHM_SOURCES:
+        params.rhythm_source = str(style["rhythmSource"])  # what "auto" follows in this style
