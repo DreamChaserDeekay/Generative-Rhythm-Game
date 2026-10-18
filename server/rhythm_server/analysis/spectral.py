@@ -65,10 +65,25 @@ def mel_power(x: np.ndarray, sr: int, n_fft: int, hop: int, n_mels: int, fmin: f
     return out, centers
 
 
+def median_along(x: np.ndarray, size: int, axis: int) -> np.ndarray:
+    """`median_filter` of a 2-D array along one axis (`size` values, edges reflected): the same
+    values, several times faster. Every row is padded with its own reflected edges and all rows go
+    through one 1-D filter, which scipy (1.15+) runs with its fast 1-D rank filter; no window that
+    is kept reaches into the next row."""
+    rows = x if axis == 1 else x.T
+    if rows.shape[1] < size:
+        return median_filter(x, size=(1, size) if axis == 1 else (size, 1), mode="reflect")
+    half = size // 2
+    padded = np.pad(rows, ((0, 0), (half, half)), mode="symmetric")  # scipy's "reflect"
+    filtered = median_filter(padded.reshape(-1), size=size, mode="reflect").reshape(padded.shape)
+    filtered = filtered[:, half : half + rows.shape[1]]
+    return np.ascontiguousarray(filtered if axis == 1 else filtered.T)
+
+
 def hpss(magnitude: np.ndarray, kernel: int = 17) -> tuple[np.ndarray, np.ndarray]:
     """Median-filter harmonic/percussive separation (Fitzgerald 2010), soft masks."""
-    harmonic = median_filter(magnitude, size=(kernel, 1), mode="reflect")
-    percussive = median_filter(magnitude, size=(1, kernel), mode="reflect")
+    harmonic = median_along(magnitude, kernel, axis=0)
+    percussive = median_along(magnitude, kernel, axis=1)
     h2, p2 = harmonic.astype(np.float32) ** 2, percussive.astype(np.float32) ** 2
     total = h2 + p2 + 1e-12
     return magnitude * (h2 / total), magnitude * (p2 / total)

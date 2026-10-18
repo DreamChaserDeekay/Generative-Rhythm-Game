@@ -65,6 +65,26 @@ async function waitForPlayStart(page: Page, timeoutMs: number): Promise<void> {
   expect(slowestMs, 'slowest answer while the play was loading (ms)').toBeLessThan(3000);
 }
 
+/** Animation frames per second the page runs at over `ms`. */
+async function framesPerSecond(page: Page, ms: number): Promise<number> {
+  return page.evaluate(
+    (ms) =>
+      new Promise<number>((resolve) => {
+        let frames = 0;
+        const start = performance.now();
+        const tick = (now: number) => {
+          if (now - start >= ms) resolve((frames * 1000) / (now - start));
+          else {
+            frames++;
+            requestAnimationFrame(tick);
+          }
+        };
+        requestAnimationFrame(tick);
+      }),
+    ms,
+  );
+}
+
 test('chart editor: place, remove and save notes, then test-play from the cursor', async ({ page }) => {
   const errors = trackErrors(page);
   await addDemoAndPreview(page);
@@ -104,6 +124,12 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   await page.waitForTimeout(1500);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
+  // the paused track is not redrawn, so the blurred pause menu stays smooth without a GPU too
+  // (redrawn every frame it ran at ~4 fps there)
+  await page.waitForTimeout(500);
+  const pausedFps = await framesPerSecond(page, 1000);
+  console.log('paused fps:', pausedFps.toFixed(1));
+  expect(pausedFps).toBeGreaterThan(20);
   await page.getByRole('button', { name: /나가기/ }).click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();
   expect(await noteCount(page)).toBe(generated + 1);

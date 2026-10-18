@@ -71,7 +71,8 @@ export class PlayBackground {
 
   update(songMs: number, playing: boolean, perfNow: number): void {
     this.syncVideo(songMs, playing, perfNow);
-    if (this.analyser && this.ctx && this.canvas && perfNow - this.lastDraw >= 1000 / VISUALIZER_FPS) {
+    // the spectrum stays still while paused (no redraws under the pause menu's blur)
+    if (playing && this.analyser && this.ctx && this.canvas && perfNow - this.lastDraw >= 1000 / VISUALIZER_FPS) {
       this.lastDraw = perfNow;
       this.drawSpectrum(this.ctx, this.canvas, this.analyser);
     }

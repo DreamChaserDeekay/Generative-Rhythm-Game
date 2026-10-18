@@ -18,7 +18,7 @@ from typing import Callable
 import numpy as np
 from scipy.ndimage import maximum_filter1d, median_filter
 
-from .spectral import frames_view
+from .spectral import frames_view, median_along
 
 STEM_NAMES = ("drums", "bass", "vocals", "other")
 
@@ -266,23 +266,27 @@ def _istft(spec: np.ndarray, length: int) -> np.ndarray:
     window = np.hanning(N_FFT)
     frames = np.fft.irfft(spec, n=N_FFT, axis=1) * window
     pad = N_FFT // 2
-    total = (len(frames) - 1) * HOP + N_FFT
-    out = np.zeros(total)
-    norm = np.zeros(total)
-    w2 = window**2
-    for i, frame in enumerate(frames):
-        s = i * HOP
-        out[s : s + N_FFT] += frame
-        norm[s : s + N_FFT] += w2
-    out /= np.maximum(norm, 1e-8)
+    # overlap-add in hop-sized chunks: each chunk sums its frames in frame order, as adding the
+    # frames one by one does, so the result is the same to the bit
+    parts = N_FFT // HOP
+    n_frames = len(frames)
+    chunks = frames.reshape(n_frames, parts, HOP)
+    w2 = (window**2).reshape(parts, HOP)
+    out = np.zeros((n_frames + parts - 1, HOP))
+    norm = np.zeros((n_frames + parts - 1, HOP))
+    for r in reversed(range(parts)):
+        out[r : r + n_frames] += chunks[:, r]
+        norm[r : r + n_frames] += w2[r]
+    out = out.reshape(-1)
+    out /= np.maximum(norm.reshape(-1), 1e-8)
     return out[pad : pad + length]
 
 
 def _separate_block(seg: np.ndarray, sr: int) -> dict[str, np.ndarray]:
     left, right = _stft(seg[:, 0]), _stft(seg[:, 1])
     mid = np.abs(left + right) * 0.5
-    harm = median_filter(mid, size=(HPSS_KERNEL, 1), mode="reflect")
-    perc = median_filter(mid, size=(1, HPSS_KERNEL), mode="reflect")
+    harm = median_along(mid, HPSS_KERNEL, axis=0)
+    perc = median_along(mid, HPSS_KERNEL, axis=1)
     h2, p2 = harm.astype(np.float64) ** 2, perc.astype(np.float64) ** 2
     drums = (p2 / (h2 + p2 + 1e-12)).astype(np.float32)
     freqs = np.fft.rfftfreq(N_FFT, 1.0 / sr)
@@ -321,5 +325,9 @@ def separate(pcm: np.ndarray, sr: int, progress: Progress | None = None) -> dict
         if end >= n:
             break
     stems = {name: y.astype(np.float32) for name, y in out.items()}
-    stems["other"] = (pcm.astype(np.float64) - sum(y.astype(np.float64) for y in out.values())).astype(np.float32)
+    total = out["drums"] + out["bass"]
+    total += out["vocals"]
+    other = pcm.astype(np.float64)
+    other -= total
+    stems["other"] = other.astype(np.float32)
     return stems

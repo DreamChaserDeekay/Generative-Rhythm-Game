@@ -341,6 +341,7 @@ button.small.active {
   z-index: 20;
 }
 
+/* cheap because the paused track is not redrawn every frame (PlayController.frame) */
 .pause-menu {
   backdrop-filter: blur(4px);
 }

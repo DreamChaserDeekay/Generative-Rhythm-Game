@@ -15,9 +15,12 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
+from scipy.ndimage import median_filter
+
 from rhythm_server.analysis import ml
 from rhythm_server.analysis.analyzer import ANALYZER_VERSION, analyze
-from rhythm_server.analysis.stems import STEM_NAMES, separate
+from rhythm_server.analysis.spectral import median_along
+from rhythm_server.analysis.stems import HOP, N_FFT, STEM_NAMES, _istft, separate
 from rhythm_server.api.app import create_app
 from rhythm_server.api.library import Library
 from rhythm_server.generator import generate_chart
@@ -56,6 +59,30 @@ def test_core_stems_add_up_to_the_mix_and_follow_the_instruments() -> None:
     for name in ("drums", "vocals", "other"):
         others = [_corr(est[name], song.stems[t]) for t in STEM_NAMES if t != name]
         assert own[name] > max(others), (name, own[name], others)
+
+
+def test_fast_hpss_median_and_overlap_add_give_the_same_bits() -> None:
+    rng = np.random.default_rng(3)
+    for shape in ((1, 1), (5, 40), (16, 16), (17, 17), (300, 257)):
+        x = rng.random(shape).astype(np.float32)
+        x[:, ::7] = 0.5  # ties
+        for size in (2, 5, 17):
+            for axis in (0, 1):
+                plain = median_filter(x, size=(size, 1) if axis == 0 else (1, size), mode="reflect")
+                assert median_along(x, size, axis).tobytes() == plain.tobytes(), (shape, size, axis)
+    bins = N_FFT // 2 + 1
+    spec = (rng.standard_normal((40, bins)) + 1j * rng.standard_normal((40, bins))).astype(np.complex64)
+    # the inverse STFT adding the frames one by one
+    window = np.hanning(N_FFT)
+    frames = np.fft.irfft(spec, n=N_FFT, axis=1) * window
+    out = np.zeros((len(frames) - 1) * HOP + N_FFT)
+    norm = np.zeros_like(out)
+    for i, frame in enumerate(frames):
+        out[i * HOP : i * HOP + N_FFT] += frame
+        norm[i * HOP : i * HOP + N_FFT] += window**2
+    out /= np.maximum(norm, 1e-8)
+    length = 39 * HOP
+    assert _istft(spec, length).tobytes() == out[N_FFT // 2 : N_FFT // 2 + length].tobytes()
 
 
 def test_onsets_are_tagged_with_the_stem_they_come_from() -> None:
