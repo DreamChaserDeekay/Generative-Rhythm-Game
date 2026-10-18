@@ -45,24 +45,27 @@ export function TimelineGraph(props: { chart: Chart; hits: HitRecord[]; breakTim
   const bw = W / bins;
   const mid = densityH + 8 + scatterH / 2;
   const yErr = (e: number) => mid + (Math.max(-props.windowMs, Math.min(props.windowMs, e)) / props.windowMs) * (scatterH / 2);
+  // the svg stretches with the panel, so its labels are HTML (svg text would stretch too)
   return (
-    <svg className="graph timeline-graph" viewBox={`0 0 ${W} ${total}`} preserveAspectRatio="none" role="img" aria-label="밀도·BREAK·타이밍 분포">
-      {counts.map((c, i) => {
-        const bh = (c / max) * (densityH - 6);
-        return <rect key={i} className="density-bar" x={i * bw} y={densityH - bh} width={Math.max(1, bw - 1)} height={bh} />;
-      })}
-      {props.breakTimes.map((t, i) => (
-        <line key={`b${i}`} className="break-mark" x1={x(t)} x2={x(t)} y1={0} y2={densityH} />
-      ))}
-      <line className="zero-line" x1={0} x2={W} y1={mid} y2={mid} />
-      <line className="window-line" x1={0} x2={W} y1={yErr(-41.67)} y2={yErr(-41.67)} />
-      <line className="window-line" x1={0} x2={W} y1={yErr(41.67)} y2={yErr(41.67)} />
-      {props.hits.map((h, i) => (
-        <circle key={`h${i}`} cx={x(h.timeMs)} cy={yErr(h.errorMs)} r={1.6} className={h.percent >= 100 ? 'dot-max' : h.errorMs < 0 ? 'dot-fast' : 'dot-slow'} />
-      ))}
-      <text x={4} y={densityH + 18} className="axis">FAST</text>
-      <text x={4} y={total - 4} className="axis">SLOW</text>
-    </svg>
+    <div className="graph-wrap">
+      <svg className="graph timeline-graph" viewBox={`0 0 ${W} ${total}`} preserveAspectRatio="none" role="img" aria-label="밀도·BREAK·타이밍 분포">
+        {counts.map((c, i) => {
+          const bh = (c / max) * (densityH - 6);
+          return <rect key={i} className="density-bar" x={i * bw} y={densityH - bh} width={Math.max(1, bw - 1)} height={bh} />;
+        })}
+        {props.breakTimes.map((t, i) => (
+          <line key={`b${i}`} className="break-mark" x1={x(t)} x2={x(t)} y1={0} y2={densityH} />
+        ))}
+        <line className="zero-line" x1={0} x2={W} y1={mid} y2={mid} />
+        <line className="window-line" x1={0} x2={W} y1={yErr(-41.67)} y2={yErr(-41.67)} />
+        <line className="window-line" x1={0} x2={W} y1={yErr(41.67)} y2={yErr(41.67)} />
+        {props.hits.map((h, i) => (
+          <circle key={`h${i}`} cx={x(h.timeMs)} cy={yErr(h.errorMs)} r={1.6} className={h.percent >= 100 ? 'dot-max' : h.errorMs < 0 ? 'dot-fast' : 'dot-slow'} />
+        ))}
+      </svg>
+      <span className="axis" style={{ top: `${((densityH + 8) / total) * 100}%` }}>FAST</span>
+      <span className="axis" style={{ bottom: 0 }}>SLOW</span>
+    </div>
   );
 }
 
@@ -81,18 +84,23 @@ export function TimingHistogram({ hits, median }: { hits: HitRecord[]; median: n
   const bw = w / HIST_BINS;
   const mx = median === null ? null : ((median + HIST_RANGE_MS) / (2 * HIST_RANGE_MS)) * w;
   return (
-    <svg className="histogram" viewBox={`0 0 ${w} ${h + 16}`} role="img" aria-label="타이밍 오차 분포">
-      {bins.map((count, i) => {
-        const center = -HIST_RANGE_MS + (i + 0.5) * ((2 * HIST_RANGE_MS) / HIST_BINS);
-        const bh = (count / max) * h;
-        const cls = Math.abs(center) <= 41.67 ? 'bar-max' : center < 0 ? 'bar-fast' : 'bar-slow';
-        return <rect key={i} className={cls} x={i * bw + 1} y={h - bh} width={bw - 2} height={bh} />;
-      })}
-      <line x1={w / 2} x2={w / 2} y1={0} y2={h} className="zero-line" />
-      {mx !== null && mx >= 0 && mx <= w && <line x1={mx} x2={mx} y1={0} y2={h} className="median-line" />}
-      <text x={4} y={h + 13} className="axis">FAST −{HIST_RANGE_MS}ms</text>
-      <text x={w - 4} y={h + 13} className="axis" textAnchor="end">+{HIST_RANGE_MS}ms SLOW</text>
-    </svg>
+    <>
+      <svg className="histogram" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="타이밍 오차 분포">
+        {bins.map((count, i) => {
+          const center = -HIST_RANGE_MS + (i + 0.5) * ((2 * HIST_RANGE_MS) / HIST_BINS);
+          const bh = (count / max) * h;
+          const cls = Math.abs(center) <= 41.67 ? 'bar-max' : center < 0 ? 'bar-fast' : 'bar-slow';
+          return <rect key={i} className={cls} x={i * bw + 1} y={h - bh} width={bw - 2} height={bh} />;
+        })}
+        <line x1={w / 2} x2={w / 2} y1={0} y2={h} className="zero-line" />
+        {mx !== null && mx >= 0 && mx <= w && <line x1={mx} x2={mx} y1={0} y2={h} className="median-line" />}
+      </svg>
+      <div className="histogram-axis">
+        <span>FAST −{HIST_RANGE_MS}ms</span>
+        {median !== null && <span className="median">중앙값 {median > 0 ? '+' : ''}{median.toFixed(1)}ms</span>}
+        <span>+{HIST_RANGE_MS}ms SLOW</span>
+      </div>
+    </>
   );
 }
 

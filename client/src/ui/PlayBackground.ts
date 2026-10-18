@@ -1,3 +1,5 @@
+import { token } from './theme';
+
 export interface BackgroundOptions {
   root: HTMLElement;
   coverUrl: string | null;
@@ -13,14 +15,16 @@ export interface BackgroundOptions {
   analyser: AnalyserNode | null;
 }
 
+/** The jacket is drawn this many pixels wide and stretched over the screen: soft colour, no blur filter. */
+const COVER_PX = 24;
 const BARS = 48;
 const VISUALIZER_FPS = 30;
 const VIDEO_DRIFT_S = 0.12;
 const VIDEO_RESYNC_MS = 500;
 
 /**
- * Layer behind the track: blurred jacket, optional user video synced to song time, an
- * audio-reactive spectrum and a dimming overlay. All DOM; nothing here touches judgement.
+ * Layer behind the track: the jacket as a soft colour field, optional user video synced to song
+ * time, an audio-reactive spectrum and a dimming overlay. All DOM; nothing here touches judgement.
  */
 export class PlayBackground {
   private readonly root: HTMLElement;
@@ -32,15 +36,21 @@ export class PlayBackground {
   private readonly options: BackgroundOptions;
   private lastDraw = 0;
   private lastSeek = 0;
+  /** Spectrum colour (the accent token). */
+  private readonly color = token('--accent');
 
   constructor(options: BackgroundOptions) {
     this.options = options;
     this.root = options.root;
     this.root.innerHTML = '';
     if (options.coverUrl) {
-      const cover = document.createElement('div');
+      const cover = document.createElement('canvas');
       cover.className = 'bg-cover';
-      cover.style.backgroundImage = `url("${options.coverUrl}")`;
+      cover.width = COVER_PX;
+      cover.height = COVER_PX;
+      const image = new Image();
+      image.onload = () => cover.getContext('2d')?.drawImage(image, 0, 0, COVER_PX, COVER_PX);
+      image.src = options.coverUrl;
       this.root.appendChild(cover);
     }
     if (options.bgaUrl) {
@@ -71,7 +81,7 @@ export class PlayBackground {
 
   update(songMs: number, playing: boolean, perfNow: number): void {
     this.syncVideo(songMs, playing, perfNow);
-    // the spectrum stays still while paused (no redraws under the pause menu's blur)
+    // the spectrum stays still while paused, like the track
     if (playing && this.analyser && this.ctx && this.canvas && perfNow - this.lastDraw >= 1000 / VISUALIZER_FPS) {
       this.lastDraw = perfNow;
       this.drawSpectrum(this.ctx, this.canvas, this.analyser);
@@ -118,7 +128,8 @@ export class PlayBackground {
     ctx.clearRect(0, 0, w, h);
     // log-spaced bands from ~60 Hz up, mirrored around the centre
     const n = this.bins.length;
-    const alpha = this.options.reducedFlash ? 0.16 : 0.32;
+    ctx.fillStyle = this.color;
+    ctx.globalAlpha = this.options.reducedFlash ? 0.16 : 0.32;
     const barW = w / (BARS * 2);
     for (let b = 0; b < BARS; b++) {
       const lo = Math.floor(2 * Math.pow(n / 2, b / BARS));
@@ -126,8 +137,6 @@ export class PlayBackground {
       let v = 0;
       for (let k = lo; k < hi && k < n; k++) v = Math.max(v, this.bins[k]);
       const bh = (v / 255) * h * 0.45;
-      const hue = 190 + (b / BARS) * 120;
-      ctx.fillStyle = `hsla(${hue}, 90%, 62%, ${alpha})`;
       ctx.fillRect(w / 2 + b * barW, h - bh, barW * 0.7, bh);
       ctx.fillRect(w / 2 - (b + 1) * barW, h - bh, barW * 0.7, bh);
     }

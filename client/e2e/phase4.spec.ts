@@ -124,8 +124,8 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   await page.waitForTimeout(1500);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
-  // the paused track is not redrawn, so the blurred pause menu stays smooth without a GPU too
-  // (redrawn every frame it ran at ~4 fps there)
+  // the paused track is not redrawn, so the pause screen stays smooth without a GPU too (redrawn
+  // every frame under the pause menu's former backdrop blur, it ran at ~4 fps there)
   await page.waitForTimeout(500);
   const pausedFps = await framesPerSecond(page, 1000);
   console.log('paused fps:', pausedFps.toFixed(1));
