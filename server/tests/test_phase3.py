@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import sqlite3
 import sys
+import threading
 import types
 from functools import lru_cache
 from pathlib import Path
@@ -17,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from scipy.ndimage import median_filter
 
-from rhythm_server.analysis import ml
+from rhythm_server.analysis import ml, stems
 from rhythm_server.analysis.analyzer import ANALYZER_VERSION, analyze
 from rhythm_server.analysis.spectral import median_along
 from rhythm_server.analysis.stems import HOP, N_FFT, STEM_NAMES, _istft, separate
@@ -83,6 +84,26 @@ def test_fast_hpss_median_and_overlap_add_give_the_same_bits() -> None:
     out /= np.maximum(norm, 1e-8)
     length = 39 * HOP
     assert _istft(spec, length).tobytes() == out[N_FFT // 2 : N_FFT // 2 + length].tobytes()
+
+
+def test_core_stems_are_the_same_with_blocks_separated_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    song = song_with_stems(bars=24, seed=5, bpm=128.0)  # 45 s: three blocks
+    threads: set[int] = set()
+    block = stems._separate_block
+
+    def recorded(*args):
+        threads.add(threading.get_ident())
+        return block(*args)
+
+    monkeypatch.setattr(stems, "_separate_block", recorded)
+    monkeypatch.setattr(stems, "SEPARATE_WORKERS", 1)
+    one_by_one = separate(song.pcm, song.sample_rate)
+    monkeypatch.setattr(stems, "SEPARATE_WORKERS", 3)
+    monkeypatch.setattr(stems.os, "cpu_count", lambda: 4)
+    threads.clear()
+    at_once = separate(song.pcm, song.sample_rate)
+    assert len(threads) > 1
+    assert all(one_by_one[name].tobytes() == at_once[name].tobytes() for name in STEM_NAMES)
 
 
 def test_onsets_are_tagged_with_the_stem_they_come_from() -> None:
