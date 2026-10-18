@@ -45,6 +45,26 @@ async function noteCount(page: Page): Promise<number> {
   return Number(await page.getByTestId('editor-note-count').textContent());
 }
 
+/**
+ * Waits for the play's loading overlay to go, polling it: the page must keep answering meanwhile
+ * (only the server and the audio decoder are waited on). A backdrop blur on the overlay once kept
+ * a software GPU busy, and the track's WebGL setup froze the page behind it for over 10 s.
+ */
+async function waitForPlayStart(page: Page, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  let slowestMs = 0;
+  for (;;) {
+    const asked = Date.now();
+    const shown = await page.locator('.play-overlay').count();
+    slowestMs = Math.max(slowestMs, Date.now() - asked);
+    if (shown === 0) break;
+    expect(Date.now() - start, 'the play should have started').toBeLessThan(timeoutMs);
+    await page.waitForTimeout(100);
+  }
+  console.log('play start:', JSON.stringify({ overlayMs: Date.now() - start, slowestMs }));
+  expect(slowestMs, 'slowest answer while the play was loading (ms)').toBeLessThan(3000);
+}
+
 test('chart editor: place, remove and save notes, then test-play from the cursor', async ({ page }) => {
   const errors = trackErrors(page);
   await addDemoAndPreview(page);
@@ -78,9 +98,9 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   // test play from the cursor, then back to the editor with the edit intact
   await page.getByTestId('editor-test').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  // the play starts once its audio and keysound stems are loaded (the first time the stems are
-  // also separated, about as long as the analysis on a slow machine)
-  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 60_000 });
+  // the play starts once its audio and keysound stems are loaded (the first time the server may
+  // still be separating the stems, which it starts right after the analysis)
+  await waitForPlayStart(page, 30_000);
   await page.waitForTimeout(1500);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
