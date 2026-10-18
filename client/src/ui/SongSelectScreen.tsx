@@ -1029,5 +1029,5 @@ function ChartPreview(props: {
 /** The tier a chart's difficulty belongs to (imported charts use the five GRG steps). */
 function chartTier(m: { difficulty: string; difficultySystem?: DifficultySystemId }) {
   const system = difficultySystems[m.difficultySystem ?? 'GRG'] ?? difficultySystems.GRG;
-  return system.tiers.find((t) => t.id === m.difficulty) ?? { id: m.difficulty, label: m.difficulty, short: m.difficulty, levels: [1, 15] as [number, number], color: '#9fb4ff' };
+  return system.tiers.find((t) => t.id === m.difficulty) ?? { id: m.difficulty, label: m.difficulty, short: m.difficulty, levels: [1, 15] as [number, number], color: 'var(--text-dim)' };
 }
