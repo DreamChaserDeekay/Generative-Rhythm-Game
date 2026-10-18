@@ -319,24 +319,24 @@ export class TrackRenderer {
       const tailZ = Math.max(-L, z(n.endT));
       const state = n.broken ? 'missed' : held ? 'held' : 'idle';
       const bodyColor = n.broken ? MISSED_COLOR : color;
+      // Only the body: its near edge is the press and its far edge the release. Note-shaped caps
+      // on the ends read as extra tap notes.
       if (headZ > tailZ) {
         const body = this.bodyPool.next();
         body.material = this.bodyMaterial(bodyColor, state);
         body.scale.set(lane.width * HOLD_BODY_WIDTH, 1, headZ - tailZ);
         body.position.set(lane.x, 0.02, (headZ + tailZ) / 2);
       }
-      if (!n.headDone || held || n.broken) this.placeNote(lane.x, lane.width, headZ, bodyColor, height);
-      if (tailZ > -L) this.placeNote(lane.x, lane.width * 0.8, tailZ, bodyColor, height, 0.6);
     }
     this.notePool.end();
     this.bodyPool.end();
     this.updateHoldGlows(frame);
   }
 
-  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, depthScale = 1): void {
+  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number): void {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color);
-    mesh.scale.set(laneWidth * 0.9, height, NOTE_DEPTH * depthScale);
+    mesh.scale.set(laneWidth * 0.9, height, NOTE_DEPTH);
     mesh.position.set(x, height / 2, z);
   }
 
