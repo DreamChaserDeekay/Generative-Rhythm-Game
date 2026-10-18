@@ -481,17 +481,19 @@ export function SongSelectScreen(props: Props) {
       .filter((r) => r.difficulty === d)
       .sort((a, b) => b.score - a.score)[0];
 
+  const selectedTier = tierOf(system, difficulty);
+
   return (
     <div className="select-screen" onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
       <header className="select-header">
-        <div>
+        <div className="brand">
           <h1>Generative Rhythm</h1>
           <p className="tagline">내 음악으로 만드는 채보 · SDVX 시점 · DJMAX 판정</p>
         </div>
-        <nav className="row">
-          <button data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
-          <button data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
-          <button data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
+        <nav className="tools">
+          <button className="quiet" data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
+          <button className="quiet" data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
+          <button className="quiet" data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
             리플레이 열기
           </button>
           <input
@@ -505,7 +507,7 @@ export function SongSelectScreen(props: Props) {
               e.target.value = '';
             }}
           />
-          <button data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
+          <button className="quiet" data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
         </nav>
       </header>
 
@@ -524,7 +526,7 @@ export function SongSelectScreen(props: Props) {
       <div className="select-body">
         <aside className="song-list-panel">
           <div className="row">
-            <button className="primary" data-testid="upload-button" onClick={() => fileInput.current?.click()} disabled={health === 'offline'}>
+            <button className={songs.length === 0 ? 'primary' : ''} data-testid="upload-button" onClick={() => fileInput.current?.click()} disabled={health === 'offline'}>
               곡 추가
             </button>
             <button data-testid="demo-button" onClick={() => void addDemo()} disabled={health === 'offline'}>데모 곡</button>
@@ -604,12 +606,15 @@ export function SongSelectScreen(props: Props) {
                 data-testid="song-item"
                 onClick={() => onSelectSong(s.id)}
               >
-                <Cover song={s} size={44} />
+                <Cover song={s} />
                 <div className="song-item-text">
                   <div className="song-title">{s.title}</div>
                   <div className="song-sub">
-                    {s.artist || '알 수 없는 아티스트'} · {formatTime(s.durationMs)}
-                    {s.status === 'ready' ? ` · ${bpmLabel(s)} BPM` : ''}
+                    <span className="artist">{s.artist || '알 수 없는 아티스트'}</span>
+                    <span className="meta">
+                      · {formatTime(s.durationMs)}
+                      {s.status === 'ready' ? ` · ${bpmLabel(s)} BPM` : ''}
+                    </span>
                   </div>
                   {(s.status === 'queued' || s.status === 'analyzing') && (
                     <div className="progress small"><div style={{ width: `${Math.round(s.progress * 100)}%` }} /></div>
@@ -625,17 +630,34 @@ export function SongSelectScreen(props: Props) {
           {!selected && <section className="panel"><p className="hint">왼쪽에서 곡을 고르세요.</p></section>}
           {selected && (
             <>
-              <section className="panel detail-head">
-                <Cover song={selected} size={120} />
-                <div className="detail-text">
-                  <h2 data-testid="song-title">{selected.title}</h2>
-                  <p className="sub">{selected.artist || '알 수 없는 아티스트'}</p>
-                  <p className="sub">
-                    {formatTime(selected.durationMs)} · BPM {bpmLabel(selected)}
-                    {selected.overrides.bpm ? ' (보정됨)' : ''}
+              <div className="key-modes">
+                <span className="label">키 모드</span>
+                <div className="segmented">
+                  {enabledKeyModes.map((m) => (
+                    <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)}>{m}</button>
+                  ))}
+                </div>
+                <kbd>Tab</kbd>
+              </div>
+
+              <section className="hero">
+                <Cover song={selected} />
+                <div className="hero-text">
+                  <h2 data-testid="song-title" title={selected.title}>{selected.title}</h2>
+                  <p className="artist">{selected.artist || '알 수 없는 아티스트'}</p>
+                  <p className="hero-meta">
+                    <span>
+                      <b>BPM</b>
+                      {bpmLabel(selected)}
+                      {selected.overrides.bpm ? <small>(보정됨)</small> : null}
+                    </span>
+                    <span>
+                      <b>길이</b>
+                      {formatTime(selected.durationMs)}
+                    </span>
                   </p>
                   {selected.status === 'ready' && selected.analyzer?.backends && (
-                    <p className="sub backends" data-testid="analysis-backends">
+                    <p className="backends" data-testid="analysis-backends">
                       분석:{' '}
                       {Object.entries(selected.analyzer.backends)
                         .map(([kind, name]) => `${BACKEND_KIND_LABELS[kind] ?? kind} ${backendLabel(name)}`)
@@ -656,96 +678,110 @@ export function SongSelectScreen(props: Props) {
                     </div>
                   )}
                 </div>
+                <div className="hero-level">
+                  {chart ? (
+                    <div className="level-badge" style={{ ['--diff' as string]: chartTier(chart.meta).color } as CSSProperties} title={chartTier(chart.meta).label}>
+                      <span>{chart.meta.difficultySystem && chart.meta.difficultySystem !== 'GRG' ? `${chart.meta.difficultySystem} ${chart.meta.difficulty}` : chart.meta.difficulty}</span>
+                      <strong data-testid="chart-level">
+                        <small>{chart.meta.levelScale ? `${chart.meta.levelScale} ` : 'Lv.'}</small>
+                        {chart.meta.level}
+                      </strong>
+                    </div>
+                  ) : (
+                    <div className="level-pending" style={{ ['--diff' as string]: selectedTier.color } as CSSProperties}>
+                      <b>{system.id === 'GRG' ? selectedTier.label : `${system.label} ${selectedTier.short}`}</b>
+                      <em>{targetLevel !== null ? `목표 ${levelLabel(selectedTier, Math.min(targetLevel, system.maxLevel))}` : `보통 ${levelRange(selectedTier)}`}</em>
+                      <small>레벨은 채보를 만들 때 정해집니다</small>
+                    </div>
+                  )}
+                </div>
               </section>
 
-              <section className="panel">
-                <div className="row">
-                  <span className="label">키 모드</span>
-                  <div className="segmented">
-                    {enabledKeyModes.map((m) => (
-                      <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)}>{m}</button>
-                    ))}
-                  </div>
-                  <span className="hint">Tab</span>
+              <div className="row system-row">
+                <span className="label">난이도 기준</span>
+                <div className="segmented" data-testid="difficulty-system">
+                  {difficultySystemIds.map((id) => (
+                    <button key={id} className={id === system.id ? 'active' : ''} onClick={() => setSystem(id)} data-testid={`system-${id}`}>
+                      {difficultySystems[id].label}
+                    </button>
+                  ))}
                 </div>
-                <div className="row">
-                  <span className="label">난이도 기준</span>
-                  <div className="segmented" data-testid="difficulty-system">
-                    {difficultySystemIds.map((id) => (
-                      <button key={id} className={id === system.id ? 'active' : ''} onClick={() => setSystem(id)} data-testid={`system-${id}`}>
-                        {difficultySystems[id].label}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="hint">
-                    {system.id === 'GRG' ? '이 게임의 5단계 (Lv.1–15)' : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel})`}
-                  </span>
-                </div>
-                <div className="difficulty-row" data-testid="difficulty-row">
-                  {tiers.map((t) => {
-                    const best = bestFor(t.id);
-                    return (
-                      <button
-                        key={t.id}
-                        className={`difficulty ${t.id === difficulty && targetLevel === null ? 'active' : ''}`}
-                        style={{ ['--diff' as string]: t.color } as CSSProperties}
-                        onClick={() => setDifficulty(t.id)}
-                        title={t.levelScale ? `${t.label}: 레벨이 따로 매겨지는 고난도 채보 (${t.levelScale} 1–15)` : `보통 Lv.${t.levels[0]}–${t.levels[1]}`}
-                      >
+                <span className="hint">
+                  {system.id === 'GRG' ? '이 게임의 5단계 (Lv.1–15)' : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel})`}
+                </span>
+              </div>
+              <div className="difficulty-row" data-testid="difficulty-row">
+                {tiers.map((t) => {
+                  const best = bestFor(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      className={`difficulty ${t.id === difficulty && targetLevel === null ? 'active' : ''}`}
+                      style={{ ['--diff' as string]: t.color } as CSSProperties}
+                      onClick={() => setDifficulty(t.id)}
+                      title={t.levelScale ? `${t.label}: 레벨이 따로 매겨지는 고난도 채보 (${t.levelScale} 1–15)` : `보통 Lv.${t.levels[0]}–${t.levels[1]}`}
+                    >
+                      <span className="diff-head">
                         <span className="diff-name">{t.label}</span>
-                        <span className="diff-short">{t.short}</span>
-                        {best && <span className={`diff-lamp ${lampClass(best.lamp)}`}>{best.rate.toFixed(2)}%</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="row">
-                  <label className="row check">
-                    <input type="checkbox" checked={targetLevel !== null} onChange={(e) => setTargetLevel(e.target.checked ? 8 : null)} />
-                    목표 레벨 직접 지정
-                  </label>
-                  {targetLevel !== null && (
-                    <>
-                      <input type="range" min={1} max={system.maxLevel} value={Math.min(targetLevel, system.maxLevel)} onChange={(e) => setTargetLevel(Number(e.target.value))} />
-                      <span className="value">{tierOf(system, difficulty).levelScale ?? 'Lv.'}{tierOf(system, difficulty).levelScale ? ' ' : ''}{Math.min(targetLevel, system.maxLevel)}</span>
-                    </>
-                  )}
-                  <label className="row check">
-                    <input type="checkbox" checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
-                    오토 플레이
-                  </label>
-                </div>
-                <div className="row">
-                  <button className={`small ${panel === 'rules' ? 'active' : ''}`} data-testid="toggle-rules" onClick={() => setPanel(panel === 'rules' ? 'none' : 'rules')}>
-                    플레이 옵션
-                  </button>
-                  <button
-                    className={`small ${panel === 'generation' ? 'active' : ''}`}
-                    data-testid="toggle-generation"
-                    onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
-                  >
-                    생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
-                    {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : ''}
-                  </button>
-                  <label className="row check">
-                    <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => togglePractice(e.target.checked)} data-testid="practice-toggle" />
-                    연습 모드
-                  </label>
-                </div>
-                {panel === 'rules' && <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />}
-                {panel === 'generation' && <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={keyMode} />}
-                {practice && <PracticePanel practice={practice} onChange={setPractice} />}
-                <div className="row buttons">
-                  <button className="primary" data-testid="play-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void play()}>
-                    {practice ? '연습 시작' : chart ? '플레이' : '채보 생성 & 플레이'} <kbd>Enter</kbd>
-                  </button>
-                  <button data-testid="generate-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void generate(chart !== null)}>
-                    {chart ? '다른 패턴' : '채보 미리보기'}
-                  </button>
-                  {busy && <span className="hint" data-testid="busy">{busy}</span>}
-                </div>
-                {error && <p className="error" data-testid="select-error">{error}</p>}
-              </section>
+                        <span className="diff-short" hidden={t.short === t.label}>{t.short}</span>
+                      </span>
+                      <span className="diff-range">{levelRange(t)}</span>
+                      {best && <span className={`diff-lamp ${lampClass(best.lamp)}`}>{best.rate.toFixed(2)}%</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="play-row">
+                <button className="primary" data-testid="play-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void play()}>
+                  {practice ? '연습 시작' : chart ? '플레이' : '채보 생성 & 플레이'} <kbd>Enter</kbd>
+                </button>
+                <button data-testid="generate-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void generate(chart !== null)}>
+                  {chart ? '다른 패턴' : '채보 미리보기'}
+                </button>
+                {busy && <span className="hint" data-testid="busy">{busy}</span>}
+              </div>
+              <div className="option-row">
+                <button
+                  className={panel === 'rules' ? 'active' : ''}
+                  data-testid="toggle-rules"
+                  aria-expanded={panel === 'rules'}
+                  onClick={() => setPanel(panel === 'rules' ? 'none' : 'rules')}
+                >
+                  플레이 옵션
+                </button>
+                <button
+                  className={panel === 'generation' ? 'active' : ''}
+                  data-testid="toggle-generation"
+                  aria-expanded={panel === 'generation'}
+                  onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
+                >
+                  생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
+                  {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : ''}
+                </button>
+                <label className="check">
+                  <input type="checkbox" checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
+                  오토 플레이
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={targetLevel !== null} onChange={(e) => setTargetLevel(e.target.checked ? 8 : null)} />
+                  목표 레벨 직접 지정
+                </label>
+                {targetLevel !== null && (
+                  <>
+                    <input type="range" min={1} max={system.maxLevel} value={Math.min(targetLevel, system.maxLevel)} onChange={(e) => setTargetLevel(Number(e.target.value))} />
+                    <span className="value">{levelLabel(selectedTier, Math.min(targetLevel, system.maxLevel))}</span>
+                  </>
+                )}
+                <label className="check">
+                  <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => togglePractice(e.target.checked)} data-testid="practice-toggle" />
+                  연습 모드
+                </label>
+              </div>
+              {panel === 'rules' && <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />}
+              {panel === 'generation' && <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={keyMode} />}
+              {practice && <PracticePanel practice={practice} onChange={setPractice} />}
+              {error && <p className="error" data-testid="select-error">{error}</p>}
 
               {savedCharts.length > 0 && (
                 <section className="panel saved-charts" data-testid="saved-charts">
@@ -779,7 +815,8 @@ export function SongSelectScreen(props: Props) {
                 />
               )}
 
-              <section className="panel">
+              <section className="panel song-tools">
+                <h3>곡 설정</h3>
                 <div className="row">
                   <span className="label">BPM 보정</span>
                   <button className="small" disabled={selected.status !== 'ready' || !selected.bpm} onClick={() => selected.bpm && void patch({ bpm: selected.bpm * 2 })}>×2</button>
@@ -843,21 +880,21 @@ export function SongSelectScreen(props: Props) {
   );
 }
 
-function Cover({ song, size }: { song: Song; size: number }) {
+/** "Lv.2–8", or "SC 4–12" for a tier on a scale of its own. */
+function levelRange(t: { levels: [number, number]; levelScale?: string }): string {
+  return `${t.levelScale ? `${t.levelScale} ` : 'Lv.'}${t.levels[0]}–${t.levels[1]}`;
+}
+
+function levelLabel(t: { levelScale?: string }, level: number): string {
+  return t.levelScale ? `${t.levelScale} ${level}` : `Lv.${level}`;
+}
+
+function Cover({ song }: { song: Song }) {
   const [failed, setFailed] = useState(false);
   if (song.hasCover && !failed) {
-    return <img className="cover" src={api.coverUrl(song.id)} alt="" width={size} height={size} onError={() => setFailed(true)} />;
+    return <img className="cover" src={api.coverUrl(song.id)} alt="" onError={() => setFailed(true)} />;
   }
-  let h = 0;
-  for (const ch of song.id) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return (
-    <div
-      className="cover placeholder"
-      style={{ width: size, height: size, background: `linear-gradient(135deg, hsl(${h} 80% 55%), hsl(${(h + 70) % 360} 70% 35%))`, fontSize: size * 0.32 }}
-    >
-      {song.title.slice(0, 1).toUpperCase()}
-    </div>
-  );
+  return <div className="cover placeholder">{song.title.slice(0, 1).toUpperCase()}</div>;
 }
 
 function BpmInput({ onApply, disabled }: { onApply: (bpm: number) => void; disabled: boolean }) {
@@ -897,34 +934,32 @@ function ChartPreview(props: {
   const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
   return (
     <section className="panel chart-preview" data-testid="chart-preview">
-      <div className="preview-head">
-        <div className="level-badge" style={{ ['--diff' as string]: chartTier(m).color } as CSSProperties} title={chartTier(m).label}>
-          <span>{m.difficultySystem && m.difficultySystem !== 'GRG' ? `${m.difficultySystem} ${m.difficulty}` : m.difficulty}</span>
-          <strong data-testid="chart-level">{m.levelScale ? `${m.levelScale} ${m.level}` : `Lv.${m.level}`}</strong>
-        </div>
-        <div className="preview-stats">
-          <div><span className="label">노트</span> <strong data-testid="chart-notes">{m.noteCount}</strong></div>
-          <div><span className="label">롱노트</span> {holds}</div>
-          <div><span className="label">평균 / 최대 NPS</span> {m.nps.avg} / {m.nps.peak}</div>
-          <div><span className="label">세부 난이도</span> {m.rating.toFixed(2)}</div>
-          {m.handLoad && (
-            <div title="손별 부담 (난이도 모델의 손 strain 비율)">
-              <span className="label">왼손 / 오른손</span> {Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}
-            </div>
-          )}
-          {m.repeatConsistency != null && (
-            <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴을 쓴 비율">
-              <span className="label">반복 패턴 일치</span> {Math.round(m.repeatConsistency * 100)}%
-            </div>
-          )}
-          {m.source && m.source.kind !== 'generated' && (
-            <div data-testid="chart-source">
-              <span className="label">{KIND_LABELS[m.source.kind] ?? m.source.kind}</span> {m.chartName ?? ''}
+      <h3>채보 정보</h3>
+      <div className="preview-stats">
+        <div><span className="label">노트</span> <strong data-testid="chart-notes">{m.noteCount}</strong></div>
+        <div><span className="label">롱노트</span> <strong>{holds}</strong></div>
+        <div><span className="label">평균 / 최대 NPS</span> <strong>{m.nps.avg} / {m.nps.peak}</strong></div>
+        <div><span className="label">세부 난이도</span> <strong>{m.rating.toFixed(2)}</strong></div>
+        {m.handLoad && (
+          <div title="손별 부담 (난이도 모델의 손 strain 비율)">
+            <span className="label">왼손 / 오른손</span> <strong>{Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}</strong>
+          </div>
+        )}
+        {m.repeatConsistency != null && (
+          <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴을 쓴 비율">
+            <span className="label">반복 패턴 일치</span> <strong>{Math.round(m.repeatConsistency * 100)}%</strong>
+          </div>
+        )}
+        {m.source && m.source.kind !== 'generated' && (
+          <div data-testid="chart-source">
+            <span className="label">{KIND_LABELS[m.source.kind] ?? m.source.kind}</span>{' '}
+            <strong>
+              {m.chartName ?? ''}
               {m.source.format ? ` (${EXPORT_LABELS[m.source.format]})` : ''}
               {(chart.sounds?.length ?? 0) > 0 ? ` · 키음 ${chart.sounds?.length}개` : ''}
-            </div>
-          )}
-        </div>
+            </strong>
+          </div>
+        )}
       </div>
       <div className="row preview-actions">
         <button className="small" data-testid="edit-chart" onClick={props.onEdit}>
@@ -935,7 +970,7 @@ function ChartPreview(props: {
             최고 기록 리플레이
           </button>
         )}
-        <span className="label">내보내기</span>
+        <span className="label export-label">내보내기</span>
         {exportFormats(m.keyMode).map((f) => (
           <a key={f} className="button small" href={api.exportUrl(m.chartId, f)} download data-testid={`export-${f}`}>
             {EXPORT_LABELS[f]}
@@ -971,6 +1006,10 @@ function ChartPreview(props: {
         selection={props.practice ? [props.practice.startMs, props.practice.endMs] : null}
         onSelect={props.practice ? props.onSelectRange : undefined}
       />
+      <div className="graph-label">
+        <span>NPS</span>
+        <span>최대 {m.nps.peak}</span>
+      </div>
       <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
         <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
         <polyline points={points} className="nps-line" />
