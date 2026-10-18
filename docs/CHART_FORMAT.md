@@ -29,7 +29,7 @@
     "repeatConsistency": 0.97,
     "consistency": { "loopRhythm": 0.93, "loopLane": 0.97, "repeatSelect": 0.95, "repeatLane": 0.99, "repeatLaneMirror": 0.99, "barVariety": 0.6, "laneEntropy": 0.7 },
     "generator": {
-      "version": "0.5.0",
+      "version": "0.5.1",
       "analyzer": "core-1.2.0",
       "seed": 3735928559,
       "params": {
@@ -149,6 +149,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
+- 생성기 0.5.1: DJMAX · EZ2ON 기준 채보의 동치·롱노트 비율이 키 모드마다 조금씩 다르다(`GENERATION.md` 8-5). 채보 ID가 바뀐다.
 - 생성기 0.5.0: 구간 엔진(`docs/PATTERN_DESIGN.md` 13장)이 기본이 되고, `sections`에 `endBeat`·`group`·`loopBars`·`confidence`가, `meta`에 `consistency`가 더해졌다. 채보 ID가 다시 바뀐다. 사용자가 구간을 고쳐 만든 채보는 그 구간이 ID에 들어간다.
 - `stops`·`sounds`·`bgm`·`snd`·`so`·`sl`·`source`·`chartName`·`keysoundGain`은 Phase 4(편집·가져오기)에서 추가됐다. 모두 선택 필드다.
 - `difficultySystem`·`levelScale`은 난이도 기준(DJMAX · EZ2ON)과 함께 추가됐다. 없으면 기본 기준이다. 생성기 파라미터의 `system`도 기본 기준이 아닐 때만 있어서, 기본 기준 채보의 `chartId`는 그대로다.

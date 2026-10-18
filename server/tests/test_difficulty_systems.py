@@ -55,6 +55,27 @@ def test_tiers_aliases_and_level_scales() -> None:
     assert nm_low.chord_ratio < nm_high.chord_ratio and nm_low.side_rate == 0.0 < nm_high.side_rate
 
 
+def test_key_mode_tendencies_follow_the_games() -> None:
+    """Per key mode chord / long note shares (from the key modes' relative groove radar values on
+    ez2pattern.kr): DJMAX 8B holds fewer long notes and 6B plays more chords than the other modes,
+    EZ2ON 4K holds more long notes and 8K plays more chords; the five-step scale has no such habit."""
+
+    def p(system: str, mode: str, tier: str, level: int):
+        return resolve_params(mode, tier, level, None, system)
+
+    assert p("DJMAX", "8K", "MX", 13).long_note_ratio < p("DJMAX", "6K", "MX", 13).long_note_ratio
+    assert p("DJMAX", "5K", "MX", 13).long_note_ratio > p("DJMAX", "6K", "MX", 13).long_note_ratio
+    assert p("DJMAX", "6K", "MX", 13).chord_ratio > max(p("DJMAX", m, "MX", 13).chord_ratio for m in ("5K", "8K"))
+    assert p("DJMAX", "6K+FX", "HD", 9).chord_ratio == p("DJMAX", "6K", "HD", 9).chord_ratio
+    assert p("EZ2ON", "4K", "SHD", 16).long_note_ratio > p("EZ2ON", "8K", "SHD", 16).long_note_ratio
+    assert p("EZ2ON", "8K", "SHD", 16).chord_ratio > p("EZ2ON", "6K", "SHD", 16).chord_ratio
+    grg = [resolve_params(m, "HARD").long_note_ratio for m in ("4K", "6K", "8K")]
+    assert len(set(grg)) == 1
+    for system in ("DJMAX", "EZ2ON"):
+        values = [v[k] for v in SYSTEMS[system]["keyModeTendency"].values() for k in ("chordRatio", "longNoteRatio")]
+        assert all(0.85 <= x <= 1.15 for x in values)
+
+
 def test_djmax_charts_match_the_published_density_at_their_level(dense_song: dict) -> None:
     counts = []
     for tier, level in (("NM", 4), ("HD", 8), ("MX", 12)):

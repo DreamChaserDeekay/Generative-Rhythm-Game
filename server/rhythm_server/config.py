@@ -55,6 +55,7 @@ def difficulty_system(name: str | None = None) -> dict[str, Any]:
             "keyModeNpsFactor": cfg["keyModeNpsFactor"],
             "aliases": {},
             "padForbiddenChords": {},
+            "keyModeTendency": {},
         }
     system = cfg.get("systems", {}).get(name)
     if not isinstance(system, dict) or "tiers" not in system:
@@ -68,6 +69,7 @@ def difficulty_system(name: str | None = None) -> dict[str, Any]:
         "keyModeNpsFactor": {**cfg["keyModeNpsFactor"], **system.get("keyModeNpsFactor", {})},
         "aliases": system.get("aliases", {}),
         "padForbiddenChords": system.get("padForbiddenChords", {}),
+        "keyModeTendency": system.get("keyModeTendency", {}),
     }
 
 

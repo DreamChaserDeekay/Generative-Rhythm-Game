@@ -11,6 +11,8 @@ STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melod
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
 PATTERN_ENGINES = ("sectioned", "designer", "classic")
 SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds (default)
+MAX_CHORD_SHARE = 0.6
+MAX_LONG_NOTE_SHARE = 0.5
 
 
 @dataclass
@@ -201,6 +203,10 @@ def resolve_params(
         skill=chart_skill(p, levels),
         pad_forbidden=pad_forbidden_lanes(sys_cfg, key_mode) if p.get("padPlayable") else (),
     )
+    # the game's habits per key mode (e.g. DJMAX 8B holds fewer long notes than 6B at the same level)
+    tendency = sys_cfg.get("keyModeTendency", {}).get(key_mode, {})
+    params.chord_ratio = min(MAX_CHORD_SHARE, params.chord_ratio * float(tendency.get("chordRatio", 1.0)))
+    params.long_note_ratio = min(MAX_LONG_NOTE_SHARE, params.long_note_ratio * float(tendency.get("longNoteRatio", 1.0)))
     overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
     style = overrides.get("style")
     if style in STYLES:
