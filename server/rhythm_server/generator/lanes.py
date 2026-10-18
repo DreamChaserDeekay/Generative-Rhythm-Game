@@ -13,7 +13,7 @@ from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
 from .motifs import MotifContext, SlotPlan, motif_context, motif_costs
 from .params import GenParams
-from .select import Slot
+from .select import Slot, sound_of
 from .tempo import TempoMap
 
 BEAM_WIDTH = 5
@@ -28,6 +28,7 @@ W_ALTERNATE = 0.8
 W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
+ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
 USAGE_DECAY = 0.9
 TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
@@ -53,6 +54,7 @@ class _Weights:
     bass_target: float
     dominance: tuple[float, float]  # dominant-stem share from which a hit counts as "clear"
     repeat: float  # bonus for reusing the reference occurrence's lanes
+    anchor: float  # per hit an anchor runs past the chart's cap
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -70,6 +72,7 @@ class _Weights:
             bass_target=float(mapping["bass"]),
             dominance=(float(mapping["dominance"][0]), float(mapping["dominance"][1])),
             repeat=float(cfg["repeat"]["bonus"]) * params.repeat_consistency,
+            anchor=float(load_config("patterns")["weights"]["anchorOver"]),
         )
 
 
@@ -111,6 +114,8 @@ class _State:
     hist: tuple[tuple[int, ...], ...] = ()  # key indices chosen for the earlier slots of the phrase
     single_t: float = -1e9  # time of the phrase's latest single note
     head: tuple[float, ...] = ()  # latest press per lane (the head of a long note, unlike `last`)
+    prev_sound: tuple[Any, ...] | None = None  # the previous slot's sound (planner sound key)
+    run: tuple[int, ...] = ()  # key lanes of the fast run of single notes this slot ends (recent part)
 
 
 def _pitch_targets(slots: list[Slot]) -> list[float | None]:
@@ -215,7 +220,7 @@ def search(
             shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system)
         ctx = shared["ctx"]
     combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = shared.setdefault("combo", {})
-    shape_cache: dict[tuple[bool, tuple[int, ...]], float] = shared.setdefault("shape", {})
+    shape_cache: dict[tuple[bool, bool, tuple[int, ...]], float] = shared.setdefault("shape", {})
     keys_cache: dict[tuple[int, ...], tuple[int, ...]] = shared.setdefault("keys", {})
     mean_cache: dict[tuple[int, ...], float] = shared.setdefault("mean", {})
     per_key_cache: dict[tuple[Any, ...], list[float]] = shared.setdefault("perKey", {})
@@ -249,7 +254,9 @@ def search(
         repeat_set = frozenset(repeat_targets[si]) if repeat_targets[si] else None
         sp = plan[si] if plan else None
         pitch_scale = ctx.pitch_weight.get(sp.motif, 1.0) if ctx and sp else 1.0
-        jack_scale = 0.1 if sp and sp.repeats(slot.size - (1 if slot.special else 0)) else 1.0
+        repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
+        laser = sp is not None and sp.motif == "laser"
+        sound = sound_of(slot)
         # (total cost, state, lanes, long-note lane, keys, hist, single_t): states are only built
         # for the candidates that make the beam
         candidates: list[tuple[float, _State, tuple[int, ...], int | None, tuple[int, ...], tuple[tuple[int, ...], ...], float]] = []
@@ -301,7 +308,11 @@ def search(
                         keys_cache[combo] = tuple(sorted(ctx.key_index[i] for i in combo))
                     combo_keys.append(keys_cache[combo])
                 mcosts = motif_costs(ctx, sp, hist, combo_keys, t - state.prev_t, holding_hands, t - single_t, carry, shape_cache, per_key_cache)
-            costs = _costs(state, combos, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set, pitch_scale, jack_scale, mean_cache)
+            # A pattern of repeats repeats a sound: a different sound on the same lane is a forced
+            # jack (the 5K laser alternates thumbs on the middle key, so it is not one).
+            same_sound = state.prev_sound == sound
+            jack_scale = 0.1 if repeats and (same_sound or laser) else 1.0
+            costs = _costs(state, combos, pos, hands, slot, target, t, weights, mean_use, src_terms, repeat_set, pitch_scale, jack_scale, mean_cache, same_sound, params.anchor_cap)
             scored = []
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
@@ -335,6 +346,7 @@ def search(
             head = list(state.head)
             hold = list(state.hold_end)
             usage = [u * USAGE_DECAY for u in state.usage]
+            keys_used = tuple(i for i in lanes_used if lanes[i].kind == "key")
             for i in lanes_used:
                 last[i] = t if i != ln_lane else (hold_end_t or t)
                 head[i] = t
@@ -347,7 +359,7 @@ def search(
                     last=tuple(last),
                     hold_end=tuple(hold),
                     usage=tuple(usage),
-                    prev_lanes=tuple(i for i in lanes_used if lanes[i].kind == "key"),
+                    prev_lanes=keys_used,
                     prev_pitch=slot.pitch,
                     prev_t=t,
                     parent=state,
@@ -356,6 +368,8 @@ def search(
                     hist=hist + (keys,) if sp else (),
                     single_t=t if sp and len(keys) == 1 else single_t,
                     head=tuple(head),
+                    prev_sound=sound,
+                    run=_next_run(state, keys_used, t),
                 )
             )
         beam = expansions or beam
@@ -553,8 +567,10 @@ def _cost(
     repeat_set: frozenset[int] | None = None,
     pitch_scale: float = 1.0,
     jack_scale: float = 1.0,
+    same_sound: bool = False,
+    anchor_cap: int = 0,
 ) -> float:
-    return _costs(state, [combo], pos, hands, slot, target, t, w, mean_use, src_terms, repeat_set, pitch_scale, jack_scale)[0]
+    return _costs(state, [combo], pos, hands, slot, target, t, w, mean_use, src_terms, repeat_set, pitch_scale, jack_scale, None, same_sound, anchor_cap)[0]
 
 
 def _costs(
@@ -572,9 +588,13 @@ def _costs(
     pitch_scale: float = 1.0,
     jack_scale: float = 1.0,
     mean_cache: dict[tuple[int, ...], float] | None = None,
+    same_sound: bool = False,
+    anchor_cap: int = 0,
 ) -> list[float]:
     """Musical and ergonomic cost of each combo for one state: pitch and instrument placement,
-    contour, hand alternation, jacks and lane balance (what depends only on the state is done once)."""
+    contour, hand alternation, jacks, anchors past `anchor_cap` hits (0 = no cap) and lane balance
+    (what depends only on the state is done once). The jack style's bonus only keeps a repeated
+    sound on its lane."""
     dt = t - state.prev_t
     prev = state.prev_lanes
     same_pitch = slot.pitch is not None and state.prev_pitch is not None and abs(slot.pitch - state.prev_pitch) < 0.5
@@ -587,7 +607,7 @@ def _costs(
     if not same_pitch:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
         jack = jack_scale * w.jack * (0.6 + speed)
-    bonus = w.jack_bonus if dt < 400.0 else 0.0
+    bonus = w.jack_bonus if dt < 400.0 and same_sound else 0.0
     balance = [W_BALANCE * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
     single_prev = prev[0] if len(prev) == 1 else None
     use_repeat = bool(repeat_set) and w.repeat > 0
@@ -635,5 +655,37 @@ def _costs(
                 cost -= bonus * repeated  # jack style: repeats stay on their lane
         for i in combo:
             cost += balance[i]
+        if anchor_cap and len(combo) == 1:
+            hits = anchor_hits(_next_run(state, combo, t))
+            if hits > anchor_cap:
+                cost += w.anchor * (hits - anchor_cap)
         out.append(cost)
     return out
+
+
+RUN_MEMORY = 20  # notes of a fast run kept for the anchor count (longer than any anchor cap)
+
+
+def _next_run(state: _State, keys: tuple[int, ...], t: float) -> tuple[int, ...]:
+    """The fast run of single notes after a slot on `keys` (a chord or a slow note starts over)."""
+    if len(keys) != 1:
+        return ()
+    if state.run and len(state.prev_lanes) == 1 and t - state.prev_t <= ANCHOR_MS:
+        return (state.run + keys)[-RUN_MEMORY:]
+    return keys
+
+
+def anchor_hits(run: tuple[int, ...]) -> int:
+    """Hits of the anchor the run's last note plays (축연타): its lane on every other note back while
+    the notes between keep moving (two between notes in a row on one lane make a trill, or two
+    trills sharing a lane, not an anchor)."""
+    if len(run) < 3:
+        return 0
+    lane = run[-1]
+    hits, last_between = 1, None
+    k = len(run) - 3
+    while k >= 0 and run[k] == lane and run[k + 1] != lane and run[k + 1] != last_between:
+        hits += 1
+        last_between = run[k + 1]
+        k -= 2
+    return hits

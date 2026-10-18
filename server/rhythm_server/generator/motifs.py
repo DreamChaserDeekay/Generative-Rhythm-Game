@@ -26,7 +26,7 @@ class SlotPlan:
     phrase: int  # phrase index; the lane search keeps a history of the current phrase
     k: int  # position in the phrase
     motif: str  # shape of the phrase's single notes (step, stair, roll, trill, ...)
-    chords: str  # how its chords relate: "vary", "stair" (moving together) or "jack" (repeated)
+    chords: str  # how its chords relate: "vary", "stair" (moving together), "jack" (repeated), "pivot" (5K)
     hold_tap: bool  # the phrase holds long notes: the other hand plays on
     direction: int  # +1 = toward the right, -1 = toward the left (from the pitch contour)
     step: int  # this note's pitch went up (+1), down (-1) or nowhere known (0) from the last one
@@ -44,7 +44,7 @@ class SlotPlan:
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
-        return self.motif in ("jack", "laser") if size == 1 else self.chords == "jack"
+        return self.motif in ("jack", "laser", "doubles") if size == 1 else self.chords == "jack"
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,14 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
     if size >= 2:
         chords = [h for h in hist if len(h) >= 2]
         prev_chord = chords[-1] if chords and len(chords[-1]) == size else None
-        if prev_chord is None or sp.chords == "vary":
+        if sp.chords == "pivot" and ctx.center is not None and size == 2:
+            # 5B: two-note chords swing around the middle key, 1+3 then 3+5 (both thumbs move)
+            c = ctx.center
+            if prev_chord is not None and c in prev_chord:
+                other = prev_chord[0] if prev_chord[1] == c else prev_chord[1]
+                return tuple(sorted((c, ctx.mirror[other])))
+            return (max(0, c - 2), c)
+        if prev_chord is None or sp.chords in ("vary", "pivot"):
             return None
         if sp.chords == "jack":
             return prev_chord
@@ -163,6 +170,12 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
         return (partner if partner != prev else _step(ctx, sp, prev, sp.direction, wrap=False),)
     if m == "jack":
         return (prev,)
+    if m == "doubles":
+        # 재봉틀: two hits on a key, then two on the other hand's key (RR LL)
+        if len(singles) >= 2 and singles[-2] == prev:
+            partner = ctx.mirror[prev]
+            return (partner if ctx.hand[partner] != ctx.hand[prev] else _step(ctx, sp, prev, sp.direction, wrap=False),)
+        return (prev,)
     if m == "anchor":
         # the pedal notes share a lane (same sound, same lane); the other notes walk around it
         if sp.pedal:
@@ -190,6 +203,8 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
         a, b = keys
         span = b - a
         symmetric = a + b == n - 1
+        if sp.chords == "pivot" and ctx.center in keys:
+            return cost  # the 5B pivot is lopsided on purpose
         if sp.wide:
             cost += w["shape"] * (0.0 if span >= n / 2 else 0.6)
         elif span > n / 2 and not symmetric:
@@ -271,7 +286,7 @@ def motif_costs(
     holding_hands: dict[str, int],
     single_dt: float,
     carry: int | None = None,
-    shape_cache: dict[tuple[bool, tuple[int, ...]], float] | None = None,
+    shape_cache: dict[tuple[bool, bool, tuple[int, ...]], float] | None = None,
     key_cache: dict[tuple[Any, ...], list[float]] | None = None,
 ) -> list[float]:
     """`motif_cost` of several key sets for one slot and one history: what depends only on the
@@ -323,7 +338,7 @@ def motif_costs(
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
             else:
-                key = (sp.wide, keys)
+                key = (sp.wide, sp.chords == "pivot", keys)
                 if key not in shape_cache:
                     shape_cache[key] = _shape_cost(ctx, sp, keys)
                 cost += shape_cache[key]

@@ -284,6 +284,17 @@ SONG_FORM = (
     ("outro", "O", 4, 2),
 )
 # chord roots (semitones from A) per bar, or per half bar for the chorus
+# a song that opens on its chorus (most of its keysounds come early): the build-up rule's hard case
+CHORUS_FIRST_FORM = (
+    ("chorus", "C", 8, 2),
+    ("verse", "A", 8, 4),
+    ("pre-chorus", "B", 4, 2),
+    ("chorus", "C", 8, 2),
+    ("verse", "A", 8, 4),
+    ("chorus", "C", 8, 2),
+    ("outro", "O", 4, 2),
+)
+
 FORM_CHORDS = {
     "intro": [0, 0],
     "verse": [0, -4, -7, -2],

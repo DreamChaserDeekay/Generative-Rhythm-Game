@@ -271,16 +271,22 @@ def follow_weights(sections: list[dict[str, Any]], params: GenParams) -> dict[st
 def _mark_variation(units: list[Unit], params: GenParams) -> None:
     cfg = sectioned_config()
     mirror_from = cfg["mirrorRepeats"].get(params.system)
+    growth = float(cfg["buildUp"]["repeatGrowth"])
     chorus_groups = {u.group for u in units if u.label == "chorus"}
+    occurrences: dict[str, int] = {}
     by_section: dict[int, list[Unit]] = {}
     for u in units:
         by_section.setdefault(u.section, []).append(u)
+        occurrences[u.group] = max(occurrences.get(u.group, 0), u.occurrence + 1)
     for sec in by_section.values():
         bp = blueprint(sec[0].label)
         n = len(sec)
         for u in sec:
             if bp["ramp"] > 0 and n > 1:
                 u.extra = bp["ramp"] * u.pos / (n - 1)
+            if occurrences[u.group] > 1:
+                # the same music builds up: each repeat plays the earlier notes and a few more
+                u.extra += growth * u.occurrence / (occurrences[u.group] - 1)
             if u.group in chorus_groups and u.last_in_group and u.occurrence >= 1:
                 u.extra = max(u.extra, float(cfg["lastChorusBoost"]))
             if mirror_from is not None and params.skill >= float(mirror_from) and u.occurrence % 2 == 1:
@@ -294,6 +300,34 @@ def _chord_worth(c: Candidate, params: GenParams) -> float:
     return 0.0 if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat else w
 
 
+def _cap_opening(units: list[Unit], weight: list[float], per_unit_n: list[float]) -> bool:
+    """A song whose busiest music comes first still builds up: a section in the opening (the first
+    `openingShare` of the song) plays at most `openingCap` times the notes per beat of the busiest
+    section of the second half. Lowers `weight` of the sections over it; True when it did."""
+    cfg = sectioned_config()["buildUp"]
+    if not units:
+        return False
+    first = min(u.start for u in units)
+    span = max(u.start + u.length for u in units) - first
+    notes: dict[int, float] = {}
+    beats: dict[int, float] = {}
+    start: dict[int, float] = {}
+    for u, n in zip(units, per_unit_n):
+        notes[u.section] = notes.get(u.section, 0.0) + n * (1 + u.extra)
+        beats[u.section] = beats.get(u.section, 0.0) + u.length
+        start[u.section] = min(start.get(u.section, u.start), u.start)
+    density = {s: notes[s] / beats[s] for s in notes if beats[s] > 0}
+    late = [d for s, d in density.items() if start[s] >= first + 0.5 * span]
+    if span <= 0 or not late or max(late) <= 0:
+        return False
+    cap = float(cfg["openingCap"]) * max(late)
+    over = {s: cap / d for s, d in density.items() if start[s] < first + float(cfg["openingShare"]) * span and d > cap * 1.001}
+    for i, u in enumerate(units):
+        if u.section in over:
+            weight[i] *= over[u.section]
+    return bool(over)
+
+
 def layout(
     cands: list[Candidate],
     sections: list[dict[str, Any]],
@@ -304,9 +338,12 @@ def layout(
     key_count: int,
     chord_scale: float = 1.0,
     loud: Any = None,
+    relax: bool = False,
 ) -> Layout:
     """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
-    detection missed a repeat); None trusts the consensus alone."""
+    detection missed a repeat); None trusts the consensus alone. `relax` gives up the build-up that
+    costs notes (earlier repeats playing fewer where the music has no more sounds, the opening
+    cap) when the chart cannot reach its level otherwise."""
     """Slots chosen per material class (module docstring, steps 1–4)."""
     if not cands:
         return Layout([], [], [], [], [])
@@ -338,8 +375,16 @@ def layout(
             continue
         bp = blueprint(u.label)
         weight.append(u.length * bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy))
-    total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
-    per_unit_n = [target_slots * w / total_w for w in weight]
+
+    def spread() -> list[float]:
+        total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
+        return [target_slots * w / total_w for w in weight]
+
+    per_unit_n = spread()
+    for _ in range(0 if relax else 3):
+        if not _cap_opening(units, weight, per_unit_n):
+            break
+        per_unit_n = spread()
 
     end_ms = cands[-1].t + 1000.0
     buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
@@ -372,7 +417,12 @@ def layout(
     carry = 0.0
     for cls in range(n_classes):
         ms = members[cls]
-        base = float(np.mean([per_unit_n[m] for m in ms])) + carry
+        # The class plays what its lightest unit wants; the others add notes over it (build-up).
+        # When the music has no more sounds to add, the earlier repeats play fewer instead: the base
+        # leaves every unit room for its extra share.
+        ceiling = min(len(per_unit[m]) / (1 + (0.0 if relax else units[m].extra)) for m in ms)
+        unit_n = {m: min(per_unit_n[m], ceiling) for m in ms}
+        base = float(min(unit_n.values())) + carry
         want = int(math.floor(base + 0.5))
         carry = base - want
         consensus: dict[int, float] = {}
@@ -407,13 +457,16 @@ def layout(
                     take(times)
                     picked_total += len(times)
         chosen[cls] = sorted(picks)
-        # units that play more than their class (ramps, the last chorus)
+        # Units that play more than their class (repeats building up, ramps, the last chorus) add
+        # notes in the class's own order, so a unit that adds more adds the same notes first and
+        # every repeat plays what the earlier ones did.
+        ranked = sorted((k for k in consensus if k not in picks), key=lambda k: (-consensus[k], k))
         for m in ms:
             u = units[m]
-            if u.extra <= 0:
+            n_more = int(round(unit_n[m] * (1 + u.extra))) - len(picks)
+            if n_more <= 0:
                 continue
-            n_more = int(round(per_unit_n[m] * (1 + u.extra))) - len(picks)
-            pool = sorted((k for k in per_unit[m] if k not in picks), key=lambda k: (-score(per_unit[m][k], u), k))
+            pool = [k for k in ranked if k in per_unit[m]]
             extra: list[int] = []
             for k in pool:
                 if len(extra) >= n_more:
@@ -463,11 +516,12 @@ def layout(
             slot_key.append(k)
         unit_slots.append(idx)
 
-    # class positions: (class, key) -> slots realizing it; the first one is the reference
+    # class positions: (class, key) -> slots realizing it; the first one is the reference (a note a
+    # repeat adds is copied by the later repeats that add it too)
     positions: dict[tuple[int, int], list[int]] = {}
     for i in range(len(slots)):
         u = units[slot_unit[i]]
-        if slot_key[i] in chosen[u.cls]:
+        if slot_key[i] in chosen[u.cls] or slot_key[i] in unit_extra.get(u.index, ()):
             positions.setdefault((u.cls, slot_key[i]), []).append(i)
     ref: list[int | None] = [None] * len(slots)
     for idxs in positions.values():

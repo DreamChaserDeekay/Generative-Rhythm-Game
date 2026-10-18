@@ -63,6 +63,8 @@ class GenParams:
     pattern_engine: str = "sectioned"
     # shortest repeat on a shared middle key (either thumb can hit it); 0 = min_jack_ms
     thumb_jack_ms: float = 0.0
+    # hits from which an anchor (one lane every other note of a fast run) costs; 0 = no limit
+    anchor_cap: int = 0
     # how fast chord sizes fall off from two notes (smaller = more three- and four-note chords)
     chord_size_power: float = 3.0
     extra: dict[str, Any] = field(default_factory=dict)
@@ -253,6 +255,9 @@ def resolve_params(
         and params.skill >= float(laser["minSkill"])
     ):
         params.thumb_jack_ms = min(params.min_jack_ms, float(load_config("patterns")["laser"]["thumbJackMs"]))
+    if params.pattern_engine != "classic":
+        caps = sorted((float(skill), int(hits)) for skill, hits in load_config("patterns")["anchors"]["caps"])
+        params.anchor_cap = next((hits for skill, hits in reversed(caps) if params.skill >= skill), 0)
     return params
 
 

@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
+from ..analysis.stems import STEM_NAMES
 from .candidates import Candidate
 from .params import GenParams, skill_for_rating
 from .tempo import TempoMap
 
+DRUMS = STEM_NAMES.index("drums")
 MAX_GAP_S = 4.0  # silences longer than this do not count toward the target density
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
@@ -40,6 +43,20 @@ class Slot:
     def src(self) -> int | None:
         """Dominant stem index, or None without stem analysis."""
         return int(np.argmax(self.sources)) if self.sources is not None else None
+
+
+def melodic(slot: Slot) -> bool:
+    """A slot whose pitch belongs to its sound (not a drum hit that inherits a melody pitch)."""
+    if slot.pitch is None:
+        return False
+    return slot.sources is None or int(np.argmax(slot.sources)) != DRUMS
+
+
+def sound_of(slot: Slot) -> tuple[Any, ...]:
+    """What makes two slots "the same sound": stem and pitch, or stem and loudest band."""
+    if melodic(slot):
+        return (slot.src, round(float(slot.pitch)))  # type: ignore[arg-type]
+    return (slot.src, int(np.argmax(slot.bands)))
 
 
 def active_seconds(cands: list[Candidate]) -> float:

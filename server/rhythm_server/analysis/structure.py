@@ -131,21 +131,25 @@ def path_cues(ssm: np.ndarray, threshold: float) -> np.ndarray:
     n = len(ssm)
     out = np.zeros(n + 1)
     for lag in range(1, n):
-        d = np.array([ssm[k, k + lag] for k in range(n - lag)])
-        if len(d) >= REPEAT_SMOOTH:
+        raw = np.array([ssm[k, k + lag] for k in range(n - lag)])
+        d = raw
+        if len(raw) >= REPEAT_SMOOTH:
             kernel = np.ones(REPEAT_SMOOTH) / REPEAT_SMOOTH
-            d = np.convolve(d, kernel, mode="full")[: len(d)]  # bar k and the bars before it
+            d = np.convolve(raw, kernel, mode="full")[: len(raw)]  # bar k and the bars before it
         on = d >= threshold
         prev = False
         run_start = 0
         for k in range(len(on) + 1):
             cur = bool(on[k]) if k < len(on) else False
             if cur and not prev:
-                run_start = k - REPEAT_SMOOTH + 1 if k >= REPEAT_SMOOTH - 1 else 0
+                run_start = k
             if prev and not cur:
-                length = k - max(run_start, 0)
-                if length >= 2:
-                    for b in (max(run_start, 0), k):
+                # The smoothing blurs both ends by a bar: the path runs over the bars that repeat
+                # themselves (a verse ending on a fill into the chorus would otherwise end a bar
+                # early and pull the chorus start onto the fill).
+                above = [b for b in range(max(run_start - REPEAT_SMOOTH + 1, 0), min(k + 1, len(raw))) if raw[b] >= threshold]
+                if above and above[-1] + 1 - above[0] >= 2:
+                    for b in (above[0], above[-1] + 1):
                         out[b] += 1
                         if b + lag <= n:
                             out[b + lag] += 1

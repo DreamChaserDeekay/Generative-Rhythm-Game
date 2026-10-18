@@ -25,7 +25,7 @@ from .repeat import consistency, repeat_references, repeat_targets
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.5.1"
+GENERATOR_VERSION = "0.6.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -102,11 +102,14 @@ def generate_chart(
     sections = analysis.get("sections", [])
     engine = params.pattern_engine
     prev_count = None
+    relax = False
     loud = _loudness_gate(analysis)
-    for _ in range(int(cfg["maxAdjustIterations"])):
+    rounds = 0
+    while rounds < int(cfg["maxAdjustIterations"]):
+        rounds += 1
         kept = None
         if engine == "sectioned":
-            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud)
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan)
@@ -124,11 +127,18 @@ def generate_chart(
         eff = max(0.3, est["effectiveNps"])
         # every usable sound is a note (the sectioned engine keeps to the sounds its loops share:
         # it is out of sounds when a denser setting no longer adds notes)
-        out_of_sounds = len(slots) >= 0.97 * len(candidates) or (
+        out_of_sounds = relax or len(slots) >= 0.97 * len(candidates) or (
             engine == "sectioned" and prev_count is not None and len(slots) <= prev_count * 1.02 and scale > 1.0
         )
         prev_count = len(slots)
         if eff < target_eff and out_of_sounds:
+            if engine == "sectioned" and not relax:
+                # the level comes first: earlier repeats play every sound too (the build-up then
+                # only adds notes where the music has more); this is not a density step, so it
+                # does not use up one of the rounds, and a denser setting would add nothing after it
+                relax = True
+                rounds -= 1
+                continue
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:

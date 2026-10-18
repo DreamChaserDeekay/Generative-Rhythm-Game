@@ -26,7 +26,7 @@ from .tempo import estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.2.0"
+ANALYZER_VERSION = "1.2.1"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024

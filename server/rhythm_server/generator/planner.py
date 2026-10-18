@@ -15,7 +15,7 @@ from ..analysis.stems import STEM_NAMES
 from .motifs import SlotPlan, pattern_config
 from .params import GenParams
 from .repeat import repeat_references
-from .select import Slot
+from .select import Slot, melodic as _melodic, sound_of as _sound
 from .tempo import TempoMap
 
 DRUMS, BASS = STEM_NAMES.index("drums"), STEM_NAMES.index("bass")
@@ -102,13 +102,6 @@ def _pitch_ranks(slots: list[Slot]) -> list[float | None]:
     return [None if s.pitch is None else (bisect.bisect_left(pitched, s.pitch) + bisect.bisect_right(pitched, s.pitch)) / (2 * n) for s in slots]
 
 
-def _melodic(slot: Slot) -> bool:
-    """A slot whose pitch belongs to its sound (not a drum hit that inherits a melody pitch)."""
-    if slot.pitch is None:
-        return False
-    return slot.sources is None or int(np.argmax(slot.sources)) != DRUMS
-
-
 def gesture(slots: list[Slot], idx: list[int]) -> tuple[str, int]:
     """(gesture, direction) of a phrase from its melodic notes, or "rhythm" when drums lead."""
     cfg = pattern_config()["gesture"]
@@ -178,14 +171,6 @@ def layer_of(slot: Slot) -> str:
     if slot.sources is None:
         return "melody" if slot.pitch is not None else "rhythm"
     return "rhythm" if int(np.argmax(slot.sources)) in (DRUMS, BASS) else "melody"
-
-
-def _sound(slot: Slot) -> tuple[Any, ...]:
-    """What makes two slots "the same sound": stem and pitch, or stem and loudest band."""
-    src = slot.src
-    if _melodic(slot):
-        return (src, round(float(slot.pitch)))
-    return (src, int(np.argmax(slot.bands)))
 
 
 def _cells(slots: list[Slot], idx: list[int]) -> list[int | None]:
@@ -305,6 +290,8 @@ def _feasible(name: str, p: Phrase, params: GenParams) -> bool:
         return p.singles >= 3
     if name == "jack":
         return p.singles >= 3 and p.median_ioi >= params.min_jack_ms
+    if name == "doubles":
+        return p.singles >= 4 and p.median_ioi >= params.min_jack_ms
     if name == "anchor":
         return p.singles >= 5
     if name == "callResponse":
@@ -323,7 +310,8 @@ def _fit(name: str, p: Phrase) -> float:
 
 
 def chord_texture(p: Phrase, params: GenParams) -> str:
-    """How a phrase's chords relate: moving together (stair), repeated (jack) or varied."""
+    """How a phrase's chords relate: moving together (stair), repeated (jack), swinging around the
+    middle key (pivot, 5K) or varied."""
     cfg = pattern_config()
     textures = cfg["chordTextures"]
     style = cfg["styles"].get(params.system, {})
@@ -331,9 +319,9 @@ def chord_texture(p: Phrase, params: GenParams) -> str:
     best, best_score = "vary", float(textures["vary"]["fit"].get(p.gesture, 0.5))
     if p.chords < 3:
         return best
-    for name in ("stair", "jack"):
+    for name in ("stair", "jack", "pivot"):
         t = textures[name]
-        if params.skill < float(t["minSkill"]):
+        if params.skill < float(t["minSkill"]) or ("keyModes" in t and params.key_mode not in t["keyModes"]):
             continue
         score = float(t["fit"].get(p.gesture, 0.0)) * float(style.get(f"chord:{name}", 1.0)) * float(bias.get(f"chord:{name}", 1.0))
         if score > best_score:

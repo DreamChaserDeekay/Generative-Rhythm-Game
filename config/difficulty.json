@@ -396,5 +396,5 @@
   },
   "snapToleranceMs": 35,
   "lnTailGapBeats": 0.25,
-  "maxAdjustIterations": 5
+  "maxAdjustIterations": 6
 }
