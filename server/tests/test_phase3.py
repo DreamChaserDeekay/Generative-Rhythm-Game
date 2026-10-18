@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import sqlite3
 import sys
+import threading
 import types
 from functools import lru_cache
 from pathlib import Path
@@ -15,9 +16,12 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from rhythm_server.analysis import ml
+from scipy.ndimage import median_filter
+
+from rhythm_server.analysis import ml, stems
 from rhythm_server.analysis.analyzer import ANALYZER_VERSION, analyze
-from rhythm_server.analysis.stems import STEM_NAMES, separate
+from rhythm_server.analysis.spectral import median_along
+from rhythm_server.analysis.stems import HOP, N_FFT, STEM_NAMES, _istft, separate
 from rhythm_server.api.app import create_app
 from rhythm_server.api.library import Library
 from rhythm_server.generator import generate_chart
@@ -56,6 +60,93 @@ def test_core_stems_add_up_to_the_mix_and_follow_the_instruments() -> None:
     for name in ("drums", "vocals", "other"):
         others = [_corr(est[name], song.stems[t]) for t in STEM_NAMES if t != name]
         assert own[name] > max(others), (name, own[name], others)
+
+
+def test_fast_hpss_median_and_overlap_add_give_the_same_bits() -> None:
+    rng = np.random.default_rng(3)
+    for shape in ((1, 1), (5, 40), (16, 16), (17, 17), (300, 257)):
+        x = rng.random(shape).astype(np.float32)
+        x[:, ::7] = 0.5  # ties
+        for size in (2, 5, 17):
+            for axis in (0, 1):
+                plain = median_filter(x, size=(size, 1) if axis == 0 else (1, size), mode="reflect")
+                assert median_along(x, size, axis).tobytes() == plain.tobytes(), (shape, size, axis)
+    bins = N_FFT // 2 + 1
+    spec = (rng.standard_normal((40, bins)) + 1j * rng.standard_normal((40, bins))).astype(np.complex64)
+    # the inverse STFT adding the frames one by one
+    window = np.hanning(N_FFT)
+    frames = np.fft.irfft(spec, n=N_FFT, axis=1) * window
+    out = np.zeros((len(frames) - 1) * HOP + N_FFT)
+    norm = np.zeros_like(out)
+    for i, frame in enumerate(frames):
+        out[i * HOP : i * HOP + N_FFT] += frame
+        norm[i * HOP : i * HOP + N_FFT] += window**2
+    out /= np.maximum(norm, 1e-8)
+    length = 39 * HOP
+    assert _istft(spec, length).tobytes() == out[N_FFT // 2 : N_FFT // 2 + length].tobytes()
+
+
+def test_fast_hpss_median_reflects_rows_of_two_values() -> None:
+    # scipy's own 2-D filter reads past rows of two values (its result changes from call to call),
+    # so these are checked against the reflected rows themselves: ... b a | a b | b a ...
+    rng = np.random.default_rng(5)
+    x = rng.random((2, 60)).astype(np.float32)
+    for size in (3, 5, 17):
+        half = size // 2
+        j = np.arange(-half, 2 + half) % 4
+        ext = x[np.where(j >= 2, 3 - j, j)]
+        expected = np.stack([np.sort(ext[i : i + size], axis=0)[half] for i in range(2)])
+        assert median_along(x, size, axis=0).tobytes() == expected.tobytes(), size
+        assert median_along(x.T, size, axis=1).tobytes() == expected.T.tobytes(), size
+
+
+def test_core_stems_are_the_same_with_blocks_separated_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    song = song_with_stems(bars=24, seed=5, bpm=128.0)  # 45 s: three blocks
+    threads: set[int] = set()
+    block = stems._separate_block
+
+    def recorded(*args):
+        threads.add(threading.get_ident())
+        return block(*args)
+
+    monkeypatch.setattr(stems, "_separate_block", recorded)
+    monkeypatch.setattr(stems, "SEPARATE_WORKERS", 1)
+    one_by_one = separate(song.pcm, song.sample_rate)
+    monkeypatch.setattr(stems, "SEPARATE_WORKERS", 3)
+    monkeypatch.setattr(stems.os, "cpu_count", lambda: 4)
+    threads.clear()
+    at_once = separate(song.pcm, song.sample_rate)
+    assert len(threads) > 1
+    assert all(one_by_one[name].tobytes() == at_once[name].tobytes() for name in STEM_NAMES)
+
+
+def test_core_stem_blocks_add_up_like_song_length_sums(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_block(seg, _sr, keep, weight):  # stands in for a separated block
+        return {name: seg[keep] * (k + 0.37) * weight[:, None] for k, name in enumerate(STEM_NAMES[:3])}
+
+    monkeypatch.setattr(stems, "_separate_block", fake_block)
+    sr, n = 1000, 40_500  # three 15 s blocks
+    pcm = np.random.default_rng(6).standard_normal((n, 2)).astype(np.float32)
+    got = separate(pcm, sr)
+    # the blocks added into song-length float64 sums, one after another
+    block, ctx, fade = int(stems.BLOCK_S * sr), int(stems.CONTEXT_S * sr), int(stems.CROSSFADE_S * sr)
+    sums = {name: np.zeros((n, 2)) for name in STEM_NAMES[:3]}
+    starts = list(range(0, n - fade, block - fade))
+    for bi, start in enumerate(starts):
+        end = min(n, start + block)
+        a, b = max(0, start - ctx), min(n, end + ctx)
+        weight = np.ones(end - start)
+        if bi > 0:
+            weight[:fade] = np.linspace(0.0, 1.0, fade, endpoint=False)
+        if end < n:
+            weight[-fade:] = np.minimum(weight[-fade:], np.linspace(1.0, 0.0, fade, endpoint=False))
+        for name, y in fake_block(pcm[a:b], sr, slice(start - a, end - a), weight).items():
+            sums[name][start:end] += y
+    assert len(starts) == 3
+    for name in STEM_NAMES[:3]:
+        assert got[name].tobytes() == sums[name].astype(np.float32).tobytes(), name
+    other = pcm.astype(np.float64) - (sums["drums"] + sums["bass"] + sums["vocals"])
+    assert got["other"].tobytes() == other.astype(np.float32).tobytes()
 
 
 def test_onsets_are_tagged_with_the_stem_they_come_from() -> None:

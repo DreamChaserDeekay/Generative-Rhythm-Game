@@ -12,13 +12,16 @@ is installed (see analysis/backends).
 
 from __future__ import annotations
 
+import os
+from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Iterator, TypeVar
 
 import numpy as np
 from scipy.ndimage import maximum_filter1d, median_filter
 
-from .spectral import frames_view
+from .spectral import frames_view, median_along
 
 STEM_NAMES = ("drums", "bass", "vocals", "other")
 
@@ -58,8 +61,12 @@ SHARE_FLOOR = 0.02
 BLOCK_S = 15.0
 CONTEXT_S = 1.0
 CROSSFADE_S = 0.25
+# Blocks separated at once (each needs up to about 120 MB while it runs). One CPU is left for
+# the game: the stems of a song are separated in the background while another may be played.
+SEPARATE_WORKERS = 4
 
 Progress = Callable[[float, str], None]
+T = TypeVar("T")
 
 
 @dataclass
@@ -266,37 +273,78 @@ def _istft(spec: np.ndarray, length: int) -> np.ndarray:
     window = np.hanning(N_FFT)
     frames = np.fft.irfft(spec, n=N_FFT, axis=1) * window
     pad = N_FFT // 2
-    total = (len(frames) - 1) * HOP + N_FFT
-    out = np.zeros(total)
-    norm = np.zeros(total)
-    w2 = window**2
-    for i, frame in enumerate(frames):
-        s = i * HOP
-        out[s : s + N_FFT] += frame
-        norm[s : s + N_FFT] += w2
-    out /= np.maximum(norm, 1e-8)
+    # overlap-add in hop-sized chunks: each chunk sums its frames in frame order, as adding the
+    # frames one by one does, so the result is the same to the bit
+    parts = N_FFT // HOP
+    n_frames = len(frames)
+    chunks = frames.reshape(n_frames, parts, HOP)
+    w2 = (window**2).reshape(parts, HOP)
+    out = np.zeros((n_frames + parts - 1, HOP))
+    norm = np.zeros((n_frames + parts - 1, HOP))
+    for r in reversed(range(parts)):
+        out[r : r + n_frames] += chunks[:, r]
+        norm[r : r + n_frames] += w2[r]
+    out = out.reshape(-1)
+    out /= np.maximum(norm.reshape(-1), 1e-8)
     return out[pad : pad + length]
 
 
-def _separate_block(seg: np.ndarray, sr: int) -> dict[str, np.ndarray]:
-    left, right = _stft(seg[:, 0]), _stft(seg[:, 1])
-    mid = np.abs(left + right) * 0.5
-    harm = median_filter(mid, size=(HPSS_KERNEL, 1), mode="reflect")
-    perc = median_filter(mid, size=(1, HPSS_KERNEL), mode="reflect")
-    h2, p2 = harm.astype(np.float64) ** 2, perc.astype(np.float64) ** 2
-    drums = (p2 / (h2 + p2 + 1e-12)).astype(np.float32)
-    freqs = np.fft.rfftfreq(N_FFT, 1.0 / sr)
+def _drum_share(mid: np.ndarray) -> np.ndarray:
+    """Median-filter HPSS: the percussive share of each bin's energy."""
+    h2 = median_along(mid, HPSS_KERNEL, axis=0).astype(np.float64) ** 2
+    p2 = median_along(mid, HPSS_KERNEL, axis=1).astype(np.float64) ** 2
+    total = h2 + p2 + 1e-12
+    return np.divide(p2, total, out=total).astype(np.float32)
+
+
+def _centre(left: np.ndarray, right: np.ndarray) -> np.ndarray:
+    """How centred each bin is in the stereo image (1 when both channels carry it equally)."""
     pl, pr = np.abs(left) ** 2, np.abs(right) ** 2
-    centre = (2.0 * np.abs(left * np.conj(right)) / (pl + pr + 1e-12)).astype(np.float32)
-    body_m, bass_m, vocal_m, _, _ = harmonic_masks(mid * (1.0 - drums), freqs, sr / HOP, centre, low_mag=mid)
+    return (2.0 * np.abs(left * np.conj(right)) / (pl + pr + 1e-12)).astype(np.float32)
+
+
+def _block_masks(left: np.ndarray, right: np.ndarray, sr: int) -> dict[str, np.ndarray]:
+    """Drums / bass / vocals masks on a block's stereo STFT (whatever is left is "other")."""
+    mid = np.abs(left + right) * 0.5
+    drums = _drum_share(mid)
+    freqs = np.fft.rfftfreq(N_FFT, 1.0 / sr)
+    body_m, bass_m, vocal_m, _, _ = harmonic_masks(mid * (1.0 - drums), freqs, sr / HOP, _centre(left, right), low_mag=mid)
     harmonic_share = 1.0 - drums
-    masks = {"drums": drums + harmonic_share * body_m, "bass": harmonic_share * bass_m, "vocals": harmonic_share * vocal_m}
+    return {"drums": drums + harmonic_share * body_m, "bass": harmonic_share * bass_m, "vocals": harmonic_share * vocal_m}
+
+
+def _separate_block(seg: np.ndarray, sr: int, keep: slice, weight: np.ndarray) -> dict[str, np.ndarray]:
+    """Drums / bass / vocals of the stereo `seg` over `keep`, scaled by `weight`."""
+    left, right = _stft(seg[:, 0]), _stft(seg[:, 1])
+    masks = _block_masks(left, right, sr)
     n = len(seg)
-    return {name: np.stack([_istft(left * m, n), _istft(right * m, n)], axis=1) for name, m in masks.items()}
+    parts = {}
+    for name in STEM_NAMES[:3]:
+        m = masks.pop(name)
+        parts[name] = np.stack([_istft(left * m, n), _istft(right * m, n)], axis=1)[keep] * weight[:, None]
+    return parts
+
+
+def _in_order(job: Callable[[int], T], count: int, workers: int) -> Iterator[T]:
+    """job(0) .. job(count - 1) in order, with up to `workers` of them running or waiting to be
+    taken at any time."""
+    if workers <= 1:
+        yield from map(job, range(count))
+        return
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="stems") as pool:
+        running: deque[Future[T]] = deque()
+        for i in range(count):
+            running.append(pool.submit(job, i))
+            if len(running) == workers:
+                yield running.popleft().result()
+        while running:
+            yield running.popleft().result()
 
 
 def separate(pcm: np.ndarray, sr: int, progress: Progress | None = None) -> dict[str, np.ndarray]:
-    """Separate stereo PCM (n, 2) into the four stems (float32, same shape; they sum to `pcm`)."""
+    """Separate stereo PCM (n, 2) into the four stems (float32, same shape; they sum to `pcm`).
+    Up to SEPARATE_WORKERS blocks are separated at once (fewer than the CPUs) and added up in
+    order, so every sample is summed exactly as when the blocks ran one after another."""
     report = progress or (lambda _p, _m: None)
     if pcm.ndim == 1:
         pcm = np.stack([pcm, pcm], axis=1)
@@ -304,22 +352,39 @@ def separate(pcm: np.ndarray, sr: int, progress: Progress | None = None) -> dict
     block = int(BLOCK_S * sr)
     ctx = int(CONTEXT_S * sr)
     fade = int(CROSSFADE_S * sr)
-    out = {name: np.zeros((n, 2), dtype=np.float64) for name in STEM_NAMES[:3]}
     starts = list(range(0, max(1, n - fade), block - fade)) if n > block else [0]
-    for bi, start in enumerate(starts):
-        end = min(n, start + block)
+    spans: list[tuple[int, int]] = []
+    for start in starts:
+        spans.append((start, min(n, start + block)))
+        if spans[-1][1] >= n:
+            break
+
+    def weighted_block(bi: int) -> dict[str, np.ndarray]:
+        """Block `bi`'s drums / bass / vocals over its span, faded in and out."""
+        start, end = spans[bi]
         a, b = max(0, start - ctx), min(n, end + ctx)
-        parts = _separate_block(pcm[a:b], sr)
         weight = np.ones(end - start)
         if bi > 0:
             weight[:fade] = np.linspace(0.0, 1.0, fade, endpoint=False)
-        if bi < len(starts) - 1 and end < n:
+        if bi < len(spans) - 1 and end < n:
             weight[-fade:] = np.minimum(weight[-fade:], np.linspace(1.0, 0.0, fade, endpoint=False))
-        for name, y in parts.items():
-            out[name][start:end] += y[start - a : end - a] * weight[:, None]
-        report((bi + 1) / len(starts), "스템 분리")
-        if end >= n:
-            break
-    stems = {name: y.astype(np.float32) for name, y in out.items()}
-    stems["other"] = (pcm.astype(np.float64) - sum(y.astype(np.float64) for y in out.values())).astype(np.float32)
+        return _separate_block(pcm[a:b], sr, slice(start - a, end - a), weight)
+
+    stems = {name: np.empty((n, 2), dtype=np.float32) for name in STEM_NAMES}
+    # float64 sums so far over the start of the next block, where the previous block fades out
+    carried = {name: np.zeros((0, 2)) for name in STEM_NAMES[:3]}
+    workers = min(SEPARATE_WORKERS, (os.cpu_count() or 1) - 1, len(spans))
+    for bi, parts in enumerate(_in_order(weighted_block, len(spans), workers)):
+        start, end = spans[bi]
+        final = spans[bi + 1][0] if bi + 1 < len(spans) else n  # no later block reaches before this
+        mix = np.zeros((final - start, 2))  # drums + bass + vocals
+        for name in STEM_NAMES[:3]:
+            total = np.zeros((end - start, 2))
+            total[: len(carried[name])] = carried[name]
+            total += parts.pop(name)
+            stems[name][start:final] = total[: final - start]
+            carried[name] = total[final - start :].copy()
+            mix += total[: final - start]
+        stems["other"][start:final] = np.subtract(pcm[start:final], mix, out=mix)
+        report((bi + 1) / len(spans), "스템 분리")
     return stems

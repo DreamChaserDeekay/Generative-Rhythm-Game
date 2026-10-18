@@ -135,6 +135,8 @@ export class PlayController {
   private readonly placementSeed: number;
   private unsubscribe: (() => void) | null = null;
   private state: PlayState = 'running';
+  /** While paused the track is drawn again only after a change (hi-speed, covers, size). */
+  private redrawPaused = false;
   private finishAtPerf = 0;
   private loops = 0;
   private raf = 0;
@@ -249,6 +251,7 @@ export class PlayController {
     this.stemVoices?.stopAll();
     this.engine.pause();
     this.state = 'paused';
+    this.redrawPaused = true;
     this.callbacks.onPauseChange(true);
   }
 
@@ -426,6 +429,7 @@ export class PlayController {
   private layout(): void {
     const rect = this.setup.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
+    this.redrawPaused = true;
     const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
     const { judgeZ, travel } = this.scroll;
     this.hud.place({
@@ -462,19 +466,24 @@ export class PlayController {
     }
     if (this.state === 'ending' && perfNow >= this.finishAtPerf) this.finish();
 
-    this.renderer.render(
-      {
-        timeMs: songNow + this.settings.visualOffsetMs * this.rate,
-        scroll: this.scroll,
-        notes: session.notes,
-        heldNote: (lane) => session.heldNoteIndex(lane),
-        keyDown: (lane) => session.isKeyDown(lane),
-        barTimes: this.barTimes,
-        fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-        camera: this.cameraFx.enabled ? this.cameraFx.at(songNow) : undefined,
-      },
-      perfNow,
-    );
+    // A paused picture stays still and is drawn again only after a change (under the pause menu's
+    // former backdrop blur, drawing it every frame ran at a few frames per second without a GPU).
+    if (this.state !== 'paused' || this.redrawPaused) {
+      this.redrawPaused = false;
+      this.renderer.render(
+        {
+          timeMs: songNow + this.settings.visualOffsetMs * this.rate,
+          scroll: this.scroll,
+          notes: session.notes,
+          heldNote: (lane) => session.heldNoteIndex(lane),
+          keyDown: (lane) => session.isKeyDown(lane),
+          barTimes: this.barTimes,
+          fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
+          camera: this.cameraFx.enabled ? this.cameraFx.at(songNow) : undefined,
+        },
+        perfNow,
+      );
+    }
     this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
     const start = this.practice ? this.firstNoteMs : 0;
     const end = this.practice ? this.lastNoteEndMs : this.durationMs;

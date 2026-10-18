@@ -502,6 +502,9 @@ p.hint {
   background: var(--bg);
 }
 
+/* No backdrop blur on the loading overlay: with the spinner turning, a full-screen backdrop blur is
+   redone every frame. Rendering in software (no GPU) that kept Chrome's GPU process busy, and the
+   track's WebGL setup waited behind it with the page frozen (~14 s). Nothing is drawn behind it yet. */
 .play-overlay {
   position: absolute;
   inset: 0;
