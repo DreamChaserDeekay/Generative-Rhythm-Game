@@ -84,6 +84,7 @@ MIGRATIONS = {
     "bga_ext": "TEXT",
     "bga_offset_ms": "REAL NOT NULL DEFAULT 0",
     "bga_youtube": "TEXT",
+    "sections": "TEXT",  # the user's section edits (JSON list), null = the analysed sections
 }
 # charts: where a chart came from (generated / edited / imported) and its display name
 CHART_MIGRATIONS = {
@@ -258,10 +259,11 @@ class Library:
         allowed = {
             "title", "artist", "status", "progress", "progress_label", "error", "bpm", "bpm_min", "bpm_max",
             "preview_ms", "analyzed_at", "overrides", "analyzer", "bga_ext", "bga_offset_ms", "bga_youtube",
+            "sections",
         }  # fmt: skip
         sets = {k: v for k, v in fields.items() if k in allowed}
-        for key in ("overrides", "analyzer"):
-            if key in sets and not isinstance(sets[key], str):
+        for key in ("overrides", "analyzer", "sections"):
+            if key in sets and sets[key] is not None and not isinstance(sets[key], str):
                 sets[key] = json.dumps(sets[key])
         if sets:
             with self._lock:
@@ -311,6 +313,7 @@ class Library:
             "analyzer": json.loads(row["analyzer"] or "{}"),
             "hasBga": bool(row["bga_ext"]),
             "bgaYoutube": row["bga_youtube"],
+            "sections": json.loads(row["sections"]) if row["sections"] else None,
             "bgaOffsetMs": row["bga_offset_ms"] or 0.0,
             "originalName": row["original_name"],
         }

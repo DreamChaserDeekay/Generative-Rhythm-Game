@@ -92,15 +92,22 @@ def test_scratch_notes_only_where_allowed(charts: dict) -> None:
         assert all(len(charts[(name, "4K", d)]["meta"]["lanes"]) == 4 for d in ORDER)
 
 
-def test_notes_follow_detected_sounds(charts: dict, analysis128: dict) -> None:
-    onset_times = sorted(o["t"] for o in analysis128["onsets"])
+def test_notes_follow_detected_sounds(charts: dict, analysis128: dict, song128) -> None:
+    """Every note is on a sound of the song: a detected onset, or (the sectioned engine's consensus
+    fill, where a loop's other repeats have the sound) a real sound the detector missed, checked
+    against the synthetic song's true onsets."""
     import bisect
+
+    detected = sorted(o["t"] for o in analysis128["onsets"])
+    true = sorted(t * 1000.0 for times in song128.onsets.values() for t in times)
+
+    def near(times: list[float], t: float) -> float:
+        i = bisect.bisect_left(times, t)
+        return min(abs(times[j] - t) for j in (i - 1, i) if 0 <= j < len(times))
 
     for d in ORDER:
         for n in charts[("128", "4K", d)]["notes"]:
-            i = bisect.bisect_left(onset_times, n["t"])
-            near = min(abs(onset_times[j] - n["t"]) for j in (i - 1, i) if 0 <= j < len(onset_times))
-            assert near <= 40.0, f"{d}: note at {n['t']}ms has no sound nearby"
+            assert near(detected, n["t"]) <= 40.0 or near(true, n["t"]) <= 30.0, f"{d}: note at {n['t']}ms has no sound nearby"
 
 
 def test_long_notes_and_chords_scale_with_difficulty(charts: dict) -> None:

@@ -226,12 +226,14 @@ def _halves(slots: list[Slot], idx: list[int]) -> int | None:
     return h
 
 
-def phrases_of(slots: list[Slot], sections: list[dict[str, Any]], tempo: TempoMap) -> list[Phrase]:
+def phrases_of(slots: list[Slot], sections: list[dict[str, Any]], tempo: TempoMap, groups: list[list[int]] | None = None) -> list[Phrase]:
+    """Phrases with what the planner reads from them; `groups` gives the phrases' slots (the
+    sectioned engine's loop units) instead of `segment`."""
     ranks = _pitch_ranks(slots)
     ordered = sorted(sections, key=lambda s: float(s["startBeat"]))
     starts = [float(s["startBeat"]) for s in ordered]
     out = []
-    for idx in segment(slots, ordered, tempo):
+    for idx in groups if groups is not None else segment(slots, ordered, tempo):
         sec = max(0, bisect.bisect_right(starts, slots[idx[0]].beat + 1e-6) - 1)
         info = ordered[sec] if ordered else {}
         g, d = gesture(slots, idx)
@@ -339,18 +341,26 @@ def chord_texture(p: Phrase, params: GenParams) -> str:
     return best
 
 
-def choose_motifs(phrases: list[Phrase], params: GenParams) -> list[str]:
-    """One pattern per phrase: section themes, then a Viterbi pass over the phrases."""
+def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int, int]] | None = None) -> list[str]:
+    """One pattern per phrase: section themes, then a Viterbi pass over the phrases.
+
+    With `keys` (the sectioned engine: material class and part of every phrase) a group keeps to
+    its theme patterns (one on easy charts, two from `sectioned.themes.twoSkill`; any other pattern
+    pays `offTheme`), consecutive phrases are not pushed apart, and every phrase of a class plays
+    the pattern of the class's first phrase."""
     cfg = pattern_config()
     vocab = vocabulary(params)
     names = list(vocab)
     budget_cfg, trans = cfg["budget"], cfg["transition"]
-    # section themes: the two best-fitting patterns of each repetition group
+    sectioned = keys is not None
+    theme_cfg = cfg["sectioned"]["themes"]
+    n_themes = 2 if not sectioned or params.skill >= float(theme_cfg["twoSkill"]) else 1
+    # section themes: the best-fitting patterns of each repetition group
     themes: dict[Any, set[str]] = {}
     for key in {p.group if p.group is not None else p.section for p in phrases}:
         members = [p for p in phrases if (p.group if p.group is not None else p.section) == key]
         totals = {m: sum(_fit(m, p) * vocab[m]["weight"] for p in members if _feasible(m, p, params)) for m in names if m != "step"}
-        themes[key] = {m for m, v in sorted(totals.items(), key=lambda x: -x[1])[:2] if v > 0}
+        themes[key] = {m for m, v in sorted(totals.items(), key=lambda x: (-x[1], x[0]))[:n_themes] if v > 0}
 
     def budget(i: int, p: Phrase) -> float:
         b = params.skill * (budget_cfg["energyBase"] + budget_cfg["energyGain"] * p.energy) * budget_cfg["max"]
@@ -359,9 +369,11 @@ def choose_motifs(phrases: list[Phrase], params: GenParams) -> list[str]:
     def score(i: int, p: Phrase, m: str) -> float:
         if not _feasible(m, p, params):
             return -math.inf
-        theme = trans["themeBonus"] if m in themes.get(p.group if p.group is not None else p.section, set()) else 0.0
+        own = themes.get(p.group if p.group is not None else p.section, set())
+        theme = trans["themeBonus"] if m in own else 0.0
         over = max(0.0, vocab[m]["complexity"] - max(budget(i, p), 0.5))
-        return (_fit(m, p) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over
+        off = float(theme_cfg["offTheme"]) if sectioned and own and m not in own and m != "step" else 0.0
+        return (_fit(m, p) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over - off
 
     if not phrases:
         return []
@@ -380,7 +392,7 @@ def choose_motifs(phrases: list[Phrase], params: GenParams) -> list[str]:
             for q, v in best[-1].items():
                 if v == -math.inf:
                     continue
-                t = -trans["samePenalty"] if q == m and p.gesture != phrases[i - 1].gesture else 0.0
+                t = -trans["samePenalty"] if not sectioned and q == m and p.gesture != phrases[i - 1].gesture else 0.0
                 if hard and params.skill < 0.6 and vocab[q]["complexity"] >= 0.8 * budget(i - 1, phrases[i - 1]):
                     t -= trans["hardPairPenalty"]
                 options.append((v + t, q))
@@ -393,7 +405,16 @@ def choose_motifs(phrases: list[Phrase], params: GenParams) -> list[str]:
     for i in range(len(phrases) - 1, 0, -1):
         m = back[i][m] or "step"
         out.append(m)
-    return out[::-1]
+    out.reverse()
+    if keys is not None:
+        first: dict[tuple[int, int], str] = {}
+        for i, (p, k) in enumerate(zip(phrases, keys)):
+            if k in first:
+                if _feasible(first[k], p, params):
+                    out[i] = first[k]
+            else:
+                first[k] = out[i]
+    return out
 
 
 def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple[int, int] | None]:
@@ -470,30 +491,42 @@ def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str
     return out
 
 
-def plan_patterns(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, hands: tuple[str, ...], tempo: TempoMap) -> list[SlotPlan]:
-    """The pattern of every slot; `hands` are the key lanes' hands (L, R, T for a shared key)."""
+def plan_patterns(
+    slots: list[Slot],
+    sections: list[dict[str, Any]],
+    params: GenParams,
+    hands: tuple[str, ...],
+    tempo: TempoMap,
+    groups: list[list[int]] | None = None,
+    keys: list[tuple[int, int]] | None = None,
+) -> list[SlotPlan]:
+    """The pattern of every slot; `hands` are the key lanes' hands (L, R, T for a shared key).
+    `groups` and `keys` come from the sectioned engine (sections.Layout.phrases / phrase_keys)."""
     if not slots:
         return []
     n_keys = len(hands)
-    phrases = phrases_of(slots, sections, tempo)
-    motifs = choose_motifs(phrases, params)
-    # repeated sections play their first occurrence's patterns
-    refs, _ = repeat_references(slots, sections)
-    owner = {i: n for n, p in enumerate(phrases) for i in p.slots}
-    for n, p in enumerate(phrases):
-        sources = [owner[r] for r in (refs[i] for i in p.slots) if r is not None and r in owner]
-        if sources:
-            ref = max(set(sources), key=sources.count)
-            if ref < n and _feasible(motifs[ref], p, params):
-                motifs[n] = motifs[ref]
+    phrases = phrases_of(slots, sections, tempo, groups)
+    motifs = choose_motifs(phrases, params, keys)
+    if keys is None:
+        # repeated sections play their first occurrence's patterns
+        refs, _ = repeat_references(slots, sections)
+        owner = {i: n for n, p in enumerate(phrases) for i in p.slots}
+        for n, p in enumerate(phrases):
+            sources = [owner[r] for r in (refs[i] for i in p.slots) if r is not None and r in owner]
+            if sources:
+                ref = max(set(sources), key=sources.count)
+                if ref < n and _feasible(motifs[ref], p, params):
+                    motifs[n] = motifs[ref]
     wins = windows(phrases, params, n_keys)
     textures = [chord_texture(p, params) for p in phrases]
     regions = role_regions(slots, phrases, params, hands)
     homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
     plan: list[SlotPlan] = [None] * len(slots)  # type: ignore[list-item]  # every slot is in a phrase
     for n, (p, motif, win) in enumerate(zip(phrases, motifs, wins)):
-        # rhythm phrases have no melodic direction: alternate it so stairs and rolls vary
-        direction = p.direction if p.gesture != "rhythm" else (1 if n % 2 == 0 else -1)
+        # rhythm phrases have no melodic direction: alternate it so stairs and rolls vary (by class
+        # in the sectioned engine, so a loop keeps its direction)
+        turn = n if keys is None else sum(keys[n])
+        direction = p.direction if p.gesture != "rhythm" else (1 if turn % 2 == 0 else -1)
         layers = [layer_of(slots[i]) for i in p.slots]
         for k, i in enumerate(p.slots):
             mirror_ref = k - p.halves if motif == "callResponse" and p.halves is not None and k >= p.halves else None

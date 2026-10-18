@@ -1,0 +1,728 @@
+"""Sectioned engine (docs/PATTERN_DESIGN.md 13): the chart is built from the song's structure down.
+
+1. Units: every section is cut into its loop (1, 2 or 4 bars, at most `maxUnitBars`).
+2. Material classes: units of one repetition group that hold the same music (their candidates match)
+   form a class; a fill or a changed bar becomes a class of its own.
+3. Section blueprint: per section label, how dense, how many chords and long notes; which stems a
+   group follows at the chart's skill; pre-chorus ramps and the last chorus lift.
+4. Notes per class: note positions are chosen once per class from the consensus of its units
+   (a position heard in most of them scores high, a detection glitch in one unit scores low) and put
+   in every unit that has the sound there. Chords, long notes and side / scratch notes are also
+   decided per class position, so every repeat of a loop gets the same notes.
+5. Lanes (`place`): units are placed in song order. The first unit of a class gets its lanes from the
+   pattern planner and the lane search; every later unit copies them (mirrored on mirrored repeats)
+   through the same lane search with a large bonus for the copy, so it only changes a note where
+   the hard rules (jack spacing, hand limits, long notes) forbid the copy.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from typing import Any
+
+import numpy as np
+
+from ..analysis.ml import section_stems
+from ..analysis.stems import STEM_NAMES
+from ..config import load_config
+from .candidates import Candidate
+from .lanes import Choice, LaneInfo, _pitch_targets, search
+from .motifs import SlotPlan
+from .params import GenParams
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, HALF_BEAT_HOLDS_BELOW, MAX_CHORD_RATIO, MAX_LN_BEATS, Slot, active_seconds
+from .tempo import TempoMap
+
+GRID = 48  # positions per beat for matching candidates between units
+DEFAULT_LOOP_BARS = 2  # older analyses without loop lengths
+
+
+def sectioned_config() -> dict[str, Any]:
+    return load_config("patterns")["sectioned"]
+
+
+@dataclass
+class Unit:
+    index: int
+    section: int
+    group: str
+    label: str
+    occurrence: int  # how many earlier sections of its group there are
+    pos: int  # position in its section
+    start: float  # beat
+    length: float  # beats
+    energy: float
+    last_in_group: bool = False  # in the group's last occurrence
+    cls: int = -1
+    extra: float = 0.0  # notes beyond its class (pre-chorus ramp, last chorus), as a share
+    mirror: bool = False  # a repeat played mirrored
+    accent: bool = False  # opens a section: its downbeat is accented
+
+
+@dataclass
+class Layout:
+    """Slots of a sectioned chart with what each belongs to."""
+
+    slots: list[Slot]
+    units: list[Unit]
+    unit_slots: list[list[int]]  # slot indices per unit, in time order
+    ref: list[int | None]  # per slot: the class's earlier slot at the same position (lanes to copy)
+    slot_unit: list[int]
+    phrases: list[list[int]] = field(default_factory=list)  # planner phrases (slot indices)
+    phrase_keys: list[tuple[int, int]] = field(default_factory=list)  # (class, part) per phrase
+
+
+def edited_analysis(analysis: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
+    """The analysis with the user's sections (rows of startBeat, label, group) in place of the
+    analysed ones. Times, energy and stem mix are measured again; a section's loop length comes
+    from the analysed section it overlaps most. The edits go into `overrides`, so charts made from
+    them get their own ids."""
+    if not edits:
+        return analysis
+    tempo = TempoMap(analysis["timing"])
+    bpb = tempo.beats_per_bar
+    base = sorted(analysis.get("sections", []), key=lambda r: float(r["startBeat"]))
+    rows_in = sorted(edits, key=lambda e: float(e["startBeat"]))
+    duration = float(analysis["durationMs"])
+    end_all = tempo.ms_to_beat(duration)
+    first = min(float(base[0]["startBeat"]) if base else 0.0, float(rows_in[0]["startBeat"]))
+    energy = np.asarray(analysis.get("energy", {}).get("values") or [0.5], dtype=float)
+    frame = float(analysis.get("energy", {}).get("frameMs", 100)) or 100.0
+    rows: list[dict[str, Any]] = []
+    for k, e in enumerate(rows_in):
+        a = first if k == 0 else float(e["startBeat"])
+        b = float(rows_in[k + 1]["startBeat"]) if k + 1 < len(rows_in) else end_all
+        t, end_t = tempo.beat_to_ms(a), tempo.beat_to_ms(b) if k + 1 < len(rows_in) else duration
+        overlap = [(min(b, float(r.get("endBeat", end_all))) - max(a, float(r["startBeat"])), r) for r in base]
+        loop = DEFAULT_LOOP_BARS
+        if overlap:
+            amount, r = max(overlap, key=lambda o: o[0])
+            if amount > 0 and r.get("loopBars"):
+                loop = int(r["loopBars"])
+        bars = max(1, int(round((b - a) / bpb)))
+        span = energy[int(max(0.0, t) / frame) : max(int(max(0.0, t) / frame) + 1, int(end_t / frame))]
+        rows.append(
+            {
+                "t": round(t, 3), "endT": round(end_t, 3), "startBeat": a, "endBeat": b,
+                "label": str(e["label"]), "group": str(e["group"]),
+                "energy": float(np.median(span)) if len(span) else 0.5,
+                "loopBars": min(loop, bars), "confidence": 1.0,
+            }
+        )  # fmt: skip
+    raw = np.array([r["energy"] for r in rows])
+    span = float(np.ptp(raw))
+    for r, v in zip(rows, raw):
+        r["energy"] = round(float((v - raw.min()) / span) if span > 1e-9 else 0.5, 3)
+    onsets = analysis.get("onsets", [])
+    if onsets:
+        section_stems(rows, np.array([o["t"] for o in onsets]), np.array([o["strength"] for o in onsets]), np.array([o.get("sources") or [0.25] * 4 for o in onsets]))
+    out = dict(analysis)
+    out["sections"] = rows
+    out["overrides"] = {**analysis.get("overrides", {}), "sections": [{"startBeat": float(e["startBeat"]), "label": str(e["label"]), "group": str(e["group"])} for e in rows_in]}
+    return out
+
+
+def make_units(sections: list[dict[str, Any]], first_beat: float, last_beat: float, beats_per_bar: int) -> list[Unit]:
+    cfg = sectioned_config()
+    max_bars = int(cfg["maxUnitBars"])
+    bpb = beats_per_bar
+    rows = sorted(sections, key=lambda s: float(s["startBeat"]))
+    spans: list[tuple[float, float, dict[str, Any]]] = []
+    for k, s in enumerate(rows):
+        a = float(s["startBeat"])
+        b = float(rows[k + 1]["startBeat"]) if k + 1 < len(rows) else max(last_beat + 1e-6, a + bpb)
+        spans.append((a, b, s))
+    if not spans:
+        spans = [(min(first_beat, 0.0), last_beat + 1e-6, {"group": "_", "label": "verse", "energy": 0.5, "loopBars": 4})]
+    if first_beat < spans[0][0]:
+        spans.insert(0, (first_beat, spans[0][0], {"group": "_pre", "label": "intro", "energy": 0.3, "loopBars": 1}))
+    if last_beat >= spans[-1][1]:
+        spans.append((spans[-1][1], last_beat + 1e-6, {"group": "_post", "label": "outro", "energy": 0.3, "loopBars": 1}))
+    units: list[Unit] = []
+    seen: dict[str, int] = {}
+    last_occ: dict[str, int] = {}
+    for si, (_, _, s) in enumerate(spans):
+        last_occ[str(s.get("group") or f"_{si}")] = si
+    prev_label = None
+    for si, (a, b, s) in enumerate(spans):
+        group = str(s.get("group") or f"_{si}")
+        occ = seen.get(group, 0)
+        seen[group] = occ + 1
+        loop = int(s.get("loopBars") or DEFAULT_LOOP_BARS)
+        length = bpb * max(1, min(loop, max_bars))
+        label = str(s.get("label", "verse"))
+        pos, x = 0, a
+        while x < b - 1e-6:
+            # beats before the first downbeat (a pickup) are a unit of their own, so the loops after
+            # it start on bar lines
+            step = -x if x < 0 < b and -x < length else length
+            units.append(
+                Unit(
+                    index=len(units),
+                    section=si,
+                    group=group,
+                    label=label,
+                    occurrence=occ,
+                    pos=pos,
+                    start=x,
+                    length=min(step, b - x),
+                    energy=float(s.get("energy", 0.5)),
+                    last_in_group=last_occ[group] == si,
+                    accent=pos == 0 and prev_label is not None and (label != prev_label or occ == 0),
+                )
+            )
+            x += units[-1].length
+            pos += 1
+        prev_label = label
+    return units
+
+
+def _key(offset: float) -> int:
+    return int(round(offset * GRID))
+
+
+def _unit_cands(units: list[Unit], cands: list[Candidate]) -> list[dict[int, int]]:
+    """Per unit: offset key -> candidate index."""
+    out: list[dict[int, int]] = [{} for _ in units]
+    starts = [u.start for u in units]
+    u = 0
+    for i, c in enumerate(cands):
+        while u + 1 < len(units) and c.beat >= starts[u + 1] - 1e-9:
+            u += 1
+        if units[u].start - 1e-9 <= c.beat < units[u].start + units[u].length + 1e-9:
+            out[u][_key(c.beat - units[u].start)] = i
+    return out
+
+
+def _similarity(a: dict[int, int], b: dict[int, int], cands: list[Candidate]) -> float:
+    """Jaccard of two units' candidate positions, each weighted by its (mean) strength so a missed
+    soft hit matters less than a missed accent; how loud a shared hit is does not matter (a played
+    repeat is never equally loud). A shared position with another pitch counts half."""
+    num = den = 0.0
+    for k in a.keys() | b.keys():
+        ca = cands[a[k]] if k in a else None
+        cb = cands[b[k]] if k in b else None
+        if ca and cb:
+            w = (min(ca.strength, 1.5) + min(cb.strength, 1.5)) / 2
+            same = ca.pitch is None or cb.pitch is None or abs(ca.pitch - cb.pitch) < 0.5
+            num += w * (1.0 if same else 0.5)
+        else:
+            w = min((ca or cb).strength, 1.5)  # type: ignore[union-attr]
+        den += w
+    return num / den if den > 0 else 1.0
+
+
+def classify(units: list[Unit], per_unit: list[dict[int, int]], cands: list[Candidate]) -> int:
+    """Material classes in song order; returns the class count."""
+    threshold = float(sectioned_config()["classSimilarity"])
+    classes: list[list[int]] = []
+    for u in units:
+        best, best_sim = None, threshold
+        for c, members in enumerate(classes):
+            first = units[members[0]]
+            if first.group != u.group or abs(first.length - u.length) > 1e-6:
+                continue
+            sim = max(_similarity(per_unit[m], per_unit[u.index], cands) for m in members[:3])
+            if sim >= best_sim:
+                best, best_sim = c, sim
+        if best is None:
+            classes.append([u.index])
+            u.cls = len(classes) - 1
+        else:
+            classes[best].append(u.index)
+            u.cls = best
+    return len(classes)
+
+
+def blueprint(label: str) -> dict[str, float]:
+    labels = sectioned_config()["labels"]
+    return {"density": 1.0, "chord": 1.0, "hold": 1.0, "ramp": 0.0, **labels.get(label, labels.get("verse", {}))}
+
+
+LAYERS = {"rhythm": ("drums", "bass"), "melody": ("vocals", "other")}
+
+
+def follow_weights(sections: list[dict[str, Any]], params: GenParams) -> dict[str, np.ndarray]:
+    """Per group, a weight per stem: easy charts follow the group's main layer (the melody — vocals
+    and other — or the rhythm — drums and bass — whichever sounds more, weighted by the tier's
+    instrument mix); the other layer's sounds score `otherWeight` times as much, except on
+    downbeats (the kick accent stays). Charts from `pairSkill` follow both."""
+    cfg = sectioned_config()["follow"]
+    if params.rhythm_source != "auto" or params.skill >= float(cfg["pairSkill"]):
+        return {}
+    mixes: dict[str, list[np.ndarray]] = {}
+    for s in sections:
+        if s.get("stems") and s.get("group"):
+            mixes.setdefault(str(s["group"]), []).append(np.asarray(s["stems"], dtype=float))
+    out = {}
+    for g, rows in mixes.items():
+        mix = np.mean(rows, axis=0)
+        if params.source_mix:
+            mix = mix * np.array([params.source_mix.get(n, 1.0) for n in STEM_NAMES])
+        share = {name: sum(float(mix[STEM_NAMES.index(st)]) for st in stems) for name, stems in LAYERS.items()}
+        main = max(share, key=lambda k: (share[k], k))
+        w = np.full(len(STEM_NAMES), float(cfg["otherWeight"]))
+        for st in LAYERS[main]:
+            w[STEM_NAMES.index(st)] = 1.0
+        out[g] = w
+    return out
+
+
+def _mark_variation(units: list[Unit], params: GenParams) -> None:
+    cfg = sectioned_config()
+    mirror_from = cfg["mirrorRepeats"].get(params.system)
+    chorus_groups = {u.group for u in units if u.label == "chorus"}
+    by_section: dict[int, list[Unit]] = {}
+    for u in units:
+        by_section.setdefault(u.section, []).append(u)
+    for sec in by_section.values():
+        bp = blueprint(sec[0].label)
+        n = len(sec)
+        for u in sec:
+            if bp["ramp"] > 0 and n > 1:
+                u.extra = bp["ramp"] * u.pos / (n - 1)
+            if u.group in chorus_groups and u.last_in_group and u.occurrence >= 1:
+                u.extra = max(u.extra, float(cfg["lastChorusBoost"]))
+            if mirror_from is not None and params.skill >= float(mirror_from) and u.occurrence % 2 == 1:
+                u.mirror = True
+
+
+def _chord_worth(c: Candidate, params: GenParams) -> float:
+    total = float(np.sum(c.bands)) + 1e-9
+    spread = int(np.sum(c.bands / total > 0.22))
+    w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
+    return 0.0 if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat else w
+
+
+def layout(
+    cands: list[Candidate],
+    sections: list[dict[str, Any]],
+    params: GenParams,
+    tempo: TempoMap,
+    density_scale: float,
+    special_kind: str | None,
+    key_count: int,
+    chord_scale: float = 1.0,
+    loud: Any = None,
+) -> Layout:
+    """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
+    detection missed a repeat); None trusts the consensus alone."""
+    """Slots chosen per material class (module docstring, steps 1–4)."""
+    if not cands:
+        return Layout([], [], [], [], [])
+    bpb = tempo.beats_per_bar
+    units = make_units(sections, cands[0].beat, cands[-1].beat, bpb)
+    per_unit = _unit_cands(units, cands)
+    n_classes = classify(units, per_unit, cands)
+    _mark_variation(units, params)
+    follow = follow_weights(sections, params)
+    members: list[list[int]] = [[] for _ in range(n_classes)]
+    for u in units:
+        members[u.cls].append(u.index)
+
+    def score(ci: int, u: Unit) -> float:
+        c = cands[ci]
+        w = follow.get(u.group)
+        if w is not None and c.sources is not None and not c.downbeat:
+            return c.score * float(np.dot(c.sources, w))
+        return c.score
+
+    # budget: the preset's note count spread over the units by their blueprint density
+    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
+    target_slots = params.avg_nps * params.density * density_scale * active_seconds(cands) / expected_chord_notes
+    dens = sectioned_config()["density"]
+    weight = []
+    for u in units:
+        if not per_unit[u.index]:
+            weight.append(0.0)
+            continue
+        bp = blueprint(u.label)
+        weight.append(u.length * bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy))
+    total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
+    per_unit_n = [target_slots * w / total_w for w in weight]
+
+    end_ms = cands[-1].t + 1000.0
+    buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
+    window = int(round(1000.0 / BUCKET_MS))
+    peak_cap = params.peak_nps / expected_chord_notes
+
+    def window_ok(times: list[float]) -> bool:
+        for t in times:
+            b = int(max(0.0, t) / BUCKET_MS)
+            for start in range(max(0, b - window + 1), b + 1):
+                if buckets[start : start + window].sum() + 1 > peak_cap:
+                    return False
+        return True
+
+    def take(times: list[float]) -> None:
+        for t in times:
+            buckets[int(max(0.0, t) / BUCKET_MS)] += 1
+
+    sub_counts: dict[int, int] = {}
+    picked_total = 0
+
+    def partial_ok(sub: int, n: int) -> bool:
+        limit = params.partial.get(sub)
+        if limit is None:
+            return True
+        return sub_counts.get(sub, 0) + n <= max(1.0, limit * max(picked_total, target_slots * 0.5))
+
+    chosen: dict[int, list[int]] = {}  # class -> picked offset keys
+    unit_extra: dict[int, list[int]] = {}  # unit -> extra offset keys
+    carry = 0.0
+    for cls in range(n_classes):
+        ms = members[cls]
+        base = float(np.mean([per_unit_n[m] for m in ms])) + carry
+        want = int(math.floor(base + 0.5))
+        carry = base - want
+        consensus: dict[int, float] = {}
+        for m in ms:
+            for k, ci in per_unit[m].items():
+                consensus[k] = consensus.get(k, 0.0) + score(ci, units[m]) / len(ms)
+        presence = {k: sum(1 for m in ms if k in per_unit[m]) / len(ms) for k in consensus}
+        order = sorted((k for k in consensus if presence[k] >= 0.5 or len(ms) == 1), key=lambda k: (-consensus[k], k))
+        picks: list[int] = []
+        for k in order:
+            if len(picks) >= want:
+                break
+            times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
+            sub = cands[next(per_unit[m][k] for m in ms if k in per_unit[m])].subdivision
+            if partial_ok(sub, len(times)) and window_ok(times):
+                picks.append(k)
+                take(times)
+                sub_counts[sub] = sub_counts.get(sub, 0) + len(times)
+                picked_total += len(times)
+        # floor: a bar of the loop with sound keeps at least one note
+        if want >= 2:
+            bar_keys = {}
+            for k in order:
+                bar_keys.setdefault(k // (GRID * bpb), []).append(k)
+            for bar, keys in sorted(bar_keys.items()):
+                if any(k // (GRID * bpb) == bar for k in picks):
+                    continue
+                k = keys[0]
+                times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
+                if window_ok(times):
+                    picks.append(k)
+                    take(times)
+                    picked_total += len(times)
+        chosen[cls] = sorted(picks)
+        # units that play more than their class (ramps, the last chorus)
+        for m in ms:
+            u = units[m]
+            if u.extra <= 0:
+                continue
+            n_more = int(round(per_unit_n[m] * (1 + u.extra))) - len(picks)
+            pool = sorted((k for k in per_unit[m] if k not in picks), key=lambda k: (-score(per_unit[m][k], u), k))
+            extra: list[int] = []
+            for k in pool:
+                if len(extra) >= n_more:
+                    break
+                t = cands[per_unit[m][k]].t
+                if window_ok([t]):
+                    extra.append(k)
+                    take([t])
+                    picked_total += 1
+            unit_extra[m] = extra
+
+    # slots, unit by unit
+    slots: list[Slot] = []
+    slot_cand: list[int] = []
+    slot_unit: list[int] = []
+    slot_key: list[int] = []
+    unit_slots: list[list[int]] = []
+    fill_share = float(sectioned_config()["fillShare"])
+    # only clear sounds are filled in: a faint detection the other repeats share may be an artefact
+    fill_floor = float(sectioned_config()["fillStrength"]) * float(np.median([c.strength for c in cands]))
+    for u in units:
+        keys = sorted(set(chosen[u.cls]) | set(unit_extra.get(u.index, [])))
+        idx = []
+        ms = members[u.cls]
+        for k in keys:
+            ci = per_unit[u.index].get(k)
+            beat = None
+            if ci is None:
+                # Detection missed a sound most repeats of this loop have (the class is the same
+                # music: its units' sounds match): the note goes here too, taking the sound of the
+                # nearest repeat that has it, unless the song is silent here.
+                have = [m for m in ms if k in per_unit[m]]
+                if len(ms) < 3 or len(have) < fill_share * len(ms) or k in unit_extra.get(u.index, []):
+                    continue
+                if float(np.mean([cands[per_unit[m][k]].strength for m in have])) < fill_floor:
+                    continue
+                beat = u.start + k / GRID
+                if beat >= u.start + u.length - 1e-9 or (loud is not None and not loud(tempo.beat_to_ms(beat))):
+                    continue
+                ci = per_unit[min(have, key=lambda m: abs(m - u.index))][k]
+            c = cands[ci]
+            beat = c.beat if beat is None else beat
+            idx.append(len(slots))
+            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources))
+            slot_cand.append(ci)
+            slot_unit.append(u.index)
+            slot_key.append(k)
+        unit_slots.append(idx)
+
+    # class positions: (class, key) -> slots realizing it; the first one is the reference
+    positions: dict[tuple[int, int], list[int]] = {}
+    for i in range(len(slots)):
+        u = units[slot_unit[i]]
+        if slot_key[i] in chosen[u.cls]:
+            positions.setdefault((u.cls, slot_key[i]), []).append(i)
+    ref: list[int | None] = [None] * len(slots)
+    for idxs in positions.values():
+        for i in idxs[1:]:
+            ref[i] = idxs[0]
+    _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
+
+    _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale)
+    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params)
+    if special_kind == "scratch":
+        _assign_special(slots, slot_cand, positions, cands, params, "scratch")
+    elif special_kind == "side":
+        _assign_special(slots, slot_cand, positions, cands, params, "side")
+    _accents(slots, units, unit_slots, params, key_count)
+
+    phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
+    return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys)
+
+
+def _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb) -> None:
+    """The first unit of a class may still repeat bars of an earlier loop of its group (a verse
+    whose second loop only ends with a fill): a bar that matches the same bar of an earlier unit
+    copies that bar's lanes wherever both have a note."""
+    threshold = float(sectioned_config()["classSimilarity"])
+    bar_len = GRID * bpb
+    for u in units:
+        if members[u.cls][0] != u.index or not unit_slots[u.index]:
+            continue
+        earlier = [v for v in units[: u.index] if v.group == u.group and abs(v.length - u.length) < 1e-6 and unit_slots[v.index]]
+        if not earlier:
+            continue
+        n_bars = int(round(u.length / bpb))
+        for j in range(n_bars):
+            lo, hi = j * bar_len, (j + 1) * bar_len
+            mine = {k: c for k, c in per_unit[u.index].items() if lo <= k < hi}
+            if not mine:
+                continue
+            best, best_sim = None, threshold
+            for v in reversed(earlier):
+                theirs = {k: c for k, c in per_unit[v.index].items() if lo <= k < hi}
+                sim = _similarity(mine, theirs, cands) if theirs else 0.0
+                if sim > best_sim:
+                    best, best_sim = v, sim
+            if best is None:
+                continue
+            at = {slot_key[i]: i for i in unit_slots[best.index]}
+            for i in unit_slots[u.index]:
+                if lo <= slot_key[i] < hi and ref[i] is None and slot_key[i] in at:
+                    ref[i] = at[slot_key[i]]
+
+
+def _realized(positions: dict[tuple[int, int], list[int]], extra_slots: list[int]) -> list[tuple[Any, list[int]]]:
+    """Decision units: class positions (all their slots at once) and the slots outside any."""
+    out: list[tuple[Any, list[int]]] = list(positions.items())
+    out += [(("x", i), [i]) for i in extra_slots]
+    return out
+
+
+def _outside(slots: list[Slot], positions: dict[tuple[int, int], list[int]]) -> list[int]:
+    inside = {i for idxs in positions.values() for i in idxs}
+    return [i for i in range(len(slots)) if i not in inside]
+
+
+def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float) -> None:
+    max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
+    if max_chord < 2 or not slots:
+        return
+    ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
+    target = ratio * len(slots)
+    if target < 0.5:
+        return
+    options = []
+    for key, idxs in _realized(positions, _outside(slots, positions)):
+        mult = blueprint(units[slot_unit[idxs[0]]].label)["chord"]
+        worth = float(np.mean([_chord_worth(cands[slot_cand[i]], params) for i in idxs])) * mult
+        if worth > 0:
+            options.append((worth, key, idxs))
+    options.sort(key=lambda o: (-o[0], str(o[1])))
+    placed = 0
+    picked = []
+    for worth, key, idxs in options:
+        if placed >= target - 0.5 * len(idxs):
+            break
+        picked.append(idxs)
+        placed += len(idxs)
+    extra = max_chord - 2
+    for rank, idxs in enumerate(picked):
+        top = rank / max(1, len(picked))
+        size = 2 + (int(round(extra * (1.0 - top) ** params.chord_size_power)) if extra > 0 else 0)
+        for i in idxs:
+            slots[i].size = max(2, min(max_chord, size))
+
+
+def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams) -> None:
+    if params.long_note_ratio <= 0 or not slots:
+        return
+    step = 0.5 if params.skill < HALF_BEAT_HOLDS_BELOW else 0.25
+    target = params.long_note_ratio * len(slots)
+    options = []
+    for key, idxs in _realized(positions, _outside(slots, positions)):
+        sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
+        if min(sustains) < params.min_ln_beats:
+            continue
+        mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
+        value = float(np.mean([cands[slot_cand[i]].sustain_beats * (0.5 + cands[slot_cand[i]].harmonic) * (1.2 if cands[slot_cand[i]].pitch is not None else 1.0) for i in idxs])) * mult
+        options.append((value, key, idxs, min(sustains)))
+    options.sort(key=lambda o: (-o[0], str(o[1])))
+    placed = 0
+    for value, key, idxs, sustain in options:
+        if placed >= target - 0.5 * len(idxs):
+            break
+        length = min(MAX_LN_BEATS, math.floor(sustain / step) * step)
+        if length < params.min_ln_beats:
+            continue
+        for i in idxs:
+            slots[i].hold_end_beat = slots[i].beat + float(length)
+        placed += len(idxs)
+
+
+def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind: str) -> None:
+    """Scratch or side notes per class position, spaced in every unit that plays it."""
+    rate = params.scratch_rate if kind == "scratch" else params.side_rate
+    n = rate * len(slots)
+    if n < 0.5:
+        return
+    gap = max(params.min_jack_ms, 250.0 if kind == "scratch" else 450.0)
+    taken: list[float] = []
+    decisions = _realized(positions, _outside(slots, positions))
+
+    def spaced(idxs: list[int]) -> bool:
+        return all(slots[i].special is None and all(abs(slots[i].t - t) >= gap for t in taken) for i in idxs)
+
+    placed = 0
+    if kind == "side":
+        min_hold = max(1.0, params.min_ln_beats)
+        holds = []
+        for key, idxs in decisions:
+            cs = [cands[slot_cand[i]] for i in idxs]
+            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs):
+                holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, min(c.sustain_beats for c in cs)))
+        holds.sort(key=lambda o: (-o[0], str(o[1])))
+        want_holds = n * params.side_hold_share
+        for value, key, idxs, sustain in holds:
+            if placed >= want_holds - 0.5 * len(idxs):
+                break
+            if not spaced(idxs):
+                continue
+            for i in idxs:
+                slots[i].special = "side"
+                slots[i].special_hold = True
+                slots[i].hold_end_beat = slots[i].beat + float(min(MAX_LN_BEATS, math.floor(sustain * 2) / 2))
+                taken.append(slots[i].t)
+            placed += len(idxs)
+        if params.side_hold_share >= 1.0:
+            return
+    impacts = []
+    for key, idxs in decisions:
+        cs = [cands[slot_cand[i]] for i in idxs]
+        if kind == "scratch":
+            def imp(c: Candidate, s: Slot) -> float:
+                total = float(np.sum(s.bands)) + 1e-9
+                return s.strength * (0.5 + s.bands[0] / total + s.bands[2] / total) * (1.3 if s.subdivision == 1 else 1.0)
+        else:
+            def imp(c: Candidate, s: Slot) -> float:
+                return s.strength * (1.3 if s.subdivision == 1 else 0.8) * (0.7 + 0.6 * c.intensity)
+        impacts.append((float(np.mean([imp(c, slots[i]) for c, i in zip(cs, idxs)])), key, idxs))
+    impacts.sort(key=lambda o: (-o[0], str(o[1])))
+    for value, key, idxs in impacts:
+        if placed >= n - 0.5 * len(idxs):
+            break
+        if not spaced(idxs):
+            continue
+        for i in idxs:
+            slots[i].special = kind
+            if kind == "scratch" and slots[i].size == 1 and slots[i].hold_end_beat is not None:
+                slots[i].hold_end_beat = None  # keep scratch notes short
+            taken.append(slots[i].t)
+        placed += len(idxs)
+
+
+def _accents(slots: list[Slot], units: list[Unit], unit_slots: list[list[int]], params: GenParams, key_count: int) -> None:
+    """A section that starts something new opens with a chord on its downbeat."""
+    cfg = sectioned_config()["accent"]
+    if params.max_chord < 2 or params.skill < float(cfg["minSkill"]) or key_count < 4:
+        return
+    for u, idxs in zip(units, unit_slots):
+        if not u.accent or not idxs:
+            continue
+        first = slots[idxs[0]]
+        if abs(first.beat - u.start) < 1e-6 and first.size == 1 and first.special is None:
+            first.size = 2
+
+
+def _phrases(slots: list[Slot], units: list[Unit], unit_slots: list[list[int]], slot_key: list[int], bpb: int) -> tuple[list[list[int]], list[tuple[int, int]]]:
+    """Planner phrases: one per unit (cut at bar lines when longer than a phrase may be), keyed by
+    material class and part so every repeat of a loop plays the same pattern."""
+    max_notes = int(load_config("patterns")["phrase"]["maxNotes"])
+    phrases: list[list[int]] = []
+    keys: list[tuple[int, int]] = []
+    for u, idxs in zip(units, unit_slots):
+        if not idxs:
+            continue
+        parts = [idxs]
+        if len(idxs) > max_notes and u.length > bpb:
+            by_bar: dict[int, list[int]] = {}
+            for i in idxs:
+                by_bar.setdefault(int((slots[i].beat - u.start) // bpb), []).append(i)
+            parts = [by_bar[b] for b in sorted(by_bar)]
+        for part, p in enumerate(parts):
+            phrases.append(p)
+            keys.append((u.cls, part))
+    return phrases, keys
+
+
+def place(
+    lay: Layout,
+    lanes: list[LaneInfo],
+    params: GenParams,
+    tempo: TempoMap,
+    rng: np.random.Generator,
+    plan: list[SlotPlan] | None,
+) -> tuple[list[Choice], float | None]:
+    """Lanes unit by unit (module docstring, step 5); returns the choices and the share of copied
+    slots that kept their reference's lanes."""
+    force = float(sectioned_config()["force"]) * params.repeat_consistency
+    keys = [l.index for l in lanes if l.kind == "key"]
+    mirror_of = {lane: keys[len(keys) - 1 - n] for n, lane in enumerate(keys)}
+    pitch = _pitch_targets(lay.slots)
+    cache: dict[str, Any] = {}
+    chosen: list[tuple[int, ...] | None] = [None] * len(lay.slots)
+    out: list[Choice] = []
+    state = None
+    kept = total = 0
+    for u, idxs in zip(lay.units, lay.unit_slots):
+        if not idxs:
+            continue
+        targets: list[tuple[int, ...] | None] | None = None
+        if force > 0:
+            targets = []
+            for i in idxs:
+                r = lay.ref[i]
+                t = chosen[r] if r is not None else None
+                if t and lay.units[lay.slot_unit[r]].mirror != u.mirror:
+                    t = tuple(sorted(mirror_of[l] for l in t))
+                targets.append(t or None)
+        sub_plan = [plan[i] for i in idxs] if plan else None
+        choices, state = search(
+            [lay.slots[i] for i in idxs], lanes, params, tempo, rng, targets, sub_plan,
+            start=state, pitch_targets=[pitch[i] for i in idxs], repeat_weight=force if targets else None, cache=cache,
+        )
+        for li, used, ln in choices:
+            gi = idxs[li]
+            chosen[gi] = tuple(sorted(l for l in used if lanes[l].kind == "key"))
+            out.append((gi, used, ln))
+            if targets and targets[li] is not None:
+                total += 1
+                kept += chosen[gi] == targets[li]
+    return out, (kept / total if total else None)

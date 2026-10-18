@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 from dataclasses import dataclass
 from typing import Any
@@ -29,6 +30,9 @@ W_NOISE = 0.35
 W_DROP = 6.0
 USAGE_DECAY = 0.9
 TIME_EPS = 1e-3
+# from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
+# (the weight would pick it anyway; skipping the rest keeps copied sections cheap)
+EXACT_COPY_WEIGHT = 20.0
 # Chord notes over several instruments, left to right when the rhythm side is on the left (low
 # instruments first), and the instruments a long note prefers (the ones that sustain).
 STEM_POSITION = {"bass": 0, "drums": 1, "other": 2, "vocals": 3}
@@ -150,14 +154,49 @@ def lane_search(
     rng: np.random.Generator,
     targets_by_slot: list[tuple[int, ...] | None] | None = None,
     plan: list[SlotPlan] | None = None,
+    *,
+    start: "_State | None" = None,
+    pitch_targets: list[float | None] | None = None,
+    repeat_weight: float | None = None,
+    cache: dict[str, Any] | None = None,
 ) -> list[Choice]:
     """Beam search over lane choices; returns the best path's (slot, lanes, long-note lane).
-    With a pattern `plan` (planner.py) every slot also pays for leaving its pattern's shape."""
+    With a pattern `plan` (planner.py) every slot also pays for leaving its pattern's shape.
+
+    For placing a chart piece by piece (the sectioned engine): `start` continues from the state a
+    previous call ended in (`search_state`), `pitch_targets` are the pitch ranks taken over the
+    whole chart, `repeat_weight` replaces the bonus for `targets_by_slot` (a large one copies the
+    targets wherever the hard rules allow), and `cache` keeps the per-chart setup between calls."""
+    choices, _ = search(slots, lanes, params, tempo, rng, targets_by_slot, plan, start=start, pitch_targets=pitch_targets, repeat_weight=repeat_weight, cache=cache)
+    return choices
+
+
+def search(
+    slots: list[Slot],
+    lanes: list[LaneInfo],
+    params: GenParams,
+    tempo: TempoMap,
+    rng: np.random.Generator,
+    targets_by_slot: list[tuple[int, ...] | None] | None = None,
+    plan: list[SlotPlan] | None = None,
+    *,
+    start: "_State | None" = None,
+    pitch_targets: list[float | None] | None = None,
+    repeat_weight: float | None = None,
+    cache: dict[str, Any] | None = None,
+) -> tuple[list[Choice], "_State"]:
+    """`lane_search` that also returns the state the best path ends in."""
     n_lanes = len(lanes)
     key_lanes = [l.index for l in lanes if l.kind == "key"]
     special_lanes = [l.index for l in lanes if l.kind in ("scratch", "side")]
-    targets = _pitch_targets(slots)
-    weights = _Weights.of(params)
+    targets = pitch_targets if pitch_targets is not None else _pitch_targets(slots)
+    shared = cache if cache is not None else {}
+    if "weights" not in shared:
+        shared["weights"] = _Weights.of(params)
+    weights = shared["weights"]
+    if repeat_weight is not None:
+        weights = dataclasses.replace(weights, repeat=repeat_weight)
+    exact = repeat_weight is not None and repeat_weight >= EXACT_COPY_WEIGHT
     repeat_targets = targets_by_slot or [None] * len(slots)
     pos = [l.pos for l in lanes]
     hands = [l.hand for l in lanes]
@@ -170,14 +209,22 @@ def lane_search(
         [j for j in range(n_lanes) if lanes[j].hand == l.hand and {l.kind, lanes[j].kind} == {"key", "side"}]
         for l in lanes
     ]
-    ctx: MotifContext | None = motif_context(lanes, params.skill, params.instrument_mapping, params.system) if plan else None
-    combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = {}
-    shape_cache: dict[tuple[bool, tuple[int, ...]], float] = {}
-    keys_cache: dict[tuple[int, ...], tuple[int, ...]] = {}
-    mean_cache: dict[tuple[int, ...], float] = {}
-    per_key_cache: dict[tuple[Any, ...], list[float]] = {}
+    ctx: MotifContext | None = None
+    if plan:
+        if "ctx" not in shared:
+            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system)
+        ctx = shared["ctx"]
+    combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = shared.setdefault("combo", {})
+    shape_cache: dict[tuple[bool, tuple[int, ...]], float] = shared.setdefault("shape", {})
+    keys_cache: dict[tuple[int, ...], tuple[int, ...]] = shared.setdefault("keys", {})
+    mean_cache: dict[tuple[int, ...], float] = shared.setdefault("mean", {})
+    per_key_cache: dict[tuple[Any, ...], list[float]] = shared.setdefault("perKey", {})
     neg = -1e9
-    beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None, head=(neg,) * n_lanes)]
+    if start is not None:
+        # continue from where the previous piece ended (its path is not part of this one)
+        beam = [dataclasses.replace(start, cost=0.0, parent=None, choice=None)]
+    else:
+        beam = [_State(0.0, (neg,) * n_lanes, (neg,) * n_lanes, (0.0,) * n_lanes, (), None, neg, None, None, head=(neg,) * n_lanes)]
 
     for si, slot in enumerate(slots):
         t = slot.t
@@ -240,6 +287,11 @@ def lane_search(
                     break
             if not combos:
                 combos = [()]
+            elif exact and repeat_set is not None:
+                # a copy whose lanes are playable here takes them as they are
+                hit = [c for c in combos if len(c) == len(repeat_set) and repeat_set.issuperset(c)]
+                if hit:
+                    combos = hit
             noise = rng.random(len(combos)) * W_NOISE
             combo_keys: list[tuple[int, ...]] = []
             mcosts: list[float] = []
@@ -315,7 +367,7 @@ def lane_search(
         choices.append(node.choice)
         node = node.parent
     choices.reverse()
-    return choices
+    return choices, best
 
 
 def key_lanes_of(choices: list[Choice], n_slots: int, lanes: list[LaneInfo]) -> list[tuple[int, ...] | None]:

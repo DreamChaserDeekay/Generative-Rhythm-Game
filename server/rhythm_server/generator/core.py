@@ -11,6 +11,7 @@ import numpy as np
 from ..analysis.stems import STEM_NAMES
 from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
+from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
 from .candidates import build_candidates
 from .effects import camera_effects
@@ -19,14 +20,16 @@ from .motifs import SlotPlan
 from .linter import lint
 from .params import GenParams, resolve_params
 from .planner import plan_patterns
+from . import sections as sectioned
 from .repeat import consistency, repeat_references, repeat_targets
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.4.1"
+GENERATOR_VERSION = "0.5.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
-DENSITY_FLOOR = 0.8  # share of the preset's minimum average NPS a chart keeps at least
+DENSITY_FLOOR = 0.8
+SILENCE_LEVEL = 0.15  # energy curve value (0 = -60 dB) below which the song counts as silent  # share of the preset's minimum average NPS a chart keeps at least
 
 
 class GenerationError(RuntimeError):
@@ -94,22 +97,38 @@ def generate_chart(
     floor_nps = params.min_avg_nps * DENSITY_FLOOR
     scale = 1.0
     chord_scale = 1.0
-    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice], list[SlotPlan] | None] | None = None
+    best: tuple[tuple[int, float], list[dict[str, Any]], dict[str, Any], list[Slot], list[Choice], list[SlotPlan] | None, float | None] | None = None
     exhausted = False
     sections = analysis.get("sections", [])
+    engine = params.pattern_engine
+    prev_count = None
+    loud = _loudness_gate(analysis)
     for _ in range(int(cfg["maxAdjustIterations"])):
-        slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-        plan = plan_patterns(slots, sections, params, key_hands, tempo) if params.pattern_engine == "designer" else None
-        choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
+        kept = None
+        if engine == "sectioned":
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud)
+            slots = lay.slots
+            plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys)
+            choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan)
+        else:
+            slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
+            plan = plan_patterns(slots, sections, params, key_hands, tempo) if engine == "designer" else None
+            choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = notes_from_choices(slots, choices, tempo, lanes, plan)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         if best is None or rank < best[0]:
-            best = (rank, notes, est, slots, choices, plan)
+            best = (rank, notes, est, slots, choices, plan, kept)
         if rank[0] == 0 and rank[1] <= 0.75:
             break
         eff = max(0.3, est["effectiveNps"])
-        if eff < target_eff and len(slots) >= 0.97 * len(candidates):
+        # every usable sound is a note (the sectioned engine keeps to the sounds its loops share:
+        # it is out of sounds when a denser setting no longer adds notes)
+        out_of_sounds = len(slots) >= 0.97 * len(candidates) or (
+            engine == "sectioned" and prev_count is not None and len(slots) <= prev_count * 1.02 and scale > 1.0
+        )
+        prev_count = len(slots)
+        if eff < target_eff and out_of_sounds:
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:
@@ -128,9 +147,8 @@ def generate_chart(
         scale = new_scale
 
     assert best is not None
-    _, notes, est, slots, choices, plan = best
-    repeat_score = None
-    if params.repeat_consistency > 0:
+    _, notes, est, slots, choices, plan, repeat_score = best
+    if engine != "sectioned" and params.repeat_consistency > 0:
         consistent = _repeat_consistent(slots, choices, sections, lanes, params, tempo, seed, plan)
         if consistent is not None:
             notes, repeat_score = consistent
@@ -144,9 +162,9 @@ def generate_chart(
     chart_id = chart_id_for(analysis, key_mode, params, seed)
     beat0_ms = float(analysis["timing"]["offsetMs"])
     sections = [
-        {"startBeat": s["startBeat"], "label": s["label"], "energy": s["energy"]}
+        {k: s[k] for k in ("startBeat", "endBeat", "label", "group", "energy", "loopBars", "confidence") if s.get(k) is not None}
         for s in analysis.get("sections", [])
-        if s["t"] >= beat0_ms - 1
+        if s.get("endT", s["t"] + 1) > beat0_ms - 1
     ]
     return {
         "formatVersion": 1,
@@ -173,6 +191,7 @@ def generate_chart(
             "patterns": pattern_summary(notes, key_mode),
             "keysound": keysound_meta(notes),
             "repeatConsistency": None if repeat_score is None else round(repeat_score, 3),
+            "consistency": chart_consistency(notes, analysis.get("sections", []), key_mode, tempo.beats_per_bar),
             "generator": {
                 "version": GENERATOR_VERSION,
                 "analyzer": f"{analysis['analyzer']['name']}-{analysis['analyzer']['version']}",
@@ -185,6 +204,15 @@ def generate_chart(
         "effects": camera_effects(analysis.get("sections", []), tempo),
         "notes": notes,
     }
+
+
+def _loudness_gate(analysis: dict[str, Any]) -> Any:
+    """Whether the song is audible at a time (above SILENCE_LEVEL of the 0..1 energy curve)."""
+    values = analysis.get("energy", {}).get("values") or []
+    frame = float(analysis.get("energy", {}).get("frameMs", 100)) or 100.0
+    if not values:
+        return None
+    return lambda t: values[min(len(values) - 1, max(0, int(t / frame)))] >= SILENCE_LEVEL
 
 
 def _repeat_consistent(

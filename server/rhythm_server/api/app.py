@@ -10,7 +10,7 @@ import threading
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -30,6 +30,7 @@ from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
 from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, safe_relpath
 from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
+from ..generator.sections import edited_analysis
 from ..generator.core import keysound_meta
 from ..generator.params import resolve_params
 from ..synth import make_song
@@ -68,6 +69,15 @@ class CustomChartRequest(BaseModel):
 NOTE_FIELDS = ("t", "lane", "type", "endT", "src", "snd", "so", "sl")
 
 
+class SectionEdit(BaseModel):
+    """One section of a user's section edit: where it starts (beats from the first downbeat, on a
+    bar line), what it is and which repetition group it belongs to."""
+
+    startBeat: float = Field(ge=-64, le=100_000)
+    label: Literal["intro", "verse", "pre-chorus", "chorus", "bridge", "drop", "outro"]
+    group: str = Field(pattern=r"^[A-Z]$")
+
+
 class SongPatch(BaseModel):
     title: str | None = None
     artist: str | None = None
@@ -77,6 +87,8 @@ class SongPatch(BaseModel):
     bgaOffsetMs: float | None = Field(default=None, ge=-60000, le=60000)
     # a YouTube link (or video ID) as the background video; "" removes it
     bgaYoutube: str | None = Field(default=None, max_length=500)
+    # the song's sections as the user sees them; [] goes back to the analysed ones
+    sections: list[SectionEdit] | None = Field(default=None, max_length=128)
 
 
 YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -319,6 +331,11 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             fields["artist"] = patch.artist.strip()
         if patch.bgaOffsetMs is not None:
             fields["bga_offset_ms"] = patch.bgaOffsetMs
+        if patch.sections is not None:
+            starts = [e.startBeat for e in patch.sections]
+            if len(set(starts)) != len(starts):
+                raise HTTPException(400, "같은 위치에서 시작하는 구간이 둘 있습니다")
+            fields["sections"] = [e.model_dump() for e in sorted(patch.sections, key=lambda e: e.startBeat)] or None
         overrides = dict(song["overrides"])
         if patch.clearBpm:
             overrides.pop("bpm", None)
@@ -329,6 +346,7 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         reanalyze = overrides != song["overrides"]
         if reanalyze:
             fields["overrides"] = overrides
+            fields["sections"] = None  # a new beat grid: edited sections no longer line up
         song = library.update_song(song_id, **fields)
         if reanalyze:
             queue.submit(song_id)
@@ -364,6 +382,23 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
         return analysis
 
+    @app.get("/api/songs/{song_id}/sections")
+    def song_sections(song_id: str) -> dict[str, Any]:
+        """The sections charts are made from (the user's edits, else the analysed ones)."""
+        song = song_or_404(song_id)
+        analysis = library.load_analysis(song_id)
+        if analysis is None:
+            raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
+        keys = ("startBeat", "endBeat", "label", "group", "energy", "loopBars", "confidence")
+        analysed = [{k: r[k] for k in keys if k in r} for r in analysis.get("sections", [])]
+        used = edited_analysis(analysis, song["sections"])["sections"] if song.get("sections") else analysed
+        return {
+            "sections": [{k: r[k] for k in keys if k in r} for r in used],
+            "analysed": analysed,
+            "edited": bool(song.get("sections")),
+            "beatsPerBar": int(analysis["timing"]["meter"][0]["beatsPerMeasure"]),
+        }
+
     @app.post("/api/songs/{song_id}/charts")
     async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
         song = song_or_404(song_id)
@@ -372,6 +407,8 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         analysis = library.load_analysis(song_id)
         if analysis is None:
             raise HTTPException(409, "분석 결과가 없습니다")
+        if song.get("sections"):
+            analysis = edited_analysis(analysis, song["sections"])
         try:
             params = resolve_params(req.keyMode, req.difficulty, req.targetLevel, req.params, req.system)
         except (ValueError, StopIteration) as e:

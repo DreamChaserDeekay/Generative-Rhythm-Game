@@ -9,7 +9,7 @@ from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_m
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
-PATTERN_ENGINES = ("designer", "classic")
+PATTERN_ENGINES = ("sectioned", "designer", "classic")
 SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds (default)
 
 
@@ -56,8 +56,9 @@ class GenParams:
     skill: float = 0.5
     # chords a pad cannot press (sets of lane indices), for the DJMAX tiers below SC
     pad_forbidden: tuple[tuple[int, ...], ...] = ()
-    # "designer" plans patterns per phrase (planner.py); "classic" places notes one by one
-    pattern_engine: str = "designer"
+    # "sectioned" builds the chart from the song structure down (sections.py), "designer" plans
+    # patterns per phrase (planner.py), "classic" places notes one by one
+    pattern_engine: str = "sectioned"
     # shortest repeat on a shared middle key (either thumb can hit it); 0 = min_jack_ms
     thumb_jack_ms: float = 0.0
     # how fast chord sizes fall off from two notes (smaller = more three- and four-note chords)
@@ -67,7 +68,7 @@ class GenParams:
     def public(self) -> dict[str, Any]:
         """The user-facing subset stored in chart meta (and hashed into the chart id)."""
         system = {} if self.system == DEFAULT_SYSTEM else {"system": self.system}
-        engine = {} if self.pattern_engine == "designer" else {"patternEngine": self.pattern_engine}
+        engine = {} if self.pattern_engine == "sectioned" else {"patternEngine": self.pattern_engine}
         return {
             **system,
             **engine,
@@ -234,13 +235,13 @@ def resolve_params(
             params.repeat_consistency = max(0.0, min(1.0, float(value)))
         elif key == "patternEngine" and value in PATTERN_ENGINES:
             params.pattern_engine = value
-    if params.pattern_engine == "designer":
+    if params.pattern_engine != "classic":
         for idiom in load_config("patterns")["idioms"]:
             if "chordSizePower" in idiom and idiom.get("keyMode") == key_mode and idiom.get("system", params.system) == params.system:
                 params.chord_size_power = float(idiom["chordSizePower"])
     laser = load_config("patterns")["motifs"]["laser"]
     if (
-        params.pattern_engine == "designer"
+        params.pattern_engine != "classic"
         and params.key_mode in laser.get("keyModes", [])
         and params.system in laser.get("systems", [])
         and params.skill >= float(laser["minSkill"])
