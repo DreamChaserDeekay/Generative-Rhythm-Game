@@ -9,7 +9,7 @@ import numpy as np
 from scipy.ndimage import uniform_filter1d
 
 from ..analysis.stems import STEM_NAMES
-from ..config import load_config
+from ..config import difficulty_config, load_config
 from .params import GenParams
 from .tempo import TempoMap
 
@@ -34,6 +34,8 @@ class Candidate:
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other) when analysed
     leader: int | None = None  # leading stem of the section this candidate is in
     score: float = 0.0
+    melody: float | None = None  # how clearly it starts a note of the main melody (0..1)
+    roll: tuple[int, int] | None = None  # (roll id, hit index) when it is a hit of a drum roll (rolls.py)
 
 
 def _subdivision_of(beat: float) -> int:
@@ -78,6 +80,18 @@ def intensity_curve(analysis: dict[str, Any], tempo: TempoMap, n_beats: int) -> 
     return 0.5 * norm(loud) + 0.5 * norm(activity)
 
 
+def melody_of(onset: dict[str, Any], cfg: dict[str, Any]) -> float | None:
+    """Melody presence of an analysed onset; analyses before it was stored (analyzer 1.3.0) give
+    it from the vocals share, which says the same less clearly."""
+    if onset.get("melody") is not None:
+        return float(onset["melody"])
+    if not onset.get("sources"):
+        return None
+    share = float(onset["sources"][STEM_NAMES.index("vocals")])
+    lo, hi = cfg["shareFloor"], cfg["shareFull"]
+    return float(np.clip((share - lo) / (hi - lo), 0.0, 1.0))
+
+
 def _section_leader(sections: list[dict[str, Any]], t: float) -> int | None:
     for s in sections:
         if s["t"] <= t < s["endT"] and s.get("leader") in STEM_NAMES:
@@ -91,6 +105,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
     intensity = intensity_curve(analysis, tempo, n_beats)
     bpb = tempo.beats_per_bar
     sections = analysis.get("sections", [])
+    melody_cfg = load_config("instruments")["rhythmSource"]["melody"]
     merged: dict[float, Candidate] = {}
     for o in analysis["onsets"]:
         snapped = snap(o["t"], tempo, params.subdivisions, tolerance_ms)
@@ -105,6 +120,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
         if o.get("sustainEnd"):
             sustain_beats = max(0.0, tempo.ms_to_beat(o["sustainEnd"]) - q)
         sources = np.asarray(o["sources"], dtype=np.float64) if o.get("sources") else None
+        melody = melody_of(o, melody_cfg)
         c = merged.get(key)
         if c is None:
             b_idx = int(np.clip(np.floor(q), 0, n_beats - 1))
@@ -121,6 +137,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
                 downbeat=sub == 1 and int(round(q)) % bpb == 0,
                 sources=sources,
                 leader=_section_leader(sections, o["t"]),
+                melody=melody,
             )
         else:
             stronger = o["strength"] > c.strength
@@ -135,24 +152,55 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
                 c.pitch = o["pitch"]
             c.harmonic = max(c.harmonic, float(o.get("harmonic", 0.0)))
             c.sustain_beats = max(c.sustain_beats, sustain_beats)
+            if melody is not None:
+                c.melody = max(c.melody or 0.0, melody)
     cands = sorted(merged.values(), key=lambda c: c.beat)
+    _end_melody_notes(cands, float(melody_cfg["note"]))
     _score(cands, params)
     return cands
 
 
+def _end_melody_notes(cands: list[Candidate], presence: float) -> None:
+    """A melody note sounds until the melody's next note at the latest (one voice): its sustain
+    stops there, so a long note over it ends where the next note of the tune starts, not where a
+    pad or a bass under it fades."""
+    nxt: float | None = None
+    for c in reversed(cands):
+        if (c.melody or 0.0) >= presence:
+            if nxt is not None:
+                c.sustain_beats = min(c.sustain_beats, nxt - c.beat)
+            nxt = c.beat
+
+
 def _stem_source_weight(c: Candidate, params: GenParams, cfg: dict[str, Any]) -> float | None:
-    """Rhythm-source weight from stem shares; None when the analysis has no stems."""
+    """Rhythm-source weight from stem shares; None when the analysis has no stems. The melody and
+    vocal sources go by the melody presence: the stem shares of a drum hit spread over every stem,
+    so they hardly tell a sung note from a hi-hat."""
     if c.sources is None:
         return None
+    melody = c.melody or 0.0
     if params.rhythm_source == "auto":
         auto = 1.0 if c.leader is None else cfg["autoBase"] + cfg["autoGain"] * float(c.sources[c.leader])
         if params.source_mix:
             # the tier's instruments: a NORMAL chart follows the melody, MAXIMUM every instrument
-            auto *= sum(float(c.sources[i]) * params.source_mix.get(name, 1.0) for i, name in enumerate(STEM_NAMES))
-        return auto
+            mix = sum(float(c.sources[i]) * params.source_mix.get(name, 1.0) for i, name in enumerate(STEM_NAMES))
+            lead = max(params.source_mix.get("vocals", 1.0), params.source_mix.get("other", 1.0))
+            auto *= melody * lead + (1.0 - melody) * mix
+        # easy charts lean on the melody, the hardest follow every instrument as they are
+        return auto * (1.0 + float(cfg["melody"]["auto"]) * (1.0 - params.skill) * melody)
+    if params.rhythm_source in ("melody", "vocal"):
+        m = cfg["melody"]
+        return float(m["base"]) + float(m["gain"]) * melody
     mix = cfg["sources"].get(params.rhythm_source, {})
     share = sum(float(c.sources[STEM_NAMES.index(name)]) * w for name, w in mix.items())
     return cfg["base"] + cfg["gain"] * min(1.0, share)
+
+
+def metrical_power(params: GenParams) -> float:
+    """Exponent on the metrical weights: easy charts keep to the beat, harder ones follow the
+    song's own rhythm, off-beats and syncopation included (config "metrical" in difficulty.json)."""
+    points = sorted((float(a), float(b)) for a, b in difficulty_config()["metrical"]["power"])
+    return float(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]))
 
 
 def _score(cands: list[Candidate], params: GenParams) -> None:
@@ -162,8 +210,14 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
     downbeat = params.weight("downbeatBoost")
     harmonic = params.weight("harmonicBoost", 0.0)
     source_cfg = load_config("instruments")["rhythmSource"]
+    melody_cfg = source_cfg["melody"]
+    power = metrical_power(params)
+    follows_melody = params.rhythm_source in ("auto", "melody", "vocal")
     for c in cands:
-        metrical = DOWNBEAT_WEIGHT * downbeat if c.downbeat else METRICAL_WEIGHT.get(c.subdivision, 0.3)
+        melody = (c.melody or 0.0) if follows_melody else 0.0
+        # a melody chart lets its notes off the beat: syncopation is the melody's own rhythm
+        p = power * (1.0 - float(melody_cfg["offbeat"]) * melody) if params.rhythm_source in ("melody", "vocal") else power
+        metrical = DOWNBEAT_WEIGHT * downbeat if c.downbeat else METRICAL_WEIGHT.get(c.subdivision, 0.3) ** p
         metrical *= boosts.get(c.subdivision, 1.0) * (offbeat if c.subdivision > 1 else 1.0)
         total = float(np.sum(c.bands)) + 1e-9
         w_band = float(np.dot(c.bands, band_weight)) / total
@@ -178,4 +232,6 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
         elif params.rhythm_source in ("melody", "vocal"):
             source = 0.5 + 0.7 * c.harmonic + (0.3 if c.pitch is not None else 0.0)
         source *= 1.0 + harmonic * c.harmonic
-        c.score = (min(c.strength, 1.5) ** 0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source
+        # a clear melody note is heard as clearly as a typical drum hit, however soft it is in the mix
+        strength = max(min(c.strength, 1.5), melody * float(melody_cfg["salience"]))
+        c.score = (strength**0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source

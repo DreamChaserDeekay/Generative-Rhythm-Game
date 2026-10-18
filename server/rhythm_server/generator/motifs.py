@@ -41,6 +41,9 @@ class SlotPlan:
     # (the shape follows the melody's own notes; drums keep their homes)
     layer: str = "melody"
     same_layer: tuple[int, ...] | None = None
+    roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
+    roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
+    roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
@@ -61,6 +64,7 @@ class MotifContext:
     weak_trill_skill: float
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
+    fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
@@ -77,13 +81,14 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         center=next((k for k, lane in enumerate(keys) if lane.hand == "T"), None),
         skill=skill,
         weights={k: float(v) for k, v in cfg["weights"].items()},
-        pitch_weight={name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()},
+        pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
         # song-home systems (EZ2ON) keep every drum on its key whatever the level; the others less
         # so as charts get harder
         home_scale=instrument_mapping
         * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
+        fan_skill=float(cfg["rolls"]["fanSkill"]),
     )
 
 
@@ -120,10 +125,34 @@ def _step(ctx: MotifContext, sp: SlotPlan, prev: int, d: int, wrap: bool) -> int
     return back if lo <= back <= hi else prev
 
 
-def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], size: int) -> tuple[int, ...] | None:
+def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = False, mirrored: bool = False, prev: int | None = None) -> int | None:
+    """Key of a drum roll's note (좌우 연타): the hands take turns, from the middle keys outward as
+    the roll goes on (easy charts stay nearer the middle). A roll starts on the left (the right in
+    a repeat played mirrored), so a repeat of the build-up plays it the same way; after that each
+    note takes the other hand from the roll's previous note `prev` (a key), so a note a held note
+    pushed aside does not leave two in a row on one hand. A roll too fast for one key every other
+    note (`spread`: the jack spacing) turns between two keys of each hand (2-3-1-4). None on a key
+    mode without two hands of keys."""
+    pos, hits, _ = roll
+    left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]  # inner key first
+    right = [k for k, h in enumerate(ctx.hand) if h == "R"]
+    levels = min(len(left), len(right))
+    if levels == 0:
+        return None
+    width = 2 if spread and levels >= 2 else 1
+    reach = 1 + int(round((levels - width) * min(1.0, ctx.skill / ctx.fan_skill)))
+    level = min(reach - 1, pos * reach // max(1, hits)) + (pos // 2) % width
+    if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
+        on_left = ctx.hand[prev] == "R"
+    else:
+        on_left = (pos % 2 == 0) != mirrored
+    return left[level] if on_left else right[level]
+
+
+def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], size: int, carry: int | None = None) -> tuple[int, ...] | None:
     """Lanes the slot's pattern asks for, or None when it leaves them to the music. Shapes follow
     the phrase's single notes (chords in between do not break a stair); chord textures follow its
-    chords."""
+    chords. `carry` is the previous phrase's last single note (a roll goes on across bar lines)."""
     if size >= 2:
         chords = [h for h in hist if len(h) >= 2]
         prev_chord = chords[-1] if chords and len(chords[-1]) == size else None
@@ -151,6 +180,9 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
     m = sp.motif
     if m == "laser" and ctx.center is not None:
         return (ctx.center,)
+    if m == "alternate" and sp.roll is not None:
+        key = alternate_key(ctx, sp.roll, sp.roll_spread, sp.roll_mirrored, singles[-1] if singles else carry)
+        return None if key is None else (key,)
     if not singles:
         return None
     prev = singles[-1]
@@ -330,10 +362,10 @@ def motif_costs(
             cost += ref_w * _mismatch(keys, ref)
         else:
             if size not in wants:
-                wants[size] = expected_keys(ctx, sp, list(hist), size)
+                wants[size] = expected_keys(ctx, sp, list(hist), size, carry)
             want = wants[size]
             if want is not None:
-                cost += w["motif"] * _mismatch(keys, want)
+                cost += (w["alternate"] if sp.motif == "alternate" else w["motif"]) * _mismatch(keys, want)
         if size >= 2:
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)

@@ -37,6 +37,8 @@ class SynthSong:
     # make_structured_song: the true sections (startBeat from the first downbeat, bars, label,
     # repetition group, loop length in bars)
     structure: list[dict[str, object]] = field(default_factory=list)
+    # make_groove_song: the snare rolls as (start beat, end beat, hits per beat)
+    rolls: list[tuple[float, float, int]] = field(default_factory=list)
 
     @property
     def duration(self) -> float:
@@ -520,6 +522,173 @@ def make_structured_song(
         sustains=sustains,
         sections=sections,
         structure=structure,
+    )
+
+
+# a song with a build-up: the pre-chorus is a snare roll that speeds up (rolls)
+GROOVE_FORM = (
+    ("intro", "I", 4, 2),
+    ("verse", "A", 8, 2),
+    ("pre-chorus", "B", 4, 4),
+    ("chorus", "C", 8, 2),
+    ("verse", "A", 8, 2),
+    ("pre-chorus", "B", 4, 4),
+    ("chorus", "C", 8, 2),
+    ("chorus", "C", 8, 2),
+    ("outro", "O", 4, 2),
+)
+
+
+def make_groove_song(
+    bpm: float = 128.0,
+    seed: int = 1,
+    offset: float = 0.5,
+    sample_rate: int = SAMPLE_RATE,
+    tail: float = 2.0,
+    form: tuple[tuple[str, str, int, int], ...] = GROOVE_FORM,
+    lead_gain: float = 0.16,
+    lead_attack: float = 0.03,
+) -> SynthSong:
+    """A busier song than make_structured_song, closer to a produced track: sixteenth hi-hats,
+    a syncopated kick and bass, a syncopated lead with a soft attack sitting under loud drums,
+    off-beat plucks in the chorus, and a pre-chorus whose snare speeds up from quarter notes to
+    eighths and sixteenths (`rolls`). `structure` holds the true sections as in
+    make_structured_song."""
+    rng = np.random.default_rng(seed)
+    beat_len = 60.0 / bpm
+    total_bars = sum(f[2] for f in form)
+    n = int((offset + total_bars * 4 * beat_len + tail) * sample_rate)
+    buf = np.zeros((n, 2), dtype=np.float64)
+    root = 57
+    scale = [root + 12 + d for d in PENTATONIC] + [root + 24 + d for d in PENTATONIC]
+
+    def pick(k: int) -> list[int]:
+        return [scale[int(i)] for i in rng.integers(0, len(scale) - 2, k)]
+
+    # (beat in bar, length in beats) per bar of the two-bar loops: notes on and off the beat
+    verse_rhythm = [
+        [(0.5, 0.5), (1.0, 0.25), (1.25, 0.75), (2.5, 0.5), (3.0, 0.75), (3.75, 0.25)],
+        [(0.0, 0.75), (0.75, 0.75), (1.5, 1.0), (2.75, 0.75), (3.5, 0.5)],
+    ]
+    chorus_rhythm = [
+        [(0.0, 0.5), (0.5, 0.25), (0.75, 0.75), (1.5, 0.5), (2.0, 0.25), (2.25, 0.75), (3.0, 0.5), (3.5, 0.5)],
+        [(-0.25, 0.75), (0.5, 1.0), (1.5, 0.5), (2.0, 0.5), (2.5, 0.75), (3.25, 0.75)],  # the first note anticipates the bar
+    ]
+    verse_pitch = [pick(6), pick(5)]
+    chorus_pitch = [pick(8), pick(6)]
+    kick, snare, crash = _kick(sample_rate, rng), _snare(sample_rate, rng), _crash(sample_rate, rng)
+    hat = _hihat(sample_rate, rng)
+    open_hat = _hihat(sample_rate, rng, length=0.25, tau=0.08)
+    onsets: dict[str, list[float]] = {k: [] for k in INSTRUMENT_STEM}
+    sustains: list[tuple[float, float, float]] = []
+    sections: list[tuple[float, str]] = []
+    structure: list[dict[str, object]] = []
+    rolls: list[tuple[float, float, int]] = []
+
+    def at(time: float) -> int:
+        return int(round(time * sample_rate))
+
+    def hit(name: str, sig: np.ndarray, time: float, gain: float, pan: float = 0.0) -> None:
+        _add(buf, sig, at(time), gain, pan)
+        onsets[name].append(time)
+
+    def tone(name: str, midi: float, time: float, beats: float, gain: float, pan: float = 0.0, attack: float = 0.003) -> None:
+        dur = beats * beat_len * 0.95
+        sig = _pluck(_midi_to_hz(midi), dur, sample_rate) if name == "pluck" else _tone(
+            _midi_to_hz(midi), dur, sample_rate, 6 if name == "bass" else 5, attack, 0.04, 0.25 if name == "bass" else 0.0
+        )
+        _add(buf, sig, at(time), gain, pan)
+        onsets[name].append(time)
+        if name == "lead":
+            sustains.append((time, time + dur, float(midi)))
+
+    chords = [0, -4, -7, -2]
+    bar = 0
+    for label, group, bars, loop in form:
+        sections.append((offset + bar * 4 * beat_len, label))
+        structure.append({"startBeat": bar * 4, "bars": bars, "label": label, "group": group, "loopBars": loop})
+        for k in range(bars):
+            t0 = offset + (bar + k) * 4 * beat_len
+
+            def bt(b: float) -> float:
+                return t0 + b * beat_len
+
+            c = chords[k % 4]
+            if label == "intro":
+                for s16 in range(16):
+                    hit("hihat", hat, bt(s16 / 4), 0.12 if s16 % 2 else 0.2, 0.3)
+                hit("kick", kick, bt(0), 0.85)
+                for s8, step in enumerate((0, 7, 12, 7, 0, 7, 12, 15)):
+                    tone("pluck", root + 12 + step, bt(s8 / 2), 0.5, 0.1, 0.2)
+            elif label == "verse":
+                for b in (0, 1.75, 2.5) if k % 2 == 0 else (0, 1.5, 2.75):
+                    hit("kick", kick, bt(b), 0.95)
+                for b in (1, 3):
+                    hit("snare", snare, bt(b), 0.7)
+                for s16 in range(16):
+                    if s16 == 14:
+                        hit("hihat", open_hat, bt(3.5), 0.22, 0.3)
+                    else:
+                        hit("hihat", hat, bt(s16 / 4), 0.22 if s16 % 2 == 0 else 0.13, 0.3)
+                for b, length in ((0, 0.75), (0.75, 0.75), (1.75, 0.75), (2.5, 1.5)) if k % 2 == 0 else ((0, 1.5), (1.5, 1.25), (2.75, 1.25)):
+                    tone("bass", root - 12 + c, bt(b), length, 0.32)
+                for (b, length), midi in zip(verse_rhythm[k % 2], verse_pitch[k % 2]):
+                    tone("lead", midi, bt(b), length, lead_gain, -0.1, lead_attack)
+            elif label == "pre-chorus":
+                # the build-up: the snare speeds up bar by bar and gets louder
+                for b in range(4):
+                    hit("kick", kick, bt(b), 0.9)
+                per_beat = (1, 2, 4, 4)[k] if bars == 4 else 4
+                if per_beat > 1:
+                    rolls.append(((bar + k) * 4.0, (bar + k + 1) * 4.0, per_beat))
+                for s in range(4 * per_beat):
+                    hit("snare", snare, bt(s / per_beat), 0.35 + 0.4 * (k * 4 * per_beat + s) / (16 * per_beat))
+                if k < 2:
+                    for s8 in range(8):
+                        hit("hihat", hat, bt(s8 / 2), 0.15, 0.3)
+                tone("bass", root - 12 + chords[k % 2], bt(0), 3.8, 0.28)
+                for s in range(2 if k < 2 else 4):  # the lead climbs: half notes, then quarters
+                    length = 2.0 if k < 2 else 1.0
+                    tone("lead", scale[min(len(scale) - 1, k * 2 + s)], bt(s * length), length, lead_gain, -0.1, lead_attack)
+            elif label == "chorus":
+                for b in range(4):
+                    hit("kick", kick, bt(b), 0.95)
+                for b in (1, 3):
+                    hit("snare", snare, bt(b), 0.75)
+                for s16 in range(16):
+                    if s16 % 4 == 2:
+                        hit("hihat", open_hat, bt(s16 / 4), 0.2, 0.3)
+                    else:
+                        hit("hihat", hat, bt(s16 / 4), 0.18 if s16 % 2 == 0 else 0.11, 0.3)
+                if k == 0:
+                    hit("crash", crash, bt(0), 0.3)
+                for b in range(4):
+                    tone("bass", root - 12 + c, bt(b + 0.5), 0.5, 0.32)
+                    tone("pluck", root + 12 + c + (0, 7, 12, 7)[b], bt(b + 0.5), 0.5, 0.11, 0.25)
+                for (b, length), midi in zip(chorus_rhythm[k % 2], chorus_pitch[k % 2]):
+                    if bt(b) >= offset:
+                        tone("lead", midi, bt(b), length, lead_gain * 1.1, -0.1, lead_attack)
+            elif label == "outro":
+                hit("kick", kick, bt(0), 0.8)
+                tone("lead", root + 12, bt(0), 3.5, lead_gain, -0.1, lead_attack)
+            for interval in (0, 3, 7):  # a pad chord per bar
+                _add(buf, _tone(_midi_to_hz(root + c + interval), 4 * beat_len * 0.95, sample_rate, 2, 0.08, 0.2), at(bt(0)), 0.04)
+            onsets["pad"].append(bt(0))
+        bar += bars
+
+    buf *= 0.89 / np.max(np.abs(buf))
+    beat_times = [offset + i * beat_len for i in range(total_bars * 4)]
+    return SynthSong(
+        pcm=buf.astype(np.float32),
+        sample_rate=sample_rate,
+        beats=beat_times,
+        downbeats=beat_times[::4],
+        onsets={k: sorted(v) for k, v in onsets.items()},
+        tempo_segments=[(offset, bpm)],
+        sustains=sustains,
+        sections=sections,
+        structure=structure,
+        rolls=rolls,
     )
 
 

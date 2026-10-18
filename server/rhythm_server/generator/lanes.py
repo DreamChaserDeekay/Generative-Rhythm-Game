@@ -238,7 +238,8 @@ def search(
         target = targets[si]
         # per-slot terms of the instrument-region cost: (drum share, drum position, bass share)
         src_terms = None
-        if weights.source > 0 and slot.sources is not None:
+        sp = plan[si] if plan else None
+        if weights.source > 0 and slot.sources is not None and not (sp is not None and sp.motif == "alternate"):
             # Only clear drum or bass hits are pulled (a slot shared with the melody keeps its
             # pitch placement); shares are taken relative to the dominant stem.
             top = float(np.max(slot.sources)) + 1e-9
@@ -252,7 +253,6 @@ def search(
                     clear * float(slot.sources[1]) / top,
                 )
         repeat_set = frozenset(repeat_targets[si]) if repeat_targets[si] else None
-        sp = plan[si] if plan else None
         pitch_scale = ctx.pitch_weight.get(sp.motif, 1.0) if ctx and sp else 1.0
         repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
         laser = sp is not None and sp.motif == "laser"
@@ -297,6 +297,12 @@ def search(
             elif exact and repeat_set is not None:
                 # a copy whose lanes are playable here takes them as they are
                 hit = [c for c in combos if len(c) == len(repeat_set) and repeat_set.issuperset(c)]
+                if params.anchor_cap and len(repeat_set) == 1:
+                    # nor is an anchor past the tier's cap (a run the first time a chord broke)
+                    over = [c for c in hit if anchor_hits(_next_run(state, c, t)) > params.anchor_cap]
+                    if over:
+                        combos = [c for c in combos if c not in over] or combos
+                        hit = []
                 if hit:
                     combos = hit
             noise = rng.random(len(combos)) * W_NOISE
@@ -348,7 +354,9 @@ def search(
             usage = [u * USAGE_DECAY for u in state.usage]
             keys_used = tuple(i for i in lanes_used if lanes[i].kind == "key")
             for i in lanes_used:
-                last[i] = t if i != ln_lane else (hold_end_t or t)
+                # a long note's lane waits for its tail gap after the release (hold_end), not for the
+                # jack spacing: letting go is not a hit (the linter's rule)
+                last[i] = t
                 head[i] = t
                 usage[i] += 1.0
             if ln_lane is not None and hold_end_t is not None:

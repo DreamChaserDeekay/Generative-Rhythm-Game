@@ -302,9 +302,10 @@ def test_djmax_5k_repeated_notes_become_a_laser() -> None:
 def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
     for mode, limit in (("6K", 0.12), ("8K", 0.15)):
         for tier, system, level in (("NORMAL", None, None), ("EZ", "EZ2ON", 4)):
-            p = pattern_profile(generate_chart(dense_song, mode, tier, level, system=system)["notes"], mode)
-            assert p["leaps"] <= limit, (mode, tier, p["leaps"])
-            assert p["stairs"] >= 0.12, (mode, tier, p["stairs"])
+            # the share of stairs swings a lot from one seed to the next (8K NORMAL: 0.03-0.25)
+            profiles = [pattern_profile(generate_chart(dense_song, mode, tier, level, system=system, seed=seed)["notes"], mode) for seed in range(8)]
+            assert max(p["leaps"] for p in profiles) <= limit, (mode, tier, [p["leaps"] for p in profiles])
+            assert np.mean([p["stairs"] for p in profiles]) >= 0.12, (mode, tier, [p["stairs"] for p in profiles])
     for tier, level in (("HD", 9), ("MX", 13)):
         p = pattern_profile(generate_chart(dense_song, "6K", tier, level, system="DJMAX")["notes"], "6K")
         assert p["topShape"] <= 0.25 and p["shapeKinds"] >= 40, (tier, p["topShape"], p["shapeKinds"])

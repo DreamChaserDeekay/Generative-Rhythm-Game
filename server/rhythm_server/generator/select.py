@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +12,7 @@ import numpy as np
 from ..analysis.stems import STEM_NAMES
 from .candidates import Candidate
 from .params import GenParams, skill_for_rating
+from .rolls import coarser, mark_rolls, roll_level
 from .tempo import TempoMap
 
 DRUMS = STEM_NAMES.index("drums")
@@ -19,9 +21,17 @@ BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
 MAX_CHORD_RATIO = 0.6
 # Easy charts (five-step levels 1-3) put chords on downbeats only; up to level 6 long notes end on
-# half beats.
+# beats or half beats, harder ones on quarter beats too when nothing coarser fits the sound.
 DOWNBEAT_CHORDS_BELOW = skill_for_rating(4.0)
 HALF_BEAT_HOLDS_BELOW = skill_for_rating(7.0)
+# A long note lets go on the song's grid, not a fixed length after its head (an off-beat head
+# would end off the beat too): the last grid point (whole beats first) at or before the sound's
+# end plus HOLD_END_TOLERANCE beats (a held note fades a little before the next one starts: the
+# release goes to that next beat), at most HOLD_END_SLACK of a grid step's worth of beats before
+# the sound's end.
+HOLD_END_TOLERANCE = 0.25
+HOLD_END_SLACK = {1.0: 0.5, 0.5: 0.25, 0.25: 0.25}
+HOLD_PLAIN = 0.6  # long-note weight of a sound that is no melody note (a clear melody note: 1.4)
 
 
 @dataclass
@@ -38,6 +48,7 @@ class Slot:
     subdivision: int
     strength: float
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
+    roll: tuple[int, int, int, bool] | None = None  # a drum roll's note: (roll, hit index, hits, in a mirrored repeat)
 
     @property
     def src(self) -> int | None:
@@ -57,6 +68,26 @@ def sound_of(slot: Slot) -> tuple[Any, ...]:
     if melodic(slot):
         return (slot.src, round(float(slot.pitch)))  # type: ignore[arg-type]
     return (slot.src, int(np.argmax(slot.bands)))
+
+
+def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> float | None:
+    """Beat where a long note over a sound held `sustain` beats from `start` lets go (see
+    HOLD_END_SLACK), or None when no grid point leaves it `min_beats` long."""
+    if sustain < min_beats - 1e-9:
+        return None
+    end = start + min(MAX_LN_BEATS, sustain)
+    steps = (1.0, 0.5, 0.25) if skill >= HALF_BEAT_HOLDS_BELOW else (1.0, 0.5)
+    for step in steps:
+        e = math.floor((end + HOLD_END_TOLERANCE) / step + 1e-9) * step
+        if e - start >= min_beats - 1e-9 and end - e <= HOLD_END_SLACK[step] + 1e-9:
+            return float(e)
+    return None
+
+
+def hold_value(c: Candidate) -> float:
+    """How much a sound wants a long note: how long it sounds, how tonal it is, and most of all
+    whether it is a note of the melody (a long sung note rather than a kick over a pad)."""
+    return c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0) * (HOLD_PLAIN + (1.0 - HOLD_PLAIN) * 2.0 * (c.melody or 0.0))
 
 
 def active_seconds(cands: list[Candidate]) -> float:
@@ -112,11 +143,37 @@ def select_slots(
         sub_counts[cands[i].subdivision] = sub_counts.get(cands[i].subdivision, 0) + 1
         count += 1
 
+    # drum rolls first, on the grid the tier reads (rolls.py), all of a roll's hits or a coarser grid
+    rolls: dict[int, list[int]] = {}
+    for i, c in enumerate(cands):
+        if c.roll is not None:
+            rolls.setdefault(c.roll[0], []).append(i)
+    blocked = np.zeros(len(cands), dtype=bool)  # between a roll's hits: no other note
+    for hits in rolls.values():
+        level = roll_level([cands[i].subdivision for i in hits], params)
+        while level > 1:
+            keep = [i for i in hits if level % cands[i].subdivision == 0]
+            taken = []
+            for i in keep:
+                if not window_ok(bucket(cands[i])):
+                    break
+                accept(i)
+                taken.append(i)
+            if len(taken) == len(keep):
+                blocked[hits[0] : hits[-1] + 1] = True
+                break
+            for i in taken:  # all of the roll or a coarser grid
+                accepted[i] = False
+                buckets[bucket(cands[i])] -= 1
+                sub_counts[cands[i].subdivision] -= 1
+                count -= 1
+            level = coarser(level)
+
     for i in sorted(range(len(cands)), key=lambda k: -cands[k].score):
         if count >= target_slots:
             break
         c = cands[i]
-        if partial_ok(c) and window_ok(bucket(c)):
+        if not accepted[i] and not blocked[i] and partial_ok(c) and window_ok(bucket(c)):
             accept(i)
 
     # Floor: active bars should not go silent just because their candidates score low.
@@ -129,7 +186,7 @@ def select_slots(
             bars.setdefault(int(np.floor(c.beat / bpb)), []).append(i)
         for idxs in bars.values():
             have = sum(accepted[i] for i in idxs)
-            pool = sorted((i for i in idxs if not accepted[i] and cands[i].intensity > 0.15), key=lambda k: -cands[k].score)
+            pool = sorted((i for i in idxs if not accepted[i] and not blocked[i] and cands[i].intensity > 0.15), key=lambda k: -cands[k].score)
             for i in pool:
                 if have >= floor:
                     break
@@ -155,6 +212,7 @@ def select_slots(
         )
         for c in chosen
     ]
+    mark_rolls(slots, [c.roll is not None for c in chosen])
     _assign_chords(slots, chosen, params, key_count, chord_scale)
     _assign_long_notes(slots, chosen, params, tempo)
     if special_kind == "scratch":
@@ -174,7 +232,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
         total = float(np.sum(c.bands)) + 1e-9
         spread = int(np.sum(c.bands / total > 0.22))
         w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
-        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat:
+        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat or s.roll is not None:
             w = 0.0
         worth.append(w)
     # On few keys every chord eats a large share of the lanes; keep them rarer.
@@ -194,18 +252,17 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
 def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenParams, tempo: TempoMap) -> None:
     if params.long_note_ratio <= 0 or not slots:
         return
-    step = 0.5 if params.skill < HALF_BEAT_HOLDS_BELOW else 0.25
     picks = []
     for i, c in enumerate(chosen):
-        if c.sustain_beats >= params.min_ln_beats:
-            picks.append((c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0), i))
+        if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None:
+            picks.append((hold_value(c), i))
     picks.sort(reverse=True)
     limit = int(round(params.long_note_ratio * len(slots)))
     for _, i in picks[:limit]:
         c = chosen[i]
-        length = min(MAX_LN_BEATS, np.floor(c.sustain_beats / step) * step)
-        if length >= params.min_ln_beats:
-            slots[i].hold_end_beat = c.beat + float(length)
+        end = hold_end(c.beat, c.sustain_beats, params.min_ln_beats, params.skill)
+        if end is not None:
+            slots[i].hold_end_beat = end
 
 
 def _assign_scratch(slots: list[Slot], params: GenParams) -> None:
@@ -236,7 +293,8 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) 
     holds = [
         (c.sustain_beats * (0.5 + c.harmonic), i)
         for i, c in enumerate(chosen)
-        if c.sustain_beats >= min_hold and slots[i].subdivision <= 2
+        if c.sustain_beats >= min_hold and slots[i].subdivision <= 2 and slots[i].roll is None
+        and hold_end(c.beat, c.sustain_beats, min_hold, 0.0) is not None
     ]
     hold_score = [0.0] * len(slots)
     for value, i in holds:
@@ -247,7 +305,7 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) 
         slot, c = slots[i], chosen[i]
         slot.special = "side"
         slot.special_hold = True
-        slot.hold_end_beat = c.beat + float(min(MAX_LN_BEATS, np.floor(c.sustain_beats * 2) / 2))
+        slot.hold_end_beat = hold_end(c.beat, c.sustain_beats, min_hold, 0.0)
     impact = [s.strength * (1.3 if s.subdivision == 1 else 0.8) * (0.7 + 0.6 * c.intensity) for s, c in zip(slots, chosen)]
     taken = [slots[i].t for i in picked]
     taps = n - len(picked) if params.side_hold_share < 1.0 else 0
@@ -271,7 +329,7 @@ def _spaced_picks(
             break
         if positive_only and score[i] <= 0:
             break
-        if slots[i].special is not None or any(abs(slots[i].t - u) < min_gap_ms for u in taken):
+        if slots[i].special is not None or slots[i].roll is not None or any(abs(slots[i].t - u) < min_gap_ms for u in taken):
             continue
         picks.append(i)
         taken.append(slots[i].t)

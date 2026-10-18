@@ -19,14 +19,14 @@ from .meter import beat_cues, estimate_meter
 from .onsets import detect_onsets
 from .pitch import analyze_notes
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
-from .stems import STEM_NAMES, stem_activity, tag_onsets
+from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
 from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
 from .tempo import estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.2.1"
+ANALYZER_VERSION = "1.3.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -183,6 +183,7 @@ def analyze(
     else:
         stem_act = stem_activity(mag, harmonic, percussive, freqs, coarse_rate)
     sources, shares = tag_onsets(od.times, stem_act, coarse_rate)
+    melody = melody_presence(od.times, stem_act, coarse_rate, shares)
     pitch_arr, sustain_arr = notes.pitch, notes.sustain_end
     if ml_notes is not None:
         pitch_arr, sustain_arr = ml.apply_notes(od.times, ml_notes, pitch_arr, sustain_arr, sources)
@@ -237,6 +238,7 @@ def analyze(
                 "sustainEnd": round(float(end) * 1000.0, 3) if end > t else None,
                 "source": STEM_NAMES[int(sources[i])],
                 "sources": [round(float(x), 3) for x in shares[i]],
+                "melody": round(float(melody[i]), 3),
             }
         )
     sustains = [

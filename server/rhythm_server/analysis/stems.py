@@ -58,6 +58,19 @@ F0_SMOOTH_FRAMES = 5
 # Onset shares compare each stem's attack with its own typical attack (95th percentile), but a
 # stem whose typical attack is tiny next to the loudest stem is not blown up beyond this ratio.
 SHARE_FLOOR = 0.02
+# Melody presence of an onset: a vocals attack this far (relative to the stem's 95th percentile)
+# counts fully; a pitch step of the melody line (frames on each side, semitones) without an attack
+# counts MELODY_STEP_PRESENCE. A drum hit under a held note lifts the vocals stem too (its noise
+# lands on the note's partials), but no more than the other stems: both cues count in full only
+# where the vocals take their share of the onset (MELODY_ATTACK_SHARE, MELODY_STEP_SHARE).
+# Measured on the synthetic songs: lead onsets rank above the others with an AUC of 0.77-0.90
+# (the vocals share alone 0.71-0.84), and a snare roll under a sung note stays under 0.2.
+MELODY_ATTACK_FULL = 0.6
+MELODY_STEP_FRAMES = 3
+MELODY_STEP_SEMITONES = 0.6
+MELODY_STEP_PRESENCE = 0.5
+MELODY_ATTACK_SHARE = 0.3
+MELODY_STEP_SHARE = 0.2
 BLOCK_S = 15.0
 CONTEXT_S = 1.0
 CROSSFADE_S = 0.25
@@ -259,6 +272,36 @@ def tag_onsets(times: np.ndarray, activity: StemActivity, frame_rate: float) -> 
         if total > 1e-9:
             shares[i] = peak / total
     return np.argmax(shares, axis=1), shares
+
+
+def melody_presence(times: np.ndarray, activity: StemActivity, frame_rate: float, shares: np.ndarray) -> np.ndarray:
+    """How clearly each onset (s) starts a note of the main melody (0..1): the vocals stem's own
+    attack against its typical attack, or a new note of the predominant melody line (a pitch step
+    or the line coming in) without one, as in legato singing; `shares` are the onsets' stem shares
+    (`tag_onsets`). The shares alone say this poorly: a drum hit leaks into every stem, so every
+    onset gets some of each."""
+    n_frames = activity.rise.shape[0]
+    vocals = STEM_NAMES.index("vocals")
+    p95 = np.percentile(activity.rise, 95, axis=0) if n_frames else np.zeros(len(STEM_NAMES))
+    scale = max(float(p95[vocals]), SHARE_FLOOR * float(p95.max())) + 1e-9
+    attack = activity.rise[:, vocals] / scale
+    with np.errstate(divide="ignore", invalid="ignore"):
+        midi = 69.0 + 12.0 * np.log2(activity.melody_hz / 440.0)
+    out = np.zeros(len(times))
+    for i, t in enumerate(times):
+        f = int(round(t * frame_rate))
+        a, b = max(1, f - 1), min(n_frames, f + 2)
+        if b <= a:
+            continue
+        share = float(shares[i, vocals])
+        value = min(1.0, float(attack[a:b].max()) / MELODY_ATTACK_FULL) * min(1.0, share / MELODY_ATTACK_SHARE)
+        before = midi[max(0, f - MELODY_STEP_FRAMES) : f]
+        after = midi[f + 1 : f + 1 + MELODY_STEP_FRAMES]
+        before, after = before[np.isfinite(before)], after[np.isfinite(after)]
+        if len(after) >= 2 and (len(before) == 0 or abs(float(np.median(after)) - float(np.median(before))) >= MELODY_STEP_SEMITONES):
+            value = max(value, MELODY_STEP_PRESENCE * min(1.0, share / MELODY_STEP_SHARE))
+        out[i] = value
+    return out
 
 
 # ---------- full-quality separation (audio stems) ----------
