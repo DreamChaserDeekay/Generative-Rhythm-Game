@@ -3,7 +3,7 @@ import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
 import { planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel, type StemKeysoundPlan } from '../audio/stemKeysounds';
 import { AutoPlayer } from '../engine/autoplay';
-import { cameraConfig, difficultyLabel, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
+import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
 import { applyPlacement, placementLabels, type PlacementResult } from '../engine/placement';
 import { REPLAY_VERSION, ReplayPlayer, ReplayRecorder, type ReplayData } from '../engine/replay';
@@ -31,6 +31,7 @@ import {
   type Settings,
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
+import { difficultyChip } from './difficultyChip';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
@@ -205,9 +206,9 @@ export class PlayController {
       {
         title: this.chart.meta.title,
         artist: this.chart.meta.artist,
+        keyMode: this.chart.meta.keyMode,
+        difficulty: difficultyChip(this.chart.meta),
         chartLine: [
-          this.chart.meta.keyMode,
-          difficultyLabel(this.chart.meta),
           judgementConfig.modes[settings.judgementMode].label,
           rules.label,
           settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
