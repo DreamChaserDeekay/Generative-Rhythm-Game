@@ -280,7 +280,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
             )}
           </div>
         </div>
-        <p className="hint">노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·none)와 트랙 색을 JSON으로 바꿀 수 있습니다.</p>
+        <p className="hint">노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·sprite·none), 텍스처(textures)와 트랙 색을 JSON으로 바꿀 수 있습니다.</p>
         <textarea
           className="skin-json"
           rows={6}

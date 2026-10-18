@@ -3,6 +3,8 @@ import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
 import type { KeysoundBank } from '../audio/keysounds';
 import { practiceAudio } from '../audio/practiceAudio';
 import type { StemName } from '../engine/types';
+import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
+import { skinById } from '../render/skins';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { PlayController, type PlayOutcome } from './PlayController';
@@ -28,6 +30,8 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   useEffect(() => {
     let cancelled = false;
     let controller: PlayController | null = null;
+    // skin textures load alongside the audio; without them the skin is drawn in code
+    const artLoad = loadSkinArt(skinById(settings.skin, settings.customSkin));
     (async () => {
       try {
         const engine = getAudioEngine();
@@ -51,9 +55,13 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
           ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, stems));
         }
-        if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) return;
+        const art = await artLoad;
+        if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) {
+          disposeSkinArt(art);
+          return;
+        }
         controller = new PlayController(
-          { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current },
+          { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current, art },
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;

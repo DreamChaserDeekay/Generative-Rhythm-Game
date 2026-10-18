@@ -15,8 +15,10 @@
 | ![채보 에디터](docs/screenshots/08-editor.png) 채보 에디터 | ![BMS 가져오기](docs/screenshots/09-import.png) 키음 BMS 폴더 가져오기 |
 | ![설정](docs/screenshots/10-settings.png) 설정 | ![스킨 설정](docs/screenshots/11-settings-skins.png) 스킨 · 소리 · 키 설정 |
 | ![캘리브레이션](docs/screenshots/12-calibration.png) 오프셋 캘리브레이션 | ![Windows 앱](docs/screenshots/13-windows-app.png) Windows에 설치한 앱 |
+| ![글래스 스킨](docs/screenshots/15-skin-glass.png) 글래스 스킨 · 7K+1S | ![크리스털 스킨](docs/screenshots/16-skin-crystal.png) 크리스털 스킨 · 6K+FX |
+| ![메탈 스킨](docs/screenshots/17-skin-metal.png) 메탈 스킨 · 8K | ![젤 스킨](docs/screenshots/18-skin-gel.png) 젤 스킨 · 4K |
 
-화면의 곡·키음·영상은 모두 코드로 합성한 것입니다(`client/e2e/screenshots.spec.ts`).
+화면의 곡·키음·영상은 모두 코드로 합성한 것입니다(`client/e2e/screenshots.spec.ts`). 글래스·크리스털·메탈·젤 스킨의 그림은 이 저장소를 위해 생성했습니다(`assets-src/PROVENANCE.md`).
 
 ## 진행 상황
 
@@ -123,7 +125,7 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 - **키음**(설정, 기본 켬): 생성 채보도 노트마다 소리가 붙습니다. 노트가 따르는 악기(스템)를 노트부터 그 악기의 다음 노트까지 잘라 그 노트의 키음으로 쓰고, 배경음에서는 그 부분을 뺍니다. 치면 그 소리가 나고 놓치면 빠지며, 전부 맞히면 원곡 그대로입니다(DJMAX처럼). 노트가 없을 때 누르면(고스트 노트) 그 레인의 다음 노트 소리 앞부분이 곡 위에 짧게 납니다. 노트의 10% 이상이 따르는 악기만 키음이 되고(채보 미리보기의 스템 비율 막대에 밑줄), 나머지는 배경음에 남습니다. 스템은 분석이 끝난 뒤 백그라운드에서 나누어 저장하므로(4분 곡 4코어에서 약 7초, 곡당 디스크 약 100MB) 분석 직후 바로 플레이하면 처음 한 번은 기다릴 수 있습니다. 연습 모드 배속에서도 함께 스트레치됩니다.
 - **배경**: 흐린 앨범아트 위에 음악에 반응하는 스펙트럼을 그립니다. 곡 정보의 **배경 영상**에서 mp4·webm 영상을 고르거나, **유튜브 링크**를 눌러 나오는 칸에 주소를 붙여 넣고 **등록**하면 배경 영상(BGA)이 되어 소리 없이 곡 시간에 맞춰 재생하고, 영상 오프셋을 ±ms로 맞출 수 있습니다. 유튜브 영상은 내려받지 않고 유튜브 플레이어로 재생하므로 인터넷이 필요하고, 퍼가기를 막은 영상은 나오지 않으며, 광고가 먼저 나올 수 있습니다. 배경 밝기·비주얼라이저·BGA는 설정에서 켜고 끕니다.
 - **카메라 연출**: 에너지가 크게 오르는 곳(드롭·후렴 시작)에서 줌 펄스, 에너지가 높은 구간마다 트랙이 좌우로 번갈아 기울어집니다. 콤보·판정 글자도 트랙과 같이 기울고 움직입니다. 설정에서 세기를 0–100%로 조절하거나 끌 수 있고, "번쩍임 줄이기"를 켜면 절반으로 줄어듭니다. 판정·노트 시간에는 영향이 없습니다.
-- **스킨**(설정): 네온·클래식·모노·선셋 기본 스킨(노트 모양 상자·납작·캡슐, 레인 색 배치, 타격 이펙트, 트랙 색)과 JSON으로 붙여 넣는 사용자 스킨. 색각 보정 팔레트를 켜면 레인 색은 팔레트가 우선합니다.
+- **스킨**(설정): 네온·클래식·모노·선셋 기본 스킨(노트 모양 상자·납작·캡슐, 레인 색 배치, 타격 이펙트, 트랙 색)과 JSON으로 붙여 넣는 사용자 스킨. 글래스·크리스털·메탈·젤 스킨은 노트·롱노트·판정선·레일·바닥·키 빔·타격 이펙트를 그림(텍스처)으로 그리고, 그림 파일이 없거나 깨지면 그 부분만 기본 모양으로 그립니다. 색각 보정 팔레트를 켜면 레인 색은 팔레트가 우선합니다.
 
 사용자 스킨은 설정 → 스킨의 입력란에 JSON을 붙여 넣고 **사용자 스킨 적용**을 누르면 됩니다. 빠지거나 잘못된 값은 기본 스킨(네온) 값으로 채우고, 색은 `#rrggbb`만 받습니다.
 
@@ -142,7 +144,9 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 }
 ```
 
-`noteShape`는 `box`(상자) · `flat`(납작) · `round`(캡슐), `laneLayout`은 `mode`(키 모드별 흰·파랑·금색) · `uniform`(모든 건반 레인을 `lanes.white` 색으로) · `rainbow`(무지개), `hitEffect`는 `burst` · `ring` · `none`입니다.
+`noteShape`는 `box`(상자) · `flat`(납작) · `round`(캡슐), `laneLayout`은 `mode`(키 모드별 흰·파랑·금색) · `uniform`(모든 건반 레인을 `lanes.white` 색으로) · `rainbow`(무지개), `hitEffect`는 `burst` · `ring` · `sprite`(그림으로 된 타격 이펙트, 없으면 `burst`) · `none`입니다.
+
+`textures`에 부분별로 그림 이름을 넣으면 그 부분만 그림으로 그립니다(예: `"textures": {"note": "gel/note", "floor": "glass/floor", "hitBurst": "fx/hitBurstGlow"}`). 부분은 `note` · `side` · `scratch` · `longBody` · `judgeLine` · `rails` · `floor` · `keyBeam` · `hitBurst` · `hitHold`이고, 쓸 수 있는 그림 이름은 `client/public/media/manifest.json`에 있습니다. 설정의 **현재 스킨 JSON 보기**로 글래스 등 기본 스킨의 값을 그대로 가져와 고칠 수 있습니다.
 
 ### 채보 에디터
 
@@ -232,8 +236,8 @@ MAX 1%까지는 콤보가 이어지고 게이지도 줄지 않으며, BREAK에�
 
 ```bash
 cd server && .venv/bin/python -m pytest          # 구간 엔진(구조 합성 곡의 경계·묶음·라벨, 루프·반복 레인 일치, 검출 잡음, 고친 구간·구간 API), 커뮤니티 패턴 가이드(기승전결·후렴으로 시작하는 곡·억지 연타·축연타·5K 피벗·재봉틀), 패턴 엔진(몸짓 → 계단·트릴·앵커·레이저, 패드 규칙, 초급 도약, 손 분담, 드럼 자리, 키 모드 습관, 내보내기 이름, DPC 가이드라인), DJMAX·EZ2ON 난이도 기준(레벨별 밀도·SC 척도·사이드 롱노트·악기 비중), 분석 정확도, 스템 분리·악기 태깅(빠른 메디안·역 STFT·블록 동시 분리가 이전과 같은 비트인지), ML 백엔드 대체 경로, 생성기 결정성·린터·난이도 단조성, 악기별 레인·반복 일관성·카메라 연출·키음, 7개 키 모드, 스타일, API(스템·BGA 포함), 채보 포맷 왕복·BMS/bmson/osu! 가져오기·편집 채보·리플레이 저장, 성능 (122개 + ML 4개 건너뜀)
-cd client && npm test                            # 판정·롱노트·룰셋·게이지·FEVER·배치 옵션·스크롤(STOP 포함)·타임 스트레치·설정·오디오 클럭·입력·카메라 투영·카메라 연출·스킨·에디터·리플레이 재현·게임패드·생성 채보 키음 조각·고스트 노트 키음·패턴 배치 설정·유튜브 BGA 동기·HUD 기울기·미리듣기 페이드·길이·구간 색·구간 편집 검사 (98개)
-cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이, FX·EX-SCORE·커버, 연습 모드, HAZARD 실패, 키음·BGA·카메라 연출(콤보 기울기)·스킨, 유튜브 BGA, 사용자 스킨, 에디터(테스트 플레이 로딩 중 페이지 응답·일시정지 화면 프레임), BMS 폴더 가져오기·키음 플레이, 리플레이 재현, 게임패드, 키음 오프라인 렌더(전부 맞히면 원곡과 같고 놓친 조각만 빠지는지), DJMAX·EZ2ON·기본 난이도 기준·패턴 줄·이전 배치 비교, 구간 편집·저장·되돌리기 (16개)
+cd client && npm test                            # 판정·롱노트·룰셋·게이지·FEVER·배치 옵션·스크롤(STOP 포함)·타임 스트레치·설정·오디오 클럭·입력·카메라 투영·카메라 연출·스킨·에디터·리플레이 재현·게임패드·생성 채보 키음 조각·고스트 노트 키음·패턴 배치 설정·유튜브 BGA 동기·HUD 기울기·미리듣기 페이드·길이·구간 색·구간 편집 검사, 게임 미디어(매니페스트 규격·실제 그림 크기·2의 거듭제곱·30MB 예산)와 스킨 그림 불러오기(없거나 깨진 파일) (111개)
+cd client && npx playwright test                 # 서버+브라우저 E2E: 싱크 테스트, 업로드→분석→생성→오토 플레이, FX·EX-SCORE·커버, 연습 모드, HAZARD 실패, 키음·BGA·카메라 연출(콤보 기울기)·스킨, 유튜브 BGA, 사용자 스킨, 에디터(테스트 플레이 로딩 중 페이지 응답·일시정지 화면 프레임), BMS 폴더 가져오기·키음 플레이, 리플레이 재현, 게임패드, 키음 오프라인 렌더(전부 맞히면 원곡과 같고 놓친 조각만 빠지는지), DJMAX·EZ2ON·기본 난이도 기준·패턴 줄·이전 배치 비교, 구간 편집·저장·되돌리기, 그림 스킨(그림이 깨지거나 매니페스트가 없으면 기본 모양으로) (17개)
 ```
 
 README와 테스트 안내의 스크린샷은 `cd client && GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts`로 다시 찍습니다(`docs/screenshots`). 평소 E2E 실행에서는 건너뜁니다.
@@ -249,12 +253,16 @@ desktop/    데스크톱 앱 (Electron)
 packaging/  분석 서버 묶기(PyInstaller), 데스크톱 빌드 스크립트, Windows 설치 확인 스크립트
 .github/    Windows 설치 파일 빌드·설치 확인 워크플로
 config/     판정 범위 · 룰셋 · 키 모드 · 게이지 · FEVER · 카메라·연출 · 난이도 프리셋·생성 스타일 · 분석 백엔드 · 악기 매핑·키음 · 게임패드 (서버·클라이언트 공용)
+assets-src/ 생성한 게임 그림의 원본과 출처(PROVENANCE.md)
+scripts/    원본을 게임용 그림으로 만드는 후처리(scripts/assets, 결과는 client/public/media)
 docs/       명세 · 설계 · 알고리즘 · 채보 포맷 · 테스트 안내 · 스크린샷
 ```
 
 ## 라이선스 주의
 
 수록곡과 다른 게임의 에셋은 포함하지 않습니다. 테스트 음원은 코드로 합성합니다. 기본 설치 의존성은 FastAPI(MIT), numpy·scipy(BSD), PyAV(BSD, FFmpeg LGPL), soundfile(BSD), React(MIT), Three.js(MIT)로 모두 허용적 라이선스입니다. 선택 설치형 ML 백엔드는 PyTorch(BSD 계열), Demucs(코드 MIT, 사전학습 가중치는 라이선스 명시 없음 — 재배포 전 확인 필요), beat_this(MIT), basic-pitch(Apache-2.0)입니다. AGPL/GPL·비상업 라이선스(essentia, aubio, madmom 모델 등)는 쓰지 않으며, madmom 모델에 기대는 allin1은 기본 설치에서 뺐습니다. 라이선스 메모는 `config/analysis.json`의 `licenses`에도 있습니다.
+
+노트·기어·타격 이펙트 그림(글래스·크리스털·메탈·젤 스킨)은 ElevenLabs로 이 저장소를 위해 새로 만들었습니다. 유료 플랜에서 생성해 상업적으로 쓸 수 있고, 파일마다 모델·프롬프트 전문·생성 ID·고른 이유·후처리를 `assets-src/PROVENANCE.md`에 적었습니다. 게임용 파일(`client/public/media/`)은 `python scripts/assets/build_p0.py`로 원본에서 다시 만듭니다(Pillow · numpy · scipy · ffmpeg 필요).
 
 BGA 영상과 사용자 스킨은 사용자가 직접 넣는 파일이며 저장소에 포함하지 않습니다. 테스트용 영상도 코드로 합성합니다. 가져오기 테스트의 BMS·osu! 채보와 키음도 코드로 만듭니다. 가져온 채보와 키음은 사용자의 PC(`data/`)에만 저장됩니다.
 

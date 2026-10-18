@@ -16,6 +16,7 @@ import { GamepadPoller, type PadEvent } from '../input/gamepad';
 import { InputManager } from '../input/InputManager';
 import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
+import type { SkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import {
@@ -50,6 +51,8 @@ export interface PlaySetup {
   canvas: HTMLCanvasElement;
   hudRoot: HTMLElement;
   bgRoot: HTMLElement;
+  /** Textures of the skin, loaded beforehand (null = drawn in code); the renderer disposes them. */
+  art?: SkinArt | null;
 }
 
 export interface PlayOutcome {
@@ -168,6 +171,7 @@ export class PlayController {
       reducedFlash: settings.reducedFlash,
       covers: activeCovers(settings),
       skin: skinById(settings.skin, settings.customSkin),
+      art: setup.art,
     });
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =

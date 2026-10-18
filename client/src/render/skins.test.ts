@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, hex, laneColorsFor, sanitizeSkin, skinById } from './skins';
+import { BUILTIN_SKINS, hex, laneColorsFor, sanitizeSkin, skinById, TEXTURE_SLOTS } from './skins';
 
 describe('skins', () => {
   it('keeps valid fields of a user skin and replaces the rest with defaults', () => {
@@ -34,6 +34,28 @@ describe('skins', () => {
     const rainbow = laneColorsFor(skinById('sunset', null), 'default', mode);
     expect(new Set(rainbow.slice(1)).size).toBe(7);
     expect(rainbow[0]).toBe(LANE_PALETTES.default.scratch);
+  });
+
+  it('keeps texture ids of a user skin and drops malformed ones', () => {
+    const skin = sanitizeSkin({
+      hitEffect: 'sprite',
+      textures: { note: 'glass/note', floor: '../floor', rails: 7, wings: 'glass/wings', hitBurst: 'fx/hitBurstRing' },
+    });
+    expect(skin?.hitEffect).toBe('sprite');
+    expect(skin?.textures).toEqual({ note: 'glass/note', hitBurst: 'fx/hitBurstRing' });
+    expect(sanitizeSkin({ textures: { note: 'a b' } })?.textures).toBeUndefined();
+    // a textured built-in skin survives a round trip through "현재 스킨 JSON 보기"
+    const glass = skinById('glass', null);
+    expect(sanitizeSkin(JSON.parse(JSON.stringify(glass)))).toEqual({ ...glass, id: 'custom' });
+  });
+
+  it('gives the generated sets a texture for every part', () => {
+    for (const id of ['glass', 'crystal', 'metal', 'gel']) {
+      const skin = skinById(id, null);
+      expect(skin.id).toBe(id);
+      expect(skin.hitEffect).toBe('sprite');
+      expect(Object.keys(skin.textures ?? {}).sort()).toEqual([...TEXTURE_SLOTS].sort());
+    }
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {

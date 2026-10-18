@@ -1,5 +1,6 @@
-// Launches a packaged desktop app with Playwright's Electron driver: waits for the game, analyzes a
-// demo song, previews a chart, starts an autoplay and saves screenshots along the way.
+// Launches a packaged desktop app with Playwright's Electron driver: waits for the game, checks its
+// media, analyzes a demo song, previews a chart, starts an autoplay (textured skin) and saves
+// screenshots along the way.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
 const fs = require('node:fs');
 const os = require('node:os');
@@ -20,6 +21,19 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   const win = await app.firstWindow();
   await win.waitForURL(/127\.0\.0\.1:\d+\//, { timeout: 180000 });
   console.log('game loaded from', win.url());
+  // the game media is packed into the app: play with a textured skin
+  const media = await win.evaluate(async () => {
+    const manifest = await (await fetch('/media/manifest.json')).json();
+    const note = await fetch(`/media/${manifest.textures['glass/note'].file}`);
+    return { textures: Object.keys(manifest.textures).length, note: note.status };
+  });
+  if (!media.textures || media.note !== 200) throw new Error(`game media missing: ${JSON.stringify(media)}`);
+  console.log('media:', media.textures, 'textures');
+  await win.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}');
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...saved, skin: 'glass' }));
+  });
+  await win.reload();
   await win.getByTestId('demo-button').click();
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: 180000 });

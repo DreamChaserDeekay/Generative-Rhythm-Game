@@ -12,6 +12,14 @@ describe('settings', () => {
     expect(s.generation.style).toBe('balanced');
   });
 
+  it('opens settings saved before the textured skins, and keeps a picked one', () => {
+    expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
+    expect(sanitizeSettings({ skin: 'glass' }).skin).toBe('glass');
+    expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
+    const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
+    expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  });
+
   it('keeps the pattern engine choice and the difficulty basis, dropping unknown ones', () => {
     expect(sanitizeSettings({}).generation.patternEngine).toBe('sectioned');
     expect(sanitizeSettings({ generation: { patternEngine: 'classic' } as never }).generation.patternEngine).toBe('classic');

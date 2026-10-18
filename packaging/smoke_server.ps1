@@ -59,6 +59,13 @@ with sf.SoundFile(sys.argv[1], 'w', song.sample_rate, 2, format='MP3') as f:
   $index = Invoke-WebRequest "$base/" -UseBasicParsing
   if ($index.Content -notmatch 'Generative Rhythm') { throw 'the client is not served' }
   Write-Host 'client served: ok'
+
+  # the game media (skin textures) is bundled with the client
+  $manifest = Invoke-RestMethod "$base/media/manifest.json"
+  $count = @($manifest.textures.PSObject.Properties).Count
+  $note = Invoke-WebRequest "$base/media/$($manifest.textures.'glass/note'.file)" -UseBasicParsing
+  if ($count -lt 1 -or $note.StatusCode -ne 200 -or $note.Headers['Content-Type'] -notmatch 'image/png') { throw 'the game media is not served' }
+  Write-Host "media served: $count textures"
 }
 catch {
   Get-Content (Join-Path $work 'server.log'), (Join-Path $work 'server.err.log') -Tail 40 -ErrorAction SilentlyContinue

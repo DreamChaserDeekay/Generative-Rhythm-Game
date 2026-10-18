@@ -207,6 +207,25 @@ test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
   await shot(page, '05-play-6kfx');
 });
 
+test('play: the textured skins', async ({ page }) => {
+  // also runs on its own (-g "textured skins"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // FEVER off: its tint would cover the set's rail colours
+  for (const [skin, keyMode, name] of [
+    ['glass', '7K+1S', '15-skin-glass'],
+    ['crystal', '6K+FX', '16-skin-crystal'],
+    ['metal', '8K', '17-skin-metal'],
+    ['gel', '4K', '18-skin-gel'],
+  ]) {
+    await settings(page, { lastKeyMode: keyMode, skin, hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, keyMode, 'MAXIMUM');
+    await autoplayFor(page, 14_200);
+    await shot(page, name);
+  }
+});
+
 test('result of a good play', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
   await selectShowcase(page, '7K+1S', 'MAXIMUM');

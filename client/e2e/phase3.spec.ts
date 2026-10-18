@@ -169,3 +169,38 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   await page.screenshot({ path: 'test-results/play-custom-skin.png' });
   expect(errors).toEqual([]);
 });
+
+test('textured skin, drawn in code where its media is missing or broken', async ({ page }) => {
+  const errors = trackErrors(page);
+  const loaded: string[] = [];
+  page.on('response', (r) => {
+    if (r.url().includes('/media/') && r.ok()) loaded.push(new URL(r.url()).pathname);
+  });
+  const play = async (shot: string) => {
+    loaded.length = 0;
+    await page.goto('/');
+    await page.getByTestId('open-settings').click();
+    await page.getByTestId('skin-glass').click();
+    await expect(page.getByTestId('skin-glass')).toHaveClass(/active/);
+    await page.getByRole('button', { name: /완료/ }).click();
+    await page.getByTestId('sync-auto').click();
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: `test-results/play-textured-${shot}.png` });
+  };
+
+  await play('glass');
+  for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'fx/hit_burst_ring.png', 'fx/hit_hold.png']) {
+    expect(loaded).toContain(`/media/${file}`);
+  }
+  // a broken note texture: the notes are drawn in code, the rest stays textured
+  await page.route('**/media/skins/glass/note_tap.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
+  await play('broken-note');
+  expect(loaded).toContain('/media/skins/glass/floor.png');
+  // no manifest at all: everything is drawn in code
+  await page.route('**/media/manifest.json', (r) => r.fulfill({ status: 404, body: '' }));
+  await play('no-media');
+  expect(loaded.filter((f) => f.endsWith('.png'))).toEqual([]);
+  expect(errors).toEqual([]);
+});

@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import type { CameraPreset, KeyModeConfig } from '../engine/config';
+import type { CameraPreset, KeyModeConfig, LaneKind } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
 import { cameraPose, computeTrackGeometry, type TrackGeometry } from './layout';
 import { FEVER_COLORS, type Palette } from './palette';
+import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin } from './skins';
 
 const MISSED_COLOR = 0x4a5068;
@@ -28,6 +29,8 @@ const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
 const COVER_Y = 0.05;
+/** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
+const WALL_INSET = 0.3;
 /** Clip-plane constant that keeps everything (plane effectively disabled). */
 const FAR_AWAY = 1e4;
 
@@ -66,6 +69,19 @@ export interface TrackRendererOptions {
   reducedFlash: boolean;
   covers: CoverLayout;
   skin: Skin;
+  /** Loaded textures of the skin (loadSkinArt); the renderer owns and disposes them. Parts left out are drawn in code. */
+  art?: SkinArt | null;
+}
+
+type NoteKind = 'note' | 'side' | 'scratch';
+const NOTE_KIND: Record<LaneKind, NoteKind> = { key: 'note', side: 'side', scratch: 'scratch' };
+
+interface BurstSprite {
+  sprite: THREE.Sprite;
+  /** Own copy of the sheet (sharing its image), so each sprite shows its own frame. */
+  texture: THREE.Texture;
+  start: number;
+  lane: number;
 }
 
 /** Renders the SDVX-style perspective track with Three.js. */
@@ -87,7 +103,7 @@ export class TrackRenderer {
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
   private readonly clipPlanes = [this.farClip, this.nearClip];
-  private readonly noteMaterials = new Map<number, THREE.MeshBasicMaterial>();
+  private readonly noteMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly bodyMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly notePool: MeshPool;
   private readonly bodyPool: MeshPool;
@@ -96,6 +112,14 @@ export class TrackRenderer {
   private readonly beamLevels: number[] = [];
   private readonly holdGlows: THREE.Sprite[] = [];
   private readonly effects: { sprite: THREE.Sprite; start: number; lane: number }[] = [];
+  /** Textures of the skin by part; empty when everything is drawn in code. */
+  private readonly art: SkinArt['slots'];
+  private readonly artSource: SkinArt | null;
+  private readonly artEffects: MediaEffects;
+  /** Flipbook hit effects ('sprite' skins), reused once they finish. */
+  private readonly bursts: BurstSprite[] = [];
+  /** Copies of skin textures made here (mirrored rail, per-sprite flipbook frames). */
+  private readonly ownedTextures: THREE.Texture[] = [];
   private readonly glowTexture = radialTexture();
   private readonly holdTexture = holdBodyTexture();
   private readonly ringTexture = ringTexture();
@@ -117,8 +141,12 @@ export class TrackRenderer {
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
     this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength);
     this.skin = options.skin;
+    this.artSource = options.art ?? null;
+    this.art = { ...options.art?.slots };
+    this.artEffects = options.art?.effects ?? { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
+    this.prepareArt();
     this.laneColors = laneColorsFor(options.skin, options.palette, options.mode);
-    this.noteGeometry = createNoteGeometry(options.skin.noteShape);
+    this.noteGeometry = createNoteGeometry(options.skin.noteShape, Boolean(this.art.note || this.art.side || this.art.scratch));
     this.reducedFlash = options.reducedFlash;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
@@ -146,12 +174,14 @@ export class TrackRenderer {
     this.setCovers(options.covers);
 
     this.notePool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.laneColors[0]));
+      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.laneColors[0], 'note'));
       mesh.renderOrder = 4;
       return mesh;
     });
     this.bodyPool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.flatGeometry, this.bodyMaterial(this.laneColors[0], 'idle'));
+      // a textured body has its own UVs: the texture repeats along the note
+      const geometry = this.art.longBody ? this.flatGeometry.clone() : this.flatGeometry;
+      const mesh = new THREE.Mesh(geometry, this.bodyMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3;
       return mesh;
     });
@@ -235,11 +265,17 @@ export class TrackRenderer {
       e.sprite.material.dispose();
     }
     this.effects.length = 0;
+    for (const b of this.bursts) b.sprite.visible = false;
   }
 
   /** Burst at the judgement line of a lane. */
   hitEffect(lane: number, color: number, perfNow: number): void {
     if (this.skin.hitEffect === 'none') return;
+    const burst = this.skin.hitEffect === 'sprite' ? this.art.hitBurst : undefined;
+    if (burst) {
+      this.spawnBurst(burst, lane, color, perfNow);
+      return;
+    }
     const material = new THREE.SpriteMaterial({
       map: this.skin.hitEffect === 'ring' ? this.ringTexture : this.glowTexture,
       color,
@@ -290,6 +326,8 @@ export class TrackRenderer {
     this.glowTexture.dispose();
     this.holdTexture.dispose();
     this.ringTexture.dispose();
+    this.ownedTextures.forEach((t) => t.dispose());
+    disposeSkinArt(this.artSource);
     this.renderer.dispose();
   }
 
@@ -307,9 +345,10 @@ export class TrackRenderer {
       const lane = this.geometry.lanes[n.lane];
       const color = this.laneColors[n.lane];
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
+      const kind = NOTE_KIND[lane.kind];
       if (n.type === 'tap') {
-        if (!n.headDone) this.placeNote(lane.x, lane.width, z(n.t), color, height);
-        else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height);
+        if (!n.headDone) this.placeNote(lane.x, lane.width, z(n.t), color, height, kind);
+        else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height, kind);
         continue;
       }
       const held = frame.heldNote(n.lane) === n.index;
@@ -326,6 +365,7 @@ export class TrackRenderer {
         body.material = this.bodyMaterial(bodyColor, state);
         body.scale.set(lane.width * HOLD_BODY_WIDTH, 1, headZ - tailZ);
         body.position.set(lane.x, 0.02, (headZ + tailZ) / 2);
+        if (this.art.longBody) this.setBodyUv(body, this.art.longBody, lane.width * HOLD_BODY_WIDTH, headZ, tailZ, z(n.endT));
       }
     }
     this.notePool.end();
@@ -333,11 +373,38 @@ export class TrackRenderer {
     this.updateHoldGlows(frame);
   }
 
-  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number): void {
+  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, kind: NoteKind): void {
     const mesh = this.notePool.next();
-    mesh.material = this.noteMaterial(color);
-    mesh.scale.set(laneWidth * 0.9, height, NOTE_DEPTH);
+    mesh.material = this.noteMaterial(color, kind);
+    const width = laneWidth * 0.9;
+    mesh.scale.set(width, height, this.noteDepth(kind, width));
     mesh.position.set(x, height / 2, z);
+  }
+
+  private noteArt(kind: NoteKind): ArtTexture | undefined {
+    return this.art[kind] ?? this.art.note;
+  }
+
+  /** Textured notes keep their texture's proportions as seen from the camera; drawn ones are all NOTE_DEPTH deep. */
+  private noteDepth(kind: NoteKind, width: number): number {
+    const art = this.noteArt(kind);
+    if (!art) return NOTE_DEPTH;
+    const [w, h] = art.spec.size;
+    return Math.min(NOTE_DEPTH, ((width * h) / w) * (art.spec.depthScale ?? 1));
+  }
+
+  /** The body texture is pinned to the note's real tail, so it travels with the note (also while held). */
+  private setBodyUv(mesh: THREE.Mesh, art: ArtTexture, width: number, nearZ: number, farZ: number, tailZ: number): void {
+    const tile = width * (art.spec.tileAspect ?? 2);
+    const vNear = (nearZ - tailZ) / tile;
+    const vFar = (farZ - tailZ) / tile;
+    const uv = mesh.geometry.getAttribute('uv') as THREE.BufferAttribute;
+    // PlaneGeometry(1, 1) laid flat: vertices 0 and 1 are its far edge, 2 and 3 its near edge
+    uv.setXY(0, 0, vFar);
+    uv.setXY(1, 1, vFar);
+    uv.setXY(2, 0, vNear);
+    uv.setXY(3, 1, vNear);
+    uv.needsUpdate = true;
   }
 
   private drawBars(frame: TrackFrame): void {
@@ -365,10 +432,21 @@ export class TrackRenderer {
   }
 
   private updateHoldGlows(frame: TrackFrame): void {
+    const hold = this.art.hitHold;
     this.holdGlows.forEach((glow, lane) => {
       const held = frame.heldNote(lane) !== null;
       glow.visible = held;
-      if (held) {
+      if (held && hold?.spec.flipbook) {
+        const book = hold.spec.flipbook;
+        // each lane starts at another frame, so neighbouring sparks do not move in step
+        const n = Math.floor((frame.timeMs / 1000) * book.fps) + lane * 5;
+        const [u, v] = flipbookOffset(book, ((n % book.frames) + book.frames) % book.frames);
+        glow.material.map?.offset.set(u, v);
+        const w = Math.min(this.geometry.lanes[lane].width, 1.6);
+        const s = w * (hold.spec.scale ?? 1.5) * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1);
+        glow.scale.set(s, s, 1);
+        glow.material.opacity = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
+      } else if (held) {
         const pulse = this.reducedFlash ? 1 : 1 + 0.12 * Math.sin(frame.timeMs / 45);
         const w = this.geometry.lanes[lane].width;
         glow.scale.set(Math.min(w, 1.6) * 1.3 * pulse, Math.min(w, 1.6) * 1.3 * pulse, 1);
@@ -392,6 +470,46 @@ export class TrackRenderer {
       e.sprite.scale.set(s * 1.25, s, 1);
       e.sprite.material.opacity = strength * (1 - p) * (1 - p);
     }
+    const burst = this.art.hitBurst;
+    if (burst) for (const b of this.bursts) if (b.sprite.visible) this.drawBurst(b, burst, perfNow);
+  }
+
+  private spawnBurst(burst: ArtTexture, lane: number, color: number, perfNow: number): void {
+    let b = this.bursts.find((x) => !x.sprite.visible);
+    if (!b) {
+      const texture = this.ownTexture(burst.texture.clone());
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false }),
+      );
+      sprite.renderOrder = 10;
+      this.scene.add(sprite);
+      b = { sprite, texture, start: 0, lane: 0 };
+      this.bursts.push(b);
+    }
+    b.sprite.material.color.setHex(color);
+    b.start = perfNow;
+    b.lane = lane;
+    b.sprite.position.set(this.geometry.lanes[lane].x, 0.25, this.judgeZ);
+    b.sprite.visible = true;
+    this.drawBurst(b, burst, perfNow);
+  }
+
+  /** A flipbook burst plays its frames once; then the sprite is free again. */
+  private drawBurst(b: BurstSprite, burst: ArtTexture, perfNow: number): void {
+    const book = burst.spec.flipbook;
+    const frame = book ? ((perfNow - b.start) / 1000) * book.fps : Infinity;
+    if (!book || frame >= book.frames) {
+      b.sprite.visible = false;
+      return;
+    }
+    const [u, v] = flipbookOffset(book, frame);
+    b.texture.offset.set(u, v);
+    const w = Math.min(this.geometry.lanes[b.lane].width, 1.6);
+    const s = w * (burst.spec.scale ?? 1.7) * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1);
+    b.sprite.scale.set(s, s, 1);
+    // the sheet fades by itself; its last frames fade out too, so the sprite does not cut off
+    const p = frame / book.frames;
+    b.sprite.material.opacity = (this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1) * Math.min(1, (1 - p) / 0.3);
   }
 
   private drawFever(frame: TrackFrame): void {
@@ -419,13 +537,20 @@ export class TrackRenderer {
     const c = new THREE.Color();
     const near = new THREE.Color(hex(this.skin.colors.trackNear));
     const far = new THREE.Color(hex(this.skin.colors.trackFar));
+    // a floor tile multiplies the track colours; its gain (sRGB, so ^2.2 on these linear colours) keeps their mean
+    const floor = this.art.floor;
+    const gain = floor ? Math.pow(floor.spec.gain ?? 1, 2.2) : 1;
     for (let i = 0; i < pos.count; i++) {
       const depth = Math.min(1, Math.max(0, -pos.getZ(i) / length));
-      c.copy(near).lerp(far, depth);
+      c.copy(near).lerp(far, depth).multiplyScalar(gain);
       c.toArray(colors, i * 3);
     }
     base.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const track = new THREE.Mesh(base, new THREE.MeshBasicMaterial({ vertexColors: true }));
+    if (floor) {
+      const tile = floor.spec.tile ?? 2.4;
+      floor.texture.repeat.set((width + 0.3) / tile, (length + TRACK_TAIL) / tile);
+    }
+    const track = new THREE.Mesh(base, new THREE.MeshBasicMaterial({ vertexColors: true, map: floor?.texture ?? null }));
     track.renderOrder = 0;
     this.scene.add(track);
 
@@ -445,20 +570,50 @@ export class TrackRenderer {
       const sideEdge = lanes[i].kind === 'side' || lanes[i - 1].kind === 'side';
       strip(lanes[i].x - lanes[i].width / 2, sideEdge ? 0.05 : 0.025, divider, 0.9);
     }
-    this.rails.push(
-      strip(-width / 2 - 0.08, 0.14, hex(this.skin.colors.railLeft), 0.95),
-      strip(width / 2 + 0.08, 0.14, hex(this.skin.colors.railRight), 0.95),
-    );
+    const rails = this.art.rails;
+    if (rails) {
+      this.rails.push(
+        this.railStrip(-width / 2 - 0.08, rails, hex(this.skin.colors.railLeft), false),
+        this.railStrip(width / 2 + 0.08, rails, hex(this.skin.colors.railRight), true),
+      );
+    } else {
+      this.rails.push(
+        strip(-width / 2 - 0.08, 0.14, hex(this.skin.colors.railLeft), 0.95),
+        strip(width / 2 + 0.08, 0.14, hex(this.skin.colors.railRight), 0.95),
+      );
+    }
+  }
+
+  /** A rail texture repeating along the track; light on black, so it is added. The right rail is mirrored. */
+  private railStrip(x: number, art: ArtTexture, color: number, mirror: boolean): THREE.MeshBasicMaterial {
+    const { length } = this.geometry;
+    const w = art.spec.width ?? 0.26;
+    const map = mirror ? this.ownTexture(art.texture.clone()) : art.texture;
+    map.repeat.set(mirror ? -1 : 1, (length + TRACK_TAIL) / (w * (art.spec.tileAspect ?? 12)));
+    map.offset.x = mirror ? 1 : 0;
+    const mesh = this.flat(color, 1, 1, { additive: true });
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    material.map = map;
+    mesh.scale.set(w, 1, length + TRACK_TAIL);
+    mesh.position.set(x, 0.006, (TRACK_TAIL - length) / 2);
+    return material;
   }
 
   private buildJudgementLine(): THREE.MeshBasicMaterial {
     const { width } = this.geometry;
-    // Transparent so it sorts after the covers (renderOrder) and stays on top of them.
+    // Transparent so it sorts after the covers (renderOrder) and stays on top of them. A texture is light on
+    // black with its own glow, so it is added.
+    const art = this.art.judgeLine;
     const line = new THREE.Mesh(
       this.flatGeometry,
-      new THREE.MeshBasicMaterial({ color: hex(this.skin.colors.judgeLine), transparent: true, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: hex(this.skin.colors.judgeLine),
+        transparent: true,
+        depthWrite: false,
+        ...(art && { map: art.texture, blending: THREE.AdditiveBlending }),
+      }),
     );
-    line.scale.set(width + 0.3, 1, 0.16);
+    line.scale.set(width + 0.3, 1, art ? (art.spec.depth ?? 0.5) : 0.16);
     line.position.set(0, 0.06, 0);
     line.renderOrder = 9.5;
     const glowMaterial = new THREE.MeshBasicMaterial({
@@ -479,7 +634,8 @@ export class TrackRenderer {
   }
 
   private buildBeams(): void {
-    const texture = linearFadeTexture();
+    const texture = this.art.keyBeam?.texture ?? linearFadeTexture();
+    const hold = this.art.hitHold;
     this.geometry.lanes.forEach((lane) => {
       const beam = new THREE.Mesh(
         this.flatGeometry,
@@ -502,7 +658,8 @@ export class TrackRenderer {
 
       const glow = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: this.glowTexture,
+          // hold sparks: each lane has its own copy of the sheet, to show its own frame
+          map: hold ? this.ownTexture(hold.texture.clone()) : this.glowTexture,
           color: this.laneColors[lane.index],
           blending: THREE.AdditiveBlending,
           transparent: true,
@@ -510,7 +667,9 @@ export class TrackRenderer {
           depthTest: false,
         }),
       );
-      glow.position.set(lane.x, 0.3, 0);
+      // sparks rise from the judgement line; the round glow sits on it
+      if (hold) glow.center.set(0.5, hold.spec.anchorY ?? 0);
+      glow.position.set(lane.x, hold ? 0.02 : 0.3, 0);
       glow.renderOrder = 10;
       glow.visible = false;
       this.scene.add(glow);
@@ -543,13 +702,41 @@ export class TrackRenderer {
     mesh.position.set(0, COVER_Y, (zFrom + zTo) / 2);
   }
 
-  private noteMaterial(color: number): THREE.MeshBasicMaterial {
-    let m = this.noteMaterials.get(color);
+  private noteMaterial(color: number, kind: NoteKind): THREE.MeshBasicMaterial {
+    const art = this.noteArt(kind);
+    const key = art ? `${kind}:${color}` : String(color);
+    let m = this.noteMaterials.get(key);
     if (!m) {
       m = new THREE.MeshBasicMaterial({ color, vertexColors: true, clippingPlanes: this.clipPlanes });
-      this.noteMaterials.set(color, m);
+      if (art) {
+        // the texture's alpha is the note's outline
+        m.map = art.texture;
+        m.transparent = true;
+        m.alphaTest = 0.05;
+      }
+      this.noteMaterials.set(key, m);
     }
     return m;
+  }
+
+  /** Filtering, wrapping and flipbook frame size, set before the textures are first uploaded. */
+  private prepareArt(): void {
+    // one mip level per lookup, not two: half the texture reads, which a software renderer (SwiftShader) feels
+    for (const a of Object.values(this.art)) a.texture.minFilter = THREE.LinearMipmapNearestFilter;
+    const { longBody, rails, floor } = this.art;
+    if (longBody) longBody.texture.wrapT = THREE.RepeatWrapping;
+    if (rails) rails.texture.wrapT = THREE.RepeatWrapping;
+    if (floor) floor.texture.wrapS = floor.texture.wrapT = THREE.RepeatWrapping;
+    for (const slot of ['hitBurst', 'hitHold'] as const) {
+      const art = this.art[slot];
+      if (art?.spec.flipbook) art.texture.repeat.set(1 / art.spec.flipbook.cols, 1 / art.spec.flipbook.rows);
+      else delete this.art[slot];
+    }
+  }
+
+  private ownTexture(texture: THREE.Texture): THREE.Texture {
+    this.ownedTextures.push(texture);
+    return texture;
   }
 
   private bodyMaterial(color: number, state: 'idle' | 'held' | 'missed'): THREE.MeshBasicMaterial {
@@ -559,7 +746,7 @@ export class TrackRenderer {
       const { lighten, opacity } = HOLD_BODY[state];
       m = new THREE.MeshBasicMaterial({
         color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), lighten),
-        map: this.holdTexture,
+        map: this.art.longBody?.texture ?? this.holdTexture,
         transparent: true,
         opacity,
         depthWrite: false,
@@ -577,9 +764,10 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
 
 /**
  * Unit-sized note shape (scaled per lane): a box, a thin plate or a rounded capsule, shaded by
- * vertex colour (bright top, darker front and sides).
+ * vertex colour (bright top, darker front and sides). With `topUv` a note texture (drawn as seen
+ * from above) is projected straight down onto it; walls take it a little inside its edge.
  */
-function createNoteGeometry(shape: Skin['noteShape']): THREE.BufferGeometry {
+function createNoteGeometry(shape: Skin['noteShape'], topUv: boolean): THREE.BufferGeometry {
   let geometry: THREE.BufferGeometry;
   if (shape === 'round') {
     // capsule lying across the lane, normalised to a 1×1×1 box
@@ -598,6 +786,15 @@ function createNoteGeometry(shape: Skin['noteShape']): THREE.BufferGeometry {
     colors.set([shade, shade, shade], i * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  if (topUv) {
+    const pos = geometry.getAttribute('position');
+    const uv = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      uv[i * 2] = 0.5 + pos.getX(i) * (1 - 2 * WALL_INSET * Math.abs(normals.getX(i)));
+      uv[i * 2 + 1] = 0.5 - pos.getZ(i) * (1 - 2 * WALL_INSET * Math.abs(normals.getZ(i)));
+    }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  }
   return geometry;
 }
 

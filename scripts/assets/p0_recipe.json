@@ -1,0 +1,39 @@
+{
+  "description": "P0 텍스처 · 플립북을 assets-src 원본에서 다시 만드는 값(scripts/assets/build_p0.py). build 는 후처리 값, manifest 는 게임이 쓰는 값(client/public/media/manifest.json 에 그대로 들어감). 밝기 값은 0~1.",
+  "out": "client/public/media",
+  "sets": {
+    "glass": { "tap": "notes/glass_tap.png", "body": "notes/glass_long_body.png", "judge": "gear/glass_judge_line.png", "rail": "gear/glass_rail.png", "floor": "gear/glass_track_floor.png", "noteLift": 0 },
+    "crystal": { "tap": "notes/crystal_tap.png", "body": "notes/crystal_long_body.png", "judge": "gear/crystal_judge_line.png", "rail": "gear/crystal_rail.png", "floor": "gear/crystal_track_floor.png", "noteLift": 0.45 },
+    "metal": { "tap": "notes/metal_tap.png", "body": "notes/metal_long_body.png", "judge": "gear/metal_judge_line.png", "rail": "gear/metal_rail.png", "floor": "gear/metal_track_floor.png", "noteLift": 0 },
+    "gel": { "tap": "notes/gel_tap.png", "body": "notes/gel_long_body.png", "judge": "gear/gel_judge_line.png", "rail": "gear/gel_rail.png", "floor": "gear/gel_track_floor.png", "noteLift": 0 }
+  },
+  "build": {
+    "note": { "alphaThreshold": 0.06, "liftThreshold": 0.25, "capRatio": 0.6, "tap": [256, 64], "side": [128, 64], "scratch": [256, 64], "scratchStreaks": 0.28 },
+    "body": { "size": [128, 256], "columnThreshold": 0.1, "margin": 0.04, "seamRows": 128, "alphaGain": 1.4 },
+    "judge": { "size": [1024, 64], "rowThreshold": 0.03, "margin": 0.15 },
+    "rail": { "size": [64, 1024], "columnThreshold": 0.15, "margin": 0.1, "seamRows": 192 },
+    "floor": { "size": [512, 512], "seam": 128, "contrast": 0.5, "mean": 0.5 },
+    "keyBeam": { "src": "gear/key_beam.png", "size": [64, 512], "columnThreshold": 0.1, "margin": 0.1 },
+    "flipbooks": {
+      "hit_burst_ring": { "src": "effects/hit_burst_ring.mp4", "from": 1.55, "to": 3.25, "cell": 256, "black": 16 },
+      "hit_burst_glow": { "src": "effects/hit_burst_glow.mp4", "from": 1.95, "to": 3.3, "reverse": true, "cell": 256, "black": 16 },
+      "hit_hold": { "src": "effects/hit_hold_sparks.mp4", "from": 2.0, "loop": true, "cell": 128, "black": 16 }
+    },
+    "frames": 16,
+    "grid": 4
+  },
+  "manifest": {
+    "note": { "depthScale": 1.5 },
+    "longBody": {},
+    "judgeLine": { "depth": 0.5 },
+    "rails": { "width": 0.26 },
+    "floor": { "tile": 2.4 },
+    "keyBeam": {},
+    "flipbooks": {
+      "hit_burst_ring": { "fps": 60, "scale": 1.7 },
+      "hit_burst_glow": { "fps": 60, "scale": 1.35 },
+      "hit_hold": { "fps": 24, "scale": 1.5, "anchorY": 0.15 }
+    },
+    "effects": { "reducedFlashOpacity": 0.45, "reducedFlashScale": 0.8 }
+  }
+}
