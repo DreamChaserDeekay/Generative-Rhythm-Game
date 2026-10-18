@@ -47,6 +47,13 @@
   --stem-bass: #ff9a6b;
   --stem-vocals: #7cf7ff;
   --stem-other: #c58bff;
+  /* repetition groups of song sections (A, B, C … cycle through these) */
+  --section-1: var(--lane-blue);
+  --section-2: var(--lamp-easy);
+  --section-3: var(--lane-gold);
+  --section-4: var(--lane-scratch);
+  --section-5: var(--lane-sideL);
+  --section-6: var(--lane-sideR);
   --fever-2: #37e2ff;
   --fever-3: #6dff8a;
   --fever-4: #ffd84f;

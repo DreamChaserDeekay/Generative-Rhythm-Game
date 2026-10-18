@@ -3,6 +3,7 @@ import { keyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { LANE_PALETTES, type Palette } from '../render/palette';
+import { groupColor, sectionLabel } from './sections';
 import { canvasFont, token } from './theme';
 
 const HEIGHT = 112;
@@ -16,7 +17,8 @@ interface Props {
   onSelect?: (startMs: number, endMs: number) => void;
 }
 
-/** Whole-chart overview: time runs left to right, one row per lane, sections along the top. */
+/** Whole-chart overview: time runs left to right, one row per lane, sections along the top (coloured
+ * by repetition group, so the same music has the same colour). */
 export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(600);
@@ -53,17 +55,20 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
 
     const tempo = new TempoMap(chart.timing);
     (chart.sections ?? []).forEach((s, i, all) => {
-      const t0 = tempo.beatToMs(s.startBeat);
+      const t0 = Math.max(0, tempo.beatToMs(s.startBeat));
       const t1 = i + 1 < all.length ? tempo.beatToMs(all[i + 1].startBeat) : duration;
-      // louder sections are brighter
-      ctx.fillStyle = text;
-      ctx.globalAlpha = 0.08 + 0.22 * s.energy;
+      // the colour is the repetition group (the same music has the same colour), louder is brighter
+      ctx.fillStyle = s.group ? groupColor(s.group) : text;
+      ctx.globalAlpha = s.group ? 0.25 + 0.35 * s.energy : 0.08 + 0.22 * s.energy;
       ctx.fillRect(x(t0), 0, Math.max(1, x(t1) - x(t0) - 1), SECTION_BAND - 2);
       ctx.globalAlpha = 1;
-      if (x(t1) - x(t0) > 56) {
+      const name = sectionLabel(s.label);
+      const room = x(t1) - x(t0);
+      if (room > 40) {
+        ctx.fillStyle = text;
         ctx.font = canvasFont(700, '--fs-label');
         ctx.textBaseline = 'middle';
-        ctx.fillText(s.label, x(t0) + 4, (SECTION_BAND - 2) / 2);
+        ctx.fillText(room > 72 && s.group ? `${name} ${s.group}` : name, x(t0) + 4, (SECTION_BAND - 2) / 2, room - 6);
       }
     });
     ctx.strokeStyle = text;

@@ -1,6 +1,6 @@
 import type { ReplayData } from '../engine/replay';
 import type { DifficultySystemId } from '../engine/config';
-import type { Chart, KeyModeId, StemName } from '../engine/types';
+import type { Chart, ChartSection, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
 
@@ -84,6 +84,8 @@ export interface Song {
   bgaOffsetMs: number;
   /** YouTube video ID of the background (played by YouTube's player), or null. */
   bgaYoutube: string | null;
+  /** The user's section edits (null = the analysed sections). */
+  sections?: SectionEdit[] | null;
   /** File name of the uploaded audio (exports refer to it). */
   originalName?: string;
   records?: ScoreRecord[];
@@ -153,6 +155,23 @@ export interface ChartRequest {
   params?: Record<string, unknown>;
 }
 
+/** One section as the user sets it: start (beats from the first downbeat, on a bar line), label, group. */
+export interface SectionEdit {
+  startBeat: number;
+  label: SectionLabel;
+  group: string;
+}
+
+export type SectionLabel = 'intro' | 'verse' | 'pre-chorus' | 'chorus' | 'bridge' | 'drop' | 'outro';
+
+export interface SongSections {
+  /** What charts are made from: the user's edits, else the analysed sections. */
+  sections: ChartSection[];
+  analysed: ChartSection[];
+  edited: boolean;
+  beatsPerBar: number;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -200,11 +219,22 @@ export const api = {
   addDemo: async (bpm = 128, bars = 48) => (await request<{ song: Song }>('/api/songs/demo', json({ bpm, bars }))).song,
   patchSong: (
     id: string,
-    patch: { title?: string; artist?: string; bpm?: number; clearBpm?: boolean; offsetShiftMs?: number; bgaOffsetMs?: number; bgaYoutube?: string },
+    patch: {
+      title?: string;
+      artist?: string;
+      bpm?: number;
+      clearBpm?: boolean;
+      offsetShiftMs?: number;
+      bgaOffsetMs?: number;
+      bgaYoutube?: string;
+      /** [] goes back to the analysed sections. */
+      sections?: SectionEdit[];
+    },
   ) =>
     request<{ song: Song; reanalyzing: boolean }>(`/api/songs/${id}`, { ...json(patch), method: 'PATCH' }),
   deleteSong: (id: string) => request<void>(`/api/songs/${id}`, { method: 'DELETE' }),
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),
+  sections: (id: string) => request<SongSections>(`/api/songs/${id}/sections`),
   generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean }>(`/api/songs/${id}/charts`, json(req)),
   saveScore: (record: {
     chartId: string;

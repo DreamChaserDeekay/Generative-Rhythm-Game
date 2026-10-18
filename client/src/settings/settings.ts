@@ -28,8 +28,10 @@ export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100';
 
 export type GenStyle = 'balanced' | 'stream' | 'chord' | 'jack' | 'longnote' | 'technical' | 'melody';
 export type RhythmSource = 'auto' | 'drum' | 'bass' | 'melody' | 'vocal';
-/** designer = patterns planned per phrase; classic = the earlier note-by-note placement (to compare). */
-export type PatternEngine = 'designer' | 'classic';
+/** sectioned = built from the song's sections and loops down (default); designer = patterns planned
+ * per phrase; classic = the earlier note-by-note placement (both kept to compare). */
+export type PatternEngine = 'sectioned' | 'designer' | 'classic';
+export const PATTERN_ENGINES: readonly PatternEngine[] = ['sectioned', 'designer', 'classic'];
 
 /** Advanced generation options; null leaves the difficulty preset's value. */
 export interface GenerationPrefs {
@@ -45,6 +47,8 @@ export interface GenerationPrefs {
   /** 1 = reuse lane patterns in repeated sections, 0 = off (null = server default). */
   repeatConsistency: number | null;
   patternEngine: PatternEngine;
+  /** The user picked the engine (a stored "designer" without it is the old default). */
+  engineSet?: boolean;
 }
 
 export const GEN_STYLES: GenStyle[] = ['balanced', 'stream', 'chord', 'jack', 'longnote', 'technical', 'melody'];
@@ -59,7 +63,7 @@ export const DEFAULT_GENERATION: GenerationPrefs = {
   specialRate: null,
   instrumentMapping: null,
   repeatConsistency: null,
-  patternEngine: 'designer',
+  patternEngine: 'sectioned',
 };
 
 export interface Settings {
@@ -224,7 +228,9 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
     specialRate: optional(g.specialRate, 0, 0.2),
     instrumentMapping: optional(g.instrumentMapping, 0, 1),
     repeatConsistency: optional(g.repeatConsistency, 0, 1),
-    patternEngine: pick(g.patternEngine, ['designer', 'classic'] as PatternEngine[], DEFAULT_GENERATION.patternEngine),
+    // "designer" was the default before the sectioned engine: only a picked one stays
+    patternEngine: g.patternEngine === 'designer' && g.engineSet !== true ? 'sectioned' : pick(g.patternEngine, PATTERN_ENGINES, DEFAULT_GENERATION.patternEngine),
+    ...(g.engineSet === true ? { engineSet: true } : {}),
   };
   return s;
 }

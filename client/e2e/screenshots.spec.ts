@@ -155,6 +155,16 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.waitForTimeout(500);
   await shot(page, '02-analysis');
 
+  // the song's sections: coloured by repetition group on the minimap, editable in the song settings
+  await page.getByTestId('toggle-analysis').click();
+  await page.getByTestId('edit-sections').click();
+  await expect(page.getByTestId('section-row').first()).toBeVisible();
+  await page.getByTestId('chart-minimap').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(300);
+  await shot(page, '02b-sections');
+  await page.getByTestId('edit-sections').click();
+  await page.getByTestId('toggle-analysis').click();
+
   // the same song on EZ2ON's scale
   await page.getByTestId('toggle-analysis').click();
   await page.getByTestId('system-EZ2ON').click();

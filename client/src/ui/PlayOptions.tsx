@@ -104,7 +104,7 @@ export function generationParams(prefs: GenerationPrefs, keyMode: KeyModeId): Re
   const params: Record<string, unknown> = { style: prefs.style, rhythmSource: prefs.rhythmSource };
   if (prefs.instrumentMapping !== null) params.instrumentMapping = prefs.instrumentMapping;
   if (prefs.repeatConsistency !== null) params.repeatConsistency = prefs.repeatConsistency;
-  if (prefs.patternEngine !== 'designer') params.patternEngine = prefs.patternEngine;
+  if (prefs.patternEngine !== 'sectioned') params.patternEngine = prefs.patternEngine;
   if (prefs.density !== null) params.density = prefs.density;
   if (prefs.longNoteRatio !== null) params.longNoteRatio = prefs.longNoteRatio;
   if (prefs.maxChord !== null) params.maxChord = prefs.maxChord;
@@ -169,14 +169,19 @@ export function GenerationPanel({ settings, onSettingsChange, keyMode }: Setting
       <span className="label">패턴 배치</span>
       <div className="row">
         <div className="segmented" data-testid="pattern-engine">
-          <button className={g.patternEngine === 'designer' ? 'active' : ''} onClick={() => set({ patternEngine: 'designer' })}>
+          <button className={g.patternEngine === 'sectioned' ? 'active' : ''} data-testid="pattern-engine-sectioned" onClick={() => set({ patternEngine: 'sectioned', engineSet: true })}>
+            구간·루프
+          </button>
+          <button className={g.patternEngine === 'designer' ? 'active' : ''} data-testid="pattern-engine-designer" onClick={() => set({ patternEngine: 'designer', engineSet: true })}>
             악구·패턴
           </button>
-          <button className={g.patternEngine === 'classic' ? 'active' : ''} data-testid="pattern-engine-classic" onClick={() => set({ patternEngine: 'classic' })}>
+          <button className={g.patternEngine === 'classic' ? 'active' : ''} data-testid="pattern-engine-classic" onClick={() => set({ patternEngine: 'classic', engineSet: true })}>
             이전 방식
           </button>
         </div>
-        <span className="hint">악구마다 계단·트릴 같은 모양을 정해 놓습니다. "이전 방식"은 비교용으로, 음높이를 따라 노트를 하나씩 놓습니다</span>
+        <span className="hint">
+          "구간·루프"는 곡의 구간과 1·2·4마디 루프를 먼저 찾아, 같은 음악에는 같은 패턴을 놓습니다. "악구·패턴"(0.4)과 "이전 방식"은 비교용입니다
+        </span>
       </div>
       <span className="label">반복 구간</span>
       <label className="row check">

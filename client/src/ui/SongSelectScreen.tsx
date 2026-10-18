@@ -21,6 +21,7 @@ import type { Palette, Settings } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
 import { ChartMinimap } from './ChartMinimap';
+import { SectionEditor } from './SectionEditor';
 import { lampClass } from './lamps';
 import { GenerationPanel, generationParams, PlayRulesPanel, PracticePanel, STYLE_LABELS } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
@@ -91,6 +92,7 @@ export function SongSelectScreen(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [editSections, setEditSections] = useState(false);
   const [targetLevel, setTargetLevel] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<'none' | 'rules' | 'generation'>('none');
@@ -109,6 +111,7 @@ export function SongSelectScreen(props: Props) {
   const tiers = system.tiers;
   const difficulty = tierOf(system, settings.lastDifficulty).id;
   const selected = songs.find((s) => s.id === selectedSongId) ?? null;
+  useEffect(() => setEditSections(false), [selected?.id]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q)) : songs;
@@ -757,7 +760,7 @@ export function SongSelectScreen(props: Props) {
                   onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
                 >
                   생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
-                  {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : ''}
+                  {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : settings.generation.patternEngine === 'designer' ? ' · 악구 배치' : ''}
                 </button>
                 <label className="check">
                   <input type="checkbox" checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
@@ -875,6 +878,23 @@ export function SongSelectScreen(props: Props) {
                   </p>
                 )}
                 <div className="row">
+                  <span className="label">구간</span>
+                  <span className="value" data-testid="sections-status">{selected.sections ? '직접 고침' : '자동 분석'}</span>
+                  <button className="small" data-testid="edit-sections" disabled={selected.status !== 'ready'} onClick={() => setEditSections((v) => !v)}>
+                    {editSections ? '구간 편집 닫기' : '구간 편집'}
+                  </button>
+                </div>
+                {editSections && selected.status === 'ready' && (
+                  <SectionEditor
+                    songId={selected.id}
+                    onClose={() => setEditSections(false)}
+                    onSaved={async () => {
+                      await refresh();
+                      if (chart && chart.meta.source?.kind !== 'edited' && chart.meta.source?.kind !== 'imported') await generate();
+                    }}
+                  />
+                )}
+                <div className="row">
                   <button className="small" data-testid="toggle-analysis" disabled={selected.status !== 'ready'} onClick={() => setShowAnalysis((v) => !v)}>
                     {showAnalysis ? '분석 보기 닫기' : '분석 보기'}
                   </button>
@@ -955,9 +975,14 @@ function ChartPreview(props: {
             <span className="label">왼손 / 오른손</span> <strong>{Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}</strong>
           </div>
         )}
-        {m.repeatConsistency != null && (
-          <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴을 쓴 비율">
-            <span className="label">반복 패턴 일치</span> <strong>{Math.round(m.repeatConsistency * 100)}%</strong>
+        {m.consistency?.loopLane != null && (
+          <div title="구간 안에서 루프(1·2·4마디)가 되풀이될 때, 같은 박의 노트가 같은 레인에 놓인 비율" data-testid="loop-consistency">
+            <span className="label">루프 패턴 일치</span> <strong>{Math.round(m.consistency.loopLane * 100)}%</strong>
+          </div>
+        )}
+        {(m.consistency?.repeatLaneMirror ?? m.repeatConsistency) != null && (
+          <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴(또는 좌우 반전)을 쓴 비율">
+            <span className="label">반복 패턴 일치</span> <strong>{Math.round((m.consistency?.repeatLaneMirror ?? m.repeatConsistency ?? 0) * 100)}%</strong>
           </div>
         )}
         {m.source && m.source.kind !== 'generated' && (

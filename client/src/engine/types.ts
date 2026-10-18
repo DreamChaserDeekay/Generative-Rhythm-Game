@@ -70,8 +70,32 @@ export interface ChartTiming {
 
 export interface ChartSection {
   startBeat: number;
+  endBeat?: number;
+  /** intro, verse, pre-chorus, chorus, bridge, drop or outro. */
   label: string;
+  /** Repetition group: sections with the same letter play the same music. */
+  group?: string;
   energy: number;
+  /** The section's bars repeat after this many. */
+  loopBars?: number;
+  /** 0..1: how clear the analysed boundary and group are (1 = set by the user). */
+  confidence?: number;
+}
+
+/** Section consistency of a chart (server difficulty/consistency.py): shares 0..1. */
+export interface ChartConsistency {
+  /** Note times shared by a section's bar and the bar one loop later. */
+  loopRhythm: number | null;
+  /** Of those shared times, the ones with the same lanes. */
+  loopLane: number | null;
+  /** Note times a repeated section shares with its first occurrence. */
+  repeatSelect: number | null;
+  /** Of those, the ones with the same lanes (repeatLaneMirror also counts mirrored repeats). */
+  repeatLane: number | null;
+  repeatLaneMirror?: number | null;
+  /** Distinct bars per bar of a section (low = the section repeats its loop). */
+  barVariety: number | null;
+  laneEntropy: number | null;
 }
 
 /** Pattern profile of a chart (server difficulty/patterns.py): shares of its key notes. */
@@ -107,6 +131,7 @@ export interface ChartMeta {
   /** Main keysound stem shown in the chart info and the share of notes following each stem. */
   keysound?: { stem: StemName; share: number; shares: Record<StemName, number> } | null;
   repeatConsistency?: number | null;
+  consistency?: ChartConsistency | null;
   /** Where the chart came from: generated (absent), edited in the editor or imported from a file. */
   source?: { kind: 'generated' | 'edited' | 'imported'; format?: 'osu' | 'bms' | 'bmson'; file?: string; from?: string };
   /** Display name of an edited/imported chart (osu! Version, BMS difficulty …). */
