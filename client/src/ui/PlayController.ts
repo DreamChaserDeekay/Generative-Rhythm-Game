@@ -1,7 +1,7 @@
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
-import { planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel, type StemKeysoundPlan } from '../audio/stemKeysounds';
+import { emptyPressNote, planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel, type StemKeysoundPlan } from '../audio/stemKeysounds';
 import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
@@ -86,7 +86,6 @@ const FEVER_KEY = 'Enter';
 /** Autoplay keysounds are scheduled this far ahead so they land exactly on the notes. */
 const KEYSOUND_LOOKAHEAD_MS = 120;
 /** An empty press plays the lane's next note if it is at most this far ahead (BMS). */
-const EMPTY_PRESS_REACH_MS = 1000;
 /** Judgement text and combo distance up the track, as shares of the travel distance. */
 const HUD_POSITIONS = { low: [0.08, 0.36], mid: [0.16, 0.42], high: [0.32, 0.56] } as const;
 
@@ -181,6 +180,7 @@ export class PlayController {
       root: setup.bgRoot,
       coverUrl: request.background?.coverUrl ?? null,
       bgaUrl: settings.bga ? (request.background?.bgaUrl ?? null) : null,
+      bgaYoutube: settings.bga ? (request.background?.bgaYoutube ?? null) : null,
       bgaOffsetMs: request.background?.bgaOffsetMs ?? 0,
       rate: setup.bufferPlacement.rate,
       brightness: settings.bgBrightness,
@@ -367,26 +367,32 @@ export class PlayController {
 
   /** A press: judged by the session, and with keysounds the judged (or the lane's next) note sounds. */
   private onPress(lane: number, timeMs: number): void {
-    this.pressJudged = null;
     if (this.recorder) this.recorder.press(lane, timeMs);
     else this.session.press(lane, timeMs);
     this.pressSound(lane, timeMs);
   }
 
+  /**
+   * The sound of a press, after the session judged it. Imported keysound charts play the judged
+   * note's sample. An empty press (a "ghost note") plays the lane's next note, or its last one:
+   * its sample, or for generated charts the start of its slice over the song (a hit's slice is
+   * played by the judgement itself).
+   */
   private pressSound(lane: number, timeMs: number): void {
-    if (!this.voices || this.setup.request.autoPlay) return;
-    const index = this.pressJudged ?? this.nextNoteOf(lane, timeMs);
-    const note = index !== null ? this.session.notes[index] : undefined;
-    // the key went down at (judgement time + input offset); that moment has passed, so it sounds now
-    if (note) this.voices.play(note, this.engine.contextTimeForSong(timeMs + this.settings.inputOffsetMs * this.rate));
-  }
-
-  private nextNoteOf(lane: number, timeMs: number): number | null {
+    const judged = this.pressJudged;
+    this.pressJudged = null;
+    if (this.setup.request.autoPlay || (!this.voices && !this.stemVoices)) return;
     const notes = this.session.notes;
-    for (const i of this.laneNotes[lane] ?? []) {
-      if (notes[i].t >= timeMs) return notes[i].t - timeMs <= EMPTY_PRESS_REACH_MS * this.rate ? i : null;
+    const index = judged ?? emptyPressNote(this.laneNotes[lane] ?? [], (i) => notes[i].t, timeMs);
+    const note = index !== null ? notes[index] : undefined;
+    if (!note) return;
+    if (this.voices) {
+      // the key went down at (judgement time + input offset); that moment has passed, so it sounds now
+      this.voices.play(note, this.engine.contextTimeForSong(timeMs + this.settings.inputOffsetMs * this.rate));
+    } else if (judged === null) {
+      const slice = this.stemPlan?.noteSlice[note.index] ?? null;
+      if (slice !== null) this.stemVoices?.ghost(slice, this.engine.ctx.currentTime);
     }
-    return null;
   }
 
   /** Autoplay: schedule upcoming note keysounds on the song clock. */
@@ -430,12 +436,21 @@ export class PlayController {
     const rect = this.setup.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
     this.redrawPaused = true;
+    this.hud.fit();
+    this.placeHud();
+  }
+
+  /** Combo and judgement where the track is now: camera effects tilt and zoom them with it. */
+  private placeHud(): void {
     const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
     const { judgeZ, travel } = this.scroll;
-    this.hud.place({
-      combo: this.renderer.project(0, 0, judgeZ - travel * combo),
-      judge: this.renderer.project(0, 0, judgeZ - travel * judge),
-    });
+    this.hud.place(
+      {
+        combo: this.renderer.project(0, 0, judgeZ - travel * combo),
+        judge: this.renderer.project(0, 0, judgeZ - travel * judge),
+      },
+      this.renderer.roll,
+    );
   }
 
   private readonly frame = (perfNow: number): void => {
@@ -452,10 +467,7 @@ export class PlayController {
       }
       if (this.replayer && !this.replayer.done) {
         // only the recorded calls, in the recorded order: the same result whatever the frame rate
-        this.replayer.feed(session, judgeNow, (lane, t) => {
-          this.pressJudged = null;
-          this.pressSound(lane, t);
-        });
+        this.replayer.feed(session, judgeNow, (lane, t) => this.pressSound(lane, t));
       } else if (this.recorder) {
         this.recorder.update(judgeNow);
       } else {
@@ -483,6 +495,7 @@ export class PlayController {
         },
         perfNow,
       );
+      if (this.cameraFx.enabled) this.placeHud();
     }
     this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
     const start = this.practice ? this.firstNoteMs : 0;
@@ -585,10 +598,12 @@ export class PlayController {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
       if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
-      if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && !e.isBreak && e.errorMs !== null) {
-        // a hit plays its slice of the stem right away; a missed note leaves it silent
+      if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
+        // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
+        // judged BREAK sounds like an empty press (the start of its slice over the song)
         const slice = this.stemPlan?.noteSlice[e.noteIndex] ?? null;
-        if (slice !== null) this.stemVoices.play(slice, this.engine.ctx.currentTime);
+        if (slice !== null && !e.isBreak) this.stemVoices.play(slice, this.engine.ctx.currentTime);
+        else if (slice !== null) this.stemVoices.ghost(slice, this.engine.ctx.currentTime);
       }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);

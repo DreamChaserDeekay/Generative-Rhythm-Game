@@ -25,6 +25,7 @@ export function buildPlayRequest(
     background: {
       coverUrl: song.hasCover ? api.coverUrl(songId) : null,
       bgaUrl: song.hasBga ? api.bgaUrl(songId) : null,
+      bgaYoutube: song.bgaYoutube ?? null,
       bgaOffsetMs: song.bgaOffsetMs ?? 0,
     },
   };

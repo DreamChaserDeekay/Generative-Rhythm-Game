@@ -83,6 +83,7 @@ MIGRATIONS = {
     "analyzer": "TEXT NOT NULL DEFAULT '{}'",
     "bga_ext": "TEXT",
     "bga_offset_ms": "REAL NOT NULL DEFAULT 0",
+    "bga_youtube": "TEXT",
 }
 # charts: where a chart came from (generated / edited / imported) and its display name
 CHART_MIGRATIONS = {
@@ -256,7 +257,7 @@ class Library:
     def update_song(self, song_id: str, **fields: Any) -> dict[str, Any]:
         allowed = {
             "title", "artist", "status", "progress", "progress_label", "error", "bpm", "bpm_min", "bpm_max",
-            "preview_ms", "analyzed_at", "overrides", "analyzer", "bga_ext", "bga_offset_ms",
+            "preview_ms", "analyzed_at", "overrides", "analyzer", "bga_ext", "bga_offset_ms", "bga_youtube",
         }  # fmt: skip
         sets = {k: v for k, v in fields.items() if k in allowed}
         for key in ("overrides", "analyzer"):
@@ -309,6 +310,7 @@ class Library:
             "analyzedAt": row["analyzed_at"],
             "analyzer": json.loads(row["analyzer"] or "{}"),
             "hasBga": bool(row["bga_ext"]),
+            "bgaYoutube": row["bga_youtube"],
             "bgaOffsetMs": row["bga_offset_ms"] or 0.0,
             "originalName": row["original_name"],
         }
@@ -361,19 +363,26 @@ class Library:
             return None
         return json.loads(p.read_text(encoding="utf-8"))
 
-    # ---------- background video ----------
+    # ---------- background video: a file, or a YouTube video played by YouTube's own player ----------
     def save_bga(self, song_id: str, src: Path, ext: str) -> None:
         old = self.bga_path(song_id)
         if old is not None:
             old.unlink(missing_ok=True)
         shutil.move(str(src), self.song_dir(song_id) / f"bga{ext}")
-        self.update_song(song_id, bga_ext=ext)
+        self.update_song(song_id, bga_ext=ext, bga_youtube=None)
+
+    def set_bga_youtube(self, song_id: str, video_id: str) -> None:
+        """A YouTube video as the background; it replaces a video file."""
+        old = self.bga_path(song_id)
+        if old is not None:
+            old.unlink(missing_ok=True)
+        self.update_song(song_id, bga_ext=None, bga_youtube=video_id)
 
     def delete_bga(self, song_id: str) -> None:
         old = self.bga_path(song_id)
         if old is not None:
             old.unlink(missing_ok=True)
-        self.update_song(song_id, bga_ext=None)
+        self.update_song(song_id, bga_ext=None, bga_youtube=None)
 
     # ---------- charts ----------
     def save_chart(self, chart: dict[str, Any], song_id: str) -> None:

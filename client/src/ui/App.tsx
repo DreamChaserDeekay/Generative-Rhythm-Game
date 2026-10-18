@@ -38,7 +38,7 @@ export interface PlayRequest {
   /** Keysounds of a generated chart: loads the stems its notes play (same length as the song audio). */
   loadStems?: () => Promise<Map<StemName, AudioBuffer>>;
   /** Background layer: blurred jacket and the user's video. */
-  background?: { coverUrl: string | null; bgaUrl: string | null; bgaOffsetMs: number };
+  background?: { coverUrl: string | null; bgaUrl: string | null; bgaYoutube?: string | null; bgaOffsetMs: number };
   /** Imported keysound chart: the sounds the notes play (`loadAudio` gives the rendered background). */
   loadKeysounds?: () => Promise<KeysoundBank>;
   /** Test play from the chart editor: leaving the play (or its result) returns to the editor. */

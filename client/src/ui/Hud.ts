@@ -45,6 +45,12 @@ const MAX_SCALE = 1.5;
 const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
 const COMBO_BUMP_MS = 150;
 
+/** CSS transform of a box centred on its anchor and turned with the track (camera roll, radians). */
+export function anchorTransform(roll: number): string {
+  const deg = Math.round(((roll * 180) / Math.PI) * 10) / 10;
+  return deg === 0 ? 'translate(-50%, -50%)' : `translate(-50%, -50%) rotate(${deg}deg)`;
+}
+
 /** Imperative DOM overlay; only touches the DOM when a value changes. */
 export class Hud {
   private readonly root: HTMLElement;
@@ -82,6 +88,7 @@ export class Hud {
   private lastReady = '';
   private lastFever = '';
   private lastScale = 0;
+  private lastPlace = '';
 
   constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
@@ -156,16 +163,28 @@ export class Hud {
     this.setCombo(0);
   }
 
-  place(anchors: HudAnchors): void {
-    this.comboBox.style.left = `${anchors.combo.x}px`;
-    this.comboBox.style.top = `${anchors.combo.y}px`;
-    this.judgeBox.style.left = `${anchors.judge.x}px`;
-    this.judgeBox.style.top = `${anchors.judge.y}px`;
+  /** Sizes the HUD to the screen (on start and resize; reading the size lays the page out). */
+  fit(): void {
     const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.root.clientHeight / BASE_HEIGHT)) * 100) / 100;
     if (scale !== this.lastScale) {
       this.lastScale = scale;
       this.root.style.setProperty('--hud-scale', String(scale));
     }
+  }
+
+  /** Puts the combo and the judgement on the track; `roll` turns them with a tilted track. */
+  place(anchors: HudAnchors, roll = 0): void {
+    const transform = anchorTransform(roll);
+    const px = (v: number) => Math.round(v * 2) / 2;
+    const key = `${px(anchors.combo.x)},${px(anchors.combo.y)},${px(anchors.judge.x)},${px(anchors.judge.y)},${transform}`;
+    if (key === this.lastPlace) return;
+    this.lastPlace = key;
+    this.comboBox.style.left = `${px(anchors.combo.x)}px`;
+    this.comboBox.style.top = `${px(anchors.combo.y)}px`;
+    this.judgeBox.style.left = `${px(anchors.judge.x)}px`;
+    this.judgeBox.style.top = `${px(anchors.judge.y)}px`;
+    this.comboBox.style.transform = transform;
+    this.judgeBox.style.transform = transform;
   }
 
   showJudge(e: JudgeEvent, perfNow: number): void {

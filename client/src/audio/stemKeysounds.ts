@@ -12,6 +12,8 @@ export interface StemKeysoundOptions {
   chordMs: number;
   /** Fade at slice edges and where a stem leaves or rejoins the background. */
   fadeMs: number;
+  /** An empty press (a "ghost note") plays this much of the start of a slice. */
+  ghostMs: number;
 }
 
 export const STEM_KEYSOUND: StemKeysoundOptions = instrumentsJson.keysound;
@@ -139,12 +141,14 @@ interface Voice {
  */
 export class StemKeysoundVoices {
   private readonly playing = new Map<StemName, Voice>();
+  private readonly ghosts = new Map<StemName, Voice>();
   private readonly ctx: BaseAudioContext;
   private readonly destination: AudioNode;
   private readonly plan: StemKeysoundPlan;
   private readonly buffers: ReadonlyMap<StemName, AudioBuffer>;
   private readonly placement: BufferPlacement;
   private readonly fade: number;
+  private readonly ghostLength: number;
 
   constructor(
     ctx: BaseAudioContext,
@@ -160,6 +164,7 @@ export class StemKeysoundVoices {
     this.buffers = buffers;
     this.placement = placement;
     this.fade = options.fadeMs / 1000;
+    this.ghostLength = options.ghostMs / 1000;
   }
 
   /**
@@ -205,8 +210,50 @@ export class StemKeysoundVoices {
     };
   }
 
+  /**
+   * An empty press (a "ghost note"): the start of a slice, at most `ghostMs`, from context time
+   * `when`. It plays over the song and never cuts a slice that is playing, so the music stays whole;
+   * a new ghost of a stem replaces the previous one, so mashing a key does not pile sounds up.
+   */
+  ghost(slice: number, when: number): void {
+    const s = this.plan.slices[slice];
+    const buffer = s && this.buffers.get(s.stem);
+    if (!s || !buffer) return;
+    const { originMs, rate } = this.placement;
+    const offset = (s.startMs - originMs) / 1000 / rate;
+    if (offset < 0 || offset >= buffer.duration) return;
+    const duration = Math.min(this.ghostLength, (s.endMs - s.startMs) / 1000 / rate, buffer.duration - offset);
+    const fade = this.fade;
+    if (duration <= 2 * fade) return;
+    const at = Math.max(when, this.ctx.currentTime);
+    const end = at + duration;
+    const release = Math.max(fade, Math.min(GHOST_RELEASE_S, duration / 3));
+    const prev = this.ghosts.get(s.stem);
+    if (prev && prev.end > at) {
+      prev.gain.gain.cancelAndHoldAtTime(at);
+      prev.gain.gain.linearRampToValueAtTime(0, at + fade);
+      prev.src.stop(at + fade);
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(1, at + fade);
+    gain.gain.setValueAtTime(1, end - release);
+    gain.gain.linearRampToValueAtTime(0, end);
+    src.connect(gain);
+    gain.connect(this.destination);
+    src.start(at, offset, duration);
+    const voice = { slice, src, gain, end };
+    this.ghosts.set(s.stem, voice);
+    src.onended = () => {
+      gain.disconnect();
+      if (this.ghosts.get(s.stem) === voice) this.ghosts.delete(s.stem);
+    };
+  }
+
   stopAll(): void {
-    for (const v of this.playing.values()) {
+    for (const v of [...this.playing.values(), ...this.ghosts.values()]) {
       try {
         v.src.stop();
       } catch {
@@ -215,5 +262,26 @@ export class StemKeysoundVoices {
       v.gain.disconnect();
     }
     this.playing.clear();
+    this.ghosts.clear();
   }
+}
+
+/** Fade-out at the end of a ghost note (seconds). */
+const GHOST_RELEASE_S = 0.04;
+
+/**
+ * The note an empty press sounds (a "ghost note"), DJMAX-style: the lane's next note, or its last
+ * one once the lane has no notes left. `laneNotes` are the indices of one lane's notes in time
+ * order, `timeOf` gives a note's time.
+ */
+export function emptyPressNote(laneNotes: readonly number[], timeOf: (index: number) => number, timeMs: number): number | null {
+  if (laneNotes.length === 0) return null;
+  let lo = 0;
+  let hi = laneNotes.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeOf(laneNotes[mid]) < timeMs) lo = mid + 1;
+    else hi = mid;
+  }
+  return laneNotes[Math.min(lo, laneNotes.length - 1)];
 }

@@ -13,7 +13,7 @@ test('stem keysounds put the song back together, and a miss drops only its slice
     const SR = 44100;
     const length = 4 * SR;
     const fade = 128 / SR; // whole samples, so every edge falls on a sample
-    const options = { stemShare: 0.1, maxSliceMs: 4000, chordMs: 30, fadeMs: fade * 1000 };
+    const options = { stemShare: 0.1, maxSliceMs: 4000, chordMs: 30, fadeMs: fade * 1000, ghostMs: 300 };
     const ctx0 = new OfflineAudioContext(1, length, SR);
     const drums = ctx0.createBuffer(1, length, SR);
     const vocals = ctx0.createBuffer(1, length, SR);

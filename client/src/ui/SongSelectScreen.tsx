@@ -11,6 +11,7 @@ import {
   type Song,
 } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
+import { SongPreview } from '../audio/songPreview';
 import { keysoundStems } from '../audio/stemKeysounds';
 import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
 import { isReplay, type ReplayData } from '../engine/replay';
@@ -101,7 +102,7 @@ export function SongSelectScreen(props: Props) {
   const replayInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
-  const preview = useRef<HTMLAudioElement | null>(null);
+  const preview = useRef<SongPreview | null>(null);
 
   const keyMode = settings.lastKeyMode;
   const system = difficultySystems[settings.difficultySystem];
@@ -177,23 +178,17 @@ export function SongSelectScreen(props: Props) {
     void loadSaved(selectedSongId);
   }, [selectedSongId, loadSaved]);
 
-  // Highlight preview of the selected song.
+  // Highlight preview of the selected song: fades in, loops, fades out when leaving the song.
   useEffect(() => {
-    preview.current?.pause();
+    preview.current?.stop();
     preview.current = null;
     if (!selected || selected.status !== 'ready') return;
     const timer = window.setTimeout(() => {
-      const audio = new Audio(api.audioUrl(selected.id));
-      audio.volume = settings.musicVolume * 0.6;
-      audio.addEventListener('loadedmetadata', () => {
-        audio.currentTime = (selected.previewMs ?? 0) / 1000;
-        audio.play().catch(() => undefined);
-      });
-      preview.current = audio;
+      preview.current = new SongPreview(api.audioUrl(selected.id), selected.previewMs ?? 0, settings.musicVolume * 0.6);
     }, 350);
     return () => {
       window.clearTimeout(timer);
-      preview.current?.pause();
+      preview.current?.stop();
       preview.current = null;
     };
     // Restart the preview only when the song (or its readiness) changes, not on volume edits.
@@ -246,7 +241,7 @@ export function SongSelectScreen(props: Props) {
       const target = song && song.id === replay.songId ? song : replay.songId ? await api.song(replay.songId) : null;
       if (!target) throw new Error('리플레이의 곡이 라이브러리에 없습니다');
       const c = chart?.meta.chartId === replay.chartId ? chart : await api.chart(replay.chartId);
-      preview.current?.pause();
+      preview.current?.stop();
       onPlay(buildPlayRequest(target, c, settings, { autoPlay: false, replay }));
     } catch (e) {
       setError(e instanceof ApiError && e.status === 404 ? '리플레이의 채보를 찾을 수 없습니다' : e instanceof Error ? e.message : String(e));
@@ -350,7 +345,7 @@ export function SongSelectScreen(props: Props) {
     if (!selected) return;
     const c = chart ?? (await generate());
     if (!c) return;
-    preview.current?.pause();
+    preview.current?.stop();
     const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
     onPlay(
       buildPlayRequest(selected, c, settings, {
@@ -384,6 +379,11 @@ export function SongSelectScreen(props: Props) {
       setError(e instanceof Error ? e.message : String(e));
     }
     setBusy(null);
+  };
+
+  const linkYoutube = async () => {
+    const url = window.prompt('배경으로 쓸 유튜브 영상 링크를 붙여 넣으세요. 소리는 나지 않고 곡에 맞춰 재생됩니다.');
+    if (url?.trim()) await patch({ bgaYoutube: url.trim() });
   };
 
   const removeBga = async () => {
@@ -836,9 +836,9 @@ export function SongSelectScreen(props: Props) {
                 <p className="hint">비트가 어긋나 보이면 보정하세요. 보정하면 곡을 다시 분석하고 채보를 새로 만듭니다.</p>
                 <div className="row">
                   <span className="label">배경 영상</span>
-                  {selected.hasBga ? (
+                  {selected.hasBga || selected.bgaYoutube ? (
                     <>
-                      <span className="value" data-testid="bga-status">등록됨</span>
+                      <span className="value" data-testid="bga-status">{selected.bgaYoutube ? '유튜브' : '등록됨'}</span>
                       {[-100, -10, 10, 100].map((d) => (
                         <button key={d} className="small" onClick={() => void patch({ bgaOffsetMs: (selected.bgaOffsetMs ?? 0) + d })}>
                           {d > 0 ? `+${d}` : d}ms
@@ -848,9 +848,14 @@ export function SongSelectScreen(props: Props) {
                       <button className="small" onClick={() => void removeBga()}>지우기</button>
                     </>
                   ) : (
-                    <button className="small" data-testid="bga-upload" onClick={() => videoInput.current?.click()}>
-                      영상 고르기 (mp4·webm)
-                    </button>
+                    <>
+                      <button className="small" data-testid="bga-upload" onClick={() => videoInput.current?.click()}>
+                        영상 고르기 (mp4·webm)
+                      </button>
+                      <button className="small" data-testid="bga-youtube" onClick={() => void linkYoutube()}>
+                        유튜브 링크
+                      </button>
+                    </>
                   )}
                   <input
                     ref={videoInput}
@@ -864,6 +869,11 @@ export function SongSelectScreen(props: Props) {
                     }}
                   />
                 </div>
+                {selected.bgaYoutube && (
+                  <p className="hint" data-testid="bga-youtube-hint">
+                    유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.
+                  </p>
+                )}
                 <div className="row">
                   <button className="small" data-testid="toggle-analysis" disabled={selected.status !== 'ready'} onClick={() => setShowAnalysis((v) => !v)}>
                     {showAnalysis ? '분석 보기 닫기' : '분석 보기'}

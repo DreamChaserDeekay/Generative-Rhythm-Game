@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import shutil
 import threading
 import zipfile
@@ -11,7 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -74,6 +75,33 @@ class SongPatch(BaseModel):
     clearBpm: bool = False
     offsetShiftMs: float | None = Field(default=None, ge=-2000, le=2000)
     bgaOffsetMs: float | None = Field(default=None, ge=-60000, le=60000)
+    # a YouTube link (or video ID) as the background video; "" removes it
+    bgaYoutube: str | None = Field(default=None, max_length=500)
+
+
+YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def youtube_video_id(text: str) -> str | None:
+    """The video ID of a YouTube link (watch, youtu.be, shorts, embed, live) or of a bare ID."""
+    text = text.strip()
+    if YOUTUBE_ID.fullmatch(text):
+        return text
+    url = urlparse(text if "://" in text else f"https://{text}")
+    host = (url.hostname or "").lower()
+    for prefix in ("www.", "m.", "music."):
+        host = host.removeprefix(prefix)
+    if host == "youtu.be":
+        candidate = url.path.strip("/").split("/")[0]
+    elif host in ("youtube.com", "youtube-nocookie.com"):
+        parts = url.path.strip("/").split("/")
+        if parts[0] == "watch":
+            candidate = (parse_qs(url.query).get("v") or [""])[0]
+        else:
+            candidate = parts[1] if len(parts) >= 2 and parts[0] in ("shorts", "embed", "live", "v") else ""
+    else:
+        return None
+    return candidate if YOUTUBE_ID.fullmatch(candidate) else None
 
 
 class DemoRequest(BaseModel):
@@ -276,6 +304,14 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
     @app.patch("/api/songs/{song_id}")
     def patch_song(song_id: str, patch: SongPatch) -> dict[str, Any]:
         song = song_or_404(song_id)
+        if patch.bgaYoutube is not None:
+            if not patch.bgaYoutube.strip():
+                library.delete_bga(song_id)
+            else:
+                video_id = youtube_video_id(patch.bgaYoutube)
+                if video_id is None:
+                    raise HTTPException(400, "유튜브 영상 링크를 알아볼 수 없습니다")
+                library.set_bga_youtube(song_id, video_id)
         fields: dict[str, Any] = {}
         if patch.title is not None:
             fields["title"] = patch.title.strip() or song["title"]

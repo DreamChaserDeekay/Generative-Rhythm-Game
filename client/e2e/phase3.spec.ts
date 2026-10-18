@@ -66,9 +66,78 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.screenshot({ path: 'test-results/play-phase3.png' });
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
+  // the chart tilts the track at 12 s: the combo and the judgement turn with it
+  const tilt = async (sel: string) => {
+    const t = await page.locator(sel).evaluate((el) => (el as HTMLElement).style.transform);
+    return Math.abs(Number(/rotate\((-?[\d.]+)deg\)/.exec(t)?.[1] ?? 0));
+  };
+  await expect.poll(() => tilt('.hud-combo'), { timeout: 15_000 }).toBeGreaterThan(2);
+  expect(await tilt('.hud-judge')).toBeGreaterThan(2);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
   expect(errors).toEqual([]);
+});
+
+// Stands in for YouTube's IFrame Player API (no network): records what the game asks of the player.
+const FAKE_YOUTUBE_API = `
+window.__yt = { calls: [] };
+window.YT = {
+  Player: function (element, options) {
+    const rec = window.__yt;
+    rec.videoId = options.videoId;
+    rec.host = options.host;
+    let state = -1;
+    let time = 0;
+    const frame = document.createElement('iframe');
+    element.replaceWith(frame);
+    this.playVideo = () => { rec.calls.push('play'); state = 1; };
+    this.pauseVideo = () => { rec.calls.push('pause'); state = 2; };
+    this.seekTo = (s) => { rec.calls.push('seek'); time = s; };
+    this.getCurrentTime = () => time;
+    this.getDuration = () => 600;
+    this.getPlayerState = () => state;
+    this.setPlaybackRate = (r) => rec.calls.push('rate ' + r);
+    this.mute = () => rec.calls.push('mute');
+    this.destroy = () => rec.calls.push('destroy');
+    setTimeout(() => options.events.onReady(), 0);
+  },
+};
+if (window.onYouTubeIframeAPIReady) window.onYouTubeIframeAPIReady();
+`;
+
+test('a YouTube link as the background video', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({ contentType: 'text/javascript', body: FAKE_YOUTUBE_API }));
+  const calls = () => page.evaluate(() => ((window as unknown as { __yt?: { calls: string[] } }).__yt?.calls ?? []).join(' '));
+  await page.goto('/');
+  await page.getByTestId('demo-button').click();
+  await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  page.once('dialog', (d) => void d.accept('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s'));
+  await page.getByTestId('bga-youtube').click();
+  await expect(page.getByTestId('bga-status')).toHaveText('유튜브');
+  await expect(page.getByTestId('bga-youtube-hint')).toBeVisible();
+
+  await page.getByRole('button', { name: /NORMAL/ }).first().click();
+  await page.getByTestId('generate-button').click();
+  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('autoplay-toggle').check();
+  await page.getByTestId('play-button').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect.poll(calls, { timeout: 60_000 }).toContain('seek play');
+  const yt = await page.evaluate(() => (window as unknown as { __yt: { videoId: string; host: string; calls: string[] } }).__yt);
+  expect(yt.videoId).toBe('dQw4w9WgXcQ');
+  expect(yt.host).toBe('https://www.youtube-nocookie.com');
+  expect(yt.calls[0]).toBe('mute');
+  await expect(page.locator('.play-bg .bg-youtube iframe')).toHaveCount(1);
+  // the video pauses with the song
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await expect.poll(calls).toMatch(/pause$/);
+  expect(errors).toEqual([]);
+
+  // the other tests play the demo song without a background video
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
+  for (const s of songs) await page.request.delete(`/api/songs/${s.id}/bga`);
 });
 
 test('custom skin from JSON in the settings', async ({ page }) => {

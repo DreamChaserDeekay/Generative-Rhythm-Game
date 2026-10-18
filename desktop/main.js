@@ -18,8 +18,12 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 // The game draws with WebGL: without usable GPU drivers (VMs, remote desktop) let Chromium fall back
 // to its software renderer, which it no longer does on its own. The window only ever shows the
-// game's own local page (see will-navigate below), so untrusted pages never reach that renderer.
+// game's own local page (see will-navigate below) and, inside it, YouTube's embedded player for
+// background videos (see will-frame-navigate), so arbitrary pages never reach that renderer.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+
+// YouTube's embedded player and the Google services it loads (video, ads, sign-in check)
+const YOUTUBE_FRAME_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|googlevideo\.com|google\.com|doubleclick\.net|googlesyndication\.com|googleapis\.com|gstatic\.com)$/;
 
 let server = null;
 let quitting = false;
@@ -123,6 +127,18 @@ async function createWindow() {
     if (gameOrigin && url.startsWith(`${gameOrigin}/`)) return;
     event.preventDefault();
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
+  });
+  // frames inside the game: only YouTube's player (a background video) and what it loads itself
+  win.webContents.on('will-frame-navigate', (details) => {
+    if (details.isMainFrame) return;
+    let host = '';
+    try {
+      host = new URL(details.url).hostname;
+    } catch {
+      // not a URL
+    }
+    if (details.url.startsWith('about:') || (gameOrigin && details.url.startsWith(`${gameOrigin}/`)) || YOUTUBE_FRAME_HOSTS.test(host)) return;
+    details.preventDefault();
   });
 }
 

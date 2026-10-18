@@ -22,7 +22,7 @@ from rhythm_server.analysis import ml, stems
 from rhythm_server.analysis.analyzer import ANALYZER_VERSION, analyze
 from rhythm_server.analysis.spectral import median_along
 from rhythm_server.analysis.stems import HOP, N_FFT, STEM_NAMES, _istft, separate
-from rhythm_server.api.app import create_app
+from rhythm_server.api.app import create_app, youtube_video_id
 from rhythm_server.api.library import Library
 from rhythm_server.generator import generate_chart
 from rhythm_server.generator.lanes import lane_infos
@@ -436,6 +436,34 @@ def test_background_video_upload_and_offset(client: TestClient) -> None:
     assert client.delete(f"/api/songs/{sid}/bga").status_code == 204
     assert client.get(f"/api/songs/{sid}/bga").status_code == 404
     assert client.get(f"/api/songs/{sid}").json()["song"]["hasBga"] is False
+
+
+def test_background_youtube_link(client: TestClient) -> None:
+    for text in (
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s",
+        "youtube.com/watch?feature=share&v=dQw4w9WgXcQ",
+        "https://youtu.be/dQw4w9WgXcQ?si=abc",
+        "https://m.youtube.com/shorts/dQw4w9WgXcQ",
+        "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+        " dQw4w9WgXcQ ",
+    ):
+        assert youtube_video_id(text) == "dQw4w9WgXcQ", text
+    for text in ("https://example.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/@channel", "not a link", "https://youtu.be/short"):
+        assert youtube_video_id(text) is None, text
+
+    sid = client.post("/api/songs/demo", json={"bpm": 120, "bars": 8}).json()["song"]["id"]
+    assert client.patch(f"/api/songs/{sid}", json={"bgaYoutube": "https://example.com/v"}).status_code == 400
+    # a link replaces a video file, a file replaces a link: one background per song
+    client.post(f"/api/songs/{sid}/bga", files={"file": ("clip.mp4", b"\x00\x00\x00\x18ftypmp42", "video/mp4")})
+    song = client.patch(f"/api/songs/{sid}", json={"bgaYoutube": "https://youtu.be/dQw4w9WgXcQ", "bgaOffsetMs": 500}).json()["song"]
+    assert song["bgaYoutube"] == "dQw4w9WgXcQ" and song["hasBga"] is False and song["bgaOffsetMs"] == 500
+    assert client.get(f"/api/songs/{sid}/bga").status_code == 404
+    song = client.post(f"/api/songs/{sid}/bga", files={"file": ("clip.mp4", b"\x00\x00\x00\x18ftypmp42", "video/mp4")}).json()["song"]
+    assert song["hasBga"] is True and song["bgaYoutube"] is None
+    client.patch(f"/api/songs/{sid}", json={"bgaYoutube": "dQw4w9WgXcQ"})
+    assert client.delete(f"/api/songs/{sid}/bga").status_code == 204
+    assert client.get(f"/api/songs/{sid}").json()["song"]["bgaYoutube"] is None
 
 
 def test_old_libraries_are_migrated(tmp_path) -> None:

@@ -215,7 +215,12 @@ export class TrackRenderer {
     this.camera.updateProjectionMatrix();
   }
 
-  /** CSS pixel position of a world point. */
+  /** Camera roll applied by the last frame (radians, positive turns the track clockwise). */
+  get roll(): number {
+    return this.appliedFx.roll;
+  }
+
+  /** CSS pixel position of a world point (with the camera effects of the last frame). */
   project(x: number, y: number, z: number): { x: number; y: number } {
     const v = new THREE.Vector3(x, y, z).project(this.camera);
     return { x: ((v.x + 1) / 2) * this.cssWidth, y: ((1 - v.y) / 2) * this.cssHeight };

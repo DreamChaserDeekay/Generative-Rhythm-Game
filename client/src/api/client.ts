@@ -82,6 +82,8 @@ export interface Song {
   outdated?: boolean;
   hasBga: boolean;
   bgaOffsetMs: number;
+  /** YouTube video ID of the background (played by YouTube's player), or null. */
+  bgaYoutube: string | null;
   /** File name of the uploaded audio (exports refer to it). */
   originalName?: string;
   records?: ScoreRecord[];
@@ -196,7 +198,10 @@ export const api = {
     return request<{ song: Song; created: boolean }>('/api/songs', { method: 'POST', body: form });
   },
   addDemo: async (bpm = 128, bars = 48) => (await request<{ song: Song }>('/api/songs/demo', json({ bpm, bars }))).song,
-  patchSong: (id: string, patch: { title?: string; artist?: string; bpm?: number; clearBpm?: boolean; offsetShiftMs?: number; bgaOffsetMs?: number }) =>
+  patchSong: (
+    id: string,
+    patch: { title?: string; artist?: string; bpm?: number; clearBpm?: boolean; offsetShiftMs?: number; bgaOffsetMs?: number; bgaYoutube?: string },
+  ) =>
     request<{ song: Song; reanalyzing: boolean }>(`/api/songs/${id}`, { ...json(patch), method: 'PATCH' }),
   deleteSong: (id: string) => request<void>(`/api/songs/${id}`, { method: 'DELETE' }),
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),

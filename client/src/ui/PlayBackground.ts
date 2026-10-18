@@ -1,10 +1,13 @@
 import { token } from './theme';
+import { YouTubeBackground } from './youtubeBga';
 
 export interface BackgroundOptions {
   root: HTMLElement;
   coverUrl: string | null;
   /** User video (BGA); plays muted and follows song time. */
   bgaUrl: string | null;
+  /** Or a YouTube video, played muted by YouTube's embedded player on song time. */
+  bgaYoutube: string | null;
   bgaOffsetMs: number;
   /** Practice playback rate (the video plays at the same speed). */
   rate: number;
@@ -29,6 +32,7 @@ const VIDEO_RESYNC_MS = 500;
 export class PlayBackground {
   private readonly root: HTMLElement;
   private readonly video: HTMLVideoElement | null = null;
+  private readonly youtube: YouTubeBackground | null = null;
   private readonly canvas: HTMLCanvasElement | null = null;
   private readonly ctx: CanvasRenderingContext2D | null = null;
   private readonly analyser: AnalyserNode | null;
@@ -63,6 +67,11 @@ export class PlayBackground {
       video.playbackRate = options.rate;
       this.root.appendChild(video);
       this.video = video;
+    } else if (options.bgaYoutube) {
+      const frame = document.createElement('div');
+      frame.className = 'bg-youtube';
+      this.root.appendChild(frame);
+      this.youtube = new YouTubeBackground(frame, options.bgaYoutube, options.bgaOffsetMs, options.rate);
     }
     this.analyser = options.visualizer ? options.analyser : null;
     this.bins = new Uint8Array(this.analyser ? this.analyser.frequencyBinCount : 0);
@@ -81,6 +90,7 @@ export class PlayBackground {
 
   update(songMs: number, playing: boolean, perfNow: number): void {
     this.syncVideo(songMs, playing, perfNow);
+    this.youtube?.update(songMs, playing, perfNow);
     // the spectrum stays still while paused, like the track
     if (playing && this.analyser && this.ctx && this.canvas && perfNow - this.lastDraw >= 1000 / VISUALIZER_FPS) {
       this.lastDraw = perfNow;
@@ -89,6 +99,7 @@ export class PlayBackground {
   }
 
   dispose(): void {
+    this.youtube?.dispose();
     if (this.video) {
       this.video.pause();
       this.video.removeAttribute('src');

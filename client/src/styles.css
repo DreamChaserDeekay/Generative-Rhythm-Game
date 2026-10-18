@@ -498,6 +498,17 @@ p.hint {
   object-fit: cover;
 }
 
+/* YouTube's player, scaled to cover the screen like the video file does */
+.bg-youtube iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 177.78vh);
+  height: max(100%, 56.25vw);
+  transform: translate(-50%, -50%);
+  border: 0;
+}
+
 .bg-dim {
   background: var(--bg);
 }
