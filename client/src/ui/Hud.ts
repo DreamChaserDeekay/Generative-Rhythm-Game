@@ -3,7 +3,10 @@ import type { JudgeEvent } from '../engine/session';
 export interface HudInfo {
   title: string;
   artist: string;
-  /** Chart line under the title (key mode, difficulty, options). */
+  keyMode: string;
+  /** Difficulty chip: "DJMAX MX" on the tier colour and the level ("Lv.12", "SC 8"; empty when none). */
+  difficulty: { label: string; level: string; color: string };
+  /** Options line under the difficulty (judgement, ruleset, placement, keysounds, AUTO). */
   chartLine: string;
   /** Label of the main score counter (SCORE / EX-SCORE). */
   scoreLabel: string;
@@ -35,6 +38,12 @@ export interface HudStats {
 
 const JUDGE_VISIBLE_MS = 600;
 const TOAST_MS = 1400;
+/** The HUD is drawn for a 720px-high screen and grows with it, up to this much. */
+const BASE_HEIGHT = 720;
+const MAX_SCALE = 1.5;
+/** Every combo step punches the number: it starts larger and a little lower, then settles back. */
+const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
+const COMBO_BUMP_MS = 150;
 
 /** Imperative DOM overlay; only touches the DOM when a value changes. */
 export class Hud {
@@ -58,7 +67,10 @@ export class Hud {
   private readonly toast: HTMLElement;
   private readonly loop: HTMLElement;
   private readonly showErrorMs: boolean;
+  /** Off with the reduced-flash setting, like the judgement pop. */
+  private readonly bumpCombo: boolean;
   private readonly feverManualKey: string | null;
+  private comboBump: Animation | null = null;
   private judgeAt = -Infinity;
   private toastAt = -Infinity;
   private lastCombo = -1;
@@ -69,26 +81,31 @@ export class Hud {
   private lastProgress = -1;
   private lastReady = '';
   private lastFever = '';
+  private lastScale = 0;
 
-  constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean) {
+  constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
     this.showErrorMs = showErrorMs;
+    this.bumpCombo = !reducedFlash;
     this.feverManualKey = info.feverManualKey;
     root.innerHTML = `
       <div class="hud-info">
         <div class="hud-title"></div>
         <div class="hud-artist"></div>
+        <div class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span><span class="hud-keymode"></span></div>
         <div class="hud-chart"></div>
         <div class="hud-practice"></div>
       </div>
-      <div class="hud-stats">
-        <div class="hud-score-label"></div><div class="hud-score">0</div>
-        <div class="hud-rate-label"></div><div class="hud-rate"></div>
-        <div class="hud-pace-label"></div><div class="hud-pace"></div>
-      </div>
-      <div class="hud-fever" data-testid="hud-fever">
-        <div class="hud-fever-text"></div>
-        <div class="hud-fever-bar"><div class="hud-fever-fill"></div></div>
+      <div class="hud-right">
+        <div class="hud-stats">
+          <div class="hud-score-label"></div><div class="hud-score">0</div>
+          <div class="hud-rate-label"></div><div class="hud-rate"></div>
+          <div class="hud-pace-label"></div><div class="hud-pace"></div>
+        </div>
+        <div class="hud-fever" data-testid="hud-fever">
+          <div class="hud-fever-text"></div>
+          <div class="hud-fever-bar"><div class="hud-fever-fill"></div></div>
+        </div>
       </div>
       <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
       <div class="hud-judge"><div class="hud-judge-label"></div><div class="hud-judge-sub"></div></div>
@@ -103,6 +120,10 @@ export class Hud {
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
     q('.hud-artist').textContent = info.artist;
+    q('.hud-diff').style.setProperty('--diff', info.difficulty.color);
+    q('.hud-diff-tier').textContent = info.difficulty.label;
+    q('.hud-diff-level').textContent = info.difficulty.level;
+    q('.hud-keymode').textContent = info.keyMode;
     q('.hud-chart').textContent = info.chartLine;
     this.loop = q('.hud-practice');
     this.loop.textContent = info.practiceLabel ?? '';
@@ -140,6 +161,11 @@ export class Hud {
     this.comboBox.style.top = `${anchors.combo.y}px`;
     this.judgeBox.style.left = `${anchors.judge.x}px`;
     this.judgeBox.style.top = `${anchors.judge.y}px`;
+    const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.root.clientHeight / BASE_HEIGHT)) * 100) / 100;
+    if (scale !== this.lastScale) {
+      this.lastScale = scale;
+      this.root.style.setProperty('--hud-scale', String(scale));
+    }
   }
 
   showJudge(e: JudgeEvent, perfNow: number): void {
@@ -163,9 +189,15 @@ export class Hud {
 
   setCombo(combo: number): void {
     if (combo === this.lastCombo) return;
+    const rose = combo > this.lastCombo && combo >= 2;
     this.lastCombo = combo;
     this.comboNum.textContent = combo > 0 ? String(combo) : '';
     this.comboBox.style.visibility = combo >= 2 ? 'visible' : 'hidden';
+    if (rose && this.bumpCombo) {
+      // a transform animation: runs on the compositor, no layout per hit
+      this.comboBump?.cancel();
+      this.comboBump = this.comboNum.animate(COMBO_BUMP, { duration: COMBO_BUMP_MS, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });
+    }
   }
 
   /** Short message in the middle of the screen (hi-speed, covers). */
@@ -196,16 +228,17 @@ export class Hud {
       this.pace.textContent = pace === null ? '' : `${pace >= 0 ? '+' : '−'}${Math.abs(pace).toLocaleString('en-US')}`;
       this.pace.className = `hud-pace ${pace !== null && pace < 0 ? 'behind' : 'ahead'}`;
     }
+    // bars move by transform (no layout while playing)
     const gauge = Math.round(stats.gauge);
     if (gauge !== this.lastGauge) {
       this.lastGauge = gauge;
-      this.gaugeFill.style.width = `${gauge}%`;
+      this.gaugeFill.style.transform = `scaleX(${gauge / 100})`;
       this.gaugeValue.textContent = `${gauge}%`;
     }
-    const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * 1000) / 10;
+    const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * 1000) / 1000;
     if (progress !== this.lastProgress) {
       this.lastProgress = progress;
-      this.progressFill.style.width = `${progress}%`;
+      this.progressFill.style.transform = `scaleX(${progress})`;
     }
     if (stats.ready !== this.lastReady) {
       this.lastReady = stats.ready;
@@ -219,7 +252,7 @@ export class Hud {
     if (key !== this.lastFever) {
       this.lastFever = key;
       this.feverText.textContent = text;
-      this.feverFill.style.width = `${Math.round(fill * 1000) / 10}%`;
+      this.feverFill.style.transform = `scaleX(${Math.round(fill * 1000) / 1000})`;
       this.fever.className = `hud-fever ${f.active ? `active x${f.multiplier}` : f.ready ? 'ready' : ''}`;
     }
   }

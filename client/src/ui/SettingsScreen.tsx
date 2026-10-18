@@ -31,6 +31,18 @@ interface Props {
 }
 
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
+/** Sections, for the jump links under the title. */
+const SECTIONS: [string, string][] = [
+  ['judge', '판정 · 속도'],
+  ['covers', '레인 커버'],
+  ['rules', '플레이 규칙'],
+  ['display', '화면'],
+  ['skin', '스킨'],
+  ['sound', '소리'],
+  ['keys', '키 설정'],
+  ['pad', '게임패드'],
+  ['backend', '분석 백엔드'],
+];
 
 export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
@@ -84,11 +96,21 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
 
   return (
     <div className="menu-screen settings-screen" data-testid="settings-screen">
-      <header className="menu-header">
-        <h1>설정</h1>
+      <header className="settings-header">
+        <div className="settings-title">
+          <h1>설정</h1>
+          <button className="primary" onClick={onBack}>완료 <kbd>Esc</kbd></button>
+        </div>
+        <nav className="settings-nav">
+          {SECTIONS.map(([id, label]) => (
+            <button key={id} className="quiet small" onClick={() => document.getElementById(`settings-${id}`)?.scrollIntoView({ block: 'start' })}>
+              {label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <section className="panel">
+      <section className="panel" id="settings-judge">
         <h2>판정 · 속도</h2>
         <div className="row">
           <span className="label">판정</span>
@@ -138,7 +160,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         <NumberRow label="표시 오프셋" unit="ms" value={settings.visualOffsetMs} min={-200} max={200} onChange={(v) => set('visualOffsetMs', v)} />
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-covers">
         <h2>레인 커버</h2>
         <CoverRow label="SUDDEN+" value={settings.sudden} max={MAX_COVER} onChange={(v) => onSettingsChange(withCovers(settings, { sudden: v }))} format={pct} />
         <CoverRow label="HIDDEN+" value={settings.hidden} max={MAX_COVER} onChange={(v) => onSettingsChange(withCovers(settings, { hidden: v }))} format={pct} />
@@ -153,12 +175,12 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </p>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-rules">
         <h2>플레이 규칙</h2>
         <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-display">
         <h2>화면</h2>
         <div className="row">
           <span className="label">카메라</span>
@@ -242,7 +264,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </label>
       </section>
 
-      <section className="panel" data-testid="skin-settings">
+      <section className="panel" id="settings-skin" data-testid="skin-settings">
         <h2>스킨</h2>
         <div className="row">
           <div className="segmented wrap">
@@ -278,7 +300,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-sound">
         <h2>소리</h2>
         <div className="row">
           <span className="label">음악</span>
@@ -300,7 +322,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </label>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-keys">
         <h2>키 설정</h2>
         {enabledKeyModes.map((mode) => (
           <div className="row" key={mode}>
@@ -344,7 +366,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
 
       <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} />
 
-      <section className="panel" data-testid="backend-status">
+      <section className="panel" id="settings-backend" data-testid="backend-status">
         <h2>분석 백엔드</h2>
         <p className="hint">
           기본 분석(numpy·scipy)은 항상 동작합니다. 아래 ML 라이브러리를 서버에 설치하면 다음 분석부터 자동으로 쓰이고, 곡 정보의 &quot;다시 분석&quot;으로 기존 곡에도 적용할 수 있습니다.
@@ -372,9 +394,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
         </pre>
       </section>
 
-      <div className="row buttons center">
-        <button className="primary" onClick={onBack}>완료 <kbd>Esc</kbd></button>
-        <button onClick={() => onSettingsChange({ ...DEFAULT_SETTINGS })}>모두 초기화</button>
+      <div className="row buttons">
+        <button className="danger" onClick={() => onSettingsChange({ ...DEFAULT_SETTINGS })}>모두 초기화</button>
       </div>
     </div>
   );
@@ -395,8 +416,8 @@ function NumberRow(props: { label: string; unit: string; value: number; min: num
   return (
     <div className="row">
       <span className="label">{props.label}</span>
-      <button className="small" onClick={() => props.onChange(clamp(props.value - 5))}>−5</button>
-      <button className="small" onClick={() => props.onChange(clamp(props.value - 1))}>−1</button>
+      <button className="step" onClick={() => props.onChange(clamp(props.value - 5))}>−5</button>
+      <button className="step" onClick={() => props.onChange(clamp(props.value - 1))}>−1</button>
       <input
         type="number"
         value={props.value}
@@ -404,8 +425,8 @@ function NumberRow(props: { label: string; unit: string; value: number; min: num
         max={props.max}
         onChange={(e) => props.onChange(clamp(Number(e.target.value) || 0))}
       />
-      <button className="small" onClick={() => props.onChange(clamp(props.value + 1))}>+1</button>
-      <button className="small" onClick={() => props.onChange(clamp(props.value + 5))}>+5</button>
+      <button className="step" onClick={() => props.onChange(clamp(props.value + 1))}>+1</button>
+      <button className="step" onClick={() => props.onChange(clamp(props.value + 5))}>+5</button>
       <span className="value">{props.unit}</span>
     </div>
   );
@@ -457,7 +478,7 @@ function GamepadPanel({ settings, onSettingsChange }: { settings: Settings; onSe
   }, [capture, settings, onSettingsChange]);
 
   return (
-    <section className="panel" data-testid="gamepad-settings">
+    <section className="panel" id="settings-pad" data-testid="gamepad-settings">
       <h2>게임패드 · 전용 컨트롤러</h2>
       <p className="hint" data-testid="gamepad-status">
         {pads.length > 0 ? `연결됨: ${pads.join(', ')}` : '연결된 패드가 없습니다. 패드의 버튼을 하나 누르면 나타납니다.'}

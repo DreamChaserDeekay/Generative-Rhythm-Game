@@ -3,9 +3,10 @@ import { keyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { LANE_PALETTES, type Palette } from '../render/palette';
+import { canvasFont, token } from './theme';
 
-const HEIGHT = 96;
-const SECTION_BAND = 12;
+const HEIGHT = 112;
+const SECTION_BAND = 20;
 
 interface Props {
   chart: Chart;
@@ -41,7 +42,8 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
     canvas.height = HEIGHT * dpr;
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#070b1c';
+    const text = token('--text');
+    ctx.fillStyle = token('--bg');
     ctx.fillRect(0, 0, width, HEIGHT);
     const x = (t: number) => (t / duration) * width;
     const lanes = keyModes[chart.meta.keyMode].lanes;
@@ -53,21 +55,26 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
     (chart.sections ?? []).forEach((s, i, all) => {
       const t0 = tempo.beatToMs(s.startBeat);
       const t1 = i + 1 < all.length ? tempo.beatToMs(all[i + 1].startBeat) : duration;
-      ctx.fillStyle = `rgba(110, 140, 255, ${0.12 + 0.35 * s.energy})`;
+      // louder sections are brighter
+      ctx.fillStyle = text;
+      ctx.globalAlpha = 0.08 + 0.22 * s.energy;
       ctx.fillRect(x(t0), 0, Math.max(1, x(t1) - x(t0) - 1), SECTION_BAND - 2);
-      if (x(t1) - x(t0) > 40) {
-        ctx.fillStyle = '#c9d4ff';
-        ctx.font = '9px sans-serif';
-        ctx.fillText(s.label, x(t0) + 3, 9);
+      ctx.globalAlpha = 1;
+      if (x(t1) - x(t0) > 56) {
+        ctx.font = canvasFont(700, '--fs-label');
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.label, x(t0) + 4, (SECTION_BAND - 2) / 2);
       }
     });
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = text;
+    ctx.globalAlpha = 0.06;
     for (const b of bars) {
       ctx.beginPath();
       ctx.moveTo(Math.round(x(b)) + 0.5, SECTION_BAND);
       ctx.lineTo(Math.round(x(b)) + 0.5, HEIGHT);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
     for (const n of chart.notes) {
       const lane = lanes[n.lane];
       if (!lane) continue;
@@ -82,10 +89,12 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
     }
     if (shown) {
       const [a, b] = shown;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillStyle = token('--bg');
+      ctx.globalAlpha = 0.6;
       ctx.fillRect(0, 0, x(a), HEIGHT);
       ctx.fillRect(x(b), 0, width - x(b), HEIGHT);
-      ctx.strokeStyle = '#ffc94f';
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = token('--accent');
       ctx.lineWidth = 2;
       ctx.strokeRect(x(a) + 1, 1, Math.max(2, x(b) - x(a) - 2), HEIGHT - 2);
     }
