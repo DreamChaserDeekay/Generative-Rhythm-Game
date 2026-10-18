@@ -20,13 +20,13 @@ from .onsets import detect_onsets
 from .pitch import analyze_notes
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, stem_activity, tag_onsets
-from .structure import beat_sync, find_sections
+from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
 from .tempo import estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.1.0"
+ANALYZER_VERSION = "1.2.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -37,6 +37,8 @@ COARSE_HOP = 1024
 HARMONIC_MAX_HZ = 5000.0
 ONSET_BIAS_S = 0.0  # measured against synthetic ground truth (median error within ±1 ms)
 BAND_NAMES = ("low", "mid", "high")
+# share of each per-beat feature block in the bar similarity of the structure analysis
+STRUCTURE_WEIGHTS = {"timbre": 1.0, "harmony": 1.0, "rhythm": 1.2, "activity": 0.6}
 
 Progress = Callable[[float, str], None]
 
@@ -188,15 +190,20 @@ def analyze(
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
     log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
-    activity = _beat_activity(beats, od.times, od.strength, od.bands)
-    features = np.concatenate(
-        [beat_sync(log_mel, coarse_rate, beats), 0.5 * beat_sync(chroma, coarse_rate, beats), 2.0 * activity], axis=1
-    )
+    features = structure_features(
+        [
+            (beat_sync(log_mel, coarse_rate, beats), STRUCTURE_WEIGHTS["timbre"]),
+            (beat_sync(chroma, coarse_rate, beats), STRUCTURE_WEIGHTS["harmony"]),
+            (rhythm_grid(beats, od.times, od.strength, od.bands), STRUCTURE_WEIGHTS["rhythm"]),
+            (_beat_activity(beats, od.times, od.strength, od.bands), STRUCTURE_WEIGHTS["activity"]),
+        ]
+    ) if len(beats) else np.zeros((0, 1))
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
     beat_energy = beat_sync(rms_db[:, None], coarse_rate, beats)[:, 0] if len(beats) else np.zeros(0)
     sections = []
     if ml_struct is not None and len(beats) >= 8:
         sections = ml.sections_from_segments(ml_struct["segments"], beats, beat0, bpb, beat_energy)
+        add_loops(sections, features, beat0, bpb)
     if not sections and len(beats) >= 8:
         sections = find_sections(features, beat_energy, beat0, bpb)
 
@@ -243,9 +250,12 @@ def analyze(
             "t": round(float(beat_ms[s.start_beat]), 3),
             "endT": round(float(beat_ms[s.end_beat]) if s.end_beat < len(beat_ms) else duration * 1000.0, 3),
             "startBeat": s.start_beat - beat0,
+            "endBeat": s.end_beat - beat0,
             "label": s.label,
             "group": s.group,
             "energy": round(s.energy, 3),
+            "loopBars": s.loop_bars,
+            "confidence": s.confidence,
         }
         for s in sections
     ]
