@@ -16,7 +16,7 @@ from scipy.ndimage import uniform_filter1d
 from . import ml
 from .backends import Backend, detect as detect_backends
 from .meter import beat_cues, estimate_meter
-from .onsets import detect_onsets
+from .onsets import attack_confidence, band_levels, detect_onsets
 from .pitch import analyze_notes, held_swells
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.5.1"
+ANALYZER_VERSION = "1.6.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -194,6 +194,10 @@ def analyze(
     times, strength, bands = od.times[keep], od.strength[keep], od.bands[keep]
     pitch_arr, sustain_arr, harmonic_ratio = pitch_arr[keep], sustain_arr[keep], notes.harmonic_ratio[keep]
     sources, shares, melody = sources[keep], shares[keep], melody[keep]
+    # how surely each onset starts a new sound (the generator puts its notes on those first)
+    attack = attack_confidence(
+        times, strength, bands, notes.harmonic_rise[keep], shares[:, STEM_NAMES.index("drums")], band_levels(mel, centers), fine_rate, od.time_offset,
+    )
 
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
@@ -246,6 +250,7 @@ def analyze(
                 "source": STEM_NAMES[int(sources[i])],
                 "sources": [round(float(x), 3) for x in shares[i]],
                 "melody": round(float(melody[i]), 3),
+                "attack": round(float(attack[i]), 3),
             }
         )
     sustains = [

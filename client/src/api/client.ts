@@ -136,6 +136,8 @@ export interface AnalysisResult {
     sustainEnd: number | null;
     source?: StemName;
     sources?: number[];
+    /** How surely a new sound starts here (0..1, analyser 1.6.0+). */
+    attack?: number;
   }[];
   sections: { t: number; endT: number; label: string; group: string; energy: number; stems?: number[]; leader?: StemName }[];
   stems?: { names: StemName[]; method: string; energyShare: number[] };

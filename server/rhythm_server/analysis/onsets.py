@@ -17,6 +17,22 @@ FLUX_FLOOR = 3.0
 # A weak onset shortly after a stronger one in the same band is treated as its decay/sweep.
 MASK_WINDOW_S = 0.12
 MASK_RATIO = 0.35
+# How surely an onset starts a new sound rather than a sounding one changing (its low end arriving
+# late, a swell, beating partials): a logistic model fitted on BMS keysounds, each onset labelled by
+# whether a keysound starts there (docs/PATTERN_DESIGN.md 19). logit = bias + sum(weight * feature).
+# The onset's strength itself is left out: it hardly adds (AUC 0.870 with it, 0.866 without) and
+# the generator already weighs candidates by it.
+ATTACK_WEIGHTS = {
+    "rise": 0.16,  # dB its strongest band gets louder from 20 ms before the onset to just after it
+    "harmonic": 0.617,  # log(harmonic rise + 0.01)
+    "drums": 4.267,  # drums stem share
+    "close": -2.467,  # 1 at the previous onset, 0 from ATTACK_CLOSE_S after it
+    "closeRatio": 1.779,  # close * log(strength / previous onset's strength), clipped to +-2
+    "low": -1.176,  # its strongest band is the low one
+}
+ATTACK_BIAS = 1.371
+ATTACK_CLOSE_S = 0.1
+ATTACK_RISE_S = 0.02
 
 
 @dataclass
@@ -107,6 +123,50 @@ def _masked(times: np.ndarray, strength: np.ndarray, bands: np.ndarray) -> np.nd
                 break
             j -= 1
     return masked
+
+
+def band_levels(mel_power: np.ndarray, mel_centers: np.ndarray) -> np.ndarray:
+    """Per-frame level (dB under the loudest frame) of the low / mid / high onset bands, smoothed
+    over three frames (frames, 3)."""
+    groups = [mel_centers < LOW_MAX_HZ, (mel_centers >= LOW_MAX_HZ) & (mel_centers < MID_MAX_HZ), mel_centers >= MID_MAX_HZ]
+    band = np.stack([mel_power[:, g].sum(axis=1, dtype=np.float64) for g in groups], axis=1)
+    db = 10.0 * np.log10(band / (float(band.max()) + 1e-20) + 1e-10)
+    return uniform_filter1d(db, size=3, axis=0, mode="nearest")
+
+
+def attack_confidence(
+    times: np.ndarray,
+    strength: np.ndarray,
+    bands: np.ndarray,
+    harmonic_rise: np.ndarray,
+    drums: np.ndarray,
+    levels: np.ndarray,
+    frame_rate: float,
+    time_offset: float,
+) -> np.ndarray:
+    """0..1 per onset (times sorted): how surely a new sound starts there (ATTACK_WEIGHTS)."""
+    if not len(times):
+        return np.zeros(0)
+    f = np.clip(np.round((times - time_offset) * frame_rate).astype(int), 0, len(levels) - 1)
+    top = np.minimum(len(levels) - 1, f + 2)
+    before = np.maximum(0, f - int(round(ATTACK_RISE_S * frame_rate)))
+    dom = np.argmax(bands, axis=1)
+    rise = np.clip(levels[top, dom] - levels[before, dom], -10.0, 20.0)
+    gap = np.concatenate([[np.inf], np.diff(times)])
+    close = np.clip(1.0 - gap / ATTACK_CLOSE_S, 0.0, 1.0)
+    previous = np.concatenate([[1.0], strength[:-1]])
+    ratio = np.clip(np.log(np.maximum(strength, 1e-3) / np.maximum(previous, 1e-3)), -2.0, 2.0)
+    w = ATTACK_WEIGHTS
+    logit = (
+        ATTACK_BIAS
+        + w["rise"] * rise
+        + w["harmonic"] * np.log(np.maximum(harmonic_rise, 0.0) + 0.01)
+        + w["drums"] * drums
+        + w["close"] * close
+        + w["closeRatio"] * close * ratio
+        + w["low"] * (dom == 0)
+    )
+    return 1.0 / (1.0 + np.exp(-logit))
 
 
 def detect_onsets(mel_power: np.ndarray, mel_centers: np.ndarray, frame_rate: float, bias_s: float) -> OnsetData:

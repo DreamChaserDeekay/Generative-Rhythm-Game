@@ -36,6 +36,7 @@ class Candidate:
     score: float = 0.0
     melody: float | None = None  # how clearly it starts a note of the main melody (0..1)
     roll: tuple[int, int] | None = None  # (roll id, hit index) when it is a hit of a drum roll (rolls.py)
+    attack: float = 1.0  # how surely a new sound starts here, not a sounding one changing (0..1)
 
 
 TRIPLETS = (3, 6)
@@ -147,6 +148,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
             sustain_beats = max(0.0, tempo.ms_to_beat(o["sustainEnd"]) - q)
         sources = np.asarray(o["sources"], dtype=np.float64) if o.get("sources") else None
         melody = melody_of(o, melody_cfg)
+        attack = float(o.get("attack", 1.0))  # analyses before 1.6.0 have none: every onset counts as one
         c = merged.get(key)
         if c is None:
             b_idx = int(np.clip(np.floor(q), 0, n_beats - 1))
@@ -164,6 +166,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
                 sources=sources,
                 leader=_section_leader(sections, o["t"]),
                 melody=melody,
+                attack=attack,
             )
         else:
             stronger = o["strength"] > c.strength
@@ -180,6 +183,7 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
             c.sustain_beats = max(c.sustain_beats, sustain_beats)
             if melody is not None:
                 c.melody = max(c.melody or 0.0, melody)
+            c.attack = max(c.attack, attack)
     cands = sorted(merged.values(), key=lambda c: c.beat)
     _end_melody_notes(cands, float(melody_cfg["note"]))
     _score(cands, params)
@@ -237,6 +241,8 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
     harmonic = params.weight("harmonicBoost", 0.0)
     source_cfg = load_config("instruments")["rhythmSource"]
     melody_cfg = source_cfg["melody"]
+    attack_cfg = source_cfg.get("attack", {})
+    attack_floor, attack_power = float(attack_cfg.get("floor", 1.0)), float(attack_cfg.get("power", 1.0))
     power = metrical_power(params)
     follows_melody = params.rhythm_source in ("auto", "melody", "vocal")
     for c in cands:
@@ -261,3 +267,5 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
         # a clear melody note is heard as clearly as a typical drum hit, however soft it is in the mix
         strength = max(min(c.strength, 1.5), melody * float(melody_cfg["salience"]))
         c.score = (strength**0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source
+        # a sounding note's late low end or swell is no new sound: such onsets come after the real ones
+        c.score *= attack_floor + (1.0 - attack_floor) * min(1.0, max(0.0, c.attack)) ** attack_power

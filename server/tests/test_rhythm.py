@@ -138,13 +138,17 @@ def test_steady_grooves_are_no_rolls() -> None:
 def test_the_melody_option_follows_the_melody() -> None:
     s, _ = song("groove")
     # NM's budget leaves out much of the song, so the source decides what it plays; HD's covers
-    # most of the song's sounds whichever source leads (0.84 · 0.83 of the lead)
-    for difficulty, level, margin in (("NM", 6, 0.05), ("HD", 9, 0.0)):
+    # most of the song's sounds whichever source leads (0.84 · 0.83 of the lead). Since generator
+    # 0.9.3 onsets that may start no new sound come last; a few of this lead's softer notes are
+    # among them, so NM plays 0.79 of the lead (0.80 before) and HD 0.90 (0.89)
+    for difficulty, level, margin in (("NM", 6, 0.04), ("HD", 9, 0.0)):
         melody = chart("groove", "6K", "DJMAX", difficulty, level, "melody")["notes"]
         drum = chart("groove", "6K", "DJMAX", difficulty, level, "drum")["notes"]
-        assert covered(s.onsets["lead"], melody) >= 0.8
+        assert covered(s.onsets["lead"], melody) >= 0.78
         assert covered(s.onsets["lead"], melody) > covered(s.onsets["lead"], drum) + margin
-        assert covered(s.onsets["kick"], melody) <= covered(s.onsets["kick"], drum)
+        # both play nearly every kick (0.96-0.98); the level fit can leave the drum chart with fewer
+        # notes than the melody one (HD: 601 against 676), so a kick or two either way is noise
+        assert covered(s.onsets["kick"], melody) <= covered(s.onsets["kick"], drum) + 0.02
         # the melody style follows the melody too, unless the player picks another rhythm source
         styled = chart("groove", "6K", "DJMAX", difficulty, level, "auto", "melody")
         assert styled["meta"]["generator"]["params"]["rhythmSource"] == "melody"

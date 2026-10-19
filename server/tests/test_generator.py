@@ -167,3 +167,34 @@ def test_overrides_are_clamped_to_the_configured_limits() -> None:
     assert p.side_rate == 0.2
     assert p.max_chord == resolve_params("6K+FX", "HARD").max_chord + 1
     assert resolve_params("4K", "HARD", overrides={"style": "nonsense"}).style == "balanced"
+
+
+def test_onsets_unlikely_to_start_a_sound_score_lower(analysis128: dict) -> None:
+    """The analysis says how surely each onset starts a new sound (`attack`); a doubtful one (a
+    sounding note's late low end, a swell) scores below a sure one, a clear melody note too, and
+    an analysis made before the field existed scores as if every onset were sure."""
+    import copy
+
+    from rhythm_server.config import load_config
+    from rhythm_server.generator.candidates import build_candidates
+
+    tempo = TempoMap(analysis128["timing"])
+    params = resolve_params("7K+1S", "HARD")
+    tolerance = float(difficulty_config()["snapToleranceMs"])
+
+    def scores(attack: float | None, melody: float) -> dict[float, float]:
+        a = copy.deepcopy(analysis128)
+        for o in a["onsets"]:
+            o.pop("attack", None)
+            o["melody"] = melody
+            if attack is not None:
+                o["attack"] = attack
+        return {c.beat: c.score for c in build_candidates(a, tempo, params, tolerance)}
+
+    old, sure, doubtful = scores(None, 0.0), scores(1.0, 0.0), scores(0.1, 0.0)
+    assert old == sure
+    floor = float(load_config("instruments")["rhythmSource"]["attack"]["floor"])
+    assert floor < 1.0
+    assert all(doubtful[b] < sure[b] for b in sure if sure[b] > 0)
+    sung_doubtful, sung_sure = scores(0.1, 1.0), scores(1.0, 1.0)
+    assert all(sung_doubtful[b] < sung_sure[b] for b in sung_sure if sung_sure[b] > 0)

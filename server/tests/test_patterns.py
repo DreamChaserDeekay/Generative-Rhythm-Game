@@ -310,10 +310,14 @@ def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> 
     # Hard charts vary. The shape count only sees single-note runs: since chords follow the music in
     # every section like human charts (generator 0.9.2) instead of gathering in the choruses, this
     # song's verses have chords too and shorter runs. From MX 12 on the song runs out of sounds and
-    # the level is reached with chords, so MX is checked where it still has sounds to place.
+    # the level is reached with chords, so MX is checked where it still has sounds to place. One
+    # seed swings by a few kinds either way, so the count is a mean over seeds (since generator
+    # 0.9.3 the weak and false onsets that filled some of HD's runs come last: about 31 kinds, 34
+    # before).
     for tier, level in (("HD", 9), ("MX", 11)):
-        p = pattern_profile(generate_chart(dense_song, "6K", tier, level, system="DJMAX")["notes"], "6K")
-        assert p["topShape"] <= 0.25 and p["shapeKinds"] >= 30, (tier, p["topShape"], p["shapeKinds"])
+        profiles = [pattern_profile(generate_chart(dense_song, "6K", tier, level, system="DJMAX", seed=seed)["notes"], "6K") for seed in range(4)]
+        tops, kinds = [p["topShape"] for p in profiles], [p["shapeKinds"] for p in profiles]
+        assert max(tops) <= 0.25 and np.mean(kinds) >= 30, (tier, tops, kinds)
 
 
 def test_the_classic_engine_stays_available(dense_song: dict) -> None:

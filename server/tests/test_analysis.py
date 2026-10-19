@@ -51,6 +51,33 @@ def test_a_held_chord_swelling_is_no_onset() -> None:
     assert len(detected) <= 2 * len(chords), len(detected)
 
 
+def test_attack_ranks_a_new_sound_above_a_sounding_one_changing() -> None:
+    """A loud drum-like onset whose band jumps is a new sound; a weaker low-band onset 50 ms after
+    it with no rise of its own (the same sound's low end arriving late) is not."""
+    from rhythm_server.analysis.onsets import attack_confidence
+
+    rate = 100.0
+    levels = np.full((300, 3), -30.0)
+    levels[100:, 1] = -18.0  # A: the mid band jumps at 1.00 s
+    levels[200:, 2] = -20.0  # C: the high band jumps at 2.00 s
+    times = np.array([1.0, 1.05, 2.0])
+    strength = np.array([0.8, 0.3, 0.5])
+    bands = np.array([[0.2, 0.7, 0.1], [0.8, 0.15, 0.05], [0.1, 0.2, 0.7]])
+    attack = attack_confidence(times, strength, bands, np.array([0.5, 0.02, 0.1]), np.array([0.6, 0.1, 0.6]), levels, rate, 0.0)
+    assert attack[1] < 0.5 < min(attack[0], attack[2]), attack
+
+
+def test_attack_is_high_on_the_true_onsets_of_a_song(analysis128: dict, song128) -> None:
+    detected = np.array([o["t"] for o in analysis128["onsets"]]) / 1000.0
+    attack = np.array([o["attack"] for o in analysis128["onsets"]])
+    assert ((attack >= 0.0) & (attack <= 1.0)).all()
+    truth = np.unique(np.round(np.concatenate([np.array(v) for k, v in song128.onsets.items() if k != "pad"]), 5))
+    true = np.array([np.min(np.abs(truth - d)) <= 0.03 for d in detected])
+    assert attack[true].mean() >= 0.8, attack[true].mean()
+    if (~true).sum() >= 5:
+        assert attack[~true].mean() <= 0.5, attack[~true].mean()
+
+
 def test_tempo_map_reproduces_beat_times() -> None:
     song = synth(128.0, 32, 1)
     a = analysis_of(128.0, 32, 1)
@@ -152,7 +179,7 @@ def test_result_shape(analysis128: dict) -> None:
         assert key in a
     assert a["timing"]["tempoMap"][0]["beat"] == 0
     o = a["onsets"][0]
-    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd"}
+    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd", "attack"}
     assert o["band"] in ("low", "mid", "high")
 
 
