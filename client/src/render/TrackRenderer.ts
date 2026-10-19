@@ -22,10 +22,10 @@ const HOLD_BODY = {
 const HOLD_BODY_WIDTH = 0.8;
 /** How far the track extends below the judgement line, toward the camera. */
 const TRACK_TAIL = 4;
-/** Every skin's notes are this tall and deep: a block with a front to see, not a line. */
-const NOTE_HEIGHT = 0.3;
+const NOTE_HEIGHT = 0.2;
+/** Every skin's notes are this deep on the track, textured ones too (a picture's proportions made them half as tall on screen). */
 const NOTE_DEPTH = 0.7;
-const SIDE_NOTE_HEIGHT = 0.18;
+const SIDE_NOTE_HEIGHT = 0.12;
 const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
@@ -772,8 +772,8 @@ function createNoteGeometry(shape: Skin['noteShape'], topUv: boolean): THREE.Buf
     // capsule lying across the lane, normalised to a 1×1×1 box
     geometry = new THREE.CapsuleGeometry(0.5, 1, 6, 16).rotateZ(Math.PI / 2).scale(0.5, 1, 1);
   } else if (shape === 'flat') {
-    // half as tall as the box: still an edge to see; rows along the depth carry the top's shading toward its near edge
-    geometry = new THREE.BoxGeometry(1, 0.5, 1, 1, 1, 8).translate(0, -0.25, 0);
+    // rows along the depth carry the top's shading toward its near edge
+    geometry = new THREE.BoxGeometry(1, 0.35, 1, 1, 1, 8).translate(0, -0.325, 0);
   } else {
     geometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 8);
   }
