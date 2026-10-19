@@ -38,6 +38,32 @@ class Candidate:
     roll: tuple[int, int] | None = None  # (roll id, hit index) when it is a hit of a drum roll (rolls.py)
 
 
+TRIPLETS = (3, 6)
+# as many points of each grid, so scattered onsets favour neither
+STRAIGHT_POINTS = (0.25, 0.75)
+TRIPLET_POINTS = (1 / 3, 2 / 3)
+
+
+def triplet_share(analysis: dict[str, Any], tempo: TempoMap) -> float:
+    """How much of the song's rhythm between the eighths sits on triplet positions rather than on
+    straight sixteenths: the strength-weighted share of the onsets clearly on one or the other
+    (config "tripletFeel"). A straight song keeps no triplet grid: an onset a little off its
+    sixteenth would otherwise snap to the triplet next to it."""
+    tol = float(difficulty_config()["tripletFeel"]["toleranceBeats"])
+    straight = triplet = 0.0
+    for o in analysis["onsets"]:
+        b = tempo.ms_to_beat(float(o["t"]))
+        f = b - np.floor(b)
+        d_straight = min(abs(f - p) for p in STRAIGHT_POINTS)
+        d_triplet = min(abs(f - p) for p in TRIPLET_POINTS)
+        if d_straight < d_triplet and d_straight <= tol:
+            straight += float(o["strength"])
+        elif d_triplet < d_straight and d_triplet <= tol:
+            triplet += float(o["strength"])
+    total = straight + triplet
+    return triplet / total if total > 0 else 0.0
+
+
 def _subdivision_of(beat: float) -> int:
     """Coarsest subdivision (beats split into s parts) that contains this grid position."""
     for s in (1, 2, 3, 4, 6, 8):

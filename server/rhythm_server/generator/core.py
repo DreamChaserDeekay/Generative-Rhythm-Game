@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -13,7 +14,7 @@ from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
-from .candidates import build_candidates
+from .candidates import TRIPLETS, build_candidates, triplet_share
 from .effects import camera_effects
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .motifs import SlotPlan
@@ -26,7 +27,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.8.1"
+GENERATOR_VERSION = "0.9.0"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -81,6 +82,9 @@ def generate_chart(
     kinds = {l.kind for l in lanes}
     special_kind = "scratch" if "scratch" in kinds else "side" if "side" in kinds else None
     duration = float(analysis["durationMs"])
+    straight = triplet_share(analysis, tempo) < float(cfg["tripletFeel"]["minShare"])
+    if straight:
+        params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
     candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]))
     if not candidates:
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")

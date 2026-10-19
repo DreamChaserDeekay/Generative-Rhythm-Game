@@ -34,6 +34,9 @@ TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
 # (the weight would pick it anyway; skipping the rest keeps copied sections cheap)
 EXACT_COPY_WEIGHT = 20.0
+# share of the copy bonus a note of its own pays per lane that a copied note right after it needs
+# (within that lane's jack spacing): the note added in a repeat must not take the copy's lane
+RESERVE_SHARE = 0.5
 # Chord notes over several instruments, left to right when the rhythm side is on the left (low
 # instruments first), and the instruments a long note prefers (the ones that sustain).
 STEM_POSITION = {"bass": 0, "drums": 1, "other": 2, "vocals": 3}
@@ -252,6 +255,23 @@ def search(
         if "ctx" not in shared:
             shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system)
         ctx = shared["ctx"]
+    # lanes a copied slot right after needs: a slot of its own (no reference: a note a later repeat
+    # adds) keeps out of them, or the copy would find its lane still inside the jack spacing (a
+    # roll's notes keep the hands' turns instead)
+    reserved: list[frozenset[int]] = [frozenset()] * len(slots)
+    if repeat_weight is not None and any(repeat_targets):
+        reach = max(min_gap)
+        for si, slot in enumerate(slots):
+            if repeat_targets[si] or slot.roll is not None:
+                continue
+            need: set[int] = set()
+            for sj in range(si + 1, len(slots)):
+                dt = slots[sj].t - slot.t
+                if dt >= reach:
+                    break
+                if repeat_targets[sj]:
+                    need.update(i for i in repeat_targets[sj] if dt < min_gap[i] - 1e-6)  # type: ignore[union-attr]
+            reserved[si] = frozenset(need)
     combo_cache: dict[tuple[Any, ...], list[tuple[int, ...]]] = shared.setdefault("combo", {})
     shape_cache: dict[tuple[bool, bool, bool, tuple[int, ...]], float] = shared.setdefault("shape", {})
     keys_cache: dict[tuple[int, ...], tuple[int, ...]] = shared.setdefault("keys", {})
@@ -368,6 +388,9 @@ def search(
                 # a hand holding a long note leaves the notes to the other hand: no run or balance rule then
                 hand_rule=not (one_hand or holding_hands), balance_rule=not (split or holding_hands), planned_repeat=planned_repeat,
             )
+            if reserved[si]:
+                pen = RESERVE_SHARE * weights.repeat
+                costs = [c + pen * sum(1 for i in combo if i in reserved[si]) for c, combo in zip(costs, combos)]
             scored = []
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())

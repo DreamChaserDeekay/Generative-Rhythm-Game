@@ -66,6 +66,10 @@ class MotifContext:
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
     adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord)
+    stretch_span: int = 2  # keys apart within one hand from which a chord is a stretch (hands.stretchSpan)
+    asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
+    # a role kept to one hand pays for neighbouring keys too when the hand has a key between (1+3)
+    one_hand_gaps: bool = False
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
@@ -73,9 +77,11 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
     n = len(keys)
+    hands = {**cfg["hands"], **cfg["hands"]["systems"].get(system, {})}
+    hand = tuple(lane.hand for lane in keys)
     return MotifContext(
         key_index={lane.index: k for k, lane in enumerate(keys)},
-        hand=tuple(lane.hand for lane in keys),
+        hand=hand,
         finger=tuple(lane.finger for lane in keys),
         strength=tuple(float(strength.get(str(lane.finger), 1.0)) for lane in keys),
         mirror=tuple(n - 1 - k for k in range(n)),
@@ -90,7 +96,10 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         home_scale=instrument_mapping
         * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
-        adjacent=float(cfg["hands"]["adjacentChord"]),
+        adjacent=float(hands["adjacentChord"]),
+        stretch_span=int(hands["stretchSpan"]),
+        asymmetric=float(hands["asymmetricChord"]),
+        one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
     )
 
 
@@ -239,11 +248,12 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
     n = len(ctx.hand)
     cost = 0.0
     pairs = [(a, b) for i, a in enumerate(keys) for b in keys[i + 1 :]]
-    if any(ctx.hand[a] == ctx.hand[b] and abs(a - b) > 1 for a, b in pairs):
-        cost += w["stretch"] * (1.0 - ctx.skill)  # one hand spread over a gap
-    if not one_hand_region(ctx, sp):
+    if any(ctx.hand[a] == ctx.hand[b] != "T" and abs(a - b) >= ctx.stretch_span for a, b in pairs):
+        cost += w["stretch"] * (1.0 - ctx.skill)  # one hand spread wide
+    if ctx.one_hand_gaps or not one_hand_region(ctx, sp):
         # chord mates on neighbouring keys of one hand (BMS-Generator keeps them two keys apart);
-        # a role kept to one hand plays its chords there, where neighbouring keys are the easy shape
+        # a role kept to a two-key hand plays its chords there, where neighbouring keys are the only
+        # shape (human BMS charts play 1+3 rather than 1+2 even with one hand)
         cost += ctx.adjacent * sum(1 for a, b in pairs if b - a == 1 and ctx.hand[a] == ctx.hand[b] != "T")
     if len(keys) == 2:
         a, b = keys
@@ -256,7 +266,7 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
         elif span > n / 2 and not symmetric:
             cost += w["shape"] * 0.4  # a narrow sound on a wide, lopsided chord
         if not symmetric and span != 1:
-            cost += w["shape"] * 0.5 * (1.0 - 0.6 * ctx.skill)
+            cost += ctx.asymmetric * (1.0 - 0.6 * ctx.skill)
     return cost
 
 
@@ -380,7 +390,12 @@ def motif_costs(
                 wants[size] = expected_keys(ctx, sp, list(hist), size, carry)
             want = wants[size]
             if want is not None:
-                cost += (w["alternate"] if sp.motif == "alternate" else w["motif"]) * _mismatch(keys, want)
+                if sp.motif == "alternate":
+                    # a roll goes hand over hand: the other hand's neighbouring key is as wrong as any
+                    same_hand = size == 1 and len(want) == 1 and ctx.hand[keys[0]] == ctx.hand[want[0]]
+                    cost += w["alternate"] * (0.0 if keys == want else 0.5 if same_hand else 1.0)
+                else:
+                    cost += w["motif"] * _mismatch(keys, want)
         if size >= 2:
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
