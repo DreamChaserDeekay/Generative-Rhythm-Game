@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.4.0"
+ANALYZER_VERSION = "1.5.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -156,7 +156,8 @@ def analyze(
     hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
     drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
     tempo = estimate_tempo(
-        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums
+        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums,
+        mid_fraction=od.bands[:, 1],
     )
     beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
     beats = beats[(beats >= 0) & (beats <= duration)]
@@ -171,7 +172,7 @@ def analyze(
         novelty[1:] = 1.0 - np.sum(unit[1:] * unit[:-1], axis=1)
     meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None else None
     if meter is None:
-        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty))
+        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma)
     bpb = meter.beats_per_bar
     beat0 = meter.first_downbeat_index if len(beats) else 0
 

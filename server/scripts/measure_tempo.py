@@ -35,7 +35,8 @@ FAST = (150.0, 165.0, 175.0, 190.0, 200.0)
 TEMPOS = {
     "pop8": SLOW, "pop16": SLOW, "hiphop": SLOW, "ballad": SLOW, "rock8bass": SLOW, "trap": (70.0, 75.0),
     "shuffle": (72.0, 88.0, 100.0, 120.0, 140.0), "triplet": (72.0, 88.0, 100.0, 120.0, 140.0),
-    "4otf": FAST, "jcore": FAST, "punk": FAST, "eurobeat": FAST, "dnb": (170.0, 174.0, 178.0),
+    "4otf": FAST, "jcore": FAST + (215.0, 235.0, 250.0), "punk": FAST + (210.0, 230.0), "eurobeat": FAST, "dnb": (170.0, 174.0, 178.0),
+    "trance": (128.0, 138.0, 150.0, 160.0, 170.0),
 }
 SONG_TEMPOS = (76.0, 86.0, 96.0, 100.0, 108.0, 128.0, 156.0, 172.0, 188.0)
 MAKERS = {"pop": make_pop_song, "groove": make_groove_song, "structured": make_structured_song}

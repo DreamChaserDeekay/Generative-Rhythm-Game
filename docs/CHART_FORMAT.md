@@ -30,7 +30,7 @@
     "consistency": { "loopRhythm": 0.93, "loopLane": 0.97, "repeatSelect": 0.95, "repeatLane": 0.99, "repeatLaneMirror": 0.99, "barVariety": 0.6, "laneEntropy": 0.7 },
     "generator": {
       "version": "0.9.1",
-      "analyzer": "core-1.4.0",
+      "analyzer": "core-1.5.0",
       "seed": 3735928559,
       "params": {
         "difficulty": "HARD", "targetLevel": null, "density": 1.0, "longNoteRatio": 0.15, "maxChord": 3,
@@ -149,6 +149,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
+- 분석기 1.5.0(생성기 0.9.1 그대로): 템포·박·마디 첫 박을 BMS 채보의 정답에 맞췄다(`docs/PATTERN_DESIGN.md` 18장). 200–260 BPM 곡을 반으로 접지 않고(드럼이 그 템포로 칠 때), 엇박 베이스가 끈 반 박 어긋남을 바로잡고, 4/4 마디 첫 박을 마디마다 바뀌는 화성으로 고른다. 형식은 그대로이고 다시 분석한 곡의 채보 ID가 바뀐다.
 - 생성기 0.9.1: 기본 기준의 손 규칙을 BMS 사람 채보 쪽으로 풀었다(같은 손 연속 비용 없음, 연타 줄기는 다섯 번째부터, 마디 좌우 균형과 손 번갈이 비용을 줄임, `docs/PATTERN_DESIGN.md` 17-7). DJMAX·EZ2ON 기준은 그대로다. 형식은 그대로이고 채보 ID가 바뀐다.
 - 생성기 0.9.0: BMS 사람 채보와 음악의 짝 비교(`docs/PATTERN_DESIGN.md` 17장)를 반영했다. 곧은 곡은 셋잇단 자리를 쓰지 않고, 기본 기준의 2노트 동치는 한 손의 붙은 키보다 한 칸 띄운 모양(1+3)과 양손을 쓰며, 반복 구간에서 더한 노트가 복사할 노트의 레인을 막지 않는다. 형식은 그대로이고 채보 ID가 바뀐다.
 - 생성기 0.8.1: BMS-Generator의 손 규칙(같은 손 연속, 연타 줄기, 마디의 좌우 균형, 한 손의 붙은 동치)을 DJMAX·EZ2ON에 맞게 고쳐 레인 배치 비용으로 넣었다(`docs/PATTERN_DESIGN.md` 16-6장). 계단·한 손 트릴·손 분담처럼 패턴이 일부러 한 손에 둔 노트는 그대로다. 형식은 그대로이고 채보 ID가 바뀐다.

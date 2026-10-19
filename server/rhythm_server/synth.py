@@ -860,9 +860,9 @@ def make_pop_song(
 
 
 # drum patterns of make_drum_song: per bar, kick and snare beats, hi-hat positions within a beat,
-# bass notes (beat, length in beats); optional off-beat open hats ("open"), softer snare and hats
-# ("snareGain", "hatGain") and piano chords on every beat ("keys": "beat") or held for the bar
-# with nothing else ("keys": "bar")
+# bass notes (beat, length in beats); optional off-beat open hats ("open"), other kick, snare, hat
+# and bass levels ("kickGain", "snareGain", "hatGain", "bassGain") and piano chords on every beat
+# ("keys": "beat") or held for the bar with nothing else ("keys": "bar")
 DRUM_STYLES: dict[str, dict[str, Any]] = {
     # slow songs, where the onsets run at twice the beat or pull away from it
     "pop8": {"kick": (0, 2), "snare": (1, 3), "hats": (0, 0.5), "bass": ((0, 2), (2, 2))},
@@ -881,6 +881,8 @@ DRUM_STYLES: dict[str, dict[str, Any]] = {
     "jcore": {"kick": (0, 1, 2, 3), "snare": (1, 3), "hats": (0, 0.5), "bass": tuple((b / 2, 0.5) for b in range(8))},
     "punk": {"kick": (0, 2), "snare": (1, 3), "hats": (0,), "bass": tuple((b / 2, 0.5) for b in range(8))},
     "eurobeat": {"kick": (0, 1, 2, 3), "snare": (1, 3), "hats": (0, 0.5), "open": True, "bass": tuple((b / 2, 0.5) for b in range(8))},
+    # an off-beat bass over a soft kick (trance, happy hardcore): the low onsets sit on the off-beats
+    "trance": {"kick": (0, 1, 2, 3), "snare": (1, 3), "hats": (), "open": True, "bass": tuple((b + 0.5, 0.45) for b in range(4)), "kickGain": 0.45, "bassGain": 0.6},
     "dnb": {"kick": (0, 2.5), "snare": (1, 3), "hats": (0, 0.5), "bass": ((0, 4),)},
     # held piano chords, one per bar, nothing else: their partials beat against each other
     "piano": {"kick": (), "snare": (), "hats": (), "bass": (), "keys": "bar"},
@@ -910,7 +912,7 @@ def make_drum_song(style: str, bpm: float, bars: int = 24, seed: int = 3, offset
     for bar in range(bars):
         t0 = offset + bar * 4 * beat
         c = (0, -4, -7, -2)[(bar // 2) % 4]
-        for name, sig, beats, gain in (("kick", kick, p["kick"], 0.9), ("snare", snare, p["snare"], p.get("snareGain", 0.65))):
+        for name, sig, beats, gain in (("kick", kick, p["kick"], p.get("kickGain", 0.9)), ("snare", snare, p["snare"], p.get("snareGain", 0.65))):
             for b in beats:
                 _add(buf, sig, at(t0 + b * beat), gain)
                 onsets[name].append(t0 + b * beat)
@@ -922,7 +924,7 @@ def make_drum_song(style: str, bpm: float, bars: int = 24, seed: int = 3, offset
             _add(buf, open_hat, at(t0 + (b + 0.5) * beat), 0.18, 0.3)
             onsets["hihat"].append(t0 + (b + 0.5) * beat)
         for b, length in p["bass"]:
-            _add(buf, _tone(_midi_to_hz(root + c), length * beat * 0.9, sample_rate, 6, 0.003, 0.04, 0.25), at(t0 + b * beat), 0.3)
+            _add(buf, _tone(_midi_to_hz(root + c), length * beat * 0.9, sample_rate, 6, 0.003, 0.04, 0.25), at(t0 + b * beat), p.get("bassGain", 0.3))
             onsets["bass"].append(t0 + b * beat)
         if p.get("keys") == "bar":
             piano(t0, 4, root + c, 0.08)

@@ -26,10 +26,13 @@ def test_constant_tempo_grid_is_within_10ms_over_the_whole_song(bpm: float, seed
     assert errors.max() <= GRID_LIMIT_MS, f"max grid error {errors.max():.2f}ms"
 
 
-@pytest.mark.parametrize("style,bpm", [("pop16", 84.0), ("hiphop", 92.0), ("shuffle", 100.0), ("jcore", 175.0)])
+@pytest.mark.parametrize(
+    "style,bpm", [("pop16", 84.0), ("hiphop", 92.0), ("shuffle", 100.0), ("jcore", 175.0), ("jcore", 215.0), ("trance", 150.0)]
+)
 def test_the_beat_is_the_backbeat_level_on_the_beat(style: str, bpm: float) -> None:
     """Sixteenth hi-hats over a slow backbeat are not read at twice the tempo, a syncopated kick
-    not at 4:3 of it, a shuffle's swung eighths not as the beat; a fast song stays fast."""
+    not at 4:3 of it, a shuffle's swung eighths not as the beat; a fast song stays fast (above
+    200 BPM too); an off-beat bass over a soft kick does not pull the beat onto the off-beats."""
     song = make_drum_song(style, bpm)
     a = analyze(song.pcm, song.sample_rate, f"sha256:drums-{style}-{bpm}", backends={})
     assert abs(a["tempo"]["bpm"] - bpm) < 0.05, a["tempo"]
@@ -79,6 +82,20 @@ def test_downbeats_match_bar_starts() -> None:
     hits = [np.min(np.abs(downs - d * 1000.0)) < 5.0 for d in song.downbeats]
     assert np.mean(hits) == 1.0
     assert a["timing"]["meter"][0]["beatsPerMeasure"] == 4
+
+
+def test_bar_harmony_places_the_downbeat_between_like_accents() -> None:
+    """Kicks on beats 1 and 3 accent both about alike (here beat 3 a little more); the chord that
+    changes every bar settles which of them starts the bar."""
+    from rhythm_server.analysis.meter import estimate_meter
+
+    n, first = 64, 1  # a pickup beat before the first bar
+    cues = np.array([(1.05 if (i - first) % 4 == 2 else 1.0) if (i - first) % 2 == 0 else 0.2 for i in range(n)])
+    chords = np.random.default_rng(0).random((n // 4 + 2, 12))
+    chroma = np.array([chords[(i - first) // 4 + 1] for i in range(n)])
+    assert estimate_meter(cues).first_downbeat_index == first + 2
+    meter = estimate_meter(cues, chroma)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
 
 
 def test_onsets_match_ground_truth() -> None:

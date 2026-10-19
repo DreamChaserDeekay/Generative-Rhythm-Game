@@ -257,7 +257,8 @@ def test_adapters_convert_library_output(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_ml_helpers() -> None:
     beats = 0.5 + np.arange(64) * (60 / 140)
     assert abs(ml.bpm_hint(beats) - 140) < 1e-6
-    assert abs(ml.bpm_hint(0.5 + np.arange(64) * (60 / 240)) - 120) < 1e-6  # folded into 70-200
+    assert abs(ml.bpm_hint(0.5 + np.arange(64) * (60 / 240)) - 240) < 1e-6  # within 70-260
+    assert abs(ml.bpm_hint(0.5 + np.arange(64) * (60 / 300)) - 150) < 1e-6  # folded into 70-260
     grid = beats + 0.002
     meter = ml.meter_from_downbeats(grid, beats, beats[1::4])
     assert meter is not None and meter.beats_per_bar == 4 and meter.first_downbeat_index == 1
