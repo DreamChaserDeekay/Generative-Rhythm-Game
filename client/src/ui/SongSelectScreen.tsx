@@ -11,7 +11,7 @@ import {
   type Song,
 } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
-import { SongPreview } from '../audio/songPreview';
+import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import { keysoundStems } from '../audio/stemKeysounds';
 import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
 import { isReplay, type ReplayData } from '../engine/replay';
@@ -106,7 +106,6 @@ export function SongSelectScreen(props: Props) {
   const replayInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
-  const preview = useRef<SongPreview | null>(null);
 
   const keyMode = settings.lastKeyMode;
   const system = difficultySystems[settings.difficultySystem];
@@ -186,21 +185,23 @@ export function SongSelectScreen(props: Props) {
     void loadSaved(selectedSongId);
   }, [selectedSongId, loadSaved]);
 
-  // Highlight preview of the selected song: fades in, loops, fades out when leaving the song.
+  // Highlight preview of the selected song: fades in, loops, fades out when leaving the song. It
+  // plays on behind the settings (App), so coming back from them keeps the one playing; until the
+  // song list is back, nothing is decided.
+  const listed = songs.length > 0;
   useEffect(() => {
-    preview.current?.stop();
-    preview.current = null;
-    if (!selected || selected.status !== 'ready') return;
+    if (!selected || selected.status !== 'ready') {
+      if (listed) menuMusic.stop();
+      return;
+    }
+    if (menuMusic.playing(selected.id)) return;
+    menuMusic.stop();
     const timer = window.setTimeout(() => {
-      preview.current = new SongPreview(api.audioUrl(selected.id), selected.previewMs ?? 0, settings.musicVolume * 0.6);
+      menuMusic.play(selected.id, api.audioUrl(selected.id), selected.previewMs ?? 0, settings.musicVolume * PREVIEW_VOLUME);
     }, 350);
-    return () => {
-      window.clearTimeout(timer);
-      preview.current?.stop();
-      preview.current = null;
-    };
+    return () => window.clearTimeout(timer);
     // Restart the preview only when the song (or its readiness) changes, not on volume edits.
-  }, [selected?.id, selected?.status]);
+  }, [selected?.id, selected?.status, listed]);
 
   const upload = async (files: FileList | File[]) => {
     setError(null);
@@ -249,7 +250,6 @@ export function SongSelectScreen(props: Props) {
       const target = song && song.id === replay.songId ? song : replay.songId ? await api.song(replay.songId) : null;
       if (!target) throw new Error('리플레이의 곡이 라이브러리에 없습니다');
       const c = chart?.meta.chartId === replay.chartId ? chart : await api.chart(replay.chartId);
-      preview.current?.stop();
       onPlay(buildPlayRequest(target, c, settings, { autoPlay: false, replay }));
     } catch (e) {
       setError(e instanceof ApiError && e.status === 404 ? '리플레이의 채보를 찾을 수 없습니다' : e instanceof Error ? e.message : String(e));
@@ -353,7 +353,6 @@ export function SongSelectScreen(props: Props) {
     if (!selected) return;
     const c = chart ?? (await generate());
     if (!c) return;
-    preview.current?.stop();
     const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
     onPlay(
       buildPlayRequest(selected, c, settings, {

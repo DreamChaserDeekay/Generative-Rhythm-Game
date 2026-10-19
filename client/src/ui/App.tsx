@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
+import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
@@ -74,6 +75,13 @@ export function App() {
     bridge.start();
     return () => bridge.stop();
   }, [menuPad]);
+
+  // The song select's preview plays on behind the settings, quieter and muffled; the other screens stop it.
+  useEffect(() => {
+    if (screen.name === 'select' || screen.name === 'settings') menuMusic.muffle(screen.name === 'settings');
+    else menuMusic.stop();
+  }, [screen.name]);
+  useEffect(() => menuMusic.setVolume(settings.musicVolume * PREVIEW_VOLUME), [settings.musicVolume]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('palette-cb', settings.palette === 'colorblind');
