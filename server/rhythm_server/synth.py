@@ -884,6 +884,9 @@ DRUM_STYLES: dict[str, dict[str, Any]] = {
     # an off-beat bass over a soft kick (trance, happy hardcore): the low onsets sit on the off-beats
     "trance": {"kick": (0, 1, 2, 3), "snare": (1, 3), "hats": (), "open": True, "bass": tuple((b + 0.5, 0.45) for b in range(4)), "kickGain": 0.45, "bassGain": 0.6},
     "dnb": {"kick": (0, 2.5), "snare": (1, 3), "hats": (0, 0.5), "bass": ((0, 4),)},
+    # a 3+3+2 kick and bass (dotted quarters) over straight hats: the autocorrelation peaks on the
+    # dotted quarter, two thirds of the tempo
+    "dotted": {"kick": (0, 1.5, 3), "snare": (1, 3), "hats": (0, 0.5), "bass": ((0, 1.5), (1.5, 1.5), (3, 1.0))},
     # held piano chords, one per bar, nothing else: their partials beat against each other
     "piano": {"kick": (), "snare": (), "hats": (), "bass": (), "keys": "bar"},
 }

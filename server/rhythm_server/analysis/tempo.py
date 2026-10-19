@@ -38,10 +38,15 @@ WINDOW_BEATS = 16
 LOCAL_WINDOW_BEATS = 24
 LOCAL_TEMPO_TOLERANCE = 0.012
 LOCAL_SEARCH = 0.25
-# Levels the autocorrelation peak may stand for: its double and half, and the slower levels a
-# syncopated kick (dotted eighths) pulls it away from. Faster 4:3 and 3:2 levels are left out: a
-# shuffle's triplets fit them better than the song's beat.
-LEVEL_RATIOS = (1.0, 2.0, 0.5, 0.75, 2.0 / 3.0)
+# Levels the autocorrelation peak may stand for: its double and half, the slower levels a
+# syncopated kick (dotted eighths) pulls it away from, and 3:2 for a song whose 3+3+2 accents put
+# the peak on a dotted quarter (in BMS the commonest tempo error: 2/3 of the tempo, or half of it).
+LEVEL_RATIOS = (1.0, 2.0, 0.5, 0.75, 2.0 / 3.0, 1.5)
+# The 3:2 level only when its straight eighths fill the peak level's 1/3 and 2/3 positions about
+# evenly (the lesser at least this share of the greater): a shuffle's swung eighths fill only the
+# 2/3 position (0.1-0.16) and fit that level just as well. A 4:3 level never won (BMS).
+EVEN_THIRDS = 0.4
+THIRDS_TOL_BEATS = 0.06
 # Backbeat test: percussive flux above this frequency (snares, claps; a hi-hat sits mostly above
 # the analysed range), measured on each grid position; the grid is halved when one position in
 # four averages BACKBEAT_RATIO times the one opposite it and stands out from the song's flux.
@@ -281,11 +286,22 @@ def _half_phase(times: np.ndarray, mid_weights: np.ndarray, drums: DrumFlux, bpm
     return (phase + period / 2) % period if cue > HALF_SHIFT_LOG else phase
 
 
+def _even_thirds(times: np.ndarray, weights: np.ndarray, fit: GridFit) -> bool:
+    """Whether the onsets fill the 1/3 and 2/3 positions of this grid about evenly (EVEN_THIRDS)."""
+    u = np.mod((times - fit.phase) / (60.0 / fit.bpm), 1.0)
+    a = float(weights[np.abs(u - 1.0 / 3.0) < THIRDS_TOL_BEATS].sum())
+    b = float(weights[np.abs(u - 2.0 / 3.0) < THIRDS_TOL_BEATS].sum())
+    return min(a, b) >= EVEN_THIRDS * max(a, b, 1e-12)
+
+
 def _choose_level(times: np.ndarray, weights: np.ndarray, odf: np.ndarray, frame_rate: float) -> float:
     base = beat_level_bpm(odf, frame_rate)
     options = [base * r for r in LEVEL_RATIOS if BPM_MIN <= base * r <= BPM_MAX]
     best_bpm, best_score = base, -1.0
-    base_fit = fit_grid(times, weights, base, search=0.04).score
+    base_grid = fit_grid(times, weights, base, search=0.04)
+    base_fit = base_grid.score
+    if not _even_thirds(times, weights, base_grid):
+        options = [bpm for bpm in options if abs(bpm / base - 1.5) > 1e-6]
     for bpm in options:
         fit = fit_grid(times, weights, bpm, search=0.04)
         # Alignment rises for faster grids; only switch level when it is clearly better.

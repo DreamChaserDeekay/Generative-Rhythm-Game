@@ -27,12 +27,14 @@ def test_constant_tempo_grid_is_within_10ms_over_the_whole_song(bpm: float, seed
 
 
 @pytest.mark.parametrize(
-    "style,bpm", [("pop16", 84.0), ("hiphop", 92.0), ("shuffle", 100.0), ("jcore", 175.0), ("jcore", 215.0), ("trance", 150.0)]
+    "style,bpm",
+    [("pop16", 84.0), ("hiphop", 92.0), ("shuffle", 100.0), ("jcore", 175.0), ("jcore", 215.0), ("trance", 150.0), ("dotted", 170.0)],
 )
 def test_the_beat_is_the_backbeat_level_on_the_beat(style: str, bpm: float) -> None:
     """Sixteenth hi-hats over a slow backbeat are not read at twice the tempo, a syncopated kick
     not at 4:3 of it, a shuffle's swung eighths not as the beat; a fast song stays fast (above
-    200 BPM too); an off-beat bass over a soft kick does not pull the beat onto the off-beats."""
+    200 BPM too); an off-beat bass over a soft kick does not pull the beat onto the off-beats; a
+    3+3+2 kick and bass are not read at 2/3 of the tempo (or half of it)."""
     song = make_drum_song(style, bpm)
     a = analyze(song.pcm, song.sample_rate, f"sha256:drums-{style}-{bpm}", backends={})
     assert abs(a["tempo"]["bpm"] - bpm) < 0.05, a["tempo"]
