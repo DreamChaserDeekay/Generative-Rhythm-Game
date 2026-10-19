@@ -220,6 +220,10 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
             ))}
           </div>
         </div>
+        <label className="row check">
+          <input type="checkbox" checked={settings.barLines} data-testid="bar-lines" onChange={(e) => set('barLines', e.target.checked)} />
+          마디선 (마디마다 트랙을 가로지르는 선)
+        </label>
         <div className="row">
           <span className="label">색상</span>
           <div className="segmented">

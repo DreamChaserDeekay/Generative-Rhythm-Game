@@ -45,6 +45,12 @@ const NOTE_WALL_FALLOFF = 0.08;
 const NOTE_RIM = 0.06;
 /** Clip-plane constant that keeps everything (plane effectively disabled). */
 const FAR_AWAY = 1e4;
+/**
+ * Bar lines keep about this thickness on screen (CSS px) all the way up the track (a fixed depth
+ * on the track thinned to nothing in the distance), at this opacity of the skin's bar colour.
+ */
+export const BAR_LINE_PX = 2.5;
+const BAR_LINE_OPACITY = 0.7;
 
 export interface FeverFrame {
   active: boolean;
@@ -83,6 +89,8 @@ export interface TrackRendererOptions {
   skin: Skin;
   /** Loaded textures of the skin (loadSkinArt); the renderer owns and disposes them. Parts left out are drawn in code. */
   art?: SkinArt | null;
+  /** A line across the track at every bar (default on). */
+  barLines?: boolean;
 }
 
 type NoteKind = 'note' | 'side' | 'scratch';
@@ -96,6 +104,18 @@ interface BurstSprite {
   lane: number;
 }
 
+const barNear = new THREE.Vector3();
+const barFar = new THREE.Vector3();
+
+/** Depth on the track floor at `z` that `camera` (matrices up to date) shows BAR_LINE_PX tall on a `cssHeight` canvas. */
+export function barLineDepth(camera: THREE.Camera, z: number, cssHeight: number): number {
+  const step = 0.1;
+  const near = barNear.set(0, 0, z).project(camera);
+  const far = barFar.set(0, 0, z - step).project(camera);
+  const px = (Math.abs(near.y - far.y) * cssHeight) / 2;
+  return px > 1e-6 ? Math.min(2, Math.max(0.02, (step * BAR_LINE_PX) / px)) : 0.05;
+}
+
 /** Renders the SDVX-style perspective track with Three.js. */
 export class TrackRenderer {
   readonly geometry: TrackGeometry;
@@ -106,6 +126,7 @@ export class TrackRenderer {
   private readonly laneColors: number[];
   private readonly skin: Skin;
   private readonly reducedFlash: boolean;
+  private readonly barLines: boolean;
   private readonly noteGeometry: THREE.BufferGeometry;
   private readonly baseQuaternion = new THREE.Quaternion();
   private baseFov = 40;
@@ -160,6 +181,7 @@ export class TrackRenderer {
     this.laneColors = laneColorsFor(options.skin, options.palette, options.mode);
     this.noteGeometry = createNoteGeometry(options.skin.noteShape, Boolean(this.art.note || this.art.side || this.art.scratch));
     this.reducedFlash = options.reducedFlash;
+    this.barLines = options.barLines ?? true;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
@@ -200,7 +222,7 @@ export class TrackRenderer {
     const barMaterial = new THREE.MeshBasicMaterial({
       color: hex(this.skin.colors.bar),
       transparent: true,
-      opacity: 0.35,
+      opacity: BAR_LINE_OPACITY,
       depthWrite: false,
       clippingPlanes: this.clipPlanes,
     });
@@ -413,12 +435,16 @@ export class TrackRenderer {
   private drawBars(frame: TrackFrame): void {
     const { scroll, timeMs } = frame;
     this.barPool.begin();
-    for (const t of frame.barTimes) {
-      if (t < timeMs - 300) continue;
-      if (scroll.distance(t, timeMs) > scroll.travel) break;
-      const bar = this.barPool.next();
-      bar.scale.set(this.geometry.width, 1, 0.05);
-      bar.position.set(0, 0.012, scroll.z(t, timeMs));
+    if (this.barLines) {
+      this.camera.updateMatrixWorld();
+      for (const t of frame.barTimes) {
+        if (t < timeMs - 300) continue;
+        if (scroll.distance(t, timeMs) > scroll.travel) break;
+        const z = scroll.z(t, timeMs);
+        const bar = this.barPool.next();
+        bar.scale.set(this.geometry.width, 1, barLineDepth(this.camera, z, this.cssHeight));
+        bar.position.set(0, 0.012, z);
+      }
     }
     this.barPool.end();
   }

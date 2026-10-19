@@ -105,6 +105,8 @@ export interface Settings {
   /** time: fixed speed; beat: speed follows the chart BPM (BMS/DJMAX style soflan). */
   scrollMode: ScrollMode;
   judgePosition: JudgePosition;
+  /** A line across the track at every bar. */
+  barLines: boolean;
   reducedFlash: boolean;
   palette: Palette;
   pacemaker: Pacemaker;
@@ -159,6 +161,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keepVisibleTime: false,
   scrollMode: 'time',
   judgePosition: 'mid',
+  barLines: true,
   reducedFlash: false,
   palette: 'default',
   pacemaker: 'OFF',
@@ -210,6 +213,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);
+  s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
   s.skin = pick(s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);

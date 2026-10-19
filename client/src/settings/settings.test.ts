@@ -12,6 +12,12 @@ describe('settings', () => {
     expect(s.generation.style).toBe('balanced');
   });
 
+  it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
+    expect(sanitizeSettings({}).barLines).toBe(true);
+    expect(sanitizeSettings({ barLines: false }).barLines).toBe(false);
+    expect(sanitizeSettings({ barLines: 'x' as never }).barLines).toBe(true);
+  });
+
   it('opens settings saved before the textured skins, and keeps a picked one', () => {
     expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
     expect(sanitizeSettings({ skin: 'glass' }).skin).toBe('glass');

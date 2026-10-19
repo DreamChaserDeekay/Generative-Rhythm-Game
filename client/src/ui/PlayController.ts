@@ -172,6 +172,7 @@ export class PlayController {
       covers: activeCovers(settings),
       skin: skinById(settings.skin, settings.customSkin),
       art: setup.art,
+      barLines: settings.barLines,
     });
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =
