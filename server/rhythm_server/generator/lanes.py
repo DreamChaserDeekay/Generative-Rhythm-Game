@@ -77,12 +77,13 @@ class _Weights:
         cfg = load_config("instruments")
         mapping = cfg["laneMapping"]
         drums = mapping["drums"]
-        hands = load_config("patterns")["hands"]
+        base_hands = load_config("patterns")["hands"]
+        hands = {**base_hands, **base_hands["systems"].get(params.system, {})}
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
             alternate=W_ALTERNATE * params.weight("alternateWeight"),
-            jack=W_JACK * params.weight("jackWeight"),
+            jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             jack_bonus=params.weight("jackBonus", 0.0),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
