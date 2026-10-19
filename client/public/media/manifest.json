@@ -35,8 +35,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "crystal/rails": {
       "file": "skins/crystal/rail.png",
@@ -54,8 +53,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "crystal/side": {
       "file": "skins/crystal/note_side.png",
@@ -63,8 +61,7 @@
       "size": [
         128,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "fx/hitBurstGlow": {
       "file": "fx/hit_burst_glow.png",
@@ -157,8 +154,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "gel/rails": {
       "file": "skins/gel/rail.png",
@@ -176,8 +172,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "gel/side": {
       "file": "skins/gel/note_side.png",
@@ -185,8 +180,7 @@
       "size": [
         128,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "glass/floor": {
       "file": "skins/glass/floor.png",
@@ -222,8 +216,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "glass/rails": {
       "file": "skins/glass/rail.png",
@@ -241,8 +234,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "glass/side": {
       "file": "skins/glass/note_side.png",
@@ -250,8 +242,7 @@
       "size": [
         128,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "metal/floor": {
       "file": "skins/metal/floor.png",
@@ -287,8 +278,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "metal/rails": {
       "file": "skins/metal/rail.png",
@@ -306,8 +296,7 @@
       "size": [
         256,
         64
-      ],
-      "depthScale": 1.5
+      ]
     },
     "metal/side": {
       "file": "skins/metal/note_side.png",
@@ -315,8 +304,7 @@
       "size": [
         128,
         64
-      ],
-      "depthScale": 1.5
+      ]
     }
   },
   "effects": {

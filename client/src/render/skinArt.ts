@@ -16,8 +16,6 @@ export interface MediaTexture {
   file: string;
   bundle: string;
   size: [number, number];
-  /** Notes: depth on the track = drawn width / texture aspect × depthScale (never deeper than the drawn notes). */
-  depthScale?: number;
   /** Long note body and rails: one repeat is (drawn width × tileAspect) long. */
   tileAspect?: number;
   /** Judgement line: depth of its quad on the track. */
@@ -57,7 +55,7 @@ export interface SkinArt {
 }
 
 const DEFAULT_EFFECTS: MediaEffects = { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
-const POSITIVE = ['depthScale', 'tileAspect', 'depth', 'width', 'tile', 'gain', 'scale'] as const;
+const POSITIVE = ['tileAspect', 'depth', 'width', 'tile', 'gain', 'scale'] as const;
 
 export function mediaUrl(file: string): string {
   return `${import.meta.env.BASE_URL}media/${file}`;

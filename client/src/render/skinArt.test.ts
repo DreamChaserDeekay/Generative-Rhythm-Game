@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
 import { skinById } from './skins';
 
-const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64], depthScale: 1.5 };
+const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64] };
 const BOOK = { cols: 4, rows: 4, frames: 16, fps: 60, loop: false };
 
 function fakeTexture(width: number, height: number): THREE.Texture & { disposed: boolean } {
@@ -26,7 +26,7 @@ describe('media manifest', () => {
       expect(parseMediaTexture({ ...NOTE, file })).toBeNull();
     }
     for (const size of [[256], [256, 0], [256.5, 64], [4096, 64], '256x64']) expect(parseMediaTexture({ ...NOTE, size })).toBeNull();
-    expect(parseMediaTexture({ ...NOTE, depthScale: -1 })).toBeNull();
+    expect(parseMediaTexture({ ...NOTE, tileAspect: -1 })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, gain: Number.NaN })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, anchorY: 1.5 })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, flipbook: { ...BOOK, frames: 17 } })).toBeNull();

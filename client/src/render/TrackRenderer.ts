@@ -22,15 +22,21 @@ const HOLD_BODY = {
 const HOLD_BODY_WIDTH = 0.8;
 /** How far the track extends below the judgement line, toward the camera. */
 const TRACK_TAIL = 4;
-const NOTE_HEIGHT = 0.2;
+/** Every skin's notes are this tall and deep: a block with a front to see, not a line. */
+const NOTE_HEIGHT = 0.3;
 const NOTE_DEPTH = 0.7;
-const SIDE_NOTE_HEIGHT = 0.12;
+const SIDE_NOTE_HEIGHT = 0.18;
 const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
 const COVER_Y = 0.05;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
+/** Note shading: light from above and a little from the camera's side lights the top, leaves the front in half shade and the sides dark. */
+const NOTE_LIGHT = new THREE.Vector3(0, 1, 0.45).normalize();
+const NOTE_AMBIENT = 0.36;
+/** A box note's top catches the light on its near edge, like a bevel. */
+const NOTE_RIM = 0.3;
 /** Clip-plane constant that keeps everything (plane effectively disabled). */
 const FAR_AWAY = 1e4;
 
@@ -376,21 +382,12 @@ export class TrackRenderer {
   private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, kind: NoteKind): void {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color, kind);
-    const width = laneWidth * 0.9;
-    mesh.scale.set(width, height, this.noteDepth(kind, width));
+    mesh.scale.set(laneWidth * 0.9, height, NOTE_DEPTH);
     mesh.position.set(x, height / 2, z);
   }
 
   private noteArt(kind: NoteKind): ArtTexture | undefined {
     return this.art[kind] ?? this.art.note;
-  }
-
-  /** Textured notes keep their texture's proportions as seen from the camera; drawn ones are all NOTE_DEPTH deep. */
-  private noteDepth(kind: NoteKind, width: number): number {
-    const art = this.noteArt(kind);
-    if (!art) return NOTE_DEPTH;
-    const [w, h] = art.spec.size;
-    return Math.min(NOTE_DEPTH, ((width * h) / w) * (art.spec.depthScale ?? 1));
   }
 
   /** The body texture is pinned to the note's real tail, so it travels with the note (also while held). */
@@ -764,30 +761,42 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
 
 /**
  * Unit-sized note shape (scaled per lane): a box, a thin plate or a rounded capsule, shaded by
- * vertex colour (bright top, darker front and sides). With `topUv` a note texture (drawn as seen
- * from above) is projected straight down onto it; walls take it a little inside its edge.
+ * vertex colour as a lit block (see NOTE_LIGHT): the top brightens toward its near edge, where a
+ * box catches a highlight, and the walls darken toward the track. With `topUv` a note texture
+ * (drawn as seen from above) is projected straight down onto it; walls take it a little inside
+ * its edge.
  */
 function createNoteGeometry(shape: Skin['noteShape'], topUv: boolean): THREE.BufferGeometry {
   let geometry: THREE.BufferGeometry;
   if (shape === 'round') {
     // capsule lying across the lane, normalised to a 1×1×1 box
-    geometry = new THREE.CapsuleGeometry(0.5, 1, 4, 10).rotateZ(Math.PI / 2).scale(0.5, 1, 1);
+    geometry = new THREE.CapsuleGeometry(0.5, 1, 6, 16).rotateZ(Math.PI / 2).scale(0.5, 1, 1);
   } else if (shape === 'flat') {
-    geometry = new THREE.BoxGeometry(1, 0.35, 1).translate(0, -0.325, 0);
+    // half as tall as the box: still an edge to see; rows along the depth carry the top's shading toward its near edge
+    geometry = new THREE.BoxGeometry(1, 0.5, 1, 1, 1, 8).translate(0, -0.25, 0);
   } else {
-    geometry = new THREE.BoxGeometry(1, 1, 1);
+    geometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 8);
   }
+  geometry.computeBoundingBox();
+  const { min, max } = geometry.boundingBox!;
   const normals = geometry.getAttribute('normal');
+  const pos = geometry.getAttribute('position');
   const colors = new Float32Array(normals.count * 3);
+  const n = new THREE.Vector3();
   for (let i = 0; i < normals.count; i++) {
-    const ny = normals.getY(i);
-    const nz = normals.getZ(i);
-    const shade = ny > 0.5 ? 1 : nz > 0.5 ? 0.7 : 0.5;
+    n.fromBufferAttribute(normals, i);
+    let shade = NOTE_AMBIENT + (1 - NOTE_AMBIENT) * Math.max(0, n.dot(NOTE_LIGHT));
+    if (n.y > 0.5) {
+      const near = (pos.getZ(i) - min.z) / (max.z - min.z); // 0 far … 1 near
+      shade *= 0.82 + 0.18 * near;
+      if (shape !== 'round' && near > 1 - 1e-6) shade += NOTE_RIM;
+    } else if (n.y > -0.5) {
+      shade *= 0.7 + 0.3 * ((pos.getY(i) - min.y) / (max.y - min.y)); // darker where the wall meets the track
+    }
     colors.set([shade, shade, shade], i * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   if (topUv) {
-    const pos = geometry.getAttribute('position');
     const uv = new Float32Array(pos.count * 2);
     for (let i = 0; i < pos.count; i++) {
       uv[i * 2] = 0.5 + pos.getX(i) * (1 - 2 * WALL_INSET * Math.abs(normals.getX(i)));

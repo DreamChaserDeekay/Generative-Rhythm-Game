@@ -23,7 +23,7 @@
     "grid": 4
   },
   "manifest": {
-    "note": { "depthScale": 1.5 },
+    "note": {},
     "longBody": {},
     "judgeLine": { "depth": 0.5 },
     "rails": { "width": 0.26 },
