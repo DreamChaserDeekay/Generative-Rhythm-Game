@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 
 from conftest import analysis_of, synth
+from rhythm_server.analysis.analyzer import analyze
 from rhythm_server.generator.tempo import TempoMap
+from rhythm_server.synth import make_drum_song
 
 GRID_LIMIT_MS = 10.0
 
@@ -22,6 +24,28 @@ def test_constant_tempo_grid_is_within_10ms_over_the_whole_song(bpm: float, seed
     assert abs(a["tempo"]["bpm"] - bpm) < 0.01
     errors = grid_errors_ms(a, song.beats)
     assert errors.max() <= GRID_LIMIT_MS, f"max grid error {errors.max():.2f}ms"
+
+
+@pytest.mark.parametrize("style,bpm", [("pop16", 84.0), ("hiphop", 92.0), ("shuffle", 100.0), ("jcore", 175.0)])
+def test_the_beat_is_the_backbeat_level_on_the_beat(style: str, bpm: float) -> None:
+    """Sixteenth hi-hats over a slow backbeat are not read at twice the tempo, a syncopated kick
+    not at 4:3 of it, a shuffle's swung eighths not as the beat; a fast song stays fast."""
+    song = make_drum_song(style, bpm)
+    a = analyze(song.pcm, song.sample_rate, f"sha256:drums-{style}-{bpm}", backends={})
+    assert abs(a["tempo"]["bpm"] - bpm) < 0.05, a["tempo"]
+    errors = grid_errors_ms(a, song.beats)
+    assert errors.max() <= GRID_LIMIT_MS, f"max grid error {errors.max():.2f}ms"
+
+
+def test_a_held_chord_swelling_is_no_onset() -> None:
+    """The partials of a held piano chord beat against each other and the spectral flux peaks many
+    times a second; only the chords' attacks are onsets."""
+    song = make_drum_song("piano", 90.0)
+    a = analyze(song.pcm, song.sample_rate, "sha256:drums-piano", backends={})
+    detected = np.array([o["t"] for o in a["onsets"]]) / 1000.0
+    chords = np.array(song.onsets["piano"])
+    assert all(np.min(np.abs(detected - t)) < 0.03 for t in chords)
+    assert len(detected) <= 2 * len(chords), len(detected)
 
 
 def test_tempo_map_reproduces_beat_times() -> None:

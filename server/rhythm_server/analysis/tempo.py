@@ -1,9 +1,16 @@
 """Tempo estimation and beat-grid fitting.
 
-1. Autocorrelation of the onset function with a perceptual prior picks the beat level.
-2. A smoothed comb template is fitted to all onsets to find BPM (to ~0.001) and phase.
-   A constant grid fitted to the whole song is far steadier than per-beat tracking.
-3. Local phase drift is measured in windows; if the grid drifts, the song is split into
+1. Autocorrelation of the onset function with a perceptual prior proposes a beat level; the comb
+   fit below chooses among it, its double and half, and the slower levels a syncopated kick can
+   make it stand for (3:4, 2:3).
+2. The backbeat settles the octave: snares and claps fall on beats 2 and 4, so when the drums'
+   mid and high band hits fall on one grid position in four, the grid runs at twice the beat (busy
+   hi-hats pull the onset functions to the faster level).
+3. A smoothed comb template is fitted to all onsets to find BPM (to ~0.001) and phase.
+   A constant grid fitted to the whole song is far steadier than per-beat tracking. A shuffle's
+   swung eighths can carry as many onsets as its beats; the drums tell them apart (the phase moves
+   by a triplet when they hit there far more).
+4. Local phase drift is measured in windows; if the grid drifts, the song is split into
    constant-tempo segments that are fitted separately (piecewise tempo map).
 """
 
@@ -27,6 +34,19 @@ WINDOW_BEATS = 16
 LOCAL_WINDOW_BEATS = 24
 LOCAL_TEMPO_TOLERANCE = 0.012
 LOCAL_SEARCH = 0.25
+# Levels the autocorrelation peak may stand for: its double and half, and the slower levels a
+# syncopated kick (dotted eighths) pulls it away from. Faster 4:3 and 3:2 levels are left out: a
+# shuffle's triplets fit them better than the song's beat.
+LEVEL_RATIOS = (1.0, 2.0, 0.5, 0.75, 2.0 / 3.0)
+# Backbeat test: percussive flux above this frequency (snares, claps; a hi-hat sits mostly above
+# the analysed range), measured on each grid position; the grid is halved when one position in
+# four averages BACKBEAT_RATIO times the one opposite it and stands out from the song's flux.
+BACKBEAT_MIN_HZ = 200.0
+BACKBEAT_RATIO = 1.6
+BACKBEAT_ACTIVE = 2.0  # the strongest position's mean against the median flux
+# The fitted phase moves by a third of a beat when the drums (all of the percussive flux) hit the
+# grid shifted so this many times harder than the fitted one.
+TRIPLET_SHIFT_RATIO = 1.5
 
 
 @dataclass
@@ -41,6 +61,16 @@ class GridFit:
     bpm: float
     phase: float  # seconds, time of a beat (in [0, period))
     score: float  # aligned weight fraction (0..1)
+
+
+@dataclass
+class DrumFlux:
+    """Onset flux of the percussive spectrogram (drum_flux): `high` above BACKBEAT_MIN_HZ (snares,
+    claps), `full` over all of it (kicks too), and their frame rate."""
+
+    high: np.ndarray
+    full: np.ndarray
+    frame_rate: float
 
 
 @dataclass
@@ -149,9 +179,61 @@ def fit_grid(times: np.ndarray, weights: np.ndarray, bpm_guess: float, search: f
     return GridFit(bpm=best, phase=phase, score=score / (total * norm))
 
 
+def drum_flux(percussive: np.ndarray, freqs: np.ndarray, reference: float, frame_rate: float) -> DrumFlux:
+    """Onset flux of a percussive magnitude spectrogram (frames, bins); `reference` is the song's
+    peak magnitude."""
+    level = np.log1p(100.0 * percussive.astype(np.float64) / max(reference, 1e-12))
+    rise = np.zeros_like(level)
+    if len(level) > 1:
+        rise[1:] = np.maximum(0.0, np.diff(level, axis=0))
+    return DrumFlux(high=rise[:, freqs >= BACKBEAT_MIN_HZ].sum(axis=1), full=rise.sum(axis=1), frame_rate=frame_rate)
+
+
+def _grid_hits(env: np.ndarray, rate: float, bpm: float, phase: float, duration: float) -> np.ndarray:
+    """The flux's peak at every grid position (a frame either side)."""
+    period = 60.0 / bpm
+    frames = np.round(_beats_from_grid(0.0, duration, period, phase % period) * rate).astype(int)
+    return np.array([env[max(0, i - 1) : i + 2].max() for i in frames if 0 <= i < len(env)])
+
+
+def backbeat_ratio(drums: DrumFlux, bpm: float, phase: float, duration: float) -> tuple[float, bool]:
+    """How much more the strongest of four grid positions holds than the one opposite it (about 1
+    when snares fall on two of them, beats 2 and 4), and whether those hits stand out at all."""
+    hits = _grid_hits(drums.high, drums.frame_rate, bpm, phase, duration)
+    if len(hits) < 8:
+        return 1.0, False
+    means = np.array([hits[p::4].mean() for p in range(4)])
+    p = int(np.argmax(means))
+    active = bool(means[p] >= BACKBEAT_ACTIVE * max(float(np.median(drums.high)), 1e-12))
+    return float(means[p] / max(means[(p + 2) % 4], 1e-12)), active
+
+
+def _halve_on_backbeat(times: np.ndarray, weights: np.ndarray, bpm: float, drums: DrumFlux, duration: float) -> float:
+    """Half the grid's tempo when its snares fall on one position in four, not two."""
+    if bpm / 2 < NORMAL_RANGE[0]:
+        return bpm
+    fit = fit_grid(times, weights, bpm, search=0.002)
+    ratio, active = backbeat_ratio(drums, fit.bpm, fit.phase, duration)
+    return bpm / 2 if active and ratio >= BACKBEAT_RATIO else bpm
+
+
+def _triplet_phase(drums: DrumFlux, bpm: float, phase: float, duration: float) -> float:
+    """The phase moved by a third of a beat when the drums hit there far harder (a shuffle whose
+    swung eighths the comb fit took for the beat)."""
+    period = 60.0 / bpm
+
+    def accent(p: float) -> float:
+        hits = _grid_hits(drums.full, drums.frame_rate, bpm, p, duration)
+        return float(np.mean(hits)) if len(hits) else 0.0
+
+    base = accent(phase)
+    best, shift = max((accent(phase + k * period / 3), k) for k in (1, 2))
+    return (phase + shift * period / 3) % period if best >= TRIPLET_SHIFT_RATIO * max(base, 1e-12) else phase
+
+
 def _choose_level(times: np.ndarray, weights: np.ndarray, odf: np.ndarray, frame_rate: float) -> float:
     base = beat_level_bpm(odf, frame_rate)
-    options = [b for b in (base, base * 2, base / 2) if BPM_MIN <= b <= BPM_MAX]
+    options = [base * r for r in LEVEL_RATIOS if BPM_MIN <= base * r <= BPM_MAX]
     best_bpm, best_score = base, -1.0
     base_fit = fit_grid(times, weights, base, search=0.04).score
     for bpm in options:
@@ -205,9 +287,11 @@ def estimate_tempo(
     duration: float,
     bpm_override: float | None = None,
     bpm_hint: float | None = None,
+    drums: DrumFlux | None = None,
 ) -> TempoResult:
     """`bpm_hint` (e.g. from an ML beat tracker) picks the beat level instead of the
-    autocorrelation; the grid is still fitted to the onsets."""
+    autocorrelation; the grid is still fitted to the onsets. `drums` lets the snares settle the
+    level the autocorrelation chose and the drums the phase of a shuffle."""
     if len(times) < 8:
         bpm = bpm_override or 120.0
         period = 60.0 / bpm
@@ -216,6 +300,8 @@ def estimate_tempo(
     # Kicks and bass carry the beat; weight them up so off-beat hi-hats do not steal the phase.
     weights = strengths.astype(np.float64) * (1.0 + 1.2 * low_fraction.astype(np.float64))
     bpm0 = bpm_override if bpm_override else (bpm_hint if bpm_hint else _choose_level(times, weights, odf, frame_rate))
+    if drums is not None and not bpm_override and not bpm_hint:
+        bpm0 = _halve_on_backbeat(times, weights, bpm0, drums, duration)
     fit = fit_grid(times, weights, bpm0, search=0.002 if bpm_override else 0.01)
     if bpm_override:
         fit = GridFit(bpm=bpm_override, phase=_best_phase(times, weights, 60.0 / bpm_override)[0], score=fit.score)
@@ -228,6 +314,8 @@ def estimate_tempo(
     if bpm_override or (not deviating and drift <= 2 * DRIFT_LIMIT_S):
         # Remove any residual constant offset (median of local offsets) from the phase.
         phase = fit.phase + (float(np.median(offsets)) if len(offsets) else 0.0)
+        if drums is not None:
+            phase = _triplet_phase(drums, fit.bpm, phase, duration)
         beats = _beats_from_grid(0.0, duration, period, phase % period)
         return TempoResult(
             beats=beats,

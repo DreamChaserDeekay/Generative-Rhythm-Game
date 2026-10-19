@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
+from ..config import difficulty_config, load_config
 from .candidates import Candidate
 from .params import GenParams, skill_for_rating
 from .rolls import coarser, mark_rolls, roll_level
@@ -88,6 +89,20 @@ def hold_value(c: Candidate) -> float:
     """How much a sound wants a long note: how long it sounds, how tonal it is, and most of all
     whether it is a note of the melody (a long sung note rather than a kick over a pad)."""
     return c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0) * (HOLD_PLAIN + (1.0 - HOLD_PLAIN) * 2.0 * (c.melody or 0.0))
+
+
+def holdable(c: Candidate, tempo: TempoMap) -> bool:
+    """Whether a long note may go on this sound (difficulty.json `holds`): the sound is held
+    itself, a note of the melody or a tonal sound with its own attack on the eighths, not a drum
+    hit over a bass or a pad that goes on sounding."""
+    cfg = difficulty_config()["holds"]
+    if c.sustain_beats * tempo.beat_ms(c.beat) < float(cfg["minSoundMs"]):
+        return False
+    if (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"]):
+        return True
+    if c.sources is None:
+        return c.harmonic >= float(cfg["harmonicAtLeast"])
+    return float(c.sources[DRUMS]) < float(cfg["drumsBelow"]) and c.subdivision <= int(cfg["maxSubdivision"])
 
 
 def active_seconds(cands: list[Candidate]) -> float:
@@ -218,7 +233,7 @@ def select_slots(
     if special_kind == "scratch":
         _assign_scratch(slots, params)
     elif special_kind == "side":
-        _assign_side(slots, chosen, params)
+        _assign_side(slots, chosen, params, tempo)
     return slots
 
 
@@ -254,7 +269,7 @@ def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenPa
         return
     picks = []
     for i, c in enumerate(chosen):
-        if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None:
+        if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None and holdable(c, tempo):
             picks.append((hold_value(c), i))
     picks.sort(reverse=True)
     limit = int(round(params.long_note_ratio * len(slots)))
@@ -281,7 +296,7 @@ def _assign_scratch(slots: list[Slot], params: GenParams) -> None:
             slots[i].hold_end_beat = None  # keep scratch notes short
 
 
-def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) -> None:
+def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams, tempo: TempoMap) -> None:
     """DJMAX-style side notes: mostly long holds over sustained sounds (pads, strings, long vocals,
     whose attacks are soft) plus a few big accents as taps (none when the tier wants only holds,
     like DJMAX's own side tracks)."""
@@ -294,7 +309,7 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams) 
         (c.sustain_beats * (0.5 + c.harmonic), i)
         for i, c in enumerate(chosen)
         if c.sustain_beats >= min_hold and slots[i].subdivision <= 2 and slots[i].roll is None
-        and hold_end(c.beat, c.sustain_beats, min_hold, 0.0) is not None
+        and hold_end(c.beat, c.sustain_beats, min_hold, 0.0) is not None and holdable(c, tempo)
     ]
     hold_score = [0.0] * len(slots)
     for value, i in holds:

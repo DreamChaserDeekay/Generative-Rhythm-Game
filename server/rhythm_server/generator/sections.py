@@ -31,7 +31,7 @@ from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -131,7 +131,16 @@ def make_units(sections: list[dict[str, Any]], first_beat: float, last_beat: flo
     spans: list[tuple[float, float, dict[str, Any]]] = []
     for k, s in enumerate(rows):
         a = float(s["startBeat"])
-        b = float(rows[k + 1]["startBeat"]) if k + 1 < len(rows) else max(last_beat + 1e-6, a + bpb)
+        if k + 1 < len(rows):
+            b = float(rows[k + 1]["startBeat"])
+        else:
+            b = max(last_beat + 1e-6, a + bpb)
+            # a last loop cut short of a bar at the last onset would be a unit too short to get any
+            # notes (a final chord just after its downbeat): it runs to the end of that bar
+            length = bpb * max(1, min(int(s.get("loopBars") or DEFAULT_LOOP_BARS), max_bars))
+            rest = (b - a) % length
+            if 1e-6 < rest < bpb:
+                b += bpb - rest
         spans.append((a, b, s))
     if not spans:
         spans = [(min(first_beat, 0.0), last_beat + 1e-6, {"group": "_", "label": "verse", "energy": 0.5, "loopBars": 4})]
@@ -635,11 +644,11 @@ def layout(
     _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
 
     _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale)
-    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params)
+    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo)
     if special_kind == "scratch":
-        _assign_special(slots, slot_cand, positions, cands, params, "scratch")
+        _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
     elif special_kind == "side":
-        _assign_special(slots, slot_cand, positions, cands, params, "side")
+        _assign_special(slots, slot_cand, positions, cands, params, "side", tempo)
     _accents(slots, units, unit_slots, params, key_count)
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
@@ -733,7 +742,7 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
             slots[i].size = max(2, min(max_chord, size))
 
 
-def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams) -> None:
+def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, tempo: TempoMap) -> None:
     if params.long_note_ratio <= 0 or not slots:
         return
     target = params.long_note_ratio * len(slots)
@@ -741,6 +750,8 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
     for key, idxs in _realized(positions, _outside(slots, positions)):
         sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
         if min(sustains) < params.min_ln_beats or any(slots[i].roll is not None for i in idxs):
+            continue
+        if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
             continue
         mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
         value = float(np.mean([hold_value(cands[slot_cand[i]]) for i in idxs])) * mult
@@ -761,7 +772,7 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
         placed += len(idxs)
 
 
-def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind: str) -> None:
+def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind: str, tempo: TempoMap) -> None:
     """Scratch or side notes per class position, spaced in every unit that plays it."""
     rate = params.scratch_rate if kind == "scratch" else params.side_rate
     n = rate * len(slots)
@@ -780,7 +791,7 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
         holds = []
         for key, idxs in decisions:
             cs = [cands[slot_cand[i]] for i in idxs]
-            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs):
+            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs) and all(holdable(c, tempo) for c in cs):
                 sustain = min(c.sustain_beats for c in cs)
                 if hold_end(slots[idxs[0]].beat, sustain, min_hold, 0.0) is not None:
                     holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, sustain))

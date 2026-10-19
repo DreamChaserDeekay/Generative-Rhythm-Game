@@ -13,7 +13,7 @@ from rhythm_server.difficulty.patterns import pattern_profile
 from rhythm_server.difficulty.consistency import chart_consistency, lane_entropy, structure_accuracy
 from rhythm_server.generator.core import generate_chart
 from rhythm_server.generator.sections import edited_analysis, make_units
-from rhythm_server.synth import detection_noise, make_structured_song
+from rhythm_server.synth import detection_noise, make_pop_song, make_structured_song
 
 BARS = 72
 CHARTS = (("6K", "GRG", "NORMAL", None), ("6K", "DJMAX", "HD", 9), ("8K", "EZ2ON", "HD", 13))
@@ -204,3 +204,43 @@ def test_section_edit_api(client: TestClient) -> None:
     # back to the analysis
     assert client.patch(f"/api/songs/{sid}", json={"sections": []}).json()["song"]["sections"] is None
     assert client.get(f"/api/songs/{sid}/sections").json()["edited"] is False
+
+
+def test_a_slow_sung_pop_song_keeps_its_sections_and_long_notes() -> None:
+    """A 100 BPM sung pop song (sixteenth hi-hats in the chorus, piano intro, outro and bridge
+    without drums): its beat is not read doubled, so its sections are found and the repeats get the
+    same notes; long notes go on held sung notes and tonal sounds, hardly ever on a drum hit or on
+    a held chord's swells, and nearly every note has a sound under it."""
+    import numpy as np
+
+    song = make_pop_song(100.0, 1)
+    analysis = analyze(song.pcm, song.sample_rate, "sha256:pop-100-1", backends={})
+    assert abs(analysis["tempo"]["bpm"] - 100.0) < 0.05
+    bars = sum(int(s["bars"]) for s in song.structure)
+    acc = structure_accuracy(analysis["sections"], song.structure, 4, bars)
+    assert acc["boundaryF"] >= 0.9 and acc["labelAccuracy"] >= 0.8, acc
+    truth = [dict(s, endBeat=int(s["startBeat"]) + 4 * int(s["bars"])) for s in song.structure]
+    notes = generate_chart(analysis, "6K", "HD", 9, system="DJMAX")["notes"]
+    cons = chart_consistency(notes, truth, "6K")
+    assert cons["loopLane"] >= 0.9 and cons["repeatSelect"] >= 0.85, cons
+
+    beat = 60.0 / 100.0
+    onsets = {k: np.asarray(v) for k, v in song.onsets.items() if v}
+    every = np.sort(np.concatenate(list(onsets.values())))
+    sung = {round(st, 3): (en - st) / beat for st, en, _ in song.sustains}
+
+    def near(kind: str, t: float) -> bool:
+        return kind in onsets and float(np.min(np.abs(onsets[kind] - t))) < 0.03
+
+    soundless = [n for n in notes if float(np.min(np.abs(every - n["t"] / 1000.0))) >= 0.03]
+    assert len(soundless) <= 0.05 * len(notes), (len(soundless), len(notes))
+    holds = [n for n in notes if n["type"] == "hold"]
+    held = drum = 0
+    for n in holds:
+        t = n["t"] / 1000.0
+        voice = [length for st, length in sung.items() if abs(st - t) < 0.03]
+        if (voice and voice[0] >= 0.9) or (not near("kick", t) and not near("snare", t) and any(near(k, t) for k in ("piano", "guitar", "pad", "bass"))):
+            held += 1
+        elif near("kick", t) or near("snare", t):
+            drum += 1
+    assert held >= 0.8 * len(holds) and drum <= 0.12 * len(holds), (held, drum, len(holds))

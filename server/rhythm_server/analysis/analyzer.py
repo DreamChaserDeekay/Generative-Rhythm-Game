@@ -17,16 +17,16 @@ from . import ml
 from .backends import Backend, detect as detect_backends
 from .meter import beat_cues, estimate_meter
 from .onsets import detect_onsets
-from .pitch import analyze_notes
+from .pitch import analyze_notes, held_swells
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
 from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
-from .tempo import estimate_tempo
+from .tempo import drum_flux, estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.3.0"
+ANALYZER_VERSION = "1.4.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -154,8 +154,9 @@ def analyze(
 
     report(0.45, "템포 분석")
     hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
+    drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
     tempo = estimate_tempo(
-        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint
+        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums
     )
     beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
     beats = beats[(beats >= 0) & (beats <= duration)]
@@ -187,6 +188,11 @@ def analyze(
     pitch_arr, sustain_arr = notes.pitch, notes.sustain_end
     if ml_notes is not None:
         pitch_arr, sustain_arr = ml.apply_notes(od.times, ml_notes, pitch_arr, sustain_arr, sources)
+    # a held sound's own swells (beating partials, tremolo) are no onsets
+    keep = ~held_swells(od.times, od.strength, od.bands, sustain_arr, shares[:, STEM_NAMES.index("drums")], notes)
+    times, strength, bands = od.times[keep], od.strength[keep], od.bands[keep]
+    pitch_arr, sustain_arr, harmonic_ratio = pitch_arr[keep], sustain_arr[keep], notes.harmonic_ratio[keep]
+    sources, shares, melody = sources[keep], shares[keep], melody[keep]
 
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
@@ -195,8 +201,8 @@ def analyze(
         [
             (beat_sync(log_mel, coarse_rate, beats), STRUCTURE_WEIGHTS["timbre"]),
             (beat_sync(chroma, coarse_rate, beats), STRUCTURE_WEIGHTS["harmony"]),
-            (rhythm_grid(beats, od.times, od.strength, od.bands), STRUCTURE_WEIGHTS["rhythm"]),
-            (_beat_activity(beats, od.times, od.strength, od.bands), STRUCTURE_WEIGHTS["activity"]),
+            (rhythm_grid(beats, times, strength, bands), STRUCTURE_WEIGHTS["rhythm"]),
+            (_beat_activity(beats, times, strength, bands), STRUCTURE_WEIGHTS["activity"]),
         ]
     ) if len(beats) else np.zeros((0, 1))
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
@@ -224,17 +230,17 @@ def analyze(
     energy = np.clip((energy_db + 60.0) / 60.0, 0.0, 1.0)
 
     onsets = []
-    for i, t in enumerate(od.times):
+    for i, t in enumerate(times):
         p = pitch_arr[i]
         end = sustain_arr[i]
         onsets.append(
             {
                 "t": round(float(t) * 1000.0, 3),
-                "strength": round(float(od.strength[i]), 4),
-                "band": BAND_NAMES[int(np.argmax(od.bands[i]))],
-                "bands": [round(float(x), 3) for x in od.bands[i]],
+                "strength": round(float(strength[i]), 4),
+                "band": BAND_NAMES[int(np.argmax(bands[i]))],
+                "bands": [round(float(x), 3) for x in bands[i]],
                 "pitch": None if not np.isfinite(p) else round(float(p), 2),
-                "harmonic": round(float(notes.harmonic_ratio[i]), 3),
+                "harmonic": round(float(harmonic_ratio[i]), 3),
                 "sustainEnd": round(float(end) * 1000.0, 3) if end > t else None,
                 "source": STEM_NAMES[int(sources[i])],
                 "sources": [round(float(x), 3) for x in shares[i]],
@@ -261,7 +267,7 @@ def analyze(
         }
         for s in sections
     ]
-    ml.section_stems(section_rows, od.times * 1000.0, od.strength, shares)
+    ml.section_stems(section_rows, times * 1000.0, strength, shares)
     stem_energy = stem_act.energy.sum(axis=0)
     analyzer_info: dict[str, Any] = {"name": ANALYZER_NAME, "version": ANALYZER_VERSION, "backends": used}
     if errors:

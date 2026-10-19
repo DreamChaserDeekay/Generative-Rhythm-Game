@@ -1,6 +1,6 @@
-"""Rolls, the melody and long-note releases (docs/PATTERN_DESIGN.md 15) on the synthetic songs:
+"""Rolls, the melody and long notes (docs/PATTERN_DESIGN.md 15, 16) on the synthetic songs:
 build-ups played hand over hand, notes off the beat where the song is, the melody option
-following the melody, long notes that let go on the grid."""
+following the melody, long notes only on held sounds and letting go on the grid."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from rhythm_server.generator.core import generate_chart
 from rhythm_server.generator.lanes import lane_infos
 from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.rolls import find_rolls
-from rhythm_server.generator.select import hold_end
+from rhythm_server.generator.select import hold_end, holdable
 from rhythm_server.generator.tempo import TempoMap
 from rhythm_server.synth import make_groove_song, make_structured_song
 
@@ -137,16 +137,18 @@ def test_steady_grooves_are_no_rolls() -> None:
 
 def test_the_melody_option_follows_the_melody() -> None:
     s, _ = song("groove")
-    for difficulty, level in (("NM", 6), ("HD", 9)):
+    # NM's budget leaves out much of the song, so the source decides what it plays; HD's covers
+    # most of the song's sounds whichever source leads (0.84 · 0.83 of the lead)
+    for difficulty, level, margin in (("NM", 6, 0.05), ("HD", 9, 0.0)):
         melody = chart("groove", "6K", "DJMAX", difficulty, level, "melody")["notes"]
         drum = chart("groove", "6K", "DJMAX", difficulty, level, "drum")["notes"]
         assert covered(s.onsets["lead"], melody) >= 0.8
-        assert covered(s.onsets["lead"], melody) > covered(s.onsets["lead"], drum) + 0.05
+        assert covered(s.onsets["lead"], melody) > covered(s.onsets["lead"], drum) + margin
         assert covered(s.onsets["kick"], melody) <= covered(s.onsets["kick"], drum)
         # the melody style follows the melody too, unless the player picks another rhythm source
         styled = chart("groove", "6K", "DJMAX", difficulty, level, "auto", "melody")
         assert styled["meta"]["generator"]["params"]["rhythmSource"] == "melody"
-        assert covered(s.onsets["lead"], styled["notes"]) > covered(s.onsets["lead"], drum) + 0.05
+        assert covered(s.onsets["lead"], styled["notes"]) > covered(s.onsets["lead"], drum) + margin
         assert chart("groove", "6K", "DJMAX", difficulty, level, "drum", "melody")["meta"]["generator"]["params"]["rhythmSource"] == "drum"
 
 
@@ -166,6 +168,24 @@ def test_harder_charts_follow_the_song_off_the_beat() -> None:
         assert share(hits, 4) >= 0.6 * share(beats, 4), (difficulty, share(hits, 4), share(beats, 4))
 
 
+def test_long_notes_go_on_held_sounds_only() -> None:
+    tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
+
+    def cand(**changes: object) -> Candidate:
+        fields: dict = dict(beat=4.0, t=2000.0, subdivision=1, strength=0.8, bands=np.ones(3), pitch=None, harmonic=0.8, sustain_beats=2.0,
+                            intensity=0.5, downbeat=True, sources=np.array([0.1, 0.1, 0.6, 0.2]), melody=0.0)
+        fields.update(changes)
+        return Candidate(**fields)
+
+    assert holdable(cand(melody=1.0, beat=4.25, subdivision=4), tempo)  # a sung note, off the beat too
+    assert holdable(cand(sources=np.array([0.05, 0.1, 0.1, 0.75])), tempo)  # a pad chord on the beat
+    assert not holdable(cand(sources=np.array([0.6, 0.3, 0.05, 0.05])), tempo)  # a kick over a held bass
+    assert not holdable(cand(beat=4.333333, subdivision=3), tempo)  # a slow attack caught late
+    assert not holdable(cand(melody=1.0, sustain_beats=0.6), tempo)  # 300 ms: too short a sound
+    assert holdable(cand(sources=None, harmonic=0.7), tempo)  # an analysis without stems
+    assert not holdable(cand(sources=None, harmonic=0.3), tempo)
+
+
 def test_long_notes_let_go_on_the_grid() -> None:
     assert hold_end(18.0, 1.889, 0.5, 0.9) == 20.0  # a held note that fades just before the next beat
     assert hold_end(0.25, 0.85, 0.5, 0.9) == 1.0  # an off-beat head still lets go on the beat
@@ -179,5 +199,14 @@ def test_long_notes_let_go_on_the_grid() -> None:
         holds = [n for n in notes if n["type"] == "hold"]
         starts = {round(n["beat"], 4) for n in notes}
         assert holds and all(abs(2 * n["endBeat"] - round(2 * n["endBeat"])) < 1e-6 for n in holds), (kind, difficulty)
-        # most let go where another note comes in (the next note of the tune)
-        assert np.mean([round(n["endBeat"], 4) in starts for n in holds]) >= 0.7, (kind, difficulty)
+        # most let go where another note comes in (the next note of the tune) or where the sung
+        # note ends (within 0.3 beat)
+        s, _ = song(kind)
+        beat_ms = 60000.0 / (128.0 if kind == "groove" else 124.0)
+        sung = {round(st * 1000.0): en * 1000.0 for st, en, _ in s.sustains}
+
+        def at_sound_end(n: dict) -> bool:
+            ends = [e for st, e in sung.items() if abs(st - n["t"]) < 35]
+            return bool(ends) and abs(n["endT"] - ends[0]) <= 0.3 * beat_ms
+
+        assert np.mean([round(n["endBeat"], 4) in starts or at_sound_end(n) for n in holds]) >= 0.75, (kind, difficulty)

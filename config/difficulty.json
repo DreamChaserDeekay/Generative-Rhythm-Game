@@ -398,6 +398,13 @@
     "description": "후보 점수의 박자 위치 가중치(정박 0.9, 8분 엇박 0.72, 16분 0.5, 셋잇단 0.55 …)에 거는 지수. [단계값, 지수] 점 사이를 선형으로 잇는다. 쉬운 채보는 정박을 지키고(지수 1), 어려울수록 곡의 리듬(엇박·싱코페이션)을 그대로 따른다(지수가 작을수록 가중치 차이가 줄어든다). 큰 소리는 원래 정박에 몰려 있어서 가중치를 그대로 곱하면 노트가 후보보다 훨씬 정박에 쏠린다.",
     "power": [[0.0, 1.0], [0.3, 1.0], [0.65, 0.45]]
   },
+  "holds": {
+    "description": "롱노트를 둘 수 있는 소리. 소리 자체가 minSoundMs 이상 울려야 하고(BMS-Generator: 키음이 350ms 이상인 노트만 롱노트), 멜로디의 음(존재도가 instruments.json의 rhythmSource.melody.note 이상)이거나, 드럼 비율이 drumsBelow 미만인 음 있는 소리로서 머리가 maxSubdivision 분할(2 = 8분) 위에 있어야 한다. 드럼 타격이 밑에 깔린 베이스·패드의 길이를 물려받은 것과 늦게 잡힌 느린 어택은 롱노트가 되지 않는다. 스템 분석이 없는 예전 분석은 조화음 비율이 harmonicAtLeast 이상이면 된다. 난이도의 longNoteRatio는 상한일 뿐이라 이런 소리가 적은 곡은 롱노트도 적다. 사이드 롱노트도 같은 규칙을 쓴다.",
+    "minSoundMs": 350,
+    "drumsBelow": 0.4,
+    "maxSubdivision": 2,
+    "harmonicAtLeast": 0.5
+  },
   "snapToleranceMs": 35,
   "lnTailGapBeats": 0.25,
   "maxAdjustIterations": 6
