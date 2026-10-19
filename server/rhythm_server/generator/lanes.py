@@ -82,7 +82,7 @@ class _Weights:
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
-            alternate=W_ALTERNATE * params.weight("alternateWeight"),
+            alternate=W_ALTERNATE * params.weight("alternateWeight") * float(hands["alternateScale"]),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             jack_bonus=params.weight("jackBonus", 0.0),
             source=float(mapping["weight"]) * params.instrument_mapping,

@@ -100,6 +100,7 @@
     "balance": 0.8,
     "adjacentChord": 0.3,
     "jackScale": 1.0,
+    "alternateScale": 1.0,
     "stretchSpan": 2,
     "asymmetricChord": 0.4,
     "oneHandGaps": false,
