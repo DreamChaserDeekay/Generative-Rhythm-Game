@@ -98,6 +98,19 @@ def test_bar_harmony_places_the_downbeat_between_like_accents() -> None:
     assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
 
 
+@pytest.mark.parametrize("chord_beats,meter", [(4, 4), (3, 3)])
+def test_bar_harmony_settles_three_against_four(chord_beats: int, meter: int) -> None:
+    """Accents every third beat read as 3/4; the chords say whether the bars hold three beats or four."""
+    from rhythm_server.analysis.meter import estimate_meter
+
+    n = 72
+    cues = np.array([1.0 if i % 3 == 0 else 0.1 for i in range(n)])
+    chords = np.random.default_rng(1).random((n // chord_beats + 1, 12))
+    chroma = np.array([chords[i // chord_beats] for i in range(n)])
+    assert estimate_meter(cues).beats_per_bar == 3
+    assert estimate_meter(cues, chroma).beats_per_bar == meter
+
+
 def test_onsets_match_ground_truth() -> None:
     song = synth(128.0, 32, 1)
     a = analysis_of(128.0, 32, 1)

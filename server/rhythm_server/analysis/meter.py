@@ -9,6 +9,9 @@ import numpy as np
 # Weight of the bar-long harmony change against the per-beat cues when placing the downbeat of a
 # 4/4 bar (both as z-scores over the four phases).
 BAR_CHANGE_WEIGHT = 1.0
+# 3/4 also needs bars of three to change chords this many times more than bars of four at their
+# best phases: the beat cues alone took 4% of 4/4 songs for 3/4.
+THREE_BAR_CHANGE_MARGIN = 1.1
 
 
 @dataclass
@@ -61,8 +64,8 @@ def _z(x: np.ndarray) -> np.ndarray:
 
 
 def estimate_meter(cues: np.ndarray, beat_chroma: np.ndarray | None = None) -> MeterResult:
-    """`beat_chroma` (one chroma vector per beat) lets the bar-long harmony place the downbeat of
-    a 4/4 bar too: the per-beat cues alone often take beat 3 for beat 1."""
+    """`beat_chroma` (one chroma vector per beat) lets the bar-long harmony settle 3/4 against 4/4
+    and place the downbeat of a 4/4 bar too: the per-beat cues alone often take beat 3 for beat 1."""
     best: tuple[float, int, int] | None = None
     contrasts: dict[int, tuple[float, int]] = {}
     for m in (4, 3):
@@ -73,13 +76,16 @@ def estimate_meter(cues: np.ndarray, beat_chroma: np.ndarray | None = None) -> M
         contrasts[m] = (contrast, int(np.argmax(scores)))
     if not contrasts:
         return MeterResult(4, 0)
+    harmony = beat_chroma is not None and len(cues) >= 32 and len(beat_chroma) == len(cues)
     m = 4
     if 3 in contrasts and 4 in contrasts and contrasts[3][0] > 1.3 * contrasts[4][0]:
         m = 3
+        if harmony and float(np.max(bar_changes(beat_chroma, 3))) < THREE_BAR_CHANGE_MARGIN * float(np.max(bar_changes(beat_chroma, 4))):
+            m = 4
     elif 4 not in contrasts:
         m = 3
     best = (contrasts[m][0], m, contrasts[m][1])
-    if m == 4 and beat_chroma is not None and len(cues) >= 32 and len(beat_chroma) == len(cues):
+    if m == 4 and harmony:
         scores = np.array([np.mean(cues[k::4]) for k in range(4)])
         total = _z(scores) + BAR_CHANGE_WEIGHT * _z(bar_changes(beat_chroma, 4))
         best = (best[0], 4, int(np.argmax(total)))
