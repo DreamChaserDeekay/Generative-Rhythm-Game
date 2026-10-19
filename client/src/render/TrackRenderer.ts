@@ -32,11 +32,17 @@ const EFFECT_MS = 240;
 const COVER_Y = 0.05;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
-/** Note shading: light from above and a little from the camera's side lights the top, leaves the front in half shade and the sides dark. */
+/**
+ * Note shading, kept faint (just enough to read the notes as blocks): light from above and a
+ * little from the camera's side lights the top fully, the front a little less and the sides least.
+ */
 const NOTE_LIGHT = new THREE.Vector3(0, 1, 0.45).normalize();
-const NOTE_AMBIENT = 0.36;
-/** A box note's top catches the light on its near edge, like a bevel. */
-const NOTE_RIM = 0.3;
+const NOTE_AMBIENT = 0.82;
+/** The top darkens this much toward its far edge, the walls toward the track. */
+const NOTE_TOP_FALLOFF = 0.05;
+const NOTE_WALL_FALLOFF = 0.08;
+/** A box note's top catches a little light on its near edge, like a bevel. */
+const NOTE_RIM = 0.06;
 /** Clip-plane constant that keeps everything (plane effectively disabled). */
 const FAR_AWAY = 1e4;
 
@@ -788,10 +794,10 @@ function createNoteGeometry(shape: Skin['noteShape'], topUv: boolean): THREE.Buf
     let shade = NOTE_AMBIENT + (1 - NOTE_AMBIENT) * Math.max(0, n.dot(NOTE_LIGHT));
     if (n.y > 0.5) {
       const near = (pos.getZ(i) - min.z) / (max.z - min.z); // 0 far … 1 near
-      shade *= 0.82 + 0.18 * near;
+      shade *= 1 - NOTE_TOP_FALLOFF * (1 - near);
       if (shape !== 'round' && near > 1 - 1e-6) shade += NOTE_RIM;
     } else if (n.y > -0.5) {
-      shade *= 0.7 + 0.3 * ((pos.getY(i) - min.y) / (max.y - min.y)); // darker where the wall meets the track
+      shade *= 1 - NOTE_WALL_FALLOFF * (1 - (pos.getY(i) - min.y) / (max.y - min.y)); // darker where the wall meets the track
     }
     colors.set([shade, shade, shade], i * 3);
   }
