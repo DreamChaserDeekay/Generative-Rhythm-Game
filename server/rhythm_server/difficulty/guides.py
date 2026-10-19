@@ -14,9 +14,15 @@ the pitch of the notes (`pitch_of`, from the analysis onsets).
   one lane struck every other note four or more times in a fast run (축연타), per 1000 key notes;
   anchorMax the longest. handStreaks: share of the fast single notes inside a run of six or more on
   one hand. doubles: 재봉틀, two hits on a key then two on the other hand's key (RR LL), per 1000 key
-  notes.
+  notes. handRuns: share of the fast single notes that are the third or later in a row on one hand
+  (BMS-Generator allows two; stairs and one-hand trills count too). jackStreaks: a key in three or
+  more instants in a row, each within JACK_STREAK_MS of the last, per 1000 key notes (BMS-Generator
+  allows two).
 - balance (손 분배). lopsided: share of the busy 2-bar windows with 80% or more of the notes on one
   hand. shapeLeft: the left hand's share of the stair and trill notes (0.5 = both hands alike).
+  offBars: share of the bars with ten key notes or more whose left-hand share is outside 30-70%
+  (BMS-Generator's band). adjacentChords: share of the two-note chords on neighbouring keys of one
+  hand (BMS-Generator keeps chord mates two keys apart).
 - pivots (5B): two-note chords that alternate left key + middle key and middle key + right key, as a
   share of the two-note chords (key modes with a shared middle key).
 """
@@ -39,6 +45,12 @@ DENSE_NOTES = 12  # key notes from which a window counts for the finger load
 LOPSIDED = 0.8  # one hand's share from which a window is lopsided
 ANCHOR_HITS = 4  # hits of one lane, every other note, that make an anchor
 STREAK = 6  # fast single notes in a row on one hand that make a streak
+HAND_RUN = 3  # fast single notes in a row on one hand that make a run past BMS-Generator's limit
+JACK_STREAK = 3  # instants in a row on one key that make a jack streak past BMS-Generator's limit
+JACK_STREAK_MS = 300.0  # instants closer than this keep a key's streak going
+BAR_BEATS = 4.0  # a bar of 4/4
+BAR_NOTES = 10  # key notes from which a bar is held to the hands' share band
+BAR_BAND = (0.3, 0.7)  # the left hand's share of such a bar
 PIVOT_MS = 600.0  # two-note chords closer than this answer each other
 SAME_PITCH = 0.5  # semitones
 
@@ -198,7 +210,10 @@ def hands(notes: list[dict[str, Any]], key_mode: str, pitch_of: PitchOf | None =
     index, hand, finger, _ = _layout(key_mode)
     events = _events(notes, index)
     total = sum(len(ns) for _, _, ns in events)
-    out: dict[str, float | None] = {"unmotivatedJacks": None, "fingerLoad": None, "anchors": None, "anchorMax": 0, "handStreaks": None, "doubles": None}
+    out: dict[str, float | None] = {
+        "unmotivatedJacks": None, "fingerLoad": None, "anchors": None, "anchorMax": 0, "handStreaks": None, "doubles": None,
+        "handRuns": None, "jackStreaks": None,
+    }
     if total == 0:
         return out
     jacks = 0
@@ -207,6 +222,15 @@ def hands(notes: list[dict[str, Any]], key_mode: str, pitch_of: PitchOf | None =
         if tb - ta <= FAST_MS and len(na) == 1 and len(nb) == 1 and na[0]["lane"] == nb[0]["lane"]:
             jacks += bool(_different_sound(na[0], nb[0], pitch_of))
     out["unmotivatedJacks"] = _round(100.0 * jacks / total, 2)
+    streak: dict[int, int] = {}
+    streaks = 0
+    prev_t: float | None = None
+    for t, _, ns in events:
+        close = prev_t is not None and t - prev_t <= JACK_STREAK_MS
+        streak = {k: streak.get(k, 0) + 1 if close else 1 for k in {index[int(n["lane"])] for n in ns}}
+        streaks += sum(1 for v in streak.values() if v == JACK_STREAK)
+        prev_t = t
+    out["jackStreaks"] = _round(1000.0 * streaks / total, 2)
 
     start = events[0][1]
     windows: dict[int, list[int]] = {}
@@ -222,7 +246,7 @@ def hands(notes: list[dict[str, Any]], key_mode: str, pitch_of: PitchOf | None =
     out["fingerLoad"] = _round(float(np.percentile(loads, 95))) if loads else None
 
     anchors: list[int] = []
-    fast = streaked = doubles = 0
+    fast = streaked = doubles = runs = 0
     for run in _fast_runs(events, index):
         lanes = [k for _, k in run]
         anchors += _anchors(lanes)
@@ -244,9 +268,17 @@ def hands(notes: list[dict[str, Any]], key_mode: str, pitch_of: PitchOf | None =
             if length >= STREAK:
                 streaked += length
             side, length = h, 1
+        # BMS-Generator's count: a shared middle key ends a run
+        side, length = None, 0
+        for k in lanes:
+            h = hand[k]
+            length = 0 if h == "T" else length + 1 if h == side else 1
+            side = h
+            runs += length >= HAND_RUN
     out["anchors"] = _round(1000.0 * len(anchors) / total, 2)
     out["anchorMax"] = max(anchors) if anchors else 0
     out["handStreaks"] = _round(streaked / fast) if fast else None
+    out["handRuns"] = _round(runs / fast) if fast else None
     out["doubles"] = _round(1000.0 * doubles / total, 2)
     return out
 
@@ -281,7 +313,7 @@ def _shape_spans(lanes: list[int]) -> list[tuple[int, int]]:
 def balance(notes: list[dict[str, Any]], key_mode: str) -> dict[str, float | None]:
     index, hand, _, _ = _layout(key_mode)
     events = _events(notes, index)
-    out: dict[str, float | None] = {"lopsided": None, "shapeLeft": None}
+    out: dict[str, float | None] = {"lopsided": None, "shapeLeft": None, "offBars": None, "adjacentChords": None}
     if not events:
         return out
     start = events[0][1]
@@ -298,6 +330,22 @@ def balance(notes: list[dict[str, Any]], key_mode: str) -> dict[str, float | Non
     busy = [w for w in windows.values() if sum(w) >= BUSY_NOTES]
     if busy:
         out["lopsided"] = _round(sum(1 for w in busy if max(w) / sum(w) >= LOPSIDED) / len(busy))
+    bars: dict[int, list[float]] = {}
+    pairs = adjacent = 0
+    for _, beat, ns in events:
+        b = bars.setdefault(int(beat // BAR_BEATS), [0.0, 0.0])
+        keys = [index[int(n["lane"])] for n in ns]
+        for k in keys:
+            b[0] += 1.0 if hand[k] == "L" else 0.5 if hand[k] == "T" else 0.0
+            b[1] += 1.0 if hand[k] == "R" else 0.5 if hand[k] == "T" else 0.0
+        if len(keys) == 2:
+            pairs += 1
+            adjacent += abs(keys[0] - keys[1]) == 1 and hand[keys[0]] == hand[keys[1]] != "T"
+    full = [b for b in bars.values() if sum(b) >= BAR_NOTES]
+    if full:
+        out["offBars"] = _round(sum(1 for l, r in full if not BAR_BAND[0] <= l / (l + r) <= BAR_BAND[1]) / len(full))
+    if pairs:
+        out["adjacentChords"] = _round(adjacent / pairs)
     left = right = 0.0
     by_t = [(t, [index[int(n["lane"])] for n in ns]) for t, _, ns in events]
     run: list[int] = []

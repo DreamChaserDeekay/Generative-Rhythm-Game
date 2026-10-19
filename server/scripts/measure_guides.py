@@ -41,13 +41,14 @@ CHARTS = (
 MEASURES = (
     "repeatGrowth", "halfRatio", "peakAt",
     "contour", "pitchOrder",
-    "unmotivatedJacks", "fingerLoad", "anchors", "anchorMax", "handStreaks", "doubles",
-    "lopsided", "shapeLeft", "pivots",
+    "unmotivatedJacks", "fingerLoad", "anchors", "anchorMax", "handStreaks", "doubles", "handRuns", "jackStreaks",
+    "lopsided", "shapeLeft", "offBars", "adjacentChords", "pivots",
     "loopLane", "repeatLane",
 )
 SHORT = {
     "repeatGrowth": "growth", "halfRatio": "half", "peakAt": "peak", "contour": "contour", "pitchOrder": "pOrder",
     "unmotivatedJacks": "uJack", "fingerLoad": "finger", "anchors": "anchor", "anchorMax": "aMax", "handStreaks": "streak", "doubles": "double",
+    "handRuns": "hRun", "jackStreaks": "jStreak", "offBars": "offBar", "adjacentChords": "adjChd",
     "lopsided": "lopside", "shapeLeft": "shapeL", "pivots": "pivot", "loopLane": "loopL", "repeatLane": "repL",
 }
 

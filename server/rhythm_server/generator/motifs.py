@@ -65,6 +65,7 @@ class MotifContext:
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
+    adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord)
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
@@ -89,6 +90,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         home_scale=instrument_mapping
         * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
+        adjacent=float(cfg["hands"]["adjacentChord"]),
     )
 
 
@@ -103,6 +105,14 @@ def _mismatch(keys: tuple[int, ...], want: tuple[int, ...]) -> float:
         d = abs(a - b)
         total += 0.0 if d == 0 else (0.5 if d == 1 else 1.0)
     return total / len(keys)
+
+
+def one_hand_region(ctx: MotifContext, sp: SlotPlan) -> bool:
+    """Whether the slot's role is kept to one hand's keys (the hand split: rhythm one hand, melody
+    the other)."""
+    if sp.region is None:
+        return False
+    return len({ctx.hand[k] for k in range(sp.region[0], sp.region[1] + 1)} - {"T"}) == 1
 
 
 def _bounds(ctx: MotifContext, sp: SlotPlan) -> tuple[int, int]:
@@ -231,6 +241,10 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
     pairs = [(a, b) for i, a in enumerate(keys) for b in keys[i + 1 :]]
     if any(ctx.hand[a] == ctx.hand[b] and abs(a - b) > 1 for a, b in pairs):
         cost += w["stretch"] * (1.0 - ctx.skill)  # one hand spread over a gap
+    if not one_hand_region(ctx, sp):
+        # chord mates on neighbouring keys of one hand (BMS-Generator keeps them two keys apart);
+        # a role kept to one hand plays its chords there, where neighbouring keys are the easy shape
+        cost += ctx.adjacent * sum(1 for a, b in pairs if b - a == 1 and ctx.hand[a] == ctx.hand[b] != "T")
     if len(keys) == 2:
         a, b = keys
         span = b - a
@@ -318,7 +332,7 @@ def motif_costs(
     holding_hands: dict[str, int],
     single_dt: float,
     carry: int | None = None,
-    shape_cache: dict[tuple[bool, bool, tuple[int, ...]], float] | None = None,
+    shape_cache: dict[tuple[bool, bool, bool, tuple[int, ...]], float] | None = None,
     key_cache: dict[tuple[Any, ...], list[float]] | None = None,
 ) -> list[float]:
     """`motif_cost` of several key sets for one slot and one history: what depends only on the
@@ -347,6 +361,7 @@ def motif_costs(
         singles = [carry]
     moves: dict[int, float] = {}
     home_w = w["home"] * ctx.home_scale
+    shape_key = (sp.wide, sp.chords == "pivot", one_hand_region(ctx, sp))
     out: list[float] = []
     for keys in key_sets:
         if not keys:
@@ -370,7 +385,7 @@ def motif_costs(
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
             else:
-                key = (sp.wide, sp.chords == "pivot", keys)
+                key = shape_key + (keys,)
                 if key not in shape_cache:
                     shape_cache[key] = _shape_cost(ctx, sp, keys)
                 cost += shape_cache[key]

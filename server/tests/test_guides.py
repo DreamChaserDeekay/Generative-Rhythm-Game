@@ -1,5 +1,5 @@
 """Community pattern guides (docs/PATTERN_DESIGN.md 14): the build-up, forced jacks and anchors, the
-5B pivot chords and 재봉틀, and the guide measures themselves."""
+5B pivot chords and 재봉틀, BMS-Generator's hand rules (16-6), and the guide measures themselves."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from functools import lru_cache
 
 from rhythm_server.analysis.analyzer import analyze
 from rhythm_server.difficulty.consistency import structure_accuracy
-from rhythm_server.difficulty.guides import guide_profile, hands, onset_pitches, pivots
+from rhythm_server.difficulty.guides import balance, guide_profile, hands, onset_pitches, pivots
 from rhythm_server.generator.core import generate_chart
 from rhythm_server.generator.lanes import anchor_hits, lane_infos
 from rhythm_server.generator.motifs import SlotPlan, expected_keys, motif_context
@@ -77,6 +77,38 @@ def test_no_forced_jacks_and_short_anchors() -> None:
         h = hands(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode, pitch_of)
         assert h["unmotivatedJacks"] <= 0.5, (key_mode, difficulty, h)
         assert h["anchorMax"] <= cap, (key_mode, difficulty, h)
+
+
+def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None:
+    # BMS-Generator's hand rules, adapted (PATTERN_DESIGN 16-6). Before them, on this song: 4K NM 6
+    # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9.
+    for key_mode, system, difficulty, level, measure, most in (
+        ("4K", "DJMAX", "NM", 6, "handRuns", 0.18),
+        ("6K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
+        ("4K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
+        ("7K+1S", "GRG", "HARD", None, "jackStreaks", 1.0),
+    ):
+        g = guide_profile(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode)
+        assert g[measure] <= most, (key_mode, difficulty, measure, g[measure])
+        assert g["offBars"] is None or g["offBars"] <= 0.1, (key_mode, difficulty, g["offBars"])
+
+
+def test_bms_hand_measures() -> None:
+    def notes(events: list, step: float = 0.5, dt: float = 200.0) -> list[dict]:
+        return [
+            {"t": dt * i, "beat": step * i, "lane": lane, "type": "tap"}
+            for i, e in enumerate(events) for lane in (e if isinstance(e, tuple) else (e,))
+        ]
+
+    assert hands(notes([0, 1, 2, 3, 4, 5]), "6K")["handRuns"] == 0.333  # 1-2-3 then 4-5-6: the third of each
+    assert hands(notes([0, 3, 1, 4, 2, 5]), "6K")["handRuns"] == 0.0
+    assert hands(notes([1, 2, 2, 1]), "5K")["handRuns"] == 0.0  # the shared middle key ends a run
+    assert hands(notes([(0, 1), (1, 2), (1, 3), 4]), "6K")["jackStreaks"] > 0  # key 2 in three instants in a row
+    assert hands(notes([(0, 1), (1, 2), (2, 3), 4]), "6K")["jackStreaks"] == 0
+    lopsided = balance(notes([0, 1, 2] * 4, step=0.25, dt=100.0), "6K")
+    assert lopsided["offBars"] == 1.0 and balance(notes([0, 3, 1, 4, 2, 5] * 2, step=0.25, dt=100.0), "6K")["offBars"] == 0.0
+    # neighbouring keys of one hand: 1+2 and 5+6 of these four chords (3+4 spans both hands, 1+6 is symmetric)
+    assert balance(notes([(0, 1), (2, 3), (0, 5), (4, 5)]), "6K")["adjacentChords"] == 0.5
 
 
 def test_opening_sections_stay_under_the_later_peak() -> None:
