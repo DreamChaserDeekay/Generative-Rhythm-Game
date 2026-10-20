@@ -515,7 +515,8 @@ export function SongSelectScreen(props: Props) {
     else if (files.length > 0) void upload(files);
   };
 
-  const records = (selected?.records ?? []).filter((r) => r.keyMode === keyMode);
+  // the plates' bests: this key mode on this difficulty system (DJMAX NM is not EZ2ON NM)
+  const records = (selected?.records ?? []).filter((r) => r.keyMode === keyMode && (r.system ?? 'GRG') === system.id);
   const bestFor = (d: string) =>
     records
       .filter((r) => r.difficulty === d)

@@ -140,3 +140,19 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   await expect(page.getByTestId('chart-level')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('a best shows on its own difficulty system only (DJMAX NM is not EZ2ON NM)', async ({ page }) => {
+  const errors = trackErrors(page);
+  const [song] = fakeSongs(1);
+  const record = { chartId: 'c' + '1'.repeat(20), songId: song.id, keyMode: '4K', difficulty: 'NM', level: 5, seed: 1, score: 912_000, rate: 91.2, maxCombo: 40, lamp: 'CLEAR', plays: 1 };
+  const songs = [{ ...song, records: [{ ...record, system: 'DJMAX' }] }];
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
+  await page.goto('/');
+  const plate = page.getByTestId('difficulty-row').getByRole('button', { name: /NORMAL/ });
+  await expect(plate.locator('.diff-lamp')).toHaveText('91.20%');
+  await page.getByTestId('system-EZ2ON').click();
+  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/EASY/, /NORMAL/, /HARD/, /SUPER HARD/]);
+  await expect(page.getByTestId('difficulty-row').locator('.diff-lamp')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

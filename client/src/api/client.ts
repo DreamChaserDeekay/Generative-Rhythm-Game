@@ -8,6 +8,8 @@ export interface ScoreRecord {
   chartId: string;
   songId: string;
   keyMode: KeyModeId;
+  /** Difficulty system of the chart's tier (DJMAX and EZ2ON both have an NM and an HD). */
+  system?: DifficultySystemId;
   difficulty: string;
   level: number;
   seed: number;
