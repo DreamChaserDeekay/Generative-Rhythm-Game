@@ -20,7 +20,7 @@ import {
   type Settings,
 } from '../settings/settings';
 import { BUILTIN_SKINS, sanitizeSkin, skinById } from '../render/skins';
-import { GamepadPoller, padCodeLabel } from '../input/gamepad';
+import { GamepadPoller, padCodeLabel, suspendMenuBridges } from '../input/gamepad';
 import { KeyGhostTest } from './KeyGhostTest';
 import { PlayRulesPanel } from './PlayOptions';
 
@@ -90,8 +90,13 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
       onSettingsChange({ ...settings, bindings: { ...settings.bindings, [rebinding.mode]: current } });
       setRebinding(null);
     };
+    // a pad press is no keyboard key to bind
+    const resumePad = suspendMenuBridges();
     window.addEventListener('keydown', onKey, { capture: true });
-    return () => window.removeEventListener('keydown', onKey, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey, { capture: true });
+      resumePad();
+    };
   }, [rebinding, ghostMode, settings, onSettingsChange, onBack]);
 
   return (
@@ -456,9 +461,11 @@ function GamepadPanel({ settings, onSettingsChange }: { settings: Settings; onSe
     };
   }, []);
 
-  // capture: the first control pressed (or a turntable spun) becomes the lane's control
+  // capture: the first control pressed (or a turntable spun) becomes the lane's control; the
+  // menus do not see it (binding B would otherwise also leave the settings as Esc)
   useEffect(() => {
     if (!capture) return;
+    const resumeMenus = suspendMenuBridges();
     const poller = new GamepadPoller((e) => {
       if (!e.down) return;
       const current = [...padBindingsFor(settings, capture.mode)];
@@ -478,6 +485,7 @@ function GamepadPanel({ settings, onSettingsChange }: { settings: Settings; onSe
     return () => {
       poller.stop();
       window.removeEventListener('keydown', onKey, { capture: true });
+      resumeMenus();
     };
   }, [capture, settings, onSettingsChange]);
 

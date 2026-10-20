@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAudioEngine } from '../audio/AudioEngine';
 import { clickBeatTimes, clickTrackBuffer, type ClickTrackSpec } from '../audio/clickTrack';
+import { GamepadMenuBridge, GamepadPoller } from '../input/gamepad';
 import type { Settings } from '../settings/settings';
 
 interface Props {
@@ -27,30 +28,69 @@ function stats(errors: number[]): Stats {
   return { count: errors.length, mean, std };
 }
 
-/** Tap any key on the metronome; the mean error becomes the judgement offset. */
+/**
+ * Tap any key (or pad button) on the metronome; the mean error becomes the judgement offset.
+ * Esc (pad B) stops a measurement, and otherwise goes back.
+ */
 export function CalibrationScreen({ settings, onSettingsChange, onBack }: Props) {
   const [running, setRunning] = useState(false);
   const [errors, setErrors] = useState<number[]>([]);
   const [beatFlash, setBeatFlash] = useState(-1);
   const rafRef = useRef(0);
+  const startButton = useRef<HTMLButtonElement>(null);
+  const applyButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => () => {
     cancelAnimationFrame(rafRef.current);
     getAudioEngine().stop();
   }, []);
 
+  // Between measurements the keys and the pad work the buttons; a run's end puts the focus on
+  // 적용 (or 시작 when there is nothing to apply).
+  useEffect(() => {
+    if (running) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      e.preventDefault();
+      onBack();
+    };
+    window.addEventListener('keydown', onKey);
+    const bridge = new GamepadMenuBridge();
+    bridge.start();
+    const target = applyButton.current && !applyButton.current.disabled ? applyButton.current : startButton.current;
+    target?.focus();
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      bridge.stop();
+    };
+  }, [running, onBack]);
+
   useEffect(() => {
     if (!running) return;
     const engine = getAudioEngine();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || e.code === 'Escape') return;
-      e.preventDefault();
-      const t = engine.songTimeAtPerf(e.timeStamp);
+    const tap = (perfMs: number) => {
+      const t = engine.songTimeAtPerf(perfMs);
       let best = 0;
       for (let i = 1; i < BEATS.length; i++) if (Math.abs(BEATS[i] - t) < Math.abs(BEATS[best] - t)) best = i;
       const err = t - BEATS[best];
       if (best >= WARMUP_BEATS && Math.abs(err) <= MAX_ERROR_MS) setErrors((prev) => [...prev, err]);
     };
+    const stop = () => {
+      engine.stop();
+      setRunning(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      e.preventDefault();
+      if (e.code === 'Escape') stop();
+      else tap(e.timeStamp);
+    };
+    // pad presses are taps at the pad's own timestamp (not the menu bridge's polling time)
+    const pad = new GamepadPoller((e) => {
+      if (!e.down) return;
+      if (e.code === 'Pad:B1') stop();
+      else tap(e.timeMs);
+    });
     const tick = (now: number) => {
       engine.clock.sample();
       const t = engine.songTimeAtPerf(now);
@@ -61,9 +101,11 @@ export function CalibrationScreen({ settings, onSettingsChange, onBack }: Props)
       else rafRef.current = requestAnimationFrame(tick);
     };
     window.addEventListener('keydown', onKey, { capture: true });
+    pad.start();
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       window.removeEventListener('keydown', onKey, { capture: true });
+      pad.stop();
       cancelAnimationFrame(rafRef.current);
     };
   }, [running]);
@@ -97,14 +139,15 @@ export function CalibrationScreen({ settings, onSettingsChange, onBack }: Props)
         <div className="stat-row"><span>표준편차</span><span>{s.std === null ? '-' : `${s.std.toFixed(1)}ms`}</span></div>
         <div className="stat-row"><span>현재 판정 오프셋</span><span>{settings.inputOffsetMs}ms</span></div>
         <div className="row buttons">
-          <button className="primary" onClick={start} disabled={running}>{running ? '측정 중…' : '시작'}</button>
+          <button ref={startButton} className="primary" data-testid="calib-start" onClick={start} disabled={running}>{running ? '측정 중…' : '시작'}</button>
           <button
+            ref={applyButton}
             disabled={suggestion === null || s.count < 8}
             onClick={() => suggestion !== null && onSettingsChange({ ...settings, inputOffsetMs: suggestion })}
           >
             {suggestion === null ? '적용' : `${suggestion}ms로 적용`}
           </button>
-          <button onClick={onBack}>돌아가기</button>
+          <button data-testid="calib-back" onClick={onBack}>돌아가기 <kbd>Esc</kbd></button>
         </div>
         <p className="hint">평균 오차가 +면 늦게, −면 빨리 친 것입니다. 적용하면 판정 시 그만큼 보정합니다.</p>
       </section>

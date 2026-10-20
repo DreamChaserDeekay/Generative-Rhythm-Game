@@ -155,22 +155,76 @@ const MENU_KEYS: Record<string, string> = {
 };
 const REPEATING = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
+/** What a menu key does to the focused control when no screen handles it. */
+export type MenuAction = 'press' | 'next' | 'prev' | 'increase' | 'decrease' | null;
+export type ControlKind = 'button' | 'slider' | 'select' | 'text' | 'none';
+
+/**
+ * A keyboard's own effect of a menu key, for pad presses (dispatched keys have none): Enter
+ * presses a button or a checkbox, Tab and ↑↓ move the focus, ←→ step a slider or a drop-down
+ * and move the focus elsewhere.
+ */
+export function menuAction(kind: ControlKind, code: string): MenuAction {
+  switch (code) {
+    case 'Enter':
+      return kind === 'button' ? 'press' : null;
+    case 'Tab':
+    case 'ArrowDown':
+      return 'next';
+    case 'ArrowUp':
+      return 'prev';
+    case 'ArrowLeft':
+      return kind === 'slider' || kind === 'select' ? 'decrease' : 'prev';
+    case 'ArrowRight':
+      return kind === 'slider' || kind === 'select' ? 'increase' : 'next';
+    default:
+      return null;
+  }
+}
+
+// While a settings capture waits for the next pad control, the menus get no pad presses.
+let suspended = 0;
+const bridges = new Set<GamepadMenuBridge>();
+
+/**
+ * Keep the gamepad off the menus until the returned function is called. A press made meanwhile
+ * (the one a capture took) never reaches them, not even when it is still held afterwards.
+ */
+export function suspendMenuBridges(): () => void {
+  suspended++;
+  let resumed = false;
+  return () => {
+    if (resumed) return;
+    resumed = true;
+    // read the pads once more while still suspended: what is held now counts as seen
+    for (const bridge of bridges) bridge.catchUp();
+    suspended--;
+  };
+}
+
 /**
  * Lets a gamepad drive the menus: the d-pad / left stick act as arrow keys (with key repeat),
- * A / Start as Enter, B / Back as Escape and Y as Tab, dispatched as keyboard events.
+ * A / Start as Enter, B / Back as Escape and Y as Tab, dispatched as keyboard events on the
+ * focused element. A key no screen takes does what it does on a keyboard (menuAction).
  */
 export class GamepadMenuBridge {
   private readonly poller: GamepadPoller;
   private readonly held = new Map<string, number>();
+  /** Pad controls left alone (the pause menu leaves Start to the play screen). */
+  private readonly ignore: ReadonlySet<string>;
   private raf = 0;
 
-  constructor(source?: GamepadSource) {
-    this.poller = new GamepadPoller((e) => this.onPad(e), { source, intervalMs: 16 });
+  constructor(options: { source?: GamepadSource; ignore?: string[] } = {}) {
+    this.poller = new GamepadPoller((e) => this.onPad(e), { source: options.source, intervalMs: 16 });
+    this.ignore = new Set(options.ignore ?? []);
   }
 
   start(): void {
+    bridges.add(this);
+    watchInputDevice();
     this.poller.start();
     const tick = (now: number) => {
+      if (suspended > 0) this.held.clear();
       for (const [key, next] of this.held) {
         if (now >= next) {
           this.held.set(key, now + CFG.menu.repeatMs);
@@ -183,14 +237,25 @@ export class GamepadMenuBridge {
   }
 
   stop(): void {
+    bridges.delete(this);
     this.poller.stop();
     cancelAnimationFrame(this.raf);
     this.held.clear();
   }
 
+  /** Take in the pads' current state (presses made while suspended are dropped). */
+  catchUp(): void {
+    this.poller.poll();
+  }
+
   private onPad(e: PadEvent): void {
+    if (this.ignore.has(e.code)) return;
     const key = MENU_KEYS[e.code];
     if (!key) return;
+    if (suspended > 0) {
+      this.held.delete(key);
+      return;
+    }
     dispatchKey(key, e.down, false);
     if (REPEATING.has(key)) {
       if (e.down) this.held.set(key, performance.now() + CFG.menu.repeatDelayMs);
@@ -200,5 +265,73 @@ export class GamepadMenuBridge {
 }
 
 function dispatchKey(code: string, down: boolean, repeat: boolean): void {
-  window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true }));
+  document.documentElement.dataset.input = 'pad';
+  const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+  const unhandled = target.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true }));
+  if (!unhandled || !down) return;
+  const action = menuAction(controlKind(target), code);
+  if (action === 'press') {
+    if (!repeat) target.click();
+  } else if (action === 'next' || action === 'prev') {
+    moveFocus(target, action === 'next' ? 1 : -1);
+  } else if (action === 'increase' || action === 'decrease') {
+    stepValue(target, action === 'increase' ? 1 : -1);
+  }
+}
+
+function controlKind(el: HTMLElement): ControlKind {
+  if (el instanceof HTMLSelectElement) return 'select';
+  if (el instanceof HTMLInputElement) {
+    if (el.type === 'range') return 'slider';
+    return ['button', 'submit', 'reset', 'checkbox', 'radio'].includes(el.type) ? 'button' : 'text';
+  }
+  if (el instanceof HTMLTextAreaElement || el.isContentEditable) return 'text';
+  if (el instanceof HTMLButtonElement || el instanceof HTMLAnchorElement || el.tagName === 'SUMMARY') return 'button';
+  return 'none';
+}
+
+const FOCUSABLE = 'button, a[href], input, select, textarea, summary, [tabindex]';
+
+/** The next (or previous) control on the page in document order, wrapping around. */
+function moveFocus(from: HTMLElement, dir: 1 | -1): void {
+  const list = [...document.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) =>
+      el.tabIndex >= 0 &&
+      !(el as HTMLButtonElement).disabled &&
+      !(el instanceof HTMLInputElement && el.type === 'hidden') &&
+      el.getClientRects().length > 0 &&
+      !el.closest('[inert]'),
+  );
+  if (list.length === 0) return;
+  const at = list.indexOf(from);
+  const next = at < 0 ? list[dir > 0 ? 0 : list.length - 1] : list[(at + dir + list.length) % list.length];
+  next.focus();
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+/** One step of a slider or a drop-down, reported like a user's change. */
+function stepValue(el: HTMLElement, dir: 1 | -1): void {
+  if (el instanceof HTMLSelectElement) {
+    const index = Math.min(el.options.length - 1, Math.max(0, el.selectedIndex + dir));
+    if (index === el.selectedIndex) return;
+    el.selectedIndex = index;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  } else if (el instanceof HTMLInputElement) {
+    if (dir > 0) el.stepUp();
+    else el.stepDown();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+// The pad's focus outline shows while it drives the menus; a key or a pointer of the user's own
+// hands the outline back to the browser's own rules.
+let watchingDevice = false;
+function watchInputDevice(): void {
+  if (watchingDevice) return;
+  watchingDevice = true;
+  const own = (e: Event) => {
+    if (e.isTrusted) delete document.documentElement.dataset.input;
+  };
+  window.addEventListener('keydown', own, { capture: true });
+  window.addEventListener('pointerdown', own, { capture: true });
 }

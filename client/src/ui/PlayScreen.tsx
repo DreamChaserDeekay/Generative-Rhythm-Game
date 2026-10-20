@@ -3,6 +3,7 @@ import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
 import type { KeysoundBank } from '../audio/keysounds';
 import { practiceAudio } from '../audio/practiceAudio';
 import type { StemName } from '../engine/types';
+import { GamepadMenuBridge } from '../input/gamepad';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
 import type { Settings } from '../settings/settings';
@@ -88,22 +89,51 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     return () => window.removeEventListener('keydown', onKey);
   }, [paused, onQuit]);
 
+  // Loading (the first stem split can take a while) and a load error can be left with Esc.
+  const waiting = loading || error !== null;
+  useEffect(() => {
+    if (!waiting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape') return;
+      e.preventDefault();
+      onQuit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [waiting, onQuit]);
+
+  // The pad works these menus too: B is Esc, A presses the focused button, the d-pad moves
+  // between them. While paused, Start stays the play screen's own resume key.
+  const menu = waiting || paused;
+  useEffect(() => {
+    if (!menu) return;
+    const bridge = new GamepadMenuBridge({ ignore: paused ? ['Pad:B9'] : [] });
+    bridge.start();
+    return () => bridge.stop();
+  }, [menu, paused]);
+
   return (
     <div className="play-screen" data-testid="play-screen">
       <div ref={bgRef} className="play-bg" data-testid="play-bg" />
       <canvas ref={canvasRef} className="play-canvas" />
       <div ref={hudRef} className="hud" />
-      {loading && !error && <div className="play-overlay"><div className="spinner" />{loadingText}</div>}
+      {loading && !error && (
+        <div className="play-overlay" data-testid="play-loading">
+          <div className="spinner" />
+          {loadingText}
+          <button className="quiet" data-testid="play-loading-cancel" onClick={onQuit}>취소 <kbd>Esc</kbd></button>
+        </div>
+      )}
       {error && (
         <div className="play-overlay">
           <p className="error">{error}</p>
-          <button onClick={onQuit}>돌아가기</button>
+          <button onClick={onQuit} autoFocus>돌아가기 <kbd>Esc</kbd></button>
         </div>
       )}
       {paused && (
         <div className="play-overlay pause-menu" data-testid="pause-menu">
           <h2>일시정지</h2>
-          <button onClick={() => controllerRef.current?.resume()}>계속하기 <kbd>Esc</kbd></button>
+          <button onClick={() => controllerRef.current?.resume()} autoFocus>계속하기 <kbd>Esc</kbd></button>
           <button onClick={() => controllerRef.current?.restart()}>다시 하기 <kbd>R</kbd></button>
           <button onClick={onQuit}>나가기 <kbd>Q</kbd></button>
         </div>

@@ -1,0 +1,149 @@
+import { expect, test, type Page } from '@playwright/test';
+
+function trackErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  return errors;
+}
+
+/** A standard-mapping pad the page reads through navigator.getGamepads. */
+async function plugPad(page: Page) {
+  await page.addInitScript(() => {
+    const pad = {
+      index: 0,
+      id: 'E2E Pad',
+      connected: true,
+      mapping: 'standard',
+      timestamp: 1,
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+      axes: [0, 0, 0, 0],
+    };
+    (window as unknown as { __pad: typeof pad }).__pad = pad;
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+  });
+  const set = (button: number, down: boolean) =>
+    page.evaluate(
+      ([b, d]) => {
+        const pad = (window as unknown as { __pad: { buttons: { pressed: boolean }[]; timestamp: number } }).__pad;
+        pad.buttons[b as number].pressed = d as boolean;
+        pad.timestamp = performance.now();
+      },
+      [button, down],
+    );
+  // held long enough for the 16 ms menu polling to see it
+  return async (button: number) => {
+    await set(button, true);
+    await page.waitForTimeout(80);
+    await set(button, false);
+    await page.waitForTimeout(80);
+  };
+}
+
+const PAD = { A: 0, B: 1, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
+
+test('a pad works the settings: the d-pad moves the focus, A presses, ←→ step a slider; binding B stays in the settings', async ({ page }) => {
+  const errors = trackErrors(page);
+  const press = await plugPad(page);
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
+
+  // from nowhere, ↓ focuses the first control (완료); a pad's focus is outlined
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await press(PAD.DOWN);
+  await expect(page.locator('.settings-title button.primary')).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('pad');
+  await press(PAD.DOWN);
+  await expect(page.locator('.settings-nav button').first()).toBeFocused();
+
+  // ← on a focused slider lowers it; A toggles a focused checkbox
+  const fx = page.getByTestId('camera-fx');
+  await fx.focus();
+  const before = Number(await fx.inputValue());
+  await press(PAD.LEFT);
+  await expect.poll(async () => Number(await fx.inputValue())).toBeLessThan(before);
+  expect((await stored(page)).cameraFx).toBeLessThan(before);
+  const bars = page.getByTestId('bar-lines');
+  const checked = await bars.isChecked();
+  await bars.focus();
+  await press(PAD.A);
+  await expect(bars).toBeChecked({ checked: !checked });
+
+  // binding B to a lane does not also press Esc on the settings
+  const firstCap = page.getByTestId('gamepad-settings').locator('.pad-cap').first();
+  await firstCap.click();
+  await expect(firstCap).toHaveText('…');
+  await press(PAD.B);
+  await expect(firstCap).toHaveText('버튼 1');
+  await page.waitForTimeout(200);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  // and afterwards B is Esc again
+  await press(PAD.B);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('the pause menu, the calibration and a song that fails to load answer to Esc and the pad', async ({ page }) => {
+  const errors = trackErrors(page);
+  const press = await plugPad(page);
+  await page.goto('/');
+
+  // pause menu: focus starts on 계속하기, the d-pad moves it (and leaves the hi-speed alone)
+  await page.getByTestId('sync-auto').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.keyboard.press('Escape');
+  const menu = page.getByTestId('pause-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('button', { name: /계속하기/ })).toBeFocused();
+  const speed = (await stored(page)).hiSpeed;
+  await press(PAD.DOWN);
+  await expect(menu.getByRole('button', { name: /다시 하기/ })).toBeFocused();
+  await press(PAD.DOWN);
+  await expect(menu.getByRole('button', { name: /나가기/ })).toBeFocused();
+  expect((await stored(page)).hiSpeed).toBe(speed);
+  await press(PAD.A);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  // calibration: Esc goes back; the pad starts a run (A on 시작), B stops it and then goes back
+  await page.getByTestId('open-calibration').click();
+  await expect(page.getByTestId('calib-start')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  await page.getByTestId('open-calibration').click();
+  await expect(page.getByTestId('calib-start')).toBeFocused();
+  await press(PAD.A);
+  await expect(page.getByTestId('calib-start')).toBeDisabled();
+  await press(PAD.B);
+  await expect(page.getByTestId('calib-start')).toBeEnabled();
+  await press(PAD.B);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  // a song whose audio does not come: the wait and the error can both be left
+  expect((await page.request.post('/api/songs/demo', { data: { bpm: 127, bars: 8, seed: 3 } })).ok()).toBe(true);
+  await expect
+    .poll(async () => {
+      const list = (await (await page.request.get('/api/songs')).json()).songs as { title: string; status: string }[];
+      return list.some((s) => s.title === 'Demo Groove 127' && s.status === 'ready');
+    }, { timeout: 60_000 })
+    .toBe(true);
+  await page.reload();
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 127' }).click();
+  await page.route('**/api/songs/*/audio', async (route) => {
+    await new Promise((r) => setTimeout(r, 4000));
+    await route.abort();
+  });
+  await page.getByTestId('play-button').click();
+  await expect(page.getByTestId('play-loading')).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  await page.getByTestId('play-button').click();
+  const back = page.getByRole('button', { name: /돌아가기/ });
+  await expect(back).toBeVisible({ timeout: 30_000 });
+  await expect(back).toBeFocused();
+  await press(PAD.B);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  expect(errors).toEqual([]);
+});

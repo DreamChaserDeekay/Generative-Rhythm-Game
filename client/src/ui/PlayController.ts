@@ -656,6 +656,8 @@ export class PlayController {
         return;
       case 'ArrowUp':
       case 'ArrowDown': {
+        // a gamepad's d-pad (keys sent by the menu bridge) moves the pause menu's focus instead
+        if (!e.isTrusted) return;
         e.preventDefault();
         const step = (e.shiftKey ? HI_SPEED_STEP_BIG : HI_SPEED_STEP) * (e.code === 'ArrowUp' ? 1 : -1);
         this.updateSettings({ ...s, hiSpeed: clampHiSpeed(s.hiSpeed + step) }, 'SPEED');

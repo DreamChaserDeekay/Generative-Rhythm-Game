@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import inputJson from '@config/input.json';
-import { GamepadPoller, isPadCode, padCodeLabel, type PadEvent } from './gamepad';
+import { GamepadPoller, isPadCode, menuAction, padCodeLabel, type PadEvent } from './gamepad';
 import { InputManager } from './InputManager';
 
 const CFG = inputJson.gamepad;
@@ -122,5 +122,21 @@ describe('gamepad codes and lanes', () => {
     input.handleKey('Pad:B2', false, 1520);
     input.handleKey('KeyF', false, 1530);
     expect(presses).toEqual([[1, 500]]);
+  });
+});
+
+describe('menu keys from a pad', () => {
+  it('press buttons, move the focus, and step sliders and drop-downs', () => {
+    expect(menuAction('button', 'Enter')).toBe('press');
+    expect(menuAction('none', 'Enter')).toBe(null);
+    expect(menuAction('slider', 'Enter')).toBe(null);
+    expect(menuAction('button', 'ArrowDown')).toBe('next');
+    expect(menuAction('none', 'ArrowUp')).toBe('prev');
+    expect(menuAction('text', 'Tab')).toBe('next');
+    expect(menuAction('button', 'ArrowRight')).toBe('next');
+    expect(menuAction('slider', 'ArrowRight')).toBe('increase');
+    expect(menuAction('select', 'ArrowLeft')).toBe('decrease');
+    expect(menuAction('slider', 'ArrowUp')).toBe('prev');
+    expect(menuAction('button', 'Escape')).toBe(null);
   });
 });
