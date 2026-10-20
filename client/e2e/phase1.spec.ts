@@ -39,7 +39,8 @@ test('upload a song, wait for analysis, generate a chart and autoplay it to PERF
   await page.waitForTimeout(12000);
   await page.screenshot({ path: 'test-results/play-generated.png' });
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
+  await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
   await expect(page.getByTestId('result-rate')).toHaveText('100.00%');
   expect(errors).toEqual([]);
 });

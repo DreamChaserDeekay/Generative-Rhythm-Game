@@ -93,7 +93,9 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   await page.getByRole('button', { name: '4K', exact: true }).click();
 
   // the chart asked for on one song arrives after the cursor moved to the next: it is dropped
+  // (only the generation is held back: the saved-charts list shares the path)
   await page.route('**/api/songs/*/charts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
     await new Promise((r) => setTimeout(r, 1500));
     await route.continue();
   });

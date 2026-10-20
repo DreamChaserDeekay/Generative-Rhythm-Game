@@ -18,8 +18,16 @@ interface Props {
   onRetry: () => void;
   onBack: () => void;
   onWatchReplay: (replay: ReplayData) => void;
-  /** Generate this key mode and difficulty again with a new seed and play it (generated charts). */
-  onRegenerate?: () => void;
+  /**
+   * Generate this key mode and difficulty again with a new seed and play it (generated charts).
+   * Resolves with the error to show when it could not, else null.
+   */
+  onRegenerate?: () => Promise<string | null>;
+}
+
+/** Elements that act on Enter themselves (a focused button keeps its own Enter). */
+function ownsEnter(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('button, a[href], input, select, textarea, summary') !== null;
 }
 
 function signedMs(v: number | null): string {
@@ -84,17 +92,43 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
     })();
   }, [meta, request.autoPlay, request.replay, practice, result, played.judgementMode, played.placement, placement.laneOrder, outcome.replay]);
 
+  // Enter continues to the song select, as on the commercial games' result screens (Esc too);
+  // R or F2 (the in-play retry key) plays again. A held key does nothing more, and a focused
+  // button takes its own Enter.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Enter' || e.code === 'KeyR') onRetry();
-      if (e.code === 'Escape') onBack();
+      if (e.repeat) {
+        if (e.code === 'Enter') e.preventDefault();
+        return;
+      }
+      if (e.code === 'KeyR' || e.code === 'F2') {
+        e.preventDefault();
+        onRetry();
+      } else if (e.code === 'Escape' || (e.code === 'Enter' && !ownsEnter(e.target))) {
+        e.preventDefault();
+        onBack();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onRetry, onBack]);
 
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const regenerate = async () => {
+    if (!onRegenerate || regenerating) return;
+    setRegenerating(true);
+    setRegenerateError(null);
+    const failure = await onRegenerate();
+    setRegenerating(false);
+    setRegenerateError(failure);
+  };
+
   const mainScore = rules.scoring === 'exscore' ? result.exScore : rules.scoring === 'weighted' ? result.weightedScore : result.score;
-  const lamp = practice ? 'PRACTICE' : result.lamp;
+  // autoplay and practice earn nothing: a plain label in place of the lamp (the lamp the run
+  // reached stays on data-lamp)
+  const aided = practice ? 'PRACTICE' : request.autoPlay ? 'AUTO' : null;
+  const lamp = aided ?? result.lamp;
   const chip = difficultyChip(meta);
   // DJMAX's "정밀 %" puts the rate first; the other rulesets lead with their score
   const rateFirst = rules.scoring === 'rate';
@@ -136,7 +170,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
           )}
         </div>
         <div className="result-lamp">
-          <div className={`lamp ${practice ? 'clear' : lampClass(result.lamp)}`} data-testid="result-lamp">{lamp}</div>
+          <div className={`lamp ${aided ? 'aided' : lampClass(result.lamp)}`} data-testid="result-lamp" data-lamp={result.lamp}>{lamp}</div>
           {saveState && (
             <p className={`save-state ${saveState.ok ? '' : 'error'}`} data-testid="save-state">
               {saveState.text}
@@ -239,12 +273,17 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
 
       <div className="result-actions">
         <div className="row">
-          <button className="primary" data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>Enter</kbd></button>
-          <button data-testid="result-back" onClick={onBack}>메뉴로 <kbd>Esc</kbd></button>
+          <button className="primary" data-testid="result-back" onClick={onBack} autoFocus>계속 <kbd>Enter</kbd></button>
+          <button data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>R</kbd></button>
           {onRegenerate && (
-            <button data-testid="result-regenerate" onClick={onRegenerate}>
-              새 패턴으로 다시
+            <button data-testid="result-regenerate" disabled={regenerating} onClick={() => void regenerate()}>
+              {regenerating ? '새 패턴 만드는 중…' : '새 패턴으로 다시'}
             </button>
+          )}
+          {regenerateError && (
+            <span className="error" data-testid="result-regenerate-error">
+              새 패턴을 만들지 못했습니다: {regenerateError}
+            </span>
           )}
         </div>
         <div className="row">

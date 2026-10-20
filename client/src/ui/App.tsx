@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
@@ -95,22 +95,35 @@ export function App() {
     setEditor(newEditorSession(song, chart));
     setScreen({ name: 'editor' });
   }, []);
-  /** Result screen: the same key mode and difficulty with a new seed, played right away. */
-  const regenerate = async (request: PlayRequest) => {
+  // Every change of screen ends what an earlier screen started (a new pattern still generating).
+  const screenRun = useRef(0);
+  useEffect(() => {
+    screenRun.current++;
+  }, [screen]);
+  /**
+   * Result screen: the same key mode, difficulty system and tier with a new seed, played right
+   * away. Resolves with the error to show on the result screen, or null.
+   */
+  const regenerate = async (request: PlayRequest): Promise<string | null> => {
     const meta = request.chart.meta;
-    if (!meta.songId || !meta.generator) return;
+    if (!meta.songId || !meta.generator) return null;
+    const run = screenRun.current;
     try {
       const song = await api.song(meta.songId);
       const { chart } = await api.generate(meta.songId, {
         keyMode: meta.keyMode,
         difficulty: meta.difficulty,
+        system: meta.difficultySystem ?? 'GRG',
         targetLevel: (meta.generator.params.targetLevel as number | null | undefined) ?? null,
         newSeed: true,
         params: generationParams(settings.generation, meta.keyMode),
       });
+      // the player left the result screen while it was generating
+      if (run !== screenRun.current) return null;
       play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
-    } catch {
-      setScreen({ name: 'select' });
+      return null;
+    } catch (e) {
+      return run === screenRun.current ? (e instanceof Error ? e.message : String(e)) : null;
     }
   };
   const testFromEditor = (chart: Chart, startMs: number) => {
@@ -156,7 +169,7 @@ export function App() {
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
           onRegenerate={
             screen.request.chart.meta.generator && !screen.request.practice && !screen.request.replay && !screen.request.fromEditor
-              ? () => void regenerate(screen.request)
+              ? () => regenerate(screen.request)
               : undefined
           }
         />

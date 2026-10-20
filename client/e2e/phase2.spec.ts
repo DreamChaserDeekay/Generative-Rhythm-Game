@@ -25,7 +25,8 @@ test('side tracks, EX-SCORE, HARD gauge, MIRROR and covers on the sync test', as
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase2-fx.png' });
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
+  await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
   await expect(page.getByTestId('result-score')).toContainText('AAA');
   const [ex, max] = ((await page.getByTestId('result-score').textContent()) ?? '').match(/[\d,]+/g)!.map((v) => Number(v.replace(/,/g, '')));
   expect(ex).toBe(max);

@@ -566,7 +566,9 @@ export class PlayController {
     this.input.detach();
     if (failed) this.engine.fadeOut(FAIL_FADE_MS);
     const lamp = this.session.result().lamp;
-    if (this.practice) this.hud.showBanner('PRACTICE END', 'clear');
+    // autoplay and practice earn no lamp: a plain banner
+    if (this.practice) this.hud.showBanner('PRACTICE END', 'aided');
+    else if (this.setup.request.autoPlay) this.hud.showBanner('AUTO PLAY', 'aided');
     else this.hud.showBanner(lamp, LAMP_CLASS[lamp]);
   }
 

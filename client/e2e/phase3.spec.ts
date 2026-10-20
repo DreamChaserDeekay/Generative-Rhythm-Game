@@ -74,7 +74,8 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect.poll(() => tilt('.hud-combo'), { timeout: 15_000 }).toBeGreaterThan(2);
   expect(await tilt('.hud-judge')).toBeGreaterThan(2);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
+  await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
   expect(errors).toEqual([]);
 });
 

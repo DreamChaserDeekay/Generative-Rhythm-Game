@@ -170,7 +170,8 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
+  await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
   expect(errors).toEqual([]);
 });
 
