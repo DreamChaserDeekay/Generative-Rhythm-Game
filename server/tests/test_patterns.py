@@ -325,6 +325,19 @@ def test_djmax_5k_repeated_notes_become_a_laser() -> None:
     assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
 
 
+def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
+    # Human BMS charts use key 1 most (19-21% of the notes from level 2 to 10) and leap three keys
+    # or more in a quarter of their moves even on easy charts; before generator 0.9.6 our 7K charts
+    # left keys 1 and 7 nearly empty below HARD and piled up on the middle key.
+    for tier in ("EASY", "NORMAL", "HARD"):
+        keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier)["notes"] if n["lane"] != 0]
+        shares = [keys.count(k) / len(keys) for k in range(1, 8)]
+        assert min(shares[0], shares[6]) >= 0.08 and max(shares) <= 0.3, (tier, [round(s, 3) for s in shares])
+    notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY")["notes"] if n["lane"] != 0)
+    moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
+    assert sum(m >= 3 for m in moves) / len(moves) >= 0.2
+
+
 def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
     for mode, limit in (("6K", 0.12), ("8K", 0.15)):
         for tier, system, level in (("NORMAL", None, None), ("EZ", "EZ2ON", 4)):

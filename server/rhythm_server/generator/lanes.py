@@ -11,7 +11,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
-from .motifs import MotifContext, SlotPlan, motif_context, motif_costs, one_hand_region
+from .motifs import MotifContext, SlotPlan, by_key_mode, motif_context, motif_costs, one_hand_region
 from .params import GenParams
 from .select import Slot, sound_of
 from .tempo import TempoMap
@@ -91,7 +91,7 @@ class _Weights:
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
-            alternate=W_ALTERNATE * params.weight("alternateWeight") * float(hands["alternateScale"]),
+            alternate=W_ALTERNATE * params.weight("alternateWeight") * by_key_mode(hands["alternateScale"], params.key_mode),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
             jack_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["sameSoundBonus"], params.skill)),

@@ -93,7 +93,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         skill=skill,
         # leaps (hands.leapScale, a number or one per key mode): BMS charts leap three keys or
         # more far more often than the readability weights allow (docs/PATTERN_DESIGN.md 22)
-        weights={k: float(v) * (_per_mode(hands["leapScale"], key_mode) if k in ("leap", "sameHandLeap") else 1.0) for k, v in cfg["weights"].items()},
+        weights={k: float(v) * (by_key_mode(hands["leapScale"], key_mode) if k in ("leap", "sameHandLeap") else 1.0) for k, v in cfg["weights"].items()},
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
@@ -111,10 +111,10 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
     )
 
 
-def _per_mode(value: Any, key_mode: str | None) -> float:
-    """A number, or {key mode: number} (1 for the key modes it leaves out)."""
+def by_key_mode(value: Any, key_mode: str | None) -> float:
+    """A number, or {key mode: number} with "*" for the key modes it leaves out (else 1)."""
     if isinstance(value, dict):
-        return float(value.get(key_mode, 1.0)) if key_mode else 1.0
+        return float(value.get(key_mode, value.get("*", 1.0))) if key_mode else float(value.get("*", 1.0))
     return float(value)
 
 
