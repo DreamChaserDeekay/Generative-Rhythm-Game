@@ -31,6 +31,43 @@ export interface SkinColors {
   lanes?: Partial<Record<LaneColor, string>>;
 }
 
+/** The fonts bundled for a skin's judgement and combo, each in the one weight and style shipped. */
+export const HUD_FONTS = {
+  'Barlow Condensed': { weight: 700, italic: false },
+  'Bebas Neue': { weight: 400, italic: false },
+  'Chakra Petch': { weight: 700, italic: true },
+  'Russo One': { weight: 400, italic: false },
+  Orbitron: { weight: 800, italic: false },
+  'Exo 2': { weight: 700, italic: true },
+  'Baloo 2': { weight: 800, italic: false },
+  Cinzel: { weight: 700, italic: false },
+} as const;
+export type HudFont = keyof typeof HUD_FONTS;
+
+/**
+ * How a skin writes its judgement and combo on the track (the sheets' type; sizes are screen px on
+ * a 720 px high screen): its best judgement's colour, an outline, and a few house manners.
+ */
+export interface HudType {
+  font: HudFont;
+  size: number;
+  combo: number;
+  /** Letter spacing (em). */
+  tracking: number;
+  /** The best judgement's colour (the colour-blind palette keeps its own). */
+  max: string;
+  outline: string;
+  /** Outline width (px; half of it shows outside the letters). */
+  stroke: number;
+  /** "MAX" in white, the rest in the judgement's colour. */
+  split?: boolean;
+  /** The combo rides on the judgement's line and leaves with it. */
+  inline?: boolean;
+  /** The judgement slanted (deg), with a bar of this colour under it. */
+  skew?: number;
+  bar?: string;
+}
+
 /**
  * How a skin is drawn in code (render/tintArt.ts): every part a picture the lane colour tints.
  * Sizes in px are px of the approved sheets' track, 73.65 px to a track unit at the judge line.
@@ -53,6 +90,7 @@ export interface SkinStyle {
   frame?: 'gunmetal' | 'street';
   /** The camera the skin was drawn for: picking the skin picks it too. */
   camera: CameraId;
+  type: HudType;
 }
 
 export interface Skin {
@@ -129,6 +167,9 @@ function skin(id: string, d: SkinDef): Skin {
   };
 }
 
+/** FLAT's type, and the one a skin of an earlier version writes with. */
+export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#7cf7ff', outline: '#0b0c10', stroke: 6 };
+
 const FLAT = skin('flat', {
   label: '기본',
   lanes: { white: '#eaf6ff', blue: '#4fc3ff', gold: '#ffc94f', scratch: '#ff5c8a' },
@@ -137,7 +178,18 @@ const FLAT = skin('flat', {
   divider: 0.1,
   rails: ['#37e2ff', '#ff4fd8'],
   judge: '#f3f5f9',
-  style: { note: 'flat', long: 'solid', cap: 'flat', beam: 'fade', hit: 'flash', rails: { width: 6 }, judge: { height: 8 }, track: { tint: 0.07 }, camera: 'SDVX' },
+  style: {
+    note: 'flat',
+    long: 'solid',
+    cap: 'flat',
+    beam: 'fade',
+    hit: 'flash',
+    rails: { width: 6 },
+    judge: { height: 8 },
+    track: { tint: 0.07 },
+    camera: 'SDVX',
+    type: DEFAULT_HUD_TYPE,
+  },
 });
 
 export const BUILTIN_SKINS: Skin[] = [
@@ -150,7 +202,18 @@ export const BUILTIN_SKINS: Skin[] = [
     divider: 0.08,
     rails: ['#c7ccd6', '#c7ccd6'],
     judge: '#f3f5f9',
-    style: { note: 'stem', long: 'stem', cap: 'stem', beam: 'stem', hit: 'stemflash', rails: { width: 4 }, judge: { height: 6 }, track: { tint: 0 }, camera: 'SDVX' },
+    style: {
+      note: 'stem',
+      long: 'stem',
+      cap: 'stem',
+      beam: 'stem',
+      hit: 'stemflash',
+      rails: { width: 4 },
+      judge: { height: 6 },
+      track: { tint: 0 },
+      camera: 'SDVX',
+      type: { ...DEFAULT_HUD_TYPE, max: '#f3f5f9' },
+    },
   }),
   skin('arcade', {
     label: '아케이드',
@@ -171,6 +234,7 @@ export const BUILTIN_SKINS: Skin[] = [
       track: { tint: 0.06 },
       frame: 'gunmetal',
       camera: 'FLAT',
+      type: { font: 'Bebas Neue', size: 60, combo: 88, tracking: 0.05, max: '#5fe7ff', outline: '#05070c', stroke: 6, split: true },
     },
   }),
   skin('club', {
@@ -192,6 +256,7 @@ export const BUILTIN_SKINS: Skin[] = [
       judge: { height: 6 },
       track: { tint: 0, scratchTint: 0.1 },
       camera: 'FLAT',
+      type: { font: 'Chakra Petch', size: 40, combo: 40, tracking: 0.06, max: '#ffffff', outline: '#000000', stroke: 5, inline: true },
     },
   }),
   skin('street', {
@@ -213,6 +278,7 @@ export const BUILTIN_SKINS: Skin[] = [
       track: { tint: 0.05, stripes: true },
       frame: 'street',
       camera: 'FLAT',
+      type: { font: 'Russo One', size: 46, combo: 76, tracking: 0.02, max: '#ffffff', outline: '#000000', stroke: 9, skew: -9, bar: '#ffd23f' },
     },
   }),
   skin('neon', {
@@ -224,7 +290,18 @@ export const BUILTIN_SKINS: Skin[] = [
     rails: ['#37e2ff', '#ff4fd8'],
     judge: '#ffffff',
     glow: '#5fe7ff',
-    style: { note: 'chip', long: 'neon', cap: 'neon', beam: 'neon', hit: 'hex', rails: { width: 6, glow: 14 }, judge: { height: 6, glow: true }, track: { tint: 0.08 }, camera: 'LOW' },
+    style: {
+      note: 'chip',
+      long: 'neon',
+      cap: 'neon',
+      beam: 'neon',
+      hit: 'hex',
+      rails: { width: 6, glow: 14 },
+      judge: { height: 6, glow: true },
+      track: { tint: 0.08 },
+      camera: 'LOW',
+      type: { font: 'Orbitron', size: 34, combo: 58, tracking: 0.1, max: '#6ff3ff', outline: '#050a1c', stroke: 6 },
+    },
   }),
   skin('glass', {
     label: '크리스털',
@@ -245,6 +322,7 @@ export const BUILTIN_SKINS: Skin[] = [
       judge: { height: 5, glow: true },
       track: { tint: 0.06, edges: true },
       camera: 'SDVX',
+      type: { font: 'Exo 2', size: 42, combo: 64, tracking: 0.04, max: '#dff6ff', outline: '#120e2c', stroke: 6 },
     },
   }),
   skin('pop', {
@@ -255,7 +333,18 @@ export const BUILTIN_SKINS: Skin[] = [
     divider: '#5e3260',
     rails: ['#ffb38a', '#ff6fa5'],
     judge: '#fff1d6',
-    style: { note: 'pill', long: 'pill', cap: 'pill', beam: 'fade', hit: 'bubbles', rails: { width: 8 }, judge: { height: 10 }, track: { tint: 0.08 }, camera: 'SDVX' },
+    style: {
+      note: 'pill',
+      long: 'pill',
+      cap: 'pill',
+      beam: 'fade',
+      hit: 'bubbles',
+      rails: { width: 8 },
+      judge: { height: 10 },
+      track: { tint: 0.08 },
+      camera: 'SDVX',
+      type: { font: 'Baloo 2', size: 50, combo: 76, tracking: 0.01, max: '#ffffff', outline: '#ff6fa5', stroke: 8 },
+    },
   }),
   skin('jewel', {
     label: '보석',
@@ -276,6 +365,7 @@ export const BUILTIN_SKINS: Skin[] = [
       judge: { height: 5, glow: true },
       track: { tint: 0.05, facets: true },
       camera: 'SDVX',
+      type: { font: 'Cinzel', size: 40, combo: 62, tracking: 0.03, max: '#e6f4ff', outline: '#0d0a26', stroke: 6 },
     },
   }),
   skin('mono', {
@@ -287,7 +377,18 @@ export const BUILTIN_SKINS: Skin[] = [
     rails: ['#ffffff', '#ffffff'],
     judge: '#ffffff',
     laneLayout: 'uniform',
-    style: { note: 'flat', long: 'solid', cap: 'flat', beam: 'white', hit: 'none', rails: { width: 6 }, judge: { height: 8 }, track: { tint: 0 }, camera: 'SDVX' },
+    style: {
+      note: 'flat',
+      long: 'solid',
+      cap: 'flat',
+      beam: 'white',
+      hit: 'none',
+      rails: { width: 6 },
+      judge: { height: 8 },
+      track: { tint: 0 },
+      camera: 'SDVX',
+      type: { ...DEFAULT_HUD_TYPE, max: '#ffffff', outline: '#000000' },
+    },
   }),
 ];
 
@@ -302,12 +403,33 @@ const CAP_STYLES: CapStyle[] = ['flat', 'stem', 'gloss', 'piano', 'outline', 'ne
 const BEAM_STYLES: BeamStyle[] = ['fade', 'white', 'stem', 'neon'];
 const HIT_STYLES: SkinStyle['hit'][] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'flipbook', 'none'];
 const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW'];
+const FONTS = Object.keys(HUD_FONTS) as HudFont[];
 /** Manifest texture ids look like "glass/note" or "fx/keyBeam". */
 const TEXTURE_ID = /^[a-z0-9]+\/[A-Za-z0-9]+$/;
 
 const pick = <T,>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
 const num = (v: unknown, min: number, max: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
 const colour = (v: unknown): string | undefined => (typeof v === 'string' && HEX.test(v) ? v : undefined);
+
+/** A user skin's judgement and combo type; what is missing or malformed is the default's. */
+function sanitizeType(raw: unknown): HudType {
+  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_HUD_TYPE;
+  const type: HudType = {
+    font: pick(r.font, FONTS, d.font),
+    size: num(r.size, 16, 96, d.size),
+    combo: num(r.combo, 16, 128, d.combo),
+    tracking: num(r.tracking, -0.1, 0.3, d.tracking),
+    max: colour(r.max) ?? d.max,
+    outline: colour(r.outline) ?? d.outline,
+    stroke: num(r.stroke, 0, 16, d.stroke),
+  };
+  if (r.split === true) type.split = true;
+  if (r.inline === true) type.inline = true;
+  if (r.skew !== undefined) type.skew = num(r.skew, -20, 20, 0);
+  if (colour(r.bar)) type.bar = colour(r.bar);
+  return type;
+}
 
 /** A user skin's drawing style; what is missing or malformed is the default skin's. */
 function sanitizeStyle(raw: unknown): SkinStyle | undefined {
@@ -328,6 +450,7 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
     judge: { height: num(judge.height, 2, 20, d.judge.height) },
     track: { tint: num(track.tint, 0, 0.5, d.track.tint) },
     camera: pick(r.camera, CAMERAS, d.camera),
+    type: sanitizeType(r.type),
   };
   if (r.noteDepth !== undefined) style.noteDepth = num(r.noteDepth, 0.3, 1.5, 1);
   if (rails.glow !== undefined) style.rails.glow = num(rails.glow, 0, 40, 0);

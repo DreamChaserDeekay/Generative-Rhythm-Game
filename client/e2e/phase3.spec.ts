@@ -68,11 +68,19 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.screenshot({ path: 'test-results/play-phase3.png' });
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
-  // the chart tilts the track at 12 s: the combo and the judgement turn with it
-  const tilt = async (sel: string) => {
-    const t = await page.locator(sel).evaluate((el) => (el as HTMLElement).style.transform);
-    return Math.abs(Number(/rotate\((-?[\d.]+)deg\)/.exec(t)?.[1] ?? 0));
-  };
+  // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it
+  // (the screen angle of a line across the track through each, under the HUD plane's projection)
+  const tilt = (sel: string) =>
+    page.locator(sel).evaluate((el) => {
+      const box = el as HTMLElement;
+      const m = new DOMMatrix(getComputedStyle(box.offsetParent as HTMLElement).transform);
+      const at = (dx: number) => {
+        const p = m.transformPoint(new DOMPoint(box.offsetLeft + dx, box.offsetTop));
+        return [p.x / p.w, p.y / p.w];
+      };
+      const [a, b] = [at(-50), at(50)];
+      return Math.abs((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI);
+    });
   await expect.poll(() => tilt('.hud-combo'), { timeout: 15_000 }).toBeGreaterThan(2);
   expect(await tilt('.hud-judge')).toBeGreaterThan(2);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });

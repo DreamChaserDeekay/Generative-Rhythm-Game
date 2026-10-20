@@ -7,7 +7,7 @@ import type { CameraPoseFx } from './cameraFx';
 import { cameraPose, computeTrackGeometry, type LaneGeom, type TrackGeometry } from './layout';
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
-import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
+import { DEFAULT_HUD_TYPE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import {
   CAP_PAINT,
   effectSheet,
@@ -103,6 +103,25 @@ export interface TrackFrame {
   camera?: CameraPoseFx;
 }
 
+/** Plane px per track unit of the HUD lying on the track: the approved sheets' px. */
+export const HUD_UNIT = 1 / PX;
+
+/**
+ * The track as the HUD lies on it. Plane px are HUD_UNIT to a track unit, from the middle of the
+ * judge line: x to the right, y toward the camera (up the track is negative).
+ */
+export interface HudPlane {
+  /** Row-major 3×3 homography from plane px (x, y, 1) to screen px (times w). */
+  h: number[];
+  /** Half the track's width, and how far outside it the gear's rails or walls reach. */
+  halfWidth: number;
+  sideOut: number;
+  /** The deck under the judge line: its top, its caps' depth and how much of it the screen shows. */
+  deckTop: number;
+  capDepth: number;
+  deckRoom: number;
+}
+
 export interface CoverLayout {
   sudden: number;
   hidden: number;
@@ -163,6 +182,7 @@ export function styleOf(skin: Skin): SkinStyle {
     judge: { height: 12, glow: true },
     track: { tint: 0.08 },
     camera: 'SDVX',
+    type: DEFAULT_HUD_TYPE,
   };
 }
 
@@ -231,6 +251,9 @@ export class TrackRenderer {
   private readonly deck: THREE.Mesh;
   private readonly caps: THREE.Mesh[] = [];
   private capDepth = 0.5;
+  private deckRoom = 1;
+  /** Bumped whenever the camera or the gear's layout changes: the HUD lying on the track moves then. */
+  private planeVersion = 0;
   /** Effects are this much longer along the track than across it (see EFFECT_ASPECT). */
   private stretch = 1;
   private notes: readonly Readonly<SessionNote>[] = [];
@@ -366,15 +389,38 @@ export class TrackRenderer {
     this.layoutDeck();
   }
 
-  /** Camera roll applied by the last frame (radians, positive turns the track clockwise). */
-  get roll(): number {
-    return this.appliedFx.roll;
+  /** Changes whenever the HUD lying on the track has to move (see hudPlane). */
+  get hudVersion(): number {
+    return this.planeVersion;
   }
 
-  /** CSS pixel position of a world point (with the camera effects of the last frame). */
-  project(x: number, y: number, z: number): { x: number; y: number } {
-    const v = new THREE.Vector3(x, y, z).project(this.camera);
-    return { x: ((v.x + 1) / 2) * this.cssWidth, y: ((1 - v.y) / 2) * this.cssHeight };
+  /** The track plane as the camera shows it now (its tilt and zoom included), for the HUD on it. */
+  hudPlane(): HudPlane {
+    this.camera.updateMatrixWorld();
+    const view = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    const W = this.cssWidth / 2;
+    const H = this.cssHeight / 2;
+    // clip space of one plane px across, one toward the camera, and the origin; then screen px
+    const [a, b, c] = [
+      [PX, 0, 0, 0],
+      [0, 0, PX, 0],
+      [0, 0, this.judgeZ, 1],
+    ].map(([x, y, z, w]) => {
+      const v = new THREE.Vector4(x, y, z, w).applyMatrix4(view);
+      return [W * (v.x + v.w), H * (v.w - v.y), v.w];
+    });
+    const { width } = this.geometry;
+    const rails = this.art.rails;
+    const railOuter = rails ? 0.08 + (rails.spec.width ?? 0.26) / 2 : this.style.rails.width * PX;
+    const wallOuter = this.style.frame === 'gunmetal' ? 50 * PX : this.style.frame === 'street' ? 28 * PX : 0;
+    return {
+      h: [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]],
+      halfWidth: width / 2 / PX,
+      sideOut: Math.max(railOuter, wallOuter) / PX,
+      deckTop: this.style.judge.height / 2 + 3,
+      capDepth: this.capDepth / PX,
+      deckRoom: this.deckRoom / PX,
+    };
   }
 
   /** Forget per-run state before replaying a chart. */
@@ -425,6 +471,7 @@ export class TrackRenderer {
     const fovScale = fx?.fovScale ?? 1;
     if (roll === this.appliedFx.roll && fovScale === this.appliedFx.fovScale) return;
     this.appliedFx = { roll, fovScale };
+    this.planeVersion++;
     this.camera.quaternion.copy(this.baseQuaternion);
     if (roll !== 0) this.camera.rotateZ(roll);
     this.camera.fov = this.baseFov * fovScale;
@@ -1028,6 +1075,8 @@ export class TrackRenderer {
       this.capMaterials.forEach((m) => m.dispose());
       this.capMaterials.clear();
     }
+    this.deckRoom = bottom - top;
+    this.planeVersion++;
     const capTop = top + 8 * PX;
     this.caps.forEach((cap, i) => {
       cap.scale.set(lanes[i].width * 0.86, 1, depth);

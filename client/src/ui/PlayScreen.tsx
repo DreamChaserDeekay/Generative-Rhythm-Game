@@ -6,8 +6,10 @@ import type { StemName } from '../engine/types';
 import { GamepadMenuBridge } from '../input/gamepad';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
+import { styleOf } from '../render/TrackRenderer';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
+import { loadHudFont } from './Hud';
 import { LoadingCard } from './LoadingCard';
 import { PlayController, type PlayOutcome } from './PlayController';
 
@@ -32,8 +34,10 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   useEffect(() => {
     let cancelled = false;
     let controller: PlayController | null = null;
-    // skin textures load alongside the audio; without them the skin is drawn in code
-    const artLoad = loadSkinArt(skinById(settings.skin, settings.customSkin));
+    // skin textures and type load alongside the audio; without the textures the skin is drawn in code
+    const skin = skinById(settings.skin, settings.customSkin);
+    const artLoad = loadSkinArt(skin);
+    const fontLoad = loadHudFont(styleOf(skin).type);
     (async () => {
       try {
         const engine = getAudioEngine();
@@ -57,7 +61,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
           ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, stems));
         }
-        const art = await artLoad;
+        const [art] = await Promise.all([artLoad, fontLoad]);
         if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) {
           disposeSkinArt(art);
           return;

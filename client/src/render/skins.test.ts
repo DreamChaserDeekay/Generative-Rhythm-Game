@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, hex, laneColorsFor, sanitizeSkin, skinById } from './skins';
+import { BUILTIN_SKINS, DEFAULT_HUD_TYPE, hex, HUD_FONTS, laneColorsFor, sanitizeSkin, skinById } from './skins';
 
 describe('skins', () => {
   it('keeps valid fields of a user skin and replaces the rest with defaults', () => {
@@ -56,6 +56,15 @@ describe('skins', () => {
     expect(sanitizeSkin({ textures: { note: 'a b' } })?.textures).toBeUndefined();
     // every built-in skin survives a round trip through "현재 스킨 JSON 보기"
     for (const builtin of BUILTIN_SKINS) expect(sanitizeSkin(JSON.parse(JSON.stringify(builtin)))).toEqual({ ...builtin, id: 'custom' });
+  });
+
+  it('keeps a user skin’s judgement type to the bundled fonts and sane sizes', () => {
+    const type = sanitizeSkin({ style: { type: { font: 'Comic Sans', size: 500, combo: 'big', max: 'red', outline: '#102030', inline: true, skew: -40 } } })?.style?.type;
+    expect(type).toEqual({ ...DEFAULT_HUD_TYPE, size: 96, outline: '#102030', inline: true, skew: -20 });
+    expect(sanitizeSkin({ style: { type: { font: 'Cinzel', bar: '#ffd23f', split: 'yes' } } })?.style?.type).toEqual({ ...DEFAULT_HUD_TYPE, font: 'Cinzel', bar: '#ffd23f' });
+    // a style without a type writes with the default one
+    expect(sanitizeSkin({ style: { note: 'gem' } })?.style?.type).toEqual(DEFAULT_HUD_TYPE);
+    for (const builtin of BUILTIN_SKINS) expect(Object.keys(HUD_FONTS)).toContain(builtin.style?.type.font);
   });
 
   it('draws the built-in skins in code, each for its own camera; JEWEL plays the crystal set’s flipbooks', () => {

@@ -25,6 +25,63 @@
   font-display: swap;
 }
 
+/* the play skins' judgement and combo type (Latin only; Hangul falls back to Pretendard) */
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('./assets/fonts/BebasNeue-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Chakra Petch';
+  src: url('./assets/fonts/ChakraPetch-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Russo One';
+  src: url('./assets/fonts/RussoOne-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Orbitron';
+  src: url('./assets/fonts/Orbitron-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Exo 2';
+  src: url('./assets/fonts/Exo2-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Baloo 2';
+  src: url('./assets/fonts/Baloo2-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('./assets/fonts/Cinzel-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   /* colour: five base tokens */
   --bg: #0b0c10;
@@ -900,79 +957,114 @@ p.hint {
   border-radius: 2px;
 }
 
-/* HUD: sizes are the type tokens times --hud-scale (1 at 720px high, up to 1.5) */
+/* HUD: the song sits on the screen (sizes are the type tokens times --hud-scale, 1 at 720px high,
+   up to 1.5); the judgement, combo, score, gauge, hi-speed and FEVER lie on the track in .hud-plane,
+   which Hud.ts lays under the camera's projection with every part sized for the screen where it lies */
 .hud {
   --hud-scale: 1;
   position: absolute;
   inset: 0;
   z-index: 10;
+  overflow: hidden;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
 }
 
-/* corner plates keep the text readable over a video or the visualizer */
-.hud-info,
-.hud-right,
-.hud-bottom {
+/* a plate keeps the song readable over a video or the visualizer */
+.hud-info {
   position: absolute;
+  top: var(--sp-4);
+  left: var(--sp-4);
+  max-width: 40%;
   padding: var(--sp-2) var(--sp-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   border-radius: var(--radius-sm);
 }
 
-.hud-info {
-  top: var(--sp-4);
-  left: var(--sp-4);
-  max-width: 36%;
+.hud-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  white-space: nowrap;
+}
+
+.hud-head .emblem {
+  flex: none;
+  width: calc(20px * var(--hud-scale));
+  height: calc(20px * var(--hud-scale));
 }
 
 .hud-title {
-  font-size: calc(var(--fs-title) * var(--hud-scale));
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(var(--fs-body) * var(--hud-scale));
   font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hud-artist,
-.hud-chart {
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-.hud-artist {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .hud-diff {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: var(--sp-2) 0 var(--sp-1);
-}
-
-.hud-diff-tier {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
   padding: 0 var(--sp-2);
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-body) * var(--hud-scale));
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--bg);
   background: var(--diff);
   border-radius: var(--radius-sm);
 }
 
-.hud-diff-level {
-  font-size: calc(var(--fs-heading) * var(--hud-scale));
-  font-weight: 800;
-  line-height: 1;
+.hud-diff-level:empty {
+  display: none;
 }
 
 .hud-keymode {
-  font-size: calc(var(--fs-body) * var(--hud-scale));
-  font-weight: 800;
+  flex: none;
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* the song's sections, the louder the taller, and where the play is */
+.hud-map {
+  position: relative;
+  width: calc(280px * var(--hud-scale));
+  height: calc(10px * var(--hud-scale));
+  margin-top: var(--sp-2);
+}
+
+.hud-map i {
+  position: absolute;
+  bottom: 0;
+  border-radius: 1px;
+}
+
+.hud-map.plain::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 40%;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+.hud-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+}
+
+.hud-chart {
+  margin-top: var(--sp-2);
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
   color: var(--text-dim);
 }
 
@@ -987,74 +1079,145 @@ p.hint {
   display: none;
 }
 
-.hud-right {
-  top: var(--sp-4);
-  right: var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--sp-2);
+/* the plane lying on the track; its parts are placed in the sheets' track px */
+.hud-plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
 }
 
-.hud-stats {
-  display: grid;
-  grid-template-columns: auto auto;
-  column-gap: var(--sp-3);
-  align-items: baseline;
-  text-align: right;
+.hud-plane > * {
+  position: absolute;
+  white-space: nowrap;
 }
 
-.hud-score-label,
-.hud-rate-label,
-.hud-pace-label {
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-}
-
-.hud-score {
-  font-size: calc(var(--fs-display) * var(--hud-scale));
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.hud-rate {
-  font-size: calc(var(--fs-heading) * var(--hud-scale));
-  font-weight: 800;
-  color: var(--g-max);
-}
-
-.hud-pace {
-  font-size: calc(var(--fs-title) * var(--hud-scale));
-  font-weight: 800;
-}
-
-.hud-pace.ahead { color: var(--g-high); }
-.hud-pace.behind { color: var(--g-break); }
-
+/* the judgement, the combo and FEVER in the skin's type, outlined (half the outline shows) */
+.hud-judge,
+.hud-combo,
 .hud-fever {
-  --fever: var(--text);
-  width: calc(176px * var(--hud-scale));
-  text-align: right;
+  font-family: var(--hud-font), var(--font-display);
+  font-weight: var(--hud-weight);
+  font-style: var(--hud-style);
+  letter-spacing: var(--hud-tracking);
+  line-height: 1;
+  text-align: center;
+}
+
+.hud-judge-text,
+.hud-combo-num {
+  -webkit-text-stroke: var(--stroke) var(--hud-outline);
+  paint-order: stroke fill;
+}
+
+.hud-judge {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.hud-judge-pop.pop {
+  animation: judge-pop 0.18s ease-out;
+}
+
+@keyframes judge-pop {
+  from {
+    transform: scale(1.35);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.reduced-flash .hud-judge-pop.pop {
+  animation: none;
+}
+
+/* the skin's colour for the best judgement (the colour-blind palette keeps its own) */
+:root:not(.palette-cb) .hud-plane .g-max {
+  color: var(--judge-max);
+}
+
+.hud-split,
+.hud-judge-combo {
+  color: var(--text);
+}
+
+.hud-judge-combo {
+  margin-left: 0.5em;
+}
+
+.hud-judge-combo:empty {
+  display: none;
+}
+
+.hud-judge-bar {
+  display: block;
+  width: 70%;
+  height: 0.14em;
+  margin: 0.14em auto 0;
+  transform: skewX(9deg);
+}
+
+.hud-judge-sub {
+  margin-top: 0.3em;
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  -webkit-text-stroke: var(--sub-stroke) var(--hud-outline);
+  paint-order: stroke fill;
+}
+
+.hud-judge-sub.fast { color: var(--g-fast); }
+.hud-judge-sub.slow { color: var(--g-slow); }
+
+.hud-combo {
+  visibility: hidden;
+}
+
+.hud-combo-num {
+  color: var(--text);
+  /* the per-hit bump (Hud.ts) grows it upward from its baseline */
+  transform-origin: 50% 100%;
+}
+
+.hud-combo-label {
+  margin-top: 0.25em;
+  font-size: var(--label-size);
+  letter-spacing: 0.3em;
+  color: var(--text);
+  -webkit-text-stroke: var(--label-stroke) var(--hud-outline);
+  paint-order: stroke fill;
+}
+
+/* FEVER beside the gear: its gauge, then a chip in the multiplier's colour while it lasts */
+.hud-fever {
+  --fever: var(--text-dim);
+  text-align: left;
+  transform-origin: 0 50%;
 }
 
 .hud-fever-text {
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: block;
+  padding: 0 0.35em;
+  line-height: 1.25;
+  border-radius: 0.2em;
   color: var(--text-dim);
 }
 
 .hud-fever-bar {
-  height: calc(8px * var(--hud-scale));
-  margin-top: var(--sp-1);
+  display: block;
+  height: 0.2em;
+  margin-top: 0.2em;
   background: var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: 1px;
   overflow: hidden;
 }
 
 .hud-fever-fill {
+  display: block;
   height: 100%;
   background: var(--text-dim);
   transform-origin: left;
@@ -1069,91 +1232,93 @@ p.hint {
 .hud-fever.active.x5 { --fever: var(--fever-5); }
 
 .hud-fever.active .hud-fever-text {
-  font-size: calc(var(--fs-title) * var(--hud-scale));
-  color: var(--fever);
+  color: var(--bg);
+  background: var(--fever);
 }
 
 .hud-fever.active .hud-fever-fill {
   background: var(--fever);
 }
 
-/* text on the track gets a dark outline instead of a glow (half the stroke shows) */
-.hud-combo,
-.hud-judge,
-.hud-ready,
-.hud-banner {
-  -webkit-text-stroke: calc(4px * var(--hud-scale)) var(--bg);
-  paint-order: stroke fill;
+/* labels and numbers on the plane: sizes from Hud.ts (--label, --num) */
+.hud-label {
+  display: block;
+  font-size: var(--label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
 }
 
-.hud-combo-label,
-.hud-judge-sub {
-  -webkit-text-stroke-width: calc(2px * var(--hud-scale));
-}
-
-.hud-combo {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  visibility: hidden;
-}
-
-.hud-combo-num {
-  font-size: calc(var(--fs-hero) * var(--hud-scale));
-  font-weight: 800;
-  line-height: 1;
-  color: var(--text);
-  /* the per-hit bump (Hud.ts) grows it upward from its baseline */
-  transform-origin: 50% 100%;
-  will-change: transform;
-}
-
-.hud-combo-label {
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.24em;
+.hud-num {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--num);
+  font-weight: 700;
+  line-height: 1.1;
   color: var(--text);
 }
 
-.hud-judge {
+.hud-speed {
+  text-align: right;
+  transform-origin: 100% 100%;
+}
+
+.hud-gauge-value {
+  transform-origin: 0 100%;
+}
+
+.hud-gauge-clear-label {
+  transform-origin: 0 50%;
+}
+
+/* the gauge: cells up the track, lit from the bottom (a clip, no layout while playing) */
+.hud-gauge {
+  background: repeating-linear-gradient(to top, var(--line) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+}
+
+.hud-gauge-fill {
   position: absolute;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  opacity: 0;
-  transition: opacity 0.15s;
+  inset: 0;
+  background: repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+  clip-path: inset(100% 0 0 0);
 }
 
-.hud-judge.pop .hud-judge-label {
-  animation: judge-pop 0.18s ease-out;
+.hud-gauge.survival .hud-gauge-fill {
+  background: repeating-linear-gradient(to top, var(--g-break) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
 }
 
-@keyframes judge-pop {
-  from {
-    transform: scale(1.35);
-  }
-  to {
-    transform: scale(1);
-  }
+.hud-gauge-clear {
+  background: var(--text);
+  border-radius: 1px;
 }
 
-.hud-judge-label {
-  font-size: calc(var(--fs-display) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+/* the score panel on the deck, under the key caps */
+.hud-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
 }
 
-.hud-judge-sub {
-  font-size: calc(var(--fs-body) * var(--hud-scale));
-  font-weight: 800;
+.hud-panel-in {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap);
 }
 
-.hud-judge-sub.fast { color: var(--g-fast); }
-.hud-judge-sub.slow { color: var(--g-slow); }
-
-.reduced-flash .hud-judge.pop .hud-judge-label {
-  animation: none;
+.hud-panel-in > span {
+  display: flex;
+  align-items: baseline;
 }
+
+.hud-panel .hud-label {
+  margin-right: var(--label-gap);
+}
+
+.hud-pace.ahead { color: var(--g-high); }
+.hud-pace.behind { color: var(--g-break); }
 
 .hud-toast {
   position: absolute;
@@ -1175,76 +1340,6 @@ p.hint {
 .g-mid { color: var(--g-mid); }
 .g-low { color: var(--g-low); }
 .g-break { color: var(--g-break); }
-
-.hud-bottom {
-  left: 50%;
-  bottom: var(--sp-4);
-  transform: translateX(-50%);
-  width: min(calc(560px * var(--hud-scale)), 70%);
-}
-
-.hud-gauge-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: var(--sp-1);
-}
-
-.hud-gauge-type {
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-}
-
-.hud-gauge-value {
-  font-size: calc(var(--fs-title) * var(--hud-scale));
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.hud-gauge {
-  position: relative;
-  height: calc(12px * var(--hud-scale));
-  background: var(--line);
-  border-radius: var(--radius-sm);
-}
-
-.hud-gauge-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: var(--radius-sm);
-  transform-origin: left;
-  transform: scaleX(0);
-}
-
-.hud-gauge.survival .hud-gauge-fill {
-  background: var(--g-break);
-}
-
-/* the clear line: a white tick through the bar */
-.hud-gauge-clear {
-  position: absolute;
-  top: calc(-4px * var(--hud-scale));
-  bottom: calc(-4px * var(--hud-scale));
-  width: 2px;
-  background: var(--text);
-}
-
-.hud-progress {
-  height: 4px;
-  margin-top: var(--sp-2);
-  background: var(--line);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.hud-progress-fill {
-  height: 100%;
-  background: var(--text-dim);
-  transform-origin: left;
-  transform: scaleX(0);
-}
 
 .hud-ready {
   position: absolute;
