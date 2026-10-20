@@ -117,11 +117,11 @@ def generate_chart(
         if engine == "sectioned":
             lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
             slots = lay.slots
-            plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys)
+            plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan)
         else:
             slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-            plan = plan_patterns(slots, sections, params, key_hands, tempo) if engine == "designer" else None
+            plan = plan_patterns(slots, sections, params, key_hands, tempo, seed=seed) if engine == "designer" else None
             choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = notes_from_choices(slots, choices, tempo, lanes, plan)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)

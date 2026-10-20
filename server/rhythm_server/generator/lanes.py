@@ -11,7 +11,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
-from .motifs import MotifContext, SlotPlan, by_key_mode, motif_context, motif_costs, one_hand_region
+from .motifs import MotifContext, SlotPlan, by_key_mode, by_skill, motif_context, motif_costs, one_hand_region
 from .params import GenParams
 from .select import Slot, sound_of
 from .tempo import TempoMap
@@ -94,14 +94,14 @@ class _Weights:
             alternate=W_ALTERNATE * params.weight("alternateWeight") * by_key_mode(hands["alternateScale"], params.key_mode),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
-            jack_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["sameSoundBonus"], params.skill)),
+            jack_bonus=max(params.weight("jackBonus", 0.0), by_skill(hands["sameSoundBonus"], params.skill)),
             bonus_ms=float(hands["sameSoundWithinMs"]),
             slow_ms=float(hands["slowRepeatMs"]),
-            slow_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["slowSameSoundBonus"], params.skill)),
+            slow_bonus=max(params.weight("jackBonus", 0.0), by_skill(hands["slowSameSoundBonus"], params.skill)),
             slow_jack=float(hands["slowJackScale"]),
             usage=W_BALANCE * float(hands["usageBalance"]),
             slow_usage=W_BALANCE * float(hands["usageBalance"]) * float(hands["slowUsageScale"]),
-            key_bias=_key_bias(hands["keyBias"].get(params.key_mode), params.key_mode, _by_skill(hands["keyBiasScale"], params.skill)),
+            key_bias=_key_bias(hands["keyBias"].get(params.key_mode), params.key_mode, by_skill(hands["keyBiasScale"], params.skill)),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
             bass_target=float(mapping["bass"]),
@@ -128,14 +128,6 @@ def _key_bias(bias: list[float] | None, key_mode: str, scale: float = 1.0) -> tu
         for k, lane in enumerate(l for l in lanes if l.kind == "key"):
             out[lane.index] = float(bias[k]) * scale
     return tuple(out)
-
-
-def _by_skill(value: Any, skill: float) -> float:
-    """A number, or [skill, value] pairs read off at the chart's skill (straight lines between)."""
-    if isinstance(value, list):
-        points = sorted((float(a), float(b)) for a, b in value)
-        return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
-    return float(value)
 
 
 @dataclass(frozen=True)

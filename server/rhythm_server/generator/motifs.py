@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+import numpy as np
+
 from ..config import load_config
 
 FAST_MS = 260.0  # moves closer than this get the ergonomic costs (same threshold as the profile)
@@ -44,6 +46,7 @@ class SlotPlan:
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
     roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
     roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
+    palette: tuple[int, ...] | None = None  # keys the phrase keeps to (the others pay weights.palette)
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
@@ -109,6 +112,14 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
     )
+
+
+def by_skill(value: Any, skill: float) -> float:
+    """A number, or [skill, value] pairs read off at the chart's skill (straight lines between)."""
+    if isinstance(value, list):
+        points = sorted((float(a), float(b)) for a, b in value)
+        return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
+    return float(value)
 
 
 def by_key_mode(value: Any, key_mode: str | None) -> float:
@@ -327,6 +338,8 @@ def _per_key_costs(ctx: MotifContext, sp: SlotPlan, fast: bool, held: tuple[str,
             c += finger_w * (1.0 - ctx.strength[k])
         if ctx.hand[k] in held:
             c += w["holdHand"]
+        if sp.palette is not None and k not in sp.palette:
+            c += w["palette"]
         out.append(c)
     return out
 
@@ -366,7 +379,7 @@ def motif_costs(
     w = ctx.weights
     fast = dt < FAST_MS
     held = tuple(sorted(h for h, c in holding_hands.items() if c)) if sp.hold_tap and holding_hands else ()
-    cache_key = (sp.window, sp.region, fast, held)
+    cache_key = (sp.window, sp.region, fast, held, sp.palette)
     per_key = key_cache.get(cache_key) if key_cache is not None else None
     if per_key is None:
         per_key = _per_key_costs(ctx, sp, fast, held)

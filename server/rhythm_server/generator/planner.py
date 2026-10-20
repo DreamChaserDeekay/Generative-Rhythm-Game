@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from .motifs import SlotPlan, pattern_config
+from .motifs import SlotPlan, by_skill, pattern_config
 from .params import GenParams
 from .repeat import repeat_references
 from .select import Slot, melodic as _melodic, sound_of as _sound
@@ -440,6 +440,59 @@ def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple
     return out
 
 
+def palettes(
+    phrases: list[Phrase], params: GenParams, n_keys: int, keys: list[tuple[int, int]] | None = None, seed: int = 0
+) -> list[tuple[int, ...] | None]:
+    """Per phrase the keys it keeps to (config "palettes" of the system and key mode, else none).
+
+    Human BMS charts stay on a few keys for a while (the keys holding 80% of a 7K chart's 4-bar
+    window: 3.8 below 4 notes a second, 5.4 above 12), mostly not neighbouring ones (1-3-5-7), and
+    change a key or two from one window to the next. Each phrase draws a set of `size` keys
+    (by skill) from those windows' sets (`sets`, their shares), times the chance of sharing that
+    many keys with the previous phrase's set (`shared`) and a pull toward the phrase's register
+    among the song's phrases (`register`). A phrase of an earlier material class (the sectioned
+    engine's `keys`) takes that class's set."""
+    systems = pattern_config()["palettes"].get("systems", {})
+    cfg = systems.get(params.system, {}).get(params.key_mode)
+    if not cfg:
+        return [None] * len(phrases)
+    size = int(round(by_skill(cfg["size"], params.skill)))
+    table = cfg["sets"].get(str(size))
+    if not table or size >= n_keys:
+        return [None] * len(phrases)
+    sets = [(tuple(int(c) - 1 for c in name), float(share)) for name, share in table.items()]
+    shared = [float(x) for x in cfg["shared"][str(size)]]
+    pull = float(cfg.get("register", 0.0))
+    registers = sorted(p.register for p in phrases if p.register is not None)
+    rng = np.random.default_rng(seed)
+    out: list[tuple[int, ...] | None] = []
+    by_class: dict[tuple[int, int], tuple[int, ...]] = {}
+    prev: tuple[int, ...] | None = None
+    for n, p in enumerate(phrases):
+        key = keys[n] if keys is not None else None
+        if key is not None and key in by_class:
+            prev = by_class[key]
+            out.append(prev)
+            continue
+        rank = None
+        if p.register is not None and pull:
+            rank = (bisect.bisect_left(registers, p.register) + bisect.bisect_right(registers, p.register)) / (2 * len(registers))
+        weights = []
+        for s, share in sets:
+            w = share + 1e-4
+            if prev is not None:
+                w *= shared[len(set(s) & set(prev))] + 1e-3
+            if rank is not None:
+                w *= math.exp(-pull * (sum(s) / len(s) / (n_keys - 1) - rank) ** 2)
+            weights.append(w)
+        total = sum(weights)
+        prev = sets[int(rng.choice(len(sets), p=[w / total for w in weights]))][0]
+        out.append(prev)
+        if key is not None:
+            by_class[key] = prev
+    return out
+
+
 def chord_size_power(params: GenParams) -> float | None:
     """How often chords grow past two notes on this system and key mode (EZ2ON 8K: often)."""
     powers = [float(i["chordSizePower"]) for i in _idioms(params) if "chordSizePower" in i]
@@ -504,9 +557,11 @@ def plan_patterns(
     tempo: TempoMap,
     groups: list[list[int]] | None = None,
     keys: list[tuple[int, int]] | None = None,
+    seed: int = 0,
 ) -> list[SlotPlan]:
     """The pattern of every slot; `hands` are the key lanes' hands (L, R, T for a shared key).
-    `groups` and `keys` come from the sectioned engine (sections.Layout.phrases / phrase_keys)."""
+    `groups` and `keys` come from the sectioned engine (sections.Layout.phrases / phrase_keys);
+    `seed` (the chart's) draws the phrases' key sets."""
     if not slots:
         return []
     n_keys = len(hands)
@@ -523,6 +578,7 @@ def plan_patterns(
                 if ref < n and _feasible(motifs[ref], p, params):
                     motifs[n] = motifs[ref]
     wins = windows(phrases, params, n_keys)
+    pals = palettes(phrases, params, n_keys, keys, seed)
     textures = [chord_texture(p, params) for p in phrases]
     regions = role_regions(slots, phrases, params, hands)
     homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
@@ -566,5 +622,6 @@ def plan_patterns(
                 home=homes[i],
                 layer=layers[k],
                 same_layer=tuple(j for j in range(k) if layers[j] == layers[k]) if regions[n] else None,
+                palette=pals[n],
             )
     return plan

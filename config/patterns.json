@@ -73,6 +73,10 @@
     { "keyMode": "6K+FX", "motif": "callResponse", "weight": 1.2 },
     { "system": "EZ2ON", "keyMode": "8K", "chordSizePower": 1.8, "note": "8K는 3–4개 동치 비중이 높다" }
   ],
+  "palettes": {
+    "description": "악구마다 머무는 키 묶음(planner.palettes). systems → 기준 → 키 모드마다 size(단계값별 키 수, [단계값, 값] 목록), sets(키 수마다 사람 BMS 채보의 4마디 창에서 노트 80%를 담은 키 묶음과 그 비율), shared(이어진 두 창이 함께 가진 키 수의 비율, 0개부터), register(악구 음역 쪽으로 끄는 세기). 묶음 밖의 키는 weights.palette를 받는다. 기준·키 모드가 없으면 쓰지 않는다.",
+    "systems": {}
+  },
   "windows": {
     "skill": 0.35,
     "looseSkill": 0.6,
@@ -184,6 +188,7 @@
     "holdHand": 0.8,
     "chordRepeat": 0.5,
     "region": 0.7,
+    "palette": 0.6,
     "home": 1.0,
     "anchorOver": 1.5,
     "alternate": 3.0
