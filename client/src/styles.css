@@ -858,21 +858,6 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
-/* the song's sections in order */
-.section-flow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 700;
-}
-
-.section-flow span + span::before {
-  content: '→';
-  margin-right: var(--sp-2);
-  color: var(--text-dim);
-}
-
 .loading-status {
   margin-top: auto;
   font-weight: 600;

@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { difficultySystems } from '../engine/config';
 import type { Chart, StemName } from '../engine/types';
 import { STEM_NAMES } from '../engine/types';
-import { activeCovers, bindingsFor, greenNumber, keyLabel, type Settings } from '../settings/settings';
+import { bindingsFor, keyLabel, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { Backdrop, SongArt, stemToken } from './songArt';
 
@@ -28,17 +28,10 @@ function laneStems(chart: Chart): (StemName | null)[] {
   return counts.map((c) => [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null);
 }
 
-/** Section names in order, a repeat of the one before counted once. */
-function sectionFlow(chart: Chart): string[] {
-  const flow: string[] = [];
-  for (const s of chart.sections ?? []) if (s.label && s.label !== flow[flow.length - 1]) flow.push(s.label);
-  return flow;
-}
-
 /**
  * The card shown while a play loads: what is about to be played (the song, its tier and level,
- * tempo, length, the speed it scrolls at and its sections) and the keys that play its lanes, each
- * coloured by the instrument the lane follows most.
+ * tempo, length and the speed it scrolls at) and the keys that play its lanes, each coloured by
+ * the instrument the lane follows most.
  */
 export function LoadingCard({ request, settings, text, onCancel }: { request: PlayRequest; settings: Settings; text: string; onCancel: () => void }) {
   const { chart, song } = request;
@@ -49,7 +42,6 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
   const stems = laneStems(chart);
   const keys = bindingsFor(settings, m.keyMode);
   const present = STEM_NAMES.filter((s) => stems.includes(s));
-  const flow = sectionFlow(chart);
   const practice = request.practice;
   const mode = request.replay ? 'REPLAY' : practice ? `연습${practice.rate !== 1 ? ` ×${practice.rate.toFixed(2)}` : ''}` : request.autoPlay ? 'AUTO' : null;
   return (
@@ -84,19 +76,9 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
               </span>
             ) : null}
             <span>
-              <span className="label">HI-SPEED</span> <b>{settings.hiSpeed.toFixed(1)}</b>
-            </span>
-            <span>
-              <span className="label">녹색</span> <b>{Math.round(greenNumber(settings.hiSpeed, activeCovers(settings)))}</b>
+              <span className="label">SPEED</span> <b>{settings.hiSpeed.toFixed(1)}</b>
             </span>
           </p>
-          {flow.length > 0 && (
-            <p className="section-flow" aria-label="곡 구간">
-              {flow.map((label, i) => (
-                <span key={i}>{label.toUpperCase()}</span>
-              ))}
-            </p>
-          )}
           <div className="loading-status">
             <p aria-live="polite">{text}</p>
             <div className="loading-progress">
