@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { addFromMenu, autoplay, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -46,6 +47,7 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.getByTestId('file-input').setInputFiles(wav);
   await expect(page.getByTestId('song-title')).toHaveText('e2e-phase3', { timeout: 30_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  await songInfo(page);
   await expect(page.getByTestId('analysis-backends')).toContainText('스템 기본');
 
   await page.getByTestId('bga-input').setInputFiles(video);
@@ -56,7 +58,7 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('stem-mix')).toBeVisible();
 
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.locator('.hud-chart')).toContainText('키음', { timeout: 60_000 });
@@ -111,8 +113,9 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({ contentType: 'text/javascript', body: FAKE_YOUTUBE_API }));
   const calls = () => page.evaluate(() => ((window as unknown as { __yt?: { calls: string[] } }).__yt?.calls ?? []).join(' '));
   await page.goto('/');
-  await page.getByTestId('demo-button').click();
+  await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  await songInfo(page);
   // the link is typed into the page: the desktop app (Electron) cannot show prompt dialogs
   page.on('dialog', (d) => {
     errors.push(`unexpected dialog: ${d.message()}`);
@@ -133,7 +136,7 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect.poll(calls, { timeout: 60_000 }).toContain('seek play');
@@ -164,7 +167,7 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
   await expect(page.getByTestId('skin-settings').getByRole('button', { name: '테스트 스킨' })).toHaveClass(/active/);
   await page.getByRole('button', { name: /완료/ }).click();
-  await page.getByTestId('sync-auto').click();
+  await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(5000);
   await page.screenshot({ path: 'test-results/play-custom-skin.png' });
@@ -184,7 +187,7 @@ test('textured skin, drawn in code where its media is missing or broken', async 
     await page.getByTestId('skin-glass').click();
     await expect(page.getByTestId('skin-glass')).toHaveClass(/active/);
     await page.getByRole('button', { name: /완료/ }).click();
-    await page.getByTestId('sync-auto').click();
+    await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await page.waitForTimeout(3000);

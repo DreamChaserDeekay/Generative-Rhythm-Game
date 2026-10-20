@@ -26,22 +26,36 @@ export function TopBar({ name, children }: { name: string; children?: ReactNode 
   );
 }
 
-/** A key (or keys) and what it does on this screen. */
+/** A key (or keys) and what it does on this screen; with `onClick` the hint is a button too. */
 export interface KeyHint {
   keys: string[];
   label: string;
+  onClick?: () => void;
+  testId?: string;
 }
 
 /** The bottom line of every menu screen: the keys that work here, the main one at the end. */
 export function HintBar({ hints, end = [] }: { hints: KeyHint[]; end?: KeyHint[] }) {
-  const item = (h: KeyHint) => (
-    <span key={`${h.keys.join('+')}-${h.label}`} className="hint-item">
-      {h.keys.map((k) => (
-        <kbd key={k}>{k}</kbd>
-      ))}
-      {h.label}
-    </span>
-  );
+  const item = (h: KeyHint) => {
+    const content = (
+      <>
+        {h.keys.map((k) => (
+          <kbd key={k}>{k}</kbd>
+        ))}
+        {h.label}
+      </>
+    );
+    const key = `${h.keys.join('+')}-${h.label}`;
+    return h.onClick ? (
+      <button key={key} className="hint-item" data-testid={h.testId} onClick={h.onClick}>
+        {content}
+      </button>
+    ) : (
+      <span key={key} className="hint-item">
+        {content}
+      </span>
+    );
+  };
   return (
     <footer className="hintbar">
       {hints.map(item)}

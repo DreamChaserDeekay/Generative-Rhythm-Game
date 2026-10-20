@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type BackendStatus } from '../api/client';
-import { cameraConfig, enabledKeyModes, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
+import { cameraConfig, difficultySystemIds, difficultySystems, enabledKeyModes, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import {
   activeCovers,
@@ -14,6 +14,7 @@ import {
   MAX_COVER,
   MAX_LIFT,
   withCovers,
+  withDifficultySystem,
   type JudgePosition,
   type Palette,
   type ScrollMode,
@@ -36,6 +37,7 @@ const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: 
 const SECTIONS: [string, string][] = [
   ['judge', '판정 · 속도'],
   ['covers', '레인 커버'],
+  ['difficulty', '난이도 기준'],
   ['rules', '플레이 규칙'],
   ['display', '화면'],
   ['skin', '스킨'],
@@ -178,6 +180,25 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
           <p className="hint">
             플레이 중: ↑/↓ 배속 ±0.1 (Shift ±0.5) · PageUp/PageDown SUDDEN+ · Shift+PageUp/PageDown LIFT · Home 커버 켜기/끄기. 바꾼 값은 다음 플레이에도
             유지됩니다.
+          </p>
+        </section>
+
+        <section className="panel" id="settings-difficulty">
+          <h2>난이도 기준</h2>
+          <div className="row">
+            <span className="label">기준</span>
+            <div className="segmented" data-testid="difficulty-system">
+              {difficultySystemIds.map((id) => (
+                <button key={id} className={id === settings.difficultySystem ? 'active' : ''} onClick={() => onSettingsChange(withDifficultySystem(settings, id))} data-testid={`system-${id}`}>
+                  {difficultySystems[id].label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="hint">
+            {settings.difficultySystem === 'GRG'
+              ? '이 게임의 5단계 (Lv.1–15)로 채보를 만듭니다.'
+              : `${difficultySystems[settings.difficultySystem].title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${difficultySystems[settings.difficultySystem].maxLevel}). 기록도 기준마다 따로 남습니다.`}
           </p>
         </section>
 

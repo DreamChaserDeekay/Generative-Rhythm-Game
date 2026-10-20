@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { autoplay, difficultySystem, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
 // E2E run:  GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts
@@ -90,11 +91,11 @@ async function selectShowcase(page: Page, keyMode: string, difficulty: string): 
   await page.getByRole('button', { name: keyMode, exact: true }).click();
   await page.getByRole('button', { name: new RegExp(difficulty) }).first().click();
   await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
 }
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
@@ -149,6 +150,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
 
+  await songInfo(page);
   await page.getByTestId('toggle-analysis').click();
   await expect(page.getByTestId('analysis-view')).toBeVisible();
   await page.getByTestId('analysis-view').evaluate((el) => el.scrollIntoView({ block: 'start' }));
@@ -167,14 +169,14 @@ test('song select with a generated chart, and the analysis view', async ({ page 
 
   // the same song on EZ2ON's scale
   await page.getByTestId('toggle-analysis').click();
-  await page.getByTestId('system-EZ2ON').click();
+  await difficultySystem(page, 'EZ2ON');
   await page.getByRole('button', { name: /SUPER HARD/ }).click();
   await page.getByTestId('generate-button').click();
-  await expect(page.locator('.level-badge span')).toHaveText('EZ2ON SHD', { timeout: 30_000 });
-  await page.locator('.song-detail').evaluate((el) => el.scrollTo(0, 0));
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
   await page.mouse.move(0, 0);
   await shot(page, '01b-song-select-ez2on');
-  await page.getByTestId('system-DJMAX').click();
+  await difficultySystem(page, 'DJMAX');
 });
 
 test('play: 7K+1S', async ({ page }) => {
@@ -190,6 +192,7 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
   if (!existsSync(video)) execFileSync(python, ['-c', MAKE_VIDEO, video]);
   await settings(page, { lastKeyMode: '5K', skin: 'sunset', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
   await selectShowcase(page, '5K', 'HARD');
+  await songInfo(page);
   await page.getByTestId('bga-input').setInputFiles(video);
   await expect(page.getByTestId('bga-status')).toHaveText('등록됨', { timeout: 60_000 });
   // the chart tilts the track at 13.6 s (until 26.4 s)
@@ -247,6 +250,7 @@ test('result of a good play', async ({ page }) => {
 test('chart editor', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
   await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await songInfo(page);
   await page.getByTestId('edit-chart').click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();
   for (let i = 0; i < 9; i++) await page.keyboard.press('Shift+ArrowUp');
@@ -264,6 +268,7 @@ test('importing a keysounded BMS folder', async ({ page }) => {
   await expect(page.getByTestId('import-report')).toContainText('채보 1개', { timeout: 60_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
   await page.getByTestId('pick-saved').click();
+  await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음');
   // picking the imported chart shows its key mode and difficulty on the tabs
   await expect(page.getByRole('button', { name: '7K+1S', exact: true })).toHaveClass(/active/);
@@ -281,7 +286,7 @@ test('settings and calibration', async ({ page }) => {
   await shot(page, '11-settings-skins');
 
   await page.goto('/');
-  await page.getByTestId('open-calibration').click();
+  await tool(page, 'open-calibration');
   await expect(page.getByTestId('calibration-screen')).toBeVisible();
   // a player tapping a little after each click (as people do), from the beat lamp
   await page.evaluate(() => {

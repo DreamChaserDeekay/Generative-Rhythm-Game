@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { autoplay, tool } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -11,7 +12,7 @@ const isChartPost = (method: string, url: string) => method === 'POST' && new UR
 test('on the result Enter continues and R plays again; a held Enter starts nothing more', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
-  await page.getByTestId('sync-auto').click();
+  await tool(page, 'sync-auto');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
   // autoplay earns no lamp
   await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
@@ -48,7 +49,7 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
   await page.getByRole('button', { name: '4K', exact: true }).click();
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   const playToResult = async () => {
-    await page.getByTestId('autoplay-toggle').check();
+    await autoplay(page);
     await page.getByTestId('play-button').click();
     await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   };

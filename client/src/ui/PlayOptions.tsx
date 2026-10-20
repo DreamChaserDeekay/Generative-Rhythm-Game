@@ -1,3 +1,4 @@
+import type { ServerChart } from '../api/client';
 import { gaugeRules, gaugeTypeIds, keyModes } from '../engine/config';
 import type { FeverMode } from '../engine/fever';
 import { placementIds, placementLabels } from '../engine/placement';
@@ -6,6 +7,8 @@ import type { KeyModeId } from '../engine/types';
 import {
   DEFAULT_GENERATION,
   GEN_STYLES,
+  HI_SPEED_MAX,
+  HI_SPEED_MIN,
   RHYTHM_SOURCES,
   type GenerationPrefs,
   type GenStyle,
@@ -14,6 +17,7 @@ import {
   type Settings,
 } from '../settings/settings';
 import type { PracticeOptions } from './App';
+import { ChartMinimap } from './ChartMinimap';
 
 export const STYLE_LABELS: Record<GenStyle, string> = {
   balanced: '균형',
@@ -34,6 +38,8 @@ const RHYTHM_LABELS: Record<RhythmSource, string> = {
 };
 
 const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동 (Enter)', OFF: '끔' };
+/** FEVER on the song select's option chips. */
+export const FEVER_SHORT: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
 const PACEMAKER_LABELS: Record<Pacemaker, string> = {
   OFF: '끔',
   BEST: '내 최고 기록',
@@ -278,5 +284,132 @@ export function PracticePanel({ practice, onChange }: { practice: PracticeOption
         구간 반복 (Esc → 나가기로 끝내기)
       </label>
     </div>
+  );
+}
+
+export type PlayOptionsTab = 'rules' | 'generation';
+
+/** "생성 옵션 · 롱노트 · 이전 배치": the generation options that differ from the defaults. */
+export function generationSummary(g: GenerationPrefs): string {
+  const style = g.style !== 'balanced' ? ` · ${STYLE_LABELS[g.style]}` : '';
+  const engine = g.patternEngine === 'classic' ? ' · 이전 배치' : g.patternEngine === 'designer' ? ' · 악구 배치' : '';
+  return `생성 옵션${style}${engine}`;
+}
+
+/**
+ * The Space panel of the song select: how the next play runs (autoplay, practice, hi-speed and
+ * the play rules) and how its chart is made.
+ */
+export function PlayOptionsPanel(props: SettingsProps & {
+  keyMode: KeyModeId;
+  tab: PlayOptionsTab;
+  onTab: (tab: PlayOptionsTab) => void;
+  autoPlay: boolean;
+  onAutoPlay: (on: boolean) => void;
+  /** The chart a practice runs on (none yet: practice waits for it). */
+  chart: ServerChart | null;
+  practice: PracticeOptions | null;
+  onPracticeToggle: (on: boolean) => void;
+  onPracticeChange: (p: PracticeOptions) => void;
+  targetLevel: number | null;
+  onTargetLevel: (level: number | null) => void;
+  maxLevel: number;
+  levelLabel: (level: number) => string;
+  /** The selected song, named in the header while the panel covers it. */
+  songTitle: string | null;
+  onClose: () => void;
+}) {
+  const { settings, onSettingsChange, chart, practice } = props;
+  return (
+    <section className="select-panel" data-testid="play-options" aria-label="플레이 옵션">
+      <header className="select-panel-head">
+        <h2>플레이 옵션</h2>
+        <div className="segmented" role="tablist">
+          <button role="tab" aria-selected={props.tab === 'rules'} className={props.tab === 'rules' ? 'active' : ''} data-testid="toggle-rules" onClick={() => props.onTab('rules')}>
+            플레이 규칙
+          </button>
+          <button
+            role="tab"
+            aria-selected={props.tab === 'generation'}
+            className={props.tab === 'generation' ? 'active' : ''}
+            data-testid="toggle-generation"
+            onClick={() => props.onTab('generation')}
+          >
+            {generationSummary(settings.generation)}
+          </button>
+        </div>
+        {props.songTitle && (
+          <span className="panel-song" data-testid="song-title" title={props.songTitle}>
+            {props.songTitle}
+          </span>
+        )}
+        <button className="quiet small" onClick={props.onClose}>
+          닫기 <kbd>Esc</kbd>
+        </button>
+      </header>
+      <div className="select-panel-body">
+        <div className="play-toggles">
+          <label className="check">
+            <input type="checkbox" checked={props.autoPlay} onChange={(e) => props.onAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
+            오토 플레이
+          </label>
+          <label className="check" title={chart ? undefined : '채보를 만든 뒤에 고를 수 있습니다'}>
+            <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => props.onPracticeToggle(e.target.checked)} data-testid="practice-toggle" />
+            연습 모드
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={props.targetLevel !== null} onChange={(e) => props.onTargetLevel(e.target.checked ? Math.min(8, props.maxLevel) : null)} />
+            목표 레벨 직접 지정
+          </label>
+          {props.targetLevel !== null && (
+            <span className="row target-level">
+              <input
+                type="range"
+                min={1}
+                max={props.maxLevel}
+                value={Math.min(props.targetLevel, props.maxLevel)}
+                aria-label="목표 레벨"
+                onChange={(e) => props.onTargetLevel(Number(e.target.value))}
+              />
+              <span className="value">{props.levelLabel(Math.min(props.targetLevel, props.maxLevel))}</span>
+            </span>
+          )}
+        </div>
+        {practice && chart && (
+          <>
+            <PracticePanel practice={practice} onChange={props.onPracticeChange} />
+            <ChartMinimap
+              chart={chart}
+              palette={settings.palette}
+              selection={[practice.startMs, practice.endMs]}
+              onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
+            />
+          </>
+        )}
+        {props.tab === 'rules' ? (
+          <>
+            <div className="options-grid">
+              <span className="label">배속</span>
+              <div className="row">
+                <input
+                  type="range"
+                  min={HI_SPEED_MIN}
+                  max={HI_SPEED_MAX}
+                  step={0.1}
+                  value={settings.hiSpeed}
+                  aria-label="배속"
+                  onChange={(e) => onSettingsChange({ ...settings, hiSpeed: Number(e.target.value) })}
+                />
+                <span className="value">{settings.hiSpeed.toFixed(1)}</span>
+                <span className="hint">플레이 중에도 ↑↓로 바꿀 수 있습니다</span>
+              </div>
+            </div>
+            <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />
+          </>
+        ) : (
+          <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} />
+        )}
+      </div>
+    </section>
   );
 }

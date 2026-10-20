@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { autoplay, difficultySystem, playOptions, songInfo } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -66,8 +67,8 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   await expect(modes.first()).toHaveClass(/active/);
 
   // a focused drop-down changes its own value with the arrows, not the song
-  await page.getByTestId('toggle-rules').click();
-  const select = page.locator('.song-detail select').first();
+  await playOptions(page, 'rules');
+  const select = page.getByTestId('play-options').locator('select').first();
   const before = await select.inputValue();
   await select.focus();
   await page.keyboard.press('ArrowDown');
@@ -114,7 +115,7 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   page.on('request', (r) => {
     if (isChartPost(r.method(), r.url())) posts++;
   });
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.keyboard.down('Enter');
   await page.keyboard.down('Enter');
   await page.keyboard.down('Enter');
@@ -122,6 +123,8 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(500);
   expect(posts).toBe(1);
+  // Esc pauses once the play has loaded (while it loads, Esc leaves it)
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 30_000 });
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
@@ -131,6 +134,7 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   await expect(page.getByTestId('song-title')).toHaveText('Demo Groove 137');
   await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await songInfo(page);
   await page.locator('.song-tools').getByRole('button', { name: '×2' }).click();
   await expect(page.getByTestId('analysis-status')).toBeVisible();
   await expect(page.getByTestId('chart-level')).toHaveCount(0);
@@ -153,7 +157,7 @@ test('a best shows on its own difficulty system only (DJMAX NM is not EZ2ON NM)'
   await page.goto('/');
   const plate = page.getByTestId('difficulty-row').getByRole('button', { name: /NORMAL/ });
   await expect(plate.locator('.diff-lamp')).toHaveText('91.20%');
-  await page.getByTestId('system-EZ2ON').click();
+  await difficultySystem(page, 'EZ2ON');
   await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/EASY/, /NORMAL/, /HARD/, /SUPER HARD/]);
   await expect(page.getByTestId('difficulty-row').locator('.diff-lamp')).toHaveCount(0);
   expect(errors).toEqual([]);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { tool } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -90,7 +91,7 @@ test('the pause menu, the calibration and a song that fails to load answer to Es
   await page.goto('/');
 
   // pause menu: focus starts on 계속하기, the d-pad moves it (and leaves the hi-speed alone)
-  await page.getByTestId('sync-auto').click();
+  await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(1500);
   await page.keyboard.press('Escape');
@@ -107,11 +108,11 @@ test('the pause menu, the calibration and a song that fails to load answer to Es
   await expect(page.getByTestId('song-list')).toBeVisible();
 
   // calibration: Esc goes back; the pad starts a run (A on 시작), B stops it and then goes back
-  await page.getByTestId('open-calibration').click();
+  await tool(page, 'open-calibration');
   await expect(page.getByTestId('calib-start')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
-  await page.getByTestId('open-calibration').click();
+  await tool(page, 'open-calibration');
   await expect(page.getByTestId('calib-start')).toBeFocused();
   await press(PAD.A);
   await expect(page.getByTestId('calib-start')).toBeDisabled();

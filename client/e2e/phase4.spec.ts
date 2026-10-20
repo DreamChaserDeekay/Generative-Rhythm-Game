@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { addFromMenu, autoplay, songInfo } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -33,12 +34,13 @@ function trackErrors(page: Page): string[] {
 
 async function addDemoAndPreview(page: Page) {
   await page.goto('/');
-  await page.getByTestId('demo-button').click();
+  await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await page.getByRole('button', { name: '4K', exact: true }).click();
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await songInfo(page);
 }
 
 async function noteCount(page: Page): Promise<number> {
@@ -139,6 +141,7 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
   await expect(page.getByTestId('saved-chart').first()).toContainText('편집');
   await page.getByTestId('pick-saved').click();
+  await songInfo(page);
   await expect(page.getByTestId('chart-notes')).toHaveText(String(generated + 1));
   const osu = await page.request.get(await page.getByTestId('export-osu').getAttribute('href') as string);
   expect(osu.ok()).toBe(true);
@@ -161,12 +164,13 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
   await expect(page.getByTestId('saved-chart').first()).toContainText('가져옴');
   await page.getByTestId('pick-saved').click();
+  await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음 4개');
   await expect(page.getByTestId('export-bms')).toBeVisible();
   const bms = await page.request.get(await page.getByTestId('export-bms').getAttribute('href') as string);
   expect(await bms.text()).toContain('kick.wav');
 
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
@@ -214,7 +218,9 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   // the best play's replay is offered on the chart again
   await page.getByTestId('result-back').click();
   await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('watch-best')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await songInfo(page);
+  await expect(page.getByTestId('watch-best')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

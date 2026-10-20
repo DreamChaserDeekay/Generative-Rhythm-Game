@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { addFromMenu, songInfo } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -9,10 +10,12 @@ function trackErrors(page: Page): string[] {
 test('song sections: shown by group on the minimap, edited and reset in the song settings', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
-  await page.getByTestId('demo-button').click();
+  await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await songInfo(page);
+  await expect(page.getByTestId('chart-preview')).toBeVisible();
   await expect(page.getByTestId('loop-consistency')).toBeVisible();
 
   // other specs share the library: find the selected song by its title
