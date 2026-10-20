@@ -408,21 +408,34 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
 
 
 def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple[int, int] | None]:
-    """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly."""
+    """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly.
+
+    A system may change the settings for all its key modes or one (windows.systems, .keyModes).
+    With `spread` the window follows the phrase's register among the song's phrases instead of
+    its pitch rank, `step` keys at most per phrase: the lowest phrases sit on the left keys and the
+    highest on the right, so the windows cover every key over the song (BMS charts stay on a few
+    keys for a while and use all of them over the song)."""
     base = pattern_config()["windows"]
     own = base.get("systems", {}).get(params.system, {})
-    cfg = {**base, **own, "width": {**base["width"], **own.get("width", {})}}
+    mode = own.get("keyModes", {}).get(params.key_mode, {})
+    cfg = {**base, **own, **mode, "width": {**base["width"], **own.get("width", {}), **mode.get("width", {})}}
     if params.skill >= cfg["looseSkill"]:
         return [None] * len(phrases)
     width = int(cfg["width"].get(params.key_mode, n_keys)) + (0 if params.skill < cfg["skill"] else 1)
     if width >= n_keys:
         return [None] * len(phrases)
+    spread = bool(cfg.get("spread", False))
+    step = int(cfg.get("step", 1))
+    registers = sorted(p.register for p in phrases if p.register is not None)
     out: list[tuple[int, int] | None] = []
     start = (n_keys - width) // 2
     for p in phrases:
         if p.register is not None:
-            want = int(round(p.register * (n_keys - width)))
-            start += max(-1, min(1, want - start))
+            rank = p.register
+            if spread:
+                rank = (bisect.bisect_left(registers, p.register) + bisect.bisect_right(registers, p.register)) / (2 * len(registers))
+            want = int(round(rank * (n_keys - width)))
+            start += max(-step, min(step, want - start))
         out.append((start, start + width - 1))
     return out
 
