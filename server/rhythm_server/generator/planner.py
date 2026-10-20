@@ -409,7 +409,9 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
 
 def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple[int, int] | None]:
     """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly."""
-    cfg = pattern_config()["windows"]
+    base = pattern_config()["windows"]
+    own = base.get("systems", {}).get(params.system, {})
+    cfg = {**base, **own, "width": {**base["width"], **own.get("width", {})}}
     if params.skill >= cfg["looseSkill"]:
         return [None] * len(phrases)
     width = int(cfg["width"].get(params.key_mode, n_keys)) + (0 if params.skill < cfg["skill"] else 1)

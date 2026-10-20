@@ -63,6 +63,7 @@ class _Weights:
     slow_jack: float
     usage: float  # weight of the lane-usage balance (W_BALANCE scaled per system)
     slow_usage: float  # the same for a slow note
+    key_bias: tuple[float, ...]  # per lane: a standing cost (negative: a pull) of using the key
     source: float  # pull of drum / bass notes toward their lane regions
     drum_targets: tuple[float, float, float]  # lane position for low / mid / high drum energy
     bass_target: float
@@ -100,6 +101,7 @@ class _Weights:
             slow_jack=float(hands["slowJackScale"]),
             usage=W_BALANCE * float(hands["usageBalance"]),
             slow_usage=W_BALANCE * float(hands["usageBalance"]) * float(hands["slowUsageScale"]),
+            key_bias=_key_bias(hands["keyBias"].get(params.key_mode), params.key_mode, _by_skill(hands["keyBiasScale"], params.skill)),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
             bass_target=float(mapping["bass"]),
@@ -116,6 +118,16 @@ class _Weights:
             balance_min=float(hands["balanceMinNotes"]),
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
         )
+
+
+def _key_bias(bias: list[float] | None, key_mode: str, scale: float = 1.0) -> tuple[float, ...]:
+    """Per lane the key's standing cost (× `scale`) from a list over the key lanes, left to right."""
+    lanes = lane_infos(key_mode)
+    out = [0.0] * len(lanes)
+    if bias:
+        for k, lane in enumerate(l for l in lanes if l.kind == "key"):
+            out[lane.index] = float(bias[k]) * scale
+    return tuple(out)
 
 
 def _by_skill(value: Any, skill: float) -> float:
@@ -277,7 +289,7 @@ def search(
     ctx: MotifContext | None = None
     if plan:
         if "ctx" not in shared:
-            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system)
+            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system, params.key_mode)
         ctx = shared["ctx"]
     # lanes a copied slot right after needs: a slot of its own (no reference: a note a later repeat
     # adds) keeps out of them, or the copy would find its lane still inside the jack spacing (a
@@ -817,6 +829,8 @@ def _costs(
             # (a planned repeat keeps its lane however much it is used: the laser's middle key)
             for i in combo:
                 cost += balance[i]
+        for i in combo:
+            cost += w.key_bias[i]
         if anchor_cap and len(combo) == 1:
             hits = anchor_hits(_next_run(state, combo, t))
             if hits > anchor_cap:

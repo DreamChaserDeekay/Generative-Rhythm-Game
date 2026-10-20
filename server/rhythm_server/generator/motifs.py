@@ -76,7 +76,7 @@ class MotifContext:
     slow_split: float = 1.0
 
 
-def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
+def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
     cfg = pattern_config()
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
@@ -91,7 +91,9 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         mirror=tuple(n - 1 - k for k in range(n)),
         center=next((k for k, lane in enumerate(keys) if lane.hand == "T"), None),
         skill=skill,
-        weights={k: float(v) for k, v in cfg["weights"].items()},
+        # leaps (hands.leapScale, a number or one per key mode): BMS charts leap three keys or
+        # more far more often than the readability weights allow (docs/PATTERN_DESIGN.md 22)
+        weights={k: float(v) * (_per_mode(hands["leapScale"], key_mode) if k in ("leap", "sameHandLeap") else 1.0) for k, v in cfg["weights"].items()},
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
@@ -107,6 +109,13 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
     )
+
+
+def _per_mode(value: Any, key_mode: str | None) -> float:
+    """A number, or {key mode: number} (1 for the key modes it leaves out)."""
+    if isinstance(value, dict):
+        return float(value.get(key_mode, 1.0)) if key_mode else 1.0
+    return float(value)
 
 
 def _mismatch(keys: tuple[int, ...], want: tuple[int, ...]) -> float:
