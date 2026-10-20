@@ -24,6 +24,7 @@ import {
   DEFAULT_SETTINGS,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
+  KEY_BEAM_MAX,
   keyLabel,
   MAX_COVER,
   MAX_LIFT,
@@ -418,6 +419,19 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             format={pct}
             onChange={(v) => set('laneWidthScale', v)}
             help="트랙의 폭입니다."
+          />
+          <NumberOption
+            {...row}
+            label="키 빔 길이"
+            testId="opt-key-beam"
+            value={settings.keyBeamLength}
+            min={0}
+            max={KEY_BEAM_MAX}
+            step={0.1}
+            bigStep={0.5}
+            format={(v) => (v === 0 ? '끔' : pct(v))}
+            onChange={(v) => set('keyBeamLength', v)}
+            help="키를 누르는 동안 판정선에서 올라오는 빛의 길이입니다. 100%가 기본이고, 0이면 켜지지 않습니다."
           />
           <Choice
             {...row}

@@ -83,6 +83,8 @@ export interface Settings {
   visualOffsetMs: number;
   cameraPreset: string;
   laneWidthScale: number;
+  /** Key beams' length: a share of the usual one (0 = none). */
+  keyBeamLength: number;
   musicVolume: number;
   sfxVolume: number;
   hitSound: boolean;
@@ -140,6 +142,7 @@ export const HI_SPEED_MIN = 0.5;
 export const HI_SPEED_MAX = 10;
 export const MAX_COVER = 0.85;
 export const MAX_LIFT = 0.5;
+export const KEY_BEAM_MAX = 2;
 /** At least this share of the travel distance stays visible whatever the covers say. */
 export const MIN_VISIBLE_SHARE = 0.1;
 
@@ -152,6 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   visualOffsetMs: 0,
   cameraPreset: cameraConfig.default,
   laneWidthScale: 1,
+  keyBeamLength: 1,
   musicVolume: 0.9,
   sfxVolume: 0.6,
   hitSound: false,
@@ -222,6 +226,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.sudden = num(s.sudden, 0, MAX_COVER, 0);
   s.hidden = num(s.hidden, 0, MAX_COVER, 0);
   s.lift = num(s.lift, 0, MAX_LIFT, 0);
+  s.keyBeamLength = num(s.keyBeamLength, 0, KEY_BEAM_MAX, d.keyBeamLength);
   s.scrollMode = pick(s.scrollMode, ['time', 'beat'] as ScrollMode[], d.scrollMode);
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
   s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);

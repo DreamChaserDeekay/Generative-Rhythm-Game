@@ -145,6 +145,8 @@ export interface TrackRendererOptions {
   art?: SkinArt | null;
   /** A line across the track at every bar (default on). */
   barLines?: boolean;
+  /** Key beams' length as a share of BEAM_LENGTH (default 1, 0 = none). */
+  keyBeamLength?: number;
   /**
    * A preview's framing: the field of view is set so the judge line spans this share of the
    * canvas width, whatever its shape (play keeps the camera preset's own).
@@ -232,6 +234,7 @@ export class TrackRenderer {
   private readonly longBody: THREE.Texture;
   private readonly longEnd: THREE.Texture;
   private readonly beams: THREE.Mesh[] = [];
+  private beamLength: number;
   private readonly beamLevels: number[] = [];
   /** The stem of each lane's next (or held) note, for the STEM skin's caps and beams. */
   private readonly laneStems: (StemName | undefined)[] = [];
@@ -288,6 +291,7 @@ export class TrackRenderer {
     this.reducedFlash = options.reducedFlash;
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
+    this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
     this.long = LONG_PAINT[this.style.long];
     this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
     this.longBody.wrapT = THREE.RepeatWrapping;
@@ -368,13 +372,27 @@ export class TrackRenderer {
     if (this.deck) this.layoutDeck();
   }
 
+  /** Key beams' length as a share of the usual one (0 = none). */
+  setKeyBeamLength(share: number): void {
+    this.beamLength = BEAM_LENGTH * share;
+    this.placeBeams();
+  }
+
+  /** Key beams rise from the judge line (LIFT moves it) as far as their length. */
+  private placeBeams(): void {
+    for (const beam of this.beams) {
+      beam.scale.z = Math.max(this.beamLength, 1e-3);
+      beam.position.z = this.judgeZ - this.beamLength / 2;
+    }
+  }
+
   /** Moves SUDDEN+ / HIDDEN+ / LIFT (all shares, see settings). */
   setCovers(c: CoverLayout): void {
     const L = this.geometry.length;
     this.judgeZ = -c.lift * L;
     const travel = L + this.judgeZ;
     this.judgeGroup.position.z = this.judgeZ;
-    this.beams.forEach((beam) => (beam.position.z = this.judgeZ - BEAM_LENGTH / 2));
+    this.placeBeams();
 
     const suddenZ = this.judgeZ - travel * (1 - c.sudden);
     const hiddenZ = this.judgeZ - travel * c.hidden;
@@ -658,7 +676,7 @@ export class TrackRenderer {
       this.beamLevels[lane] = level;
       const material = beam.material as THREE.MeshBasicMaterial;
       material.opacity = level;
-      beam.visible = level > 0.01;
+      beam.visible = level > 0.01 && this.beamLength > 0;
       if (this.style.beam === 'stem' && beam.visible) {
         const stem = this.laneStems[lane];
         material.color.setHex(stem ? STEM_COLORS[stem] : this.laneColors[lane]);
@@ -1048,8 +1066,8 @@ export class TrackRenderer {
         depthWrite: false,
       };
       const beam = new THREE.Mesh(this.flatGeometry, tinted ? tintMaterial(params) : new THREE.MeshBasicMaterial(params));
-      beam.scale.set(lane.width * 0.96, 1, BEAM_LENGTH);
-      beam.position.set(lane.x, 0.04, -BEAM_LENGTH / 2);
+      beam.scale.set(lane.width * 0.96, 1, Math.max(this.beamLength, 1e-3));
+      beam.position.set(lane.x, 0.04, this.judgeZ - this.beamLength / 2);
       // under the notes, as the sheets draw it: a pressed lane never washes its notes out
       beam.renderOrder = 2.5;
       beam.visible = false;

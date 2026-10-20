@@ -32,6 +32,7 @@ type PreviewSettings = Pick<
   | 'hidden'
   | 'lift'
   | 'coversOn'
+  | 'keyBeamLength'
 >;
 
 /**
@@ -86,22 +87,23 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
     };
   }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines]);
 
-  // the camera, the covers and the speed change the running preview without starting it over
+  // the camera, the covers, the speed and the key beams change the running preview without starting it over
   const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
   const { sudden, hidden, lift } = covers;
-  const { hiSpeed } = settings;
+  const { hiSpeed, keyBeamLength } = settings;
   const scroll = useRef<{ model: ScrollModel; visibleMs: number } | null>(null);
   useEffect(() => {
     const r = renderer.current;
     if (!r) return;
     r.setCamera(camera);
     r.setCovers({ sudden, hidden, lift });
+    r.setKeyBeamLength(keyBeamLength);
     const visibleMs = visibleTimeMs(hiSpeed);
     scroll.current = {
       model: new ScrollModel({ trackLength: r.geometry.length, visibleMs, lift, mode: 'time', timing: TIMING, rate: 1, durationMs: 3_600_000 }),
       visibleMs,
     };
-  }, [built, camera, sudden, hidden, lift, hiSpeed]);
+  }, [built, camera, sudden, hidden, lift, hiSpeed, keyBeamLength]);
 
   // the phrase, played over and over
   useEffect(() => {

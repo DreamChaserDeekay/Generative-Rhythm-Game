@@ -177,6 +177,7 @@ export class PlayController {
       skin,
       art: setup.art,
       barLines: settings.barLines,
+      keyBeamLength: settings.keyBeamLength,
     });
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =

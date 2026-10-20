@@ -12,6 +12,13 @@ describe('settings', () => {
     expect(s.generation.style).toBe('balanced');
   });
 
+  it('keeps the key beam length between off and twice the usual (settings saved before the option: the usual)', () => {
+    expect(sanitizeSettings({}).keyBeamLength).toBe(1);
+    expect(sanitizeSettings({ keyBeamLength: 0 }).keyBeamLength).toBe(0);
+    expect(sanitizeSettings({ keyBeamLength: 5 }).keyBeamLength).toBe(2);
+    expect(sanitizeSettings({ keyBeamLength: 'x' as never }).keyBeamLength).toBe(1);
+  });
+
   it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
     expect(sanitizeSettings({}).barLines).toBe(true);
     expect(sanitizeSettings({ barLines: false }).barLines).toBe(false);
