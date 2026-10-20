@@ -206,6 +206,8 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   const score = await page.getByTestId('result-score').textContent();
   const rate = await page.getByTestId('result-rate').textContent();
   await expect(page.getByTestId('result-regenerate')).toBeVisible();
+  // the replay and the chart files are in the details (Space)
+  await page.keyboard.press('Space');
   await expect(page.getByTestId('result-export-osu')).toBeVisible();
 
   await page.getByTestId('watch-replay').click();

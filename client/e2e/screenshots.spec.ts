@@ -239,11 +239,11 @@ test('result of a good play', async ({ page }) => {
   writeFileSync(file, JSON.stringify(humanReplay(chart.notes, chart.meta.chartId, song.id)));
   await page.getByTestId('replay-input').setInputFiles(file);
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId('result-screen')).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
-  await page.locator('.result-screen .screen-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
-  await page.waitForTimeout(500);
+  await page.getByTestId('result-details').click();
+  await page.waitForTimeout(800);
   await shot(page, '07-result-graphs');
 });
 

@@ -14,7 +14,7 @@ import { FEVER_SHORT, generationParams, PlayOptionsPanel, type PlayOptionsTab } 
 import { buildPlayRequest } from './playRequest';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { KIND_LABELS, SongInfoPanel } from './SongInfoPanel';
-import { Backdrop, SongArt, SongMap, stemToken, useSketch } from './songArt';
+import { Backdrop, bpmLabel, SongArt, SongMap, stemToken, useSketch } from './songArt';
 import { bestByTier, FOLDER_LABELS, inFolder, recordsOn, sortSongs, SORT_LABELS } from './songRecords';
 import { syncTestRequest } from './syncTestRequest';
 
@@ -42,14 +42,6 @@ type Panel = 'none' | 'options' | 'info';
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
-function bpmLabel(song: Song): string {
-  if (song.bpm === null) return '-';
-  if (song.bpmMin !== null && song.bpmMax !== null && Math.abs(song.bpmMax - song.bpmMin) > 0.5) {
-    return `${Math.round(song.bpmMin)}–${Math.round(song.bpmMax)}`;
-  }
-  return song.bpm.toFixed(song.bpm % 1 < 0.05 || song.bpm % 1 > 0.95 ? 0 : 1);
 }
 
 export function SongSelectScreen(props: Props) {

@@ -7,6 +7,15 @@ import { token } from './theme';
 const STEM_TOKENS: Record<string, string> = { drums: '--stem-drums', bass: '--stem-bass', vocals: '--stem-vocals', other: '--stem-other' };
 export const stemToken = (stem: string | null | undefined): string => STEM_TOKENS[stem ?? ''] ?? '--text-dim';
 
+/** "152", "120–180" for a song that changes tempo, "-" before it is analysed. */
+export function bpmLabel(song: Song): string {
+  if (song.bpm === null) return '-';
+  if (song.bpmMin !== null && song.bpmMax !== null && Math.abs(song.bpmMax - song.bpmMin) > 0.5) {
+    return `${Math.round(song.bpmMin)}–${Math.round(song.bpmMax)}`;
+  }
+  return song.bpm.toFixed(song.bpm % 1 < 0.05 || song.bpm % 1 > 0.95 ? 0 : 1);
+}
+
 const sketches = new Map<string, Promise<SongSketch>>();
 
 /** The song's sketch once it is analysed (fetched once per analysis, shared by every view of the song). */

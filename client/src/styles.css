@@ -1401,179 +1401,461 @@ p.hint {
 
 /* ---------- result ---------- */
 
+.result-screen {
+  position: relative;
+  isolation: isolate;
+}
+
 .result-screen .screen-body {
-  padding: var(--sp-6) max(var(--sp-4), calc((100% - var(--page)) / 2)) var(--sp-8);
-}
-
-.result-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--sp-6);
+  flex-direction: column;
+  justify-content: safe center;
+  gap: var(--sp-4);
+  padding: var(--sp-6) max(var(--sp-6), calc((100% - var(--page)) / 2)) 0;
 }
 
-.result-title {
+/* the song (picture, name, how it was played, the record) and the outcome on the right */
+.result-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-6);
+  align-items: end;
+}
+
+.result-hero .hero-art {
+  width: clamp(160px, 30vh, 300px);
+}
+
+.result-song {
   min-width: 0;
 }
 
-.result-chip {
+.result-song h1 {
+  display: -webkit-box;
+  margin: 0;
+  font-size: var(--fs-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.result-song .artist {
+  margin: var(--sp-1) 0 var(--sp-3);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-chips {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: var(--sp-2);
 }
 
-.result-chip .tier {
-  padding: 0 var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 800;
+.chip.tier {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
   letter-spacing: 0.04em;
-  color: var(--bg);
+  color: var(--on-accent);
   background: var(--diff);
-  border-radius: var(--radius-sm);
+  border-color: var(--diff);
 }
 
-.result-chip strong {
-  font-size: var(--fs-title);
-  font-weight: 800;
+.chip.tier b {
+  color: inherit;
 }
 
-.result-chip .mode {
-  font-weight: 800;
-  color: var(--text-dim);
-}
-
-.result-header h1 {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--fs-heading);
-  font-weight: 800;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.result-header .sub {
-  margin: var(--sp-1) 0 0;
-  color: var(--text-dim);
-}
-
-.result-lamp {
-  flex-shrink: 0;
-  text-align: right;
-}
-
-.lamp {
-  font-size: var(--fs-display);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.save-state {
-  margin: var(--sp-2) 0 0;
-  font-weight: 800;
-  color: var(--g-high);
-}
-
-.save-state.error {
-  color: var(--g-break);
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0 var(--sp-4);
-}
-
-.result-grid .wide {
-  grid-column: 1 / -1;
-}
-
-.result-stat {
-  display: flex;
-  flex-direction: column;
-}
-
-.result-stat .label {
-  font-size: var(--fs-label);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-}
-
-.result-stat .value {
-  font-weight: 800;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-
-.result-stat.main .value {
-  font-size: var(--fs-hero);
-}
-
-.result-stat.second {
-  margin-top: var(--sp-3);
-}
-
-.result-stat.second .value {
-  font-size: var(--fs-heading);
-}
-
-.result-stat small {
-  font-size: var(--fs-title);
-  color: var(--text-dim);
-}
-
-.stat-list {
+/* what the play did to the record: tags with a bar on their left */
+.record-slot {
+  min-height: 26px;
   margin-top: var(--sp-4);
 }
 
-.stat-row {
+.record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.record-tags .tag {
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  background: var(--raised);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+
+.record-tags.error {
+  font-weight: 700;
+  color: var(--g-break);
+}
+
+.record-note {
+  margin: var(--sp-4) 0 0;
+  color: var(--text-dim);
+}
+
+.result-outcome {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 var(--sp-8);
+  align-items: end;
+}
+
+.result-outcome .lamp {
+  grid-column: 1 / -1;
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.result-outcome .label {
+  display: block;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.result-grade b,
+.result-headline .num {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.result-headline .num .num {
+  display: inline;
+}
+
+.result-headline small {
+  font-size: var(--fs-title);
+  color: var(--text-dim);
+}
+
+.result-delta {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-height: calc(var(--fs-heading) * 1.5);
+  margin: var(--sp-2) 0 0;
+}
+
+.result-delta .label {
+  display: inline;
+}
+
+.result-delta .up,
+.result-delta .flat {
+  font-family: var(--font-display);
+  font-size: var(--fs-heading);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-delta .up {
+  color: var(--g-high);
+}
+
+.result-delta .flat,
+.result-delta .best {
+  color: var(--text-dim);
+}
+
+/* the reveal: the lamp and the grade land, the headline counts, then the record shows */
+.result-grade.pending {
+  visibility: hidden;
+}
+
+.result-outcome .stamp {
+  animation: result-stamp var(--motion-screen) ease-out;
+}
+
+@keyframes result-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+
+/* the counting value is drawn over the final one, which keeps its width */
+.counting {
+  position: relative;
+  color: transparent;
+}
+
+.counting::after {
+  content: attr(data-count);
+  content: attr(data-count) / '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-outcome .stamp {
+    animation: none;
+  }
+}
+
+/* judgement counts by colour, then combo, timing and gauge */
+.result-numbers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+  align-items: center;
+}
+
+.judge-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-2);
+}
+
+.judge-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.judge-cell .label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.judge-cell .num {
+  font-family: var(--font-display);
+  font-size: var(--fs-heading);
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.judge-cell.zero .num {
+  color: var(--text-dim);
+}
+
+.result-stats {
+  display: flex;
+  gap: var(--sp-6);
+}
+
+.result-stats dl {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-content: center;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+}
+
+.result-stats dl > div {
+  display: contents;
+}
+
+.result-stats dt {
+  align-self: baseline;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.result-stats dd {
+  align-self: baseline;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.result-stats small {
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+}
+
+.result-stats .fast {
+  color: var(--g-fast);
+}
+
+.result-stats .slow {
+  color: var(--g-slow);
+}
+
+/* the song at a glance: density, the points lost, accuracy per section */
+.run-panel {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.run-panel h2,
+.result-details h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.run-strip {
+  position: relative;
+  height: clamp(64px, 13vh, 168px);
+  background: var(--sunken);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.run-strip svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.run-strip .density {
+  fill: color-mix(in srgb, var(--text) 22%, transparent);
+}
+
+.run-strip .loss {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.run-strip .loss.g-mid { stroke: var(--g-mid); }
+.run-strip .loss.g-low { stroke: var(--g-low); }
+.run-strip .loss.g-break { stroke: var(--g-break); }
+
+/* after a failed gauge: the rest was not played */
+.run-strip .after-fail {
+  fill: var(--scrim);
+}
+
+.run-sections {
+  display: grid;
+  flex-shrink: 0;
+  margin-top: var(--sp-2);
+}
+
+.run-sections > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: var(--sp-2);
+  min-width: 0;
+  margin-right: 2px;
+  padding-top: var(--sp-1);
+  overflow: hidden;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-dim);
+  white-space: nowrap;
+  border-top: 3px solid var(--c);
+}
+
+.run-sections b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* the details under Space, in the summary's place: graphs, the offset suggestion, every judgement */
+.result-details {
+  flex: 1 1 auto;
+  min-height: 240px;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.result-details h2 span {
+  margin-left: var(--sp-1);
+  color: var(--text);
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--sp-6);
+}
+
+.error-stats {
+  margin: var(--sp-2) 0 var(--sp-4);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.percent-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 132px));
+  gap: var(--sp-1) var(--sp-6);
+  font-size: var(--fs-label);
+  font-weight: 700;
+}
+
+.percent-counts > span {
   display: flex;
   justify-content: space-between;
-  gap: var(--sp-4);
-  padding: var(--sp-2) 0;
+  gap: var(--sp-2);
+}
+
+.percent-counts b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.percent-counts .zero,
+.percent-counts .zero > span {
+  color: var(--text-dim);
+}
+
+.details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-4);
   border-top: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
 }
 
-.stat-row > span:first-child {
-  color: var(--text-dim);
-}
-
-.stat-row > span:last-child {
+.details-actions .label {
+  margin-left: var(--sp-2);
+  font-size: var(--fs-label);
   font-weight: 700;
-  text-align: right;
-}
-
-/* judgement counts: name and count side by side, the rows that stayed at zero fade */
-.grade-table {
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-.grade-table td {
-  padding: 0;
-  line-height: 28px;
-  font-weight: 800;
-}
-
-.grade-table td:last-child {
-  min-width: 64px;
-  padding-left: var(--sp-8);
-  text-align: right;
-}
-
-.grade-table tr.zero td {
-  font-weight: 600;
   color: var(--text-dim);
-}
-
-.grade-table.detail {
-  margin-top: var(--sp-3);
-}
-
-.result-grid .panel > button.small {
-  margin-top: var(--sp-3);
 }
 
 .graph {
@@ -1583,7 +1865,7 @@ p.hint {
 
 .graph-wrap {
   position: relative;
-  margin-bottom: var(--sp-6);
+  margin-bottom: var(--sp-4);
 }
 
 .graph-wrap .axis {
@@ -1596,7 +1878,7 @@ p.hint {
 
 .gauge-graph {
   height: 88px;
-  margin-bottom: var(--sp-6);
+  margin-bottom: var(--sp-4);
   background: var(--sunken);
   border-radius: var(--radius-sm);
 }
@@ -1629,7 +1911,7 @@ p.hint {
 .histogram {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 120px;
 }
 
 .histogram .bar-max { fill: var(--g-max); }
@@ -1653,39 +1935,60 @@ p.hint {
 }
 
 .offset-suggestion {
-  margin: var(--sp-4) 0 0;
-  padding-top: var(--sp-4);
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) 0;
   border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-/* the actions stay at the bottom edge while the graphs scroll */
+/* label and value rows (calibration) */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-row > span:first-child {
+  color: var(--text-dim);
+}
+
+.stat-row > span:last-child {
+  font-weight: 700;
+  text-align: right;
+}
+
 .result-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--sp-3) var(--sp-6);
-  margin-top: var(--sp-2);
-  padding: var(--sp-4) 0;
-  background: var(--bg);
-  border-top: 1px solid var(--line);
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-4);
 }
 
-.result-actions .row {
-  margin: 0;
+.result-actions button.active {
+  color: var(--text);
+  border-color: var(--text);
 }
 
-.result-actions .label {
-  min-width: 0;
+.result-actions .error {
   margin-left: var(--sp-2);
 }
 
-@media (max-width: 720px) {
-  .result-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 960px) {
+  .result-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .result-outcome {
+    grid-column: 1 / -1;
+  }
+
+  .result-numbers,
+  .details-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

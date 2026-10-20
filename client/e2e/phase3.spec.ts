@@ -188,6 +188,8 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   page.on('response', (r) => {
     if (r.url().includes('/media/') && r.ok()) loaded.push(new URL(r.url()).pathname);
   });
+  // routed requests skip the browser's caches, so a picture an earlier play loaded is seen again
+  await page.route('**/media/**', (r) => r.fallback());
   const inSettings = async (step: () => Promise<void>) => {
     await page.goto('/');
     await page.getByTestId('open-settings').click();

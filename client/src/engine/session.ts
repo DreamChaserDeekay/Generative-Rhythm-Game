@@ -71,6 +71,12 @@ export interface HitRecord {
   percent: number;
 }
 
+/** One judgement of the play: the note's time in the chart (its end for a tail) and the DJMAX percent, 0 for BREAK. */
+export interface JudgeMark {
+  noteMs: number;
+  percent: number;
+}
+
 export interface GradeCount {
   label: string;
   percent: number;
@@ -101,6 +107,8 @@ export interface SessionResult {
   lamp: ClearLamp;
   hits: HitRecord[];
   breakTimes: number[];
+  /** Every judgement in order, the ones without a timing error too (completed tails, side misses). */
+  judgements: JudgeMark[];
   ruleset: RulesetId;
   rows: RulesetRow[];
   weightedScore: number;
@@ -175,6 +183,7 @@ export class GameSession {
   private readonly counts = new Map<number, number>();
   private readonly hits: HitRecord[] = [];
   private readonly breakTimes: number[] = [];
+  private readonly judgements: JudgeMark[] = [];
   private sumPercent = 0;
   private sumWeight = 0;
   private exScore = 0;
@@ -395,6 +404,7 @@ export class GameSession {
       lamp,
       hits: [...this.hits],
       breakTimes: [...this.breakTimes],
+      judgements: [...this.judgements],
       ruleset: this.ruleset.id,
       rows: this.ruleset.rows(counts, this.breaks),
       weightedScore: this.currentWeightedScore,
@@ -497,6 +507,7 @@ export class GameSession {
     this.sumPercent += percent;
     this.sumWeight += c.weight;
     this.exScore += c.ex;
+    this.judgements.push({ noteMs: kind === 'tail' ? note.endT : note.t, percent: isBreak ? 0 : percent });
     if (isBreak) {
       this.breaks++;
       this.breakTimes.push(timeMs);
