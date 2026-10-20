@@ -107,6 +107,8 @@ export interface SessionResult {
   exScore: number;
   exMax: number;
   rank: string;
+  /** S+++ … F on the EZ2ON ladder (out of 1,000,000), or the BMS rank under EX-SCORE. */
+  grade: string;
   fever: { enabled: boolean; bonus: number; activations: number; bestMultiplier: number };
 }
 
@@ -399,6 +401,7 @@ export class GameSession {
       exScore: this.exScore,
       exMax,
       rank: this.ruleset.rank(exMax > 0 ? this.exScore / exMax : 0),
+      grade: this.ruleset.grade(this.currentScore, this.currentWeightedScore, exMax > 0 ? this.exScore / exMax : 0),
       fever: {
         enabled: this.fever.enabled,
         bonus: Math.round(this.fever.bonus),

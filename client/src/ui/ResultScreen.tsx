@@ -187,6 +187,10 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             {rateFirst ? rateStat : scoreStat}
             {rateFirst ? scoreStat : rateStat}
             <div className="stat-list">
+              <div className="stat-row">
+                <span>{rules.scoring === 'exscore' ? '랭크 (BMS 기준)' : '등급 (EZ2ON 기준, 100만 점 환산)'}</span>
+                <span data-testid="result-grade">{result.grade}</span>
+              </div>
               {rules.scoring !== 'rate' && (
                 <div className="stat-row"><span>정밀 % 점수</span><span>{result.score.toLocaleString('en-US')}</span></div>
               )}

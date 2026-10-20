@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gaugeRules, judgementConfig, type GaugeTypeId } from './config';
 import { Fever } from './fever';
 import { JudgementTable } from './judgement';
-import { Ruleset } from './ruleset';
+import { gradeLadder, gradeOf, Ruleset } from './ruleset';
 import { GameSession, type JudgeEvent, type SessionEvent, type SessionOptions } from './session';
 import type { Chart, ChartNote, KeyModeId } from './types';
 
@@ -69,6 +69,43 @@ describe('rulesets', () => {
     expect(r.weightedScore).toBe(Math.round(((1 + 0.75) / 2) * 1_000_000));
     expect(r.score).toBe(900_000);
     expect(r.rows[0]).toMatchObject({ label: 'PERFECT', count: 1 });
+  });
+});
+
+describe('grades', () => {
+  it('reads the EZ2ON ladder scaled to 1,000,000', () => {
+    expect(gradeOf(1_000_000)).toBe('S+++');
+    expect(gradeOf(990_909)).toBe('S+++');
+    expect(gradeOf(990_908)).toBe('S++');
+    expect(gradeOf(954_545)).toBe('S++');
+    expect(gradeOf(909_091)).toBe('S');
+    expect(gradeOf(909_090)).toBe('A+');
+    expect(gradeOf(500_000)).toBe('E');
+    expect(gradeOf(499_999)).toBe('F');
+    expect(gradeOf(0)).toBe('F');
+    // 1,100,000 points of EZ2ON over 1.1
+    expect(gradeLadder.map(([, min]) => Math.round(min * 1.1 / 1000) * 1000)).toEqual([
+      1_090_000, 1_050_000, 1_025_000, 1_000_000, 950_000, 900_000, 850_000, 750_000, 650_000, 550_000, 0,
+    ]);
+  });
+
+  it('grades the base score, the grade-weighted score of 등급형, and the BMS rank of EX-SCORE', () => {
+    const play = (ruleset: Ruleset) => {
+      const { s } = run(chartOf([2, 4, 6]), { ruleset });
+      tap(s, 0, 1000); // 100%
+      tap(s, 1, 2000 + 70); // 80%
+      tap(s, 2, 3000 + 70); // 80%
+      return s.result();
+    };
+    const respect = play(new Ruleset('RESPECT'));
+    expect(respect.score).toBe(866_667);
+    expect(respect.grade).toBe('A+');
+    const weighted = play(new Ruleset('GRADE'));
+    expect(weighted.weightedScore).toBe(833_333); // GREAT weighs 0.75
+    expect(weighted.grade).toBe('A');
+    const ex = play(new Ruleset('EXSCORE'));
+    expect(ex.grade).toBe(ex.rank);
+    expect(ex.grade).toBe('B'); // 4 of 6 EX is just under the A line
   });
 });
 

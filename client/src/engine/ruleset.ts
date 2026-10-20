@@ -35,11 +35,23 @@ export interface RulesetRow {
   count: number;
 }
 
-const config = rulesetsJson as unknown as { default: RulesetId; rulesets: Record<RulesetId, RulesetConfig> };
+const config = rulesetsJson as unknown as {
+  default: RulesetId;
+  grades: { ladder: [string, number][] };
+  rulesets: Record<RulesetId, RulesetConfig>;
+};
 
 export const rulesetIds = Object.keys(config.rulesets) as RulesetId[];
 export const defaultRuleset = config.default;
 export const rulesetConfigs = config.rulesets;
+
+/** Grades of a score out of 1,000,000, best first: the EZ2ON ladder scaled from 1,100,000 (rulesets.json). */
+export const gradeLadder = config.grades.ladder;
+
+/** The grade (S+++ … F) of a score out of 1,000,000. */
+export function gradeOf(score: number): string {
+  return gradeLadder.find(([, min]) => score >= min)?.[0] ?? gradeLadder[gradeLadder.length - 1][0];
+}
 
 /** Colour class for a DJMAX percent (used by the native "정밀 %" ruleset). */
 export function gradeClass(percent: number, isBreak: boolean): string {
@@ -93,5 +105,14 @@ export class Ruleset {
   rank(exRatio: number): string {
     const ranks = this.config.ranks ?? [];
     return ranks.find(([, min]) => exRatio >= min)?.[0] ?? (ranks.length ? ranks[ranks.length - 1][0] : '');
+  }
+
+  /**
+   * A play's grade: the EZ2ON ladder on its score (the grade-weighted score under 등급형), or the
+   * BMS rank under EX-SCORE.
+   */
+  grade(score: number, weightedScore: number, exRatio: number): string {
+    if (this.config.scoring === 'exscore') return this.rank(exRatio);
+    return gradeOf(this.config.scoring === 'weighted' ? weightedScore : score);
   }
 }
