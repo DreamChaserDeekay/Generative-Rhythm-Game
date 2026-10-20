@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -17,6 +18,8 @@ from .tempo import TempoMap
 SNAP_ORDER = (1, 2, 4, 3, 8, 6)
 METRICAL_WEIGHT = {1: 0.9, 2: 0.72, 4: 0.5, 3: 0.55, 6: 0.42, 8: 0.32}
 DOWNBEAT_WEIGHT = 1.0
+# style weights that change the score (params.extra); the note-pick model keeps their effect
+SCORE_WEIGHTS = ("subdivisionBoost", "offbeatBoost", "downbeatBoost", "harmonicBoost")
 
 
 @dataclass
@@ -236,6 +239,62 @@ def metrical_power(params: GenParams) -> float:
 
 
 def _score(cands: list[Candidate], params: GenParams) -> None:
+    """Each candidate's score: the hand-made one below, or on a system with a note-pick model
+    (config/pick.json) that model's probability blended in by skill, the options (rhythm source,
+    style) still multiplying it as they change the hand-made score."""
+    hand = _hand_scores(cands, params)
+    model = pick_model(params)
+    if model is None:
+        for c, h in zip(cands, hand):
+            c.score = h
+        return
+    neutral_params = replace(params, rhythm_source="auto", extra={k: v for k, v in params.extra.items() if k not in SCORE_WEIGHTS})
+    neutral = hand if neutral_params == params else _hand_scores(cands, neutral_params)
+    points = sorted((float(a), float(b)) for a, b in load_config("pick")["share"])
+    share = float(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]))
+    for c, h, n in zip(cands, hand, neutral):
+        c.score = h * (pick_probability(c, model) / n) ** share if n > 0 else 0.0
+
+
+def pick_model(params: GenParams) -> dict[str, Any] | None:
+    """The note-pick model for this system and skill (config/pick.json), or None."""
+    cfg = load_config("pick")
+    if params.system not in cfg["systems"]:
+        return None
+    return next((m for m in cfg["models"] if params.skill < float(m["belowSkill"])), cfg["models"][-1])
+
+
+def pick_features(c: Candidate) -> dict[str, float]:
+    """What the note-pick model reads off a candidate."""
+    total = float(np.sum(c.bands)) + 1e-9
+    src = c.sources if c.sources is not None else np.full(len(STEM_NAMES), 1.0 / len(STEM_NAMES))
+    return {
+        "logStrength": math.log(max(c.strength, 1e-4)),
+        "low": float(c.bands[0]) / total,
+        "mid": float(c.bands[1]) / total,
+        "high": float(c.bands[2]) / total,
+        "harmonic": c.harmonic,
+        "sustain": min(4.0, c.sustain_beats),
+        "intensity": c.intensity,
+        "downbeat": float(c.downbeat),
+        **{f"sub{s}": float(c.subdivision == s) for s in SNAP_ORDER},
+        **{name: float(src[i]) for i, name in enumerate(STEM_NAMES)},
+        "leader": float(src[c.leader]) if c.leader is not None else 1.0 / len(STEM_NAMES),
+        "melody": float(c.melody or 0.0),
+        "attack": float(c.attack),
+    }
+
+
+def pick_probability(c: Candidate, model: dict[str, Any]) -> float:
+    """How likely a human BMS chart of the model's density puts a note on this candidate."""
+    x = pick_features(c)
+    z = float(model["bias"]) + sum(
+        float(w) * (x[name] - float(m)) / float(sd) for name, m, sd, w in zip(model["features"], model["mean"], model["scale"], model["weights"])
+    )
+    return 1.0 / (1.0 + math.exp(-z))
+
+
+def _hand_scores(cands: list[Candidate], params: GenParams) -> list[float]:
     band_weight = np.array([1.0, 1.0, params.high_band_weight])
     boosts = params.extra.get("subdivisionBoost", {})
     offbeat = params.weight("offbeatBoost")
@@ -247,6 +306,7 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
     attack_floor, attack_power = float(attack_cfg.get("floor", 1.0)), float(attack_cfg.get("power", 1.0))
     power = metrical_power(params)
     follows_melody = params.rhythm_source in ("auto", "melody", "vocal")
+    out: list[float] = []
     for c in cands:
         melody = (c.melody or 0.0) if follows_melody else 0.0
         # a melody chart lets its notes off the beat: syncopation is the melody's own rhythm
@@ -268,6 +328,7 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
         source *= 1.0 + harmonic * c.harmonic
         # a clear melody note is heard as clearly as a typical drum hit, however soft it is in the mix
         strength = max(min(c.strength, 1.5), melody * float(melody_cfg["salience"]))
-        c.score = (strength**0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source
+        score = (strength**0.7) * metrical * w_band * (0.55 + 0.9 * c.intensity) * source
         # a sounding note's late low end or swell is no new sound: such onsets come after the real ones
-        c.score *= attack_floor + (1.0 - attack_floor) * min(1.0, max(0.0, c.attack)) ** attack_power
+        out.append(score * (attack_floor + (1.0 - attack_floor) * min(1.0, max(0.0, c.attack)) ** attack_power))
+    return out

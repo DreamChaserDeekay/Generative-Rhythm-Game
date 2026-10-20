@@ -204,6 +204,45 @@ def test_onsets_unlikely_to_start_a_sound_score_lower(analysis128: dict) -> None
     assert all(sung_doubtful[b] < sung_sure[b] for b in sung_sure if sung_sure[b] > 0)
 
 
+def test_the_note_pick_model_scores_the_default_system_only_and_keeps_the_options(analysis128: dict) -> None:
+    """Since generator 0.9.9 the default system scores candidates with a note-pick model fitted on
+    human BMS charts (config/pick.json), blended in by skill. DJMAX and EZ2ON keep the hand-made
+    score, and a rhythm source still moves the scores as it moves the hand-made ones."""
+    import math
+    from dataclasses import replace
+
+    from rhythm_server.generator.candidates import _hand_scores, build_candidates, pick_features, pick_model, pick_probability
+
+    tempo = TempoMap(analysis128["timing"])
+    tolerance = float(difficulty_config()["snapToleranceMs"])
+    easy, master = resolve_params("7K+1S", "EASY"), resolve_params("7K+1S", "MASTER")
+    assert pick_model(easy) is not pick_model(master)
+    for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
+        params = resolve_params("6K", tier, None, None, system)
+        assert pick_model(params) is None
+        cands = build_candidates(analysis128, tempo, params, tolerance)
+        assert [c.score for c in cands] == _hand_scores(cands, params)
+    # the probability is the configured logistic model
+    model = pick_model(master)
+    cands = build_candidates(analysis128, tempo, master, tolerance)
+    c = max(cands, key=lambda c: c.score)
+    x = pick_features(c)
+    z = model["bias"] + sum(w * (x[n] - m) / sd for n, m, sd, w in zip(model["features"], model["mean"], model["scale"], model["weights"]))
+    assert math.isclose(pick_probability(c, model), 1.0 / (1.0 + math.exp(-z)))
+    # MASTER takes the model's ranking; EASY half the model, half the hand-made score
+    assert math.isclose(c.score, pick_probability(c, model), rel_tol=1e-9)
+    easy_cands = build_candidates(analysis128, tempo, easy, tolerance)
+    hand = _hand_scores(easy_cands, easy)
+    model = pick_model(easy)
+    assert all(math.isclose(c.score, math.sqrt(h * pick_probability(c, model)), rel_tol=1e-9) for c, h in zip(easy_cands, hand))
+    # a drum rhythm source multiplies the scores as it multiplies the hand-made ones
+    drum = replace(easy, rhythm_source="drum")
+    drum_cands = build_candidates(analysis128, tempo, drum, tolerance)
+    ratio = [d / a for d, a in zip(_hand_scores(drum_cands, drum), hand)]
+    assert len(set(round(r, 6) for r in ratio)) > 1
+    assert all(math.isclose(d.score, c.score * r, rel_tol=1e-9) for d, c, r in zip(drum_cands, easy_cands, ratio))
+
+
 def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
     """Human BMS charts of triplet-feel songs put 3-6% of their notes on triplet positions from
     level 2 on (PATTERN_DESIGN 23). Since generator 0.9.7 the default system's EASY and NORMAL read
