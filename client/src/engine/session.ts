@@ -346,7 +346,8 @@ export class GameSession {
   /** MANUAL fever key. */
   activateFever(timeMs: number): boolean {
     if (this.failed || !this.fever.activate(timeMs)) return false;
-    this.emit({ type: 'fever', active: true, multiplier: this.fever.multiplier, timeMs });
+    // announced like an automatic start, so the next judgement does not announce it again
+    this.emitFeverStart(timeMs);
     return true;
   }
 

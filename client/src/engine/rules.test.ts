@@ -135,12 +135,15 @@ describe('FEVER', () => {
 
   it('waits for the key in MANUAL mode', () => {
     const beats = Array.from({ length: 60 }, (_, i) => 2 + i * 0.5);
-    const { s } = run(chartOf(beats), { fever: 'MANUAL' });
+    const { s, events } = run(chartOf(beats), { fever: 'MANUAL' });
     beats.slice(0, 50).forEach((b, i) => tap(s, i % 4, b * 500));
     expect(s.fever.ready).toBe(true);
     expect(s.fever.active).toBe(false);
     expect(s.activateFever(beats[50] * 500)).toBe(true);
     expect(s.fever.active).toBe(true);
+    // the start is announced once, not again by the next judgement
+    beats.slice(50, 54).forEach((b, i) => tap(s, (50 + i) % 4, b * 500));
+    expect(events.filter((e) => e.type === 'fever' && e.active)).toHaveLength(1);
   });
 
   it('raises the multiplier fever after fever and resets it on BREAK', () => {
