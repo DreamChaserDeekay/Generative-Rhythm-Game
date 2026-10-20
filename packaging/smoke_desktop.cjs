@@ -21,29 +21,35 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   const win = await app.firstWindow();
   await win.waitForURL(/127\.0\.0\.1:\d+\//, { timeout: 180000 });
   console.log('game loaded from', win.url());
-  // the game media is packed into the app: play with a textured skin
+  // the game media is packed into the app: play with a textured skin (보석 plays the hit flipbooks)
   const media = await win.evaluate(async () => {
     const manifest = await (await fetch('/media/manifest.json')).json();
-    const note = await fetch(`/media/${manifest.textures['glass/note'].file}`);
-    return { textures: Object.keys(manifest.textures).length, note: note.status };
+    const burst = await fetch(`/media/${manifest.textures['fx/hitBurstGlow'].file}`);
+    return { textures: Object.keys(manifest.textures).length, burst: burst.status };
   });
-  if (!media.textures || media.note !== 200) throw new Error(`game media missing: ${JSON.stringify(media)}`);
+  if (!media.textures || media.burst !== 200) throw new Error(`game media missing: ${JSON.stringify(media)}`);
   console.log('media:', media.textures, 'textures');
   await win.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}');
-    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...saved, skin: 'glass' }));
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...saved, skin: 'jewel' }));
   });
   await win.reload();
+  // the demo song is in the add (+) menu
+  await win.getByTestId('add-menu').click();
   await win.getByTestId('demo-button').click();
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: 180000 });
   await win.screenshot({ path: path.join(outDir, '1-song-select.png') });
   await win.getByTestId('generate-button').click();
+  // the chart's numbers are in the song info (I)
+  await win.getByTestId('hint-info').click();
   await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
   await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
   console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
   // a play needs an audio device for the song clock; take a picture whatever happens
   try {
+    // autoplay is a play option (Space)
+    await win.getByTestId('hint-options').click();
     await win.getByTestId('autoplay-toggle').check();
     await win.getByTestId('play-button').click();
     await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
