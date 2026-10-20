@@ -58,14 +58,14 @@
   "transition": { "samePenalty": 0.15, "themeBonus": 0.25, "hardPairPenalty": 0.3 },
   "readability": { "ms": 700 },
   "roles": {
-    "description": "역할·자리 계획. 리듬(드럼·베이스)과 선율(보컬·그 외)이 한 악구에 같이 있으면, 단계값 melodySkill부터 선율은 건반의 2/3, 리듬은 반대쪽 2/3에, handSplitSkill부터(키가 다섯 개 이상이면) 리듬은 한 손, 선율은 다른 손에 둔다(8K는 handSplitSkill8K부터). flipSystems의 기준은 반복 묶음마다 좌우를 바꿔 변화를 주고, 나머지는 곡 내내 같은 자리다. songHomes의 기준은 드럼 소리(킥·스네어·하이햇)마다 곡 전체에서 같은 레인을 단계와 상관없이 songHomeWeight배로 지키고, 나머지는 구간마다 같은 레인을 높은 단계일수록 느슨하게 쓴다(생성 옵션의 악기별 레인 세기가 그 세기). chordRegion(기준 → 값)은 리듬·선율이 한 손씩 맡은 악구에서 동치가 받는 자리 비용의 몫이다(기본 1: 동치도 단타처럼 제 손에 머문다). tonalHomes의 기준은 음 있는 소리도 자기 키를 갖는다: 곡의 음 있는 노트 가운데 그 음높이의 자리(낮은 음은 왼쪽, 높은 음은 오른쪽, 선율 자리 안).",
+    "description": "역할·자리 계획. 리듬(드럼·베이스)과 선율(보컬·그 외)이 한 악구에 같이 있으면, 단계값 melodySkill부터 선율은 건반의 2/3, 리듬은 반대쪽 2/3에, handSplitSkill부터(키가 다섯 개 이상이면) 리듬은 한 손, 선율은 다른 손에 둔다(8K는 handSplitSkill8K부터). flipSystems의 기준은 반복 묶음마다 좌우를 바꿔 변화를 주고, 나머지는 곡 내내 같은 자리다. songHomes의 기준은 드럼 소리(킥·스네어·하이햇)마다 곡 전체에서 같은 레인을 단계와 상관없이 songHomeWeight배(기준마다 다를 수 있다)로 지키고, 나머지는 구간마다 같은 레인을 높은 단계일수록 느슨하게 쓴다(생성 옵션의 악기별 레인 세기가 그 세기). chordRegion(기준 → 값)은 리듬·선율이 한 손씩 맡은 악구에서 동치가 받는 자리 비용의 몫이다(기본 1: 동치도 단타처럼 제 손에 머문다). tonalHomes의 기준은 음 있는 소리도 자기 키를 갖는다: 곡의 음 있는 노트 가운데 그 음높이의 자리(낮은 음은 왼쪽, 높은 음은 오른쪽, 선율 자리 안). 기본 기준(GRG)은 생성기 0.9.8부터 드럼 자리를 곡 전체에서 지키고 좌우를 바꾸지 않으며, 손 분담 악구의 동치는 자리 비용을 절반만 받는다: 사람 BMS 채보는 레벨 6–10에서 드럼 키음 노트의 71–72%를 한 레인에 두고(0.9.7은 39–42%), MASTER의 2개 동치 중 한 손 한 칸 띄움이 13%다(0.9.7은 31%, docs/PATTERN_DESIGN.md 24장).",
     "melodySkill": 0.35,
     "handSplitSkill": 0.7,
     "handSplitSkill8K": 0.55,
-    "flipSystems": ["DJMAX", "GRG"],
-    "songHomes": ["EZ2ON"],
-    "songHomeWeight": 2.0,
-    "chordRegion": {},
+    "flipSystems": ["DJMAX"],
+    "songHomes": ["EZ2ON", "GRG"],
+    "songHomeWeight": { "EZ2ON": 2.0, "GRG": 1.0 },
+    "chordRegion": { "GRG": 0.5 },
     "tonalHomes": []
   },
   "idioms": [

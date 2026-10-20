@@ -467,13 +467,15 @@ def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:
         main = max(set(hands), key=hands.count)
         return main, hands.count(main) / len(hands)
 
-    for system, tier, level, flips in (("DJMAX", "MX", 13, True), ("EZ2ON", "HD", 14, False)):
+    # DJMAX swaps sides per repetition group; EZ2ON keeps them, and so does the default system since
+    # generator 0.9.8 (human BMS charts keep 71-72% of a drum keysound's notes on one lane)
+    for system, tier, level, flips in (("DJMAX", "MX", 13, True), ("EZ2ON", "HD", 14, False), ("GRG", "MASTER", None, False)):
         sides = hand_sides(place(a, "6K", tier, level, system=system), "6K")
         drums_a, share_da = side(sides[("A", "drums")])
         melody_a, share_ma = side(sides[("A", "melody")])
         drums_b, _ = side(sides[("B", "drums")])
         assert drums_a != melody_a and share_da >= 0.85 and share_ma >= 0.85, (system, sides)
-        assert (drums_b != drums_a) == flips, system  # DJMAX swaps sides per repetition group, EZ2ON keeps them
+        assert (drums_b != drums_a) == flips, system
     # easy charts do not split the hands
     assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NM", 4, system="DJMAX"), "6K").values() if len(h) > 8)
 

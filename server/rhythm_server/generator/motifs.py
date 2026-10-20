@@ -104,10 +104,9 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
-        # song-home systems (EZ2ON) keep every drum on its key whatever the level; the others less
-        # so as charts get harder
-        home_scale=instrument_mapping
-        * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
+        # song-home systems (EZ2ON, GRG) keep every drum on its key whatever the level; the others
+        # less so as charts get harder
+        home_scale=instrument_mapping * (_song_home_weight(cfg["roles"], system) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
         adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
@@ -117,6 +116,13 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         slow_split=float(hands["slowSplitScale"]),
         chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
     )
+
+
+def _song_home_weight(roles: dict[str, Any], system: str) -> float:
+    """How firmly a song-home system keeps its drums on their keys: roles.songHomeWeight, a number or
+    {system: number} ("*" for the others)."""
+    w = roles["songHomeWeight"]
+    return float(w.get(system, w.get("*", 1.0))) if isinstance(w, dict) else float(w)
 
 
 def by_skill(value: Any, skill: float) -> float:
