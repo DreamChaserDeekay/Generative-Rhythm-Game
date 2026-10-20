@@ -61,7 +61,8 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.hud-chart')).toContainText('키음', { timeout: 60_000 });
+  // the play's keysounds come from the stems (the HUD names them, not on the screen)
+  await expect(page.locator('.hud')).toHaveAttribute('data-keysounds', /\S/, { timeout: 60_000 });
   await expect(page.locator('.play-bg video.bg-video')).toHaveCount(1);
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(1);
   await page.waitForTimeout(9000);

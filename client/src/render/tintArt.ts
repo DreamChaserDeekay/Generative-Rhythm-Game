@@ -1017,15 +1017,16 @@ export function railGlowTexture(size: number, blur: number, alpha: number): THRE
 }
 
 /** The judge line's glow, its box-shadow at `alpha` (the canvas spans the line and the reach around it, 1 px a px). */
-export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number): THREE.CanvasTexture {
+export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number, ends = true): THREE.CanvasTexture {
   const reach = shadowReach(blur);
-  const w = Math.ceil(width + 2 * reach);
+  // without its ends the glow spreads above and below the line only, as wide as the line
+  const w = Math.ceil(ends ? width + 2 * reach : width);
   const h = Math.ceil(height + 2 * reach);
   return paintTexture(w, h, (g) => {
     const image = g.createImageData(w, h);
     const down = Array.from({ length: h }, (_, y) => shadowAt(y + 0.5 - h / 2, height, blur));
     for (let x = 0; x < w; x++) {
-      const across = alpha * shadowAt(x + 0.5 - w / 2, width, blur);
+      const across = ends ? alpha * shadowAt(x + 0.5 - w / 2, width, blur) : alpha;
       for (let y = 0; y < h; y++) {
         const i = (y * w + x) * 4;
         image.data[i] = 255;

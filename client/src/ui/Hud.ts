@@ -7,8 +7,10 @@ export interface HudInfo {
   keyMode: string;
   /** Difficulty chip: "DJMAX MX" on the tier colour and the level ("Lv.12", "SC 8"; empty when none). */
   difficulty: { label: string; level: string; color: string };
-  /** Options line under the song (judgement, ruleset, placement, keysounds, AUTO). */
-  chartLine: string;
+  /** How the play runs (data-mode on the HUD; not shown). */
+  mode: 'play' | 'auto' | 'replay' | 'practice';
+  /** Stems whose keysounds play (data-keysounds on the HUD; not shown). */
+  keysounds: string[];
   /** Label of the main score counter (SCORE / EX-SCORE). */
   scoreLabel: string;
   /** Label of the second counter (RATE / rank). */
@@ -19,19 +21,8 @@ export interface HudInfo {
   feverEnabled: boolean;
   feverManualKey: string | null;
   pacemakerLabel: string | null;
-  practiceLabel: string | null;
   /** The skin's judgement and combo type. */
   type: HudType;
-  /** The song's sections as shares of the play, for the strip under the title. */
-  sections: HudSection[];
-}
-
-export interface HudSection {
-  from: number;
-  to: number;
-  /** 0..1: how loud the section is (a taller bar). */
-  energy: number;
-  color: string;
 }
 
 export interface HudStats {
@@ -39,7 +30,6 @@ export interface HudStats {
   sub: string;
   maxCombo: number;
   gauge: number;
-  progress: number;
   ready: string;
   fever: { gauge: number; active: boolean; multiplier: number; remaining: number; ready: boolean };
   pace: number | null;
@@ -106,16 +96,9 @@ function judgementHtml(label: string, split: boolean): string {
   return `<span class="hud-split">${esc(label.slice(0, space))}</span> ${esc(label.slice(space + 1))}`;
 }
 
-const EMBLEM = `<svg class="emblem" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-  <line x1="4" y1="22" x2="10" y2="2" style="stroke: var(--accent)" stroke-width="2.2" stroke-linecap="square" />
-  <line x1="20" y1="22" x2="14" y2="2" style="stroke: var(--brand-rail)" stroke-width="2.2" stroke-linecap="square" />
-  <line x1="5.2" y1="17" x2="18.8" y2="17" style="stroke: var(--text)" stroke-width="2" />
-  <rect x="9.4" y="9" width="5.2" height="2" style="fill: var(--text)" />
-</svg>`;
-
 /**
- * Imperative DOM overlay; only touches the DOM when a value changes. The song and the messages sit
- * on the screen; the judgement, combo, score panel, gauge, hi-speed and FEVER lie on the track
+ * Imperative DOM overlay; only touches the DOM when a value changes. The song (title, level, key
+ * mode) and the messages sit on the screen; the judgement, combo, score panel, gauge, speed and FEVER lie on the track
  * (one plane under the camera's projection: they tilt and zoom with it).
  */
 export class Hud {
@@ -144,16 +127,12 @@ export class Hud {
   private readonly gaugeNum: HTMLElement;
   private readonly speed: HTMLElement;
   private readonly speedNum: HTMLElement;
-  private readonly speedGreen: HTMLElement;
-  private readonly playhead: HTMLElement;
-  private readonly map: HTMLElement;
   private readonly fever: HTMLElement;
   private readonly feverFill: HTMLElement;
   private readonly feverText: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly ready: HTMLElement;
   private readonly toast: HTMLElement;
-  private readonly loop: HTMLElement;
   private readonly showErrorMs: boolean;
   private readonly gaugeClearShare: number;
   /** Off with the reduced-flash setting, like the judgement pop. */
@@ -169,7 +148,6 @@ export class Hud {
   private lastMaxCombo = -1;
   private lastPace: number | null = null;
   private lastGauge = -1;
-  private lastProgress = -1;
   private lastReady = '';
   private lastFever = '';
   private lastMatrix = '';
@@ -186,16 +164,13 @@ export class Hud {
     this.gaugeClearShare = Math.min(1, Math.max(0, info.gaugeClear / 100));
     root.innerHTML = `
       <div class="hud-info">
-        <div class="hud-head">${EMBLEM}<span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
-        <div class="hud-map"><b class="hud-playhead"></b></div>
-        <div class="hud-chart"></div>
-        <div class="hud-practice"></div>
+        <div class="hud-head"><span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
       </div>
       <div class="hud-plane">
         <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span><span class="hud-judge-combo"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"></div></div></div>
         <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
         <div class="hud-fever" data-testid="hud-fever"><span class="hud-fever-text"></span><span class="hud-fever-bar"><i class="hud-fever-fill"></i></span></div>
-        <div class="hud-speed"><span class="hud-label">HI-SPEED</span><span class="hud-num hud-speed-num"></span><span class="hud-label hud-speed-green"></span></div>
+        <div class="hud-speed"><span class="hud-label">SPEED</span><span class="hud-num hud-speed-num"></span></div>
         <div class="hud-gauge"><i class="hud-gauge-fill"></i></div>
         <i class="hud-gauge-clear"></i>
         <div class="hud-gauge-clear-label"><span class="hud-label">CLEAR</span></div>
@@ -216,20 +191,8 @@ export class Hud {
     q('.hud-diff-tier').textContent = info.difficulty.label;
     q('.hud-diff-level').textContent = info.difficulty.level;
     q('.hud-keymode').textContent = info.keyMode;
-    q('.hud-chart').textContent = info.chartLine;
-    this.loop = q('.hud-practice');
-    this.loop.textContent = info.practiceLabel ?? '';
-    this.map = q('.hud-map');
-    this.playhead = q('.hud-playhead');
-    for (const s of info.sections) {
-      const bar = document.createElement('i');
-      bar.style.left = `${s.from * 100}%`;
-      bar.style.width = `calc(${(s.to - s.from) * 100}% - 2px)`;
-      bar.style.height = `${Math.round(40 + 60 * Math.min(1, Math.max(0, s.energy)))}%`;
-      bar.style.background = s.color;
-      this.map.insertBefore(bar, this.playhead);
-    }
-    this.map.classList.toggle('plain', info.sections.length === 0);
+    root.dataset.mode = info.mode;
+    root.dataset.keysounds = info.keysounds.join(' ');
 
     this.plane = q('.hud-plane');
     const t = info.type;
@@ -279,7 +242,6 @@ export class Hud {
     q('.hud-gauge-type').textContent = info.gaugeLabel;
     this.speed = q('.hud-speed');
     this.speedNum = q('.hud-speed-num');
-    this.speedGreen = q('.hud-speed-green');
 
     this.fever = q('.hud-fever');
     this.fever.style.display = info.feverEnabled ? '' : 'none';
@@ -426,10 +388,9 @@ export class Hud {
     el.style.transform = transform;
   }
 
-  /** HI-SPEED and the green number beside the gear (on start and when they change). */
-  setSpeed(hiSpeed: number, green: number): void {
+  /** SPEED beside the gear (on start and when it changes). */
+  setSpeed(hiSpeed: number): void {
     this.speedNum.textContent = hiSpeed.toFixed(hiSpeed % 1 === 0 ? 1 : 2);
-    this.speedGreen.textContent = `녹색 ${Math.round(green)}`;
   }
 
   showJudge(e: JudgeEvent, perfNow: number): void {
@@ -474,10 +435,6 @@ export class Hud {
     this.toast.style.opacity = '1';
   }
 
-  setPracticeLabel(text: string): void {
-    this.loop.textContent = text;
-  }
-
   update(perfNow: number, stats: HudStats): void {
     if (perfNow - this.judgeAt > JUDGE_VISIBLE_MS) this.judgeBox.style.opacity = '0';
     if (perfNow - this.toastAt > TOAST_MS) this.toast.style.opacity = '0';
@@ -510,11 +467,6 @@ export class Hud {
       this.lastGauge = gauge;
       this.gaugeFill.style.clipPath = `inset(${(100 * (GAUGE_CELLS - cells)) / GAUGE_CELLS}% 0 0 0)`;
       this.gaugeNum.textContent = `${gauge}%`;
-    }
-    const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * 1000) / 1000;
-    if (progress !== this.lastProgress) {
-      this.lastProgress = progress;
-      this.playhead.style.left = `${progress * 100}%`;
     }
     if (stats.ready !== this.lastReady) {
       this.lastReady = stats.ready;

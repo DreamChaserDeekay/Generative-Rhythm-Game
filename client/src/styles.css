@@ -988,12 +988,6 @@ p.hint {
   white-space: nowrap;
 }
 
-.hud-head .emblem {
-  flex: none;
-  width: calc(20px * var(--hud-scale));
-  height: calc(20px * var(--hud-scale));
-}
-
 .hud-title {
   min-width: 0;
   overflow: hidden;
@@ -1026,57 +1020,6 @@ p.hint {
   font-size: calc(var(--fs-label) * var(--hud-scale));
   font-weight: 700;
   color: var(--text-dim);
-}
-
-/* the song's sections, the louder the taller, and where the play is */
-.hud-map {
-  position: relative;
-  width: calc(280px * var(--hud-scale));
-  height: calc(10px * var(--hud-scale));
-  margin-top: var(--sp-2);
-}
-
-.hud-map i {
-  position: absolute;
-  bottom: 0;
-  border-radius: 1px;
-}
-
-.hud-map.plain::before {
-  content: '';
-  position: absolute;
-  inset: auto 0 0;
-  height: 40%;
-  background: var(--line);
-  border-radius: 1px;
-}
-
-.hud-playhead {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--text);
-}
-
-.hud-chart {
-  margin-top: var(--sp-2);
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-.hud-practice {
-  margin-top: var(--sp-1);
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  color: var(--accent);
-}
-
-.hud-practice:empty {
-  display: none;
 }
 
 /* the plane lying on the track; its parts are placed in the sheets' track px */

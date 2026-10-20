@@ -1,7 +1,7 @@
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
-import { emptyPressNote, planStemKeysounds, StemKeysoundVoices, stemKeysoundLabel, type StemKeysoundPlan } from '../audio/stemKeysounds';
+import { emptyPressNote, planStemKeysounds, StemKeysoundVoices, type StemKeysoundPlan } from '../audio/stemKeysounds';
 import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
@@ -24,7 +24,6 @@ import {
   bindingsFor,
   clampHiSpeed,
   padBindingsFor,
-  greenNumber,
   MAX_COVER,
   MAX_LIFT,
   visibleTimeMs,
@@ -33,10 +32,9 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
-import { Hud, type HudSection } from './Hud';
+import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
-import { groupColor } from './sections';
 
 export interface PlaySetup {
   request: PlayRequest;
@@ -219,16 +217,8 @@ export class PlayController {
         title: this.chart.meta.title,
         keyMode: this.chart.meta.keyMode,
         difficulty: difficultyChip(this.chart.meta),
-        chartLine: [
-          judgementConfig.modes[settings.judgementMode].label,
-          rules.label,
-          settings.placement !== 'OFF' ? this.placement.label + (placed.laneOrder ? ` ${placed.laneOrder}` : '') : null,
-          this.keysoundLabel(),
-          request.autoPlay ? 'AUTO' : null,
-          request.replay ? 'REPLAY' : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
+        mode: request.replay ? 'replay' : request.autoPlay ? 'auto' : this.practice ? 'practice' : 'play',
+        keysounds: this.keysoundStems(),
         scoreLabel: rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE',
         subLabel: rules.scoring === 'exscore' ? 'RANK' : 'RATE',
         gaugeLabel: gauge.label,
@@ -237,14 +227,14 @@ export class PlayController {
         feverEnabled: settings.fever !== 'OFF',
         feverManualKey: settings.fever === 'MANUAL' ? FEVER_KEY : null,
         pacemakerLabel: this.paceTarget === null ? null : settings.pacemaker === 'BEST' ? 'vs BEST' : `vs ${settings.pacemaker}%`,
-        practiceLabel: this.practiceLabel(),
         type: styleOf(skin).type,
-        sections: this.hudSections(),
       },
       settings.showErrorMs,
       settings.reducedFlash,
     );
-    this.hud.setSpeed(settings.hiSpeed, greenNumber(settings.hiSpeed, activeCovers(settings)));
+    this.hud.setSpeed(settings.hiSpeed);
+    // the practice's rate and stretch (and its loop, see beginEnding) show for a moment
+    if (this.practice) this.hud.showToast(this.practiceLabel() ?? '', performance.now());
 
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(setup.canvas);
@@ -422,12 +412,11 @@ export class PlayController {
     }
   }
 
-  /** "키음 드럼·보컬" for a generated chart with keysounds. */
-  private keysoundLabel(): string | null {
+  /** The stems a generated chart's keysounds come from (none without them). */
+  private keysoundStems(): string[] {
     const stems = this.setup.stems;
-    if (!stems || stems.size === 0 || this.voices) return null;
-    const plan = planStemKeysounds(this.chart.notes, this.durationMs, [...stems.keys()]);
-    return plan ? stemKeysoundLabel(plan) : null;
+    if (!stems || stems.size === 0 || this.voices) return [];
+    return planStemKeysounds(this.chart.notes, this.durationMs, [...stems.keys()])?.stems ?? [];
   }
 
   private rebuildScroll(): void {
@@ -458,22 +447,6 @@ export class PlayController {
     const { travel } = this.scroll;
     this.hud.layoutPlane(this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
     this.hudVersion = this.renderer.hudVersion;
-  }
-
-  /** The chart's sections as shares of what the progress strip spans (the practice segment, or the song). */
-  private hudSections(): HudSection[] {
-    const sections = this.chart.sections ?? [];
-    const start = this.practice ? this.firstNoteMs : 0;
-    const end = this.practice ? this.lastNoteEndMs : this.durationMs;
-    if (end <= start) return [];
-    const tempo = new TempoMap(this.chart.timing);
-    const share = (beat: number) => Math.min(1, Math.max(0, (tempo.beatToMs(beat) - start) / (end - start)));
-    return sections
-      .map((s, i) => {
-        const next = s.endBeat ?? sections[i + 1]?.startBeat;
-        return { from: share(s.startBeat), to: next === undefined ? 1 : share(next), energy: s.energy, color: groupColor(s.group) };
-      })
-      .filter((s) => s.to > s.from);
   }
 
   private readonly frame = (perfNow: number): void => {
@@ -525,14 +498,11 @@ export class PlayController {
       }
     }
     this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
-    const start = this.practice ? this.firstNoteMs : 0;
-    const end = this.practice ? this.lastNoteEndMs : this.durationMs;
     this.hud.update(perfNow, {
       score: this.scoreValue(),
       sub: this.subValue(),
       maxCombo: session.maxCombo,
       gauge: session.gauge.value,
-      progress: end > start ? (songNow - start) / (end - start) : 0,
       ready: this.state === 'paused' ? '' : songNow < this.firstNoteMs - visibleTimeMs(this.settings.hiSpeed) * this.rate ? 'READY' : '',
       fever: {
         gauge: session.fever.gauge,
@@ -580,7 +550,7 @@ export class PlayController {
     if (this.state === 'ending' || this.state === 'done') return;
     if (this.practice?.loop && !failed) {
       this.loops++;
-      this.hud.setPracticeLabel(this.practiceLabel() ?? '');
+      this.hud.showToast(this.practiceLabel() ?? '', perfNow);
       this.restart();
       return;
     }
@@ -651,9 +621,8 @@ export class PlayController {
     this.callbacks.onSettingsChange(replay ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
     this.rebuildScroll();
     this.layout();
-    const green = Math.round(greenNumber(next.hiSpeed, activeCovers(next)));
-    this.hud.setSpeed(next.hiSpeed, green);
-    this.hud.showToast(`${toast} · HI-SPEED ${next.hiSpeed.toFixed(2)} · 녹색 ${green}`, performance.now());
+    this.hud.setSpeed(next.hiSpeed);
+    this.hud.showToast(`${toast} · SPEED ${next.hiSpeed.toFixed(2)}`, performance.now());
   }
 
   private readonly onControlKey = (e: KeyboardEvent): void => {

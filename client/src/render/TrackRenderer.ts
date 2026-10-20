@@ -998,7 +998,8 @@ export class TrackRenderer {
       }),
     );
     const j = this.style.judge;
-    line.scale.set(width + 12 * PX, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
+    // between the rails: it never runs over the gear's edges
+    line.scale.set(width, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
     line.position.set(0, 0.06, 0);
     line.renderOrder = 9.5;
     this.judgeGroup.add(line);
@@ -1009,7 +1010,7 @@ export class TrackRenderer {
     ] as [string | undefined, number][]) {
       if (!colour) continue;
       const extra = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: hex(colour), transparent: true, depthWrite: false }));
-      extra.scale.set(width + 12 * PX, 1, 5 * PX);
+      extra.scale.set(width, 1, 5 * PX);
       extra.position.set(0, 0.06, dz * PX);
       extra.renderOrder = 9.5;
       this.judgeGroup.add(extra);
@@ -1018,11 +1019,11 @@ export class TrackRenderer {
     if (!art) {
       if (!j.glow) return null;
       // the sheets' box-shadow: 0 0 16px at 80 %, under the line
-      const lineWidth = width / PX + 12;
+      const lineWidth = width / PX;
       const glow = new THREE.Mesh(
         this.flatGeometry,
         tintMaterial({
-          map: this.own(judgeGlowTexture(lineWidth, j.height, 16, 0.8)),
+          map: this.own(judgeGlowTexture(lineWidth, j.height, 16, 0.8, false)),
           color: hex(this.skin.colors.judgeGlow),
           transparent: true,
           opacity: this.reducedFlash ? 0.6 : 1,
@@ -1030,7 +1031,7 @@ export class TrackRenderer {
           fog: false,
         }),
       );
-      glow.scale.set((lineWidth + 2 * shadowReach(16)) * PX, 1, (j.height + 2 * shadowReach(16)) * PX);
+      glow.scale.set(width, 1, (j.height + 2 * shadowReach(16)) * PX);
       glow.position.set(0, 0.058, 0);
       glow.renderOrder = 9.45;
       this.judgeGroup.add(glow);
@@ -1045,7 +1046,7 @@ export class TrackRenderer {
       depthWrite: false,
     });
     const glow = new THREE.Mesh(this.flatGeometry, glowMaterial);
-    glow.scale.set(width + 1.2, 1, 1.4);
+    glow.scale.set(width, 1, 1.4);
     glow.position.set(0, 0.065, 0);
     glow.renderOrder = 9.6;
     this.judgeGroup.add(glow);

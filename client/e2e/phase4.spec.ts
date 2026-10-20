@@ -212,7 +212,7 @@ test('a played run keeps its replay, and watching it gives the same result', asy
 
   await page.getByTestId('watch-replay').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.hud-chart')).toContainText('REPLAY');
+  await expect(page.locator('.hud')).toHaveAttribute('data-mode', 'replay');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   expect(await page.getByTestId('result-score').textContent()).toBe(score);
   expect(await page.getByTestId('result-rate').textContent()).toBe(rate);
