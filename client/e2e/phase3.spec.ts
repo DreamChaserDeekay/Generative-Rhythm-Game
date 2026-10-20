@@ -168,13 +168,14 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-skin', 'club');
   await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toBeVisible();
   await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
   // the user skin is now the track's skin
-  await settingsTab(page, 'display');
+  await settingsTab(page, 'gear');
   await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
   await expect(page.getByTestId('opt-skin')).toContainText('테스트 스킨');
   await page.getByRole('button', { name: /완료/ }).click();
@@ -211,6 +212,7 @@ test('textured skins, drawn in code where their media is missing or broken', asy
 
   // JEWEL plays the crystal set's flipbooks
   await inSettings(async () => {
+    await settingsTab(page, 'gear');
     await chooseSetting(page, 'opt-skin', 'jewel');
   });
   await play('jewel');
@@ -222,7 +224,7 @@ test('textured skins, drawn in code where their media is missing or broken', asy
     await settingsTab(page, 'advanced');
     await page.locator('.skin-json').fill(JSON.stringify(textured));
     await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-    await settingsTab(page, 'display');
+    await settingsTab(page, 'gear');
     await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
     await expect(page.getByTestId('opt-skin')).toContainText('텍스처 스킨');
   });

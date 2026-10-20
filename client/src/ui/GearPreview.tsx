@@ -187,9 +187,9 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
     <div className="gear-preview" ref={box} data-testid="gear-preview">
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
       {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {Math.round(settings.sudden * 100)}%</span>}
-      <span className="preview-green">
-        <span className="label">녹색 숫자</span>
-        <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}</b>
+      <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
+        <span className="label">보이는 시간</span>
+        <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>
       </span>
     </div>
   );

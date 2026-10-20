@@ -84,6 +84,8 @@ const HOLD_BURST_FRAME = 13;
 const NOTE_PICTURE_PX = 96;
 /** Where a fitted preview puts the judge line: this share of the height from the top. */
 const FIT_JUDGE_LINE_Y = 0.83;
+/** ...and the far end of the track no higher than this. */
+const FIT_TRACK_END_Y = 0.06;
 
 export interface FeverFrame {
   active: boolean;
@@ -409,9 +411,15 @@ export class TrackRenderer {
     this.camera.quaternion.copy(this.baseQuaternion);
     this.camera.updateMatrixWorld();
     const half = this.geometry.width / 2;
-    const [a, b] = [-half, half].map((x) => new THREE.Vector3(x, 0, 0).applyMatrix4(this.camera.matrixWorldInverse));
+    const view = (x: number, z: number) => new THREE.Vector3(x, 0, z).applyMatrix4(this.camera.matrixWorldInverse);
+    const [a, b] = [view(-half, 0), view(half, 0)];
     const spread = b.x / -b.z - a.x / -a.z;
-    this.baseFov = THREE.MathUtils.radToDeg(2 * Math.atan(spread / (2 * this.fitWidth * this.camera.aspect)));
+    // the whole track in the box as well: a high camera's far end would otherwise leave it at the
+    // top, and the notes would seem to start halfway down
+    const [line, end] = [view(0, 0), view(0, -this.geometry.length)];
+    const rise = end.y / -end.z - line.y / -line.z;
+    const tanHalf = Math.max(spread / (2 * this.fitWidth * this.camera.aspect), rise / (2 * (FIT_JUDGE_LINE_Y - FIT_TRACK_END_Y)));
+    this.baseFov = THREE.MathUtils.radToDeg(2 * Math.atan(tanHalf));
     this.camera.fov = this.baseFov * this.appliedFx.fovScale;
     this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();

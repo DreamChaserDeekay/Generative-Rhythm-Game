@@ -73,25 +73,26 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await press(PAD.DOWN, 600);
   await expect(page.getByTestId('opt-hidden')).toBeFocused();
 
-  // ← on a row lowers its value; A flips a switch
-  const fx = page.getByTestId('camera-fx');
-  await fx.focus();
-  const before = Number(await fx.getAttribute('data-value'));
-  await press(PAD.LEFT);
-  await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
-  expect((await stored(page)).cameraFx).toBeLessThan(before);
+  // RB steps to the next tab (기어), where A flips a switch
+  await press(PAD.RB);
+  await expect(page.getByTestId('settings-tab-gear')).toHaveAttribute('aria-selected', 'true');
   const bars = page.getByTestId('bar-lines');
   const checked = (await bars.getAttribute('aria-checked')) === 'true';
   await bars.focus();
   await press(PAD.A);
   await expect(bars).toHaveAttribute('aria-checked', String(!checked));
   expect((await stored(page)).barLines).toBe(!checked);
-
-  // RB and LB step through the tabs
+  // and on (연출·배경), where ← on a row lowers its value; LB steps back
   await press(PAD.RB);
-  await expect(page.getByTestId('settings-tab-sound')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-fx')).toHaveAttribute('aria-selected', 'true');
+  const fx = page.getByTestId('camera-fx');
+  await fx.focus();
+  const before = Number(await fx.getAttribute('data-value'));
+  await press(PAD.LEFT);
+  await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
+  expect((await stored(page)).cameraFx).toBeLessThan(before);
   await press(PAD.LB);
-  await expect(page.getByTestId('settings-tab-display')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-gear')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('settings-tab-pad').click();
   await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
 

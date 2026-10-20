@@ -106,6 +106,7 @@ test('keyboard rollover test and colour-blind palette in the settings', async ({
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-palette', 'colorblind');
   await expect(page.locator('html')).toHaveClass(/palette-cb/);
   await settingsTab(page, 'keys');

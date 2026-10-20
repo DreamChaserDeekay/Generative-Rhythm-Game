@@ -48,13 +48,15 @@ interface Props {
   initialTab?: SettingsTab;
 }
 
-export type SettingsTab = 'play' | 'judge' | 'display' | 'sound' | 'keys' | 'pad' | 'advanced';
+export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
 
 /** The tabs in order: name and the line under it. */
 const TABS: [SettingsTab, string, string][] = [
   ['play', '플레이', '다음 플레이부터 적용됩니다'],
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
-  ['display', '화면', '움직이는 미리보기에 바로 보입니다'],
+  ['speed', '속도·커버', '움직이는 미리보기에 바로 보입니다'],
+  ['gear', '기어', '움직이는 미리보기에 바로 보입니다'],
+  ['fx', '연출·배경', '카메라 연출과 플레이 배경'],
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '키를 고른 뒤 쓸 키를 누르세요'],
   ['pad', '게임패드', '패드와 전용 컨트롤러를 레인에 지정합니다'],
@@ -82,7 +84,7 @@ function rowStops(root: HTMLElement): HTMLElement[] {
  * setting with its value between ‹ › (↑↓ choose a row, ←→ change it), and on the right a live gear
  * or the chosen row's help.
  */
-export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate, initialTab = 'display' }: Props) {
+export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate, initialTab = 'speed' }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
@@ -295,12 +297,12 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
         </>
       );
       break;
-    case 'display':
+    case 'speed':
       content = (
         <>
           <NumberOption
             {...row}
-            label="배속 (HI-SPEED)"
+            label="배속 (SPEED)"
             testId="opt-hi-speed"
             value={settings.hiSpeed}
             min={HI_SPEED_MIN}
@@ -309,7 +311,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={0.5}
             format={(v) => (Number.isInteger(Math.round(v * 100) / 10) ? v.toFixed(1) : v.toFixed(2))}
             onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
-            help="노트가 화면에 보이는 시간입니다. 녹색 숫자(ms)가 같으면 배속과 커버를 바꿔도 같은 속도로 느껴집니다. 플레이 중 ↑↓ (Shift ±0.5)."
+            help="노트가 내려오는 빠르기입니다. 미리보기의 '보이는 시간'(녹색 숫자)은 노트가 나타나서 판정선에 닿기까지의 시간으로, 이 값이 같으면 배속과 커버를 바꿔도 같은 속도로 느껴집니다. 플레이 중 ↑↓ (Shift ±0.5)."
           />
           <NumberOption
             {...row}
@@ -335,7 +337,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={0.05}
             format={pct}
             onChange={(v) => onSettingsChange(withCovers(settings, { hidden: v }))}
-            help="판정선 바로 위를 가립니다. 녹색 숫자는 바뀌지 않습니다."
+            help="판정선 바로 위를 가립니다. 보이는 시간은 바뀌지 않습니다."
           />
           <NumberOption
             {...row}
@@ -360,11 +362,11 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
           />
           <Toggle
             {...row}
-            label="녹색 숫자 유지"
+            label="보이는 시간 유지"
             testId="opt-keep-green"
             value={settings.keepVisibleTime}
             onChange={(v) => set('keepVisibleTime', v)}
-            help="커버·LIFT를 움직여도 노트가 보이는 시간을 그대로 둡니다 (배속이 함께 바뀝니다)."
+            help="커버·LIFT를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (배속이 함께 바뀝니다)."
           />
           <Choice
             {...row}
@@ -380,30 +382,20 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             onChange={(m) => set('scrollMode', m)}
             help="BPM 연동은 빠른 구간에서 노트도 빨라집니다 (변속 곡)."
           />
-          <Choice
-            {...row}
-            label="판정 표시 위치"
-            testId="opt-judge-position"
-            value={settings.judgePosition}
-            options={
-              [
-                ['low', '낮게'],
-                ['mid', '보통'],
-                ['high', '높게'],
-              ] as [JudgePosition, string][]
-            }
-            onChange={(p) => set('judgePosition', p)}
-            help="판정과 콤보가 트랙 위 어느 높이에 놓일지 정합니다."
-          />
+        </>
+      );
+      break;
+    case 'gear':
+      content = (
+        <>
           <Choice
             {...row}
             label="트랙 스킨"
             testId="opt-skin"
             value={settings.skin}
             options={skinChoices}
-            // a skin brings the camera it was drawn for (the camera can still be changed below)
-            onChange={(id) => onSettingsChange({ ...settings, skin: id, cameraPreset: BUILTIN_SKINS.find((k) => k.id === id)?.style?.camera ?? settings.cameraPreset })}
-            help="스킨을 고르면 그 스킨에 맞춘 카메라도 함께 바뀝니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            onChange={(id) => set('skin', id)}
+            help="노트·롱노트·키캡·키 빔·타격 효과·레일·판정선·트랙의 모양입니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
           <Choice
             {...row}
@@ -427,26 +419,20 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             onChange={(v) => set('laneWidthScale', v)}
             help="트랙의 폭입니다."
           />
-          <NumberOption
+          <Choice
             {...row}
-            label="카메라 연출"
-            testId="camera-fx"
-            value={settings.cameraFx}
-            min={0}
-            max={1}
-            step={0.1}
-            bigStep={0.5}
-            format={(v) => (v === 0 ? '끔' : pct(v))}
-            onChange={(v) => set('cameraFx', v)}
-            help="드롭·후렴에서 트랙이 기울고 줌합니다 (SDVX식)."
-          />
-          <Toggle
-            {...row}
-            label="번쩍임 줄이기"
-            testId="opt-reduced-flash"
-            value={settings.reducedFlash}
-            onChange={(v) => set('reducedFlash', v)}
-            help="타격 효과·FEVER·카메라 연출을 약하게 합니다."
+            label="판정 표시 위치"
+            testId="opt-judge-position"
+            value={settings.judgePosition}
+            options={
+              [
+                ['low', '낮게'],
+                ['mid', '보통'],
+                ['high', '높게'],
+              ] as [JudgePosition, string][]
+            }
+            onChange={(p) => set('judgePosition', p)}
+            help="판정과 콤보가 트랙 위 어느 높이에 놓일지 정합니다."
           />
           <Toggle
             {...row}
@@ -469,6 +455,33 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             }
             onChange={(p) => set('palette', p)}
             help="색각 보정은 판정과 레인을 색각 이상이 있어도 구분되는 색으로 칠합니다."
+          />
+        </>
+      );
+      break;
+    case 'fx':
+      content = (
+        <>
+          <NumberOption
+            {...row}
+            label="카메라 연출"
+            testId="camera-fx"
+            value={settings.cameraFx}
+            min={0}
+            max={1}
+            step={0.1}
+            bigStep={0.5}
+            format={(v) => (v === 0 ? '끔' : pct(v))}
+            onChange={(v) => set('cameraFx', v)}
+            help="드롭·후렴에서 트랙이 기울고 줌합니다 (SDVX식)."
+          />
+          <Toggle
+            {...row}
+            label="번쩍임 줄이기"
+            testId="opt-reduced-flash"
+            value={settings.reducedFlash}
+            onChange={(v) => set('reducedFlash', v)}
+            help="타격 효과·FEVER·카메라 연출을 약하게 합니다."
           />
           <NumberOption
             {...row}
@@ -625,7 +638,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
           {content}
         </section>
         <aside className="settings-side">
-          {tab === 'display' ? (
+          {tab === 'speed' || tab === 'gear' ? (
             <>
               <span className="settings-side-head">
                 <span>미리보기</span>
