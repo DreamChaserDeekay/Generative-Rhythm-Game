@@ -77,6 +77,9 @@ class MotifContext:
     # motif cost (a slow repeated note is easy on one key; the other hand answers fast ones)
     slow_ms: float = 260.0
     slow_split: float = 1.0
+    # the share of the role-region cost a chord pays (roles.chordRegion by system): human charts keep
+    # rhythm and melody on their hands for single notes but spread chords over both
+    chord_region: float = 1.0
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
@@ -111,6 +114,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
+        chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
     )
 
 
@@ -426,6 +430,9 @@ def motif_costs(
                     scale = ctx.slow_split if sp.motif == "split" and single_dt >= ctx.slow_ms else 1.0
                     cost += w["motif"] * scale * _mismatch(keys, want)
         if size >= 2:
+            if sp.region is not None and ctx.chord_region != 1.0:
+                lo, hi = sp.region
+                cost -= (1.0 - ctx.chord_region) * w["region"] * sum(max(0, lo - k, k - hi) for k in keys)
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
             else:
