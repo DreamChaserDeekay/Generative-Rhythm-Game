@@ -535,14 +535,33 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
 def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int) -> list[int | None]:
     """A home key for each drum hit: kick low, snare in the middle, hats high, inside the rhythm
     region when the phrase has one. The region changes only between repetition groups (or never on
-    song-home systems), so a drum sound keeps its key through a section."""
-    song = params.system in pattern_config()["roles"]["songHomes"]
+    song-home systems), so a drum sound keeps its key through a section. On the systems in
+    roles.tonalHomes a pitched sound has a home too, by its pitch's place among the song's pitched
+    notes (low left, high right, inside the melody region): human BMS charts keep 76-86% of a
+    pitched keysound's notes on one lane at levels 6-10."""
+    roles = pattern_config()["roles"]
+    song = params.system in roles["songHomes"]
+    rank: dict[int, float] = {}
+    if params.system in roles.get("tonalHomes", []):
+        counts: dict[int, int] = {}
+        for s in slots:
+            if _melodic(s):
+                counts[round(float(s.pitch))] = counts.get(round(float(s.pitch)), 0) + 1  # type: ignore[arg-type]
+        total, below = sum(counts.values()), 0
+        for pitch in sorted(counts):
+            rank[pitch] = (below + 0.5 * counts[pitch]) / total
+            below += counts[pitch]
     first = next((r for r in regions if r is not None), None)
     out: list[int | None] = [None] * len(slots)
     for p, region in zip(phrases, regions):
-        lo, hi = (first if song and first else region or {}).get("rhythm", (0, n_keys - 1))
+        roles_of = first if song and first else region or {}
+        lo, hi = roles_of.get("rhythm", (0, n_keys - 1))
+        mlo, mhi = roles_of.get("melody", (0, n_keys - 1))
         for i in p.slots:
             s = slots[i]
+            if rank and _melodic(s):
+                out[i] = int(round(mlo + (mhi - mlo) * rank[round(float(s.pitch))]))  # type: ignore[arg-type]
+                continue
             if s.sources is None or int(np.argmax(s.sources)) != DRUMS or _melodic(s):
                 continue
             band = int(np.argmax(s.bands))  # 0 low (kick), 1 mid (snare), 2 high (hats)
