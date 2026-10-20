@@ -4,7 +4,7 @@ import type { Chart, StemName } from '../engine/types';
 import { STEM_NAMES } from '../engine/types';
 import { bindingsFor, keyLabel, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
-import { Backdrop, SongArt, stemToken } from './songArt';
+import { Backdrop, Disc, SongArt, stemToken } from './songArt';
 
 const STEM_LABELS: Record<StemName, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
 
@@ -48,13 +48,7 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
     <div className="play-overlay play-loading" data-testid="play-loading">
       {song && <Backdrop song={song} />}
       <div className="loading-card">
-        {song ? (
-          <SongArt song={song} size={240} className="loading-art" />
-        ) : (
-          <div className="song-art placeholder loading-art" aria-hidden="true">
-            {m.title.slice(0, 1)}
-          </div>
-        )}
+        {song ? <SongArt song={song} size={240} className="loading-art" /> : <Disc size={240} className="loading-art" />}
         <div className="loading-text">
           <h1>{m.title}</h1>
           <p className="artist">{m.artist || '알 수 없는 아티스트'}</p>

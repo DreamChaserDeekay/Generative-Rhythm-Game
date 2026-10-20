@@ -25,7 +25,7 @@ import {
   type SectionScore,
 } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
-import { Backdrop, bpmLabel, SongArt, useSketch } from './songArt';
+import { Backdrop, bpmLabel, Disc, SongArt, useSketch } from './songArt';
 
 interface Props {
   request: PlayRequest;
@@ -234,13 +234,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       <div className="screen-body">
         <section className="result-hero" hidden={details}>
           <div className="hero-art">
-            {song ? (
-              <SongArt song={song} size={280} />
-            ) : (
-              <div className="song-art placeholder" aria-hidden="true">
-                {meta.title.slice(0, 1)}
-              </div>
-            )}
+            {song ? <SongArt song={song} size={280} /> : <Disc size={280} />}
             {song && sketch && <span className="hero-art-bpm">{bpmLabel(song)}</span>}
           </div>
           <div className="result-song">

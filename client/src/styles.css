@@ -770,10 +770,6 @@ p.hint {
   border-radius: var(--radius);
 }
 
-.loading-art.placeholder {
-  font-size: var(--fs-hero);
-}
-
 .loading-text {
   display: flex;
   flex-direction: column;
@@ -2781,17 +2777,6 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.song-art.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: 700;
-  color: var(--text-dim);
-  background: var(--raised);
-}
-
 .import-report {
   padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
@@ -2854,10 +2839,6 @@ button.chip.active b {
   height: 100% !important;
   border-radius: var(--radius);
   box-shadow: 0 0 0 1px var(--line-strong);
-}
-
-.hero-art .song-art.placeholder {
-  font-size: var(--fs-hero);
 }
 
 .hero-art-bpm {
