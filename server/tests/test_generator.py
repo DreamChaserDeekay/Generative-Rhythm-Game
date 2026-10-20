@@ -87,7 +87,11 @@ def test_notes_are_on_the_audio_timeline_and_lanes_are_valid(charts: dict) -> No
 
 def test_scratch_notes_only_where_allowed(charts: dict) -> None:
     for name in ("128", "174"):
-        assert all(n["lane"] != 0 for n in charts[(name, "7K+1S", "EASY")]["notes"])  # no scratch on EASY
+        # EASY has a few spaced scratches, like the BMS charts of that density (7.8% of their notes)
+        easy = charts[(name, "7K+1S", "EASY")]["notes"]
+        scratch = sorted(n["t"] for n in easy if n["lane"] == 0)
+        assert len(scratch) <= 0.1 * len(easy)
+        assert all(b - a >= 250.0 for a, b in zip(scratch, scratch[1:]))
         assert any(n["lane"] == 0 for n in charts[(name, "7K+1S", "HARD")]["notes"])
         assert all(len(charts[(name, "4K", d)]["meta"]["lanes"]) == 4 for d in ORDER)
 

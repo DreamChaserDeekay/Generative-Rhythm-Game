@@ -81,12 +81,15 @@ def test_no_forced_jacks_and_short_anchors() -> None:
 
 def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None:
     # BMS-Generator's hand rules, adapted (PATTERN_DESIGN 16-6). Before them, on this song: 4K NM 6
-    # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9.
+    # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9. Since
+    # generator 0.9.4 the default system follows the human BMS charts' jacks instead, about 10 jack
+    # streaks in 1000 notes at this density (PATTERN_DESIGN 20): 3.2 here.
     for key_mode, system, difficulty, level, measure, most in (
         ("4K", "DJMAX", "NM", 6, "handRuns", 0.18),
         ("6K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
         ("4K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
-        ("7K+1S", "GRG", "HARD", None, "jackStreaks", 1.0),
+        ("6K", "DJMAX", "HD", 9, "jackStreaks", 1.0),
+        ("7K+1S", "GRG", "HARD", None, "jackStreaks", 10.0),
     ):
         g = guide_profile(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode)
         assert g[measure] <= most, (key_mode, difficulty, measure, g[measure])

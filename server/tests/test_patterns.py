@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
 from rhythm_server.analysis.analyzer import analyze
+from rhythm_server.config import load_config
 from rhythm_server.formats import export_chart
 from rhythm_server.generator import generate_chart
 from rhythm_server.generator.lanes import lane_infos, note_sources
@@ -247,15 +250,20 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
     # scales walk one lane at a time (turning at the edge of the keys)
     moves = [b - a for seq in key_sequence(designer, bars["run"]) for a, b in zip(seq, seq[1:])]
     assert sum(abs(m) == 1 for m in moves) / len(moves) >= 0.85, moves
-    # two-note figures become a trill (or split) on two lanes; note by note they scattered
-    def two_lane(seq: list[int]) -> bool:
-        return len(set(seq)) == 2 and all(a != b for a, b in zip(seq, seq[1:]))
+    # two-note figures become a trill (or split) on two lanes; note by note they scattered. (A
+    # figure's last note may already take the lane of the same sound right after it.)
+    def trill_share(seqs: list[list[int]]) -> float:
+        hits = [seq[i] == seq[i - 2] != seq[i - 1] for seq in seqs for i in range(2, len(seq))]
+        return sum(hits) / len(hits)
 
-    assert all(two_lane(seq) for seq in key_sequence(designer, bars["oscillate"]))
-    assert not all(two_lane(seq) for seq in key_sequence(classic, bars["oscillate"]))
-    # repeated notes alternate instead of piling up as jacks
+    assert trill_share(key_sequence(designer, bars["oscillate"])) >= 0.8
+    assert trill_share(key_sequence(classic, bars["oscillate"])) < 0.5
+    # a repeated note may stay on its lane (BMS: about half the jacks repeat their keysound), but it
+    # does not pile up past the jack-streak limit; note by note nearly every repeat was a jack
+    free = int(load_config("patterns")["hands"]["systems"]["GRG"]["jackFree"])
     for seq in key_sequence(designer, bars["repeat"]):
-        assert all(a != b for a, b in zip(seq, seq[1:])), seq
+        assert max(len(list(run)) for _, run in itertools.groupby(seq)) <= free, seq
+        assert len(set(seq)) >= 2, seq
     assert any(a == b for seq in key_sequence(classic, bars["repeat"]) for a, b in zip(seq, seq[1:]))
 
 

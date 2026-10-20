@@ -98,6 +98,8 @@ def holdable(c: Candidate, tempo: TempoMap) -> bool:
     cfg = difficulty_config()["holds"]
     if c.sustain_beats * tempo.beat_ms(c.beat) < float(cfg["minSoundMs"]):
         return False
+    if c.strength < float(cfg["strengthAtLeast"]):
+        return False  # a faint sound over another one: the length is mostly the other sound's
     if (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"]):
         return True
     if c.sources is None:

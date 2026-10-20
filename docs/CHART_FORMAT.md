@@ -29,12 +29,12 @@
     "repeatConsistency": 0.97,
     "consistency": { "loopRhythm": 0.93, "loopLane": 0.97, "repeatSelect": 0.95, "repeatLane": 0.99, "repeatLaneMirror": 0.99, "barVariety": 0.6, "laneEntropy": 0.7 },
     "generator": {
-      "version": "0.9.3",
+      "version": "0.9.4",
       "analyzer": "core-1.6.1",
       "seed": 3735928559,
       "params": {
         "difficulty": "HARD", "targetLevel": null, "density": 1.0, "longNoteRatio": 0.15, "maxChord": 3,
-        "scratchRate": 0.05, "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto",
+        "scratchRate": 0.06, "sideRate": 0.06, "style": "balanced", "rhythmSource": "auto",
         "instrumentMapping": 0.6, "repeatConsistency": 1.0
       }
     }
@@ -149,6 +149,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
+- 생성기 0.9.4: 기본 기준(GRG)의 레인 배치와 프리셋을 BMS 사람 채보에 맞췄다(`docs/PATTERN_DESIGN.md` 20장). 1초 안에 다시 나오는 같은 소리는 같은 레인에 두고(연타 줄기 3까지), 연타 최소 간격을 낮췄다. EASY·NORMAL도 8분·16분을 쓰고, 스크래치는 EASY부터 나오며, 동치는 HARD를 뺀 난이도에서 더 많다(MASTER 0.32 → 0.47). 롱노트는 온셋 세기 0.4 이상의 소리에만 둔다(모든 기준). 형식은 그대로이고 채보 ID가 바뀐다.
 - 분석기 1.6.1(생성기 0.9.3 그대로): 템포 단계 후보에 1.5배를 더했다. 3+3+2 강세가 있는 빠른 곡을 2/3나 반 템포로 잡지 않는다(BMS 948곡 템포 정답 70.9 → 81.1%, `docs/PATTERN_DESIGN.md` 18-6). 형식은 그대로이고 다시 분석한 곡의 채보 ID가 바뀐다.
 - 생성기 0.9.3 · 분석기 1.6.0: 분석 결과의 온셋마다 새 소리가 시작되는 확신 `attack`(0–1)을 두고, 생성기는 후보 점수에 그 제곱을 곱한다(`docs/PATTERN_DESIGN.md` 19장). 울리는 음의 늦은 저음·부풀음, 같은 소리를 두 번 잡은 온셋에 노트가 덜 간다. 1.6.0 전 분석은 attack이 없어 채보가 그대로다. 형식은 그대로이고 채보 ID가 바뀐다.
 - 생성기 0.9.2: 구간 설계도의 동치 배율을 구간마다 같게 하고 밀도는 조용한 구간만 낮췄다(BMS 사람 채보, `docs/PATTERN_DESIGN.md` 17-8). 후렴에 동치가 몰리지 않는다. 형식은 그대로이고 채보 ID가 바뀐다.

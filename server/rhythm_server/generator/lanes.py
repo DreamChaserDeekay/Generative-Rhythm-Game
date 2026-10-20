@@ -55,6 +55,7 @@ class _Weights:
     alternate: float
     jack: float
     jack_bonus: float
+    bonus_ms: float  # how close a repeat of the same sound must follow to get jack_bonus
     source: float  # pull of drum / bass notes toward their lane regions
     drum_targets: tuple[float, float, float]  # lane position for low / mid / high drum energy
     bass_target: float
@@ -84,7 +85,9 @@ class _Weights:
             contour=W_CONTOUR * params.weight("contourWeight"),
             alternate=W_ALTERNATE * params.weight("alternateWeight") * float(hands["alternateScale"]),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
-            jack_bonus=params.weight("jackBonus", 0.0),
+            # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
+            jack_bonus=max(params.weight("jackBonus", 0.0), float(hands["sameSoundBonus"])),
+            bonus_ms=float(hands["sameSoundWithinMs"]),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
             bass_target=float(mapping["bass"]),
@@ -96,7 +99,7 @@ class _Weights:
             same_hand_free=int(hands["sameHandFree"]),
             jack_streak=float(hands["jackStreak"]) * params.weight("jackWeight"),
             jack_free=int(hands["jackFree"]),
-            jack_span=float(hands["jackStreakSpan"]) * params.min_jack_ms,
+            jack_span=max(float(hands["jackStreakSpan"]) * params.min_jack_ms, float(hands["jackStreakMinMs"])),
             balance_bar=float(hands["balance"]),
             balance_min=float(hands["balanceMinNotes"]),
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
@@ -690,8 +693,8 @@ def _costs(
 ) -> list[float]:
     """Musical and ergonomic cost of each combo for one state: pitch and instrument placement,
     contour, hand alternation, jacks, anchors past `anchor_cap` hits (0 = no cap) and lane balance
-    (what depends only on the state is done once). The jack style's bonus only keeps a repeated
-    sound on its lane.
+    (what depends only on the state is done once). The jack style's bonus and a system's
+    same-sound bonus (patterns.json "hands") only keep a repeated sound on its lane.
 
     The hand rules (patterns.json "hands", after BMS-Generator): a fast single past the same-hand
     run limit (with `hand_rule`), a key in more slots in a row than the jack-streak limit (not for
@@ -709,11 +712,14 @@ def _costs(
     # or the pattern repeats; a shape that moves (a split answers repeated notes with the other hand,
     # a stair walks on) treats it like any other jack.
     keep_pitch = same_pitch and (planned_repeat or pitch_scale >= 1.0)
+    # The same sound again soon: with a same-sound bonus (the jack style, GRG) it keeps its lane
+    # instead of paying for the jack (BMS: about half the jacks repeat their keysound). A roll keeps
+    # its own hand-over-hand plan.
+    bonus = w.jack_bonus if dt < w.bonus_ms and same_sound and slot.roll is None else 0.0
     jack = 0.0
-    if not keep_pitch:
+    if not keep_pitch and not bonus:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
         jack = jack_scale * w.jack * (0.6 + speed)
-    bonus = w.jack_bonus if dt < 400.0 and same_sound else 0.0
     balance = [W_BALANCE * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
     single_prev = prev[0] if len(prev) == 1 else None
     use_repeat = bool(repeat_set) and w.repeat > 0
@@ -780,8 +786,9 @@ def _costs(
         if repeated:
             if not keep_pitch:
                 cost += jack * repeated
-            if dt < 400.0:
-                cost -= bonus * repeated  # jack style: repeats stay on their lane
+            if bonus:
+                # up to the jack-streak limit: past it a lane pays its streak cost like any other
+                cost -= bonus * sum(1 for i in combo if i in prev and i not in streak_cost)
         if not planned_repeat:
             # (a planned repeat keeps its lane however much it is used: the laser's middle key)
             for i in combo:
