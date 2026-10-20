@@ -156,18 +156,22 @@ export function SongSelectScreen(props: Props) {
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
-  // Any change of selection (or of the generation options) invalidates the generated chart,
-  // except the switch of key mode / difficulty tabs that picking a saved chart makes.
+  // Any change of selection (or of the generation options, or a new analysis of the song)
+  // invalidates the generated chart, except the switch of key mode / difficulty tabs that picking
+  // a saved chart makes. A chart still being fetched for the old selection is dropped when it
+  // arrives (chartRequest), so it never lands on another song.
   const generationKey = JSON.stringify(settings.generation);
   const pickedChart = useRef<ServerChart | null>(null);
+  const chartRequest = useRef(0);
   useEffect(() => {
+    chartRequest.current++;
     const picked = pickedChart.current;
     pickedChart.current = null;
     // set right before the tab switch it causes, so this run is that switch
     setChart(picked && picked.meta.keyMode === keyMode ? picked : null);
     setError(null);
     setPractice(null);
-  }, [selectedSongId, keyMode, difficulty, system.id, targetLevel, generationKey]);
+  }, [selectedSongId, keyMode, difficulty, system.id, targetLevel, generationKey, selected?.status, selected?.analyzedAt]);
 
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
@@ -277,8 +281,10 @@ export function SongSelectScreen(props: Props) {
   const pickSaved = async (c: SavedChart) => {
     setError(null);
     setPractice(null);
+    const request = ++chartRequest.current;
     try {
       const picked = await api.chart(c.chartId);
+      if (request !== chartRequest.current) return;
       const { keyMode: mode, difficulty: diff, difficultySystem } = picked.meta;
       // show its key mode on the tabs (an imported 7K+1S chart while 4K is selected), and its
       // difficulty too when it is on the selected system or was made on DJMAX / EZ2ON; an
@@ -328,6 +334,7 @@ export function SongSelectScreen(props: Props) {
 
   const generate = async (newSeed = false) => {
     if (!selected || selected.status !== 'ready') return null;
+    const request = ++chartRequest.current;
     setBusy(newSeed ? '새 패턴 생성 중…' : '채보 생성 중…');
     setError(null);
     try {
@@ -339,28 +346,37 @@ export function SongSelectScreen(props: Props) {
         newSeed,
         params: generationParams(settings.generation, keyMode),
       });
+      // the selection moved on while the server was generating: this chart is not for it
+      if (request !== chartRequest.current) return null;
       setChart(c);
       return c;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (request === chartRequest.current) setError(e instanceof Error ? e.message : String(e));
       return null;
     } finally {
       setBusy(null);
     }
   };
 
+  // one play per press: a held Enter or a second press while the chart is generated starts nothing more
+  const starting = useRef(false);
   const play = async () => {
-    if (!selected) return;
-    const c = chart ?? (await generate());
-    if (!c) return;
-    const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
-    onPlay(
-      buildPlayRequest(selected, c, settings, {
-        autoPlay,
-        best: best ? { score: best.score, rate: best.rate } : null,
-        practice: practice ?? undefined,
-      }),
-    );
+    if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
+    starting.current = true;
+    try {
+      const c = chart ?? (await generate());
+      if (!c || (c.meta.songId && c.meta.songId !== selected.id)) return;
+      const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
+      onPlay(
+        buildPlayRequest(selected, c, settings, {
+          autoPlay,
+          best: best ? { score: best.score, rate: best.rate } : null,
+          practice: practice ?? undefined,
+        }),
+      );
+    } finally {
+      starting.current = false;
+    }
   };
 
   const reanalyze = async () => {
@@ -451,32 +467,45 @@ export function SongSelectScreen(props: Props) {
     onSettingsChange({ ...settings, difficultySystem: id, lastDifficulty: tier.id });
   };
 
-  // Keyboard navigation: arrows pick song/difficulty, Enter plays, Tab switches key mode.
+  // Keyboard navigation: arrows pick song/difficulty, Enter plays, Tab (Shift+Tab back) switches
+  // key mode. A text field, a slider or a drop-down keeps the keys it uses itself.
+  const songList = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (keepsKey(e.target, e.code)) return;
       const idx = filtered.findIndex((s) => s.id === selectedSongId);
       if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
         e.preventDefault();
         if (filtered.length === 0) return;
         const next = e.code === 'ArrowDown' ? Math.min(filtered.length - 1, idx + 1) : Math.max(0, idx - 1);
-        onSelectSong(filtered[next < 0 ? 0 : next].id);
+        const id = filtered[next < 0 ? 0 : next].id;
+        // a song row that has focus (it was clicked) hands it to the new row, so one row looks selected
+        if (document.activeElement instanceof HTMLElement && songList.current?.contains(document.activeElement)) {
+          songList.current.querySelector<HTMLElement>(`[data-song-id="${id}"]`)?.focus({ preventScroll: true });
+        }
+        onSelectSong(id);
       } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         e.preventDefault();
         const d = tiers.findIndex((t) => t.id === difficulty) + (e.code === 'ArrowRight' ? 1 : -1);
         if (d >= 0 && d < tiers.length) setDifficulty(tiers[d].id);
       } else if (e.code === 'Enter') {
         e.preventDefault();
-        void play();
+        if (!e.repeat) void play();
       } else if (e.code === 'Tab') {
         e.preventDefault();
-        const m = enabledKeyModes[(enabledKeyModes.indexOf(keyMode) + 1) % enabledKeyModes.length];
-        setKeyMode(m);
+        const step = e.shiftKey ? enabledKeyModes.length - 1 : 1;
+        setKeyMode(enabledKeyModes[(enabledKeyModes.indexOf(keyMode) + step) % enabledKeyModes.length]);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // The selected row stays in view however it was chosen (keys, pad, a new upload).
+  useEffect(() => {
+    if (!selectedSongId) return;
+    songList.current?.querySelector(`[data-song-id="${selectedSongId}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [selectedSongId, filtered.length]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -604,7 +633,7 @@ export function SongSelectScreen(props: Props) {
             </div>
           )}
           <input type="search" className="search" placeholder="제목·아티스트 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className={`song-list ${dragOver ? 'drag' : ''}`} data-testid="song-list">
+          <div ref={songList} className={`song-list ${dragOver ? 'drag' : ''}`} data-testid="song-list">
             {filtered.length === 0 && (
               <div className="empty-list">
                 {songs.length === 0 ? '음악 파일을 끌어다 놓거나 "곡 추가"를 누르세요. (mp3 · ogg · wav · flac · m4a)' : '검색 결과가 없습니다'}
@@ -615,6 +644,7 @@ export function SongSelectScreen(props: Props) {
                 key={s.id}
                 className={`song-item ${s.id === selectedSongId ? 'active' : ''}`}
                 data-testid="song-item"
+                data-song-id={s.id}
                 onClick={() => onSelectSong(s.id)}
               >
                 <Cover song={s} />
@@ -956,6 +986,22 @@ export function SongSelectScreen(props: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * Keys a focused control uses itself: a text field keeps them all, a slider or a drop-down its
+ * arrows. Checkboxes and buttons leave every key to the song select (Enter plays, Tab switches).
+ */
+function keepsKey(target: EventTarget | null, code: string): boolean {
+  if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return true;
+  const arrow = code.startsWith('Arrow');
+  if (target instanceof HTMLSelectElement) return arrow;
+  if (target instanceof HTMLInputElement) {
+    if (['checkbox', 'button', 'submit', 'reset'].includes(target.type)) return false;
+    if (target.type === 'range' || target.type === 'radio') return arrow;
+    return true;
+  }
+  return false;
 }
 
 /** "Lv.2–8", or "SC 4–12" for a tier on a scale of its own. */
