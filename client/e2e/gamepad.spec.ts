@@ -31,10 +31,16 @@ async function plugPad(page: Page) {
       },
       [button, down],
     );
-  // held long enough for the 16 ms menu polling to see it
-  return async (button: number) => {
+  // held long enough for the 16 ms menu polling to see it; with `busyMs` the page is kept busy that
+  // long (no polling, no frames) before the button is let go
+  return async (button: number, busyMs = 0) => {
     await set(button, true);
     await page.waitForTimeout(80);
+    if (busyMs > 0)
+      await page.evaluate((ms) => {
+        const end = performance.now() + ms;
+        while (performance.now() < end);
+      }, busyMs);
     await set(button, false);
     await page.waitForTimeout(80);
   };
@@ -63,6 +69,9 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await expect(page.getByTestId('opt-hi-speed')).toBeFocused();
   await press(PAD.DOWN);
   await expect(page.getByTestId('opt-sudden')).toBeFocused();
+  // a tap that ends while the page is too busy to read the pad (a renderer starting) is one step
+  await press(PAD.DOWN, 600);
+  await expect(page.getByTestId('opt-hidden')).toBeFocused();
 
   // ← on a row lowers its value; A flips a switch
   const fx = page.getByTestId('camera-fx');

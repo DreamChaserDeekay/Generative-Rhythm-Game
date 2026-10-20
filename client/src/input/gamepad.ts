@@ -215,6 +215,7 @@ export function suspendMenuBridges(): () => void {
  */
 export class GamepadMenuBridge {
   private readonly poller: GamepadPoller;
+  /** Held keys and how long they still have to be held before they repeat (ms). */
   private readonly held = new Map<string, number>();
   /** Pad controls left alone (the pause menu leaves Start to the play screen). */
   private readonly ignore: ReadonlySet<string>;
@@ -232,11 +233,17 @@ export class GamepadMenuBridge {
     bridges.add(this);
     watchInputDevice();
     this.poller.start();
+    let last = performance.now();
     const tick = (now: number) => {
+      // a long frame counts as maxFrameMs at most: a tap that ended while the page was too busy to
+      // read the pad (a screen starting its renderer) is not taken for a held key once it is free
+      const frame = Math.min(Math.max(0, now - last), CFG.menu.maxFrameMs);
+      last = now;
       if (suspended > 0) this.held.clear();
-      for (const [key, next] of this.held) {
-        if (now >= next) {
-          this.held.set(key, now + CFG.menu.repeatMs);
+      for (const [key, wait] of this.held) {
+        if (wait > frame) this.held.set(key, wait - frame);
+        else {
+          this.held.set(key, CFG.menu.repeatMs);
           dispatchKey(key, true, true);
         }
       }
@@ -267,7 +274,7 @@ export class GamepadMenuBridge {
     }
     dispatchKey(key, e.down, false);
     if (REPEATING.has(key)) {
-      if (e.down) this.held.set(key, performance.now() + CFG.menu.repeatDelayMs);
+      if (e.down) this.held.set(key, CFG.menu.repeatDelayMs);
       else this.held.delete(key);
     }
   }
