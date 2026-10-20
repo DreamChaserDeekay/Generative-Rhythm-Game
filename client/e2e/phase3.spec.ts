@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { addFromMenu, autoplay, chooseSetting, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -46,6 +47,7 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.getByTestId('file-input').setInputFiles(wav);
   await expect(page.getByTestId('song-title')).toHaveText('e2e-phase3', { timeout: 30_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  await songInfo(page);
   await expect(page.getByTestId('analysis-backends')).toContainText('스템 기본');
 
   await page.getByTestId('bga-input').setInputFiles(video);
@@ -56,7 +58,7 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('stem-mix')).toBeVisible();
 
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.locator('.hud-chart')).toContainText('키음', { timeout: 60_000 });
@@ -66,15 +68,24 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.screenshot({ path: 'test-results/play-phase3.png' });
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
-  // the chart tilts the track at 12 s: the combo and the judgement turn with it
-  const tilt = async (sel: string) => {
-    const t = await page.locator(sel).evaluate((el) => (el as HTMLElement).style.transform);
-    return Math.abs(Number(/rotate\((-?[\d.]+)deg\)/.exec(t)?.[1] ?? 0));
-  };
+  // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it
+  // (the screen angle of a line across the track through each, under the HUD plane's projection)
+  const tilt = (sel: string) =>
+    page.locator(sel).evaluate((el) => {
+      const box = el as HTMLElement;
+      const m = new DOMMatrix(getComputedStyle(box.offsetParent as HTMLElement).transform);
+      const at = (dx: number) => {
+        const p = m.transformPoint(new DOMPoint(box.offsetLeft + dx, box.offsetTop));
+        return [p.x / p.w, p.y / p.w];
+      };
+      const [a, b] = [at(-50), at(50)];
+      return Math.abs((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI);
+    });
   await expect.poll(() => tilt('.hud-combo'), { timeout: 15_000 }).toBeGreaterThan(2);
   expect(await tilt('.hud-judge')).toBeGreaterThan(2);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByTestId('result-lamp')).toHaveText('PERFECT PLAY');
+  await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
   expect(errors).toEqual([]);
 });
 
@@ -110,8 +121,9 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({ contentType: 'text/javascript', body: FAKE_YOUTUBE_API }));
   const calls = () => page.evaluate(() => ((window as unknown as { __yt?: { calls: string[] } }).__yt?.calls ?? []).join(' '));
   await page.goto('/');
-  await page.getByTestId('demo-button').click();
+  await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  await songInfo(page);
   // the link is typed into the page: the desktop app (Electron) cannot show prompt dialogs
   page.on('dialog', (d) => {
     errors.push(`unexpected dialog: ${d.message()}`);
@@ -132,7 +144,7 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect.poll(calls, { timeout: 60_000 }).toContain('seek play');
@@ -156,41 +168,65 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await chooseSetting(page, 'opt-skin', 'club');
+  await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toBeVisible();
-  await page.getByTestId('skin-classic').click();
-  await expect(page.getByTestId('skin-classic')).toHaveClass(/active/);
   await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-  await expect(page.getByTestId('skin-settings').getByRole('button', { name: '테스트 스킨' })).toHaveClass(/active/);
+  // the user skin is now the track's skin
+  await settingsTab(page, 'display');
+  await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
+  await expect(page.getByTestId('opt-skin')).toContainText('테스트 스킨');
   await page.getByRole('button', { name: /완료/ }).click();
-  await page.getByTestId('sync-auto').click();
+  await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(5000);
   await page.screenshot({ path: 'test-results/play-custom-skin.png' });
   expect(errors).toEqual([]);
 });
 
-test('textured skin, drawn in code where its media is missing or broken', async ({ page }) => {
+test('textured skins, drawn in code where their media is missing or broken', async ({ page }) => {
   const errors = trackErrors(page);
   const loaded: string[] = [];
   page.on('response', (r) => {
     if (r.url().includes('/media/') && r.ok()) loaded.push(new URL(r.url()).pathname);
   });
+  // routed requests skip the browser's caches, so a picture an earlier play loaded is seen again
+  await page.route('**/media/**', (r) => r.fallback());
+  const inSettings = async (step: () => Promise<void>) => {
+    await page.goto('/');
+    await page.getByTestId('open-settings').click();
+    await step();
+    await page.getByRole('button', { name: /완료/ }).click();
+  };
   const play = async (shot: string) => {
     loaded.length = 0;
     await page.goto('/');
-    await page.getByTestId('open-settings').click();
-    await page.getByTestId('skin-glass').click();
-    await expect(page.getByTestId('skin-glass')).toHaveClass(/active/);
-    await page.getByRole('button', { name: /완료/ }).click();
-    await page.getByTestId('sync-auto').click();
+    await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await page.waitForTimeout(3000);
     await page.screenshot({ path: `test-results/play-textured-${shot}.png` });
   };
 
-  await play('glass');
+  // JEWEL plays the crystal set's flipbooks
+  await inSettings(async () => {
+    await chooseSetting(page, 'opt-skin', 'jewel');
+  });
+  await play('jewel');
+  for (const file of ['manifest.json', 'fx/hit_burst_glow.png', 'fx/hit_hold.png']) expect(loaded).toContain(`/media/${file}`);
+
+  // a user skin of textures
+  const textured = { label: '텍스처 스킨', hitEffect: 'sprite', textures: { note: 'glass/note', floor: 'glass/floor', hitBurst: 'fx/hitBurstRing', hitHold: 'fx/hitHold' } };
+  await inSettings(async () => {
+    await settingsTab(page, 'advanced');
+    await page.locator('.skin-json').fill(JSON.stringify(textured));
+    await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
+    await settingsTab(page, 'display');
+    await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
+    await expect(page.getByTestId('opt-skin')).toContainText('텍스처 스킨');
+  });
+  await play('user');
   for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'fx/hit_burst_ring.png', 'fx/hit_hold.png']) {
     expect(loaded).toContain(`/media/${file}`);
   }

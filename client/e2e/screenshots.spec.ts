@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { autoplay, chooseSetting, difficultySystem, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
 // E2E run:  GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts
@@ -90,11 +91,11 @@ async function selectShowcase(page: Page, keyMode: string, difficulty: string): 
   await page.getByRole('button', { name: keyMode, exact: true }).click();
   await page.getByRole('button', { name: new RegExp(difficulty) }).first().click();
   await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
 }
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
@@ -149,6 +150,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
 
+  await songInfo(page);
   await page.getByTestId('toggle-analysis').click();
   await expect(page.getByTestId('analysis-view')).toBeVisible();
   await page.getByTestId('analysis-view').evaluate((el) => el.scrollIntoView({ block: 'start' }));
@@ -167,14 +169,14 @@ test('song select with a generated chart, and the analysis view', async ({ page 
 
   // the same song on EZ2ON's scale
   await page.getByTestId('toggle-analysis').click();
-  await page.getByTestId('system-EZ2ON').click();
+  await difficultySystem(page, 'EZ2ON');
   await page.getByRole('button', { name: /SUPER HARD/ }).click();
   await page.getByTestId('generate-button').click();
-  await expect(page.locator('.level-badge span')).toHaveText('EZ2ON SHD', { timeout: 30_000 });
-  await page.locator('.song-detail').evaluate((el) => el.scrollTo(0, 0));
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
   await page.mouse.move(0, 0);
   await shot(page, '01b-song-select-ez2on');
-  await page.getByTestId('system-DJMAX').click();
+  await difficultySystem(page, 'DJMAX');
 });
 
 test('play: 7K+1S', async ({ page }) => {
@@ -188,8 +190,9 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
   mkdirSync('test-results', { recursive: true });
   const video = 'test-results/showcase-bga.webm';
   if (!existsSync(video)) execFileSync(python, ['-c', MAKE_VIDEO, video]);
-  await settings(page, { lastKeyMode: '5K', skin: 'sunset', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
+  await settings(page, { lastKeyMode: '5K', skin: 'pop', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
   await selectShowcase(page, '5K', 'HARD');
+  await songInfo(page);
   await page.getByTestId('bga-input').setInputFiles(video);
   await expect(page.getByTestId('bga-status')).toHaveText('등록됨', { timeout: 60_000 });
   // the chart tilts the track at 13.6 s (until 26.4 s)
@@ -201,25 +204,25 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
 });
 
 test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'classic', sudden: 0.18, hiSpeed: 3.2 });
+  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2 });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
   await autoplayFor(page, 16_000);
   await shot(page, '05-play-6kfx');
 });
 
-test('play: the textured skins', async ({ page }) => {
-  // also runs on its own (-g "textured skins"): makes the showcase song when it is missing
+test('play: four of the skins', async ({ page }) => {
+  // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // FEVER off: its tint would cover the set's rail colours
-  for (const [skin, keyMode, name] of [
-    ['glass', '7K+1S', '15-skin-glass'],
-    ['crystal', '6K+FX', '16-skin-crystal'],
-    ['metal', '8K', '17-skin-metal'],
-    ['gel', '4K', '18-skin-gel'],
+  // each with the camera it was drawn for; FEVER off: its tint would cover the skins' rail colours
+  for (const [skin, keyMode, name, cameraPreset] of [
+    ['glass', '7K+1S', '15-skin-crystal', 'SDVX'],
+    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX'],
+    ['arcade', '8K', '17-skin-arcade', 'FLAT'],
+    ['pop', '4K', '18-skin-pop', 'SDVX'],
   ]) {
-    await settings(page, { lastKeyMode: keyMode, skin, hiSpeed: 3, fever: 'OFF' });
+    await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
@@ -236,17 +239,18 @@ test('result of a good play', async ({ page }) => {
   writeFileSync(file, JSON.stringify(humanReplay(chart.notes, chart.meta.chartId, song.id)));
   await page.getByTestId('replay-input').setInputFiles(file);
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId('result-screen')).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
-  await page.locator('.result-screen').evaluate((el) => el.scrollTo(0, el.scrollHeight));
-  await page.waitForTimeout(500);
+  await page.getByTestId('result-details').click();
+  await page.waitForTimeout(800);
   await shot(page, '07-result-graphs');
 });
 
 test('chart editor', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
   await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await songInfo(page);
   await page.getByTestId('edit-chart').click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();
   for (let i = 0; i < 9; i++) await page.keyboard.press('Shift+ArrowUp');
@@ -264,6 +268,7 @@ test('importing a keysounded BMS folder', async ({ page }) => {
   await expect(page.getByTestId('import-report')).toContainText('채보 1개', { timeout: 60_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
   await page.getByTestId('pick-saved').click();
+  await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음');
   // picking the imported chart shows its key mode and difficulty on the tabs
   await expect(page.getByRole('button', { name: '7K+1S', exact: true })).toHaveClass(/active/);
@@ -275,17 +280,19 @@ test('settings and calibration', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await page.waitForTimeout(1000);
   await shot(page, '10-settings');
-  await page.getByTestId('skin-settings').scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
+  // another skin in the preview
+  await chooseSetting(page, 'opt-skin', 'jewel');
+  await page.waitForTimeout(1500);
   await shot(page, '11-settings-skins');
 
   await page.goto('/');
-  await page.getByTestId('open-calibration').click();
+  await tool(page, 'open-calibration');
   await expect(page.getByTestId('calibration-screen')).toBeVisible();
   // a player tapping a little after each click (as people do), from the beat lamp
   await page.evaluate(() => {
-    const lamp = document.querySelector('.beat-lamp') as HTMLElement;
+    const lamp = document.querySelector('.beat-ring') as HTMLElement;
     new MutationObserver(() => {
       if (!lamp.classList.contains('on')) return;
       setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 4 + Math.random() * 18);

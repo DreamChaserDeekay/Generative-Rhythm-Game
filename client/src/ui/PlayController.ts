@@ -18,7 +18,7 @@ import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
-import { TrackRenderer } from '../render/TrackRenderer';
+import { HUD_UNIT, styleOf, TrackRenderer } from '../render/TrackRenderer';
 import {
   activeCovers,
   bindingsFor,
@@ -33,9 +33,10 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
-import { Hud } from './Hud';
+import { Hud, type HudSection } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
+import { groupColor } from './sections';
 
 export interface PlaySetup {
   request: PlayRequest;
@@ -142,6 +143,8 @@ export class PlayController {
   private finishAtPerf = 0;
   private loops = 0;
   private raf = 0;
+  /** The renderer's hudVersion the HUD was last laid for. */
+  private hudVersion = -1;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(setup: PlaySetup, callbacks: PlayCallbacks) {
@@ -162,6 +165,7 @@ export class PlayController {
 
     const mode = keyModes[this.chart.meta.keyMode];
     const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
+    const skin = skinById(settings.skin, settings.customSkin);
     this.renderer = new TrackRenderer(setup.canvas, {
       mode,
       camera,
@@ -170,7 +174,7 @@ export class PlayController {
       palette: settings.palette,
       reducedFlash: settings.reducedFlash,
       covers: activeCovers(settings),
-      skin: skinById(settings.skin, settings.customSkin),
+      skin,
       art: setup.art,
       barLines: settings.barLines,
     });
@@ -212,7 +216,6 @@ export class PlayController {
       setup.hudRoot,
       {
         title: this.chart.meta.title,
-        artist: this.chart.meta.artist,
         keyMode: this.chart.meta.keyMode,
         difficulty: difficultyChip(this.chart.meta),
         chartLine: [
@@ -234,10 +237,13 @@ export class PlayController {
         feverManualKey: settings.fever === 'MANUAL' ? FEVER_KEY : null,
         pacemakerLabel: this.paceTarget === null ? null : settings.pacemaker === 'BEST' ? 'vs BEST' : `vs ${settings.pacemaker}%`,
         practiceLabel: this.practiceLabel(),
+        type: styleOf(skin).type,
+        sections: this.hudSections(),
       },
       settings.showErrorMs,
       settings.reducedFlash,
     );
+    this.hud.setSpeed(settings.hiSpeed, greenNumber(settings.hiSpeed, activeCovers(settings)));
 
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(setup.canvas);
@@ -445,17 +451,28 @@ export class PlayController {
     this.placeHud();
   }
 
-  /** Combo and judgement where the track is now: camera effects tilt and zoom them with it. */
+  /** Lays the HUD on the track as the camera shows it now (its parts sized for the screen where they lie). */
   private placeHud(): void {
     const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
-    const { judgeZ, travel } = this.scroll;
-    this.hud.place(
-      {
-        combo: this.renderer.project(0, 0, judgeZ - travel * combo),
-        judge: this.renderer.project(0, 0, judgeZ - travel * judge),
-      },
-      this.renderer.roll,
-    );
+    const { travel } = this.scroll;
+    this.hud.layoutPlane(this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
+    this.hudVersion = this.renderer.hudVersion;
+  }
+
+  /** The chart's sections as shares of what the progress strip spans (the practice segment, or the song). */
+  private hudSections(): HudSection[] {
+    const sections = this.chart.sections ?? [];
+    const start = this.practice ? this.firstNoteMs : 0;
+    const end = this.practice ? this.lastNoteEndMs : this.durationMs;
+    if (end <= start) return [];
+    const tempo = new TempoMap(this.chart.timing);
+    const share = (beat: number) => Math.min(1, Math.max(0, (tempo.beatToMs(beat) - start) / (end - start)));
+    return sections
+      .map((s, i) => {
+        const next = s.endBeat ?? sections[i + 1]?.startBeat;
+        return { from: share(s.startBeat), to: next === undefined ? 1 : share(next), energy: s.energy, color: groupColor(s.group) };
+      })
+      .filter((s) => s.to > s.from);
   }
 
   private readonly frame = (perfNow: number): void => {
@@ -500,7 +517,11 @@ export class PlayController {
         },
         perfNow,
       );
-      if (this.cameraFx.enabled) this.placeHud();
+      // the HUD lying on the track follows the camera's tilt and zoom
+      if (this.renderer.hudVersion !== this.hudVersion) {
+        this.hudVersion = this.renderer.hudVersion;
+        this.hud.movePlane(this.renderer.hudPlane());
+      }
     }
     this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
     const start = this.practice ? this.firstNoteMs : 0;
@@ -508,6 +529,7 @@ export class PlayController {
     this.hud.update(perfNow, {
       score: this.scoreValue(),
       sub: this.subValue(),
+      maxCombo: session.maxCombo,
       gauge: session.gauge.value,
       progress: end > start ? (songNow - start) / (end - start) : 0,
       ready: this.state === 'paused' ? '' : songNow < this.firstNoteMs - visibleTimeMs(this.settings.hiSpeed) * this.rate ? 'READY' : '',
@@ -566,7 +588,9 @@ export class PlayController {
     this.input.detach();
     if (failed) this.engine.fadeOut(FAIL_FADE_MS);
     const lamp = this.session.result().lamp;
-    if (this.practice) this.hud.showBanner('PRACTICE END', 'clear');
+    // autoplay and practice earn no lamp: a plain banner
+    if (this.practice) this.hud.showBanner('PRACTICE END', 'aided');
+    else if (this.setup.request.autoPlay) this.hud.showBanner('AUTO PLAY', 'aided');
     else this.hud.showBanner(lamp, LAMP_CLASS[lamp]);
   }
 
@@ -602,7 +626,7 @@ export class PlayController {
     if (e.type === 'judge') {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
-      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
+      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now, e.noteIndex);
       if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
         // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
         // judged BREAK sounds like an empty press (the start of its slice over the song)
@@ -627,6 +651,7 @@ export class PlayController {
     this.rebuildScroll();
     this.layout();
     const green = Math.round(greenNumber(next.hiSpeed, activeCovers(next)));
+    this.hud.setSpeed(next.hiSpeed, green);
     this.hud.showToast(`${toast} · HI-SPEED ${next.hiSpeed.toFixed(2)} · 녹색 ${green}`, performance.now());
   }
 
@@ -654,6 +679,8 @@ export class PlayController {
         return;
       case 'ArrowUp':
       case 'ArrowDown': {
+        // a gamepad's d-pad (keys sent by the menu bridge) moves the pause menu's focus instead
+        if (!e.isTrusted) return;
         e.preventDefault();
         const step = (e.shiftKey ? HI_SPEED_STEP_BIG : HI_SPEED_STEP) * (e.code === 'ArrowUp' ? 1 : -1);
         this.updateSettings({ ...s, hiSpeed: clampHiSpeed(s.hiSpeed + step) }, 'SPEED');

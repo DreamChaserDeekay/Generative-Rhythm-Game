@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { autoplay } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -63,6 +64,9 @@ test('the song preview plays on behind the settings, quieter and muffled, and co
   await expect(page.getByTestId('song-title')).toHaveText('e2e-preview', { timeout: 30_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await expect.poll(async () => (await state()).playing, { timeout: 15_000 }).toBe(true);
+  // not paused is not yet running: wait until its time moves (it may still be fetching the audio)
+  const started = (await state()).time;
+  await expect.poll(async () => (await state()).time, { timeout: 15_000 }).toBeGreaterThan(started);
   const select = await state();
   expect(select.cutoff).toBeNull(); // on the song select it plays as it is
 
@@ -86,7 +90,7 @@ test('the song preview plays on behind the settings, quieter and muffled, and co
   expect(back.time).toBeGreaterThan(settings.time);
 
   // a play stops it
-  await page.getByTestId('autoplay-toggle').check();
+  await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 60_000 });
   await expect.poll(async () => (await state()).playing, { timeout: 5_000 }).toBe(false);

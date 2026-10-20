@@ -146,3 +146,14 @@ def test_ids_are_validated_before_touching_files(client: TestClient) -> None:
     assert client.get("/api/charts/not-a-chart").status_code == 404
     assert client.get("/api/songs/..%2Fcharts/analysis").status_code == 404
     assert client.get("/api/songs/ABCDEF0123456789").status_code == 404
+
+
+def test_sketch_is_the_songs_sections_and_peaks(client: TestClient) -> None:
+    song = client.post("/api/songs", files={"file": ("groove.wav", wav_bytes(), "audio/wav")}).json()["song"]
+    sketch = client.get(f"/api/songs/{song['id']}/sketch").json()
+    analysis = client.get(f"/api/songs/{song['id']}/analysis").json()
+    assert len(sketch["peaks"]) == 64 and max(sketch["peaks"]) == 1.0 and min(sketch["peaks"]) >= 0.0
+    assert [s["label"] for s in sketch["sections"]] == [s["label"] for s in analysis["sections"]]
+    assert sketch["beatsPerBar"] == 4 and sketch["previewMs"] == analysis["previewMs"]
+    assert set(sketch["stems"]) == {"drums", "bass", "vocals", "other"}
+    assert client.get("/api/songs/0000000000000000/sketch").status_code == 404

@@ -8,6 +8,8 @@ export interface ScoreRecord {
   chartId: string;
   songId: string;
   keyMode: KeyModeId;
+  /** Difficulty system of the chart's tier (DJMAX and EZ2ON both have an NM and an HD). */
+  system?: DifficultySystemId;
   difficulty: string;
   level: number;
   seed: number;
@@ -146,6 +148,18 @@ export interface AnalysisResult {
   previewMs: number;
 }
 
+/** The song's face for the menus (GET /api/songs/{id}/sketch): sections and waveform peaks. */
+export interface SongSketch {
+  durationMs: number;
+  previewMs: number | null;
+  beatsPerBar: number;
+  sections: { t: number; endT: number; label: string; group: string; energy: number; leader?: StemName | null }[];
+  /** 64 peaks, 0..1. */
+  peaks: number[];
+  /** Share of the energy per stem. */
+  stems: Record<StemName, number> | null;
+}
+
 export interface ChartRequest {
   keyMode: KeyModeId;
   difficulty: string;
@@ -237,6 +251,7 @@ export const api = {
   deleteSong: (id: string) => request<void>(`/api/songs/${id}`, { method: 'DELETE' }),
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),
   sections: (id: string) => request<SongSections>(`/api/songs/${id}/sections`),
+  sketch: (id: string) => request<SongSketch>(`/api/songs/${id}/sketch`),
   generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean }>(`/api/songs/${id}/charts`, json(req)),
   saveScore: (record: {
     chartId: string;

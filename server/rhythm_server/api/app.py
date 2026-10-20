@@ -31,6 +31,7 @@ from ..formats.common import ascii_text
 from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, safe_relpath
 from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
 from ..generator.sections import edited_analysis
+from .sketch import sketch_of
 from ..generator.core import keysound_meta
 from ..generator.params import resolve_params
 from ..synth import make_song
@@ -381,6 +382,22 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         if analysis is None:
             raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
         return analysis
+
+    sketches: dict[tuple[str, Any, str], dict[str, Any]] = {}
+
+    @app.get("/api/songs/{song_id}/sketch")
+    def song_sketch(song_id: str) -> dict[str, Any]:
+        """Sections and waveform peaks of the song (the user's sections when edited), for the menus."""
+        song = song_or_404(song_id)
+        key = (song_id, song.get("analyzedAt"), repr(song.get("sections")))
+        if key not in sketches:
+            analysis = library.load_analysis(song_id)
+            if analysis is None:
+                raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
+            if song.get("sections"):
+                analysis = edited_analysis(analysis, song["sections"])
+            sketches[key] = sketch_of(analysis)
+        return sketches[key]
 
     @app.get("/api/songs/{song_id}/sections")
     def song_sections(song_id: str) -> dict[str, Any]:

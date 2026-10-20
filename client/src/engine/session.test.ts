@@ -144,6 +144,8 @@ describe('GameSession long notes', () => {
     tapAt(s, 0, 3000);
     expect(s.maxPossibleCombo).toBe(10);
     expect(s.result().lamp).toBe('PERFECT PLAY');
+    // the tail, judged without a timing error, is kept at the long note's end
+    expect(s.result().judgements.map((j) => j.noteMs)).toEqual([1000, 2000, 3000]);
   });
 
   it('allows releasing within the grace period before the end', () => {
@@ -194,6 +196,13 @@ describe('GameSession results', () => {
     expect(r.counts.find((c) => c.percent === 90)?.count).toBe(1);
     expect(r.lamp).toBe('CLEAR'); // tiny chart: a few good hits refill the gauge past 80%
     expect(s.finished).toBe(true);
+    // every judgement at its note's time, BREAK as 0: their mean is the rate
+    expect(r.judgements).toEqual([
+      { noteMs: 1000, percent: 100 },
+      { noteMs: 2000, percent: 90 },
+      { noteMs: 3000, percent: 80 },
+      { noteMs: 4000, percent: 0 },
+    ]);
   });
 
   it('awards MAX COMBO when nothing breaks but not every grade is MAX 100%', () => {

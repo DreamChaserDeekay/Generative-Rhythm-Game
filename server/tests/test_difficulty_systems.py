@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -145,3 +147,32 @@ def test_api_systems_and_edited_charts(tmp_path) -> None:
         ).json()["chart"]
         assert edited["meta"]["difficultySystem"] == "DJMAX" and edited["meta"]["difficulty"] == "NM"
         assert "DJMAX" in c.get("/api/health").json()["difficultySystems"]
+
+
+def test_records_name_their_difficulty_system(tmp_path) -> None:
+    """DJMAX and EZ2ON both have an NM: a record says which one it was played on, also for charts
+    saved before the library stored it."""
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 16, "seed": 3}).json()["song"]["id"]
+        ids = {}
+        for system in ("DJMAX", "EZ2ON", "GRG"):
+            difficulty = "NORMAL" if system == "GRG" else "NM"
+            chart = c.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": difficulty, "system": system}).json()["chart"]
+            ids[system] = chart["meta"]["chartId"]
+            score = {"chartId": ids[system], "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}
+            assert c.post("/api/scores", json=score).status_code == 201
+        records = {r["chartId"]: r for r in c.get(f"/api/songs/{sid}/scores").json()["records"]}
+        assert {system: records[i]["system"] for system, i in ids.items()} == {"DJMAX": "DJMAX", "EZ2ON": "EZ2ON", "GRG": "GRG"}
+
+    # a library from before: the column is empty, the chart file still knows
+    db = sqlite3.connect(tmp_path / "data" / "library.sqlite3")
+    db.execute("UPDATE charts SET system = NULL")
+    db.commit()
+    db.close()
+    with TestClient(create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)) as c:
+        songs = {s["id"]: s for s in c.get("/api/songs").json()["songs"]}
+        assert {r["chartId"]: r["system"] for r in songs[sid]["records"]} == {i: system for system, i in ids.items()}
+    db = sqlite3.connect(tmp_path / "data" / "library.sqlite3")
+    assert db.execute("SELECT COUNT(*) FROM charts WHERE system IS NULL").fetchone()[0] == 0
+    db.close()

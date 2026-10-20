@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeCovers, bindingsFor, DEFAULT_SETTINGS, greenNumber, sanitizeSettings, withCovers } from './settings';
+import { activeCovers, bindingsFor, DEFAULT_SETTINGS, greenNumber, sanitizeSettings, withCovers, withDifficultySystem } from './settings';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -19,11 +19,24 @@ describe('settings', () => {
   });
 
   it('opens settings saved before the textured skins, and keeps a picked one', () => {
+    expect(DEFAULT_SETTINGS.skin).toBe('flat');
     expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
-    expect(sanitizeSettings({ skin: 'glass' }).skin).toBe('glass');
+    expect(sanitizeSettings({ skin: 'jewel' }).skin).toBe('jewel');
     expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
     const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
     expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  });
+
+  it('opens a skin of an earlier version as the skin that took its place', () => {
+    const renamed = Object.fromEntries(['classic', 'metal', 'glass', 'crystal', 'gel', 'sunset', 'neon', 'mono'].map((id) => [id, sanitizeSettings({ skin: id }).skin]));
+    expect(renamed).toEqual({ classic: 'club', metal: 'arcade', glass: 'glass', crystal: 'jewel', gel: 'pop', sunset: 'pop', neon: 'neon', mono: 'mono' });
+  });
+
+  it('keeps the song select favourites, folder and order, dropping unknown ones', () => {
+    expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
+    const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: 'bpm' });
+    expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: 'bpm' });
+    expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: 'y' as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
   });
 
   it('keeps the pattern engine choice and the difficulty basis, dropping unknown ones', () => {
@@ -36,6 +49,13 @@ describe('settings', () => {
     const ez = sanitizeSettings({ difficultySystem: 'EZ2ON', lastDifficulty: 'NORMAL' });
     expect([ez.difficultySystem, ez.lastDifficulty]).toEqual(['EZ2ON', 'NM']);
     expect(sanitizeSettings({ difficultySystem: 'PUMP' as never }).difficultySystem).toBe(DEFAULT_SETTINGS.difficultySystem);
+  });
+
+  it('moves to another difficulty system on the same step (NORMAL → NM, MX → SHD)', () => {
+    const s = { ...DEFAULT_SETTINGS, difficultySystem: 'GRG' as const, lastDifficulty: 'NORMAL' };
+    expect(withDifficultySystem(s, 'DJMAX').lastDifficulty).toBe('NM');
+    const mx = { ...DEFAULT_SETTINGS, difficultySystem: 'DJMAX' as const, lastDifficulty: 'MX' };
+    expect(withDifficultySystem(mx, 'EZ2ON')).toMatchObject({ difficultySystem: 'EZ2ON', lastDifficulty: 'SHD' });
   });
 
   it('computes the green number from SUDDEN+ and LIFT (not HIDDEN+)', () => {

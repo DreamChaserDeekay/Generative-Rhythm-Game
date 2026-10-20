@@ -18,7 +18,7 @@ import soundfile as sf
 
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
-from ..config import SAMPLE_RATE, load_config
+from ..config import DEFAULT_SYSTEM, SAMPLE_RATE, load_config
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS songs (
@@ -86,10 +86,13 @@ MIGRATIONS = {
     "bga_youtube": "TEXT",
     "sections": "TEXT",  # the user's section edits (JSON list), null = the analysed sections
 }
-# charts: where a chart came from (generated / edited / imported) and its display name
+# charts: where a chart came from (generated / edited / imported), its display name, and the
+# difficulty system its tier belongs to (DJMAX and EZ2ON both have an NM and an HD; null = not
+# read yet from the chart file, done when its records are first listed)
 CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
+    "system": "TEXT",
 }
 SCORE_MIGRATIONS = {"has_replay": "INTEGER NOT NULL DEFAULT 0"}
 SAVED_CHART_KINDS = ("edited", "imported")
@@ -396,11 +399,12 @@ class Library:
         self.chart_path(meta["chartId"]).write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at, kind, name) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at, kind, name, system) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
                     len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
+                    meta.get("difficultySystem") or DEFAULT_SYSTEM,
                 ),
             )
             self._db.commit()
@@ -469,9 +473,22 @@ class Library:
     def best_scores(self, song_id: str) -> list[dict[str, Any]]:
         return self._best_by_song(song_id).get(song_id, [])
 
+    def _chart_system(self, chart_id: str) -> str:
+        """The difficulty system of a chart saved before the column existed, read from its file
+        once and stored."""
+        try:
+            chart = self.load_chart(chart_id)
+        except (OSError, ValueError):
+            chart = None
+        system = ((chart or {}).get("meta") or {}).get("difficultySystem") or DEFAULT_SYSTEM
+        with self._lock:
+            self._db.execute("UPDATE charts SET system = ? WHERE id = ?", (system, chart_id))
+            self._db.commit()
+        return system
+
     def _best_by_song(self, song_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
         query = (
-            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name FROM scores s JOIN charts c ON c.id = s.chart_id"
+            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name, c.system FROM scores s JOIN charts c ON c.id = s.chart_id"
             + (" WHERE s.song_id = ?" if song_id else "")
         )
         with self._lock:
@@ -484,6 +501,7 @@ class Library:
                     "chartId": r["chart_id"],
                     "songId": r["song_id"],
                     "keyMode": r["key_mode"],
+                    "system": r["system"] or self._chart_system(r["chart_id"]),
                     "difficulty": r["difficulty"],
                     "level": r["level"],
                     "seed": r["seed"],

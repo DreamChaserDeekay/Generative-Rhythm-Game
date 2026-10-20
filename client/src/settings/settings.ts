@@ -17,12 +17,19 @@ import { defaultRuleset, rulesetIds, type RulesetId } from '../engine/ruleset';
 import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, sanitizeSkin } from '../render/skins';
+import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
 import { isPadCode } from '../input/gamepad';
 
 export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
 export type JudgePosition = 'low' | 'mid' | 'high';
+/** Song select folders (Shift steps through them): every song, the favourites, the ones not played
+ * on this key mode and difficulty system, the ones played but not cleared on the selected difficulty. */
+export type SongFolder = 'all' | 'favorites' | 'unplayed' | 'uncleared';
+export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplayed', 'uncleared'];
+/** Song select order (F4 steps through them). */
+export type SongSort = 'added' | 'title' | 'artist' | 'bpm';
+export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm'];
 /** OFF, the personal best of the chart, or a target rate in percent. */
 export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100';
 
@@ -122,6 +129,10 @@ export interface Settings {
   bgBrightness: number;
   visualizer: boolean;
   bga: boolean;
+  /** Song ids marked as favourites on the song select. */
+  favorites: string[];
+  songFolder: SongFolder;
+  songSort: SongSort;
 }
 
 export const BASE_VISIBLE_MS = 5000;
@@ -168,11 +179,14 @@ export const DEFAULT_SETTINGS: Settings = {
   generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
-  skin: 'neon',
+  skin: 'flat',
   customSkin: null,
   bgBrightness: 0.35,
   visualizer: true,
   bga: true,
+  favorites: [],
+  songFolder: 'all',
+  songSort: 'added',
 };
 
 const PACEMAKERS: Pacemaker[] = ['OFF', 'BEST', '90', '95', '98', '99', '100'];
@@ -215,12 +229,16 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
-  s.skin = pick(s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
+  // skins of earlier versions open as the skin that took their place
+  s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);
   if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);
   s.visualizer = s.visualizer !== false;
   s.bga = s.bga !== false;
+  s.favorites = Array.isArray(raw.favorites) ? [...new Set(raw.favorites.filter((id) => typeof id === 'string'))].slice(0, 5000) : [];
+  s.songFolder = pick(s.songFolder, SONG_FOLDERS, d.songFolder);
+  s.songSort = pick(s.songSort, SONG_SORTS, d.songSort);
   const g = { ...DEFAULT_GENERATION, ...raw.generation };
   const optional = (v: unknown, min: number, max: number) => (v === null || v === undefined ? null : num(v, min, max, min));
   s.generation = {
@@ -255,6 +273,19 @@ export function saveSettings(settings: Settings): void {
   } catch {
     // storage unavailable (private mode); settings stay in memory
   }
+}
+
+/**
+ * The settings on another difficulty system, on the same step of it (NORMAL → NM …), else on the
+ * step at the same place, else on its first.
+ */
+export function withDifficultySystem(s: Settings, id: DifficultySystemId): Settings {
+  const from = difficultySystems[s.difficultySystem];
+  const difficulty = tierOf(from, s.lastDifficulty).id;
+  const next = difficultySystems[id];
+  const index = Math.min(from.tiers.findIndex((t) => t.id === difficulty), next.tiers.length - 1);
+  const tier = next.tiers.find((t) => t.id === next.aliases[difficulty]) ?? next.tiers[Math.max(0, index)] ?? next.tiers[0];
+  return { ...s, difficultySystem: id, lastDifficulty: tier.id };
 }
 
 export function bindingsFor(settings: Settings, mode: KeyModeId): string[] {

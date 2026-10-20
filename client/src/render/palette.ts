@@ -1,4 +1,5 @@
 import type { LaneColor } from '../engine/config';
+import type { StemName } from '../engine/types';
 
 export type Palette = 'default' | 'colorblind';
 
@@ -40,10 +41,18 @@ export const GRADE_PALETTES: Record<Palette, Record<string, number>> = {
   },
 };
 
-/** FEVER tint per multiplier (x2..x5). */
+/** FEVER tint per multiplier (x2..x5): the --fever-2..5 tokens, kept off the accent and the brand colour. */
 export const FEVER_COLORS: Record<number, number> = {
-  2: 0x37e2ff,
-  3: 0x6dff8a,
-  4: 0xffd84f,
-  5: 0xff4fd8,
+  2: 0x6dff8a,
+  3: 0xffd84f,
+  4: 0xff8f4f,
+  5: 0xff6b6b,
+};
+
+/** Colour of each stem (the --stem-* tokens): the STEM skin paints notes with the instrument they follow. */
+export const STEM_COLORS: Record<StemName, number> = {
+  drums: 0x8fa3c8,
+  bass: 0xff9a6b,
+  vocals: 0xffb3c7,
+  other: 0xc58bff,
 };

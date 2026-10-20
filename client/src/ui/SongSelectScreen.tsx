@@ -1,30 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
-import {
-  api,
-  ApiError,
-  EXPORT_LABELS,
-  exportFormats,
-  type Health,
-  type ImportResult,
-  type SavedChart,
-  type ServerChart,
-  type Song,
-} from '../api/client';
+import { api, ApiError, type Health, type ImportResult, type SavedChart, type ServerChart, type Song } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
-import { keysoundStems } from '../audio/stemKeysounds';
-import { difficultySystemIds, difficultySystems, enabledKeyModes, tierOf, type DifficultySystemId } from '../engine/config';
+import { difficultySystems, enabledKeyModes, gaugeRules, tierOf, type DifficultyTier } from '../engine/config';
+import { placementLabels } from '../engine/placement';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
-import type { KeyModeId, PatternSummary, StemName } from '../engine/types';
-import type { Palette, Settings } from '../settings/settings';
+import type { KeyModeId } from '../engine/types';
+import { SONG_FOLDERS, SONG_SORTS, type Settings, type SongFolder } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
-import { AnalysisView } from './AnalysisView';
-import { ChartMinimap } from './ChartMinimap';
-import { SectionEditor } from './SectionEditor';
 import { lampClass } from './lamps';
-import { GenerationPanel, generationParams, PlayRulesPanel, PracticePanel, STYLE_LABELS } from './PlayOptions';
+import { FEVER_SHORT, generationParams, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
+import { HintBar, TopBar, type KeyHint } from './shell';
+import { KIND_LABELS, SongInfoPanel } from './SongInfoPanel';
+import { Backdrop, bpmLabel, SongArt, SongMap, stemToken, useSketch } from './songArt';
+import { bestByTier, FOLDER_LABELS, inFolder, recordsOn, sortSongs, SORT_LABELS } from './songRecords';
 import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
@@ -39,47 +30,18 @@ interface Props {
   onSelectSong: (id: string | null) => void;
 }
 
-const SKILL_LABELS: [string, string][] = [
-  ['stream', '스트림'],
-  ['chord', '동치'],
-  ['jack', '연타'],
-  ['longNote', '롱노트'],
-  ['technical', '테크니컬'],
-  ['stamina', '스태미나'],
-];
-const PATTERN_LABELS: [keyof PatternSummary, string, string][] = [
-  ['stairs', '계단', '한 칸씩 이어지는 3개 이상의 단타'],
-  ['trills', '트릴', '두 레인을 번갈아 치는 4개 이상의 단타'],
-  ['chords', '동치', '동시에 치는 노트'],
-  ['jacks', '연타', '같은 레인을 곧바로 다시 치는 노트'],
-  ['holdTaps', '롱잡', '롱노트를 잡은 채 치는 노트'],
-  ['leaps', '도약', '빠른 구간에서 세 칸 이상 건너뛰는 이동'],
-];
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
-const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
 const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
 const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
 const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
-const KIND_LABELS: Record<string, string> = { edited: '편집', imported: '가져옴' };
-const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
-const BACKEND_KIND_LABELS: Record<string, string> = { stems: '스템', beats: '비트', pitch: '음높이', structure: '구조' };
+const STEM_NAMES: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
 
-function backendLabel(name: string | undefined): string {
-  if (!name || name === 'core' || name === 'core-dsp') return '기본';
-  return name.replace(/-[\d.]+$/, '');
-}
+/** The part of the detail column above the key modes: the song, or one of the two panels. */
+type Panel = 'none' | 'options' | 'info';
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
-function bpmLabel(song: Song): string {
-  if (song.bpm === null) return '-';
-  if (song.bpmMin !== null && song.bpmMax !== null && Math.abs(song.bpmMax - song.bpmMin) > 0.5) {
-    return `${Math.round(song.bpmMin)}–${Math.round(song.bpmMax)}`;
-  }
-  return song.bpm.toFixed(song.bpm % 1 < 0.05 || song.bpm % 1 > 0.95 ? 0 : 1);
 }
 
 export function SongSelectScreen(props: Props) {
@@ -89,37 +51,41 @@ export function SongSelectScreen(props: Props) {
   const [query, setQuery] = useState('');
   const [chart, setChart] = useState<ServerChart | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [editSections, setEditSections] = useState(false);
   const [targetLevel, setTargetLevel] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [panel, setPanel] = useState<'none' | 'rules' | 'generation'>('none');
+  const [panel, setPanel] = useState<Panel>('none');
+  const [optionsTab, setOptionsTab] = useState<PlayOptionsTab>('rules');
+  const [addMenu, setAddMenu] = useState(false);
   const [practice, setPractice] = useState<PracticeOptions | null>(null);
   const [savedCharts, setSavedCharts] = useState<SavedChart[]>([]);
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
-  // the YouTube link being typed in the song settings (null = the link form is closed)
-  const [youtubeDraft, setYoutubeDraft] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const replayInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
-  const videoInput = useRef<HTMLInputElement>(null);
+  const addMenuWrap = useRef<HTMLDivElement>(null);
 
   const keyMode = settings.lastKeyMode;
   const system = difficultySystems[settings.difficultySystem];
   const tiers = system.tiers;
   const difficulty = tierOf(system, settings.lastDifficulty).id;
   const selected = songs.find((s) => s.id === selectedSongId) ?? null;
-  useEffect(() => {
-    setEditSections(false);
-    setYoutubeDraft(null);
-  }, [selected?.id]);
+  const favorites = useMemo(() => new Set(settings.favorites), [settings.favorites]);
+  const folder = settings.songFolder;
+
+  // the folder, then the search, in the chosen order
+  const folderCounts = useMemo(
+    () => Object.fromEntries(SONG_FOLDERS.map((f) => [f, songs.filter((s) => inFolder(s, f, keyMode, system.id, favorites)).length])) as Record<SongFolder, number>,
+    [songs, keyMode, system.id, favorites],
+  );
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q)) : songs;
-  }, [songs, query]);
+    const shown = songs.filter((s) => inFolder(s, folder, keyMode, system.id, favorites) && (!q || `${s.title} ${s.artist}`.toLowerCase().includes(q)));
+    return sortSongs(shown, settings.songSort);
+  }, [songs, query, folder, keyMode, system.id, favorites, settings.songSort]);
 
   const refresh = useCallback(async () => {
     try {
@@ -156,18 +122,22 @@ export function SongSelectScreen(props: Props) {
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
-  // Any change of selection (or of the generation options) invalidates the generated chart,
-  // except the switch of key mode / difficulty tabs that picking a saved chart makes.
+  // Any change of selection (or of the generation options, or a new analysis of the song)
+  // invalidates the generated chart, except the switch of key mode / difficulty tabs that picking
+  // a saved chart makes. A chart still being fetched for the old selection is dropped when it
+  // arrives (chartRequest), so it never lands on another song.
   const generationKey = JSON.stringify(settings.generation);
   const pickedChart = useRef<ServerChart | null>(null);
+  const chartRequest = useRef(0);
   useEffect(() => {
+    chartRequest.current++;
     const picked = pickedChart.current;
     pickedChart.current = null;
     // set right before the tab switch it causes, so this run is that switch
     setChart(picked && picked.meta.keyMode === keyMode ? picked : null);
     setError(null);
     setPractice(null);
-  }, [selectedSongId, keyMode, difficulty, system.id, targetLevel, generationKey]);
+  }, [selectedSongId, keyMode, difficulty, system.id, targetLevel, generationKey, selected?.status, selected?.analyzedAt]);
 
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
@@ -277,8 +247,10 @@ export function SongSelectScreen(props: Props) {
   const pickSaved = async (c: SavedChart) => {
     setError(null);
     setPractice(null);
+    const request = ++chartRequest.current;
     try {
       const picked = await api.chart(c.chartId);
+      if (request !== chartRequest.current) return;
       const { keyMode: mode, difficulty: diff, difficultySystem } = picked.meta;
       // show its key mode on the tabs (an imported 7K+1S chart while 4K is selected), and its
       // difficulty too when it is on the selected system or was made on DJMAX / EZ2ON; an
@@ -328,7 +300,9 @@ export function SongSelectScreen(props: Props) {
 
   const generate = async (newSeed = false) => {
     if (!selected || selected.status !== 'ready') return null;
+    const request = ++chartRequest.current;
     setBusy(newSeed ? '새 패턴 생성 중…' : '채보 생성 중…');
+    setGenerating(true);
     setError(null);
     try {
       const { chart: c } = await api.generate(selected.id, {
@@ -339,28 +313,42 @@ export function SongSelectScreen(props: Props) {
         newSeed,
         params: generationParams(settings.generation, keyMode),
       });
+      // the selection moved on while the server was generating: this chart is not for it
+      if (request !== chartRequest.current) return null;
       setChart(c);
       return c;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (request === chartRequest.current) setError(e instanceof Error ? e.message : String(e));
       return null;
     } finally {
       setBusy(null);
+      setGenerating(false);
     }
   };
 
+  // one play per press: a held Enter or a second press while the chart is generated starts nothing more
+  const starting = useRef(false);
   const play = async () => {
-    if (!selected) return;
-    const c = chart ?? (await generate());
-    if (!c) return;
-    const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
-    onPlay(
-      buildPlayRequest(selected, c, settings, {
-        autoPlay,
-        best: best ? { score: best.score, rate: best.rate } : null,
-        practice: practice ?? undefined,
-      }),
-    );
+    if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
+    starting.current = true;
+    try {
+      const c = chart ?? (await generate());
+      if (!c || (c.meta.songId && c.meta.songId !== selected.id)) return;
+      const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
+      onPlay(
+        buildPlayRequest(selected, c, settings, {
+          autoPlay,
+          best: best ? { score: best.score, rate: best.rate } : null,
+          practice: practice ?? undefined,
+        }),
+      );
+    } finally {
+      starting.current = false;
+    }
+  };
+
+  const newPattern = () => {
+    if (selected?.status === 'ready' && busy === null) void generate(chart !== null);
   };
 
   const reanalyze = async () => {
@@ -386,12 +374,6 @@ export function SongSelectScreen(props: Props) {
       setError(e instanceof Error ? e.message : String(e));
     }
     setBusy(null);
-  };
-
-  // A form on the page, not window.prompt: the desktop app (Electron) has no prompt dialog.
-  const linkYoutube = async () => {
-    const url = youtubeDraft?.trim();
-    if (url && (await patch({ bgaYoutube: url }))) setYoutubeDraft(null);
   };
 
   const removeBga = async () => {
@@ -442,41 +424,131 @@ export function SongSelectScreen(props: Props) {
     setTargetLevel(null);
     onSettingsChange({ ...settings, lastDifficulty: d });
   };
-  const setSystem = (id: DifficultySystemId) => {
-    setTargetLevel(null);
-    // the same step of the new system (NORMAL → NM …), else its second tier
-    const next = difficultySystems[id];
-    const index = Math.min(tiers.findIndex((t) => t.id === difficulty), next.tiers.length - 1);
-    const tier = next.tiers.find((t) => t.id === next.aliases[difficulty]) ?? next.tiers[Math.max(0, index)] ?? next.tiers[0];
-    onSettingsChange({ ...settings, difficultySystem: id, lastDifficulty: tier.id });
+  const toggleFavorite = (id: string) =>
+    onSettingsChange({ ...settings, favorites: favorites.has(id) ? settings.favorites.filter((f) => f !== id) : [...settings.favorites, id] });
+  // a folder that leaves the selected song out moves the cursor onto its first song
+  const setFolder = (f: SongFolder) => {
+    onSettingsChange({ ...settings, songFolder: f });
+    const first = songs.filter((s) => inFolder(s, f, keyMode, system.id, favorites));
+    if (first.length > 0 && !first.some((s) => s.id === selectedSongId)) onSelectSong(sortSongs(first, settings.songSort)[0].id);
+  };
+  const stepFolder = () => setFolder(SONG_FOLDERS[(SONG_FOLDERS.indexOf(folder) + 1) % SONG_FOLDERS.length]);
+  const stepSort = () => onSettingsChange({ ...settings, songSort: SONG_SORTS[(SONG_SORTS.indexOf(settings.songSort) + 1) % SONG_SORTS.length] });
+  const togglePanel = (p: Exclude<Panel, 'none'>) => setPanel((open) => (open === p ? 'none' : p));
+  const openOptions = (tab?: PlayOptionsTab) => {
+    if (tab) setOptionsTab(tab);
+    setPanel('options');
+  };
+  const closeAddMenu = (refocus: boolean) => {
+    setAddMenu(false);
+    if (refocus) addMenuWrap.current?.querySelector<HTMLElement>('[data-testid="add-menu"]')?.focus();
   };
 
-  // Keyboard navigation: arrows pick song/difficulty, Enter plays, Tab switches key mode.
+  // Keyboard: ↑↓ song, ←→ difficulty, Enter plays, Tab (Shift+Tab back) key mode, Shift alone
+  // the folder, Space the play options, I the song info, + the add menu, F4 the order, F5 a new
+  // pattern, F10 the settings, Esc closes what is open. A text field, a slider or a drop-down
+  // keeps the keys it uses itself.
+  const songList = useRef<HTMLDivElement>(null);
+  const shiftAlone = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code !== 'ShiftLeft' && e.code !== 'ShiftRight') shiftAlone.current = false;
+      else if (!e.repeat) shiftAlone.current = !keepsKey(e.target, e.code);
+      if (e.code === 'F4' || e.code === 'F5' || e.code === 'F10') {
+        // F5 would reload the page and F10 open the browser's menu
+        e.preventDefault();
+        if (e.repeat) return;
+        if (e.code === 'F4') stepSort();
+        else if (e.code === 'F5') newPattern();
+        else props.onOpenSettings();
+        return;
+      }
+      if (e.code === 'Escape') {
+        if (addMenu) closeAddMenu(true);
+        else if (panel !== 'none') setPanel('none');
+        return;
+      }
+      if (addMenu) {
+        // the menu keeps the arrows; Enter presses its focused item
+        if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          const items = [...(addMenuWrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+          const at = items.indexOf(document.activeElement as HTMLElement);
+          items[(at + (e.code === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+        }
+        return;
+      }
+      if (keepsKey(e.target, e.code)) return;
+      const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
       const idx = filtered.findIndex((s) => s.id === selectedSongId);
       if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
         e.preventDefault();
         if (filtered.length === 0) return;
         const next = e.code === 'ArrowDown' ? Math.min(filtered.length - 1, idx + 1) : Math.max(0, idx - 1);
-        onSelectSong(filtered[next < 0 ? 0 : next].id);
+        const id = filtered[next < 0 ? 0 : next].id;
+        // a song row that has focus (it was clicked) hands it to the new row, so one row looks selected
+        if (document.activeElement instanceof HTMLElement && songList.current?.contains(document.activeElement)) {
+          songList.current.querySelector<HTMLElement>(`[data-song-id="${id}"]`)?.focus({ preventScroll: true });
+        }
+        onSelectSong(id);
       } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         e.preventDefault();
         const d = tiers.findIndex((t) => t.id === difficulty) + (e.code === 'ArrowRight' ? 1 : -1);
         if (d >= 0 && d < tiers.length) setDifficulty(tiers[d].id);
       } else if (e.code === 'Enter') {
         e.preventDefault();
-        void play();
+        if (!e.repeat) void play();
       } else if (e.code === 'Tab') {
         e.preventDefault();
-        const m = enabledKeyModes[(enabledKeyModes.indexOf(keyMode) + 1) % enabledKeyModes.length];
-        setKeyMode(m);
+        const step = e.shiftKey ? enabledKeyModes.length - 1 : 1;
+        setKeyMode(enabledKeyModes[(enabledKeyModes.indexOf(keyMode) + step) % enabledKeyModes.length]);
+      } else if (e.code === 'Space' && plain) {
+        // a focused checkbox or button is not pressed by it: Space is the panel's key here
+        e.preventDefault();
+        if (!e.repeat) togglePanel('options');
+      } else if (e.code === 'KeyI' && plain && !e.shiftKey) {
+        if (!e.repeat) togglePanel('info');
+      } else if (e.key === '+' && plain) {
+        e.preventDefault();
+        if (!e.repeat && health !== 'offline') setAddMenu(true);
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !keepsKey(e.target, e.code)) e.preventDefault();
+      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && shiftAlone.current) {
+        shiftAlone.current = false;
+        if (!addMenu) stepFolder();
+      }
+    };
+    const onPointer = () => {
+      shiftAlone.current = false;
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('pointerdown', onPointer, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('pointerdown', onPointer, true);
+    };
   });
+
+  // The add menu: its first item takes the focus, and a press outside it closes it.
+  useEffect(() => {
+    if (!addMenu) return;
+    addMenuWrap.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const outside = (e: PointerEvent) => {
+      if (!addMenuWrap.current?.contains(e.target as Node)) setAddMenu(false);
+    };
+    window.addEventListener('pointerdown', outside);
+    return () => window.removeEventListener('pointerdown', outside);
+  }, [addMenu]);
+
+  // The selected row stays in view however it was chosen (keys, pad, a new upload).
+  useEffect(() => {
+    if (!selectedSongId) return;
+    songList.current?.querySelector(`[data-song-id="${selectedSongId}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [selectedSongId, filtered.length]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -486,41 +558,123 @@ export function SongSelectScreen(props: Props) {
     else if (files.length > 0) void upload(files);
   };
 
-  const records = (selected?.records ?? []).filter((r) => r.keyMode === keyMode);
-  const bestFor = (d: string) =>
-    records
-      .filter((r) => r.difficulty === d)
-      .sort((a, b) => b.score - a.score)[0];
-
+  // the plates' bests: this key mode on this difficulty system (DJMAX NM is not EZ2ON NM)
+  const bests = selected ? bestByTier(recordsOn(selected, keyMode, system.id)) : new Map();
   const selectedTier = tierOf(system, difficulty);
+  const ready = selected?.status === 'ready';
+  const pick = (run: () => void) => () => {
+    setAddMenu(false);
+    run();
+  };
+
+  const hints: KeyHint[] = [
+    { keys: ['↑', '↓'], label: '곡' },
+    { keys: ['←', '→'], label: '난이도' },
+    { keys: ['Tab'], label: '키 모드' },
+    { keys: ['Shift'], label: '폴더', onClick: stepFolder, testId: 'hint-folder' },
+    { keys: ['Space'], label: '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
+    { keys: ['I'], label: '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
+  ];
+  const endHints: KeyHint[] = [{ keys: ['Enter'], label: '플레이' }];
+  if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : setPanel('none')) });
 
   return (
-    <div className="select-screen" onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
-      <header className="select-header">
-        <div className="brand">
-          <h1>Generative Rhythm</h1>
-          <p className="tagline">내 음악으로 만드는 채보 · SDVX 시점 · DJMAX 판정</p>
-        </div>
-        <nav className="tools">
-          <button className="quiet" data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
-          <button className="quiet" data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
-          <button className="quiet" data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
-            리플레이 열기
+    <div
+      className="select-screen screen-enter"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+    >
+      <Backdrop song={selected} />
+      <TopBar name="선곡">
+        <div className="add-menu-wrap" ref={addMenuWrap}>
+          <button
+            className={songs.length === 0 && health !== 'offline' ? 'primary' : 'quiet'}
+            data-testid="add-menu"
+            aria-haspopup="menu"
+            aria-expanded={addMenu}
+            disabled={health === 'offline'}
+            onClick={() => setAddMenu((v) => !v)}
+          >
+            곡 추가 <kbd>+</kbd>
           </button>
-          <input
-            ref={replayInput}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            data-testid="replay-input"
-            onChange={(e) => {
-              if (e.target.files?.[0]) void openReplayFile(e.target.files[0]);
-              e.target.value = '';
-            }}
-          />
-          <button className="quiet" data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
-        </nav>
-      </header>
+          {addMenu && (
+            <div className="add-menu" role="menu" aria-label="곡 추가">
+              <button role="menuitem" data-testid="upload-button" onClick={pick(() => fileInput.current?.click())}>
+                <b>음악 파일</b>
+                <span>mp3 · ogg · wav · flac · m4a</span>
+              </button>
+              <button role="menuitem" data-testid="demo-button" onClick={pick(() => void addDemo())}>
+                <b>데모 곡</b>
+                <span>합성한 128 BPM 곡</span>
+              </button>
+              <button role="menuitem" data-testid="import-button" onClick={pick(() => importInput.current?.click())} title="osu!mania(.osz·.osu) · BMS · bmson 채보 파일이나 압축 파일">
+                <b>채보 가져오기 · 파일</b>
+                <span>.osz · .zip · .osu · .bms · .bmson</span>
+              </button>
+              <button role="menuitem" data-testid="import-folder-button" onClick={pick(() => folderInput.current?.click())} title="BMS·bmson 폴더(키음 포함)">
+                <b>채보 가져오기 · 폴더</b>
+                <span>BMS · bmson 폴더 (키음 포함)</span>
+              </button>
+            </div>
+          )}
+        </div>
+        <button className="quiet" data-testid="open-settings" onClick={props.onOpenSettings}>
+          설정 <kbd>F10</kbd>
+        </button>
+      </TopBar>
+      <input
+        ref={fileInput}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        hidden
+        data-testid="file-input"
+        onChange={(e) => {
+          if (e.target.files) void upload(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={importInput}
+        type="file"
+        accept={IMPORT_ACCEPT}
+        multiple
+        hidden
+        data-testid="import-input"
+        onChange={(e) => {
+          if (e.target.files) void importFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={(el) => {
+          folderInput.current = el;
+          el?.setAttribute('webkitdirectory', '');
+        }}
+        type="file"
+        multiple
+        hidden
+        data-testid="import-folder-input"
+        onChange={(e) => {
+          if (e.target.files) void importFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={replayInput}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        data-testid="replay-input"
+        onChange={(e) => {
+          if (e.target.files?.[0]) void openReplayFile(e.target.files[0]);
+          e.target.value = '';
+        }}
+      />
 
       {health === 'offline' && (
         <section className="panel offline" data-testid="server-offline">
@@ -535,60 +689,18 @@ export function SongSelectScreen(props: Props) {
       )}
 
       <div className="select-body">
-        <aside className="song-list-panel">
-          <div className="row">
-            <button className={songs.length === 0 ? 'primary' : ''} data-testid="upload-button" onClick={() => fileInput.current?.click()} disabled={health === 'offline'}>
-              곡 추가
+        <section className="song-list-panel" aria-label="곡 목록">
+          <div className="folders">
+            {SONG_FOLDERS.map((f) => (
+              <button key={f} className={`chip ${folder === f ? 'active' : ''}`} aria-pressed={folder === f} data-testid={`folder-${f}`} onClick={() => setFolder(f)}>
+                {FOLDER_LABELS[f]} <b>{folderCounts[f]}</b>
+              </button>
+            ))}
+            <button className="chip sort" data-testid="song-sort" onClick={stepSort} title="정렬 바꾸기">
+              {SORT_LABELS[settings.songSort]} <kbd>F4</kbd>
             </button>
-            <button data-testid="demo-button" onClick={() => void addDemo()} disabled={health === 'offline'}>데모 곡</button>
           </div>
-          <div className="row import-row">
-            <span className="label">채보 가져오기</span>
-            <button className="small" data-testid="import-button" onClick={() => importInput.current?.click()} disabled={health === 'offline'} title="osu!mania(.osz·.osu) · BMS · bmson 채보 파일이나 압축 파일">
-              파일·압축
-            </button>
-            <button className="small" data-testid="import-folder-button" onClick={() => folderInput.current?.click()} disabled={health === 'offline'} title="BMS·bmson 폴더(키음 포함)">
-              폴더
-            </button>
-            <input
-              ref={importInput}
-              type="file"
-              accept={IMPORT_ACCEPT}
-              multiple
-              hidden
-              data-testid="import-input"
-              onChange={(e) => {
-                if (e.target.files) void importFiles(e.target.files);
-                e.target.value = '';
-              }}
-            />
-            <input
-              ref={(el) => {
-                folderInput.current = el;
-                el?.setAttribute('webkitdirectory', '');
-              }}
-              type="file"
-              multiple
-              hidden
-              data-testid="import-folder-input"
-              onChange={(e) => {
-                if (e.target.files) void importFiles(e.target.files);
-                e.target.value = '';
-              }}
-            />
-            <input
-              ref={fileInput}
-              type="file"
-              accept={ACCEPT}
-              multiple
-              hidden
-              data-testid="file-input"
-              onChange={(e) => {
-                if (e.target.files) void upload(e.target.files);
-                e.target.value = '';
-              }}
-            />
-          </div>
+          <input type="search" className="search" placeholder="제목·아티스트 검색" aria-label="곡 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
           {importReport && (
             <div className="import-report" data-testid="import-report">
               <div className="row">
@@ -603,200 +715,123 @@ export function SongSelectScreen(props: Props) {
               )}
             </div>
           )}
-          <input type="search" className="search" placeholder="제목·아티스트 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className={`song-list ${dragOver ? 'drag' : ''}`} data-testid="song-list">
+          <div ref={songList} className={`song-list ${dragOver ? 'drag' : ''}`} data-testid="song-list">
             {filtered.length === 0 && (
               <div className="empty-list">
-                {songs.length === 0 ? '음악 파일을 끌어다 놓거나 "곡 추가"를 누르세요. (mp3 · ogg · wav · flac · m4a)' : '검색 결과가 없습니다'}
+                {songs.length === 0
+                  ? '음악 파일을 끌어다 놓거나 "곡 추가"를 누르세요. (mp3 · ogg · wav · flac · m4a)'
+                  : query.trim()
+                    ? '검색 결과가 없습니다'
+                    : `${FOLDER_LABELS[folder]} 폴더에 곡이 없습니다 (Shift로 다음 폴더)`}
               </div>
             )}
             {filtered.map((s) => (
-              <button
+              <SongRow
                 key={s.id}
-                className={`song-item ${s.id === selectedSongId ? 'active' : ''}`}
-                data-testid="song-item"
-                onClick={() => onSelectSong(s.id)}
-              >
-                <Cover song={s} />
-                <div className="song-item-text">
-                  <div className="song-title">{s.title}</div>
-                  <div className="song-sub">
-                    <span className="artist">{s.artist || '알 수 없는 아티스트'}</span>
-                    <span className="meta">
-                      · {formatTime(s.durationMs)}
-                      {s.status === 'ready' ? ` · ${bpmLabel(s)} BPM` : ''}
-                    </span>
-                  </div>
-                  {(s.status === 'queued' || s.status === 'analyzing') && (
-                    <div className="progress small"><div style={{ width: `${Math.round(s.progress * 100)}%` }} /></div>
-                  )}
-                  {s.status === 'error' && <div className="song-sub error">분석 실패</div>}
-                </div>
-              </button>
+                song={s}
+                active={s.id === selectedSongId}
+                favorite={favorites.has(s.id)}
+                tiers={tiers}
+                bests={bestByTier(recordsOn(s, keyMode, system.id))}
+                onPick={() => onSelectSong(s.id)}
+              />
             ))}
           </div>
-        </aside>
+        </section>
 
         <main className="song-detail">
-          {!selected && <section className="panel"><p className="hint">왼쪽에서 곡을 고르세요.</p></section>}
+          <div className="detail-top">
+            {panel === 'options' ? (
+              <PlayOptionsPanel
+                settings={settings}
+                onSettingsChange={onSettingsChange}
+                keyMode={keyMode}
+                tab={optionsTab}
+                onTab={setOptionsTab}
+                autoPlay={autoPlay}
+                onAutoPlay={setAutoPlay}
+                chart={chart}
+                practice={practice}
+                onPracticeToggle={togglePractice}
+                onPracticeChange={setPractice}
+                targetLevel={targetLevel}
+                onTargetLevel={setTargetLevel}
+                maxLevel={system.maxLevel}
+                levelLabel={(level) => levelLabel(selectedTier, level)}
+                songTitle={selected?.title ?? null}
+                onClose={() => setPanel('none')}
+              />
+            ) : panel === 'info' ? (
+              <SongInfoPanel
+                song={selected}
+                chart={chart}
+                palette={settings.palette}
+                keysound={settings.keysound}
+                practice={practice}
+                onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
+                onEditChart={() => selected && chart && props.onEdit(chart, selected)}
+                onWatchBest={(id) => void watchBest(id)}
+                onPatch={patch}
+                onReanalyze={() => void reanalyze()}
+                onUploadBga={(file) => void uploadBga(file)}
+                onRemoveBga={() => void removeBga()}
+                onRemoveSong={() => void remove()}
+                onSectionsSaved={async () => {
+                  await refresh();
+                  if (chart && chart.meta.source?.kind !== 'edited' && chart.meta.source?.kind !== 'imported') await generate();
+                }}
+                onSyncTest={() => onPlay(syncTestRequest(keyMode, true))}
+                onCalibrate={props.onCalibrate}
+                onOpenReplay={() => replayInput.current?.click()}
+                onClose={() => setPanel('none')}
+              />
+            ) : selected ? (
+              <SongHero song={selected} favorite={favorites.has(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onInfo={() => setPanel('info')} />
+            ) : (
+              <div className="detail-empty">
+                <p className="hint">
+                  {songs.length === 0 ? '오른쪽 위 "곡 추가"로 음악 파일을 넣거나, 파일을 이 화면에 끌어다 놓으세요.' : '왼쪽에서 곡을 고르세요.'}
+                </p>
+              </div>
+            )}
+          </div>
+
           {selected && (
             <>
-              <div className="key-modes">
-                <span className="label">키 모드</span>
-                <div className="segmented">
-                  {enabledKeyModes.map((m) => (
-                    <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)}>{m}</button>
-                  ))}
+              <div className="mode-row">
+                <div className="key-modes">
+                  <div className="segmented">
+                    {enabledKeyModes.map((m) => (
+                      <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  <kbd>Tab</kbd>
                 </div>
-                <kbd>Tab</kbd>
-              </div>
-
-              <section className="hero">
-                <Cover song={selected} />
-                <div className="hero-text">
-                  <h2 data-testid="song-title" title={selected.title}>{selected.title}</h2>
-                  <p className="artist">{selected.artist || '알 수 없는 아티스트'}</p>
-                  <p className="hero-meta">
-                    <span>
-                      <b>BPM</b>
-                      {bpmLabel(selected)}
-                      {selected.overrides.bpm ? <small>(보정됨)</small> : null}
-                    </span>
-                    <span>
-                      <b>길이</b>
-                      {formatTime(selected.durationMs)}
-                    </span>
-                  </p>
-                  {selected.status === 'ready' && selected.analyzer?.backends && (
-                    <p className="backends" data-testid="analysis-backends">
-                      분석:{' '}
-                      {Object.entries(selected.analyzer.backends)
-                        .map(([kind, name]) => `${BACKEND_KIND_LABELS[kind] ?? kind} ${backendLabel(name)}`)
-                        .join(' · ')}
-                      {selected.outdated && (
-                        <button className="small" data-testid="reanalyze" onClick={() => void reanalyze()} title="분석기가 바뀌었거나 ML 백엔드가 새로 설치되었습니다">
-                          다시 분석
-                        </button>
-                      )}
-                    </p>
-                  )}
-                  {selected.status !== 'ready' && (
-                    <div data-testid="analysis-status">
-                      <p className="hint">
-                        {selected.status === 'error' ? `분석 실패: ${selected.error}` : `${selected.progressLabel || '분석 대기'} ${Math.round(selected.progress * 100)}%`}
-                      </p>
-                      {selected.status !== 'error' && <div className="progress"><div style={{ width: `${Math.round(selected.progress * 100)}%` }} /></div>}
-                    </div>
-                  )}
-                </div>
-                <div className="hero-level">
-                  {chart ? (
-                    <div className="level-badge" style={{ ['--diff' as string]: chartTier(chart.meta).color } as CSSProperties} title={chartTier(chart.meta).label}>
-                      <span>{chart.meta.difficultySystem && chart.meta.difficultySystem !== 'GRG' ? `${chart.meta.difficultySystem} ${chart.meta.difficulty}` : chart.meta.difficulty}</span>
-                      <strong data-testid="chart-level">
-                        <small>{chart.meta.levelScale ? `${chart.meta.levelScale} ` : 'Lv.'}</small>
-                        {chart.meta.level}
-                      </strong>
-                    </div>
-                  ) : (
-                    <div className="level-pending" style={{ ['--diff' as string]: selectedTier.color } as CSSProperties}>
-                      <b>{system.id === 'GRG' ? selectedTier.label : `${system.label} ${selectedTier.short}`}</b>
-                      <em>{targetLevel !== null ? `목표 ${levelLabel(selectedTier, Math.min(targetLevel, system.maxLevel))}` : `보통 ${levelRange(selectedTier)}`}</em>
-                      <small>레벨은 채보를 만들 때 정해집니다</small>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <div className="row system-row">
-                <span className="label">난이도 기준</span>
-                <div className="segmented" data-testid="difficulty-system">
-                  {difficultySystemIds.map((id) => (
-                    <button key={id} className={id === system.id ? 'active' : ''} onClick={() => setSystem(id)} data-testid={`system-${id}`}>
-                      {difficultySystems[id].label}
-                    </button>
-                  ))}
-                </div>
-                <span className="hint">
-                  {system.id === 'GRG' ? '이 게임의 5단계 (Lv.1–15)' : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel})`}
+                <span className="system-label" title="설정(F10)의 난이도 기준에서 바꿉니다">
+                  난이도 기준 <b>{system.label}</b>
                 </span>
               </div>
-              <div className="difficulty-row" data-testid="difficulty-row">
-                {tiers.map((t) => {
-                  const best = bestFor(t.id);
-                  return (
-                    <button
-                      key={t.id}
-                      className={`difficulty ${t.id === difficulty && targetLevel === null ? 'active' : ''}`}
-                      style={{ ['--diff' as string]: t.color } as CSSProperties}
-                      onClick={() => setDifficulty(t.id)}
-                      title={t.levelScale ? `${t.label}: 레벨이 따로 매겨지는 고난도 채보 (${t.levelScale} 1–15)` : `보통 Lv.${t.levels[0]}–${t.levels[1]}`}
-                    >
-                      <span className="diff-head">
-                        <span className="diff-name">{t.label}</span>
-                        <span className="diff-short" hidden={t.short === t.label}>{t.short}</span>
-                      </span>
-                      <span className="diff-range">{levelRange(t)}</span>
-                      {best && <span className={`diff-lamp ${lampClass(best.lamp)}`}>{best.rate.toFixed(2)}%</span>}
-                    </button>
-                  );
-                })}
-              </div>
 
-              <div className="play-row">
-                <button className="primary" data-testid="play-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void play()}>
-                  {practice ? '연습 시작' : chart ? '플레이' : '채보 생성 & 플레이'} <kbd>Enter</kbd>
-                </button>
-                <button data-testid="generate-button" disabled={selected.status !== 'ready' || busy !== null} onClick={() => void generate(chart !== null)}>
-                  {chart ? '다른 패턴' : '채보 미리보기'}
-                </button>
-                {busy && <span className="hint" data-testid="busy">{busy}</span>}
+              <div className="difficulty-row" data-testid="difficulty-row">
+                {tiers.map((t) => (
+                  <TierPlate
+                    key={t.id}
+                    tier={t}
+                    active={t.id === difficulty}
+                    chart={t.id === difficulty ? chart : null}
+                    best={bests.get(t.id) ?? null}
+                    targetLevel={t.id === difficulty && targetLevel !== null ? Math.min(targetLevel, system.maxLevel) : null}
+                    generating={t.id === difficulty && generating}
+                    onPick={() => setDifficulty(t.id)}
+                  />
+                ))}
               </div>
-              <div className="option-row">
-                <button
-                  className={panel === 'rules' ? 'active' : ''}
-                  data-testid="toggle-rules"
-                  aria-expanded={panel === 'rules'}
-                  onClick={() => setPanel(panel === 'rules' ? 'none' : 'rules')}
-                >
-                  플레이 옵션
-                </button>
-                <button
-                  className={panel === 'generation' ? 'active' : ''}
-                  data-testid="toggle-generation"
-                  aria-expanded={panel === 'generation'}
-                  onClick={() => setPanel(panel === 'generation' ? 'none' : 'generation')}
-                >
-                  생성 옵션{settings.generation.style !== 'balanced' ? ` · ${STYLE_LABELS[settings.generation.style]}` : ''}
-                  {settings.generation.patternEngine === 'classic' ? ' · 이전 배치' : settings.generation.patternEngine === 'designer' ? ' · 악구 배치' : ''}
-                </button>
-                <label className="check">
-                  <input type="checkbox" checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
-                  오토 플레이
-                </label>
-                <label className="check">
-                  <input type="checkbox" checked={targetLevel !== null} onChange={(e) => setTargetLevel(e.target.checked ? 8 : null)} />
-                  목표 레벨 직접 지정
-                </label>
-                {targetLevel !== null && (
-                  <>
-                    <input type="range" min={1} max={system.maxLevel} value={Math.min(targetLevel, system.maxLevel)} onChange={(e) => setTargetLevel(Number(e.target.value))} />
-                    <span className="value">{levelLabel(selectedTier, Math.min(targetLevel, system.maxLevel))}</span>
-                  </>
-                )}
-                <label className="check">
-                  <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => togglePractice(e.target.checked)} data-testid="practice-toggle" />
-                  연습 모드
-                </label>
-              </div>
-              {panel === 'rules' && <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />}
-              {panel === 'generation' && <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={keyMode} />}
-              {practice && <PracticePanel practice={practice} onChange={setPractice} />}
-              {error && <p className="error" data-testid="select-error">{error}</p>}
 
               {savedCharts.length > 0 && (
-                <section className="panel saved-charts" data-testid="saved-charts">
-                  <h3>저장된 채보</h3>
+                <section className="saved-charts" data-testid="saved-charts" aria-label="저장된 채보">
+                  <span className="label">저장된 채보</span>
                   {savedCharts.map((c) => (
                     <div key={c.chartId} className={`saved-chart ${chart?.meta.chartId === c.chartId ? 'active' : ''}`} data-testid="saved-chart">
                       <span className={`kind kind-${c.kind}`}>{KIND_LABELS[c.kind] ?? c.kind}</span>
@@ -807,310 +842,261 @@ export function SongSelectScreen(props: Props) {
                       <button className="small" data-testid="pick-saved" onClick={() => void pickSaved(c)}>
                         고르기
                       </button>
-                      <button className="small danger" onClick={() => void deleteSaved(c)}>삭제</button>
+                      <button className="small danger" onClick={() => void deleteSaved(c)}>
+                        삭제
+                      </button>
                     </div>
                   ))}
                 </section>
               )}
 
-              {chart && (
-                <ChartPreview
-                  chart={chart}
-                  palette={settings.palette}
-                  keysound={settings.keysound}
-                  practice={practice}
-                  onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
-                  onEdit={() => props.onEdit(chart, selected)}
-                  bestReplay={(selected.records ?? []).find((r) => r.chartId === chart.meta.chartId && r.hasReplay)?.bestScoreId ?? null}
-                  onWatchBest={(id) => void watchBest(id)}
-                />
-              )}
-
-              <section className="panel song-tools">
-                <h3>곡 설정</h3>
-                <div className="row">
-                  <span className="label">BPM 보정</span>
-                  <button className="small" disabled={selected.status !== 'ready' || !selected.bpm} onClick={() => selected.bpm && void patch({ bpm: selected.bpm * 2 })}>×2</button>
-                  <button className="small" disabled={selected.status !== 'ready' || !selected.bpm} onClick={() => selected.bpm && void patch({ bpm: selected.bpm / 2 })}>÷2</button>
-                  <BpmInput onApply={(bpm) => void patch({ bpm })} disabled={selected.status !== 'ready'} />
-                  {selected.overrides.bpm !== undefined && <button className="small" onClick={() => void patch({ clearBpm: true })}>자동으로</button>}
-                </div>
-                <div className="row">
-                  <span className="label">첫 박 위치</span>
-                  {[-10, -1, 1, 10].map((d) => (
-                    <button key={d} className="small" disabled={selected.status !== 'ready'} onClick={() => void patch({ offsetShiftMs: (selected.overrides.offsetShiftMs ?? 0) + d })}>
-                      {d > 0 ? `+${d}` : d}ms
-                    </button>
-                  ))}
-                  <span className="value">{selected.overrides.offsetShiftMs ? `${selected.overrides.offsetShiftMs > 0 ? '+' : ''}${selected.overrides.offsetShiftMs}ms` : '자동'}</span>
-                </div>
-                <p className="hint">비트가 어긋나 보이면 보정하세요. 보정하면 곡을 다시 분석하고 채보를 새로 만듭니다.</p>
-                <div className="row">
-                  <span className="label">배경 영상</span>
-                  {selected.hasBga || selected.bgaYoutube ? (
-                    <>
-                      <span className="value" data-testid="bga-status">{selected.bgaYoutube ? '유튜브' : '등록됨'}</span>
-                      {[-100, -10, 10, 100].map((d) => (
-                        <button key={d} className="small" onClick={() => void patch({ bgaOffsetMs: (selected.bgaOffsetMs ?? 0) + d })}>
-                          {d > 0 ? `+${d}` : d}ms
-                        </button>
-                      ))}
-                      <span className="value">{selected.bgaOffsetMs ? `${selected.bgaOffsetMs > 0 ? '+' : ''}${selected.bgaOffsetMs}ms` : '0ms'}</span>
-                      <button className="small" onClick={() => void removeBga()}>지우기</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="small" data-testid="bga-upload" onClick={() => videoInput.current?.click()}>
-                        영상 고르기 (mp4·webm)
-                      </button>
-                      <button
-                        className="small"
-                        data-testid="bga-youtube"
-                        aria-expanded={youtubeDraft !== null}
-                        onClick={() => setYoutubeDraft((d) => (d === null ? '' : null))}
-                      >
-                        유튜브 링크
-                      </button>
-                    </>
-                  )}
-                  <input
-                    ref={videoInput}
-                    type="file"
-                    accept={VIDEO_ACCEPT}
-                    hidden
-                    data-testid="bga-input"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) void uploadBga(e.target.files[0]);
-                      e.target.value = '';
-                    }}
-                  />
-                </div>
-                {youtubeDraft !== null && !selected.hasBga && !selected.bgaYoutube && (
-                  <form
-                    className="row"
-                    data-testid="bga-youtube-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void linkYoutube();
-                    }}
+              <div className="go-row">
+                {ready ? (
+                  <button className="option-chips" data-testid="play-options-button" aria-label="플레이 옵션" aria-expanded={panel === 'options'} onClick={() => (panel === 'options' ? setPanel('none') : openOptions())}>
+                    <span className="chip">
+                      HI-SPEED <b>{settings.hiSpeed.toFixed(1)}</b>
+                    </span>
+                    <span className="chip">
+                      게이지 <b>{gaugeRules[settings.gaugeType].label}</b>
+                    </span>
+                    <span className="chip">
+                      배치 <b>{placementLabels[settings.placement]}</b>
+                    </span>
+                    <span className="chip">
+                      FEVER <b>{FEVER_SHORT[settings.fever]}</b>
+                    </span>
+                  </button>
+                ) : (
+                  // why play is off: the song is still being analysed (or its analysis failed)
+                  <div className="analysis-status" data-testid="analysis-status">
+                    {selected.status === 'error' ? (
+                      <span className="error">분석 실패: {selected.error}</span>
+                    ) : (
+                      <>
+                        <span>
+                          {selected.progressLabel || '분석 대기'} <span className="value">{Math.round(selected.progress * 100)}%</span>
+                        </span>
+                        <span className="progress">
+                          <span style={{ width: `${Math.round(selected.progress * 100)}%` }} />
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+                <div className="go-actions">
+                  <button data-testid="generate-button" disabled={!ready || busy !== null} onClick={newPattern} title={chart ? '같은 난이도로 다른 패턴을 만듭니다' : '채보를 만들어 레벨과 노트 수를 봅니다'}>
+                    {chart ? '새 패턴' : '채보 미리보기'} <kbd>F5</kbd>
+                  </button>
+                  <button
+                    className="primary play"
+                    data-testid="play-button"
+                    disabled={!ready || busy !== null}
+                    onClick={() => void play()}
+                    title={chart ? undefined : '채보를 만든 뒤 바로 시작합니다'}
                   >
-                    <span className="label" aria-hidden="true" />
-                    <input
-                      type="text"
-                      inputMode="url"
-                      className="youtube-link"
-                      data-testid="bga-youtube-input"
-                      aria-label="유튜브 영상 링크"
-                      placeholder="유튜브 영상 링크 (youtube.com/watch?v=… · youtu.be/…)"
-                      value={youtubeDraft}
-                      autoFocus
-                      onChange={(e) => setYoutubeDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          e.stopPropagation();
-                          setYoutubeDraft(null);
-                        }
-                      }}
-                    />
-                    <button className="small" type="submit" data-testid="bga-youtube-save" disabled={!youtubeDraft.trim()}>
-                      등록
-                    </button>
-                    <button className="small" type="button" onClick={() => setYoutubeDraft(null)}>
-                      취소
-                    </button>
-                  </form>
-                )}
-                {selected.bgaYoutube && (
-                  <p className="hint" data-testid="bga-youtube-hint">
-                    유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.
-                  </p>
-                )}
-                <div className="row">
-                  <span className="label">구간</span>
-                  <span className="value" data-testid="sections-status">{selected.sections ? '직접 고침' : '자동 분석'}</span>
-                  <button className="small" data-testid="edit-sections" disabled={selected.status !== 'ready'} onClick={() => setEditSections((v) => !v)}>
-                    {editSections ? '구간 편집 닫기' : '구간 편집'}
+                    {practice ? '연습 시작' : autoPlay ? '오토 플레이' : '플레이'} <kbd>Enter</kbd>
                   </button>
                 </div>
-                {editSections && selected.status === 'ready' && (
-                  <SectionEditor
-                    songId={selected.id}
-                    onClose={() => setEditSections(false)}
-                    onSaved={async () => {
-                      await refresh();
-                      if (chart && chart.meta.source?.kind !== 'edited' && chart.meta.source?.kind !== 'imported') await generate();
-                    }}
-                  />
-                )}
-                <div className="row">
-                  <button className="small" data-testid="toggle-analysis" disabled={selected.status !== 'ready'} onClick={() => setShowAnalysis((v) => !v)}>
-                    {showAnalysis ? '분석 보기 닫기' : '분석 보기'}
-                  </button>
-                  <button className="small danger" onClick={() => void remove()}>라이브러리에서 삭제</button>
-                </div>
-                {showAnalysis && selected.status === 'ready' && <AnalysisView songId={selected.id} />}
-              </section>
+              </div>
             </>
           )}
+          <p className="select-status" aria-live="polite">
+            {error ? (
+              <span className="error" data-testid="select-error">
+                {error}
+              </span>
+            ) : busy ? (
+              <span data-testid="busy">{busy}</span>
+            ) : null}
+          </p>
         </main>
       </div>
+      <HintBar hints={hints} end={endHints} />
     </div>
   );
 }
 
-/** "Lv.2–8", or "SC 4–12" for a tier on a scale of its own. */
-function levelRange(t: { levels: [number, number]; levelScale?: string }): string {
-  return `${t.levelScale ? `${t.levelScale} ` : 'Lv.'}${t.levels[0]}–${t.levels[1]}`;
+/**
+ * Keys a focused control uses itself: a text field keeps them all, a slider or a drop-down its
+ * arrows. Checkboxes and buttons leave every key to the song select (Enter plays, Tab switches).
+ */
+function keepsKey(target: EventTarget | null, code: string): boolean {
+  if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return true;
+  const arrow = code.startsWith('Arrow');
+  if (target instanceof HTMLSelectElement) return arrow;
+  if (target instanceof HTMLInputElement) {
+    if (['checkbox', 'button', 'submit', 'reset'].includes(target.type)) return false;
+    if (target.type === 'range' || target.type === 'radio') return arrow;
+    return true;
+  }
+  return false;
+}
+
+/** "Lv." before a level, or "SC " for a tier on a scale of its own. */
+function levelPrefix(t: { levelScale?: string }): string {
+  return t.levelScale ? `${t.levelScale} ` : 'Lv.';
 }
 
 function levelLabel(t: { levelScale?: string }, level: number): string {
-  return t.levelScale ? `${t.levelScale} ${level}` : `Lv.${level}`;
+  return `${levelPrefix(t)}${level}`;
 }
 
-function Cover({ song }: { song: Song }) {
-  const [failed, setFailed] = useState(false);
-  if (song.hasCover && !failed) {
-    return <img className="cover" src={api.coverUrl(song.id)} alt="" onError={() => setFailed(true)} />;
-  }
-  return <div className="cover placeholder">{song.title.slice(0, 1).toUpperCase()}</div>;
-}
-
-function BpmInput({ onApply, disabled }: { onApply: (bpm: number) => void; disabled: boolean }) {
-  const [value, setValue] = useState('');
-  const bpm = Number(value);
+/** A row of the song list: the song's picture, its name, and its tiers' best levels and lamps. */
+function SongRow(props: { song: Song; active: boolean; favorite: boolean; tiers: DifficultyTier[]; bests: Map<string, { level: number; lamp: string }>; onPick: () => void }) {
+  const { song } = props;
+  const working = song.status === 'queued' || song.status === 'analyzing';
   return (
-    <>
-      <input type="number" placeholder="BPM" value={value} onChange={(e) => setValue(e.target.value)} disabled={disabled} />
-      <button className="small" disabled={disabled || !(bpm > 20 && bpm < 400)} onClick={() => { onApply(bpm); setValue(''); }}>
-        적용
-      </button>
-    </>
+    <button className={`song-item ${props.active ? 'active' : ''}`} data-testid="song-item" data-song-id={song.id} onClick={props.onPick}>
+      <SongArt song={song} size={48} />
+      <span className="song-item-text">
+        <span className="song-title">{song.title}</span>
+        <span className="song-sub">{song.artist || '알 수 없는 아티스트'}</span>
+      </span>
+      {working ? (
+        <span className="song-state">
+          분석 중
+          <span className="progress small">
+            <span style={{ width: `${Math.round(song.progress * 100)}%` }} />
+          </span>
+        </span>
+      ) : song.status === 'error' ? (
+        <span className="song-state error">분석 실패</span>
+      ) : (
+        <span className="song-tiers">
+          {props.tiers.map((t) => {
+            const best = props.bests.get(t.id);
+            return (
+              <span key={t.id} className={`tier-level ${best ? '' : 'none'}`} style={{ ['--diff' as string]: t.color } as CSSProperties} title={best ? `${t.label} ${levelLabel(t, best.level)} · ${best.lamp}` : `${t.label}: 기록 없음`}>
+                {best ? best.level : '–'}
+                <i className={best ? `lamp-${lampClass(best.lamp)}` : ''} />
+              </span>
+            );
+          })}
+        </span>
+      )}
+      {props.favorite && <i className="fav-mark" aria-label="즐겨찾기" />}
+    </button>
   );
 }
 
-function ChartPreview(props: {
-  chart: ServerChart;
-  palette: Palette;
-  /** Keysounds of generated charts are on (the keysounded stems are marked). */
-  keysound: boolean;
-  practice: PracticeOptions | null;
-  onSelectRange: (startMs: number, endMs: number) => void;
-  onEdit: () => void;
-  /** Score id of the best play of this chart when its replay was kept. */
-  bestReplay: number | null;
-  onWatchBest: (scoreId: number) => void;
-}) {
-  const { chart } = props;
-  const m = chart.meta;
-  const graph = m.nps.graph;
-  const max = Math.max(1, ...graph);
-  const w = 360;
-  const h = 70;
-  const step = graph.length > 1 ? w / (graph.length - 1) : w;
-  const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
-  const holds = chart.notes.filter((n) => n.type === 'hold').length;
-  const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
+/** The selected song: its picture, name, tempo, length, metre, and its sections with the preview. */
+function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void }) {
+  const sketch = useSketch(song);
+  const stems = sketch?.stems ? Object.entries(sketch.stems).filter(([, share]) => share > 0.02) : [];
   return (
-    <section className="panel chart-preview" data-testid="chart-preview">
-      <h3>채보 정보</h3>
-      <div className="preview-stats">
-        <div><span className="label">노트</span> <strong data-testid="chart-notes">{m.noteCount}</strong></div>
-        <div><span className="label">롱노트</span> <strong>{holds}</strong></div>
-        <div><span className="label">평균 / 최대 NPS</span> <strong>{m.nps.avg} / {m.nps.peak}</strong></div>
-        <div><span className="label">세부 난이도</span> <strong>{m.rating.toFixed(2)}</strong></div>
-        {m.handLoad && (
-          <div title="손별 부담 (난이도 모델의 손 strain 비율)">
-            <span className="label">왼손 / 오른손</span> <strong>{Math.round(m.handLoad.L * 100)} / {Math.round(m.handLoad.R * 100)}</strong>
-          </div>
-        )}
-        {m.consistency?.loopLane != null && (
-          <div title="구간 안에서 루프(1·2·4마디)가 되풀이될 때, 같은 박의 노트가 같은 레인에 놓인 비율" data-testid="loop-consistency">
-            <span className="label">루프 패턴 일치</span> <strong>{Math.round(m.consistency.loopLane * 100)}%</strong>
-          </div>
-        )}
-        {(m.consistency?.repeatLaneMirror ?? m.repeatConsistency) != null && (
-          <div title="반복 구간(같은 후렴 등)에서 첫 등장과 같은 레인 패턴(또는 좌우 반전)을 쓴 비율">
-            <span className="label">반복 패턴 일치</span> <strong>{Math.round((m.consistency?.repeatLaneMirror ?? m.repeatConsistency ?? 0) * 100)}%</strong>
-          </div>
-        )}
-        {m.source && m.source.kind !== 'generated' && (
-          <div data-testid="chart-source">
-            <span className="label">{KIND_LABELS[m.source.kind] ?? m.source.kind}</span>{' '}
-            <strong>
-              {m.chartName ?? ''}
-              {m.source.format ? ` (${EXPORT_LABELS[m.source.format]})` : ''}
-              {(chart.sounds?.length ?? 0) > 0 ? ` · 키음 ${chart.sounds?.length}개` : ''}
-            </strong>
-          </div>
-        )}
+    <section className="hero">
+      <div className="hero-art">
+        <SongArt song={song} size={280} />
+        {sketch && !song.hasCover && <span className="hero-art-bpm">{bpmLabel(song)}</span>}
       </div>
-      <div className="row preview-actions">
-        <button className="small" data-testid="edit-chart" onClick={props.onEdit}>
-          채보 편집
-        </button>
-        {props.bestReplay !== null && (
-          <button className="small" data-testid="watch-best" onClick={() => props.onWatchBest(props.bestReplay as number)}>
-            최고 기록 리플레이
-          </button>
-        )}
-        <span className="label export-label">내보내기</span>
-        {exportFormats(m.keyMode).map((f) => (
-          <a key={f} className="button small" href={api.exportUrl(m.chartId, f)} download data-testid={`export-${f}`}>
-            {EXPORT_LABELS[f]}
-          </a>
-        ))}
-        <span className="hint">음원은 넣지 않고 파일 이름만 적습니다</span>
-      </div>
-      {m.keysound && (
-        <div className="stem-mix" data-testid="stem-mix" title="노트가 따라가는 악기(스템) 비율 · 밑줄은 키음이 나는 악기">
-          {(Object.entries(m.keysound.shares) as [StemName, number][]).map(([stem, share]) =>
-            share > 0 ? (
-              <span key={stem} className={`stem stem-${stem} ${keyed.includes(stem) ? 'lead' : ''}`} style={{ flexGrow: share }}>
-                {share >= 0.08 ? `${STEM_LABELS[stem] ?? stem} ${Math.round(share * 100)}%` : ''}
-              </span>
-            ) : null,
-          )}
+      <div className="hero-text">
+        <h2 data-testid="song-title" title={song.title}>
+          {song.title}
+        </h2>
+        <p className="artist">{song.artist || '알 수 없는 아티스트'}</p>
+        <div className="hero-facts">
+          <span>
+            <span className="label">BPM</span>
+            <b data-testid="song-bpm">{bpmLabel(song)}</b>
+            {song.overrides.bpm ? <small>보정됨</small> : null}
+          </span>
+          <span>
+            <span className="label">길이</span>
+            <b>{formatTime(song.durationMs)}</b>
+          </span>
+          <span>
+            <span className="label">박자</span>
+            <b>{sketch ? `${sketch.beatsPerBar}/4` : '-'}</b>
+          </span>
+          <span className="hero-actions">
+            <button className={`quiet small fav-toggle ${favorite ? 'on' : ''}`} aria-pressed={favorite} data-testid="favorite-toggle" onClick={onFavorite}>
+              {favorite ? '즐겨찾기 해제' : '즐겨찾기'}
+            </button>
+            <button className="quiet small" data-testid="open-song-info" onClick={onInfo}>
+              정보·도구 <kbd>I</kbd>
+            </button>
+          </span>
         </div>
-      )}
-      {m.patterns && (
-        <div className="pattern-mix" data-testid="pattern-mix">
-          <span className="label">패턴</span>
-          {PATTERN_LABELS.map(([key, label, title]) => (
-            <span key={key} className="pattern-chip" title={title}>
-              {label} <strong>{Math.round((m.patterns?.[key] ?? 0) * 100)}%</strong>
-            </span>
-          ))}
-        </div>
-      )}
-      {m.densityLimited && <p className="hint">곡의 소리 밀도가 낮아 목표 레벨까지 올리지 못했습니다. 없는 소리에 노트를 만들지 않기 때문입니다.</p>}
-      <ChartMinimap
-        chart={chart}
-        palette={props.palette}
-        selection={props.practice ? [props.practice.startMs, props.practice.endMs] : null}
-        onSelect={props.practice ? props.onSelectRange : undefined}
-      />
-      <div className="graph-label">
-        <span>NPS</span>
-        <span>최대 {m.nps.peak}</span>
-      </div>
-      <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
-        <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
-        <polyline points={points} className="nps-line" />
-      </svg>
-      <div className="skills">
-        {SKILL_LABELS.map(([key, label]) => (
-          <div className="skill" key={key}>
-            <span>{label}</span>
-            <div className="skill-bar"><div style={{ width: `${Math.round((m.skillset?.[key] ?? 0) * 100)}%` }} /></div>
+        {sketch && (
+          <div className="hero-map">
+            <div className="hero-map-label">
+              <span className="label">곡 구간 · 미리듣기 구간</span>
+              {stems.length > 0 && (
+                <span className="label stem-keys">
+                  {stems.map(([stem]) => (
+                    <span key={stem} style={{ ['--stem' as string]: `var(${stemToken(stem)})` } as CSSProperties}>
+                      {STEM_NAMES[stem] ?? stem}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+            <SongMap sketch={sketch} height={14} showPreview />
           </div>
-        ))}
+        )}
       </div>
     </section>
   );
 }
 
-/** The tier a chart's difficulty belongs to (imported charts use the five GRG steps). */
-function chartTier(m: { difficulty: string; difficultySystem?: DifficultySystemId }) {
-  const system = difficultySystems[m.difficultySystem ?? 'GRG'] ?? difficultySystems.GRG;
-  return system.tiers.find((t) => t.id === m.difficulty) ?? { id: m.difficulty, label: m.difficulty, short: m.difficulty, levels: [1, 15] as [number, number], color: 'var(--text-dim)' };
+/** A difficulty of the song: its level (the chart's once made, else the best play's) and its best play. */
+function TierPlate(props: {
+  tier: DifficultyTier;
+  active: boolean;
+  chart: ServerChart | null;
+  best: { level: number; lamp: string; rate: number } | null;
+  targetLevel: number | null;
+  generating: boolean;
+  onPick: () => void;
+}) {
+  const { tier: t, chart, best } = props;
+  const level = chart ? chart.meta.level : best?.level ?? null;
+  const prefix = chart ? (chart.meta.levelScale ? `${chart.meta.levelScale} ` : 'Lv.') : levelPrefix(t);
+  const note = props.generating
+    ? '만드는 중'
+    : chart
+      ? `${chart.meta.noteCount.toLocaleString('en-US')} 노트`
+      : props.targetLevel !== null
+        ? `목표 ${levelLabel(t, props.targetLevel)}`
+        : `보통 ${t.levels[0]}–${t.levels[1]}`;
+  return (
+    <button
+      className={`difficulty ${props.active ? 'active' : ''}`}
+      style={{ ['--diff' as string]: t.color } as CSSProperties}
+      onClick={props.onPick}
+      title={t.levelScale ? `${t.label}: 레벨이 따로 매겨지는 고난도 채보 (${t.levelScale} 1–15)` : `보통 Lv.${t.levels[0]}–${t.levels[1]}`}
+    >
+      <span className="diff-head">
+        <span className="diff-name">{t.label}</span>
+        <span className="diff-short" hidden={t.short === t.label}>
+          {t.short}
+        </span>
+      </span>
+      <span className={`diff-level ${props.active && !chart ? 'level-pending' : ''}`}>
+        {chart ? (
+          <strong data-testid="chart-level">
+            <small>{prefix}</small>
+            {level}
+          </strong>
+        ) : (
+          <strong className={level === null ? 'none' : ''}>
+            <small>{prefix}</small>
+            {level ?? '–'}
+          </strong>
+        )}
+        <em>{note}</em>
+      </span>
+      <span className="diff-record">
+        {best ? (
+          <>
+            <span className={`lamp-text lamp-${lampClass(best.lamp)}`}>{best.lamp}</span>
+            <span className="diff-lamp">{best.rate.toFixed(2)}%</span>
+          </>
+        ) : (
+          <span className="none">기록 없음</span>
+        )}
+      </span>
+      {props.generating && <i className="plate-pending" aria-hidden="true" />}
+    </button>
+  );
 }

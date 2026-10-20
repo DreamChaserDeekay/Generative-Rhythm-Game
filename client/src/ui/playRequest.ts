@@ -10,7 +10,7 @@ export function buildPlayRequest(
   song: Song,
   chart: Chart,
   settings: Settings,
-  options: Omit<PlayRequest, 'chart' | 'loadAudio' | 'loadKeysounds' | 'loadStems' | 'background'>,
+  options: Omit<PlayRequest, 'chart' | 'song' | 'loadAudio' | 'loadKeysounds' | 'loadStems' | 'background'>,
 ): PlayRequest {
   const songId = song.id;
   const keysounded = (chart.sounds?.length ?? 0) > 0;
@@ -19,6 +19,7 @@ export function buildPlayRequest(
   return {
     ...options,
     chart,
+    song,
     loadAudio: keysounded ? () => keysoundBgm(songId, chart) : () => songBuffer(songId),
     loadKeysounds: keysounded ? () => keysoundBank(songId) : undefined,
     loadStems: stems.length > 0 ? () => stemBuffers(songId, stems) : undefined,

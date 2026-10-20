@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
-import { GamepadMenuBridge } from '../input/gamepad';
+import { GamepadMenuBridge, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
@@ -11,7 +11,7 @@ import { EditorScreen, newEditorSession, type EditorSession } from './EditorScre
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
-import { SettingsScreen } from './SettingsScreen';
+import { SettingsScreen, type SettingsTab } from './SettingsScreen';
 import { generationParams } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { SongSelectScreen } from './SongSelectScreen';
@@ -27,6 +27,8 @@ export interface PracticeOptions {
 
 export interface PlayRequest {
   chart: Chart;
+  /** The song from the library (absent for the sync test): its picture on the loading card. */
+  song?: Song;
   /** Loads the decoded audio for the chart (null = silent). */
   loadAudio: () => Promise<AudioBuffer | null>;
   autoPlay: boolean;
@@ -52,8 +54,9 @@ type Screen =
   | { name: 'select' }
   | { name: 'play'; request: PlayRequest; runId: number }
   | { name: 'result'; request: PlayRequest; outcome: PlayOutcome }
-  | { name: 'calibration' }
-  | { name: 'settings' }
+  /** Opened from the settings, it goes back to them. */
+  | { name: 'calibration'; fromSettings?: boolean }
+  | { name: 'settings'; tab?: SettingsTab }
   | { name: 'editor' };
 
 export function App() {
@@ -71,7 +74,7 @@ export function App() {
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
   useEffect(() => {
     if (!menuPad) return;
-    const bridge = new GamepadMenuBridge();
+    const bridge = new GamepadMenuBridge({ keys: SHOULDER_KEYS });
     bridge.start();
     return () => bridge.stop();
   }, [menuPad]);
@@ -95,22 +98,35 @@ export function App() {
     setEditor(newEditorSession(song, chart));
     setScreen({ name: 'editor' });
   }, []);
-  /** Result screen: the same key mode and difficulty with a new seed, played right away. */
-  const regenerate = async (request: PlayRequest) => {
+  // Every change of screen ends what an earlier screen started (a new pattern still generating).
+  const screenRun = useRef(0);
+  useEffect(() => {
+    screenRun.current++;
+  }, [screen]);
+  /**
+   * Result screen: the same key mode, difficulty system and tier with a new seed, played right
+   * away. Resolves with the error to show on the result screen, or null.
+   */
+  const regenerate = async (request: PlayRequest): Promise<string | null> => {
     const meta = request.chart.meta;
-    if (!meta.songId || !meta.generator) return;
+    if (!meta.songId || !meta.generator) return null;
+    const run = screenRun.current;
     try {
       const song = await api.song(meta.songId);
       const { chart } = await api.generate(meta.songId, {
         keyMode: meta.keyMode,
         difficulty: meta.difficulty,
+        system: meta.difficultySystem ?? 'GRG',
         targetLevel: (meta.generator.params.targetLevel as number | null | undefined) ?? null,
         newSeed: true,
         params: generationParams(settings.generation, meta.keyMode),
       });
+      // the player left the result screen while it was generating
+      if (run !== screenRun.current) return null;
       play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
-    } catch {
-      setScreen({ name: 'select' });
+      return null;
+    } catch (e) {
+      return run === screenRun.current ? (e instanceof Error ? e.message : String(e)) : null;
     }
   };
   const testFromEditor = (chart: Chart, startMs: number) => {
@@ -156,15 +172,29 @@ export function App() {
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
           onRegenerate={
             screen.request.chart.meta.generator && !screen.request.practice && !screen.request.replay && !screen.request.fromEditor
-              ? () => void regenerate(screen.request)
+              ? () => regenerate(screen.request)
               : undefined
           }
         />
       );
     case 'calibration':
-      return <CalibrationScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
+      return (
+        <CalibrationScreen
+          settings={settings}
+          onSettingsChange={setSettings}
+          onBack={screen.fromSettings ? () => setScreen({ name: 'settings', tab: 'judge' }) : toSelect}
+        />
+      );
     case 'settings':
-      return <SettingsScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
+      return (
+        <SettingsScreen
+          settings={settings}
+          onSettingsChange={setSettings}
+          onBack={toSelect}
+          onCalibrate={() => setScreen({ name: 'calibration', fromSettings: true })}
+          initialTab={screen.tab}
+        />
+      );
     case 'editor':
       if (!editor) return null;
       return (

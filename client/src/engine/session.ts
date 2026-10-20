@@ -71,6 +71,12 @@ export interface HitRecord {
   percent: number;
 }
 
+/** One judgement of the play: the note's time in the chart (its end for a tail) and the DJMAX percent, 0 for BREAK. */
+export interface JudgeMark {
+  noteMs: number;
+  percent: number;
+}
+
 export interface GradeCount {
   label: string;
   percent: number;
@@ -101,12 +107,16 @@ export interface SessionResult {
   lamp: ClearLamp;
   hits: HitRecord[];
   breakTimes: number[];
+  /** Every judgement in order, the ones without a timing error too (completed tails, side misses). */
+  judgements: JudgeMark[];
   ruleset: RulesetId;
   rows: RulesetRow[];
   weightedScore: number;
   exScore: number;
   exMax: number;
   rank: string;
+  /** S+++ … F on the EZ2ON ladder (out of 1,000,000), or the BMS rank under EX-SCORE. */
+  grade: string;
   fever: { enabled: boolean; bonus: number; activations: number; bestMultiplier: number };
 }
 
@@ -173,6 +183,7 @@ export class GameSession {
   private readonly counts = new Map<number, number>();
   private readonly hits: HitRecord[] = [];
   private readonly breakTimes: number[] = [];
+  private readonly judgements: JudgeMark[] = [];
   private sumPercent = 0;
   private sumWeight = 0;
   private exScore = 0;
@@ -346,7 +357,8 @@ export class GameSession {
   /** MANUAL fever key. */
   activateFever(timeMs: number): boolean {
     if (this.failed || !this.fever.activate(timeMs)) return false;
-    this.emit({ type: 'fever', active: true, multiplier: this.fever.multiplier, timeMs });
+    // announced like an automatic start, so the next judgement does not announce it again
+    this.emitFeverStart(timeMs);
     return true;
   }
 
@@ -392,12 +404,14 @@ export class GameSession {
       lamp,
       hits: [...this.hits],
       breakTimes: [...this.breakTimes],
+      judgements: [...this.judgements],
       ruleset: this.ruleset.id,
       rows: this.ruleset.rows(counts, this.breaks),
       weightedScore: this.currentWeightedScore,
       exScore: this.exScore,
       exMax,
       rank: this.ruleset.rank(exMax > 0 ? this.exScore / exMax : 0),
+      grade: this.ruleset.grade(this.currentScore, this.currentWeightedScore, exMax > 0 ? this.exScore / exMax : 0),
       fever: {
         enabled: this.fever.enabled,
         bonus: Math.round(this.fever.bonus),
@@ -493,6 +507,7 @@ export class GameSession {
     this.sumPercent += percent;
     this.sumWeight += c.weight;
     this.exScore += c.ex;
+    this.judgements.push({ noteMs: kind === 'tail' ? note.endT : note.t, percent: isBreak ? 0 : percent });
     if (isBreak) {
       this.breaks++;
       this.breakTimes.push(timeMs);
