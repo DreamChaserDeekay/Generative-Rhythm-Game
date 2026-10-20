@@ -267,6 +267,24 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
     assert any(a == b for seq in key_sequence(classic, bars["repeat"]) for a, b in zip(seq, seq[1:]))
 
 
+def test_slow_repeated_notes_stay_on_their_lane() -> None:
+    # Eighths 500 ms apart: a repeat this slow is easy on one key, and human BMS charts keep 86-88%
+    # of slow same-keysound repeats on their lane. Fast ones (250 ms) keep it more on easy charts
+    # than on MASTER (BMS: 37-39% at levels 2-6, 16% at 14). DJMAX keeps its own split.
+    slow, bars = gesture_analysis(60.0)
+    fast, _ = gesture_analysis(120.0)
+
+    def stay_share(chart: dict) -> float:
+        stays = [a == b for seq in key_sequence(chart, bars["repeat"]) for a, b in zip(seq, seq[1:])]
+        return sum(stays) / len(stays)
+
+    for tier in ("EASY", "NORMAL", "MASTER"):
+        assert stay_share(place(slow, "7K+1S", tier)) >= 0.8, tier
+    master = stay_share(place(fast, "7K+1S", "MASTER"))
+    assert stay_share(place(fast, "7K+1S", "EASY")) > master and stay_share(place(fast, "7K+1S", "NORMAL")) > master
+    assert stay_share(place(slow, "6K", "NM", system="DJMAX")) <= 0.2
+
+
 def test_pedals_anchor_and_drums_keep_one_lane_per_sound() -> None:
     analysis, bars = gesture_analysis()
     chart = place(analysis, "6K", "EXPERT")

@@ -56,6 +56,13 @@ class _Weights:
     jack: float
     jack_bonus: float
     bonus_ms: float  # how close a repeat of the same sound must follow to get jack_bonus
+    # a repeat at least slow_ms after the last note is slow: its own same-sound bonus, and that
+    # share of the jack cost
+    slow_ms: float
+    slow_bonus: float
+    slow_jack: float
+    usage: float  # weight of the lane-usage balance (W_BALANCE scaled per system)
+    slow_usage: float  # the same for a slow note
     source: float  # pull of drum / bass notes toward their lane regions
     drum_targets: tuple[float, float, float]  # lane position for low / mid / high drum energy
     bass_target: float
@@ -86,8 +93,13 @@ class _Weights:
             alternate=W_ALTERNATE * params.weight("alternateWeight") * float(hands["alternateScale"]),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
-            jack_bonus=max(params.weight("jackBonus", 0.0), float(hands["sameSoundBonus"])),
+            jack_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["sameSoundBonus"], params.skill)),
             bonus_ms=float(hands["sameSoundWithinMs"]),
+            slow_ms=float(hands["slowRepeatMs"]),
+            slow_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["slowSameSoundBonus"], params.skill)),
+            slow_jack=float(hands["slowJackScale"]),
+            usage=W_BALANCE * float(hands["usageBalance"]),
+            slow_usage=W_BALANCE * float(hands["usageBalance"]) * float(hands["slowUsageScale"]),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
             bass_target=float(mapping["bass"]),
@@ -104,6 +116,14 @@ class _Weights:
             balance_min=float(hands["balanceMinNotes"]),
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
         )
+
+
+def _by_skill(value: Any, skill: float) -> float:
+    """A number, or [skill, value] pairs read off at the chart's skill (straight lines between)."""
+    if isinstance(value, list):
+        points = sorted((float(a), float(b)) for a, b in value)
+        return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
+    return float(value)
 
 
 @dataclass(frozen=True)
@@ -713,14 +733,18 @@ def _costs(
     # a stair walks on) treats it like any other jack.
     keep_pitch = same_pitch and (planned_repeat or pitch_scale >= 1.0)
     # The same sound again soon: with a same-sound bonus (the jack style, GRG) it keeps its lane
-    # instead of paying for the jack (BMS: about half the jacks repeat their keysound). A roll keeps
-    # its own hand-over-hand plan.
-    bonus = w.jack_bonus if dt < w.bonus_ms and same_sound and slot.roll is None else 0.0
+    # instead of paying for the jack (BMS: about half the jacks repeat their keysound). A slow
+    # repeat (slow_ms or more apart, easy on one key) has its own bonus, jack share and lane-usage
+    # weight (BMS: 87% of slow same-keysound repeats keep their lane). A roll keeps its own
+    # hand-over-hand plan.
+    slow = dt >= w.slow_ms
+    bonus = (w.slow_bonus if slow else w.jack_bonus) if dt < w.bonus_ms and same_sound and slot.roll is None else 0.0
     jack = 0.0
     if not keep_pitch and not bonus:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
-        jack = jack_scale * w.jack * (0.6 + speed)
-    balance = [W_BALANCE * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
+        jack = jack_scale * w.jack * (0.6 + speed) * (w.slow_jack if slow else 1.0)
+    usage = w.slow_usage if slow else w.usage
+    balance = [usage * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
     single_prev = prev[0] if len(prev) == 1 else None
     use_repeat = bool(repeat_set) and w.repeat > 0
     # hand rules: the fast run's hand and its notes in a row, each key's slots in a row, the bar so far
