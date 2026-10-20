@@ -17,6 +17,8 @@ from .rolls import coarser, mark_rolls, roll_level
 from .tempo import TempoMap
 
 DRUMS = STEM_NAMES.index("drums")
+VOCALS = STEM_NAMES.index("vocals")
+OTHER = STEM_NAMES.index("other")
 MAX_GAP_S = 4.0  # silences longer than this do not count toward the target density
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
@@ -85,10 +87,27 @@ def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> fl
     return None
 
 
-def hold_value(c: Candidate) -> float:
+def hold_value(c: Candidate, tempo: TempoMap | None = None) -> float:
     """How much a sound wants a long note: how long it sounds, how tonal it is, and most of all
-    whether it is a note of the melody (a long sung note rather than a kick over a pad)."""
-    return c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0) * (HOLD_PLAIN + (1.0 - HOLD_PLAIN) * 2.0 * (c.melody or 0.0))
+    whether it is a note of the melody (a long sung note rather than a kick over a pad); with a
+    ranking hold model (holds.model.rank), times how likely the sound really lasts."""
+    value = c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0) * (HOLD_PLAIN + (1.0 - HOLD_PLAIN) * 2.0 * (c.melody or 0.0))
+    model = difficulty_config()["holds"].get("model")
+    if tempo is not None and model and model.get("rank"):
+        value *= hold_probability(c, tempo, model)
+    return value
+
+
+def hold_probability(c: Candidate, tempo: TempoMap, model: dict[str, Any]) -> float:
+    """How likely the sound under a candidate really lasts 350 ms or more: a logistic model over
+    what the analysis says (difficulty.json holds.model, fitted on BMS keysound lengths)."""
+    src = c.sources if c.sources is not None else np.full(len(STEM_NAMES), 1.0 / len(STEM_NAMES))
+    x = (
+        min(4.0, c.sustain_beats * tempo.beat_ms(c.beat) / 1000.0), c.harmonic, c.melody or 0.0, c.strength,
+        float(src[DRUMS]), float(src[VOCALS]), float(src[OTHER]), float(int(np.argmax(c.bands)) == 0),
+    )
+    z = float(model["bias"]) + sum(float(w) * (v - float(m)) / float(sd) for v, m, sd, w in zip(x, model["mean"], model["scale"], model["weights"]))
+    return 1.0 / (1.0 + math.exp(-z))
 
 
 def holdable(c: Candidate, tempo: TempoMap) -> bool:
@@ -101,10 +120,16 @@ def holdable(c: Candidate, tempo: TempoMap) -> bool:
     if c.strength < float(cfg["strengthAtLeast"]):
         return False  # a faint sound over another one: the length is mostly the other sound's
     if (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"]):
-        return True
-    if c.sources is None:
-        return c.harmonic >= float(cfg["harmonicAtLeast"])
-    return float(c.sources[DRUMS]) < float(cfg["drumsBelow"]) and c.subdivision <= int(cfg["maxSubdivision"])
+        ok = True
+    elif c.sources is None:
+        ok = c.harmonic >= float(cfg["harmonicAtLeast"])
+    else:
+        ok = float(c.sources[DRUMS]) < float(cfg["drumsBelow"]) and c.subdivision <= int(cfg["maxSubdivision"])
+    model = cfg.get("model")
+    if ok and model and float(model.get("atLeast", 0.0)) > 0:
+        # the analysed length says little alone (a pad under a short hit lends it its own)
+        return hold_probability(c, tempo, model) >= float(model["atLeast"])
+    return ok
 
 
 def active_seconds(cands: list[Candidate]) -> float:
@@ -272,7 +297,7 @@ def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenPa
     picks = []
     for i, c in enumerate(chosen):
         if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None and holdable(c, tempo):
-            picks.append((hold_value(c), i))
+            picks.append((hold_value(c, tempo), i))
     picks.sort(reverse=True)
     limit = int(round(params.long_note_ratio * len(slots)))
     for _, i in picks[:limit]:

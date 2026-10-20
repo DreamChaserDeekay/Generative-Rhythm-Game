@@ -754,7 +754,7 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
         if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
             continue
         mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
-        value = float(np.mean([hold_value(cands[slot_cand[i]]) for i in idxs])) * mult
+        value = float(np.mean([hold_value(cands[slot_cand[i]], tempo) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))
     placed = 0
