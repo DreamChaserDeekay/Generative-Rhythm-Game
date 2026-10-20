@@ -67,6 +67,9 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(1);
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase3.png' });
+  // the score panel stands over SPEED left of the gear, on the screen; under the judge line is the gear's
+  const [panel, speed] = [await page.locator('.hud-panel').boundingBox(), await page.locator('.hud-speed').boundingBox()];
+  expect(panel && speed && panel.x >= 0 && panel.x + panel.width < 640 && panel.y + panel.height <= speed.y + 2).toBe(true);
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
   // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it

@@ -69,6 +69,8 @@ export interface CameraPreset {
 export interface CameraConfig {
   trackWidth: number;
   trackLength: number;
+  /** Where the play puts the judge line: this share of the screen's height from the top. */
+  judgeLineY: number;
   presets: Record<string, CameraPreset>;
   default: string;
   /** Strength of the chart's camera cues (see render/cameraFx.ts). */

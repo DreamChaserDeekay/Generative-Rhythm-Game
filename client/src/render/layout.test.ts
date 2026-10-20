@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
-import { cameraPose, computeTrackGeometry } from './layout';
+import { cameraPose, computeTrackGeometry, JUDGE_LINE_Y } from './layout';
 
 function screenY(presetId: string, z: number, aspect = 16 / 9): number {
   const pose = cameraPose(cameraConfig.presets[presetId]);
@@ -42,6 +42,17 @@ describe('track layout', () => {
       expect(near).toBeLessThan(0.95);
       expect(far).toBeGreaterThan(0);
       expect(far).toBeLessThan(near);
+    }
+  });
+
+  it('moves the view up so the judge line leaves the gear room under it, the track still on the screen', () => {
+    expect(JUDGE_LINE_Y).toBeGreaterThan(0.7);
+    expect(JUDGE_LINE_Y).toBeLessThan(0.84);
+    for (const id of Object.keys(cameraConfig.presets)) {
+      // moving the view shifts the whole picture by the same amount
+      const shift = screenY(id, 0) - JUDGE_LINE_Y;
+      // the far end may leave the top only by a little (it lies in the fog there)
+      expect(screenY(id, -cameraConfig.trackLength) - shift).toBeGreaterThan(-0.03);
     }
   });
 });

@@ -1,4 +1,7 @@
-import type { CameraPreset, KeyModeConfig, LaneColor, LaneKind } from '../engine/config';
+import { cameraConfig, type CameraPreset, type KeyModeConfig, type LaneColor, type LaneKind } from '../engine/config';
+
+/** Where the judge line sits on the screen: this share of the height from the top (the view moves, not the camera). */
+export const JUDGE_LINE_Y = cameraConfig.judgeLineY;
 
 export interface LaneGeom {
   index: number;

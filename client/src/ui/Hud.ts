@@ -56,13 +56,29 @@ const GAUGE_LENGTH = 9;
 const GAUGE_CELLS = 40;
 /** Plane px per track unit (HUD_UNIT; kept here so the plane's sizes read as the sheets' px). */
 const UNIT = 73.65;
-/** Space between the gear and what stands beside it (plane px). */
+/** Space between the gear and what stands beside it (plane px), and between the score panel and the screen's edge (screen px). */
 const SIDE_GAP = 22;
+const SIDE_MARGIN = 16;
 
 /** CSS transform of the plane: its homography (row-major 3×3, plane px to screen px) as a matrix3d. */
 export function planeMatrix(h: readonly number[]): string {
   const m = [h[0], h[3], 0, h[6], h[1], h[4], 0, h[7], 0, 0, 1, 0, h[2], h[5], 0, h[8]];
   return `matrix3d(${m.map((v) => Number(v.toPrecision(9))).join(',')})`;
+}
+
+/** Where the plane point (x, y) lies on the screen (px). */
+export function planePoint(h: readonly number[], x: number, y: number): [number, number] {
+  const w = h[6] * x + h[7] * y + h[8];
+  return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w];
+}
+
+/** The plane point the screen shows at (sx, sy) px: the homography undone. */
+export function screenPoint(h: readonly number[], sx: number, sy: number): [number, number] {
+  const [a, b, c, d, e, f, g, i, j] = h;
+  // the adjugate of the 3×3 matrix (its inverse up to a scale, which the division drops)
+  const inv = [e * j - f * i, c * i - b * j, b * f - c * e, f * g - d * j, a * j - c * g, c * d - a * f, d * i - e * g, b * g - a * i, a * e - b * d];
+  const w = inv[6] * sx + inv[7] * sy + inv[8];
+  return [(inv[0] * sx + inv[1] * sy + inv[2]) / w, (inv[3] * sx + inv[4] * sy + inv[5]) / w];
 }
 
 /** Screen px per plane px across the track at (x, y), and how tall a small square there looks for its width. */
@@ -118,7 +134,6 @@ export class Hud {
   private readonly maxCombo: HTMLElement;
   private readonly pace: HTMLElement;
   private readonly panel: HTMLElement;
-  private readonly panelIn: HTMLElement;
   private readonly gauge: HTMLElement;
   private readonly gaugeFill: HTMLElement;
   private readonly gaugeClear: HTMLElement;
@@ -151,9 +166,9 @@ export class Hud {
   private lastReady = '';
   private lastFever = '';
   private lastMatrix = '';
-  /** The score panel's size for the screen (plane px to a screen px) and its room, from the last layout. */
+  /** The score panel's size for the screen (plane px to a screen px) and where it lies, from the last layout. */
   private panelK = 1;
-  private panelRoom = 0;
+  private panelFit: { right: number; bottom: number; h: readonly number[]; margin: number } | null = null;
 
   constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
@@ -175,12 +190,12 @@ export class Hud {
         <i class="hud-gauge-clear"></i>
         <div class="hud-gauge-clear-label"><span class="hud-label">CLEAR</span></div>
         <div class="hud-gauge-value"><span class="hud-num hud-gauge-num"></span><span class="hud-label hud-gauge-type"></span></div>
-        <div class="hud-panel"><div class="hud-panel-in">
-          <span><span class="hud-label hud-score-label"></span><span class="hud-num hud-score">0</span></span>
-          <span class="hud-pace-item"><span class="hud-label hud-pace-label"></span><span class="hud-num hud-pace"></span></span>
-          <span><span class="hud-label hud-rate-label"></span><span class="hud-num hud-rate"></span></span>
-          <span><span class="hud-label">MAX COMBO</span><span class="hud-num hud-max-combo">0</span></span>
-        </div></div>
+        <div class="hud-panel">
+          <span class="hud-label hud-score-label"></span><span class="hud-num hud-score">0</span>
+          <span class="hud-label hud-pace-label hud-pace-item"></span><span class="hud-num hud-pace hud-pace-item"></span>
+          <span class="hud-label hud-rate-label"></span><span class="hud-num hud-rate"></span>
+          <span class="hud-label">MAX COMBO</span><span class="hud-num hud-max-combo">0</span>
+        </div>
       </div>
       <div class="hud-toast"></div>
       <div class="hud-ready"></div>
@@ -221,12 +236,11 @@ export class Hud {
     q('.hud-rate-label').textContent = info.subLabel;
     q('.hud-pace-label').textContent = info.pacemakerLabel ?? '';
     this.pace = q('.hud-pace');
-    if (info.pacemakerLabel === null) q('.hud-pace-item').remove();
+    if (info.pacemakerLabel === null) root.querySelectorAll('.hud-pace-item').forEach((el) => el.remove());
     this.score = q('.hud-score');
     this.sub = q('.hud-rate');
     this.maxCombo = q('.hud-max-combo');
     this.panel = q('.hud-panel');
-    this.panelIn = q('.hud-panel-in');
 
     this.gauge = q('.hud-gauge');
     this.gauge.classList.toggle('survival', info.survivalGauge);
@@ -280,7 +294,7 @@ export class Hud {
     // the judgement and the combo, centred on the track; the judgement no wider than the track
     const j = at(0, -judgeAt, TEXT_ASPECT);
     this.place(this.judgeBox, 0, -judgeAt, `translate(-50%, -50%) scaleY(${j.stretch.toFixed(3)})`);
-    const fit = this.widest(this.judgeText, [
+    const [fit] = this.measure(this.judgeText, [
       [this.judgeLabel, 'MAX 100%'],
       [this.judgeCombo, t.inline ? '0000' : ''],
     ], () => (this.judgeBox.style.fontSize = px(t.size * j.k)));
@@ -296,7 +310,7 @@ export class Hud {
     this.comboBox.style.setProperty('--label-size', px(16 * c.k));
     this.comboBox.style.setProperty('--label-stroke', px(Math.max(3, t.stroke - 2) * c.k));
 
-    // beside the gear, on the same plane: FEVER level with the combo, the gauge and hi-speed standing on the judge line
+    // beside the gear, on the same plane: FEVER level with the combo, the gauge and SPEED standing on the judge line
     const right = p.halfWidth + p.sideOut + SIDE_GAP;
     const foot = -GAUGE_FROM * UNIT;
     const f = at(right, -comboAt, SIDE_ASPECT);
@@ -326,43 +340,46 @@ export class Hud {
     this.place(this.gaugeValue, textX, foot, `translateY(-100%) scaleY(${v.stretch.toFixed(3)})`);
     this.sizeText(this.gaugeValue, v.k, 15, 30);
 
-    // the score panel on the deck, under the caps
-    const top = p.deckTop + 8 + p.capDepth + 8;
-    const height = Math.min(56, Math.max(36, p.deckRoom - 6 - (top - p.deckTop) - 4));
-    this.place(this.panel, -p.halfWidth + 12, top, '');
-    this.panel.style.width = px(2 * p.halfWidth - 24);
-    this.panel.style.height = px(height);
-    const m = at(0, top + height / 2, TEXT_ASPECT, 1.8);
-    this.panelIn.style.transform = `scaleY(${m.stretch.toFixed(3)})`;
-    this.panelK = m.k;
-    this.panelRoom = 2 * p.halfWidth - 48;
+    // the score, rate and max combo stacked over SPEED, standing on the judge line left of the
+    // gear as the gauge does right of it (under the line is the gear's own)
+    const speedTop = foot - this.speed.offsetHeight * s.stretch - 18 * s.k * s.stretch;
+    const sp = at(-right, speedTop - 60, SIDE_ASPECT);
+    this.place(this.panel, -right, speedTop, `translate(-100%, -100%) scaleY(${sp.stretch.toFixed(3)})`);
+    this.panelK = sp.k;
+    this.panelFit = { right, bottom: speedTop, h: p.h, margin: SIDE_MARGIN * hud };
     this.fitPanel();
     this.movePlane(p);
   }
 
   /**
-   * Sizes the score panel's text as large as the screen wants but never wider than the panel (a
-   * narrow camera shrinks it), for the widest numbers usual in a play or the live ones if wider.
+   * Sizes the score panel's text as large as the screen wants but never wider than the screen
+   * leaves left of the gear (where the panel is lowest, as the gear widens toward the camera), for
+   * the widest numbers usual in a play or the live ones if wider.
    */
   private fitPanel(): void {
+    const f = this.panelFit;
+    if (!f) return;
     const wider = (el: HTMLElement, sample: string) => ((el.textContent ?? '').length > sample.length ? el.textContent ?? '' : sample);
-    const wide = this.widest(this.panelIn, [
+    const [width] = this.measure(this.panel, [
       [this.score, wider(this.score, '000,000')],
       [this.sub, wider(this.sub, '100.00%')],
       [this.maxCombo, wider(this.maxCombo, '0000')],
       [this.pace, wider(this.pace, '+00,000')],
-    ], () => this.sizeText(this.panel, this.panelK, 17, 30));
-    if (wide > this.panelRoom) this.sizeText(this.panel, (this.panelK * this.panelRoom) / wide, 17, 30);
+    ], () => this.sizeText(this.panel, this.panelK, 15, 26));
+    const [, screenY] = planePoint(f.h, -f.right, f.bottom);
+    const [edge] = screenPoint(f.h, f.margin, screenY);
+    const shrink = Math.min(1, Math.max(0, -f.right - edge) / Math.max(1, width));
+    if (shrink < 1) this.sizeText(this.panel, this.panelK * shrink, 15, 26);
   }
 
-  /** How wide `box` lays out (plane px) with these texts in place of the live ones, sized by `size` first. */
-  private widest(box: HTMLElement, samples: [HTMLElement, string][], size: () => void): number {
+  /** How large `box` lays out (plane px) with these texts in place of the live ones, sized by `size` first. */
+  private measure(box: HTMLElement, samples: [HTMLElement, string][], size: () => void): [number, number] {
     size();
     const live = samples.map(([el]) => el.innerHTML);
     samples.forEach(([el, text]) => (el.textContent = text));
-    const width = box.scrollWidth;
+    const measured: [number, number] = [box.scrollWidth, box.scrollHeight];
     samples.forEach(([el], i) => (el.innerHTML = live[i]));
-    return width;
+    return measured;
   }
 
   /** Labels and numbers of a block on the plane, `k` plane px to a screen px (gaps scale with the numbers). */

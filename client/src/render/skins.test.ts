@@ -74,6 +74,17 @@ describe('skins', () => {
     expect(skinById('neon', null).style?.camera).toBe('LOW');
     expect(skinById('jewel', null).textures).toEqual({ hitBurst: 'fx/hitBurstGlow', hitHold: 'fx/hitHold' });
     expect(BUILTIN_SKINS.filter((s) => s.textures).map((s) => s.id)).toEqual(['jewel']);
+    // each its own gear under the judge line, and the combo over the judgement
+    expect(new Set(BUILTIN_SKINS.map((s) => s.style?.deck)).size).toBe(BUILTIN_SKINS.length);
+    for (const skin of BUILTIN_SKINS) expect(skin.style?.type.inline).toBeUndefined();
+  });
+
+  it('reads the key cap a skin of an earlier version names as the gear it became', () => {
+    expect(sanitizeSkin({ style: { cap: 'gloss' } })?.style?.deck).toBe('arcade');
+    expect(sanitizeSkin({ style: { cap: 'piano' } })?.style?.deck).toBe('mixer');
+    expect(sanitizeSkin({ style: { deck: 'jewel', cap: 'gloss' } })?.style?.deck).toBe('jewel');
+    expect(sanitizeSkin({ style: { cap: 'toString' } })?.style?.deck).toBe('line');
+    expect(sanitizeSkin({ style: { deck: 'keys' } })?.style?.deck).toBe('line');
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {

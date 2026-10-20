@@ -1,6 +1,7 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import { LANE_PALETTES, type Palette } from './palette';
-import type { CapStyle, HitStyle, LongStyle, NoteStyle } from './tintArt';
+import { CAP_DECKS, DECK_STYLES, type DeckStyle } from './deckArt';
+import type { HitStyle, LongStyle, NoteStyle } from './tintArt';
 
 export type NoteShape = 'box' | 'flat' | 'round';
 export type LaneLayout = 'mode' | 'uniform' | 'rainbow';
@@ -75,7 +76,8 @@ export interface HudType {
 export interface SkinStyle {
   note: NoteStyle;
   long: LongStyle;
-  cap: CapStyle;
+  /** The gear under the judge line: its plate and the lane lights that light with the keys (render/deckArt.ts). */
+  deck: DeckStyle;
   beam: BeamStyle;
   /** 'flipbook' plays the skin's hitBurst / hitHold textures (code shards without them). */
   hit: HitStyle | 'flipbook' | 'none';
@@ -88,7 +90,7 @@ export interface SkinStyle {
   track: { tint: number; scratchTint?: number; stripes?: boolean; edges?: boolean; facets?: boolean };
   /** Walls outside the rails. */
   frame?: 'gunmetal' | 'street';
-  /** The camera the skin was drawn for: picking the skin picks it too. */
+  /** The camera the skin was drawn for (the settings keep their own: picking a skin never changes it). */
   camera: CameraId;
   type: HudType;
 }
@@ -181,7 +183,7 @@ const FLAT = skin('flat', {
   style: {
     note: 'flat',
     long: 'solid',
-    cap: 'flat',
+    deck: 'line',
     beam: 'fade',
     hit: 'flash',
     rails: { width: 6 },
@@ -205,7 +207,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'stem',
       long: 'stem',
-      cap: 'stem',
+      deck: 'stem',
       beam: 'stem',
       hit: 'stemflash',
       rails: { width: 4 },
@@ -226,7 +228,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'gloss',
       long: 'gloss',
-      cap: 'gloss',
+      deck: 'arcade',
       beam: 'white',
       hit: 'star',
       rails: { width: 5 },
@@ -248,7 +250,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'thin',
       long: 'hollow',
-      cap: 'piano',
+      deck: 'mixer',
       beam: 'fade',
       hit: 'bomb',
       noteDepth: 30 / 51.5,
@@ -256,7 +258,7 @@ export const BUILTIN_SKINS: Skin[] = [
       judge: { height: 6 },
       track: { tint: 0, scratchTint: 0.1 },
       camera: 'FLAT',
-      type: { font: 'Chakra Petch', size: 40, combo: 40, tracking: 0.06, max: '#ffffff', outline: '#000000', stroke: 5, inline: true },
+      type: { font: 'Chakra Petch', size: 40, combo: 60, tracking: 0.06, max: '#ffffff', outline: '#000000', stroke: 5 },
     },
   }),
   skin('street', {
@@ -270,7 +272,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'outline',
       long: 'striped',
-      cap: 'outline',
+      deck: 'hazard',
       beam: 'fade',
       hit: 'flare',
       rails: { width: 6 },
@@ -293,7 +295,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'chip',
       long: 'neon',
-      cap: 'neon',
+      deck: 'neon',
       beam: 'neon',
       hit: 'hex',
       rails: { width: 6, glow: 14 },
@@ -315,7 +317,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'gem',
       long: 'glass',
-      cap: 'glass',
+      deck: 'crystal',
       beam: 'white',
       hit: 'shards',
       rails: { width: 5, glow: 8 },
@@ -336,7 +338,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'pill',
       long: 'pill',
-      cap: 'pill',
+      deck: 'candy',
       beam: 'fade',
       hit: 'bubbles',
       rails: { width: 8 },
@@ -358,7 +360,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'jewel',
       long: 'jewel',
-      cap: 'jewel',
+      deck: 'jewel',
       beam: 'white',
       hit: 'flipbook',
       rails: { width: 10, bevel: true },
@@ -380,7 +382,7 @@ export const BUILTIN_SKINS: Skin[] = [
     style: {
       note: 'flat',
       long: 'solid',
-      cap: 'flat',
+      deck: 'mono',
       beam: 'white',
       hit: 'none',
       rails: { width: 6 },
@@ -399,7 +401,6 @@ const EFFECTS: HitEffectStyle[] = ['burst', 'ring', 'sprite', 'none'];
 const LANE_KEYS: LaneColor[] = ['white', 'blue', 'gold', 'scratch', 'sideL', 'sideR'];
 const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'gloss', 'thin', 'outline', 'chip', 'gem', 'pill', 'jewel'];
 const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'gloss', 'hollow', 'striped', 'neon', 'glass', 'pill', 'jewel'];
-const CAP_STYLES: CapStyle[] = ['flat', 'stem', 'gloss', 'piano', 'outline', 'neon', 'glass', 'pill', 'jewel'];
 const BEAM_STYLES: BeamStyle[] = ['fade', 'white', 'stem', 'neon'];
 const HIT_STYLES: SkinStyle['hit'][] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'flipbook', 'none'];
 const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW'];
@@ -443,7 +444,8 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
   const style: SkinStyle = {
     note: pick(r.note, NOTE_STYLES, d.note),
     long: pick(r.long, LONG_STYLES, d.long),
-    cap: pick(r.cap, CAP_STYLES, d.cap),
+    // a skin of an earlier version names the key cap that stood under the judge line
+    deck: pick(r.deck, DECK_STYLES, typeof r.cap === 'string' && Object.hasOwn(CAP_DECKS, r.cap) ? CAP_DECKS[r.cap] : d.deck),
     beam: pick(r.beam, BEAM_STYLES, d.beam),
     hit: pick(r.hit, HIT_STYLES, d.hit),
     rails: { width: num(rails.width, 1, 20, d.rails.width) },
