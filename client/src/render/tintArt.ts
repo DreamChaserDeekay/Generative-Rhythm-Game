@@ -67,9 +67,20 @@ export function tintMaterial(params: THREE.MeshBasicMaterialParameters, { base =
 /**
  * A flipbook of light on black, in the material's colour, as the sheets drew the crystal set's
  * flipbooks: the light takes the colour and its brightest core (from `core` up) stays white.
+ * The light is added to what is behind it, and the canvas is made only as opaque as the light is
+ * bright: its black (the whole picture is opaque) would otherwise hide a background video or the
+ * visualizer behind the see-through canvas around the gear.
  */
 export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: number): THREE.MeshBasicMaterial {
-  const material = new THREE.MeshBasicMaterial(params);
+  const material = new THREE.MeshBasicMaterial({
+    ...params,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+  });
   material.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <map_fragment>',
@@ -78,8 +89,10 @@ export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: n
         vec3 light = sRGBTransferOETF( lightTexel ).rgb;
         float lightCore = smoothstep( ${core.toFixed(3)}, 1.0, max( light.r, max( light.g, light.b ) ) );
         vec3 lit = mix( sRGBTransferOETF( vec4( diffuseColor.rgb, 1.0 ) ).rgb, vec3( 1.0 ), lightCore ) * light;
-        diffuseColor.rgb = sRGBTransferEOTF( vec4( lit, 1.0 ) ).rgb;
-        diffuseColor.a *= lightTexel.a;
+        // premultiplied: the colour as much as it shows, the alpha as bright as the light
+        float lightAlpha = diffuseColor.a * lightTexel.a;
+        diffuseColor.rgb = sRGBTransferEOTF( vec4( lit, 1.0 ) ).rgb * lightAlpha;
+        diffuseColor.a = max( lit.r, max( lit.g, lit.b ) ) * lightAlpha;
       #endif`,
     );
   };
