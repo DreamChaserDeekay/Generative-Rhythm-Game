@@ -14,7 +14,7 @@ import { FEVER_SHORT, generationParams, PlayOptionsPanel, type PlayOptionsTab } 
 import { buildPlayRequest } from './playRequest';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { KIND_LABELS, SongInfoPanel } from './SongInfoPanel';
-import { Backdrop, bpmLabel, SongArt, SongMap, stemToken, useSketch } from './songArt';
+import { Backdrop, bpmLabel, SongArt, useSketch } from './songArt';
 import { bestByTier, FOLDER_LABELS, inFolder, recordsOn, sortSongs, SORT_LABELS } from './songRecords';
 import { syncTestRequest } from './syncTestRequest';
 
@@ -34,7 +34,6 @@ const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
 const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
 const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
-const STEM_NAMES: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
 
 /** The part of the detail column above the key modes: the song, or one of the two panels. */
 type Panel = 'none' | 'options' | 'info';
@@ -479,6 +478,17 @@ export function SongSelectScreen(props: Props) {
         return;
       }
       if (keepsKey(e.target, e.code)) return;
+      // an option row of the play options keeps ←→ and Enter (its value); ↑↓ go through the rows
+      const optionRow = e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('.opt') : null;
+      if (optionRow) {
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+          e.preventDefault();
+          const rows = [...(optionRow.parentElement?.querySelectorAll<HTMLElement>('.opt') ?? [])];
+          rows[rows.indexOf(optionRow) + (e.code === 'ArrowDown' ? 1 : -1)]?.focus();
+          return;
+        }
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Enter' || e.code === 'NumpadEnter') return;
+      }
       const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
       const idx = filtered.findIndex((s) => s.id === selectedSongId);
       if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
@@ -854,7 +864,7 @@ export function SongSelectScreen(props: Props) {
                 {ready ? (
                   <button className="option-chips" data-testid="play-options-button" aria-label="플레이 옵션" aria-expanded={panel === 'options'} onClick={() => (panel === 'options' ? setPanel('none') : openOptions())}>
                     <span className="chip">
-                      HI-SPEED <b>{settings.hiSpeed.toFixed(1)}</b>
+                      SPEED <b>{settings.hiSpeed.toFixed(1)}</b>
                     </span>
                     <span className="chip">
                       게이지 <b>{gaugeRules[settings.gaugeType].label}</b>
@@ -979,10 +989,9 @@ function SongRow(props: { song: Song; active: boolean; favorite: boolean; tiers:
   );
 }
 
-/** The selected song: its picture, name, tempo, length, metre, and its sections with the preview. */
+/** The selected song: its picture, name, tempo, length and metre. */
 function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void }) {
   const sketch = useSketch(song);
-  const stems = sketch?.stems ? Object.entries(sketch.stems).filter(([, share]) => share > 0.02) : [];
   return (
     <section className="hero">
       <div className="hero-art">
@@ -1017,23 +1026,6 @@ function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite
             </button>
           </span>
         </div>
-        {sketch && (
-          <div className="hero-map">
-            <div className="hero-map-label">
-              <span className="label">곡 구간 · 미리듣기 구간</span>
-              {stems.length > 0 && (
-                <span className="label stem-keys">
-                  {stems.map(([stem]) => (
-                    <span key={stem} style={{ ['--stem' as string]: `var(${stemToken(stem)})` } as CSSProperties}>
-                      {STEM_NAMES[stem] ?? stem}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </div>
-            <SongMap sketch={sketch} height={14} showPreview />
-          </div>
-        )}
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, type BackendStatus } from '../api/client';
 import {
   cameraConfig,
@@ -17,7 +17,7 @@ import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, padCodeLabel, suspendMenuBridges } from '../input/gamepad';
 import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, sanitizeSkin, skinById } from '../render/skins';
+import { sanitizeSkin, skinById } from '../render/skins';
 import {
   bindingsFor,
   clampHiSpeed,
@@ -38,6 +38,7 @@ import {
 } from '../settings/settings';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
+import { ActionOption, Choice, NumberOption, pct, skinChoices, speedText, Toggle } from './optionRows';
 import { FEVER_LABELS, PACEMAKER_LABELS } from './PlayOptions';
 import { HintBar, TopBar } from './shell';
 
@@ -65,7 +66,6 @@ const TABS: [SettingsTab, string, string][] = [
 ];
 
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
-const pct = (v: number) => `${Math.round(v * 100)}%`;
 const signedMs = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
 
 /** Elements whose keys are their own: text fields keep the arrows, Q, E and the page keys. */
@@ -170,10 +170,6 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
   const row = { onHelp: setHelp };
   const [, heading] = TABS.find(([id]) => id === tab) ?? TABS[0];
   const subtitle = TABS.find(([id]) => id === tab)?.[2];
-  const skinChoices: [string, string][] = [
-    ...BUILTIN_SKINS.map((k): [string, string] => [k.id, k.label]),
-    ...(settings.customSkin !== null ? [['custom', (settings.customSkin as { label?: string }).label ?? '사용자 스킨'] as [string, string]] : []),
-  ];
 
   let content: ReactNode;
   switch (tab) {
@@ -310,7 +306,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             max={HI_SPEED_MAX}
             step={0.1}
             bigStep={0.5}
-            format={(v) => (Number.isInteger(Math.round(v * 100) / 10) ? v.toFixed(1) : v.toFixed(2))}
+            format={speedText}
             onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
             help="노트가 내려오는 빠르기입니다. 미리보기의 '보이는 시간'(녹색 숫자)은 노트가 나타나서 판정선에 닿기까지의 시간으로, 이 값이 같으면 배속과 커버를 바꿔도 같은 속도로 느껴집니다. 플레이 중 ↑↓ (Shift ±0.5)."
           />
@@ -394,7 +390,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             label="트랙 스킨"
             testId="opt-skin"
             value={settings.skin}
-            options={skinChoices}
+            options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
             help="노트·롱노트·키캡·키 빔·타격 효과·레일·판정선·트랙의 모양입니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
@@ -692,109 +688,6 @@ function defaultHelp(tab: SettingsTab): string {
     default:
       return '항목을 고르면 여기에 설명이 나옵니다.';
   }
-}
-
-interface RowProps {
-  label: string;
-  help: string;
-  onHelp: (help: string) => void;
-  testId?: string;
-}
-
-/**
- * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
- * change it, Shift by a bigger step; Enter moves a choice on or flips a switch.
- */
-function OptionRow(
-  props: RowProps & {
-    text: string;
-    value: string;
-    onStep: (dir: 1 | -1, big: boolean) => void;
-    onPress?: () => void;
-    /** A switch's state (on / off rows). */
-    checked?: boolean;
-  },
-) {
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-      e.preventDefault();
-      props.onStep(e.code === 'ArrowLeft' ? -1 : 1, e.shiftKey);
-    } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-      e.preventDefault();
-      if (!e.repeat) props.onPress?.();
-    }
-  };
-  // the arrows change the value and leave the focus on the row
-  const arrow = (dir: 1 | -1) => ({
-    onMouseDown: (e: ReactMouseEvent) => e.preventDefault(),
-    onClick: (e: ReactMouseEvent<HTMLButtonElement>) => {
-      (e.currentTarget.closest('.opt') as HTMLElement | null)?.focus();
-      props.onStep(dir, e.shiftKey);
-    },
-  });
-  return (
-    <div
-      className="opt"
-      tabIndex={0}
-      role={props.checked === undefined ? 'spinbutton' : 'switch'}
-      aria-label={props.label}
-      aria-valuetext={props.checked === undefined ? props.text : undefined}
-      aria-checked={props.checked}
-      data-testid={props.testId}
-      data-value={props.value}
-      onKeyDown={onKeyDown}
-      onFocus={() => props.onHelp(props.help)}
-    >
-      <span className="opt-name">{props.label}</span>
-      <span className="opt-value">
-        <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
-          ‹
-        </button>
-        <b>{props.text}</b>
-        <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(1)}>
-          ›
-        </button>
-      </span>
-    </div>
-  );
-}
-
-/** One of a list; the ends wrap around. */
-function Choice<T extends string>(props: RowProps & { value: T; options: [T, string][]; onChange: (v: T) => void }) {
-  const at = Math.max(0, props.options.findIndex(([id]) => id === props.value));
-  const move = (dir: 1 | -1) => props.onChange(props.options[(at + dir + props.options.length) % props.options.length][0]);
-  return <OptionRow {...props} text={props.options[at]?.[1] ?? String(props.value)} value={props.value} onStep={(dir) => move(dir)} onPress={() => move(1)} />;
-}
-
-/** A number between min and max, in steps (Shift: bigger steps). */
-function NumberOption(
-  props: RowProps & { value: number; min: number; max: number; step: number; bigStep: number; format: (v: number) => string; onChange: (v: number) => void },
-) {
-  const step = (dir: 1 | -1, big: boolean) => {
-    // rounded, so 0.1 steps do not drift into 0.30000000000000004
-    const next = Math.round((props.value + dir * (big ? props.bigStep : props.step)) * 1e6) / 1e6;
-    const clamped = Math.min(props.max, Math.max(props.min, next));
-    if (clamped !== props.value) props.onChange(clamped);
-  };
-  return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} />;
-}
-
-/** On or off; ←, → and Enter all flip it. */
-function Toggle(props: RowProps & { value: boolean; onChange: (v: boolean) => void }) {
-  const flip = () => props.onChange(!props.value);
-  return <OptionRow {...props} text={props.value ? '켬' : '끔'} value={String(props.value)} checked={props.value} onStep={flip} onPress={flip} />;
-}
-
-/** A row that does something (Enter or a click). */
-function ActionOption(props: RowProps & { action: string; onPress: () => void }) {
-  return (
-    <button className="opt opt-action" data-testid={props.testId} onClick={props.onPress} onFocus={() => props.onHelp(props.help)}>
-      <span className="opt-name">{props.label}</span>
-      <span className="opt-value">
-        <b>{props.action}</b> <kbd>Enter</kbd>
-      </span>
-    </button>
-  );
 }
 
 /** Connected controllers and a gamepad control per lane, captured by pressing it. */

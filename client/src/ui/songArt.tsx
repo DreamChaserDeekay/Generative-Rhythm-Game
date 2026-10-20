@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Song, type SongSketch } from '../api/client';
-import { previewLength } from '../audio/songPreview';
 import { token } from './theme';
 
 /** Colour token of the stem that leads a section. */
@@ -131,35 +130,6 @@ export function Backdrop({ song }: { song: Song | null }) {
   return (
     <div className="backdrop" aria-hidden="true">
       <canvas ref={canvas} width={24} height={24} className={drawn && drawn === song?.id ? 'shown' : ''} />
-    </div>
-  );
-}
-
-/**
- * The song's sections in a strip (width = length, height = energy, colour = leading stem), with
- * the stretch the song select previews outlined.
- */
-export function SongMap({ sketch, height = 12, showPreview = false }: { sketch: SongSketch; height?: number; showPreview?: boolean }) {
-  const duration = Math.max(1, sketch.durationMs);
-  const start = sketch.previewMs ?? 0;
-  const length = previewLength(sketch.durationMs, start);
-  return (
-    <div className="song-map" style={{ height }} data-testid="song-map">
-      {sketch.sections.map((s, i) => (
-        <i
-          key={i}
-          title={s.label}
-          style={{
-            left: `calc(${(s.t / duration) * 100}% + 1px)`,
-            width: `calc(${((s.endT - s.t) / duration) * 100}% - 2px)`,
-            height: Math.round((0.35 + 0.65 * s.energy) * height),
-            background: `color-mix(in srgb, var(${stemToken(s.leader)}) 70%, var(--sunken))`,
-          }}
-        />
-      ))}
-      {showPreview && sketch.previewMs !== null && (
-        <b className="song-map-preview" style={{ left: `${(start / duration) * 100}%`, width: `${(length / duration) * 100}%` }} />
-      )}
     </div>
   );
 }

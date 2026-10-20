@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import type { DifficultySystemId } from '../src/engine/config';
 
 /** Opens the song select's play options (Space), on a tab when one is given. */
-export async function playOptions(page: Page, tab?: 'rules' | 'generation') {
+export async function playOptions(page: Page, tab?: 'rules' | 'gear' | 'generation') {
   const panel = page.getByTestId('play-options');
   if (!(await panel.isVisible())) await page.getByTestId('hint-options').click();
   await expect(panel).toBeVisible();

@@ -1,15 +1,20 @@
 import type { ServerChart } from '../api/client';
-import { gaugeRules, gaugeTypeIds, keyModes } from '../engine/config';
+import { cameraConfig, gaugeRules, gaugeTypeIds, keyModes } from '../engine/config';
 import type { FeverMode } from '../engine/fever';
 import { placementIds, placementLabels } from '../engine/placement';
 import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
 import {
+  clampHiSpeed,
   DEFAULT_GENERATION,
   GEN_STYLES,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
+  KEY_BEAM_MAX,
+  MAX_COVER,
+  MAX_LIFT,
   RHYTHM_SOURCES,
+  withCovers,
   type GenerationPrefs,
   type GenStyle,
   type Pacemaker,
@@ -18,6 +23,8 @@ import {
 } from '../settings/settings';
 import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
+import { GearPreview } from './GearPreview';
+import { Choice, NumberOption, pct, skinChoices, speedText } from './optionRows';
 
 export const STYLE_LABELS: Record<GenStyle, string> = {
   balanced: '균형',
@@ -287,7 +294,7 @@ export function PracticePanel({ practice, onChange }: { practice: PracticeOption
   );
 }
 
-export type PlayOptionsTab = 'rules' | 'generation';
+export type PlayOptionsTab = 'rules' | 'gear' | 'generation';
 
 /** "생성 옵션 · 롱노트 · 이전 배치": the generation options that differ from the defaults. */
 export function generationSummary(g: GenerationPrefs): string {
@@ -297,8 +304,78 @@ export function generationSummary(g: GenerationPrefs): string {
 }
 
 /**
- * The Space panel of the song select: how the next play runs (autoplay, practice, hi-speed and
- * the play rules) and how its chart is made.
+ * What is changed most just before a play, as the settings' rows (←→ change, ↑↓ go through them):
+ * the speed, the covers and how the gear looks, beside the moving gear. The settings have the rest.
+ */
+export function GearOptions({ settings, onSettingsChange, keyMode }: SettingsProps & { keyMode: KeyModeId }) {
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
+  const row = { onHelp: () => undefined };
+  const cover = (key: 'sudden' | 'hidden' | 'lift', label: string, max: number, help: string) => (
+    <NumberOption
+      {...row}
+      label={label}
+      testId={`quick-${key}`}
+      value={settings[key]}
+      min={0}
+      max={max}
+      step={0.01}
+      bigStep={0.05}
+      format={pct}
+      onChange={(v) => onSettingsChange(withCovers(settings, { [key]: v }))}
+      help={help}
+    />
+  );
+  return (
+    <div className="gear-options" data-testid="gear-options">
+      <div className="gear-rows">
+        <NumberOption
+          {...row}
+          label="SPEED"
+          testId="quick-speed"
+          value={settings.hiSpeed}
+          min={HI_SPEED_MIN}
+          max={HI_SPEED_MAX}
+          step={0.1}
+          bigStep={0.5}
+          format={speedText}
+          onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
+          help="노트가 내려오는 빠르기"
+        />
+        {cover('sudden', 'SUDDEN+', MAX_COVER, '트랙 위쪽을 가리는 커버')}
+        {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
+        {cover('lift', 'LIFT', MAX_LIFT, '판정선을 올리는 만큼')}
+        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="노트와 기어의 모양" />
+        <Choice
+          {...row}
+          label="카메라"
+          testId="quick-camera"
+          value={settings.cameraPreset}
+          options={Object.entries(cameraConfig.presets).map(([id, p]) => [id, p.label])}
+          onChange={(id) => set('cameraPreset', id)}
+          help="트랙을 내려다보는 높이와 각도"
+        />
+        <NumberOption
+          {...row}
+          label="키 빔 길이"
+          testId="quick-key-beam"
+          value={settings.keyBeamLength}
+          min={0}
+          max={KEY_BEAM_MAX}
+          step={0.1}
+          bigStep={0.5}
+          format={(v) => (v === 0 ? '끔' : pct(v))}
+          onChange={(v) => set('keyBeamLength', v)}
+          help="키를 누를 때 올라오는 빛의 길이"
+        />
+      </div>
+      <GearPreview settings={settings} keyMode={keyMode} />
+    </div>
+  );
+}
+
+/**
+ * The Space panel of the song select: how the next play runs (autoplay, practice and the play
+ * rules), its speed and gear, and how its chart is made.
  */
 export function PlayOptionsPanel(props: SettingsProps & {
   keyMode: KeyModeId;
@@ -328,6 +405,9 @@ export function PlayOptionsPanel(props: SettingsProps & {
           <button role="tab" aria-selected={props.tab === 'rules'} className={props.tab === 'rules' ? 'active' : ''} data-testid="toggle-rules" onClick={() => props.onTab('rules')}>
             플레이 규칙
           </button>
+          <button role="tab" aria-selected={props.tab === 'gear'} className={props.tab === 'gear' ? 'active' : ''} data-testid="toggle-gear" onClick={() => props.onTab('gear')}>
+            속도·기어
+          </button>
           <button
             role="tab"
             aria-selected={props.tab === 'generation'}
@@ -348,64 +428,52 @@ export function PlayOptionsPanel(props: SettingsProps & {
         </button>
       </header>
       <div className="select-panel-body">
-        <div className="play-toggles">
-          <label className="check">
-            <input type="checkbox" checked={props.autoPlay} onChange={(e) => props.onAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
-            오토 플레이
-          </label>
-          <label className="check" title={chart ? undefined : '채보를 만든 뒤에 고를 수 있습니다'}>
-            <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => props.onPracticeToggle(e.target.checked)} data-testid="practice-toggle" />
-            연습 모드
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={props.targetLevel !== null} onChange={(e) => props.onTargetLevel(e.target.checked ? Math.min(8, props.maxLevel) : null)} />
-            목표 레벨 직접 지정
-          </label>
-          {props.targetLevel !== null && (
-            <span className="row target-level">
-              <input
-                type="range"
-                min={1}
-                max={props.maxLevel}
-                value={Math.min(props.targetLevel, props.maxLevel)}
-                aria-label="목표 레벨"
-                onChange={(e) => props.onTargetLevel(Number(e.target.value))}
-              />
-              <span className="value">{props.levelLabel(Math.min(props.targetLevel, props.maxLevel))}</span>
-            </span>
-          )}
-        </div>
-        {practice && chart && (
+        {props.tab !== 'gear' && (
           <>
-            <PracticePanel practice={practice} onChange={props.onPracticeChange} />
-            <ChartMinimap
-              chart={chart}
-              palette={settings.palette}
-              selection={[practice.startMs, practice.endMs]}
-              onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
-            />
+            <div className="play-toggles">
+              <label className="check">
+                <input type="checkbox" checked={props.autoPlay} onChange={(e) => props.onAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
+                오토 플레이
+              </label>
+              <label className="check" title={chart ? undefined : '채보를 만든 뒤에 고를 수 있습니다'}>
+                <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => props.onPracticeToggle(e.target.checked)} data-testid="practice-toggle" />
+                연습 모드
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={props.targetLevel !== null} onChange={(e) => props.onTargetLevel(e.target.checked ? Math.min(8, props.maxLevel) : null)} />
+                목표 레벨 직접 지정
+              </label>
+              {props.targetLevel !== null && (
+                <span className="row target-level">
+                  <input
+                    type="range"
+                    min={1}
+                    max={props.maxLevel}
+                    value={Math.min(props.targetLevel, props.maxLevel)}
+                    aria-label="목표 레벨"
+                    onChange={(e) => props.onTargetLevel(Number(e.target.value))}
+                  />
+                  <span className="value">{props.levelLabel(Math.min(props.targetLevel, props.maxLevel))}</span>
+                </span>
+              )}
+            </div>
+            {practice && chart && (
+              <>
+                <PracticePanel practice={practice} onChange={props.onPracticeChange} />
+                <ChartMinimap
+                  chart={chart}
+                  palette={settings.palette}
+                  selection={[practice.startMs, practice.endMs]}
+                  onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
+                />
+              </>
+            )}
           </>
         )}
         {props.tab === 'rules' ? (
-          <>
-            <div className="options-grid">
-              <span className="label">배속</span>
-              <div className="row">
-                <input
-                  type="range"
-                  min={HI_SPEED_MIN}
-                  max={HI_SPEED_MAX}
-                  step={0.1}
-                  value={settings.hiSpeed}
-                  aria-label="배속"
-                  onChange={(e) => onSettingsChange({ ...settings, hiSpeed: Number(e.target.value) })}
-                />
-                <span className="value">{settings.hiSpeed.toFixed(1)}</span>
-                <span className="hint">플레이 중에도 ↑↓로 바꿀 수 있습니다</span>
-              </div>
-            </div>
-            <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />
-          </>
+          <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />
+        ) : props.tab === 'gear' ? (
+          <GearOptions settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} />
         ) : (
           <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} />
         )}

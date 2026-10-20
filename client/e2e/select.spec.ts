@@ -39,7 +39,7 @@ function fakeSongs(n: number) {
 
 const isChartPost = (method: string, url: string) => method === 'POST' && new URL(url).pathname.endsWith('/charts');
 
-test('the song list keeps the cursor in view and in focus; Shift+Tab steps back; a drop-down keeps its arrows', async ({ page }) => {
+test('the song list keeps the cursor in view and in focus; Shift+Tab steps back; a drop-down and the speed and gear rows keep their arrows', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(16);
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
@@ -74,6 +74,27 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 16');
   expect(await select.inputValue()).not.toBe(before);
+
+  // the speed and gear rows: ←→ change a row and ↑↓ go through the rows, not the songs
+  await playOptions(page, 'gear');
+  const speed = page.getByTestId('quick-speed');
+  await speed.focus();
+  const speedBefore = Number(await speed.getAttribute('data-value'));
+  await page.keyboard.press('ArrowRight');
+  await expect(speed).toHaveAttribute('data-value', String(Math.round((speedBefore + 0.1) * 10) / 10));
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('quick-sudden')).toBeFocused();
+  const skin = page.getByTestId('quick-skin');
+  const camera = await page.getByTestId('quick-camera').getAttribute('data-value');
+  await skin.focus();
+  const skinBefore = (await skin.getAttribute('data-value')) ?? '';
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).not.toHaveAttribute('data-value', skinBefore);
+  await expect(page.getByTestId('song-title')).toHaveText('Fake Song 16');
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
+  expect(stored.skin).toBe(await skin.getAttribute('data-value'));
+  // a skin keeps the camera
+  expect(stored.cameraPreset).toBe(camera);
   expect(errors).toEqual([]);
 });
 
