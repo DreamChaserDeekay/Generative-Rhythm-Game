@@ -68,7 +68,7 @@ class MotifContext:
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
-    adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord)
+    adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord, by skill)
     stretch_span: int = 2  # keys apart within one hand from which a chord is a stretch (hands.stretchSpan)
     asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
     # a role kept to one hand pays for neighbouring keys too when the hand has a key between (1+3)
@@ -105,7 +105,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         home_scale=instrument_mapping
         * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
-        adjacent=float(hands["adjacentChord"]),
+        adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
         asymmetric=float(hands["asymmetricChord"]),
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,

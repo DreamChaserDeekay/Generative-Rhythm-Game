@@ -270,6 +270,7 @@ def vocabulary(params: GenParams) -> dict[str, dict[str, Any]]:
     idiom = {i["motif"]: float(i["weight"]) for i in _idioms(params) if "motif" in i}
     out = {}
     for name, m in cfg["motifs"].items():
+        m = {**m, **m.get("bySystem", {}).get(params.system, {})}  # a system's own minSkill / complexity
         if params.skill < float(m["minSkill"]):
             continue
         if "keyModes" in m and params.key_mode not in m["keyModes"]:
