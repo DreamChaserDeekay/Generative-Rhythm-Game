@@ -76,6 +76,9 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   // RB steps to the next tab (기어), where A flips a switch
   await press(PAD.RB);
   await expect(page.getByTestId('settings-tab-gear')).toHaveAttribute('aria-selected', 'true');
+  // its gear preview starts a renderer: a tap made and let go while that keeps the page busy is
+  // never seen by the pad's polling (on a loaded machine), so wait for two frames first
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const bars = page.getByTestId('bar-lines');
   const checked = (await bars.getAttribute('aria-checked')) === 'true';
   await bars.focus();
