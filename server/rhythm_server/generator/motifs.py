@@ -70,6 +70,10 @@ class MotifContext:
     asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
     # a role kept to one hand pays for neighbouring keys too when the hand has a key between (1+3)
     one_hand_gaps: bool = False
+    # a single note at least slow_ms after the phrase's last one pays this share of a split's
+    # motif cost (a slow repeated note is easy on one key; the other hand answers fast ones)
+    slow_ms: float = 260.0
+    slow_split: float = 1.0
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
@@ -100,6 +104,8 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         stretch_span=int(hands["stretchSpan"]),
         asymmetric=float(hands["asymmetricChord"]),
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
+        slow_ms=float(hands["slowRepeatMs"]),
+        slow_split=float(hands["slowSplitScale"]),
     )
 
 
@@ -395,7 +401,8 @@ def motif_costs(
                     same_hand = size == 1 and len(want) == 1 and ctx.hand[keys[0]] == ctx.hand[want[0]]
                     cost += w["alternate"] * (0.0 if keys == want else 0.5 if same_hand else 1.0)
                 else:
-                    cost += w["motif"] * _mismatch(keys, want)
+                    scale = ctx.slow_split if sp.motif == "split" and single_dt >= ctx.slow_ms else 1.0
+                    cost += w["motif"] * scale * _mismatch(keys, want)
         if size >= 2:
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
