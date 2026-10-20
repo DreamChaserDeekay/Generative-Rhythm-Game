@@ -300,7 +300,13 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
           <div className="row">
             <div className="segmented wrap">
               {BUILTIN_SKINS.map((k) => (
-                <button key={k.id} className={settings.skin === k.id ? 'active' : ''} data-testid={`skin-${k.id}`} onClick={() => set('skin', k.id)}>
+                <button
+                  key={k.id}
+                  className={settings.skin === k.id ? 'active' : ''}
+                  data-testid={`skin-${k.id}`}
+                  // a skin brings the camera it was drawn for (the camera above can still be changed)
+                  onClick={() => onSettingsChange({ ...settings, skin: k.id, cameraPreset: k.style?.camera ?? settings.cameraPreset })}
+                >
                   {k.label}
                 </button>
               ))}
@@ -311,7 +317,10 @@ export function SettingsScreen({ settings, onSettingsChange, onBack }: Props) {
               )}
             </div>
           </div>
-          <p className="hint">노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·sprite·none), 텍스처(textures)와 트랙 색을 JSON으로 바꿀 수 있습니다.</p>
+          <p className="hint">
+            스킨을 고르면 그 스킨에 맞춘 카메라도 함께 바뀝니다. 노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·sprite·none), 그리는 방식(style), 텍스처(textures)와 트랙 색을
+            JSON으로 바꿀 수 있습니다.
+          </p>
           <textarea
             className="skin-json"
             rows={6}

@@ -19,11 +19,17 @@ describe('settings', () => {
   });
 
   it('opens settings saved before the textured skins, and keeps a picked one', () => {
+    expect(DEFAULT_SETTINGS.skin).toBe('flat');
     expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
-    expect(sanitizeSettings({ skin: 'glass' }).skin).toBe('glass');
+    expect(sanitizeSettings({ skin: 'jewel' }).skin).toBe('jewel');
     expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
     const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
     expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  });
+
+  it('opens a skin of an earlier version as the skin that took its place', () => {
+    const renamed = Object.fromEntries(['classic', 'metal', 'glass', 'crystal', 'gel', 'sunset', 'neon', 'mono'].map((id) => [id, sanitizeSettings({ skin: id }).skin]));
+    expect(renamed).toEqual({ classic: 'club', metal: 'arcade', glass: 'glass', crystal: 'jewel', gel: 'pop', sunset: 'pop', neon: 'neon', mono: 'mono' });
   });
 
   it('keeps the song select favourites, folder and order, dropping unknown ones', () => {

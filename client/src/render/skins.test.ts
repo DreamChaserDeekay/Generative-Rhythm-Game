@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, hex, laneColorsFor, sanitizeSkin, skinById, TEXTURE_SLOTS } from './skins';
+import { BUILTIN_SKINS, hex, laneColorsFor, sanitizeSkin, skinById } from './skins';
 
 describe('skins', () => {
   it('keeps valid fields of a user skin and replaces the rest with defaults', () => {
@@ -19,50 +19,59 @@ describe('skins', () => {
     expect(skin?.colors.judgeLine).toBe('#ff0000');
     expect(skin?.colors.railLeft).toBe(BUILTIN_SKINS[0].colors.railLeft);
     expect(skin?.colors.lanes).toEqual({ white: '#123456' });
+    expect(skin?.style).toBeUndefined();
     expect(sanitizeSkin('nope')).toBeNull();
-    expect(skinById('custom', null).id).toBe('neon');
-    expect(skinById('classic', null).id).toBe('classic');
+    expect(skinById('custom', null).id).toBe('flat');
+  });
+
+  it('opens a skin of an earlier version as the one that took its place', () => {
+    const ids = ['neon', 'classic', 'metal', 'glass', 'crystal', 'gel', 'sunset', 'mono'].map((id) => skinById(id, null).id);
+    expect(ids).toEqual(['neon', 'club', 'arcade', 'glass', 'jewel', 'pop', 'pop', 'mono']);
+    expect(skinById('glass', null).label).toBe('크리스털');
+    expect(skinById('nope', null).id).toBe('flat');
   });
 
   it('colours lanes by the skin layout', () => {
     const mode = keyModes['7K+1S'];
-    const neon = laneColorsFor(skinById('neon', null), 'default', mode);
-    expect(neon[0]).toBe(LANE_PALETTES.default.scratch);
-    expect(neon[1]).toBe(LANE_PALETTES.default.white);
+    const flat = laneColorsFor(skinById('flat', null), 'default', mode);
+    expect(flat[0]).toBe(LANE_PALETTES.default.scratch);
+    expect(flat[1]).toBe(LANE_PALETTES.default.white);
     const mono = laneColorsFor(skinById('mono', null), 'default', mode);
     expect(new Set(mono.slice(1)).size).toBe(1);
-    const rainbow = laneColorsFor(skinById('sunset', null), 'default', mode);
+    const rainbow = laneColorsFor(sanitizeSkin({ laneLayout: 'rainbow' })!, 'default', mode);
     expect(new Set(rainbow.slice(1)).size).toBe(7);
     expect(rainbow[0]).toBe(LANE_PALETTES.default.scratch);
   });
 
-  it('keeps texture ids of a user skin and drops malformed ones', () => {
+  it('keeps texture ids and the drawing style of a user skin, dropping malformed ones', () => {
     const skin = sanitizeSkin({
       hitEffect: 'sprite',
       textures: { note: 'glass/note', floor: '../floor', rails: 7, wings: 'glass/wings', hitBurst: 'fx/hitBurstRing' },
+      style: { note: 'gem', long: 'nope', rails: { width: 99, glow: 8 }, judge: { under: '#ff9f43', over: 'gold' }, camera: 'LOW' },
     });
     expect(skin?.hitEffect).toBe('sprite');
     expect(skin?.textures).toEqual({ note: 'glass/note', hitBurst: 'fx/hitBurstRing' });
+    expect(skin?.style).toMatchObject({ note: 'gem', long: 'solid', rails: { width: 20, glow: 8 }, judge: { under: '#ff9f43' }, camera: 'LOW' });
+    expect(skin?.style?.judge.over).toBeUndefined();
     expect(sanitizeSkin({ textures: { note: 'a b' } })?.textures).toBeUndefined();
-    // a textured built-in skin survives a round trip through "현재 스킨 JSON 보기"
-    const glass = skinById('glass', null);
-    expect(sanitizeSkin(JSON.parse(JSON.stringify(glass)))).toEqual({ ...glass, id: 'custom' });
+    // every built-in skin survives a round trip through "현재 스킨 JSON 보기"
+    for (const builtin of BUILTIN_SKINS) expect(sanitizeSkin(JSON.parse(JSON.stringify(builtin)))).toEqual({ ...builtin, id: 'custom' });
   });
 
-  it('gives the generated sets a texture for every part', () => {
-    for (const id of ['glass', 'crystal', 'metal', 'gel']) {
-      const skin = skinById(id, null);
-      expect(skin.id).toBe(id);
-      expect(skin.hitEffect).toBe('sprite');
-      expect(Object.keys(skin.textures ?? {}).sort()).toEqual([...TEXTURE_SLOTS].sort());
-    }
+  it('draws the built-in skins in code, each for its own camera; JEWEL plays the crystal set’s flipbooks', () => {
+    expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(['flat', 'stem', 'arcade', 'club', 'street', 'neon', 'glass', 'pop', 'jewel', 'mono']);
+    for (const skin of BUILTIN_SKINS) expect(skin.style?.camera).toMatch(/^(SDVX|FLAT|LOW)$/);
+    expect(skinById('arcade', null).style?.camera).toBe('FLAT');
+    expect(skinById('neon', null).style?.camera).toBe('LOW');
+    expect(skinById('jewel', null).textures).toEqual({ hitBurst: 'fx/hitBurstGlow', hitHold: 'fx/hitHold' });
+    expect(BUILTIN_SKINS.filter((s) => s.textures).map((s) => s.id)).toEqual(['jewel']);
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {
     const mode = keyModes['4K'];
-    const classic = laneColorsFor(skinById('classic', null), 'default', mode);
-    expect(classic[0]).toBe(hex('#f2f2f2'));
-    const cb = laneColorsFor(skinById('classic', null), 'colorblind', mode);
+    const club = laneColorsFor(skinById('club', null), 'default', mode);
+    expect(club[0]).toBe(hex('#f2f2f2'));
+    const cb = laneColorsFor(skinById('club', null), 'colorblind', mode);
     expect(cb[0]).toBe(LANE_PALETTES.colorblind.white);
   });
 });

@@ -161,8 +161,8 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('skin-settings')).toBeVisible();
-  await page.getByTestId('skin-classic').click();
-  await expect(page.getByTestId('skin-classic')).toHaveClass(/active/);
+  await page.getByTestId('skin-club').click();
+  await expect(page.getByTestId('skin-club')).toHaveClass(/active/);
   await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
   await expect(page.getByTestId('skin-settings').getByRole('button', { name: '테스트 스킨' })).toHaveClass(/active/);
@@ -174,19 +174,21 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('textured skin, drawn in code where its media is missing or broken', async ({ page }) => {
+test('textured skins, drawn in code where their media is missing or broken', async ({ page }) => {
   const errors = trackErrors(page);
   const loaded: string[] = [];
   page.on('response', (r) => {
     if (r.url().includes('/media/') && r.ok()) loaded.push(new URL(r.url()).pathname);
   });
+  const inSettings = async (step: () => Promise<void>) => {
+    await page.goto('/');
+    await page.getByTestId('open-settings').click();
+    await step();
+    await page.getByRole('button', { name: /완료/ }).click();
+  };
   const play = async (shot: string) => {
     loaded.length = 0;
     await page.goto('/');
-    await page.getByTestId('open-settings').click();
-    await page.getByTestId('skin-glass').click();
-    await expect(page.getByTestId('skin-glass')).toHaveClass(/active/);
-    await page.getByRole('button', { name: /완료/ }).click();
     await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
@@ -194,7 +196,22 @@ test('textured skin, drawn in code where its media is missing or broken', async 
     await page.screenshot({ path: `test-results/play-textured-${shot}.png` });
   };
 
-  await play('glass');
+  // JEWEL plays the crystal set's flipbooks
+  await inSettings(async () => {
+    await page.getByTestId('skin-jewel').click();
+    await expect(page.getByTestId('skin-jewel')).toHaveClass(/active/);
+  });
+  await play('jewel');
+  for (const file of ['manifest.json', 'fx/hit_burst_glow.png', 'fx/hit_hold.png']) expect(loaded).toContain(`/media/${file}`);
+
+  // a user skin of textures
+  const textured = { label: '텍스처 스킨', hitEffect: 'sprite', textures: { note: 'glass/note', floor: 'glass/floor', hitBurst: 'fx/hitBurstRing', hitHold: 'fx/hitHold' } };
+  await inSettings(async () => {
+    await page.locator('.skin-json').fill(JSON.stringify(textured));
+    await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
+    await expect(page.getByTestId('skin-settings').getByRole('button', { name: '텍스처 스킨' })).toHaveClass(/active/);
+  });
+  await play('user');
   for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'fx/hit_burst_ring.png', 'fx/hit_hold.png']) {
     expect(loaded).toContain(`/media/${file}`);
   }

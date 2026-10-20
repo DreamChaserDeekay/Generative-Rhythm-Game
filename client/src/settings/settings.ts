@@ -17,7 +17,7 @@ import { defaultRuleset, rulesetIds, type RulesetId } from '../engine/ruleset';
 import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, sanitizeSkin } from '../render/skins';
+import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
 import { isPadCode } from '../input/gamepad';
 
 export type { ScrollMode } from '../engine/scroll';
@@ -179,7 +179,7 @@ export const DEFAULT_SETTINGS: Settings = {
   generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
-  skin: 'neon',
+  skin: 'flat',
   customSkin: null,
   bgBrightness: 0.35,
   visualizer: true,
@@ -229,7 +229,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
-  s.skin = pick(s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
+  // skins of earlier versions open as the skin that took their place
+  s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);
   if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);

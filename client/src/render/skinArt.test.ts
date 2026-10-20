@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
-import { skinById } from './skins';
+import { sanitizeSkin, skinById } from './skins';
 
 const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64] };
 const BOOK = { cols: 4, rows: 4, frames: 16, fps: 60, loop: false };
@@ -59,6 +59,8 @@ describe('media manifest', () => {
 });
 
 describe('loading skin textures', () => {
+  // a user skin on the glass set's textures (the built-in skins are drawn in code)
+  const glass = sanitizeSkin({ textures: { note: 'glass/note', floor: 'glass/floor', rails: 'glass/rails', judgeLine: 'glass/judgeLine' } })!;
   const manifest: MediaManifest = {
     version: 1,
     textures: {
@@ -72,7 +74,7 @@ describe('loading skin textures', () => {
 
   it('leaves out what is missing, broken or the wrong size', async () => {
     const made: ReturnType<typeof fakeTexture>[] = [];
-    const art = await loadSkinArt(skinById('glass', null), {
+    const art = await loadSkinArt(glass, {
       manifest: async () => manifest,
       texture: async (url) => {
         if (url.endsWith('rail.png')) throw new Error('404');
@@ -89,10 +91,10 @@ describe('loading skin textures', () => {
 
   it('gives nothing without a manifest or for a skin drawn in code', async () => {
     const texture = async () => fakeTexture(256, 64);
-    expect(await loadSkinArt(skinById('glass', null), { manifest: async () => null, texture })).toBeNull();
-    expect(await loadSkinArt(skinById('glass', null), { manifest: () => Promise.reject(new Error('offline')), texture })).toBeNull();
-    expect(await loadSkinArt(skinById('neon', null), { manifest: async () => manifest, texture })).toBeNull();
+    expect(await loadSkinArt(glass, { manifest: async () => null, texture })).toBeNull();
+    expect(await loadSkinArt(glass, { manifest: () => Promise.reject(new Error('offline')), texture })).toBeNull();
+    expect(await loadSkinArt(skinById('flat', null), { manifest: async () => manifest, texture })).toBeNull();
     const failing = { manifest: async () => manifest, texture: () => Promise.reject(new Error('broken')) };
-    expect(await loadSkinArt(skinById('glass', null), failing)).toBeNull();
+    expect(await loadSkinArt(glass, failing)).toBeNull();
   });
 });

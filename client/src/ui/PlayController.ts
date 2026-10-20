@@ -604,7 +604,7 @@ export class PlayController {
     if (e.type === 'judge') {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
-      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now);
+      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now, e.noteIndex);
       if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
         // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
         // judged BREAK sounds like an empty press (the start of its slice over the song)

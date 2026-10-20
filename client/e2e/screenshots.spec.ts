@@ -190,7 +190,7 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
   mkdirSync('test-results', { recursive: true });
   const video = 'test-results/showcase-bga.webm';
   if (!existsSync(video)) execFileSync(python, ['-c', MAKE_VIDEO, video]);
-  await settings(page, { lastKeyMode: '5K', skin: 'sunset', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
+  await settings(page, { lastKeyMode: '5K', skin: 'pop', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
   await selectShowcase(page, '5K', 'HARD');
   await songInfo(page);
   await page.getByTestId('bga-input').setInputFiles(video);
@@ -204,25 +204,25 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
 });
 
 test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'classic', sudden: 0.18, hiSpeed: 3.2 });
+  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2 });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
   await autoplayFor(page, 16_000);
   await shot(page, '05-play-6kfx');
 });
 
-test('play: the textured skins', async ({ page }) => {
-  // also runs on its own (-g "textured skins"): makes the showcase song when it is missing
+test('play: four of the skins', async ({ page }) => {
+  // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // FEVER off: its tint would cover the set's rail colours
-  for (const [skin, keyMode, name] of [
-    ['glass', '7K+1S', '15-skin-glass'],
-    ['crystal', '6K+FX', '16-skin-crystal'],
-    ['metal', '8K', '17-skin-metal'],
-    ['gel', '4K', '18-skin-gel'],
+  // each with the camera it was drawn for; FEVER off: its tint would cover the skins' rail colours
+  for (const [skin, keyMode, name, cameraPreset] of [
+    ['glass', '7K+1S', '15-skin-crystal', 'SDVX'],
+    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX'],
+    ['arcade', '8K', '17-skin-arcade', 'FLAT'],
+    ['pop', '4K', '18-skin-pop', 'SDVX'],
   ]) {
-    await settings(page, { lastKeyMode: keyMode, skin, hiSpeed: 3, fever: 'OFF' });
+    await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
