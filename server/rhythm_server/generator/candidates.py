@@ -216,8 +216,10 @@ def _stem_source_weight(c: Candidate, params: GenParams, cfg: dict[str, Any]) ->
             mix = sum(float(c.sources[i]) * params.source_mix.get(name, 1.0) for i, name in enumerate(STEM_NAMES))
             lead = max(params.source_mix.get("vocals", 1.0), params.source_mix.get("other", 1.0))
             auto *= melody * lead + (1.0 - melody) * mix
-        # easy charts lean on the melody, the hardest follow every instrument as they are
-        return auto * (1.0 + float(cfg["melody"]["auto"]) * (1.0 - params.skill) * melody)
+        # easy charts lean on the melody, the hardest follow every instrument as they are (a system
+        # may lean less: melody.autoBySystem)
+        lean = float(cfg["melody"].get("autoBySystem", {}).get(params.system, cfg["melody"]["auto"]))
+        return auto * (1.0 + lean * (1.0 - params.skill) * melody)
     if params.rhythm_source in ("melody", "vocal"):
         m = cfg["melody"]
         return float(m["base"]) + float(m["gain"]) * melody
