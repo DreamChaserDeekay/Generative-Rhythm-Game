@@ -52,7 +52,7 @@ test('a pad works the settings: the d-pad moves the focus, A presses, ←→ ste
   // from nowhere, ↓ focuses the first control (완료); a pad's focus is outlined
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await press(PAD.DOWN);
-  await expect(page.locator('.settings-title button.primary')).toBeFocused();
+  await expect(page.locator('.settings-screen .topbar button.primary')).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('pad');
   await press(PAD.DOWN);
   await expect(page.locator('.settings-nav button').first()).toBeFocused();

@@ -239,7 +239,7 @@ test('result of a good play', async ({ page }) => {
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 120_000 });
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
-  await page.locator('.result-screen').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await page.locator('.result-screen .screen-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.waitForTimeout(500);
   await shot(page, '07-result-graphs');
 });

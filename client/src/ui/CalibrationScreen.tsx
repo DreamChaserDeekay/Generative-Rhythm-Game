@@ -3,6 +3,7 @@ import { getAudioEngine } from '../audio/AudioEngine';
 import { clickBeatTimes, clickTrackBuffer, type ClickTrackSpec } from '../audio/clickTrack';
 import { GamepadMenuBridge, GamepadPoller } from '../input/gamepad';
 import type { Settings } from '../settings/settings';
+import { HintBar, TopBar } from './shell';
 
 interface Props {
   settings: Settings;
@@ -124,33 +125,37 @@ export function CalibrationScreen({ settings, onSettingsChange, onBack }: Props)
   const suggestion = s.mean !== null ? Math.round(s.mean) : null;
 
   return (
-    <div className="menu-screen" data-testid="calibration-screen">
-      <header className="menu-header">
-        <h1>오프셋 캘리브레이션</h1>
-        <p className="tagline">메트로놈 소리에 맞춰 아무 키나 누르세요. 처음 {WARMUP_BEATS}박은 연습으로 제외합니다.</p>
-      </header>
-      <section className="panel calibration">
-        <div className={`beat-lamp ${beatFlash >= 0 ? 'on' : ''} ${beatFlash % 4 === 0 ? 'accent' : ''}`} />
-        <div className="stat-row"><span>입력 수</span><span data-testid="calib-count">{s.count}</span></div>
-        <div className="stat-row">
-          <span>평균 오차</span>
-          <span data-testid="calib-mean">{s.mean === null ? '-' : `${s.mean > 0 ? '+' : ''}${s.mean.toFixed(1)}ms`}</span>
-        </div>
-        <div className="stat-row"><span>표준편차</span><span>{s.std === null ? '-' : `${s.std.toFixed(1)}ms`}</span></div>
-        <div className="stat-row"><span>현재 판정 오프셋</span><span>{settings.inputOffsetMs}ms</span></div>
-        <div className="row buttons">
-          <button ref={startButton} className="primary" data-testid="calib-start" onClick={start} disabled={running}>{running ? '측정 중…' : '시작'}</button>
-          <button
-            ref={applyButton}
-            disabled={suggestion === null || s.count < 8}
-            onClick={() => suggestion !== null && onSettingsChange({ ...settings, inputOffsetMs: suggestion })}
-          >
-            {suggestion === null ? '적용' : `${suggestion}ms로 적용`}
-          </button>
-          <button data-testid="calib-back" onClick={onBack}>돌아가기 <kbd>Esc</kbd></button>
-        </div>
-        <p className="hint">평균 오차가 +면 늦게, −면 빨리 친 것입니다. 적용하면 판정 시 그만큼 보정합니다.</p>
-      </section>
+    <div className="menu-screen screen-enter" data-testid="calibration-screen">
+      <TopBar name="오프셋 캘리브레이션" />
+      <div className="screen-body">
+        <p className="tagline intro">메트로놈 소리에 맞춰 아무 키나 누르세요. 처음 {WARMUP_BEATS}박은 연습으로 제외합니다.</p>
+        <section className="panel calibration">
+          <div className={`beat-lamp ${beatFlash >= 0 ? 'on' : ''} ${beatFlash % 4 === 0 ? 'accent' : ''}`} />
+          <div className="stat-row"><span>입력 수</span><span data-testid="calib-count">{s.count}</span></div>
+          <div className="stat-row">
+            <span>평균 오차</span>
+            <span data-testid="calib-mean">{s.mean === null ? '-' : `${s.mean > 0 ? '+' : ''}${s.mean.toFixed(1)}ms`}</span>
+          </div>
+          <div className="stat-row"><span>표준편차</span><span>{s.std === null ? '-' : `${s.std.toFixed(1)}ms`}</span></div>
+          <div className="stat-row"><span>현재 판정 오프셋</span><span>{settings.inputOffsetMs}ms</span></div>
+          <div className="row buttons">
+            <button ref={startButton} className="primary" data-testid="calib-start" onClick={start} disabled={running}>{running ? '측정 중…' : '시작'}</button>
+            <button
+              ref={applyButton}
+              disabled={suggestion === null || s.count < 8}
+              onClick={() => suggestion !== null && onSettingsChange({ ...settings, inputOffsetMs: suggestion })}
+            >
+              {suggestion === null ? '적용' : `${suggestion}ms로 적용`}
+            </button>
+            <button data-testid="calib-back" onClick={onBack}>돌아가기 <kbd>Esc</kbd></button>
+          </div>
+          <p className="hint">평균 오차가 +면 늦게, −면 빨리 친 것입니다. 적용하면 판정 시 그만큼 보정합니다.</p>
+        </section>
+      </div>
+      <HintBar
+        hints={running ? [{ keys: ['아무 키'], label: '박자에 맞춰 누르기' }] : []}
+        end={[{ keys: ['Esc'], label: running ? '멈추기' : '돌아가기' }]}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { difficultyChip } from './difficultyChip';
 import { lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
 import { GaugeGraph, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
+import { HintBar, TopBar } from './shell';
 
 interface Props {
   request: PlayRequest;
@@ -148,167 +149,177 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
     </div>
   );
   return (
-    <div className="result-screen" data-testid="result-screen">
-      <header className="result-header">
-        <div className="result-title">
-          <div className="result-chip" style={{ ['--diff' as string]: chip.color } as CSSProperties}>
-            <span className="tier">{chip.label}</span>
-            {chip.level && <strong>{chip.level}</strong>}
-            <span className="mode">{meta.keyMode}</span>
-          </div>
-          <h1>{meta.title}</h1>
-          <p className="sub">
-            {meta.artist} · {judgementConfig.modes[played.judgementMode].label} · {rules.label}
-            {played.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
-            {request.autoPlay ? ' · AUTO' : ''}
-            {request.replay ? ' · REPLAY' : ''}
-          </p>
-          {practice && (
-            <p className="sub">
-              연습 모드 · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
-            </p>
-          )}
-        </div>
-        <div className="result-lamp">
-          <div className={`lamp ${aided ? 'aided' : lampClass(result.lamp)}`} data-testid="result-lamp" data-lamp={result.lamp}>{lamp}</div>
-          {saveState && (
-            <p className={`save-state ${saveState.ok ? '' : 'error'}`} data-testid="save-state">
-              {saveState.text}
-            </p>
-          )}
-        </div>
-      </header>
-
-      <div className="result-grid">
-        <section className="panel result-summary">
-          {rateFirst ? rateStat : scoreStat}
-          {rateFirst ? scoreStat : rateStat}
-          <div className="stat-list">
-            {rules.scoring !== 'rate' && (
-              <div className="stat-row"><span>정밀 % 점수</span><span>{result.score.toLocaleString('en-US')}</span></div>
-            )}
-            <div className="stat-row"><span>MAX COMBO</span><span>{result.maxCombo} / {result.maxPossibleCombo}</span></div>
-            <div className="stat-row">
-              <span>게이지 ({result.gaugeLabel})</span>
-              <span>{result.failed ? `실패 · ${formatTime(result.failedAtMs ?? 0)}` : `${Math.round(result.gauge)}%`}</span>
+    <div className="result-screen screen-enter" data-testid="result-screen">
+      <TopBar name="결과" />
+      <div className="screen-body">
+        <header className="result-header">
+          <div className="result-title">
+            <div className="result-chip" style={{ ['--diff' as string]: chip.color } as CSSProperties}>
+              <span className="tier">{chip.label}</span>
+              {chip.level && <strong>{chip.level}</strong>}
+              <span className="mode">{meta.keyMode}</span>
             </div>
-            {result.fever.enabled && (
-              <div className="stat-row" data-testid="result-fever">
-                <span>FEVER 보너스</span>
-                <span>+{result.fever.bonus.toLocaleString('en-US')} (최고 x{result.fever.bestMultiplier} · {result.fever.activations}회)</span>
+            <h1>{meta.title}</h1>
+            <p className="sub">
+              {meta.artist} · {judgementConfig.modes[played.judgementMode].label} · {rules.label}
+              {played.placement !== 'OFF' ? ` · ${placement.label}${placement.laneOrder ? ` ${placement.laneOrder}` : ''}` : ''}
+              {request.autoPlay ? ' · AUTO' : ''}
+              {request.replay ? ' · REPLAY' : ''}
+            </p>
+            {practice && (
+              <p className="sub">
+                연습 모드 · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
+              </p>
+            )}
+          </div>
+          <div className="result-lamp">
+            <div className={`lamp ${aided ? 'aided' : lampClass(result.lamp)}`} data-testid="result-lamp" data-lamp={result.lamp}>{lamp}</div>
+            {saveState && (
+              <p className={`save-state ${saveState.ok ? '' : 'error'}`} data-testid="save-state">
+                {saveState.text}
+              </p>
+            )}
+          </div>
+        </header>
+
+        <div className="result-grid">
+          <section className="panel result-summary">
+            {rateFirst ? rateStat : scoreStat}
+            {rateFirst ? scoreStat : rateStat}
+            <div className="stat-list">
+              {rules.scoring !== 'rate' && (
+                <div className="stat-row"><span>정밀 % 점수</span><span>{result.score.toLocaleString('en-US')}</span></div>
+              )}
+              <div className="stat-row"><span>MAX COMBO</span><span>{result.maxCombo} / {result.maxPossibleCombo}</span></div>
+              <div className="stat-row">
+                <span>게이지 ({result.gaugeLabel})</span>
+                <span>{result.failed ? `실패 · ${formatTime(result.failedAtMs ?? 0)}` : `${Math.round(result.gauge)}%`}</span>
+              </div>
+              {result.fever.enabled && (
+                <div className="stat-row" data-testid="result-fever">
+                  <span>FEVER 보너스</span>
+                  <span>+{result.fever.bonus.toLocaleString('en-US')} (최고 x{result.fever.bestMultiplier} · {result.fever.activations}회)</span>
+                </div>
+              )}
+              <div className="stat-row"><span>FAST / SLOW</span><span>{result.fast} / {result.slow}</span></div>
+              <div className="stat-row">
+                <span>평균 / 중앙값 오차</span>
+                <span>
+                  {signedMs(result.meanErrorMs)} / {signedMs(result.medianErrorMs)}
+                  {result.stdErrorMs !== null ? ` (σ ${result.stdErrorMs.toFixed(1)}ms)` : ''}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <h2>판정 · {rules.label}</h2>
+            <table className="grade-table" data-testid="grade-table">
+              <tbody>
+                {result.rows.map((r) => (
+                  <tr key={r.label} className={r.count === 0 ? 'zero' : ''}>
+                    <td className={r.cls}>{r.label}</td>
+                    <td data-testid={r.cls === 'g-break' ? 'result-breaks' : undefined}>{r.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {result.ruleset !== 'RESPECT' && (
+              <>
+                <button className="small" onClick={() => setShowDetail((v) => !v)}>{showDetail ? 'DJMAX % 접기' : 'DJMAX % 보기'}</button>
+                {showDetail && (
+                  <table className="grade-table detail">
+                    <tbody>
+                      {result.counts.map((c) => (
+                        <tr key={c.percent} className={c.count === 0 ? 'zero' : ''}>
+                          <td className={gradeClass(c.percent, false)}>{c.label}</td>
+                          <td>{c.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="panel wide">
+            <h2>게이지</h2>
+            <GaugeGraph
+              history={result.gaugeHistory}
+              clear={gauge.clear}
+              survival={gauge.failAtZero}
+              startMs={startMs}
+              endMs={endMs}
+              failedAtMs={result.failedAtMs}
+            />
+            <h2>밀도 · BREAK · 타이밍</h2>
+            <TimelineGraph chart={chart} hits={result.hits} breakTimes={result.breakTimes} windowMs={180} startMs={startMs} endMs={endMs} />
+          </section>
+
+          <section className="panel wide">
+            <h2>타이밍 분포</h2>
+            <TimingHistogram hits={result.hits} median={result.medianErrorMs} />
+            {suggestion !== null && !request.autoPlay && Math.abs(suggestion) >= 3 && (
+              <div className="row offset-suggestion" data-testid="offset-suggestion">
+                <span>
+                  절사 평균으로 {Math.abs(suggestion)}ms {suggestion > 0 ? '늦게' : '빨리'} 쳤습니다. 판정 오프셋을{' '}
+                  {settings.inputOffsetMs + suggestion}ms로 바꾸면 보정됩니다.
+                </span>
+                <button onClick={() => onSettingsChange({ ...settings, inputOffsetMs: settings.inputOffsetMs + suggestion })}>
+                  적용
+                </button>
               </div>
             )}
-            <div className="stat-row"><span>FAST / SLOW</span><span>{result.fast} / {result.slow}</span></div>
-            <div className="stat-row">
-              <span>평균 / 중앙값 오차</span>
-              <span>
-                {signedMs(result.meanErrorMs)} / {signedMs(result.medianErrorMs)}
-                {result.stdErrorMs !== null ? ` (σ ${result.stdErrorMs.toFixed(1)}ms)` : ''}
+          </section>
+        </div>
+
+        <div className="result-actions">
+          <div className="row">
+            <button className="primary" data-testid="result-back" onClick={onBack} autoFocus>계속 <kbd>Enter</kbd></button>
+            <button data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>R</kbd></button>
+            {onRegenerate && (
+              <button data-testid="result-regenerate" disabled={regenerating} onClick={() => void regenerate()}>
+                {regenerating ? '새 패턴 만드는 중…' : '새 패턴으로 다시'}
+              </button>
+            )}
+            {regenerateError && (
+              <span className="error" data-testid="result-regenerate-error">
+                새 패턴을 만들지 못했습니다: {regenerateError}
               </span>
-            </div>
+            )}
           </div>
-        </section>
-
-        <section className="panel">
-          <h2>판정 · {rules.label}</h2>
-          <table className="grade-table" data-testid="grade-table">
-            <tbody>
-              {result.rows.map((r) => (
-                <tr key={r.label} className={r.count === 0 ? 'zero' : ''}>
-                  <td className={r.cls}>{r.label}</td>
-                  <td data-testid={r.cls === 'g-break' ? 'result-breaks' : undefined}>{r.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {result.ruleset !== 'RESPECT' && (
-            <>
-              <button className="small" onClick={() => setShowDetail((v) => !v)}>{showDetail ? 'DJMAX % 접기' : 'DJMAX % 보기'}</button>
-              {showDetail && (
-                <table className="grade-table detail">
-                  <tbody>
-                    {result.counts.map((c) => (
-                      <tr key={c.percent} className={c.count === 0 ? 'zero' : ''}>
-                        <td className={gradeClass(c.percent, false)}>{c.label}</td>
-                        <td>{c.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </section>
-
-        <section className="panel wide">
-          <h2>게이지</h2>
-          <GaugeGraph
-            history={result.gaugeHistory}
-            clear={gauge.clear}
-            survival={gauge.failAtZero}
-            startMs={startMs}
-            endMs={endMs}
-            failedAtMs={result.failedAtMs}
-          />
-          <h2>밀도 · BREAK · 타이밍</h2>
-          <TimelineGraph chart={chart} hits={result.hits} breakTimes={result.breakTimes} windowMs={180} startMs={startMs} endMs={endMs} />
-        </section>
-
-        <section className="panel wide">
-          <h2>타이밍 분포</h2>
-          <TimingHistogram hits={result.hits} median={result.medianErrorMs} />
-          {suggestion !== null && !request.autoPlay && Math.abs(suggestion) >= 3 && (
-            <div className="row offset-suggestion" data-testid="offset-suggestion">
-              <span>
-                절사 평균으로 {Math.abs(suggestion)}ms {suggestion > 0 ? '늦게' : '빨리'} 쳤습니다. 판정 오프셋을{' '}
-                {settings.inputOffsetMs + suggestion}ms로 바꾸면 보정됩니다.
-              </span>
-              <button onClick={() => onSettingsChange({ ...settings, inputOffsetMs: settings.inputOffsetMs + suggestion })}>
-                적용
-              </button>
-            </div>
-          )}
-        </section>
-      </div>
-
-      <div className="result-actions">
-        <div className="row">
-          <button className="primary" data-testid="result-back" onClick={onBack} autoFocus>계속 <kbd>Enter</kbd></button>
-          <button data-testid="result-retry" onClick={onRetry}>다시 하기 <kbd>R</kbd></button>
-          {onRegenerate && (
-            <button data-testid="result-regenerate" disabled={regenerating} onClick={() => void regenerate()}>
-              {regenerating ? '새 패턴 만드는 중…' : '새 패턴으로 다시'}
-            </button>
-          )}
-          {regenerateError && (
-            <span className="error" data-testid="result-regenerate-error">
-              새 패턴을 만들지 못했습니다: {regenerateError}
-            </span>
-          )}
-        </div>
-        <div className="row">
-          {replay && (
-            <>
-              <button className="small" data-testid="watch-replay" onClick={() => onWatchReplay(replay)}>
-                리플레이 보기
-              </button>
-              <button className="small" data-testid="download-replay" onClick={() => downloadReplay(replay, meta.title)}>
-                리플레이 파일 저장
-              </button>
-            </>
-          )}
-          {meta.songId && (
-            <>
-              <span className="label">내보내기</span>
-              {exportFormats(meta.keyMode).map((f) => (
-                <a key={f} className="button small" href={api.exportUrl(meta.chartId, f)} download data-testid={`result-export-${f}`}>
-                  {EXPORT_LABELS[f]}
-                </a>
-              ))}
-            </>
-          )}
+          <div className="row">
+            {replay && (
+              <>
+                <button className="small" data-testid="watch-replay" onClick={() => onWatchReplay(replay)}>
+                  리플레이 보기
+                </button>
+                <button className="small" data-testid="download-replay" onClick={() => downloadReplay(replay, meta.title)}>
+                  리플레이 파일 저장
+                </button>
+              </>
+            )}
+            {meta.songId && (
+              <>
+                <span className="label">내보내기</span>
+                {exportFormats(meta.keyMode).map((f) => (
+                  <a key={f} className="button small" href={api.exportUrl(meta.chartId, f)} download data-testid={`result-export-${f}`}>
+                    {EXPORT_LABELS[f]}
+                  </a>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       </div>
+      <HintBar
+        hints={[
+          { keys: ['Enter'], label: '계속' },
+          { keys: ['R'], label: '다시 하기' },
+        ]}
+        end={[{ keys: ['Esc'], label: '선곡으로' }]}
+      />
     </div>
   );
 }

@@ -32,7 +32,7 @@ test('side tracks, EX-SCORE, HARD gauge, MIRROR and covers on the sync test', as
   expect(ex).toBe(max);
   await expect(page.getByTestId('result-fever')).toBeVisible();
   await page.screenshot({ path: 'test-results/result-phase2.png' });
-  await page.locator('.result-screen').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await page.locator('.result-screen .screen-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.screenshot({ path: 'test-results/result-phase2-graphs.png' });
   expect(errors).toEqual([]);
 });

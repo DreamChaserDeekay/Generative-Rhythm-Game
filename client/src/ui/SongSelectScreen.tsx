@@ -25,6 +25,7 @@ import { SectionEditor } from './SectionEditor';
 import { lampClass } from './lamps';
 import { GenerationPanel, generationParams, PlayRulesPanel, PracticePanel, STYLE_LABELS } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
+import { HintBar, TopBar } from './shell';
 import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
@@ -525,32 +526,26 @@ export function SongSelectScreen(props: Props) {
   const selectedTier = tierOf(system, difficulty);
 
   return (
-    <div className="select-screen" onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
-      <header className="select-header">
-        <div className="brand">
-          <h1>Generative Rhythm</h1>
-          <p className="tagline">내 음악으로 만드는 채보 · SDVX 시점 · DJMAX 판정</p>
-        </div>
-        <nav className="tools">
-          <button className="quiet" data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
-          <button className="quiet" data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
-          <button className="quiet" data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
-            리플레이 열기
-          </button>
-          <input
-            ref={replayInput}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            data-testid="replay-input"
-            onChange={(e) => {
-              if (e.target.files?.[0]) void openReplayFile(e.target.files[0]);
-              e.target.value = '';
-            }}
-          />
-          <button className="quiet" data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
-        </nav>
-      </header>
+    <div className="select-screen screen-enter" onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
+      <TopBar name="선곡">
+        <button className="quiet" data-testid="sync-auto" onClick={() => onPlay(syncTestRequest(keyMode, true))}>싱크 테스트</button>
+        <button className="quiet" data-testid="open-calibration" onClick={props.onCalibrate}>캘리브레이션</button>
+        <button className="quiet" data-testid="open-replay" onClick={() => replayInput.current?.click()} title="저장한 리플레이 파일(.grgreplay.json) 보기">
+          리플레이 열기
+        </button>
+        <input
+          ref={replayInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          data-testid="replay-input"
+          onChange={(e) => {
+            if (e.target.files?.[0]) void openReplayFile(e.target.files[0]);
+            e.target.value = '';
+          }}
+        />
+        <button className="quiet" data-testid="open-settings" onClick={props.onOpenSettings}>설정</button>
+      </TopBar>
 
       {health === 'offline' && (
         <section className="panel offline" data-testid="server-offline">
@@ -985,6 +980,14 @@ export function SongSelectScreen(props: Props) {
           )}
         </main>
       </div>
+      <HintBar
+        hints={[
+          { keys: ['↑', '↓'], label: '곡' },
+          { keys: ['←', '→'], label: '난이도' },
+          { keys: ['Tab'], label: '키 모드' },
+        ]}
+        end={[{ keys: ['Enter'], label: '플레이' }]}
+      />
     </div>
   );
 }

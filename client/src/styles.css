@@ -2,6 +2,29 @@
    Design tokens. Every colour, type size, gap and corner in the UI comes from here.
    ========================================================================== */
 
+/* bundled OFL fonts (src/assets/fonts/README.md): Pretendard for all text, Barlow Condensed for
+   numbers, levels and the game's mark */
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('./assets/fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('./assets/fonts/BarlowCondensed-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('./assets/fonts/BarlowCondensed-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   /* colour: five base tokens */
   --bg: #0b0c10;
@@ -9,6 +32,8 @@
   --text: #f3f5f9;
   --text-dim: #a6adbd;
   --accent: #37e2ff;
+  /* the game's own colour: the emblem and the gear's right rail only, never controls or text */
+  --brand-rail: #ff4fd8;
 
   /* mixed from the base tokens only */
   --on-accent: var(--bg);
@@ -18,6 +43,8 @@
   --raised-hover: color-mix(in srgb, var(--text) 14%, var(--surface));
   --sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
   --scrim: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* panels over the song backdrop: flat and mostly opaque */
+  --panel: color-mix(in srgb, var(--surface) 92%, transparent);
 
   /* judgement (the colour-blind palette below swaps them) */
   --g-max: #7cf7ff;
@@ -31,10 +58,10 @@
   /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. */
   --lamp-perfect: var(--g-max);
   --lamp-maxcombo: #ffc94f;
-  --lamp-exhard: #ffd84f;
-  --lamp-hard: #ff8a6f;
-  --lamp-clear: var(--g-high);
-  --lamp-easy: #6fe39a;
+  --lamp-exhard: #ff9f43;
+  --lamp-hard: #ff6b6b;
+  --lamp-clear: #4fd88b;
+  --lamp-easy: #b6e36f;
   --lamp-assist: #c58bff;
   --lamp-failed: var(--g-break);
   --lane-white: #eaf6ff;
@@ -45,7 +72,7 @@
   --lane-sideR: #ff8f4f;
   --stem-drums: #8fa3c8;
   --stem-bass: #ff9a6b;
-  --stem-vocals: #7cf7ff;
+  --stem-vocals: #ffb3c7;
   --stem-other: #c58bff;
   /* repetition groups of song sections (A, B, C … cycle through these) */
   --section-1: var(--lane-blue);
@@ -54,10 +81,15 @@
   --section-4: var(--lane-scratch);
   --section-5: var(--lane-sideL);
   --section-6: var(--lane-sideR);
-  --fever-2: #37e2ff;
-  --fever-3: #6dff8a;
-  --fever-4: #ffd84f;
-  --fever-5: #ff4fd8;
+  /* FEVER steps keep off the accent and the brand colour */
+  --fever-2: #6dff8a;
+  --fever-3: #ffd84f;
+  --fever-4: #ff8f4f;
+  --fever-5: #ff6b6b;
+
+  /* type faces: text, and numbers / levels / the mark */
+  --font-ui: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', var(--font-ui);
 
   /* type: six sizes (13px only for bold labels, key caps and badges) */
   --fs-label: 13px;
@@ -86,9 +118,14 @@
   --page: 1200px;
   --jacket: 200px;
   --jacket-thumb: 48px;
+  --topbar-h: 56px;
+  --hintbar-h: 48px;
 
+  /* motion: only when something changes (none with reduced motion) */
+  --motion-fast: 120ms;
+  --motion-screen: 200ms;
 
-  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: var(--fs-body);
   line-height: 1.5;
   /* Korean breaks between words, not inside them */
@@ -222,15 +259,19 @@ button.danger {
 }
 
 kbd {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
   padding: 0 var(--sp-1);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-family: var(--font-ui);
   font-size: var(--fs-label);
   font-weight: 700;
-  line-height: 20px;
-  color: var(--text-dim);
-  background: var(--sunken);
-  border: 1px solid var(--line);
+  line-height: 1;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
 }
 
@@ -344,23 +385,119 @@ input[type='checkbox'] {
   margin: 0;
 }
 
-/* ---------- layout pieces ---------- */
+/* ---------- screen shell: the top bar and the key hints of every menu screen ---------- */
 
 .menu-screen,
-.result-screen {
+.result-screen,
+.select-screen {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen-enter {
+  animation: screen-in var(--motion-screen) ease-out;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter {
+    animation: none;
+  }
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-shrink: 0;
+  height: var(--topbar-h);
+  padding: 0 var(--sp-6);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.topbar .screen-name {
+  padding-left: var(--sp-4);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  border-left: 1px solid var(--line-strong);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.topbar-actions button {
+  white-space: nowrap;
+}
+
+.hintbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  flex-shrink: 0;
+  height: var(--hintbar-h);
+  padding: 0 var(--sp-6);
+  overflow: hidden;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-top: 1px solid var(--line);
+}
+
+.hint-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+
+.hint-item kbd + kbd {
+  margin-left: calc(-1 * var(--sp-1));
+}
+
+.hint-end {
+  display: flex;
+  gap: var(--sp-6);
+  margin-left: auto;
+}
+
+/* ---------- layout pieces ---------- */
+
+/* the scrolling part of a menu screen between the top bar and the key hints */
+.screen-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--sp-8) max(var(--sp-4), calc((100% - 960px) / 2)) var(--sp-12);
 }
 
-.menu-header h1 {
-  margin: 0;
-  font-size: var(--fs-heading);
-  font-weight: 800;
-}
-
-.menu-header .tagline {
-  margin: var(--sp-2) 0 0;
+/* a screen's lead line under the top bar: what to do here */
+.intro {
+  margin: 0 0 var(--sp-4);
 }
 
 .panel {
@@ -974,8 +1111,8 @@ p.hint {
 
 /* ---------- result ---------- */
 
-.result-screen {
-  padding: var(--sp-6) max(var(--sp-4), calc((100% - var(--page)) / 2)) 0;
+.result-screen .screen-body {
+  padding: var(--sp-6) max(var(--sp-4), calc((100% - var(--page)) / 2)) var(--sp-8);
 }
 
 .result-header {
@@ -1264,38 +1401,25 @@ p.hint {
 
 /* ---------- settings ---------- */
 
-.settings-screen {
+.settings-screen .screen-body {
   padding-top: 0;
 }
 
-/* title, 완료 and the section links stay on screen while the sections scroll */
+/* the section links stay on screen while the sections scroll */
 .settings-header {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: var(--sp-6) 0 var(--sp-3);
+  padding: var(--sp-3) 0;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
-}
-
-.settings-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-.settings-title h1 {
-  margin: 0;
-  font-size: var(--fs-heading);
-  font-weight: 800;
 }
 
 .settings-nav {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1);
-  margin: var(--sp-3) 0 0 calc(-1 * var(--sp-3));
+  margin: 0 0 0 calc(-1 * var(--sp-3));
 }
 
 .settings-screen .panel {
@@ -1447,47 +1571,10 @@ p.hint {
 
 /* ---------- song select ---------- */
 
-.select-screen {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: var(--sp-4) max(var(--sp-4), calc((100% - var(--page)) / 2)) 0;
+.select-screen > .panel.offline {
+  margin: var(--sp-4) max(var(--sp-4), calc((100% - var(--page)) / 2)) 0;
 }
 
-.select-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-.select-header .brand {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0 var(--sp-3);
-  min-width: 0;
-}
-
-.select-header h1 {
-  margin: 0;
-  font-size: var(--fs-title);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.select-header .tagline {
-  margin: 0;
-  font-size: var(--fs-label);
-  font-weight: 700;
-}
-
-.select-header .tools {
-  display: flex;
-  gap: var(--sp-1);
-}
-
-.select-header .tools button,
 .play-row button,
 .option-row button {
   white-space: nowrap;
@@ -1499,7 +1586,7 @@ p.hint {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: var(--sp-6);
-  margin-top: var(--sp-4);
+  padding: var(--sp-4) max(var(--sp-4), calc((100% - var(--page)) / 2)) 0;
 }
 
 /* song list (left) */
