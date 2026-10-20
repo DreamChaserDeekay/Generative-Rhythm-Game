@@ -8,6 +8,7 @@ import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
 import type { Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
+import { LoadingCard } from './LoadingCard';
 import { PlayController, type PlayOutcome } from './PlayController';
 
 interface Props {
@@ -117,13 +118,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
       <div ref={bgRef} className="play-bg" data-testid="play-bg" />
       <canvas ref={canvasRef} className="play-canvas" />
       <div ref={hudRef} className="hud" />
-      {loading && !error && (
-        <div className="play-overlay" data-testid="play-loading">
-          <div className="spinner" />
-          {loadingText}
-          <button className="quiet" data-testid="play-loading-cancel" onClick={onQuit}>취소 <kbd>Esc</kbd></button>
-        </div>
-      )}
+      {loading && !error && <LoadingCard request={request} settings={settings} text={loadingText} onCancel={onQuit} />}
       {error && (
         <div className="play-overlay">
           <p className="error">{error}</p>

@@ -70,6 +70,8 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
   const body = JSON.parse((await asked).postData() ?? '{}');
   expect([body.system, body.difficulty, body.newSeed]).toEqual(['DJMAX', 'NM', true]);
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  // Esc pauses once the play has loaded (while it loads, Esc leaves it)
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 30_000 });
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');

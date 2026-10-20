@@ -64,6 +64,9 @@ test('the song preview plays on behind the settings, quieter and muffled, and co
   await expect(page.getByTestId('song-title')).toHaveText('e2e-preview', { timeout: 30_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await expect.poll(async () => (await state()).playing, { timeout: 15_000 }).toBe(true);
+  // not paused is not yet running: wait until its time moves (it may still be fetching the audio)
+  const started = (await state()).time;
+  await expect.poll(async () => (await state()).time, { timeout: 15_000 }).toBeGreaterThan(started);
   const select = await state();
   expect(select.cutoff).toBeNull(); // on the song select it plays as it is
 

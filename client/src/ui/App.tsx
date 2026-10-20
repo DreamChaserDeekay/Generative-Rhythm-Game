@@ -27,6 +27,8 @@ export interface PracticeOptions {
 
 export interface PlayRequest {
   chart: Chart;
+  /** The song from the library (absent for the sync test): its picture on the loading card. */
+  song?: Song;
   /** Loads the decoded audio for the chart (null = silent). */
   loadAudio: () => Promise<AudioBuffer | null>;
   autoPlay: boolean;

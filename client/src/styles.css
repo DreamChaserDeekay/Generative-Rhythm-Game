@@ -663,7 +663,7 @@ p.hint {
   background: var(--bg);
 }
 
-/* No backdrop blur on the loading overlay: with the spinner turning, a full-screen backdrop blur is
+/* No backdrop blur on the loading overlay: with its bar running, a full-screen backdrop blur is
    redone every frame. Rendering in software (no GPU) that kept Chrome's GPU process busy, and the
    track's WebGL setup waited behind it with the page frozen (~14 s). Nothing is drawn behind it yet. */
 .play-overlay {
@@ -689,19 +689,215 @@ p.hint {
   justify-content: space-between;
 }
 
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 4px solid var(--line);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+/* the loading card: the song about to play on its own colours (a still canvas, no blur) */
+.play-loading {
+  isolation: isolate;
+  gap: 0;
+  background: var(--bg);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.loading-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-8);
+  width: min(880px, calc(100% - var(--sp-8)));
+  padding: var(--sp-8);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.loading-art {
+  width: clamp(120px, 30vh, 240px) !important;
+  height: clamp(120px, 30vh, 240px) !important;
+  border-radius: var(--radius);
+}
+
+.loading-art.placeholder {
+  font-size: var(--fs-hero);
+}
+
+.loading-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.loading-text h1 {
+  display: -webkit-box;
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.loading-text .artist {
+  margin: var(--sp-1) 0 var(--sp-4);
+  font-size: var(--fs-title);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-text p {
+  margin: 0 0 var(--sp-4);
+}
+
+.loading-tier {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.loading-tier .tier-name {
+  font-size: var(--fs-title);
+  letter-spacing: 0.04em;
+  color: var(--diff);
+}
+
+.loading-tier .loading-level {
+  font-size: var(--fs-display);
+  line-height: 1;
+}
+
+.loading-tier .key-mode {
+  font-size: var(--fs-title);
+  color: var(--text-dim);
+}
+
+.loading-tier .play-mode {
+  padding: 0 var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.loading-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-6);
+}
+
+.loading-facts .label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.loading-facts b {
+  margin-left: var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the song's sections in order */
+.section-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+}
+
+.section-flow span + span::before {
+  content: '→';
+  margin-right: var(--sp-2);
+  color: var(--text-dim);
+}
+
+.loading-status {
+  margin-top: auto;
+  font-weight: 600;
+}
+
+.loading-status p {
+  margin: 0 0 var(--sp-2);
+}
+
+.loading-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* no progress is reported while audio loads: a bar that runs, not a made-up share */
+.loading-bar {
+  position: relative;
+  flex: 1;
+  min-width: 80px;
+  height: 4px;
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 2px;
+}
+
+.loading-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: var(--text);
+  border-radius: 2px;
+  animation: loading-run 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-run {
+  from {
+    transform: translateX(-100%);
   }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar i {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+/* the keys of the lanes, coloured by the instrument each lane follows most */
+.loading-keys {
+  position: absolute;
+  bottom: var(--sp-8);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  transform: translateX(-50%);
+}
+
+.loading-keys .label {
+  margin: 0 var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.loading-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.loading-key i {
+  width: 44px;
+  height: 8px;
+  border-radius: 2px;
 }
 
 /* HUD: sizes are the type tokens times --hud-scale (1 at 720px high, up to 1.5) */
