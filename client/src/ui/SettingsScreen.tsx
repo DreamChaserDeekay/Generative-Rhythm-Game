@@ -392,7 +392,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             value={settings.skin}
             options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
-            help="노트·롱노트·키캡·키 빔·타격 효과·레일·판정선·트랙의 모양입니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
           <Choice
             {...row}
