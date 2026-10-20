@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from .motifs import SlotPlan, pattern_config
+from .motifs import SlotPlan, by_skill, pattern_config
 from .params import GenParams
 from .repeat import repeat_references
 from .select import Slot, melodic as _melodic, sound_of as _sound
@@ -270,6 +270,7 @@ def vocabulary(params: GenParams) -> dict[str, dict[str, Any]]:
     idiom = {i["motif"]: float(i["weight"]) for i in _idioms(params) if "motif" in i}
     out = {}
     for name, m in cfg["motifs"].items():
+        m = {**m, **m.get("bySystem", {}).get(params.system, {})}  # a system's own minSkill / complexity
         if params.skill < float(m["minSkill"]):
             continue
         if "keyModes" in m and params.key_mode not in m["keyModes"]:
@@ -408,20 +409,88 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
 
 
 def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple[int, int] | None]:
-    """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly."""
-    cfg = pattern_config()["windows"]
+    """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly.
+
+    A system may change the settings for all its key modes or one (windows.systems, .keyModes).
+    With `spread` the window follows the phrase's register among the song's phrases instead of
+    its pitch rank, `step` keys at most per phrase: the lowest phrases sit on the left keys and the
+    highest on the right, so the windows cover every key over the song (BMS charts stay on a few
+    keys for a while and use all of them over the song)."""
+    base = pattern_config()["windows"]
+    own = base.get("systems", {}).get(params.system, {})
+    mode = own.get("keyModes", {}).get(params.key_mode, {})
+    cfg = {**base, **own, **mode, "width": {**base["width"], **own.get("width", {}), **mode.get("width", {})}}
     if params.skill >= cfg["looseSkill"]:
         return [None] * len(phrases)
     width = int(cfg["width"].get(params.key_mode, n_keys)) + (0 if params.skill < cfg["skill"] else 1)
     if width >= n_keys:
         return [None] * len(phrases)
+    spread = bool(cfg.get("spread", False))
+    step = int(cfg.get("step", 1))
+    registers = sorted(p.register for p in phrases if p.register is not None)
     out: list[tuple[int, int] | None] = []
     start = (n_keys - width) // 2
     for p in phrases:
         if p.register is not None:
-            want = int(round(p.register * (n_keys - width)))
-            start += max(-1, min(1, want - start))
+            rank = p.register
+            if spread:
+                rank = (bisect.bisect_left(registers, p.register) + bisect.bisect_right(registers, p.register)) / (2 * len(registers))
+            want = int(round(rank * (n_keys - width)))
+            start += max(-step, min(step, want - start))
         out.append((start, start + width - 1))
+    return out
+
+
+def palettes(
+    phrases: list[Phrase], params: GenParams, n_keys: int, keys: list[tuple[int, int]] | None = None, seed: int = 0
+) -> list[tuple[int, ...] | None]:
+    """Per phrase the keys it keeps to (config "palettes" of the system and key mode, else none).
+
+    Human BMS charts stay on a few keys for a while (the keys holding 80% of a 7K chart's 4-bar
+    window: 3.8 below 4 notes a second, 5.4 above 12), mostly not neighbouring ones (1-3-5-7), and
+    change a key or two from one window to the next. Each phrase draws a set of `size` keys
+    (by skill) from those windows' sets (`sets`, their shares), times the chance of sharing that
+    many keys with the previous phrase's set (`shared`) and a pull toward the phrase's register
+    among the song's phrases (`register`). A phrase of an earlier material class (the sectioned
+    engine's `keys`) takes that class's set."""
+    systems = pattern_config()["palettes"].get("systems", {})
+    cfg = systems.get(params.system, {}).get(params.key_mode)
+    if not cfg:
+        return [None] * len(phrases)
+    size = int(round(by_skill(cfg["size"], params.skill)))
+    table = cfg["sets"].get(str(size))
+    if not table or size >= n_keys:
+        return [None] * len(phrases)
+    sets = [(tuple(int(c) - 1 for c in name), float(share)) for name, share in table.items()]
+    shared = [float(x) for x in cfg["shared"][str(size)]]
+    pull = float(cfg.get("register", 0.0))
+    registers = sorted(p.register for p in phrases if p.register is not None)
+    rng = np.random.default_rng(seed)
+    out: list[tuple[int, ...] | None] = []
+    by_class: dict[tuple[int, int], tuple[int, ...]] = {}
+    prev: tuple[int, ...] | None = None
+    for n, p in enumerate(phrases):
+        key = keys[n] if keys is not None else None
+        if key is not None and key in by_class:
+            prev = by_class[key]
+            out.append(prev)
+            continue
+        rank = None
+        if p.register is not None and pull:
+            rank = (bisect.bisect_left(registers, p.register) + bisect.bisect_right(registers, p.register)) / (2 * len(registers))
+        weights = []
+        for s, share in sets:
+            w = share + 1e-4
+            if prev is not None:
+                w *= shared[len(set(s) & set(prev))] + 1e-3
+            if rank is not None:
+                w *= math.exp(-pull * (sum(s) / len(s) / (n_keys - 1) - rank) ** 2)
+            weights.append(w)
+        total = sum(weights)
+        prev = sets[int(rng.choice(len(sets), p=[w / total for w in weights]))][0]
+        out.append(prev)
+        if key is not None:
+            by_class[key] = prev
     return out
 
 
@@ -466,14 +535,33 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
 def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int) -> list[int | None]:
     """A home key for each drum hit: kick low, snare in the middle, hats high, inside the rhythm
     region when the phrase has one. The region changes only between repetition groups (or never on
-    song-home systems), so a drum sound keeps its key through a section."""
-    song = params.system in pattern_config()["roles"]["songHomes"]
+    song-home systems), so a drum sound keeps its key through a section. On the systems in
+    roles.tonalHomes a pitched sound has a home too, by its pitch's place among the song's pitched
+    notes (low left, high right, inside the melody region): human BMS charts keep 76-86% of a
+    pitched keysound's notes on one lane at levels 6-10."""
+    roles = pattern_config()["roles"]
+    song = params.system in roles["songHomes"]
+    rank: dict[int, float] = {}
+    if params.system in roles.get("tonalHomes", []):
+        counts: dict[int, int] = {}
+        for s in slots:
+            if _melodic(s):
+                counts[round(float(s.pitch))] = counts.get(round(float(s.pitch)), 0) + 1  # type: ignore[arg-type]
+        total, below = sum(counts.values()), 0
+        for pitch in sorted(counts):
+            rank[pitch] = (below + 0.5 * counts[pitch]) / total
+            below += counts[pitch]
     first = next((r for r in regions if r is not None), None)
     out: list[int | None] = [None] * len(slots)
     for p, region in zip(phrases, regions):
-        lo, hi = (first if song and first else region or {}).get("rhythm", (0, n_keys - 1))
+        roles_of = first if song and first else region or {}
+        lo, hi = roles_of.get("rhythm", (0, n_keys - 1))
+        mlo, mhi = roles_of.get("melody", (0, n_keys - 1))
         for i in p.slots:
             s = slots[i]
+            if rank and _melodic(s):
+                out[i] = int(round(mlo + (mhi - mlo) * rank[round(float(s.pitch))]))  # type: ignore[arg-type]
+                continue
             if s.sources is None or int(np.argmax(s.sources)) != DRUMS or _melodic(s):
                 continue
             band = int(np.argmax(s.bands))  # 0 low (kick), 1 mid (snare), 2 high (hats)
@@ -489,9 +577,11 @@ def plan_patterns(
     tempo: TempoMap,
     groups: list[list[int]] | None = None,
     keys: list[tuple[int, int]] | None = None,
+    seed: int = 0,
 ) -> list[SlotPlan]:
     """The pattern of every slot; `hands` are the key lanes' hands (L, R, T for a shared key).
-    `groups` and `keys` come from the sectioned engine (sections.Layout.phrases / phrase_keys)."""
+    `groups` and `keys` come from the sectioned engine (sections.Layout.phrases / phrase_keys);
+    `seed` (the chart's) draws the phrases' key sets."""
     if not slots:
         return []
     n_keys = len(hands)
@@ -508,6 +598,7 @@ def plan_patterns(
                 if ref < n and _feasible(motifs[ref], p, params):
                     motifs[n] = motifs[ref]
     wins = windows(phrases, params, n_keys)
+    pals = palettes(phrases, params, n_keys, keys, seed)
     textures = [chord_texture(p, params) for p in phrases]
     regions = role_regions(slots, phrases, params, hands)
     homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
@@ -551,5 +642,6 @@ def plan_patterns(
                 home=homes[i],
                 layer=layers[k],
                 same_layer=tuple(j for j in range(k) if layers[j] == layers[k]) if regions[n] else None,
+                palette=pals[n],
             )
     return plan

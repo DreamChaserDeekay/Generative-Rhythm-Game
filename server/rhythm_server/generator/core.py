@@ -27,7 +27,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.5"
+GENERATOR_VERSION = "0.9.7"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -117,11 +117,11 @@ def generate_chart(
         if engine == "sectioned":
             lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
             slots = lay.slots
-            plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys)
+            plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan)
         else:
             slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
-            plan = plan_patterns(slots, sections, params, key_hands, tempo) if engine == "designer" else None
+            plan = plan_patterns(slots, sections, params, key_hands, tempo, seed=seed) if engine == "designer" else None
             choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = notes_from_choices(slots, choices, tempo, lanes, plan)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)

@@ -202,3 +202,24 @@ def test_onsets_unlikely_to_start_a_sound_score_lower(analysis128: dict) -> None
     assert all(doubtful[b] < sure[b] for b in sure if sure[b] > 0)
     sung_doubtful, sung_sure = scores(0.1, 1.0), scores(1.0, 1.0)
     assert all(sung_doubtful[b] < sung_sure[b] for b in sung_sure if sung_sure[b] > 0)
+
+
+def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
+    """Human BMS charts of triplet-feel songs put 3-6% of their notes on triplet positions from
+    level 2 on (PATTERN_DESIGN 23). Since generator 0.9.7 the default system's EASY and NORMAL read
+    the eighth-note triplets of such a song (before, none); a straight song keeps none."""
+    from rhythm_server.analysis.analyzer import analyze
+    from rhythm_server.synth import make_drum_song
+
+    def triplet_notes(style: str) -> dict[str, int]:
+        song = make_drum_song(style, 100.0)
+        a = analyze(song.pcm, song.sample_rate, f"sha256:grid-{style}-100", backends={})
+        out = {}
+        for tier in ("EASY", "NORMAL"):
+            fractions = [n["beat"] % 1.0 for n in generate_chart(a, "7K+1S", tier)["notes"]]
+            out[tier] = sum(1 for f in fractions if min(abs(f - 1 / 3), abs(f - 2 / 3)) < 0.02)
+        return out
+
+    swung, straight = triplet_notes("shuffle"), triplet_notes("pop16")
+    assert swung["EASY"] >= 3 and swung["NORMAL"] >= 10, swung
+    assert straight == {"EASY": 0, "NORMAL": 0}, straight

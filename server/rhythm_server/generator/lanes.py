@@ -11,7 +11,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
-from .motifs import MotifContext, SlotPlan, motif_context, motif_costs, one_hand_region
+from .motifs import MotifContext, SlotPlan, by_key_mode, by_skill, motif_context, motif_costs, one_hand_region
 from .params import GenParams
 from .select import Slot, sound_of
 from .tempo import TempoMap
@@ -63,6 +63,7 @@ class _Weights:
     slow_jack: float
     usage: float  # weight of the lane-usage balance (W_BALANCE scaled per system)
     slow_usage: float  # the same for a slow note
+    key_bias: tuple[float, ...]  # per lane: a standing cost (negative: a pull) of using the key
     source: float  # pull of drum / bass notes toward their lane regions
     drum_targets: tuple[float, float, float]  # lane position for low / mid / high drum energy
     bass_target: float
@@ -79,6 +80,10 @@ class _Weights:
     balance_bar: float
     balance_min: float
     balance_band: tuple[float, float]
+    # sound memory (hands.soundMemory): a sound coming back after other notes pays this for leaving
+    # the lane it last had (BMS charts keep 70-86% of a keysound's notes on one lane)
+    memory: float = 0.0
+    memory_size: int = 0
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -90,16 +95,17 @@ class _Weights:
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
-            alternate=W_ALTERNATE * params.weight("alternateWeight") * float(hands["alternateScale"]),
+            alternate=W_ALTERNATE * params.weight("alternateWeight") * by_key_mode(hands["alternateScale"], params.key_mode),
             jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
             # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
-            jack_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["sameSoundBonus"], params.skill)),
+            jack_bonus=max(params.weight("jackBonus", 0.0), by_skill(hands["sameSoundBonus"], params.skill)),
             bonus_ms=float(hands["sameSoundWithinMs"]),
             slow_ms=float(hands["slowRepeatMs"]),
-            slow_bonus=max(params.weight("jackBonus", 0.0), _by_skill(hands["slowSameSoundBonus"], params.skill)),
+            slow_bonus=max(params.weight("jackBonus", 0.0), by_skill(hands["slowSameSoundBonus"], params.skill)),
             slow_jack=float(hands["slowJackScale"]),
             usage=W_BALANCE * float(hands["usageBalance"]),
             slow_usage=W_BALANCE * float(hands["usageBalance"]) * float(hands["slowUsageScale"]),
+            key_bias=_key_bias(hands["keyBias"].get(params.key_mode), params.key_mode, by_skill(hands["keyBiasScale"], params.skill)),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
             bass_target=float(mapping["bass"]),
@@ -115,15 +121,19 @@ class _Weights:
             balance_bar=float(hands["balance"]),
             balance_min=float(hands["balanceMinNotes"]),
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
+            memory=by_skill(hands.get("soundMemory", 0.0), params.skill),
+            memory_size=int(hands.get("soundMemorySize", 24)),
         )
 
 
-def _by_skill(value: Any, skill: float) -> float:
-    """A number, or [skill, value] pairs read off at the chart's skill (straight lines between)."""
-    if isinstance(value, list):
-        points = sorted((float(a), float(b)) for a, b in value)
-        return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
-    return float(value)
+def _key_bias(bias: list[float] | None, key_mode: str, scale: float = 1.0) -> tuple[float, ...]:
+    """Per lane the key's standing cost (× `scale`) from a list over the key lanes, left to right."""
+    lanes = lane_infos(key_mode)
+    out = [0.0] * len(lanes)
+    if bias:
+        for k, lane in enumerate(l for l in lanes if l.kind == "key"):
+            out[lane.index] = float(bias[k]) * scale
+    return tuple(out)
 
 
 @dataclass(frozen=True)
@@ -169,6 +179,15 @@ class _State:
     streak: tuple[int, ...] = ()  # per lane: slots in a row (each close to the last) that hit the key, ending here
     bar: int = -1  # bar of this slot
     bar_hands: tuple[float, float] = (0.0, 0.0)  # left / right key notes of that bar so far (a middle key: half each)
+    memory: tuple[tuple[Any, int], ...] = ()  # (sound, lane) of the latest single key notes, one per sound, oldest first
+
+
+def _remember(memory: tuple[tuple[Any, int], ...], sound: Any, keys_used: tuple[int, ...], size: int) -> tuple[tuple[Any, int], ...]:
+    """The sound memory after a slot: a single key note's sound moves to the end with its lane."""
+    if sound is None or len(keys_used) != 1:
+        return memory
+    kept = tuple(m for m in memory if m[0] != sound)
+    return (kept + ((sound, keys_used[0]),))[-size:]
 
 
 def _pitch_targets(slots: list[Slot]) -> list[float | None]:
@@ -277,7 +296,7 @@ def search(
     ctx: MotifContext | None = None
     if plan:
         if "ctx" not in shared:
-            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system)
+            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system, params.key_mode)
         ctx = shared["ctx"]
     # lanes a copied slot right after needs: a slot of its own (no reference: a note a later repeat
     # adds) keeps out of them, or the copy would find its lane still inside the jack spacing (a
@@ -415,6 +434,10 @@ def search(
             if reserved[si]:
                 pen = RESERVE_SHARE * weights.repeat
                 costs = [c + pen * sum(1 for i in combo if i in reserved[si]) for c, combo in zip(costs, combos)]
+            if weights.memory > 0 and sound is not None and not same_sound and state.memory:
+                home = next((lane for s, lane in reversed(state.memory) if s == sound), None)
+                if home is not None:
+                    costs = [c + weights.memory if len(combo) == 1 and combo[0] != home else c for c, combo in zip(costs, combos)]
             scored = []
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
@@ -485,6 +508,7 @@ def search(
                     streak=tuple(streak),
                     bar=bar,
                     bar_hands=(left, right),
+                    memory=_remember(state.memory, sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
                 )
             )
         beam = expansions or beam
@@ -817,6 +841,8 @@ def _costs(
             # (a planned repeat keeps its lane however much it is used: the laser's middle key)
             for i in combo:
                 cost += balance[i]
+        for i in combo:
+            cost += w.key_bias[i]
         if anchor_cap and len(combo) == 1:
             hits = anchor_hits(_next_run(state, combo, t))
             if hits > anchor_cap:

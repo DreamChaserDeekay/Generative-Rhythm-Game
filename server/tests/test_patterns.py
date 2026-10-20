@@ -325,6 +325,54 @@ def test_djmax_5k_repeated_notes_become_a_laser() -> None:
     assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
 
 
+def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
+    # Human BMS charts use key 1 most (19-21% of the notes from level 2 to 10) and leap three keys
+    # or more in a quarter of their moves even on easy charts; before generator 0.9.6 our 7K charts
+    # left keys 1 and 7 nearly empty below HARD and piled up on the middle key. Since 0.9.7 each
+    # phrase keeps to a few keys drawn by the seed, so one chart may lean on a side (as a quarter of
+    # the human charts below level 10 leave key 1 or 7 under 8%): the shares are a mean over seeds.
+    for tier in ("EASY", "NORMAL", "HARD"):
+        per_seed = []
+        for seed in range(4):
+            keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
+            per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
+        shares = np.mean(per_seed, axis=0)
+        assert min(shares[0], shares[6]) >= 0.08 and max(shares) <= 0.3, (tier, [round(float(s), 3) for s in shares])
+    notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY")["notes"] if n["lane"] != 0)
+    moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
+    assert sum(m >= 3 for m in moves) / len(moves) >= 0.2
+
+
+def test_default_7k_phrases_keep_to_a_few_keys_and_easy_chords_use_one_hand(dense_song: dict) -> None:
+    # Human BMS 7K charts keep a 4-bar window on a few keys (80% of its notes on 3.8 keys below 4
+    # notes a second, 4.2 up to 8, PATTERN_DESIGN 23) and play a sixth of the two-note chords of
+    # levels 2 and 6 with one hand, a key between (1+3), rarely on neighbouring keys of one hand.
+    # Generator 0.9.6 spread 4-bar windows over 4.4 keys here and had no one-hand chords below HARD.
+    hand = {1: "L", 2: "L", 3: "L", 4: "T", 5: "R", 6: "R", 7: "R"}
+    sizes, shapes = [], {"gap": 0, "adjacent": 0, "all": 0}
+    for tier in ("EASY", "NORMAL"):
+        for seed in range(4):
+            notes = [n for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
+            windows: dict[int, dict[int, int]] = {}
+            for n in notes:
+                w = windows.setdefault(int(n["beat"] // 16), {})
+                w[n["lane"]] = w.get(n["lane"], 0) + 1
+            for counts in windows.values():
+                total = sum(counts.values())
+                if total >= 12:
+                    held = list(itertools.accumulate(sorted(counts.values(), reverse=True)))
+                    sizes.append(next(i + 1 for i, h in enumerate(held) if h >= 0.8 * total))
+            for lanes in chords_of({"notes": notes}):
+                if len(lanes) == 2:
+                    a, b = sorted(lanes)
+                    same = hand[a] == hand[b] != "T"
+                    shapes["all"] += 1
+                    shapes["gap"] += same and b - a > 1
+                    shapes["adjacent"] += same and b - a == 1
+    assert np.mean(sizes) <= 4.2, np.mean(sizes)
+    assert shapes["gap"] >= 0.03 * shapes["all"] and shapes["adjacent"] <= 0.03 * shapes["all"], shapes
+
+
 def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
     for mode, limit in (("6K", 0.12), ("8K", 0.15)):
         for tier, system, level in (("NORMAL", None, None), ("EZ", "EZ2ON", 4)):

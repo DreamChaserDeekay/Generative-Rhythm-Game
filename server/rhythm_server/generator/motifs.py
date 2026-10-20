@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+import numpy as np
+
 from ..config import load_config
 
 FAST_MS = 260.0  # moves closer than this get the ergonomic costs (same threshold as the profile)
@@ -44,6 +46,7 @@ class SlotPlan:
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
     roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
     roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
+    palette: tuple[int, ...] | None = None  # keys the phrase keeps to (the others pay weights.palette)
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
@@ -65,7 +68,7 @@ class MotifContext:
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
-    adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord)
+    adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord, by skill)
     stretch_span: int = 2  # keys apart within one hand from which a chord is a stretch (hands.stretchSpan)
     asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
     # a role kept to one hand pays for neighbouring keys too when the hand has a key between (1+3)
@@ -74,9 +77,13 @@ class MotifContext:
     # motif cost (a slow repeated note is easy on one key; the other hand answers fast ones)
     slow_ms: float = 260.0
     slow_split: float = 1.0
+    # the share of the role-region cost a chord pays where a role has one hand (roles.chordRegion by
+    # system): human charts keep rhythm and melody on their hands for single notes but spread chords
+    # over both
+    chord_region: float = 1.0
 
 
-def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG") -> MotifContext:
+def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
     cfg = pattern_config()
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
@@ -91,7 +98,9 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         mirror=tuple(n - 1 - k for k in range(n)),
         center=next((k for k, lane in enumerate(keys) if lane.hand == "T"), None),
         skill=skill,
-        weights={k: float(v) for k, v in cfg["weights"].items()},
+        # leaps (hands.leapScale, a number or one per key mode): BMS charts leap three keys or
+        # more far more often than the readability weights allow (docs/PATTERN_DESIGN.md 22)
+        weights={k: float(v) * (by_key_mode(hands["leapScale"], key_mode) if k in ("leap", "sameHandLeap") else 1.0) for k, v in cfg["weights"].items()},
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
@@ -100,13 +109,29 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         home_scale=instrument_mapping
         * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
-        adjacent=float(hands["adjacentChord"]),
+        adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
         asymmetric=float(hands["asymmetricChord"]),
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
+        chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
     )
+
+
+def by_skill(value: Any, skill: float) -> float:
+    """A number, or [skill, value] pairs read off at the chart's skill (straight lines between)."""
+    if isinstance(value, list):
+        points = sorted((float(a), float(b)) for a, b in value)
+        return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
+    return float(value)
+
+
+def by_key_mode(value: Any, key_mode: str | None) -> float:
+    """A number, or {key mode: number} with "*" for the key modes it leaves out (else 1)."""
+    if isinstance(value, dict):
+        return float(value.get(key_mode, value.get("*", 1.0))) if key_mode else float(value.get("*", 1.0))
+    return float(value)
 
 
 def _mismatch(keys: tuple[int, ...], want: tuple[int, ...]) -> float:
@@ -318,6 +343,8 @@ def _per_key_costs(ctx: MotifContext, sp: SlotPlan, fast: bool, held: tuple[str,
             c += finger_w * (1.0 - ctx.strength[k])
         if ctx.hand[k] in held:
             c += w["holdHand"]
+        if sp.palette is not None and k not in sp.palette:
+            c += w["palette"]
         out.append(c)
     return out
 
@@ -357,7 +384,7 @@ def motif_costs(
     w = ctx.weights
     fast = dt < FAST_MS
     held = tuple(sorted(h for h, c in holding_hands.items() if c)) if sp.hold_tap and holding_hands else ()
-    cache_key = (sp.window, sp.region, fast, held)
+    cache_key = (sp.window, sp.region, fast, held, sp.palette)
     per_key = key_cache.get(cache_key) if key_cache is not None else None
     if per_key is None:
         per_key = _per_key_costs(ctx, sp, fast, held)
@@ -404,6 +431,9 @@ def motif_costs(
                     scale = ctx.slow_split if sp.motif == "split" and single_dt >= ctx.slow_ms else 1.0
                     cost += w["motif"] * scale * _mismatch(keys, want)
         if size >= 2:
+            if sp.region is not None and ctx.chord_region != 1.0 and one_hand_region(ctx, sp):
+                lo, hi = sp.region
+                cost -= (1.0 - ctx.chord_region) * w["region"] * sum(max(0, lo - k, k - hi) for k in keys)
             if shape_cache is None:
                 cost += _shape_cost(ctx, sp, keys)
             else:

@@ -81,19 +81,25 @@ def test_no_forced_jacks_and_short_anchors() -> None:
 
 def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None:
     # BMS-Generator's hand rules, adapted (PATTERN_DESIGN 16-6). Before them, on this song: 4K NM 6
-    # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9. Since
-    # generator 0.9.4 the default system follows the human BMS charts' jacks instead, about 10 jack
-    # streaks in 1000 notes at this density (PATTERN_DESIGN 20): 3.2 here.
+    # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9.
     for key_mode, system, difficulty, level, measure, most in (
         ("4K", "DJMAX", "NM", 6, "handRuns", 0.18),
         ("6K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
         ("4K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
         ("6K", "DJMAX", "HD", 9, "jackStreaks", 1.0),
-        ("7K+1S", "GRG", "HARD", None, "jackStreaks", 10.0),
     ):
         g = guide_profile(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode)
         assert g[measure] <= most, (key_mode, difficulty, measure, g[measure])
         assert g["offBars"] is None or g["offBars"] <= 0.1, (key_mode, difficulty, g["offBars"])
+    # Since generator 0.9.4 the default system follows the human BMS charts' jacks instead (PATTERN_DESIGN
+    # 20): about 15 jack streaks in 1000 notes at levels 10-14. Since 0.9.7 a 7K phrase keeps to a few
+    # keys drawn by the seed, and this drum-loop song repeats its sounds on them: 0-29 by seed, a mean
+    # of about 20 over these four (3.2 before the phrases' key sets). A phrase on one side's keys makes
+    # its bars lopsided, as in human charts: 15-16% of their busy bars at levels 6-10 leave the
+    # 30-70% band, and an eighth of those charts more than 40% (one seed here: 41%).
+    profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
+    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 25.0, [g["jackStreaks"] for g in profiles]
+    assert sum(g["offBars"] or 0.0 for g in profiles) / len(profiles) <= 0.2, [g["offBars"] for g in profiles]
 
 
 def test_bms_hand_measures() -> None:
