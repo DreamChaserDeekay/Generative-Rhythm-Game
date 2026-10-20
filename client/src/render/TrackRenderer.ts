@@ -82,6 +82,8 @@ const HOLD_FRAME = 2;
 const HOLD_BURST_FRAME = 13;
 /** Note pictures are drawn this many px deep. */
 const NOTE_PICTURE_PX = 96;
+/** Where a fitted preview puts the judge line: this share of the height from the top. */
+const FIT_JUDGE_LINE_Y = 0.83;
 
 export interface FeverFrame {
   active: boolean;
@@ -141,6 +143,11 @@ export interface TrackRendererOptions {
   art?: SkinArt | null;
   /** A line across the track at every bar (default on). */
   barLines?: boolean;
+  /**
+   * A preview's framing: the field of view is set so the judge line spans this share of the
+   * canvas width, whatever its shape (play keeps the camera preset's own).
+   */
+  fitWidth?: number;
 }
 
 type NoteKind = 'note' | 'side' | 'scratch';
@@ -198,6 +205,7 @@ export class TrackRenderer {
   private readonly style: SkinStyle;
   private readonly reducedFlash: boolean;
   private readonly barLines: boolean;
+  private readonly fitWidth: number | null;
   private readonly noteGeometry: THREE.BufferGeometry;
   private readonly noteDepth: number;
   private readonly baseQuaternion = new THREE.Quaternion();
@@ -277,6 +285,7 @@ export class TrackRenderer {
     this.noteDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
     this.reducedFlash = options.reducedFlash;
     this.barLines = options.barLines ?? true;
+    this.fitWidth = options.fitWidth ?? null;
     this.long = LONG_PAINT[this.style.long];
     this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
     this.longBody.wrapT = THREE.RepeatWrapping;
@@ -349,6 +358,7 @@ export class TrackRenderer {
     this.camera.lookAt(new THREE.Vector3(...pose.target));
     this.baseQuaternion.copy(this.camera.quaternion);
     this.appliedFx = { roll: 0, fovScale: 1 };
+    this.fitFov();
     this.camera.updateProjectionMatrix();
     const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(this.camera.position);
     const mid = new THREE.Vector3(0, 0, -this.geometry.length * 0.55).distanceTo(this.camera.position);
@@ -385,8 +395,30 @@ export class TrackRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.cssWidth, this.cssHeight, false);
     this.camera.aspect = this.cssWidth / this.cssHeight;
+    this.fitFov();
     this.camera.updateProjectionMatrix();
     this.layoutDeck();
+  }
+
+  /**
+   * With `fitWidth`: the field of view that makes the (unlifted) judge line span that share of
+   * the width, and the view moved so the line sits as low as on a 16:9 play screen.
+   */
+  private fitFov(): void {
+    if (this.fitWidth === null) return;
+    this.camera.quaternion.copy(this.baseQuaternion);
+    this.camera.updateMatrixWorld();
+    const half = this.geometry.width / 2;
+    const [a, b] = [-half, half].map((x) => new THREE.Vector3(x, 0, 0).applyMatrix4(this.camera.matrixWorldInverse));
+    const spread = b.x / -b.z - a.x / -a.z;
+    this.baseFov = THREE.MathUtils.radToDeg(2 * Math.atan(spread / (2 * this.fitWidth * this.camera.aspect)));
+    this.camera.fov = this.baseFov * this.appliedFx.fovScale;
+    this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+    const lineY = (1 - new THREE.Vector3(0, 0, 0).project(this.camera).y) / 2;
+    const H = this.cssHeight;
+    this.camera.setViewOffset(this.cssWidth, H, 0, (lineY - FIT_JUDGE_LINE_Y) * H, this.cssWidth, H);
+    if (this.appliedFx.roll !== 0) this.camera.rotateZ(this.appliedFx.roll);
   }
 
   /** Changes whenever the HUD lying on the track has to move (see hudPlane). */

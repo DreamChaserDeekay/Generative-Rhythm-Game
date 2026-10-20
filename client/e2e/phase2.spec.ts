@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { playOptions, songInfo, tool } from './songSelect';
+import { chooseSetting, playOptions, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -106,8 +106,9 @@ test('keyboard rollover test and colour-blind palette in the settings', async ({
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
-  await page.getByTestId('palette-colorblind').click();
+  await chooseSetting(page, 'opt-palette', 'colorblind');
   await expect(page.locator('html')).toHaveClass(/palette-cb/);
+  await settingsTab(page, 'keys');
   await page.getByTestId('ghost-4K').click();
   await expect(page.getByTestId('ghost-test')).toBeVisible();
   for (const key of ['KeyD', 'KeyF', 'KeyJ', 'KeyK']) await page.keyboard.down(key);

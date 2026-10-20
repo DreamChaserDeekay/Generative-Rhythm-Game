@@ -155,6 +155,12 @@ const MENU_KEYS: Record<string, string> = {
 };
 const REPEATING = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
+/**
+ * LB / RB as PageUp / PageDown: the settings' tabs. Only the menus' bridge sends them; on the play
+ * screen PageUp / PageDown move the cover.
+ */
+export const SHOULDER_KEYS: Readonly<Record<string, string>> = { 'Pad:B4': 'PageUp', 'Pad:B5': 'PageDown' };
+
 /** What a menu key does to the focused control when no screen handles it. */
 export type MenuAction = 'press' | 'next' | 'prev' | 'increase' | 'decrease' | null;
 export type ControlKind = 'button' | 'slider' | 'select' | 'text' | 'none';
@@ -212,11 +218,14 @@ export class GamepadMenuBridge {
   private readonly held = new Map<string, number>();
   /** Pad controls left alone (the pause menu leaves Start to the play screen). */
   private readonly ignore: ReadonlySet<string>;
+  /** Controls this bridge also turns into keys (SHOULDER_KEYS on the menus). */
+  private readonly extraKeys: Readonly<Record<string, string>>;
   private raf = 0;
 
-  constructor(options: { source?: GamepadSource; ignore?: string[] } = {}) {
+  constructor(options: { source?: GamepadSource; ignore?: string[]; keys?: Readonly<Record<string, string>> } = {}) {
     this.poller = new GamepadPoller((e) => this.onPad(e), { source: options.source, intervalMs: 16 });
     this.ignore = new Set(options.ignore ?? []);
+    this.extraKeys = options.keys ?? {};
   }
 
   start(): void {
@@ -250,7 +259,7 @@ export class GamepadMenuBridge {
 
   private onPad(e: PadEvent): void {
     if (this.ignore.has(e.code)) return;
-    const key = MENU_KEYS[e.code];
+    const key = MENU_KEYS[e.code] ?? this.extraKeys[e.code];
     if (!key) return;
     if (suspended > 0) {
       this.held.delete(key);

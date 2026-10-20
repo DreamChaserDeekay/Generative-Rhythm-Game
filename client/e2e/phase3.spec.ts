@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { addFromMenu, autoplay, songInfo, tool } from './songSelect';
+import { addFromMenu, autoplay, chooseSetting, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -168,12 +168,15 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await chooseSetting(page, 'opt-skin', 'club');
+  await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toBeVisible();
-  await page.getByTestId('skin-club').click();
-  await expect(page.getByTestId('skin-club')).toHaveClass(/active/);
   await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-  await expect(page.getByTestId('skin-settings').getByRole('button', { name: '테스트 스킨' })).toHaveClass(/active/);
+  // the user skin is now the track's skin
+  await settingsTab(page, 'display');
+  await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
+  await expect(page.getByTestId('opt-skin')).toContainText('테스트 스킨');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
@@ -208,8 +211,7 @@ test('textured skins, drawn in code where their media is missing or broken', asy
 
   // JEWEL plays the crystal set's flipbooks
   await inSettings(async () => {
-    await page.getByTestId('skin-jewel').click();
-    await expect(page.getByTestId('skin-jewel')).toHaveClass(/active/);
+    await chooseSetting(page, 'opt-skin', 'jewel');
   });
   await play('jewel');
   for (const file of ['manifest.json', 'fx/hit_burst_glow.png', 'fx/hit_hold.png']) expect(loaded).toContain(`/media/${file}`);
@@ -217,9 +219,12 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   // a user skin of textures
   const textured = { label: '텍스처 스킨', hitEffect: 'sprite', textures: { note: 'glass/note', floor: 'glass/floor', hitBurst: 'fx/hitBurstRing', hitHold: 'fx/hitHold' } };
   await inSettings(async () => {
+    await settingsTab(page, 'advanced');
     await page.locator('.skin-json').fill(JSON.stringify(textured));
     await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-    await expect(page.getByTestId('skin-settings').getByRole('button', { name: '텍스처 스킨' })).toHaveClass(/active/);
+    await settingsTab(page, 'display');
+    await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
+    await expect(page.getByTestId('opt-skin')).toContainText('텍스처 스킨');
   });
   await play('user');
   for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'fx/hit_burst_ring.png', 'fx/hit_hold.png']) {

@@ -37,10 +37,10 @@ const RHYTHM_LABELS: Record<RhythmSource, string> = {
   vocal: '보컬',
 };
 
-const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동 (Enter)', OFF: '끔' };
+export const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동 (Enter)', OFF: '끔' };
 /** FEVER on the song select's option chips. */
 export const FEVER_SHORT: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
-const PACEMAKER_LABELS: Record<Pacemaker, string> = {
+export const PACEMAKER_LABELS: Record<Pacemaker, string> = {
   OFF: '끔',
   BEST: '내 최고 기록',
   '90': '90%',

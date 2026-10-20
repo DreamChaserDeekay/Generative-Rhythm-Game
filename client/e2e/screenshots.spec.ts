@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { autoplay, difficultySystem, songInfo, tool } from './songSelect';
+import { autoplay, chooseSetting, difficultySystem, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
 // E2E run:  GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts
@@ -280,9 +280,11 @@ test('settings and calibration', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await page.waitForTimeout(1000);
   await shot(page, '10-settings');
-  await page.getByTestId('skin-settings').scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
+  // another skin in the preview
+  await chooseSetting(page, 'opt-skin', 'jewel');
+  await page.waitForTimeout(1500);
   await shot(page, '11-settings-skins');
 
   await page.goto('/');
@@ -290,7 +292,7 @@ test('settings and calibration', async ({ page }) => {
   await expect(page.getByTestId('calibration-screen')).toBeVisible();
   // a player tapping a little after each click (as people do), from the beat lamp
   await page.evaluate(() => {
-    const lamp = document.querySelector('.beat-lamp') as HTMLElement;
+    const lamp = document.querySelector('.beat-ring') as HTMLElement;
     new MutationObserver(() => {
       if (!lamp.classList.contains('on')) return;
       setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 4 + Math.random() * 18);

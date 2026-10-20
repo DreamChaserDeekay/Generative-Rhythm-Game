@@ -3,7 +3,7 @@ import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
-import { GamepadMenuBridge } from '../input/gamepad';
+import { GamepadMenuBridge, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
@@ -11,7 +11,7 @@ import { EditorScreen, newEditorSession, type EditorSession } from './EditorScre
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
-import { SettingsScreen } from './SettingsScreen';
+import { SettingsScreen, type SettingsTab } from './SettingsScreen';
 import { generationParams } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { SongSelectScreen } from './SongSelectScreen';
@@ -54,8 +54,9 @@ type Screen =
   | { name: 'select' }
   | { name: 'play'; request: PlayRequest; runId: number }
   | { name: 'result'; request: PlayRequest; outcome: PlayOutcome }
-  | { name: 'calibration' }
-  | { name: 'settings' }
+  /** Opened from the settings, it goes back to them. */
+  | { name: 'calibration'; fromSettings?: boolean }
+  | { name: 'settings'; tab?: SettingsTab }
   | { name: 'editor' };
 
 export function App() {
@@ -73,7 +74,7 @@ export function App() {
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
   useEffect(() => {
     if (!menuPad) return;
-    const bridge = new GamepadMenuBridge();
+    const bridge = new GamepadMenuBridge({ keys: SHOULDER_KEYS });
     bridge.start();
     return () => bridge.stop();
   }, [menuPad]);
@@ -177,9 +178,23 @@ export function App() {
         />
       );
     case 'calibration':
-      return <CalibrationScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
+      return (
+        <CalibrationScreen
+          settings={settings}
+          onSettingsChange={setSettings}
+          onBack={screen.fromSettings ? () => setScreen({ name: 'settings', tab: 'judge' }) : toSelect}
+        />
+      );
     case 'settings':
-      return <SettingsScreen settings={settings} onSettingsChange={setSettings} onBack={toSelect} />;
+      return (
+        <SettingsScreen
+          settings={settings}
+          onSettingsChange={setSettings}
+          onBack={toSelect}
+          onCalibrate={() => setScreen({ name: 'calibration', fromSettings: true })}
+          initialTab={screen.tab}
+        />
+      );
     case 'editor':
       if (!editor) return null;
       return (

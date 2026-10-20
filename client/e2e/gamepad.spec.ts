@@ -40,15 +40,16 @@ async function plugPad(page: Page) {
   };
 }
 
-const PAD = { A: 0, B: 1, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const PAD = { A: 0, B: 1, LB: 4, RB: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
 
-test('a pad works the settings: the d-pad moves the focus, A presses, ←→ step a slider; binding B stays in the settings', async ({ page }) => {
+test('a pad works the settings: the d-pad moves the focus, ←→ change a row, A flips one, LB/RB change the tab; binding B stays in the settings', async ({ page }) => {
   const errors = trackErrors(page);
   const press = await plugPad(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
-  await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
+  // the settings open on their first row
+  await expect(page.getByTestId('opt-hi-speed')).toBeFocused();
 
   // from nowhere, ↓ focuses the first control (완료); a pad's focus is outlined
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -57,19 +58,33 @@ test('a pad works the settings: the d-pad moves the focus, A presses, ←→ ste
   expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('pad');
   await press(PAD.DOWN);
   await expect(page.locator('.settings-nav button').first()).toBeFocused();
+  // from the tabs ↓ goes into the rows, and on through them
+  await press(PAD.DOWN);
+  await expect(page.getByTestId('opt-hi-speed')).toBeFocused();
+  await press(PAD.DOWN);
+  await expect(page.getByTestId('opt-sudden')).toBeFocused();
 
-  // ← on a focused slider lowers it; A toggles a focused checkbox
+  // ← on a row lowers its value; A flips a switch
   const fx = page.getByTestId('camera-fx');
   await fx.focus();
-  const before = Number(await fx.inputValue());
+  const before = Number(await fx.getAttribute('data-value'));
   await press(PAD.LEFT);
-  await expect.poll(async () => Number(await fx.inputValue())).toBeLessThan(before);
+  await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
   expect((await stored(page)).cameraFx).toBeLessThan(before);
   const bars = page.getByTestId('bar-lines');
-  const checked = await bars.isChecked();
+  const checked = (await bars.getAttribute('aria-checked')) === 'true';
   await bars.focus();
   await press(PAD.A);
-  await expect(bars).toBeChecked({ checked: !checked });
+  await expect(bars).toHaveAttribute('aria-checked', String(!checked));
+  expect((await stored(page)).barLines).toBe(!checked);
+
+  // RB and LB step through the tabs
+  await press(PAD.RB);
+  await expect(page.getByTestId('settings-tab-sound')).toHaveAttribute('aria-selected', 'true');
+  await press(PAD.LB);
+  await expect(page.getByTestId('settings-tab-display')).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('settings-tab-pad').click();
+  await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
 
   // binding B to a lane does not also press Esc on the settings
   const firstCap = page.getByTestId('gamepad-settings').locator('.pad-cap').first();

@@ -34,11 +34,25 @@ export async function addFromMenu(page: Page, testId: 'demo-button' | 'upload-bu
   await page.getByTestId(testId).click();
 }
 
+/** Opens a tab of the settings (the settings are open). */
+export async function settingsTab(page: Page, tab: 'play' | 'judge' | 'display' | 'sound' | 'keys' | 'pad' | 'advanced') {
+  await page.getByTestId(`settings-tab-${tab}`).click();
+  await expect(page.getByTestId(`settings-tab-${tab}`)).toHaveAttribute('aria-selected', 'true');
+}
+
+/** Steps a settings row with → until it holds `value`. */
+export async function chooseSetting(page: Page, testId: string, value: string) {
+  const row = page.getByTestId(testId);
+  await row.focus();
+  for (let i = 0; i < 24 && (await row.getAttribute('data-value')) !== value; i++) await page.keyboard.press('ArrowRight');
+  await expect(row).toHaveAttribute('data-value', value);
+}
+
 /** Switches the difficulty system in the settings and comes back to the song select. */
 export async function difficultySystem(page: Page, id: DifficultySystemId) {
   await page.getByTestId('open-settings').click();
-  await page.getByTestId(`system-${id}`).click();
-  await expect(page.getByTestId(`system-${id}`)).toHaveClass(/active/);
+  await settingsTab(page, 'play');
+  await chooseSetting(page, 'opt-system', id);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
 }

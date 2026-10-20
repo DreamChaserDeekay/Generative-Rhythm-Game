@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { addFromMenu, autoplay, songInfo } from './songSelect';
+import { addFromMenu, autoplay, settingsTab, songInfo } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -252,6 +252,7 @@ test('a gamepad is bound per lane in the settings and works the menus', async ({
     );
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'pad');
   await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
   const firstCap = page.getByTestId('gamepad-settings').locator('.pad-cap').first();
   await firstCap.click();
