@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { autoplay, tool } from './songSelect';
+import { autoplay, escWhenLoaded, tool } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -66,14 +66,13 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
 
   // the new pattern is asked for on the chart's own system (DJMAX NM), and played
   const asked = page.waitForRequest((r) => isChartPost(r.method(), r.url()));
+  // Esc pauses once the play has loaded (while it loads, Esc leaves it), even the moment it has
+  await escWhenLoaded(page);
   await page.getByTestId('result-regenerate').click();
   const body = JSON.parse((await asked).postData() ?? '{}');
   expect([body.system, body.difficulty, body.newSeed]).toEqual(['DJMAX', 'NM', true]);
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
-  // Esc pauses once the play has loaded (while it loads, Esc leaves it)
-  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 30_000 });
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await expect(page.getByTestId('pause-menu')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('KeyQ');
 
   // leaving while it is generating: the late pattern does not start a song

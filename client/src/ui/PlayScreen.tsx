@@ -29,6 +29,9 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // set with the controller, and read by the loading's Esc at the key: the effect that lets go of
+  // that key runs only after the next paint, and an Esc meanwhile belongs to the play (it pauses)
+  const started = useRef(false);
   const [loadingText, setLoadingText] = useState('불러오는 중…');
 
   useEffect(() => {
@@ -71,6 +74,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;
+        started.current = true;
         setLoading(false);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -99,7 +103,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   useEffect(() => {
     if (!waiting) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return;
+      if (e.code !== 'Escape' || started.current) return;
       e.preventDefault();
       onQuit();
     };

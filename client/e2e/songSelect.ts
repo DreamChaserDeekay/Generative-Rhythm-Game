@@ -15,6 +15,21 @@ export async function autoplay(page: Page) {
   await page.getByTestId('autoplay-toggle').check();
 }
 
+/** Presses Esc (a key event on the page) the moment the next play's loading card leaves the page. */
+export async function escWhenLoaded(page: Page) {
+  await page.evaluate(() => {
+    let seen = false;
+    const watch = new MutationObserver(() => {
+      if (document.querySelector('[data-testid="play-loading"]')) seen = true;
+      else if (seen) {
+        watch.disconnect();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true, cancelable: true }));
+      }
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 /** Opens the song info and tools (I): the chart's numbers, the song's settings, the sync test. */
 export async function songInfo(page: Page) {
   const panel = page.getByTestId('song-info');
