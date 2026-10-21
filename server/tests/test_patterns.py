@@ -392,13 +392,17 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # left keys 1 and 7 nearly empty below HARD and piled up on the middle key. Since 0.9.7 each
     # phrase keeps to a few keys drawn by the seed, so one chart may lean on a side (as a quarter of
     # the human charts below level 10 leave key 1 or 7 under 8%): the shares are a mean over seeds.
+    # The floor is a "not abandoned" guard, well under what human charts give an outer key (key 7
+    # holds 12.6% of their notes against our 9.3% over the 855 held-out charts). Generator 0.9.17
+    # dropped it to 7% for the weaker lane-usage balance; refitting keyBias to close the key-share
+    # gap instead moves every key the right way and still loses 3.1pp overall (PATTERN_DESIGN 34).
     for tier in ("EASY", "NORMAL", "HARD"):
         per_seed = []
         for seed in range(4):
             keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
             per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
         shares = np.mean(per_seed, axis=0)
-        assert min(shares[0], shares[6]) >= 0.08 and max(shares) <= 0.3, (tier, [round(float(s), 3) for s in shares])
+        assert min(shares[0], shares[6]) >= 0.07 and max(shares) <= 0.3, (tier, [round(float(s), 3) for s in shares])
     notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY")["notes"] if n["lane"] != 0)
     moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
     assert sum(m >= 3 for m in moves) / len(moves) >= 0.2

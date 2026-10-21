@@ -97,8 +97,13 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # of about 20 over these four (3.2 before the phrases' key sets). A phrase on one side's keys makes
     # its bars lopsided, as in human charts: 15-16% of their busy bars at levels 6-10 leave the
     # 30-70% band, and an eighth of those charts more than 40% (one seed here: 41%).
+    # Generator 0.9.17 weakened the lane-usage balance (0.7), which is what brings jack streaks up:
+    # over the 855 held-out charts it moves them toward the human rate, not past it (level 10 13.6
+    # -> 14.2 against the human 15.2, level 14 13.8 -> 15.8 against 15.5). This song is a drum loop
+    # repeating its sounds on the phrase's keys, so it stacks the same-sound bonus on top and runs
+    # higher than any real chart - the limit guards runaway, it is not the human rate.
     profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
-    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 25.0, [g["jackStreaks"] for g in profiles]
+    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 30.0, [g["jackStreaks"] for g in profiles]
     assert sum(g["offBars"] or 0.0 for g in profiles) / len(profiles) <= 0.2, [g["offBars"] for g in profiles]
 
 
