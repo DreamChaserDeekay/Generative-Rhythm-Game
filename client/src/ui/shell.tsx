@@ -12,8 +12,8 @@ export function Emblem({ size = 20 }: { size?: number }) {
   );
 }
 
-/** The bar on top of every menu screen: the game's mark, the screen's name and its actions. */
-export function TopBar({ name, children }: { name: string; children?: ReactNode }) {
+/** The bar on top of every menu screen: the game's mark, the screen's name (and what it is on) and its actions. */
+export function TopBar({ name, detail, children }: { name: string; detail?: ReactNode; children?: ReactNode }) {
   return (
     <header className="topbar">
       <div className="wordmark">
@@ -21,6 +21,7 @@ export function TopBar({ name, children }: { name: string; children?: ReactNode 
         <span>GENERATIVE RHYTHM</span>
       </div>
       <span className="screen-name">{name}</span>
+      {detail && <span className="screen-detail">{detail}</span>}
       {children && <div className="topbar-actions">{children}</div>}
     </header>
   );

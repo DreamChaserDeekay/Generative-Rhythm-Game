@@ -35,6 +35,15 @@ describe('the rules a play runs on', () => {
     expect(playModeLabel(request())).toBeNull();
   });
 
+  it('tests a chart from the editor as it is written: no placement, the default gauge and FEVER, named 에디터 테스트', () => {
+    const own = { ...DEFAULT_SETTINGS, placement: 'R-RANDOM' as const, gaugeType: 'HARD' as const, fever: 'MANUAL' as const, judgementMode: 'HARD' as const, hiSpeed: 5 };
+    const editor = request({ fromEditor: true, practice: { startMs: 0, endMs: 1, rate: 1, loop: false } });
+    expect(playedSettings(editor, own)).toEqual({ ...own, placement: 'OFF', gaugeType: DEFAULT_SETTINGS.gaugeType, fever: DEFAULT_SETTINGS.fever });
+    // the judgement mode stays the player's, and is the one rule named
+    expect(ruleChips(playedSettings(editor, own), true)).toEqual([['', 'HARD JUDGEMENT']]);
+    expect(playModeLabel(editor)).toBe('에디터 테스트');
+  });
+
   it('offers grades as pacemaker targets under EX-SCORE and shares of the score otherwise', () => {
     expect(pacemakerChoices('EXSCORE', 'OFF')).toEqual(['OFF', 'BEST', 'A', 'AA', 'AAA', 'MAX']);
     expect(pacemakerChoices('RESPECT', 'BEST')).toEqual(['OFF', 'BEST', '90', '95', '98', '99', '100']);

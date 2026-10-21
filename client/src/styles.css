@@ -4686,63 +4686,152 @@ button.option-chips[aria-expanded='true'] .chip {
 /* ---------- chart editor ---------- */
 
 .editor-screen {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100%;
+  min-height: 0;
 }
 
+/* what the screen is on, after its name: the song and the chart (the song gives way first) */
+.topbar .screen-detail {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.topbar .screen-detail b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.topbar .screen-detail span {
+  flex: none;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* one row of tools under the top bar (two only on a window narrower than about 1100 px) */
 .editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
+  gap: var(--sp-2) var(--sp-3);
+  flex-shrink: 0;
+  padding: var(--sp-2) var(--sp-6);
+  white-space: nowrap;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 
 .editor-toolbar .row {
+  flex: none;
   margin: 0;
 }
 
 .editor-toolbar button {
+  flex: none;
   padding: 0 var(--sp-3);
-}
-
-.editor-title {
-  display: flex;
-  flex-direction: column;
-  max-width: 260px;
-  margin-right: var(--sp-2);
-}
-
-.editor-title strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editor-title span {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
 }
 
 .editor-toolbar input.editor-name {
   width: 184px;
 }
 
+/* 편집: 되돌리기, 다시, 미러 under the button */
+.editor-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.editor-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  margin-top: var(--sp-1);
+  padding: var(--sp-1);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.editor-menu button {
+  justify-content: space-between;
+  gap: var(--sp-6);
+  background: transparent;
+  border-color: transparent;
+}
+
+.editor-menu button:hover:not(:disabled),
+.editor-menu button:focus-visible {
+  background: var(--raised-hover);
+  border-color: transparent;
+}
+
 .editor-body {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1fr 352px;
+  grid-template-columns: minmax(0, 1fr) 352px;
+  min-height: 0;
+}
+
+/* the canvas over the lanes' heads */
+.editor-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 
 .editor-canvas {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   display: block;
   user-select: none;
+}
+
+.editor-lanes {
+  position: relative;
+  flex: none;
+  height: 52px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+/* a lane's key in its colour; the scratch and the side lanes named */
+.editor-lane-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-top: 3px solid var(--lane);
+}
+
+/* one line, as wide as the lane at most (L-Shift fits a key lane's 48 px) */
+.editor-lane-head kbd {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.editor-lane-head span {
+  font-family: var(--font-display);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lane);
 }
 
 .editor-side {

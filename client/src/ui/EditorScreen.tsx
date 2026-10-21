@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import { keysoundBank, keysoundBgm, songBuffer } from '../audio/bufferCache';
@@ -8,7 +8,8 @@ import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
 import { laneColorsFor, skinById } from '../render/skins';
-import { bindingsFor, secondBindingsFor, type Settings } from '../settings/settings';
+import { bindingsFor, keyLabel, secondBindingsFor, type Settings } from '../settings/settings';
+import { HintBar, TopBar, type KeyHint } from './shell';
 
 /** Everything the editor keeps while the player test-plays and comes back. */
 export interface EditorSession {
@@ -89,7 +90,14 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   hitSoundsRef.current = hitSounds;
 
   const keyLanes = mode.lanes.map((l, i) => (l.kind === 'key' ? i : -1)).filter((i) => i >= 0);
-  const narrow = new Set(mode.lanes.map((l, i) => (l.kind !== 'key' ? i : -1)).filter((i) => i >= 0));
+  const special = new Set(mode.lanes.map((l, i) => (l.kind !== 'key' ? i : -1)).filter((i) => i >= 0));
+  // the lanes as wide as the play has them (the scratch wider), none narrower than a key's
+  const laneUnits = mode.lanes.map((l) => Math.max(1, l.width));
+  /** Where the canvas lays the lanes (px), for the lane heads under it. */
+  const [heads, setHeads] = useState<{ x: number[]; w: number[] } | null>(null);
+  /** The 편집 menu (되돌리기, 다시, 미러) is open. */
+  const [menu, setMenu] = useState(false);
+  const menuWrap = useRef<HTMLDivElement>(null);
   const laneColors = laneColorsFor(skinById(settings.skin, settings.customSkin), settings.palette, mode).map((c) => `#${c.toString(16).padStart(6, '0')}`);
   const durationMs = Math.max(base.meta.durationMs ?? 0, song.durationMs);
 
@@ -129,7 +137,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
         snap: session.snap,
         selection: selection.current,
         laneColors,
-        narrowLanes: narrow,
+        specialLanes: special,
         waveform: waveform.current,
         durationMs,
         ghost: g,
@@ -137,7 +145,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
         box: d?.kind === 'box' ? d : null,
       };
     },
-    // laneColors / narrow are derived from props that do not change while the editor is open
+    // laneColors / special are derived from props that do not change while the editor is open
     [doc, session, durationMs],
   );
 
@@ -156,12 +164,13 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     if (!canvas) return;
     const view = new EditorView(canvas);
     viewRef.current = view;
-    view.layout(mode.lanes.length, narrow);
-    draw();
-    const observer = new ResizeObserver(() => {
-      view.layout(mode.lanes.length, narrow);
+    const lay = () => {
+      const { laneX, laneW } = view.layout(laneUnits);
+      setHeads((was) => (was && was.x.join() === laneX.join() && was.w.join() === laneW.join() ? was : { x: laneX, w: laneW }));
       draw();
-    });
+    };
+    lay();
+    const observer = new ResizeObserver(lay);
     observer.observe(canvas);
     let alive = true;
     if (song.status === 'ready') {
@@ -453,6 +462,22 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
+      if (menu && !e.ctrlKey && !e.metaKey) {
+        // the open menu has the keys (Ctrl ones go on): Esc closes it, the arrows go through its
+        // items (↑ from none to the last), Enter or Space press the focused one; Space, M, T,
+        // Delete and the rest of the editor's wait for it to close
+        if (e.code === 'Escape' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+          e.preventDefault();
+          if (e.code === 'Escape') closeMenu(true);
+          else {
+            const items = [...(menuWrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+            const at = items.indexOf(document.activeElement as HTMLElement);
+            const down = e.code === 'ArrowDown';
+            items[at < 0 ? (down ? 0 : items.length - 1) : (at + (down ? 1 : items.length - 1)) % items.length]?.focus();
+          }
+        }
+        return;
+      }
       const ctrl = e.ctrlKey || e.metaKey;
       const sel = [...selection.current];
       // a lane's second key records on it too
@@ -534,26 +559,69 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // the 편집 menu: its first item takes the focus, a press outside it closes it
+  const closeMenu = useCallback((refocus: boolean) => {
+    setMenu(false);
+    if (refocus) menuWrap.current?.querySelector<HTMLElement>('[data-testid="editor-edit-menu"]')?.focus();
+  }, []);
+  useEffect(() => {
+    if (!menu) return;
+    menuWrap.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    const outside = (e: PointerEvent) => {
+      if (!menuWrap.current?.contains(e.target as Node)) setMenu(false);
+    };
+    window.addEventListener('pointerdown', outside);
+    return () => window.removeEventListener('pointerdown', outside);
+  }, [menu]);
+  const fromMenu = (run: () => void) => () => {
+    closeMenu(true);
+    run();
+  };
+
   const tempo = doc.tempo;
   const bars = session.cursorMs >= base.timing.offsetMs ? tempo.barLines(session.cursorMs) : [];
   const position =
     bars.length > 0
       ? `${bars.length}마디 ${(tempo.msToBeat(session.cursorMs) - tempo.msToBeat(bars[bars.length - 1]) + 1).toFixed(2)}박`
       : '첫 마디 전';
+  // the tempo at the cursor: the last change at or before it (the first one before the first)
+  const changes = tempo.bpmChanges();
+  const bpm = (changes.filter((c) => c.ms <= session.cursorMs).pop() ?? changes[0])?.bpm ?? null;
+  const chartName = base.meta.chartName ?? base.meta.difficulty;
+  const saveState = doc.dirty ? '저장 안 됨' : session.savedChartId ? '저장됨' : '';
+  const hints: KeyHint[] = [
+    { keys: ['Space'], label: playing ? '정지' : '재생' },
+    { keys: ['T'], label: '커서부터 테스트' },
+    { keys: ['↑', '↓'], label: '커서' },
+    { keys: ['1–8'], label: '스냅' },
+    { keys: ['Ctrl', 'Z'], label: '되돌리기', minor: true },
+    { keys: ['M'], label: '미러', minor: true },
+  ];
 
   return (
-    <div className="editor-screen" data-testid="editor-screen">
-      <header className="editor-toolbar">
-        <button data-testid="editor-exit" onClick={exit}>
-          ← 나가기
+    <div className="menu-screen editor-screen" data-testid="editor-screen">
+      <TopBar
+        name="채보 편집"
+        detail={
+          <>
+            <b className="editor-song" title={song.title}>
+              {song.title}
+            </b>
+            <span>
+              {base.meta.keyMode} · {chartName}
+              {saveState && ` · ${saveState}`}
+            </span>
+          </>
+        }
+      >
+        <button className="quiet" data-testid="editor-exit" onClick={exit}>
+          ← 나가기 <kbd>Esc</kbd>
         </button>
-        <div className="editor-title">
-          <strong>{song.title}</strong>
-          <span>
-            {base.meta.keyMode} · {base.meta.chartName ?? base.meta.difficulty}
-            {doc.dirty ? ' · 저장 안 됨' : session.savedChartId ? ' · 저장됨' : ''}
-          </span>
-        </div>
+        <button className="primary" data-testid="editor-save" disabled={saving} onClick={() => void save()}>
+          저장 <kbd>Ctrl+S</kbd>
+        </button>
+      </TopBar>
+      <div className="editor-toolbar">
         <label className="row">
           이름
           <input
@@ -584,7 +652,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
             ))}
           </select>
         </label>
-        <div className="row">
+        <div className="row" role="group" aria-label="확대">
           <button className="small" title="축소 (Ctrl+휠)" onClick={() => { session.pxPerMs = Math.max(MIN_ZOOM, session.pxPerMs / ZOOM_STEP); changed(); }}>
             −
           </button>
@@ -605,36 +673,67 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
             타격음
           </label>
         )}
-        <button className="small" disabled={!doc.canUndo} onClick={() => { doc.undo(); changed(); }}>
-          되돌리기
-        </button>
-        <button className="small" disabled={!doc.canRedo} onClick={() => { doc.redo(); changed(); }}>
-          다시
-        </button>
-        <button className="small" onClick={mirror} title="선택한 노트(없으면 전체)를 좌우 반전 (M)">
-          미러
-        </button>
+        <div
+          className="editor-menu-wrap"
+          ref={menuWrap}
+          onBlur={(e) => {
+            // the focus gone out of it (Tab): the menu closes
+            if (menu && !e.currentTarget.contains(e.relatedTarget)) setMenu(false);
+          }}
+        >
+          <button data-testid="editor-edit-menu" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+            편집
+          </button>
+          {menu && (
+            <div className="editor-menu" role="menu" aria-label="편집">
+              <button role="menuitem" data-testid="editor-undo" disabled={!doc.canUndo} onClick={fromMenu(() => { doc.undo(); selection.current = new Set(); changed(); })}>
+                되돌리기 <kbd>Ctrl+Z</kbd>
+              </button>
+              <button role="menuitem" data-testid="editor-redo" disabled={!doc.canRedo} onClick={fromMenu(() => { doc.redo(); changed(); })}>
+                다시 <kbd>Ctrl+Y</kbd>
+              </button>
+              <button role="menuitem" data-testid="editor-mirror" onClick={fromMenu(mirror)} title="선택한 노트(없으면 전체)를 좌우 반전">
+                미러 <kbd>M</kbd>
+              </button>
+            </div>
+          )}
+        </div>
         <button className="primary" data-testid="editor-test" onClick={testPlay}>
           커서부터 테스트 <kbd>T</kbd>
         </button>
-        <button className="primary" data-testid="editor-save" disabled={saving} onClick={() => void save()}>
-          저장 <kbd>Ctrl+S</kbd>
-        </button>
-      </header>
+      </div>
       <div className="editor-body">
-        <canvas
-          ref={canvasRef}
-          className="editor-canvas"
-          data-testid="editor-canvas"
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseLeave={() => {
-            ghost.current = null;
-            redraw();
-          }}
-          onContextMenu={onContextMenu}
-          onWheel={onWheel}
-        />
+        <div className="editor-stage">
+          <canvas
+            ref={canvasRef}
+            className="editor-canvas"
+            data-testid="editor-canvas"
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseLeave={() => {
+              ghost.current = null;
+              redraw();
+            }}
+            onContextMenu={onContextMenu}
+            onWheel={onWheel}
+          />
+          {/* each lane's key, colour and kind under its lane */}
+          <div className="editor-lanes" data-testid="editor-lanes" aria-label="레인">
+            {heads &&
+              mode.lanes.map((l, i) => (
+                <div
+                  key={i}
+                  className={`editor-lane-head ${l.kind}`}
+                  data-testid={`editor-lane-${i}`}
+                  style={{ left: heads.x[i], width: heads.w[i], ['--lane' as string]: laneColors[i] } as CSSProperties}
+                  title={`${l.kind === 'scratch' ? '스크래치' : l.kind === 'side' ? '사이드' : `${l.id}번`} 레인 · ${keyLabel(bindings[i])}`}
+                >
+                  <kbd>{keyLabel(bindings[i])}</kbd>
+                  {l.kind !== 'key' && <span>{l.id}</span>}
+                </div>
+              ))}
+          </div>
+        </div>
         <aside className="editor-side">
           <div className="editor-stats">
             <div>
@@ -643,7 +742,9 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
             <div>
               커서 {formatMs(session.cursorMs)} · {position}
             </div>
-            <div>스냅 {snapLabel(session.snap)} · 확대 ×{(session.pxPerMs / 0.25).toFixed(2)}</div>
+            <div>
+              {bpm !== null && <span data-testid="editor-bpm">BPM {bpm} · </span>}스냅 {snapLabel(session.snap)} · 확대 ×{(session.pxPerMs / 0.25).toFixed(2)}
+            </div>
           </div>
           {toast && (
             <p className="editor-toast" data-testid="editor-toast">
@@ -654,19 +755,24 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
             <li><kbd>클릭</kbd> 노트 놓기 · <kbd>드래그</kbd> 롱노트</li>
             <li><kbd>우클릭</kbd> 지우기 · <kbd>Delete</kbd> 선택 지우기</li>
             <li>노트 <kbd>드래그</kbd> 옮기기 · 롱노트 끝 <kbd>드래그</kbd> 길이</li>
-            <li><kbd>Shift</kbd>+드래그 범위 선택 · <kbd>Shift</kbd>+클릭 추가 선택</li>
+            <li><kbd>Shift</kbd>+드래그 범위 선택 · <kbd>Shift</kbd>+클릭 추가 선택 · <kbd>Ctrl</kbd>+<kbd>A</kbd> 전체</li>
             <li><kbd>휠</kbd> 이동 · <kbd>Ctrl</kbd>+<kbd>휠</kbd> 확대</li>
-            <li><kbd>↑</kbd><kbd>↓</kbd> 커서 (<kbd>Shift</kbd> 4박) · <kbd>Alt</kbd>+<kbd>↑↓</kbd> 선택 이동 · <kbd>←</kbd><kbd>→</kbd> 레인</li>
-            <li><kbd>1</kbd>–<kbd>8</kbd> 스냅 1/4 ~ 1/64</li>
+            <li><kbd>Shift</kbd>+<kbd>↑↓</kbd> 4박 · <kbd>Alt</kbd>+<kbd>↑↓</kbd> 선택 이동 · <kbd>←</kbd><kbd>→</kbd> 선택 레인 이동</li>
             <li><kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>X</kbd>/<kbd>V</kbd> 복사·잘라내기·커서에 붙이기</li>
-            <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> 되돌리기·다시 · <kbd>M</kbd> 미러</li>
-            <li><kbd>Space</kbd>/<kbd>P</kbd> 재생 (실시간 입력 중에는 <kbd>P</kbd>) · <kbd>T</kbd> 커서부터 테스트 · <kbd>Ctrl</kbd>+<kbd>S</kbd> 저장</li>
+            <li>실시간 입력 중에는 <kbd>P</kbd>로 재생</li>
           </ul>
           <p className="hint">
             템포·박자는 원래 채보를 따릅니다. 저장하면 새 채보로 라이브러리에 남고(원본은 그대로), 난이도를 다시 계산합니다.
           </p>
         </aside>
       </div>
+      <HintBar
+        hints={hints}
+        end={[
+          { keys: ['Ctrl', 'S'], label: '저장' },
+          { keys: ['Esc'], label: menu ? '메뉴 닫기' : selection.current.size > 0 ? '선택 해제' : '나가기' },
+        ]}
+      />
     </div>
   );
 }

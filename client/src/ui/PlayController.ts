@@ -47,7 +47,7 @@ import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 import { practiceRunStart } from './practiceLead';
 import { offsetText } from './resultBreakdown';
-import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playbackRateText, playModeLabel } from './playRules';
+import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playbackRateText, playedSettings, playModeLabel } from './playRules';
 import { keyPairNames, offsetStep, syncKeyOf, syncTestKeys, type SyncTestKeys } from './visualSync';
 
 export interface PlaySetup {
@@ -225,8 +225,8 @@ export class PlayController {
     this.setup = setup;
     this.callbacks = callbacks;
     const { request } = setup;
-    // a replay plays under the judgement settings it was recorded with
-    const settings = request.replay ? { ...setup.settings, ...judgementSettingsOf(request.replay) } : setup.settings;
+    // a replay plays under the judgement settings it was recorded with, an editor test on the chart as written
+    const settings = playedSettings(request, setup.settings);
     this.settings = settings;
     this.practice = request.practice ?? null;
     this.rate = setup.bufferPlacement.rate;
@@ -778,7 +778,9 @@ export class PlayController {
   private practiceLabel(): string | null {
     const p = this.practice;
     if (!p) return null;
-    return `연습 · ${playbackRateText(this.rate)} · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
+    // an editor test is a practice run from the cursor, at the song's own rate
+    const what = this.setup.request.fromEditor ? '에디터 테스트' : `연습 · ${playbackRateText(this.rate)}`;
+    return `${what} · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
   }
 
   /** The result of the last loop a looped practice finished (null: none yet, or no such practice). */
@@ -895,9 +897,10 @@ export class PlayController {
   /** The settings from now on, kept for the next play. */
   private keep(next: Settings): void {
     this.settings = next;
-    // a replay runs on its recorded judgement settings; keep only the viewer's visual changes
-    const replay = this.setup.request.replay;
-    this.callbacks.onSettingsChange(replay ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
+    // a replay runs on its recorded judgement settings, an editor test without placement on the
+    // default gauge and FEVER: the player's own stay theirs, only the visual changes are kept
+    const { replay, fromEditor } = this.setup.request;
+    this.callbacks.onSettingsChange(replay || fromEditor ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
   }
 
   /** A cover's toast; one moved with the visible time kept moves SPEED too, and names it as well. */

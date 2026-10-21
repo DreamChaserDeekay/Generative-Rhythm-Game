@@ -9,8 +9,8 @@ export interface EditorViewState {
   snap: number;
   selection: ReadonlySet<number>;
   laneColors: string[];
-  /** Lanes drawn narrower (scratch / side lanes). */
-  narrowLanes: ReadonlySet<number>;
+  /** Scratch and side lanes: their floor takes a little of their colour. */
+  specialLanes: ReadonlySet<number>;
   waveform: { frameMs: number; peaks: number[] } | null;
   durationMs: number;
   /** Where a click would put a note (or the hold being drawn). */
@@ -31,13 +31,17 @@ export interface EditorLayout {
   cursorY: number;
 }
 
-const LANE_W = 46;
-const NARROW = 0.75;
+const LANE_W = 48;
 const WAVE_W = 90;
+const WAVE_GAP = 24;
+/** Room left of the lanes for the ruler: the bars' numbers and the tempo's changes. */
+const RULER_W = 96;
 const NOTE_H = 10;
 const HIT_SLOP_PX = 6;
 /** The playhead sits this far down the view; later times are above it. */
 const CURSOR_AT = 0.8;
+/** The canvas's text, no smaller than the UI's (12 px). */
+const FONT = "600 12px 'Pretendard Variable', system-ui, sans-serif";
 
 const COLORS = {
   bg: '#090c1a',
@@ -48,6 +52,7 @@ const COLORS = {
   sub: 'rgba(110, 130, 200, 0.14)',
   cursor: '#ff4d8d',
   text: 'rgba(200, 212, 255, 0.85)',
+  tempo: '#37e2ff',
   wave: 'rgba(124, 247, 255, 0.35)',
   select: '#ffffff',
   box: 'rgba(124, 247, 255, 0.18)',
@@ -57,8 +62,7 @@ export class EditorView {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private layoutValue: EditorLayout | null = null;
-  private laneCount = 0;
-  private narrow: ReadonlySet<number> = new Set();
+  private laneUnits: readonly number[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -67,10 +71,12 @@ export class EditorView {
     this.ctx = ctx;
   }
 
-  /** Recompute sizes (call on resize and when the lane setup changes). */
-  layout(laneCount: number, narrow: ReadonlySet<number>): EditorLayout {
-    this.laneCount = laneCount;
-    this.narrow = narrow;
+  /**
+   * Recompute sizes (call on resize and when the lane setup changes); `laneUnits` are the lanes'
+   * widths in key lanes (the scratch is wider, as in the play).
+   */
+  layout(laneUnits: readonly number[]): EditorLayout {
+    this.laneUnits = laneUnits;
     const dpr = window.devicePixelRatio || 1;
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
@@ -79,20 +85,22 @@ export class EditorView {
       this.canvas.height = Math.round(height * dpr);
     }
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const widths = Array.from({ length: laneCount }, (_, i) => (narrow.has(i) ? LANE_W * NARROW : LANE_W));
+    const widths = laneUnits.map((u) => LANE_W * u);
     const total = widths.reduce((a, b) => a + b, 0);
-    let x = Math.max(16, (width - total - WAVE_W - 24) / 2);
+    let x = Math.max(RULER_W, (width - total - WAVE_W - WAVE_GAP) / 2);
     const laneX: number[] = [];
     for (const w of widths) {
       laneX.push(x);
       x += w;
     }
-    this.layoutValue = { width, height, laneX, laneW: widths, waveX: x + 24, waveW: WAVE_W, cursorY: Math.round(height * CURSOR_AT) };
+    // the waveform narrower on a narrow canvas (the window's least width with 7K+1S), so it stays on it
+    const waveW = Math.max(0, Math.min(WAVE_W, width - x - WAVE_GAP - 4));
+    this.layoutValue = { width, height, laneX, laneW: widths, waveX: x + WAVE_GAP, waveW, cursorY: Math.round(height * CURSOR_AT) };
     return this.layoutValue;
   }
 
   private get l(): EditorLayout {
-    if (!this.layoutValue) return this.layout(this.laneCount, this.narrow);
+    if (!this.layoutValue) return this.layout(this.laneUnits);
     return this.layoutValue;
   }
 
@@ -155,6 +163,13 @@ export class EditorView {
     laneX.forEach((x, i) => {
       ctx.fillStyle = i % 2 ? COLORS.laneAlt : COLORS.lane;
       ctx.fillRect(x, 0, laneW[i], height);
+      if (s.specialLanes.has(i)) {
+        // the scratch and the side lanes in a little of their colour
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = s.laneColors[i] ?? COLORS.text;
+        ctx.fillRect(x, 0, laneW[i], height);
+        ctx.globalAlpha = 1;
+      }
     });
 
     // grid: sub-beat lines at the snap division, beats and measures with numbers
@@ -162,7 +177,7 @@ export class EditorView {
     const firstBeat = Math.floor(tempo.msToBeat(Math.max(tMin, -60000)) * s.snap) / s.snap;
     const barList = tempo.barLines(Math.max(0, tMax));
     const bars = new Map(barList.map((t, i) => [Math.round(t * 1000), i]));
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = FONT;
     ctx.textAlign = 'right';
     for (let k = 0; k < 4000; k++) {
       const beat = firstBeat + k / s.snap;
@@ -181,8 +196,23 @@ export class EditorView {
       ctx.stroke();
       if (isBar) {
         ctx.fillStyle = COLORS.text;
-        ctx.fillText(String(bar + 1), left - 6, y + 4);
+        ctx.fillText(String(bar + 1), left - 8, y + 4);
       }
+    }
+
+    // the ruler's tempo: where the BPM changes (the first one too), left of the bars' numbers
+    ctx.fillStyle = COLORS.tempo;
+    ctx.strokeStyle = COLORS.tempo;
+    ctx.lineWidth = 1;
+    for (const change of tempo.bpmChanges()) {
+      if (change.ms < tMin - 20 || change.ms > tMax + 20) continue;
+      const y = Math.round(this.yAt(change.ms, s)) + 0.5;
+      // a short tick between the label and the bars' numbers
+      ctx.beginPath();
+      ctx.moveTo(left - 40, y);
+      ctx.lineTo(left - 34, y);
+      ctx.stroke();
+      ctx.fillText(`${change.bpm} BPM`, left - 44, y + 4);
     }
 
     // waveform beside the lanes
@@ -254,9 +284,16 @@ export class EditorView {
     ctx.moveTo(left - 30, cursorY);
     ctx.lineTo(waveX + waveW, cursorY);
     ctx.stroke();
+    // its time right of the waveform, or over the waveform's end above the line where the canvas has no room
     ctx.fillStyle = COLORS.cursor;
-    ctx.textAlign = 'left';
-    ctx.fillText(formatMs(s.cursorMs), waveX + waveW + 6, cursorY + 4);
+    const time = formatMs(s.cursorMs);
+    if (waveX + waveW + 6 + ctx.measureText(time).width + 4 <= width) {
+      ctx.textAlign = 'left';
+      ctx.fillText(time, waveX + waveW + 6, cursorY + 4);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(time, width - 4, cursorY - 8);
+    }
   }
 }
 

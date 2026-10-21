@@ -10,7 +10,7 @@ import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
 import { lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
-import { playbackRateText, playModeLabel } from './playRules';
+import { playbackRateText, playedSettings, playModeLabel } from './playRules';
 import { GaugeGraph, gaugePoints, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
 import {
   accuracyLabel,
@@ -92,8 +92,8 @@ const scoreText = (v: number) => Math.round(v).toLocaleString('en-US');
 
 export function ResultScreen({ request, outcome, settings, onSettingsChange, onRetry, onBack, onWatchReplay, onRegenerate }: Props) {
   const { result, chart, placement, practice } = outcome;
-  // what was played: the recorded settings of a replay, or the current ones
-  const played = request.replay?.settings ?? outcome.replay?.settings ?? settings;
+  // what was played: the recorded settings of a replay, or the current ones (an editor test's without placement)
+  const played = request.replay?.settings ?? outcome.replay?.settings ?? playedSettings(request, settings);
   const replay = outcome.replay ?? request.replay ?? null;
   const meta = request.chart.meta;
   const song = request.song ?? null;
@@ -292,7 +292,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const recordTag = recorded && (recorded.newBest ? '최고 기록 갱신' : firstTag(recorded.first, played.judgementMode, rules.label));
   // RANDOM and its kin: R plays the same lane order again, Shift+R draws a new one. A retry plays
   // on the settings' placement (a replay was played on its recording's).
-  const randomPlacement = settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
+  const randomPlacement = !request.fromEditor && settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
   const backLabel = request.fromEditor ? '에디터로' : request.fromSettings ? '설정으로' : '선곡으로';
 
   const hints: KeyHint[] = randomPlacement
@@ -346,7 +346,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             </div>
             {practice && (
               <p className="record-note">
-                연습 모드{outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · {playbackRateText(practice.rate)} · 기록되지 않습니다
+                {request.fromEditor ? '에디터 테스트' : `연습 모드${outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · ${playbackRateText(practice.rate)}`} · 기록되지 않습니다
               </p>
             )}
           </div>

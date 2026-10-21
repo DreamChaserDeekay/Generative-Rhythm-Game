@@ -17,18 +17,24 @@ export function judgementSettingsOf(replay: ReplayData | null, base?: Settings):
   return { judgementMode: src.judgementMode, ruleset: src.ruleset, gaugeType: src.gaugeType, fever: src.fever, placement: src.placement };
 }
 
-/** The settings a play runs on: a replay's recorded judgement settings over the player's own. */
-export function playedSettings(request: Pick<PlayRequest, 'replay'>, settings: Settings): Settings {
-  return request.replay ? { ...settings, ...judgementSettingsOf(request.replay) } : settings;
+/**
+ * The settings a play runs on: a replay's recorded judgement settings over the player's own; an
+ * editor test's on the chart as it is written (no placement), on the default gauge and FEVER.
+ */
+export function playedSettings(request: Pick<PlayRequest, 'replay' | 'fromEditor'>, settings: Settings): Settings {
+  if (request.replay) return { ...settings, ...judgementSettingsOf(request.replay) };
+  if (request.fromEditor) return { ...settings, placement: 'OFF', gaugeType: DEFAULT_SETTINGS.gaugeType, fever: DEFAULT_SETTINGS.fever };
+  return settings;
 }
 
 /** A practice's playback rate as every screen names it ("배속" is SPEED's alone). */
 export const playbackRateText = (rate: number) => `재생 속도 ×${rate.toFixed(2)}`;
 
-/** AUTO, REPLAY or 연습 (with its playback rate); null for a play of one's own. */
-export function playModeLabel(request: Pick<PlayRequest, 'replay' | 'practice' | 'autoPlay'>): string | null {
+/** AUTO, REPLAY, 에디터 테스트 or 연습 (with its playback rate); null for a play of one's own. */
+export function playModeLabel(request: Pick<PlayRequest, 'replay' | 'practice' | 'autoPlay' | 'fromEditor'>): string | null {
   const practice = request.practice;
   if (request.replay) return 'REPLAY';
+  if (request.fromEditor) return '에디터 테스트';
   if (practice) return `연습${practice.rate !== 1 ? ` · ${playbackRateText(practice.rate)}` : ''}`;
   return request.autoPlay ? 'AUTO' : null;
 }
