@@ -48,22 +48,57 @@ STRAIGHT_POINTS = (0.25, 0.75)
 TRIPLET_POINTS = (1 / 3, 2 / 3)
 
 
-def triplet_share(analysis: dict[str, Any], tempo: TempoMap) -> float:
-    """How much of the song's rhythm between the eighths sits on triplet positions rather than on
-    straight sixteenths: the strength-weighted share of the onsets clearly on one or the other
-    (config "tripletFeel"). A straight song keeps no triplet grid: an onset a little off its
-    sixteenth would otherwise snap to the triplet next to it."""
+def _triplet_weights(analysis: dict[str, Any], tempo: TempoMap) -> list[tuple[float, float, float]]:
+    """(beat, straight weight, triplet weight) of the onsets clearly on a straight sixteenth or on an
+    eighth-note triplet position (config "tripletFeel")."""
     tol = float(difficulty_config()["tripletFeel"]["toleranceBeats"])
-    straight = triplet = 0.0
+    out = []
     for o in analysis["onsets"]:
         b = tempo.ms_to_beat(float(o["t"]))
         f = b - np.floor(b)
         d_straight = min(abs(f - p) for p in STRAIGHT_POINTS)
         d_triplet = min(abs(f - p) for p in TRIPLET_POINTS)
         if d_straight < d_triplet and d_straight <= tol:
-            straight += float(o["strength"])
+            out.append((b, float(o["strength"]), 0.0))
         elif d_triplet < d_straight and d_triplet <= tol:
-            triplet += float(o["strength"])
+            out.append((b, 0.0, float(o["strength"])))
+    return out
+
+
+def triplet_bars(analysis: dict[str, Any], tempo: TempoMap) -> set[int] | None:
+    """Bars of a triplet-feel song whose own rhythm sits on triplets: the triplet share of the bars
+    around each (tripletFeel.localBars on either side) reaches tripletFeel.localMinShare. None when
+    the config keeps the whole song on the triplet grid (localBars 0)."""
+    cfg = difficulty_config()["tripletFeel"]
+    reach = int(cfg.get("localBars", 0))
+    if reach <= 0:
+        return None
+    bpb = tempo.beats_per_bar
+    straight: dict[int, float] = {}
+    triplet: dict[int, float] = {}
+    for b, s, t in _triplet_weights(analysis, tempo):
+        bar = int(np.floor(b / bpb))
+        straight[bar] = straight.get(bar, 0.0) + s
+        triplet[bar] = triplet.get(bar, 0.0) + t
+    if not straight and not triplet:
+        return set()
+    lo, hi = min(straight.keys() | triplet.keys()), max(straight.keys() | triplet.keys())
+    out = set()
+    for bar in range(lo, hi + 1):
+        s = sum(straight.get(j, 0.0) for j in range(bar - reach, bar + reach + 1))
+        t = sum(triplet.get(j, 0.0) for j in range(bar - reach, bar + reach + 1))
+        if t > 0 and t / (s + t) >= float(cfg["localMinShare"]):
+            out.add(bar)
+    return out
+
+
+def triplet_share(analysis: dict[str, Any], tempo: TempoMap) -> float:
+    """How much of the song's rhythm between the eighths sits on triplet positions rather than on
+    straight sixteenths: the strength-weighted share of the onsets clearly on one or the other
+    (config "tripletFeel"). A straight song keeps no triplet grid: an onset a little off its
+    sixteenth would otherwise snap to the triplet next to it."""
+    weights = _triplet_weights(analysis, tempo)
+    straight, triplet = sum(s for _, s, _ in weights), sum(t for _, _, t in weights)
     total = straight + triplet
     return triplet / total if total > 0 else 0.0
 
@@ -129,7 +164,11 @@ def _section_leader(sections: list[dict[str, Any]], t: float) -> int | None:
     return None
 
 
-def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float) -> list[Candidate]:
+def build_candidates(
+    analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float, triplets_in: set[int] | None = None
+) -> list[Candidate]:
+    """Snapped, scored candidates. With `triplets_in` (bars, see triplet_bars) the triplet grid is
+    open only in those bars."""
     duration = float(analysis["durationMs"])
     n_beats = max(1, int(np.ceil(tempo.ms_to_beat(duration))) + 1)
     intensity = intensity_curve(analysis, tempo, n_beats)
@@ -137,8 +176,12 @@ def build_candidates(analysis: dict[str, Any], tempo: TempoMap, params: GenParam
     sections = analysis.get("sections", [])
     melody_cfg = load_config("instruments")["rhythmSource"]["melody"]
     merged: dict[float, Candidate] = {}
+    straight_subs = tuple(s for s in params.subdivisions if s not in TRIPLETS)
     for o in analysis["onsets"]:
-        snapped = snap(o["t"], tempo, params.subdivisions, tolerance_ms)
+        allowed = params.subdivisions
+        if triplets_in is not None and int(np.floor(tempo.ms_to_beat(float(o["t"])) / bpb)) not in triplets_in:
+            allowed = straight_subs
+        snapped = snap(o["t"], tempo, allowed, tolerance_ms)
         if snapped is None:
             continue
         q, sub = snapped

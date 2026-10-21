@@ -243,6 +243,43 @@ def test_the_note_pick_model_scores_the_default_system_only_and_keeps_the_option
     assert all(math.isclose(d.score, c.score * r, rel_tol=1e-9) for d, c, r in zip(drum_cands, easy_cands, ratio))
 
 
+def test_hard_charts_open_the_triplet_grid_only_in_bars_that_swing() -> None:
+    """A song can swing overall and still be straight in most bars: human BMS charts of triplet-feel
+    songs put 6.6% of their level-10 notes on triplets, where a song-wide triplet grid put 14.7%
+    (PATTERN_DESIGN 28). Since generator 0.9.12 the default system opens the triplet grid from HARD
+    on only in bars whose neighbourhood swings; a triplet-like onset in a straight bar takes the
+    straight grid. Easy charts and the other systems keep the song-wide grid."""
+    from rhythm_server.generator.candidates import build_candidates, triplet_bars
+
+    beat_ms = 500.0  # 120 BPM, 4/4: bars of 2000 ms
+
+    def onset(beat: float) -> dict:
+        return {"t": 1000.0 + beat * beat_ms, "strength": 0.8, "bands": [0.2, 0.5, 0.3], "harmonic": 0.4, "pitch": None}
+
+    # bars 0-7 straight sixteenths, bars 8-15 eighth-note triplets; one stray onset near a triplet in bar 3
+    beats = [b + f for b in range(32) for f in (0.0, 0.25, 0.5, 0.75)] + [b + f for b in range(32, 64) for f in (0.0, 1 / 3, 2 / 3)]
+    onsets = [onset(b) for b in sorted(beats + [12.0 + 0.36])]
+    analysis = {
+        "durationMs": 1000.0 + 64 * beat_ms + 1000.0,
+        "timing": {"offsetMs": 1000.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]},
+        "onsets": onsets,
+        "energy": {"frameMs": 100.0, "values": [0.5] * 400},
+        "sections": [],
+    }
+    tempo = TempoMap(analysis["timing"])
+    swinging = triplet_bars(analysis, tempo)
+    assert swinging is not None and set(range(9, 16)) <= swinging and not swinging & set(range(0, 7)), swinging
+    hard = resolve_params("7K+1S", "HARD")
+    tolerance = float(difficulty_config()["snapToleranceMs"])
+
+    def triplets(bars: set[int] | None) -> set[int]:
+        cands = build_candidates(analysis, tempo, hard, tolerance, bars)
+        return {int(c.beat // 4) for c in cands if c.subdivision in (3, 6)}
+
+    assert 3 in triplets(None)  # song-wide grid: the stray onset snaps to a triplet in a straight bar
+    assert 3 not in triplets(swinging) and set(range(9, 16)) <= triplets(swinging)
+
+
 def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
     """Human BMS charts of triplet-feel songs put 3-6% of their notes on triplet positions from
     level 2 on (PATTERN_DESIGN 23). Since generator 0.9.7 the default system's EASY and NORMAL read

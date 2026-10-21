@@ -14,7 +14,7 @@ from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
-from .candidates import TRIPLETS, build_candidates, triplet_share
+from .candidates import TRIPLETS, build_candidates, triplet_bars, triplet_share
 from .effects import camera_effects
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .motifs import SlotPlan
@@ -27,7 +27,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.11"
+GENERATOR_VERSION = "0.9.12"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -85,7 +85,9 @@ def generate_chart(
     straight = triplet_share(analysis, tempo) < float(cfg["tripletFeel"]["minShare"])
     if straight:
         params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
-    candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]))
+    feel = cfg["tripletFeel"]
+    local = not straight and params.system in feel.get("localSystems", []) and params.skill >= float(feel["localFromSkill"])
+    candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), triplet_bars(analysis, tempo) if local else None)
     if not candidates:
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")
     song_rolls(analysis, tempo, params, float(cfg["snapToleranceMs"]), candidates)
