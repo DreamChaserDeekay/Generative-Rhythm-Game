@@ -84,7 +84,11 @@ export interface SkinStyle {
   /** Note depth as a share of the usual one (a thin note is shallower). */
   noteDepth?: number;
   rails: { width: number; glow?: number; bevel?: boolean };
-  /** The judge line's thickness, a second line under or over it, and whether it glows. */
+  /**
+   * The judge line's thickness, a second line flush under or over it, and whether a halo rises
+   * from it (in judgeGlow). The built-in skins all draw neon's: 6 px, a halo (mono's line is bare),
+   * no second line.
+   */
   judge: { height: number; under?: string; over?: string; glow?: boolean };
   /** Lane colour mixed into the track under coloured lanes (scratch apart), and floor patterns. */
   track: { tint: number; scratchTint?: number; stripes?: boolean; edges?: boolean; facets?: boolean };
@@ -169,6 +173,18 @@ function skin(id: string, d: SkinDef): Skin {
   };
 }
 
+/** A skin's second judge line: this many plane px deep, flush under the line (toward the camera) or over it. */
+export const EXTRA_LINE = 5;
+
+/**
+ * Where the deck starts under the middle of the judge line (plane px): 3 px under the line, or under
+ * its second line there, and never nearer than under neon's 6 px line, so a thin line of a user
+ * skin keeps the gear where neon has it.
+ */
+export function deckTop(judge: SkinStyle['judge']): number {
+  return Math.max(6, judge.height / 2 + (judge.under ? EXTRA_LINE : 0) + 3);
+}
+
 /** FLAT's type, and the one a skin of an earlier version writes with. */
 export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#7cf7ff', outline: '#0b0c10', stroke: 6 };
 
@@ -187,7 +203,7 @@ const FLAT = skin('flat', {
     beam: 'fade',
     hit: 'flash',
     rails: { width: 6 },
-    judge: { height: 8 },
+    judge: { height: 6, glow: true },
     track: { tint: 0.07 },
     camera: 'SDVX',
     type: DEFAULT_HUD_TYPE,
@@ -211,7 +227,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'stem',
       hit: 'stemflash',
       rails: { width: 4 },
-      judge: { height: 6 },
+      judge: { height: 6, glow: true },
       track: { tint: 0 },
       camera: 'SDVX',
       type: { ...DEFAULT_HUD_TYPE, max: '#f3f5f9' },
@@ -225,6 +241,7 @@ export const BUILTIN_SKINS: Skin[] = [
     divider: over('#aabee6', 0.16, '#111725'),
     rails: ['#c9d1e0', '#c9d1e0'],
     judge: '#ffffff',
+    glow: '#ff9f43',
     style: {
       note: 'gloss',
       long: 'gloss',
@@ -232,7 +249,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'white',
       hit: 'star',
       rails: { width: 5 },
-      judge: { height: 8, under: '#ff9f43' },
+      judge: { height: 6, glow: true },
       track: { tint: 0.06 },
       frame: 'gunmetal',
       camera: 'FLAT',
@@ -255,7 +272,7 @@ export const BUILTIN_SKINS: Skin[] = [
       hit: 'bomb',
       noteDepth: 30 / 51.5,
       rails: { width: 3 },
-      judge: { height: 6 },
+      judge: { height: 6, glow: true },
       track: { tint: 0, scratchTint: 0.1 },
       camera: 'FLAT',
       type: { font: 'Chakra Petch', size: 40, combo: 60, tracking: 0.06, max: '#ffffff', outline: '#000000', stroke: 5 },
@@ -269,6 +286,7 @@ export const BUILTIN_SKINS: Skin[] = [
     divider: '#2e2e36',
     rails: ['#ffd23f', '#ffd23f'],
     judge: '#ffffff',
+    glow: '#ffd23f',
     style: {
       note: 'outline',
       long: 'striped',
@@ -276,7 +294,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'fade',
       hit: 'flare',
       rails: { width: 6 },
-      judge: { height: 6, over: '#ffd23f' },
+      judge: { height: 6, glow: true },
       track: { tint: 0.05 },
       frame: 'street',
       camera: 'FLAT',
@@ -321,7 +339,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'white',
       hit: 'shards',
       rails: { width: 5, glow: 8 },
-      judge: { height: 5, glow: true },
+      judge: { height: 6, glow: true },
       track: { tint: 0.06, edges: true },
       camera: 'SDVX',
       type: { font: 'Exo 2', size: 42, combo: 64, tracking: 0.04, max: '#dff6ff', outline: '#120e2c', stroke: 6 },
@@ -342,7 +360,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'fade',
       hit: 'bubbles',
       rails: { width: 8 },
-      judge: { height: 10 },
+      judge: { height: 6, glow: true },
       track: { tint: 0.08 },
       camera: 'SDVX',
       type: { font: 'Baloo 2', size: 50, combo: 76, tracking: 0.01, max: '#ffffff', outline: '#ff6fa5', stroke: 8 },
@@ -364,7 +382,7 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'white',
       hit: 'flipbook',
       rails: { width: 10, bevel: true },
-      judge: { height: 5, glow: true },
+      judge: { height: 6, glow: true },
       track: { tint: 0.05 },
       camera: 'SDVX',
       type: { font: 'Cinzel', size: 40, combo: 62, tracking: 0.03, max: '#e6f4ff', outline: '#0d0a26', stroke: 6 },
@@ -386,7 +404,8 @@ export const BUILTIN_SKINS: Skin[] = [
       beam: 'white',
       hit: 'none',
       rails: { width: 6 },
-      judge: { height: 8 },
+      // no halo: the high-contrast skin keeps its line bare
+      judge: { height: 6 },
       track: { tint: 0 },
       camera: 'SDVX',
       type: { ...DEFAULT_HUD_TYPE, max: '#ffffff', outline: '#000000' },

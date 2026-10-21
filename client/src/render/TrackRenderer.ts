@@ -4,11 +4,11 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { KEY_PAINT, paintDeck, type KeyKind } from './deckArt';
+import { KEY_PAINT, paintDeck, rowDrop, type KeyKind } from './deckArt';
 import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan, type CameraPose, type LaneGeom, type NoteSpan, type TrackGeometry } from './layout';
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
-import { DEFAULT_HUD_TYPE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
+import { deckTop, DEFAULT_HUD_TYPE, EXTRA_LINE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import {
   effectSheet,
   JEWEL_SIDE,
@@ -48,7 +48,20 @@ const SIDE_NOTE_HEIGHT = 0.12;
 const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
-const COVER_Y = 0.05;
+/** A note drawn as a picture (createNoteGeometry) lays it this share of the note's height over the track. */
+const PICTURE_LIFT = 0.05;
+/** Where a key note's picture lies over the track. */
+export const NOTE_Y = NOTE_HEIGHT * PICTURE_LIFT;
+/**
+ * The judge line, its halo and a skin's second line lie on the notes, a hair over them so they draw
+ * over them: a tap's middle meets the line's at its time, in every camera. The covers lie over the
+ * notes; the opaque deck over what runs on under it (notes, bar lines, long notes and their ends)
+ * about as far over the line as ever, so its edge keeps its place under the line; its lights on it.
+ */
+export const LINE_Y = NOTE_Y + 0.001;
+const COVER_Y = 0.016;
+const DECK_Y = 0.022;
+const KEY_Y = 0.027;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
 /**
@@ -108,6 +121,8 @@ const DECK_SETTLE_FRAMES = 20;
 const MAX_KEY_STRETCH = 3.5;
 /** The stretch a row of lane lights holds at its usual depth: the perspective cameras need up to about 1.3. */
 const KEY_ROW_STRETCH = 1.3;
+/** The row of lane lights starts this many plane px under the deck's top (lower where its lights are larger than neon's, see rowDrop). */
+const KEY_TOP = 8;
 
 interface DeckLayout {
   /** The room the picture is painted for, all of the deck, and where the lane lights lie (track units). */
@@ -638,10 +653,10 @@ export class TrackRenderer {
     this.frame = null;
     const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(camera.position);
     const mid = new THREE.Vector3(0, 0, fogStartZ(preset, this.geometry.length)).distanceTo(camera.position);
-    // depth resolution where the track is (its layers lie a few hundredths apart): a perspective
-    // camera's falls off past its near plane, which at 0.1 would leave them fighting; the plane
-    // camera's is even, so it spans just the track and what stands on it (a roll moves that camera
-    // across its view, never nearer)
+    // depth resolution where the track is (its layers lie a few hundredths apart, the judge line a
+    // thousandth over the notes): a perspective camera's falls off past its near plane, which at 0.1
+    // would leave them fighting; the plane camera's is even, so it spans just the track and what
+    // stands on it (a roll moves that camera across its view, never nearer)
     if (camera instanceof PlaneCamera) {
       const depth = (z: number) => -new THREE.Vector3(0, 0, z).applyMatrix4(camera.matrixWorldInverse).z;
       camera.near = depth(TRACK_TAIL + 3) - 10;
@@ -681,9 +696,9 @@ export class TrackRenderer {
     const hiddenZ = this.judgeZ - travel * c.hidden;
     // notes come into view at the track's far end (they take no fog), cut there rather than popping up
     this.farClip.constant = c.sudden > 0 ? -suddenZ : L;
-    // Under LIFT nothing passes the judgement line; otherwise missed notes run on toward the camera.
-    const nearLimit = c.hidden > 0 ? hiddenZ : c.lift > 0 ? this.judgeZ + this.noteDepth / 2 : FAR_AWAY;
-    this.nearClip.constant = nearLimit;
+    // Missed notes run on past the judgement line (under LIFT, under its cover) as far as the deck,
+    // which hides them: cut where it starts, so a user skin's tall note never shows through it.
+    this.nearClip.constant = c.hidden > 0 ? hiddenZ : this.judgeZ + deckTop(this.style.judge) * PX;
 
     this.span(this.suddenCover, -L - 0.5, suddenZ, c.sudden > 0);
     this.span(this.suddenEdge, suddenZ - 0.06, suddenZ + 0.06, c.sudden > 0);
@@ -1301,25 +1316,26 @@ export class TrackRenderer {
     const j = this.style.judge;
     // between the rails: it never runs over the gear's edges
     line.scale.set(width, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
-    line.position.set(0, 0.06, 0);
+    line.position.set(0, LINE_Y, 0);
     line.renderOrder = 9.5;
     this.judgeGroup.add(line);
-    // a second line under it (toward the camera) or over it
+    // a second line flush under it (toward the camera) or over it: the line keeps its middle, and the deck starts under it (deckTop)
+    const flush = j.height / 2 + EXTRA_LINE / 2;
     for (const [colour, dz] of [
-      [j.under, 9],
-      [j.over, -9],
+      [j.under, flush],
+      [j.over, -flush],
     ] as [string | undefined, number][]) {
       if (!colour) continue;
       const extra = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: hex(colour), transparent: true, depthWrite: false }));
-      extra.scale.set(width, 1, 5 * PX);
-      extra.position.set(0, 0.06, dz * PX);
+      extra.scale.set(width, 1, EXTRA_LINE * PX);
+      extra.position.set(0, LINE_Y, dz * PX);
       extra.renderOrder = 9.5;
       this.judgeGroup.add(extra);
     }
     this.scene.add(this.judgeGroup);
     if (!art) {
       if (!j.glow) return null;
-      // the sheets' box-shadow: 0 0 16px at 80 %, under the line
+      // the sheets' box-shadow: 0 0 16px at 80 %, under the line; the deck hides its lower half
       const lineWidth = width / PX;
       const glow = new THREE.Mesh(
         this.flatGeometry,
@@ -1333,7 +1349,7 @@ export class TrackRenderer {
         }),
       );
       glow.scale.set(width, 1, (j.height + 2 * shadowReach(16)) * PX);
-      glow.position.set(0, 0.058, 0);
+      glow.position.set(0, LINE_Y, 0);
       glow.renderOrder = 9.45;
       this.judgeGroup.add(glow);
       return glow.material as THREE.MeshBasicMaterial;
@@ -1348,7 +1364,7 @@ export class TrackRenderer {
     });
     const glow = new THREE.Mesh(this.flatGeometry, glowMaterial);
     glow.scale.set(width, 1, 1.4);
-    glow.position.set(0, 0.065, 0);
+    glow.position.set(0, LINE_Y, 0);
     glow.renderOrder = 9.6;
     this.judgeGroup.add(glow);
     return glowMaterial;
@@ -1386,9 +1402,16 @@ export class TrackRenderer {
     });
   }
 
-  /** The deck under the judge line, its picture painted in layoutDeck, with a light per lane on it. */
+  /**
+   * The deck under the judge line, its picture painted in layoutDeck, with a light per lane on it.
+   * It is drawn after what runs under it (renderOrder) and over it whatever the depth buffer holds:
+   * the track's long strips reach behind the camera, and their depth near it can come out nearer
+   * than the deck's, a few hundredths over them. Its own depth hides the judge line's halo under it.
+   * Its picture is opaque, so it is written as it is, with no blending.
+   */
   private buildDeck(): THREE.Mesh {
-    const deck = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ fog: false }));
+    const material = new THREE.MeshBasicMaterial({ fog: false, transparent: true, blending: THREE.NoBlending, depthFunc: THREE.AlwaysDepth });
+    const deck = new THREE.Mesh(this.flatGeometry, material);
     deck.renderOrder = 9.05;
     this.scene.add(deck);
     for (let i = 0; i < this.geometry.lanes.length; i++) {
@@ -1408,20 +1431,25 @@ export class TrackRenderer {
   private layoutDeck(): void {
     if (!this.deck) return;
     const { width, lanes } = this.geometry;
-    const top = this.judgeZ + (this.style.judge.height / 2 + 3) * PX;
+    const top = this.judgeZ + deckTop(this.style.judge) * PX;
     const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
     const room = Math.max(DECK_STEP, Math.floor(shown / PX / DECK_STEP) * DECK_STEP) * PX;
     const depth = room + 2 + DECK_STEP * PX;
     this.deck.scale.set(width, 1, depth);
-    this.deck.position.set(0, 0.07, top + depth / 2);
+    this.deck.position.set(0, DECK_Y, top + depth / 2);
     this.planeVersion++;
-    const keyTop = 8 * PX;
     const row = Math.min(72, Math.max(40, Math.round((room / PX) * 0.36)));
     // round lights look round: drawn longer along the track where the camera flattens it
-    const flatten = 0.85 / this.trackAspect(top + keyTop + (row * PX) / 2);
+    const flatten = 0.85 / this.trackAspect(top + KEY_TOP * PX + (row * PX) / 2);
     const { depth: rowDepth, stretch } = keyRow(row, flatten);
     const keyDepth = rowDepth * PX;
-    const painted = `${Math.round(room / PX)}|${rowDepth}|${stretch}`;
+    // lights larger than neon's hexagons lie lower, so the first comes no nearer the line (within the room)
+    const drop = Math.min(
+      rowDrop(this.style.deck, lanes.map((l) => ({ kind: keyKind(l), width: l.width / PX })), rowDepth, stretch),
+      Math.max(0, Math.round(room / PX) - KEY_TOP - rowDepth),
+    );
+    const keyTop = (KEY_TOP + drop) * PX;
+    const painted = `${Math.round(room / PX)}|${rowDepth}|${stretch}|${drop}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;
       this.deckPending = { room, depth, keyTop, keyDepth, stretch };
@@ -1429,7 +1457,7 @@ export class TrackRenderer {
     }
     this.keys.forEach((key, i) => {
       key.scale.set(lanes[i].width, 1, keyDepth);
-      key.position.set(lanes[i].x, 0.075, top + keyTop + keyDepth / 2);
+      key.position.set(lanes[i].x, KEY_Y, top + keyTop + keyDepth / 2);
     });
     // effects lying on the track are drawn longer where the camera flattens it
     this.stretch = Math.min(2.6, Math.max(1, EFFECT_ASPECT / this.trackAspect(this.judgeZ)));
@@ -1451,7 +1479,8 @@ export class TrackRenderer {
     const scale = Math.min(DECK_PICTURE, 2048 / (width / PX), 2048 / (d.depth / PX));
     canvas.width = Math.round((width / PX) * scale);
     canvas.height = Math.round((d.depth / PX) * scale);
-    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+    // opaque to its last px (the deck is drawn without blending, see buildDeck)
+    const g = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
     g.scale(scale, scale);
     paintDeck(this.style.deck, g, {
       width: width / PX,
@@ -1669,7 +1698,7 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
 function createNoteGeometry(shape: Skin['noteShape'] | 'picture'): THREE.BufferGeometry {
   if (shape === 'picture') {
     // just above the track (the mesh is lifted half its height)
-    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, -0.45, 0);
+    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, PICTURE_LIFT - 0.5, 0);
     plane.setAttribute('color', new THREE.BufferAttribute(new Float32Array(plane.getAttribute('position').count * 3).fill(1), 3));
     return plane;
   }

@@ -4,7 +4,7 @@ import { cameraConfig, keyModes } from '../engine/config';
 import { ScrollModel } from '../engine/scroll';
 import { visibleTimeMs } from '../settings/settings';
 import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan } from './layout';
-import { FIT_TRACK_END_Y, fitFov, frameCamera, keyRow, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
+import { baseFrame, FIT_TRACK_END_Y, fitFov, frameCamera, keyRow, LINE_Y, NOTE_Y, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
 
 function presetCamera(presetId: string, aspect: number): TrackCamera {
   return poseCamera(cameraPose(cameraConfig.presets[presetId]), aspect);
@@ -153,6 +153,25 @@ describe('track layout', () => {
     expect(at(-preset.lookAhead)).toBeCloseTo(Math.sin(down), 3);
     expect(at(0)).toBeGreaterThan(Math.sin(down));
     expect(at(-cameraConfig.trackLength)).toBeLessThan(Math.sin(down));
+  });
+
+  it('lays the judge line on the notes, so a tap\'s middle is on it at its time and it sits at JUDGE_LINE_Y', () => {
+    const [W, H] = [1280, 720];
+    expect(LINE_Y).toBeGreaterThan(NOTE_Y);
+    for (const id of Object.keys(cameraConfig.presets)) {
+      for (const lift of [0, 0.1]) {
+        const lineZ = -lift * cameraConfig.trackLength;
+        const pose = cameraPose(cameraConfig.presets[id]);
+        const camera = poseCamera(pose, W / H);
+        const base = baseFrame(camera, pose.fov, lineZ);
+        frameCamera(camera, pose.fov, 1, 0, W, H, lineZ, base);
+        const row = (y: number) => ((1 - new THREE.Vector3(0, y, lineZ).project(camera).y) / 2) * H;
+        expect(Math.abs(row(LINE_Y) - row(NOTE_Y))).toBeLessThan(0.1);
+        // where the framing puts the (lifted) line
+        expect(Math.abs(row(LINE_Y) - base.lineY * H)).toBeLessThan(1);
+        if (lift === 0) expect(Math.abs(row(LINE_Y) - JUDGE_LINE_Y * H)).toBeLessThan(1);
+      }
+    }
   });
 
   it('lines a long note up with taps at its start and end, at any speed and note depth', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, DEFAULT_HUD_TYPE, hex, HUD_FONTS, laneColorsFor, sanitizeSkin, skinById } from './skins';
+import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, hex, HUD_FONTS, laneColorsFor, sanitizeSkin, skinById } from './skins';
 
 describe('skins', () => {
   it('keeps valid fields of a user skin and replaces the rest with defaults', () => {
@@ -79,6 +79,34 @@ describe('skins', () => {
     // each its own gear under the judge line, and the combo over the judgement
     expect(new Set(BUILTIN_SKINS.map((s) => s.style?.deck)).size).toBe(BUILTIN_SKINS.length);
     for (const skin of BUILTIN_SKINS) expect(skin.style?.type.inline).toBeUndefined();
+  });
+
+  it('draws neon’s judge line in every built-in skin: 6 px, a halo over it (not on mono), no second line', () => {
+    for (const skin of BUILTIN_SKINS) {
+      const judge = skin.style?.judge;
+      expect(judge?.height).toBe(6);
+      expect(judge?.under).toBeUndefined();
+      expect(judge?.over).toBeUndefined();
+      expect(Boolean(judge?.glow)).toBe(skin.id !== 'mono');
+      // so the gear starts as far under the line in every one
+      expect(deckTop(judge!)).toBe(6);
+    }
+    // STREET's yellow and ARCADE's orange, once second lines, are their halos; each keeps its line's colour
+    expect(skinById('street', null).colors.judgeGlow).toBe('#ffd23f');
+    expect(skinById('arcade', null).colors.judgeGlow).toBe('#ff9f43');
+    expect(skinById('neon', null).colors.judgeGlow).toBe('#5fe7ff');
+    expect(skinById('club', null).colors.judgeLine).toBe('#ff3b3b');
+  });
+
+  it('starts the gear under a user skin’s line as neon’s does, or under its second line', () => {
+    const judge = (j: Record<string, unknown>) => sanitizeSkin({ style: { judge: j } })!.style!.judge;
+    // a thin line keeps the gear where neon has it, a thick one pushes it down
+    expect(deckTop(judge({ height: 2 }))).toBe(6);
+    expect(deckTop(judge({ height: 6 }))).toBe(6);
+    expect(deckTop(judge({ height: 12 }))).toBe(9);
+    // a second line under it lies flush with it (5 px) and the gear starts 3 px under that
+    expect(deckTop(judge({ height: 4, under: '#ff9f43' }))).toBe(10);
+    expect(deckTop(judge({ height: 4, over: '#ff9f43' }))).toBe(6);
   });
 
   it('reads the key cap a skin of an earlier version names as the gear it became', () => {

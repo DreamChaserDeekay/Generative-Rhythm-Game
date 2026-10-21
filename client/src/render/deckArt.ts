@@ -131,13 +131,24 @@ function panel(g: CanvasRenderingContext2D, s: DeckSpec, inset: number, cut: num
   return (top + bottom) / 2;
 }
 
+/** The sockets ARCADE's buttons and JEWEL's gems sit in on the plate, this much larger than they are. */
+const ARCADE_SOCKET = 1.14;
+const JEWEL_SOCKET = 1.16;
+
+/**
+ * The deck's top edge, just under the judge line: a dim line this many px deep (neon's) in every
+ * design but MONO's, which has none, so nothing bright under the line reads as a second one before
+ * the lights.
+ */
+const EDGE = 1.5;
+
 const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => void> = {
   // LED bars under the line, the lanes' lines carried down, a panel outlined in the rails' colours
   line: (g, s) => {
     g.fillStyle = shade(s.colours.trackFar, 0.7);
     g.fillRect(0, 0, s.width, s.depth);
     g.fillStyle = white(0.1);
-    g.fillRect(0, 0, s.width, 2);
+    g.fillRect(0, 0, s.width, EDGE);
     separators(g, s, s.keyTop, keyBottom(s), white(0.06));
     const mid = panel(g, s, 12, 12);
     if (mid === null) return;
@@ -165,7 +176,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     g.fillStyle = shade(s.colours.trackFar, 0.7);
     g.fillRect(0, 0, s.width, s.depth);
     g.fillStyle = white(0.08);
-    g.fillRect(0, 0, s.width, 2);
+    g.fillRect(0, 0, s.width, EDGE);
     separators(g, s, s.keyTop, keyBottom(s), white(0.05));
     const mid = panel(g, s, 12, 12);
     if (mid === null) return;
@@ -180,7 +191,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
   // a gunmetal control panel: brushed metal, a socket per button, screws and a grille
   arcade: (g, s) => {
     const grad = g.createLinearGradient(0, 0, 0, s.room);
-    grad.addColorStop(0, '#2b313d');
+    grad.addColorStop(0, '#1b2029');
     grad.addColorStop(0.45, '#161a22');
     grad.addColorStop(1, '#12151c');
     g.fillStyle = grad;
@@ -190,13 +201,11 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.fillStyle = white(0.012 + rand() * 0.03);
       g.fillRect(0, y, s.width, 1);
     }
-    g.fillStyle = '#6b7385';
-    g.fillRect(0, 0, s.width, 3);
-    g.fillStyle = '#0b0d12';
-    g.fillRect(0, 3, s.width, 1);
+    g.fillStyle = shade('#6b7385', 1, 0.5);
+    g.fillRect(0, 0, s.width, EDGE);
     const cy = s.keyTop + s.keyDepth / 2;
     for (const l of s.lanes) {
-      const r = radius(s, l, l.kind === 'scratch' ? 0.44 : 0.36) * 1.14;
+      const r = radius(s, l, l.kind === 'scratch' ? 0.44 : 0.36) * ARCADE_SOCKET;
       disc(g, centre(l), cy, r, s.stretch);
       g.fillStyle = '#0b0d12';
       g.fill();
@@ -241,7 +250,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     g.fillStyle = shade(s.colours.trackFar, 0.7);
     g.fillRect(0, 0, s.width, s.depth);
     g.fillStyle = s.colours.divider;
-    g.fillRect(0, 0, s.width, 2);
+    g.fillRect(0, 0, s.width, EDGE);
     separators(g, s, s.keyTop, keyBottom(s), shade(s.colours.divider, 0.8));
     const room = lowerRoom(s);
     if (room < 30) return;
@@ -267,7 +276,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.fillRect(rand() * s.width, rand() * s.depth, 1.2, 1.2);
     }
     g.fillStyle = s.colours.divider;
-    g.fillRect(0, 0, s.width, 2);
+    g.fillRect(0, 0, s.width, EDGE);
     separators(g, s, s.keyTop, keyBottom(s), white(0.16), [8, 6]);
     if (lowerRoom(s) < 30) return;
     const h = Math.min(20, lowerRoom(s) - 14);
@@ -295,7 +304,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     g.fillStyle = shade(s.colours.trackFar, 0.8);
     g.fillRect(0, 0, s.width, s.depth);
     g.fillStyle = shade(s.colours.divider, 1, 0.8);
-    g.fillRect(0, 0, s.width, 1.5);
+    g.fillRect(0, 0, s.width, EDGE);
     const y = Math.max(keyBottom(s) + 8, s.room - 10);
     const turn = 18 * s.stretch;
     g.lineWidth = 2;
@@ -340,10 +349,8 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.fillStyle = white(a);
       g.fill();
     }
-    g.fillStyle = white(0.4);
-    g.fillRect(0, 0, s.width, 1);
-    g.fillStyle = white(0.1);
-    g.fillRect(0, 1, s.width, 3);
+    g.fillStyle = white(0.2);
+    g.fillRect(0, 0, s.width, EDGE);
     if (lowerRoom(s) < 24) return;
     const y = s.room - 11;
     g.fillStyle = white(0.22);
@@ -364,7 +371,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       }
     }
     g.fillStyle = s.colours.divider;
-    g.fillRect(0, 0, s.width, 3);
+    g.fillRect(0, 0, s.width, EDGE);
     if (lowerRoom(s) < 26) return;
     const y = s.room - 13;
     const amp = 3.5 * s.stretch;
@@ -383,19 +390,19 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
   jewel: (g, s) => {
     g.fillStyle = shade(s.colours.trackNear, 0.75);
     g.fillRect(0, 0, s.width, s.depth);
-    const top = s.keyTop - 4;
-    const bottom = keyBottom(s) + 4;
+    // the band is the row, the gems in its middle; no line along its top, which would read as a
+    // second judge line (it lies no nearer the line than neon's hexagons: see its reach)
+    const top = s.keyTop;
+    const bottom = keyBottom(s);
     g.fillStyle = shade(s.colours.trackNear, 1.35);
     g.fillRect(0, top, s.width, bottom - top);
-    g.fillStyle = shade(s.colours.railRight, 1, 0.6);
-    g.fillRect(0, top, s.width, 1);
     g.fillStyle = shade(s.colours.railLeft, 1, 0.35);
     g.fillRect(0, bottom - 1, s.width, 1);
     const cy = s.keyTop + s.keyDepth / 2;
     g.lineWidth = 2;
     g.strokeStyle = 'rgba(176,166,232,0.55)';
     for (const l of s.lanes) {
-      regular(g, centre(l), cy, radius(s, l, 0.34) * 1.16, s.stretch, 8, Math.PI / 8);
+      regular(g, centre(l), cy, radius(s, l, 0.34) * JEWEL_SOCKET, s.stretch, 8, Math.PI / 8);
       g.fillStyle = shade(s.colours.trackFar, 1);
       g.fill();
       g.stroke();
@@ -417,8 +424,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
   mono: (g, s) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, s.width, s.depth);
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, s.width, 2);
+    // no edge: with no halo to join it to the line, even a dim one reads as a second judge line
     separators(g, s, s.keyTop, keyBottom(s), s.colours.divider);
     if (lowerRoom(s) < 20) return;
     g.fillRect(12, s.room - 10, s.width - 24, 2);
@@ -438,6 +444,11 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
 export interface KeyPaint {
   idle: (kind: KeyKind, stretch: number) => Paint;
   down: (kind: KeyKind, stretch: number) => Paint;
+  /**
+   * How far a light at rest reaches from the middle of its row toward the judge line, its socket
+   * on the plate and its outline included (px), in a lane `w` wide and a row `h` deep (see rowDrop).
+   */
+  reach: (kind: KeyKind, w: number, h: number, st: number) => number;
   idleColor?: number;
   /** Lit lights of this kind are white, not the lane colour. */
   neutralDown?: (kind: KeyKind) => boolean;
@@ -509,6 +520,7 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       g.roundRect(w * 0.22, h * 0.16, w * 0.56, Math.max(4, h * 0.1), h * 0.05);
       g.fill();
     },
+    reach: (_kind, _w, h) => h / 2 - h * 0.12,
   },
   stem: {
     idle: (_, st) => (g, w, h) => {
@@ -527,6 +539,10 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       disc(g, x, y, r, st);
       g.fillStyle = tone(1.25);
       g.fill();
+    },
+    reach: (_, w, h, st) => {
+      const { r } = fit(w, h, st, 0.2);
+      return r * st + Math.max(1.5, r * 0.16) / 2;
     },
   },
   arcade: {
@@ -560,12 +576,20 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       g.fillStyle = ink(1, 1, 0.55);
       g.fill();
     },
+    // the socket the plate draws round it (ARCADE_SOCKET) reaches farthest
+    reach: (kind, w, h, st) => fit(w, h, st, kind === 'scratch' ? 0.44 : 0.36).r * ARCADE_SOCKET * st + 0.75,
   },
   mixer: {
     // a mixer's knob in a ring of lights; the scratch a turntable
     idle: (kind, st) => (g, w, h) => (kind === 'scratch' ? platter(g, w, h, st, false) : knob(g, w, h, st, false)),
     down: (kind, st) => (g, w, h) => (kind === 'scratch' ? platter(g, w, h, st, true) : knob(g, w, h, st, true)),
     idleColor: 0xffffff,
+    // the knob's ring of lights
+    reach: (kind, w, h, st) => {
+      if (kind === 'scratch') return fit(w, h, st, 0.44).r * st;
+      const { r } = fit(w, h, st, 0.36);
+      return (r * 0.92 + Math.max(1.2, r * 0.07)) * st;
+    },
   },
   hazard: {
     // a road chevron pointing at the judge line
@@ -574,6 +598,7 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       wash(g, w, h, 0.3);
       chevron(g, w, h, st, tone(1.2), true);
     },
+    reach: (_, w, h, st) => fit(w, h, st, 0.3).r * st * 0.55,
   },
   neon: {
     idle: (_, st) => (g, w, h) => {
@@ -594,6 +619,10 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       g.lineWidth = Math.max(2, r * 0.12);
       g.strokeStyle = ink(1, 0.6);
       g.stroke();
+    },
+    reach: (_, w, h, st) => {
+      const { r } = fit(w, h, st, 0.3);
+      return r * st * Math.cos(Math.PI / 6) + Math.max(1.5, r * 0.1) / 2;
     },
   },
   crystal: {
@@ -621,24 +650,49 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       g.fill();
       g.restore();
     },
+    reach: (_, w, h, st) => {
+      const { r } = fit(w, h, st, 0.26);
+      return r * st + Math.max(1.2, r * 0.08) / 2;
+    },
   },
   candy: {
     // a round jelly button with a shine
     idle: (_, st) => (g, w, h) => jelly(g, w, h, st, false),
     down: (_, st) => (g, w, h) => jelly(g, w, h, st, true),
+    reach: (_, w, h, st) => {
+      const { r } = fit(w, h, st, 0.36);
+      return r * st + Math.max(2, r * 0.12) / 2;
+    },
   },
   jewel: {
     // a round-cut gem: a table, facets to the girdle
     idle: (_, st) => (g, w, h) => gem(g, w, h, st, false),
     down: (_, st) => (g, w, h) => gem(g, w, h, st, true),
+    // the band the plate draws along the row, or the socket round the gem (JEWEL_SOCKET) where it reaches farther
+    reach: (_, w, h, st) => Math.max(h / 2, fit(w, h, st, 0.34).r * JEWEL_SOCKET * st * Math.cos(Math.PI / 8) + 1),
   },
   mono: {
     idle: (_, st) => (g, w, h) => triangle(g, w, h, st, false),
     down: (_, st) => (g, w, h) => triangle(g, w, h, st, true),
     idleColor: 0xffffff,
     neutralDown: () => true,
+    // its tip, the outline's mitre past it
+    reach: (_, w, h, st) => {
+      const { r } = fit(w, h, st, 0.26);
+      return r * st * 0.8 + Math.max(2, r * 0.1);
+    },
   },
 };
+
+/**
+ * How much lower than usual a row of `style`'s lights lies (px, a row `depth` deep stretched
+ * `stretch`), so that no light comes nearer the judge line than neon's hexagon in its lane: larger
+ * lights keep their size and lie lower; those no larger, where they were.
+ */
+export function rowDrop(style: DeckStyle, lanes: readonly Pick<DeckLane, 'kind' | 'width'>[], depth: number, stretch: number): number {
+  const [paint, neon] = [KEY_PAINT[style], KEY_PAINT.neon];
+  return Math.max(0, ...lanes.map((l) => paint.reach(l.kind, l.width, depth, stretch) - neon.reach(l.kind, l.width, depth, stretch)));
+}
 
 function knob(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit: boolean): void {
   const { x, y, r: room } = fit(w, h, st, 0.36);
