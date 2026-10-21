@@ -229,7 +229,8 @@ body,
 }
 
 :focus-visible,
-:root[data-input='pad'] :focus {
+:root[data-input='pad'] :focus,
+:root[data-input='controller'] :focus {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -558,8 +559,36 @@ button.hint-item:hover:not(:disabled) {
   border-color: transparent;
 }
 
+/* the screen's keys: on a narrow window the minor ones give way, then any that do not fit (they
+   wrap onto a hidden line), so the main one at the end stays whole */
+.hint-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-6);
+  min-width: 0;
+  height: 32px;
+  /* (a focused hint's outline stays whole; the hidden line starts below it) */
+  overflow: clip;
+  overflow-clip-margin: var(--sp-1);
+  /* room for a clickable hint's raised edge */
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+}
+
+.hint-main .hint-item {
+  min-height: 32px;
+}
+
+@media (max-width: 1200px) {
+  .hint-item.minor {
+    display: none;
+  }
+}
+
 .hint-end {
   display: flex;
+  flex-shrink: 0;
   gap: var(--sp-6);
   margin-left: auto;
 }
@@ -2158,7 +2187,8 @@ p.hint {
 }
 
 .opt:focus,
-:root[data-input='pad'] .opt:focus {
+:root[data-input='pad'] .opt:focus,
+:root[data-input='controller'] .opt:focus {
   background: var(--raised-hover);
   outline: 2px solid var(--accent);
   outline-offset: -2px;
@@ -2849,7 +2879,7 @@ button.opt:active:not(:disabled) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(340px, 36%, 520px) minmax(0, 1fr);
+  grid-template-columns: clamp(340px, 36%, 680px) minmax(0, 1fr);
   gap: var(--sp-6);
   padding: var(--sp-4) var(--sp-6);
 }
@@ -2904,14 +2934,21 @@ button.chip.active b {
   gap: var(--sp-2);
 }
 
-.folders .sort {
-  margin-left: auto;
+/* the search and the order on one line under the folders */
+.list-tools {
+  display: flex;
+  gap: var(--sp-2);
 }
 
 .song-list-panel .search {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 36px;
   background: var(--panel);
+}
+
+.list-tools .sort {
+  min-height: 36px;
 }
 
 .song-list {
@@ -3089,12 +3126,22 @@ button.chip.active b {
   min-height: 0;
 }
 
-/* the song, or the open panel in its place (it scrolls inside when the window is short) */
+/* the song, or the open panel in its place (it scrolls inside when the window is short); the
+   song keeps its size: the summary under the buttons takes only the room that is left */
 .detail-top {
-  flex: 0 1 auto;
+  flex: none;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* an open panel takes the column's height (the plates fold to a line under it) */
+.song-detail.panel-open .detail-top {
+  flex: 1 1 0;
+}
+
+.song-detail.panel-open .select-panel {
+  flex: 1 1 auto;
 }
 
 .detail-empty {
@@ -3113,7 +3160,7 @@ button.chip.active b {
 
 .hero-art {
   position: relative;
-  width: clamp(160px, 32vh, 280px);
+  width: clamp(160px, 32vh, 400px);
   aspect-ratio: 1;
 }
 
@@ -3122,17 +3169,6 @@ button.chip.active b {
   height: 100% !important;
   border-radius: var(--radius);
   box-shadow: 0 0 0 1px var(--line-strong);
-}
-
-.hero-art-bpm {
-  position: absolute;
-  left: 6%;
-  bottom: 4%;
-  font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text);
 }
 
 .hero-text {
@@ -3232,8 +3268,27 @@ button.chip.active b {
   background: var(--text);
 }
 
-.system-label {
+/* the rules beside the difficulty basis: a judgement or a score rule that is not the default */
+.mode-rules {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
   margin-left: auto;
+}
+
+.rule-chip {
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.system-label {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
@@ -3365,6 +3420,47 @@ button.chip.active b {
   font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+/* under an open panel: a line per plate (its short name, level and lamp), the panel has the room */
+.difficulty.folded {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 0;
+  padding: var(--sp-1) var(--sp-3);
+}
+
+.difficulty.folded .diff-name {
+  flex-shrink: 0;
+  font-size: var(--fs-body);
+}
+
+.diff-fold-level {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-fold-level.none {
+  color: var(--text-dim);
+}
+
+.diff-fold-level small {
+  font-size: var(--fs-body);
+  color: var(--diff);
+}
+
+.difficulty.folded .lamp-text {
+  min-width: 0;
+  margin-left: auto;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* a chart being made for the plate: a bar runs along its foot */
@@ -3531,6 +3627,110 @@ button.option-chips[aria-expanded='true'] .chip {
   font-size: var(--fs-title);
 }
 
+/* a tall window (900 px and up) has room under the play buttons: the chart and the best play,
+   as much of them as the room the song, the plates and the buttons leave holds */
+.summary-room {
+  display: none;
+}
+
+@media (min-height: 900px) {
+  .summary-room {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    container: summary / size;
+  }
+}
+
+.chart-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-height: 100%;
+  padding: var(--sp-4);
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* short of room the graph goes first, then the record (before there is a chart, the line about
+   making one), then the whole summary */
+@container summary (max-height: 235px) {
+  .chart-summary .nps-graph {
+    display: none;
+  }
+}
+
+@container summary (max-height: 159px) {
+  .chart-summary > dl:not(.summary-record) ~ .summary-record,
+  .chart-summary > .hint {
+    display: none;
+  }
+  .chart-summary > .hint + .summary-record {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+@container summary (max-height: 85px) {
+  .chart-summary {
+    display: none;
+  }
+}
+
+.chart-summary > .hint {
+  margin: 0;
+}
+
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-8);
+  margin: 0;
+}
+
+.summary-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-stats dt {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.summary-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-stats dd.none {
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+}
+
+.summary-record {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+
+/* (alone, for a song that is not analysed) */
+.summary-record:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.chart-summary .nps-graph {
+  height: 64px;
+  margin: 0;
+}
+
 .select-status {
   min-height: 24px;
   margin: 0;
@@ -3568,15 +3768,22 @@ button.option-chips[aria-expanded='true'] .chip {
   display: flex;
   align-items: center;
   gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--line);
 }
 
 .select-panel-head h2 {
+  flex-shrink: 0;
   margin: 0;
   font-size: var(--fs-title);
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* the tabs and the close button keep their size: only the song's name gives way */
+.select-panel-head .segmented,
+.select-panel-head > button {
+  flex-shrink: 0;
 }
 
 .select-panel-head .segmented button {
@@ -3610,9 +3817,37 @@ button.option-chips[aria-expanded='true'] .chip {
   padding: var(--sp-4);
 }
 
-.select-panel-body .options-grid:first-child,
+/* the song info opens with the focus in its body, on no control: nothing to outline */
+.select-panel-body:focus,
+:root[data-input] .select-panel-body:focus {
+  outline: none;
+}
+
+/* option rows sit close to the panel's edges, so a tab's rows fit a 720 px window */
+.select-panel-body:has(> .panel-rows) {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* the generation options start the body: no rule above them */
 .select-panel-body > .options-grid {
-  margin: var(--sp-3) 0;
+  margin: 0 0 var(--sp-3);
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* the focused row's help (or the tab's line), one line */
+.select-panel-help {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px var(--sp-4);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid var(--line);
 }
 
 /* the play options' speed and gear rows, beside the moving gear */
@@ -3624,29 +3859,58 @@ button.option-chips[aria-expanded='true'] .chip {
 
 /* compact, so the rows and the gear fit the panel without scrolling on a 720 px window */
 .select-panel-body:has(.gear-options) {
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
 }
 
-.gear-rows {
+/* the panels' option rows: compact, so a tab fits a 720 px window (and no wider than reads well) */
+.panel-rows {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-width: var(--measure);
+  /* room for the focused row's outline */
+  padding: 2px;
 }
 
-.gear-rows .opt {
-  min-height: 30px;
+.panel-rows + .panel-rows {
+  margin-top: var(--sp-3);
+}
+
+/* the practice's own rows follow its switch */
+.panel-rows + .practice-rows {
+  margin-top: 0;
+}
+
+.panel-rows .opt {
+  min-height: 28px;
   padding: 0 var(--sp-3);
   background: var(--raised);
 }
 
-.gear-rows .opt-step {
+.panel-rows .opt-step {
   min-width: 28px;
   min-height: 26px;
+  line-height: 1;
 }
 
-.gear-rows .opt-value b {
-  min-width: 88px;
+.panel-rows .opt-value b {
+  min-width: 132px;
   font-size: var(--fs-body);
+}
+
+/* a row that only shows a value (the practice segment, picked on the minimap) */
+.panel-rows .opt-static {
+  background: transparent;
+}
+
+.panel-rows .opt-static .opt-value b {
+  padding-right: 28px;
+  text-align: right;
+}
+
+/* the practice segment's minimap under its rows */
+.panel-rows + .chart-minimap {
+  margin-top: var(--sp-2);
 }
 
 .gear-options .gear-preview {
@@ -3922,8 +4186,10 @@ button.option-chips[aria-expanded='true'] .chip {
   .song-list {
     max-height: 40vh;
   }
-  .detail-top {
+  /* the screen scrolls: the summary takes its own height */
+  .summary-room {
     flex: none;
+    container-type: normal;
   }
   .hero {
     grid-template-columns: 120px minmax(0, 1fr);

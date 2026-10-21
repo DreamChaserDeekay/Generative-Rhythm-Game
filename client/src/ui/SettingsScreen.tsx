@@ -1,19 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, type BackendStatus } from '../api/client';
-import {
-  cameraConfig,
-  difficultySystemIds,
-  difficultySystems,
-  enabledKeyModes,
-  gaugeRules,
-  gaugeTypeIds,
-  judgementConfig,
-  keyModes,
-  type JudgementModeId,
-} from '../engine/config';
-import type { FeverMode } from '../engine/fever';
-import { placementIds, placementLabels } from '../engine/placement';
-import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
+import { cameraConfig, difficultySystemIds, difficultySystems, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
@@ -48,7 +35,6 @@ import {
   withPlayKey,
   type HitEffectSize,
   type JudgePosition,
-  type Pacemaker,
   type ScrollMode,
   type Settings,
 } from '../settings/settings';
@@ -56,8 +42,7 @@ import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
 import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
-import { pacemakerChoices } from './playRules';
-import { FEVER_LABELS, feverLabel, PACEMAKER_LABELS } from './PlayOptions';
+import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar } from './shell';
 
 interface Props {
@@ -184,51 +169,9 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
                 : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel}). 기록도 기준마다 따로 남습니다.`
             }
           />
-          <Choice
-            {...row}
-            label="판정 표기"
-            testId="opt-ruleset"
-            value={settings.ruleset}
-            options={rulesetIds.map((id) => [id, rulesetConfigs[id].label])}
-            onChange={(id) => set('ruleset', id)}
-            help={`${rulesetConfigs[settings.ruleset].reference}식으로 판정을 묶고 점수를 셉니다.`}
-          />
-          <Choice
-            {...row}
-            label="게이지"
-            testId="opt-gauge"
-            value={settings.gaugeType}
-            options={gaugeTypeIds.map((id) => [id, gaugeRules[id].label])}
-            onChange={(id) => set('gaugeType', id)}
-            help="ASSIST EASY는 60%, EASY·NORMAL은 80%를 넘겨 끝나면 클리어. HARD·EX-HARD·HAZARD는 0%가 되는 순간 실패합니다."
-          />
-          <Choice
-            {...row}
-            label="FEVER"
-            testId="opt-fever"
-            value={settings.fever}
-            options={(Object.keys(FEVER_LABELS) as FeverMode[]).map((m) => [m, feverLabel(m, settings)])}
-            onChange={(m) => set('fever', m)}
-            help={`높은 판정으로 FEVER 게이지를 채우면 점수 배율이 붙습니다 (기본 점수와 따로). 수동이면 게이지가 찼을 때 FEVER 키(${bindingLabel(playKeysOf(settings).fever)})를 눌러 켭니다 (키 설정에서 바꿉니다).`}
-          />
-          <Choice
-            {...row}
-            label="배치"
-            testId="opt-placement"
-            value={settings.placement}
-            options={placementIds.map((id) => [id, placementLabels[id]])}
-            onChange={(id) => set('placement', id)}
-            help="노트를 레인에 놓는 방식: 미러는 좌우를 뒤집고, 랜덤 계열은 레인을 섞습니다."
-          />
-          <Choice
-            {...row}
-            label="페이스메이커"
-            testId="opt-pacemaker"
-            value={settings.pacemaker}
-            options={pacemakerChoices(settings.ruleset, settings.pacemaker).map((p): [Pacemaker, string] => [p, PACEMAKER_LABELS[p]])}
-            onChange={(p) => set('pacemaker', p)}
-            help="플레이 중 점수판에 화면의 점수와 같은 단위로 목표와의 차이를 보여 줍니다(EX-SCORE는 A·AA·AAA·MAX). 내 최고 기록은 그 판의 리플레이를 노트마다 따라가고, 리플레이가 없으면 정밀 %에서만 고르게 비교하며 다른 점수 규칙에서는 —로 둡니다."
-          />
+          {(['ruleset', 'gauge', 'fever', 'placement', 'pacemaker'] as const).map((rule) => (
+            <RuleRow key={rule} {...row} rule={rule} testId={`opt-${rule}`} settings={settings} onSettingsChange={onSettingsChange} detailed />
+          ))}
           <Toggle
             {...row}
             label="창을 벗어나면 일시정지"
@@ -243,15 +186,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
     case 'judge':
       content = (
         <>
-          <Choice
-            {...row}
-            label="판정"
-            testId="opt-judgement"
-            value={settings.judgementMode}
-            options={(Object.keys(judgementConfig.modes) as JudgementModeId[]).map((m) => [m, judgementConfig.modes[m].label])}
-            onChange={(m) => set('judgementMode', m)}
-            help="HARD JUDGEMENT는 판정 범위가 절반, MAX JUDGEMENT는 4분의 1입니다."
-          />
+          <RuleRow {...row} rule="judgement" testId="opt-judgement" settings={settings} onSettingsChange={onSettingsChange} detailed />
           <NumberOption
             {...row}
             label="판정 오프셋"
@@ -1172,7 +1107,7 @@ function GamepadPanel({ settings, onSettingsChange, onHelp }: { settings: Settin
       <div className="settings-group" data-testid="pad-menu">
         <h3>메뉴 버튼 (표준 배치가 아닌 패드)</h3>
         <p className="settings-note">
-          전용 컨트롤러처럼 표준 배치가 아닌 패드는 아래 버튼으로 메뉴를 다닙니다. 지정하지 않은 칸은 레인 지정에서 정합니다(건반 1·2 결정·취소, 3·4 왼쪽·오른쪽, 턴테이블 위·아래; 레인이 없으면 버튼 0·1이 결정·취소). 턴테이블은 돌린 만큼 한 칸씩, 축으로 오는 십자키는 누르는 동안 움직입니다.
+          전용 컨트롤러처럼 표준 배치가 아닌 패드는 아래 버튼으로 메뉴를 다닙니다. 지정하지 않은 칸은 레인 지정에서 정합니다(건반 1·2 결정·취소, 3·4 왼쪽·오른쪽, 턴테이블 위·아래; 레인이 없으면 버튼 0·1이 결정·취소). 턴테이블은 돌린 만큼 한 칸씩, 축으로 오는 십자키는 누르는 동안 움직입니다. 선곡에서는 옵션 버튼이 플레이 옵션을 열고, 그 탭은 첫 줄에서 위로 올라가 왼쪽·오른쪽으로 바꿉니다.
         </p>
         <div className="play-key-grid">
           {MENU_BUTTONS.map((button) => {
@@ -1208,7 +1143,7 @@ function GamepadPanel({ settings, onSettingsChange, onHelp }: { settings: Settin
         </div>
       </div>
       <p className="settings-note">
-        표준 배치 패드는 메뉴에서 십자키·왼쪽 스틱이 방향키, A·Start가 Enter, B가 Esc, Y가 Tab, LB·RB가 설정 탭 이동으로 동작합니다.
+        표준 배치 패드는 메뉴에서 십자키·왼쪽 스틱이 방향키, A·Start가 Enter, B가 Esc, Y가 Tab, LB·RB가 설정 탭 이동으로 동작합니다. 선곡에서는 X가 플레이 옵션, LT가 곡 정보·도구, RT가 설정, LB·RB가 목록 한 화면(플레이 옵션에서는 탭)입니다.
       </p>
     </div>
   );

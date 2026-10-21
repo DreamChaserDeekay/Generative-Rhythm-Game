@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, EXPORT_LABELS, exportFormats, type ServerChart, type Song } from '../api/client';
 import { keysoundStems } from '../audio/stemKeysounds';
 import type { PatternSummary, StemName } from '../engine/types';
@@ -66,10 +66,15 @@ interface Props {
 
 /**
  * The I panel of the song select: the chart's numbers, the song's own settings (tempo, first beat,
- * background video, sections, analysis) and the tools that need no song.
+ * background video, sections, analysis) and the tools that need no song. It opens with the focus
+ * in its body, on no control (its first ones change the song: BPM ×2, 채보 편집), so Enter still
+ * plays; the first ↑ or ↓ goes to its first line, then ↑↓ go from line to line, ←→ along a line's
+ * buttons, and Enter presses the focused one.
  */
 export function SongInfoPanel(props: Props) {
   const { song, chart } = props;
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => body.current?.focus({ preventScroll: true }), []);
   return (
     <section className="select-panel" data-testid="song-info" aria-label="곡 정보·도구">
       <header className="select-panel-head">
@@ -83,7 +88,7 @@ export function SongInfoPanel(props: Props) {
           닫기 <kbd>Esc</kbd>
         </button>
       </header>
-      <div className="select-panel-body">
+      <div className="select-panel-body" ref={body} tabIndex={-1}>
         {song && chart && (
           <ChartPreview
             chart={chart}
@@ -309,12 +314,6 @@ function ChartPreview(props: {
 }) {
   const { chart } = props;
   const m = chart.meta;
-  const graph = m.nps.graph;
-  const max = Math.max(1, ...graph);
-  const w = 360;
-  const h = 70;
-  const step = graph.length > 1 ? w / (graph.length - 1) : w;
-  const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
   const holds = chart.notes.filter((n) => n.type === 'hold').length;
   const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
   return (
@@ -400,10 +399,7 @@ function ChartPreview(props: {
         <span>NPS</span>
         <span>최대 {m.nps.peak}</span>
       </div>
-      <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
-        <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
-        <polyline points={points} className="nps-line" />
-      </svg>
+      <NpsGraph graph={m.nps.graph} />
       <div className="skills">
         {SKILL_LABELS.map(([key, label]) => (
           <div className="skill" key={key}>
@@ -416,3 +412,17 @@ function ChartPreview(props: {
   );
 }
 
+/** Notes per second along the chart, as an area. */
+export function NpsGraph({ graph }: { graph: number[] }) {
+  const max = Math.max(1, ...graph);
+  const w = 360;
+  const h = 70;
+  const step = graph.length > 1 ? w / (graph.length - 1) : w;
+  const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
+  return (
+    <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
+      <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
+      <polyline points={points} className="nps-line" />
+    </svg>
+  );
+}

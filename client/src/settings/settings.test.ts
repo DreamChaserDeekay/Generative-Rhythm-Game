@@ -79,6 +79,7 @@ describe('settings', () => {
     expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
     const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: 'bpm' });
     expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: 'bpm' });
+    expect(sanitizeSettings({ songFolder: 'noFullCombo', songSort: 'recent' })).toMatchObject({ songFolder: 'noFullCombo', songSort: 'recent' });
     expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: 'y' as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
   });
 

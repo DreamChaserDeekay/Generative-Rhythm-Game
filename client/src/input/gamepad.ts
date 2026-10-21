@@ -289,10 +289,13 @@ export function padMenuKey(e: Pick<PadEvent, 'code' | 'standard'>): string | nul
 }
 
 /**
- * LB / RB as PageUp / PageDown: the settings' tabs. Only the menus' bridge sends them; on the play
- * screen PageUp / PageDown move the cover.
+ * LB / RB as PageUp / PageDown: the settings' tabs, the song select's list pages (or its play
+ * options' tabs). Only the menus' bridge sends them; on the play screen PageUp / PageDown move the cover.
  */
 export const SHOULDER_KEYS: Readonly<Record<string, string>> = { 'Pad:B4': 'PageUp', 'Pad:B5': 'PageDown' };
+
+/** On the song select also X, LT and RT: the play options (Space), the song info (I) and the settings (F10). */
+export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10' };
 
 /** What a menu key does to the focused control when no screen handles it. */
 export type MenuAction = 'press' | 'next' | 'prev' | 'increase' | 'decrease' | null;
@@ -356,6 +359,8 @@ export class GamepadMenuBridge {
   private readonly ignore: ReadonlySet<string>;
   /** Controls this bridge also turns into keys (SHOULDER_KEYS on the menus). */
   private readonly extraKeys: Readonly<Record<string, string>>;
+  /** The pad last pressed has the standard mapping (its held keys repeat as from it). */
+  private standard = true;
   private raf = 0;
 
   constructor(options: { source?: GamepadSource; ignore?: string[]; keys?: Readonly<Record<string, string>> } = {}) {
@@ -379,7 +384,7 @@ export class GamepadMenuBridge {
         if (wait > frame) this.held.set(key, wait - frame);
         else {
           this.held.set(key, CFG.menu.repeatMs);
-          dispatchKey(key, true, true);
+          dispatchKey(key, true, true, this.standard);
         }
       }
       this.raf = requestAnimationFrame(tick);
@@ -407,7 +412,8 @@ export class GamepadMenuBridge {
       this.held.delete(key);
       return;
     }
-    dispatchKey(key, e.down, false);
+    this.standard = e.standard;
+    dispatchKey(key, e.down, false, e.standard);
     if (REPEATING.has(key)) {
       if (e.down) this.held.set(key, CFG.menu.repeatDelayMs);
       else this.held.delete(key);
@@ -415,8 +421,13 @@ export class GamepadMenuBridge {
   }
 }
 
-function dispatchKey(code: string, down: boolean, repeat: boolean): void {
-  document.documentElement.dataset.input = 'pad';
+/**
+ * Sends a menu key to the focused element. The page is marked as driven by a pad ('pad': a
+ * standard one, whose buttons the key hints can name) or by a controller of its own layout
+ * ('controller': its menu buttons send the keyboard's keys, so the hints stay the keyboard's).
+ */
+function dispatchKey(code: string, down: boolean, repeat: boolean, standard: boolean): void {
+  document.documentElement.dataset.input = standard ? 'pad' : 'controller';
   const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
   const unhandled = target.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true }));
   if (!unhandled || !down) return;

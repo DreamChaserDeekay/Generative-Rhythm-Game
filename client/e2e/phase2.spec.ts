@@ -69,14 +69,14 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await expect(page.getByTestId('chart-minimap')).toBeVisible();
 
   // Practice: default eight-bar segment, 0.75x, no loop, autoplay.
-  await playOptions(page);
+  await playOptions(page, 'rules');
   await page.getByTestId('practice-toggle').check();
   await expect(page.getByTestId('practice-options')).toBeVisible();
   const rate = page.getByTestId('practice-rate');
   await rate.focus();
   for (let i = 0; i < 5; i++) await rate.press('ArrowLeft');
-  await expect(page.getByTestId('practice-options')).toContainText('0.75배');
-  await page.getByTestId('practice-options').getByRole('checkbox').uncheck();
+  await expect(rate).toContainText('×0.75');
+  await page.getByTestId('practice-loop').uncheck();
   await page.screenshot({ path: 'test-results/select-phase2.png' });
   await page.getByTestId('autoplay-toggle').check();
   await page.getByTestId('play-button').click();
@@ -94,7 +94,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await expect(page.getByTestId('autoplay-toggle')).not.toBeChecked();
   await expect(page.getByTestId('practice-toggle')).not.toBeChecked();
   await page.getByTestId('toggle-rules').click();
-  await page.getByTestId('gauge-HAZARD').click();
+  await chooseSetting(page, 'rule-gauge', 'HAZARD');
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });

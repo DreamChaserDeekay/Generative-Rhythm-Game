@@ -514,8 +514,10 @@ class Library:
                     "plays": 0,
                     "bestScoreId": r["id"],
                     "hasReplay": bool(r["has_replay"]),
+                    "lastPlayedAt": r["played_at"],
                 }
             cur["plays"] += 1
+            cur["lastPlayedAt"] = max(cur["lastPlayedAt"], r["played_at"])
             if r["score"] > cur["score"]:
                 cur.update(score=r["score"], rate=r["rate"], maxCombo=r["max_combo"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
             if lamp_rank(r["lamp"]) > lamp_rank(cur["lamp"]):

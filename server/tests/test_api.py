@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import shutil
 import subprocess
+import time
 
 import numpy as np
 import pytest
@@ -79,9 +80,13 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert client.post("/api/scores", json=score).status_code == 201
     assert client.post("/api/scores", json=dict(score, score=950000, rate=95.0, lamp="MAX COMBO")).status_code == 201
     assert client.post("/api/scores", json=dict(score, autoPlay=True)).status_code == 400
+    after_best = time.time()
+    assert client.post("/api/scores", json=dict(score, score=800000, rate=80.0, lamp="FAILED")).status_code == 201
     records = client.get(f"/api/songs/{song['id']}/scores").json()["records"]
     assert len(records) == 1
-    assert records[0]["score"] == 950000 and records[0]["lamp"] == "MAX COMBO" and records[0]["plays"] == 2
+    assert records[0]["score"] == 950000 and records[0]["lamp"] == "MAX COMBO" and records[0]["plays"] == 3
+    # the last play of the chart, not the best one (the song select's 최근 플레이순)
+    assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
 def test_bpm_correction_triggers_reanalysis(client: TestClient) -> None:

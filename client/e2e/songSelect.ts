@@ -1,6 +1,39 @@
 import { expect, type Page } from '@playwright/test';
 import type { DifficultySystemId } from '../src/engine/config';
 
+/**
+ * A library of songs that failed to analyse (the list and the controls, with nothing to play), or
+ * of `ready` ones that only the routes of a test answer for.
+ */
+export function fakeSongs(n: number, status: 'error' | 'ready' = 'error') {
+  return Array.from({ length: n }, (_, i) => ({
+    id: (0xa000 + i).toString(16).padStart(16, '0'),
+    title: `Fake Song ${String(i + 1).padStart(2, '0')}`,
+    artist: 'E2E',
+    album: '',
+    audioHash: `fake${i}`,
+    durationMs: 60_000,
+    hasCover: false,
+    status,
+    progress: status === 'ready' ? 1 : 0,
+    progressLabel: '',
+    error: status === 'error' ? 'e2e' : null,
+    bpm: null,
+    bpmMin: null,
+    bpmMax: null,
+    previewMs: null,
+    overrides: {},
+    createdAt: i,
+    analyzedAt: null,
+    analyzer: {},
+    hasBga: false,
+    bgaOffsetMs: 0,
+    bgaYoutube: null,
+    sections: null,
+    records: [] as Record<string, unknown>[],
+  }));
+}
+
 /** Opens the song select's play options (Space), on a tab when one is given. */
 export async function playOptions(page: Page, tab?: 'rules' | 'gear' | 'generation') {
   const panel = page.getByTestId('play-options');
@@ -11,7 +44,7 @@ export async function playOptions(page: Page, tab?: 'rules' | 'gear' | 'generati
 
 /** Plays the next chart on autoplay. */
 export async function autoplay(page: Page) {
-  await playOptions(page);
+  await playOptions(page, 'rules');
   await page.getByTestId('autoplay-toggle').check();
 }
 

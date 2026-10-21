@@ -29,13 +29,14 @@ export type { Palette } from '../render/palette';
 export type { HitEffectSize } from '../render/TrackRenderer';
 export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
 export type JudgePosition = 'low' | 'mid' | 'high';
-/** Song select folders (Shift steps through them): every song, the favourites, the ones not played
- * on this key mode and difficulty system, the ones played but not cleared on the selected difficulty. */
-export type SongFolder = 'all' | 'favorites' | 'unplayed' | 'uncleared';
-export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplayed', 'uncleared'];
-/** Song select order (F4 steps through them). */
-export type SongSort = 'added' | 'title' | 'artist' | 'bpm';
-export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm'];
+/** Song select folders (Shift or F6 steps through them): every song, the favourites, the ones not
+ * played on this key mode and difficulty system, the ones played but not cleared on a difficulty,
+ * the ones cleared but short of MAX COMBO on a difficulty. */
+export type SongFolder = 'all' | 'favorites' | 'unplayed' | 'uncleared' | 'noFullCombo';
+export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplayed', 'uncleared', 'noFullCombo'];
+/** Song select order (F4 steps through them); level, lamp and RATE are those of the selected difficulty. */
+export type SongSort = 'added' | 'title' | 'artist' | 'bpm' | 'level' | 'lamp' | 'rate' | 'recent';
+export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm', 'level', 'lamp', 'rate', 'recent'];
 /** OFF, the personal best of the chart, a target rate in percent, or (EX-SCORE) a grade or the maximum. */
 export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100' | 'A' | 'AA' | 'AAA' | 'MAX';
 /** Opacities of the judgement and the combo (notes behind them show through). */

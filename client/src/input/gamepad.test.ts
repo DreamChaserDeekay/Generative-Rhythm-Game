@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import inputJson from '@config/input.json';
-import { GamepadPoller, isPadCode, menuAction, padCodeLabel, padMenuKey, setPadMenuKeys, type PadEvent } from './gamepad';
+import { GamepadPoller, isPadCode, menuAction, padCodeLabel, padMenuKey, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS, type PadEvent } from './gamepad';
 import { InputManager } from './InputManager';
 
 const CFG = inputJson.gamepad;
@@ -244,6 +244,12 @@ describe('menu keys of a pad', () => {
     expect(padMenuKey({ code: 'Pad:B2', standard: false })).toBe('Enter');
     expect(padMenuKey({ code: 'Pad:TT0-', standard: false })).toBe('ArrowUp');
     setPadMenuKeys({});
+  });
+
+  it('gives the song select X, LT and RT for its play options, song info and settings, and LB / RB as everywhere', () => {
+    expect(SELECT_PAD_KEYS).toMatchObject({ 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', ...SHOULDER_KEYS });
+    // nothing of the standard layout's own (A, B, Y, Start, Back, the d-pad) is taken
+    for (const code of Object.keys(SELECT_PAD_KEYS)) expect(padMenuKey({ code, standard: true })).toBe(null);
   });
 });
 

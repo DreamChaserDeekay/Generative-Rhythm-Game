@@ -23,6 +23,8 @@ export interface ScoreRecord {
   /** Score id of the best play and whether its replay was kept. */
   bestScoreId?: number;
   hasReplay?: boolean;
+  /** When the chart was last played (seconds since 1970, as createdAt). */
+  lastPlayedAt?: number;
 }
 
 /** An edited or imported chart kept in the library. */

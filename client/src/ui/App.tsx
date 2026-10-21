@@ -3,7 +3,7 @@ import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
-import { GamepadMenuBridge, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
+import { GamepadMenuBridge, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, padMenuKeysFor, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
@@ -79,14 +79,16 @@ export function App() {
   const menuKeys = useMemo(() => padMenuKeysFor({ padMenu, padBindings, lastKeyMode }), [padMenu, padBindings, lastKeyMode]);
   useEffect(() => setPadMenuKeys(menuKeys), [menuKeys]);
 
-  // a gamepad works the menus (not during play, where its controls are lanes)
+  // a gamepad works the menus (not during play, where its controls are lanes); the song select
+  // also opens its panels and the settings with X, LT and RT
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
+  const padKeys = screen.name === 'select' ? SELECT_PAD_KEYS : SHOULDER_KEYS;
   useEffect(() => {
     if (!menuPad) return;
-    const bridge = new GamepadMenuBridge({ keys: SHOULDER_KEYS });
+    const bridge = new GamepadMenuBridge({ keys: padKeys });
     bridge.start();
     return () => bridge.stop();
-  }, [menuPad]);
+  }, [menuPad, padKeys]);
 
   // The song select's preview plays on behind the settings, quieter and muffled; the other screens stop it.
   useEffect(() => {

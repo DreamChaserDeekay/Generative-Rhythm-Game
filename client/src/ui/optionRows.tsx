@@ -19,11 +19,14 @@ export interface RowProps {
   help: string;
   onHelp: (help: string) => void;
   testId?: string;
+  /** Enter is the screen's, not the row's (the song select's panels: Enter plays). */
+  passEnter?: boolean;
 }
 
 /**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
- * change it, Shift by a bigger step; Enter moves a choice on or flips a switch.
+ * change it, Shift by a bigger step; Enter moves a choice on or flips a switch, and a click on a
+ * switch flips it.
  */
 export function OptionRow(
   props: RowProps & {
@@ -39,7 +42,7 @@ export function OptionRow(
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
       e.preventDefault();
       props.onStep(e.code === 'ArrowLeft' ? -1 : 1, e.shiftKey);
-    } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    } else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !props.passEnter) {
       e.preventDefault();
       if (!e.repeat) props.onPress?.();
     }
@@ -63,6 +66,10 @@ export function OptionRow(
       data-testid={props.testId}
       data-value={props.value}
       onKeyDown={onKeyDown}
+      onClick={(e) => {
+        // a switch flips under the pointer anywhere but on its arrows (they flip it themselves)
+        if (props.checked !== undefined && !(e.target as HTMLElement).closest('.opt-step')) props.onPress?.();
+      }}
       onFocus={() => props.onHelp(props.help)}
     >
       <span className="opt-name">{props.label}</span>
@@ -97,6 +104,33 @@ export function NumberOption(
     if (clamped !== props.value) props.onChange(clamped);
   };
   return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} />;
+}
+
+export interface OptionalRange {
+  min: number;
+  max: number;
+  step: number;
+  bigStep: number;
+  /** Where leaving 자동 starts. */
+  auto: number;
+}
+
+/**
+ * One step of a number that may be 자동 (null): leaving 자동 goes to `auto`, a step past either
+ * end goes back to 자동 (a big step stops at the end first).
+ */
+export function optionalStep(value: number | null, dir: 1 | -1, big: boolean, r: OptionalRange): number | null {
+  if (value === null) return r.auto;
+  const end = dir > 0 ? r.max : r.min;
+  const next = Math.round((value + dir * (big ? r.bigStep : r.step)) * 1e6) / 1e6;
+  if (next >= r.min && next <= r.max) return next;
+  return big && value !== end ? end : null;
+}
+
+/** A number, or 자동 (null: the generator or the difficulty decides). */
+export function OptionalNumberOption(props: RowProps & OptionalRange & { value: number | null; format: (v: number) => string; onChange: (v: number | null) => void }) {
+  const step = (dir: 1 | -1, big: boolean) => props.onChange(optionalStep(props.value, dir, big, props));
+  return <OptionRow {...props} text={props.value === null ? '자동' : props.format(props.value)} value={props.value === null ? 'auto' : String(props.value)} onStep={step} />;
 }
 
 /** On or off; ←, → and Enter all flip it. */
