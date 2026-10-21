@@ -78,6 +78,18 @@ export interface PlayOutcome {
   loop?: number;
   /** The inputs of this play (null for autoplay, practice, replays and the sync test). */
   replay: ReplayData | null;
+  /**
+   * The judgement offsets the play ran on (ms), the player's and the song's own, as they were at
+   * its end (a replay's as it kept them; null: one kept before they were), and each change of the
+   * song's own in play (− / =): after how many of the result's hits, by how much (song ms).
+   */
+  offsets: { input: number; song: number; shifts: OffsetShift[] } | null;
+}
+
+/** A change of the song's offset in play: the hits judged before it were judged on the old one. */
+export interface OffsetShift {
+  hits: number;
+  ms: number;
 }
 
 export interface PlayCallbacks {
@@ -179,6 +191,8 @@ export class PlayController {
   private recorder: ReplayRecorder | null = null;
   /** Feeds a recorded play back (watching a replay). */
   private replayer: ReplayPlayer | null = null;
+  /** The song offset's changes in this run (see PlayOutcome.offsets). */
+  private offsetShifts: OffsetShift[] = [];
   /** Gamepad / controller lanes, polled apart from the frames. */
   private pad: GamepadPoller | null = null;
   private readonly placementSeed: number;
@@ -434,6 +448,7 @@ export class PlayController {
     const recording = !request.autoPlay && !request.replay && !this.practice;
     this.recorder = recording ? new ReplayRecorder(this.session) : null;
     this.replayer = request.replay ? new ReplayPlayer(request.replay.log) : null;
+    this.offsetShifts = [];
     const keyMode = this.chart.meta.keyMode;
     this.input = new InputManager(
       this.engine,
@@ -758,7 +773,7 @@ export class PlayController {
       // the loop's accuracy and timing for a moment as the next one starts, and kept for leaving
       const result = this.session.result();
       this.loops++;
-      this.lastLoop = { result, chart: this.chart, placement: this.placement, practice: this.practice, loop: this.loops, replay: null };
+      this.lastLoop = { result, chart: this.chart, placement: this.placement, practice: this.practice, loop: this.loops, replay: null, offsets: this.playOffsets() };
       this.restart();
       this.hud.showToast(`LOOP ${this.loops} · RATE ${(Math.floor(result.rate * 100) / 100).toFixed(2)}% · FAST ${result.fast} · SLOW ${result.slow}`, perfNow);
       return;
@@ -775,11 +790,22 @@ export class PlayController {
     else this.hud.showBanner(lamp, LAMP_CLASS[lamp]);
   }
 
+  /** The judgement offsets of this play as they are now (a replay's as it kept them). */
+  private playOffsets(): PlayOutcome['offsets'] {
+    const replay = this.setup.request.replay;
+    if (replay) {
+      const { inputOffsetMs, songOffsetMs } = replay.settings;
+      return inputOffsetMs === undefined ? null : { input: inputOffsetMs, song: songOffsetMs ?? 0, shifts: [] };
+    }
+    return { input: this.settings.inputOffsetMs, song: songOffsetOf(this.settings, this.songId), shifts: this.offsetShifts };
+  }
+
   private finish(): void {
     this.state = 'done';
     this.engine.stop();
     const result = this.session.result();
     const s = this.settings;
+    const offsets = this.playOffsets();
     const replay: ReplayData | null = this.recorder
       ? {
           version: REPLAY_VERSION,
@@ -794,12 +820,14 @@ export class PlayController {
             placement: s.placement,
             placementSeed: this.placementSeed,
             hiSpeed: s.hiSpeed,
+            inputOffsetMs: offsets?.input,
+            songOffsetMs: offsets?.song,
           },
           log: this.recorder.log,
           result: { score: result.score, rate: result.rate, maxCombo: result.maxCombo, lamp: result.lamp },
         }
       : null;
-    this.callbacks.onFinish({ result, chart: this.chart, placement: this.placement, practice: this.practice, replay });
+    this.callbacks.onFinish({ result, chart: this.chart, placement: this.placement, practice: this.practice, replay, offsets });
   }
 
   private readonly onSessionEvent = (e: SessionEvent): void => {
@@ -907,10 +935,13 @@ export class PlayController {
       case 'offsetUpBig': {
         // the song's own offset, kept for its next plays; the presses from now on judge by it
         if (!running || this.songId === null) return false;
-        const next = withSongOffset(s, this.songId, songOffsetOf(s, this.songId) + (STEPS[action] ?? 0));
+        const was = songOffsetOf(s, this.songId);
+        const next = withSongOffset(s, this.songId, was + (STEPS[action] ?? 0));
         const ms = songOffsetOf(next, this.songId);
         this.updateSettings(next, `곡 오프셋 ${ms > 0 ? '+' : ''}${ms}ms`);
         this.input.setInputOffset(this.inputOffset());
+        // the hits so far were judged on the old one: the result's offset fix makes up for it
+        if (ms !== was) this.offsetShifts.push({ hits: this.session.hitCount, ms: ms - was });
         return true;
       }
       case 'covers': {

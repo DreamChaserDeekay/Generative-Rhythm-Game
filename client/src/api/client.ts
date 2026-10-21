@@ -1,5 +1,5 @@
 import type { ReplayData } from '../engine/replay';
-import type { DifficultySystemId } from '../engine/config';
+import type { DifficultySystemId, JudgementModeId } from '../engine/config';
 import type { Chart, ChartSection, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
@@ -23,9 +23,12 @@ export interface ScoreRecord {
   /** The best play's base score and RATE. */
   score: number;
   rate: number;
-  /** The best of any play: MAX COMBO, and the fewest BREAK. */
+  /**
+   * The best of any play: MAX COMBO, and the fewest BREAK of the plays that reached the end (null:
+   * none did; a run its gauge stopped never judged the rest).
+   */
   maxCombo: number;
-  minBreaks?: number;
+  minBreaks?: number | null;
   lamp: string;
   /** The best EX-SCORE and grade-weighted score of the plays under those score rules (null: none). */
   exScore?: number | null;
@@ -36,7 +39,18 @@ export interface ScoreRecord {
   hasReplay?: boolean;
   /** When the chart was last played (seconds since 1970, as createdAt). */
   lastPlayedAt?: number;
+  /**
+   * The same bests of the plays under each judgement mode played (a song's own records only, not
+   * the library's list): a play is compared with those of its mode.
+   */
+  byMode?: Partial<Record<JudgementModeId, ModeRecord>>;
 }
+
+/** A chart's bests under one judgement mode, as the record's own. */
+export type ModeRecord = Pick<
+  ScoreRecord,
+  'score' | 'rate' | 'maxCombo' | 'minBreaks' | 'lamp' | 'exScore' | 'weightedScore' | 'plays' | 'bestScoreId' | 'hasReplay' | 'lastPlayedAt'
+>;
 
 /** An edited or imported chart kept in the library. */
 export interface SavedChart {

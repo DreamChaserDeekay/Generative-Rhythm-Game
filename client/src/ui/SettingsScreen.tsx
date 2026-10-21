@@ -20,6 +20,7 @@ import {
   laneKeysFor,
   MAX_COVER,
   MAX_LIFT,
+  OFFSET_MAX,
   padBindingsFor,
   padMenuFor,
   padPlayOf,
@@ -192,8 +193,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             label="판정 오프셋"
             testId="opt-input-offset"
             value={settings.inputOffsetMs}
-            min={-200}
-            max={200}
+            min={-OFFSET_MAX}
+            max={OFFSET_MAX}
             step={1}
             bigStep={5}
             format={signedMs}
@@ -205,8 +206,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             label="표시 오프셋"
             testId="opt-visual-offset"
             value={settings.visualOffsetMs}
-            min={-200}
-            max={200}
+            min={-OFFSET_MAX}
+            max={OFFSET_MAX}
             step={1}
             bigStep={5}
             format={signedMs}

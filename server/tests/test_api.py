@@ -129,6 +129,60 @@ def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     assert records[other["meta"]["chartId"]]["exScore"] is None and records[other["meta"]["chartId"]]["weightedScore"] is None
 
 
+def test_records_by_judgement_mode(client: TestClient) -> None:
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    play = {"chartId": cid, "songId": song["id"]}
+    plays = [
+        dict(play, judgementMode="NORMAL", score=950000, rate=95.0, maxCombo=180, lamp="CLEAR", breaks=4, detail={"ruleset": "RESPECT"}),
+        dict(play, judgementMode="NORMAL", score=930000, rate=93.0, maxCombo=200, lamp="HARD CLEAR", breaks=2, detail={"ruleset": "EXSCORE", "exScore": 300}),
+        dict(play, judgementMode="HARD", score=800000, rate=80.0, maxCombo=90, lamp="CLEAR", breaks=7, detail={"ruleset": "EXSCORE", "exScore": 250}),
+        dict(play, judgementMode="HARD", score=820000, rate=82.0, maxCombo=60, lamp="FAILED", breaks=9, detail={"ruleset": "RESPECT"}),
+    ]
+    ids = [client.post("/api/scores", json=p).json()["id"] for p in plays]
+    r = client.get(f"/api/songs/{song['id']}/scores").json()["records"][0]
+    # the chart's record is the best of every play, whatever its judgement mode
+    assert (r["score"], r["lamp"], r["maxCombo"], r["minBreaks"], r["exScore"], r["plays"]) == (950000, "HARD CLEAR", 200, 2, 300, 4)
+    # and the bests of each judgement mode on their own, which a play is compared with
+    normal, hard = r["byMode"]["NORMAL"], r["byMode"]["HARD"]
+    assert set(r["byMode"]) == {"NORMAL", "HARD"}
+    assert (normal["score"], normal["rate"], normal["lamp"], normal["minBreaks"], normal["exScore"], normal["weightedScore"], normal["plays"]) == (950000, 95.0, "HARD CLEAR", 2, 300, None, 2)
+    assert (hard["score"], hard["rate"], hard["lamp"], hard["minBreaks"], hard["exScore"], hard["maxCombo"], hard["plays"]) == (820000, 82.0, "CLEAR", 7, 250, 90, 2)
+    assert (normal["bestScoreId"], hard["bestScoreId"]) == (ids[0], ids[3])
+    # a song's own records carry them (the result screen asks for these); the library's list does not
+    assert "byMode" in client.get(f"/api/songs/{song['id']}").json()["song"]["records"][0]
+    assert all("byMode" not in rec for s in client.get("/api/songs").json()["songs"] for rec in s["records"])
+
+
+def test_the_fewest_break_is_of_the_runs_that_reached_the_end(client: TestClient) -> None:
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    play = {"chartId": cid, "songId": song["id"], "score": 500000, "rate": 50.0, "maxCombo": 40}
+
+    def record() -> dict:
+        return client.get(f"/api/songs/{song['id']}/scores").json()["records"][0]
+
+    # a HAZARD run stopped by its first BREAK: the notes after it were never played, so its 1 is no fewest
+    hazard = dict(play, judgementMode="NORMAL", lamp="FAILED", breaks=1, detail={"ruleset": "RESPECT", "gauge": "HAZARD", "failedAtMs": 9100.0})
+    assert client.post("/api/scores", json=hazard).status_code == 201
+    r = record()
+    assert (r["minBreaks"], r["byMode"]["NORMAL"]["minBreaks"], r["plays"]) == (None, None, 1)
+    assert all(rec["minBreaks"] is None for s in client.get("/api/songs").json()["songs"] if s["id"] == song["id"] for rec in s["records"])
+    plays = [
+        # a clear; a NORMAL gauge that ended under its clear line (it played every note), saved
+        # without failedAtMs as plays from before it was kept
+        dict(play, judgementMode="NORMAL", lamp="CLEAR", breaks=16, detail={"ruleset": "RESPECT", "gauge": "NORMAL", "failedAtMs": None}),
+        dict(play, judgementMode="NORMAL", lamp="FAILED", breaks=12, detail={"ruleset": "RESPECT"}),
+        # HARD JUDGEMENT: an EX-HARD run that failed partway, and a clear
+        dict(play, judgementMode="HARD", lamp="FAILED", breaks=2, detail={"ruleset": "RESPECT", "gauge": "EX-HARD", "failedAtMs": 30000.0}),
+        dict(play, judgementMode="HARD", lamp="HARD CLEAR", breaks=5, detail={"ruleset": "RESPECT", "gauge": "HARD", "failedAtMs": None}),
+    ]
+    for p in plays:
+        assert client.post("/api/scores", json=p).status_code == 201
+    r = record()
+    assert (r["minBreaks"], r["byMode"]["NORMAL"]["minBreaks"], r["byMode"]["HARD"]["minBreaks"], r["plays"]) == (5, 12, 5, 5)
+
+
 def png_bytes() -> bytes:
     """A 1×1 PNG."""
     import struct

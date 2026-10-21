@@ -492,7 +492,8 @@ class Library:
         return score_id
 
     def best_scores(self, song_id: str) -> list[dict[str, Any]]:
-        return self._best_by_song(song_id).get(song_id, [])
+        """A song's records, each with its bests under every judgement mode played (byMode)."""
+        return self._best_by_song(song_id, by_mode=True).get(song_id, [])
 
     def _chart_system(self, chart_id: str) -> str:
         """The difficulty system of a chart saved before the column existed, read from its file
@@ -507,12 +508,14 @@ class Library:
             self._db.commit()
         return system
 
-    def _best_by_song(self, song_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
+    def _best_by_song(self, song_id: str | None = None, by_mode: bool = False) -> dict[str, list[dict[str, Any]]]:
         """The record of every chart played: its best play (highest base score) with its replay,
-        the best lamp and MAX COMBO, the fewest BREAK, the best EX-SCORE and grade-weighted score
-        of the plays under those score rules (None: none), plays and the last one; for a generated
-        chart the generator that made it and whether it is the default pattern of its tier (no
-        target level)."""
+        the best lamp and MAX COMBO, the fewest BREAK of the plays that reached the end (None:
+        none did), the best EX-SCORE and grade-weighted score of the plays under those score
+        rules (None: none), plays and the last one; for a generated chart the generator that
+        made it and whether it is the default pattern of its tier (no target level). With
+        by_mode, the same bests of the plays under each judgement mode too (byMode), which a play
+        is compared with (HARD and MAX JUDGEMENT score lower; the library's list leaves them out)."""
         query = (
             "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name, c.system, c.source_level, c.generator_version, g.audio_hash"
             " FROM scores s JOIN charts c ON c.id = s.chart_id JOIN songs g ON g.id = s.song_id"
@@ -538,35 +541,58 @@ class Library:
                     "sourceLevel": r["source_level"],
                     "generatorVersion": r["generator_version"] if r["kind"] == "generated" else None,
                     "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None, system),
-                    "score": r["score"],
-                    "rate": r["rate"],
-                    "maxCombo": r["max_combo"],
-                    "lamp": r["lamp"],
-                    "minBreaks": r["breaks"],
-                    "exScore": None,
-                    "weightedScore": None,
-                    "plays": 0,
-                    "bestScoreId": r["id"],
-                    "hasReplay": bool(r["has_replay"]),
-                    "lastPlayedAt": r["played_at"],
+                    **_bests_from(r),
                 }
-            cur["plays"] += 1
-            cur["lastPlayedAt"] = max(cur["lastPlayedAt"], r["played_at"])
-            cur["maxCombo"] = max(cur["maxCombo"], r["max_combo"])
-            cur["minBreaks"] = min(cur["minBreaks"], r["breaks"])
-            if r["score"] > cur["score"]:
-                cur.update(score=r["score"], rate=r["rate"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
-            if lamp_rank(r["lamp"]) > lamp_rank(cur["lamp"]):
-                cur["lamp"] = r["lamp"]
             detail = _detail(r["detail"])
-            for rule, key in (("EXSCORE", "exScore"), ("GRADE", "weightedScore")):
-                value = detail.get(key)
-                if detail.get("ruleset") == rule and isinstance(value, (int, float)):
-                    cur[key] = max(cur[key] if cur[key] is not None else 0, int(round(value)))
+            _add_play(cur, r, detail)
+            if by_mode:
+                modes = cur.setdefault("byMode", {})
+                mode = modes.get(r["judgement_mode"])
+                if mode is None:
+                    modes[r["judgement_mode"]] = mode = _bests_from(r)
+                _add_play(mode, r, detail)
         out: dict[str, list[dict[str, Any]]] = {}
         for rec in best.values():
             out.setdefault(rec["songId"], []).append(rec)
         return out
+
+
+def _bests_from(r: sqlite3.Row) -> dict[str, Any]:
+    """The bests of some plays of a chart, starting from one of them (_add_play adds each)."""
+    return {
+        "score": r["score"],
+        "rate": r["rate"],
+        "maxCombo": r["max_combo"],
+        "lamp": r["lamp"],
+        "minBreaks": None,
+        "exScore": None,
+        "weightedScore": None,
+        "plays": 0,
+        "bestScoreId": r["id"],
+        "hasReplay": bool(r["has_replay"]),
+        "lastPlayedAt": r["played_at"],
+    }
+
+
+def _add_play(bests: dict[str, Any], r: sqlite3.Row, detail: dict[str, Any]) -> None:
+    """Counts a play into some bests: the best play by base score (with its replay), the best
+    lamp and MAX COMBO, the fewest BREAK, the best EX-SCORE and weighted score under their rules.
+    A run that failed partway (a gauge that stops it) is no fewest BREAK: the notes it never
+    reached are no BREAK of its own, so it would stand under every later clear."""
+    bests["plays"] += 1
+    bests["lastPlayedAt"] = max(bests["lastPlayedAt"], r["played_at"])
+    bests["maxCombo"] = max(bests["maxCombo"], r["max_combo"])
+    if detail.get("failedAtMs") is None:
+        least = bests["minBreaks"]
+        bests["minBreaks"] = r["breaks"] if least is None else min(least, r["breaks"])
+    if r["score"] > bests["score"]:
+        bests.update(score=r["score"], rate=r["rate"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
+    if lamp_rank(r["lamp"]) > lamp_rank(bests["lamp"]):
+        bests["lamp"] = r["lamp"]
+    for rule, key in (("EXSCORE", "exScore"), ("GRADE", "weightedScore")):
+        value = detail.get(key)
+        if detail.get("ruleset") == rule and isinstance(value, (int, float)):
+            bests[key] = max(bests[key] if bests[key] is not None else 0, int(round(value)))
 
 
 def _detail(text: str | None) -> dict[str, Any]:

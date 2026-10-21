@@ -1567,7 +1567,8 @@ p.hint {
 }
 
 .result-hero .hero-art {
-  width: clamp(160px, 30vh, 300px);
+  /* small beside the outcome: the run strip under it takes the height */
+  width: clamp(112px, 22vh, 200px);
 }
 
 .result-song {
@@ -1613,53 +1614,84 @@ p.hint {
   color: inherit;
 }
 
-/* what the play did to the record: tags with a bar on their left */
-.record-slot {
-  min-height: 26px;
-  margin-top: var(--sp-4);
-}
-
-.record-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin: 0;
-}
-
-.record-tags .tag {
-  padding: 2px var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 700;
-  background: var(--raised);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 2px 0 0 var(--text);
-}
-
-.record-tags.error {
-  font-weight: 700;
-  color: var(--g-break);
-}
-
 .record-note {
   margin: var(--sp-4) 0 0;
   color: var(--text-dim);
 }
 
+/* the lamp (and its change), the grade (and the next one) beside the headline (its record tag and
+   how it stands against the best) */
 .result-outcome {
   display: grid;
   grid-template-columns: auto auto;
+  grid-template-areas:
+    'lamp lamp'
+    'change change'
+    'grade headline'
+    'next record';
   gap: 0 var(--sp-8);
   align-items: end;
 }
 
-.result-outcome .lamp {
-  grid-column: 1 / -1;
-  margin-bottom: var(--sp-3);
+.result-outcome > .lamp {
+  grid-area: lamp;
   font-family: var(--font-display);
   font-size: var(--fs-display);
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.lamp-change {
+  grid-area: change;
+  min-height: calc(var(--fs-body) * 1.5);
+  margin: 0 0 var(--sp-1);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* no record kept: the grade keeps clear of the lamp all the same */
+.result-outcome > .lamp + .result-grade {
+  margin-top: var(--sp-3);
+}
+
+.lamp-change .lamp {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.result-grade {
+  grid-area: grade;
+}
+
+.result-headline {
+  grid-area: headline;
+}
+
+.headline-value {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* a new best or a first record, beside the number it is about */
+.record-tag {
+  padding: 2px var(--sp-2);
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--raised);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+
+.next-grade {
+  grid-area: next;
+  align-self: center;
+  margin: var(--sp-1) 0 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -1681,50 +1713,56 @@ p.hint {
   white-space: nowrap;
 }
 
-.result-headline .num .num {
-  display: inline;
-}
-
 .result-headline small {
   font-size: var(--fs-title);
   color: var(--text-dim);
 }
 
-.result-delta {
-  grid-column: 1 / -1;
+.record-line {
+  grid-area: record;
+  align-self: center;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--sp-3);
-  min-height: calc(var(--fs-heading) * 1.5);
-  margin: var(--sp-2) 0 0;
-}
-
-.result-delta .label {
-  display: inline;
-}
-
-.result-delta .up,
-.result-delta .flat {
-  font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  font-weight: 700;
+  column-gap: var(--sp-3);
+  min-height: calc(var(--fs-title) * 1.5);
+  margin: var(--sp-1) 0 0;
   font-variant-numeric: tabular-nums;
 }
 
-.result-delta .up {
+.record-line .up,
+.record-line .down,
+.record-line .flat {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.record-line .up {
   color: var(--g-high);
 }
 
-.result-delta .flat,
-.result-delta .best {
+/* worse than the best: a low judgement's colour */
+.record-line .down {
+  color: var(--g-low);
+}
+
+.record-line .flat,
+.record-line .best {
   color: var(--text-dim);
 }
 
-/* the reveal: the lamp and the grade land, the headline counts, then the record shows */
-.result-grade.pending {
-  visibility: hidden;
+.record-line .best {
+  white-space: nowrap;
 }
 
+.record-line.error {
+  font-weight: 700;
+  color: var(--g-break);
+}
+
+/* the reveal: the lamp, the grade and the headline land together, then the record shows */
 .result-outcome .stamp {
   animation: result-stamp var(--motion-screen) ease-out;
 }
@@ -1736,28 +1774,13 @@ p.hint {
   }
 }
 
-/* the counting value is drawn over the final one, which keeps its width */
-.counting {
-  position: relative;
-  color: transparent;
-}
-
-.counting::after {
-  content: attr(data-count);
-  content: attr(data-count) / '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  color: var(--text);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .result-outcome .stamp {
     animation: none;
   }
 }
 
-/* judgement counts by colour, then combo, timing and gauge */
+/* judgement counts by colour, then combo, notes, timing and gauge */
 .result-numbers {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1852,6 +1875,9 @@ p.hint {
 .run-panel {
   display: flex;
   flex-direction: column;
+  /* the height the rest leaves, within reason (never less than its strip's least: the page scrolls then) */
+  flex: 1 1 auto;
+  max-height: 400px;
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1867,9 +1893,15 @@ p.hint {
   color: var(--text-dim);
 }
 
+.run-panel h2 .legend-gauge {
+  float: right;
+  color: var(--accent);
+}
+
 .run-strip {
   position: relative;
-  height: clamp(64px, 13vh, 168px);
+  flex: 1 1 auto;
+  min-height: 72px;
   background: var(--sunken);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1888,13 +1920,23 @@ p.hint {
 
 .run-strip .loss {
   fill: none;
+  stroke: currentColor;
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
-.run-strip .loss.g-mid { stroke: var(--g-mid); }
-.run-strip .loss.g-low { stroke: var(--g-low); }
-.run-strip .loss.g-break { stroke: var(--g-break); }
+.run-strip .gauge {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.run-strip .clear-line {
+  stroke: var(--text-dim);
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
 
 /* after a failed gauge: the rest was not played */
 .run-strip .after-fail {
@@ -1947,6 +1989,37 @@ p.hint {
   color: var(--text);
 }
 
+/* the outcome in a line over the details */
+.result-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-6);
+  margin: 0 0 var(--sp-3);
+  padding-bottom: var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+
+.result-summary .lamp {
+  letter-spacing: 0.06em;
+}
+
+.result-summary .label {
+  margin-right: var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+
+.result-summary small {
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+}
+
 .details-grid {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -1954,7 +2027,7 @@ p.hint {
 }
 
 .error-stats {
-  margin: var(--sp-2) 0 var(--sp-4);
+  margin: var(--sp-2) 0 var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1963,8 +2036,8 @@ p.hint {
 
 .percent-counts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 132px));
-  gap: var(--sp-1) var(--sp-6);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-1) var(--sp-4);
   font-size: var(--fs-label);
   font-weight: 700;
 }
@@ -2055,12 +2128,11 @@ p.hint {
 .histogram {
   display: block;
   width: 100%;
-  height: 120px;
+  height: 100px;
 }
 
-.histogram .bar-max { fill: var(--g-max); }
-.histogram .bar-fast { fill: var(--g-fast); }
-.histogram .bar-slow { fill: var(--g-slow); }
+.histogram .bar { fill: currentColor; }
+.histogram .window-line { stroke: color-mix(in srgb, var(--g-max) 45%, transparent); vector-effect: non-scaling-stroke; }
 .histogram .zero-line { stroke: var(--line-strong); stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .histogram .median-line { stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 
@@ -2079,10 +2151,37 @@ p.hint {
 }
 
 .offset-suggestion {
-  margin: 0 0 var(--sp-4);
-  padding: var(--sp-3) 0;
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+
+.offset-suggestion p {
+  margin: 0;
+}
+
+/* an offset to set: its button, what it becomes (or that it was), and 되돌리기 */
+.offset-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.offset-fix > button:first-child {
+  min-width: 120px;
+}
+
+/* a short note beside the top bar's actions (a replay exported) */
+.topbar-note {
+  margin-right: var(--sp-2);
+  font-weight: 700;
+  color: var(--g-high);
+  white-space: nowrap;
 }
 
 .result-actions {
@@ -2102,18 +2201,31 @@ p.hint {
   margin-left: var(--sp-2);
 }
 
+/* 4:3 and the desktop app's narrowest: the outcome stays beside the song (a small picture, its name
+   on one line), so the run strip under the counts is still on the screen */
 @media (max-width: 960px) {
+  .result-hero .hero-art {
+    width: 112px;
+  }
+
+  .result-song h1 {
+    -webkit-line-clamp: 1;
+  }
+
+  .result-numbers,
+  .details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* narrower still (a browser window): the outcome under the song */
+@media (max-width: 860px) {
   .result-hero {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
   .result-outcome {
     grid-column: 1 / -1;
-  }
-
-  .result-numbers,
-  .details-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

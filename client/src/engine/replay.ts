@@ -23,6 +23,12 @@ export interface ReplaySettings {
   placement: PlacementId;
   placementSeed: number;
   hiSpeed: number;
+  /**
+   * The judgement offsets the play ran on (ms): the player's and the song's own (the log's times
+   * have them in already). Absent from the replays kept before they were.
+   */
+  inputOffsetMs?: number;
+  songOffsetMs?: number;
 }
 
 export interface ReplayData {

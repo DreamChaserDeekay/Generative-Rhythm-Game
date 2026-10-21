@@ -1881,7 +1881,8 @@ function ChartSummary(props: { chart: ServerChart | null; ready: boolean; failed
             {best.minBreaks !== undefined && (
               <div>
                 <dt>최소 {rules.missLabel}</dt>
-                <dd>{best.minBreaks.toLocaleString('en-US')}</dd>
+                {/* none yet: every play so far failed partway */}
+                <dd>{best.minBreaks === null ? '–' : best.minBreaks.toLocaleString('en-US')}</dd>
               </div>
             )}
             <div>

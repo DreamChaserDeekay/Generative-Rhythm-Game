@@ -40,7 +40,10 @@ export interface PlayRequest {
    * (the BEST pacemaker follows it), or the replay itself (a retry right after setting it).
    */
   best?: { score: number; rate: number; scoreId?: number; hasReplay?: boolean; replay?: ReplayData } | null;
-  /** Fixed seed for the RANDOM family (tests); a new one is drawn per play otherwise. */
+  /**
+   * Fixed seed for the RANDOM family: a retry from the result on the same lane order (and tests);
+   * a new one is drawn per play otherwise.
+   */
   placementSeed?: number;
   /** Keysounds of a generated chart: loads the stems its notes play (same length as the song audio). */
   loadStems?: () => Promise<Map<StemName, AudioBuffer>>;
@@ -193,7 +196,15 @@ export function App() {
           outcome={screen.outcome}
           settings={settings}
           onSettingsChange={setSettings}
-          onRetry={() => play({ ...screen.request, replay: undefined, best: bestAfterPlay(screen.request, screen.outcome) })}
+          onRetry={(newPlacement) =>
+            play({
+              ...screen.request,
+              replay: undefined,
+              best: bestAfterPlay(screen.request, screen.outcome),
+              // the lane order just played again (as F2 in play keeps it), or a new one drawn
+              placementSeed: newPlacement ? undefined : screen.outcome.placement.seed,
+            })
+          }
           onBack={() => leavePlay(screen.request)}
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
           onRegenerate={

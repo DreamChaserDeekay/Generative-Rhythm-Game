@@ -186,6 +186,8 @@ export const KEY_BEAM_MAX = 2;
 export const TURNTABLE_STEPS_MAX = 4;
 export const TURNTABLE_RELEASE_MIN = 40;
 export const TURNTABLE_RELEASE_MAX = 300;
+/** The judgement and display offsets are set within this (ms). */
+export const OFFSET_MAX = 200;
 /** A song's own offset stays within this (ms), and so many songs keep one (or a pattern, or a chart). */
 export const SONG_OFFSET_MAX = 200;
 const SONG_OFFSETS_KEPT = 5000;

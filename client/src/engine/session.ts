@@ -266,6 +266,11 @@ export class GameSession {
     return this.judged;
   }
 
+  /** Timed hits so far (the result's hits, in the order they were judged). */
+  get hitCount(): number {
+    return this.hits.length;
+  }
+
   /** Average judgement percent so far (DJMAX "Rate"). */
   get currentRate(): number {
     return this.judged > 0 ? this.sumPercent / this.judged : 100;

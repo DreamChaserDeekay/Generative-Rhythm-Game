@@ -1,38 +1,51 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { api, EXPORT_LABELS, exportFormats, type ScoreRecord } from '../api/client';
-import { gaugeRules, judgementConfig } from '../engine/config';
+import { api, EXPORT_LABELS, exportFormats } from '../api/client';
+import { gaugeRules, judgementConfig, type GaugeRule } from '../engine/config';
 import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
 import type { SessionResult } from '../engine/session';
 import type { Chart } from '../engine/types';
-import type { Settings } from '../settings/settings';
+import { bindingsFor, secondBindingsFor, songOffsetOf, withSongOffset, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
 import { lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
-import { GaugeGraph, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
+import { GaugeGraph, gaugePoints, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
 import {
   accuracyLabel,
   densityBins,
+  errorsAtEnd,
+  headlineOf,
   judgeCells,
   LOSS_CLASSES,
   lossTimes,
+  nextGrade,
+  nextGradeText,
+  offsetFix,
+  offsetText,
   recordChange,
   sectionScores,
+  shiftIsLane,
+  signedCount,
   signedPercent,
   stripBins,
+  timingWindows,
+  type LossClass,
+  type OffsetFix,
+  type OffsetMove,
   type RecordChange,
   type SectionScore,
 } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
-import { Backdrop, bpmLabel, Disc, SongArt, useSketch } from './songArt';
+import { Backdrop, Disc, SongArt } from './songArt';
 
 interface Props {
   request: PlayRequest;
   outcome: PlayOutcome;
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
-  onRetry: () => void;
+  /** Play the chart again: on the same placement (its seed), or with a new one drawn. */
+  onRetry: (newPlacement: boolean) => void;
   onBack: () => void;
   onWatchReplay: (replay: ReplayData) => void;
   /**
@@ -43,15 +56,26 @@ interface Props {
 }
 
 /**
- * The result shows itself in order: the lamp at once, the grade at 300 ms, the headline counting
- * up from 300 ms to 1000 ms, then what the play did to the record. Any key or click shows it all.
+ * The result shows itself in two steps: the lamp, the grade and the headline land together, then
+ * (REVEAL_MS on) what the play did to the record. Any key or click shows it all at once.
  */
-const REVEAL = { grade: 300, countMs: 700, record: 1000 };
+const REVEAL_MS = 600;
+/**
+ * Until the reveal's time is up (this long at least, without the reveal: reduced motion), the keys
+ * that go on or press (Enter, Space, Esc: a pad's A and B), the keys that move the focus or the
+ * page (a pad's d-pad, Y and shoulders, a controller's lanes the menus take as arrows: the menu
+ * bridge moves the focus with one the screen leaves alone) and the play's lane keys only show it
+ * all: a key pressed out of habit as the song ends does nothing more, nor do its repeats while it
+ * is held. R, F2, F5 and F7 act at once.
+ */
+const MIN_GUARD_MS = 400;
+const GUARDED_KEYS = new Set(['Enter', 'NumpadEnter', 'Space', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
+/** The export's note stays this long. */
+const EXPORTED_NOTE_MS = 3000;
+/** The strip's lost points: lower judgements drawn longer, up from its foot (shares of its height). */
+const LOSS_TICK: Record<LossClass, number> = { 'g-high': 0.25, 'g-mid': 0.5, 'g-low': 0.75, 'g-break': 1 };
 
-/** 0: the lamp, 1: the grade and the count, 2: everything. */
-type Phase = 0 | 1 | 2;
-
-type SaveState = { change: RecordChange; before: ScoreRecord | null } | { error: string };
+type SaveState = { change: RecordChange } | { error: string };
 
 /** Elements that act on Enter themselves (a focused button keeps its own Enter). */
 function ownsEnter(target: EventTarget | null): boolean {
@@ -72,27 +96,29 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const replay = outcome.replay ?? request.replay ?? null;
   const meta = request.chart.meta;
   const song = request.song ?? null;
-  // the drawn picture carries the tempo; a cover is shown as it is
-  const sketch = useSketch(song && !song.hasCover ? song : null);
   const rules = rulesetConfigs[result.ruleset];
-  const suggestion = (() => {
-    const s = suggestOffset(result.hits);
-    return s === null ? null : Math.round(s);
-  })();
+  const windows = timingWindows(played.judgementMode, result.ruleset);
+  // fixed from the offsets the play ended on, the hits judged before a change of the song's in play
+  // made up for: applying it does not move it (a replay's is not offered)
+  const offsets = request.autoPlay || request.replay ? null : outcome.offsets;
+  const rate = practice?.rate ?? 1;
+  const fix = offsets && offsetFix(suggestOffset(errorsAtEnd(result.hits, offsets.shifts, rate)), offsets, rate, !!meta.songId);
   const [save, setSave] = useState<SaveState | null>(null);
   const [details, setDetails] = useState(false);
   const saved = useRef(false);
+  const backButton = useRef<HTMLButtonElement>(null);
   const gauge = Object.values(gaugeRules).find((g) => g.label === result.gaugeLabel) ?? gaugeRules.NORMAL;
   const startMs = practice ? practice.startMs : 0;
   const endMs = practice ? practice.endMs : Math.max(meta.durationMs ?? 0, ...chart.notes.map((n) => n.endT ?? n.t), 1);
 
   const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-  const [phase, setPhase] = useState<Phase>(reduced ? 2 : 0);
-  const settle = useCallback(() => setPhase(2), []);
+  const [settled, setSettled] = useState(reduced);
+  const settle = useCallback(() => setSettled(true), []);
+  const [guardUntil] = useState(() => performance.now() + (reduced ? MIN_GUARD_MS : Math.max(MIN_GUARD_MS, REVEAL_MS)));
   useEffect(() => {
     if (reduced) return;
-    const timers = [window.setTimeout(() => setPhase((p) => (p < 1 ? 1 : p)), REVEAL.grade), window.setTimeout(() => setPhase(2), REVEAL.record)];
-    return () => timers.forEach((t) => window.clearTimeout(t));
+    const timer = window.setTimeout(() => setSettled(true), REVEAL_MS);
+    return () => window.clearTimeout(timer);
   }, [reduced]);
 
   // Store the play once (generated charts only; autoplay, practice and the sync test are not records).
@@ -128,7 +154,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
           },
           replay: outcome.replay,
         });
-        setSave({ change: recordChange(result, before), before });
+        setSave({ change: recordChange(result, before, played.judgementMode, result.ruleset) });
       } catch (e) {
         setSave({ error: e instanceof Error ? e.message : String(e) });
       }
@@ -145,24 +171,69 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
     setRegenerating(false);
     setRegenerateError(failure);
   };
-  const saveReplay = () => replay && downloadReplay(replay, meta.title);
+  // F7 hands over the replay as a file (the server keeps every recorded play's already); a note
+  // says so for a moment (counted from the last export)
+  const [exports, setExports] = useState(0);
+  const [exported, setExported] = useState(false);
+  useEffect(() => {
+    if (exports === 0) return;
+    setExported(true);
+    const timer = window.setTimeout(() => setExported(false), EXPORTED_NOTE_MS);
+    return () => window.clearTimeout(timer);
+  }, [exports]);
+  const exportReplay = () => {
+    if (!replay) return;
+    downloadReplay(replay, meta.title);
+    setExports((n) => n + 1);
+  };
 
+  // Enter is the back button's from the start, and again after another button is used (not that
+  // button once more). The page stays where it is: on a small window the outcome at its top stays in sight.
+  const focusBack = () => backButton.current?.focus({ preventScroll: true });
+  useEffect(() => {
+    backButton.current?.focus({ preventScroll: true });
+  }, []);
+  const thenBack = (action: () => void) => () => {
+    action();
+    focusBack();
+  };
   // The details (graphs, the offset suggestion, every judgement) take the summary's place.
   const toggleDetails = () => setDetails((v) => !v);
 
-  // Enter continues to the song select, as on the commercial games' result screens; Esc too, once
-  // the details are closed. R or F2 (the in-play retry key) plays again, F5 a new pattern, F7
-  // saves the replay, Space opens the details. A held key does nothing more, a focused button
-  // takes its own Enter, and any key or click shows the whole result at once.
+  // The play's lane keys: pressed out of habit as the result shows, they only show it all.
+  const laneKeys = new Set([...bindingsFor(settings, meta.keyMode), ...secondBindingsFor(settings, meta.keyMode).filter((c): c is string => c !== null)]);
+  // with a lane on Shift a new lane order is the button's alone
+  const shiftLane = shiftIsLane(laneKeys);
+  // keys held off as the result showed (see MIN_GUARD_MS), until they are let go
+  const heldOff = useRef(new Set<string>());
+
+  // Enter continues to the song select (the editor, for its test plays), as on the commercial
+  // games' result screens; Esc too, once the details are closed. R or F2 (the in-play retry key)
+  // plays again on the same placement, Shift+R on a new one, F5 a new pattern, F7 exports the
+  // replay, Space opens the details. A held key does nothing more, a focused button takes its own
+  // Enter, and any key or click shows the whole result at once (and only that, early on: see MIN_GUARD_MS).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const early = performance.now() < guardUntil;
       settle();
+      // kept from a focused button (Enter, the pad's A) and from the menu bridge (which moves the
+      // focus with an arrow or Tab left alone, and repeats a held d-pad)
+      if (early && (GUARDED_KEYS.has(e.code) || laneKeys.has(e.code))) {
+        e.preventDefault();
+        heldOff.current.add(e.code);
+        return;
+      }
+      if (e.repeat && heldOff.current.has(e.code)) {
+        e.preventDefault();
+        return;
+      }
+      heldOff.current.delete(e.code);
       if (e.code === 'F5' || e.code === 'F7') {
         // F5 would reload the page
         e.preventDefault();
         if (e.repeat) return;
         if (e.code === 'F5') void regenerate();
-        else saveReplay();
+        else exportReplay();
         return;
       }
       if (e.repeat) {
@@ -171,7 +242,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       }
       if (e.code === 'KeyR' || e.code === 'F2') {
         e.preventDefault();
-        onRetry();
+        onRetry(e.code === 'KeyR' && e.shiftKey && !shiftLane);
       } else if (e.code === 'Space') {
         // a focused button is not pressed by it: Space is the details' key here
         e.preventDefault();
@@ -186,6 +257,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      heldOff.current.delete(e.code);
       if (e.code === 'Space') e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
@@ -205,38 +277,52 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const mode = request.replay ? 'REPLAY' : practice ? `연습${practice.rate !== 1 ? ` ×${practice.rate.toFixed(2)}` : ''}` : request.autoPlay ? 'AUTO' : null;
   // DJMAX's "정밀 %" leads with the rate; the other rulesets lead with their own score
   const rateFirst = rules.scoring === 'rate';
-  const headline = rateFirst ? (
-    <CountUp value={result.rate} format={rateText} phase={phase} testId="result-rate" />
-  ) : (
-    <span className="num" data-testid="result-score">
-      <CountUp value={rules.scoring === 'exscore' ? result.exScore : result.weightedScore} format={scoreText} phase={phase} />
-      {rules.scoring === 'exscore' && <small> / {result.exMax.toLocaleString('en-US')}</small>}
-    </span>
-  );
-  const recorded = save && 'change' in save ? save : null;
+  const headlineLabel = rateFirst ? 'RATE' : rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE';
+  const headlineValue = rateFirst ? rateText(result.rate) : scoreText(headlineOf(rules.scoring, result));
+  const next = nextGrade(result);
+  // what the judgements and MAX COMBO count past the notes: a long note's end, its ticks
+  const holdEnds = result.judgeable - chart.notes.length;
+  const ticks = result.maxPossibleCombo - result.judgeable;
+  const notesExtra = [holdEnds > 0 ? `+ 롱노트 끝 ${holdEnds.toLocaleString('en-US')}` : '', ticks > 0 ? `틱 +${ticks.toLocaleString('en-US')}` : '']
+    .filter((s) => s !== '')
+    .join(' · ');
+  const recorded = save && 'change' in save && settled ? save.change : null;
+  const modeLabel = judgementConfig.modes[played.judgementMode].label;
+  const recordTag = recorded && (recorded.newBest ? '최고 기록 갱신' : firstTag(recorded.first, played.judgementMode, rules.label));
+  // RANDOM and its kin: R plays the same lane order again, Shift+R draws a new one. A retry plays
+  // on the settings' placement (a replay was played on its recording's).
+  const randomPlacement = settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
+  const backLabel = request.fromEditor ? '에디터로' : '선곡으로';
 
-  const hints: KeyHint[] = [
-    { keys: ['Enter'], label: '계속' },
-    { keys: ['R'], label: '다시 하기' },
-  ];
+  const hints: KeyHint[] = randomPlacement
+    ? [{ keys: ['R'], label: '같은 배치로 다시' }, ...(shiftLane ? [] : [{ keys: ['Shift', 'R'], label: '새 배치로 다시' }])]
+    : [{ keys: ['R'], label: '다시 하기' }];
   if (onRegenerate) hints.push({ keys: ['F5'], label: '새 패턴' });
-  hints.push({ keys: ['Space'], label: details ? '상세 닫기' : '그래프·오프셋', onClick: toggleDetails, testId: 'hint-details' });
+  hints.push({ keys: ['Space'], label: details ? '상세 닫기' : '상세', onClick: thenBack(toggleDetails), testId: 'hint-details' });
+  if (replay) hints.push({ keys: ['F7'], label: '리플레이 파일로 내보내기', onClick: thenBack(exportReplay), testId: 'hint-export-replay', minor: true });
+  // Esc goes back as Enter does: named once, as the details' close while they are open
+  const endHints: KeyHint[] = [{ keys: ['Enter'], pad: ['A'], label: backLabel, testId: 'hint-back' }];
+  if (details) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '상세 닫기' });
 
   return (
-    <div className="result-screen screen-enter" data-testid="result-screen" data-settled={phase === 2}>
+    <div className="result-screen screen-enter" data-testid="result-screen" data-settled={settled}>
       {song && <Backdrop song={song} />}
       <TopBar name="결과">
+        {exported && (
+          <span className="topbar-note" role="status" data-testid="replay-exported">
+            리플레이를 파일로 내보냈습니다
+          </span>
+        )}
         {replay && (
-          <button className="quiet small" data-testid="download-replay" onClick={saveReplay}>
-            리플레이 저장 <kbd>F7</kbd>
+          <button className="quiet small" data-testid="download-replay" onClick={thenBack(exportReplay)}>
+            리플레이 파일로 내보내기 <kbd>F7</kbd>
           </button>
         )}
       </TopBar>
       <div className="screen-body">
         <section className="result-hero" hidden={details}>
           <div className="hero-art">
-            {song ? <SongArt song={song} size={280} /> : <Disc size={280} />}
-            {song && sketch && <span className="hero-art-bpm">{bpmLabel(song)}</span>}
+            {song ? <SongArt song={song} size={200} /> : <Disc size={200} />}
           </div>
           <div className="result-song">
             <h1 title={meta.title}>{meta.title}</h1>
@@ -247,10 +333,10 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                 {chip.level && <b>{chip.level}</b>}
               </span>
               <span className="chip">{meta.keyMode}</span>
-              {played.judgementMode !== 'NORMAL' && <span className="chip">{judgementConfig.modes[played.judgementMode].label}</span>}
+              {played.judgementMode !== 'NORMAL' && <span className="chip">{modeLabel}</span>}
               <span className="chip">{rules.label}</span>
               {played.placement !== 'OFF' && (
-                <span className="chip">
+                <span className="chip" data-testid="result-placement" data-seed={placement.seed}>
                   {placement.label}
                   {placement.laneOrder ? ` ${placement.laneOrder}` : ''}
                 </span>
@@ -262,14 +348,23 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                 연습 모드{outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
               </p>
             )}
-            {/* the record's place is kept from the start, so nothing moves when it shows */}
-            {recording && <div className="record-slot">{save && phase === 2 && <RecordTags save={save} />}</div>}
           </div>
           <div className="result-outcome">
-            <span className={`lamp ${aided ? 'aided' : lampClass(result.lamp)} ${phase === 2 ? '' : 'stamp'}`} data-testid="result-lamp" data-lamp={result.lamp}>
+            <span className={`lamp ${aided ? 'aided' : lampClass(result.lamp)} ${settled ? '' : 'stamp'}`} data-testid="result-lamp" data-lamp={result.lamp}>
               {aided ?? result.lamp}
             </span>
-            <div className={`result-grade ${phase === 0 ? 'pending' : phase === 1 ? 'stamp' : ''}`}>
+            {/* the record's lines keep their place from the start, so nothing moves when they show */}
+            {recording && (
+              <p className="lamp-change" data-testid="lamp-change">
+                {recorded?.lampUp && (
+                  <>
+                    램프 갱신 <span className={`lamp ${lampClass(recorded.lampUp[0])}`}>{recorded.lampUp[0]}</span> →{' '}
+                    <span className={`lamp ${lampClass(recorded.lampUp[1])}`}>{recorded.lampUp[1]}</span>
+                  </>
+                )}
+              </p>
+            )}
+            <div className={`result-grade ${settled ? '' : 'stamp'}`}>
               {rules.scoring === 'exscore' ? (
                 <span className="label">랭크 · BMS 기준</span>
               ) : (
@@ -279,22 +374,27 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               )}
               <b data-testid="result-grade">{result.grade}</b>
             </div>
-            <div className="result-headline">
-              <span className="label">{rateFirst ? 'RATE' : rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE'}</span>
-              {headline}
-            </div>
-            {recording && (
-              <p className="result-delta">
-                {recorded?.before && recorded.change.rateDelta !== null && phase === 2 && (
-                  <>
-                    {!rateFirst && <span className="label">RATE</span>}
-                    <span className={recorded.change.rateDelta > 0 ? 'up' : 'flat'}>{signedPercent(recorded.change.rateDelta)}</span>
-                    <span className="best">
-                      이전 최고 {recorded.before.rate.toFixed(2)}% · {recorded.before.lamp}
-                    </span>
-                  </>
+            <div className={`result-headline ${settled ? '' : 'stamp'}`}>
+              <span className="label">{headlineLabel}</span>
+              <span className="headline-value">
+                <span className="num" data-testid={rateFirst ? 'result-rate' : 'result-score'}>
+                  {headlineValue}
+                  {rules.scoring === 'exscore' && <small> / {result.exMax.toLocaleString('en-US')}</small>}
+                </span>
+                {recordTag && (
+                  <span className="record-tag" data-testid="record-tag">
+                    {recordTag}
+                  </span>
                 )}
+              </span>
+            </div>
+            {next && (
+              <p className="next-grade" data-testid="next-grade">
+                {nextGradeText(next, rules.scoring)}
               </p>
+            )}
+            {recording && (
+              <RecordLine save={settled ? save : null} scoring={rules.scoring} missLabel={rules.missLabel} modeLabel={played.judgementMode !== 'NORMAL' ? played.judgementMode : null} />
             )}
           </div>
         </section>
@@ -335,6 +435,14 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                   {result.maxCombo.toLocaleString('en-US')} <small>/ {result.maxPossibleCombo.toLocaleString('en-US')}</small>
                 </dd>
               </div>
+              {/* the notes as the song select counts them; the judgements add the long notes' ends, the combo their ticks too */}
+              <div>
+                <dt>NOTES</dt>
+                <dd data-testid="result-notes">
+                  {chart.notes.length.toLocaleString('en-US')}
+                  {notesExtra && <small> {notesExtra}</small>}
+                </dd>
+              </div>
             </dl>
             <dl>
               <div>
@@ -366,6 +474,25 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
 
         {details ? (
           <section className="result-details" data-testid="result-details-panel">
+            {/* what the summary showed, in a line: the details hide it */}
+            <p className="result-summary" data-testid="result-summary">
+              <span className={`lamp ${aided ? 'aided' : lampClass(result.lamp)}`}>{aided ?? result.lamp}</span>
+              <span>
+                <span className="label">{rules.scoring === 'exscore' ? '랭크' : '등급'}</span> {result.grade}
+              </span>
+              <span>
+                <span className="label">{headlineLabel}</span> {headlineValue}
+                {rules.scoring === 'exscore' && <small> / {result.exMax.toLocaleString('en-US')}</small>}
+              </span>
+              {!rateFirst && (
+                <span>
+                  <span className="label">RATE</span> {rateText(result.rate)}
+                </span>
+              )}
+              <span>
+                <span className="label">{rules.missLabel}</span> {result.breaks.toLocaleString('en-US')}
+              </span>
+            </p>
             <div className="details-grid">
               <div>
                 <h2>
@@ -380,7 +507,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                   failedAtMs={result.failedAtMs}
                 />
                 <h2>밀도 · BREAK · 타이밍</h2>
-                <TimelineGraph chart={chart} hits={result.hits} breakTimes={result.breakTimes} windowMs={180} startMs={startMs} endMs={endMs} />
+                <TimelineGraph chart={chart} hits={result.hits} breakTimes={result.breakTimes} windows={windows} startMs={startMs} endMs={endMs} />
                 {(replay || meta.songId) && (
                   <div className="details-actions">
                     {replay && (
@@ -402,20 +529,27 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                 )}
               </div>
               <div>
-                <h2>타이밍 분포</h2>
-                <TimingHistogram hits={result.hits} median={result.medianErrorMs} />
+                <h2>
+                  타이밍 분포 <span>{`${windows.topLabel} ±${windows.topMs.toFixed(1)}ms`}</span>
+                </h2>
+                <TimingHistogram hits={result.hits} median={result.medianErrorMs} windows={windows} />
                 <p className="error-stats">
                   평균 {signedMs(result.meanErrorMs)} · 중앙값 {signedMs(result.medianErrorMs)}
                   {result.stdErrorMs !== null ? ` · σ ${result.stdErrorMs.toFixed(1)}ms` : ''}
+                  {request.replay && outcome.offsets && ` · 녹화 때 판정 오프셋 ${offsetText(outcome.offsets.input)}`}
+                  {request.replay && outcome.offsets && outcome.offsets.song !== 0 && ` · 곡 오프셋 ${offsetText(outcome.offsets.song)}`}
                 </p>
-                {suggestion !== null && !request.autoPlay && Math.abs(suggestion) >= 3 && (
-                  <div className="row offset-suggestion" data-testid="offset-suggestion">
-                    <span>
-                      절사 평균으로 {Math.abs(suggestion)}ms {suggestion > 0 ? '늦게' : '빨리'} 쳤습니다. 판정 오프셋을{' '}
-                      {settings.inputOffsetMs + suggestion}ms로 바꾸면 보정됩니다.
-                    </span>
-                    <button onClick={() => onSettingsChange({ ...settings, inputOffsetMs: settings.inputOffsetMs + suggestion })}>적용</button>
-                  </div>
+                {fix && (
+                  <OffsetSuggestion
+                    fix={fix}
+                    shifted={(offsets?.shifts.length ?? 0) > 0}
+                    settings={settings}
+                    songId={meta.songId ?? null}
+                    onSettingsChange={(next) => {
+                      onSettingsChange(next);
+                      focusBack();
+                    }}
+                  />
                 )}
                 <h2>DJMAX % 판정</h2>
                 <div className="percent-counts">
@@ -434,16 +568,28 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             </div>
           </section>
         ) : (
-          <RunPanel chart={chart} result={result} startMs={startMs} endMs={endMs} />
+          <RunPanel chart={chart} result={result} gauge={gauge} startMs={startMs} endMs={endMs} />
         )}
 
         <div className="result-actions">
-          <button className="primary" data-testid="result-back" onClick={onBack} autoFocus>
-            계속 <kbd>Enter</kbd>
+          <button ref={backButton} className="primary" data-testid="result-back" onClick={onBack}>
+            {backLabel} <kbd>Enter</kbd>
           </button>
-          <button data-testid="result-retry" onClick={onRetry}>
-            다시 하기 <kbd>R</kbd>
+          <button data-testid="result-retry" onClick={() => onRetry(false)}>
+            {randomPlacement ? '같은 배치로 다시' : '다시 하기'} <kbd>R</kbd>
           </button>
+          {randomPlacement && (
+            <button data-testid="result-retry-new" onClick={() => onRetry(true)}>
+              새 배치로 다시
+              {!shiftLane && (
+                <>
+                  {' '}
+                  <kbd>Shift</kbd>
+                  <kbd>R</kbd>
+                </>
+              )}
+            </button>
+          )}
           {onRegenerate && (
             <button data-testid="result-regenerate" disabled={regenerating} onClick={() => void regenerate()}>
               {regenerating ? (
@@ -455,7 +601,12 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               )}
             </button>
           )}
-          <button className={details ? 'active' : ''} data-testid="result-details" aria-expanded={details} onClick={toggleDetails}>
+          <button
+            className={details ? 'active' : ''}
+            data-testid="result-details"
+            aria-expanded={details}
+            onClick={thenBack(toggleDetails)}
+          >
             상세 <kbd>Space</kbd>
           </button>
           {regenerateError && (
@@ -465,56 +616,116 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
           )}
         </div>
       </div>
-      <HintBar hints={hints} end={[{ keys: ['Esc'], label: details ? '닫기' : '선곡으로' }]} />
+      <HintBar hints={hints} end={endHints} />
     </div>
   );
 }
 
-/**
- * A number counting up from zero while the result reveals itself. The final value stays in the
- * text (what tests and screen readers read); the counting one is drawn over it.
- */
-function CountUp({ value, format, phase, testId }: { value: number; format: (v: number) => string; phase: Phase; testId?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || phase !== 1) return;
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / REVEAL.countMs);
-      el.dataset.count = format(value * (1 - (1 - t) ** 3));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [phase, value, format]);
-  return (
-    <span ref={ref} className={`num ${phase < 2 ? 'counting' : ''}`} data-count={format(0)} data-testid={testId}>
-      {format(value)}
-    </span>
-  );
+/** The tag beside the headline for a first record: of the chart, of its judgement mode, of its score rule. */
+function firstTag(first: RecordChange['first'], mode: string, ruleLabel: string): string | null {
+  if (first === 'chart') return '첫 기록';
+  if (first === 'mode') return `${mode} 판정 첫 기록`;
+  return first === 'rule' ? `${ruleLabel} 첫 기록` : null;
 }
 
-/** What the play did to the chart's record, in tags (or why it was not kept). */
-function RecordTags({ save }: { save: SaveState }) {
+/**
+ * Under the headline once the play is stored: how far it is from the best of its judgement mode
+ * (the headline and the BREAKs, worse in a low judgement's colour) and that best; or that it was
+ * stored, or why not. The line keeps its place until then.
+ */
+function RecordLine({ save, scoring, missLabel, modeLabel }: { save: SaveState | null; scoring: 'rate' | 'weighted' | 'exscore'; missLabel: string; modeLabel: string | null }) {
+  if (!save) return <p className="record-line" />;
   if ('error' in save) {
     return (
-      <p className="record-tags error" data-testid="save-state">
+      <p className="record-line error" data-testid="save-state">
         기록을 저장하지 못했습니다: {save.error}
       </p>
     );
   }
-  const { first, newBest, lampUp } = save.change;
-  const tags = [first && '첫 기록', newBest && '최고 기록 갱신', lampUp && `램프 갱신 · ${lampUp[0]} → ${lampUp[1]}`].filter((t): t is string => !!t);
+  const { delta, breaksDelta, before } = save.change;
+  if (delta === null || !before || before.headline === null) {
+    return (
+      <p className="record-line" data-testid="save-state">
+        <span className="best">기록 저장됨</span>
+      </p>
+    );
+  }
+  // fewer BREAKs are better
+  const trend = (v: number, better: number) => (v === 0 ? 'flat' : v * better > 0 ? 'up' : 'down');
   return (
-    <p className="record-tags" data-testid="save-state">
-      {(tags.length > 0 ? tags : ['기록 저장됨']).map((t) => (
-        <span key={t} className="tag">
-          {t}
+    <p className="record-line" data-testid="save-state">
+      <span className={trend(delta, 1)} data-testid="record-delta">
+        {scoring === 'rate' ? signedPercent(delta) : signedCount(delta)}
+      </span>
+      {breaksDelta !== null && (
+        <span className={trend(breaksDelta, -1)} data-testid="record-breaks-delta">
+          {missLabel} {signedCount(breaksDelta)}
         </span>
-      ))}
+      )}
+      <span className="best" data-testid="record-best">
+        {modeLabel ? `${modeLabel} 판정 ` : ''}이전 최고 {scoring === 'rate' ? rateText(before.headline) : scoreText(before.headline)}
+      </span>
     </p>
+  );
+}
+
+/**
+ * The offset suggestion: the play's trimmed mean error, and the player's offset (전체에 적용) or
+ * the song's own (이 곡에만 적용) set to make up for it. Applied, its line says so with 되돌리기
+ * and both buttons are off: the suggestion was worked out from the offsets the play ran on (and
+ * says so when the song's own was changed in play: the hits before were judged on the old one).
+ */
+function OffsetSuggestion({
+  fix,
+  shifted,
+  settings,
+  songId,
+  onSettingsChange,
+}: {
+  fix: OffsetFix;
+  shifted: boolean;
+  settings: Settings;
+  songId: string | null;
+  onSettingsChange: (s: Settings) => void;
+}) {
+  const inputApplied = fix.input !== null && settings.inputOffsetMs === fix.input.to;
+  const songApplied = fix.song !== null && songOffsetOf(settings, songId) === fix.song.to;
+  const setInput = (ms: number) => onSettingsChange({ ...settings, inputOffsetMs: ms });
+  const setSong = (ms: number) => songId && onSettingsChange(withSongOffset(settings, songId, ms));
+  return (
+    <div className="offset-suggestion" data-testid="offset-suggestion" data-error-ms={fix.errorMs}>
+      <p>
+        절사 평균으로 {Math.abs(fix.errorMs)}ms {fix.errorMs > 0 ? '늦게' : '빨리'} 쳤습니다.
+        {shifted && ' 플레이 중에 바꾼 곡 오프셋도 반영했습니다.'}
+      </p>
+      {fix.input && (
+        <OffsetRow label="전체에 적용" what="판정 오프셋" move={fix.input} done={inputApplied} off={inputApplied || songApplied} testId="offset-apply" onSet={setInput} />
+      )}
+      {fix.song && (
+        <OffsetRow label="이 곡에만 적용" what="곡 오프셋" move={fix.song} done={songApplied} off={inputApplied || songApplied} testId="offset-apply-song" onSet={setSong} />
+      )}
+    </div>
+  );
+}
+
+/** An offset to set: its button (off once either is), what it becomes, and once it is, 되돌리기. */
+function OffsetRow(props: { label: string; what: string; move: OffsetMove; done: boolean; off: boolean; testId: string; onSet: (ms: number) => void }) {
+  const { move, done } = props;
+  return (
+    <div className="offset-fix">
+      <button className="small" data-testid={props.testId} disabled={props.off} onClick={() => props.onSet(move.to)}>
+        {props.label}
+      </button>
+      <span data-testid={`${props.testId}-text`}>
+        {props.what} {offsetText(move.from)} → {offsetText(move.to)}
+        {done && ' 적용됨'}
+      </span>
+      {done && (
+        <button className="small quiet" data-testid="offset-undo" onClick={() => props.onSet(move.from)}>
+          되돌리기
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -522,12 +733,14 @@ const STRIP_W = 1000;
 const STRIP_H = 100;
 
 /**
- * The song at a glance: its note density, where the play lost points (in their colours) and,
- * under it, each section with the accuracy of the notes in it.
+ * The song at a glance: its note density, the gauge (its clear line dashed), where the play lost
+ * points (in their colours, longer the lower) and, under it, each section with the accuracy of the
+ * notes in it.
  */
-function RunPanel({ chart, result, startMs, endMs }: { chart: Chart; result: SessionResult; startMs: number; endMs: number }) {
+function RunPanel({ chart, result, gauge, startMs, endMs }: { chart: Chart; result: SessionResult; gauge: GaugeRule; startMs: number; endMs: number }) {
   const span = Math.max(1, endMs - startMs);
-  const x = (t: number) => (((t - startMs) / span) * STRIP_W).toFixed(1);
+  const xs = (t: number) => ((Math.min(Math.max(t, startMs), endMs) - startMs) / span) * STRIP_W;
+  const x = (t: number) => xs(t).toFixed(1);
   const counts = densityBins(chart.notes, startMs, endMs, stripBins(span));
   const max = Math.max(1, ...counts);
   const bw = STRIP_W / counts.length;
@@ -536,14 +749,24 @@ function RunPanel({ chart, result, startMs, endMs }: { chart: Chart; result: Ses
     .join('');
   const losses = lossTimes(result.judgements, result.ruleset);
   const sections = sectionScores(chart, result.judgements, startMs, endMs);
+  // the gauge from its foot (0%) to near the top (100%)
+  const gy = (v: number) => STRIP_H - 2 - (v / 100) * (STRIP_H - 6);
+  const gaugeEnd = result.failedAtMs !== null ? xs(result.failedAtMs) : STRIP_W;
   return (
     <section className="run-panel">
-      <h2>{sections.length > 0 ? '곡 흐름 · 놓친 곳 · 구간별 정확도' : '곡 흐름 · 놓친 곳'}</h2>
+      <h2>
+        {sections.length > 0 ? '곡 흐름 · 점수가 깎인 곳 · 구간별 정확도' : '곡 흐름 · 점수가 깎인 곳'}
+        <span className="legend-gauge">게이지 {result.gaugeLabel}</span>
+      </h2>
       <div className="run-strip">
-        <svg viewBox={`0 0 ${STRIP_W} ${STRIP_H}`} preserveAspectRatio="none" role="img" aria-label="노트 밀도와 놓친 곳">
+        <svg viewBox={`0 0 ${STRIP_W} ${STRIP_H}`} preserveAspectRatio="none" role="img" aria-label="노트 밀도, 게이지와 점수가 깎인 곳">
           <path className="density" d={bars} />
+          {!gauge.failAtZero && <line className="clear-line" x1={0} x2={STRIP_W} y1={gy(gauge.clear)} y2={gy(gauge.clear)} />}
+          <polyline className="gauge" data-testid="run-gauge" points={gaugePoints(result.gaugeHistory, xs, gy, gaugeEnd)} />
           {LOSS_CLASSES.map((cls) =>
-            losses[cls].length > 0 ? <path key={cls} className={`loss ${cls}`} d={losses[cls].map((t) => `M${x(t)} 0V${STRIP_H}`).join('')} /> : null,
+            losses[cls].length > 0 ? (
+              <path key={cls} className={`loss ${cls}`} d={losses[cls].map((t) => `M${x(t)} ${STRIP_H}V${(STRIP_H * (1 - LOSS_TICK[cls])).toFixed(1)}`).join('')} />
+            ) : null,
           )}
           {result.failedAtMs !== null && <rect className="after-fail" x={x(result.failedAtMs)} y={0} width={STRIP_W} height={STRIP_H} />}
         </svg>
