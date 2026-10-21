@@ -294,7 +294,9 @@ def _feasible(name: str, p: Phrase, params: GenParams) -> bool:
     if name == "jack":
         return p.singles >= 3 and p.median_ioi >= params.min_jack_ms
     if name == "doubles":
-        return p.singles >= 4 and p.median_ioi >= params.min_jack_ms
+        m = pattern_config()["motifs"]["doubles"]
+        most = float({**m, **m.get("bySystem", {}).get(params.system, {})}.get("maxIoiMs", math.inf))
+        return p.singles >= 4 and params.min_jack_ms <= p.median_ioi <= most
     if name == "anchor":
         return p.singles >= 5
     if name == "callResponse":
@@ -304,9 +306,12 @@ def _feasible(name: str, p: Phrase, params: GenParams) -> bool:
     return True  # step
 
 
-def _fit(name: str, p: Phrase) -> float:
+def _fit(name: str, p: Phrase, system: str) -> float:
+    """How well a pattern fits a phrase's gesture (config "fit"; "fitBySystem" changes a system's
+    entries)."""
     cfg = pattern_config()
-    score = float(cfg["fit"].get(p.gesture, {}).get(name, 0.0))
+    own = cfg.get("fitBySystem", {}).get(system, {}).get(p.gesture, {})
+    score = float(own.get(name, cfg["fit"].get(p.gesture, {}).get(name, 0.0)))
     if name == "callResponse" and p.halves is not None:
         score += cfg["overlays"]["callResponse"]
     return score
@@ -350,7 +355,7 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
     themes: dict[Any, set[str]] = {}
     for key in {p.group if p.group is not None else p.section for p in phrases}:
         members = [p for p in phrases if (p.group if p.group is not None else p.section) == key]
-        totals = {m: sum(_fit(m, p) * vocab[m]["weight"] for p in members if _feasible(m, p, params)) for m in names if m != "step"}
+        totals = {m: sum(_fit(m, p, params.system) * vocab[m]["weight"] for p in members if _feasible(m, p, params)) for m in names if m != "step"}
         themes[key] = {m for m, v in sorted(totals.items(), key=lambda x: (-x[1], x[0]))[:n_themes] if v > 0}
 
     def budget(i: int, p: Phrase) -> float:
@@ -364,7 +369,7 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
         theme = trans["themeBonus"] if m in own else 0.0
         over = max(0.0, vocab[m]["complexity"] - max(budget(i, p), 0.5))
         off = float(theme_cfg["offTheme"]) if sectioned and own and m not in own and m != "step" else 0.0
-        return (_fit(m, p) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over - off
+        return (_fit(m, p, params.system) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over - off
 
     if not phrases:
         return []

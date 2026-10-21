@@ -256,7 +256,8 @@ def resolve_params(
     ):
         params.thumb_jack_ms = min(params.min_jack_ms, float(load_config("patterns")["laser"]["thumbJackMs"]))
     if params.pattern_engine != "classic":
-        caps = sorted((float(skill), int(hits)) for skill, hits in load_config("patterns")["anchors"]["caps"])
+        anchors = load_config("patterns")["anchors"]
+        caps = sorted((float(skill), int(hits)) for skill, hits in anchors.get("bySystem", {}).get(params.system, anchors["caps"]))
         params.anchor_cap = next((hits for skill, hits in reversed(caps) if params.skill >= skill), 0)
     return params
 

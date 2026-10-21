@@ -325,6 +325,27 @@ def test_djmax_5k_repeated_notes_become_a_laser() -> None:
     assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
 
 
+def test_the_default_system_plays_doubles_and_longer_anchors_from_normal() -> None:
+    """Human BMS charts play 6.4 doubles (재봉틀) and 2.2 anchors of four hits or more in 1000 notes
+    at level 6 (PATTERN_DESIGN 26). Since generator 0.9.10 the default system's repeated-note and
+    drum phrases prefer doubles to the hand-alternating split, and its anchors may run six hits from
+    NORMAL on. DJMAX keeps the short anchors of the DPC guidelines below its hardest tiers."""
+    from types import SimpleNamespace
+
+    from rhythm_server.generator.planner import _fit, vocabulary
+
+    assert resolve_params("7K+1S", "EASY").anchor_cap == 3
+    assert resolve_params("7K+1S", "NORMAL").anchor_cap == 6
+    assert resolve_params("6K", "NM", 6, system="DJMAX").anchor_cap == 3
+    grg, dj = resolve_params("7K+1S", "NORMAL"), resolve_params("6K", "MX", 13, system="DJMAX")
+    for gesture in ("repeat", "rhythm"):
+        p = SimpleNamespace(gesture=gesture, halves=None)
+        v = vocabulary(grg)
+        assert _fit("doubles", p, "GRG") * v["doubles"]["weight"] > _fit("split", p, "GRG") * v["split"]["weight"], gesture
+        v = vocabulary(dj)
+        assert _fit("doubles", p, "DJMAX") * v["doubles"]["weight"] < _fit("split", p, "DJMAX") * v["split"]["weight"], gesture
+
+
 def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # Human BMS charts use key 1 most (19-21% of the notes from level 2 to 10) and leap three keys
     # or more in a quarter of their moves even on easy charts; before generator 0.9.6 our 7K charts
