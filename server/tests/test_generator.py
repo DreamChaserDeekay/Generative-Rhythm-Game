@@ -154,8 +154,11 @@ def test_side_lanes_get_taps_and_long_notes_from_hard_up(analysis128: dict) -> N
 
 
 def test_styles_move_the_skillset_in_their_direction(analysis128: dict) -> None:
+    # a mean over seeds: one seed's balanced chart can be as jacky as the jack style's (generator
+    # 0.9.12: seed 42 gave 0.564 against 0.566, seeds 0-5 0.46 against 0.60 on average)
     def skills(style: str) -> dict:
-        return generate_chart(analysis128, "7K+1S", "HARD", seed=42, overrides={"style": style})["meta"]["skillset"]
+        charts = [generate_chart(analysis128, "7K+1S", "HARD", seed=seed, overrides={"style": style})["meta"]["skillset"] for seed in range(4)]
+        return {k: sum(c[k] for c in charts) / len(charts) for k in charts[0]}
 
     base = skills("balanced")
     assert skills("stream")["stream"] > base["stream"]

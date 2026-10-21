@@ -29,7 +29,7 @@
     "repeatConsistency": 0.97,
     "consistency": { "loopRhythm": 0.93, "loopLane": 0.97, "repeatSelect": 0.95, "repeatLane": 0.99, "repeatLaneMirror": 0.99, "barVariety": 0.6, "laneEntropy": 0.7 },
     "generator": {
-      "version": "0.9.12",
+      "version": "0.9.13",
       "analyzer": "core-1.6.1",
       "seed": 3735928559,
       "params": {
@@ -149,6 +149,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - `src`·`effects`·`keysound`·`repeatConsistency`는 생성기 0.3.0에서 추가됐다. 없는 채보(0.2.0 이하)도 그대로 플레이된다.
 - `patterns`와 패턴 엔진(악구·패턴 배치, `docs/PATTERN_DESIGN.md`)은 생성기 0.4.0에서 추가됐다. 생성기 버전이 채보 ID에 들어가므로 0.4.0부터 같은 곡·설정의 채보도 새 ID(새 기록)가 된다.
 - 생성기 0.4.1: 동치의 노트가 그 소리의 악기를 나눠 맡고(`src`), 사이드 노트 머리 앞뒤로 같은 손 노트를 연타 간격만큼 비운다(DPC 가이드라인, `docs/PATTERN_DESIGN.md` 12장). 채보 ID가 다시 바뀐다.
+- 생성기 0.9.13: 기본 기준(GRG) 7K+1S의 2개 동치가 사람 BMS 채보처럼 가운데 키와 그 이웃(3+4, 4+5)을 거의 쓰지 않고, 레벨마다 한 손 붙음·한 손 띄움·양손 비대칭을 사람 채보만큼 쓴다(`docs/PATTERN_DESIGN.md` 29장). 형식은 그대로이고 기본 기준 채보 ID가 바뀐다.
 - 생성기 0.9.12: 기본 기준(GRG)의 HARD 이상이 셋잇단 느낌의 곡에서도 셋잇단을 치는 마디에만 셋잇단 자리를 쓴다(레벨 14에서 노트의 7.5 → 5.4%, 사람 5.6%, `docs/PATTERN_DESIGN.md` 28장). 형식은 그대로이고 기본 기준 채보 ID가 바뀐다.
 - 생성기 0.9.11: 기본 기준(GRG)의 스크래치가 사람 BMS 채보만큼 늘었다(레벨 2에서 노트의 4.7 → 8.7%, `docs/PATTERN_DESIGN.md` 27장). 형식은 그대로이고 기본 기준 채보 ID가 바뀐다.
 - 생성기 0.9.10: 기본 기준(GRG)이 반복음·드럼 악구에 재봉틀을 더 자주 쓰고, NORMAL부터 축연타를 더 길게(6–10타) 둔다(`docs/PATTERN_DESIGN.md` 26장). 형식은 그대로이고 기본 기준 채보 ID가 바뀐다.

@@ -346,6 +346,29 @@ def test_the_default_system_plays_doubles_and_longer_anchors_from_normal() -> No
         assert _fit("doubles", p, "DJMAX") * v["doubles"]["weight"] < _fit("split", p, "DJMAX") * v["split"]["weight"], gesture
 
 
+def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours() -> None:
+    """Human BMS charts almost never put a two-note chord on the middle key and its neighbour (3+4,
+    4+5: 0.2-3.7% of their two-note chords from level 2 to 14), which no chord shape cost covered
+    before generator 0.9.13 (11-13% of ours). They play one hand with a key between (1+3) more than
+    we did on normal charts and half as often on MASTER (PATTERN_DESIGN 29). The default system's
+    7K chords pay hands.chordShapes by skill; other systems and key modes have none."""
+    from rhythm_server.generator.motifs import SlotPlan, _shape_cost, motif_context, pair_shape
+
+    lanes = lane_infos("7K+1S")
+    sp = SlotPlan(phrase=0, k=0, motif="step", chords="vary", hold_tap=False, direction=1, step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False)
+    ctx = motif_context(lanes, 0.1, system="GRG", key_mode="7K+1S")
+    shapes = [pair_shape(ctx, a, b) for a, b in ((0, 6), (2, 3), (1, 3), (0, 1), (0, 2), (1, 4))]
+    assert shapes == ["symmetric", "middleAdjacent", "middle", "adjacent", "oneHandGap", "lopsided"]
+    for skill in (0.1, 0.4, 0.7, 0.96):
+        grg = motif_context(lanes, skill, system="GRG", key_mode="7K+1S")
+        assert _shape_cost(grg, sp, (2, 3)) > _shape_cost(grg, sp, (2, 4)) + 0.1, skill  # 3+4 well above 3+5
+    normal, master = (motif_context(lanes, s, system="GRG", key_mode="7K+1S") for s in (0.4, 0.96))
+    assert _shape_cost(normal, sp, (0, 2)) < _shape_cost(normal, sp, (1, 4))  # 1+3 below 2+5 on NORMAL ...
+    assert _shape_cost(master, sp, (0, 2)) > _shape_cost(master, sp, (1, 4))  # ... above it on MASTER
+    assert motif_context(lane_infos("6K"), 0.96, system="DJMAX", key_mode="6K").pair_shapes is None
+    assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
+
+
 def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # Human BMS charts use key 1 most (19-21% of the notes from level 2 to 10) and leap three keys
     # or more in a quarter of their moves even on easy charts; before generator 0.9.6 our 7K charts

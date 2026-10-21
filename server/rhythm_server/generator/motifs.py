@@ -81,6 +81,8 @@ class MotifContext:
     # system): human charts keep rhythm and melody on their hands for single notes but spread chords
     # over both
     chord_region: float = 1.0
+    # extra cost of each two-note chord shape at the chart's skill (hands.chordShapes, pair_shape)
+    pair_shapes: dict[str, float] | None = None
 
 
 def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
@@ -115,7 +117,29 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
         chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
+        pair_shapes=_pair_shapes(hands["chordShapes"], key_mode, skill),
     )
+
+
+def _pair_shapes(cfg: dict[str, Any], key_mode: str | None, skill: float) -> dict[str, float] | None:
+    """hands.chordShapes for the key mode ({key mode: {shape: number or [skill, cost] pairs}}, "*" for
+    the key modes it leaves out) read off at the chart's skill; None when it gives none."""
+    shapes = cfg.get(key_mode, cfg.get("*")) if key_mode else cfg.get("*")
+    return {name: by_skill(v, skill) for name, v in shapes.items()} if shapes else None
+
+
+def pair_shape(ctx: MotifContext, a: int, b: int) -> str:
+    """Shape of a two-note chord on keys a < b: "symmetric" (mirrored keys), "middleAdjacent" (the
+    middle key and its neighbour, 3+4), "middle" (the middle key and another), "adjacent" or
+    "oneHandGap" (one hand, on neighbouring keys or with a key between) and "lopsided" (both hands,
+    not mirrored)."""
+    if a + b == len(ctx.hand) - 1:
+        return "symmetric"
+    if ctx.center is not None and ctx.center in (a, b):
+        return "middleAdjacent" if b - a == 1 else "middle"
+    if ctx.hand[a] == ctx.hand[b]:
+        return "adjacent" if b - a == 1 else "oneHandGap"
+    return "lopsided"
 
 
 def _song_home_weight(roles: dict[str, Any], system: str) -> float:
@@ -298,6 +322,8 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
         symmetric = a + b == n - 1
         if sp.chords == "pivot" and ctx.center in keys:
             return cost  # the 5B pivot is lopsided on purpose
+        if ctx.pair_shapes:
+            cost += ctx.pair_shapes.get(pair_shape(ctx, a, b), 0.0)
         if sp.wide:
             cost += w["shape"] * (0.0 if span >= n / 2 else 0.6)
         elif span > n / 2 and not symmetric:
