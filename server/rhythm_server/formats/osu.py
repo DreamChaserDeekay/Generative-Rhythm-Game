@@ -146,6 +146,15 @@ def _pairs(lines: list[str]) -> dict[str, str]:
     return out
 
 
+def _background(events: list[str]) -> list[str]:
+    """The beatmap's background picture: the [Events] line `0,0,"bg.jpg",0,0` (or `Background,…`)."""
+    for line in events:
+        f = [x.strip() for x in line.split(",")]
+        if len(f) >= 3 and f[0] in ("0", "Background") and f[2].strip('"'):
+            return [f[2].strip('"')]
+    return []
+
+
 def _key_mode(keys: int, special_style: bool, tags: str) -> tuple[str, list[int]]:
     """Our key mode for an osu!mania column count and the lane of every column."""
     m = re.search(re.escape(MODE_TAG) + r"(\S+)", tags)
@@ -241,6 +250,7 @@ def parse_osu(text: str, source_name: str = "") -> ParsedChart:
         timing=timing,
         notes=notes,
         audio_file=general.get("AudioFilename") or None,
+        images=_background(sec.get("Events", [])),
         preview_ms=preview if preview >= 0 else None,
         source_name=source_name,
         dropped=dropped,

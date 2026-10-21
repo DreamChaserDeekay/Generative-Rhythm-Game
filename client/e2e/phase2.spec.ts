@@ -53,18 +53,20 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await expect(page.getByTestId('song-title')).toHaveText('e2e-phase2', { timeout: 30_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
 
-  // Long-note style gives more long notes than the balanced default.
+  // Long-note style gives more long notes than the balanced default (the chart of other options
+  // comes by itself).
   await page.getByRole('button', { name: /HARD/ }).first().click();
-  await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  const level = page.getByTestId('chart-level');
+  await expect(level).toBeVisible({ timeout: 30_000 });
+  const balanced = await level.getAttribute('data-chart-id');
   await songInfo(page);
   const holds = async () => Number(((await page.getByTestId('chart-preview').locator('.preview-stats div').nth(1).textContent()) ?? '').replace(/\D/g, ''));
   const balancedHolds = await holds();
   await playOptions(page, 'generation');
   await page.getByTestId('style-longnote').click();
-  await page.getByTestId('generate-button').click();
-  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => level.getAttribute('data-chart-id'), { timeout: 30_000 }).not.toBe(balanced);
   await songInfo(page);
+  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   expect(await holds()).toBeGreaterThan(balancedHolds);
   await expect(page.getByTestId('chart-minimap')).toBeVisible();
 
@@ -89,10 +91,12 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await page.getByTestId('result-back').click();
 
   // HAZARD fails on the first BREAK; nobody presses anything here. (Back on the song select the
-  // generated chart, the practice segment and autoplay start over.)
+  // practice is kept for the chart, autoplay is not.)
   await playOptions(page);
   await expect(page.getByTestId('autoplay-toggle')).not.toBeChecked();
-  await expect(page.getByTestId('practice-toggle')).not.toBeChecked();
+  await expect(page.getByTestId('practice-toggle')).toBeChecked();
+  await expect(page.getByTestId('practice-rate')).toContainText('×0.75');
+  await page.getByTestId('practice-toggle').uncheck();
   await page.getByTestId('toggle-rules').click();
   await chooseSetting(page, 'rule-gauge', 'HAZARD');
   await page.getByTestId('play-button').click();

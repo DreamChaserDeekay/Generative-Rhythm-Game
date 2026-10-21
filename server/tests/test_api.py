@@ -89,6 +89,75 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
+def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
+    req = {"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}
+    # the song select's levels: the meta alone, of the same (cached) chart
+    brief = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
+    assert "chart" not in brief and not brief["cached"] and "notes" not in brief["meta"]
+    # made for its brief only, it is not saved (looking at songs does not fill the disk)
+    assert client.get(f"/api/charts/{brief['meta']['chartId']}").status_code == 404
+    again = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
+    assert again["cached"] and again["meta"] == brief["meta"]
+    # asked for whole: not made again, saved now
+    full = client.post(f"/api/songs/{song['id']}/charts", json=req).json()
+    assert full["cached"] and full["chart"]["meta"]["chartId"] == brief["meta"]["chartId"]
+    assert client.get(f"/api/charts/{brief['meta']['chartId']}").status_code == 200
+    assert full["chart"]["meta"]["level"] == brief["meta"]["level"] and full["chart"]["meta"]["noteCount"] == brief["meta"]["noteCount"]
+    other = client.post(f"/api/songs/{song['id']}/charts", json={**req, "newSeed": True}).json()["chart"]
+
+    cid = full["chart"]["meta"]["chartId"]
+    play = {"chartId": cid, "songId": song["id"], "judgementMode": "NORMAL"}
+    plays = [
+        dict(play, score=900000, rate=90.0, maxCombo=120, lamp="CLEAR", breaks=6, detail={"ruleset": "RESPECT"}),
+        dict(play, score=880000, rate=88.0, maxCombo=200, lamp="HARD CLEAR", breaks=3, detail={"ruleset": "EXSCORE", "exScore": 412}),
+        dict(play, score=870000, rate=87.0, maxCombo=90, lamp="FAILED", breaks=9, detail={"ruleset": "GRADE", "weightedScore": 861234.4}),
+        dict(play, score=860000, rate=86.0, maxCombo=95, lamp="FAILED", breaks=2, detail={"ruleset": "EXSCORE", "exScore": 380}),
+    ]
+    for p in plays:
+        assert client.post("/api/scores", json=p).status_code == 201
+    assert client.post("/api/scores", json=dict(play, chartId=other["meta"]["chartId"], score=1, rate=1, maxCombo=1, lamp="FAILED", breaks=50)).status_code == 201
+    records = {r["chartId"]: r for r in client.get(f"/api/songs/{song['id']}/scores").json()["records"]}
+    r = records[cid]
+    # the best play's score and RATE; the best lamp and MAX COMBO and the fewest BREAK of any play
+    assert (r["score"], r["rate"], r["lamp"], r["maxCombo"], r["minBreaks"], r["plays"]) == (900000, 90.0, "HARD CLEAR", 200, 2, 4)
+    # the best of each score rule, among the plays under it
+    assert r["exScore"] == 412 and r["weightedScore"] == 861234
+    # the default pattern of its tier, and the other one not; the generator that made them
+    assert r["defaultSeed"] is True and records[other["meta"]["chartId"]]["defaultSeed"] is False
+    assert r["generatorVersion"] == full["chart"]["meta"]["generator"]["version"]
+    assert records[other["meta"]["chartId"]]["exScore"] is None and records[other["meta"]["chartId"]]["weightedScore"] is None
+
+
+def png_bytes() -> bytes:
+    """A 1×1 PNG."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00")) + chunk(b"IEND", b"")
+
+
+def test_a_song_takes_a_picture_as_its_cover(client: TestClient) -> None:
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
+    assert not song["hasCover"] and song["coverAt"] is None
+    assert client.get(f"/api/songs/{song['id']}/cover").status_code == 404
+    # its content decides what it is, whatever it is called
+    r = client.post(f"/api/songs/{song['id']}/cover", files={"file": ("jacket.jpg", png_bytes(), "image/jpeg")})
+    assert r.status_code == 201, r.text
+    covered = r.json()["song"]
+    assert covered["hasCover"] and covered["coverAt"] is not None
+    got = client.get(f"/api/songs/{song['id']}/cover")
+    assert got.status_code == 200 and got.headers["content-type"] == "image/png" and got.content == png_bytes()
+    assert client.post(f"/api/songs/{song['id']}/cover", files={"file": ("notes.png", b"not a picture", "image/png")}).status_code == 415
+    assert client.delete(f"/api/songs/{song['id']}/cover").status_code == 204
+    after = client.get(f"/api/songs/{song['id']}").json()["song"]
+    assert not after["hasCover"] and after["coverAt"] >= covered["coverAt"]
+    assert client.get(f"/api/songs/{song['id']}/cover").status_code == 404
+
+
 def test_bpm_correction_triggers_reanalysis(client: TestClient) -> None:
     song = client.post("/api/songs", files={"file": ("g.wav", wav_bytes(), "audio/wav")}).json()["song"]
     r = client.patch(f"/api/songs/{song['id']}", json={"bpm": 64.0, "title": "새 제목"})

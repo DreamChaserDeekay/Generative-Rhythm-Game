@@ -8,6 +8,7 @@ import re
 import shutil
 import threading
 import zipfile
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -28,7 +29,8 @@ from ..audio_io import SUPPORTED_EXTENSIONS
 from ..config import CLIENT_DIST, DEFAULT_SYSTEM, data_dir, difficulty_config, difficulty_system, difficulty_systems, load_config
 from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
-from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, safe_relpath
+from ..formats.images import MAX_IMAGE_BYTES, MEDIA_TYPES, image_kind
+from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, extract_images, safe_relpath
 from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
 from ..generator.sections import edited_analysis
 from .sketch import sketch_of
@@ -57,6 +59,9 @@ class ChartRequest(BaseModel):
     seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
     newSeed: bool = False
     params: dict[str, Any] = Field(default_factory=dict)
+    # the chart's meta only (its level and notes for the song select), not its notes; a chart made
+    # for it is not saved until it is asked for whole
+    brief: bool = False
 
 
 class CustomChartRequest(BaseModel):
@@ -136,6 +141,11 @@ class ScoreRequest(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
     # the inputs of the play (client format, see engine/replay.ts); kept next to the score
     replay: dict[str, Any] | None = None
+
+
+# so many charts made for their brief only are kept whole in memory, and the metas of so many
+BRIEF_CHARTS_KEPT = 12
+BRIEF_METAS_KEPT = 1000
 
 
 def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST, synchronous_jobs: bool = False) -> FastAPI:
@@ -373,7 +383,25 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         path = library.cover_path(song_id)
         if path is None:
             raise HTTPException(404, "앨범아트가 없습니다")
-        return FileResponse(path)
+        return FileResponse(path, media_type=MEDIA_TYPES.get(path.suffix.lower()))
+
+    @app.post("/api/songs/{song_id}/cover", status_code=201)
+    def upload_cover(song_id: str, file: UploadFile = File(...)) -> dict[str, Any]:
+        """A picture of the player's as the song's cover (in place of its tag's or its package's)."""
+        song_or_404(song_id)
+        data = file.file.read(MAX_IMAGE_BYTES + 1)
+        if len(data) > MAX_IMAGE_BYTES:
+            raise HTTPException(413, "그림이 너무 큽니다 (최대 20MB)")
+        kind = image_kind(data)
+        if kind is None:
+            raise HTTPException(415, "그림 파일이 아닙니다 — png·jpg·webp·gif·bmp를 쓰세요")
+        library.save_cover(song_id, data, kind)
+        return {"song": annotate([library.get_song(song_id)])[0]}
+
+    @app.delete("/api/songs/{song_id}/cover", status_code=204)
+    def delete_cover(song_id: str) -> None:
+        song_or_404(song_id)
+        library.delete_cover(song_id)
 
     @app.get("/api/songs/{song_id}/analysis")
     def song_analysis(song_id: str) -> dict[str, Any]:
@@ -416,6 +444,18 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             "beatsPerBar": int(analysis["timing"]["meter"][0]["beatsPerMeasure"]),
         }
 
+    # Charts made for their brief only (the song select's levels of the tiers not chosen) stay off
+    # the disk, which would otherwise fill with every song looked at: the last few whole ones (one
+    # asked for whole next is saved then, not made again) and the metas of more.
+    brief_charts: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    brief_metas: OrderedDict[str, dict[str, Any]] = OrderedDict()
+
+    def keep(cache: OrderedDict[str, dict[str, Any]], key: str, value: dict[str, Any], size: int) -> None:
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > size:
+            cache.popitem(last=False)
+
     @app.post("/api/songs/{song_id}/charts")
     async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
         song = song_or_404(song_id)
@@ -438,16 +478,26 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         chart_id = chart_id_for(analysis, req.keyMode, params, seed)
         cached = library.load_chart(chart_id)
         if cached is not None:
-            return {"chart": cached, "cached": True}
-        meta = {"songId": song_id, "title": song["title"], "artist": song["artist"]}
-        try:
-            chart = await run_in_threadpool(
-                generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta, req.system
-            )
-        except GenerationError as e:
-            raise HTTPException(422, str(e)) from e
+            return {"meta": cached["meta"], "cached": True} if req.brief else {"chart": cached, "cached": True}
+        if req.brief and chart_id in brief_metas:
+            brief_metas.move_to_end(chart_id)
+            return {"meta": brief_metas[chart_id], "cached": True}
+        chart = brief_charts.pop(chart_id, None)
+        made = chart is not None
+        if chart is None:
+            meta = {"songId": song_id, "title": song["title"], "artist": song["artist"]}
+            try:
+                chart = await run_in_threadpool(
+                    generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta, req.system
+                )
+            except GenerationError as e:
+                raise HTTPException(422, str(e)) from e
+        if req.brief:
+            keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
+            keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
+            return {"meta": chart["meta"], "cached": made}
         library.save_chart(chart, song_id)
-        return {"chart": chart, "cached": False}
+        return {"chart": chart, "cached": made}
 
     @app.get("/api/charts/{chart_id}")
     def get_chart(chart_id: str) -> dict[str, Any]:
@@ -517,6 +567,8 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
         root = work / "package"
         root.mkdir(parents=True)
         warnings: list[str] = []
+        # (archive, the folder it was unpacked into): their pictures come out once a chart names them
+        archives: list[tuple[Path, Path]] = []
         try:
             total = 0
             for i, upload in enumerate(files):
@@ -537,11 +589,17 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
                 if archive:
                     try:
                         warnings += extract_archive(target, root / Path(rel).stem)
+                        archives.append((target, root / Path(rel).stem))
                     except (zipfile.BadZipFile, FormatError) as e:
                         warnings.append(f"{rel}: 압축을 풀지 못했습니다 ({e})")
-                    target.unlink(missing_ok=True)
+                        target.unlink(missing_ok=True)
+
+            def fetch_images(wanted: set[str]) -> None:
+                for archive_path, dest in archives:
+                    extract_images(archive_path, dest, root, wanted)
+
             try:
-                result = import_package(library, queue, root)
+                result = import_package(library, queue, root, fetch_images)
             except FormatError as e:
                 raise HTTPException(422, "; ".join([str(e), *warnings[:3]])) from e
         finally:

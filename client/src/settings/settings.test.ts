@@ -3,19 +3,26 @@ import {
   activeCovers,
   bindingLabel,
   bindingsFor,
+  chartPickKey,
+  chartPickOf,
   DEFAULT_SETTINGS,
   greenNumber,
   laneKeysFor,
   padMenuFor,
   padMenuKeysFor,
   padPlayOf,
+  patternKey,
+  patternOf,
   playKeysOf,
   rebindKey,
   sanitizeSettings,
   secondBindingsFor,
   songOffsetOf,
+  withChartPick,
   withCovers,
   withDifficultySystem,
+  withoutSong,
+  withPattern,
   withSongOffset,
 } from './settings';
 
@@ -204,6 +211,55 @@ describe('settings', () => {
     expect(t.songOffsets).toEqual({ a: -2, b: 200 });
     expect(withSongOffset(t, 'a', 0).songOffsets).toEqual({ b: 200 });
     expect(withSongOffset(t, 'e', -500).songOffsets.e).toBe(-200);
+  });
+
+  it('keeps the pattern of a difficulty of a song and the saved chart of a key mode of a song, of their kinds', () => {
+    const song = '0123456789abcdef';
+    const mx = patternKey(song, '7K+1S', 'DJMAX', 'MX');
+    const raw = {
+      patterns: {
+        [mx]: 42,
+        [patternKey(song, '6K+FX', 'GRG', 'MASTER')]: 2 ** 32 - 1,
+        [patternKey(song, '7K+1S', 'DJMAX', 'HD')]: `c${'d'.repeat(20)}`,
+        [patternKey(song, '7K+1S', 'DJMAX', 'NM')]: 'c-not-a-chart',
+        [patternKey(song, '4K', 'DJMAX', 'NM')]: -1,
+        [patternKey(song, '4K', 'EZ2ON', 'SHD')]: 1.5,
+        [`${song}|9K|DJMAX|MX`]: 1,
+        [`${song}|4K|PUMP|NM`]: 1,
+        'abc|4K|DJMAX|NM': 1,
+      },
+      chartPicks: { [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}`, [chartPickKey(song, '4K')]: 'c123', [`${song}|9K`]: `c${'b'.repeat(20)}` },
+    };
+    const s = sanitizeSettings(raw as never);
+    // a seed (새 패턴) or a chart chosen by its id
+    expect(s.patterns).toEqual({ [mx]: 42, [patternKey(song, '6K+FX', 'GRG', 'MASTER')]: 2 ** 32 - 1, [patternKey(song, '7K+1S', 'DJMAX', 'HD')]: `c${'d'.repeat(20)}` });
+    expect(s.chartPicks).toEqual({ [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}` });
+    expect(sanitizeSettings({ patterns: [1] as never, chartPicks: 'x' as never })).toMatchObject({ patterns: {}, chartPicks: {} });
+    expect(patternOf(s, mx)).toBe(42);
+    expect(patternOf(s, patternKey(song, '4K', 'DJMAX', 'NM'))).toBeNull();
+    // back to the default pattern, and to a difficulty
+    expect(patternOf(withPattern(s, mx, null), mx)).toBeNull();
+    expect(withPattern(s, mx, 7).patterns[mx]).toBe(7);
+    expect(chartPickOf(withChartPick(s, chartPickKey(song, '7K+1S'), null), chartPickKey(song, '7K+1S'))).toBeNull();
+    expect(chartPickOf(withChartPick(s, chartPickKey(song, '4K'), `c${'c'.repeat(20)}`), chartPickKey(song, '4K'))).toBe(`c${'c'.repeat(20)}`);
+  });
+
+  it('forgets the patterns, the charts chosen and the offset of a song taken out of the library, and only its', () => {
+    const song = '0123456789abcdef';
+    const other = 'fedcba9876543210';
+    const s = withSongOffset(
+      withSongOffset(
+        withChartPick(withPattern(withPattern(DEFAULT_SETTINGS, patternKey(song, '4K', 'DJMAX', 'NM'), `c${'d'.repeat(20)}`), patternKey(other, '4K', 'DJMAX', 'NM'), 5), chartPickKey(song, '7K+1S'), `c${'a'.repeat(20)}`),
+        song,
+        12,
+      ),
+      other,
+      -3,
+    );
+    const t = withoutSong(s, song);
+    expect(t.patterns).toEqual({ [patternKey(other, '4K', 'DJMAX', 'NM')]: 5 });
+    expect(t.chartPicks).toEqual({});
+    expect(t.songOffsets).toEqual({ [other]: -3 });
   });
 
   it('never lets the covers close the lane', () => {

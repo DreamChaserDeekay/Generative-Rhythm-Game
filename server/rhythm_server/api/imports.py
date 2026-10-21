@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ import numpy as np
 
 from ..config import SAMPLE_RATE
 from ..formats import FormatError, ParsedChart, assemble_chart
+from ..formats.images import MAX_IMAGE_BYTES, ImageIndex, image_kind, image_stem
 from ..formats.keysounds import SoundIndex, build_sprite, decode_sounds, full_mix, normalizing_gain
 from ..formats.package import ChartGroup, scan_package
 from .jobs import AnalysisQueue
@@ -38,7 +40,16 @@ def song_title(title: str) -> str:
     return DIFFICULTY_SUFFIX.sub("", title).strip() or title
 
 
+def source_level(hint: str) -> str | None:
+    """The level the file gives its chart (BMS #PLAYLEVEL, bmson's level), as it writes it."""
+    text = hint.strip()
+    return text[:12] if text and text not in ("0", "?") else None
+
+
 def _assemble(parsed: ParsedChart, song: dict[str, Any], extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    level = source_level(parsed.level_hint)
+    if level is not None:
+        extra = {**(extra or {}), "sourceLevel": level}
     chart = assemble_chart(
         key_mode=parsed.key_mode,
         timing=parsed.timing,
@@ -102,12 +113,36 @@ def _keysound_group(library: Library, queue: AnalysisQueue, group: ChartGroup, r
     return song, gain
 
 
-def import_package(library: Library, queue: AnalysisQueue, root: Path) -> dict[str, Any]:
+def _covers(library: Library, root: Path, done: list[tuple[ChartGroup, dict[str, Any]]], fetch: Callable[[set[str]], None] | None) -> None:
+    """A song without a cover takes the first picture its charts name that the package has: BMS
+    #STAGEFILE, else #BANNER; the osu! background."""
+    bare = [(group, song) for group, song in done if not song["hasCover"]]
+    wanted = {image_stem(f"{group.base}/{name}" if group.base else name) for group, _ in bare for c in group.charts for name in c.images}
+    if not wanted:
+        return
+    if fetch is not None:
+        fetch(wanted)
+    index = ImageIndex(root)
+    for group, song in bare:
+        for name in (name for c in group.charts for name in c.images):
+            path = index.find(name, group.base)
+            data = path.read_bytes() if path is not None and path.stat().st_size <= MAX_IMAGE_BYTES else b""
+            kind = image_kind(data)
+            if kind is not None:
+                library.save_cover(song["id"], data, kind)
+                song.update(library.get_song(song["id"]))
+                break
+
+
+def import_package(library: Library, queue: AnalysisQueue, root: Path, fetch_images: Callable[[set[str]], None] | None = None) -> dict[str, Any]:
+    """`fetch_images` brings the pictures the charts name out of the package's archives (their
+    image_stem from `root`) before the covers are looked for."""
     groups, warnings = scan_package(root)
     if not groups:
         raise FormatError("가져올 채보가 없습니다" + (": " + "; ".join(warnings[:3]) if warnings else ""))
     songs: list[dict[str, Any]] = []
     charts: list[dict[str, Any]] = []
+    done: list[tuple[ChartGroup, dict[str, Any]]] = []
     for group in groups:
         try:
             if group.kind == "audio":
@@ -122,6 +157,7 @@ def import_package(library: Library, queue: AnalysisQueue, root: Path) -> dict[s
             warnings.append(f"{group.base or group.title}: 가져오지 못했습니다 ({e})")
             continue
         songs.append(song)
+        done.append((group, song))
         for parsed in group.charts:
             try:
                 chart = _assemble(parsed, song, {**(extra or {}), **({"genre": parsed.genre} if parsed.genre else {})})
@@ -133,4 +169,8 @@ def import_package(library: Library, queue: AnalysisQueue, root: Path) -> dict[s
             charts.append({"chartId": m["chartId"], "songId": song["id"], "keyMode": m["keyMode"], "level": m["level"], "name": m.get("chartName", ""), "noteCount": m["noteCount"]})
     if not charts:
         raise FormatError("채보를 하나도 가져오지 못했습니다: " + "; ".join(warnings[:3]))
+    try:
+        _covers(library, root, done, fetch_images)
+    except Exception as e:  # a picture that cannot be read leaves the disc
+        warnings.append(f"커버 그림을 읽지 못했습니다 ({e})")
     return {"songs": songs, "charts": charts, "warnings": warnings, "sampleRate": SAMPLE_RATE}

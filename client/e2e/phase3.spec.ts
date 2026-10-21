@@ -54,7 +54,6 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.getByTestId('bga-status')).toHaveText('등록됨', { timeout: 30_000 });
 
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('stem-mix')).toBeVisible();
 
@@ -151,7 +150,6 @@ test('a YouTube link as the background video', async ({ page }) => {
   await expect(page.getByTestId('bga-youtube-hint')).toBeVisible();
 
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   await autoplay(page);
   await page.getByTestId('play-button').click();

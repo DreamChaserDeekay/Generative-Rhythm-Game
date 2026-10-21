@@ -186,7 +186,6 @@ test('a practice run gives three seconds and READY before its first note, every 
   const errors = trackErrors(page);
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
   await demoSong(page);
-  await page.keyboard.press('F5');
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await playOptions(page, 'rules');
   await page.getByTestId('autoplay-toggle').check();
@@ -220,6 +219,57 @@ test('a practice run gives three seconds and READY before its first note, every 
       { timeout: 60_000 },
     )
     .toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('a practice is kept for its chart across a play; its segment moves by key (a bar, Shift a bar longer or shorter, a section by its button)', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
+  await demoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await playOptions(page, 'rules');
+  await page.getByTestId('practice-toggle').check();
+  const range = page.getByTestId('practice-range');
+  const seconds = async () => ((await range.textContent()) ?? '').split('–').map((t) => t.trim().split(':').reduce((m, v) => m * 60 + Number(v), 0));
+  // a section by its button (the demo song is one section long: the segment is the whole song)
+  const sections = page.getByTestId('minimap-sections').getByRole('button');
+  await sections.first().click();
+  await expect(sections.first()).toHaveClass(/active/);
+  // the minimap by key: Shift+← a bar shorter down to one (its start kept), → a bar on (as long),
+  // Shift+→ a bar longer
+  const minimap = page.getByTestId('chart-minimap');
+  await minimap.focus();
+  await expect(page.getByTestId('play-options-help')).toContainText('Shift');
+  const [a0] = await seconds();
+  for (let i = 0; i < 12; i++) await page.keyboard.press('Shift+ArrowLeft');
+  const [a1, b1] = await seconds();
+  expect(a1).toBe(a0);
+  expect(b1 - a1).toBeLessThan(2.5);
+  await expect(sections.first()).not.toHaveClass(/active/);
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await seconds())[0]).toBeGreaterThan(a1);
+  const [a2, b2] = await seconds();
+  expect(b2 - a2).toBeCloseTo(b1 - a1, 0);
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect.poll(async () => { const [a, b] = await seconds(); return b - a; }).toBeGreaterThan(b2 - a2);
+  const kept = await range.textContent();
+  // the arrows were the minimap's: the song and its difficulty stayed
+  await expect(minimap).toBeFocused();
+  await page.getByTestId('autoplay-toggle').check();
+  await page.keyboard.press('Escape');
+  await play(page);
+
+  // a loop goes by, and the play is left
+  await expect(page.getByTestId('hud-toast')).toContainText('LOOP 2', { timeout: 60_000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+
+  // back on the song select the practice is the chart's still
+  await expect(page.getByTestId('play-button')).toContainText('연습 시작');
+  await playOptions(page, 'rules');
+  await expect(page.getByTestId('practice-toggle')).toBeChecked();
+  await expect(range).toHaveText(kept ?? '');
   expect(errors).toEqual([]);
 });
 

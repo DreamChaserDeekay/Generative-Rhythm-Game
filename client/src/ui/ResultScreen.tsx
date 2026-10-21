@@ -119,6 +119,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             meanErrorMs: result.meanErrorMs,
             ruleset: result.ruleset,
             exScore: result.exScore,
+            weightedScore: result.weightedScore,
             gauge: result.gaugeLabel,
             placement: played.placement,
             laneOrder: placement.laneOrder,

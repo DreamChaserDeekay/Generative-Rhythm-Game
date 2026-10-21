@@ -114,15 +114,17 @@
   --g-fast: #4f8dff;
   --g-slow: #ff5a1f;
 
-  /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. */
+  /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. The
+     lamps keep off the difficulty colours (engine/config.ts TIER_COLORS: ΔE76 17 and more, as
+     lamps.test.ts checks), and their marks differ in shape too (see .lamp-mark) */
   --lamp-perfect: var(--g-max);
-  --lamp-maxcombo: #ffc94f;
-  --lamp-exhard: #ff9f43;
-  --lamp-hard: #ff6b6b;
-  --lamp-clear: #4fd88b;
+  --lamp-maxcombo: #ffe7a3;
+  --lamp-exhard: #f2f550;
+  --lamp-hard: #ffffff;
+  --lamp-clear: #3d9bff;
   --lamp-easy: #b6e36f;
-  --lamp-assist: #c58bff;
-  --lamp-failed: var(--g-break);
+  --lamp-assist: #8c7dff;
+  --lamp-failed: #ff2e2e;
   --lane-white: #eaf6ff;
   --lane-blue: #4fc3ff;
   --lane-gold: #ffc94f;
@@ -209,6 +211,17 @@
   --lane-scratch: #d55e00;
   --lane-sideL: #cc79a7;
   --lane-sideR: #009e73;
+  /* lamps on the same scheme, apart within each shape of mark with red or green weakness too, and
+     as far from the difficulty colours as the usual ones (CLEAR a cyan, the sky blue being
+     NORMAL's) */
+  --lamp-perfect: #e8f4ff;
+  --lamp-maxcombo: #e69f00;
+  --lamp-exhard: #f0e442;
+  --lamp-hard: #ffffff;
+  --lamp-clear: #5ac6d2;
+  --lamp-easy: #009e73;
+  --lamp-assist: #cc79a7;
+  --lamp-failed: #d55e00;
 }
 
 /* ---------- base ---------- */
@@ -3032,7 +3045,8 @@ button.chip.active b {
   text-overflow: ellipsis;
 }
 
-/* the best level of each tier, underlined in its lamp's colour */
+/* each tier's level in the plain text colour, its lamp's mark beside it (a full combo fills the
+   cell); the saved charts' cell before them, set apart by a rule, so the tiers line up in every row */
 .song-tiers {
   display: flex;
   gap: var(--sp-1);
@@ -3040,25 +3054,67 @@ button.chip.active b {
 }
 
 .tier-level {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
+  height: 26px;
+  padding: 0 0 0 10px;
   font-family: var(--font-display);
   font-size: var(--fs-body);
   font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  color: var(--diff);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  border-radius: var(--radius-sm);
 }
 
-.tier-level.none {
+.tier-level.unknown {
   color: var(--text-dim);
 }
 
-.tier-level i {
-  display: block;
-  height: 3px;
-  margin: 2px var(--sp-1) 0;
-  border-radius: 2px;
-  background: var(--line);
+.tier-level.saved {
+  width: 38px;
+  margin-right: var(--sp-1);
+  padding-right: 8px;
+  border-right: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+/* the lamp's mark is the cell's left band */
+.tier-level .lamp-mark {
+  position: absolute;
+  left: 2px;
+  top: 3px;
+  bottom: 3px;
+  height: auto;
+}
+
+.tier-level.lamp-maxcombo,
+.tier-level.lamp-perfect {
+  color: var(--bg);
+  background: var(--lamp);
+}
+
+.tier-level.lamp-maxcombo .lamp-mark,
+.tier-level.lamp-perfect .lamp-mark {
+  display: none;
+}
+
+/* a lamp of another chart of the tier than the one Enter plays: its mark faint, never the cell */
+.tier-level.other .lamp-mark {
+  opacity: 0.4;
+}
+
+.tier-level.other.lamp-maxcombo,
+.tier-level.other.lamp-perfect {
+  color: var(--text);
+  background: none;
+}
+
+.tier-level.other.lamp-maxcombo .lamp-mark,
+.tier-level.other.lamp-perfect .lamp-mark {
+  display: inline-block;
 }
 
 .song-state {
@@ -3274,6 +3330,16 @@ button.chip.active b {
   background: var(--text);
 }
 
+/* a key mode with the song's edited or imported charts (their entries are on it): how many */
+.mode-saved {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: var(--fs-label);
+  line-height: 1.3;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+}
+
 /* the rules beside the difficulty basis: a judgement or a score rule that is not the default */
 .mode-rules {
   display: flex;
@@ -3318,7 +3384,8 @@ button.chip.active b {
 .difficulty {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   justify-content: stretch;
   gap: var(--sp-1);
@@ -3411,10 +3478,30 @@ button.chip.active b {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
+  min-width: 0;
   font-size: var(--fs-label);
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* a lamp in the numbers' condensed face; a long one gives way to the number beside it */
+.diff-record .lamp-text,
+.saved-line .lamp-text {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+}
+
+.diff-record .lamp-text,
+.other-best .lamp-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lamp-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .diff-record .none {
@@ -3422,10 +3509,46 @@ button.chip.active b {
 }
 
 .diff-lamp {
+  flex-shrink: 0;
   font-family: var(--font-display);
   font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+/* the best play's MAX COMBO, and a pattern made with 새 패턴 */
+.diff-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 20px;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.diff-sub b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.other-best {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pattern-tag {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0 var(--sp-1);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
 }
 
 /* under an open panel: a line per plate (its short name, level and lamp), the panel has the room */
@@ -3495,23 +3618,63 @@ button.chip.active b {
   }
 }
 
-/* lamps: text on the plates, the underline on the song list */
-.lamp-text.lamp-perfect { color: var(--lamp-perfect); }
-.lamp-text.lamp-maxcombo { color: var(--lamp-maxcombo); }
-.lamp-text.lamp-exhard { color: var(--lamp-exhard); }
-.lamp-text.lamp-hard { color: var(--lamp-hard); }
-.lamp-text.lamp-clear { color: var(--lamp-clear); }
-.lamp-text.lamp-easy { color: var(--lamp-easy); }
-.lamp-text.lamp-assist { color: var(--lamp-assist); }
-.lamp-text.lamp-failed { color: var(--lamp-failed); }
-.tier-level i.lamp-perfect { background: var(--lamp-perfect); }
-.tier-level i.lamp-maxcombo { background: var(--lamp-maxcombo); }
-.tier-level i.lamp-exhard { background: var(--lamp-exhard); }
-.tier-level i.lamp-hard { background: var(--lamp-hard); }
-.tier-level i.lamp-clear { background: var(--lamp-clear); }
-.tier-level i.lamp-easy { background: var(--lamp-easy); }
-.tier-level i.lamp-assist { background: var(--lamp-assist); }
-.tier-level i.lamp-failed { background: var(--lamp-failed); }
+/* lamps: the lamp's colour (--lamp) on its name and its mark, on the song list, the plates and the
+   records */
+.lamp-perfect { --lamp: var(--lamp-perfect); }
+.lamp-maxcombo { --lamp: var(--lamp-maxcombo); }
+.lamp-exhard { --lamp: var(--lamp-exhard); }
+.lamp-hard { --lamp: var(--lamp-hard); }
+.lamp-clear { --lamp: var(--lamp-clear); }
+.lamp-easy { --lamp: var(--lamp-easy); }
+.lamp-assist { --lamp: var(--lamp-assist); }
+.lamp-failed { --lamp: var(--lamp-failed); }
+
+.lamp-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--lamp, var(--text-dim));
+}
+
+/* the mark's shape tells the kind of clear without its colour: hollow (failed), thin (assist,
+   easy), full (clear), double (hard, EX-HARD), a block (a full combo); none: never played */
+.lamp-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0;
+  height: 12px;
+  border-radius: 1px;
+}
+
+.lamp-failed .lamp-mark {
+  width: 6px;
+  border: 1.5px solid var(--lamp);
+}
+
+.lamp-assist .lamp-mark,
+.lamp-easy .lamp-mark {
+  width: 2px;
+  background: var(--lamp);
+}
+
+.lamp-clear .lamp-mark {
+  width: 5px;
+  background: var(--lamp);
+}
+
+.lamp-hard .lamp-mark,
+.lamp-exhard .lamp-mark {
+  width: 3px;
+  margin-right: 5px;
+  background: var(--lamp);
+  box-shadow: 5px 0 0 var(--lamp);
+}
+
+.lamp-maxcombo .lamp-mark,
+.lamp-perfect .lamp-mark {
+  width: 9px;
+  background: var(--lamp);
+}
 
 /* the selected song while it is analysed: beside the play buttons it turns off */
 .analysis-status {
@@ -3541,36 +3704,73 @@ button.chip.active b {
   transition: width 0.3s;
 }
 
-/* edited and imported charts of the song */
+/* a failed analysis: why first, the server's own words folded under it */
+.raw-error {
+  min-width: 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.raw-error summary {
+  cursor: pointer;
+}
+
+.raw-error code {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* the song's edited and imported charts: entries of the difficulty row after the tiers (←→), a
+   line each in a row of their own that scrolls across (so a 720 px window keeps the play buttons) */
 .saved-charts {
+  flex-shrink: 0;
   display: flex;
-  align-items: center;
   gap: var(--sp-2);
   overflow-x: auto;
   padding-bottom: 2px;
 }
 
-.saved-charts > .label {
-  flex-shrink: 0;
+.saved-chart {
+  flex: 0 0 auto;
+  max-width: 440px;
+  min-width: 0;
 }
 
-.saved-chart {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-2);
+button.saved-plate {
+  position: relative;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  text-align: left;
+  white-space: nowrap;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
-.saved-chart.active {
+.saved-chart.active button.saved-plate,
+.saved-chart.active button.saved-plate:hover:not(:disabled) {
+  background: var(--raised);
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.saved-chart .kind {
+.saved-head,
+.saved-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.saved-plate .kind {
+  flex-shrink: 0;
   padding: 0 var(--sp-2);
   font-size: var(--fs-label);
   font-weight: 700;
@@ -3579,16 +3779,25 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.saved-chart .name {
+.saved-plate .name {
+  min-width: 0;
   font-weight: 700;
-  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.saved-chart .sub {
+.saved-line {
+  gap: var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-  white-space: nowrap;
+}
+
+.saved-line .lamp-text b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 /* the play options at a glance, a new pattern, and play */
@@ -4063,6 +4272,17 @@ button.option-chips[aria-expanded='true'] .chip {
   touch-action: none;
 }
 
+/* the sections to practise, a button each under the minimap (the one picked marked) */
+.minimap-sections {
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0 0;
+}
+
+.minimap-sections button.active {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .graph-label {
   display: flex;
   justify-content: space-between;
@@ -4123,6 +4343,69 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .song-tools .row .label {
   min-width: 112px;
+}
+
+/* the records of the difficulty chosen, a line per chart played (the one Enter plays first) */
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-table th,
+.record-table td {
+  padding: 3px var(--sp-2) 3px 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.record-table th:first-child,
+.record-table td:first-child {
+  padding-left: var(--sp-2);
+}
+
+.record-table th {
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
+}
+
+/* two numbers a column, the second under the first */
+.record-table td {
+  vertical-align: top;
+}
+
+.record-table td > b,
+.record-table td > .sub,
+.record-table td > .lamp-text {
+  display: flex;
+}
+
+.record-table td > b {
+  color: var(--text);
+}
+
+.record-table td > .sub {
+  color: var(--text-dim);
+}
+
+/* (a saved chart's long name gives way) */
+.record-table .record-pattern {
+  display: block;
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+}
+
+.record-table tr.current td {
+  background: var(--raised);
+}
+
+.record-current {
+  color: var(--text-dim);
 }
 
 .analysis-view {

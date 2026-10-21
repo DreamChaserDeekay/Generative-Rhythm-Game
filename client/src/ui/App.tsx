@@ -5,7 +5,7 @@ import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, padMenuKeysFor, saveSettings, type Settings } from '../settings/settings';
+import { loadSettings, padMenuKeysFor, patternKey, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
@@ -68,11 +68,19 @@ export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'select' });
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorSession | null>(null);
+  // the song select's practice and target level of each chart, kept while it is away (a play, the settings)
+  const [practices, setPractices] = useState<Record<string, PracticeOptions>>({});
+  const [targetLevels, setTargetLevels] = useState<Record<string, number>>({});
+  const keepPractice = useCallback((key: string, p: PracticeOptions | null) => setPractices((all) => withEntry(all, key, p)), []);
+  const keepTargetLevel = useCallback((key: string, level: number | null) => setTargetLevels((all) => withEntry(all, key, level)), []);
 
   const setSettings = useCallback((next: Settings) => {
     setSettingsState(next);
     saveSettings(next);
   }, []);
+  // the settings as they are now, for what ends after an await (a new pattern)
+  const current = useRef(settings);
+  current.current = settings;
 
   // a controller without the standard mapping works the menus with the buttons assigned (or inferred from its lanes)
   const { padMenu, padBindings, lastKeyMode } = settings;
@@ -116,7 +124,8 @@ export function App() {
   }, [screen]);
   /**
    * Result screen: the same key mode, difficulty system and tier with a new seed, played right
-   * away. Resolves with the error to show on the result screen, or null.
+   * away and kept as the tier's pattern (as F5 on the song select). Resolves with the error to
+   * show on the result screen, or null.
    */
   const regenerate = async (request: PlayRequest): Promise<string | null> => {
     const meta = request.chart.meta;
@@ -134,6 +143,8 @@ export function App() {
       });
       // the player left the result screen while it was generating
       if (run !== screenRun.current) return null;
+      const seed = chart.meta.generator?.seed;
+      if (seed !== undefined) setSettings(withPattern(current.current, patternKey(song.id, meta.keyMode, meta.difficultySystem ?? 'GRG', meta.difficulty), seed));
       play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
       return null;
     } catch (e) {
@@ -158,6 +169,10 @@ export function App() {
           onEdit={openEditor}
           selectedSongId={selectedSongId}
           onSelectSong={setSelectedSongId}
+          practices={practices}
+          onPractice={keepPractice}
+          targetLevels={targetLevels}
+          onTargetLevel={keepTargetLevel}
         />
       );
     case 'play':

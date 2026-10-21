@@ -38,9 +38,9 @@ async function addDemoAndPreview(page: Page) {
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await page.getByRole('button', { name: '4K', exact: true }).click();
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await songInfo(page);
+  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
 }
 
 async function noteCount(page: Page): Promise<number> {
@@ -161,8 +161,11 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await expect(page.getByTestId('import-report')).toContainText('채보 1개', { timeout: 60_000 });
   await expect(page.getByTestId('song-title')).toHaveText('E2E Keysound');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  // its own entry after the difficulties, on its key mode, chosen already; its file's level beside ours
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
-  await expect(page.getByTestId('saved-chart').first()).toContainText('가져옴');
+  await expect(page.getByTestId('saved-chart').first()).toContainText('BMS');
+  await expect(page.getByTestId('saved-chart').first()).toContainText('원본 5 · 추정');
+  await expect(page.getByTestId('saved-chart').first()).toHaveClass(/active/);
   await page.getByTestId('pick-saved').click();
   await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음 4개');
@@ -219,7 +222,6 @@ test('a played run keeps its replay, and watching it gives the same result', asy
 
   // the best play's replay is offered on the chart again
   await page.getByTestId('result-back').click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await songInfo(page);
   await expect(page.getByTestId('watch-best')).toBeVisible();

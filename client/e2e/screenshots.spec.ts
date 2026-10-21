@@ -90,7 +90,6 @@ async function selectShowcase(page: Page, keyMode: string, difficulty: string): 
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
   await page.getByRole('button', { name: keyMode, exact: true }).click();
   await page.getByRole('button', { name: new RegExp(difficulty) }).first().click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -171,7 +170,6 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.getByTestId('toggle-analysis').click();
   await difficultySystem(page, 'EZ2ON');
   await page.getByRole('button', { name: /SUPER HARD/ }).click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
   await page.mouse.move(0, 0);
@@ -267,10 +265,9 @@ test('importing a keysounded BMS folder', async ({ page }) => {
   await page.getByTestId('import-folder-input').setInputFiles(dir);
   await expect(page.getByTestId('import-report')).toContainText('채보 1개', { timeout: 60_000 });
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
-  await page.getByTestId('pick-saved').click();
   await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음');
-  // picking the imported chart shows its key mode and difficulty on the tabs
+  // the imported chart is chosen on its own key mode
   await expect(page.getByRole('button', { name: '7K+1S', exact: true })).toHaveClass(/active/);
   await page.mouse.move(0, 0);
   await shot(page, '09-import');

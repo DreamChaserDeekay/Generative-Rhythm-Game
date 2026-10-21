@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { keyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { LANE_PALETTES, type Palette } from '../render/palette';
+import { pointText } from './format';
+import { rangePoints, sectionRange, stepRange } from './practiceRange';
 import { groupColor, sectionLabel } from './sections';
 import { canvasFont, token } from './theme';
 
@@ -15,16 +17,33 @@ interface Props {
   /** Practice segment to highlight (ms); dragging selects a new one when `onSelect` is set. */
   selection?: [number, number] | null;
   onSelect?: (startMs: number, endMs: number) => void;
+  /** Says what its keys do while it has the focus (the panel's foot). */
+  onHelp?: (help: string) => void;
 }
 
-/** Whole-chart overview: time runs left to right, one row per lane, sections along the top (coloured
- * by repetition group, so the same music has the same colour). */
-export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
+/**
+ * Whole-chart overview: time runs left to right, one row per lane, sections along the top
+ * (coloured by repetition group, so the same music has the same colour). Picking a practice
+ * segment (`onSelect`) it takes the focus: ←→ move the segment a bar, Shift+←→ make it a bar
+ * longer or shorter; the sections' buttons under it each pick their section.
+ */
+export function ChartMinimap({ chart, palette, selection, onSelect, onHelp }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(600);
   const [drag, setDrag] = useState<[number, number] | null>(null);
   const duration = Math.max(1, chart.meta.durationMs ?? Math.max(...chart.notes.map((n) => n.endT ?? n.t), 1));
   const bars = useMemo(() => new TempoMap(chart.timing).barLines(duration), [chart, duration]);
+  // where a segment picked by key starts and ends, and the sections it can take whole
+  const points = useMemo(() => rangePoints(bars, duration), [bars, duration]);
+  const sections = useMemo(() => {
+    const tempo = new TempoMap(chart.timing);
+    const all = chart.sections ?? [];
+    return all.map((s, i) => {
+      const startMs = Math.max(0, tempo.beatToMs(s.startBeat));
+      const endMs = i + 1 < all.length ? tempo.beatToMs(all[i + 1].startBeat) : duration;
+      return { name: `${sectionLabel(s.label)}${s.group ? ` ${s.group}` : ''}`, range: sectionRange(points, startMs, endMs) };
+    });
+  }, [chart, duration, points]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -118,12 +137,25 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
     return i > 0 && bars[i] > t ? bars[i - 1] : bars[i];
   };
 
-  return (
+  const onKeyDown = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    if (!onSelect || !selection || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+    e.preventDefault();
+    const next = stepRange(points, selection, e.code === 'ArrowRight' ? 1 : -1, e.shiftKey);
+    if (next) onSelect(next[0], next[1]);
+  };
+
+  const canvas = (
     <canvas
       ref={canvasRef}
       className={`chart-minimap ${onSelect ? 'selectable' : ''}`}
       data-testid="chart-minimap"
       style={{ height: HEIGHT }}
+      tabIndex={onSelect ? 0 : undefined}
+      role={onSelect ? 'slider' : undefined}
+      aria-label={onSelect ? '연습 구간' : undefined}
+      aria-valuetext={onSelect && selection ? `${pointText(selection[0])}–${pointText(selection[1])}` : undefined}
+      onKeyDown={onKeyDown}
+      onFocus={() => onHelp?.('←→ 구간을 한 마디씩 옮기고, Shift+←→ 한 마디씩 늘이거나 줄입니다. 아래의 구간 이름은 그 구간을 고릅니다.')}
       onPointerDown={(e) => {
         if (!onSelect) return;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -145,5 +177,23 @@ export function ChartMinimap({ chart, palette, selection, onSelect }: Props) {
         onSelect(a, b);
       }}
     />
+  );
+  if (!onSelect || sections.length === 0) return canvas;
+  return (
+    <>
+      {canvas}
+      <div className="row minimap-sections" data-testid="minimap-sections" aria-label="구간 고르기">
+        {sections.map((s, i) => (
+          <button
+            key={i}
+            className={`small ${selection && selection[0] === s.range[0] && selection[1] === s.range[1] ? 'active' : ''}`}
+            onClick={() => onSelect(s.range[0], s.range[1])}
+            onFocus={() => onHelp?.(`${s.name}: ${pointText(s.range[0])}–${pointText(s.range[1])}을 연습 구간으로 고릅니다.`)}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

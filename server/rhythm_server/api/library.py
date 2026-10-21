@@ -19,6 +19,7 @@ import soundfile as sf
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
 from ..config import DEFAULT_SYSTEM, SAMPLE_RATE, load_config
+from ..generator.core import default_seed
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS songs (
@@ -85,6 +86,7 @@ MIGRATIONS = {
     "bga_offset_ms": "REAL NOT NULL DEFAULT 0",
     "bga_youtube": "TEXT",
     "sections": "TEXT",  # the user's section edits (JSON list), null = the analysed sections
+    "cover_at": "REAL",  # when the cover was last set or removed (the client's cache key)
 }
 # charts: where a chart came from (generated / edited / imported), its display name, and the
 # difficulty system its tier belongs to (DJMAX and EZ2ON both have an NM and an HD; null = not
@@ -93,9 +95,12 @@ CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
     "system": "TEXT",
+    # the level an imported chart's file gives it (BMS #PLAYLEVEL), as it writes it
+    "source_level": "TEXT",
 }
 SCORE_MIGRATIONS = {"has_replay": "INTEGER NOT NULL DEFAULT 0"}
 SAVED_CHART_KINDS = ("edited", "imported")
+CHART_FORMATS = ("osu", "bms", "bmson")
 BGA_EXTENSIONS = {".mp4": "video/mp4", ".webm": "video/webm", ".m4v": "video/mp4", ".mov": "video/quicktime", ".ogv": "video/ogg"}
 
 SONG_ID = re.compile(r"^[0-9a-f]{16}$")
@@ -144,6 +149,19 @@ class Library:
         for p in self.song_dir(song_id).glob("cover.*"):
             return p
         return None
+
+    def save_cover(self, song_id: str, data: bytes, ext: str) -> None:
+        """The song's picture (`ext` as its content says), in place of the one before."""
+        song_dir = self.song_dir(song_id)
+        for p in song_dir.glob("cover.*"):
+            p.unlink(missing_ok=True)
+        (song_dir / f"cover{ext}").write_bytes(data)
+        self.update_song(song_id, has_cover=1, cover_at=time.time())
+
+    def delete_cover(self, song_id: str) -> None:
+        for p in self.song_dir(song_id).glob("cover.*"):
+            p.unlink(missing_ok=True)
+        self.update_song(song_id, has_cover=0, cover_at=time.time())
 
     def stems_dir(self, song_id: str) -> Path:
         return self.song_dir(song_id) / "stems"
@@ -262,7 +280,7 @@ class Library:
         allowed = {
             "title", "artist", "status", "progress", "progress_label", "error", "bpm", "bpm_min", "bpm_max",
             "preview_ms", "analyzed_at", "overrides", "analyzer", "bga_ext", "bga_offset_ms", "bga_youtube",
-            "sections",
+            "sections", "has_cover", "cover_at",
         }  # fmt: skip
         sets = {k: v for k, v in fields.items() if k in allowed}
         for key in ("overrides", "analyzer", "sections"):
@@ -302,6 +320,7 @@ class Library:
             "audioHash": row["audio_hash"],
             "durationMs": row["duration_ms"],
             "hasCover": bool(row["has_cover"]),
+            "coverAt": row["cover_at"],
             "status": row["status"],
             "progress": row["progress"],
             "progressLabel": row["progress_label"],
@@ -399,18 +418,19 @@ class Library:
         self.chart_path(meta["chartId"]).write_text(json.dumps(chart, separators=(",", ":")), encoding="utf-8")
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at, kind, name, system) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO charts (id, song_id, key_mode, difficulty, level, seed, note_count, generator_version, created_at, kind, name, system, source_level) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
                     len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
-                    meta.get("difficultySystem") or DEFAULT_SYSTEM,
+                    meta.get("difficultySystem") or DEFAULT_SYSTEM, meta.get("sourceLevel"),
                 ),
             )
             self._db.commit()
 
     def list_charts(self, song_id: str, kinds: tuple[str, ...] = SAVED_CHART_KINDS) -> list[dict[str, Any]]:
-        """Saved (edited / imported) charts of a song, newest first."""
+        """Saved (edited / imported) charts of a song, newest first: the format of an imported one
+        (the generator column holds it) and the level its file gives it."""
         marks = ",".join("?" for _ in kinds)
         with self._lock:
             rows = self._db.execute(
@@ -420,6 +440,7 @@ class Library:
             {
                 "chartId": r["id"], "songId": r["song_id"], "keyMode": r["key_mode"], "difficulty": r["difficulty"], "level": r["level"],
                 "noteCount": r["note_count"], "kind": r["kind"], "name": r["name"], "createdAt": r["created_at"],
+                "format": r["generator_version"] if r["generator_version"] in CHART_FORMATS else None, "sourceLevel": r["source_level"],
             }
             for r in rows
             if self.chart_path(r["id"]).exists()
@@ -487,8 +508,14 @@ class Library:
         return system
 
     def _best_by_song(self, song_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
+        """The record of every chart played: its best play (highest base score) with its replay,
+        the best lamp and MAX COMBO, the fewest BREAK, the best EX-SCORE and grade-weighted score
+        of the plays under those score rules (None: none), plays and the last one; for a generated
+        chart the generator that made it and whether it is the default pattern of its tier (no
+        target level)."""
         query = (
-            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name, c.system FROM scores s JOIN charts c ON c.id = s.chart_id"
+            "SELECT s.*, c.key_mode, c.difficulty, c.level, c.seed, c.kind, c.name, c.system, c.source_level, c.generator_version, g.audio_hash"
+            " FROM scores s JOIN charts c ON c.id = s.chart_id JOIN songs g ON g.id = s.song_id"
             + (" WHERE s.song_id = ?" if song_id else "")
         )
         with self._lock:
@@ -497,20 +524,27 @@ class Library:
         for r in rows:
             cur = best.get(r["chart_id"])
             if cur is None:
+                system = r["system"] or self._chart_system(r["chart_id"])
                 best[r["chart_id"]] = cur = {
                     "chartId": r["chart_id"],
                     "songId": r["song_id"],
                     "keyMode": r["key_mode"],
-                    "system": r["system"] or self._chart_system(r["chart_id"]),
+                    "system": system,
                     "difficulty": r["difficulty"],
                     "level": r["level"],
                     "seed": r["seed"],
                     "kind": r["kind"],
                     "name": r["name"],
+                    "sourceLevel": r["source_level"],
+                    "generatorVersion": r["generator_version"] if r["kind"] == "generated" else None,
+                    "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None, system),
                     "score": r["score"],
                     "rate": r["rate"],
                     "maxCombo": r["max_combo"],
                     "lamp": r["lamp"],
+                    "minBreaks": r["breaks"],
+                    "exScore": None,
+                    "weightedScore": None,
                     "plays": 0,
                     "bestScoreId": r["id"],
                     "hasReplay": bool(r["has_replay"]),
@@ -518,11 +552,26 @@ class Library:
                 }
             cur["plays"] += 1
             cur["lastPlayedAt"] = max(cur["lastPlayedAt"], r["played_at"])
+            cur["maxCombo"] = max(cur["maxCombo"], r["max_combo"])
+            cur["minBreaks"] = min(cur["minBreaks"], r["breaks"])
             if r["score"] > cur["score"]:
-                cur.update(score=r["score"], rate=r["rate"], maxCombo=r["max_combo"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
+                cur.update(score=r["score"], rate=r["rate"], bestScoreId=r["id"], hasReplay=bool(r["has_replay"]))
             if lamp_rank(r["lamp"]) > lamp_rank(cur["lamp"]):
                 cur["lamp"] = r["lamp"]
+            detail = _detail(r["detail"])
+            for rule, key in (("EXSCORE", "exScore"), ("GRADE", "weightedScore")):
+                value = detail.get(key)
+                if detail.get("ruleset") == rule and isinstance(value, (int, float)):
+                    cur[key] = max(cur[key] if cur[key] is not None else 0, int(round(value)))
         out: dict[str, list[dict[str, Any]]] = {}
         for rec in best.values():
             out.setdefault(rec["songId"], []).append(rec)
         return out
+
+
+def _detail(text: str | None) -> dict[str, Any]:
+    try:
+        detail = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    return detail if isinstance(detail, dict) else {}

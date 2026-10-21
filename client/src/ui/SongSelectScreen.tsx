@@ -1,29 +1,40 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
-import { api, ApiError, type Health, type ImportResult, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { api, ApiError, EXPORT_LABELS, type Health, type ImportResult, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import { difficultySystems, enabledKeyModes, gaugeRules, tierOf, type DifficultyTier } from '../engine/config';
 import { placementLabels } from '../engine/placement';
 import { isReplay, type ReplayData } from '../engine/replay';
-import { rulesetConfigs } from '../engine/ruleset';
+import { rulesetConfigs, type RulesetId } from '../engine/ruleset';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
 import type { PlayAction } from '../input/playKeys';
 import {
   bindingLabel,
+  chartPickKey,
+  chartPickOf,
   DEFAULT_SETTINGS,
   laneKeysFor,
+  patternKey,
+  patternOf,
   playKeysOf,
   SONG_FOLDERS,
   SONG_SORTS,
   songOffsetOf,
+  withChartPick,
+  withoutSong,
+  withPattern,
   withSongOffset,
+  type Pattern,
   type Settings,
   type SongFolder,
 } from '../settings/settings';
+import { failureReason } from './analysisError';
 import type { PlayRequest, PracticeOptions } from './App';
-import { speedText } from './format';
-import { lampClass } from './lamps';
+import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
+import { dayText, speedText } from './format';
+import { namedPictures } from './importPictures';
+import { lampClass, LampMark } from './lamps';
 import { FEVER_SHORT, generationParams, PLAY_OPTIONS_TABS, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { judgementChip } from './playRules';
@@ -31,7 +42,24 @@ import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pres
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { KIND_LABELS, NpsGraph, SongInfoPanel } from './SongInfoPanel';
 import { Backdrop, bpmLabel, SongArt, useSketch } from './songArt';
-import { bestByTier, FOLDER_LABELS, inFolder, recordsOn, sortSongs, SORT_LABELS } from './songRecords';
+import {
+  bestByTier,
+  FOLDER_LABELS,
+  inFolder,
+  otherBest,
+  otherLabel,
+  recordHeadline,
+  recordOf,
+  recordScore,
+  recordsOn,
+  sameMark,
+  savedMark,
+  savedRecordsOn,
+  sortSongs,
+  SORT_LABELS,
+  tierMark,
+  type TierMark,
+} from './songRecords';
 import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
@@ -44,12 +72,20 @@ interface Props {
   onEdit: (chart: ServerChart, song: Song) => void;
   selectedSongId: string | null;
   onSelectSong: (id: string | null) => void;
+  /** Kept while the song select is away (a play, the settings), per chart (practiceKey): its practice and target level. */
+  practices: Record<string, PracticeOptions>;
+  onPractice: (key: string, practice: PracticeOptions | null) => void;
+  targetLevels: Record<string, number>;
+  onTargetLevel: (key: string, level: number | null) => void;
 }
 
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
 const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
 const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
+const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
+/** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
+const PREFETCH_DELAY_MS = 300;
 
 /** The part of the detail column above the key modes: the song, or one of the two panels. */
 type Panel = 'none' | 'options' | 'info';
@@ -63,11 +99,6 @@ function offsetKeysText(keys: Record<PlayAction, string>): string {
 /** The function keys of the song select (each with its own job, never repeated by a held key). */
 const FUNCTION_KEYS = new Set(['F2', 'F3', 'F4', 'F5', 'F6', 'F10']);
 
-/** A day as the record shows it: 2026. 10. 21. */
-function dateText(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleDateString('ko-KR');
-}
-
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -78,24 +109,24 @@ export function SongSelectScreen(props: Props) {
   const [health, setHealth] = useState<Health | null | 'offline'>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [query, setQuery] = useState('');
-  const [chart, setChart] = useState<ServerChart | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [targetLevel, setTargetLevel] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>('none');
   const [optionsTab, setOptionsTab] = useState<PlayOptionsTab>('rules');
   const [addMenu, setAddMenu] = useState(false);
-  const [practice, setPractice] = useState<PracticeOptions | null>(null);
-  const [savedCharts, setSavedCharts] = useState<SavedChart[]>([]);
+  // the edited and imported charts of a song (the one they are of: a list never shows on another song)
+  const [savedCharts, setSavedCharts] = useState<{ songId: string | null; charts: SavedChart[] }>({ songId: null, charts: [] });
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const replayInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const addMenuWrap = useRef<HTMLDivElement>(null);
+  // the charts and their levels as they come in (kept across the song select's visits)
+  const chartsIn = useChartStore();
 
   // the settings as they are now, for what ends after an await (an upload, an import)
   const current = useRef(settings);
@@ -106,6 +137,43 @@ export function SongSelectScreen(props: Props) {
   const difficulty = tierOf(system, settings.lastDifficulty).id;
   const favorites = useMemo(() => new Set(settings.favorites), [settings.favorites]);
   const folder = settings.songFolder;
+  const generationKey = JSON.stringify(settings.generation);
+  const params = useMemo(() => generationParams(settings.generation, keyMode), [generationKey, keyMode]);
+
+  /** Where a tier of a song keeps its pattern and target level. */
+  const tierKey = (song: Song, tier: string) => patternKey(song.id, keyMode, system.id, tier);
+  /** What a tier's chart on a song is made of with a seed (null: the default): its target level, the generation options. */
+  const specOf = (song: Song, tier: string, seed: number | null): ChartSpec => {
+    const target = props.targetLevels[tierKey(song, tier)];
+    return {
+      songId: song.id,
+      analysis: analysisStamp(song),
+      keyMode,
+      system: system.id,
+      difficulty: tier,
+      targetLevel: target === undefined ? null : Math.min(target, system.maxLevel),
+      seed,
+      params,
+    };
+  };
+  /**
+   * The chart Enter plays on a tier of a song: made of its pattern (its seed, or the default) and
+   * the options, or a chart chosen from its records (`chartId`, played as it was made).
+   */
+  const tierChart = (song: Song, tier: string): { key: string; spec: ChartSpec | null; chartId: string | null } => {
+    const pattern = patternOf(settings, tierKey(song, tier));
+    if (typeof pattern === 'string') return { key: savedChartKey(pattern), spec: null, chartId: pattern };
+    const spec = specOf(song, tier, pattern);
+    return { key: chartKey(spec), spec, chartId: null };
+  };
+  /** The brief of a tier's chart on a song, once known. */
+  const briefOn = (song: Song, tier: string): ChartBrief | null => (song.status === 'ready' ? chartStore.brief(tierChart(song, tier).key) : null);
+  /** Asks for a tier's chart: the whole of it, or its brief (a chosen chart comes whole: it is known by its id only). */
+  const loadTier = (song: Song, tier: string, whole: boolean, retry = false): Promise<unknown> => {
+    const { spec, chartId } = tierChart(song, tier);
+    if (chartId) return chartStore.loadSaved(chartId, retry);
+    return spec ? (whole ? chartStore.loadChart(spec, retry) : chartStore.loadBrief(spec)) : Promise.resolve(null);
+  };
 
   // the folder, then the search, in the chosen order
   const folderCounts = useMemo(
@@ -115,7 +183,10 @@ export function SongSelectScreen(props: Props) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const shown = songs.filter((s) => inFolder(s, folder, keyMode, system.id, favorites) && (!q || `${s.title} ${s.artist}`.toLowerCase().includes(q)));
-    return sortSongs(shown, settings.songSort, { keyMode, system: system.id, difficulty });
+    // 레벨순 takes the levels known when the list is ordered (a level coming in later does not move
+    // the songs under the cursor; the next order, folder or search takes it)
+    const knownLevel = (s: Song) => briefOn(s, difficulty)?.level ?? null;
+    return sortSongs(shown, settings.songSort, { keyMode, system: system.id, difficulty, knownLevel });
   }, [songs, query, folder, keyMode, system.id, difficulty, favorites, settings.songSort]);
   // The song under the cursor is always one the list shows: a folder or a search that leaves the
   // chosen one out puts the cursor on its first song, and with no song shown nothing is selected
@@ -162,38 +233,85 @@ export function SongSelectScreen(props: Props) {
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
-  // Any change of selection (or of the generation options, or a new analysis of the song)
-  // invalidates the generated chart, except the switch of key mode / difficulty tabs that picking
-  // a saved chart makes. A chart still being fetched for the old selection is dropped when it
-  // arrives (chartRequest), so it never lands on another song.
-  const generationKey = JSON.stringify(settings.generation);
-  const pickedChart = useRef<ServerChart | null>(null);
-  const chartRequest = useRef(0);
-  useEffect(() => {
-    chartRequest.current++;
-    const picked = pickedChart.current;
-    pickedChart.current = null;
-    // set right before the tab switch it causes, so this run is that switch
-    setChart(picked && picked.meta.keyMode === keyMode ? picked : null);
-    setError(null);
-    setPractice(null);
-  }, [selected?.id, keyMode, difficulty, system.id, targetLevel, generationKey, selected?.status, selected?.analyzedAt]);
-
   // Edited and imported charts of the selected song.
   const loadSaved = useCallback(async (songId: string | null) => {
     if (!songId) {
-      setSavedCharts([]);
+      setSavedCharts({ songId, charts: [] });
       return;
     }
     try {
-      setSavedCharts(await api.savedCharts(songId));
+      setSavedCharts({ songId, charts: await api.savedCharts(songId) });
     } catch {
-      setSavedCharts([]);
+      setSavedCharts({ songId, charts: [] });
     }
   }, []);
   useEffect(() => {
     void loadSaved(selected?.id ?? null);
   }, [selected?.id, loadSaved]);
+
+  // The entries of the difficulty row: the tiers of the difficulty system, then the song's edited
+  // and imported charts of this key mode, each its own. The one chosen last on a song's key mode
+  // is kept with the song (a tier otherwise: the one chosen last anywhere).
+  const savedLoaded = selected !== null && savedCharts.songId === selected.id;
+  const savedOnMode = savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === keyMode) : [];
+  const pickKey = selected ? chartPickKey(selected.id, keyMode) : null;
+  const picked = pickKey ? chartPickOf(settings, pickKey) : null;
+  const savedEntry = (picked && savedOnMode.find((c) => c.chartId === picked)) || null;
+  // the chart of the selected tier, and what is kept for the chart chosen (its practice, its target level)
+  const tierEntry = selected && !savedEntry ? tierChart(selected, difficulty) : null;
+  const spec = tierEntry?.spec ?? null;
+  const pattern = selected && !savedEntry ? patternOf(settings, tierKey(selected, difficulty)) : null;
+  const entryChartKey = savedEntry ? savedChartKey(savedEntry.chartId) : (tierEntry?.key ?? null);
+  const practiceKey = selected && pickKey ? (savedEntry ? `${pickKey}|${savedEntry.chartId}` : tierKey(selected, difficulty)) : null;
+  const practice = (practiceKey && props.practices[practiceKey]) || null;
+  const setPractice = (p: PracticeOptions | null) => practiceKey && props.onPractice(practiceKey, p);
+  const targetLevel = spec?.targetLevel ?? null;
+  const ready = selected?.status === 'ready';
+  // the chart Enter plays, once it is loaded (the panels and the summary show it)
+  const chart = ready && entryChartKey ? chartStore.chart(entryChartKey) : null;
+
+  // A move to another chart (another song, key mode, difficulty, pattern, options, a new analysis)
+  // ends what was asked for the one before: an error about it goes, and a chart it was waiting for
+  // does not start a play.
+  const selectionRun = useRef(0);
+  useEffect(() => {
+    selectionRun.current++;
+    setError(null);
+  }, [selected?.id, keyMode, entryChartKey, selected?.status]);
+
+  // Once the cursor rests on a song: the chart of the selected entry (the panels, the summary and
+  // Enter want it), then the levels of the other tiers, one at a time. The server makes the chart
+  // of the entry once and keeps it; the store keeps what came for the next visit, and asks again
+  // what found the server down then (each visit, and a new connection, asks).
+  // (a song whose saved chart was chosen last waits for its list: that chart is the one wanted first)
+  const entryLoading = picked !== null && !savedLoaded;
+  const prefetchKey = selected && ready && !entryLoading ? `${tiers.map((t) => tierChart(selected, t.id).key).join(' ')} ${entryChartKey}` : null;
+  useEffect(() => {
+    if (!selected || !ready || prefetchKey === null) return;
+    const song = selected;
+    const entry = savedEntry;
+    const at = difficulty;
+    let alive = true;
+    const timer = window.setTimeout(async () => {
+      if (entry) await chartStore.loadSaved(entry.chartId);
+      else await loadTier(song, at, true);
+      for (const t of tiers) {
+        if (!alive) return;
+        if (entry || t.id !== at) await loadTier(song, t.id, false);
+      }
+      // a chart chosen from the records that the server no longer has (the song was taken out and
+      // added again, another data folder): its tier goes back to the default pattern
+      const gone = tiers.filter((t) => {
+        const c = tierChart(song, t.id);
+        return c.chartId !== null && chartStore.failure(c.key) === 404;
+      });
+      if (alive && gone.length > 0) onSettingsChange(gone.reduce((next, t) => withPattern(next, tierKey(song, t.id), null), current.current));
+    }, PREFETCH_DELAY_MS);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [prefetchKey, health]);
 
   // Highlight preview of the selected song: fades in, loops, fades out when leaving the song. It
   // plays on behind the settings (App), so coming back from them keeps the one playing; until the
@@ -216,12 +334,13 @@ export function SongSelectScreen(props: Props) {
   /**
    * Puts the cursor on a song just added (uploaded, imported, a demo): a search or a folder that
    * would leave it out gives way (the folder goes to 전체), or the cursor could not stay on it.
+   * `next` is the settings to go on from (an import puts its key mode and chart there).
    */
-  const selectAdded = (song: Song, list: Song[] | null) => {
+  const selectAdded = (song: Song, list: Song[] | null, next: Settings = current.current) => {
     const added = list?.find((s) => s.id === song.id) ?? song;
     setQuery((q) => (`${added.title} ${added.artist}`.toLowerCase().includes(q.trim().toLowerCase()) ? q : ''));
-    const s = current.current;
-    if (!inFolder(added, s.songFolder, s.lastKeyMode, s.difficultySystem, new Set(s.favorites))) onSettingsChange({ ...s, songFolder: 'all' });
+    const shown = inFolder(added, next.songFolder, next.lastKeyMode, next.difficultySystem, new Set(next.favorites));
+    if (!shown || next !== current.current) onSettingsChange(shown ? next : { ...next, songFolder: 'all' });
     onSelectSong(added.id);
   };
 
@@ -239,12 +358,13 @@ export function SongSelectScreen(props: Props) {
     setBusy(null);
   };
 
-  /** Chart packages: files picked one by one, a picked folder, or .zip/.osz archives. */
+  /**
+   * Chart packages: files picked one by one, a picked folder, or .zip/.osz archives (with the
+   * pictures their charts name for a cover). The first chart imported is chosen, on its key mode.
+   */
   const importFiles = async (list: FileList | File[]) => {
-    const files = Array.from(list)
-      .filter((f) => IMPORT_FILE.test(f.name))
-      .map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
-    if (!files.some((f) => CHART_FILE.test(f.file.name))) {
+    const all = Array.from(list).map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
+    if (!all.some((f) => CHART_FILE.test(f.file.name))) {
       setError('가져올 채보 파일이 없습니다 (.osz · .zip · .osu · .bms · .bme · .bml · .bmson)');
       return;
     }
@@ -252,12 +372,17 @@ export function SongSelectScreen(props: Props) {
     setError(null);
     setImportReport(null);
     try {
-      const result = await api.importPackage(files);
+      const pictures = await namedPictures(all, (name) => CHART_FILE.test(name), (name) => IMAGE_FILE.test(name));
+      const result = await api.importPackage([...all.filter((f) => IMPORT_FILE.test(f.file.name)), ...pictures]);
       setImportReport(result);
       const list = await refresh();
+      const first = result.charts[0];
       if (result.songs.length > 0) {
-        selectAdded(result.songs[0], list);
-        await loadSaved(result.songs[0].id);
+        const song = result.songs.find((s) => s.id === first?.songId) ?? result.songs[0];
+        let next = current.current;
+        if (first && enabledKeyModes.includes(first.keyMode)) next = withChartPick({ ...next, lastKeyMode: first.keyMode }, chartPickKey(first.songId, first.keyMode), first.chartId);
+        selectAdded(song, list, next);
+        await loadSaved(song.id);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -295,43 +420,17 @@ export function SongSelectScreen(props: Props) {
     }
   };
 
-  const pickSaved = async (c: SavedChart) => {
-    setError(null);
-    setPractice(null);
-    const request = ++chartRequest.current;
-    try {
-      const picked = await api.chart(c.chartId);
-      if (request !== chartRequest.current) return;
-      const { keyMode: mode, difficulty: diff, difficultySystem } = picked.meta;
-      // show its key mode on the tabs (an imported 7K+1S chart while 4K is selected), and its
-      // difficulty too when it is on the selected system or was made on DJMAX / EZ2ON; an
-      // imported chart (five-step scale) leaves the chosen difficulty system alone
-      const next = { ...settings };
-      if (enabledKeyModes.includes(mode)) next.lastKeyMode = mode;
-      const pickedSystem = difficultySystem && difficultySystem !== 'GRG' ? difficultySystem : null;
-      if (pickedSystem && difficultySystems[pickedSystem]?.tiers.some((t) => t.id === diff)) {
-        next.difficultySystem = pickedSystem;
-        next.lastDifficulty = diff;
-      } else if (system.tiers.some((t) => t.id === diff)) {
-        next.lastDifficulty = diff;
-      }
-      const changed = next.lastKeyMode !== keyMode || next.difficultySystem !== system.id || next.lastDifficulty !== difficulty;
-      if (changed) {
-        pickedChart.current = picked;
-        setTargetLevel(null);
-        onSettingsChange(next);
-      } else {
-        setChart(picked);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+  /** Chooses an entry of the difficulty row: a tier of the system, or a saved chart of the song (by id). */
+  const pickEntry = (entry: { tier: string } | { chartId: string }) => {
+    if (!pickKey) return;
+    const next = withChartPick(settings, pickKey, 'chartId' in entry ? entry.chartId : null);
+    onSettingsChange('tier' in entry ? { ...next, lastDifficulty: entry.tier } : next);
   };
 
   const deleteSaved = async (c: SavedChart) => {
     if (!window.confirm(`"${c.name}" 채보를 지울까요? 이 채보의 기록도 함께 지워집니다.`)) return;
     await api.deleteChart(c.chartId).catch((e: Error) => setError(e.message));
-    if (chart?.meta.chartId === c.chartId) setChart(null);
+    if (pickKey && chartPickOf(current.current, pickKey) === c.chartId) onSettingsChange(withChartPick(current.current, pickKey, null));
     await loadSaved(selected?.id ?? null);
     await refresh();
   };
@@ -348,27 +447,24 @@ export function SongSelectScreen(props: Props) {
     setBusy(null);
   };
 
-  const generate = async (newSeed = false) => {
-    if (!selected || selected.status !== 'ready') return null;
-    const request = ++chartRequest.current;
-    setBusy(newSeed ? '새 패턴 생성 중…' : '채보 생성 중…');
+  /**
+   * The chart of the selected entry, loaded now if it is not yet (a play, a practice): an error
+   * says why it could not be. Null when the cursor moved on meanwhile, or before the entry is
+   * known (the song's saved chart chosen last, its list not here yet).
+   */
+  const loadSelected = async (): Promise<ServerChart | null> => {
+    if (!selected || !ready || !entryChartKey || entryLoading) return null;
+    const kept = chartStore.chart(entryChartKey);
+    if (kept) return kept;
+    const run = selectionRun.current;
+    setBusy('채보 생성 중…');
     setGenerating(true);
-    setError(null);
     try {
-      const { chart: c } = await api.generate(selected.id, {
-        keyMode,
-        difficulty,
-        system: system.id,
-        targetLevel,
-        newSeed,
-        params: generationParams(settings.generation, keyMode),
-      });
-      // the selection moved on while the server was generating: this chart is not for it
-      if (request !== chartRequest.current) return null;
-      setChart(c);
-      return c;
+      const c = (savedEntry ? await chartStore.loadSaved(savedEntry.chartId, true) : await loadTier(selected, difficulty, true, true)) as ServerChart | null;
+      // the cursor moved on while the server was making it: it is not for the chart chosen now
+      return run === selectionRun.current ? c : null;
     } catch (e) {
-      if (request === chartRequest.current) setError(e instanceof Error ? e.message : String(e));
+      if (run === selectionRun.current) setError(e instanceof Error ? e.message : String(e));
       return null;
     } finally {
       setBusy(null);
@@ -382,9 +478,9 @@ export function SongSelectScreen(props: Props) {
     if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
     starting.current = true;
     try {
-      const c = chart ?? (await generate());
+      const c = await loadSelected();
       if (!c || (c.meta.songId && c.meta.songId !== selected.id)) return;
-      const best = (selected.records ?? []).find((r) => r.chartId === c.meta.chartId) ?? null;
+      const best = recordOf(selected, c.meta.chartId);
       onPlay(
         buildPlayRequest(selected, c, settings, {
           autoPlay,
@@ -397,8 +493,39 @@ export function SongSelectScreen(props: Props) {
     }
   };
 
-  const newPattern = () => {
-    if (selected?.status === 'ready' && busy === null) void generate(chart !== null);
+  /**
+   * F5: another pattern of the selected tier (a new seed), kept as its pattern from now on: Enter,
+   * the plates and the records follow it. Shift+F5 goes back to the default pattern.
+   */
+  const newPattern = async () => {
+    if (!selected || !ready || busy !== null || savedEntry || entryLoading) return;
+    const key = tierKey(selected, difficulty);
+    const base = specOf(selected, difficulty, null);
+    setBusy('새 패턴 만드는 중…');
+    setGenerating(true);
+    setError(null);
+    try {
+      const { chart: c } = await api.generate(selected.id, { ...requestOf(base), seed: null, newSeed: true });
+      const seed = c.meta.generator?.seed;
+      if (seed === undefined) return;
+      chartStore.put(chartKey({ ...base, seed }), c);
+      onSettingsChange(withPattern(current.current, key, seed));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+      setGenerating(false);
+    }
+  };
+  const defaultPattern = () => {
+    if (selected && pattern !== null) onSettingsChange(withPattern(settings, tierKey(selected, difficulty), null));
+  };
+  /** The selected tier's pattern from the records: a chart chosen by its id is played as it was made, so its target level goes. */
+  const pickPattern = (p: Pattern | null) => {
+    if (!selected) return;
+    const key = tierKey(selected, difficulty);
+    if (typeof p === 'string') props.onTargetLevel(key, null);
+    onSettingsChange(withPattern(settings, key, p));
   };
 
   const reanalyze = async () => {
@@ -432,13 +559,30 @@ export function SongSelectScreen(props: Props) {
     await refresh();
   };
 
-  // Practice runs on the chart: turned on before there is one, it makes it first.
+  const uploadCover = async (file: File) => {
+    if (!selected) return;
+    setError(null);
+    try {
+      await api.uploadCover(selected.id, file);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const removeCover = async () => {
+    if (!selected) return;
+    await api.deleteCover(selected.id).catch((e: Error) => setError(e.message));
+    await refresh();
+  };
+
+  // Practice runs on the chart: turned on before it is loaded, it loads it first.
   const togglePractice = async (on: boolean) => {
     if (!on) {
       setPractice(null);
       return;
     }
-    const c = chart ?? (busy === null ? await generate() : null);
+    const c = chart ?? (busy === null ? await loadSelected() : null);
     if (!c || c.notes.length === 0) return;
     // Start on the bar of the first note and take eight bars.
     const bars = new TempoMap(c.timing).barLines(c.meta.durationMs ?? 0);
@@ -467,15 +611,27 @@ export function SongSelectScreen(props: Props) {
 
   const remove = async () => {
     if (!selected || !window.confirm(`"${selected.title}"을(를) 라이브러리에서 지울까요? 기록도 함께 지워집니다.`)) return;
-    await api.deleteSong(selected.id).catch((e: Error) => setError(e.message));
+    const id = selected.id;
+    try {
+      await api.deleteSong(id);
+      // what was kept for it goes with it (added again, it would come back with the same id)
+      onSettingsChange(withoutSong(current.current, id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
     const list = await refresh();
     onSelectSong(list && list.length > 0 ? list[0].id : null);
   };
 
   const setKeyMode = (m: KeyModeId) => onSettingsChange({ ...settings, lastKeyMode: m });
-  const setDifficulty = (d: string) => {
-    setTargetLevel(null);
-    onSettingsChange({ ...settings, lastDifficulty: d });
+  const setDifficulty = (d: string) => pickEntry({ tier: d });
+  const setTargetLevel = (level: number | null) => selected && props.onTargetLevel(tierKey(selected, difficulty), level);
+  /** ←→: the next entry of the difficulty row (the tiers, then the saved charts), none past either end. */
+  const stepEntry = (dir: 1 | -1) => {
+    const at = savedEntry ? tiers.length + savedOnMode.indexOf(savedEntry) : tiers.findIndex((t) => t.id === difficulty);
+    const next = at + dir;
+    if (next < 0 || next >= tiers.length + savedOnMode.length) return;
+    pickEntry(next < tiers.length ? { tier: tiers[next].id } : { chartId: savedOnMode[next - tiers.length].chartId });
   };
   const toggleFavorite = (id: string) =>
     onSettingsChange({ ...settings, favorites: favorites.has(id) ? settings.favorites.filter((f) => f !== id) : [...settings.favorites, id] });
@@ -609,10 +765,11 @@ export function SongSelectScreen(props: Props) {
     return true;
   };
 
-  // Keyboard: ↑↓ song (PageUp / PageDown a page, Home / End the ends), ←→ difficulty, Enter plays,
-  // Tab (Shift+Tab back) key mode, Shift alone or F6 the folder, F2 a random song, F3 a favourite,
-  // Space the play options, I the song info, / or Ctrl+F the search, + the add menu, F4 the order,
-  // F5 a new pattern, F10 the settings, Esc closes what is open. A panel takes the arrows, Home /
+  // Keyboard: ↑↓ song (PageUp / PageDown a page, Home / End the ends), ←→ difficulty (and the
+  // saved charts after it), Enter plays, Tab (Shift+Tab back) key mode, Shift alone or F6 the
+  // folder, F2 a random song, F3 a favourite, Space the play options, I the song info, / or Ctrl+F
+  // the search, + the add menu, F4 the order, F5 a new pattern (Shift+F5 the default one), F10 the
+  // settings, Esc closes what is open. A panel takes the arrows, Home /
   // End and Enter while it is open (panelKey), and the song under it stays (F2 waits). A text
   // field, a slider or a drop-down keeps the keys it uses itself.
   const shiftAlone = useRef(false);
@@ -631,7 +788,8 @@ export function SongSelectScreen(props: Props) {
           if (panel === 'none' || inList) randomSong();
         } else if (e.code === 'F3') toggleSelectedFavorite();
         else if (e.code === 'F4') stepSort();
-        else if (e.code === 'F5') newPattern();
+        else if (e.code === 'F5' && e.shiftKey) defaultPattern();
+        else if (e.code === 'F5') void newPattern();
         else if (e.code === 'F6') stepFolder();
         else props.onOpenSettings();
         return;
@@ -686,8 +844,7 @@ export function SongSelectScreen(props: Props) {
         cursorTo(e.code === 'Home' ? 0 : filtered.length - 1);
       } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         e.preventDefault();
-        const d = tiers.findIndex((t) => t.id === difficulty) + (e.code === 'ArrowRight' ? 1 : -1);
-        if (d >= 0 && d < tiers.length) setDifficulty(tiers[d].id);
+        stepEntry(e.code === 'ArrowRight' ? 1 : -1);
       } else if (e.code === 'Enter') {
         e.preventDefault();
         if (!e.repeat) void play();
@@ -770,10 +927,52 @@ export function SongSelectScreen(props: Props) {
     else if (files.length > 0) void upload(files);
   };
 
-  // the plates' bests: this key mode on this difficulty system (DJMAX NM is not EZ2ON NM)
-  const bests = selected ? bestByTier(recordsOn(selected, keyMode, system.id)) : new Map();
+  /** A tier's chart is being worked out, so its record is not known yet either (a chart chosen by its id is known at once). */
+  const recordPending = (song: Song, tier: string): boolean => {
+    if (song.status !== 'ready') return false;
+    const { key, chartId } = tierChart(song, tier);
+    return chartId === null && !chartStore.brief(key) && !chartStore.hasFailed(key);
+  };
+  /**
+   * The record a plate shows: its chart's (the pattern Enter plays, known by its brief, or chosen
+   * by its id). A song being analysed again (or whose analysis failed), and a chart that could not
+   * be made, have no chart to speak of: the tier's best of any chart.
+   */
+  const tierRecord = (song: Song, tier: string): ScoreRecord | null => {
+    if (song.status === 'ready') {
+      const { key, chartId } = tierChart(song, tier);
+      const known = chartId ?? chartStore.brief(key)?.chartId;
+      if (known || !chartStore.hasFailed(key)) return recordOf(song, known);
+    }
+    return bestByTier(recordsOn(song, keyMode, system.id)).get(tier) ?? null;
+  };
+  // the record of the chart chosen (the pattern Enter plays, or the saved chart): on the summary
   const selectedTier = tierOf(system, difficulty);
-  const ready = selected?.status === 'ready';
+  const entryRecord = !selected ? null : savedEntry ? recordOf(selected, savedEntry.chartId) : tierRecord(selected, difficulty);
+  // known once the tier's chart is (a saved chart's at once; a song not analysed shows the tier's best)
+  const entryKnown = !selected || savedEntry !== null || !recordPending(selected, difficulty);
+  // the generator of the moment (a chart of another one is played as it was made)
+  const generator = health && health !== 'offline' ? health.generator : null;
+
+  // The song list's cells: the chart Enter plays on each tier of each song shown is worked out
+  // when the list, the patterns or the options change, and its level and lamp are looked up again
+  // as levels come in. A row is drawn again only when its own cells change (SongRow): a move of
+  // the cursor draws two rows, a level coming in one.
+  const listCharts = useMemo(
+    () => filtered.map((s) => tiers.map((t) => tierChart(s, t.id).key)),
+    [filtered, tiers, keyMode, system.id, settings.patterns, props.targetLevels, params],
+  );
+  const listCells = useMemo(
+    () =>
+      filtered.map((s, i): ListCells => {
+        const records = recordsOn(s, keyMode, system.id);
+        return {
+          tiers: tiers.map((t, j) => ({ tier: t, ...tierMark(records, t.id, s.status === 'ready' ? chartStore.brief(listCharts[i][j]) : null) })),
+          saved: savedMark(savedRecordsOn(s, keyMode)),
+        };
+      }),
+    [listCharts, chartsIn],
+  );
   const pick = (run: () => void) => () => {
     setAddMenu(false);
     run();
@@ -964,16 +1163,8 @@ export function SongSelectScreen(props: Props) {
                     : `${FOLDER_LABELS[folder]} 폴더에 곡이 없습니다 (${folderKey}로 다음 폴더)`}
               </div>
             )}
-            {filtered.map((s) => (
-              <SongRow
-                key={s.id}
-                song={s}
-                active={s.id === selected?.id}
-                favorite={favorites.has(s.id)}
-                tiers={tiers}
-                bests={bestByTier(recordsOn(s, keyMode, system.id))}
-                onPick={() => onSelectSong(s.id)}
-              />
+            {filtered.map((s, i) => (
+              <SongRow key={s.id} song={s} active={s.id === selected?.id} favorite={favorites.has(s.id)} cells={listCells[i]} onPick={onSelectSong} />
             ))}
           </div>
         </section>
@@ -993,7 +1184,7 @@ export function SongSelectScreen(props: Props) {
                 practice={practice}
                 onPracticeToggle={(on) => void togglePractice(on)}
                 onPracticeChange={setPractice}
-                targetLevel={targetLevel}
+                targetLevel={spec ? targetLevel : undefined}
                 onTargetLevel={setTargetLevel}
                 maxLevel={system.maxLevel}
                 defaultLevel={Math.round((selectedTier.levels[0] + selectedTier.levels[1]) / 2)}
@@ -1005,12 +1196,22 @@ export function SongSelectScreen(props: Props) {
               <SongInfoPanel
                 song={selected}
                 chart={chart}
+                chartFailed={entryChartKey !== null && chartStore.hasFailed(entryChartKey)}
                 palette={settings.palette}
                 keysound={settings.keysound}
                 practice={practice}
-                onSelectRange={(startMs, endMs) => setPractice((p) => ({ rate: 1, loop: true, ...p, startMs, endMs }))}
+                onSelectRange={(startMs, endMs) => setPractice({ rate: 1, loop: true, ...practice, startMs, endMs })}
                 onEditChart={() => selected && chart && props.onEdit(chart, selected)}
                 onWatchBest={(id) => void watchBest(id)}
+                records={selected ? (savedEntry ? savedRecordsOn(selected, keyMode) : recordsOn(selected, keyMode, system.id).filter((r) => r.difficulty === difficulty)) : []}
+                recordFor={savedEntry ? savedLabel(savedEntry) : `${keyMode} ${selectedTier.label}`}
+                currentChartId={savedEntry ? savedEntry.chartId : selected ? (briefOn(selected, difficulty)?.chartId ?? null) : null}
+                ruleset={settings.ruleset}
+                onPattern={savedEntry ? undefined : pickPattern}
+                generator={generator}
+                onPickChart={(chartId) => pickEntry({ chartId })}
+                savedChart={savedEntry}
+                onDeleteSaved={(c) => void deleteSaved(c)}
                 onPatch={patch}
                 songOffsetMs={songOffsetOf(settings, selected?.id)}
                 onSongOffset={(ms) => selected && onSettingsChange(withSongOffset(settings, selected.id, ms))}
@@ -1018,10 +1219,12 @@ export function SongSelectScreen(props: Props) {
                 onReanalyze={() => void reanalyze()}
                 onUploadBga={(file) => void uploadBga(file)}
                 onRemoveBga={() => void removeBga()}
+                onUploadCover={(file) => void uploadCover(file)}
+                onRemoveCover={() => void removeCover()}
                 onRemoveSong={() => void remove()}
+                // the sections are part of what the charts are made of: the new chart comes by itself
                 onSectionsSaved={async () => {
                   await refresh();
-                  if (chart && chart.meta.source?.kind !== 'edited' && chart.meta.source?.kind !== 'imported') await generate();
                 }}
                 onSyncTest={() => onPlay(syncTestRequest(keyMode, true))}
                 onCalibrate={props.onCalibrate}
@@ -1029,7 +1232,13 @@ export function SongSelectScreen(props: Props) {
                 onClose={closePanel}
               />
             ) : selected ? (
-              <SongHero song={selected} favorite={favorites.has(selected.id)} onFavorite={() => toggleFavorite(selected.id)} onInfo={() => setPanel('info')} />
+              <SongHero
+                song={selected}
+                favorite={favorites.has(selected.id)}
+                onFavorite={() => toggleFavorite(selected.id)}
+                onInfo={() => setPanel('info')}
+                onReanalyze={() => void reanalyze()}
+              />
             ) : (
               <div className="detail-empty">
                 <p className="hint">
@@ -1046,11 +1255,21 @@ export function SongSelectScreen(props: Props) {
               <div className="mode-row">
                 <div className="key-modes">
                   <div className="segmented">
-                    {enabledKeyModes.map((m) => (
-                      <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)}>
-                        {m}
-                      </button>
-                    ))}
+                    {enabledKeyModes.map((m) => {
+                      // the song's edited and imported charts are entries on their own key mode only: the others say they have some
+                      // (the count is the button's description, its name stays the key mode's)
+                      const saved = savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === m).length : 0;
+                      return (
+                        <button key={m} className={m === keyMode ? 'active' : ''} onClick={() => setKeyMode(m)} title={saved > 0 ? `가져오거나 편집한 채보 ${saved}개` : undefined}>
+                          {m}
+                          {saved > 0 && (
+                            <small className="mode-saved" data-testid={`mode-saved-${m}`} aria-hidden="true">
+                              {saved}
+                            </small>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   <kbd>Tab</kbd>
                 </div>
@@ -1073,39 +1292,51 @@ export function SongSelectScreen(props: Props) {
               </div>
 
               <div className="difficulty-row" data-testid="difficulty-row">
-                {tiers.map((t) => (
-                  <TierPlate
-                    key={t.id}
-                    tier={t}
-                    active={t.id === difficulty}
-                    chart={t.id === difficulty ? chart : null}
-                    best={bests.get(t.id) ?? null}
-                    targetLevel={t.id === difficulty && targetLevel !== null ? Math.min(targetLevel, system.maxLevel) : null}
-                    generating={t.id === difficulty && generating}
-                    folded={panel !== 'none'}
-                    onPick={() => setDifficulty(t.id)}
-                  />
-                ))}
+                {tiers.map((t) => {
+                  const brief = briefOn(selected, t.id);
+                  const record = tierRecord(selected, t.id);
+                  const target = props.targetLevels[tierKey(selected, t.id)];
+                  const other = brief && !record ? otherBest(recordsOn(selected, keyMode, system.id), t.id, brief.chartId) : null;
+                  const failed = ready && !brief && chartStore.hasFailed(tierChart(selected, t.id).key);
+                  return (
+                    <TierPlate
+                      key={t.id}
+                      tier={t}
+                      active={!savedEntry && t.id === difficulty}
+                      brief={brief}
+                      // its chart comes by itself once the song is analysed (unless the server could not make it)
+                      pending={ready && !brief && !failed}
+                      failed={failed}
+                      record={record}
+                      recordPending={recordPending(selected, t.id)}
+                      other={other}
+                      otherLabel={other ? otherLabel(other, generator) : ''}
+                      ruleset={settings.ruleset}
+                      targetLevel={target === undefined ? null : Math.min(target, system.maxLevel)}
+                      pattern={patternOf(settings, tierKey(selected, t.id))}
+                      generating={!savedEntry && t.id === difficulty && generating}
+                      folded={panel !== 'none'}
+                      onPick={() => setDifficulty(t.id)}
+                    />
+                  );
+                })}
               </div>
 
-              {/* (they wait under an open panel, which takes the column's height) */}
-              {savedCharts.length > 0 && panel === 'none' && (
+              {/* the song's edited and imported charts of this key mode, each its own entry after the
+                  tiers (under an open panel, which takes the column's height, only the chosen one) */}
+              {(panel === 'none' ? savedOnMode : savedEntry ? [savedEntry] : []).length > 0 && (
                 <section className="saved-charts" data-testid="saved-charts" aria-label="저장된 채보">
-                  <span className="label">저장된 채보</span>
-                  {savedCharts.map((c) => (
-                    <div key={c.chartId} className={`saved-chart ${chart?.meta.chartId === c.chartId ? 'active' : ''}`} data-testid="saved-chart">
-                      <span className={`kind kind-${c.kind}`}>{KIND_LABELS[c.kind] ?? c.kind}</span>
-                      <span className="name">{c.name || `${c.keyMode} ${c.difficulty}`}</span>
-                      <span className="sub">
-                        {c.keyMode} · Lv.{c.level} · 노트 {c.noteCount}
-                      </span>
-                      <button className="small" data-testid="pick-saved" onClick={() => void pickSaved(c)}>
-                        고르기
-                      </button>
-                      <button className="small danger" onClick={() => void deleteSaved(c)}>
-                        삭제
-                      </button>
-                    </div>
+                  {(panel === 'none' ? savedOnMode : savedEntry ? [savedEntry] : []).map((c) => (
+                    <SavedPlate
+                      key={c.chartId}
+                      chart={c}
+                      active={savedEntry?.chartId === c.chartId}
+                      record={recordOf(selected, c.chartId)}
+                      ruleset={settings.ruleset}
+                      generating={savedEntry?.chartId === c.chartId && generating}
+                      folded={panel !== 'none'}
+                      onPick={() => pickEntry({ chartId: c.chartId })}
+                    />
                   ))}
                 </section>
               )}
@@ -1127,10 +1358,21 @@ export function SongSelectScreen(props: Props) {
                     </span>
                   </button>
                 ) : (
-                  // why play is off: the song is still being analysed (or its analysis failed)
+                  // why play is off: the song is still being analysed, or its analysis failed (why
+                  // first, the server's own words folded under it)
                   <div className="analysis-status" data-testid="analysis-status">
                     {selected.status === 'error' ? (
-                      <span className="error">분석 실패: {selected.error}</span>
+                      <>
+                        <span className="error" data-testid="analysis-error">
+                          분석 실패 · {failureReason(selected.error)}
+                        </span>
+                        {selected.error && (
+                          <details className="raw-error">
+                            <summary>자세히</summary>
+                            <code>{selected.error}</code>
+                          </details>
+                        )}
+                      </>
                     ) : (
                       <>
                         <span>
@@ -1144,16 +1386,20 @@ export function SongSelectScreen(props: Props) {
                   </div>
                 )}
                 <div className="go-actions">
-                  <button data-testid="generate-button" disabled={!ready || busy !== null} onClick={newPattern} title={chart ? '같은 난이도로 다른 패턴을 만듭니다' : '채보를 만들어 레벨과 노트 수를 봅니다'}>
-                    {chart ? '새 패턴' : '채보 미리보기'} <kbd>F5</kbd>
-                  </button>
+                  {pattern !== null && (
+                    <button data-testid="default-pattern" disabled={!ready || busy !== null} onClick={defaultPattern} title="이 난이도를 처음의 패턴으로 되돌립니다 (그 패턴의 기록으로)">
+                      기본 패턴 <kbd>Shift+F5</kbd>
+                    </button>
+                  )}
                   <button
-                    className="primary play"
-                    data-testid="play-button"
-                    disabled={!ready || busy !== null}
-                    onClick={() => void play()}
-                    title={chart ? undefined : '채보를 만든 뒤 바로 시작합니다'}
+                    data-testid="generate-button"
+                    disabled={!ready || busy !== null || savedEntry !== null}
+                    onClick={() => void newPattern()}
+                    title={savedEntry ? '가져오거나 편집한 채보는 새 패턴을 만들지 않습니다' : '같은 난이도로 다른 패턴을 만듭니다. 이 난이도는 앞으로 그 패턴으로 칩니다'}
                   >
+                    새 패턴 <kbd>F5</kbd>
+                  </button>
+                  <button className="primary play" data-testid="play-button" disabled={!ready || busy !== null || entryLoading} onClick={() => void play()}>
                     {practice ? '연습 시작' : autoPlay ? '오토 플레이' : '플레이'} <kbd>Enter</kbd>
                   </button>
                 </div>
@@ -1162,7 +1408,15 @@ export function SongSelectScreen(props: Props) {
           )}
           {selected && panel === 'none' && (
             <div className="summary-room">
-              <ChartSummary chart={chart} ready={ready} best={bests.get(difficulty) ?? null} tier={selectedTier} />
+              <ChartSummary
+                chart={chart}
+                ready={ready}
+                failed={entryChartKey !== null && chartStore.hasFailed(entryChartKey)}
+                best={entryRecord}
+                known={entryKnown}
+                name={savedEntry ? savedEntry.name || savedLabel(savedEntry) : selectedTier.label}
+                ruleset={settings.ruleset}
+              />
             </div>
           )}
           <p className="select-status" aria-live="polite">
@@ -1183,11 +1437,12 @@ export function SongSelectScreen(props: Props) {
 
 /**
  * Keys a focused control uses itself: a text field keeps them all, a drop-down its arrows, a slider
- * ←→ (↑↓ go on through the panel's lines). Checkboxes and buttons leave every key to the song
- * select (Enter plays, Tab switches).
+ * (and the practice minimap) ←→ (↑↓ go on through the panel's lines). Checkboxes and buttons leave
+ * every key to the song select (Enter plays, Tab switches).
  */
 function keepsKey(target: EventTarget | null, code: string): boolean {
   if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return true;
+  if (target instanceof HTMLCanvasElement && target.classList.contains('selectable')) return code === 'ArrowLeft' || code === 'ArrowRight';
   const arrow = code.startsWith('Arrow');
   if (target instanceof HTMLSelectElement) return arrow;
   if (target instanceof HTMLInputElement) {
@@ -1207,12 +1462,87 @@ function levelLabel(t: { levelScale?: string }, level: number): string {
   return `${levelPrefix(t)}${level}`;
 }
 
-/** A row of the song list: the song's picture, its name, and its tiers' best levels and lamps. */
-function SongRow(props: { song: Song; active: boolean; favorite: boolean; tiers: DifficultyTier[]; bests: Map<string, { level: number; lamp: string }>; onPick: () => void }) {
-  const { song } = props;
+/** A saved chart's kind as its plate names it: the format it came in, or 편집. */
+function savedLabel(c: SavedChart): string {
+  return c.kind === 'imported' && c.format ? EXPORT_LABELS[c.format] : (KIND_LABELS[c.kind] ?? c.kind);
+}
+
+/** Its level: the one its file gives beside our estimate (imported), or ours. */
+function savedLevels(c: SavedChart): string {
+  if (c.kind !== 'imported') return `Lv.${c.level}`;
+  return c.sourceLevel ? `원본 ${c.sourceLevel} · 추정 ${c.level}` : `추정 ${c.level}`;
+}
+
+/** A record's number under the score rule: 94.81%, S+ 931,900, EX 1,234. */
+function headlineText(r: ScoreRecord, ruleset: RulesetId): string {
+  const head = recordHeadline(r, ruleset);
+  return head.label === 'RATE' ? head.value : `${head.label} ${head.value}`;
+}
+
+/** A tier's cell on the song list with its tier. */
+type RowMark = TierMark & { tier: DifficultyTier };
+
+/** A song's cells on the song list: its tiers', and its saved charts' best (null: none played). */
+interface ListCells {
+  tiers: RowMark[];
+  saved: (TierMark & { name: string }) | null;
+}
+
+/**
+ * A level on the song list with its lamp's mark beside it (on a full combo the whole cell is the
+ * lamp's); a level never played has no mark, one not known yet a dash. A lamp of another chart of
+ * the tier than the one Enter plays is a faint mark.
+ */
+function LampCell({ mark, title, saved = false }: { mark: TierMark; title: string; saved?: boolean }) {
+  return (
+    <span className={`tier-level lamp-${mark.lamp ? lampClass(mark.lamp) : 'none'} ${mark.level === null ? 'unknown' : ''} ${mark.other ? 'other' : ''} ${saved ? 'saved' : ''}`} title={title}>
+      <LampMark />
+      {mark.level ?? '–'}
+    </span>
+  );
+}
+
+interface SongRowProps {
+  song: Song;
+  active: boolean;
+  favorite: boolean;
+  cells: ListCells;
+  onPick: (songId: string) => void;
+}
+
+/** Two rows that draw the same (the song as listed, and what its cells show). */
+function sameRow(a: SongRowProps, b: SongRowProps): boolean {
+  const at = a.cells.tiers;
+  const bt = b.cells.tiers;
+  return (
+    a.song === b.song &&
+    a.active === b.active &&
+    a.favorite === b.favorite &&
+    a.onPick === b.onPick &&
+    at.length === bt.length &&
+    at.every((m, i) => m.tier === bt[i].tier && sameMark(m, bt[i])) &&
+    sameMark(a.cells.saved, b.cells.saved) &&
+    a.cells.saved?.name === b.cells.saved?.name
+  );
+}
+
+/** What a tier's cell says when pointed at: its tier, level and lamp (another chart's: whose). */
+function cellTitle(m: RowMark): string {
+  const level = m.level === null ? '' : ` ${levelLabel({ levelScale: m.levelScale }, m.level)}`;
+  return `${m.tier.label}${level} · ${m.lamp === null ? '기록 없음' : m.other ? `기록 없음 (다른 채보 ${m.lamp})` : m.lamp}`;
+}
+
+/**
+ * A row of the song list: the song's picture, its name, and for each tier the level and lamp of
+ * the chart Enter plays (what its records say until that is known); before them, set apart, its
+ * saved charts' best lamp (the tiers line up at the row's end in every row). Drawn again only when
+ * what it shows changes (the list has a row per song).
+ */
+const SongRow = memo(function SongRow(props: SongRowProps) {
+  const { song, cells } = props;
   const working = song.status === 'queued' || song.status === 'analyzing';
   return (
-    <button className={`song-item ${props.active ? 'active' : ''}`} data-testid="song-item" data-song-id={song.id} onClick={props.onPick}>
+    <button className={`song-item ${props.active ? 'active' : ''}`} data-testid="song-item" data-song-id={song.id} onClick={() => props.onPick(song.id)}>
       <SongArt song={song} size={48} />
       <span className="song-item-text">
         <span className="song-title">{song.title}</span>
@@ -1229,24 +1559,19 @@ function SongRow(props: { song: Song; active: boolean; favorite: boolean; tiers:
         <span className="song-state error">분석 실패</span>
       ) : (
         <span className="song-tiers">
-          {props.tiers.map((t) => {
-            const best = props.bests.get(t.id);
-            return (
-              <span key={t.id} className={`tier-level ${best ? '' : 'none'}`} style={{ ['--diff' as string]: t.color } as CSSProperties} title={best ? `${t.label} ${levelLabel(t, best.level)} · ${best.lamp}` : `${t.label}: 기록 없음`}>
-                {best ? best.level : '–'}
-                <i className={best ? `lamp-${lampClass(best.lamp)}` : ''} />
-              </span>
-            );
-          })}
+          {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} />}
+          {cells.tiers.map((m) => (
+            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} />
+          ))}
         </span>
       )}
       {props.favorite && <i className="fav-mark" aria-label="즐겨찾기" />}
     </button>
   );
-}
+}, sameRow);
 
-/** The selected song: its picture, name, tempo, length and metre. */
-function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void }) {
+/** The selected song: its picture, name, tempo, length and metre (and, when its analysis failed, a new try). */
+function SongHero({ song, favorite, onFavorite, onInfo, onReanalyze }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void; onReanalyze: () => void }) {
   const sketch = useSketch(song);
   return (
     <section className="hero">
@@ -1273,6 +1598,11 @@ function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite
             <b>{sketch ? `${sketch.beatsPerBar}/4` : '-'}</b>
           </span>
           <span className="hero-actions">
+            {song.status === 'error' && (
+              <button className="small" data-testid="reanalyze-failed" onClick={onReanalyze}>
+                다시 분석
+              </button>
+            )}
             <button className={`quiet small fav-toggle ${favorite ? 'on' : ''}`} aria-pressed={favorite} data-testid="favorite-toggle" onClick={onFavorite}>
               {favorite ? '즐겨찾기 해제' : '즐겨찾기'} <kbd>F3</kbd>
             </button>
@@ -1287,26 +1617,86 @@ function SongHero({ song, favorite, onFavorite, onInfo }: { song: Song; favorite
 }
 
 /**
- * A difficulty of the song: its level (the chart's once made, else the best play's) and its best
- * play. Folded under an open panel it is a line: its short name, level and lamp.
+ * The best play of a plate's chart: its lamp, the score rule's number and its MAX COMBO; a chart
+ * never played names the tier's best on another of its charts (`otherLabel`: another pattern, the
+ * default one as an earlier generator made it). While the chart is worked out its record is not
+ * known either (a dash, not 기록 없음).
+ */
+function PlateRecord({ record, other = null, otherLabel = '', pending = false, ruleset }: { record: ScoreRecord | null; other?: ScoreRecord | null; otherLabel?: string; pending?: boolean; ruleset: RulesetId }) {
+  return (
+    <>
+      <span className="diff-record">
+        {record ? (
+          <>
+            <span className={`lamp-text lamp-${lampClass(record.lamp)}`}>
+              <LampMark />
+              <span className="lamp-name">{record.lamp}</span>
+            </span>
+            <span className="diff-lamp">{headlineText(record, ruleset)}</span>
+          </>
+        ) : (
+          <span className="none">{pending ? '–' : '기록 없음'}</span>
+        )}
+      </span>
+      <span className="diff-sub">
+        {record ? (
+          <span>
+            MAX COMBO <b>{record.maxCombo.toLocaleString('en-US')}</b>
+          </span>
+        ) : (
+          other && (
+            <span className="other-best" title={`${otherLabel}의 기록: ${other.lamp} ${headlineText(other, ruleset)} (곡 정보에서 고를 수 있습니다)`}>
+              {otherLabel}{' '}
+              <span className={`lamp-text lamp-${lampClass(other.lamp)}`}>
+                <LampMark />
+                <span className="lamp-name">{other.lamp}</span>
+              </span>
+            </span>
+          )
+        )}
+      </span>
+    </>
+  );
+}
+
+/**
+ * A difficulty of the song: the level and notes of the chart Enter plays on it (worked out as soon
+ * as the song is chosen: 계산 중 until then), and that chart's best play. Folded under an open
+ * panel it is a line: its short name, level and lamp.
  */
 function TierPlate(props: {
   tier: DifficultyTier;
   active: boolean;
-  chart: ServerChart | null;
-  best: { level: number; lamp: string; rate: number } | null;
+  /** The chart Enter plays on this tier, once known. */
+  brief: ChartBrief | null;
+  /** Its level is being worked out. */
+  pending: boolean;
+  /** Its chart could not be made (Enter makes it again and says why). */
+  failed: boolean;
+  record: ScoreRecord | null;
+  /** Its record is not known until its chart is. */
+  recordPending: boolean;
+  /** With no play of its own, the tier's best on another of its charts, and what that chart is. */
+  other: ScoreRecord | null;
+  otherLabel: string;
+  ruleset: RulesetId;
   targetLevel: number | null;
+  /** Its pattern, when it is not the default one: made with 새 패턴 (a seed), or chosen from its records (a chart's id). */
+  pattern: Pattern | null;
   generating: boolean;
   folded: boolean;
   onPick: () => void;
 }) {
-  const { tier: t, chart, best } = props;
-  const level = chart ? chart.meta.level : best?.level ?? null;
-  const prefix = chart ? (chart.meta.levelScale ? `${chart.meta.levelScale} ` : 'Lv.') : levelPrefix(t);
+  const { tier: t, brief, record } = props;
+  const level = brief?.level ?? null;
+  const prefix = brief ? (brief.levelScale ? `${brief.levelScale} ` : 'Lv.') : levelPrefix(t);
+  const waiting = props.pending || props.generating;
+  // the level the tests and the summary read: the selected tier's, once known
+  const levelId = { 'data-testid': props.active && brief ? 'chart-level' : undefined, 'data-chart-id': props.active ? brief?.chartId : undefined };
   if (props.folded) {
     // a level on a scale of its own names itself (SC 7); the others follow the short name (HD 8)
     const scale = prefix !== 'Lv.';
-    const name = `${t.label}${level === null ? '' : ` ${levelLabel(t, level)}`}${best ? ` · ${best.lamp}` : ''}`;
+    const name = `${t.label}${level === null ? '' : ` ${prefix}${level}`}${record ? ` · ${record.lamp}` : ''}`;
     return (
       <button
         className={`difficulty folded ${props.active ? 'active' : ''}`}
@@ -1316,22 +1706,32 @@ function TierPlate(props: {
         title={name}
       >
         {!scale && <span className="diff-name">{t.short}</span>}
-        <strong className={`diff-fold-level ${level === null ? 'none' : ''} ${props.active && !chart ? 'level-pending' : ''}`} data-testid={chart ? 'chart-level' : undefined}>
+        <strong className={`diff-fold-level ${level === null ? 'none' : ''} ${waiting ? 'level-pending' : ''}`} {...levelId}>
           {scale && <small>{prefix}</small>}
           {level ?? '–'}
         </strong>
-        {best && <span className={`lamp-text lamp-${lampClass(best.lamp)}`}>{best.lamp}</span>}
+        {record && (
+          <span className={`lamp-text lamp-${lampClass(record.lamp)}`}>
+            <LampMark />
+            <span className="lamp-name">{record.lamp}</span>
+          </span>
+        )}
         {props.generating && <i className="plate-pending" aria-hidden="true" />}
       </button>
     );
   }
   const note = props.generating
     ? '만드는 중'
-    : chart
-      ? `${chart.meta.noteCount.toLocaleString('en-US')} 노트`
-      : props.targetLevel !== null
-        ? `목표 ${levelLabel(t, props.targetLevel)}`
-        : `${levelLabel(t, t.levels[0])}–${t.levels[1]}`;
+    : props.pending
+      ? '계산 중'
+      : brief
+        ? `${brief.noteCount.toLocaleString('en-US')} 노트`
+        : props.failed
+          ? '만들지 못함'
+          : `${levelLabel(t, t.levels[0])}–${t.levels[1]}`;
+  // the short name, or what makes its chart another than the default: its target level, its pattern
+  const marks = [props.targetLevel !== null ? `목표 ${levelLabel(t, props.targetLevel)}` : null, props.pattern === null ? null : typeof props.pattern === 'number' ? '새 패턴' : '고른 패턴'];
+  const side = marks.filter((m) => m !== null).join(' · ') || t.short;
   return (
     <button
       className={`difficulty ${props.active ? 'active' : ''}`}
@@ -1341,49 +1741,89 @@ function TierPlate(props: {
     >
       <span className="diff-head">
         <span className="diff-name">{t.label}</span>
-        <span className="diff-short" hidden={t.short === t.label}>
-          {t.short}
+        <span className={`diff-short ${side !== t.short ? 'pattern-tag' : ''}`} hidden={side === t.label}>
+          {side}
         </span>
       </span>
-      <span className={`diff-level ${props.active && !chart ? 'level-pending' : ''}`}>
-        {chart ? (
-          <strong data-testid="chart-level">
-            <small>{prefix}</small>
-            {level}
-          </strong>
-        ) : (
-          <strong className={level === null ? 'none' : ''}>
-            <small>{prefix}</small>
-            {level ?? '–'}
-          </strong>
-        )}
+      <span className={`diff-level ${waiting ? 'level-pending' : ''}`}>
+        <strong className={level === null ? 'none' : ''} {...levelId}>
+          <small>{prefix}</small>
+          {level ?? '–'}
+        </strong>
         <em>{note}</em>
       </span>
-      <span className="diff-record">
-        {best ? (
-          <>
-            <span className={`lamp-text lamp-${lampClass(best.lamp)}`}>{best.lamp}</span>
-            <span className="diff-lamp">{best.rate.toFixed(2)}%</span>
-          </>
-        ) : (
-          <span className="none">기록 없음</span>
-        )}
-      </span>
-      {props.generating && <i className="plate-pending" aria-hidden="true" />}
+      <PlateRecord record={record} other={props.other} otherLabel={props.otherLabel} pending={props.recordPending} ruleset={props.ruleset} />
+      {(props.generating || (props.active && props.pending)) && <i className="plate-pending" aria-hidden="true" />}
     </button>
   );
 }
 
 /**
- * Under the play buttons on a tall window (900 px and up): the chart's numbers and density, and
- * the best play of the selected difficulty, as much of them as the room left under the buttons
- * holds (the graph goes first, then the record). A song not analysed has no chart to speak of.
+ * An edited or imported chart of the song as an entry of the difficulty row, after the tiers: the
+ * format it came in and its name, the level its file gives it beside our estimate, and its best
+ * play. Folded under an open panel it is a line.
  */
-function ChartSummary({ chart, ready, best, tier }: { chart: ServerChart | null; ready: boolean; best: ScoreRecord | null; tier: DifficultyTier }) {
+function SavedPlate(props: { chart: SavedChart; active: boolean; record: ScoreRecord | null; ruleset: RulesetId; generating: boolean; folded: boolean; onPick: () => void }) {
+  const { chart: c, record } = props;
+  const levels = savedLevels(c);
+  const plate = useRef<HTMLDivElement>(null);
+  // the chosen one is in view: the row scrolls across, and ←→ go past what it shows
+  useEffect(() => {
+    const el = plate.current;
+    const row = el?.parentElement;
+    if (!props.active || !el || !row) return;
+    const at = el.getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    if (at.left < box.left) row.scrollLeft -= box.left - at.left;
+    else if (at.right > box.right) row.scrollLeft += Math.min(at.right - box.right, at.left - box.left);
+  }, [props.active, props.folded]);
+  return (
+    <div ref={plate} className={`saved-chart ${props.active ? 'active' : ''} ${props.folded ? 'folded' : ''}`} data-testid="saved-chart">
+      <button
+        className="saved-plate"
+        data-testid="pick-saved"
+        aria-pressed={props.active}
+        onClick={props.onPick}
+        title={`${savedLabel(c)} ${c.name} · ${levels} · ${c.noteCount.toLocaleString('en-US')} 노트`}
+      >
+        <span className="saved-head">
+          <span className={`kind kind-${c.kind}`}>{savedLabel(c)}</span>
+          <span className="name">{c.name || c.difficulty}</span>
+        </span>
+        <span className="saved-line">
+          <span className="saved-level" data-testid={props.active ? 'saved-level' : undefined}>
+            {levels}
+          </span>
+          {record ? (
+            <span className={`lamp-text lamp-${lampClass(record.lamp)}`}>
+              <LampMark />
+              {record.lamp} <b>{headlineText(record, props.ruleset)}</b>
+            </span>
+          ) : (
+            <span className="none">기록 없음</span>
+          )}
+        </span>
+        {props.generating && <i className="plate-pending" aria-hidden="true" />}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Under the play buttons on a tall window (900 px and up): the chart's numbers and density, and
+ * the best play of the chart chosen (a dash until it is `known`), as much of them as the room left
+ * under the buttons holds (the graph goes first, then the record). A song not analysed has no
+ * chart to speak of.
+ */
+function ChartSummary(props: { chart: ServerChart | null; ready: boolean; failed: boolean; best: ScoreRecord | null; known: boolean; name: string; ruleset: RulesetId }) {
+  const { chart, best, ruleset } = props;
   const m = chart?.meta;
+  const rules = rulesetConfigs[ruleset];
+  // the score of the rule and its grade (EX-SCORE's rank needs the chart's maximum: none)
+  const { score, grade } = best ? recordScore(best, ruleset) : { score: null, grade: null };
   return (
     <section className="chart-summary" data-testid="chart-summary" aria-label="채보 요약">
-      {!ready ? null : chart && m ? (
+      {!props.ready ? null : chart && m ? (
         <>
           <dl className="summary-stats">
             <div>
@@ -1408,21 +1848,28 @@ function ChartSummary({ chart, ready, best, tier }: { chart: ServerChart | null;
           <NpsGraph graph={m.nps.graph} />
         </>
       ) : (
-        <p className="hint">
-          채보를 만들면 노트 수와 밀도가 여기에 나옵니다 (<kbd>F5</kbd>).
-        </p>
+        <p className="hint">{props.failed ? '채보를 만들지 못했습니다. Enter를 누르면 다시 만들고 이유를 알려 줍니다.' : '채보를 계산하는 중…'}</p>
       )}
       <dl className="summary-stats summary-record" data-testid="summary-record">
         <div>
-          <dt>{tier.label} 최고 기록</dt>
-          <dd className={best ? `lamp-text lamp-${lampClass(best.lamp)}` : 'none'}>{best ? best.lamp : '기록 없음'}</dd>
+          <dt>{props.name} 최고 기록</dt>
+          <dd className={best ? `lamp-text lamp-${lampClass(best.lamp)}` : 'none'}>
+            {best && <LampMark />}
+            {best ? best.lamp : props.known ? '기록 없음' : '–'}
+          </dd>
         </div>
         {best && (
           <>
             <div>
-              <dt>점수</dt>
-              <dd>{best.score.toLocaleString('en-US')}</dd>
+              <dt>{rules.scoring === 'exscore' ? 'EX-SCORE' : '점수'}</dt>
+              <dd>{score === null ? '–' : score.toLocaleString('en-US')}</dd>
             </div>
+            {grade && (
+              <div>
+                <dt>등급</dt>
+                <dd>{grade}</dd>
+              </div>
+            )}
             <div>
               <dt>RATE</dt>
               <dd>{best.rate.toFixed(2)}%</dd>
@@ -1431,6 +1878,12 @@ function ChartSummary({ chart, ready, best, tier }: { chart: ServerChart | null;
               <dt>MAX COMBO</dt>
               <dd>{best.maxCombo.toLocaleString('en-US')}</dd>
             </div>
+            {best.minBreaks !== undefined && (
+              <div>
+                <dt>최소 {rules.missLabel}</dt>
+                <dd>{best.minBreaks.toLocaleString('en-US')}</dd>
+              </div>
+            )}
             <div>
               <dt>플레이</dt>
               <dd>{best.plays}회</dd>
@@ -1438,7 +1891,7 @@ function ChartSummary({ chart, ready, best, tier }: { chart: ServerChart | null;
             {best.lastPlayedAt !== undefined && (
               <div>
                 <dt>마지막 플레이</dt>
-                <dd>{dateText(best.lastPlayedAt)}</dd>
+                <dd>{dayText(best.lastPlayedAt)}</dd>
               </div>
             )}
           </>

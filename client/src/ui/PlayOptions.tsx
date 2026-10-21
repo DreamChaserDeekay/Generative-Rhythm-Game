@@ -27,7 +27,7 @@ import {
 import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
-import { coverText, speedText } from './format';
+import { coverText, pointText, speedText } from './format';
 import { Choice, NumberOption, OptionalNumberOption, pct, skinChoices, Toggle, type RowProps } from './optionRows';
 import { pacemakerChoices } from './playRules';
 import { focusFirstStop } from './selectNav';
@@ -332,10 +332,6 @@ function OptionalSlider(props: {
 
 /** Practice: the segment (picked on the minimap), the playback speed and the loop. */
 export function PracticePanel({ practice, onChange, onHelp }: { practice: PracticeOptions; onChange: (p: PracticeOptions) => void } & PanelRows) {
-  const fmt = (ms: number) => {
-    const s = Math.max(0, Math.round(ms / 100) / 10);
-    return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-  };
   const row = { onHelp, passEnter: true };
   return (
     <div className="panel-rows practice-rows" data-testid="practice-options">
@@ -343,7 +339,7 @@ export function PracticePanel({ practice, onChange, onHelp }: { practice: Practi
         <span className="opt-name">구간</span>
         <span className="opt-value">
           <b data-testid="practice-range">
-            {fmt(practice.startMs)} – {fmt(practice.endMs)}
+            {pointText(practice.startMs)} – {pointText(practice.endMs)}
           </b>
         </span>
       </div>
@@ -470,7 +466,8 @@ export function PlayOptionsPanel(props: SettingsProps & {
   practice: PracticeOptions | null;
   onPracticeToggle: (on: boolean) => void;
   onPracticeChange: (p: PracticeOptions) => void;
-  targetLevel: number | null;
+  /** The level the chart is made for (null: 자동; undefined: an edited or imported chart, made already). */
+  targetLevel?: number | null;
   onTargetLevel: (level: number | null) => void;
   maxLevel: number;
   /** Where a target level starts: the middle of the selected difficulty's levels. */
@@ -500,20 +497,22 @@ export function PlayOptionsPanel(props: SettingsProps & {
         <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} />
         <div className="panel-rows">
           <Toggle {...row} label="오토 플레이" testId="autoplay-toggle" value={props.autoPlay} onChange={props.onAutoPlay} help="노트를 자동으로 칩니다. 기록은 남지 않습니다." />
-          <OptionalNumberOption
-            {...row}
-            label="목표 레벨"
-            testId="target-level"
-            value={props.targetLevel === null ? null : Math.min(props.targetLevel, props.maxLevel)}
-            min={1}
-            max={props.maxLevel}
-            step={1}
-            bigStep={3}
-            auto={Math.min(props.defaultLevel, props.maxLevel)}
-            format={props.levelLabel}
-            onChange={props.onTargetLevel}
-            help="이 레벨에 맞춰 채보를 만듭니다. 자동이면 난이도에 맞는 레벨입니다."
-          />
+          {props.targetLevel !== undefined && (
+            <OptionalNumberOption
+              {...row}
+              label="목표 레벨"
+              testId="target-level"
+              value={props.targetLevel === null ? null : Math.min(props.targetLevel, props.maxLevel)}
+              min={1}
+              max={props.maxLevel}
+              step={1}
+              bigStep={3}
+              auto={Math.min(props.defaultLevel, props.maxLevel)}
+              format={props.levelLabel}
+              onChange={props.onTargetLevel}
+              help="이 레벨에 맞춰 이 곡의 이 난이도 채보를 만듭니다. 자동이면 난이도에 맞는 레벨입니다."
+            />
+          )}
           <Toggle
             {...row}
             label="연습 모드"
@@ -531,6 +530,7 @@ export function PlayOptionsPanel(props: SettingsProps & {
               palette={settings.palette}
               selection={[practice.startMs, practice.endMs]}
               onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
+              onHelp={setHelp}
             />
           </>
         )}

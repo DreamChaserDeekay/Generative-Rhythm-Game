@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clockText, coverText, errorKind, errorText, speedText } from './format';
+import { clockText, coverText, errorKind, errorText, pointText, speedText } from './format';
 
 describe('the play numbers, written the same everywhere', () => {
   it('writes SPEED with two decimals and covers with one', () => {
@@ -15,6 +15,13 @@ describe('the play numbers, written the same everywhere', () => {
     expect(clockText(400)).toBe('0:01');
     expect(clockText(0)).toBe('0:00');
     expect(clockText(-300)).toBe('0:00');
+  });
+
+  it('writes a point in a song to a tenth of a second', () => {
+    expect(pointText(12_340)).toBe('0:12.3');
+    expect(pointText(65_300)).toBe('1:05.3');
+    expect(pointText(0)).toBe('0:00.0');
+    expect(pointText(-50)).toBe('0:00.0');
   });
 
   it('writes a timing error in whole ms, exact under half a ms (unsigned, neither FAST nor SLOW colour)', () => {

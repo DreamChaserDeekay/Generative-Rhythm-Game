@@ -15,7 +15,6 @@ test('charts are generated on the DJMAX, EZ2ON and original difficulty scales', 
   await expect(page.locator('.system-label')).toHaveText('난이도 기준 DJMAX');
   await expect(tiers).toHaveText([/NORMAL\s*NM/, /HARD\s*HD/, /MAXIMUM\s*MX/, /SC\s*SC/]);
   await page.getByRole('button', { name: /MAXIMUM/ }).click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.difficulty.active')).toContainText('MAXIMUM');
   const mx = Number((await page.getByTestId('chart-level').textContent())?.replace(/\D/g, ''));
@@ -29,21 +28,18 @@ test('charts are generated on the DJMAX, EZ2ON and original difficulty scales', 
   );
   await playOptions(page, 'generation');
   await page.getByTestId('pattern-engine-classic').click();
-  await page.getByTestId('generate-button').click();
   await classic;
   await expect(page.getByTestId('toggle-generation')).toContainText('이전 배치');
   await page.getByTestId('pattern-engine').getByRole('button', { name: '악구·패턴' }).click();
   await page.getByTestId('toggle-generation').click();
   await expect(page.getByTestId('toggle-generation')).not.toContainText('이전 배치');
   await page.getByRole('button', { name: /^SC/ }).click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toHaveText(/^SC \d+$/, { timeout: 30_000 });
 
   // EZ2ON: EASY · NORMAL · HARD · SUPER HARD, the tier carried over by name
   await difficultySystem(page, 'EZ2ON');
   await expect(tiers).toHaveText([/EASY\s*EZ/, /NORMAL\s*NM/, /HARD\s*HD/, /SUPER HARD\s*SHD/]);
   await page.getByRole('button', { name: /SUPER HARD/ }).click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));

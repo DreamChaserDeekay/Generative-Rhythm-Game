@@ -136,6 +136,8 @@ export interface ChartMeta {
   source?: { kind: 'generated' | 'edited' | 'imported'; format?: 'osu' | 'bms' | 'bmson'; file?: string; from?: string };
   /** Display name of an edited/imported chart (osu! Version, BMS difficulty …). */
   chartName?: string;
+  /** The level an imported chart's file gives it (BMS #PLAYLEVEL), as written; `level` is our estimate. */
+  sourceLevel?: string;
   /** Gain applied to the keysounds of an imported chart so the full mix does not clip. */
   keysoundGain?: number;
   generator?: {

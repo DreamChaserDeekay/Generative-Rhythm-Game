@@ -124,10 +124,13 @@ export function Disc({ size, stem = null, className = '' }: { size: number; stem
 
 /** The song's picture: its own cover when it has one, else its disc. */
 export function SongArt({ song, size, className = '' }: { song: Song; size: number; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  const covered = song.hasCover && !failed;
+  // a cover that fails to load leaves the disc, until another cover comes
+  const [failed, setFailed] = useState<string | null>(null);
+  const cover = api.coverUrl(song);
+  const covered = song.hasCover && failed !== cover;
   const sketch = useSketch(covered ? null : song);
-  if (covered) return <img className={`song-art ${className}`} style={{ width: size, height: size }} src={api.coverUrl(song.id)} alt="" onError={() => setFailed(true)} />;
+  // (the song list is not cut to what shows: a cover loads as its row comes into view, a large BMP off the main thread)
+  if (covered) return <img className={`song-art ${className}`} style={{ width: size, height: size }} src={cover} alt="" loading="lazy" decoding="async" onError={() => setFailed(cover)} />;
   return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} />;
 }
 
@@ -154,7 +157,7 @@ export function Backdrop({ song }: { song: Song | null }) {
     if (song.hasCover) {
       const img = new Image();
       img.onload = () => paint(img);
-      img.src = api.coverUrl(song.id);
+      img.src = api.coverUrl(song);
     } else if (sketch) {
       // a disc cover tints the screen evenly in its colour (its round shape stretched would be a blob)
       const lead = leadingStem(sketch);
@@ -173,7 +176,7 @@ export function Backdrop({ song }: { song: Song | null }) {
     return () => {
       alive = false;
     };
-  }, [song?.id, song?.hasCover, sketch]);
+  }, [song?.id, song?.hasCover, song?.coverAt, sketch]);
   return (
     <div className="backdrop" aria-hidden="true">
       <canvas ref={canvas} width={24} height={24} className={drawn && drawn === song?.id ? 'shown' : ''} />

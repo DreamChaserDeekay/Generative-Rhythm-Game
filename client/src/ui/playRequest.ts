@@ -24,7 +24,7 @@ export function buildPlayRequest(
     loadKeysounds: keysounded ? () => keysoundBank(songId) : undefined,
     loadStems: stems.length > 0 ? () => stemBuffers(songId, stems) : undefined,
     background: {
-      coverUrl: song.hasCover ? api.coverUrl(songId) : null,
+      coverUrl: song.hasCover ? api.coverUrl(song) : null,
       bgaUrl: song.hasBga ? api.bgaUrl(songId) : null,
       bgaYoutube: song.bgaYoutube ?? null,
       bgaOffsetMs: song.bgaOffsetMs ?? 0,

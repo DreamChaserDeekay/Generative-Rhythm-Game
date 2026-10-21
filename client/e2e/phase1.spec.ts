@@ -23,8 +23,8 @@ test('upload a song, wait for analysis, generate a chart and autoplay it to PERF
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await expect(page.getByTestId('song-bpm')).toHaveText('140');
 
+  // the chart of the difficulty chosen comes by itself (its level on the plate)
   await page.getByRole('button', { name: /NORMAL/ }).click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   const level = Number((await page.getByTestId('chart-level').textContent())?.replace('Lv.', ''));
   expect(level).toBeGreaterThanOrEqual(3);

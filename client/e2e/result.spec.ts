@@ -75,8 +75,11 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
   await expect(page.getByTestId('pause-menu')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('KeyQ');
 
-  // leaving while it is generating: the late pattern does not start a song
+  // the new pattern is kept as the difficulty's, as F5 on the song select keeps one
   await expect(page.getByTestId('song-list')).toBeVisible();
+  await expect(page.locator('.difficulty.active')).toContainText('새 패턴');
+
+  // leaving while it is generating: the late pattern does not start a song
   await playToResult();
   await page.route('**/api/songs/*/charts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();

@@ -39,6 +39,8 @@ export type SongSort = 'added' | 'title' | 'artist' | 'bpm' | 'level' | 'lamp' |
 export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm', 'level', 'lamp', 'rate', 'recent'];
 /** OFF, the personal best of the chart, a target rate in percent, or (EX-SCORE) a grade or the maximum. */
 export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100' | 'A' | 'AA' | 'AAA' | 'MAX';
+/** A difficulty's pattern: a seed (새 패턴), or a chart's id (one chosen from its records). */
+export type Pattern = number | string;
 /** Opacities of the judgement and the combo (notes behind them show through). */
 export const JUDGEMENT_OPACITIES: readonly number[] = [1, 0.7, 0.4];
 
@@ -116,6 +118,14 @@ export interface Settings {
   pauseOnBlur: boolean;
   /** Per song (by id): ms its notes are drawn and judged later (+) or earlier, over the offsets above. */
   songOffsets: Record<string, number>;
+  /**
+   * Per difficulty of a song (patternKey): the pattern played there, the seed of one made with 새
+   * 패턴 (made with the generation options of the moment) or a chart chosen by its id from the
+   * records (that very chart); none: the default pattern.
+   */
+  patterns: Record<string, Pattern>;
+  /** Per song and key mode (chartPickKey): the edited or imported chart chosen last (none: a difficulty). */
+  chartPicks: Record<string, string>;
   lastKeyMode: KeyModeId;
   /** Difficulty tier of `difficultySystem` (NM, MX, SHD …). */
   lastDifficulty: string;
@@ -176,7 +186,7 @@ export const KEY_BEAM_MAX = 2;
 export const TURNTABLE_STEPS_MAX = 4;
 export const TURNTABLE_RELEASE_MIN = 40;
 export const TURNTABLE_RELEASE_MAX = 300;
-/** A song's own offset stays within this (ms), and so many songs keep one. */
+/** A song's own offset stays within this (ms), and so many songs keep one (or a pattern, or a chart). */
 export const SONG_OFFSET_MAX = 200;
 const SONG_OFFSETS_KEPT = 5000;
 /** At least this share of the travel distance stays visible whatever the covers say. */
@@ -206,6 +216,8 @@ export const DEFAULT_SETTINGS: Settings = {
   turntableReleaseMs: DEFAULT_TURNTABLE.releaseMs,
   pauseOnBlur: true,
   songOffsets: {},
+  patterns: {},
+  chartPicks: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
   difficultySystem: difficultySystemIds.includes('DJMAX') ? 'DJMAX' : 'GRG',
@@ -308,6 +320,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.turntableReleaseMs = Math.round(num(s.turntableReleaseMs, TURNTABLE_RELEASE_MIN, TURNTABLE_RELEASE_MAX, DEFAULT_TURNTABLE.releaseMs));
   s.pauseOnBlur = s.pauseOnBlur !== false;
   s.songOffsets = sanitizeSongOffsets(raw.songOffsets);
+  s.patterns = keptEntries(raw.patterns, PATTERN_KEY, (v) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= SEED_MAX) || (typeof v === 'string' && CHART_ID.test(v))) as Record<string, Pattern>;
+  s.chartPicks = keptEntries(raw.chartPicks, CHART_PICK_KEY, (v) => typeof v === 'string' && CHART_ID.test(v)) as Record<string, string>;
   const d = DEFAULT_SETTINGS;
   s.judgementMode = pick(s.judgementMode, Object.keys(judgementConfig.modes) as JudgementModeId[], d.judgementMode);
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
@@ -491,6 +505,66 @@ export function padMenuKeysFor(settings: PadMenuSettings): Record<string, string
     if (code && !(code in keys)) keys[code] = MENU_BUTTON_KEYS[b];
   }
   return keys;
+}
+
+const SEED_MAX = 2 ** 32 - 1;
+const CHART_ID = /^c[0-9a-f]{20}$/;
+const SONG = '[0-9a-f]{16}';
+const MODES = Object.keys(keyModes).map((m) => m.replace(/[+]/g, '\\+')).join('|');
+const PATTERN_KEY = new RegExp(`^${SONG}\\|(${MODES})\\|(${difficultySystemIds.join('|')})\\|[A-Z0-9_-]{1,16}$`);
+const CHART_PICK_KEY = new RegExp(`^${SONG}\\|(${MODES})$`);
+
+/** The entries of a stored map whose key and value are of their kind, the last SONG_OFFSETS_KEPT of them. */
+function keptEntries(raw: unknown, key: RegExp, value: (v: unknown) => boolean): Record<string, unknown> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([k, v]) => key.test(k) && value(v)).slice(-SONG_OFFSETS_KEPT));
+}
+
+/** A map of what is kept per key with one key set (or, with null, taken out). */
+export function withEntry<T>(all: Record<string, T>, key: string, value: T | null): Record<string, T> {
+  const next = { ...all };
+  delete next[key];
+  if (value !== null) next[key] = value;
+  return next;
+}
+
+/** Where a difficulty's pattern is kept: the song, the key mode and the tier of its difficulty system. */
+export function patternKey(songId: string, keyMode: KeyModeId, system: DifficultySystemId, difficulty: string): string {
+  return `${songId}|${keyMode}|${system}|${difficulty}`;
+}
+
+/** A difficulty's pattern (null: the default pattern). */
+export function patternOf(settings: Pick<Settings, 'patterns'>, key: string): Pattern | null {
+  return settings.patterns[key] ?? null;
+}
+
+/** The settings with a difficulty on a pattern (null: back to the default pattern). */
+export function withPattern(settings: Settings, key: string, pattern: Pattern | null): Settings {
+  return { ...settings, patterns: withEntry(settings.patterns, key, pattern) };
+}
+
+/** Where the chart chosen last on a song's key mode is kept. */
+export function chartPickKey(songId: string, keyMode: KeyModeId): string {
+  return `${songId}|${keyMode}`;
+}
+
+/** The edited or imported chart chosen last on a song's key mode (null: a difficulty). */
+export function chartPickOf(settings: Pick<Settings, 'chartPicks'>, key: string): string | null {
+  return settings.chartPicks[key] ?? null;
+}
+
+/** The settings with a song's key mode on a saved chart (null: on a difficulty again). */
+export function withChartPick(settings: Settings, key: string, chartId: string | null): Settings {
+  return { ...settings, chartPicks: withEntry(settings.chartPicks, key, chartId) };
+}
+
+/**
+ * The settings without what was kept for a song taken out of the library: its patterns, its
+ * charts chosen and its offset (a song added again has the same id, and the charts named are gone).
+ */
+export function withoutSong(settings: Settings, songId: string): Settings {
+  const others = <T>(all: Record<string, T>) => Object.fromEntries(Object.entries(all).filter(([k]) => k !== songId && !k.startsWith(`${songId}|`)));
+  return { ...settings, patterns: others(settings.patterns), chartPicks: others(settings.chartPicks), songOffsets: others(settings.songOffsets) };
 }
 
 /** Song offsets as stored: whole ms within ±SONG_OFFSET_MAX, none of 0, the last SONG_OFFSETS_KEPT songs. */

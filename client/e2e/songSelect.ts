@@ -76,10 +76,18 @@ export async function tool(page: Page, testId: 'sync-auto' | 'open-calibration' 
   await page.getByTestId(testId).click();
 }
 
-/** Adds a song from the top bar's menu (demo-button, upload-button, import-button …). */
+/**
+ * Adds a song from the top bar's menu (demo-button, upload-button, import-button …). The demo takes
+ * a few seconds to make: this waits until it is made and chosen, as the song chosen before stays
+ * until then (and its chart comes by itself).
+ */
 export async function addFromMenu(page: Page, testId: 'demo-button' | 'upload-button' | 'import-button' | 'import-folder-button') {
   await page.getByTestId('add-menu').click();
+  const demo = testId === 'demo-button' ? page.waitForResponse((r) => r.url().endsWith('/api/songs/demo'), { timeout: 60_000 }) : null;
   await page.getByTestId(testId).click();
+  if (!demo) return;
+  await demo;
+  await expect(page.getByTestId('busy')).toHaveCount(0, { timeout: 30_000 });
 }
 
 /** Opens a tab of the settings (the settings are open). */

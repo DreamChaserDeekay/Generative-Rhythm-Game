@@ -6,6 +6,16 @@ export const speedText = (v: number) => v.toFixed(2);
 /** A cover or LIFT share: 25.0% (one decimal: in play they move by 2.5 %). */
 export const coverText = (v: number) => `${(Math.round(v * 1000) / 10).toFixed(1)}%`;
 
+/** A point in a song to a tenth of a second: 1:05.3 (a practice segment's ends). */
+export function pointText(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 100) / 10);
+  return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+}
+
+/** A day as the records give it: 2026. 10. 21. (in a table of them: 26. 10. 21.) */
+export const dayText = (seconds: number) => new Date(seconds * 1000).toLocaleDateString('ko-KR');
+export const shortDayText = (seconds: number) => new Date(seconds * 1000).toLocaleDateString('ko-KR', { year: '2-digit', month: 'numeric', day: 'numeric' });
+
 /** A length in minutes and seconds: 2:05 (rounded up, so the last second reads 0:01, not 0:00). */
 export function clockText(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000 - 1e-6));

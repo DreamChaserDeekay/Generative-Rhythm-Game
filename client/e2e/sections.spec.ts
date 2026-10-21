@@ -12,7 +12,6 @@ test('song sections: shown by group on the minimap, edited and reset in the song
   await page.goto('/');
   await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await songInfo(page);
   await expect(page.getByTestId('chart-preview')).toBeVisible();
