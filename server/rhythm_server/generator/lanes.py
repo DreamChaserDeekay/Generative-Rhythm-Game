@@ -74,6 +74,11 @@ class _Weights:
     # lane (within jack_span ms of each other), and each hand's share of a busy bar
     same_hand: float
     same_hand_free: int
+    # a fast single note moving to another key of the hand that played the last ones, while that
+    # hand has played fewer than same_hand_pull_max in a row: this much off (human BMS runs stay on
+    # a hand more than the costs above leave them)
+    same_hand_pull: float
+    same_hand_pull_max: int
     jack_streak: float
     jack_free: int
     jack_span: float
@@ -116,6 +121,8 @@ class _Weights:
             # the styles that ask for hand alternation (stream) or jacks (jack) move these with it
             same_hand=float(hands["sameHand"]) * (1.0 - float(hands["sameHandEase"]) * params.skill) * params.weight("alternateWeight"),
             same_hand_free=int(hands["sameHandFree"]),
+            same_hand_pull=by_skill(hands["sameHandPull"], params.skill),
+            same_hand_pull_max=int(hands["sameHandPullMax"]),
             jack_streak=float(hands["jackStreak"]) * params.weight("jackWeight"),
             jack_free=int(hands["jackFree"]),
             jack_span=max(float(hands["jackStreakSpan"]) * params.min_jack_ms, float(hands["jackStreakMinMs"])),
@@ -774,7 +781,7 @@ def _costs(
     use_repeat = bool(repeat_set) and w.repeat > 0
     # hand rules: the fast run's hand and its notes in a row, each key's slots in a row, the bar so far
     run_hand, run_len, stair_next = None, 0, None
-    if w.same_hand > 0 and hand_rule and state.run and dt <= ANCHOR_MS:
+    if (w.same_hand > 0 or w.same_hand_pull > 0) and hand_rule and state.run and dt <= ANCHOR_MS:
         run_hand, run_len = _hand_run(state.run, hands)
         run = state.run
         if len(run) >= 2 and abs(run[-1] - run[-2]) == 1:
@@ -848,8 +855,11 @@ def _costs(
             hits = anchor_hits(_next_run(state, combo, t))
             if hits > anchor_cap:
                 cost += w.anchor * (hits - anchor_cap)
-        if run_hand is not None and len(combo) == 1 and hands[combo[0]] == run_hand and run_len >= w.same_hand_free and combo[0] != stair_next:
-            cost += w.same_hand * (run_len + 1 - w.same_hand_free)
+        if run_hand is not None and len(combo) == 1 and hands[combo[0]] == run_hand:
+            if w.same_hand > 0 and run_len >= w.same_hand_free and combo[0] != stair_next:
+                cost += w.same_hand * (run_len + 1 - w.same_hand_free)
+            if w.same_hand_pull > 0 and run_len < w.same_hand_pull_max and combo[0] != state.run[-1]:
+                cost -= w.same_hand_pull
         if streak_cost:
             for i in combo:
                 cost += streak_cost.get(i, 0.0)
