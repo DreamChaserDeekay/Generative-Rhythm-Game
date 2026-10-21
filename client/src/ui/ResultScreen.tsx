@@ -10,6 +10,7 @@ import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
 import { lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
+import { playbackRateText, playModeLabel } from './playRules';
 import { GaugeGraph, gaugePoints, suggestOffset, TimelineGraph, TimingHistogram } from './ResultGraphs';
 import {
   accuracyLabel,
@@ -274,7 +275,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   // reached stays on data-lamp)
   const aided = practice ? 'PRACTICE' : request.autoPlay ? 'AUTO' : null;
   const chip = difficultyChip(meta);
-  const mode = request.replay ? 'REPLAY' : practice ? `연습${practice.rate !== 1 ? ` ×${practice.rate.toFixed(2)}` : ''}` : request.autoPlay ? 'AUTO' : null;
+  const mode = playModeLabel(request);
   // DJMAX's "정밀 %" leads with the rate; the other rulesets lead with their own score
   const rateFirst = rules.scoring === 'rate';
   const headlineLabel = rateFirst ? 'RATE' : rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE';
@@ -345,7 +346,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
             </div>
             {practice && (
               <p className="record-note">
-                연습 모드{outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
+                연습 모드{outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · {playbackRateText(practice.rate)} · 기록되지 않습니다
               </p>
             )}
           </div>

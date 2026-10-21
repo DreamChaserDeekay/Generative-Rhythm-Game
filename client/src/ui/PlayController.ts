@@ -47,7 +47,7 @@ import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 import { practiceRunStart } from './practiceLead';
 import { offsetText } from './resultBreakdown';
-import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playModeLabel } from './playRules';
+import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playbackRateText, playModeLabel } from './playRules';
 import { keyPairNames, offsetStep, syncKeyOf, syncTestKeys, type SyncTestKeys } from './visualSync';
 
 export interface PlaySetup {
@@ -778,7 +778,7 @@ export class PlayController {
   private practiceLabel(): string | null {
     const p = this.practice;
     if (!p) return null;
-    return `PRACTICE ${this.rate.toFixed(2)}x · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
+    return `연습 · ${playbackRateText(this.rate)} · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
   }
 
   /** The result of the last loop a looped practice finished (null: none yet, or no such practice). */

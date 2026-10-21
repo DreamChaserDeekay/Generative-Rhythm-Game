@@ -29,6 +29,9 @@ export type { Palette } from '../render/palette';
 export type { HitEffectSize } from '../render/TrackRenderer';
 export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
 export type JudgePosition = 'low' | 'mid' | 'high';
+/** A window, or full screen (the desktop app keeps its window's; a browser asks for it). */
+export type DisplayMode = 'window' | 'fullscreen';
+export const DISPLAY_MODES: readonly DisplayMode[] = ['window', 'fullscreen'];
 /** Song select folders (Shift or F6 steps through them): every song, the favourites, the ones not
  * played on this key mode and difficulty system, the ones played but not cleared on a difficulty,
  * the ones cleared but short of MAX COMBO on a difficulty. */
@@ -116,6 +119,8 @@ export interface Settings {
   turntableReleaseMs: number;
   /** A play of one's own pauses when the window loses the focus or is hidden. */
   pauseOnBlur: boolean;
+  /** The game in a window or full screen (see displayMode.ts). */
+  displayMode: DisplayMode;
   /** Per song (by id): ms its notes are drawn and judged later (+) or earlier, over the offsets above. */
   songOffsets: Record<string, number>;
   /**
@@ -217,6 +222,7 @@ export const DEFAULT_SETTINGS: Settings = {
   turntableSteps: DEFAULT_TURNTABLE.steps,
   turntableReleaseMs: DEFAULT_TURNTABLE.releaseMs,
   pauseOnBlur: true,
+  displayMode: 'window',
   songOffsets: {},
   patterns: {},
   chartPicks: {},
@@ -321,6 +327,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.turntableSteps = Math.round(num(s.turntableSteps, 1, TURNTABLE_STEPS_MAX, DEFAULT_TURNTABLE.steps));
   s.turntableReleaseMs = Math.round(num(s.turntableReleaseMs, TURNTABLE_RELEASE_MIN, TURNTABLE_RELEASE_MAX, DEFAULT_TURNTABLE.releaseMs));
   s.pauseOnBlur = s.pauseOnBlur !== false;
+  s.displayMode = pick(s.displayMode, DISPLAY_MODES, DEFAULT_SETTINGS.displayMode);
   s.songOffsets = sanitizeSongOffsets(raw.songOffsets);
   s.patterns = keptEntries(raw.patterns, PATTERN_KEY, (v) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= SEED_MAX) || (typeof v === 'string' && CHART_ID.test(v))) as Record<string, Pattern>;
   s.chartPicks = keptEntries(raw.chartPicks, CHART_PICK_KEY, (v) => typeof v === 'string' && CHART_ID.test(v)) as Record<string, string>;
@@ -375,6 +382,14 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
     ...(g.engineSet === true ? { engineSet: true } : {}),
   };
   return s;
+}
+
+/**
+ * "모두 초기화": every setting back to its default, but what belongs to the songs (the favourites,
+ * and each song's patterns, charts chosen and own offset), as the library they go with stays too.
+ */
+export function resetSettings(s: Settings): Settings {
+  return { ...DEFAULT_SETTINGS, favorites: s.favorites, patterns: s.patterns, chartPicks: s.chartPicks, songOffsets: s.songOffsets };
 }
 
 export function loadSettings(): Settings {

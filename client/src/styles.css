@@ -2745,7 +2745,9 @@ button.opt:active:not(:disabled) {
 
 .install-hint {
   padding: var(--sp-3) var(--sp-4);
-  overflow-x: auto;
+  /* long lines wrap: nothing to scroll sideways for */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: var(--fs-label);
   font-weight: 700;
   background: var(--sunken);

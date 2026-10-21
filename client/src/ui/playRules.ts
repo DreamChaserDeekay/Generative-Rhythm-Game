@@ -22,11 +22,14 @@ export function playedSettings(request: Pick<PlayRequest, 'replay'>, settings: S
   return request.replay ? { ...settings, ...judgementSettingsOf(request.replay) } : settings;
 }
 
-/** AUTO, REPLAY or 연습 (with its speed); null for a play of one's own. */
+/** A practice's playback rate as every screen names it ("배속" is SPEED's alone). */
+export const playbackRateText = (rate: number) => `재생 속도 ×${rate.toFixed(2)}`;
+
+/** AUTO, REPLAY or 연습 (with its playback rate); null for a play of one's own. */
 export function playModeLabel(request: Pick<PlayRequest, 'replay' | 'practice' | 'autoPlay'>): string | null {
   const practice = request.practice;
   if (request.replay) return 'REPLAY';
-  if (practice) return `연습${practice.rate !== 1 ? ` ×${practice.rate.toFixed(2)}` : ''}`;
+  if (practice) return `연습${practice.rate !== 1 ? ` · ${playbackRateText(practice.rate)}` : ''}`;
   return request.autoPlay ? 'AUTO' : null;
 }
 

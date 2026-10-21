@@ -11,7 +11,6 @@ import {
   bindingLabel,
   bindingsFor,
   clampHiSpeed,
-  DEFAULT_SETTINGS,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
   JUDGEMENT_OPACITIES,
@@ -34,18 +33,21 @@ import {
   withCovers,
   withDifficultySystem,
   withPlayKey,
+  type DisplayMode,
   type HitEffectSize,
   type JudgePosition,
   type ScrollMode,
   type Settings,
 } from '../settings/settings';
 import type { CalibrationStep } from './CalibrationScreen';
+import { desktopShell, heldEscLeaves } from './displayMode';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
+import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
-import { HintBar, TopBar } from './shell';
+import { HintBar, TopBar, type KeyHint } from './shell';
 import { keyPairText, syncTestKeys } from './visualSync';
 
 interface Props {
@@ -58,6 +60,10 @@ interface Props {
   initialTab?: SettingsTab;
   /** The test id of the row to focus first (the tool come back from), else the tab's first row. */
   initialFocus?: string;
+  /** 모두 초기화 can be undone now (the app keeps the settings of before it for RESET_UNDO_MS, on any screen). */
+  canUndoReset: boolean;
+  onReset: () => void;
+  onUndoReset: () => void;
 }
 
 export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
@@ -72,7 +78,7 @@ const TABS: [SettingsTab, string, string][] = [
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '레인의 키와 플레이 중 키'],
   ['pad', '게임패드', '레인, 플레이 중 버튼, 전용 컨트롤러의 메뉴 버튼'],
-  ['advanced', '고급', '사용자 스킨과 분석 백엔드'],
+  ['advanced', '고급', '화면 모드, 사용자 스킨, 분석 백엔드와 초기화'],
 ];
 
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
@@ -98,15 +104,99 @@ function rowStops(root: HTMLElement): HTMLElement[] {
 }
 
 /**
+ * The rows' controls as the arrows see them (see arrowTarget): a key cap names its line and lane
+ * itself (data-nav-line, data-lane); the cells of a grid of keys are in rows as they lie, their
+ * column their place along the row; anything else is on the line of its row of buttons or its
+ * option row, or alone.
+ */
+function navStops(stops: HTMLElement[]): NavStop[] {
+  const ids = new Map<Element, string>();
+  const idOf = (el: Element) => {
+    let id = ids.get(el);
+    if (id === undefined) {
+      id = `line${ids.size}`;
+      ids.set(el, id);
+    }
+    return id;
+  };
+  const nav = stops.map((el): NavStop => {
+    if (el.dataset.navLine) return { line: el.dataset.navLine, column: Number(el.dataset.lane ?? 0) };
+    const grid = el.closest('.play-key-grid');
+    if (grid) return { line: `${idOf(grid)}@${Math.round(el.getBoundingClientRect().top)}`, column: 0 };
+    return { line: idOf(el.closest('.opt-actions, .row, .pad-row') ?? el.closest('.opt') ?? el), column: null };
+  });
+  nav.forEach((s, i) => {
+    if (s.line.includes('@') && i > 0 && nav[i - 1].line === s.line) s.column = (nav[i - 1].column ?? 0) + 1;
+  });
+  return nav;
+}
+
+const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+
+/** What a key or pad control is being bound for, as the hint bar names it (a run goes on to the next lane). */
+type CaptureKind = 'key' | 'second' | 'run' | 'playKey' | 'pad' | 'padRun' | 'padButton';
+
+const CAPTURE_HINTS: Record<CaptureKind, KeyHint[]> = {
+  key: [{ keys: ['아무 키'], label: '이 레인에 지정' }],
+  second: [
+    { keys: ['아무 키'], label: '보조 키로 지정' },
+    { keys: ['Backspace'], label: '비우기' },
+  ],
+  run: [{ keys: ['아무 키'], label: '지정하고 다음 레인으로' }],
+  playKey: [{ keys: ['아무 키'], label: '지정 (Ctrl·Alt·Shift와 함께도)' }],
+  pad: [{ keys: ['패드 버튼'], label: '이 레인에 지정' }],
+  padRun: [{ keys: ['패드 버튼'], label: '지정하고 다음 레인으로' }],
+  padButton: [
+    { keys: ['패드 버튼'], label: '지정' },
+    { keys: ['Backspace'], label: '비우기' },
+  ],
+};
+
+/** The keys of a tab (a pad's buttons beside them, shown while the pad works the menus). */
+function tabHints(tab: SettingsTab): KeyHint[] {
+  const tabs: KeyHint = { keys: ['Q', 'E'], pad: ['LB', 'RB'], label: '탭' };
+  const lanes = tab === 'keys' || tab === 'pad';
+  const hints: KeyHint[] = [
+    { keys: ['↑', '↓'], pad: ['↑', '↓'], label: lanes ? '모드' : '항목' },
+    { keys: ['←', '→'], pad: ['←', '→'], label: lanes ? '레인' : '값' },
+  ];
+  if (tab === 'keys') hints.push({ keys: ['Enter'], pad: ['A'], label: '바꾸기' });
+  if (tab === 'pad') hints.push({ keys: ['Enter'], pad: ['A'], label: '지정' });
+  // the calibration steps and the sync tests under the offsets
+  if (tab === 'judge') hints.push({ keys: ['Enter'], pad: ['A'], label: '열기' });
+  if (tab === 'advanced') hints.push({ keys: ['Enter'], pad: ['A'], label: '누르기' });
+  return [...hints, tabs];
+}
+
+/** How long 모두 초기화 waits for its second press, and how long it can be undone (from its last press). */
+const RESET_CONFIRM_MS = 3000;
+export const RESET_UNDO_MS = 10000;
+
+/**
  * The settings as an arcade option screen: tabs on the left (Q / E, LB / RB on a pad), a row per
  * setting with its value between ‹ › (↑↓ choose a row, ←→ change it), and on the right a live gear
  * or the chosen row's help.
  */
-export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate, onSyncTest, initialTab = 'speed', initialFocus }: Props) {
+export function SettingsScreen({
+  settings,
+  onSettingsChange,
+  onBack,
+  onCalibrate,
+  onSyncTest,
+  initialTab = 'speed',
+  initialFocus,
+  canUndoReset,
+  onReset,
+  onUndoReset,
+}: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
   const rows = useRef<HTMLDivElement>(null);
+  /** What a key or pad control is being bound for in the 키 설정 or 게임패드 tab (the hints), or null. */
+  const [capture, setCapture] = useState<CaptureKind | null>(null);
+  /** The lane the arrows keep through a line of buttons between two of lanes (see arrowTarget). */
+  const column = useRef<number | null>(null);
 
   // a tab opens on its first row, with the focus there (a click on a tab leaves the focus on it)
   const focusFirstRow = () => requestAnimationFrame(() => (rows.current && rowStops(rows.current)[0])?.focus({ preventScroll: true }));
@@ -131,7 +221,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
   };
 
   // Esc leaves (a key being bound and the rollover test take it first, see KeysPanel); Q / E and
-  // PageUp / PageDown (LB / RB) change the tab; ↑↓ go through the rows.
+  // PageUp / PageDown (LB / RB) change the tab; the arrows go through the rows: ↑↓ line to line,
+  // ←→ along a line (keys and pad controls lane by lane; an option row takes ←→ itself).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
@@ -145,18 +236,23 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
         if (!e.repeat) stepTab(e.code === 'KeyQ' || e.code === 'PageUp' ? -1 : 1);
         return;
       }
-      if (e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
+      const key = ARROWS[e.code];
+      if (!key || e.defaultPrevented) return;
       const root = rows.current;
       const at = document.activeElement;
       if (!root || !(at instanceof HTMLElement)) return;
       const stops = rowStops(root);
-      if (root.contains(at)) {
+      const from = stops.indexOf(at);
+      if (from >= 0) {
         // a pad's d-pad goes the same way (the event is taken here, so the menu bridge does not move it again)
         e.preventDefault();
-        const next = stops[stops.indexOf(at) + (e.code === 'ArrowDown' ? 1 : -1)];
-        next?.focus();
-        next?.scrollIntoView({ block: 'nearest' });
-      } else if (at.closest('.settings-nav') && e.code === 'ArrowDown') {
+        const nav = navStops(stops);
+        const next = arrowTarget(nav, from, key, column.current);
+        if (next < 0) return;
+        column.current = nav[next].column ?? column.current;
+        stops[next].focus();
+        stops[next].scrollIntoView({ block: 'nearest' });
+      } else if (at.closest('.settings-nav') && key === 'down') {
         e.preventDefault();
         stops[0]?.focus();
       }
@@ -582,13 +678,13 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
       );
       break;
     case 'keys':
-      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} />;
+      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} onCapture={setCapture} />;
       break;
     case 'pad':
-      content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} />;
+      content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} onCapture={setCapture} />;
       break;
     case 'advanced':
-      content = <AdvancedPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} />;
+      content = <AdvancedPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} undo={canUndoReset} onReset={onReset} onUndo={onUndoReset} />;
       break;
   }
 
@@ -616,7 +712,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
           <h2>
             {heading} · {subtitle}
           </h2>
-          {content}
+          <Fragment key={tab}>{content}</Fragment>
         </section>
         <aside className="settings-side">
           {/* the gear as it will be played, where a row changes how it looks (the hit effects too) */}
@@ -639,13 +735,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
         </aside>
       </div>
       <HintBar
-        hints={[
-          { keys: ['↑', '↓'], label: '항목' },
-          { keys: ['←', '→'], label: '값' },
-          { keys: ['Q', 'E'], label: '탭' },
-          { keys: [], label: '패드: 십자키 · A · B · LB/RB' },
-        ]}
-        end={[{ keys: ['Esc'], label: '완료' }]}
+        hints={capture ? CAPTURE_HINTS[capture] : tabHints(tab)}
+        end={[capture ? { keys: ['Esc'], label: capture === 'run' || capture === 'padRun' ? '멈추기' : '취소' } : { keys: ['Esc'], pad: ['B'], label: '완료' }]}
       />
     </div>
   );
@@ -699,11 +790,23 @@ function swallowRelease(code: string): void {
  * of the in-play functions. A lane key that takes a function's key (lanes are read first) and a
  * function on the key of another are marked; a lane on Shift, Ctrl or Alt gets the Windows notes.
  */
-function KeysPanel({ settings, onSettingsChange, onHelp }: { settings: Settings; onSettingsChange: (s: Settings) => void; onHelp: (help: string) => void }) {
+function KeysPanel({
+  settings,
+  onSettingsChange,
+  onHelp,
+  onCapture,
+}: {
+  settings: Settings;
+  onSettingsChange: (s: Settings) => void;
+  onHelp: (help: string) => void;
+  onCapture: (kind: CaptureKind | null) => void;
+}) {
   const [capture, setCapture] = useState<KeyCapture | null>(null);
   const [ghostMode, setGhostMode] = useState<KeyModeId | null>(null);
   const playKeys = playKeysOf(settings);
   const shared = sharedPlayKeys(playKeys);
+  useEffect(() => onCapture(capture === null ? null : capture.kind === 'play' ? 'playKey' : capture.run ? 'run' : capture.second ? 'second' : 'key'), [capture, onCapture]);
+  useEffect(() => () => onCapture(null), [onCapture]);
 
   // the key pressed next is bound; Esc cancels (and stops a run), and the screen sees neither
   useEffect(() => {
@@ -794,6 +897,8 @@ function KeysPanel({ settings, onSettingsChange, onHelp }: { settings: Settings;
               key={`${isSecond ? 2 : 1}-${lane}`}
               className={`key-cap lane-${lanes[lane].color}${isSecond ? ' second' : ''}${active ? ' active' : ''}${taken.length > 0 ? ' clash' : ''}${code ? '' : ' empty'}`}
               data-testid={`${isSecond ? 'key2' : 'key'}-${mode}-${lane}`}
+              data-nav-line={`${mode}-${isSecond ? 2 : 1}`}
+              data-lane={lane}
               title={taken.length > 0 ? `플레이 중 키와 겹침: ${taken.map((a) => PLAY_ACTION_LABELS[a]).join(', ')}` : isSecond ? (code ? '보조 키' : '보조 키 (비어 있음)') : undefined}
               onFocus={() => onHelp(laneHelp(isSecond))}
               onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, second: isSecond, run: false })}
@@ -957,9 +1062,21 @@ function axisOf(code: string | null): string | null {
  * buttons in play, and the menu buttons of a controller without the standard mapping (inferred
  * from its lanes until assigned). A play button on a lane's control is marked: the lane takes it.
  */
-function GamepadPanel({ settings, onSettingsChange, onHelp }: { settings: Settings; onSettingsChange: (s: Settings) => void; onHelp: (help: string) => void }) {
+function GamepadPanel({
+  settings,
+  onSettingsChange,
+  onHelp,
+  onCapture,
+}: {
+  settings: Settings;
+  onSettingsChange: (s: Settings) => void;
+  onHelp: (help: string) => void;
+  onCapture: (kind: CaptureKind | null) => void;
+}) {
   const [pads, setPads] = useState<string[]>([]);
   const [capture, setCapture] = useState<PadCapture | null>(null);
+  useEffect(() => onCapture(capture === null ? null : capture.kind !== 'lane' ? 'padButton' : capture.run ? 'padRun' : 'pad'), [capture, onCapture]);
+  useEffect(() => () => onCapture(null), [onCapture]);
 
   // list connected pads (a pad shows up only after one of its buttons is pressed on this page)
   useEffect(() => {
@@ -1084,6 +1201,8 @@ function GamepadPanel({ settings, onSettingsChange, onHelp }: { settings: Settin
                       key={lane}
                       className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color}${active ? ' active' : ''}${code ? '' : ' empty'}`}
                       data-testid={`pad-${mode}-${lane}`}
+                      data-nav-line={`pad-${mode}`}
+                      data-lane={lane}
                       title={code ? padCodeLabel(code) : '지정 안 됨'}
                       onFocus={() => onHelp(padHelp)}
                       onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, run: false })}
@@ -1194,11 +1313,50 @@ function GamepadPanel({ settings, onSettingsChange, onHelp }: { settings: Settin
   );
 }
 
-/** A user skin from JSON, the analysis backends, and a full reset. */
-function AdvancedPanel({ settings, onSettingsChange, onHelp }: { settings: Settings; onSettingsChange: (s: Settings) => void; onHelp: (help: string) => void }) {
+/**
+ * The window or full screen, a user skin from JSON, the analysis backends, and a full reset: a
+ * press arms it, a second within RESET_CONFIRM_MS resets, and 되돌리기 brings the settings back.
+ */
+function AdvancedPanel({
+  settings,
+  onSettingsChange,
+  onHelp,
+  undo,
+  onReset,
+  onUndo,
+}: {
+  settings: Settings;
+  onSettingsChange: (s: Settings) => void;
+  onHelp: (help: string) => void;
+  /** A reset can be undone. */
+  undo: boolean;
+  onReset: () => void;
+  onUndo: () => void;
+}) {
   const [skinText, setSkinText] = useState('');
   const [skinError, setSkinError] = useState<string | null>(null);
   const [backends, setBackends] = useState<BackendStatus[] | null>(null);
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = window.setTimeout(() => setArmed(false), RESET_CONFIRM_MS);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+  // the undo gone (pressed, or its time up) with the focus on it: the focus goes back to the reset
+  const resetButton = useRef<HTMLButtonElement>(null);
+  const hadUndo = useRef(undo);
+  useEffect(() => {
+    if (hadUndo.current && !undo && (document.activeElement === null || document.activeElement === document.body)) resetButton.current?.focus();
+    hadUndo.current = undo;
+  }, [undo]);
+  const pressReset = () => {
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setArmed(false);
+    onReset();
+  };
   useEffect(() => {
     api
       .health()
@@ -1216,8 +1374,27 @@ function AdvancedPanel({ settings, onSettingsChange, onHelp }: { settings: Setti
     }
   };
   const custom = settings.customSkin as { label?: string } | null;
+  const desktop = desktopShell() !== null;
   return (
     <>
+      <Choice
+        onHelp={onHelp}
+        label="화면 모드"
+        testId="opt-display-mode"
+        value={settings.displayMode}
+        options={
+          [
+            ['window', '창'],
+            ['fullscreen', '전체 화면'],
+          ] as [DisplayMode, string][]
+        }
+        onChange={(m) => onSettingsChange({ ...settings, displayMode: m })}
+        help={
+          desktop
+            ? '전체 화면은 작업 표시줄과 창 테두리 없이 게임만 보여 줍니다. 앱은 창의 크기·위치와 함께 기억하고, F11로도 바꿀 수 있습니다.'
+            : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
+        }
+      />
       <div className="settings-group" data-testid="skin-settings">
         <h3>사용자 스킨</h3>
         <p className="settings-note">
@@ -1230,7 +1407,7 @@ function AdvancedPanel({ settings, onSettingsChange, onHelp }: { settings: Setti
           spellCheck={false}
           placeholder='{"label": "내 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff3b3b"}}'
           value={skinText}
-          onFocus={() => onHelp('JSON을 붙여 넣고 적용하면 화면 탭의 트랙 스킨에 사용자 스킨으로 들어갑니다.')}
+          onFocus={() => onHelp('JSON을 붙여 넣고 적용하면 기어 탭의 트랙 스킨(선곡에서는 Space → 속도·기어)에 사용자 스킨으로 들어갑니다.')}
           onChange={(e) => setSkinText(e.target.value)}
         />
         <div className="row">
@@ -1272,12 +1449,35 @@ function AdvancedPanel({ settings, onSettingsChange, onHelp }: { settings: Setti
         </pre>
       </div>
 
-      <div className="settings-group">
+      <div className="settings-group" data-testid="reset-settings">
         <h3>초기화</h3>
         <div className="row">
-          <button className="danger" onFocus={() => onHelp('모든 설정을 처음 값으로 되돌립니다 (즐겨찾기도). 기록과 곡은 그대로입니다.')} onClick={() => onSettingsChange({ ...DEFAULT_SETTINGS })}>
-            모두 초기화
+          <button
+            ref={resetButton}
+            className="danger"
+            data-testid="reset-all"
+            onKeyDown={(e) => {
+              // a held Enter presses it once (its repeats would make the second press): the second is a press of its own
+              if (e.repeat && (e.code === 'Enter' || e.code === 'NumpadEnter')) e.preventDefault();
+            }}
+            onFocus={() =>
+              onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
+            }
+            onBlur={() => setArmed(false)}
+            onClick={pressReset}
+          >
+            {armed ? '한 번 더 누르면 초기화' : '모두 초기화'}
           </button>
+          {undo && (
+            <>
+              <span className="settings-status" role="status" data-testid="reset-done">
+                처음 값으로 되돌렸습니다.
+              </span>
+              <button className="small" data-testid="reset-undo" onClick={onUndo}>
+                되돌리기
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>

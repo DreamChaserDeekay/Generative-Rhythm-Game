@@ -162,7 +162,10 @@ export function RuleRow({ rule, settings, onSettingsChange, detailed = false, ..
           value={settings.ruleset}
           options={rulesetIds.map((id) => [id, rulesetConfigs[id].label])}
           onChange={(id) => set('ruleset', id)}
-          help={`${rulesetConfigs[settings.ruleset].reference}식으로 판정을 묶고 점수를 셉니다.`}
+          help={help(
+            '판정을 묶고 점수를 세는 방식입니다. EX-SCORE에서는 BAD에도 콤보가 끊깁니다.',
+            '정밀 %는 DJMAX RESPECT V, 등급형은 EZ2ON REBOOT : R, EX-SCORE는 BMS(beatoraja · LR2)식입니다.',
+          )}
         />
       );
   }

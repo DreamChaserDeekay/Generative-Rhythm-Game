@@ -5,14 +5,15 @@ import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, padMenuKeysFor, patternKey, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
+import { loadSettings, padMenuKeysFor, patternKey, resetSettings, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
-import { SettingsScreen, type SettingsTab } from './SettingsScreen';
+import { RESET_UNDO_MS, SettingsScreen, type SettingsTab } from './SettingsScreen';
 import { generationParams } from './PlayOptions';
+import { useDisplayMode } from './displayMode';
 import { buildPlayRequest } from './playRequest';
 import { bestAfterPlay } from './playRules';
 import { SongSelectScreen } from './SongSelectScreen';
@@ -94,6 +95,23 @@ export function App() {
   const current = useRef(settings);
   current.current = settings;
 
+  // 모두 초기화 can be undone for a while from its last press, the settings left and come back to or not
+  const [resetUndo, setResetUndo] = useState<{ before: Settings } | null>(null);
+  useEffect(() => {
+    if (!resetUndo) return;
+    const id = window.setTimeout(() => setResetUndo(null), RESET_UNDO_MS);
+    return () => window.clearTimeout(id);
+  }, [resetUndo]);
+  const resetAll = () => {
+    // a second reset in a row keeps the settings of before the first (and gives the undo its time again)
+    setResetUndo({ before: resetUndo?.before ?? current.current });
+    setSettings(resetSettings(current.current));
+  };
+  const undoReset = () => {
+    if (resetUndo) setSettings(resetUndo.before);
+    setResetUndo(null);
+  };
+
   // a controller without the standard mapping works the menus with the buttons assigned (or inferred from its lanes)
   const { padMenu, padBindings, lastKeyMode } = settings;
   const menuKeys = useMemo(() => padMenuKeysFor({ padMenu, padBindings, lastKeyMode }), [padMenu, padBindings, lastKeyMode]);
@@ -116,6 +134,11 @@ export function App() {
     else menuMusic.stop();
   }, [screen.name]);
   useEffect(() => menuMusic.setVolume(settings.musicVolume * PREVIEW_VOLUME), [settings.musicVolume]);
+
+  // the window or full screen (the desktop app's window, or the browser's full screen)
+  useDisplayMode(settings.displayMode, (displayMode) => {
+    if (current.current.displayMode !== displayMode) setSettings({ ...current.current, displayMode });
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle('palette-cb', settings.palette === 'colorblind');
@@ -254,6 +277,9 @@ export function App() {
           onSyncTest={(byHand) => play(syncTestRequest(settings.lastKeyMode, !byHand, true))}
           initialTab={screen.tab}
           initialFocus={screen.focus}
+          canUndoReset={resetUndo !== null}
+          onReset={resetAll}
+          onUndoReset={undoReset}
         />
       );
     case 'editor':

@@ -30,7 +30,7 @@ describe('the rules a play runs on', () => {
     expect(playedSettings(request(), DEFAULT_SETTINGS)).toBe(DEFAULT_SETTINGS);
     expect(playModeLabel(request({ replay }))).toBe('REPLAY');
     expect(playModeLabel(request({ autoPlay: true }))).toBe('AUTO');
-    expect(playModeLabel(request({ practice: { startMs: 0, endMs: 1, rate: 0.75, loop: false } }))).toBe('연습 ×0.75');
+    expect(playModeLabel(request({ practice: { startMs: 0, endMs: 1, rate: 0.75, loop: false } }))).toBe('연습 · 재생 속도 ×0.75');
     expect(playModeLabel(request({ practice: { startMs: 0, endMs: 1, rate: 1, loop: false } }))).toBe('연습');
     expect(playModeLabel(request())).toBeNull();
   });

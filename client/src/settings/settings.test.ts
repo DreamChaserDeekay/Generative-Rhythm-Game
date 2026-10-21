@@ -15,6 +15,7 @@ import {
   patternOf,
   playKeysOf,
   rebindKey,
+  resetSettings,
   sanitizeSettings,
   secondBindingsFor,
   songOffsetOf,
@@ -199,6 +200,27 @@ describe('settings', () => {
     expect(sanitizeSettings({})).toMatchObject({ turntableSteps: 1, turntableReleaseMs: 120, pauseOnBlur: true });
     expect(sanitizeSettings({ turntableSteps: 9, turntableReleaseMs: 10, pauseOnBlur: false })).toMatchObject({ turntableSteps: 4, turntableReleaseMs: 40, pauseOnBlur: false });
     expect(sanitizeSettings({ turntableSteps: 2.4, pauseOnBlur: 'no' as never })).toMatchObject({ turntableSteps: 2, pauseOnBlur: true });
+  });
+
+  it('keeps the display mode (settings saved before it, or of an unknown kind: a window)', () => {
+    expect(sanitizeSettings({}).displayMode).toBe('window');
+    expect(sanitizeSettings({ displayMode: 'fullscreen' }).displayMode).toBe('fullscreen');
+    expect(sanitizeSettings({ displayMode: 'borderless' as never }).displayMode).toBe('window');
+  });
+
+  it('resets every setting but the favourites and what each song keeps (its pattern, its chart, its offset)', () => {
+    const song = '0123456789abcdef';
+    const kept = {
+      favorites: [song],
+      patterns: { [patternKey(song, '4K', 'DJMAX', 'NM')]: 7 },
+      chartPicks: { [chartPickKey(song, '4K')]: 'c0123456789abcdef0123' },
+      songOffsets: { [song]: 12 },
+    };
+    const s = sanitizeSettings({ ...kept, hiSpeed: 6.5, inputOffsetMs: 20, displayMode: 'fullscreen', bindings: { '4K': ['KeyA', 'KeyS', 'KeyK', 'KeyL'] } });
+    const reset = resetSettings(s);
+    expect(reset).toEqual({ ...DEFAULT_SETTINGS, ...kept });
+    expect(reset.hiSpeed).toBe(DEFAULT_SETTINGS.hiSpeed);
+    expect(bindingsFor(reset, '4K')).toEqual(bindingsFor(DEFAULT_SETTINGS, '4K'));
   });
 
   it('keeps a song offset per song: whole ms, capped, none of 0', () => {
