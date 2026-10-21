@@ -1010,21 +1010,27 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
-/* a plate keeps the song readable over a video or the visualizer */
+/* a plate keeps the song readable over a video or the visualizer; --info-room (Hud.fit) keeps it
+   clear of the gear where the track comes near the screen's corner, and --info-scale shrinks it
+   where that room is narrower than its difficulty chip */
 .hud-info {
   position: absolute;
   top: var(--sp-4);
   left: var(--sp-4);
-  max-width: 40%;
+  max-width: min(40%, var(--info-room, 100%));
   padding: var(--sp-2) var(--sp-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   border-radius: var(--radius-sm);
+  transform: scale(var(--info-scale, 1));
+  transform-origin: 0 0;
 }
 
+/* the difficulty and key mode go under the title where the plate is too narrow for one line */
 .hud-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-1) var(--sp-3);
   white-space: nowrap;
 }
 
@@ -1520,7 +1526,7 @@ p.hint {
 
 @media (max-width: 720px) {
   .hud-info {
-    max-width: 50%;
+    max-width: min(50%, var(--info-room, 100%));
   }
 }
 

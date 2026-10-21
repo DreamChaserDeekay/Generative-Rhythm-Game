@@ -4,16 +4,10 @@ import { cameraConfig, keyModes } from '../engine/config';
 import { ScrollModel } from '../engine/scroll';
 import { visibleTimeMs } from '../settings/settings';
 import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan } from './layout';
-import { keyRow } from './TrackRenderer';
+import { FIT_TRACK_END_Y, fitFov, frameCamera, keyRow, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
 
-function presetCamera(presetId: string, aspect: number): THREE.PerspectiveCamera {
-  const pose = cameraPose(cameraConfig.presets[presetId]);
-  const camera = new THREE.PerspectiveCamera(pose.fov, aspect, 0.1, 500);
-  camera.position.set(...pose.position);
-  camera.lookAt(new THREE.Vector3(...pose.target));
-  camera.updateMatrixWorld();
-  camera.updateProjectionMatrix();
-  return camera;
+function presetCamera(presetId: string, aspect: number): TrackCamera {
+  return poseCamera(cameraPose(cameraConfig.presets[presetId]), aspect);
 }
 
 function screenY(presetId: string, z: number, aspect = 16 / 9): number {
@@ -74,22 +68,91 @@ describe('track layout', () => {
     }
   });
 
-  it('has a plane camera: the far end nearly as wide as the judge line, notes at an even speed down the screen', () => {
+  it('has a plane camera: the rails parallel, the notes at one speed all the way down the screen', () => {
     const L = cameraConfig.trackLength;
     const half = cameraConfig.trackWidth / 2;
     expect(cameraConfig.default).toBe('SDVX');
+    expect(presetCamera('PLANE', 16 / 9)).toBeInstanceOf(PlaneCamera);
+    for (const id of ['FLAT', 'SDVX', 'LOW']) expect(presetCamera(id, 16 / 9)).toBeInstanceOf(THREE.PerspectiveCamera);
+    // its lanes as wide at the judge line as when it was a perspective camera: 397.8 px of 1280x720
+    expect(Math.abs(screenWidth('PLANE', half, 0) * 1280 - 397.8)).toBeLessThan(0.5);
     for (const aspect of [16 / 9, 4 / 3, 21 / 9]) {
-      expect(screenWidth('PLANE', half, -L, aspect) / screenWidth('PLANE', half, 0, aspect)).toBeGreaterThan(0.85);
-      // screen distance per track unit at the far end against the judge line's
+      // the far end as wide as the judge line (within a millionth of a px on a 2560 px wide screen)
+      expect(screenWidth('PLANE', half, -L, aspect) - screenWidth('PLANE', half, 0, aspect)).toBeCloseTo(0, 9);
+      // the same screen distance per track unit anywhere on it
       const speed = (z: number) => screenY('PLANE', z, aspect) - screenY('PLANE', z - 0.5, aspect);
-      expect(speed(-L + 0.5) / speed(0)).toBeGreaterThan(0.75);
-      // the later half of the travel time has about half the lane's height (SDVX gives it a fifth)
+      expect(speed(-L + 0.5) / speed(0)).toBeCloseTo(1, 9);
+      expect(speed(-L / 2) / speed(0)).toBeCloseTo(1, 9);
+      // the later half of the travel time has half the lane's height (SDVX gives it a fifth)
       const share = (screenY('PLANE', -L / 2, aspect) - screenY('PLANE', -L, aspect)) / (screenY('PLANE', 0, aspect) - screenY('PLANE', -L, aspect));
-      expect(share).toBeGreaterThan(0.45);
+      expect(share).toBeCloseTo(0.5, 9);
     }
-    // the farthest point stays well inside the camera's far plane
-    const pose = cameraPose(cameraConfig.presets.PLANE);
-    expect(new THREE.Vector3(...pose.position).distanceTo(new THREE.Vector3(0, 0, -L))).toBeLessThan(450);
+  });
+
+  it('makes a plane camera whose projection is whole from the start', () => {
+    const camera = new PlaneCamera(2, 16 / 9, 300);
+    expect(camera.projectionMatrix.elements.every(Number.isFinite)).toBe(true);
+    // as high as a perspective camera with that field of view sees 300 away, and as wide for the aspect
+    expect(camera.top).toBeCloseTo(300 * Math.tan(THREE.MathUtils.degToRad(1)), 12);
+    camera.aspect = 2;
+    camera.fov = 4;
+    camera.updateProjectionMatrix();
+    expect(camera.right / camera.top).toBeCloseTo(2, 12);
+    expect(camera.top).toBeCloseTo(300 * Math.tan(THREE.MathUtils.degToRad(2)), 12);
+    // a copy keeps its depth and lens: set afresh, its view is the same
+    const copy = camera.clone();
+    expect(copy).toBeInstanceOf(PlaneCamera);
+    expect(copy.depth).toBe(300);
+    copy.aspect = 2;
+    copy.updateProjectionMatrix();
+    expect(copy.projectionMatrix.elements.every(Number.isFinite)).toBe(true);
+    expect(copy.projectionMatrix.equals(camera.projectionMatrix)).toBe(true);
+    expect(new PlaneCamera().projectionMatrix.elements.every(Number.isFinite)).toBe(true);
+  });
+
+  it('fits a preview\'s track to its box with either camera: the line 0.84 of the width, or the far end at the top', () => {
+    const geometry = computeTrackGeometry(keyModes['7K+1S'], cameraConfig.trackWidth, cameraConfig.trackLength);
+    const half = geometry.width / 2;
+    for (const id of ['PLANE', 'SDVX']) {
+      for (const [W, H] of [
+        [520, 600],
+        [900, 420],
+        [300, 620],
+      ]) {
+        const camera = presetCamera(id, W / H);
+        const fov = fitFov(camera, geometry, 0.84);
+        frameCamera(camera, fov, 1, 0, W, H);
+        const at = (x: number, z: number) => new THREE.Vector3(x, 0, z).project(camera);
+        const width = (at(half, 0).x - at(-half, 0).x) / 2;
+        const end = (1 - at(0, -geometry.length).y) / 2;
+        expect((1 - at(0, 0).y) / 2).toBeCloseTo(JUDGE_LINE_Y, 9);
+        // neither goes past its mark, and one of them is on it
+        expect(width).toBeLessThan(0.84 + 1e-9);
+        expect(end).toBeGreaterThan(FIT_TRACK_END_Y - 1e-9);
+        expect(Math.min(0.84 - width, end - FIT_TRACK_END_Y)).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it('tilts the plane camera as the eye it stands in for does at its target', () => {
+    // the track's length looks shortened by the sine of the angle the camera looks down at, as a
+    // perspective camera in the same pose shows it where it looks (and a little more or less nearer or farther)
+    const preset = cameraConfig.presets.PLANE;
+    const pose = cameraPose(preset);
+    const down = Math.atan2(preset.height, preset.distance + preset.lookAhead);
+    const camera = presetCamera('PLANE', 1);
+    const px = (x: number, z: number) => new THREE.Vector3(x, 0, z).project(camera);
+    const [near, far, left, right] = [px(0, 0), px(0, -1), px(-0.5, 0), px(0.5, 0)];
+    expect((far.y - near.y) / (right.x - left.x)).toBeCloseTo(Math.sin(down), 9);
+    const eye = new THREE.PerspectiveCamera(pose.fov, 1);
+    eye.position.set(...pose.position);
+    eye.lookAt(new THREE.Vector3(...pose.target));
+    eye.updateMatrixWorld();
+    const seen = (x: number, z: number) => new THREE.Vector3(x, 0, z).project(eye);
+    const at = (z: number) => (seen(0, z - 0.5).y - seen(0, z + 0.5).y) / (seen(0.5, z).x - seen(-0.5, z).x);
+    expect(at(-preset.lookAhead)).toBeCloseTo(Math.sin(down), 3);
+    expect(at(0)).toBeGreaterThan(Math.sin(down));
+    expect(at(-cameraConfig.trackLength)).toBeLessThan(Math.sin(down));
   });
 
   it('lines a long note up with taps at its start and end, at any speed and note depth', () => {
@@ -132,6 +195,8 @@ describe('track layout', () => {
     expect(share('SDVX')).toBeGreaterThan(0.15);
     expect(share('SDVX')).toBeLessThan(0.2);
     expect(Math.abs(share('PLANE') - share('SDVX'))).toBeLessThan(0.03);
+    // the plane camera shows every part of the track alike: its fog takes what the track's length leaves it
+    expect(share('PLANE')).toBeCloseTo(1 - (cameraConfig.presets.PLANE.fogStart ?? 0), 9);
     // the perspective cameras keep their fog where it was, 55 % of the way up
     for (const id of ['FLAT', 'SDVX', 'LOW']) expect(fogStartZ(cameraConfig.presets[id], L)).toBeCloseTo(-0.55 * L, 9);
   });

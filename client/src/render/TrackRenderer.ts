@@ -5,7 +5,7 @@ import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
 import { KEY_PAINT, paintDeck, type KeyKind } from './deckArt';
-import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan, type LaneGeom, type NoteSpan, type TrackGeometry } from './layout';
+import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan, type CameraPose, type LaneGeom, type NoteSpan, type TrackGeometry } from './layout';
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { DEFAULT_HUD_TYPE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
@@ -93,7 +93,7 @@ const HOLD_BURST_FRAME = 13;
 /** Note pictures are drawn this many px deep. */
 const NOTE_PICTURE_PX = 96;
 /** A fitted preview keeps the far end of the track no higher than this share of the height. */
-const FIT_TRACK_END_Y = 0.06;
+export const FIT_TRACK_END_Y = 0.06;
 /** Picture px per plane px of the deck under the judge line. */
 const DECK_PICTURE = 2;
 /**
@@ -151,6 +151,27 @@ export interface HudPlane {
   /** Half the track's width, and how far outside it the gear's rails or walls reach. */
   halfWidth: number;
   sideOut: number;
+  /** Where the track ends up it (plane y). */
+  far: number;
+}
+
+/**
+ * The homography of the HUD's plane (HUD_UNIT plane px to a track unit, from the middle of the judge
+ * line at `lineZ`) as `camera` (its matrices up to date) shows it on a `width`×`height` screen.
+ */
+export function planeHomography(camera: THREE.Camera, width: number, height: number, lineZ: number): number[] {
+  const view = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  const [W, H] = [width / 2, height / 2];
+  // clip space of one plane px across, one toward the camera, and the origin; then screen px
+  const [a, b, c] = [
+    [PX, 0, 0, 0],
+    [0, 0, PX, 0],
+    [0, 0, lineZ, 1],
+  ].map(([x, y, z, w]) => {
+    const v = new THREE.Vector4(x, y, z, w).applyMatrix4(view);
+    return [W * (v.x + v.w), H * (v.w - v.y), v.w];
+  });
+  return [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]];
 }
 
 export interface CoverLayout {
@@ -212,10 +233,108 @@ export function barLineDepth(camera: THREE.Camera, z: number, cssHeight: number)
   return px > 1e-6 ? Math.min(2, Math.max(0.02, (step * BAR_LINE_PX) / px)) : 0.05;
 }
 
+/**
+ * The plane preset's camera. Its rays are parallel, so the rails stay parallel on the screen and
+ * the notes keep one speed all the way down the track. It takes a field of view and an aspect as
+ * the perspective cameras do (the framing, a chart's zoom, a preview's fit and a resize set them
+ * alike, then updateProjectionMatrix) and shows as much as a perspective camera with that field
+ * of view would `depth` away, at its target.
+ */
+export class PlaneCamera extends THREE.OrthographicCamera {
+  private lens: { fov: number; aspect: number; depth: number };
+
+  /** Without arguments (as clone() makes one) a whole view too, until copy() gives it the source's. */
+  constructor(fov = 50, aspect = 1, depth = 1) {
+    super();
+    this.lens = { fov, aspect, depth };
+    this.size();
+    this.updateProjectionMatrix();
+  }
+
+  get depth(): number {
+    return this.lens.depth;
+  }
+
+  get fov(): number {
+    return this.lens.fov;
+  }
+
+  set fov(fov: number) {
+    this.lens.fov = fov;
+    this.size();
+  }
+
+  get aspect(): number {
+    return this.lens.aspect;
+  }
+
+  set aspect(aspect: number) {
+    this.lens.aspect = aspect;
+    this.size();
+  }
+
+  copy(source: PlaneCamera, recursive?: boolean): this {
+    super.copy(source, recursive);
+    this.lens = { ...source.lens };
+    return this;
+  }
+
+  /**
+   * The view's box for the field of view and aspect: set with them rather than in
+   * updateProjectionMatrix, which OrthographicCamera's constructor calls before this one's fields exist.
+   */
+  private size(): void {
+    const half = this.lens.depth * Math.tan(THREE.MathUtils.degToRad(this.lens.fov) / 2);
+    this.top = half;
+    this.bottom = -half;
+    this.right = half * this.lens.aspect;
+    this.left = -this.right;
+  }
+}
+
+/** A preset's camera: the plane preset's looks along parallel rays, the others from an eye. */
+export type TrackCamera = THREE.PerspectiveCamera | PlaneCamera;
+
+/** A camera in `pose` for a screen of `aspect`, its world matrices and projection up to date. */
+export function poseCamera(pose: CameraPose, aspect: number): TrackCamera {
+  const position = new THREE.Vector3(...pose.position);
+  const target = new THREE.Vector3(...pose.target);
+  const camera = pose.orthographic ? new PlaneCamera(pose.fov, aspect, position.distanceTo(target)) : new THREE.PerspectiveCamera(pose.fov, aspect);
+  camera.position.copy(position);
+  camera.lookAt(target);
+  camera.updateMatrixWorld();
+  return camera;
+}
+
+/**
+ * A preview's field of view for `camera` (in its preset's pose, its world matrices up to date): the
+ * judge line spans `fitWidth` of the width, and the whole track lies above it down from
+ * FIT_TRACK_END_Y of the height, whichever needs the wider view.
+ */
+export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' | 'length'>, fitWidth: number): number {
+  const half = track.width / 2;
+  // a point of the track as the field of view measures it: up and across the view per unit away
+  // from the eye, or per unit of the plane camera's depth (its rays are parallel)
+  const view = (x: number, z: number) => {
+    const v = new THREE.Vector3(x, 0, z).applyMatrix4(camera.matrixWorldInverse);
+    const depth = camera instanceof PlaneCamera ? camera.depth : -v.z;
+    return new THREE.Vector2(v.x / depth, v.y / depth);
+  };
+  const [a, b] = [view(-half, 0), view(half, 0)];
+  const spread = b.x - a.x;
+  // the whole track in the box as well: a high camera's far end would otherwise leave it at the
+  // top, and the notes would seem to start halfway down
+  const [line, end] = [view(0, 0), view(0, -track.length)];
+  const rise = end.y - line.y;
+  const tanHalf = Math.max(spread / (2 * fitWidth * camera.aspect), rise / (2 * (JUDGE_LINE_Y - FIT_TRACK_END_Y)));
+  return THREE.MathUtils.radToDeg(2 * Math.atan(tanHalf));
+}
+
 const frameLine = new THREE.Vector3();
+const frameAxis = new THREE.Vector3();
 
 /** Height on the screen (0 top … 1 bottom) where `camera` shows the middle of the track at `z`. */
-function lineScreenY(camera: THREE.PerspectiveCamera, z: number): number {
+function lineScreenY(camera: THREE.Camera, z: number): number {
   return (1 - frameLine.set(0, 0, z).project(camera).y) / 2;
 }
 
@@ -234,7 +353,7 @@ export interface CameraFrame {
  * judge line at `lineZ` (LIFT raises it). It changes only with the camera, the screen and LIFT,
  * so the renderer keeps it while a chart's zoom and roll move the view frame by frame.
  */
-export function baseFrame(camera: THREE.PerspectiveCamera, fov: number, lineZ = 0): CameraFrame {
+export function baseFrame(camera: TrackCamera, fov: number, lineZ = 0): CameraFrame {
   camera.fov = fov;
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
@@ -249,7 +368,7 @@ export function baseFrame(camera: THREE.PerspectiveCamera, fov: number, lineZ = 
  * turn the track about the middle of the judge line at `lineZ`, which stays where it is.
  */
 export function frameCamera(
-  camera: THREE.PerspectiveCamera,
+  camera: TrackCamera,
   fov: number,
   fovScale: number,
   roll: number,
@@ -266,9 +385,18 @@ export function frameCamera(
   camera.setViewOffset(width, height, 0, (zoomed - base.lineY) * height, width, height);
   camera.updateProjectionMatrix();
   if (roll === 0) return;
-  // about the ray from the camera through the line's middle: that point stays put on the screen
-  const axis = frameLine.set(0, 0, lineZ).applyMatrix4(camera.matrixWorldInverse).normalize().negate();
-  camera.rotateOnAxis(axis, roll);
+  if (camera instanceof PlaneCamera) {
+    // parallel rays have no eye to turn about: the camera circles the line's middle about its own
+    // direction, which keeps that point where it is and turns the picture about it
+    const pivot = frameLine.set(0, 0, lineZ);
+    const axis = camera.getWorldDirection(frameAxis).negate();
+    camera.position.sub(pivot).applyAxisAngle(axis, roll).add(pivot);
+    camera.rotateOnWorldAxis(axis, roll);
+  } else {
+    // about the ray from the camera through the line's middle: that point stays put on the screen
+    const axis = frameLine.set(0, 0, lineZ).applyMatrix4(camera.matrixWorldInverse).normalize().negate();
+    camera.rotateOnAxis(axis, roll);
+  }
   camera.updateMatrixWorld();
 }
 
@@ -307,12 +435,16 @@ function keyKind(lane: LaneGeom): KeyKind {
   return lane.kind === 'scratch' ? 'scratch' : lane.color === 'white' ? 'white' : 'other';
 }
 
-/** Renders the SDVX-style perspective track with Three.js. */
+/** Renders the SDVX-style track with Three.js. */
 export class TrackRenderer {
   readonly geometry: TrackGeometry;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera: THREE.PerspectiveCamera;
+  /** Made afresh for each preset (setCamera): the plane one is of another kind. */
+  private camera!: TrackCamera;
+  private pose!: CameraPose;
+  /** The screen's width over its height (16:9 until the first resize). */
+  private aspect = 16 / 9;
   /** Colour of each lane (palette, skin overrides and lane layout applied). */
   private readonly laneColors: number[];
   private readonly skin: Skin;
@@ -326,6 +458,7 @@ export class TrackRenderer {
   private readonly fitWidth: number | null;
   private readonly noteGeometry: THREE.BufferGeometry;
   private readonly noteDepth: number;
+  private readonly basePosition = new THREE.Vector3();
   private readonly baseQuaternion = new THREE.Quaternion();
   private baseFov = 40;
   private readonly appliedFx = { roll: 0, fovScale: 1 };
@@ -441,7 +574,6 @@ export class TrackRenderer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
-    this.camera = new THREE.PerspectiveCamera(options.camera.fov, 16 / 9, 0.1, 500);
     this.setCamera(options.camera);
 
     this.buildTrack();
@@ -495,21 +627,29 @@ export class TrackRenderer {
   }
 
   setCamera(preset: CameraPreset): void {
-    const pose = cameraPose(preset);
-    this.baseFov = pose.fov;
-    this.camera.fov = pose.fov;
-    this.camera.position.set(...pose.position);
-    this.camera.lookAt(new THREE.Vector3(...pose.target));
-    this.baseQuaternion.copy(this.camera.quaternion);
+    this.pose = cameraPose(preset);
+    const camera = poseCamera(this.pose, this.aspect);
+    this.camera = camera;
+    this.baseFov = this.pose.fov;
+    this.basePosition.copy(camera.position);
+    this.baseQuaternion.copy(camera.quaternion);
     this.appliedFx.roll = 0;
     this.appliedFx.fovScale = 1;
     this.frame = null;
-    const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(this.camera.position);
-    const mid = new THREE.Vector3(0, 0, fogStartZ(preset, this.geometry.length)).distanceTo(this.camera.position);
-    // depth resolution where the track is: the plane camera looks from hundreds of units away, where
-    // a near plane at 0.1 would leave the track's layers (a few hundredths apart) fighting
-    this.camera.near = Math.max(0.1, this.camera.position.length() / 4);
-    this.camera.far = Math.max(500, far * 1.5);
+    const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(camera.position);
+    const mid = new THREE.Vector3(0, 0, fogStartZ(preset, this.geometry.length)).distanceTo(camera.position);
+    // depth resolution where the track is (its layers lie a few hundredths apart): a perspective
+    // camera's falls off past its near plane, which at 0.1 would leave them fighting; the plane
+    // camera's is even, so it spans just the track and what stands on it (a roll moves that camera
+    // across its view, never nearer)
+    if (camera instanceof PlaneCamera) {
+      const depth = (z: number) => -new THREE.Vector3(0, 0, z).applyMatrix4(camera.matrixWorldInverse).z;
+      camera.near = depth(TRACK_TAIL + 3) - 10;
+      camera.far = depth(-this.geometry.length) + 10;
+    } else {
+      camera.near = Math.max(0.1, camera.position.length() / 4);
+      camera.far = Math.max(500, far * 1.5);
+    }
     this.frameView();
     this.scene.fog = new THREE.Fog(hex(this.skin?.colors.fog ?? '#060a1a'), mid, far);
     if (this.deck) this.layoutDeck();
@@ -561,7 +701,8 @@ export class TrackRenderer {
     this.cssHeight = Math.max(1, cssHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.cssWidth, this.cssHeight, false);
-    this.camera.aspect = this.cssWidth / this.cssHeight;
+    this.aspect = this.cssWidth / this.cssHeight;
+    this.camera.aspect = this.aspect;
     this.frame = null;
     this.frameView();
     this.layoutDeck();
@@ -574,6 +715,8 @@ export class TrackRenderer {
    * screen or LIFT changes, so a zoom pulse only moves the view from it.
    */
   private frameView(): void {
+    // the plane camera's roll moves it as well as turning it (see frameCamera)
+    this.camera.position.copy(this.basePosition);
     this.camera.quaternion.copy(this.baseQuaternion);
     this.camera.updateMatrixWorld();
     if (!this.frame) this.frame = this.unzoomedFrame();
@@ -586,18 +729,7 @@ export class TrackRenderer {
    * field of view that makes the judge line span that share of the width with the whole track above it.
    */
   private unzoomedFrame(): CameraFrame {
-    if (this.fitWidth !== null) {
-      const half = this.geometry.width / 2;
-      const view = (x: number, z: number) => new THREE.Vector3(x, 0, z).applyMatrix4(this.camera.matrixWorldInverse);
-      const [a, b] = [view(-half, 0), view(half, 0)];
-      const spread = b.x / -b.z - a.x / -a.z;
-      // the whole track in the box as well: a high camera's far end would otherwise leave it at the
-      // top, and the notes would seem to start halfway down
-      const [line, end] = [view(0, 0), view(0, -this.geometry.length)];
-      const rise = end.y / -end.z - line.y / -line.z;
-      const tanHalf = Math.max(spread / (2 * this.fitWidth * this.camera.aspect), rise / (2 * (JUDGE_LINE_Y - FIT_TRACK_END_Y)));
-      this.baseFov = THREE.MathUtils.radToDeg(2 * Math.atan(tanHalf));
-    }
+    if (this.fitWidth !== null) this.baseFov = fitFov(this.camera, this.geometry, this.fitWidth);
     return baseFrame(this.camera, this.baseFov, this.judgeZ);
   }
 
@@ -609,26 +741,30 @@ export class TrackRenderer {
   /** The track plane as the camera shows it now (its tilt and zoom included), for the HUD on it. */
   hudPlane(): HudPlane {
     this.camera.updateMatrixWorld();
-    const view = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
-    const W = this.cssWidth / 2;
-    const H = this.cssHeight / 2;
-    // clip space of one plane px across, one toward the camera, and the origin; then screen px
-    const [a, b, c] = [
-      [PX, 0, 0, 0],
-      [0, 0, PX, 0],
-      [0, 0, this.judgeZ, 1],
-    ].map(([x, y, z, w]) => {
-      const v = new THREE.Vector4(x, y, z, w).applyMatrix4(view);
-      return [W * (v.x + v.w), H * (v.w - v.y), v.w];
-    });
-    const { width } = this.geometry;
+    return this.planeAs(this.camera);
+  }
+
+  /**
+   * The track plane as the camera would show it in the chart's pose `fx`, whatever its tilt and zoom
+   * are now: for what the HUD keeps clear of all through the play (see CameraFx.peak).
+   */
+  hudPlaneAt(fx: CameraPoseFx): HudPlane {
+    if (!this.frame) this.frameView();
+    const camera = poseCamera(this.pose, this.aspect);
+    frameCamera(camera, this.baseFov, fx.fovScale, fx.roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame!);
+    return this.planeAs(camera);
+  }
+
+  private planeAs(camera: TrackCamera): HudPlane {
+    const { width, length } = this.geometry;
     const rails = this.art.rails;
     const railOuter = rails ? 0.08 + (rails.spec.width ?? 0.26) / 2 : this.style.rails.width * PX;
     const wallOuter = this.style.frame === 'gunmetal' ? 50 * PX : this.style.frame === 'street' ? 28 * PX : 0;
     return {
-      h: [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]],
+      h: planeHomography(camera, this.cssWidth, this.cssHeight, this.judgeZ),
       halfWidth: width / 2 / PX,
       sideOut: Math.max(railOuter, wallOuter) / PX,
+      far: (-length - this.judgeZ) / PX,
     };
   }
 

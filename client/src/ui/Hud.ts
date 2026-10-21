@@ -95,6 +95,11 @@ const UNIT = 73.65;
 const SIDE_GAP = 22;
 const SIDE_MARGIN = 16;
 /**
+ * Where the room beside the gear is narrower than the song's plate's widest part, the plate shrinks,
+ * its type to no less than this share of its size at 720p.
+ */
+const INFO_LEAST_TYPE = 0.8;
+/**
  * The score panel's labels and numbers (screen px tall at 720p), and the least of them it keeps
  * (labels 12 px, numbers about 21): where two columns would need less, each label goes over its
  * number (as SPEED); where that needs less too, the panel leaves the track and stands on the screen.
@@ -155,6 +160,21 @@ export function uprightAt(h: readonly number[], x: number, y: number): { k: numb
 /** The plane y where the plane's line x = `x` crosses the screen's row `sy` (px). */
 export function planeYAt(h: readonly number[], x: number, sy: number): number {
   return (sy * (h[6] * x + h[8]) - h[3] * x - h[5]) / (h[4] - sy * h[7]);
+}
+
+/**
+ * Screen px from `left` to the gear's left edge (plane x = -`edge`, up to the track's end at `far`)
+ * on the rows `top` to `bottom` the song's plate takes. The edge is straight on the screen, so it
+ * comes nearest at one end of them: the foot where it leans out toward the camera, the top (or
+ * the track's far corner, if lower) where a roll turns the far end toward the plate. Above the
+ * horizon there is no gear.
+ */
+export function infoRoom(h: readonly number[], edge: number, far: number, left: number, top: number, bottom: number): number {
+  const horizon = h[7] < 0 ? h[4] / h[7] : -Infinity;
+  if (bottom <= horizon) return Infinity;
+  const x = (row: number) => planePoint(h, -edge, planeYAt(h, -edge, row))[0];
+  const corner = planePoint(h, -edge, far)[1];
+  return Math.min(x(bottom), x(Math.min(bottom, Math.max(top, corner)))) - left;
 }
 
 /** Loads a skin's type before the play starts, so the first judgement is not drawn in a fallback font. */
@@ -396,8 +416,12 @@ export class Hud {
     this.setCombo(0);
   }
 
-  /** Sizes the screen layer to the screen (on start and resize; reading the size lays the page out). */
-  fit(): void {
+  /**
+   * Sizes the screen layer to the screen, and the song's plate no wider than the room left of the
+   * gear (`p`: the track as the camera shows it at the chart's peak, see CameraFx.peak), on start,
+   * resize and an in-play change; reading the size lays the page out.
+   */
+  fit(p: HudPlane): void {
     this.screenHeight = this.root.clientHeight;
     const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.screenHeight / BASE_HEIGHT)) * 100) / 100;
     if (scale !== this.hudScale) {
@@ -405,7 +429,22 @@ export class Hud {
       this.root.style.setProperty('--hud-scale', String(scale));
     }
     const info = this.root.querySelector('.hud-info') as HTMLElement;
-    this.infoBottom = info.offsetTop + info.offsetHeight;
+    info.style.removeProperty('--info-scale');
+    info.style.removeProperty('--info-room');
+    // the plate's narrowest: its widest part that does not wrap (the difficulty, the key mode, a chip)
+    const style = getComputedStyle(info);
+    const parts = [...info.querySelectorAll<HTMLElement>('.hud-diff, .hud-keymode, .hud-chip')];
+    const least = Math.max(0, ...parts.map((e) => e.offsetWidth)) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 1;
+    let shrink = 1;
+    // a narrower plate may wrap its chips and grow: then measured again from its new foot
+    for (let pass = 0; pass < 2; pass++) {
+      const room = infoRoom(p.h, p.halfWidth + p.sideOut, p.far, info.offsetLeft, info.offsetTop, info.offsetTop + info.offsetHeight * shrink) - SIDE_MARGIN * scale;
+      // narrower than that, the plate shrinks as a whole (on a screen narrower still it covers the gear)
+      shrink = Math.min(1, Math.max(INFO_LEAST_TYPE / scale, Math.floor((room / least) * 100) / 100));
+      info.style.setProperty('--info-scale', String(shrink));
+      info.style.setProperty('--info-room', room < Infinity ? `${Math.max(least, Math.floor(room / shrink))}px` : '');
+    }
+    this.infoBottom = info.offsetTop + info.offsetHeight * shrink;
   }
 
   /**

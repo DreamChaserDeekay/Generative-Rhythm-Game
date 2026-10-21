@@ -54,6 +54,21 @@ export class CameraFx {
     return this.strength > 0 && (this.tilts.length > 0 || this.zooms.length > 0);
   }
 
+  /**
+   * The chart's deepest counter-clockwise tilt and deepest zoom together: the pose that brings the
+   * track nearest the screen's top left (its far end turns that way and the picture grows), where
+   * the song's plate lies. A tilt eases between the values it is given, and a zoom only decays.
+   */
+  peak(): CameraPoseFx {
+    if (this.strength <= 0) return { roll: 0, fovScale: 1 };
+    const tilt = Math.min(0, ...this.tilts.map((s) => s.to));
+    const zoom = Math.max(0, ...this.zooms.map((s) => s.from));
+    return {
+      roll: (tilt * MAX_TILT_DEG * this.strength * Math.PI) / 180,
+      fovScale: 1 - ZOOM_DEPTH * this.strength * zoom,
+    };
+  }
+
   at(timeMs: number): CameraPoseFx {
     if (this.strength <= 0) return { roll: 0, fovScale: 1 };
     let tilt = 0;

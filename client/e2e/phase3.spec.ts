@@ -203,6 +203,7 @@ test('the plane camera and smaller or no hit effects, in the settings and in a p
   await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-camera', 'PLANE');
   await expect(page.getByTestId('opt-camera')).toContainText('평면');
+  await expect(page.getByTestId('settings-help')).toContainText('레일이 나란하고');
   await expect(page.getByTestId('settings-help')).toContainText('같은 빠르기');
   // the hit effects' size sits with the other effects, and the gear beside it shows them
   await settingsTab(page, 'fx');

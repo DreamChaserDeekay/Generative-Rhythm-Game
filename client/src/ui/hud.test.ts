@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { gaugeCells, gaugeShown, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
+import { cameraConfig } from '../engine/config';
+import { MAX_TILT_DEG, ZOOM_DEPTH } from '../render/cameraFx';
+import { cameraPose } from '../render/layout';
+import { frameCamera, HUD_UNIT, planeHomography, poseCamera } from '../render/TrackRenderer';
+import { gaugeCells, gaugeShown, infoRoom, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
 
 /** Where a homography (row-major 3×3) puts a plane point on the screen. */
 const project = (h: number[], x: number, y: number) => {
@@ -80,6 +84,56 @@ describe('HUD lying on the track', () => {
       const [, sy] = planePoint(h, x, y);
       expect(planeYAt(h, x, sy)).toBeCloseTo(y, 6);
     }
+  });
+
+  it('keeps the song\'s plate clear of the gear\'s left edge on the rows it takes', () => {
+    // the plane camera: an even plane, the edge straight down the screen at 640 - 2 * 300
+    const flat = [2, 0, 640, 0, 0.5, 600, 0, 0, 1];
+    expect(infoRoom(flat, 300, -1100, 16, 16, 40)).toBeCloseTo(24, 9);
+    expect(infoRoom(flat, 300, -1100, 16, 16, 90)).toBeCloseTo(24, 9);
+    // a perspective camera: the edge leans out toward the camera, so a lower foot leaves less room
+    const k = -0.002;
+    const h = [1, 640 * k, 640, 0, 0.5 + 600 * k, 600, 0, k, 1];
+    const [, row] = planePoint(h, -300, -400);
+    expect(infoRoom(h, 300, -1000, 16, row - 40, row)).toBeCloseTo(planePoint(h, -300, -400)[0] - 16, 6);
+    expect(infoRoom(h, 300, -1000, 16, row - 40, row + 20)).toBeLessThan(infoRoom(h, 300, -1000, 16, row - 40, row));
+    // above the horizon (row 350 here) there is no track to keep clear of
+    expect(infoRoom(h, 300, -1000, 16, 300, 340)).toBe(Infinity);
+    // the plane camera rolled counter-clockwise about the line's middle (640, 600): the edge leans
+    // in toward the top, so the plate's top row is the nearest, or the track's far corner under it
+    const [c, sn] = [Math.cos(0.08), Math.sin(0.08)];
+    const rolled = [2 * c, 0.5 * sn, 640, -2 * sn, 0.5 * c, 600, 0, 0, 1];
+    const edgeAt = (row: number) => planePoint(rolled, -300, planeYAt(rolled, -300, row))[0];
+    expect(infoRoom(rolled, 300, -2000, 16, 60, 90)).toBeCloseTo(edgeAt(60) - 16, 9);
+    expect(edgeAt(60)).toBeLessThan(edgeAt(90));
+    const [cornerX, cornerRow] = planePoint(rolled, -300, -1100);
+    expect(cornerRow).toBeGreaterThan(60);
+    expect(infoRoom(rolled, 300, -1100, 16, 16, 120)).toBeCloseTo(cornerX - 16, 9);
+  });
+
+  it('keeps the plate clear of the plane camera\'s rail at 4:3 all through a chart\'s tilt and zoom, sized at their peak', () => {
+    const [W, H] = [1024, 768];
+    const pose = cameraPose(cameraConfig.presets.PLANE);
+    const plane = (roll: number, fovScale: number) => {
+      const camera = poseCamera(pose, W / H);
+      frameCamera(camera, pose.fov, fovScale, roll, W, H);
+      return planeHomography(camera, W, H, 0);
+    };
+    // the default strength (0.6) of a chart's deepest tilt (-1) and zoom (1)
+    const peak = { roll: (-MAX_TILT_DEG * 0.6 * Math.PI) / 180, fovScale: 1 - ZOOM_DEPTH * 0.6 };
+    const [edge, far] = [(cameraConfig.trackWidth / 2) * HUD_UNIT + 6, -cameraConfig.trackLength * HUD_UNIT];
+    const [left, top, bottom] = [16, 16, 100];
+    const room = infoRoom(plane(peak.roll, peak.fovScale), edge, far, left, top, bottom);
+    for (let i = 0; i <= 10; i++) {
+      const h = plane((peak.roll * i) / 10, 1 - ((1 - peak.fovScale) * (10 - i)) / 10);
+      // every point of the rail on the plate's rows lies right of the plate
+      for (let y = 0; y >= far; y -= 5) {
+        const [x, row] = planePoint(h, -edge, y);
+        if (row >= top && row <= bottom) expect(x).toBeGreaterThanOrEqual(left + room - 1e-6);
+      }
+    }
+    // sized for the camera at rest, the plate would cover the rail by a tilt's 30 px or more
+    expect(infoRoom(plane(0, 1), edge, far, left, top, bottom) - room).toBeGreaterThan(30);
   });
 
   it('draws text longer along the track where the camera flattens it, up to 2.6 times', () => {

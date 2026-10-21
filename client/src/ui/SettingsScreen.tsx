@@ -347,7 +347,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             value={settings.cameraPreset}
             options={Object.entries(cameraConfig.presets).map(([id, p]) => [id, p.label])}
             onChange={(id) => set('cameraPreset', id)}
-            help="트랙을 내려다보는 높이와 각도입니다. 평면은 원근이 거의 없어 노트가 화면 위에서 아래까지 같은 빠르기로 내려옵니다."
+            help="트랙을 내려다보는 높이와 각도입니다. 평면은 원근이 없어 레일이 나란하고 노트가 화면 위에서 아래까지 같은 빠르기로 내려옵니다."
           />
           <NumberOption
             {...row}

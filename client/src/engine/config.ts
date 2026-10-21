@@ -60,6 +60,11 @@ export interface KeyModeConfig {
 
 export interface CameraPreset {
   label: string;
+  /**
+   * Orthographic: parallel rays (the plane preset), so the rails stay parallel and the notes keep
+   * one speed up the whole track; `fov` then sizes the view as it would at the target. Default perspective.
+   */
+  projection?: 'perspective' | 'orthographic';
   height: number;
   distance: number;
   lookAhead: number;

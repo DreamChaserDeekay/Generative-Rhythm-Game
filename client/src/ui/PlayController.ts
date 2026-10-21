@@ -616,7 +616,8 @@ export class PlayController {
     const rect = this.setup.canvas.getBoundingClientRect();
     this.renderer.resize(rect.width, rect.height);
     this.redrawPaused = true;
-    this.hud.fit();
+    // the plate keeps clear of the track at the chart's peak tilt and zoom, not only as it is now
+    this.hud.fit(this.renderer.hudPlaneAt(this.cameraFx.peak()));
     this.placeHud();
   }
 

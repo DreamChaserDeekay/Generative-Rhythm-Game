@@ -36,6 +36,8 @@ export interface CameraPose {
   position: [number, number, number];
   target: [number, number, number];
   fov: number;
+  /** Parallel rays (the plane preset): the view is as large everywhere as `fov` makes it at the target. */
+  orthographic: boolean;
 }
 
 /** A note's near edge (toward the camera) and far edge on the track (z). */
@@ -62,8 +64,8 @@ const FOG_START = 0.55;
 
 /**
  * Where the floor's fog starts up the track (z). A perspective camera squeezes the far part of the
- * track into a small part of the screen; the plane camera does not, so it starts its fog later
- * (`fogStart`) and fogs about as much of the lane on the screen as SDVX does.
+ * track into a small part of the screen; the plane camera shows every part alike, so it starts its
+ * fog later (`fogStart`) and fogs about as much of the lane on the screen as SDVX does.
  */
 export function fogStartZ(preset: CameraPreset, trackLength: number): number {
   return -trackLength * (preset.fogStart ?? FOG_START);
@@ -75,5 +77,6 @@ export function cameraPose(preset: CameraPreset): CameraPose {
     position: [0, preset.height, preset.distance],
     target: [0, 0, -preset.lookAhead],
     fov: preset.fov,
+    orthographic: preset.projection === 'orthographic',
   };
 }
