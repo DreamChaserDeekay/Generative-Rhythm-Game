@@ -70,8 +70,8 @@ export async function songInfo(page: Page) {
   await expect(panel).toBeVisible();
 }
 
-/** Presses a tool of the song info panel (sync-auto, open-calibration, open-replay). */
-export async function tool(page: Page, testId: 'sync-auto' | 'open-calibration' | 'open-replay') {
+/** Presses a tool of the song info panel: the sync test (on autoplay, by hand) or a step of the calibration. */
+export async function tool(page: Page, testId: 'sync-auto' | 'sync-play' | 'open-calibration' | 'open-visual-calibration') {
   await songInfo(page);
   await page.getByTestId(testId).click();
 }

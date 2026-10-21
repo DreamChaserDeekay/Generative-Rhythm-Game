@@ -31,6 +31,7 @@ import {
 } from '../settings/settings';
 import { failureReason } from './analysisError';
 import type { PlayRequest, PracticeOptions } from './App';
+import type { CalibrationStep } from './CalibrationScreen';
 import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
 import { dayText, speedText } from './format';
 import { namedPictures } from './importPictures';
@@ -66,7 +67,7 @@ interface Props {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onPlay: (request: PlayRequest) => void;
-  onCalibrate: () => void;
+  onCalibrate: (step: CalibrationStep) => void;
   onOpenSettings: () => void;
   /** Open the chart editor on a chart of the selected song. */
   onEdit: (chart: ServerChart, song: Song) => void;
@@ -1046,6 +1047,10 @@ export function SongSelectScreen(props: Props) {
                 <b>채보 가져오기 · 폴더</b>
                 <span>BMS · bmson 폴더 (키음 포함)</span>
               </button>
+              <button role="menuitem" className="menu-apart" data-testid="open-replay" onClick={pick(() => replayInput.current?.click())}>
+                <b>리플레이 파일 보기</b>
+                <span>결과 화면에서 내보낸 .grgreplay.json</span>
+              </button>
             </div>
           )}
         </div>
@@ -1226,9 +1231,8 @@ export function SongSelectScreen(props: Props) {
                 onSectionsSaved={async () => {
                   await refresh();
                 }}
-                onSyncTest={() => onPlay(syncTestRequest(keyMode, true))}
+                onSyncTest={(byHand) => onPlay(syncTestRequest(keyMode, !byHand))}
                 onCalibrate={props.onCalibrate}
-                onOpenReplay={() => replayInput.current?.click()}
                 onClose={closePanel}
               />
             ) : selected ? (

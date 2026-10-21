@@ -39,19 +39,25 @@ import {
   type ScrollMode,
   type Settings,
 } from '../settings/settings';
+import type { CalibrationStep } from './CalibrationScreen';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
 import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar } from './shell';
+import { keyPairText, syncTestKeys } from './visualSync';
 
 interface Props {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onBack: () => void;
-  onCalibrate: () => void;
+  onCalibrate: (step: CalibrationStep) => void;
+  /** The click-track sync test, on autoplay or played by hand; it comes back to the 판정·싱크 tab. */
+  onSyncTest: (byHand: boolean) => void;
   initialTab?: SettingsTab;
+  /** The test id of the row to focus first (the tool come back from), else the tab's first row. */
+  initialFocus?: string;
 }
 
 export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
@@ -72,6 +78,13 @@ const TABS: [SettingsTab, string, string][] = [
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
 const signedMs = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
 
+/** What the hand-played sync test's keys move, in the key mode it is played in (its keys are those no lane takes). */
+function syncKeysHelp(settings: Settings): string {
+  const keys = syncTestKeys(laneKeysFor(settings, settings.lastKeyMode), true);
+  const moves = [keys.visual && `${keyPairText(keys.visual)}로 표시 오프셋`, keys.judgement && `${keyPairText(keys.judgement)}로 판정 오프셋`].filter((m) => m);
+  return moves.length > 0 ? `${moves.join(', ')}을 옮기고 두 값은 화면 왼쪽 위에 보입니다.` : '레인이 쓰지 않는 키가 없어 오프셋은 옮길 수 없습니다.';
+}
+
 /** Elements whose keys are their own: text fields keep the arrows, Q, E and the page keys. */
 function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== 'checkbox') || target instanceof HTMLSelectElement;
@@ -89,7 +102,7 @@ function rowStops(root: HTMLElement): HTMLElement[] {
  * setting with its value between ‹ › (↑↓ choose a row, ←→ change it), and on the right a live gear
  * or the chosen row's help.
  */
-export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate, initialTab = 'speed' }: Props) {
+export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate, onSyncTest, initialTab = 'speed', initialFocus }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
@@ -102,7 +115,14 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
     rows.current?.scrollTo(0, 0);
   }, [tab]);
   useEffect(() => {
-    focusFirstRow();
+    // back from a tool of the tab (the sync test, a calibration step), on its row
+    const tool = initialFocus ? rows.current?.querySelector<HTMLElement>(`[data-testid="${initialFocus}"]`) : null;
+    if (!tool) focusFirstRow();
+    else
+      requestAnimationFrame(() => {
+        tool.focus({ preventScroll: true });
+        tool.scrollIntoView({ block: 'nearest' });
+      });
   }, []);
   const stepTab = (dir: 1 | -1) => {
     const at = TABS.findIndex(([id]) => id === tab);
@@ -199,7 +219,15 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={5}
             format={signedMs}
             onChange={(v) => set('inputOffsetMs', v)}
-            help="+면 늦게 치는 만큼 판정을 늦춥니다. ←→ 1ms, Shift ±5ms. 결과 화면의 제안이나 캘리브레이션으로 맞출 수 있습니다."
+            help="+면 늦게 치는 만큼 판정을 늦춥니다. ←→ 1ms, Shift ±5ms. 결과 화면의 제안이나 아래 '판정 오프셋 측정'으로 맞출 수 있습니다."
+          />
+          <ActionOption
+            {...row}
+            label="판정 오프셋 측정"
+            testId="open-calibration-settings"
+            action="열기"
+            onPress={() => onCalibrate('input')}
+            help="메트로놈 소리에 맞춰 눌러 평균 오차를 재고, 그 값을 판정 오프셋으로 씁니다."
           />
           <NumberOption
             {...row}
@@ -212,15 +240,31 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={5}
             format={signedMs}
             onChange={(v) => set('visualOffsetMs', v)}
-            help="+면 노트를 그만큼 일찍 그립니다 (화면 지연 보정). ←→ 1ms, Shift ±5ms."
+            help="+면 노트를 그만큼 일찍 그립니다 (화면 지연 보정). ←→ 1ms, Shift ±5ms. 아래 '표시 오프셋 맞추기'에서 눈으로 맞출 수 있습니다."
           />
           <ActionOption
             {...row}
-            label="오프셋 캘리브레이션"
-            testId="open-calibration-settings"
+            label="표시 오프셋 맞추기"
+            testId="open-visual-calibration-settings"
             action="열기"
-            onPress={onCalibrate}
-            help="메트로놈에 맞춰 눌러 평균 오차를 재고, 그 값을 판정 오프셋으로 씁니다."
+            onPress={() => onCalibrate('visual')}
+            help="메트로놈에 맞춰 내려오는 노트가 클릭 소리와 함께 판정선에 닿도록 ←→로 옮기고 Enter로 저장합니다."
+          />
+          <ActionOption
+            {...row}
+            label="싱크 테스트 · 오토"
+            testId="settings-sync-auto"
+            action="보기"
+            onPress={() => onSyncTest(false)}
+            help="클릭 트랙에 맞춰 노트를 오토로 칩니다. 보면서 ←→로 표시 오프셋을 옮길 수 있습니다. 끝나면 이 탭으로 돌아옵니다."
+          />
+          <ActionOption
+            {...row}
+            label="싱크 테스트 · 직접 치기"
+            testId="settings-sync-play"
+            action="시작"
+            onPress={() => onSyncTest(true)}
+            help={`클릭 트랙에 맞춰 ${settings.lastKeyMode}로 직접 칩니다. ${syncKeysHelp(settings)} 끝나면 이 탭으로 돌아옵니다.`}
           />
           <Toggle
             {...row}

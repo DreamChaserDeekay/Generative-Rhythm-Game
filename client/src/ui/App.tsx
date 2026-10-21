@@ -6,7 +6,7 @@ import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, padMenuKeysFor, patternKey, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
-import { CalibrationScreen } from './CalibrationScreen';
+import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
@@ -16,6 +16,7 @@ import { generationParams } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { bestAfterPlay } from './playRules';
 import { SongSelectScreen } from './SongSelectScreen';
+import { syncTestRequest } from './syncTestRequest';
 
 export interface PracticeOptions {
   /** Segment on the song timeline (ms). */
@@ -53,6 +54,13 @@ export interface PlayRequest {
   loadKeysounds?: () => Promise<KeysoundBank>;
   /** Test play from the chart editor: leaving the play (or its result) returns to the editor. */
   fromEditor?: boolean;
+  /**
+   * The click-track sync test: ←→ move the display offset as it runs (played by hand, Shift+←→ the
+   * judgement offset; keys no lane takes, see syncTestKeys).
+   */
+  syncTest?: boolean;
+  /** Started from the settings (the sync test): leaving the play (or its result) returns to their 판정·싱크 tab. */
+  fromSettings?: boolean;
   /** Watch a recorded play instead of playing (inputs come from the replay). */
   replay?: ReplayData;
 }
@@ -62,8 +70,9 @@ type Screen =
   | { name: 'play'; request: PlayRequest; runId: number }
   | { name: 'result'; request: PlayRequest; outcome: PlayOutcome }
   /** Opened from the settings, it goes back to them. */
-  | { name: 'calibration'; fromSettings?: boolean }
-  | { name: 'settings'; tab?: SettingsTab }
+  | { name: 'calibration'; step: CalibrationStep; fromSettings?: boolean }
+  /** `focus`: the test id of the row to focus (the tool come back from). */
+  | { name: 'settings'; tab?: SettingsTab; focus?: string }
   | { name: 'editor' };
 
 export function App() {
@@ -115,7 +124,15 @@ export function App() {
 
   const play = useCallback((request: PlayRequest) => setScreen({ name: 'play', request, runId: Date.now() }), []);
   const toSelect = useCallback(() => setScreen({ name: 'select' }), []);
-  const leavePlay = (request: PlayRequest) => setScreen(request.fromEditor && editor ? { name: 'editor' } : { name: 'select' });
+  // the sync test started from the settings goes back to its row
+  const leavePlay = (request: PlayRequest) =>
+    setScreen(
+      request.fromEditor && editor
+        ? { name: 'editor' }
+        : request.fromSettings
+          ? { name: 'settings', tab: 'judge', focus: request.autoPlay ? 'settings-sync-auto' : 'settings-sync-play' }
+          : { name: 'select' },
+    );
   const openEditor = useCallback((chart: ServerChart, song: Song) => {
     setEditor(newEditorSession(song, chart));
     setScreen({ name: 'editor' });
@@ -167,7 +184,7 @@ export function App() {
           settings={settings}
           onSettingsChange={setSettings}
           onPlay={play}
-          onCalibrate={() => setScreen({ name: 'calibration' })}
+          onCalibrate={(step) => setScreen({ name: 'calibration', step })}
           onOpenSettings={() => setScreen({ name: 'settings' })}
           onEdit={openEditor}
           selectedSongId={selectedSongId}
@@ -219,7 +236,12 @@ export function App() {
         <CalibrationScreen
           settings={settings}
           onSettingsChange={setSettings}
-          onBack={screen.fromSettings ? () => setScreen({ name: 'settings', tab: 'judge' }) : toSelect}
+          onBack={
+            screen.fromSettings
+              ? () => setScreen({ name: 'settings', tab: 'judge', focus: screen.step === 'visual' ? 'open-visual-calibration-settings' : 'open-calibration-settings' })
+              : toSelect
+          }
+          step={screen.step}
         />
       );
     case 'settings':
@@ -228,8 +250,10 @@ export function App() {
           settings={settings}
           onSettingsChange={setSettings}
           onBack={toSelect}
-          onCalibrate={() => setScreen({ name: 'calibration', fromSettings: true })}
+          onCalibrate={(step) => setScreen({ name: 'calibration', step, fromSettings: true })}
+          onSyncTest={(byHand) => play(syncTestRequest(settings.lastKeyMode, !byHand, true))}
           initialTab={screen.tab}
+          initialFocus={screen.focus}
         />
       );
     case 'editor':

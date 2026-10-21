@@ -1099,6 +1099,40 @@ p.hint {
   border-radius: var(--radius-sm);
 }
 
+/* the sync test's offsets as its keys move them, each with its keys */
+.hud-sync {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  width: max-content;
+  justify-content: start;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-sync-row {
+  display: contents;
+}
+
+.hud-sync-row > span:first-child {
+  color: var(--text-dim);
+}
+
+.hud-sync-row b {
+  min-width: 3.5em;
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-body) * var(--hud-scale));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hud-sync kbd {
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+}
+
 /* the plane lying on the track; its parts are placed in the sheets' track px */
 .hud-plane {
   position: absolute;
@@ -2747,6 +2781,11 @@ button.opt:active:not(:disabled) {
   color: var(--text-dim);
 }
 
+/* the two steps (Q / E), on top of either */
+.calib-steps {
+  align-self: flex-start;
+}
+
 /* the beat ring and the big numbers */
 .calib-stage {
   display: grid;
@@ -2779,15 +2818,6 @@ button.opt:active:not(:disabled) {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-}
-
-.beat-ring.on {
-  border-color: var(--accent);
-}
-
-/* the first beat of each bar */
-.beat-ring.on.accent {
-  border-color: var(--text);
 }
 
 .calib-numbers {
@@ -2915,6 +2945,47 @@ button.opt:active:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+/* the display step: the gear on the clicks beside the offset and its keys */
+.calib-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: center;
+  gap: var(--sp-8);
+}
+
+.calib-gear {
+  position: relative;
+  height: min(48vh, 440px);
+  min-height: 240px;
+  overflow: hidden;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.calib-gear canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.calib-visual-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.calib-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  color: var(--text-dim);
+}
+
 /* ---------- song select ---------- */
 
 .select-screen {
@@ -2994,6 +3065,13 @@ button.opt:active:not(:disabled) {
 .add-menu button:focus-visible {
   background: var(--raised-hover);
   border-color: transparent;
+}
+
+/* an item that adds no song (a replay file to watch), set off from those that do */
+.add-menu .menu-apart {
+  margin-top: var(--sp-1);
+  /* a 1px line in the gap over it, kept under the pointer's highlight */
+  box-shadow: 0 -3px 0 -2px var(--line-strong);
 }
 
 .add-menu b {

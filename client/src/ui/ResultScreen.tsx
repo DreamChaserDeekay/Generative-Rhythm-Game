@@ -292,7 +292,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   // RANDOM and its kin: R plays the same lane order again, Shift+R draws a new one. A retry plays
   // on the settings' placement (a replay was played on its recording's).
   const randomPlacement = settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
-  const backLabel = request.fromEditor ? '에디터로' : '선곡으로';
+  const backLabel = request.fromEditor ? '에디터로' : request.fromSettings ? '설정으로' : '선곡으로';
 
   const hints: KeyHint[] = randomPlacement
     ? [{ keys: ['R'], label: '같은 배치로 다시' }, ...(shiftLane ? [] : [{ keys: ['Shift', 'R'], label: '새 배치로 다시' }])]
@@ -696,7 +696,8 @@ function OffsetSuggestion({
     <div className="offset-suggestion" data-testid="offset-suggestion" data-error-ms={fix.errorMs}>
       <p>
         절사 평균으로 {Math.abs(fix.errorMs)}ms {fix.errorMs > 0 ? '늦게' : '빨리'} 쳤습니다.
-        {shifted && ' 플레이 중에 바꾼 곡 오프셋도 반영했습니다.'}
+        {/* in play a song's offset moves with − / =, and the player's in the sync test (no song) */}
+        {shifted && (songId ? ' 플레이 중에 바꾼 곡 오프셋도 반영했습니다.' : ' 플레이 중에 바꾼 판정 오프셋도 반영했습니다.')}
       </p>
       {fix.input && (
         <OffsetRow label="전체에 적용" what="판정 오프셋" move={fix.input} done={inputApplied} off={inputApplied || songApplied} testId="offset-apply" onSet={setInput} />

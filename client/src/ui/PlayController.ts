@@ -46,7 +46,9 @@ import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 import { practiceRunStart } from './practiceLead';
+import { offsetText } from './resultBreakdown';
 import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playModeLabel } from './playRules';
+import { keyPairNames, offsetStep, syncKeyOf, syncTestKeys, type SyncTestKeys } from './visualSync';
 
 export interface PlaySetup {
   request: PlayRequest;
@@ -80,13 +82,14 @@ export interface PlayOutcome {
   replay: ReplayData | null;
   /**
    * The judgement offsets the play ran on (ms), the player's and the song's own, as they were at
-   * its end (a replay's as it kept them; null: one kept before they were), and each change of the
-   * song's own in play (− / =): after how many of the result's hits, by how much (song ms).
+   * its end (a replay's as it kept them; null: one kept before they were), and each change of
+   * them in play (the song's own with − / =, the player's in the sync test): after how many of the
+   * result's hits, by how much (song ms).
    */
   offsets: { input: number; song: number; shifts: OffsetShift[] } | null;
 }
 
-/** A change of the song's offset in play: the hits judged before it were judged on the old one. */
+/** A change of the judgement offset in play: the hits judged before it were judged on the old one. */
 export interface OffsetShift {
   hits: number;
   ms: number;
@@ -164,6 +167,8 @@ export class PlayController {
   private readonly padControls: PadPlayControls;
   /** The song whose own offset applies (null: the sync test, no song). */
   private readonly songId: string | null;
+  /** The sync test's keys for its offsets (those no lane takes; null: no sync test). */
+  private readonly syncKeys: SyncTestKeys | null;
   /** The intro skip's key as the HUD names it (null: nothing works it). */
   private readonly skipLabel: string | null;
   private readonly pacer: Pacer | null;
@@ -274,6 +279,8 @@ export class PlayController {
     this.boundCodes = new Set(laneKeysFor(settings, keyMode));
     this.keys = playKeysOf(settings);
     this.songId = request.chart.meta.songId ?? null;
+    // on autoplay the lanes take no key
+    this.syncKeys = request.syncTest ? syncTestKeys(request.autoPlay ? [] : [...this.boundCodes], !request.autoPlay) : null;
     // a pad button that is also a lane's plays the lane (the settings mark it)
     const padLanes = padBindingsFor(settings, keyMode);
     const free = (code: string | null) => (code && !padLanes.includes(code) ? code : null);
@@ -320,11 +327,16 @@ export class PlayController {
         counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
         showBpm: this.bpmChanges.length > 1 || settings.scrollMode === 'beat',
         skipKey: this.skipLabel ?? '',
+        syncKeys: this.syncKeys && {
+          visual: this.syncKeys.visual && keyPairNames(this.syncKeys.visual),
+          ...(request.autoPlay ? {} : { judgement: this.syncKeys.judgement && keyPairNames(this.syncKeys.judgement) }),
+        },
       },
       settings.showErrorMs,
       settings.reducedFlash,
     );
     this.hud.setSpeed(settings.hiSpeed);
+    if (request.syncTest) this.hud.setSyncOffsets(settings.visualOffsetMs, settings.inputOffsetMs);
     // the practice's rate and stretch (and its loop, see beginEnding) show for a moment
     if (this.practice) this.hud.showToast(this.practiceLabel() ?? '', performance.now());
 
@@ -603,8 +615,15 @@ export class PlayController {
       durationMs: this.durationMs,
     });
     this.renderer.setCovers(covers);
-    // the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); READY
-    // shows just before, and a skip lands before READY (and a little before the note at least)
+    this.placeFirstNote();
+  }
+
+  /**
+   * When the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); READY
+   * shows just before, and a skip lands before READY (and a little before the note at least).
+   */
+  private placeFirstNote(): void {
+    const covers = activeCovers(this.settings);
     this.firstInSight = this.scroll.timeAt(this.firstNoteMs, this.scroll.travel * (1 - covers.sudden)) - this.visualOffset();
     // a practice run is lead-in until then (see begin)
     this.readyFrom = this.practice ? -Infinity : this.firstInSight - READY_MS * this.rate;
@@ -854,14 +873,31 @@ export class PlayController {
 
   /** An in-play change of SPEED or the covers, kept for the next play; `toast` names it once. */
   private updateSettings(next: Settings, toast: string): void {
-    this.settings = next;
-    // a replay runs on its recorded judgement settings; keep only the viewer's visual changes
-    const replay = this.setup.request.replay;
-    this.callbacks.onSettingsChange(replay ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
+    this.keep(next);
     this.rebuildScroll();
     this.layout();
     this.hud.setSpeed(next.hiSpeed);
     this.hud.showToast(toast, performance.now());
+  }
+
+  /**
+   * An in-play change of an offset (the song's own, the sync test's), kept for the next play: it
+   * moves no track nor HUD, so only what follows from the offsets is set again (a held key repeats
+   * it some 30 times a second).
+   */
+  private updateOffsets(next: Settings, toast: string): void {
+    this.keep(next);
+    this.placeFirstNote();
+    this.input.setInputOffset(this.inputOffset());
+    this.hud.showToast(toast, performance.now());
+  }
+
+  /** The settings from now on, kept for the next play. */
+  private keep(next: Settings): void {
+    this.settings = next;
+    // a replay runs on its recorded judgement settings; keep only the viewer's visual changes
+    const replay = this.setup.request.replay;
+    this.callbacks.onSettingsChange(replay ? { ...next, ...judgementSettingsOf(null, this.setup.settings) } : next);
   }
 
   /** A cover's toast; one moved with the visible time kept moves SPEED too, and names it as well. */
@@ -869,7 +905,11 @@ export class PlayController {
     return next.hiSpeed !== this.settings.hiSpeed ? `${text} · SPEED ${speedText(next.hiSpeed)}` : text;
   }
 
-  /** In-play keys: Esc pauses and resumes; the functions' keys (playKeysOf) work them. */
+  /**
+   * In-play keys: Esc pauses and resumes; the functions' keys (playKeysOf) work them; in the sync
+   * test ←→ move the display offset, and Shift+←→ the judgement offset (or the keys no lane takes,
+   * see syncTestKeys).
+   */
   private readonly onControlKey = (e: KeyboardEvent): void => {
     if (this.boundCodes.has(e.code) && !this.setup.request.autoPlay) return;
     if (e.code === 'Escape') {
@@ -878,6 +918,11 @@ export class PlayController {
       if (e.repeat) return;
       if (this.state === 'running') this.pause();
       else if (this.state === 'paused') this.resume();
+      return;
+    }
+    const sync = this.syncKeys && syncKeyOf(e, this.syncKeys);
+    if (sync) {
+      if (this.syncOffset(sync.dir, sync.offset === 'judgement')) e.preventDefault();
       return;
     }
     const actions = playActionsOf(e, this.keys);
@@ -893,6 +938,24 @@ export class PlayController {
       }
     }
   };
+
+  /**
+   * The sync test's keys: the display offset a ms at a time and, played by hand, the judgement
+   * offset (the presses from now on are judged by it), kept as the settings' own and shown under
+   * the song's line. False when nothing moves now (paused).
+   */
+  private syncOffset(dir: 1 | -1, judgement: boolean): boolean {
+    if (this.state !== 'running') return false;
+    const s = this.settings;
+    const was = judgement ? s.inputOffsetMs : s.visualOffsetMs;
+    const ms = offsetStep(was, dir, false);
+    const next = judgement ? { ...s, inputOffsetMs: ms } : { ...s, visualOffsetMs: ms };
+    this.updateOffsets(next, `${judgement ? '판정' : '표시'} 오프셋 ${offsetText(ms)}`);
+    // the hits so far were judged on the old one: the result's offset fix makes up for it
+    if (judgement && ms !== was) this.offsetShifts.push({ hits: this.session.hitCount, ms: (ms - was) * this.rate });
+    this.hud.setSyncOffsets(next.visualOffsetMs, next.inputOffsetMs);
+    return true;
+  }
 
   /**
    * Works an in-play function (a key's or the pad's); false when it does nothing now (the key is
@@ -938,8 +1001,7 @@ export class PlayController {
         const was = songOffsetOf(s, this.songId);
         const next = withSongOffset(s, this.songId, was + (STEPS[action] ?? 0));
         const ms = songOffsetOf(next, this.songId);
-        this.updateSettings(next, `곡 오프셋 ${ms > 0 ? '+' : ''}${ms}ms`);
-        this.input.setInputOffset(this.inputOffset());
+        this.updateOffsets(next, `곡 오프셋 ${ms > 0 ? '+' : ''}${ms}ms`);
         // the hits so far were judged on the old one: the result's offset fix makes up for it
         if (ms !== was) this.offsetShifts.push({ hits: this.session.hitCount, ms: ms - was });
         return true;

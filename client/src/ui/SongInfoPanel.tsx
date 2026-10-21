@@ -7,6 +7,7 @@ import type { Palette, Pattern } from '../settings/settings';
 import { failureReason } from './analysisError';
 import type { PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
+import type { CalibrationStep } from './CalibrationScreen';
 import { ChartMinimap } from './ChartMinimap';
 import { shortDayText } from './format';
 import { lampClass, LampMark } from './lamps';
@@ -83,9 +84,9 @@ interface Props {
   onRemoveCover: () => void;
   onRemoveSong: () => void;
   onSectionsSaved: () => Promise<void>;
-  onSyncTest: () => void;
-  onCalibrate: () => void;
-  onOpenReplay: () => void;
+  /** The click-track sync test, on autoplay or played by hand. */
+  onSyncTest: (byHand: boolean) => void;
+  onCalibrate: (step: CalibrationStep) => void;
   onClose: () => void;
 }
 
@@ -148,14 +149,17 @@ export function SongInfoPanel(props: Props) {
         <section className="panel-group" data-testid="select-tools">
           <h3>도구</h3>
           <div className="row">
-            <button className="small" data-testid="sync-auto" onClick={props.onSyncTest} title="박자에 맞춰 노트가 내려오는 테스트를 오토 플레이로 봅니다">
+            <button className="small" data-testid="sync-auto" onClick={() => props.onSyncTest(false)} title="박자에 맞춰 노트가 내려오는 테스트를 오토로 봅니다 (←→ 표시 오프셋)">
               싱크 테스트
             </button>
-            <button className="small" data-testid="open-calibration" onClick={props.onCalibrate}>
-              오프셋 캘리브레이션
+            <button className="small" data-testid="sync-play" onClick={() => props.onSyncTest(true)} title="같은 테스트를 직접 칩니다. 치는 동안 표시·판정 오프셋을 키로 옮길 수 있고, 그 키는 화면 왼쪽 위에 나옵니다.">
+              싱크 테스트 · 직접 치기
             </button>
-            <button className="small" data-testid="open-replay" onClick={props.onOpenReplay} title="저장한 리플레이 파일(.grgreplay.json) 보기">
-              리플레이 파일 보기
+            <button className="small" data-testid="open-calibration" onClick={() => props.onCalibrate('input')}>
+              판정 오프셋 측정
+            </button>
+            <button className="small" data-testid="open-visual-calibration" onClick={() => props.onCalibrate('visual')}>
+              표시 오프셋 맞추기
             </button>
           </div>
         </section>

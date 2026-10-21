@@ -288,13 +288,13 @@ test('settings and calibration', async ({ page }) => {
   await page.goto('/');
   await tool(page, 'open-calibration');
   await expect(page.getByTestId('calibration-screen')).toBeVisible();
-  // a player tapping a little after each click (as people do), from the beat lamp
+  // a player tapping a little after each click (as people do), from the beat count
   await page.evaluate(() => {
-    const lamp = document.querySelector('.beat-ring') as HTMLElement;
+    const ring = document.querySelector('.beat-ring') as HTMLElement;
     new MutationObserver(() => {
-      if (!lamp.classList.contains('on')) return;
+      if (Number(ring.dataset.beat) < 0) return;
       setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 4 + Math.random() * 18);
-    }).observe(lamp, { attributes: true, attributeFilter: ['class'] });
+    }).observe(ring, { attributes: true, attributeFilter: ['data-beat'] });
   });
   await page.getByRole('button', { name: '시작' }).click();
   await expect.poll(async () => Number(await page.getByTestId('calib-count').textContent()), { timeout: 30_000 }).toBeGreaterThanOrEqual(10);

@@ -2,6 +2,7 @@ import type { JudgeEvent } from '../engine/session';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudType } from '../render/skins';
 import { clockText, errorKind, errorText, speedText } from './format';
+import type { KeyPairNames } from './visualSync';
 
 export interface HudInfo {
   title: string;
@@ -34,6 +35,11 @@ export interface HudInfo {
   showBpm: boolean;
   /** The key that skips a long intro. */
   skipKey: string;
+  /**
+   * The sync test (null: none): its display offset and, played by hand (`judgement` given), its
+   * judgement offset under the song's line, each with the keys that move it (null: none free).
+   */
+  syncKeys?: { visual: KeyPairNames | null; judgement?: KeyPairNames | null } | null;
 }
 
 export interface HudStats {
@@ -242,6 +248,8 @@ export class Hud {
   private readonly ready: HTMLElement;
   private readonly skip: HTMLElement;
   private readonly toast: HTMLElement;
+  private readonly syncVisual: HTMLElement | null = null;
+  private readonly syncInput: HTMLElement | null = null;
   private readonly showErrorMs: boolean;
   private readonly gaugeClearShare: number;
   private readonly survival: boolean;
@@ -270,6 +278,7 @@ export class Hud {
   private lastBpm = -1;
   private lastSkip: boolean | null = null;
   private lastCounts = '';
+  private lastSync = '';
   private lastMatrix = '';
   /** Where the screen's top keeps clear of the song's plate (px). */
   private infoBottom = 0;
@@ -334,6 +343,34 @@ export class Hud {
         chips.append(chip);
       }
       q('.hud-info').append(chips);
+    }
+    const syncKeys = info.syncKeys;
+    if (syncKeys) {
+      // the offsets the sync test's keys move, each with its keys (those the lanes leave free)
+      const sync = document.createElement('div');
+      sync.className = 'hud-sync';
+      sync.dataset.testid = 'hud-sync';
+      const row = (label: string, id: string, keys: KeyPairNames | null): HTMLElement => {
+        const line = document.createElement('div');
+        line.className = 'hud-sync-row';
+        const name = document.createElement('span');
+        name.textContent = label;
+        const value = document.createElement('b');
+        value.className = `hud-sync-${id}`;
+        value.dataset.testid = `hud-sync-${id}`;
+        const caps = document.createElement('span');
+        if (keys) {
+          const cap = (text: string) => Object.assign(document.createElement('kbd'), { textContent: text });
+          if (keys.modifier) caps.append(cap(keys.modifier), '+');
+          caps.append(cap(keys.keys[0]), cap(keys.keys[1]));
+        }
+        line.append(name, value, caps);
+        sync.append(line);
+        return value;
+      };
+      this.syncVisual = row('표시 오프셋', 'visual', syncKeys.visual);
+      this.syncInput = syncKeys.judgement === undefined ? null : row('판정 오프셋', 'input', syncKeys.judgement);
+      q('.hud-info').append(sync);
     }
     root.dataset.mode = info.mode;
     root.dataset.keysounds = info.keysounds.join(' ');
@@ -433,7 +470,7 @@ export class Hud {
     info.style.removeProperty('--info-room');
     // the plate's narrowest: its widest part that does not wrap (the difficulty, the key mode, a chip)
     const style = getComputedStyle(info);
-    const parts = [...info.querySelectorAll<HTMLElement>('.hud-diff, .hud-keymode, .hud-chip')];
+    const parts = [...info.querySelectorAll<HTMLElement>('.hud-diff, .hud-keymode, .hud-chip, .hud-sync')];
     const least = Math.max(0, ...parts.map((e) => e.offsetWidth)) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 1;
     let shrink = 1;
     // a narrower plate may wrap its chips and grow: then measured again from its new foot
@@ -689,6 +726,16 @@ export class Hud {
   /** SPEED beside the gear (on start and when it changes). */
   setSpeed(hiSpeed: number): void {
     this.speedNum.textContent = speedText(hiSpeed);
+  }
+
+  /** The sync test's offsets (ms) under the song's line, written when they change. */
+  setSyncOffsets(visualMs: number, inputMs: number): void {
+    const key = `${visualMs} ${inputMs}`;
+    if (key === this.lastSync) return;
+    this.lastSync = key;
+    const text = (ms: number) => `${ms > 0 ? '+' : ''}${ms}ms`;
+    if (this.syncVisual) this.syncVisual.textContent = text(visualMs);
+    if (this.syncInput) this.syncInput.textContent = text(inputMs);
   }
 
   showJudge(e: JudgeEvent, perfNow: number): void {
