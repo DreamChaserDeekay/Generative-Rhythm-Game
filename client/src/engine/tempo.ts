@@ -73,6 +73,16 @@ export class TempoMap {
     return 60000 / this.msPerBeat[this.segmentForBeat(beat)];
   }
 
+  /** Where the BPM (rounded) changes, in song ms; the first one holds from the start. */
+  bpmChanges(): { ms: number; bpm: number }[] {
+    const out: { ms: number; bpm: number }[] = [];
+    for (let i = 0; i < this.startBeat.length; i++) {
+      const bpm = Math.round(60000 / this.msPerBeat[i]);
+      if (out.length === 0 || out[out.length - 1].bpm !== bpm) out.push({ ms: this.beatToMs(this.startBeat[i]), bpm });
+    }
+    return out;
+  }
+
   /** Measure start times (ms) from beat 0 up to `untilMs`. */
   barLines(untilMs: number): number[] {
     const meter = [...this.timing.meter].sort((a, b) => a.measure - b.measure);

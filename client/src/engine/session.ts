@@ -285,6 +285,19 @@ export class GameSession {
     return this.exScore;
   }
 
+  /** Misses so far, and the hits off the best judgement early and late (the HUD's counts). */
+  get breakCount(): number {
+    return this.breaks;
+  }
+
+  get fastCount(): number {
+    return this.fast;
+  }
+
+  get slowCount(): number {
+    return this.slow;
+  }
+
   /** EX-SCORE of the notes judged so far if they had all been perfect. */
   get exPace(): number {
     return this.judged * 2;

@@ -68,8 +68,13 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase3.png' });
   // the score panel stands over SPEED left of the gear, on the screen; under the judge line is the gear's
-  const [panel, speed] = [await page.locator('.hud-panel').boundingBox(), await page.locator('.hud-speed').boundingBox()];
-  expect(panel && speed && panel.x >= 0 && panel.x + panel.width < 640 && panel.y + panel.height <= speed.y + 2).toBe(true);
+  // (its rows are laid one by one: their boxes together)
+  const panel = await page.locator('.hud-panel .hud-row').evaluateAll((rows) => {
+    const boxes = rows.map((r) => r.getBoundingClientRect());
+    return { x: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
+  });
+  const speed = await page.locator('.hud-speed').boundingBox();
+  expect(speed && panel.x >= 0 && panel.right < 640 && panel.bottom <= speed.y + 2).toBe(true);
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
   // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it

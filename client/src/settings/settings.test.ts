@@ -28,6 +28,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
   });
 
+  it('keeps the judgement opacity, the judge counter and the EX-SCORE pacemaker targets (settings saved before them: solid, off)', () => {
+    expect(sanitizeSettings({})).toMatchObject({ judgementOpacity: 1, judgeCounter: false });
+    expect(sanitizeSettings({ judgementOpacity: 0.4, judgeCounter: true })).toMatchObject({ judgementOpacity: 0.4, judgeCounter: true });
+    expect(sanitizeSettings({ judgementOpacity: 0.5, judgeCounter: 'yes' as never })).toMatchObject({ judgementOpacity: 1, judgeCounter: false });
+    expect(sanitizeSettings({ pacemaker: 'AAA' }).pacemaker).toBe('AAA');
+    expect(sanitizeSettings({ pacemaker: 'MAX' }).pacemaker).toBe('MAX');
+    expect(sanitizeSettings({ pacemaker: '97' as never }).pacemaker).toBe('OFF');
+  });
+
   it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
     expect(sanitizeSettings({}).barLines).toBe(true);
     expect(sanitizeSettings({ barLines: false }).barLines).toBe(false);

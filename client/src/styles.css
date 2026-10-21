@@ -109,8 +109,10 @@
   --g-mid: #ffe26b;
   --g-low: #ffb15c;
   --g-break: #ff4d6a;
-  --g-fast: #6fb7ff;
-  --g-slow: #ff8a6f;
+  /* FAST / SLOW: blue and red-orange, apart from the cyan, green, yellow and orange they show
+     under and from BREAK's red (ΔE76 about 40 to both BREAK and the orange) */
+  --g-fast: #4f8dff;
+  --g-slow: #ff5a1f;
 
   /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. */
   --lamp-perfect: var(--g-max);
@@ -197,6 +199,10 @@
   --g-mid: #e69f00;
   --g-low: #cc79a7;
   --g-break: #d55e00;
+  /* FAST / SLOW: a deeper blue and the bluish green, apart from the five above and from each
+     other with red or green weakness too */
+  --g-fast: #3b6cff;
+  --g-slow: #00b386;
   --lane-white: #f0f0f0;
   --lane-blue: #56b4e9;
   --lane-gold: #e69f00;
@@ -854,6 +860,30 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
+/* the rules the play runs on where they are not the defaults (judgement, placement, score, gauge) */
+.loading-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.loading-rule {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-label);
+  line-height: 1.2;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.loading-rule .label {
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.loading-rule b {
+  font-weight: 700;
+}
+
 .loading-status {
   margin-top: auto;
   font-weight: 600;
@@ -969,6 +999,13 @@ p.hint {
   white-space: nowrap;
 }
 
+.hud-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
 .hud-title {
   min-width: 0;
   overflow: hidden;
@@ -1001,6 +1038,17 @@ p.hint {
   font-size: calc(var(--fs-label) * var(--hud-scale));
   font-weight: 700;
   color: var(--text-dim);
+}
+
+/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL */
+.hud-chip {
+  flex: none;
+  padding: 0 var(--sp-1);
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
 }
 
 /* the plane lying on the track; its parts are placed in the sheets' track px */
@@ -1041,13 +1089,19 @@ p.hint {
   transition: opacity 0.15s;
 }
 
+/* the end banner takes the middle: the last judgement and the combo leave it */
+.hud.ended .hud-judge,
+.hud.ended .hud-combo {
+  display: none;
+}
+
 .hud-judge-pop.pop {
   animation: judge-pop 0.18s ease-out;
 }
 
 @keyframes judge-pop {
   from {
-    transform: scale(1.35);
+    transform: scale(1.1);
   }
   to {
     transform: scale(1);
@@ -1085,17 +1139,32 @@ p.hint {
 }
 
 .hud-judge-sub {
-  margin-top: 0.3em;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.3em;
+  margin-top: 0.2em;
   font-family: var(--font-display);
   font-style: normal;
   font-weight: 700;
   letter-spacing: 0.04em;
-  -webkit-text-stroke: var(--sub-stroke) var(--hud-outline);
+  /* a fixed dark outline: the skins' outline colours (pink, navy) blur the small blue and red */
+  -webkit-text-stroke: var(--sub-stroke) var(--bg);
   paint-order: stroke fill;
+}
+
+.hud-judge-fs:empty,
+.hud-judge-ms:empty {
+  display: none;
+}
+
+.hud-judge-ms {
+  font-size: var(--ms-size);
 }
 
 .hud-judge-sub.fast { color: var(--g-fast); }
 .hud-judge-sub.slow { color: var(--g-slow); }
+.hud-judge-sub.exact { color: var(--text); }
 
 .hud-combo {
   visibility: hidden;
@@ -1133,7 +1202,7 @@ p.hint {
 
 .hud-fever-bar {
   display: block;
-  height: 0.2em;
+  height: 0.35em;
   margin-top: 0.2em;
   background: var(--line);
   border-radius: 1px;
@@ -1148,7 +1217,12 @@ p.hint {
   transform: scaleX(0);
 }
 
-.hud-fever.ready .hud-fever-text { color: var(--text); }
+/* ready to fire (manual FEVER): a filled chip like a running FEVER, without any flashing */
+.hud-fever.ready .hud-fever-text {
+  color: var(--bg);
+  background: var(--text);
+}
+
 .hud-fever.ready .hud-fever-fill { background: var(--text); }
 .hud-fever.active.x2 { --fever: var(--fever-2); }
 .hud-fever.active.x3 { --fever: var(--fever-3); }
@@ -1187,6 +1261,36 @@ p.hint {
   transform-origin: 100% 100%;
 }
 
+/* the BPM now, under SPEED (charts that change tempo, BPM-linked scrolling) */
+.hud-bpm {
+  margin-top: var(--label-gap);
+}
+
+.hud-bpm b {
+  font-family: var(--font-display);
+  color: var(--text);
+}
+
+/* the song's progress left of the gear: a thin bar filled from the bottom (one transform per step) */
+.hud-progress {
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+.hud-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--text-dim);
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+}
+
+.hud-progress-time {
+  text-align: right;
+  transform-origin: 100% 100%;
+}
+
 .hud-gauge-value {
   transform-origin: 0 100%;
 }
@@ -1203,8 +1307,16 @@ p.hint {
 .hud-gauge-fill {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+  /* the cells over the clear line in another colour: lit there, the play clears (the clear line
+     lies on a cell's edge, so both patterns start on one) */
+  background:
+    repeating-linear-gradient(to top, var(--g-max) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) bottom / 100% var(--clear-at) no-repeat;
   clip-path: inset(100% 0 0 0);
+}
+
+.hud-gauge-value.cleared .hud-gauge-num {
+  color: var(--g-max);
 }
 
 .hud-gauge.survival .hud-gauge-fill {
@@ -1216,31 +1328,73 @@ p.hint {
   border-radius: 1px;
 }
 
-/* the score, rate and max combo over SPEED left of the gear: labels and numbers in two columns,
-   the numbers against the gear */
-.hud-panel {
-  display: grid;
-  grid-template-columns: auto auto;
+/* the score, rate and max combo over SPEED left of the gear: a row each, placed and sized by
+   Hud.ts for where it lies; label and number in two columns, the numbers against the gear */
+.hud-row {
+  position: absolute;
+  display: flex;
   align-items: baseline;
-  column-gap: calc(var(--label-gap) * 3);
-  text-align: right;
+  justify-content: space-between;
+  gap: calc(var(--label-gap) * 3);
+  white-space: nowrap;
   transform-origin: 100% 100%;
-}
-
-.hud-panel .hud-label {
-  text-align: left;
 }
 
 .hud-panel .hud-score {
   font-size: calc(var(--num) * 1.25);
 }
 
+/* too narrow for two columns at a readable size: each label over its number, as SPEED (placed and
+   sized a line at a time) */
+.hud-panel.stacked .hud-row {
+  display: contents;
+}
+
+.hud-panel.stacked .hud-row > * {
+  position: absolute;
+  text-align: right;
+  white-space: nowrap;
+  transform-origin: 100% 100%;
+}
+
+.hud-panel.stacked .hud-row:not(:first-child) > .hud-label {
+  padding-top: var(--label-gap);
+}
+
+/* no room beside the gear at all (a very wide gear, a high LIFT): upright at the screen's lower
+   left, on a plate like the song's */
+.hud-panel.upright {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: calc(var(--label-gap) * 3);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.hud-panel.upright .hud-row {
+  display: contents;
+}
+
+.hud-panel.upright .hud-label {
+  text-align: left;
+}
+
+.hud-panel .hud-fast { color: var(--g-fast); }
+.hud-panel .hud-slow { color: var(--g-slow); }
+
 .hud-pace.ahead { color: var(--g-high); }
 .hud-pace.behind { color: var(--g-break); }
 
 .hud-toast {
   position: absolute;
-  top: 24%;
+  top: 88%;
   left: 50%;
   transform: translateX(-50%);
   padding: var(--sp-2) var(--sp-4);
@@ -1272,14 +1426,38 @@ p.hint {
   transition: opacity 0.3s;
 }
 
+/* a long intro: its key, where READY comes later */
+.hud-skip {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: calc(var(--fs-body) * var(--hud-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--scrim);
+  border-radius: var(--radius-sm);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
 .hud-banner {
   position: absolute;
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.8);
+  /* the skin's type and outline, as the judgement: it reads over a video or the visualizer */
+  font-family: var(--hud-font), var(--font-display);
   font-size: calc(var(--fs-hero) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-weight: var(--hud-weight);
+  font-style: var(--hud-style);
+  letter-spacing: var(--hud-tracking);
+  -webkit-text-stroke: calc(var(--hud-stroke) * var(--hud-scale)) var(--hud-outline);
+  paint-order: stroke fill;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.3s, transform 0.3s;

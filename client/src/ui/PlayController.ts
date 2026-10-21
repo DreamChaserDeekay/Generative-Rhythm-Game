@@ -6,7 +6,7 @@ import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
 import { applyPlacement, placementLabels, type PlacementResult } from '../engine/placement';
-import { REPLAY_VERSION, ReplayPlayer, ReplayRecorder, type ReplayData } from '../engine/replay';
+import { REPLAY_VERSION, ReplayPlayer, ReplayRecorder, replayScores, type ReplayData } from '../engine/replay';
 import { Ruleset, rulesetConfigs } from '../engine/ruleset';
 import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
@@ -32,9 +32,11 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
+import { coverText, speedText } from './format';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
+import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playModeLabel } from './playRules';
 
 export interface PlaySetup {
   request: PlayRequest;
@@ -52,6 +54,8 @@ export interface PlaySetup {
   bgRoot: HTMLElement;
   /** Textures of the skin, loaded beforehand (null = drawn in code); the renderer disposes them. */
   art?: SkinArt | null;
+  /** The replay of the best play (BEST pacemaker), when it was kept and loaded. */
+  bestReplay?: ReplayData | null;
 }
 
 export interface PlayOutcome {
@@ -73,6 +77,13 @@ export interface PlayCallbacks {
 
 type PlayState = 'running' | 'paused' | 'ending' | 'done';
 
+/**
+ * What the pacemaker compares the score with, in the unit the HUD shows it: a share of the most
+ * that could have been scored so far, the best play's score after as many judgements (its replay),
+ * or that best spread evenly over the chart (a best without its replay, base score only).
+ */
+type Pacer = { kind: 'share'; ratio: number } | { kind: 'ghost'; scores: number[] } | { kind: 'line'; score: number };
+
 const MIN_LEAD_IN_MS = 1500;
 const FIRST_NOTE_DELAY_MS = 3000;
 const RESUME_LEAD_IN_MS = 1500;
@@ -81,9 +92,17 @@ const PRACTICE_PREROLL_MS = 2000;
 const PRACTICE_END_MS = 900;
 const BANNER_MS = 1800;
 const FAIL_FADE_MS = 700;
+/** The song fades out under the end banner instead of stopping dead. */
+const END_FADE_MS = 1500;
+/** READY shows this long before the first note comes into sight, and over a resume's rewind. */
+const READY_MS = 1500;
+/** A first note more than this far off (real ms) can be skipped to: up to this long before it (or READY). */
+const SKIP_MIN_MS = 5000;
+const SKIP_LEAD_MS = 2500;
 const HI_SPEED_STEP = 0.1;
 const HI_SPEED_STEP_BIG = 0.5;
 const COVER_STEP = 0.025;
+/** Fires a manual FEVER; before a long intro's first note (no FEVER to fire yet) it skips to it. */
 const FEVER_KEY = 'Enter';
 /** Autoplay keysounds are scheduled this far ahead so they land exactly on the notes. */
 const KEYSOUND_LOOKAHEAD_MS = 120;
@@ -109,7 +128,10 @@ export class PlayController {
   private readonly lastNoteEndMs: number;
   private readonly durationMs: number;
   private readonly boundCodes: Set<string>;
-  private readonly paceTarget: number | null;
+  private readonly pacer: Pacer | null;
+  /** Where the BPM changes (song ms), for the BPM under SPEED; the one in effect. */
+  private readonly bpmChanges: { ms: number; bpm: number }[];
+  private bpmAt = 0;
   private readonly cameraFx: CameraFx;
   private readonly background: PlayBackground;
   /** Note keysounds (imported BMS/bmson charts). */
@@ -136,9 +158,16 @@ export class PlayController {
   private readonly placementSeed: number;
   private unsubscribe: (() => void) | null = null;
   private state: PlayState = 'running';
-  /** While paused the track is drawn again only after a change (hi-speed, covers, size). */
+  /** While paused the track is drawn again only after a change (a resize). */
   private redrawPaused = false;
   private finishAtPerf = 0;
+  /** Song times: where the run starts (its progress), when the first note comes into sight below
+   * SUDDEN+, where READY starts, where a skip lands (null: none) and where a resume's rewind ends. */
+  private runStartMs = 0;
+  private firstInSight = 0;
+  private readyFrom = 0;
+  private skipTo: number | null = null;
+  private resumeUntil = -Infinity;
   private loops = 0;
   private raf = 0;
   /** The renderer's hudVersion the HUD was last laid for. */
@@ -207,8 +236,10 @@ export class PlayController {
     const { originMs } = setup.bufferPlacement;
     const audioMs = setup.buffer ? originMs + setup.buffer.duration * 1000 * this.rate : 0;
     this.durationMs = Math.max(audioMs, request.chart.meta.durationMs ?? 0, this.lastNoteEndMs);
-    this.barTimes = new TempoMap(this.chart.timing).barLines(this.durationMs);
-    this.paceTarget = paceTarget(settings, request);
+    const tempo = new TempoMap(this.chart.timing);
+    this.barTimes = tempo.barLines(this.durationMs);
+    this.bpmChanges = tempo.bpmChanges();
+    this.pacer = pacerFor(settings, request, setup.bestReplay ?? null);
 
     const gauge = this.gaugeRule();
     const rules = rulesetConfigs[settings.ruleset];
@@ -219,6 +250,7 @@ export class PlayController {
         keyMode: this.chart.meta.keyMode,
         difficulty: difficultyChip(this.chart.meta),
         mode: request.replay ? 'replay' : request.autoPlay ? 'auto' : this.practice ? 'practice' : 'play',
+        chips: [playModeLabel(request), judgementChip(settings.judgementMode)].filter((c): c is string => c !== null),
         keysounds: this.keysoundStems(),
         scoreLabel: rules.scoring === 'exscore' ? 'EX-SCORE' : 'SCORE',
         subLabel: rules.scoring === 'exscore' ? 'RANK' : 'RATE',
@@ -227,8 +259,13 @@ export class PlayController {
         survivalGauge: gauge.failAtZero,
         feverEnabled: settings.fever !== 'OFF',
         feverManualKey: settings.fever === 'MANUAL' ? FEVER_KEY : null,
-        pacemakerLabel: this.paceTarget === null ? null : settings.pacemaker === 'BEST' ? 'vs BEST' : `vs ${settings.pacemaker}%`,
+        // a pacer with nothing to follow still shows its row (a dash), so a chosen BEST never just vanishes
+        pacemakerLabel: this.practice || settings.pacemaker === 'OFF' ? null : pacemakerLabel(settings.pacemaker),
         type: styleOf(skin).type,
+        judgementOpacity: settings.judgementOpacity,
+        counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
+        showBpm: this.bpmChanges.length > 1 || settings.scrollMode === 'beat',
+        skipKey: FEVER_KEY,
       },
       settings.showErrorMs,
       settings.reducedFlash,
@@ -262,6 +299,8 @@ export class PlayController {
     if (this.state !== 'paused') return;
     const at = this.engine.songTimeAtPerf(performance.now());
     this.engine.start(at, RESUME_LEAD_IN_MS);
+    // the song rewinds a little: READY until it is back where it stopped
+    this.resumeUntil = at;
     // autoplay keysounds already past were cancelled by the pause; continue from here
     this.nextAutoKeysound = this.session.notes.findIndex((n) => n.t >= at);
     if (this.nextAutoKeysound < 0) this.nextAutoKeysound = this.session.notes.length;
@@ -272,7 +311,7 @@ export class PlayController {
 
   restart(): void {
     this.teardownRun();
-    this.hud.hideBanner();
+    this.hud.reset();
     this.begin();
     this.callbacks.onPauseChange(false);
   }
@@ -342,9 +381,13 @@ export class PlayController {
     if (this.practice) {
       const from = Math.max(bufferPlacement.originMs, this.firstNoteMs - PRACTICE_PREROLL_MS * this.rate);
       this.engine.start(from, 300);
+      this.runStartMs = from;
     } else {
       this.engine.start(0, Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
+      this.runStartMs = 0;
     }
+    this.resumeUntil = -Infinity;
+    this.bpmAt = 0;
     this.state = 'running';
   }
 
@@ -432,6 +475,35 @@ export class PlayController {
       durationMs: this.durationMs,
     });
     this.renderer.setCovers(covers);
+    // the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); READY
+    // shows just before, and a skip lands before READY (and a little before the note at least)
+    this.firstInSight = this.scroll.timeAt(this.firstNoteMs, this.scroll.travel * (1 - covers.sudden)) - this.settings.visualOffsetMs * this.rate;
+    this.readyFrom = this.firstInSight - READY_MS * this.rate;
+    this.skipTo = this.practice ? null : Math.min(this.readyFrom, this.firstNoteMs - SKIP_LEAD_MS * this.rate);
+  }
+
+  /**
+   * The intro can be skipped: the first note is more than SKIP_MIN_MS away and the skip lands
+   * ahead (and its key is not a lane key of one's own play, which the lanes take first).
+   */
+  private canSkip(songNow: number): boolean {
+    if (this.boundCodes.has(FEVER_KEY) && !this.setup.request.autoPlay) return false;
+    return this.state === 'running' && this.skipTo !== null && this.firstNoteMs - songNow > SKIP_MIN_MS * this.rate && this.skipTo > songNow;
+  }
+
+  /** Jumps over the intro. Nothing before the first note is judged, so the result is the same. */
+  private skipIntro(): void {
+    if (this.skipTo === null) return;
+    this.engine.start(this.skipTo, 0);
+  }
+
+  /** The chart's BPM at song time `ms` (the changes are walked from the last one, a frame at a time). */
+  private bpmNow(ms: number): number {
+    const changes = this.bpmChanges;
+    if (changes.length === 0) return 0;
+    while (this.bpmAt + 1 < changes.length && changes[this.bpmAt + 1].ms <= ms) this.bpmAt++;
+    while (this.bpmAt > 0 && changes[this.bpmAt].ms > ms) this.bpmAt--;
+    return changes[this.bpmAt].bpm;
   }
 
   private layout(): void {
@@ -504,7 +576,7 @@ export class PlayController {
       sub: this.subValue(),
       maxCombo: session.maxCombo,
       gauge: session.gauge.value,
-      ready: this.state === 'paused' ? '' : songNow < this.firstNoteMs - visibleTimeMs(this.settings.hiSpeed) * this.rate ? 'READY' : '',
+      ready: this.state !== 'paused' && ((songNow >= this.readyFrom && songNow < this.firstInSight) || songNow < this.resumeUntil) ? 'READY' : '',
       fever: {
         gauge: session.fever.gauge,
         active: session.fever.active,
@@ -513,6 +585,14 @@ export class PlayController {
         ready: session.fever.ready,
       },
       pace: this.pace(),
+      progress: (songNow - this.runStartMs) / Math.max(1, this.lastNoteEndMs - this.runStartMs),
+      remainingMs: (this.lastNoteEndMs - songNow) / this.rate,
+      // the tempo heard: a slowed practice slows it too
+      bpm: Math.round(this.bpmNow(songNow) * this.rate),
+      skip: this.canSkip(songNow),
+      breaks: session.breakCount,
+      fast: session.fastCount,
+      slow: session.slowCount,
     });
   };
 
@@ -534,11 +614,18 @@ export class PlayController {
     return `${this.ruleset.rank(ratio)} · ${(ratio * 100).toFixed(1)}%`;
   }
 
-  /** Score difference to the pacemaker target at this point of the chart. */
+  /** The score shown less the pacemaker's at this point of the chart (the same unit: base, weighted or EX); null: nothing to compare with. */
   private pace(): number | null {
-    if (this.paceTarget === null || this.session.judgeable === 0) return null;
-    const share = this.session.judgedCount / this.session.judgeable;
-    return this.session.currentScore - this.paceTarget * share * 1_000_000;
+    const p = this.pacer;
+    const s = this.session;
+    if (p === null || s.judgeable === 0) return null;
+    const score = this.scoreValue();
+    if (p.kind === 'ghost') return score - p.scores[Math.min(s.judgedCount, p.scores.length - 1)];
+    const share = s.judgedCount / s.judgeable;
+    if (p.kind === 'line') return score - p.score * share;
+    // the most that could have been scored so far: two EX a judgement, or the share of 1,000,000
+    const most = rulesetConfigs[this.settings.ruleset].scoring === 'exscore' ? s.exPace : share * 1_000_000;
+    return score - p.ratio * most;
   }
 
   private practiceLabel(): string | null {
@@ -551,14 +638,15 @@ export class PlayController {
     if (this.state === 'ending' || this.state === 'done') return;
     if (this.practice?.loop && !failed) {
       this.loops++;
-      this.hud.showToast(this.practiceLabel() ?? '', perfNow);
       this.restart();
+      this.hud.showToast(this.practiceLabel() ?? '', perfNow);
       return;
     }
     this.state = 'ending';
     this.finishAtPerf = perfNow + BANNER_MS;
     this.input.detach();
-    if (failed) this.engine.fadeOut(FAIL_FADE_MS);
+    // the song fades under the banner (quickly on a failure) instead of stopping dead
+    this.engine.fadeOut(failed ? FAIL_FADE_MS : END_FADE_MS);
     const lamp = this.session.result().lamp;
     // autoplay and practice earn no lamp: a plain banner
     if (this.practice) this.hud.showBanner('PRACTICE END', 'aided');
@@ -615,6 +703,7 @@ export class PlayController {
     }
   };
 
+  /** An in-play change of SPEED or the covers, kept for the next play; `toast` names it once. */
   private updateSettings(next: Settings, toast: string): void {
     this.settings = next;
     // a replay runs on its recorded judgement settings; keep only the viewer's visual changes
@@ -623,13 +712,17 @@ export class PlayController {
     this.rebuildScroll();
     this.layout();
     this.hud.setSpeed(next.hiSpeed);
-    this.hud.showToast(`${toast} · SPEED ${next.hiSpeed.toFixed(2)}`, performance.now());
+    this.hud.showToast(toast, performance.now());
+  }
+
+  /** A cover's toast; one moved with the visible time kept moves SPEED too, and names it as well. */
+  private coverToast(text: string, next: Settings): string {
+    return next.hiSpeed !== this.settings.hiSpeed ? `${text} · SPEED ${speedText(next.hiSpeed)}` : text;
   }
 
   private readonly onControlKey = (e: KeyboardEvent): void => {
     if (this.boundCodes.has(e.code) && !this.setup.request.autoPlay) return;
     const s = this.settings;
-    const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
     switch (e.code) {
       case 'Escape':
         e.preventDefault();
@@ -640,7 +733,12 @@ export class PlayController {
         e.preventDefault();
         if (this.state !== 'done') this.restart();
         return;
-      case FEVER_KEY:
+      case FEVER_KEY: {
+        if (this.canSkip(this.engine.songTimeAtPerf(performance.now()))) {
+          e.preventDefault();
+          if (!e.repeat) this.skipIntro();
+          return;
+        }
         if (this.state === 'running' && s.fever === 'MANUAL' && !this.setup.request.replay) {
           e.preventDefault();
           const t = this.engine.songTimeAtPerf(performance.now()) - s.inputOffsetMs * this.rate;
@@ -648,45 +746,43 @@ export class PlayController {
           else this.session.activateFever(t);
         }
         return;
+      }
       case 'ArrowUp':
       case 'ArrowDown': {
-        // a gamepad's d-pad (keys sent by the menu bridge) moves the pause menu's focus instead
-        if (!e.isTrusted) return;
+        // SPEED only while the song runs: paused, ↑↓ move the pause menu's focus (as a gamepad's
+        // d-pad does, whose keys the menu bridge sends)
+        if (!e.isTrusted || this.state !== 'running') return;
         e.preventDefault();
         const step = (e.shiftKey ? HI_SPEED_STEP_BIG : HI_SPEED_STEP) * (e.code === 'ArrowUp' ? 1 : -1);
-        this.updateSettings({ ...s, hiSpeed: clampHiSpeed(s.hiSpeed + step) }, 'SPEED');
+        const hiSpeed = clampHiSpeed(s.hiSpeed + step);
+        this.updateSettings({ ...s, hiSpeed }, `SPEED ${speedText(hiSpeed)}`);
         return;
       }
       case 'PageUp':
       case 'PageDown': {
+        if (this.state !== 'running') return;
         e.preventDefault();
         const dir = e.code === 'PageDown' ? 1 : -1;
         if (e.shiftKey) {
           const lift = Math.min(MAX_LIFT, Math.max(0, s.lift + dir * COVER_STEP));
           const next = withCovers(s, { lift });
-          this.updateSettings(next, `LIFT ${pct(next.lift)}`);
+          this.updateSettings(next, this.coverToast(`LIFT ${coverText(next.lift)}`, next));
         } else {
           const sudden = Math.min(MAX_COVER, Math.max(0, s.sudden + dir * COVER_STEP));
           const next = withCovers(s, { sudden, coversOn: true });
-          this.updateSettings(next, `SUDDEN+ ${pct(next.sudden)}`);
+          this.updateSettings(next, this.coverToast(`SUDDEN+ ${coverText(next.sudden)}`, next));
         }
         return;
       }
       case 'Home': {
+        if (this.state !== 'running') return;
         e.preventDefault();
         const next = withCovers(s, { coversOn: !s.coversOn });
-        this.updateSettings(next, next.coversOn ? '커버 켬' : '커버 끔');
+        this.updateSettings(next, this.coverToast(next.coversOn ? '커버 켬' : '커버 끔', next));
         return;
       }
     }
   };
-}
-
-/** The settings a replay must be judged with (or, with no replay, those of `base`). */
-function judgementSettingsOf(replay: ReplayData | null, base?: Settings): Partial<Settings> {
-  const src = replay?.settings ?? base;
-  if (!src) return {};
-  return { judgementMode: src.judgementMode, ruleset: src.ruleset, gaugeType: src.gaugeType, fever: src.fever, placement: src.placement };
 }
 
 /** Notes whose head lies inside the practice segment. */
@@ -694,10 +790,23 @@ function segmentOf(chart: Chart, p: PracticeOptions): Chart {
   return { ...chart, notes: chart.notes.filter((n) => n.t >= p.startMs && n.t <= p.endMs) };
 }
 
-function paceTarget(settings: Settings, request: PlayRequest): number | null {
+/** What the pacemaker follows; null for none, or a BEST with nothing to follow (no record, or one known by its base score under another unit). */
+function pacerFor(settings: Settings, request: PlayRequest, bestReplay: ReplayData | null): Pacer | null {
   if (request.practice || settings.pacemaker === 'OFF') return null;
-  if (settings.pacemaker === 'BEST') return request.best ? request.best.score / 1_000_000 : null;
-  return Number(settings.pacemaker) / 100;
+  if (settings.pacemaker !== 'BEST') return { kind: 'share', ratio: paceRatio(settings.pacemaker) ?? 1 };
+  const best = request.best;
+  if (!best) return null;
+  const replay = best.replay ?? bestReplay;
+  if (replay) {
+    try {
+      const scores = replayScores(request.chart, replay, settings.ruleset);
+      if (scores) return { kind: 'ghost', scores };
+    } catch {
+      // a replay the server kept but this version cannot judge again: as if there were none
+    }
+  }
+  // known by its base score alone, the best is paced only where that is the score shown
+  return rulesetConfigs[settings.ruleset].scoring === 'rate' ? { kind: 'line', score: best.score } : null;
 }
 
 function formatMs(ms: number): string {

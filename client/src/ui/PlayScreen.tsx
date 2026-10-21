@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
 import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
 import type { KeysoundBank } from '../audio/keysounds';
 import { practiceAudio } from '../audio/practiceAudio';
+import { isReplay, type ReplayData } from '../engine/replay';
 import type { StemName } from '../engine/types';
 import { GamepadMenuBridge } from '../input/gamepad';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
@@ -19,6 +21,16 @@ interface Props {
   onSettingsChange: (s: Settings) => void;
   onFinish: (outcome: PlayOutcome) => void;
   onQuit: () => void;
+}
+
+/** The best play's replay a BEST pacemaker follows note by note (null: not kept, not wanted, not loaded or not a replay). */
+function bestReplayOf(request: PlayRequest, settings: Settings): Promise<ReplayData | null> {
+  const best = request.best;
+  if (settings.pacemaker !== 'BEST' || request.practice || !best?.hasReplay || best.replay || best.scoreId === undefined) return Promise.resolve(null);
+  return api
+    .replay(best.scoreId)
+    .then((r: unknown) => (isReplay(r) ? r : null))
+    .catch(() => null);
 }
 
 export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQuit }: Props) {
@@ -41,6 +53,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     const skin = skinById(settings.skin, settings.customSkin);
     const artLoad = loadSkinArt(skin);
     const fontLoad = loadHudFont(styleOf(skin).type);
+    const bestReplayLoad = bestReplayOf(request, settings);
     (async () => {
       try {
         const engine = getAudioEngine();
@@ -64,13 +77,13 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
           ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, stems));
         }
-        const [art] = await Promise.all([artLoad, fontLoad]);
+        const [art, , bestReplay] = await Promise.all([artLoad, fontLoad, bestReplayLoad]);
         if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) {
           disposeSkinArt(art);
           return;
         }
         controller = new PlayController(
-          { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current, art },
+          { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current, art, bestReplay },
           { onFinish, onPauseChange: setPaused, onSettingsChange },
         );
         controllerRef.current = controller;
@@ -88,11 +101,22 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     // The play screen is remounted (keyed) for every run, so its props are fixed for its lifetime.
   }, []);
 
+  // The pause menu: R and Q, and ↑↓ between its buttons as in the other menus (a pad's d-pad
+  // comes as the same keys; SPEED is not changed while paused).
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!paused) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyR') controllerRef.current?.restart();
       if (e.code === 'KeyQ') onQuit();
+      if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        const buttons = [...(menuRef.current?.querySelectorAll('button') ?? [])];
+        if (buttons.length === 0) return;
+        e.preventDefault();
+        const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const dir = e.code === 'ArrowDown' ? 1 : -1;
+        buttons[at < 0 ? 0 : (at + dir + buttons.length) % buttons.length].focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -134,7 +158,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         </div>
       )}
       {paused && (
-        <div className="play-overlay pause-menu" data-testid="pause-menu">
+        <div ref={menuRef} className="play-overlay pause-menu" data-testid="pause-menu">
           <h2>일시정지</h2>
           <button onClick={() => controllerRef.current?.resume()} autoFocus>계속하기 <kbd>Esc</kbd></button>
           <button onClick={() => controllerRef.current?.restart()}>다시 하기 <kbd>R</kbd></button>

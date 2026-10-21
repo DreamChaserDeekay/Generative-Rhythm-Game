@@ -14,6 +14,7 @@ import { ResultScreen } from './ResultScreen';
 import { SettingsScreen, type SettingsTab } from './SettingsScreen';
 import { generationParams } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
+import { bestAfterPlay } from './playRules';
 import { SongSelectScreen } from './SongSelectScreen';
 
 export interface PracticeOptions {
@@ -34,8 +35,11 @@ export interface PlayRequest {
   autoPlay: boolean;
   /** Practice run: a segment, optionally slowed down and looped. Never recorded. */
   practice?: PracticeOptions;
-  /** Personal best on this chart (pacemaker target). */
-  best?: { score: number; rate: number } | null;
+  /**
+   * Personal best on this chart (pacemaker target): its score id and whether its replay was kept
+   * (the BEST pacemaker follows it), or the replay itself (a retry right after setting it).
+   */
+  best?: { score: number; rate: number; scoreId?: number; hasReplay?: boolean; replay?: ReplayData } | null;
   /** Fixed seed for the RANDOM family (tests); a new one is drawn per play otherwise. */
   placementSeed?: number;
   /** Keysounds of a generated chart: loads the stems its notes play (same length as the song audio). */
@@ -167,7 +171,7 @@ export function App() {
           outcome={screen.outcome}
           settings={settings}
           onSettingsChange={setSettings}
-          onRetry={() => play({ ...screen.request, replay: undefined })}
+          onRetry={() => play({ ...screen.request, replay: undefined, best: bestAfterPlay(screen.request, screen.outcome) })}
           onBack={() => leavePlay(screen.request)}
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
           onRegenerate={

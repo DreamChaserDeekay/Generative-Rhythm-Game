@@ -9,6 +9,7 @@ import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
 import { SONG_FOLDERS, SONG_SORTS, type Settings, type SongFolder } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
+import { speedText } from './format';
 import { lampClass } from './lamps';
 import { FEVER_SHORT, generationParams, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
@@ -337,7 +338,7 @@ export function SongSelectScreen(props: Props) {
       onPlay(
         buildPlayRequest(selected, c, settings, {
           autoPlay,
-          best: best ? { score: best.score, rate: best.rate } : null,
+          best: best ? { score: best.score, rate: best.rate, scoreId: best.bestScoreId, hasReplay: best.hasReplay } : null,
           practice: practice ?? undefined,
         }),
       );
@@ -864,7 +865,7 @@ export function SongSelectScreen(props: Props) {
                 {ready ? (
                   <button className="option-chips" data-testid="play-options-button" aria-label="플레이 옵션" aria-expanded={panel === 'options'} onClick={() => (panel === 'options' ? setPanel('none') : openOptions())}>
                     <span className="chip">
-                      SPEED <b>{settings.hiSpeed.toFixed(1)}</b>
+                      SPEED <b>{speedText(settings.hiSpeed)}</b>
                     </span>
                     <span className="chip">
                       게이지 <b>{gaugeRules[settings.gaugeType].label}</b>

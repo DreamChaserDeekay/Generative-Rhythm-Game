@@ -6,9 +6,6 @@ import type { Settings } from '../settings/settings';
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/** A speed as the settings write it: 4.0, 4.25. */
-export const speedText = (v: number) => (Number.isInteger(Math.round(v * 100) / 10) ? v.toFixed(1) : v.toFixed(2));
-
 /** The track skins to choose from: the built-in ones, and the user's when there is one. */
 export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, string][] {
   return [

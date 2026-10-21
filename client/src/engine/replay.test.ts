@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { gaugeRules, judgementConfig } from './config';
 import { JudgementTable } from './judgement';
-import { isReplay, REPLAY_VERSION, ReplayPlayer, ReplayRecorder } from './replay';
+import { isReplay, REPLAY_VERSION, ReplayPlayer, ReplayRecorder, replayScores, type ReplayData } from './replay';
+import { Ruleset } from './ruleset';
 import { GameSession } from './session';
 import type { Chart, ChartNote } from './types';
 
@@ -31,8 +32,9 @@ function chart(): Chart {
   };
 }
 
-function newSession(c: Chart) {
+function newSession(c: Chart, ruleset = new Ruleset()) {
   return new GameSession(c, new JudgementTable(judgementConfig, 'NORMAL'), {
+    ruleset,
     gauge: gaugeRules.HARD,
     holdTickBeats: judgementConfig.hold.tickBeats,
     releaseGraceMs: judgementConfig.hold.releaseGraceMs,
@@ -81,6 +83,43 @@ describe('replays', () => {
     expect(expected.breaks).toBeGreaterThan(0);
     // far fewer logged updates than frames
     expect(recorder.log.length / 3).toBeLessThan(events.length + 1500);
+  });
+
+  it('give the score a recorded play stood at after each judgement, in the unit a ruleset shows', () => {
+    const c = chart();
+    const live = newSession(c);
+    const recorder = new ReplayRecorder(live);
+    const base = [0];
+    live.on((e) => e.type === 'judge' && base.push(live.currentScore));
+    const events = inputs(c, 11);
+    let next = 0;
+    for (let frame = -500; frame < 70000; frame += 16) {
+      while (next < events.length && events[next].t <= frame) {
+        const e = events[next++];
+        if (e.down) recorder.press(e.lane, e.t);
+        else recorder.release(e.lane, e.t);
+      }
+      recorder.update(frame);
+    }
+    const data: ReplayData = {
+      version: REPLAY_VERSION,
+      chartId: 'r',
+      songId: null,
+      recordedAt: 0,
+      settings: { judgementMode: 'NORMAL', ruleset: 'RESPECT', gaugeType: 'HARD', fever: 'AUTO', placement: 'OFF', placementSeed: 1, hiSpeed: 4 },
+      log: recorder.log,
+      result: { score: 0, rate: 0, maxCombo: 0, lamp: 'FAILED' },
+    };
+    expect(replayScores(c, data, 'RESPECT')).toEqual(base);
+    // the same judgements counted as EX-SCORE
+    const ex = newSession(c, new Ruleset('EXSCORE'));
+    const exScores = [0];
+    ex.on((e) => e.type === 'judge' && exScores.push(ex.currentExScore));
+    new ReplayPlayer(recorder.log).feed(ex, Infinity);
+    expect(replayScores(c, data, 'EXSCORE')).toEqual(exScores);
+    expect(exScores[exScores.length - 1]).toBeGreaterThan(0);
+    // a replay of another chart paces nothing
+    expect(replayScores(c, { ...data, chartId: 'other' }, 'RESPECT')).toBeNull();
   });
 
   it('validates replay data', () => {

@@ -48,4 +48,24 @@ describe('TempoMap', () => {
     expect(tempo.msToBeat(1000)).toBeCloseTo(2, 9);
     expect(tempo.barLines(6000)).toEqual([0, 2000, 5000]); // the bar on the stop at its start, the next one later
   });
+
+  it('lists where the BPM changes (rounded; repeats and stops add none)', () => {
+    const tempo = new TempoMap({
+      offsetMs: 500,
+      tempoMap: [
+        { beat: 0, bpm: 120 },
+        { beat: 8, bpm: 120.2 },
+        { beat: 16, bpm: 180 },
+      ],
+      meter: [],
+      stops: [{ beat: 4, durationMs: 1000 }],
+    });
+    // beat 16: 500 + 8 beats at 500 ms + 8 at about 499 ms, and the stop before it
+    expect(tempo.bpmChanges()).toEqual([
+      { ms: 500, bpm: 120 },
+      { ms: tempo.beatToMs(16), bpm: 180 },
+    ]);
+    expect(tempo.beatToMs(16)).toBeCloseTo(500 + 4000 + (8 * 60000) / 120.2 + 1000, 9);
+    expect(new TempoMap({ offsetMs: 0, tempoMap: [{ beat: 0, bpm: 150 }], meter: [] }).bpmChanges()).toEqual([{ ms: 0, bpm: 150 }]);
+  });
 });

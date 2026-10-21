@@ -33,8 +33,10 @@ export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplaye
 /** Song select order (F4 steps through them). */
 export type SongSort = 'added' | 'title' | 'artist' | 'bpm';
 export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm'];
-/** OFF, the personal best of the chart, or a target rate in percent. */
-export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100';
+/** OFF, the personal best of the chart, a target rate in percent, or (EX-SCORE) a grade or the maximum. */
+export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100' | 'A' | 'AA' | 'AAA' | 'MAX';
+/** Opacities of the judgement and the combo (notes behind them show through). */
+export const JUDGEMENT_OPACITIES: readonly number[] = [1, 0.7, 0.4];
 
 export type GenStyle = 'balanced' | 'stream' | 'chord' | 'jack' | 'longnote' | 'technical' | 'melody';
 export type RhythmSource = 'auto' | 'drum' | 'bass' | 'melody' | 'vocal';
@@ -117,6 +119,10 @@ export interface Settings {
   /** time: fixed speed; beat: speed follows the chart BPM (BMS/DJMAX style soflan). */
   scrollMode: ScrollMode;
   judgePosition: JudgePosition;
+  /** Opacity of the judgement and the combo (one of JUDGEMENT_OPACITIES). */
+  judgementOpacity: number;
+  /** Counts of BREAK and of FAST / SLOW under the score panel. */
+  judgeCounter: boolean;
   /** A line across the track at every bar. */
   barLines: boolean;
   reducedFlash: boolean;
@@ -181,6 +187,8 @@ export const DEFAULT_SETTINGS: Settings = {
   keepVisibleTime: false,
   scrollMode: 'time',
   judgePosition: 'mid',
+  judgementOpacity: 1,
+  judgeCounter: false,
   barLines: true,
   reducedFlash: false,
   palette: 'default',
@@ -199,7 +207,7 @@ export const DEFAULT_SETTINGS: Settings = {
   songSort: 'added',
 };
 
-const PACEMAKERS: Pacemaker[] = ['OFF', 'BEST', '90', '95', '98', '99', '100'];
+const PACEMAKERS: Pacemaker[] = ['OFF', 'BEST', '90', '95', '98', '99', '100', 'A', 'AA', 'AAA', 'MAX'];
 
 function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
@@ -235,6 +243,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.keyBeamLength = num(s.keyBeamLength, 0, KEY_BEAM_MAX, d.keyBeamLength);
   s.scrollMode = pick(s.scrollMode, ['time', 'beat'] as ScrollMode[], d.scrollMode);
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
+  s.judgementOpacity = pick(s.judgementOpacity, JUDGEMENT_OPACITIES, d.judgementOpacity);
+  s.judgeCounter = s.judgeCounter === true;
   s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);

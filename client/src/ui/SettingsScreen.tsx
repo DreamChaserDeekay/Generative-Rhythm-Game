@@ -39,7 +39,8 @@ import {
 } from '../settings/settings';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
-import { ActionOption, Choice, NumberOption, pct, skinChoices, speedText, Toggle } from './optionRows';
+import { coverText, speedText } from './format';
+import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
 import { FEVER_LABELS, PACEMAKER_LABELS } from './PlayOptions';
 import { HintBar, TopBar } from './shell';
 
@@ -320,7 +321,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             max={MAX_COVER}
             step={0.01}
             bigStep={0.05}
-            format={pct}
+            format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { sudden: v }))}
             help="트랙 위쪽을 가려 노트가 나타나는 곳을 내립니다. 플레이 중 PageUp/PageDown."
           />
@@ -333,7 +334,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             max={MAX_COVER}
             step={0.01}
             bigStep={0.05}
-            format={pct}
+            format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { hidden: v }))}
             help="판정선 바로 위를 가립니다. 보이는 시간은 바뀌지 않습니다."
           />
@@ -346,7 +347,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             max={MAX_LIFT}
             step={0.01}
             bigStep={0.05}
-            format={pct}
+            format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { lift: v }))}
             help="판정선을 트랙 위로 올립니다. 플레이 중 Shift+PageUp/PageDown."
           />

@@ -33,6 +33,23 @@ describe('ScrollModel', () => {
     expect(s.z(1000, 1000)).toBe(-10);
   });
 
+  it('finds when an event lies a distance up the track (the inverse of distance)', () => {
+    for (const mode of ['time', 'beat'] as const) {
+      const s = model(change, { mode, lift: 0.2, rate: 0.75 });
+      for (const [eventMs, distance] of [
+        [3000, 32],
+        [17500, 10],
+        [16200, 25],
+      ]) {
+        const at = s.timeAt(eventMs, distance);
+        expect(s.distance(eventMs, at)).toBeCloseTo(distance, 6);
+      }
+    }
+    // a BPM twice as fast covers the distance in half the time
+    expect(model(change, { mode: 'beat' }).timeAt(18000, 40)).toBeCloseTo(17500, 6);
+    expect(model(change).timeAt(18000, 40)).toBeCloseTo(17000, 6);
+  });
+
   it('keeps the real-time speed at practice rates', () => {
     // At half speed 1000 song ms take 2000 real ms, so they cover twice the distance.
     expect(model(constant, { rate: 0.5 }).distance(2000, 1000)).toBeCloseTo(80, 9);

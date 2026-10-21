@@ -62,4 +62,10 @@ export class ScrollModel {
   z(eventMs: number, nowMs: number): number {
     return this.judgeZ - this.distance(eventMs, nowMs);
   }
+
+  /** The song time at which the event lies `distance` up the track from the judgement line. */
+  timeAt(eventMs: number, distance: number): number {
+    if (this.mode === 'time') return eventMs - distance / this.unitsPerSongMs;
+    return this.tempo.beatToMs(this.tempo.msToBeat(eventMs) - distance / (this.msPerMainBeat * this.unitsPerSongMs));
+  }
 }

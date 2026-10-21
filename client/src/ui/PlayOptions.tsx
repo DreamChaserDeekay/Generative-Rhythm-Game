@@ -24,7 +24,8 @@ import {
 import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
-import { Choice, NumberOption, pct, skinChoices, speedText } from './optionRows';
+import { coverText, speedText } from './format';
+import { Choice, NumberOption, pct, skinChoices } from './optionRows';
 
 export const STYLE_LABELS: Record<GenStyle, string> = {
   balanced: '균형',
@@ -55,6 +56,10 @@ export const PACEMAKER_LABELS: Record<Pacemaker, string> = {
   '98': '98%',
   '99': '99%',
   '100': '100%',
+  A: 'A',
+  AA: 'AA',
+  AAA: 'AAA',
+  MAX: 'MAX',
 };
 
 interface SettingsProps {
@@ -320,7 +325,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode }: SettingsPro
       max={max}
       step={0.01}
       bigStep={0.05}
-      format={pct}
+      format={coverText}
       onChange={(v) => onSettingsChange(withCovers(settings, { [key]: v }))}
       help={help}
     />
