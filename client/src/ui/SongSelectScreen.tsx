@@ -7,7 +7,8 @@ import { placementLabels } from '../engine/placement';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { TempoMap } from '../engine/tempo';
 import type { KeyModeId } from '../engine/types';
-import { SONG_FOLDERS, SONG_SORTS, type Settings, type SongFolder } from '../settings/settings';
+import type { PlayAction } from '../input/playKeys';
+import { bindingLabel, playKeysOf, SONG_FOLDERS, SONG_SORTS, songOffsetOf, withSongOffset, type Settings, type SongFolder } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { speedText } from './format';
 import { lampClass } from './lamps';
@@ -38,6 +39,12 @@ const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m
 
 /** The part of the detail column above the key modes: the song, or one of the two panels. */
 type Panel = 'none' | 'options' | 'info';
+
+/** The in-play keys of the song offset, as the song info names them. */
+function offsetKeysText(keys: Record<PlayAction, string>): string {
+  const pair = (down: PlayAction, up: PlayAction) => `${bindingLabel(keys[down])} / ${bindingLabel(keys[up])}`;
+  return `${pair('offsetDown', 'offsetUp')} (5ms씩 ${pair('offsetDownBig', 'offsetUpBig')})`;
+}
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000);
@@ -783,6 +790,9 @@ export function SongSelectScreen(props: Props) {
                 onEditChart={() => selected && chart && props.onEdit(chart, selected)}
                 onWatchBest={(id) => void watchBest(id)}
                 onPatch={patch}
+                songOffsetMs={songOffsetOf(settings, selected?.id)}
+                onSongOffset={(ms) => selected && onSettingsChange(withSongOffset(settings, selected.id, ms))}
+                songOffsetKeys={offsetKeysText(playKeysOf(settings))}
                 onReanalyze={() => void reanalyze()}
                 onUploadBga={(file) => void uploadBga(file)}
                 onRemoveBga={() => void removeBga()}

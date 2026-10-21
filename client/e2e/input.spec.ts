@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseSetting, playOptions, settingsTab } from './songSelect';
+import { chooseSetting, playOptions, settingsTab, songInfo } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -491,3 +491,22 @@ test('a controller in the gamepad settings: a run whose turntable keeps turning 
   expect(errors).toEqual([]);
 });
 
+test('the song info sets the song offset, and resets it', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '4K' });
+  const id = await demoSong(page);
+  await songInfo(page);
+  await page.getByTestId('song-offset-plus5').click();
+  await page.getByTestId('song-offset-plus1').click();
+  await page.getByTestId('song-offset-minus1').click();
+  await page.getByTestId('song-offset-plus1').click();
+  await expect(page.getByTestId('song-offset')).toHaveText('+6ms');
+  expect((await stored(page)).songOffsets).toEqual({ [id]: 6 });
+  // the keys that change it in play are named
+  await expect(page.getByTestId('song-offset-row').locator('xpath=following-sibling::p[1]')).toContainText('- / =');
+  await page.getByTestId('song-offset-reset').click();
+  await expect(page.getByTestId('song-offset')).toHaveText('0ms');
+  await expect(page.getByTestId('song-offset-reset')).toBeDisabled();
+  expect((await stored(page)).songOffsets).toEqual({});
+  expect(errors).toEqual([]);
+});

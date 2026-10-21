@@ -48,6 +48,11 @@ interface Props {
   onWatchBest: (scoreId: number) => void;
   /** Saves song settings; false when the server refused them (the error is shown). */
   onPatch: (body: SongPatch) => Promise<boolean>;
+  /** The song's own play offset (ms, kept in the settings) and its change. */
+  songOffsetMs: number;
+  onSongOffset: (ms: number) => void;
+  /** The in-play keys that change it (- / =, and the 5 ms steps). */
+  songOffsetKeys: string;
   onReanalyze: () => void;
   onUploadBga: (file: File) => void;
   onRemoveBga: () => void;
@@ -156,6 +161,24 @@ function SongTools(props: Props & { song: Song }) {
         <BpmInput onApply={(bpm) => void onPatch({ bpm })} disabled={!ready} />
         {song.overrides.bpm !== undefined && <button className="small" onClick={() => void onPatch({ clearBpm: true })}>자동으로</button>}
       </div>
+      <div className="row" data-testid="song-offset-row">
+        <span className="label">곡 오프셋</span>
+        {[-5, -1, 1, 5].map((d) => (
+          <button key={d} className="small" data-testid={`song-offset-${d > 0 ? 'plus' : 'minus'}${Math.abs(d)}`} onClick={() => props.onSongOffset(props.songOffsetMs + d)}>
+            {d > 0 ? `+${d}` : d}ms
+          </button>
+        ))}
+        <span className="value" data-testid="song-offset">
+          {props.songOffsetMs > 0 ? '+' : ''}
+          {props.songOffsetMs}ms
+        </span>
+        <button className="small" data-testid="song-offset-reset" disabled={props.songOffsetMs === 0} onClick={() => props.onSongOffset(0)}>
+          초기화
+        </button>
+      </div>
+      <p className="hint">
+        이 곡만 판정과 노트를 함께 늦추거나(+) 당깁니다. 기록과 채보는 그대로입니다. 플레이 중에 바꾸는 키: {props.songOffsetKeys}.
+      </p>
       <div className="row">
         <span className="label">첫 박 위치</span>
         {[-10, -1, 1, 10].map((d) => (
@@ -165,7 +188,7 @@ function SongTools(props: Props & { song: Song }) {
         ))}
         <span className="value">{song.overrides.offsetShiftMs ? `${song.overrides.offsetShiftMs > 0 ? '+' : ''}${song.overrides.offsetShiftMs}ms` : '자동'}</span>
       </div>
-      <p className="hint">비트가 어긋나 보이면 보정하세요. 보정하면 곡을 다시 분석하고 채보를 새로 만듭니다.</p>
+      <p className="hint">마디선과 채보가 음악의 박과 어긋나 보일 때 분석한 박을 옮깁니다. 곡을 다시 분석해 채보를 새로 만들어서, 기록은 새 채보에 따로 남습니다. 박은 맞는데 판정만 어긋나면 곡 오프셋을 쓰세요.</p>
       <div className="row">
         <span className="label">배경 영상</span>
         {song.hasBga || song.bgaYoutube ? (
