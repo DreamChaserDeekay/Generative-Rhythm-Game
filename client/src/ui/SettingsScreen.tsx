@@ -24,6 +24,7 @@ import {
   DEFAULT_SETTINGS,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
+  JUDGEMENT_OPACITIES,
   KEY_BEAM_MAX,
   keyLabel,
   MAX_COVER,
@@ -41,6 +42,7 @@ import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
 import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
+import { pacemakerChoices } from './playRules';
 import { FEVER_LABELS, PACEMAKER_LABELS } from './PlayOptions';
 import { HintBar, TopBar } from './shell';
 
@@ -232,9 +234,9 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             label="페이스메이커"
             testId="opt-pacemaker"
             value={settings.pacemaker}
-            options={(Object.keys(PACEMAKER_LABELS) as Pacemaker[]).map((p) => [p, PACEMAKER_LABELS[p]])}
+            options={pacemakerChoices(settings.ruleset, settings.pacemaker).map((p): [Pacemaker, string] => [p, PACEMAKER_LABELS[p]])}
             onChange={(p) => set('pacemaker', p)}
-            help="플레이 중 점수판에 목표 점수와의 차이를 보여 줍니다."
+            help="플레이 중 점수판에 화면의 점수와 같은 단위로 목표와의 차이를 보여 줍니다(EX-SCORE는 A·AA·AAA·MAX). 내 최고 기록은 그 판의 리플레이를 노트마다 따라가고, 리플레이가 없으면 정밀 %에서만 고르게 비교하며 다른 점수 규칙에서는 —로 둡니다."
           />
         </>
       );
@@ -292,6 +294,14 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             value={settings.showErrorMs}
             onChange={(v) => set('showErrorMs', v)}
             help="판정 아래에 몇 ms 빠르거나 늦었는지 보여 줍니다."
+          />
+          <Toggle
+            {...row}
+            label="판정 카운터"
+            testId="opt-judge-counter"
+            value={settings.judgeCounter}
+            onChange={(v) => set('judgeCounter', v)}
+            help="점수판 아래에 지금까지의 BREAK 수와 FAST·SLOW 수를 보여 줍니다."
           />
         </>
       );
@@ -445,6 +455,15 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             }
             onChange={(p) => set('judgePosition', p)}
             help="판정과 콤보가 트랙 위 어느 높이에 놓일지 정합니다."
+          />
+          <Choice
+            {...row}
+            label="판정·콤보 불투명도"
+            testId="opt-judge-opacity"
+            value={String(settings.judgementOpacity)}
+            options={JUDGEMENT_OPACITIES.map((v): [string, string] => [String(v), pct(v)])}
+            onChange={(v) => set('judgementOpacity', Number(v))}
+            help="판정 글자와 콤보 숫자를 얼마나 진하게 그릴지 정합니다. 낮추면 그 뒤로 지나가는 노트가 비쳐 보입니다."
           />
           <Toggle
             {...row}

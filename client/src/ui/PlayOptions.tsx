@@ -26,6 +26,7 @@ import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
 import { coverText, speedText } from './format';
 import { Choice, NumberOption, pct, skinChoices } from './optionRows';
+import { pacemakerChoices } from './playRules';
 
 export const STYLE_LABELS: Record<GenStyle, string> = {
   balanced: '균형',
@@ -106,7 +107,7 @@ export function PlayRulesPanel({ settings, onSettingsChange }: SettingsProps) {
       </div>
       <span className="label">페이스메이커</span>
       <select value={settings.pacemaker} onChange={(e) => set('pacemaker', e.target.value as Pacemaker)}>
-        {(Object.keys(PACEMAKER_LABELS) as Pacemaker[]).map((p) => (
+        {pacemakerChoices(settings.ruleset, settings.pacemaker).map((p) => (
           <option key={p} value={p}>
             {PACEMAKER_LABELS[p]}
           </option>

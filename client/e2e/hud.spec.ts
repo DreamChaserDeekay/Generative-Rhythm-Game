@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { autoplay, tool } from './songSelect';
+import { autoplay, chooseSetting, settingsTab, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -186,5 +186,44 @@ test('a long intro is skipped with Enter (again after a retry while READY shows)
   await expect(page.getByTestId('hud-ready')).toHaveText('READY', { timeout: 5000 });
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
+  expect(errors).toEqual([]);
+});
+
+test('the settings: judgement and combo opacity, the judge counter, and pacemaker targets by score rule', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-judge-opacity', '0.4');
+  await expect(page.getByTestId('opt-judge-opacity')).toContainText('40%');
+  await settingsTab(page, 'judge');
+  await chooseSetting(page, 'opt-judge-counter', 'true');
+  // the targets follow the score rule: grades under EX-SCORE, shares of the score otherwise
+  await settingsTab(page, 'play');
+  await chooseSetting(page, 'opt-pacemaker', '98');
+  await chooseSetting(page, 'opt-ruleset', 'EXSCORE');
+  await expect(page.getByTestId('opt-pacemaker')).toContainText('98%');
+  const seen: string[] = [];
+  const pacemaker = page.getByTestId('opt-pacemaker');
+  await pacemaker.focus();
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('ArrowRight');
+    seen.push((await pacemaker.getAttribute('data-value')) ?? '');
+  }
+  // from a share of the other rule the row steps into the grades and keeps to them
+  expect(seen).toEqual(['OFF', 'BEST', 'A', 'AA', 'AAA', 'MAX']);
+  await page.keyboard.press('ArrowLeft');
+  expect(await stored(page)).toMatchObject({ judgementOpacity: 0.4, judgeCounter: true, ruleset: 'EXSCORE', pacemaker: 'AAA' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('hud-misses')).toHaveText('0', { timeout: 30_000 });
+  await expect(page.locator('.hud-pace-label')).toHaveText('vs AAA');
+  await expect(page.locator('.hud-combo')).toHaveCSS('opacity', '0.4');
+  await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 20_000 }).toBeGreaterThan(2);
+  // autoplay is perfect: ahead of an AAA pace by the EX it is over 8/9 of the most
+  await expect(page.getByTestId('hud-pace')).toHaveText(/^\+\d/);
   expect(errors).toEqual([]);
 });
