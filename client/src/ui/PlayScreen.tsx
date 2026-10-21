@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { getAudioEngine, type BufferPlacement } from '../audio/AudioEngine';
 import type { KeysoundBank } from '../audio/keysounds';
@@ -107,6 +107,13 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     // The play screen is remounted (keyed) for every run, so its props are fixed for its lifetime.
   }, []);
 
+  // Leaving a looped practice shows its last loop's result (never recorded), as a run that ends does.
+  const leave = useCallback(() => {
+    const last = controllerRef.current?.lastLoopOutcome() ?? null;
+    if (last) onFinish(last);
+    else onQuit();
+  }, [onFinish, onQuit]);
+
   // The pause menu: R and Q, and ↑↓ between its buttons as in the other menus (a pad's d-pad
   // comes as the same keys; SPEED is not changed while paused).
   const menuRef = useRef<HTMLDivElement>(null);
@@ -114,7 +121,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     if (!paused) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyR') controllerRef.current?.restart();
-      if (e.code === 'KeyQ') onQuit();
+      if (e.code === 'KeyQ') leave();
       if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         const buttons = [...(menuRef.current?.querySelectorAll('button') ?? [])];
         if (buttons.length === 0) return;
@@ -126,7 +133,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paused, onQuit]);
+  }, [paused, leave]);
 
   // Loading (the first stem split can take a while) and a load error can be left with Esc.
   const waiting = loading || error !== null;
@@ -170,7 +177,7 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
           <h2>일시정지</h2>
           <button onClick={() => controllerRef.current?.resume()} autoFocus>계속하기 <kbd>Esc</kbd></button>
           <button onClick={() => controllerRef.current?.restart()}>다시 하기 <kbd>R</kbd></button>
-          <button onClick={onQuit}>나가기 <kbd>Q</kbd></button>
+          <button onClick={leave}>나가기 <kbd>Q</kbd></button>
         </div>
       )}
     </div>

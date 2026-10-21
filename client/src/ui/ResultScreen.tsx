@@ -257,7 +257,11 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               )}
               {mode && <span className="chip">{mode}</span>}
             </div>
-            {practice && <p className="record-note">연습 모드 · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다</p>}
+            {practice && (
+              <p className="record-note">
+                연습 모드{outcome.loop ? ` · ${outcome.loop}번째 반복` : ''} · {practice.rate.toFixed(2)}배속 · 기록되지 않습니다
+              </p>
+            )}
             {/* the record's place is kept from the start, so nothing moves when it shows */}
             {recording && <div className="record-slot">{save && phase === 2 && <RecordTags save={save} />}</div>}
           </div>

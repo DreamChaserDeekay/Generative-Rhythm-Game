@@ -74,6 +74,8 @@ export interface PlayOutcome {
   chart: Chart;
   placement: PlacementResult & { label: string };
   practice: PracticeOptions | null;
+  /** The loop of a looped practice this is the result of (shown on leaving it). */
+  loop?: number;
   /** The inputs of this play (null for autoplay, practice, replays and the sync test). */
   replay: ReplayData | null;
 }
@@ -193,6 +195,8 @@ export class PlayController {
   private skipTo: number | null = null;
   private resumeUntil = -Infinity;
   private loops = 0;
+  /** What the last loop of a looped practice came to (leaving shows it). */
+  private lastLoop: PlayOutcome | null = null;
   private raf = 0;
   /** The renderer's hudVersion the HUD was last laid for. */
   private hudVersion = -1;
@@ -743,12 +747,20 @@ export class PlayController {
     return `PRACTICE ${this.rate.toFixed(2)}x · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
   }
 
+  /** The result of the last loop a looped practice finished (null: none yet, or no such practice). */
+  lastLoopOutcome(): PlayOutcome | null {
+    return this.lastLoop;
+  }
+
   private beginEnding(perfNow: number, failed: boolean): void {
     if (this.state === 'ending' || this.state === 'done') return;
     if (this.practice?.loop && !failed) {
+      // the loop's accuracy and timing for a moment as the next one starts, and kept for leaving
+      const result = this.session.result();
       this.loops++;
+      this.lastLoop = { result, chart: this.chart, placement: this.placement, practice: this.practice, loop: this.loops, replay: null };
       this.restart();
-      this.hud.showToast(this.practiceLabel() ?? '', perfNow);
+      this.hud.showToast(`LOOP ${this.loops} · RATE ${(Math.floor(result.rate * 100) / 100).toFixed(2)}% · FAST ${result.fast} · SLOW ${result.slow}`, perfNow);
       return;
     }
     this.state = 'ending';

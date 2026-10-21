@@ -213,7 +213,7 @@ test('a practice run gives three seconds and READY before its first note, every 
       () =>
         page.evaluate(() => {
           const log = (window as unknown as { __hud: string[] }).__hud;
-          const at = log.findIndex((line) => line.includes('LOOP 2'));
+          const at = log.findIndex((line) => line.includes('LOOP 1 · RATE'));
           return at >= 0 && log.slice(at).includes('hud-ready:READY');
         }),
       { timeout: 60_000 },
@@ -222,7 +222,7 @@ test('a practice run gives three seconds and READY before its first note, every 
   expect(errors).toEqual([]);
 });
 
-test('a practice is kept for its chart across a play; its segment moves by key (a bar, Shift a bar longer or shorter, a section by its button)', async ({ page }) => {
+test('a practice is kept for its chart across a play; its segment moves by key (a bar, Shift a bar longer or shorter, a section by its button); each loop names its RATE and FAST / SLOW, and leaving shows the last loop', async ({ page }) => {
   const errors = trackErrors(page);
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
   await demoSong(page);
@@ -259,11 +259,16 @@ test('a practice is kept for its chart across a play; its segment moves by key (
   await page.keyboard.press('Escape');
   await play(page);
 
-  // a loop goes by, and the play is left
-  await expect(page.getByTestId('hud-toast')).toContainText('LOOP 2', { timeout: 60_000 });
+  // each loop names how it went as the next one starts
+  await expect(page.getByTestId('hud-toast')).toHaveText(/^LOOP 1 · RATE \d+\.\d\d% · FAST \d+ · SLOW \d+$/, { timeout: 60_000 });
+  // leaving shows the last loop's result, not recorded
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('result-screen')).toBeVisible();
+  await expect(page.getByTestId('result-lamp')).toHaveText('PRACTICE');
+  await expect(page.locator('.record-note')).toContainText(/\d+번째 반복/);
+  await page.getByTestId('result-back').click();
 
   // back on the song select the practice is the chart's still
   await expect(page.getByTestId('play-button')).toContainText('연습 시작');

@@ -356,7 +356,14 @@ export function PracticePanel({ practice, onChange, onHelp }: { practice: Practi
         onChange={(rate) => onChange({ ...practice, rate })}
         help="음정은 그대로 두고 빠르기만 바꿉니다."
       />
-      <Toggle {...row} label="구간 반복" testId="practice-loop" value={practice.loop} onChange={(loop) => onChange({ ...practice, loop })} help="구간이 끝나면 처음부터 다시 칩니다. 끝내려면 Esc → 나가기." />
+      <Toggle
+        {...row}
+        label="구간 반복"
+        testId="practice-loop"
+        value={practice.loop}
+        onChange={(loop) => onChange({ ...practice, loop })}
+        help="구간이 끝나면 처음부터 다시 칩니다. 반복마다 RATE와 FAST·SLOW가 잠깐 나오고, Esc → 나가기로 끝내면 마지막 반복의 결과를 봅니다."
+      />
     </div>
   );
 }
