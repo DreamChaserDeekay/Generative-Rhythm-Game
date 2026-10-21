@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { playOptions } from './songSelect';
+import { chooseSetting, playOptions, settingsTab } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -302,3 +302,192 @@ test('a controller without the standard mapping: no menu keys from its lanes or 
   await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('key settings: lanes bound in a run, a second key and its clearing, the rollover test with it, the in-play keys and their clashes', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '4K' });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'keys');
+
+  // 차례로 지정: one key a lane from the first, then it stops by itself
+  await page.getByTestId('keys-run-4K').click();
+  for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF']) await page.keyboard.press(key);
+  await expect(page.getByTestId('keys-4K').locator('.key-cap:not(.second)')).toHaveText(['A', 'S', 'D', 'F']);
+  await expect(page.getByTestId('keys-run-4K')).toHaveText('차례로 지정');
+  // a run of 5K, whose middle lane is Space: its release does not start the capture again
+  await page.getByTestId('keys-run-5K').click();
+  for (const key of ['KeyD', 'KeyF', 'Space', 'KeyJ', 'KeyK']) await page.keyboard.press(key);
+  await expect(page.getByTestId('keys-5K').locator('.key-cap:not(.second)')).toHaveText(['D', 'F', 'Space', 'J', 'K']);
+  await expect(page.getByTestId('keys-run-5K')).toHaveText('차례로 지정');
+  expect((await stored(page)).bindings).toMatchObject({ '4K': ['KeyA', 'KeyS', 'KeyD', 'KeyF'] });
+
+  // a second key for lane 1; a lane's only key is no other lane's second key; Backspace clears it
+  await page.getByTestId('key2-4K-0').click();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('key2-4K-0')).toHaveText('Q');
+  expect((await stored(page)).secondBindings).toEqual({ '4K': ['KeyQ', null, null, null] });
+  await page.getByTestId('key2-4K-1').click();
+  await page.keyboard.press('KeyD');
+  await expect(page.getByTestId('key2-4K-1')).toHaveText('…');
+  await expect(page.getByTestId('settings-help')).toContainText('하나뿐인 키');
+  // its own first key is named as such
+  await page.keyboard.press('KeyS');
+  await expect(page.getByTestId('settings-help')).toContainText('이 레인의 첫 키');
+  await page.keyboard.press('Escape');
+  // an empty slot is drawn empty (a dash is the Minus key's name)
+  await expect(page.getByTestId('key2-4K-1')).toHaveText('');
+  await expect(page.getByTestId('key2-4K-1')).toHaveClass(/empty/);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  await page.getByTestId('key2-4K-0').click();
+  await page.keyboard.press('Backspace');
+  await expect(page.getByTestId('key2-4K-0')).toHaveText('');
+  expect((await stored(page)).secondBindings).toEqual({});
+  await page.getByTestId('key2-4K-0').click();
+  await page.keyboard.press('KeyQ');
+
+  // the rollover test counts the second key too; Esc closes it, not the settings
+  await page.getByTestId('ghost-4K').click();
+  for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyQ']) await page.keyboard.down(key);
+  await expect(page.getByTestId('ghost-result')).toContainText('5 / 5');
+  for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyQ']) await page.keyboard.up(key);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('ghost-test')).toHaveCount(0);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+
+  // a lane on Enter is marked against FEVER and the skip; L-Shift lanes get the Windows note
+  await page.getByTestId('key-4K-3').click();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('keys-clash-4K')).toContainText('Enter');
+  await expect(page.getByTestId('play-key-fever')).toHaveClass(/clash/);
+  await expect(page.getByTestId('play-key-clash-fever')).toContainText('4K');
+  await expect(page.getByTestId('keys-note-7K+1S')).toContainText('고정 키');
+  // the bigger SPEED and offset steps are on Shift: the 7K+1S scratch on L-Shift and both FX side lanes take them
+  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift SPEED −0.5·SPEED +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
+  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('R-Shift');
+  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift SPEED −0.5');
+  await expect(page.getByTestId('play-key-speedUpBig')).toHaveClass(/clash/);
+  await expect(page.getByTestId('play-key-clash-speedUpBig')).toContainText('7K+1S');
+  // moved off Shift, the scratch takes them no more (a binding may have Shift too)
+  await page.getByTestId('play-key-speedUpBig').click();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(page.getByTestId('play-key-speedUpBig')).toHaveText('Alt+↑');
+  await page.getByTestId('play-key-speedDownBig').click();
+  await page.keyboard.press('Control+Shift+ArrowDown');
+  await expect(page.getByTestId('play-key-speedDownBig')).toHaveText('Ctrl+Shift+↓');
+  await expect(page.getByTestId('play-key-speedUpBig')).not.toHaveClass(/clash/);
+  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift SPEED −0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
+
+  // in-play keys: with Alt, a modifier alone; two on one key are marked; 기본값 brings them back
+  await page.getByTestId('play-key-retry').click();
+  await page.keyboard.press('Alt+KeyR');
+  await expect(page.getByTestId('play-key-retry')).toHaveText('Alt+R');
+  await page.getByTestId('play-key-fever').click();
+  await page.keyboard.press('ControlRight');
+  await expect(page.getByTestId('play-key-fever')).toHaveText('R-Ctrl');
+  await page.getByTestId('play-key-covers').click();
+  await page.keyboard.press('Alt+KeyR');
+  await expect(page.getByTestId('play-key-clash-covers')).toContainText('다시 하기');
+  expect((await stored(page)).playKeys).toEqual({ speedUpBig: 'Alt+ArrowUp', speedDownBig: 'Ctrl+Shift+ArrowDown', retry: 'Alt+KeyR', fever: 'ControlRight', covers: 'Alt+KeyR' });
+  await page.getByTestId('play-keys-default').click();
+  expect((await stored(page)).playKeys).toEqual({});
+  expect(errors).toEqual([]);
+});
+
+test('gamepad settings: the turntable, lanes bound in a run, the play buttons with a clash, a menu direction from a turn; pausing when the window is left', async ({ page }) => {
+  const errors = trackErrors(page);
+  const pad = await plugPad(page, 'standard');
+  await startWith(page, { lastKeyMode: '4K' });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'play');
+  await chooseSetting(page, 'opt-pause-on-blur', 'false');
+  await settingsTab(page, 'pad');
+  await chooseSetting(page, 'opt-tt-steps', '2');
+  await chooseSetting(page, 'opt-tt-release', '150');
+
+  await page.getByTestId('pad-run-4K').click();
+  for (const b of [PAD.B0, PAD.B1, PAD.B2, PAD.B3]) {
+    await pad.button(b, true);
+    await pad.button(b, false);
+  }
+  await expect(page.getByTestId('pad-run-4K')).toHaveText('차례로 지정');
+  // Start on a lane's button: marked, the lane takes it
+  await page.getByTestId('pad-play-start').click();
+  await pad.button(PAD.B2, true);
+  await pad.button(PAD.B2, false);
+  await expect(page.getByTestId('pad-play-note-start')).toContainText('4K 레인과 겹침');
+  await page.getByTestId('pad-play-fever').click();
+  await pad.button(5, true);
+  await pad.button(5, false);
+  await expect(page.getByTestId('pad-play-fever')).toHaveText('버튼 5');
+  // a menu direction from a turn of an axis one way, or a push of a d-pad that comes as an axis
+  await page.getByTestId('pad-menu-up').click();
+  await pad.axis(2, -0.05);
+  await expect(page.getByTestId('pad-menu-up')).toHaveText('턴테이블 2 −');
+  await page.getByTestId('pad-menu-down').click();
+  await pad.axis(1, 1);
+  await expect(page.getByTestId('pad-menu-down')).toHaveText('축 1+');
+  await pad.axis(1, 0);
+  expect(await stored(page)).toMatchObject({
+    pauseOnBlur: false,
+    turntableSteps: 2,
+    turntableReleaseMs: 150,
+    padBindings: { '4K': ['Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3'] },
+    padPlay: { start: 'Pad:B2', fever: 'Pad:B5' },
+    padMenu: { up: 'Pad:TT2-', down: 'Pad:A1+' },
+  });
+  await page.getByTestId('pad-play-default').click();
+  expect((await stored(page)).padPlay).toEqual({});
+  expect(errors).toEqual([]);
+});
+
+test('a controller in the gamepad settings: a run whose turntable keeps turning binds it once, and a d-pad on axes is a menu direction', async ({ page }) => {
+  const errors = trackErrors(page);
+  const pad = await plugPad(page, '', [0.4, 0, 0, 0]);
+  await startWith(page, { lastKeyMode: '7K+1S' });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'pad');
+
+  // 차례로 지정: a quarter turn of the turntable spread over about 200 ms, one 8-bit step at a time
+  // (past the middle of its axis on the way), then keys 1 to 7
+  await page.getByTestId('pad-run-7K+1S').click();
+  await page.evaluate(async () => {
+    const p = (window as unknown as { __pad: { axes: number[]; timestamp: number } }).__pad;
+    for (let i = 1; i <= 60; i++) {
+      p.axes[0] = 0.4 + (i * 2) / 255;
+      p.timestamp = performance.now();
+      await new Promise((r) => setTimeout(r, 3));
+    }
+  });
+  await page.waitForTimeout(300);
+  for (let b = 0; b < 7; b++) {
+    await pad.button(b, true);
+    await pad.button(b, false);
+  }
+  await expect(page.getByTestId('pad-run-7K+1S')).toHaveText('차례로 지정');
+  expect((await stored(page)).padBindings).toEqual({ '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] });
+
+  // a d-pad that comes as an axis (a generic controller): its push is the direction, and a push is one step
+  await page.getByTestId('pad-menu-up').click();
+  await pad.axis(3, -1);
+  await expect(page.getByTestId('pad-menu-up')).toHaveText('축 3-');
+  await pad.axis(3, 0);
+  await page.getByTestId('pad-menu-down').click();
+  await pad.axis(3, 1);
+  await expect(page.getByTestId('pad-menu-down')).toHaveText('축 3+');
+  await pad.axis(3, 0);
+  expect((await stored(page)).padMenu).toEqual({ up: 'Pad:A3-', down: 'Pad:A3+' });
+  // where the arrow key takes the focus from 아래, one push of the d-pad takes it too, and no further
+  await page.getByTestId('pad-menu-down').focus();
+  await page.keyboard.press('ArrowDown');
+  const next = await page.evaluate(() => document.activeElement?.getAttribute('data-testid'));
+  await page.getByTestId('pad-menu-down').focus();
+  await pad.axis(3, 1);
+  await pad.axis(3, 0);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(next);
+  expect(errors).toEqual([]);
+});
+

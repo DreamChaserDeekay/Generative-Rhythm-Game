@@ -2403,6 +2403,117 @@ button.opt:active:not(:disabled) {
   background: color-mix(in srgb, var(--g-high) 12%, var(--surface));
 }
 
+/* a lane's keys over its second keys, column by column */
+.opt-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--lanes), minmax(48px, auto));
+  grid-template-rows: var(--control-h) 32px;
+  gap: var(--sp-1);
+}
+
+.key-grid .key-cap {
+  white-space: nowrap;
+}
+
+/* the mode's name by its keys, "보조 키" by its second keys */
+.opt-block > .key-row-names {
+  display: grid;
+  grid-template-rows: var(--control-h) 32px;
+  row-gap: var(--sp-1);
+  align-items: center;
+  line-height: 1.2;
+}
+
+.key-grid-label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.key-cap.second {
+  min-height: 32px;
+  font-size: var(--fs-label);
+  border-bottom-width: 2px;
+}
+
+.key-cap.second:not(.active) {
+  color: var(--text-dim);
+}
+
+/* nothing bound: an empty slot (a dash would read as the Minus key) */
+.key-cap.empty:not(.active) {
+  background: transparent;
+}
+
+/* a key a lane takes from an in-play function, or two functions on one key */
+.key-cap.clash {
+  border-color: var(--g-low);
+}
+
+.key-note {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.key-note.clash {
+  color: var(--g-low);
+}
+
+/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a row */
+.play-key-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-1) var(--sp-6);
+  margin-bottom: var(--sp-2);
+}
+
+.play-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.key-cap.fixed {
+  color: var(--text-dim);
+}
+
+/* inferred from the lanes until assigned */
+.key-cap.inferred:not(.active) {
+  color: var(--text-dim);
+  border-style: dashed;
+  border-bottom-style: solid;
+}
+
+.pad-row {
+  display: grid;
+  grid-template-columns: 72px auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+
+.pad-row-name {
+  font-weight: 600;
+}
+
+.pad-row-note {
+  color: var(--text-dim);
+}
+
+.pad-row-note.clash {
+  color: var(--g-low);
+}
+
 .ghost-test {
   flex-shrink: 0;
   margin: var(--sp-2) 0;
