@@ -512,6 +512,10 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
     cfg = pattern_config()["roles"]
     n = len(hands)
     split_at = cfg["handSplitSkill8K"] if params.key_mode == "8K" else cfg["handSplitSkill"]
+    # a number, or {system: number} ("*" for the others)
+    melody_at = cfg["melodySkill"]
+    if isinstance(melody_at, dict):
+        melody_at = melody_at.get(params.system, melody_at.get("*", 0.35))
     groups: list[Any] = []
     for p in phrases:
         key = p.group if p.group is not None else p.section
@@ -520,7 +524,7 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
     out: list[dict[str, tuple[int, int]] | None] = []
     for p in phrases:
         layers = [layer_of(slots[i]) for i in p.slots]
-        if params.skill < cfg["melodySkill"] or min(layers.count("rhythm"), layers.count("melody")) < 2:
+        if params.skill < melody_at or min(layers.count("rhythm"), layers.count("melody")) < 2:
             out.append(None)
             continue
         if params.skill >= split_at and n >= 5:
