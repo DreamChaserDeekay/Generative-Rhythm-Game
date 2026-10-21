@@ -35,6 +35,23 @@ def test_health(client: TestClient) -> None:
     assert body["ok"] and "4K" in body["keyModes"] and "MASTER" in body["difficulties"]
 
 
+def test_shutdown_only_with_the_desktop_apps_token(tmp_path, monkeypatch) -> None:
+    import rhythm_server.api.app as app_module
+
+    stops: list[bool] = []
+    monkeypatch.setattr(app_module, "_exit_soon", lambda: stops.append(True))
+    # a server the app did not start has no such route
+    with TestClient(create_app(tmp_path / "plain", client_dist=None, synchronous_jobs=True)) as c:
+        assert c.post("/api/shutdown", headers={"X-Shutdown-Token": "x"}).status_code in (404, 405)
+    with TestClient(create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True, shutdown_token="s3cret")) as c:
+        assert c.post("/api/shutdown").status_code == 403
+        assert c.post("/api/shutdown", headers={"X-Shutdown-Token": "guess"}).status_code == 403
+        assert stops == []
+        r = c.post("/api/shutdown", headers={"X-Shutdown-Token": "s3cret"})
+        assert r.status_code == 202 and r.json() == {"ok": True}
+        assert stops == [True]
+
+
 def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     r = client.post("/api/songs", files={"file": ("groove.wav", wav_bytes(), "audio/wav")})
     assert r.status_code == 201, r.text

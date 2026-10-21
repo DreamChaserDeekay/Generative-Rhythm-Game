@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
+import os
 import random
 import re
 import shutil
@@ -15,7 +17,7 @@ from typing import Any, Literal
 
 from urllib.parse import parse_qs, quote, urlparse
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -148,7 +150,19 @@ BRIEF_CHARTS_KEPT = 12
 BRIEF_METAS_KEPT = 1000
 
 
-def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST, synchronous_jobs: bool = False) -> FastAPI:
+def _exit_soon() -> None:
+    """Ends the process a moment after the response has gone out (as the desktop app's own stop does)."""
+    threading.Timer(0.2, os._exit, (0,)).start()
+
+
+def create_app(
+    root: Path | None = None,
+    client_dist: Path | None = CLIENT_DIST,
+    synchronous_jobs: bool = False,
+    shutdown_token: str | None = None,
+) -> FastAPI:
+    """`shutdown_token`: the desktop app's, for POST /api/shutdown (a later launch stops the server
+    an earlier one left behind on its port); None: no such route."""
     library = Library(root or data_dir())
     # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
     queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id: ensure_stems(song_id))
@@ -224,6 +238,15 @@ def create_app(root: Path | None = None, client_dist: Path | None = CLIENT_DIST,
             "backends": backend_status(),
             "stems": list(STEM_NAMES),
         }
+
+    if shutdown_token:
+
+        @app.post("/api/shutdown", status_code=202)
+        def shutdown(x_shutdown_token: str = Header("")) -> dict[str, Any]:
+            if not hmac.compare_digest(x_shutdown_token.encode(), shutdown_token.encode()):
+                raise HTTPException(403, "토큰이 맞지 않습니다")
+            _exit_soon()
+            return {"ok": True}
 
     @app.get("/api/songs")
     def list_songs() -> dict[str, Any]:

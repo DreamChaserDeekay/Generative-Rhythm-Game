@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
-    "dist:dir": "electron-builder --dir"
+    "dist:dir": "electron-builder --dir",
+    "test": "node --test"
   },
   "devDependencies": {
     "electron": "44.5.1",
@@ -23,6 +24,8 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "windowState.js",
       "package.json"
     ],
     "extraResources": [
