@@ -5,6 +5,7 @@ import { placementIds, placementLabels } from '../engine/placement';
 import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
 import {
+  bindingLabel,
   clampHiSpeed,
   DEFAULT_GENERATION,
   GEN_STYLES,
@@ -13,6 +14,7 @@ import {
   KEY_BEAM_MAX,
   MAX_COVER,
   MAX_LIFT,
+  playKeysOf,
   RHYTHM_SOURCES,
   withCovers,
   type GenerationPrefs,
@@ -46,7 +48,11 @@ const RHYTHM_LABELS: Record<RhythmSource, string> = {
   vocal: '보컬',
 };
 
-export const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동 (Enter)', OFF: '끔' };
+export const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
+/** A FEVER mode's name; the manual one with the key that fires it. */
+export function feverLabel(mode: FeverMode, settings: Pick<Settings, 'playKeys'>): string {
+  return mode === 'MANUAL' ? `수동 (${bindingLabel(playKeysOf(settings).fever)})` : FEVER_LABELS[mode];
+}
 /** FEVER on the song select's option chips. */
 export const FEVER_SHORT: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
 export const PACEMAKER_LABELS: Record<Pacemaker, string> = {
@@ -93,7 +99,7 @@ export function PlayRulesPanel({ settings, onSettingsChange }: SettingsProps) {
       <div className="segmented">
         {(Object.keys(FEVER_LABELS) as FeverMode[]).map((m) => (
           <button key={m} className={settings.fever === m ? 'active' : ''} onClick={() => set('fever', m)}>
-            {FEVER_LABELS[m]}
+            {feverLabel(m, settings)}
           </button>
         ))}
       </div>

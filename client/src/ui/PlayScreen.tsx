@@ -9,11 +9,12 @@ import { GamepadMenuBridge } from '../input/gamepad';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
 import { styleOf } from '../render/TrackRenderer';
-import type { Settings } from '../settings/settings';
+import { padPlayOf, songOffsetOf, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { loadHudFont } from './Hud';
 import { LoadingCard } from './LoadingCard';
 import { PlayController, type PlayOutcome } from './PlayController';
+import { practicePrerollMs } from './practiceLead';
 
 interface Props {
   request: PlayRequest;
@@ -73,9 +74,14 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         let buffer = loaded;
         let stems = buffer && loadedStems ? loadedStems : new Map<StemName, AudioBuffer>();
         let bufferPlacement: BufferPlacement = { originMs: 0, rate: 1 };
-        if (request.practice && buffer) {
-          setLoadingText(request.practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
-          ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, request.practice, stems));
+        const practice = request.practice;
+        if (practice && buffer) {
+          setLoadingText(practice.rate !== 1 ? '연습용 음원 만드는 중…' : '불러오는 중…');
+          const { chart } = request;
+          const visual = settings.visualOffsetMs * practice.rate - songOffsetOf(settings, chart.meta.songId);
+          const durationMs = Math.max(buffer.duration * 1000, chart.meta.durationMs ?? 0);
+          const prerollMs = practicePrerollMs(chart, practice, settings.scrollMode, durationMs, visual);
+          ({ buffer, stems, placement: bufferPlacement } = await practiceAudio(engine.ctx, buffer, practice, stems, prerollMs));
         }
         const [art, , bestReplay] = await Promise.all([artLoad, fontLoad, bestReplayLoad]);
         if (cancelled || !canvasRef.current || !hudRef.current || !bgRef.current) {
@@ -136,14 +142,16 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   }, [waiting, onQuit]);
 
   // The pad works these menus too: B is Esc, A presses the focused button, the d-pad moves
-  // between them. While paused, Start stays the play screen's own resume key.
+  // between them. While paused, Start and Select stay the play screen's own: Start resumes, and
+  // Select is no Esc there (it would resume before Select + Start retries).
   const menu = waiting || paused;
+  const { start, select } = padPlayOf(settings);
   useEffect(() => {
     if (!menu) return;
-    const bridge = new GamepadMenuBridge({ ignore: paused ? ['Pad:B9'] : [] });
+    const bridge = new GamepadMenuBridge({ ignore: paused ? [start, select].filter((c): c is string => c !== null) : [] });
     bridge.start();
     return () => bridge.stop();
-  }, [menu, paused]);
+  }, [menu, paused, start, select]);
 
   return (
     <div className="play-screen" data-testid="play-screen">

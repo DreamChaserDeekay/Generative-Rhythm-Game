@@ -8,13 +8,12 @@ export interface PracticeSegment {
   rate: number;
 }
 
-/** Music kept before A and after B so the lead-in and the last long notes are audible. */
-const PREROLL_MS = 4000;
+/** Music kept after B so the last long notes are audible (before A: what the lead-in needs, see practicePrerollMs). */
 const TAIL_MS = 2000;
 
 /**
- * Audio for a practice run: the A–B segment (plus pre-roll), time-stretched off the main thread
- * when the speed is not 1. The keysound stems are stretched together with the mix (one shared
+ * Audio for a practice run: the A–B segment (and `prerollMs` of the song before A, song ms),
+ * time-stretched off the main thread when the speed is not 1. The keysound stems are stretched together with the mix (one shared
  * alignment), so they stay sample-aligned with it. Returns where the new buffers sit on the song
  * timeline.
  */
@@ -22,12 +21,13 @@ export async function practiceAudio<K>(
   ctx: BaseAudioContext,
   source: AudioBuffer,
   segment: PracticeSegment,
-  stems: ReadonlyMap<K, AudioBuffer> = new Map(),
+  stems: ReadonlyMap<K, AudioBuffer>,
+  prerollMs: number,
 ): Promise<{ buffer: AudioBuffer; stems: Map<K, AudioBuffer>; placement: BufferPlacement }> {
   const aligned = [...stems].filter(([, b]) => b.length === source.length);
   if (Math.abs(segment.rate - 1) < 1e-6) return { buffer: source, stems: new Map(aligned), placement: { originMs: 0, rate: 1 } };
   const sr = source.sampleRate;
-  const from = Math.max(0, Math.floor(((segment.startMs - PREROLL_MS) / 1000) * sr));
+  const from = Math.max(0, Math.floor(((segment.startMs - prerollMs) / 1000) * sr));
   const to = Math.min(source.length, Math.ceil(((segment.endMs + TAIL_MS) / 1000) * sr));
   const cut = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c).slice(from, Math.max(from + 1, to)));
   const mixChannels = cut(source);

@@ -1,10 +1,10 @@
 {
-  "description": "게임패드·전용 컨트롤러 입력. 게임패드 API는 이벤트 없이 상태를 읽어야(폴링) 해서, 화면 프레임(약 16ms)마다 읽으면 그만큼 판정 시각이 뭉개진다. 그래서 프레임과 따로 pollIntervalMs마다 읽고(브라우저가 실제로 허용하는 최소 간격은 보통 4ms), 판정 시각에는 브라우저가 패드 신호를 받은 시각(Gamepad.timestamp)을 쓴다. 그 값이 maxTimestampAgeMs보다 오래됐거나 미래면 읽은 시각을 쓴다. axisThreshold: 스틱·트리거를 방향 키로 쓸 때 눌림으로 보는 기울기. turntable: 축 하나를 턴테이블로 쓸 때 한 번 읽는 사이 이만큼(deltaThreshold) 넘게 움직이면 스크래치를 누르고, 방향이 바뀌면 다시 누르고, releaseMs 동안 멈춰 있으면 뗀다. menu: 메뉴 화면에서 십자키·스틱을 방향키로 쓸 때 처음 반복까지 repeatDelayMs, 이후 repeatMs 간격. 누르고 있는 시간은 화면 프레임마다 세고 프레임 하나는 maxFrameMs까지만 세서, 화면이 바빠 패드를 못 읽는 사이에 뗀 버튼이 반복되지 않는다.",
+  "description": "게임패드·전용 컨트롤러 입력. 게임패드 API는 이벤트 없이 상태를 읽어야(폴링) 해서, 화면 프레임(약 16ms)마다 읽으면 그만큼 판정 시각이 뭉개진다. 그래서 프레임과 따로 pollIntervalMs마다 읽고(브라우저가 실제로 허용하는 최소 간격은 보통 4ms), 판정 시각에는 브라우저가 패드 신호를 받은 시각(Gamepad.timestamp)을 쓴다. 그 값이 maxTimestampAgeMs보다 오래됐거나 미래면 읽은 시각을 쓴다. axisThreshold: 스틱·트리거를 방향 키로 쓸 때 눌림으로 보는 기울기. turntable: 축 하나를 턴테이블로 쓸 때, 멈춰 있다가 가장 멀리 간 곳보다 더 간 양이 step(8비트 축 한 칸, 2/255)의 steps배가 되면 스크래치를 누르고, 그곳에서 반대로 그만큼(적어도 두 칸) 돌아오면 다시 누르고, 더 가지 않은 채 releaseMs가 지나면 뗀다. 멈춘 엔코더가 한 칸 앞뒤로 떨리는 것은 움직임으로 치지 않는다. steps와 releaseMs는 설정의 기본값이다(게임패드 탭에서 바꾼다). menu: 메뉴 화면에서 십자키·스틱을 방향키로 쓸 때 처음 반복까지 repeatDelayMs, 이후 repeatMs 간격. 누르고 있는 시간은 화면 프레임마다 세고 프레임 하나는 maxFrameMs까지만 세서, 화면이 바빠 패드를 못 읽는 사이에 뗀 버튼이 반복되지 않는다. 표준 배치가 아닌 패드(전용 컨트롤러)의 턴테이블·축을 메뉴의 방향으로 쓸 때는 위치가 아니라 움직인 양으로, axisStep만큼 움직일 때마다 한 칸씩 보낸다. 축으로 오는 십자키를 방향으로 지정하면 누르는 동안 방향키가 된다.",
   "gamepad": {
     "pollIntervalMs": 2,
     "maxTimestampAgeMs": 100,
     "axisThreshold": 0.5,
-    "turntable": { "deltaThreshold": 0.008, "releaseMs": 120 },
-    "menu": { "repeatDelayMs": 400, "repeatMs": 110, "maxFrameMs": 100 }
+    "turntable": { "step": 0.00784314, "steps": 1, "releaseMs": 120 },
+    "menu": { "repeatDelayMs": 400, "repeatMs": 110, "maxFrameMs": 100, "axisStep": 0.0627 }
   }
 }

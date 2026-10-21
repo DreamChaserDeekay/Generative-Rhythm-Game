@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { difficultySystems } from '../engine/config';
 import type { Chart, StemName } from '../engine/types';
 import { STEM_NAMES } from '../engine/types';
-import { bindingsFor, keyLabel, type Settings } from '../settings/settings';
+import { bindingsFor, keyLabel, secondBindingsFor, songOffsetOf, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { speedText } from './format';
 import { playedSettings, playModeLabel, ruleChips } from './playRules';
@@ -43,9 +43,13 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
   const level = m.level > 0 ? `${m.levelScale ? `${m.levelScale} ` : 'Lv.'}${m.level}` : null;
   const stems = laneStems(chart);
   const keys = bindingsFor(settings, m.keyMode);
+  const seconds = secondBindingsFor(settings, m.keyMode);
   const present = STEM_NAMES.filter((s) => stems.includes(s));
   const mode = playModeLabel(request);
   const rules = ruleChips(playedSettings(request, settings), Boolean(request.practice));
+  // the song's own offset, where it has one (it moves its notes and their judgement)
+  const offset = songOffsetOf(settings, m.songId);
+  if (offset !== 0) rules.push(['곡 오프셋', `${offset > 0 ? '+' : ''}${offset}ms`]);
   return (
     <div className="play-overlay play-loading" data-testid="play-loading">
       {song && <Backdrop song={song} />}
@@ -101,7 +105,7 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
         <span className="label">키</span>
         {keys.map((code, lane) => (
           <span key={lane} className="loading-key">
-            <kbd>{keyLabel(code)}</kbd>
+            <kbd>{seconds[lane] ? `${keyLabel(code)} · ${keyLabel(seconds[lane] as string)}` : keyLabel(code)}</kbd>
             <i style={{ background: stems[lane] ? `var(${stemToken(stems[lane])})` : 'var(--line-strong)' }} />
           </span>
         ))}

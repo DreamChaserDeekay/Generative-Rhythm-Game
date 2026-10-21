@@ -3,6 +3,7 @@ import {
   defaultGauge,
   difficultySystemIds,
   difficultySystems,
+  enabledKeyModes,
   gaugeTypeIds,
   judgementConfig,
   keyModes,
@@ -19,7 +20,9 @@ import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
 import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
-import { isPadCode } from '../input/gamepad';
+import { DEFAULT_TURNTABLE, isPadCode, MENU_BUTTON_KEYS, MENU_BUTTONS, MENU_PAD_CODE, type MenuButton } from '../input/gamepad';
+import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, type PadPlayButton } from '../input/padPlay';
+import { cleanPlayKey, DEFAULT_PLAY_KEYS, parseKey, PLAY_ACTIONS, type PlayAction } from '../input/playKeys';
 
 export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
@@ -95,8 +98,23 @@ export interface Settings {
   hitSound: boolean;
   showErrorMs: boolean;
   bindings: Partial<Record<KeyModeId, string[]>>;
+  /** A second key per lane (null = none), alongside `bindings`: two keys for a scratch, a side lane for either hand. */
+  secondBindings: Partial<Record<KeyModeId, (string | null)[]>>;
   /** Gamepad / controller control per lane (null = none), alongside the keyboard keys. */
   padBindings: Partial<Record<KeyModeId, (string | null)[]>>;
+  /** Keys of the in-play functions that differ from DEFAULT_PLAY_KEYS (see playKeysOf). */
+  playKeys: Partial<Record<PlayAction, string>>;
+  /** The pad's Start, Select and FEVER buttons in play (null = none; absent = DEFAULT_PAD_PLAY). */
+  padPlay: Partial<Record<PadPlayButton, string | null>>;
+  /** Menu buttons of a pad without the standard mapping (null = none; absent = inferred, see padMenuFor). */
+  padMenu: Partial<Record<MenuButton, string | null>>;
+  /** Turntable: how far it turns (8-bit axis steps) before it is a scratch, and how long it stands still before it lets go. */
+  turntableSteps: number;
+  turntableReleaseMs: number;
+  /** A play of one's own pauses when the window loses the focus or is hidden. */
+  pauseOnBlur: boolean;
+  /** Per song (by id): ms its notes are drawn and judged later (+) or earlier, over the offsets above. */
+  songOffsets: Record<string, number>;
   lastKeyMode: KeyModeId;
   /** Difficulty tier of `difficultySystem` (NM, MX, SHD …). */
   lastDifficulty: string;
@@ -154,6 +172,12 @@ export const HI_SPEED_MAX = 10;
 export const MAX_COVER = 0.85;
 export const MAX_LIFT = 0.5;
 export const KEY_BEAM_MAX = 2;
+export const TURNTABLE_STEPS_MAX = 4;
+export const TURNTABLE_RELEASE_MIN = 40;
+export const TURNTABLE_RELEASE_MAX = 300;
+/** A song's own offset stays within this (ms), and so many songs keep one. */
+export const SONG_OFFSET_MAX = 200;
+const SONG_OFFSETS_KEPT = 5000;
 /** At least this share of the travel distance stays visible whatever the covers say. */
 export const MIN_VISIBLE_SHARE = 0.1;
 
@@ -172,7 +196,15 @@ export const DEFAULT_SETTINGS: Settings = {
   hitSound: false,
   showErrorMs: true,
   bindings: {},
+  secondBindings: {},
   padBindings: {},
+  playKeys: {},
+  padPlay: {},
+  padMenu: {},
+  turntableSteps: DEFAULT_TURNTABLE.steps,
+  turntableReleaseMs: DEFAULT_TURNTABLE.releaseMs,
+  pauseOnBlur: true,
+  songOffsets: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
   difficultySystem: difficultySystemIds.includes('DJMAX') ? 'DJMAX' : 'GRG',
@@ -217,15 +249,64 @@ function num(value: unknown, min: number, max: number, fallback: number): number
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
+/** A keyboard key as KeyboardEvent.code names it. */
+const KEY_CODE = /^[A-Z][A-Za-z0-9]*$/;
+
+/** Per key mode, a code (or null) per lane; modes of another length or unknown are dropped. */
+function perLane<T>(raw: unknown, clean: (mode: KeyModeId, codes: unknown[]) => T[] | null): Partial<Record<KeyModeId, T[]>> {
+  const out: Partial<Record<KeyModeId, T[]>> = {};
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const [mode, codes] of Object.entries(raw)) {
+    const lanes = keyModes[mode as KeyModeId]?.lanes.length;
+    if (!lanes || !Array.isArray(codes) || codes.length !== lanes) continue;
+    const cleaned = clean(mode as KeyModeId, codes);
+    if (cleaned) out[mode as KeyModeId] = cleaned;
+  }
+  return out;
+}
+
+/** Each name of `names` kept from `raw` where `clean` takes its value (null stays null: "none"). */
+function picked<K extends string>(raw: unknown, names: readonly K[], clean: (v: unknown) => string | null): Partial<Record<K, string | null>> {
+  const out: Partial<Record<K, string | null>> = {};
+  if (typeof raw !== 'object' || raw === null) return out;
+  const values = raw as Record<string, unknown>;
+  for (const name of names) {
+    if (!(name in values)) continue;
+    const v = values[name];
+    if (v === null) out[name] = null;
+    else if (clean(v) !== null) out[name] = clean(v);
+  }
+  return out;
+}
+
 /** Fills defaults and drops values that the current config no longer knows. */
 export function sanitizeSettings(raw: Partial<Settings>): Settings {
-  const s = { ...DEFAULT_SETTINGS, ...raw, bindings: { ...raw.bindings }, padBindings: {} as Settings['padBindings'] };
-  for (const [mode, codes] of Object.entries(raw.padBindings ?? {})) {
-    const lanes = keyModes[mode as KeyModeId]?.lanes.length;
-    if (lanes && Array.isArray(codes) && codes.length === lanes) {
-      s.padBindings[mode as KeyModeId] = codes.map((c) => (typeof c === 'string' && isPadCode(c) ? c : null));
-    }
+  const s = { ...DEFAULT_SETTINGS, ...raw };
+  // a mode's keys: all keyboard codes; its second keys: none that is already a key of the mode
+  s.bindings = perLane(raw.bindings, (_, codes) => (codes.every((c) => typeof c === 'string' && KEY_CODE.test(c)) ? (codes as string[]) : null));
+  s.secondBindings = perLane(raw.secondBindings, (mode, codes) => {
+    const used = new Set(bindingsFor(s, mode));
+    const second = codes.map((c) => {
+      if (typeof c !== 'string' || !KEY_CODE.test(c) || used.has(c)) return null;
+      used.add(c);
+      return c;
+    });
+    return second.some((c) => c !== null) ? second : null;
+  });
+  s.padBindings = perLane(raw.padBindings, (_, codes) => codes.map((c) => (typeof c === 'string' && isPadCode(c) ? c : null)));
+  const keys: Partial<Record<PlayAction, string>> = {};
+  for (const action of PLAY_ACTIONS) {
+    const key = cleanPlayKey((raw.playKeys as Record<string, unknown> | undefined)?.[action]);
+    if (key !== null && key !== DEFAULT_PLAY_KEYS[action]) keys[action] = key;
   }
+  s.playKeys = keys;
+  // the pad's play buttons: buttons or stick directions (a turntable is no button)
+  s.padPlay = picked(raw.padPlay, PAD_PLAY_BUTTONS, (v) => (typeof v === 'string' && isPadCode(v) && !v.startsWith('Pad:TT') ? v : null));
+  s.padMenu = picked(raw.padMenu, MENU_BUTTONS, (v) => (typeof v === 'string' && MENU_PAD_CODE.test(v) ? v : null));
+  s.turntableSteps = Math.round(num(s.turntableSteps, 1, TURNTABLE_STEPS_MAX, DEFAULT_TURNTABLE.steps));
+  s.turntableReleaseMs = Math.round(num(s.turntableReleaseMs, TURNTABLE_RELEASE_MIN, TURNTABLE_RELEASE_MAX, DEFAULT_TURNTABLE.releaseMs));
+  s.pauseOnBlur = s.pauseOnBlur !== false;
+  s.songOffsets = sanitizeSongOffsets(raw.songOffsets);
   const d = DEFAULT_SETTINGS;
   s.judgementMode = pick(s.judgementMode, Object.keys(judgementConfig.modes) as JudgementModeId[], d.judgementMode);
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
@@ -310,15 +391,133 @@ export function withDifficultySystem(s: Settings, id: DifficultySystemId): Setti
   return { ...s, difficultySystem: id, lastDifficulty: tier.id };
 }
 
-export function bindingsFor(settings: Settings, mode: KeyModeId): string[] {
+export function bindingsFor(settings: Pick<Settings, 'bindings'>, mode: KeyModeId): string[] {
   const custom = settings.bindings[mode];
   const lanes = keyModes[mode].lanes.length;
   if (custom && custom.length === lanes) return custom;
   return keyModes[mode].bindings.default;
 }
 
+/** The second key of every lane of a key mode (null where there is none). */
+export function secondBindingsFor(settings: Settings, mode: KeyModeId): (string | null)[] {
+  const custom = settings.secondBindings[mode];
+  const lanes = keyModes[mode].lanes.length;
+  return custom && custom.length === lanes ? custom : new Array<string | null>(lanes).fill(null);
+}
+
+/** Every keyboard key that plays a lane of the mode (first and second keys). */
+export function laneKeysFor(settings: Settings, mode: KeyModeId): string[] {
+  return [...bindingsFor(settings, mode), ...secondBindingsFor(settings, mode).filter((c): c is string => c !== null)];
+}
+
+/**
+ * Binds `code` to a lane's key (`second`: its second key; null clears a second key). A key the
+ * mode already uses swaps places with the one it replaces. A lane never loses its only key: taking
+ * one for another lane's empty second key is refused (null), as is clearing a first key.
+ */
+export function rebindKey(s: Settings, mode: KeyModeId, lane: number, second: boolean, code: string | null): Settings | null {
+  const first = [...bindingsFor(s, mode)];
+  const seconds = [...secondBindingsFor(s, mode)];
+  const old = second ? seconds[lane] : first[lane];
+  if (code === null && !second) return null;
+  if (code !== null) {
+    const inFirst = first.findIndex((c, i) => c === code && (second || i !== lane));
+    const inSecond = seconds.findIndex((c, i) => c === code && (!second || i !== lane));
+    if (inFirst >= 0) {
+      if (old === null) return null;
+      first[inFirst] = old;
+    }
+    if (inSecond >= 0) seconds[inSecond] = old;
+  }
+  if (second) seconds[lane] = code;
+  else first[lane] = code as string;
+  return {
+    ...s,
+    bindings: { ...s.bindings, [mode]: first },
+    secondBindings: { ...s.secondBindings, [mode]: seconds.some((c) => c !== null) ? seconds : undefined },
+  };
+}
+
+/** The keys of the in-play functions: the player's, else the defaults. */
+export function playKeysOf(settings: Pick<Settings, 'playKeys'>): Record<PlayAction, string> {
+  return { ...DEFAULT_PLAY_KEYS, ...settings.playKeys };
+}
+
+/** The settings with an in-play function on another key (one back on its default is no longer stored). */
+export function withPlayKey(settings: Settings, action: PlayAction, key: string): Settings {
+  const playKeys = { ...settings.playKeys, [action]: key };
+  if (key === DEFAULT_PLAY_KEYS[action]) delete playKeys[action];
+  return { ...settings, playKeys };
+}
+
+/** The pad's Start, Select and FEVER buttons in play. */
+export function padPlayOf(settings: Pick<Settings, 'padPlay'>): Record<PadPlayButton, string | null> {
+  return { ...DEFAULT_PAD_PLAY, ...settings.padPlay };
+}
+
+/** What padMenuFor reads. */
+export type PadMenuSettings = Pick<Settings, 'padMenu' | 'padBindings' | 'lastKeyMode'>;
+
+/**
+ * The menu buttons of a pad without the standard mapping: the ones assigned, the others inferred
+ * from its lanes (of the last key mode played, else the first mode with pad lanes): the first key
+ * lanes' buttons decide, cancel, go left and right, and a turntable lane's turns go up and down.
+ * Without pad lanes its first two buttons decide and cancel (no axis: one left past the middle
+ * would be an arrow key held).
+ */
+export function padMenuFor(settings: PadMenuSettings): Record<MenuButton, string | null> {
+  const inferred: Record<MenuButton, string | null> = { ok: null, back: null, up: null, down: null, left: null, right: null, options: null };
+  const mode = [settings.lastKeyMode, ...enabledKeyModes].find((m) => padBindingsFor(settings, m).some((c) => c !== null));
+  if (!mode) [inferred.ok, inferred.back] = ['Pad:B0', 'Pad:B1'];
+  else {
+    const codes = padBindingsFor(settings, mode);
+    const keys = keyModes[mode].lanes.flatMap((l, i) => (l.kind === 'key' && codes[i]?.startsWith('Pad:B') ? [codes[i] as string] : []));
+    [inferred.ok, inferred.back, inferred.left, inferred.right] = [keys[0] ?? null, keys[1] ?? null, keys[2] ?? null, keys[3] ?? null];
+    const turntable = codes.find((c) => c?.startsWith('Pad:TT'));
+    if (turntable) [inferred.up, inferred.down] = [`${turntable}-`, `${turntable}+`];
+  }
+  const out = { ...inferred };
+  for (const b of MENU_BUTTONS) if (settings.padMenu[b] !== undefined) out[b] = settings.padMenu[b] ?? null;
+  return out;
+}
+
+/** The keys the menu buttons of a pad without the standard mapping send, by pad code. */
+export function padMenuKeysFor(settings: PadMenuSettings): Record<string, string> {
+  const menu = padMenuFor(settings);
+  const keys: Record<string, string> = {};
+  for (const b of MENU_BUTTONS) {
+    const code = menu[b];
+    if (code && !(code in keys)) keys[code] = MENU_BUTTON_KEYS[b];
+  }
+  return keys;
+}
+
+/** Song offsets as stored: whole ms within ±SONG_OFFSET_MAX, none of 0, the last SONG_OFFSETS_KEPT songs. */
+function sanitizeSongOffsets(raw: unknown): Record<string, number> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]))
+    .map(([id, v]): [string, number] => [id, Math.round(Math.min(SONG_OFFSET_MAX, Math.max(-SONG_OFFSET_MAX, v)))])
+    .filter(([, v]) => v !== 0);
+  return Object.fromEntries(entries.slice(-SONG_OFFSETS_KEPT));
+}
+
+/** A song's own offset (0 without a song, or without one set). */
+export function songOffsetOf(settings: Pick<Settings, 'songOffsets'>, songId: string | null | undefined): number {
+  return songId ? (settings.songOffsets[songId] ?? 0) : 0;
+}
+
+/** The settings with a song's offset set to `ms` (rounded, within ±SONG_OFFSET_MAX; 0 removes it). */
+export function withSongOffset(settings: Settings, songId: string, ms: number): Settings {
+  const value = Math.round(Math.min(SONG_OFFSET_MAX, Math.max(-SONG_OFFSET_MAX, ms)));
+  const songOffsets = { ...settings.songOffsets };
+  delete songOffsets[songId];
+  if (value !== 0) songOffsets[songId] = value;
+  return { ...settings, songOffsets };
+}
+
 /** Gamepad control of every lane of a key mode (null where none is bound). */
-export function padBindingsFor(settings: Settings, mode: KeyModeId): (string | null)[] {
+export function padBindingsFor(settings: Pick<Settings, 'padBindings'>, mode: KeyModeId): (string | null)[] {
   const custom = settings.padBindings[mode];
   const lanes = keyModes[mode].lanes.length;
   return custom && custom.length === lanes ? custom : new Array<string | null>(lanes).fill(null);
@@ -380,6 +579,19 @@ export function keyLabel(code: string): string {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   const names: Record<string, string> = {
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ArrowLeft: '←',
+    ArrowRight: '→',
+    PageUp: 'PgUp',
+    PageDown: 'PgDn',
+    Escape: 'Esc',
+    Minus: '-',
+    Equal: '=',
+    Backquote: '`',
+    Backspace: 'BkSp',
+    Delete: 'Del',
+    Insert: 'Ins',
     Space: 'Space',
     ShiftLeft: 'L-Shift',
     ShiftRight: 'R-Shift',
@@ -398,4 +610,10 @@ export function keyLabel(code: string): string {
     AltRight: 'R-Alt',
   };
   return names[code] ?? code;
+}
+
+/** Human readable name of an in-play key binding (Alt+PgUp). */
+export function bindingLabel(binding: string): string {
+  const b = parseKey(binding);
+  return `${b.ctrl ? 'Ctrl+' : ''}${b.alt ? 'Alt+' : ''}${b.shift ? 'Shift+' : ''}${keyLabel(b.code)}`;
 }

@@ -3,7 +3,7 @@ import { getAudioEngine } from '../audio/AudioEngine';
 import { clickBeatTimes, clickTrackBuffer, type ClickTrackSpec } from '../audio/clickTrack';
 import { judgementConfig } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
-import { GamepadMenuBridge, GamepadPoller } from '../input/gamepad';
+import { GamepadMenuBridge, GamepadPoller, padMenuKey } from '../input/gamepad';
 import type { Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
 
@@ -96,7 +96,8 @@ export function CalibrationScreen({ settings, onSettingsChange, onBack }: Props)
     // pad presses are taps at the pad's own timestamp (not the menu bridge's polling time)
     const pad = new GamepadPoller((e) => {
       if (!e.down) return;
-      if (e.code === 'Pad:B1') stop();
+      // the pad's cancel button (B, or the one assigned to a controller without the standard mapping)
+      if (padMenuKey(e) === 'Escape') stop();
       else tap(e.timeMs);
     });
     const tick = (now: number) => {

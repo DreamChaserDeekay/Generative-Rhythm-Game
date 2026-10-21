@@ -1,9 +1,16 @@
 import inputJson from '@config/input.json';
 
 const CFG = inputJson.gamepad;
+/** Half an 8-bit step: less than that is no movement (rounding of the axis value). */
+const HALF_STEP = CFG.turntable.step / 2;
 
 /** Binding codes for gamepad controls: a button, an axis direction, or an axis used as a turntable. */
 export const PAD_CODE = /^Pad:(B\d{1,2}|A\d{1,2}[+-]|TT\d{1,2})$/;
+/**
+ * Menu buttons of a pad without the standard mapping: a button, an axis pushed one way (a d-pad or
+ * a stick that comes as axes: held, it repeats), or a turntable's turn one way (a step per movement).
+ */
+export const MENU_PAD_CODE = /^Pad:(B\d{1,2}|A\d{1,2}[+-]|TT\d{1,2}[+-])$/;
 
 export function isPadCode(code: string): boolean {
   return PAD_CODE.test(code);
@@ -13,7 +20,7 @@ export function padCodeLabel(code: string): string {
   const m = /^Pad:(B|A|TT)(\d+)([+-]?)$/.exec(code);
   if (!m) return code;
   if (m[1] === 'B') return `버튼 ${m[2]}`;
-  if (m[1] === 'TT') return `턴테이블 ${m[2]}`;
+  if (m[1] === 'TT') return `턴테이블 ${m[2]}${m[3] ? ` ${m[3] === '+' ? '+' : '−'}` : ''}`;
   return `축 ${m[2]}${m[3]}`;
 }
 
@@ -22,18 +29,43 @@ export interface PadEvent {
   down: boolean;
   /** On the performance.now() timeline. */
   timeMs: number;
+  /** The pad has the standard mapping (a gamepad), not a controller of its own layout. */
+  standard: boolean;
+  /**
+   * An axis direction pressed by a jump past the threshold in one read (a d-pad or a flicked stick
+   * that comes as axes); a turntable or a knob only ever gets there a step at a time.
+   */
+  jump?: boolean;
 }
 
 export type GamepadSource = () => readonly (Gamepad | null)[];
 
+/** How far a turntable turns (in 8-bit axis steps) before it is a scratch, and how long it stands still before it lets go. */
+export interface TurntableOptions {
+  steps: number;
+  releaseMs: number;
+}
+
+export const DEFAULT_TURNTABLE: TurntableOptions = { steps: CFG.turntable.steps, releaseMs: CFG.turntable.releaseMs };
+
 interface PadState {
   timestamp: number;
+  standard: boolean;
   buttons: boolean[];
   axes: number[];
   axisDir: number[];
-  /** Turntable: current spin direction (0 = idle) and when it last moved. */
+  /**
+   * Turntable: the scratch held (its direction, 0 = none), the way it last turned (0 = not yet) and
+   * the furthest point it reached that way, when it last got further, and how far it got since it
+   * stood still or turned back.
+   */
   spin: number[];
+  way: number[];
+  peak: number[];
   lastMove: number[];
+  moved: number[];
+  /** Movement not yet sent as a menu step. */
+  stepped: number[];
 }
 
 function browserPads(): readonly (Gamepad | null)[] {
@@ -44,18 +76,34 @@ function browserPads(): readonly (Gamepad | null)[] {
  * Reads gamepads on its own timer, independent of the frame rate, and reports changes as
  * press/release events. The event time is the gamepad's own timestamp (when the browser received
  * the report) whenever it is plausible, so the judgement does not inherit the polling interval.
+ * With `axisStep`, every axis also sends a press and release of `Pad:TT<n>+` / `-` each time it
+ * moves that far one way (a menu step per movement, whatever position it stops in).
  */
 export class GamepadPoller {
   private readonly states = new Map<number, PadState>();
   private readonly onEvent: (e: PadEvent) => void;
   private readonly source: GamepadSource;
   private readonly intervalMs: number;
+  /** Movement that makes a scratch (a quarter step under the steps asked, for rounding). */
+  private readonly spinThreshold: number;
+  /** How far back from the furthest point a turn back is (at least two steps: see turntable). */
+  private readonly backThreshold: number;
+  private readonly releaseMs: number;
+  private readonly axisStep: number;
   private timer: number | null = null;
 
-  constructor(onEvent: (e: PadEvent) => void, options: { source?: GamepadSource; intervalMs?: number } = {}) {
+  constructor(
+    onEvent: (e: PadEvent) => void,
+    options: { source?: GamepadSource; intervalMs?: number; turntable?: TurntableOptions; axisStep?: number } = {},
+  ) {
     this.onEvent = onEvent;
     this.source = options.source ?? browserPads;
     this.intervalMs = options.intervalMs ?? CFG.pollIntervalMs;
+    const turntable = options.turntable ?? DEFAULT_TURNTABLE;
+    this.spinThreshold = (Math.max(1, turntable.steps) - 0.25) * CFG.turntable.step;
+    this.backThreshold = Math.max(this.spinThreshold, 1.75 * CFG.turntable.step);
+    this.releaseMs = turntable.releaseMs;
+    this.axisStep = options.axisStep ?? 0;
   }
 
   start(): void {
@@ -69,9 +117,10 @@ export class GamepadPoller {
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
     for (const st of this.states.values()) {
-      st.buttons.forEach((down, i) => down && this.onEvent({ code: `Pad:B${i}`, down: false, timeMs: now }));
-      st.axisDir.forEach((dir, i) => dir && this.onEvent({ code: `Pad:A${i}${dir > 0 ? '+' : '-'}`, down: false, timeMs: now }));
-      st.spin.forEach((dir, i) => dir && this.onEvent({ code: `Pad:TT${i}`, down: false, timeMs: now }));
+      const standard = st.standard;
+      st.buttons.forEach((down, i) => down && this.onEvent({ code: `Pad:B${i}`, down: false, timeMs: now, standard }));
+      st.axisDir.forEach((dir, i) => dir && this.onEvent({ code: `Pad:A${i}${dir > 0 ? '+' : '-'}`, down: false, timeMs: now, standard }));
+      st.spin.forEach((dir, i) => dir && this.onEvent({ code: `Pad:TT${i}`, down: false, timeMs: now, standard }));
     }
     this.states.clear();
   }
@@ -84,53 +133,103 @@ export class GamepadPoller {
         // the first reading only sets the baseline
         st = {
           timestamp: gp.timestamp,
+          standard: gp.mapping === 'standard',
           buttons: gp.buttons.map((b) => b.pressed),
           axes: [...gp.axes],
           axisDir: gp.axes.map((v) => direction(v)),
           spin: gp.axes.map(() => 0),
+          way: gp.axes.map(() => 0),
+          peak: [...gp.axes],
           lastMove: gp.axes.map(() => now),
+          moved: gp.axes.map(() => 0),
+          stepped: gp.axes.map(() => 0),
         };
         this.states.set(gp.index, st);
         continue;
       }
       const fresh = gp.timestamp !== st.timestamp;
       const t = fresh && gp.timestamp > 0 && gp.timestamp <= now + 1 && now - gp.timestamp <= CFG.maxTimestampAgeMs ? gp.timestamp : now;
+      const standard = st.standard;
+      const emit = (code: string, down: boolean, timeMs: number, jump?: boolean) =>
+        this.onEvent(jump === undefined ? { code, down, timeMs, standard } : { code, down, timeMs, standard, jump });
       st.timestamp = gp.timestamp;
       gp.buttons.forEach((b, i) => {
         if (b.pressed !== (st.buttons[i] ?? false)) {
           st.buttons[i] = b.pressed;
-          this.onEvent({ code: `Pad:B${i}`, down: b.pressed, timeMs: t });
+          emit(`Pad:B${i}`, b.pressed, t);
         }
       });
       gp.axes.forEach((v, i) => {
+        const prev = st.axes[i] ?? v;
+        st.axes[i] = v;
         const dir = direction(v);
         const prevDir = st.axisDir[i] ?? 0;
         if (dir !== prevDir) {
-          if (prevDir !== 0) this.onEvent({ code: `Pad:A${i}${prevDir > 0 ? '+' : '-'}`, down: false, timeMs: t });
-          if (dir !== 0) this.onEvent({ code: `Pad:A${i}${dir > 0 ? '+' : '-'}`, down: true, timeMs: t });
+          if (prevDir !== 0) emit(`Pad:A${i}${prevDir > 0 ? '+' : '-'}`, false, t);
+          if (dir !== 0) emit(`Pad:A${i}${dir > 0 ? '+' : '-'}`, true, t, Math.abs(wrapped(v - prev)) >= CFG.axisThreshold);
           st.axisDir[i] = dir;
         }
-        // turntable: any spin presses the scratch, a reversal is a new scratch, stopping releases it
-        let delta = v - (st.axes[i] ?? v);
-        if (delta > 1) delta -= 2;
-        else if (delta < -1) delta += 2;
-        st.axes[i] = v;
-        const spin = st.spin[i] ?? 0;
-        if (Math.abs(delta) > CFG.turntable.deltaThreshold) {
-          const sign = delta > 0 ? 1 : -1;
-          if (spin !== sign) {
-            if (spin !== 0) this.onEvent({ code: `Pad:TT${i}`, down: false, timeMs: t });
-            this.onEvent({ code: `Pad:TT${i}`, down: true, timeMs: t });
-            st.spin[i] = sign;
+        this.turntable(st, i, v, now, t, emit);
+        const delta = wrapped(v - prev);
+        if (this.axisStep > 0 && delta !== 0) {
+          const stepped = st.stepped[i] ?? 0;
+          let left = stepped * delta < 0 ? delta : stepped + delta;
+          while (Math.abs(left) >= this.axisStep) {
+            const sign = left > 0 ? 1 : -1;
+            const code = `Pad:TT${i}${sign > 0 ? '+' : '-'}`;
+            emit(code, true, t);
+            emit(code, false, t);
+            left -= sign * this.axisStep;
           }
-          st.lastMove[i] = now;
-        } else if (spin !== 0 && now - (st.lastMove[i] ?? now) > CFG.turntable.releaseMs) {
-          st.spin[i] = 0;
-          this.onEvent({ code: `Pad:TT${i}`, down: false, timeMs: now });
+          st.stepped[i] = left;
         }
       });
     }
   }
+
+  /**
+   * Axis i as a turntable. Getting further than the furthest point it reached presses the scratch
+   * once that adds up to the sensitivity since it stood still, even one 8-bit step a read; turning
+   * back presses a new one once it is as far back from that point, and two steps at least: an
+   * encoder resting on an edge flickers a step back and forth, which neither presses a scratch nor
+   * keeps one held (nor does a platter stopped by the hand bouncing a step back). No progress for
+   * releaseMs lets go.
+   */
+  private turntable(st: PadState, i: number, v: number, now: number, t: number, emit: (code: string, down: boolean, timeMs: number) => void): void {
+    const way = st.way[i] ?? 0;
+    const d = wrapped(v - (st.peak[i] ?? v));
+    const code = `Pad:TT${i}`;
+    let moved = false;
+    if (way !== 0 && d * way >= HALF_STEP) {
+      st.moved[i] = (st.moved[i] ?? 0) + Math.abs(d);
+      moved = true;
+    } else if (way !== 0 ? -d * way >= this.backThreshold : Math.abs(d) >= HALF_STEP) {
+      st.way[i] = d > 0 ? 1 : -1;
+      st.moved[i] = Math.abs(d);
+      moved = true;
+    }
+    const spin = st.spin[i] ?? 0;
+    if (moved) {
+      st.peak[i] = v;
+      st.lastMove[i] = now;
+      if (st.moved[i] >= this.spinThreshold && spin !== st.way[i]) {
+        if (spin !== 0) emit(code, false, t);
+        emit(code, true, t);
+        st.spin[i] = st.way[i];
+      }
+    } else if (now - (st.lastMove[i] ?? now) > this.releaseMs) {
+      st.moved[i] = 0;
+      if (spin !== 0) {
+        st.spin[i] = 0;
+        emit(code, false, now);
+      }
+    }
+  }
+}
+
+/** An axis change, the short way round (a turntable's axis wraps from one end to the other). */
+function wrapped(delta: number): number {
+  return delta > 1 ? delta - 2 : delta < -1 ? delta + 2 : delta;
 }
 
 function direction(v: number): number {
@@ -154,6 +253,40 @@ const MENU_KEYS: Record<string, string> = {
   'Pad:B3': 'Tab',
 };
 const REPEATING = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+/**
+ * The menu buttons a pad without the standard mapping is given (an IIDX or SDVX controller: its
+ * keys, turntable and knobs are its lanes, and none of them is a d-pad), and the keys they send.
+ */
+export type MenuButton = 'ok' | 'back' | 'up' | 'down' | 'left' | 'right' | 'options';
+export const MENU_BUTTONS: readonly MenuButton[] = ['ok', 'back', 'up', 'down', 'left', 'right', 'options'];
+export const MENU_BUTTON_KEYS: Readonly<Record<MenuButton, string>> = {
+  ok: 'Enter',
+  back: 'Escape',
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+  // the song select's play options
+  options: 'Space',
+};
+
+// The keys of the menu buttons assigned (or inferred) for pads without the standard mapping, by pad code.
+let customMenuKeys: Readonly<Record<string, string>> = {};
+
+/** Sets the menu keys of pads without the standard mapping (from the settings). */
+export function setPadMenuKeys(keys: Readonly<Record<string, string>>): void {
+  customMenuKeys = keys;
+}
+
+/**
+ * The menu key a pad control sends: the standard layout's (d-pad, A, B, Start, Back, Y) on a
+ * gamepad, the assigned menu buttons on any other controller (an axis held one way only where it
+ * is assigned: a turntable's axis left past the middle is no arrow key held).
+ */
+export function padMenuKey(e: Pick<PadEvent, 'code' | 'standard'>): string | null {
+  return (e.standard ? MENU_KEYS[e.code] : customMenuKeys[e.code]) ?? null;
+}
 
 /**
  * LB / RB as PageUp / PageDown: the settings' tabs. Only the menus' bridge sends them; on the play
@@ -211,7 +344,9 @@ export function suspendMenuBridges(): () => void {
 /**
  * Lets a gamepad drive the menus: the d-pad / left stick act as arrow keys (with key repeat),
  * A / Start as Enter, B / Back as Escape and Y as Tab, dispatched as keyboard events on the
- * focused element. A key no screen takes does what it does on a keyboard (menuAction).
+ * focused element. A key no screen takes does what it does on a keyboard (menuAction). A
+ * controller without the standard mapping sends only its assigned menu buttons (padMenuKey): its
+ * turntable or knob stopped past the middle is no arrow key held.
  */
 export class GamepadMenuBridge {
   private readonly poller: GamepadPoller;
@@ -224,7 +359,7 @@ export class GamepadMenuBridge {
   private raf = 0;
 
   constructor(options: { source?: GamepadSource; ignore?: string[]; keys?: Readonly<Record<string, string>> } = {}) {
-    this.poller = new GamepadPoller((e) => this.onPad(e), { source: options.source, intervalMs: 16 });
+    this.poller = new GamepadPoller((e) => this.onPad(e), { source: options.source, intervalMs: 16, axisStep: CFG.menu.axisStep });
     this.ignore = new Set(options.ignore ?? []);
     this.extraKeys = options.keys ?? {};
   }
@@ -266,7 +401,7 @@ export class GamepadMenuBridge {
 
   private onPad(e: PadEvent): void {
     if (this.ignore.has(e.code)) return;
-    const key = MENU_KEYS[e.code] ?? this.extraKeys[e.code];
+    const key = padMenuKey(e) ?? (e.standard ? this.extraKeys[e.code] : undefined);
     if (!key) return;
     if (suspended > 0) {
       this.held.delete(key);

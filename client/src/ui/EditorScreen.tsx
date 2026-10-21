@@ -8,7 +8,7 @@ import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
 import { laneColorsFor, skinById } from '../render/skins';
-import { bindingsFor, type Settings } from '../settings/settings';
+import { bindingsFor, secondBindingsFor, type Settings } from '../settings/settings';
 
 /** Everything the editor keeps while the player test-plays and comes back. */
 export interface EditorSession {
@@ -449,12 +449,14 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   // ---------------------------------------------------------------- keyboard
 
   const bindings = bindingsFor(settings, base.meta.keyMode);
+  const seconds = secondBindingsFor(settings, base.meta.keyMode);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
       const ctrl = e.ctrlKey || e.metaKey;
       const sel = [...selection.current];
-      const lane = bindings.indexOf(e.code);
+      // a lane's second key records on it too
+      const lane = bindings.includes(e.code) ? bindings.indexOf(e.code) : seconds.indexOf(e.code);
       if (record && playback.current && lane >= 0 && !ctrl) {
         e.preventDefault();
         if (!e.repeat) apply(doc.add(lane, doc.snap(session.cursorMs, session.snap)));

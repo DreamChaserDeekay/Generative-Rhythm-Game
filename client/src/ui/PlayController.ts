@@ -12,8 +12,10 @@ import { ScrollModel } from '../engine/scroll';
 import { GameSession, type SessionEvent, type SessionResult } from '../engine/session';
 import { TempoMap } from '../engine/tempo';
 import type { Chart, StemName } from '../engine/types';
-import { GamepadPoller, type PadEvent } from '../input/gamepad';
+import { GamepadPoller, padCodeLabel, type PadEvent } from '../input/gamepad';
 import { InputManager } from '../input/InputManager';
+import { PadPlayControls, type PadPlayAction } from '../input/padPlay';
+import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
@@ -21,13 +23,20 @@ import { skinById } from '../render/skins';
 import { HUD_UNIT, styleOf, TrackRenderer } from '../render/TrackRenderer';
 import {
   activeCovers,
+  bindingLabel,
   bindingsFor,
   clampHiSpeed,
+  laneKeysFor,
   padBindingsFor,
+  padPlayOf,
+  playKeysOf,
   MAX_COVER,
   MAX_LIFT,
+  secondBindingsFor,
+  songOffsetOf,
   visibleTimeMs,
   withCovers,
+  withSongOffset,
   type Settings,
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
@@ -36,6 +45,7 @@ import { coverText, speedText } from './format';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
+import { practiceRunStart } from './practiceLead';
 import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playModeLabel } from './playRules';
 
 export interface PlaySetup {
@@ -88,7 +98,6 @@ const MIN_LEAD_IN_MS = 1500;
 const FIRST_NOTE_DELAY_MS = 3000;
 const RESUME_LEAD_IN_MS = 1500;
 const END_AFTER_LAST_NOTE_MS = 1500;
-const PRACTICE_PREROLL_MS = 2000;
 const PRACTICE_END_MS = 900;
 const BANNER_MS = 1800;
 const FAIL_FADE_MS = 700;
@@ -99,11 +108,18 @@ const READY_MS = 1500;
 /** A first note more than this far off (real ms) can be skipped to: up to this long before it (or READY). */
 const SKIP_MIN_MS = 5000;
 const SKIP_LEAD_MS = 2500;
-const HI_SPEED_STEP = 0.1;
-const HI_SPEED_STEP_BIG = 0.5;
+/** What a press moves SPEED or the song offset (ms) by, per function. */
+const STEPS: Partial<Record<PlayAction, number>> = {
+  speedDown: -0.1,
+  speedUp: 0.1,
+  speedDownBig: -0.5,
+  speedUpBig: 0.5,
+  offsetDown: -1,
+  offsetUp: 1,
+  offsetDownBig: -5,
+  offsetUpBig: 5,
+};
 const COVER_STEP = 0.025;
-/** Fires a manual FEVER; before a long intro's first note (no FEVER to fire yet) it skips to it. */
-const FEVER_KEY = 'Enter';
 /** Autoplay keysounds are scheduled this far ahead so they land exactly on the notes. */
 const KEYSOUND_LOOKAHEAD_MS = 120;
 /** An empty press plays the lane's next note if it is at most this far ahead (BMS). */
@@ -127,7 +143,15 @@ export class PlayController {
   private readonly firstNoteMs: number;
   private readonly lastNoteEndMs: number;
   private readonly durationMs: number;
+  /** Keyboard keys of the lanes (read first: a function on one of them does not work). */
   private readonly boundCodes: Set<string>;
+  /** Keys of the in-play functions, and the pad's (Start, Select, FEVER). */
+  private readonly keys: Record<PlayAction, string>;
+  private readonly padControls: PadPlayControls;
+  /** The song whose own offset applies (null: the sync test, no song). */
+  private readonly songId: string | null;
+  /** The intro skip's key as the HUD names it (null: nothing works it). */
+  private readonly skipLabel: string | null;
   private readonly pacer: Pacer | null;
   /** Where the BPM changes (song ms), for the BPM under SPEED; the one in effect. */
   private readonly bpmChanges: { ms: number; bpm: number }[];
@@ -228,7 +252,19 @@ export class PlayController {
     });
     this.table = new JudgementTable(judgementConfig, settings.judgementMode, this.rate);
     this.ruleset = new Ruleset(settings.ruleset);
-    this.boundCodes = new Set(bindingsFor(settings, this.chart.meta.keyMode));
+    const keyMode = this.chart.meta.keyMode;
+    this.boundCodes = new Set(laneKeysFor(settings, keyMode));
+    this.keys = playKeysOf(settings);
+    this.songId = request.chart.meta.songId ?? null;
+    // a pad button that is also a lane's plays the lane (the settings mark it)
+    const padLanes = padBindingsFor(settings, keyMode);
+    const free = (code: string | null) => (code && !padLanes.includes(code) ? code : null);
+    const buttons = padPlayOf(settings);
+    this.padControls = new PadPlayControls(
+      { start: free(buttons.start), select: free(buttons.select), fever: free(buttons.fever) },
+      mode.lanes.flatMap((l, i) => (l.kind === 'key' ? [padLanes[i]] : [])),
+    );
+    this.skipLabel = this.triggerLabel('skip');
 
     const notes = this.chart.notes;
     this.firstNoteMs = notes.length > 0 ? Math.min(...notes.map((n) => n.t)) : 0;
@@ -258,14 +294,14 @@ export class PlayController {
         gaugeClear: gauge.clear,
         survivalGauge: gauge.failAtZero,
         feverEnabled: settings.fever !== 'OFF',
-        feverManualKey: settings.fever === 'MANUAL' ? FEVER_KEY : null,
+        feverManualKey: settings.fever === 'MANUAL' ? this.triggerLabel('fever') : null,
         // a pacer with nothing to follow still shows its row (a dash), so a chosen BEST never just vanishes
         pacemakerLabel: this.practice || settings.pacemaker === 'OFF' ? null : pacemakerLabel(settings.pacemaker),
         type: styleOf(skin).type,
         judgementOpacity: settings.judgementOpacity,
         counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
         showBpm: this.bpmChanges.length > 1 || settings.scrollMode === 'beat',
-        skipKey: FEVER_KEY,
+        skipKey: this.skipLabel ?? '',
       },
       settings.showErrorMs,
       settings.reducedFlash,
@@ -277,10 +313,18 @@ export class PlayController {
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(setup.canvas);
     window.addEventListener('keydown', this.onControlKey);
+    window.addEventListener('blur', this.onLeave);
+    document.addEventListener('visibilitychange', this.onLeave);
     this.rebuildScroll();
     this.layout();
     this.begin();
     this.raf = requestAnimationFrame(this.frame);
+    this.pauseIfAway();
+  }
+
+  /** A play that starts while the window is away (left during the loading) starts paused. */
+  private pauseIfAway(): void {
+    if (document.hidden || !document.hasFocus()) this.pauseAway();
   }
 
   pause(): void {
@@ -314,6 +358,7 @@ export class PlayController {
     this.hud.reset();
     this.begin();
     this.callbacks.onPauseChange(false);
+    this.pauseIfAway();
   }
 
   dispose(): void {
@@ -321,10 +366,41 @@ export class PlayController {
     this.teardownRun();
     this.engine.stop();
     window.removeEventListener('keydown', this.onControlKey);
+    window.removeEventListener('blur', this.onLeave);
+    document.removeEventListener('visibilitychange', this.onLeave);
     this.resizeObserver.disconnect();
     this.renderer.dispose();
     this.hud.dispose();
     this.background.dispose();
+  }
+
+  /**
+   * The judgement offset in effect (song ms): the player's (real ms, so at the practice rate), and
+   * the song's own (song ms: it moves the chart against the music whatever the rate).
+   */
+  private inputOffset(): number {
+    return this.settings.inputOffsetMs * this.rate + songOffsetOf(this.settings, this.songId);
+  }
+
+  /**
+   * How much earlier the notes are drawn (song ms): the player's display offset (real ms), less the
+   * song's own (a song offset moves its notes later on the screen as it moves their judgement).
+   */
+  private visualOffset(): number {
+    return this.settings.visualOffsetMs * this.rate - songOffsetOf(this.settings, this.songId);
+  }
+
+  /**
+   * The key that works FEVER or the skip, as the HUD names it: the keyboard's (unless a lane
+   * takes it), else the pad's FEVER button, else the keyboard's all the same; null: none at all.
+   */
+  private triggerLabel(action: 'fever' | 'skip'): string | null {
+    const key = this.keys[action];
+    const free = this.setup.request.autoPlay || ![...this.boundCodes].some((code) => laneTakes(code, key));
+    if (free) return bindingLabel(key);
+    const pad = padPlayOf(this.settings).fever;
+    if (pad && !this.setup.request.autoPlay && !this.setup.request.replay) return padCodeLabel(pad);
+    return action === 'fever' ? bindingLabel(key) : null;
   }
 
   private gaugeRule() {
@@ -354,20 +430,21 @@ export class PlayController {
     const recording = !request.autoPlay && !request.replay && !this.practice;
     this.recorder = recording ? new ReplayRecorder(this.session) : null;
     this.replayer = request.replay ? new ReplayPlayer(request.replay.log) : null;
+    const keyMode = this.chart.meta.keyMode;
     this.input = new InputManager(
       this.engine,
-      bindingsFor(settings, this.chart.meta.keyMode),
+      bindingsFor(settings, keyMode),
       {
         press: (lane, t) => this.onPress(lane, t),
         release: (lane, t) => (this.recorder ? this.recorder.release(lane, t) : this.session.release(lane, t)),
       },
-      settings.inputOffsetMs * this.rate,
-      padBindingsFor(settings, this.chart.meta.keyMode),
+      this.inputOffset(),
+      [secondBindingsFor(settings, keyMode), padBindingsFor(settings, keyMode)],
     );
     this.auto = request.autoPlay ? new AutoPlayer(this.chart) : null;
     if (!request.autoPlay && !request.replay) {
       this.input.attach();
-      this.pad = new GamepadPoller(this.onPad);
+      this.pad = new GamepadPoller(this.onPad, { turntable: { steps: settings.turntableSteps, releaseMs: settings.turntableReleaseMs } });
       this.pad.start();
     }
     const stems = this.setup.stems ?? new Map<StemName, AudioBuffer>();
@@ -379,8 +456,10 @@ export class PlayController {
     this.engine.setMusicVolume(settings.musicVolume);
     this.engine.setSfxVolume(settings.sfxVolume);
     if (this.practice) {
-      const from = Math.max(bufferPlacement.originMs, this.firstNoteMs - PRACTICE_PREROLL_MS * this.rate);
-      this.engine.start(from, 300);
+      // time to get ready before the first note, and before it comes into sight (silence where the
+      // song has no music that early); READY shows all along (rebuildScroll)
+      const from = practiceRunStart(this.firstNoteMs, this.firstInSight, this.rate);
+      this.engine.start(from, 0);
       this.runStartMs = from;
     } else {
       this.engine.start(0, Math.max(MIN_LEAD_IN_MS, FIRST_NOTE_DELAY_MS - this.firstNoteMs));
@@ -395,6 +474,8 @@ export class PlayController {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.input?.detach();
+    // the pad lets go of what is held as it stops: no Start tap (a pause) out of that
+    this.padControls.reset();
     this.pad?.stop();
     this.pad = null;
     this.voices?.stopAll();
@@ -402,14 +483,42 @@ export class PlayController {
     this.engine.stop();
   }
 
-  /** Gamepad events: bound controls play lanes; Start (unbound) pauses and resumes. */
+  /** Gamepad events: the function buttons (and what is pressed with Start) first, the lanes otherwise. */
   private readonly onPad = (e: PadEvent): void => {
-    if (this.input.handleKey(e.code, e.down, e.timeMs)) return;
-    if (e.code === 'Pad:B9' && e.down) {
-      if (this.state === 'running') this.pause();
-      else if (this.state === 'paused') this.resume();
-    }
+    const { own, actions } = this.padControls.handle(e);
+    for (const action of actions) this.padAction(action);
+    if (!own) this.input.handleKey(e.code, e.down, e.timeMs);
   };
+
+  private padAction(action: PadPlayAction): void {
+    switch (action) {
+      case 'pause':
+        if (this.state === 'running') this.pause();
+        else if (this.state === 'paused') this.resume();
+        return;
+      case 'retry':
+        if (this.state !== 'done') this.restart();
+        return;
+      case 'fever':
+        // the FEVER button skips a long intro, as the FEVER key does
+        if (!this.playAction('skip', true)) this.playAction('fever', true);
+        return;
+      default:
+        this.playAction(action, true);
+    }
+  }
+
+  /** The window lost the focus or was hidden. */
+  private readonly onLeave = (e: Event): void => {
+    if (e.type === 'visibilitychange' && !document.hidden) return;
+    this.pauseAway();
+  };
+
+  /** Away from the window, a play of one's own pauses (the setting on). */
+  private pauseAway(): void {
+    if (!this.settings.pauseOnBlur || this.setup.request.autoPlay || this.setup.request.replay) return;
+    this.pause();
+  }
 
   /** A press: judged by the session, and with keysounds the judged (or the lane's next) note sounds. */
   private onPress(lane: number, timeMs: number): void {
@@ -434,7 +543,7 @@ export class PlayController {
     if (!note) return;
     if (this.voices) {
       // the key went down at (judgement time + input offset); that moment has passed, so it sounds now
-      this.voices.play(note, this.engine.contextTimeForSong(timeMs + this.settings.inputOffsetMs * this.rate));
+      this.voices.play(note, this.engine.contextTimeForSong(timeMs + this.inputOffset()));
     } else if (judged === null) {
       const slice = this.stemPlan?.noteSlice[note.index] ?? null;
       if (slice !== null) this.stemVoices?.ghost(slice, this.engine.ctx.currentTime);
@@ -477,17 +586,14 @@ export class PlayController {
     this.renderer.setCovers(covers);
     // the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); READY
     // shows just before, and a skip lands before READY (and a little before the note at least)
-    this.firstInSight = this.scroll.timeAt(this.firstNoteMs, this.scroll.travel * (1 - covers.sudden)) - this.settings.visualOffsetMs * this.rate;
-    this.readyFrom = this.firstInSight - READY_MS * this.rate;
+    this.firstInSight = this.scroll.timeAt(this.firstNoteMs, this.scroll.travel * (1 - covers.sudden)) - this.visualOffset();
+    // a practice run is lead-in until then (see begin)
+    this.readyFrom = this.practice ? -Infinity : this.firstInSight - READY_MS * this.rate;
     this.skipTo = this.practice ? null : Math.min(this.readyFrom, this.firstNoteMs - SKIP_LEAD_MS * this.rate);
   }
 
-  /**
-   * The intro can be skipped: the first note is more than SKIP_MIN_MS away and the skip lands
-   * ahead (and its key is not a lane key of one's own play, which the lanes take first).
-   */
+  /** The intro can be skipped: the first note is more than SKIP_MIN_MS away and the skip lands ahead. */
   private canSkip(songNow: number): boolean {
-    if (this.boundCodes.has(FEVER_KEY) && !this.setup.request.autoPlay) return false;
     return this.state === 'running' && this.skipTo !== null && this.firstNoteMs - songNow > SKIP_MIN_MS * this.rate && this.skipTo > songNow;
   }
 
@@ -526,8 +632,9 @@ export class PlayController {
     this.raf = requestAnimationFrame(this.frame);
     this.engine.clock.sample();
     const songNow = this.engine.songTimeAtPerf(perfNow);
-    const judgeNow = songNow - this.settings.inputOffsetMs * this.rate;
+    const judgeNow = songNow - this.inputOffset();
     const session = this.session;
+    if (this.pad) for (const action of this.padControls.tick(perfNow)) this.padAction(action);
 
     if (this.state === 'running') {
       if (this.auto) {
@@ -553,7 +660,7 @@ export class PlayController {
       this.redrawPaused = false;
       this.renderer.render(
         {
-          timeMs: songNow + this.settings.visualOffsetMs * this.rate,
+          timeMs: songNow + this.visualOffset(),
           scroll: this.scroll,
           notes: session.notes,
           heldNote: (lane) => session.heldNoteIndex(lane),
@@ -589,7 +696,8 @@ export class PlayController {
       remainingMs: (this.lastNoteEndMs - songNow) / this.rate,
       // the tempo heard: a slowed practice slows it too
       bpm: Math.round(this.bpmNow(songNow) * this.rate),
-      skip: this.canSkip(songNow),
+      // shown where it has a key (or a pad button) to work it
+      skip: this.skipLabel !== null && this.canSkip(songNow),
       breaks: session.breakCount,
       fast: session.fastCount,
       slow: session.slowCount,
@@ -720,69 +828,100 @@ export class PlayController {
     return next.hiSpeed !== this.settings.hiSpeed ? `${text} · SPEED ${speedText(next.hiSpeed)}` : text;
   }
 
+  /** In-play keys: Esc pauses and resumes; the functions' keys (playKeysOf) work them. */
   private readonly onControlKey = (e: KeyboardEvent): void => {
     if (this.boundCodes.has(e.code) && !this.setup.request.autoPlay) return;
-    const s = this.settings;
-    switch (e.code) {
-      case 'Escape':
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      // a held Esc does not pause and resume over and over
+      if (e.repeat) return;
+      if (this.state === 'running') this.pause();
+      else if (this.state === 'paused') this.resume();
+      return;
+    }
+    const actions = playActionsOf(e, this.keys);
+    if (actions.length === 0) {
+      // the repeats of a held key that acts once a press (a retry, the covers, FEVER) are still its
+      if (e.repeat && playActionsOf({ code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey, metaKey: e.metaKey, repeat: false }, this.keys).length > 0) e.preventDefault();
+      return;
+    }
+    for (const action of actions) {
+      if (this.playAction(action, e.isTrusted)) {
         e.preventDefault();
-        if (this.state === 'running') this.pause();
-        else if (this.state === 'paused') this.resume();
-        return;
-      case 'F2':
-        e.preventDefault();
-        if (this.state !== 'done') this.restart();
-        return;
-      case FEVER_KEY: {
-        if (this.canSkip(this.engine.songTimeAtPerf(performance.now()))) {
-          e.preventDefault();
-          if (!e.repeat) this.skipIntro();
-          return;
-        }
-        if (this.state === 'running' && s.fever === 'MANUAL' && !this.setup.request.replay) {
-          e.preventDefault();
-          const t = this.engine.songTimeAtPerf(performance.now()) - s.inputOffsetMs * this.rate;
-          if (this.recorder) this.recorder.activateFever(t);
-          else this.session.activateFever(t);
-        }
-        return;
-      }
-      case 'ArrowUp':
-      case 'ArrowDown': {
-        // SPEED only while the song runs: paused, ↑↓ move the pause menu's focus (as a gamepad's
-        // d-pad does, whose keys the menu bridge sends)
-        if (!e.isTrusted || this.state !== 'running') return;
-        e.preventDefault();
-        const step = (e.shiftKey ? HI_SPEED_STEP_BIG : HI_SPEED_STEP) * (e.code === 'ArrowUp' ? 1 : -1);
-        const hiSpeed = clampHiSpeed(s.hiSpeed + step);
-        this.updateSettings({ ...s, hiSpeed }, `SPEED ${speedText(hiSpeed)}`);
-        return;
-      }
-      case 'PageUp':
-      case 'PageDown': {
-        if (this.state !== 'running') return;
-        e.preventDefault();
-        const dir = e.code === 'PageDown' ? 1 : -1;
-        if (e.shiftKey) {
-          const lift = Math.min(MAX_LIFT, Math.max(0, s.lift + dir * COVER_STEP));
-          const next = withCovers(s, { lift });
-          this.updateSettings(next, this.coverToast(`LIFT ${coverText(next.lift)}`, next));
-        } else {
-          const sudden = Math.min(MAX_COVER, Math.max(0, s.sudden + dir * COVER_STEP));
-          const next = withCovers(s, { sudden, coversOn: true });
-          this.updateSettings(next, this.coverToast(`SUDDEN+ ${coverText(next.sudden)}`, next));
-        }
-        return;
-      }
-      case 'Home': {
-        if (this.state !== 'running') return;
-        e.preventDefault();
-        const next = withCovers(s, { coversOn: !s.coversOn });
-        this.updateSettings(next, this.coverToast(next.coversOn ? '커버 켬' : '커버 끔', next));
         return;
       }
     }
   };
+
+  /**
+   * Works an in-play function (a key's or the pad's); false when it does nothing now (the key is
+   * then left to the screen: paused, ↑↓ and Enter work the pause menu).
+   */
+  private playAction(action: PlayAction, trusted: boolean): boolean {
+    const s = this.settings;
+    const running = this.state === 'running';
+    switch (action) {
+      case 'speedDown':
+      case 'speedUp':
+      case 'speedDownBig':
+      case 'speedUpBig': {
+        // SPEED only while the song runs: paused, ↑↓ move the pause menu's focus (as a gamepad's
+        // d-pad does, whose keys the menu bridge sends)
+        if (!trusted || !running) return false;
+        const hiSpeed = clampHiSpeed(s.hiSpeed + (STEPS[action] ?? 0));
+        this.updateSettings({ ...s, hiSpeed }, `SPEED ${speedText(hiSpeed)}`);
+        return true;
+      }
+      case 'suddenDown':
+      case 'suddenUp': {
+        if (!running) return false;
+        const sudden = Math.min(MAX_COVER, Math.max(0, s.sudden + (action === 'suddenUp' ? COVER_STEP : -COVER_STEP)));
+        const next = withCovers(s, { sudden, coversOn: true });
+        this.updateSettings(next, this.coverToast(`SUDDEN+ ${coverText(next.sudden)}`, next));
+        return true;
+      }
+      case 'liftDown':
+      case 'liftUp': {
+        if (!running) return false;
+        const lift = Math.min(MAX_LIFT, Math.max(0, s.lift + (action === 'liftUp' ? COVER_STEP : -COVER_STEP)));
+        const next = withCovers(s, { lift });
+        this.updateSettings(next, this.coverToast(`LIFT ${coverText(next.lift)}`, next));
+        return true;
+      }
+      case 'offsetDown':
+      case 'offsetUp':
+      case 'offsetDownBig':
+      case 'offsetUpBig': {
+        // the song's own offset, kept for its next plays; the presses from now on judge by it
+        if (!running || this.songId === null) return false;
+        const next = withSongOffset(s, this.songId, songOffsetOf(s, this.songId) + (STEPS[action] ?? 0));
+        const ms = songOffsetOf(next, this.songId);
+        this.updateSettings(next, `곡 오프셋 ${ms > 0 ? '+' : ''}${ms}ms`);
+        this.input.setInputOffset(this.inputOffset());
+        return true;
+      }
+      case 'covers': {
+        if (!running) return false;
+        const next = withCovers(s, { coversOn: !s.coversOn });
+        this.updateSettings(next, this.coverToast(next.coversOn ? '커버 켬' : '커버 끔', next));
+        return true;
+      }
+      case 'retry':
+        if (this.state !== 'done') this.restart();
+        return true;
+      case 'skip':
+        if (!this.canSkip(this.engine.songTimeAtPerf(performance.now()))) return false;
+        this.skipIntro();
+        return true;
+      case 'fever': {
+        if (!running || s.fever !== 'MANUAL' || this.setup.request.replay) return false;
+        const t = this.engine.songTimeAtPerf(performance.now()) - this.inputOffset();
+        if (this.recorder) this.recorder.activateFever(t);
+        else this.session.activateFever(t);
+        return true;
+      }
+    }
+  }
 }
 
 /** Notes whose head lies inside the practice segment. */

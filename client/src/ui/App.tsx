@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
-import { GamepadMenuBridge, SHOULDER_KEYS } from '../input/gamepad';
+import { GamepadMenuBridge, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, saveSettings, type Settings } from '../settings/settings';
+import { loadSettings, padMenuKeysFor, saveSettings, type Settings } from '../settings/settings';
 import { CalibrationScreen } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
@@ -73,6 +73,11 @@ export function App() {
     setSettingsState(next);
     saveSettings(next);
   }, []);
+
+  // a controller without the standard mapping works the menus with the buttons assigned (or inferred from its lanes)
+  const { padMenu, padBindings, lastKeyMode } = settings;
+  const menuKeys = useMemo(() => padMenuKeysFor({ padMenu, padBindings, lastKeyMode }), [padMenu, padBindings, lastKeyMode]);
+  useEffect(() => setPadMenuKeys(menuKeys), [menuKeys]);
 
   // a gamepad works the menus (not during play, where its controls are lanes)
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';

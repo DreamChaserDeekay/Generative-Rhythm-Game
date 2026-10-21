@@ -359,7 +359,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={0.05}
             format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { lift: v }))}
-            help="판정선을 트랙 위로 올립니다. 플레이 중 Shift+PageUp/PageDown."
+            help="판정선을 트랙 위로 올립니다. 플레이 중 Alt+PageUp/PageDown."
           />
           <Toggle
             {...row}

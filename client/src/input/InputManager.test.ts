@@ -45,6 +45,34 @@ describe('InputManager', () => {
     expect(calls[1][2]).toBeCloseTo(2241.875, 9);
   });
 
+  it('plays a lane from its second key too: held with the first, one press, released with the last', () => {
+    const calls: [string, number, number][] = [];
+    const input = new InputManager(clock, ['ShiftLeft', 'KeyS'], {
+      press: (lane, t) => calls.push(['press', lane, t]),
+      release: (lane, t) => calls.push(['release', lane, t]),
+    }, 0, [['ControlLeft', null]]);
+    const t0 = 12345.678;
+    expect(input.handleKey('ControlLeft', true, t0 + 100)).toBe(true);
+    input.handleKey('ShiftLeft', true, t0 + 110);
+    input.handleKey('ControlLeft', false, t0 + 120);
+    input.handleKey('ShiftLeft', false, t0 + 130);
+    // alternating the two keys: each new press after a release is a press of its own
+    input.handleKey('ControlLeft', true, t0 + 140);
+    expect(calls.map((c) => [c[0], c[1], Math.round(c[2])])).toEqual([
+      ['press', 0, 100],
+      ['release', 0, 130],
+      ['press', 0, 140],
+    ]);
+  });
+
+  it('judges the presses after an offset change by the new offset', () => {
+    const { input, calls } = setup(10);
+    input.handleKey('KeyD', true, 12345.678 + 500);
+    input.setInputOffset(13);
+    input.handleKey('KeyF', true, 12345.678 + 500);
+    expect(calls.map((c) => Math.round(c[2]))).toEqual([490, 487]);
+  });
+
   it('releases held keys on releaseAll', () => {
     const { input, calls } = setup();
     input.handleKey('KeyJ', true, 13000);
