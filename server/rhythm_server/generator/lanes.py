@@ -29,7 +29,6 @@ W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
 ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
-USAGE_DECAY = 0.9
 TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
 # (the weight would pick it anyway; skipping the rest keeps copied sections cheap)
@@ -63,6 +62,7 @@ class _Weights:
     slow_jack: float
     usage: float  # weight of the lane-usage balance (W_BALANCE scaled per system)
     slow_usage: float  # the same for a slow note
+    usage_decay: float  # each slot keeps this share of the lanes' use so far (hands.usageDecay)
     key_bias: tuple[float, ...]  # per lane: a standing cost (negative: a pull) of using the key
     source: float  # pull of drum / bass notes toward their lane regions
     drum_targets: tuple[float, float, float]  # lane position for low / mid / high drum energy
@@ -105,6 +105,7 @@ class _Weights:
             slow_jack=float(hands["slowJackScale"]),
             usage=W_BALANCE * float(hands["usageBalance"]),
             slow_usage=W_BALANCE * float(hands["usageBalance"]) * float(hands["slowUsageScale"]),
+            usage_decay=float(hands["usageDecay"]),
             key_bias=_key_bias(hands["keyBias"].get(params.key_mode), params.key_mode, by_skill(hands["keyBiasScale"], params.skill)),
             source=float(mapping["weight"]) * params.instrument_mapping,
             drum_targets=(float(drums["low"]), float(drums["mid"]), float(drums["high"])),
@@ -470,7 +471,7 @@ def search(
             last = list(state.last)
             head = list(state.head)
             hold = list(state.hold_end)
-            usage = [u * USAGE_DECAY for u in state.usage]
+            usage = [u * weights.usage_decay for u in state.usage]
             keys_used = tuple(i for i in lanes_used if lanes[i].kind == "key")
             for i in lanes_used:
                 # a long note's lane waits for its tail gap after the release (hold_end), not for the

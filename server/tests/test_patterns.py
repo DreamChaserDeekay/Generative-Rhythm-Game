@@ -369,6 +369,19 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
 
 
+def test_the_default_system_balances_lane_use_over_more_notes() -> None:
+    """The lane-usage balance charges a lane for use above the others' mean in its memory, which
+    fades by hands.usageDecay each slot. Remembering only the last ten or so notes (0.9) spreads every
+    run over both hands: human BMS charts play more jack streaks, doubles and trills and keep more
+    bars on one side (PATTERN_DESIGN 30). The default system remembers about 33 notes (0.97) since
+    generator 0.9.14; DJMAX and EZ2ON keep 0.9."""
+    from rhythm_server.generator.lanes import _Weights
+
+    assert _Weights.of(resolve_params("7K+1S", "NORMAL")).usage_decay == 0.97
+    assert _Weights.of(resolve_params("6K", "NM", 6, system="DJMAX")).usage_decay == 0.9
+    assert _Weights.of(resolve_params("6K", "NM", 6, system="EZ2ON")).usage_decay == 0.9
+
+
 def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # Human BMS charts use key 1 most (19-21% of the notes from level 2 to 10) and leap three keys
     # or more in a quarter of their moves even on easy charts; before generator 0.9.6 our 7K charts

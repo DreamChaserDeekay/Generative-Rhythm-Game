@@ -132,6 +132,7 @@
     "slowJackScale": 1.0,
     "slowSplitScale": 1.0,
     "usageBalance": 1.0,
+    "usageDecay": 0.9,
     "slowUsageScale": 1.0,
     "leapScale": 1.0,
     "keyBias": {},
@@ -146,15 +147,15 @@
         "adjacentChord": [[0.2, 1.5], [0.5, 0.5]], "stretchSpan": 3, "asymmetricChord": 0.2, "oneHandGaps": true,
         "sameHand": 0.0, "jackStreak": 0.6, "jackFree": 3, "balance": 0.1, "jackScale": 0.1, "alternateScale": {"7K+1S": 0.0, "*": 0.5},
         "sameSoundBonus": [[0.35, 1.2], [0.75, 0.5], [1.0, 0.3]], "sameSoundWithinMs": 2000, "jackStreakMinMs": 300,
-        "slowSameSoundBonus": [[0.1, 1.5], [0.75, 1.0]], "slowJackScale": 0.0, "slowSplitScale": 0.0, "slowUsageScale": 0.25,
+        "slowSameSoundBonus": [[0.1, 1.5], [0.75, 1.0]], "slowJackScale": 0.0, "slowSplitScale": 0.0, "slowUsageScale": 0.25, "usageDecay": 0.97,
         "leapScale": {"7K+1S": 0.0},
         "keyBias": {"7K+1S": [-0.35, -0.01, 0.09, 0.21, 0.09, 0.0, -0.16]}, "keyBiasScale": [[0.35, 1.0], [1.0, 0.5]],
         "chordShapes": {"7K+1S": {
-          "middleAdjacent": [[0.107, 1.2], [0.393, 0.61], [0.679, 0.35], [0.964, 0.14]],
-          "middle": [[0.107, 0.042], [0.393, -0.126], [0.679, -0.06], [0.964, 0.006]],
-          "adjacent": [[0.107, -0.76], [0.393, -0.34], [0.679, -0.16], [0.964, -0.056]],
-          "oneHandGap": [[0.107, -0.055], [0.393, -0.187], [0.679, -0.25], [0.964, 0.146]],
-          "lopsided": [[0.107, -0.06], [0.393, -0.047], [0.679, -0.028], [0.964, -0.15]]
+          "middleAdjacent": [[0.107, 1.2], [0.393, 0.61], [0.679, 0.35], [0.964, 0.18]],
+          "middle": [[0.107, 0.042], [0.393, -0.126], [0.679, -0.06], [0.964, 0.034]],
+          "adjacent": [[0.107, -0.76], [0.393, -0.34], [0.679, -0.16], [0.964, -0.04]],
+          "oneHandGap": [[0.107, -0.055], [0.393, -0.187], [0.679, -0.25], [0.964, 0.176]],
+          "lopsided": [[0.107, -0.06], [0.393, -0.047], [0.679, -0.028], [0.964, -0.094]]
         }}
       }
     }
