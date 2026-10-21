@@ -7,7 +7,7 @@ export type NoteShape = 'box' | 'flat' | 'round';
 export type LaneLayout = 'mode' | 'uniform' | 'rainbow';
 export type HitEffectStyle = 'burst' | 'ring' | 'sprite' | 'none';
 export type BeamStyle = 'fade' | 'white' | 'stem' | 'neon';
-export type CameraId = 'SDVX' | 'FLAT' | 'LOW';
+export type CameraId = 'SDVX' | 'FLAT' | 'LOW' | 'PLANE';
 
 /** Parts a skin can draw with a texture of the media manifest (client/public/media/manifest.json). */
 export type TextureSlot = 'note' | 'side' | 'scratch' | 'longBody' | 'hitBurst' | 'hitHold' | 'keyBeam' | 'judgeLine' | 'rails' | 'floor';
@@ -403,7 +403,7 @@ const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'gloss', 'thin', 'outline', 'c
 const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'gloss', 'hollow', 'striped', 'neon', 'glass', 'pill', 'jewel'];
 const BEAM_STYLES: BeamStyle[] = ['fade', 'white', 'stem', 'neon'];
 const HIT_STYLES: SkinStyle['hit'][] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'flipbook', 'none'];
-const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW'];
+const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW', 'PLANE'];
 const FONTS = Object.keys(HUD_FONTS) as HudFont[];
 /** Manifest texture ids look like "glass/note" or "fx/keyBeam". */
 const TEXTURE_ID = /^[a-z0-9]+\/[A-Za-z0-9]+$/;

@@ -33,12 +33,13 @@ type PreviewSettings = Pick<
   | 'lift'
   | 'coversOn'
   | 'keyBeamLength'
+  | 'hitEffectSize'
 >;
 
 /**
- * The gear as it will be played, in the settings: the skin, camera, lane width, covers and
- * hi-speed in effect, with a short phrase coming down and played on its own. Every change shows
- * at once.
+ * The gear as it will be played, in the settings: the skin, camera, lane width, covers, hit
+ * effects and hi-speed in effect, with a short phrase coming down and played on its own. Every
+ * change shows at once.
  */
 export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; keyMode: KeyModeId }) {
   const box = useRef<HTMLDivElement>(null);
@@ -48,7 +49,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
   const covers = activeCovers(settings);
 
   // what the renderer is built from; the camera, covers and speed change on a running one
-  const { skin: skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines } = settings;
+  const { skin: skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize } = settings;
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
@@ -73,6 +74,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
           skin,
           art,
           barLines,
+          hitEffectSize,
           // the whole gear in the box, whatever its shape
           fitWidth: 0.84,
         });
@@ -85,7 +87,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
       if (renderer.current === made) renderer.current = null;
       made?.dispose();
     };
-  }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines]);
+  }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize]);
 
   // the camera, the covers, the speed and the key beams change the running preview without starting it over
   const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];

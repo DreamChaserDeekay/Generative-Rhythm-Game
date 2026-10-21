@@ -190,6 +190,42 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('the plane camera and smaller or no hit effects, in the settings and in a play', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-camera', 'PLANE');
+  await expect(page.getByTestId('opt-camera')).toContainText('평면');
+  await expect(page.getByTestId('settings-help')).toContainText('같은 빠르기');
+  // the hit effects' size sits with the other effects, and the gear beside it shows them
+  await settingsTab(page, 'fx');
+  await expect(page.getByTestId('gear-preview')).toBeVisible();
+  await expect(page.getByTestId('opt-hit-effect')).toHaveAttribute('data-value', 'normal');
+  await chooseSetting(page, 'opt-hit-effect', 'small');
+  await expect(page.getByTestId('opt-hit-effect')).toContainText('작게');
+  expect(await stored()).toMatchObject({ cameraPreset: 'PLANE', hitEffectSize: 'small' });
+  await page.getByRole('button', { name: /완료/ }).click();
+  const play = async (shot: string) => {
+    await tool(page, 'sync-auto');
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: `test-results/play-plane-${shot}.png` });
+  };
+  await play('small-hits');
+
+  // no hit effects, the camera's zoom and tilt at full strength on a lifted judge line
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>;
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...s, hitEffectSize: 'off', cameraFx: 1, lift: 0.1 }));
+  });
+  await page.goto('/');
+  await play('no-hits-lift');
+  expect(errors).toEqual([]);
+});
+
 test('textured skins, drawn in code where their media is missing or broken', async ({ page }) => {
   const errors = trackErrors(page);
   const loaded: string[] = [];

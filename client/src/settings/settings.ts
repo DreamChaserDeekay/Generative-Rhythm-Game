@@ -18,10 +18,13 @@ import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { Palette } from '../render/palette';
 import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
+import type { HitEffectSize } from '../render/TrackRenderer';
 import { isPadCode } from '../input/gamepad';
 
 export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
+export type { HitEffectSize } from '../render/TrackRenderer';
+export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
 export type JudgePosition = 'low' | 'mid' | 'high';
 /** Song select folders (Shift steps through them): every song, the favourites, the ones not played
  * on this key mode and difficulty system, the ones played but not cleared on the selected difficulty. */
@@ -124,6 +127,8 @@ export interface Settings {
   keysound: boolean;
   /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
   cameraFx: number;
+  /** Hit and hold effects at the skin's size, about a lane wide, or none. */
+  hitEffectSize: HitEffectSize;
   skin: string;
   /** User skin (JSON object), used when `skin` is "custom". */
   customSkin: unknown;
@@ -183,6 +188,7 @@ export const DEFAULT_SETTINGS: Settings = {
   generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
+  hitEffectSize: 'normal',
   skin: 'flat',
   customSkin: null,
   bgBrightness: 0.35,
@@ -234,6 +240,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
+  s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);
   // skins of earlier versions open as the skin that took their place
   s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);

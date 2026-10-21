@@ -494,10 +494,12 @@ function platter(g: CanvasRenderingContext2D, w: number, h: number, st: number, 
 
 export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
   line: {
+    // at rest a short dim tick down the lane: a bar across it would read as a note under the line
     idle: () => (g, w, h) => {
-      g.fillStyle = ink(0.45);
+      const tw = Math.max(2, w * 0.05);
+      g.fillStyle = ink(0.3);
       g.beginPath();
-      g.roundRect(w * 0.22, h * 0.16, w * 0.56, Math.max(4, h * 0.1), h * 0.05);
+      g.roundRect((w - tw) / 2, h * 0.12, tw, Math.max(6, h * 0.22), tw / 2);
       g.fill();
     },
     down: () => (g, w, h) => {

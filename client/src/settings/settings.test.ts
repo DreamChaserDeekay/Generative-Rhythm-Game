@@ -19,6 +19,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ keyBeamLength: 'x' as never }).keyBeamLength).toBe(1);
   });
 
+  it('keeps the hit effect size and the plane camera (settings saved before them: the usual effects, SDVX)', () => {
+    expect(sanitizeSettings({})).toMatchObject({ hitEffectSize: 'normal', cameraPreset: 'SDVX' });
+    expect(sanitizeSettings({ hitEffectSize: 'small' }).hitEffectSize).toBe('small');
+    expect(sanitizeSettings({ hitEffectSize: 'off' }).hitEffectSize).toBe('off');
+    expect(sanitizeSettings({ hitEffectSize: 'huge' as never }).hitEffectSize).toBe('normal');
+    expect(sanitizeSettings({ cameraPreset: 'PLANE' }).cameraPreset).toBe('PLANE');
+    expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
+  });
+
   it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
     expect(sanitizeSettings({}).barLines).toBe(true);
     expect(sanitizeSettings({ barLines: false }).barLines).toBe(false);

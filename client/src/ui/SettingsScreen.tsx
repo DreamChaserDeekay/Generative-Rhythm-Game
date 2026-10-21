@@ -31,6 +31,7 @@ import {
   padBindingsFor,
   withCovers,
   withDifficultySystem,
+  type HitEffectSize,
   type JudgePosition,
   type Pacemaker,
   type ScrollMode,
@@ -58,7 +59,7 @@ const TABS: [SettingsTab, string, string][] = [
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
   ['speed', '속도·커버', '움직이는 미리보기에 바로 보입니다'],
   ['gear', '기어', '움직이는 미리보기에 바로 보입니다'],
-  ['fx', '연출·배경', '카메라 연출과 플레이 배경'],
+  ['fx', '연출·배경', '카메라 연출, 타격 효과와 플레이 배경'],
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '키를 고른 뒤 쓸 키를 누르세요'],
   ['pad', '게임패드', '패드와 전용 컨트롤러를 레인에 지정합니다'],
@@ -401,7 +402,7 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             value={settings.cameraPreset}
             options={Object.entries(cameraConfig.presets).map(([id, p]) => [id, p.label])}
             onChange={(id) => set('cameraPreset', id)}
-            help="트랙을 내려다보는 높이와 각도입니다."
+            help="트랙을 내려다보는 높이와 각도입니다. 평면은 원근이 거의 없어 노트가 화면 위에서 아래까지 같은 빠르기로 내려옵니다."
           />
           <NumberOption
             {...row}
@@ -483,7 +484,22 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
             bigStep={0.5}
             format={(v) => (v === 0 ? '끔' : pct(v))}
             onChange={(v) => set('cameraFx', v)}
-            help="드롭·후렴에서 트랙이 기울고 줌합니다 (SDVX식)."
+            help="드롭·후렴에서 트랙이 기울고 줌합니다 (SDVX식). 판정선은 제자리에 있습니다."
+          />
+          <Choice
+            {...row}
+            label="타격 효과"
+            testId="opt-hit-effect"
+            value={settings.hitEffectSize}
+            options={
+              [
+                ['normal', '보통'],
+                ['small', '작게'],
+                ['off', '끄기'],
+              ] as [HitEffectSize, string][]
+            }
+            onChange={(v) => set('hitEffectSize', v)}
+            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 작게는 한 레인 남짓으로 줄이고, 끄기는 그리지 않습니다."
           />
           <Toggle
             {...row}
@@ -648,7 +664,8 @@ export function SettingsScreen({ settings, onSettingsChange, onBack, onCalibrate
           {content}
         </section>
         <aside className="settings-side">
-          {tab === 'speed' || tab === 'gear' ? (
+          {/* the gear as it will be played, where a row changes how it looks (the hit effects too) */}
+          {tab === 'speed' || tab === 'gear' || tab === 'fx' ? (
             <>
               <span className="settings-side-head">
                 <span>미리보기</span>

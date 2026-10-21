@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keyModes } from '../engine/config';
+import { cameraConfig, keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
 import { BUILTIN_SKINS, DEFAULT_HUD_TYPE, hex, HUD_FONTS, laneColorsFor, sanitizeSkin, skinById } from './skins';
 
@@ -70,6 +70,8 @@ describe('skins', () => {
   it('draws the built-in skins in code, each for its own camera; JEWEL plays the crystal set’s flipbooks', () => {
     expect(BUILTIN_SKINS.map((s) => s.id)).toEqual(['flat', 'stem', 'arcade', 'club', 'street', 'neon', 'glass', 'pop', 'jewel', 'mono']);
     for (const skin of BUILTIN_SKINS) expect(skin.style?.camera).toMatch(/^(SDVX|FLAT|LOW)$/);
+    // a user skin may name any camera preset, the plane one too
+    for (const id of Object.keys(cameraConfig.presets)) expect(sanitizeSkin({ style: { camera: id } })?.style?.camera).toBe(id);
     expect(skinById('arcade', null).style?.camera).toBe('FLAT');
     expect(skinById('neon', null).style?.camera).toBe('LOW');
     expect(skinById('jewel', null).textures).toEqual({ hitBurst: 'fx/hitBurstGlow', hitHold: 'fx/hitHold' });

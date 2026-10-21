@@ -623,19 +623,29 @@ export interface EffectSheet {
   size: [number, number];
   /** Where the judge line crosses a frame, from its far edge (share of its depth). */
   centre: number;
+  /** How wide the effect gets while it is still bright (halfway through), in lane widths. */
+  reach: number;
 }
 
-/** One frame cell's size in px (a lane is 64 px wide in it) and its centre, per style. */
-const CELLS: Record<HitStyle, { w: number; h: number; cy: number }> = {
-  flash: { w: 128, h: 192, cy: 104 },
-  stemflash: { w: 128, h: 192, cy: 104 },
-  star: { w: 192, h: 128, cy: 64 },
-  bomb: { w: 160, h: 160, cy: 80 },
-  flare: { w: 384, h: 128, cy: 64 },
-  hex: { w: 160, h: 112, cy: 56 },
-  shards: { w: 160, h: 112, cy: 56 },
-  bubbles: { w: 160, h: 160, cy: 80 },
+/**
+ * One frame cell's size in px (a lane is 64 px wide in it), its centre, and how wide the effect
+ * drawn in it gets halfway through (in px, see drawEffect), per style.
+ */
+const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number }> = {
+  flash: { w: 128, h: 192, cy: 104, reach: 84 },
+  stemflash: { w: 128, h: 192, cy: 104, reach: 84 },
+  star: { w: 192, h: 128, cy: 64, reach: 104 },
+  bomb: { w: 160, h: 160, cy: 80, reach: 83 },
+  flare: { w: 384, h: 128, cy: 64, reach: 216 },
+  hex: { w: 160, h: 112, cy: 56, reach: 96 },
+  shards: { w: 160, h: 112, cy: 56, reach: 74 },
+  bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
 };
+
+/** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
+const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex'];
+/** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
+const ABOVE_REACH = 28;
 
 export const EFFECT_FRAMES = 16;
 
@@ -655,10 +665,31 @@ export function effectSheet(style: HitStyle): EffectSheet {
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
       drawEffect(g, style, f / EFFECT_FRAMES);
+      if (FADES_ABOVE.includes(style)) fadeAbove(g, cell, f / EFFECT_FRAMES);
       g.restore();
     }
   });
-  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h };
+  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64 };
+}
+
+/**
+ * Above the judge line (up the cell from its centre) the part a player reads the next notes in:
+ * there an effect keeps to about a lane around the hit and fades out sooner than below the line.
+ */
+function fadeAbove(g: CanvasRenderingContext2D, cell: { w: number; cy: number }, p: number): void {
+  g.save();
+  g.beginPath();
+  g.rect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
+  g.clip();
+  g.globalCompositeOperation = 'destination-in';
+  // what stays: all of it near the hit at first, less and less of it as the effect goes on
+  const grad = g.createRadialGradient(0, 0, 0, 0, 0, ABOVE_REACH);
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(Math.max(0.05, 0.6 * (1 - p)), 'rgba(0,0,0,1)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
+  g.restore();
 }
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
@@ -684,7 +715,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
   switch (style) {
     case 'flash':
     case 'stemflash': {
-      // a bright bar on the judge line, two lines opening up and down, a short column of light
+      // a bright bar on the judge line, a line opening toward the gear, a short column of light
+      // (no line opening up the track: there it read as a note or a bar line)
       const fill = style === 'stemflash' ? colour : white;
       const fw = 66 * s;
       const fh = (16 - 10 * p) * s;
@@ -698,7 +730,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       const lw = fw * (1.05 + 0.3 * p);
       const d = (8 + 26 * p) * s;
-      line(-lw / 2, -d, lw / 2, -d, fill(0.8 * a), 3 * s);
       line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
       break;
     }

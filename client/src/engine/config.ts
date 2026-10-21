@@ -64,6 +64,8 @@ export interface CameraPreset {
   distance: number;
   lookAhead: number;
   fov: number;
+  /** Share of the track's length up it where the floor's fog starts (default 0.55, see fogStartZ). */
+  fogStart?: number;
 }
 
 export interface CameraConfig {
