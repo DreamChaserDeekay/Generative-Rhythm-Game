@@ -207,10 +207,11 @@ def test_onsets_unlikely_to_start_a_sound_score_lower(analysis128: dict) -> None
     assert all(sung_doubtful[b] < sung_sure[b] for b in sung_sure if sung_sure[b] > 0)
 
 
-def test_the_note_pick_model_scores_the_default_system_only_and_keeps_the_options(analysis128: dict) -> None:
-    """Since generator 0.9.9 the default system scores candidates with a note-pick model fitted on
-    human BMS charts (config/pick.json), blended in by skill. DJMAX and EZ2ON keep the hand-made
-    score, and a rhythm source still moves the scores as it moves the hand-made ones."""
+def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis128: dict) -> None:
+    """Since generator 0.9.9 candidates are scored with a note-pick model fitted on human BMS charts
+    (config/pick.json), blended in by skill. Generator 0.9.15 gave it to DJMAX and EZ2ON too, since
+    which sounds of a song deserve a note does not depend on the game (PATTERN_DESIGN 32). A rhythm
+    source still moves the scores as it moves the hand-made ones."""
     import math
     from dataclasses import replace
 
@@ -222,9 +223,9 @@ def test_the_note_pick_model_scores_the_default_system_only_and_keeps_the_option
     assert pick_model(easy) is not pick_model(master)
     for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
         params = resolve_params("6K", tier, None, None, system)
-        assert pick_model(params) is None
+        assert pick_model(params) is not None
         cands = build_candidates(analysis128, tempo, params, tolerance)
-        assert [c.score for c in cands] == _hand_scores(cands, params)
+        assert [c.score for c in cands] != _hand_scores(cands, params)
     # the probability is the configured logistic model
     model = pick_model(master)
     cands = build_candidates(analysis128, tempo, master, tolerance)

@@ -438,6 +438,8 @@ def search(
                 mean_cache, same_sound, params.anchor_cap, sides, bar,
                 # a hand holding a long note leaves the notes to the other hand: no run or balance rule then
                 hand_rule=not (one_hand or holding_hands), balance_rule=not (split or holding_hands), planned_repeat=planned_repeat,
+                # the same-hand pull is for the notes no shape plans (a doubles phrase changes hands on purpose)
+                pull_rule=sp is None or sp.motif == "step",
             )
             if reserved[si]:
                 pen = RESERVE_SHARE * weights.repeat
@@ -740,6 +742,7 @@ def _costs(
     sides: list[tuple[float, float]] | None = None,
     bar: int = -1,
     hand_rule: bool = True,
+    pull_rule: bool = True,
     balance_rule: bool = True,
     planned_repeat: bool = False,
 ) -> list[float]:
@@ -844,7 +847,7 @@ def _costs(
                 cost += jack * repeated
             if bonus:
                 # up to the jack-streak limit: past it a lane pays its streak cost like any other
-                cost -= bonus * sum(1 for i in combo if i in prev and i not in streak_cost)
+                cost -= bonus * sum(1 for i in combo if i in prev and i not in streak_cost and not (planned_repeat and state.streak and state.streak[i] >= 2))
         if not planned_repeat:
             # (a planned repeat keeps its lane however much it is used: the laser's middle key)
             for i in combo:
@@ -858,7 +861,7 @@ def _costs(
         if run_hand is not None and len(combo) == 1 and hands[combo[0]] == run_hand:
             if w.same_hand > 0 and run_len >= w.same_hand_free and combo[0] != stair_next:
                 cost += w.same_hand * (run_len + 1 - w.same_hand_free)
-            if w.same_hand_pull > 0 and run_len < w.same_hand_pull_max and combo[0] != state.run[-1]:
+            if w.same_hand_pull > 0 and pull_rule and run_len < w.same_hand_pull_max and combo[0] != state.run[-1]:
                 cost -= w.same_hand_pull
         if streak_cost:
             for i in combo:

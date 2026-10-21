@@ -449,7 +449,7 @@ def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple
 def palettes(
     phrases: list[Phrase], params: GenParams, n_keys: int, keys: list[tuple[int, int]] | None = None, seed: int = 0
 ) -> list[tuple[int, ...] | None]:
-    """Per phrase the keys it keeps to (config "palettes" of the system and key mode, else none).
+    """Per phrase the keys it keeps to (config "palettes" of the system, or "*", and key mode).
 
     Human BMS charts stay on a few keys for a while (the keys holding 80% of a 7K chart's 4-bar
     window: 3.8 below 4 notes a second, 5.4 above 12), mostly not neighbouring ones (1-3-5-7), and
@@ -459,7 +459,7 @@ def palettes(
     among the song's phrases (`register`). A phrase of an earlier material class (the sectioned
     engine's `keys`) takes that class's set."""
     systems = pattern_config()["palettes"].get("systems", {})
-    cfg = systems.get(params.system, {}).get(params.key_mode)
+    cfg = systems.get(params.system, systems.get("*", {})).get(params.key_mode)
     if not cfg:
         return [None] * len(phrases)
     size = int(round(by_skill(cfg["size"], params.skill)))

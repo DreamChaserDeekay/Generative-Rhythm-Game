@@ -270,7 +270,10 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
 def test_slow_repeated_notes_stay_on_their_lane() -> None:
     # Eighths 500 ms apart: a repeat this slow is easy on one key, and human BMS charts keep 86-88%
     # of slow same-keysound repeats on their lane. Fast ones (250 ms) keep it more on easy charts
-    # than on MASTER (BMS: 37-39% at levels 2-6, 16% at 14). DJMAX keeps its own split.
+    # than on MASTER (BMS: 37-39% at levels 2-6, 16% at 14). Generator 0.9.15 gives the slow rules
+    # to DJMAX and EZ2ON as well (reaching a key again half a second later is easy on a pad too, and
+    # test_guides checks the DPC limit on real jacks), but the fast bonus stays with the default
+    # system: carrying it over pushes DJMAX 4K MX past that limit (PATTERN_DESIGN 32).
     slow, bars = gesture_analysis(60.0)
     fast, _ = gesture_analysis(120.0)
 
@@ -282,7 +285,8 @@ def test_slow_repeated_notes_stay_on_their_lane() -> None:
         assert stay_share(place(slow, "7K+1S", tier)) >= 0.8, tier
     master = stay_share(place(fast, "7K+1S", "MASTER"))
     assert stay_share(place(fast, "7K+1S", "EASY")) > master and stay_share(place(fast, "7K+1S", "NORMAL")) > master
-    assert stay_share(place(slow, "6K", "NM", system="DJMAX")) <= 0.2
+    for system in ("DJMAX", "EZ2ON"):
+        assert stay_share(place(slow, "6K", "NM", system=system)) >= 0.4, system
 
 
 def test_pedals_anchor_and_drums_keep_one_lane_per_sound() -> None:
@@ -369,17 +373,17 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
 
 
-def test_the_default_system_balances_lane_use_over_more_notes() -> None:
+def test_every_system_balances_lane_use_over_the_same_many_notes() -> None:
     """The lane-usage balance charges a lane for use above the others' mean in its memory, which
     fades by hands.usageDecay each slot. Remembering only the last ten or so notes (0.9) spreads every
     run over both hands: human BMS charts play more jack streaks, doubles and trills and keep more
-    bars on one side (PATTERN_DESIGN 30). The default system remembers about 33 notes (0.97) since
-    generator 0.9.14; DJMAX and EZ2ON keep 0.9."""
+    bars on one side (PATTERN_DESIGN 30). The default system remembered about 33 notes (0.97) from
+    generator 0.9.14; 0.9.15 moved that to the base, so DJMAX and EZ2ON remember as many (32장)."""
     from rhythm_server.generator.lanes import _Weights
 
     assert _Weights.of(resolve_params("7K+1S", "NORMAL")).usage_decay == 0.97
-    assert _Weights.of(resolve_params("6K", "NM", 6, system="DJMAX")).usage_decay == 0.9
-    assert _Weights.of(resolve_params("6K", "NM", 6, system="EZ2ON")).usage_decay == 0.9
+    assert _Weights.of(resolve_params("6K", "NM", 6, system="DJMAX")).usage_decay == 0.97
+    assert _Weights.of(resolve_params("6K", "NM", 6, system="EZ2ON")).usage_decay == 0.97
 
 
 def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
