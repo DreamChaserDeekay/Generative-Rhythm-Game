@@ -33,6 +33,7 @@ import { failureReason } from './analysisError';
 import type { PlayRequest, PracticeOptions } from './App';
 import type { CalibrationStep } from './CalibrationScreen';
 import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
+import { desktopShell } from './displayMode';
 import { dayText, speedText } from './format';
 import { namedPictures } from './importPictures';
 import { lampClass, LampMark } from './lamps';
@@ -87,6 +88,8 @@ const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m
 const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
 /** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
 const PREFETCH_DELAY_MS = 300;
+/** A server that does not answer is asked again this often. */
+const RECONNECT_MS = 3000;
 
 /** The part of the detail column above the key modes: the song, or one of the two panels. */
 type Panel = 'none' | 'options' | 'info';
@@ -210,21 +213,36 @@ export function SongSelectScreen(props: Props) {
     }
   }, []);
 
-  const connect = useCallback(async () => {
-    setHealth(null);
-    try {
-      setHealth(await api.health());
-      const list = await refresh();
-      if (list && list.length > 0 && !list.some((s) => s.id === selectedSongId)) onSelectSong(list[0].id);
-    } catch {
-      setHealth('offline');
-    }
-  }, [refresh, selectedSongId, onSelectSong]);
+  /** Asks the server how it is, and for the songs; `quiet` keeps what shows meanwhile (the offline panel). */
+  const connect = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setHealth(null);
+      try {
+        setHealth(await api.health());
+        const list = await refresh();
+        if (list && list.length > 0 && !list.some((s) => s.id === selectedSongId)) onSelectSong(list[0].id);
+      } catch {
+        setHealth('offline');
+      }
+    },
+    [refresh, selectedSongId, onSelectSong],
+  );
 
-  // Connect once on mount.
+  // Connect on mount, and again every few seconds while the server does not answer
   useEffect(() => {
     void connect();
   }, []);
+  const offline = health === 'offline';
+  useEffect(() => {
+    if (!offline) return;
+    const id = window.setInterval(() => void connect(true), RECONNECT_MS);
+    return () => window.clearInterval(id);
+  }, [offline, connect]);
+  // the offline panel's 다시 연결 has the focus (Enter, a pad's A)
+  const offlinePanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (offline) offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]')?.focus();
+  }, [offline]);
 
   // Poll while something is being analyzed.
   const analyzing = songs.some((s) => s.status === 'queued' || s.status === 'analyzing');
@@ -682,10 +700,15 @@ export function SongSelectScreen(props: Props) {
     const at = randomIndex(filtered.length, filtered.findIndex((s) => s.id === selected?.id));
     if (at >= 0) cursorTo(at);
   };
-  /** The song row under the cursor takes the focus (leaving the search or a panel), or nothing does. */
+  /**
+   * The song row under the cursor takes the focus (leaving the search or a panel); with no server,
+   * the offline panel's 다시 연결 (as when it came); else nothing does.
+   */
   const focusList = () => {
     const row = selected ? songList.current?.querySelector<HTMLElement>(`[data-song-id="${selected.id}"]`) : null;
+    const reconnect = offline ? offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]') : null;
     if (row) row.focus({ preventScroll: true });
+    else if (reconnect) reconnect.focus();
     else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
@@ -830,6 +853,22 @@ export function SongSelectScreen(props: Props) {
           items[(at + (e.code === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
         }
         return;
+      }
+      if (offline && e.target instanceof HTMLElement && offlinePanel.current?.contains(e.target)) {
+        // the offline panel's buttons: the arrows go between them, Enter or Space (a pad's A) press one
+        if (e.code.startsWith('Arrow')) {
+          e.preventDefault();
+          const buttons = [...offlinePanel.current.querySelectorAll<HTMLElement>('button')];
+          const at = buttons.indexOf(e.target);
+          buttons[(at + (e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+          return;
+        }
+        if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+          // (pressed here: the select keeps Space's key-up from the buttons)
+          e.preventDefault();
+          if (!e.repeat) e.target.click();
+          return;
+        }
       }
       if (keepsKey(e.target, e.code)) return;
       if (panel !== 'none' && (e.defaultPrevented || panelKey(e, inList))) return;
@@ -980,9 +1019,23 @@ export function SongSelectScreen(props: Props) {
   };
 
   // the keys of the list, or of the open panel; a pad's buttons while the pad is used (the minor
-  // ones give way on a narrow window, so the bar keeps what Enter does)
-  const hints: KeyHint[] =
-    panel === 'none'
+  // ones give way on a narrow window, so the bar keeps what Enter does). With no server, the
+  // offline panel's; with no songs, 곡 추가 and what needs no song (the play options, and the
+  // song info's tools: the sync test, the calibration).
+  const settingsHint: KeyHint = { keys: [], pad: ['RT'], label: '설정' };
+  // (a panel opened over the offline one has its own keys)
+  const offlineKeys = offline && panel === 'none';
+  const hints: KeyHint[] = offlineKeys
+    ? [{ keys: ['←', '→'], pad: ['←', '→'], label: '버튼' }, settingsHint]
+    : songs.length === 0 && panel === 'none'
+      ? [
+          { keys: ['+'], label: '곡 추가', onClick: () => setAddMenu(true), testId: 'hint-add' },
+          { keys: ['Tab'], pad: ['Y'], label: '키 모드' },
+          { keys: ['Space'], pad: ['X'], label: '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
+          { keys: ['I'], pad: ['LT'], label: '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
+          settingsHint,
+        ]
+      : panel === 'none'
       ? [
           { keys: ['↑', '↓'], pad: ['↑', '↓'], label: '곡' },
           { keys: ['PgUp', 'PgDn'], pad: ['LB', 'RB'], label: '페이지', minor: true },
@@ -1002,8 +1055,10 @@ export function SongSelectScreen(props: Props) {
           { keys: ['Space'], pad: ['X'], label: panel === 'options' ? '플레이 옵션 닫기' : '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
           { keys: ['I'], pad: ['LT'], label: panel === 'info' ? '곡 정보·도구 닫기' : '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
         ];
-  // Enter picks an item of the add menu, presses a panel's focused button or box, or plays
-  const endHints: KeyHint[] = [{ keys: ['Enter'], pad: ['A'], label: addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : '플레이', testId: 'hint-enter' }];
+  // Enter picks an item of the add menu, presses a panel's focused button or box (or the offline
+  // panel's), or plays (nothing to play without songs)
+  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : songs.length > 0 ? '플레이' : null;
+  const endHints: KeyHint[] = enterLabel ? [{ keys: ['Enter'], pad: ['A'], label: enterLabel, testId: 'hint-enter' }] : [];
   if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : closePanel()) });
 
   return (
@@ -1108,14 +1163,28 @@ export function SongSelectScreen(props: Props) {
         }}
       />
 
-      {health === 'offline' && (
-        <section className="panel offline" data-testid="server-offline">
+      {offline && (
+        <section className="panel offline" data-testid="server-offline" ref={offlinePanel}>
           <h2>분석 서버에 연결할 수 없습니다</h2>
-          <p className="hint">곡 분석과 채보 생성은 로컬 Python 서버가 맡습니다. 터미널에서 서버를 실행한 뒤 다시 연결하세요.</p>
-          <pre>cd server{'\n'}python -m rhythm_server</pre>
+          {desktopShell() ? (
+            // the desktop app starts its server itself: one that stopped comes back with the app
+            <p className="hint">곡 분석과 채보 생성을 맡는 서버가 멈췄습니다. 앱을 다시 시작하세요.</p>
+          ) : (
+            <>
+              <p className="hint">곡 분석과 채보 생성은 로컬 Python 서버가 맡습니다. 터미널에서 서버를 실행하면 몇 초 안에 저절로 다시 연결합니다.</p>
+              <pre>
+                {'cd server\n'}
+                {'.venv/bin/python -m rhythm_server        # Windows: .venv\\Scripts\\python -m rhythm_server'}
+              </pre>
+            </>
+          )}
           <div className="row">
-            <button className="primary" onClick={() => void connect()}>다시 연결</button>
-            <button onClick={() => onPlay(syncTestRequest(keyMode, false))}>서버 없이 싱크 테스트</button>
+            <button className="primary" data-testid="reconnect" onClick={() => void connect()}>
+              다시 연결
+            </button>
+            <button data-testid="offline-sync-test" onClick={() => onPlay(syncTestRequest(keyMode, false))}>
+              서버 없이 싱크 테스트
+            </button>
           </div>
         </section>
       )}
@@ -1162,7 +1231,9 @@ export function SongSelectScreen(props: Props) {
             {filtered.length === 0 && (
               <div className="empty-list">
                 {songs.length === 0
-                  ? '음악 파일을 끌어다 놓거나 "곡 추가"를 누르세요. (mp3 · ogg · wav · flac · m4a)'
+                  ? offline
+                    ? '서버에 연결되면 곡을 추가할 수 있습니다.'
+                    : '음악 파일을 끌어다 놓거나 "곡 추가"를 누르세요. (mp3 · ogg · wav · flac · m4a)'
                   : query.trim()
                     ? '검색 결과가 없습니다'
                     : `${FOLDER_LABELS[folder]} 폴더에 곡이 없습니다 (${folderKey}로 다음 폴더)`}
@@ -1247,7 +1318,9 @@ export function SongSelectScreen(props: Props) {
               <div className="detail-empty">
                 <p className="hint">
                   {songs.length === 0
-                    ? '오른쪽 위 "곡 추가"로 음악 파일을 넣거나, 파일을 이 화면에 끌어다 놓으세요.'
+                    ? offline
+                      ? '서버에 연결되면 곡을 추가할 수 있습니다.'
+                      : '오른쪽 위 "곡 추가"로 음악 파일을 넣거나, 파일을 이 화면에 끌어다 놓으세요.'
                     : `보이는 곡이 없습니다. 검색어를 지우거나 폴더를 바꾸세요 (${folderKey}).`}
                 </p>
               </div>

@@ -99,8 +99,10 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
   await expect(page.getByTestId('song-list')).toBeVisible();
   await expect(page.locator('.difficulty.active')).toContainText('새 패턴');
 
-  // leaving while it is generating: the late pattern does not start a song
+  // leaving while it is generating: the late pattern does not start a song (the Esc once the result
+  // takes keys: in its first moments it holds Esc off, and the late pattern would play)
   await playToResult();
+  await settled(page);
   await page.route('**/api/songs/*/charts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     await new Promise((r) => setTimeout(r, 1500));
