@@ -262,7 +262,7 @@ export class PlayController {
       setup.keysounds && this.chart.sounds
         ? new KeysoundVoices(this.engine.ctx, this.engine.keysoundBus, setup.keysounds, this.chart.sounds)
         : null;
-    this.engine.keysoundBus.gain.value = setup.keysounds?.gain ?? 1;
+    this.engine.setKeysoundGain(setup.keysounds?.gain ?? 1);
     this.laneNotes = [];
     this.background = new PlayBackground({
       root: setup.bgRoot,

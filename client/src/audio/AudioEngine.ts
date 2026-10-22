@@ -7,6 +7,8 @@ const START_MARGIN_SEC = 0.1;
 const ANALYSER_FFT = 512;
 /** Ramp where a stem leaves or rejoins the mix (config/instruments.json). */
 const CUT_FADE_SEC = instrumentsJson.keysound.fadeMs / 1000;
+/** Note keysounds play this much louder than their own level, so a hit stands out over the song. */
+const KEYSOUND_BOOST = 1.1;
 
 export interface BufferPlacement {
   /** Song time (ms) of the buffer's first sample. */
@@ -31,14 +33,15 @@ export interface StemCut {
  * Keysounds of a generated chart take their stems out of the mix: each stem plays as another
  * source, sample-aligned with the mix and phase-inverted, whose gain steps from 0 (mix untouched)
  * to -1 (mix - stem) over the stem's keysound ranges. No accompaniment buffer is needed, and the
- * stems sum to the mix, so the hits put the song back together exactly.
+ * stems sum to the mix, so the hits put the song back together, the keysounded stems
+ * KEYSOUND_BOOST louder.
  */
 export class AudioEngine implements SongClock {
   readonly ctx: AudioContext;
   readonly clock: AudioClock;
   /** Taps the music for the background visualizer. */
   readonly analyser: AnalyserNode;
-  /** Note keysounds join the music here (music volume and visualizer). */
+  /** Note keysounds join the music here (music volume and visualizer), at setKeysoundGain's level. */
   readonly keysoundBus: GainNode;
   private readonly musicGain: GainNode;
   private readonly sfxGain: GainNode;
@@ -60,6 +63,7 @@ export class AudioEngine implements SongClock {
     this.analyser.fftSize = ANALYSER_FFT;
     this.analyser.smoothingTimeConstant = 0.75;
     this.keysoundBus = this.ctx.createGain();
+    this.setKeysoundGain(1);
     this.keysoundBus.connect(this.musicGain);
     this.musicGain.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
@@ -181,6 +185,14 @@ export class AudioEngine implements SongClock {
 
   setSfxVolume(volume: number): void {
     this.sfxGain.gain.value = volume;
+  }
+
+  /**
+   * Level of the note keysounds: `gain` is their own (an imported chart's, which keeps its mix from
+   * clipping; 1 for a generated chart's stems), raised by KEYSOUND_BOOST.
+   */
+  setKeysoundGain(gain: number): void {
+    this.keysoundBus.gain.value = gain * KEYSOUND_BOOST;
   }
 
   /** Short percussive tick for optional hit sounds. */
