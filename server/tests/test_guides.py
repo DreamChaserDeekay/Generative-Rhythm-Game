@@ -4,13 +4,24 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from functools import lru_cache
 
 from rhythm_server.analysis.analyzer import analyze
+from rhythm_server.config import load_config
 from rhythm_server.difficulty.consistency import structure_accuracy
 from rhythm_server.difficulty.guides import balance, guide_profile, hands, onset_pitches, pivots
 from rhythm_server.generator.core import generate_chart
-from rhythm_server.generator.lanes import _feedback_counts, _State, _Weights, anchor_hits, lane_infos
+from rhythm_server.generator.lanes import (
+    _feedback_counts,
+    _State,
+    _Weights,
+    anchor_hits,
+    lane_infos,
+    lane_move_class,
+    lane_move_logp,
+    lane_move_phase,
+)
 from rhythm_server.generator.motifs import SlotPlan, expected_keys, motif_context
 from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.sections import Unit, _cap_opening
@@ -148,6 +159,55 @@ def test_the_hand_run_feedback_counts_like_the_bms_measure() -> None:
         notes.append({"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"})
     assert (state.fb_run, state.fb_hand3) == (11, 4)
     assert round(state.fb_hand3 / state.fb_run, 3) == hands(notes, "7K+1S")["handRuns"]
+
+
+def test_lane_move_contexts_are_counted_like_the_bms_table() -> None:
+    # config/lane_moves.json (PATTERN_DESIGN 44): the move into a key instant, its beat phase
+    assert lane_move_class(0, -1e9, (3,), 0.0) == 16  # the start
+    assert lane_move_class(2, 0.0, (5,), 500.0) == 9  # two keys up: step +3 -> 3 + 6
+    assert lane_move_class(2, 0.0, (2,), 500.0) == 6  # a jack
+    assert lane_move_class(2, 0.0, (3, 4), 500.0) == 13  # single -> chord
+    assert lane_move_class(0, 0.0, (3,), 500.0) == 14  # chord -> single
+    assert lane_move_class(0, 0.0, (3, 5), 500.0) == 15  # chord -> chord
+    assert lane_move_class(2, 0.0, (5,), 1500.0) == 16  # after a rest
+    assert [lane_move_phase(b) for b in (0.0, 0.5, 0.25, 0.75, 1 / 3, 2.0, 3.995)] == [0, 1, 2, 2, 3, 0, 0]
+    table = lane_move_logp()
+    assert len(table) == 7 * 17 * 4 * 4
+    assert all(abs(sum(math.exp(x) for x in row) - 1.0) < 1e-9 for row in table.values())
+
+
+def test_lane_moves_make_the_moves_more_like_peoples(monkeypatch) -> None:
+    # Human 7-key charts go on in a line (1-2-3, 1-3-5) and repeat jacks far more than our charts
+    # did, which zigzag (PATTERN_DESIGN 44). With the lane-move cost the default system's 7K moves
+    # are likelier under the human counts; DJMAX and EZ2ON do not use it.
+    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+
+    def mean_logp(notes: list[dict]) -> float:
+        table = lane_move_logp()
+        by_t: dict[float, list[dict]] = {}
+        for n in notes:
+            if 1 <= int(n["lane"]) <= 7:
+                by_t.setdefault(round(float(n["t"]), 1), []).append(n)
+        times = sorted(by_t)
+        total, count, prev_key, prev_t, prev_cls = 0.0, 0, 0, -1e9, 16
+        for t in times:
+            keys = tuple(sorted(int(n["lane"]) for n in by_t[t]))
+            near = sum(len(by_t[u]) for u in times if abs(u - t) <= 2000.0)
+            band = sum(1 for e in (4.0, 8.0, 12.0) if near / 4.0 >= e)
+            cls = lane_move_class(prev_key, prev_t, keys, t)
+            if 0 <= cls <= 12:
+                total += table[(prev_key, prev_cls, lane_move_phase(float(by_t[t][0]["beat"])), band)][keys[0] - 1]
+                count += 1
+            prev_key, prev_t, prev_cls = (keys[0] if len(keys) == 1 else 0), t, cls
+        return total / count
+
+    a = song(124.0, 1)[1]
+    for key, value in (("laneMoves", 1.0), ("laneMovesDraw", True), ("laneMovesFree", True)):
+        monkeypatch.setitem(grg, key, value)
+    with_moves = [mean_logp(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for seed in range(3)]
+    monkeypatch.setitem(grg, "laneMoves", 0.0)
+    without = [mean_logp(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for seed in range(3)]
+    assert sum(with_moves) / 3 > sum(without) / 3 + 0.05, (with_moves, without)
 
 
 def test_opening_sections_stay_under_the_later_peak() -> None:
