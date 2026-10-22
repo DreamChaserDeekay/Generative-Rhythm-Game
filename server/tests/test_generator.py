@@ -207,6 +207,31 @@ def test_onsets_unlikely_to_start_a_sound_score_lower(analysis128: dict) -> None
     assert all(sung_doubtful[b] < sung_sure[b] for b in sung_sure if sung_sure[b] > 0)
 
 
+def test_a_sixteenth_that_pushes_the_next_beat_scores_above_one_before_a_stronger_beat() -> None:
+    """Human BMS easy charts pick a 16th-position sound twice as often when the grid point a 16th
+    later has no sound or a weaker one - a push that anticipates the beat or the off-beat - as when
+    a stronger sound follows (0.24 against 0.12; PATTERN_DESIGN 39). Since generator 0.9.20 the hand
+    score multiplies such a candidate by metrical.push; a 16th before a stronger sound scores as
+    before."""
+    import numpy as np
+
+    from rhythm_server.generator.candidates import Candidate, _hand_scores
+
+    params = resolve_params("7K+1S", "EASY")
+    push = float(difficulty_config()["metrical"]["push"])
+    assert push > 1.0
+
+    def cand(beat: float, subdivision: int, strength: float) -> Candidate:
+        return Candidate(beat=beat, t=beat * 500.0, subdivision=subdivision, strength=strength, bands=np.ones(3), pitch=None,
+                         harmonic=0.0, sustain_beats=0.0, intensity=0.5, downbeat=subdivision == 1 and beat % 4 == 0)
+
+    # 16ths before nothing (beat 1), before a stronger beat (5) and before a weaker one (9)
+    cands = [cand(0.0, 1, 1.0), cand(0.75, 4, 0.5), cand(4.0, 1, 1.0), cand(4.75, 4, 0.5), cand(5.0, 1, 0.8), cand(8.75, 4, 0.5), cand(9.0, 1, 0.3)]
+    score = dict(zip((c.beat for c in cands), _hand_scores(cands, params)))
+    assert score[0.75] == pytest.approx(push * score[4.75])
+    assert score[8.75] == pytest.approx(push * score[4.75])
+
+
 def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis128: dict) -> None:
     """Since generator 0.9.9 candidates are scored with a note-pick model fitted on human BMS charts
     (config/pick.json), blended in by skill. Generator 0.9.15 gave it to DJMAX and EZ2ON too, since

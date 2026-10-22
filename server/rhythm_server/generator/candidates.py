@@ -16,8 +16,6 @@ from .tempo import TempoMap
 
 # Snap preference: simpler rhythms first; triplets only when they fit clearly better.
 SNAP_ORDER = (1, 2, 4, 3, 8, 6)
-METRICAL_WEIGHT = {1: 0.9, 2: 0.72, 4: 0.5, 3: 0.55, 6: 0.42, 8: 0.32}
-DOWNBEAT_WEIGHT = 1.0
 # style weights that change the score (params.extra); the note-pick model keeps their effect
 SCORE_WEIGHTS = ("subdivisionBoost", "offbeatBoost", "downbeatBoost", "harmonicBoost")
 
@@ -348,13 +346,23 @@ def _hand_scores(cands: list[Candidate], params: GenParams) -> list[float]:
     attack_cfg = source_cfg.get("attack", {})
     attack_floor, attack_power = float(attack_cfg.get("floor", 1.0)), float(attack_cfg.get("power", 1.0))
     power = metrical_power(params)
+    metrical_cfg = difficulty_config()["metrical"]
+    weights = {int(k): float(v) for k, v in metrical_cfg["weights"].items() if k != "downbeat"}
+    downbeat_weight = float(metrical_cfg["weights"]["downbeat"])
+    push = float(metrical_cfg.get("push", 1.0))
+    strength_at = {round(c.beat, 4): c.strength for c in cands} if push != 1.0 else {}
     follows_melody = params.rhythm_source in ("auto", "melody", "vocal")
     out: list[float] = []
     for c in cands:
         melody = (c.melody or 0.0) if follows_melody else 0.0
         # a melody chart lets its notes off the beat: syncopation is the melody's own rhythm
         p = power * (1.0 - float(melody_cfg["offbeat"]) * melody) if params.rhythm_source in ("melody", "vocal") else power
-        metrical = DOWNBEAT_WEIGHT * downbeat if c.downbeat else METRICAL_WEIGHT.get(c.subdivision, 0.3) ** p
+        metrical = downbeat_weight * downbeat if c.downbeat else weights.get(c.subdivision, 0.3) ** p
+        if push != 1.0 and c.subdivision == 4:
+            # a 16th before an empty or weaker grid point pushes the beat or the off-beat early
+            after = strength_at.get(round(c.beat + 0.25, 4))
+            if after is None or after < c.strength:
+                metrical *= push
         metrical *= boosts.get(c.subdivision, 1.0) * (offbeat if c.subdivision > 1 else 1.0)
         total = float(np.sum(c.bands)) + 1e-9
         w_band = float(np.dot(c.bands, band_weight)) / total
