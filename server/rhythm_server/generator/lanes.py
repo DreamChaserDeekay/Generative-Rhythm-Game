@@ -29,6 +29,7 @@ W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
 ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
+RUN_MS = 400.0  # single notes closer than this form a run (bms_stats.RUN_MS: the hand-shape feedback counts like it)
 TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
 # (the weight would pick it anyway; skipping the rest keeps copied sections cheap)
@@ -89,6 +90,15 @@ class _Weights:
     # the lane it last had (BMS charts keep 70-86% of a keysound's notes on one lane)
     memory: float = 0.0
     memory_size: int = 0
+    # hand-shape feedback (hands.runTarget / barTarget, Udo 2023): the share of fast-run notes that
+    # are a hand's third or later in a row, and the share of full bars outside the hands' band, are
+    # steered toward a target by a bonus (below it) or a cost (above it) that grows with the gap;
+    # `feedback_prior` notes / bars at the target start the count
+    run_target: float = 0.0
+    run_feedback: float = 0.0
+    bar_target: float = 0.0
+    bar_feedback: float = 0.0
+    feedback_prior: float = 20.0
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -131,6 +141,11 @@ class _Weights:
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
             memory=by_skill(hands.get("soundMemory", 0.0), params.skill),
             memory_size=int(hands.get("soundMemorySize", 24)),
+            run_target=by_skill(hands.get("runTarget", 0.0), params.skill),
+            run_feedback=float(hands.get("runFeedback", 0.0)),
+            bar_target=by_skill(hands.get("barTarget", 0.0), params.skill),
+            bar_feedback=float(hands.get("barFeedback", 0.0)),
+            feedback_prior=float(hands.get("feedbackPrior", 20.0)),
         )
 
 
@@ -188,6 +203,16 @@ class _State:
     bar: int = -1  # bar of this slot
     bar_hands: tuple[float, float] = (0.0, 0.0)  # left / right key notes of that bar so far (a middle key: half each)
     memory: tuple[tuple[Any, int], ...] = ()  # (sound, lane) of the latest single key notes, one per sound, oldest first
+    # hand-shape feedback counts, measured like the BMS statistics (scripts/bms_stats.py): notes in
+    # runs of single notes, those a hand plays third or later in a row, full bars and lopsided ones
+    fb_run: int = 0
+    fb_hand3: int = 0
+    fb_bars: int = 0
+    fb_off: int = 0
+    fb_single: bool = False  # this slot is a single key note (no chord, no special lane)
+    fb_in_run: bool = False  # ...already counted in a run
+    fb_side: str | None = None  # hand of the run's latest note (T for the middle key)
+    fb_len: int = 0  # notes in a row that hand has played in the run
 
 
 def _remember(memory: tuple[tuple[Any, int], ...], sound: Any, keys_used: tuple[int, ...], size: int) -> tuple[tuple[Any, int], ...]:
@@ -283,6 +308,7 @@ def search(
         weights = dataclasses.replace(weights, repeat=repeat_weight)
     exact = repeat_weight is not None and repeat_weight >= EXACT_COPY_WEIGHT
     repeat_targets = targets_by_slot or [None] * len(slots)
+    feedback = weights.run_feedback > 0 or weights.bar_feedback > 0
     pos = [l.pos for l in lanes]
     hands = [l.hand for l in lanes]
     # each key's part of the left / right count of a bar (a shared middle key: half to each hand)
@@ -498,6 +524,7 @@ def search(
                 streak[i] = 0 if hands[i] == "T" else state.streak[i] + 1 if close else 1
                 left += sides[i][0]
                 right += sides[i][1]
+            fb = _feedback_counts(state, keys_used, lanes_used, t, bar, hands, weights) if feedback else None
             expansions.append(
                 _State(
                     cost=total,
@@ -519,6 +546,7 @@ def search(
                     bar=bar,
                     bar_hands=(left, right),
                     memory=_remember(state.memory, sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
+                    **(fb or {}),
                 )
             )
         beam = expansions or beam
@@ -797,6 +825,17 @@ def _costs(
         for i, n in enumerate(state.streak):
             if n >= w.jack_free:
                 streak_cost[i] = w.jack_streak * (n + 1 - w.jack_free)
+    # hand-shape feedback: how far the path so far is from the target shares (positive: too few)
+    run_gap = bar_gap = 0.0
+    continues_run = False
+    if w.run_feedback > 0 and slot.special is None:
+        continues_run = state.fb_single and dt <= RUN_MS
+        prior = w.feedback_prior
+        run_gap = w.run_target - (state.fb_hand3 + prior * w.run_target) / (state.fb_run + prior)
+    if w.bar_feedback > 0 and sides is not None:
+        prior = w.feedback_prior / 2.0
+        bar_gap = w.bar_target - (state.fb_off + prior * w.bar_target) / (state.fb_bars + prior)
+    bar_left, bar_right = state.bar_hands if state.bar == bar else (0.0, 0.0)
     left = right = 0.0
     use_balance = sides is not None and balance_rule and w.balance_bar > 0
     if use_balance:
@@ -866,6 +905,22 @@ def _costs(
         if streak_cost:
             for i in combo:
                 cost += streak_cost.get(i, 0.0)
+        if run_gap and continues_run and len(combo) == 1 and hand_rule:
+            hand = hands[combo[0]]
+            # the note's place in its hand's streak, counted like bms_stats (the middle key ends it)
+            length = 0 if hand == "T" else state.fb_len + 1 if hand == state.fb_side else 1
+            if length >= 3:
+                cost -= w.run_feedback * run_gap
+            elif length == 2:
+                cost -= 0.5 * w.run_feedback * run_gap
+        if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0:
+            # toward the hand the bar already leans to (a lopsided bar) while there are too few
+            lean = 1.0 if bar_left > bar_right else -1.0 if bar_right > bar_left else 0.0
+            if lean:
+                add = 0.0
+                for i in combo:
+                    add += lean * (sides[i][0] - sides[i][1])
+                cost -= w.bar_feedback * bar_gap * add
         if use_balance:
             add_l = add_r = 0.0
             for i in combo:
@@ -880,6 +935,34 @@ def _costs(
                     cost += w.balance_bar * add_r
         out.append(cost)
     return out
+
+
+def _feedback_counts(
+    state: _State, keys_used: tuple[int, ...], lanes_used: tuple[int, ...], t: float, bar: int, hands: list[str], w: _Weights
+) -> dict[str, Any]:
+    """The hand-shape feedback counts after a slot, as scripts/bms_stats.py counts them: notes in
+    runs of single notes (each within RUN_MS of the last), the ones a hand plays third or later in a
+    row (the middle key ends the count), and the full bars that end outside the hands' band. (One
+    difference: bms_stats leaves the scratch out, here a slot with a scratch or side note ends a run.)"""
+    run, hand3, bars, off = state.fb_run, state.fb_hand3, state.fb_bars, state.fb_off
+    if state.bar >= 0 and bar != state.bar:
+        left, right = state.bar_hands
+        if left + right >= w.balance_min:
+            bars += 1
+            if not w.balance_band[0] <= left / (left + right) <= w.balance_band[1]:
+                off += 1
+    single = len(lanes_used) == 1 and len(keys_used) == 1
+    in_run, side, length = False, None, 0
+    if single:
+        side = hands[keys_used[0]]
+        if state.fb_single and t - state.prev_t <= RUN_MS:
+            run += 1 if state.fb_in_run else 2
+            in_run = True
+            length = 0 if side == "T" else state.fb_len + 1 if side == state.fb_side else 1
+            hand3 += length >= 3
+        else:
+            length = 0 if side == "T" else 1
+    return {"fb_run": run, "fb_hand3": hand3, "fb_bars": bars, "fb_off": off, "fb_single": single, "fb_in_run": in_run, "fb_side": side, "fb_len": length}
 
 
 def _streak_over(state: _State, combo: tuple[int, ...], t: float, w: _Weights) -> bool:

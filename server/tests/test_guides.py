@@ -3,14 +3,16 @@
 
 from __future__ import annotations
 
+import dataclasses
 from functools import lru_cache
 
 from rhythm_server.analysis.analyzer import analyze
 from rhythm_server.difficulty.consistency import structure_accuracy
 from rhythm_server.difficulty.guides import balance, guide_profile, hands, onset_pitches, pivots
 from rhythm_server.generator.core import generate_chart
-from rhythm_server.generator.lanes import anchor_hits, lane_infos
+from rhythm_server.generator.lanes import _feedback_counts, _State, _Weights, anchor_hits, lane_infos
 from rhythm_server.generator.motifs import SlotPlan, expected_keys, motif_context
+from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.sections import Unit, _cap_opening
 from rhythm_server.synth import CHORUS_FIRST_FORM, make_structured_song
 
@@ -123,6 +125,29 @@ def test_bms_hand_measures() -> None:
     assert lopsided["offBars"] == 1.0 and balance(notes([0, 3, 1, 4, 2, 5] * 2, step=0.25, dt=100.0), "6K")["offBars"] == 0.0
     # neighbouring keys of one hand: 1+2 and 5+6 of these four chords (3+4 spans both hands, 1+6 is symmetric)
     assert balance(notes([(0, 1), (2, 3), (0, 5), (4, 5)]), "6K")["adjacentChords"] == 0.5
+
+
+def test_the_hand_run_feedback_counts_like_the_bms_measure() -> None:
+    # The lane search keeps a running count of the notes in fast runs of single notes and of those a
+    # hand plays third or later in a row (PATTERN_DESIGN 43): it has to be the guide measure's
+    # handRuns (the BMS statistics' count) of the path so far.
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "HARD", system="GRG"))
+    n = len(lanes)
+    state = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    # key 1-2-3 (third on the left), the middle key, 5-6-7 (third on the right), a pause, 1-1-2-3
+    seq = [(0, 0.0), (1, 150.0), (2, 300.0), (3, 450.0), (4, 600.0), (5, 750.0), (6, 900.0),
+           (0, 1800.0), (0, 1950.0), (1, 2100.0), (2, 2250.0)]
+    notes = []
+    for k, t in seq:
+        lane = keys[k]
+        fb = _feedback_counts(state, (lane,), (lane,), t, int(t // 2000), hand_of, w)
+        state = dataclasses.replace(state, prev_t=t, bar=int(t // 2000), **fb)
+        notes.append({"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"})
+    assert (state.fb_run, state.fb_hand3) == (11, 4)
+    assert round(state.fb_hand3 / state.fb_run, 3) == hands(notes, "7K+1S")["handRuns"]
 
 
 def test_opening_sections_stay_under_the_later_peak() -> None:
