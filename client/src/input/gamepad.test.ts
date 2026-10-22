@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import inputJson from '@config/input.json';
-import { GamepadPoller, isPadCode, menuAction, padCodeLabel, padMenuKey, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS, type PadEvent } from './gamepad';
+import { GamepadPoller, isPadCode, MENU_BUTTON_KEYS, menuAction, padCodeLabel, padMenuKey, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS, type PadEvent } from './gamepad';
 import { InputManager } from './InputManager';
 
 const CFG = inputJson.gamepad;
@@ -250,6 +250,12 @@ describe('menu keys of a pad', () => {
     expect(SELECT_PAD_KEYS).toMatchObject({ 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', ...SHOULDER_KEYS });
     // nothing of the standard layout's own (A, B, Y, Start, Back, the d-pad) is taken
     for (const code of Object.keys(SELECT_PAD_KEYS)) expect(padMenuKey({ code, standard: true })).toBe(null);
+  });
+
+  it("gives the result X to play again on the same placement (R, as a controller's 다시 하기 button sends), and LB / RB as everywhere", () => {
+    expect(RESULT_PAD_KEYS).toEqual({ 'Pad:B2': 'KeyR', ...SHOULDER_KEYS });
+    for (const code of Object.keys(RESULT_PAD_KEYS)) expect(padMenuKey({ code, standard: true })).toBe(null);
+    expect(MENU_BUTTON_KEYS.retry).toBe(RESULT_PAD_KEYS['Pad:B2']);
   });
 });
 

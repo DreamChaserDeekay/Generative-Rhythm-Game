@@ -13,6 +13,40 @@ const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getIt
 /** The result has shown itself (its reveal's time is up): its keys act from now on. */
 const settled = (page: Page) => expect(page.getByTestId('result-screen')).toHaveAttribute('data-settled', 'true', { timeout: 60_000 });
 
+/**
+ * A pad the page reads through navigator.getGamepads (`__pad` in the page): a standard-mapping one,
+ * or (mapping '') a controller of its own layout. Returns a press of a button, held long enough for
+ * the menus' 16 ms polling to see it.
+ */
+async function plugPad(page: Page, mapping = 'standard') {
+  await page.addInitScript((m) => {
+    const pad = {
+      index: 0,
+      id: 'E2E Pad',
+      connected: true,
+      mapping: m,
+      timestamp: 1,
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
+      axes: [0, 0, 0, 0],
+    };
+    (window as unknown as { __pad: typeof pad }).__pad = pad;
+    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+  }, mapping);
+  return async (button: number) => {
+    for (const down of [true, false]) {
+      await page.evaluate(
+        ([b, d]) => {
+          const pad = (window as unknown as { __pad: { buttons: { pressed: boolean }[]; timestamp: number } }).__pad;
+          pad.buttons[b as number].pressed = d as boolean;
+          pad.timestamp = performance.now();
+        },
+        [button, down],
+      );
+      await page.waitForTimeout(80);
+    }
+  };
+}
+
 test('on the result Enter continues, R plays the same lane order again and Shift+R a new one; a held Enter starts nothing more', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', placement: 'RANDOM' })));
@@ -165,33 +199,8 @@ test('as the result shows itself, Enter, Space, Esc, the arrows, Tab and the lan
 test('a pad whose lanes are its d-pad and Y: pressed as the result shows, even held on past it, they move nothing; then A goes on', async ({ page }) => {
   const errors = trackErrors(page);
   // a standard pad played 4K on ← ↑ ↓ and Y: in the menus they are arrows and Tab, which move the focus
-  await page.addInitScript(() => {
-    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', padBindings: { '4K': ['Pad:B14', 'Pad:B12', 'Pad:B13', 'Pad:B3'] } }));
-    const pad = {
-      index: 0,
-      id: 'E2E Pad',
-      connected: true,
-      mapping: 'standard',
-      timestamp: 1,
-      buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
-      axes: [0, 0, 0, 0],
-    };
-    (window as unknown as { __pad: typeof pad }).__pad = pad;
-    Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
-  });
-  const press = async (button: number) => {
-    for (const down of [true, false]) {
-      await page.evaluate(
-        ([b, d]) => {
-          const pad = (window as unknown as { __pad: { buttons: { pressed: boolean }[]; timestamp: number } }).__pad;
-          pad.buttons[b as number].pressed = d as boolean;
-          pad.timestamp = performance.now();
-        },
-        [button, down],
-      );
-      await page.waitForTimeout(80);
-    }
-  };
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', padBindings: { '4K': ['Pad:B14', 'Pad:B12', 'Pad:B13', 'Pad:B3'] } })));
+  const press = await plugPad(page);
   await page.goto('/');
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
@@ -234,6 +243,86 @@ test('a pad whose lanes are its d-pad and Y: pressed as the result shows, even h
   await expect(page.getByTestId('song-list')).toBeVisible();
   await page.waitForTimeout(500);
   await expect(page.getByTestId('play-screen')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("a pad's X plays again on the same lane order; where X is a lane, held on from the play or pressed as the result shows, it only shows it all", async ({ page }) => {
+  const errors = trackErrors(page);
+  // a standard pad played 4K on ← ↑ ↓ and X, on RANDOM: X, the result's 다시 하기, is a lane's button too
+  await page.addInitScript(() =>
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', placement: 'RANDOM', padBindings: { '4K': ['Pad:B14', 'Pad:B12', 'Pad:B13', 'Pad:B2'] } })),
+  );
+  const press = await plugPad(page);
+  await page.goto('/');
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
+  // X held down in the play, let go once the result is there and tapped again in its first 600 ms;
+  // how the result is after that is kept
+  await page.evaluate(() => {
+    const w = window as unknown as { __pad: { buttons: { pressed: boolean }[]; timestamp: number }; __shownAt: number; __after: unknown };
+    const setX = (down: boolean) => {
+      w.__pad.buttons[2].pressed = down;
+      w.__pad.timestamp = performance.now();
+    };
+    setX(true);
+    const watch = new MutationObserver(() => {
+      const result = document.querySelector('[data-testid="result-screen"]');
+      if (!result) return;
+      watch.disconnect();
+      w.__shownAt = performance.now();
+      setTimeout(() => setX(false), 100);
+      setTimeout(() => setX(true), 200);
+      setTimeout(() => setX(false), 350);
+      setTimeout(() => {
+        w.__after = { settled: result.getAttribute('data-settled'), shown: result.isConnected, playing: document.querySelector('[data-testid="play-screen"]') !== null };
+      }, 500);
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+  });
+  // the tap reached the result before its reveal was over (it showed it all) and played nothing
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __after?: unknown }).__after ?? null), { timeout: 60_000 }).not.toBeNull();
+  expect(await page.evaluate(() => (window as unknown as { __after: unknown }).__after)).toEqual({ settled: 'true', shown: true, playing: false });
+  await expect(page.getByTestId('result-screen')).toBeVisible();
+  // the pad works the menus: the hint and the buttons name its X and A
+  await expect(page.getByTestId('hint-retry')).toHaveText(/X\s*같은 배치로 다시/);
+  await expect(page.getByTestId('result-retry')).toHaveText('같은 배치로 다시 X');
+  await expect(page.getByTestId('result-back')).toHaveText('선곡으로 A');
+
+  // past those 600 ms X plays again, on the lane order just played
+  await page.waitForFunction(() => performance.now() > (window as unknown as { __shownAt: number }).__shownAt + 700);
+  await expect(page.getByTestId('play-screen')).toHaveCount(0);
+  const placed = page.getByTestId('result-placement');
+  const seed = await placed.getAttribute('data-seed');
+  const order = await placed.textContent();
+  await press(2);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
+  await expect(placed).toHaveAttribute('data-seed', seed!);
+  await expect(placed).toHaveText(order!);
+  expect(errors).toEqual([]);
+});
+
+test("a controller's own 다시 하기 button plays again from the result, whose hints name the keyboard's keys its buttons send", async ({ page }) => {
+  const errors = trackErrors(page);
+  // a controller of its own layout played 4K on buttons 0–3 (the menus' 결정, 취소, 왼쪽, 오른쪽 come
+  // from them), its 다시 하기 assigned in 게임패드 to button 9
+  await page.addInitScript(() =>
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', padBindings: { '4K': ['Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3'] }, padMenu: { retry: 'Pad:B9' } })),
+  );
+  const press = await plugPad(page, '');
+  await page.goto('/');
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
+  await settled(page);
+  // 오른쪽 moves the focus to 다시 하기; the hint and the button name R, the key the controller sends
+  await press(3);
+  await expect(page.getByTestId('result-retry')).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('controller');
+  await expect(page.getByTestId('hint-retry')).toHaveText(/R\s*다시 하기/);
+  await expect(page.getByTestId('result-retry')).toHaveText('다시 하기 R');
+  await press(9);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

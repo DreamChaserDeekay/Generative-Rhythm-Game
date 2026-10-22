@@ -47,7 +47,7 @@ export interface KeyHint {
  * takes over (its menu buttons send the keyboard's keys, so the bar names those). A pointer
  * changes nothing, so a hint does not move under it.
  */
-function usePadInput(): boolean {
+export function usePadInput(): boolean {
   const [pad, setPad] = useState(() => document.documentElement.dataset.input === 'pad');
   useEffect(() => {
     const root = document.documentElement;

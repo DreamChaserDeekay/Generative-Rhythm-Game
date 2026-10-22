@@ -5,7 +5,8 @@ import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
 import type { SessionResult } from '../engine/session';
 import type { Chart } from '../engine/types';
-import { bindingsFor, secondBindingsFor, songOffsetOf, withSongOffset, type Settings } from '../settings/settings';
+import { padCodeOf } from '../input/gamepad';
+import { bindingsFor, padBindingsFor, secondBindingsFor, songOffsetOf, withSongOffset, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
 import { lampClass } from './lamps';
@@ -17,6 +18,7 @@ import {
   densityBins,
   errorsAtEnd,
   headlineOf,
+  isLaneKey,
   judgeCells,
   LOSS_CLASSES,
   lossTimes,
@@ -37,7 +39,7 @@ import {
   type RecordChange,
   type SectionScore,
 } from './resultBreakdown';
-import { HintBar, TopBar, type KeyHint } from './shell';
+import { HintBar, TopBar, usePadInput, type KeyHint } from './shell';
 import { Backdrop, Disc, SongArt } from './songArt';
 
 interface Props {
@@ -65,9 +67,10 @@ const REVEAL_MS = 600;
  * Until the reveal's time is up (this long at least, without the reveal: reduced motion), the keys
  * that go on or press (Enter, Space, Esc: a pad's A and B), the keys that move the focus or the
  * page (a pad's d-pad, Y and shoulders, a controller's lanes the menus take as arrows: the menu
- * bridge moves the focus with one the screen leaves alone) and the play's lane keys only show it
- * all: a key pressed out of habit as the song ends does nothing more, nor do its repeats while it
- * is held. R, F2, F5 and F7 act at once.
+ * bridge moves the focus with one the screen leaves alone) and the play's lanes (its keys, and
+ * whatever its pad lanes send: X, which plays again, where it is one) only show it all: a key
+ * pressed out of habit as the song ends does nothing more, nor do its repeats while it is held.
+ * R, F2, F5 and F7 act at once, and so does a pad's X (or a controller's 다시 하기) that is no lane.
  */
 const MIN_GUARD_MS = 400;
 const GUARDED_KEYS = new Set(['Enter', 'NumpadEnter', 'Space', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
@@ -108,6 +111,8 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const [details, setDetails] = useState(false);
   const saved = useRef(false);
   const backButton = useRef<HTMLButtonElement>(null);
+  // while a pad works the menus the buttons name its buttons, as the hint bar does
+  const padInput = usePadInput();
   const gauge = Object.values(gaugeRules).find((g) => g.label === result.gaugeLabel) ?? gaugeRules.NORMAL;
   const startMs = practice ? practice.startMs : 0;
   const endMs = practice ? practice.endMs : Math.max(meta.durationMs ?? 0, ...chart.notes.map((n) => n.endT ?? n.t), 1);
@@ -201,25 +206,27 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   // The details (graphs, the offset suggestion, every judgement) take the summary's place.
   const toggleDetails = () => setDetails((v) => !v);
 
-  // The play's lane keys: pressed out of habit as the result shows, they only show it all.
+  // The play's lane keys and pad lanes: pressed out of habit as the result shows, they only show it all.
   const laneKeys = new Set([...bindingsFor(settings, meta.keyMode), ...secondBindingsFor(settings, meta.keyMode).filter((c): c is string => c !== null)]);
+  const padLanes = new Set(padBindingsFor(settings, meta.keyMode).filter((c): c is string => c !== null));
   // with a lane on Shift a new lane order is the button's alone
   const shiftLane = shiftIsLane(laneKeys);
   // keys held off as the result showed (see MIN_GUARD_MS), until they are let go
   const heldOff = useRef(new Set<string>());
 
   // Enter continues to the song select (the editor, for its test plays), as on the commercial
-  // games' result screens; Esc too, once the details are closed. R or F2 (the in-play retry key)
-  // plays again on the same placement, Shift+R on a new one, F5 a new pattern, F7 exports the
-  // replay, Space opens the details. A held key does nothing more, a focused button takes its own
-  // Enter, and any key or click shows the whole result at once (and only that, early on: see MIN_GUARD_MS).
+  // games' result screens; Esc too, once the details are closed. R or F2 (the in-play retry key;
+  // a pad's X sends R) plays again on the same placement, Shift+R on a new one, F5 a new pattern,
+  // F7 exports the replay, Space opens the details. A held key does nothing more, a focused button
+  // takes its own Enter, and any key or click shows the whole result at once (and only that, early
+  // on: see MIN_GUARD_MS).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const early = performance.now() < guardUntil;
       settle();
       // kept from a focused button (Enter, the pad's A) and from the menu bridge (which moves the
       // focus with an arrow or Tab left alone, and repeats a held d-pad)
-      if (early && (GUARDED_KEYS.has(e.code) || laneKeys.has(e.code))) {
+      if (early && (GUARDED_KEYS.has(e.code) || isLaneKey(e.code, padCodeOf(e), laneKeys, padLanes))) {
         e.preventDefault();
         heldOff.current.add(e.code);
         return;
@@ -295,9 +302,8 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const randomPlacement = !request.fromEditor && settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
   const backLabel = request.fromEditor ? '에디터로' : request.fromSettings ? '설정으로' : '선곡으로';
 
-  const hints: KeyHint[] = randomPlacement
-    ? [{ keys: ['R'], label: '같은 배치로 다시' }, ...(shiftLane ? [] : [{ keys: ['Shift', 'R'], label: '새 배치로 다시' }])]
-    : [{ keys: ['R'], label: '다시 하기' }];
+  const hints: KeyHint[] = [{ keys: ['R'], pad: ['X'], label: randomPlacement ? '같은 배치로 다시' : '다시 하기', testId: 'hint-retry' }];
+  if (randomPlacement && !shiftLane) hints.push({ keys: ['Shift', 'R'], label: '새 배치로 다시' });
   if (onRegenerate) hints.push({ keys: ['F5'], label: '새 패턴' });
   hints.push({ keys: ['Space'], label: details ? '상세 닫기' : '상세', onClick: thenBack(toggleDetails), testId: 'hint-details' });
   if (replay) hints.push({ keys: ['F7'], label: '리플레이 파일로 내보내기', onClick: thenBack(exportReplay), testId: 'hint-export-replay', minor: true });
@@ -574,10 +580,10 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
 
         <div className="result-actions">
           <button ref={backButton} className="primary" data-testid="result-back" onClick={onBack}>
-            {backLabel} <kbd>Enter</kbd>
+            {backLabel} <kbd>{padInput ? 'A' : 'Enter'}</kbd>
           </button>
           <button data-testid="result-retry" onClick={() => onRetry(false)}>
-            {randomPlacement ? '같은 배치로 다시' : '다시 하기'} <kbd>R</kbd>
+            {randomPlacement ? '같은 배치로 다시' : '다시 하기'} <kbd>{padInput ? 'X' : 'R'}</kbd>
           </button>
           {randomPlacement && (
             <button data-testid="result-retry-new" onClick={() => onRetry(true)}>

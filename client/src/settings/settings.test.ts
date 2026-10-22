@@ -176,7 +176,7 @@ describe('settings', () => {
     const s = sanitizeSettings({
       playKeys: { retry: 'KeyR', liftUp: 'Alt+PageDown', fever: 'Escape', speedUp: 'Alt+Ctrl+KeyW', speedUpBig: 'Shift+Alt+ArrowUp', nope: 'KeyQ' } as never,
       padPlay: { start: 'Pad:B11', select: null, fever: 'Pad:TT0' } as never,
-      padMenu: { ok: 'Pad:B2', up: 'Pad:TT0-', down: 'Pad:A1+', left: 'Pad:A0', options: null } as never,
+      padMenu: { ok: 'Pad:B2', up: 'Pad:TT0-', down: 'Pad:A1+', left: 'Pad:A0', options: null, retry: 'Pad:B9' } as never,
     });
     // a default stays unstored; Esc is no binding; Ctrl, Alt, Shift in that order
     expect(s.playKeys).toEqual({ retry: 'KeyR', speedUp: 'Ctrl+Alt+KeyW', speedUpBig: 'Alt+Shift+ArrowUp' });
@@ -185,7 +185,7 @@ describe('settings', () => {
     expect(s.padPlay).toEqual({ start: 'Pad:B11', select: null });
     expect(padPlayOf(s)).toEqual({ start: 'Pad:B11', select: null, fever: null });
     // a menu direction is a turntable's turn or an axis pushed one way, never an axis as a whole
-    expect(s.padMenu).toEqual({ ok: 'Pad:B2', up: 'Pad:TT0-', down: 'Pad:A1+', options: null });
+    expect(s.padMenu).toEqual({ ok: 'Pad:B2', up: 'Pad:TT0-', down: 'Pad:A1+', options: null, retry: 'Pad:B9' });
     expect(bindingLabel('Alt+PageUp')).toBe('Alt+PgUp');
     expect(bindingLabel('Shift+Minus')).toBe('Shift+-');
     expect(bindingLabel('ArrowDown')).toBe('↓');
@@ -196,13 +196,16 @@ describe('settings', () => {
       lastKeyMode: '7K+1S',
       padBindings: { '7K+1S': ['Pad:TT0', 'Pad:B0', 'Pad:B1', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6'] },
     });
-    expect(padMenuFor(iidx)).toEqual({ ok: 'Pad:B0', back: 'Pad:B1', up: 'Pad:TT0-', down: 'Pad:TT0+', left: 'Pad:B2', right: 'Pad:B3', options: null });
+    expect(padMenuFor(iidx)).toEqual({ ok: 'Pad:B0', back: 'Pad:B1', up: 'Pad:TT0-', down: 'Pad:TT0+', left: 'Pad:B2', right: 'Pad:B3', options: null, retry: null });
     // one assigned replaces the inferred, null clears it
     const own = { ...iidx, padMenu: { ok: 'Pad:B8', back: null } };
     expect(padMenuFor(own)).toMatchObject({ ok: 'Pad:B8', back: null, up: 'Pad:TT0-' });
     expect(padMenuKeysFor(own)).toMatchObject({ 'Pad:B8': 'Enter', 'Pad:TT0-': 'ArrowUp', 'Pad:TT0+': 'ArrowDown', 'Pad:B2': 'ArrowLeft' });
+    // 다시 하기 only where it is assigned (a function button, say): it sends R, the result's retry
+    expect(padMenuKeysFor({ ...iidx, padMenu: { retry: 'Pad:B9' } })).toMatchObject({ 'Pad:B9': 'KeyR', 'Pad:B0': 'Enter' });
+    expect(Object.values(padMenuKeysFor(iidx))).not.toContain('KeyR');
     // no pad lanes anywhere: its first two buttons decide and cancel, and no axis is a direction
-    expect(padMenuFor(DEFAULT_SETTINGS)).toEqual({ ok: 'Pad:B0', back: 'Pad:B1', up: null, down: null, left: null, right: null, options: null });
+    expect(padMenuFor(DEFAULT_SETTINGS)).toEqual({ ok: 'Pad:B0', back: 'Pad:B1', up: null, down: null, left: null, right: null, options: null, retry: null });
   });
 
   it('keeps the turntable sensitivity and release time, and pausing when the window is left (settings saved before them: 1 step, 120 ms, on)', () => {

@@ -502,10 +502,10 @@ export type PadMenuSettings = Pick<Settings, 'padMenu' | 'padBindings' | 'lastKe
  * from its lanes (of the last key mode played, else the first mode with pad lanes): the first key
  * lanes' buttons decide, cancel, go left and right, and a turntable lane's turns go up and down.
  * Without pad lanes its first two buttons decide and cancel (no axis: one left past the middle
- * would be an arrow key held).
+ * would be an arrow key held). The options and retry buttons are never inferred.
  */
 export function padMenuFor(settings: PadMenuSettings): Record<MenuButton, string | null> {
-  const inferred: Record<MenuButton, string | null> = { ok: null, back: null, up: null, down: null, left: null, right: null, options: null };
+  const inferred: Record<MenuButton, string | null> = { ok: null, back: null, up: null, down: null, left: null, right: null, options: null, retry: null };
   const mode = [settings.lastKeyMode, ...enabledKeyModes].find((m) => padBindingsFor(settings, m).some((c) => c !== null));
   if (!mode) [inferred.ok, inferred.back] = ['Pad:B0', 'Pad:B1'];
   else {

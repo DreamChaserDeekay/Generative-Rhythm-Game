@@ -9,6 +9,7 @@ import {
   densityBins,
   errorsAtEnd,
   histogramBins,
+  isLaneKey,
   judgeCells,
   lossTimes,
   nextGrade,
@@ -199,6 +200,21 @@ describe('result breakdown', () => {
     expect(modes.filter((m) => shiftIsLane(lanes(m)))).toEqual(['4K+FX', '6K+FX', '7K+1S']);
     // a lane moved onto Shift by the player counts too
     expect(shiftIsLane(new Set(['KeyD', 'KeyF', 'ShiftRight', 'KeyK']))).toBe(true);
+  });
+
+  it("tells the play's lanes as the result shows: their keys, and any key a pad sends from a pad lane (its X's R too)", () => {
+    const keys = new Set(['KeyD', 'KeyF', 'KeyJ', 'KeyK']);
+    // a pad played 4K on ← ↑ ↓ and X
+    const pad = new Set(['Pad:B14', 'Pad:B12', 'Pad:B13', 'Pad:B2']);
+    expect(isLaneKey('KeyR', 'Pad:B2', keys, pad)).toBe(true);
+    expect(isLaneKey('ArrowUp', 'Pad:B12', keys, pad)).toBe(true);
+    // the keyboard's R is no lane, nor X where the pad plays on other buttons, nor a key the bridge sent for no lane
+    expect(isLaneKey('KeyR', null, keys, pad)).toBe(false);
+    expect(isLaneKey('KeyR', 'Pad:B2', keys, new Set(['Pad:B0', 'Pad:B1']))).toBe(false);
+    expect(isLaneKey('Enter', 'Pad:B0', keys, pad)).toBe(false);
+    // a lane key is the lane's whoever sent it
+    expect(isLaneKey('KeyJ', null, keys, pad)).toBe(true);
+    expect(isLaneKey('KeyJ', 'Pad:B0', keys, new Set())).toBe(true);
   });
 
   it('signs a change', () => {

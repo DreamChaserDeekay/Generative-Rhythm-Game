@@ -258,8 +258,8 @@ const REPEATING = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
  * The menu buttons a pad without the standard mapping is given (an IIDX or SDVX controller: its
  * keys, turntable and knobs are its lanes, and none of them is a d-pad), and the keys they send.
  */
-export type MenuButton = 'ok' | 'back' | 'up' | 'down' | 'left' | 'right' | 'options';
-export const MENU_BUTTONS: readonly MenuButton[] = ['ok', 'back', 'up', 'down', 'left', 'right', 'options'];
+export type MenuButton = 'ok' | 'back' | 'up' | 'down' | 'left' | 'right' | 'options' | 'retry';
+export const MENU_BUTTONS: readonly MenuButton[] = ['ok', 'back', 'up', 'down', 'left', 'right', 'options', 'retry'];
 export const MENU_BUTTON_KEYS: Readonly<Record<MenuButton, string>> = {
   ok: 'Enter',
   back: 'Escape',
@@ -269,6 +269,8 @@ export const MENU_BUTTON_KEYS: Readonly<Record<MenuButton, string>> = {
   right: 'ArrowRight',
   // the song select's play options
   options: 'Space',
+  // the result's 다시 하기 on the same placement, as a pad's X there (the pause menu's too)
+  retry: 'KeyR',
 };
 
 // The keys of the menu buttons assigned (or inferred) for pads without the standard mapping, by pad code.
@@ -296,6 +298,9 @@ export const SHOULDER_KEYS: Readonly<Record<string, string>> = { 'Pad:B4': 'Page
 
 /** On the song select also X, LT and RT: the play options (Space), the song info (I) and the settings (F10). */
 export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10' };
+
+/** On the result also X: 다시 하기 on the same placement (R). */
+export const RESULT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'KeyR' };
 
 /** What a menu key does to the focused control when no screen handles it. */
 export type MenuAction = 'press' | 'next' | 'prev' | 'increase' | 'decrease' | null;
@@ -327,6 +332,16 @@ export function menuAction(kind: ControlKind, code: string): MenuAction {
 // While a settings capture waits for the next pad control, the menus get no pad presses.
 let suspended = 0;
 const bridges = new Set<GamepadMenuBridge>();
+// The pad control behind each key a menu bridge sends.
+const sentFrom = new WeakMap<Event, string>();
+
+/**
+ * The pad control a key event was sent for by a menu bridge (its repeats too); null for a key of
+ * the keyboard. The result tells a press of the play's pad lanes by it.
+ */
+export function padCodeOf(e: Event): string | null {
+  return sentFrom.get(e) ?? null;
+}
 
 /**
  * Keep the gamepad off the menus until the returned function is called. A press made meanwhile
@@ -347,14 +362,14 @@ export function suspendMenuBridges(): () => void {
 /**
  * Lets a gamepad drive the menus: the d-pad / left stick act as arrow keys (with key repeat),
  * A / Start as Enter, B / Back as Escape and Y as Tab, dispatched as keyboard events on the
- * focused element. A key no screen takes does what it does on a keyboard (menuAction). A
- * controller without the standard mapping sends only its assigned menu buttons (padMenuKey): its
- * turntable or knob stopped past the middle is no arrow key held.
+ * focused element (padCodeOf names the control). A key no screen takes does what it does on a
+ * keyboard (menuAction). A controller without the standard mapping sends only its assigned menu
+ * buttons (padMenuKey): its turntable or knob stopped past the middle is no arrow key held.
  */
 export class GamepadMenuBridge {
   private readonly poller: GamepadPoller;
-  /** Held keys and how long they still have to be held before they repeat (ms). */
-  private readonly held = new Map<string, number>();
+  /** Held keys: the control holding each, and how long it still has to be held before it repeats (ms). */
+  private readonly held = new Map<string, { from: string; wait: number }>();
   /** Pad controls left alone (the pause menu leaves Start to the play screen). */
   private readonly ignore: ReadonlySet<string>;
   /** Controls this bridge also turns into keys (SHOULDER_KEYS on the menus). */
@@ -380,11 +395,11 @@ export class GamepadMenuBridge {
       const frame = Math.min(Math.max(0, now - last), CFG.menu.maxFrameMs);
       last = now;
       if (suspended > 0) this.held.clear();
-      for (const [key, wait] of this.held) {
-        if (wait > frame) this.held.set(key, wait - frame);
+      for (const [key, hold] of this.held) {
+        if (hold.wait > frame) hold.wait -= frame;
         else {
-          this.held.set(key, CFG.menu.repeatMs);
-          dispatchKey(key, true, true, this.standard);
+          hold.wait = CFG.menu.repeatMs;
+          dispatchKey(key, true, true, this.standard, hold.from);
         }
       }
       this.raf = requestAnimationFrame(tick);
@@ -413,23 +428,26 @@ export class GamepadMenuBridge {
       return;
     }
     this.standard = e.standard;
-    dispatchKey(key, e.down, false, e.standard);
+    dispatchKey(key, e.down, false, e.standard, e.code);
     if (REPEATING.has(key)) {
-      if (e.down) this.held.set(key, CFG.menu.repeatDelayMs);
+      if (e.down) this.held.set(key, { from: e.code, wait: CFG.menu.repeatDelayMs });
       else this.held.delete(key);
     }
   }
 }
 
 /**
- * Sends a menu key to the focused element. The page is marked as driven by a pad ('pad': a
- * standard one, whose buttons the key hints can name) or by a controller of its own layout
- * ('controller': its menu buttons send the keyboard's keys, so the hints stay the keyboard's).
+ * Sends a menu key for the pad control `from` to the focused element. The page is marked as
+ * driven by a pad ('pad': a standard one, whose buttons the key hints can name) or by a
+ * controller of its own layout ('controller': its menu buttons send the keyboard's keys, so the
+ * hints stay the keyboard's).
  */
-function dispatchKey(code: string, down: boolean, repeat: boolean, standard: boolean): void {
+function dispatchKey(code: string, down: boolean, repeat: boolean, standard: boolean, from: string): void {
   document.documentElement.dataset.input = standard ? 'pad' : 'controller';
   const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-  const unhandled = target.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true }));
+  const event = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true });
+  sentFrom.set(event, from);
+  const unhandled = target.dispatchEvent(event);
   if (!unhandled || !down) return;
   const action = menuAction(controlKind(target), code);
   if (action === 'press') {

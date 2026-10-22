@@ -1060,7 +1060,7 @@ const PAD_PLAY_LABELS: Record<PadPlayButton, [string, string]> = {
   select: ['Select', `Start와 함께 ${RETRY_HOLD_MS / 1000}초 누르면 다시 하기`],
   fever: ['FEVER', '수동 FEVER, 첫 노트가 멀면 인트로 건너뛰기'],
 };
-const MENU_LABELS: Record<MenuButton, string> = { ok: '결정', back: '취소', up: '위', down: '아래', left: '왼쪽', right: '오른쪽', options: '옵션' };
+const MENU_LABELS: Record<MenuButton, string> = { ok: '결정', back: '취소', up: '위', down: '아래', left: '왼쪽', right: '오른쪽', options: '옵션', retry: '다시 하기' };
 const MENU_DIRECTIONS: ReadonlySet<MenuButton> = new Set(['up', 'down', 'left', 'right']);
 
 /**
@@ -1295,7 +1295,7 @@ function GamepadPanel({
       <div className="settings-group" data-testid="pad-menu">
         <h3>메뉴 버튼 (표준 배치가 아닌 패드)</h3>
         <p className="settings-note">
-          전용 컨트롤러처럼 표준 배치가 아닌 패드는 아래 버튼으로 메뉴를 다닙니다. 지정하지 않은 칸은 레인 지정에서 정합니다(건반 1·2 결정·취소, 3·4 왼쪽·오른쪽, 턴테이블 위·아래; 레인이 없으면 버튼 0·1이 결정·취소). 턴테이블은 돌린 만큼 한 칸씩, 축으로 오는 십자키는 누르는 동안 움직입니다. 선곡에서는 옵션 버튼이 플레이 옵션을 열고, 그 탭은 첫 줄에서 위로 올라가 왼쪽·오른쪽으로 바꿉니다.
+          전용 컨트롤러처럼 표준 배치가 아닌 패드는 아래 버튼으로 메뉴를 다닙니다. 지정하지 않은 칸은 레인 지정에서 정합니다(건반 1·2 결정·취소, 3·4 왼쪽·오른쪽, 턴테이블 위·아래; 레인이 없으면 버튼 0·1이 결정·취소). 턴테이블은 돌린 만큼 한 칸씩, 축으로 오는 십자키는 누르는 동안 움직입니다. 선곡에서는 옵션 버튼이 플레이 옵션을 열고, 그 탭은 첫 줄에서 위로 올라가 왼쪽·오른쪽으로 바꿉니다. 다시 하기 버튼은 결과와 일시정지 메뉴에서 R처럼 다시 합니다.
         </p>
         <div className="play-key-grid">
           {MENU_BUTTONS.map((button) => {
@@ -1331,7 +1331,7 @@ function GamepadPanel({
         </div>
       </div>
       <p className="settings-note">
-        표준 배치 패드는 메뉴에서 십자키·왼쪽 스틱이 방향키, A·Start가 Enter, B가 Esc, Y가 Tab, LB·RB가 설정 탭 이동으로 동작합니다. 선곡에서는 X가 플레이 옵션, LT가 곡 정보·도구, RT가 설정, LB·RB가 목록 한 화면(플레이 옵션에서는 탭)입니다.
+        표준 배치 패드는 메뉴에서 십자키·왼쪽 스틱이 방향키, A·Start가 Enter, B가 Esc, Y가 Tab, LB·RB가 설정 탭 이동으로 동작합니다. 선곡에서는 X가 플레이 옵션, LT가 곡 정보·도구, RT가 설정, LB·RB가 목록 한 화면(플레이 옵션에서는 탭)이고, 결과에서는 X가 다시 하기입니다.
       </p>
     </div>
   );

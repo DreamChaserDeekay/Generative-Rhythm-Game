@@ -3,7 +3,7 @@ import { api, type ServerChart, type Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
-import { GamepadMenuBridge, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
+import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, padMenuKeysFor, patternKey, resetSettings, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
@@ -118,9 +118,9 @@ export function App() {
   useEffect(() => setPadMenuKeys(menuKeys), [menuKeys]);
 
   // a gamepad works the menus (not during play, where its controls are lanes); the song select
-  // also opens its panels and the settings with X, LT and RT
+  // also opens its panels and the settings with X, LT and RT, and the result plays again with X
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
-  const padKeys = screen.name === 'select' ? SELECT_PAD_KEYS : SHOULDER_KEYS;
+  const padKeys = screen.name === 'select' ? SELECT_PAD_KEYS : screen.name === 'result' ? RESULT_PAD_KEYS : SHOULDER_KEYS;
   useEffect(() => {
     if (!menuPad) return;
     const bridge = new GamepadMenuBridge({ keys: padKeys });

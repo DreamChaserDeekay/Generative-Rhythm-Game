@@ -234,6 +234,15 @@ export function shiftIsLane(laneCodes: ReadonlySet<string>): boolean {
   return laneCodes.has('ShiftLeft') || laneCodes.has('ShiftRight');
 }
 
+/**
+ * A key the play's lanes sent: one of its lane keys, or whatever key a pad sent from one of its pad
+ * lanes (`padCode`, the control a menu bridge sent it for). A pad's X plays again on the result:
+ * where it is a lane, it is a lane's press like any other.
+ */
+export function isLaneKey(code: string, padCode: string | null, laneKeys: ReadonlySet<string>, padLanes: ReadonlySet<string>): boolean {
+  return laneKeys.has(code) || (padCode !== null && padLanes.has(padCode));
+}
+
 /** The least trimmed mean error (ms) the result offers to make up for. */
 export const OFFSET_FIX_MIN_MS = 3;
 
