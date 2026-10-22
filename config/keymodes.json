@@ -1,5 +1,5 @@
 {
-  "description": "키 모드별 레인 구성. kind: key(건반) / scratch(스크래치) / side(DJMAX식 사이드 트랙). hand: L(왼손) / R(오른손) / T(엄지), finger: 0 엄지, 1 검지, 2 중지, 3 약지, 4 새끼. width는 레인 폭 비율.",
+  "description": "키 모드별 레인 구성. kind: key(건반) / scratch(스크래치) / side(DJMAX식 사이드 트랙). hand: L(왼손) / R(오른손) / T(엄지), finger: 0 엄지, 1 검지, 2 중지, 3 약지, 4 새끼. width는 레인 폭 비율(사이드 노트를 반쪽 덮기로 그리면 side 레인은 폭을 차지하지 않고 건반 레인의 왼쪽·오른쪽 절반을 덮는다).",
   "modes": {
     "4K": {
       "label": "4K",

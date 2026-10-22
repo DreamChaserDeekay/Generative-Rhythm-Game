@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { autoplay, chooseSetting, difficultySystem, settingsTab, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
@@ -13,8 +13,8 @@ const OUT = '../docs/screenshots';
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
 const SHOWCASE = 'Demo Groove 150';
-// song select is a tall page: show the chart preview under the options too
-const TALL = { width: 1280, height: 1000 };
+// song select is a tall page: show the chart's summary (and its NPS graph) under the buttons too
+const TALL = { width: 1280, height: 1080 };
 
 // An animated plasma background video (VP8), made with PyAV.
 const MAKE_VIDEO = `
@@ -93,6 +93,11 @@ async function selectShowcase(page: Page, keyMode: string, difficulty: string): 
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
 }
 
+/** Every difficulty's level is known (the song select asks for them as the cursor rests on the song). */
+async function levelsKnown(page: Page): Promise<void> {
+  await expect(page.getByText('계산 중')).toHaveCount(0, { timeout: 60_000 });
+}
+
 async function autoplayFor(page: Page, ms: number): Promise<void> {
   await autoplay(page);
   await page.getByTestId('play-button').click();
@@ -100,38 +105,120 @@ async function autoplayFor(page: Page, ms: number): Promise<void> {
   await page.waitForTimeout(ms);
 }
 
+/** The chart the song select plays for a tier of the showcase (its default pattern). */
+async function showcaseChart(page: Page, keyMode: string, difficulty: string): Promise<ChartNoteLite[]> {
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
+  const song = songs.find((s) => s.title === SHOWCASE)!;
+  const res = await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode, difficulty, system: 'DJMAX' } });
+  return (await res.json()).chart.notes;
+}
+
+/** Where every buffer source starts on its context's clock: the song's start is its time 0. */
+async function watchSources(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const starts: { when: number; offset: number; length: number; ctx: BaseAudioContext }[] = [];
+    (window as unknown as { __starts: typeof starts }).__starts = starts;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, when = 0, offset = 0, duration?: number) {
+      starts.push({ when, offset, length: this.buffer?.duration ?? 0, ctx: this.context });
+      return duration === undefined ? start.call(this, when, offset) : start.call(this, when, offset, duration);
+    };
+  });
+}
+
+const startsSoFar = (page: Page) => page.evaluate(() => (window as unknown as { __starts: unknown[] }).__starts.length);
+
+/** Starts the play and waits for its loading card to go. */
+async function startPlay(page: Page): Promise<number> {
+  const before = await startsSoFar(page);
+  await page.getByTestId('play-button').click();
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+  return before;
+}
+
+/** Autoplay until the song heard is `ms` in (the song's sources are the first long ones the play starts). */
+async function autoplayAt(page: Page, ms: number): Promise<void> {
+  await autoplay(page);
+  const before = await startPlay(page);
+  await page.waitForFunction(
+    ({ before, ms }) => {
+      type Start = { when: number; offset: number; length: number; ctx: AudioContext };
+      const song = (window as unknown as { __starts: Start[] }).__starts.slice(before).find((s) => s.length > 5);
+      if (!song) return false;
+      const heard = song.ctx.getOutputTimestamp().contextTime ?? song.ctx.currentTime;
+      return (heard - (song.when - song.offset)) * 1000 >= ms;
+    },
+    { before, ms },
+    { timeout: 120_000, polling: 16 },
+  );
+}
+
+interface Hand {
+  /** How late the presses are on average (ms) and how far they spread. */
+  meanMs: number;
+  sdMs: number;
+  /** The share of the notes not played. */
+  missRate: number;
+  seed: number;
+}
+
 /**
- * A replay of a good (not perfect) player: presses spread around each note like a human's,
- * a few notes skipped. The game judges it like any other replay.
+ * A person's presses of a chart: each note pressed around `meanMs` late (within ±75 ms), some not
+ * played at all, long notes let go around their ends.
  */
-function humanReplay(notes: ChartNoteLite[], chartId: string, songId: string): unknown {
-  let seed = 20261017;
+function handPresses(notes: ChartNoteLite[], hand: Hand): { t: number; lane: number; down: boolean }[] {
+  let seed = hand.seed;
   const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const gauss = () => Math.sqrt(-2 * Math.log(Math.max(rand(), 1e-9))) * Math.cos(2 * Math.PI * rand());
   const sorted = [...notes].sort((a, b) => a.t - b.t);
-  const hit = sorted.map(() => rand() > 0.012);
-  const press = sorted.map((n) => n.t + Math.max(-75, Math.min(75, -4 + gauss() * 17)));
-  const events: [number, number, number][] = [];
+  const hit = sorted.map(() => rand() >= hand.missRate);
+  const press = sorted.map((n) => n.t + Math.max(-75, Math.min(75, hand.meanMs + gauss() * hand.sdMs)));
+  const events: { t: number; lane: number; down: boolean }[] = [];
   sorted.forEach((n, i) => {
     if (!hit[i]) return;
-    let release = n.type === 'hold' && n.endT !== undefined ? n.endT + Math.max(-50, Math.min(60, 10 + gauss() * 14)) : press[i] + 55 + rand() * 30;
+    let release = n.type === 'hold' && n.endT !== undefined ? n.endT + Math.max(-40, Math.min(60, 10 + gauss() * 14)) : press[i] + 55 + rand() * 30;
     const next = sorted.findIndex((m, j) => j > i && m.lane === n.lane && hit[j]);
     if (next >= 0) release = Math.min(release, press[next] - 8);
-    events.push([1, n.lane, press[i]], [0, n.lane, Math.max(press[i] + 8, release)]);
+    events.push({ t: press[i], lane: n.lane, down: true }, { t: Math.max(press[i] + 8, release), lane: n.lane, down: false });
   });
-  const last = Math.max(...events.map((e) => e[2]));
-  for (let t = sorted[0].t - 1500; t < last + 1500; t += 16) events.push([2, 0, t]);
-  // in time order; at equal times release (0) before press (1) before update (2)
-  events.sort((a, b) => a[2] - b[2] || a[0] - b[0]);
-  return {
-    version: 1,
-    chartId,
-    songId,
-    recordedAt: Date.now(),
-    settings: { judgementMode: 'NORMAL', ruleset: 'RESPECT', gaugeType: 'NORMAL', fever: 'AUTO', placement: 'OFF', placementSeed: 0, hiSpeed: 4 },
-    log: events.flat().map((v) => Math.round(v * 1000) / 1000),
-    result: { score: 0, rate: 0, maxCombo: 0, lamp: 'CLEAR' },
-  };
+  return events.sort((a, b) => a.t - b.t || Number(a.down) - Number(b.down));
+}
+
+/**
+ * Plays the selected chart on the keyboard as `hand` would: the keys are sent in the page on the
+ * song's clock as the game reads it (its audio output time), so it is judged as a play of one's own.
+ */
+async function playByHand(page: Page, notes: ChartNoteLite[], keys: string[], hand: Hand): Promise<void> {
+  const before = await startPlay(page);
+  await page.evaluate(
+    ({ events, keys, before }) =>
+      new Promise<void>((resolve) => {
+        type Start = { when: number; offset: number; length: number; ctx: AudioContext };
+        const song = (window as unknown as { __starts: Start[] }).__starts.slice(before).find((s) => s.length > 5) as Start;
+        const zero = (song.when - song.offset) * 1000;
+        // the context's time heard now, less the performance clock's (as the game's clock measures it)
+        const offset = () => {
+          const ts = song.ctx.getOutputTimestamp();
+          if (ts.contextTime && ts.performanceTime) return ts.contextTime * 1000 - ts.performanceTime;
+          return (song.ctx.currentTime - (song.ctx.outputLatency || song.ctx.baseLatency || 0)) * 1000 - performance.now();
+        };
+        let i = 0;
+        const next = () => {
+          if (i >= events.length) return resolve();
+          const e = events[i];
+          const at = zero + e.t - offset();
+          if (at - performance.now() > 6) return void setTimeout(next, at - performance.now() - 4);
+          while (performance.now() < at);
+          const code = keys[e.lane];
+          window.dispatchEvent(new KeyboardEvent(e.down ? 'keydown' : 'keyup', { code, key: code, bubbles: true, cancelable: true }));
+          i++;
+          next();
+        };
+        next();
+      }),
+    { events: handPresses(notes, hand), keys, before },
+  );
 }
 
 test('song select with a generated chart, and the analysis view', async ({ page }) => {
@@ -146,6 +233,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
     expect((await page.request.post('/api/songs/demo', { data: demo })).ok()).toBe(true);
   }
   await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await levelsKnown(page);
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
 
@@ -172,6 +260,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await page.getByRole('button', { name: /SUPER HARD/ }).click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
+  await levelsKnown(page);
   await page.mouse.move(0, 0);
   await shot(page, '01b-song-select-ez2on');
   await difficultySystem(page, 'DJMAX');
@@ -201,11 +290,33 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
   await page.request.delete(`/api/songs/${songs.find((x) => x.title === SHOWCASE)!.id}/bga`);
 });
 
-test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2 });
+/**
+ * The 6K+FX showcase as its side notes are drawn (in lanes of their own, or over half the keys),
+ * at the same moment: a side long note held, the next ones coming.
+ */
+async function sideNotesShot(page: Page, sideNotes: 'lanes' | 'half', name: string): Promise<void> {
+  await watchSources(page);
+  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
-  await autoplayFor(page, 16_000);
-  await shot(page, '05-play-6kfx');
+  const notes = await showcaseChart(page, '6K+FX', 'MX');
+  const side = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
+  await autoplayAt(page, side.t + 250);
+  await shot(page, name);
+}
+
+test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
+  await sideNotesShot(page, 'lanes', '05-play-6kfx');
+});
+
+test('play: 6K+FX side notes over half the keys (반쪽 덮기)', async ({ page }) => {
+  await sideNotesShot(page, 'half', '19-play-6kfx-half');
+});
+
+test('play: the flat PLANE camera, with the judge counter and a pacemaker', async ({ page }) => {
+  await settings(page, { lastKeyMode: '7K+1S', cameraPreset: 'PLANE', hiSpeed: 3.6, judgeCounter: true, pacemaker: '98' });
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await autoplayFor(page, 15_500);
+  await shot(page, '20-play-plane');
 });
 
 test('play: four of the skins', async ({ page }) => {
@@ -227,20 +338,28 @@ test('play: four of the skins', async ({ page }) => {
   }
 });
 
-test('result of a good play', async ({ page }) => {
+test('result of a good play: a record beaten, the offset fix', async ({ page }) => {
+  // two plays of the showcase by hand
+  test.setTimeout(420_000);
+  await watchSources(page);
   await settings(page, { lastKeyMode: '7K+1S' });
   await selectShowcase(page, '7K+1S', 'MAXIMUM');
-  const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
-  const song = songs.find((s) => s.title === SHOWCASE)!;
-  const chart = (await (await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode: '7K+1S', difficulty: 'MX', system: 'DJMAX' } })).json()).chart;
-  const file = 'test-results/showcase.grgreplay.json';
-  writeFileSync(file, JSON.stringify(humanReplay(chart.notes, chart.meta.chartId, song.id)));
-  await page.getByTestId('replay-input').setInputFiles(file);
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('result-screen')).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
+  const notes = await showcaseChart(page, '7K+1S', 'MX');
+  const keys = ['ShiftLeft', 'KeyS', 'KeyD', 'KeyF', 'Space', 'KeyJ', 'KeyK', 'KeyL'];
+  const result = page.getByTestId('result-screen');
+  // a first try, short of the clear
+  await playByHand(page, notes, keys, { meanMs: 16, sdMs: 36, missRate: 0.15, seed: 20261017 });
+  await expect(result).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  // then a good one, a little late
+  await playByHand(page, notes, keys, { meanMs: 9, sdMs: 16, missRate: 0.012, seed: 20261022 });
+  await expect(result).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
+  await expect(page.getByTestId('record-tag')).toHaveText('최고 기록 갱신');
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
   await page.getByTestId('result-details').click();
+  await expect(page.getByTestId('offset-suggestion')).toBeVisible();
   await page.waitForTimeout(800);
   await shot(page, '07-result-graphs');
 });
@@ -299,4 +418,14 @@ test('settings and calibration', async ({ page }) => {
   await page.getByRole('button', { name: '시작' }).click();
   await expect.poll(async () => Number(await page.getByTestId('calib-count').textContent()), { timeout: 30_000 }).toBeGreaterThanOrEqual(10);
   await shot(page, '12-calibration');
+
+  // the second step: the display offset set by eye on the gear, moved a few ms and not kept yet
+  await page.goto('/');
+  await tool(page, 'open-visual-calibration');
+  await expect(page.getByTestId('calibration-screen')).toHaveAttribute('data-step', 'visual');
+  await page.waitForTimeout(2500);
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('calib-visual-offset')).toHaveText('+4ms');
+  await page.waitForTimeout(400);
+  await shot(page, '21-visual-calibration');
 });

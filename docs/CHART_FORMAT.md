@@ -84,7 +84,7 @@
 | `consistency` | 구간 일관성(생성기 0.5.0, `difficulty/consistency.py`, 0–1): 구간 안 한 루프 뒤 마디와의 노트 시각 겹침(`loopRhythm`)과 그중 같은 레인 비율(`loopLane`), 반복 구간과 첫 등장의 시각 겹침(`repeatSelect`)과 같은 레인 비율(`repeatLane`, 좌우 반전도 같다고 보면 `repeatLaneMirror`), 구간의 서로 다른 마디 비율(`barVariety`, 낮을수록 루프를 되풀이), 단타 레인 이동의 예측 불가능성(`laneEntropy`). 채보를 만든 구간 기준이다. 잴 수 없으면 항목이 `null`. |
 | `generator` | 생성기·분석기 버전, 시드, 사용자 파라미터(스타일·리듬 기준·밀도·롱노트 비율·최대 동치·스크래치·사이드 비율·악기별 레인 세기·반복 구간 일관성, 기본 기준이 아니면 `system`, 기본 구간 엔진이 아니면 `patternEngine: "designer"`(악구·패턴) 또는 `"classic"`(이전 배치)). 생성 채보에만 있다. |
 | `source` | 편집·가져온 채보의 출처: `{"kind": "edited", "from": 원본 chartId}` 또는 `{"kind": "imported", "format": "osu"\|"bms"\|"bmson", "file": 파일 이름}`. 없으면 생성 채보. |
-| `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE 또는 난이도·레벨, 에디터에서 정한 이름). `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–3 EASY … 13–15 MASTER)이다. |
+| `chartName` | 편집·가져온 채보의 이름(osu! Version, BMS #SUBTITLE, 없으면 #DIFFICULTY의 이름(HYPER 등), 그것도 없으면 "Lv.#PLAYLEVEL", 에디터에서 정한 이름). 파일이 매긴 레벨(BMS #PLAYLEVEL, bmson `level`)은 이름에 넣지 않고 라이브러리(`charts.source_level`)에 그대로 남겨, 저장된 채보 목록과 기록이 `sourceLevel`로 우리 레벨 옆에 보인다. `difficulty`는 우리 레벨 산정으로 정한 프리셋 이름(Lv.1–3 EASY … 13–15 MASTER)이다. |
 | `keysoundGain` | 가져온 키음 채보: 키음을 모두 섞어도 클리핑하지 않게 하는 게인. BGM과 노트 소리에 같이 곱한다. |
 
 ### sections
@@ -184,7 +184,8 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - **롱노트**: BMS는 LNTYPE 1(채널 5x의 시작·끝 쌍)으로 쓰고, 읽을 때는 #LNOBJ도 받는다. bmson은 `l`(펄스 길이), osu!는 타입 128.
 - **BMS 위치 해상도**: 마디·채널마다 모든 오브젝트가 0.5ms 안에 들어가는 가장 작은 분할(1 … 3840)을 고른다.
 - **난이도 이름**: osu! `Version`은 "5K HARD Lv.9" · "5K DJMAX MX Lv.12" · "5K DJMAX SC 8", bmson `chart_name`은 "HARD" · "DJMAX MX", BMS `#DIFFICULTY`는 5단계 EASY 1 … MASTER 5, DJMAX NM 2 · HD 3 · MX 4 · SC 5, EZ2ON EZ 1 · NM 2 · HD 3 · SHD 4(`config/difficulty.json`의 `bmsDifficulty`). 편집·가져온 채보는 `chartName`을 쓴다.
-- **가져올 때 정리**: 같은 레인·같은 시각이나 롱노트 안에 겹친 노트는 하나만 남기고 알림에 개수를 적는다. 레벨·NPS·스킬 지표는 우리 난이도 모델로 다시 계산한다.
+- **가져올 때 정리**: 같은 레인·같은 시각이나 롱노트 안에 겹친 노트는 하나만 남기고 알림에 개수를 적는다. 레벨·NPS·스킬 지표는 우리 난이도 모델로 다시 계산한다(파일의 레벨은 `sourceLevel`로 따로).
+- **커버**: 곡에 커버가 없으면 채보가 이름 붙인 그림 중 패키지에 있는 첫 그림을 커버로 쓴다. BMS #STAGEFILE → #BANNER, bmson `eyecatch_image` → `banner_image`, osu! [Events]의 배경. 이름은 대소문자·확장자와 상관없이 맞추고(BMS가 .bmp로 적은 그림이 .png로 들어 있는 경우), 형식은 파일의 첫 바이트로 판별한다.
 
 ## 리플레이 (`replays/<scoreId>.json`)
 
@@ -199,6 +200,8 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
   "result": { "score": 987654, "rate": 98.77, "maxCombo": 476, "lamp": "MAX COMBO" }
 }
 ```
+
+`settings`에는 녹화 때(플레이가 끝날 때)의 판정 오프셋 `inputOffsetMs`와 곡 오프셋 `songOffsetMs`도 있을 수 있다(없으면 예전 리플레이). 결과 화면은 리플레이에 오프셋 추천 대신 이 값을 "녹화 때 판정 오프셋"으로 보여 준다.
 
 `log`은 `[동작, 레인, 판정 시각(ms)]`을 이어 붙인 것이다. 동작은 0 뗌 · 1 누름 · 2 갱신(무언가 바뀐 프레임 갱신: 늦은 미스, 롱노트 틱·끝, FEVER 끝) · 3 FEVER 발동이고, 판정 엔진에 들어간 순서 그대로다. 판정 시각은 이미 입력 오프셋을 뺀 값이라 보는 사람의 오프셋과 무관하다. 같은 채보(`chartId`)·같은 `settings`로 이 순서를 다시 넣으면 결과가 정확히 같다.
 - 판정 대상 수 = 노트 수 + 롱노트 수(롱노트는 시작과 끝 두 번 판정).
