@@ -4,12 +4,23 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { cameraPose, computeTrackGeometry, type LaneGeom, type TrackGeometry } from './layout';
+import { KEY_PAINT, paintDeck, rowDrop, SIDE_PAINT, type DeckLane, type DeckStyle, type KeyKind } from './deckArt';
+import {
+  cameraPose,
+  computeTrackGeometry,
+  fogStartZ,
+  JUDGE_LINE_Y,
+  noteSpan,
+  type CameraPose,
+  type LaneGeom,
+  type NoteSpan,
+  type SideNotes,
+  type TrackGeometry,
+} from './layout';
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
-import { DEFAULT_HUD_TYPE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
+import { deckTop, DEFAULT_HUD_TYPE, EXTRA_LINE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import {
-  CAP_PAINT,
   effectSheet,
   JEWEL_SIDE,
   jewelNote,
@@ -25,20 +36,26 @@ import {
   railGlowTexture,
   shadowReach,
   sheetOffset,
+  SIDE_FLASH_LINE,
+  SIDE_PICTURES,
+  sideTap,
   stripesTexture,
   tintMaterial,
-  type CapKind,
   type EffectSheet,
   type HitStyle,
   type LongPaint,
+  type SidePart,
 } from './tintArt';
 
 const MISSED_COLOR = 0x4a5068;
 /** Long notes: a held one is lit like the sheets' `filter: brightness(1.22)`, a broken one dim. */
 const HOLD_BRIGHTNESS = { idle: 1, held: 1.22, missed: 1 } as const;
 const HOLD_OPACITY = { idle: 1, held: 1, missed: 0.4 } as const;
-/** How far the track extends below the judgement line, toward the camera. */
-const TRACK_TAIL = 4;
+/**
+ * How far the track (and the deck on it) extends below the judgement line, toward the camera: a
+ * far, low camera (the plane one) shows a long way down it.
+ */
+const TRACK_TAIL = 16;
 const NOTE_HEIGHT = 0.2;
 /** Every skin's notes are this deep on the track (a thin skin's a share of it). */
 const NOTE_DEPTH = 0.7;
@@ -46,7 +63,20 @@ const SIDE_NOTE_HEIGHT = 0.12;
 const BEAM_LENGTH = 10;
 const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
-const COVER_Y = 0.05;
+/** A note drawn as a picture (createNoteGeometry) lays it this share of the note's height over the track. */
+const PICTURE_LIFT = 0.05;
+/** Where a key note's picture lies over the track. */
+export const NOTE_Y = NOTE_HEIGHT * PICTURE_LIFT;
+/**
+ * The judge line, its halo and a skin's second line lie on the notes, a hair over them so they draw
+ * over them: a tap's middle meets the line's at its time, in every camera. The covers lie over the
+ * notes; the opaque deck over what runs on under it (notes, bar lines, long notes and their ends)
+ * about as far over the line as ever, so its edge keeps its place under the line; its lights on it.
+ */
+export const LINE_Y = NOTE_Y + 0.001;
+const COVER_Y = 0.016;
+const DECK_Y = 0.022;
+const KEY_Y = 0.027;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
 /**
@@ -74,6 +104,14 @@ const PX = 1 / 73.65;
 const FX_SCALE = 1.2;
 const HIT_SIZE = 1.5 * FX_SCALE;
 const HOLD_SIZE = 1.1 * FX_SCALE;
+/** A flipbook burst, the burst glowing under a held note's sparks, and the sparks: their size in lanes (before FX_SCALE). */
+const BURST_SIZE = 2.1;
+const CORE_SIZE = 1.6;
+const SPARKS_SIZE = 2.4;
+/** Small hit effects (설정 → 타격 효과 → 작게) keep within about this many lanes across. */
+const SMALL_HIT_LANES = 1.2;
+/** The FEVER tint over the track: steady, faint enough to keep the lane colours. */
+const FEVER_TINT = 0.09;
 /** An effect lying on the track is drawn longer along it until it looks at least this tall for its width. */
 const EFFECT_ASPECT = 0.7;
 /** The frame of a code effect shown while a long note is held (its early, bright part). */
@@ -82,8 +120,61 @@ const HOLD_FRAME = 2;
 const HOLD_BURST_FRAME = 13;
 /** Note pictures are drawn this many px deep. */
 const NOTE_PICTURE_PX = 96;
-/** Where a fitted preview puts the judge line: this share of the height from the top. */
-const FIT_JUDGE_LINE_Y = 0.83;
+/** A fitted preview keeps the far end of the track no higher than this share of the height. */
+export const FIT_TRACK_END_Y = 0.06;
+/** Picture px per plane px of the deck under the judge line. */
+const DECK_PICTURE = 2;
+/**
+ * The deck's picture is painted for the room under the judge line in steps of this many plane px,
+ * and painted again only once the layout has held for this many frames: painting and uploading it
+ * takes a frame, and a box that keeps changing size (the settings' preview beside its help) would
+ * take one every time. Until then the picture it has is stretched to the new room.
+ */
+const DECK_STEP = 16;
+const DECK_SETTLE_FRAMES = 20;
+/** Round things on the deck are drawn up to this much longer along the track than across it (see keyRow). */
+const MAX_KEY_STRETCH = 3.5;
+/** The stretch a row of lane lights holds at its usual depth: the perspective cameras need up to about 1.3. */
+const KEY_ROW_STRETCH = 1.3;
+/** The row of lane lights starts this many plane px under the deck's top (lower where its lights are larger than neon's, see rowDrop). */
+const KEY_TOP = 8;
+/**
+ * Side lanes laid over the keys (반쪽 덮기): their notes are bars across this share of their half
+ * (the two halves' bars stay apart, and off the rails), lying under the key notes. A side tap
+ * reaches SIDE_EDGE past the far and near edges of a key tap at its time, so its bright edges show
+ * above and below a chord of key notes over it; their long notes' head and end are bands this deep
+ * (track units), within that reach.
+ */
+const SIDE_SPAN = 0.96;
+const SIDE_EDGE = 0.18;
+const SIDE_END = 0.16;
+const SIDE_Y = 0.009;
+/** Their key beam lights the whole half: this share of a key's, so the keys' notes in it stay clear. */
+const SIDE_BEAM = 0.25;
+/**
+ * Their hits and holds: a flash across the half on the judge line, with light rising a short way
+ * up it, this deep (track units, before the effects' stretch); 작게 makes it this much shallower
+ * (as wide as the half still: that is the side lane).
+ */
+const SIDE_FLASH = 2.0;
+const SMALL_SIDE_FLASH = 0.6;
+/**
+ * Their light on the deck: a bar across the half this many plane px deep, this far under the row of
+ * lane lights (both deeper where the camera flattens the track, as the row is: see deckRows).
+ */
+const SIDE_ROW = 16;
+const SIDE_GAP = 6;
+
+interface DeckLayout {
+  /** The room the picture is painted for, all of the deck, and where the lane lights and side bars lie (track units). */
+  room: number;
+  depth: number;
+  keyTop: number;
+  keyDepth: number;
+  sideTop: number;
+  sideDepth: number;
+  stretch: number;
+}
 
 export interface FeverFrame {
   active: boolean;
@@ -118,10 +209,27 @@ export interface HudPlane {
   /** Half the track's width, and how far outside it the gear's rails or walls reach. */
   halfWidth: number;
   sideOut: number;
-  /** The deck under the judge line: its top, its caps' depth and how much of it the screen shows. */
-  deckTop: number;
-  capDepth: number;
-  deckRoom: number;
+  /** Where the track ends up it (plane y). */
+  far: number;
+}
+
+/**
+ * The homography of the HUD's plane (HUD_UNIT plane px to a track unit, from the middle of the judge
+ * line at `lineZ`) as `camera` (its matrices up to date) shows it on a `width`×`height` screen.
+ */
+export function planeHomography(camera: THREE.Camera, width: number, height: number, lineZ: number): number[] {
+  const view = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  const [W, H] = [width / 2, height / 2];
+  // clip space of one plane px across, one toward the camera, and the origin; then screen px
+  const [a, b, c] = [
+    [PX, 0, 0, 0],
+    [0, 0, PX, 0],
+    [0, 0, lineZ, 1],
+  ].map(([x, y, z, w]) => {
+    const v = new THREE.Vector4(x, y, z, w).applyMatrix4(view);
+    return [W * (v.x + v.w), H * (v.w - v.y), v.w];
+  });
+  return [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]];
 }
 
 export interface CoverLayout {
@@ -129,6 +237,9 @@ export interface CoverLayout {
   hidden: number;
   lift: number;
 }
+
+/** How large hit and hold effects are drawn: the skin's own, small (about a lane), or none. */
+export type HitEffectSize = 'normal' | 'small' | 'off';
 
 export interface TrackRendererOptions {
   mode: KeyModeConfig;
@@ -143,9 +254,16 @@ export interface TrackRendererOptions {
   art?: SkinArt | null;
   /** A line across the track at every bar (default on). */
   barLines?: boolean;
+  /** Key beams' length as a share of BEAM_LENGTH (default 1, 0 = none). */
+  keyBeamLength?: number;
+  /** Hit and hold effects at the skin's size (default), about a lane wide, or none. */
+  hitEffectSize?: HitEffectSize;
+  /** Side notes in lanes of their own at the edges (default), or as bars over half the key lanes (DJMAX's side tracks). */
+  sideNotes?: SideNotes;
   /**
    * A preview's framing: the field of view is set so the judge line spans this share of the
-   * canvas width, whatever its shape (play keeps the camera preset's own).
+   * canvas width, whatever its shape (play keeps the camera preset's own). Either way the view
+   * is moved up or down until the judge line sits at JUDGE_LINE_Y of the height.
    */
   fitWidth?: number;
 }
@@ -175,6 +293,216 @@ export function barLineDepth(camera: THREE.Camera, z: number, cssHeight: number)
   return px > 1e-6 ? Math.min(2, Math.max(0.02, (step * BAR_LINE_PX) / px)) : 0.05;
 }
 
+/**
+ * The plane preset's camera. Its rays are parallel, so the rails stay parallel on the screen and
+ * the notes keep one speed all the way down the track. It takes a field of view and an aspect as
+ * the perspective cameras do (the framing, a chart's zoom, a preview's fit and a resize set them
+ * alike, then updateProjectionMatrix) and shows as much as a perspective camera with that field
+ * of view would `depth` away, at its target.
+ */
+export class PlaneCamera extends THREE.OrthographicCamera {
+  private lens: { fov: number; aspect: number; depth: number };
+
+  /** Without arguments (as clone() makes one) a whole view too, until copy() gives it the source's. */
+  constructor(fov = 50, aspect = 1, depth = 1) {
+    super();
+    this.lens = { fov, aspect, depth };
+    this.size();
+    this.updateProjectionMatrix();
+  }
+
+  get depth(): number {
+    return this.lens.depth;
+  }
+
+  get fov(): number {
+    return this.lens.fov;
+  }
+
+  set fov(fov: number) {
+    this.lens.fov = fov;
+    this.size();
+  }
+
+  get aspect(): number {
+    return this.lens.aspect;
+  }
+
+  set aspect(aspect: number) {
+    this.lens.aspect = aspect;
+    this.size();
+  }
+
+  copy(source: PlaneCamera, recursive?: boolean): this {
+    super.copy(source, recursive);
+    this.lens = { ...source.lens };
+    return this;
+  }
+
+  /**
+   * The view's box for the field of view and aspect: set with them rather than in
+   * updateProjectionMatrix, which OrthographicCamera's constructor calls before this one's fields exist.
+   */
+  private size(): void {
+    const half = this.lens.depth * Math.tan(THREE.MathUtils.degToRad(this.lens.fov) / 2);
+    this.top = half;
+    this.bottom = -half;
+    this.right = half * this.lens.aspect;
+    this.left = -this.right;
+  }
+}
+
+/** A preset's camera: the plane preset's looks along parallel rays, the others from an eye. */
+export type TrackCamera = THREE.PerspectiveCamera | PlaneCamera;
+
+/** A camera in `pose` for a screen of `aspect`, its world matrices and projection up to date. */
+export function poseCamera(pose: CameraPose, aspect: number): TrackCamera {
+  const position = new THREE.Vector3(...pose.position);
+  const target = new THREE.Vector3(...pose.target);
+  const camera = pose.orthographic ? new PlaneCamera(pose.fov, aspect, position.distanceTo(target)) : new THREE.PerspectiveCamera(pose.fov, aspect);
+  camera.position.copy(position);
+  camera.lookAt(target);
+  camera.updateMatrixWorld();
+  return camera;
+}
+
+/**
+ * A preview's field of view for `camera` (in its preset's pose, its world matrices up to date): the
+ * judge line spans `fitWidth` of the width, and the whole track lies above it down from
+ * FIT_TRACK_END_Y of the height, whichever needs the wider view.
+ */
+export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' | 'length'>, fitWidth: number): number {
+  const half = track.width / 2;
+  // a point of the track as the field of view measures it: up and across the view per unit away
+  // from the eye, or per unit of the plane camera's depth (its rays are parallel)
+  const view = (x: number, z: number) => {
+    const v = new THREE.Vector3(x, 0, z).applyMatrix4(camera.matrixWorldInverse);
+    const depth = camera instanceof PlaneCamera ? camera.depth : -v.z;
+    return new THREE.Vector2(v.x / depth, v.y / depth);
+  };
+  const [a, b] = [view(-half, 0), view(half, 0)];
+  const spread = b.x - a.x;
+  // the whole track in the box as well: a high camera's far end would otherwise leave it at the
+  // top, and the notes would seem to start halfway down
+  const [line, end] = [view(0, 0), view(0, -track.length)];
+  const rise = end.y - line.y;
+  const tanHalf = Math.max(spread / (2 * fitWidth * camera.aspect), rise / (2 * (JUDGE_LINE_Y - FIT_TRACK_END_Y)));
+  return THREE.MathUtils.radToDeg(2 * Math.atan(tanHalf));
+}
+
+const frameLine = new THREE.Vector3();
+const frameAxis = new THREE.Vector3();
+
+/** Height on the screen (0 top … 1 bottom) where `camera` shows the middle of the track at `z`. */
+function lineScreenY(camera: THREE.Camera, z: number): number {
+  return (1 - frameLine.set(0, 0, z).project(camera).y) / 2;
+}
+
+/**
+ * A camera's framing before a chart's zoom and roll (see baseFrame): how far the view moves (a
+ * share of the height) to put the (unlifted) judge line at JUDGE_LINE_Y, and the height on the
+ * screen where the judge line, LIFT included, then lies.
+ */
+export interface CameraFrame {
+  shift: number;
+  lineY: number;
+}
+
+/**
+ * The framing of `camera` (its world matrices up to date, in its preset's pose) at `fov`, with the
+ * judge line at `lineZ` (LIFT raises it). It changes only with the camera, the screen and LIFT,
+ * so the renderer keeps it while a chart's zoom and roll move the view frame by frame.
+ */
+export function baseFrame(camera: TrackCamera, fov: number, lineZ = 0): CameraFrame {
+  camera.fov = fov;
+  camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  const shift = lineScreenY(camera, 0) - JUDGE_LINE_Y;
+  return { shift, lineY: lineScreenY(camera, lineZ) - shift };
+}
+
+/**
+ * Frames `camera` (its world matrices up to date, in its preset's pose) for a `width`×`height`
+ * screen: the view moves up or down, the perspective unchanged, until the (unlifted) judge line
+ * sits at JUDGE_LINE_Y of the height at `fov` (`base`). A chart's zoom (`fovScale`) and roll then
+ * turn the track about the middle of the judge line at `lineZ`, which stays where it is.
+ */
+export function frameCamera(
+  camera: TrackCamera,
+  fov: number,
+  fovScale: number,
+  roll: number,
+  width: number,
+  height: number,
+  lineZ = 0,
+  base: CameraFrame = baseFrame(camera, fov, lineZ),
+): void {
+  // zoomed in, the picture grows about the middle of the view: it moves again so that the line is
+  // where it was (a narrower field of view scales every height from the middle by the same factor)
+  const grow = Math.tan(THREE.MathUtils.degToRad(fov) / 2) / Math.tan(THREE.MathUtils.degToRad(fov * fovScale) / 2);
+  const zoomed = (1 - grow * (1 - 2 * (base.lineY + base.shift))) / 2;
+  camera.fov = fov * fovScale;
+  camera.setViewOffset(width, height, 0, (zoomed - base.lineY) * height, width, height);
+  camera.updateProjectionMatrix();
+  if (roll === 0) return;
+  if (camera instanceof PlaneCamera) {
+    // parallel rays have no eye to turn about: the camera circles the line's middle about its own
+    // direction, which keeps that point where it is and turns the picture about it
+    const pivot = frameLine.set(0, 0, lineZ);
+    const axis = camera.getWorldDirection(frameAxis).negate();
+    camera.position.sub(pivot).applyAxisAngle(axis, roll).add(pivot);
+    camera.rotateOnWorldAxis(axis, roll);
+  } else {
+    // about the ray from the camera through the line's middle: that point stays put on the screen
+    const axis = frameLine.set(0, 0, lineZ).applyMatrix4(camera.matrixWorldInverse).normalize().negate();
+    camera.rotateOnAxis(axis, roll);
+  }
+  camera.updateMatrixWorld();
+}
+
+/**
+ * The deck's row of lane lights: `row` plane px deep (as the room under the line allows), its
+ * round lights drawn `flatten` times longer along the track than across it, so that they look
+ * round where the camera flattens it (`stretch`). Up to KEY_ROW_STRETCH the row holds them at that
+ * depth; where the camera flattens the track more (the plane one), the row is deeper in
+ * proportion (`depth`, plane px), so the lights keep their size and shape on the screen.
+ */
+export function keyRow(row: number, flatten: number): { depth: number; stretch: number } {
+  const stretch = Math.round(Math.min(MAX_KEY_STRETCH, Math.max(1, flatten)) * 20) / 20;
+  return { depth: Math.round(row * Math.max(1, stretch / KEY_ROW_STRETCH)), stretch };
+}
+
+/** Where the deck's lights lie, in plane px under its top (see deckRows). */
+export interface DeckRows {
+  /** The row of lane lights, how much longer along the track its round lights are drawn, and how much lower than usual it lies. */
+  keyTop: number;
+  keyDepth: number;
+  stretch: number;
+  drop: number;
+  /** The bars of side lanes laid over the keys, under the row. */
+  sideTop: number;
+  sideDepth: number;
+}
+
+/**
+ * The deck's lights for `room` plane px of it on the screen: the row of lane lights KEY_TOP under
+ * its top, as deep as the room allows and drawn `flatten(row)` times longer along the track (the
+ * camera's flattening at the middle of a row `row` deep), lower where its lights are larger than
+ * neon's (see rowDrop); under it, SIDE_GAP apart, the bars of side lanes laid over the keys,
+ * SIDE_ROW deep. Where the camera flattens the track, the row, the bars and the gap between them
+ * are deeper alike (see keyRow): for the track's width they keep their size on the screen.
+ */
+export function deckRows(style: DeckStyle, lanes: readonly Pick<DeckLane, 'kind' | 'width'>[], room: number, flatten: (row: number) => number): DeckRows {
+  const row = Math.min(72, Math.max(40, Math.round(room * 0.36)));
+  // round lights look round: drawn longer along the track where the camera flattens it
+  const along = flatten(row);
+  const { depth, stretch } = keyRow(row, along);
+  // lights larger than neon's hexagons lie lower, so the first comes no nearer the line (within the room)
+  const drop = Math.min(rowDrop(style, lanes, depth, stretch), Math.max(0, room - KEY_TOP - depth));
+  const side = keyRow(SIDE_ROW, along).depth;
+  return { keyTop: KEY_TOP + drop, keyDepth: depth, stretch, drop, sideTop: KEY_TOP + drop + depth + Math.round((SIDE_GAP * side) / SIDE_ROW), sideDepth: side };
+}
+
 /** The drawing style of a skin; a user skin of an earlier version gets one from its shape and effect. */
 export function styleOf(skin: Skin): SkinStyle {
   if (skin.style) return skin.style;
@@ -182,7 +510,7 @@ export function styleOf(skin: Skin): SkinStyle {
   return {
     note: skin.noteShape === 'round' ? 'pill' : 'flat',
     long: 'solid',
-    cap: 'flat',
+    deck: 'line',
     beam: 'fade',
     hit,
     rails: { width: 10 },
@@ -193,45 +521,76 @@ export function styleOf(skin: Skin): SkinStyle {
   };
 }
 
-/** Renders the SDVX-style perspective track with Three.js. */
+/** What a lane's light on the deck is drawn as: the scratch has its own, white keys may differ from the rest. */
+function keyKind(lane: LaneGeom): KeyKind {
+  return lane.kind === 'scratch' ? 'scratch' : lane.color === 'white' ? 'white' : 'other';
+}
+
+/** Renders the SDVX-style track with Three.js. */
 export class TrackRenderer {
   readonly geometry: TrackGeometry;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera: THREE.PerspectiveCamera;
+  /** Made afresh for each preset (setCamera): the plane one is of another kind. */
+  private camera!: TrackCamera;
+  private pose!: CameraPose;
+  /** The screen's width over its height (16:9 until the first resize). */
+  private aspect = 16 / 9;
   /** Colour of each lane (palette, skin overrides and lane layout applied). */
   private readonly laneColors: number[];
   private readonly skin: Skin;
   private readonly style: SkinStyle;
+  /** The skin's hit effect, or none when the settings turn them off. */
+  private readonly hit: SkinStyle['hit'];
+  /** How much each effect is drawn: 1, or less to keep a small one within SMALL_HIT_LANES. */
+  private readonly fxFit: { hit: number; hold: number; burst: number; core: number; sparks: number };
   private readonly reducedFlash: boolean;
   private readonly barLines: boolean;
   private readonly fitWidth: number | null;
   private readonly noteGeometry: THREE.BufferGeometry;
   private readonly noteDepth: number;
+  /** A side tap laid over the keys: deeper than a key tap (see SIDE_EDGE). */
+  private readonly sideNoteDepth: number;
+  /** Half the deepest note's depth: a note is in view once its time is this far past the track's far end. */
+  private readonly noteReach: number;
+  private readonly basePosition = new THREE.Vector3();
   private readonly baseQuaternion = new THREE.Quaternion();
   private baseFov = 40;
-  private appliedFx = { roll: 0, fovScale: 1 };
+  private readonly appliedFx = { roll: 0, fovScale: 1 };
+  /** The view's framing before the chart's zoom and roll (see baseFrame): made again when the camera, the screen or LIFT changes. */
+  private frame: CameraFrame | null = null;
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
   private readonly clipPlanes = [this.farClip, this.nearClip];
+  /** Effects stay between the rails (set for the track's width in the constructor). */
+  private readonly sideClips = [new THREE.Plane(new THREE.Vector3(1, 0, 0), FAR_AWAY), new THREE.Plane(new THREE.Vector3(-1, 0, 0), FAR_AWAY)];
   private readonly noteTextures = new Map<NoteKind, THREE.Texture>();
   private readonly noteMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly bodyMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly endMaterials = new Map<string, THREE.MeshBasicMaterial>();
-  private readonly capMaterials = new Map<string, THREE.MeshBasicMaterial>();
-  private readonly capTextures = new Map<string, THREE.Texture>();
+  private readonly keyMaterials = new Map<string, THREE.MeshBasicMaterial>();
+  private readonly keyTextures = new Map<string, THREE.Texture>();
   private readonly notePool: MeshPool;
   private readonly bodyPool: MeshPool;
   private readonly endPool: MeshPool;
   private readonly barPool: MeshPool;
+  /** Side notes laid over the keys (see placeSideTap): taps and long notes' ends, and long notes' bodies. */
+  private readonly sidePool: MeshPool;
+  private readonly sideBodyPool: MeshPool;
+  private readonly sideMaterials = new Map<string, THREE.MeshBasicMaterial>();
+  private readonly sideTextures = new Map<SidePart, THREE.Texture>();
+  /** Hits of the side lanes laid over the keys (see sideFlash), reused once they finish, and how deep they are drawn. */
+  private readonly flashes: EffectQuad[] = [];
+  private readonly flashDepth: number;
   private readonly long: LongPaint;
   private readonly longBody: THREE.Texture;
   private readonly longEnd: THREE.Texture;
   private readonly beams: THREE.Mesh[] = [];
+  private beamLength: number;
   private readonly beamLevels: number[] = [];
-  /** The stem of each lane's next (or held) note, for the STEM skin's caps and beams. */
+  /** The stem of each lane's next (or held) note, for the STEM skin's lane lights and beams. */
   private readonly laneStems: (StemName | undefined)[] = [];
   /** Hit effects lying on the track, reused once they finish. */
   private readonly hits: EffectQuad[] = [];
@@ -251,20 +610,30 @@ export class TrackRenderer {
   /** Every part of each rail (its glow too): FEVER tints them. */
   private readonly rails: [THREE.MeshBasicMaterial[], THREE.MeshBasicMaterial[]] = [[], []];
   private readonly feverOverlay: THREE.Mesh;
+  /** The FEVER colour the rails and the judge line's glow have now (null: the skin's own). */
+  private feverShown: number | null = null;
   private readonly suddenCover: THREE.Mesh;
   private readonly suddenEdge: THREE.Mesh;
   private readonly hiddenCover: THREE.Mesh;
   private readonly hiddenEdge: THREE.Mesh;
   private readonly liftCover: THREE.Mesh;
   private readonly deck: THREE.Mesh;
-  private readonly caps: THREE.Mesh[] = [];
-  private capDepth = 0.5;
-  private deckRoom = 1;
+  /** A light per lane on the deck, lit while its key is down (a side lane's over the keys a bar under the row). */
+  private readonly keys: THREE.Mesh[] = [];
+  private keyDepth = 0.5;
+  private sideDepth = 0.2;
+  /** What the deck's picture is painted for, and a layout waiting to be painted (at the next frame). */
+  private deckPainted = '';
+  private deckPending: DeckLayout | null = null;
+  private deckWait = 0;
+  private deckStretch = 1;
   /** Bumped whenever the camera or the gear's layout changes: the HUD lying on the track moves then. */
   private planeVersion = 0;
   /** Effects are this much longer along the track than across it (see EFFECT_ASPECT). */
   private stretch = 1;
   private notes: readonly Readonly<SessionNote>[] = [];
+  /** Where the note being placed lies (see noteSpan), kept to spare an object per note and frame. */
+  private readonly extent: NoteSpan = { near: 0, far: 0 };
   private judgeZ = 0;
   private firstLive = 0;
   private lastFrameMs = 0;
@@ -272,9 +641,11 @@ export class TrackRenderer {
   private cssHeight = 1;
 
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
-    this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength);
+    this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength, options.sideNotes);
     this.skin = options.skin;
     this.style = styleOf(options.skin);
+    this.hit = options.hitEffectSize === 'off' ? 'none' : this.style.hit;
+    for (const clip of this.sideClips) clip.constant = this.geometry.width / 2;
     this.artSource = options.art ?? null;
     this.art = { ...options.art?.slots };
     this.artEffects = options.art?.effects ?? { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
@@ -283,21 +654,33 @@ export class TrackRenderer {
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
     this.noteDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
+    this.sideNoteDepth = this.noteDepth + 2 * SIDE_EDGE;
+    this.noteReach = (this.geometry.lanes.some((l) => l.over) ? this.sideNoteDepth : this.noteDepth) / 2;
     this.reducedFlash = options.reducedFlash;
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
+    this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
     this.long = LONG_PAINT[this.style.long];
     this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
     this.longBody.wrapT = THREE.RepeatWrapping;
     this.longEnd = this.own(paintTexture(64, Math.max(4, Math.round(64 * this.long.endDepth)), this.long.end));
-    const hit = this.style.hit;
+    const hit = this.hit;
     // a flipbook skin draws shards in code when its textures are missing
     this.hitSheet = hit === 'none' || (hit === 'flipbook' && this.art.hitBurst) ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
     if (this.hitSheet) this.own(this.hitSheet.texture);
+    const fit = (lanes: number) => (options.hitEffectSize === 'small' ? Math.min(1, SMALL_HIT_LANES / lanes) : 1);
+    const reach = this.hitSheet?.reach ?? 1;
+    this.fxFit = {
+      hit: fit(reach * HIT_SIZE),
+      hold: fit(reach * HOLD_SIZE),
+      burst: fit(BURST_SIZE * FX_SCALE),
+      core: fit(CORE_SIZE * FX_SCALE),
+      sparks: fit(SPARKS_SIZE * FX_SCALE),
+    };
+    this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : 1);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
-    this.camera = new THREE.PerspectiveCamera(options.camera.fov, 16 / 9, 0.1, 500);
     this.setCamera(options.camera);
 
     this.buildTrack();
@@ -348,22 +731,61 @@ export class TrackRenderer {
       mesh.renderOrder = 2;
       return mesh;
     });
+    // side notes over the keys lie under the key notes and long notes, over the bar lines; the key
+    // beams are added over them
+    this.sideBodyPool = new MeshPool(this.scene, () => {
+      const mesh = new THREE.Mesh(this.flatGeometry.clone(), this.sideMaterial('body', this.laneColors[0], 'idle'));
+      mesh.renderOrder = 2.2;
+      return mesh;
+    });
+    this.sidePool = new MeshPool(this.scene, () => {
+      const mesh = new THREE.Mesh(this.flatGeometry, this.sideMaterial('tap', this.laneColors[0], 'idle'));
+      mesh.renderOrder = 2.3;
+      return mesh;
+    });
   }
 
   setCamera(preset: CameraPreset): void {
-    const pose = cameraPose(preset);
-    this.baseFov = pose.fov;
-    this.camera.fov = pose.fov;
-    this.camera.position.set(...pose.position);
-    this.camera.lookAt(new THREE.Vector3(...pose.target));
-    this.baseQuaternion.copy(this.camera.quaternion);
-    this.appliedFx = { roll: 0, fovScale: 1 };
-    this.fitFov();
-    this.camera.updateProjectionMatrix();
-    const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(this.camera.position);
-    const mid = new THREE.Vector3(0, 0, -this.geometry.length * 0.55).distanceTo(this.camera.position);
+    this.pose = cameraPose(preset);
+    const camera = poseCamera(this.pose, this.aspect);
+    this.camera = camera;
+    this.baseFov = this.pose.fov;
+    this.basePosition.copy(camera.position);
+    this.baseQuaternion.copy(camera.quaternion);
+    this.appliedFx.roll = 0;
+    this.appliedFx.fovScale = 1;
+    this.frame = null;
+    const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(camera.position);
+    const mid = new THREE.Vector3(0, 0, fogStartZ(preset, this.geometry.length)).distanceTo(camera.position);
+    // depth resolution where the track is (its layers lie a few hundredths apart, the judge line a
+    // thousandth over the notes): a perspective camera's falls off past its near plane, which at 0.1
+    // would leave them fighting; the plane camera's is even, so it spans just the track and what
+    // stands on it (a roll moves that camera across its view, never nearer)
+    if (camera instanceof PlaneCamera) {
+      const depth = (z: number) => -new THREE.Vector3(0, 0, z).applyMatrix4(camera.matrixWorldInverse).z;
+      camera.near = depth(TRACK_TAIL + 3) - 10;
+      camera.far = depth(-this.geometry.length) + 10;
+    } else {
+      camera.near = Math.max(0.1, camera.position.length() / 4);
+      camera.far = Math.max(500, far * 1.5);
+    }
+    this.frameView();
     this.scene.fog = new THREE.Fog(hex(this.skin?.colors.fog ?? '#060a1a'), mid, far);
     if (this.deck) this.layoutDeck();
+  }
+
+  /** Key beams' length as a share of the usual one (0 = none). */
+  setKeyBeamLength(share: number): void {
+    this.beamLength = BEAM_LENGTH * share;
+    this.placeBeams();
+  }
+
+  /** Key beams rise from the judge line (LIFT moves it) as far as their length. */
+  private placeBeams(): void {
+    for (const beam of this.beams) {
+      beam.scale.z = Math.max(this.beamLength, 1e-3);
+      beam.position.z = this.judgeZ - this.beamLength / 2;
+    }
   }
 
   /** Moves SUDDEN+ / HIDDEN+ / LIFT (all shares, see settings). */
@@ -372,20 +794,24 @@ export class TrackRenderer {
     this.judgeZ = -c.lift * L;
     const travel = L + this.judgeZ;
     this.judgeGroup.position.z = this.judgeZ;
-    this.beams.forEach((beam) => (beam.position.z = this.judgeZ - BEAM_LENGTH / 2));
+    this.placeBeams();
 
     const suddenZ = this.judgeZ - travel * (1 - c.sudden);
     const hiddenZ = this.judgeZ - travel * c.hidden;
-    this.farClip.constant = c.sudden > 0 ? -suddenZ : FAR_AWAY;
-    // Under LIFT nothing passes the judgement line; otherwise missed notes run on toward the camera.
-    const nearLimit = c.hidden > 0 ? hiddenZ : c.lift > 0 ? this.judgeZ + this.noteDepth / 2 : FAR_AWAY;
-    this.nearClip.constant = nearLimit;
+    // notes come into view at the track's far end (they take no fog), cut there rather than popping up
+    this.farClip.constant = c.sudden > 0 ? -suddenZ : L;
+    // Missed notes run on past the judgement line (under LIFT, under its cover) as far as the deck,
+    // which hides them: cut where it starts, so a user skin's tall note never shows through it.
+    this.nearClip.constant = c.hidden > 0 ? hiddenZ : this.judgeZ + deckTop(this.style.judge) * PX;
 
     this.span(this.suddenCover, -L - 0.5, suddenZ, c.sudden > 0);
     this.span(this.suddenEdge, suddenZ - 0.06, suddenZ + 0.06, c.sudden > 0);
     this.span(this.hiddenCover, hiddenZ, this.judgeZ, c.hidden > 0);
     this.span(this.hiddenEdge, hiddenZ - 0.06, hiddenZ + 0.06, c.hidden > 0);
     this.span(this.liftCover, this.judgeZ, TRACK_TAIL, c.lift > 0);
+    // a chart's zoom and roll turn about the (lifted) judge line
+    this.frame = null;
+    if (this.appliedFx.roll !== 0 || this.appliedFx.fovScale !== 1) this.frameView();
     this.layoutDeck();
   }
 
@@ -394,31 +820,36 @@ export class TrackRenderer {
     this.cssHeight = Math.max(1, cssHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.cssWidth, this.cssHeight, false);
-    this.camera.aspect = this.cssWidth / this.cssHeight;
-    this.fitFov();
-    this.camera.updateProjectionMatrix();
+    this.aspect = this.cssWidth / this.cssHeight;
+    this.camera.aspect = this.aspect;
+    this.frame = null;
+    this.frameView();
     this.layoutDeck();
   }
 
   /**
-   * With `fitWidth`: the field of view that makes the (unlifted) judge line span that share of
-   * the width, and the view moved so the line sits as low as on a 16:9 play screen.
+   * Moves the view up or down, the perspective unchanged, until the (unlifted) judge line sits at
+   * JUDGE_LINE_Y of the height, leaving the gear room under it; the chart's zoom and roll turn
+   * about the judge line (see frameCamera). The framing without them is kept until the camera, the
+   * screen or LIFT changes, so a zoom pulse only moves the view from it.
    */
-  private fitFov(): void {
-    if (this.fitWidth === null) return;
+  private frameView(): void {
+    // the plane camera's roll moves it as well as turning it (see frameCamera)
+    this.camera.position.copy(this.basePosition);
     this.camera.quaternion.copy(this.baseQuaternion);
     this.camera.updateMatrixWorld();
-    const half = this.geometry.width / 2;
-    const [a, b] = [-half, half].map((x) => new THREE.Vector3(x, 0, 0).applyMatrix4(this.camera.matrixWorldInverse));
-    const spread = b.x / -b.z - a.x / -a.z;
-    this.baseFov = THREE.MathUtils.radToDeg(2 * Math.atan(spread / (2 * this.fitWidth * this.camera.aspect)));
-    this.camera.fov = this.baseFov * this.appliedFx.fovScale;
-    this.camera.clearViewOffset();
-    this.camera.updateProjectionMatrix();
-    const lineY = (1 - new THREE.Vector3(0, 0, 0).project(this.camera).y) / 2;
-    const H = this.cssHeight;
-    this.camera.setViewOffset(this.cssWidth, H, 0, (lineY - FIT_JUDGE_LINE_Y) * H, this.cssWidth, H);
-    if (this.appliedFx.roll !== 0) this.camera.rotateZ(this.appliedFx.roll);
+    if (!this.frame) this.frame = this.unzoomedFrame();
+    const { fovScale, roll } = this.appliedFx;
+    frameCamera(this.camera, this.baseFov, fovScale, roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame);
+  }
+
+  /**
+   * The view's framing without the chart's zoom and roll. A preview (`fitWidth`) first sets the
+   * field of view that makes the judge line span that share of the width with the whole track above it.
+   */
+  private unzoomedFrame(): CameraFrame {
+    if (this.fitWidth !== null) this.baseFov = fitFov(this.camera, this.geometry, this.fitWidth);
+    return baseFrame(this.camera, this.baseFov, this.judgeZ);
   }
 
   /** Changes whenever the HUD lying on the track has to move (see hudPlane). */
@@ -429,29 +860,30 @@ export class TrackRenderer {
   /** The track plane as the camera shows it now (its tilt and zoom included), for the HUD on it. */
   hudPlane(): HudPlane {
     this.camera.updateMatrixWorld();
-    const view = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
-    const W = this.cssWidth / 2;
-    const H = this.cssHeight / 2;
-    // clip space of one plane px across, one toward the camera, and the origin; then screen px
-    const [a, b, c] = [
-      [PX, 0, 0, 0],
-      [0, 0, PX, 0],
-      [0, 0, this.judgeZ, 1],
-    ].map(([x, y, z, w]) => {
-      const v = new THREE.Vector4(x, y, z, w).applyMatrix4(view);
-      return [W * (v.x + v.w), H * (v.w - v.y), v.w];
-    });
-    const { width } = this.geometry;
+    return this.planeAs(this.camera);
+  }
+
+  /**
+   * The track plane as the camera would show it in the chart's pose `fx`, whatever its tilt and zoom
+   * are now: for what the HUD keeps clear of all through the play (see CameraFx.peak).
+   */
+  hudPlaneAt(fx: CameraPoseFx): HudPlane {
+    if (!this.frame) this.frameView();
+    const camera = poseCamera(this.pose, this.aspect);
+    frameCamera(camera, this.baseFov, fx.fovScale, fx.roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame!);
+    return this.planeAs(camera);
+  }
+
+  private planeAs(camera: TrackCamera): HudPlane {
+    const { width, length } = this.geometry;
     const rails = this.art.rails;
     const railOuter = rails ? 0.08 + (rails.spec.width ?? 0.26) / 2 : this.style.rails.width * PX;
     const wallOuter = this.style.frame === 'gunmetal' ? 50 * PX : this.style.frame === 'street' ? 28 * PX : 0;
     return {
-      h: [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]],
+      h: planeHomography(camera, this.cssWidth, this.cssHeight, this.judgeZ),
       halfWidth: width / 2 / PX,
       sideOut: Math.max(railOuter, wallOuter) / PX,
-      deckTop: this.style.judge.height / 2 + 3,
-      capDepth: this.capDepth / PX,
-      deckRoom: this.deckRoom / PX,
+      far: (-length - this.judgeZ) / PX,
     };
   }
 
@@ -460,12 +892,18 @@ export class TrackRenderer {
     this.firstLive = 0;
     this.beamLevels.fill(0);
     for (const h of this.hits) h.mesh.visible = false;
+    for (const f of this.flashes) f.mesh.visible = false;
   }
 
   /** A hit on the judge line of a lane, in `color` (a STEM skin paints it in the note's instrument). */
   hitEffect(lane: number, color: number, perfNow: number, noteIndex?: number): void {
-    const hit = this.style.hit;
+    const hit = this.hit;
     if (hit === 'none') return;
+    if (this.geometry.lanes[lane].over) {
+      // STEM paints a hit in its note's colour: a side lane laid over the keys has its own (see noteColor)
+      this.sideFlash(lane, hit === 'stemflash' ? this.laneColors[lane] : color, perfNow);
+      return;
+    }
     const stem = noteIndex !== undefined ? this.notes[noteIndex]?.src : undefined;
     const tint = hit === 'stemflash' && stem ? STEM_COLORS[stem] : color;
     const burst = hit === 'flipbook' ? this.art.hitBurst : undefined;
@@ -487,10 +925,11 @@ export class TrackRenderer {
     const dt = this.lastFrameMs > 0 ? Math.min(100, perfNow - this.lastFrameMs) : 16;
     this.lastFrameMs = perfNow;
     this.notes = frame.notes;
+    if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
     this.drawNotes(frame);
     this.drawBars(frame);
     this.drawBeams(frame, dt);
-    this.drawCaps(frame);
+    this.drawKeys(frame);
     this.drawHolds(frame);
     this.drawHits(perfNow);
     this.drawFever(frame);
@@ -502,12 +941,11 @@ export class TrackRenderer {
     const roll = fx?.roll ?? 0;
     const fovScale = fx?.fovScale ?? 1;
     if (roll === this.appliedFx.roll && fovScale === this.appliedFx.fovScale) return;
-    this.appliedFx = { roll, fovScale };
+    this.appliedFx.roll = roll;
+    this.appliedFx.fovScale = fovScale;
     this.planeVersion++;
-    this.camera.quaternion.copy(this.baseQuaternion);
-    if (roll !== 0) this.camera.rotateZ(roll);
-    this.camera.fov = this.baseFov * fovScale;
-    this.camera.updateProjectionMatrix();
+    // the view is framed again (from the kept framing): the zoomed or rolled track keeps the judge line where it is
+    this.frameView();
   }
 
   dispose(): void {
@@ -518,7 +956,9 @@ export class TrackRenderer {
         if (obj instanceof THREE.Mesh && obj.geometry !== this.flatGeometry) obj.geometry.dispose();
       }
     });
-    for (const cache of [this.noteMaterials, this.bodyMaterials, this.endMaterials, this.capMaterials]) cache.forEach((m) => m.dispose());
+    for (const cache of [this.noteMaterials, this.bodyMaterials, this.endMaterials, this.keyMaterials, this.sideMaterials]) cache.forEach((m) => m.dispose());
+    this.keyTextures.forEach((t) => t.dispose());
+    (this.deck.material as THREE.MeshBasicMaterial).map?.dispose();
     this.flatGeometry.dispose();
     this.glowTexture.dispose();
     this.ownedTextures.forEach((t) => t.dispose());
@@ -536,76 +976,176 @@ export class TrackRenderer {
     this.notePool.begin();
     this.bodyPool.begin();
     this.endPool.begin();
+    this.sidePool.begin();
+    this.sideBodyPool.begin();
     for (let i = this.firstLive; i < notes.length; i++) {
       const n = notes[i];
-      if (scroll.distance(n.t, timeMs) > scroll.travel) break;
+      // in view once its near edge passes the far end (the far clip cuts the rest)
+      if (scroll.distance(n.t, timeMs) > scroll.travel + this.noteReach) break;
       const lane = this.geometry.lanes[n.lane];
       const color = this.noteColor(n);
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
       const kind = NOTE_KIND[lane.kind];
       if (n.type === 'tap') {
         if (!n.headDone) {
-          this.laneStems[n.lane] ??= n.src;
-          this.placeNote(lane.x, lane.width, z(n.t), color, height, kind);
-        } else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height, kind);
+          if (lane.over) this.placeSideTap(lane, z(n.t), color);
+          else {
+            this.laneStems[n.lane] ??= n.src;
+            this.placeNote(lane.x, lane.width, z(n.t), color, height, kind);
+          }
+        } else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) {
+          if (lane.over) this.placeSideTap(lane, z(n.t), MISSED_COLOR);
+          else this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height, kind);
+        }
         continue;
       }
       const held = frame.heldNote(n.lane) === n.index;
       if (n.tailDone && !n.broken) continue;
       if (n.broken && n.endT < timeMs - MISSED_VISIBLE_MS) continue;
-      if (!n.broken) this.laneStems[n.lane] ??= n.src;
-      const headZ = held ? this.judgeZ : z(n.t);
-      const tailZ = Math.max(-L, z(n.endT));
-      if (headZ > tailZ) this.placeLong(lane, headZ, tailZ, z(n.endT), n.broken ? MISSED_COLOR : color, n.broken ? 'missed' : held ? 'held' : 'idle');
+      if (!n.broken && !lane.over) this.laneStems[n.lane] ??= n.src;
+      // from the near edge of a tap at its start to the far edge of a tap at its end (a side tap's
+      // over the keys)
+      const span = noteSpan(z(n.t), lane.over ? this.sideNoteDepth : this.noteDepth, z(n.endT), held ? this.judgeZ : null, this.extent);
+      const tailZ = Math.max(-L, span.far);
+      if (span.near <= tailZ) continue;
+      const state = n.broken ? 'missed' : held ? 'held' : 'idle';
+      if (lane.over) this.placeSideLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
+      else this.placeLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
     }
     this.notePool.end();
     this.bodyPool.end();
     this.endPool.end();
+    this.sidePool.end();
+    this.sideBodyPool.end();
   }
 
-  /** A note's colour: its lane's, or for a STEM skin the colour of the instrument it follows. */
+  /**
+   * A note's colour: its lane's, or for a STEM skin the colour of the instrument it follows. A side
+   * lane laid over the keys keeps its own, so its bars never take the colour of the key notes on them.
+   */
   private noteColor(n: Readonly<SessionNote>): number {
-    if (this.style.note === 'stem' && n.src) return STEM_COLORS[n.src];
+    if (this.style.note === 'stem' && n.src && !this.geometry.lanes[n.lane].over) return STEM_COLORS[n.src];
     return this.laneColors[n.lane];
   }
 
+  /** A tap note centred on `z`: where noteSpan puts a long note's ends, so a chord lines up. */
   private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, kind: NoteKind): void {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color, kind);
+    const { near, far } = noteSpan(z, this.noteDepth, z, null, this.extent);
     // JEWEL's picture runs on below the note: its side
     const side = this.style.note === 'jewel' && !this.noteArt(kind) ? this.noteDepth * JEWEL_SIDE : 0;
-    mesh.scale.set(laneWidth * 0.9, height, this.noteDepth + side);
-    mesh.position.set(x, height / 2, z + side / 2);
+    mesh.scale.set(laneWidth * 0.9, height, near + side - far);
+    mesh.position.set(x, height / 2, (near + side + far) / 2);
   }
 
   /**
    * A long note is its body alone (a head or tail drawn like a tap note reads as one more note):
-   * the body between its two ends, which close it with the style's outline.
+   * the body between its two ends (see noteSpan), which close it with the style's outline. While
+   * its real tail is still beyond the track's far end (`realTailZ` past `tailZ`) the body is open
+   * there: the far clip cuts it, as no outline must show an end that is not there.
    */
   private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
     const art = this.art.longBody;
     const width = lane.width * (art ? 0.8 : this.long.width);
-    const end = art ? 0 : Math.min(this.long.endDepth * width, (headZ - tailZ) / 2);
+    const open = realTailZ < tailZ;
+    const end = art ? 0 : Math.min(this.long.endDepth * width, (headZ - tailZ) / (open ? 1 : 2));
     const body = this.bodyPool.next();
     body.material = this.bodyMaterial(color, state);
     const near = headZ - end;
-    const far = tailZ + end;
+    const far = open ? tailZ : tailZ + end;
     body.visible = near > far;
     body.scale.set(width, 1, Math.max(0.001, near - far));
     body.position.set(lane.x, 0.02, (near + far) / 2);
     this.setBodyUv(body, width * (art ? art.spec.tileAspect ?? 2 : this.long.tile), near, far, realTailZ);
     if (end <= 0) return;
-    for (const [z, rotate] of [
-      [headZ - end / 2, true],
-      [tailZ + end / 2, false],
-    ] as [number, boolean][]) {
-      const cap = this.endPool.next();
-      cap.material = this.endMaterial(color, state);
-      cap.scale.set(width, 1, end);
-      // the picture's top is the end's outer edge: the head's outer edge is toward the camera
-      cap.rotation.y = rotate ? Math.PI : 0;
-      cap.position.set(lane.x, 0.021, z);
+    this.placeLongEnd(lane.x, width, headZ - end / 2, end, color, state, true);
+    if (!open) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false);
+  }
+
+  /** One end of a long note, `end` deep at `z`; the picture's top is its outer edge (`head`: toward the camera). */
+  private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean): void {
+    const cap = this.endPool.next();
+    cap.material = this.endMaterial(color, state);
+    cap.scale.set(width, 1, end);
+    cap.rotation.y = head ? Math.PI : 0;
+    cap.position.set(x, 0.021, z);
+  }
+
+  /**
+   * A side note laid over the keys (반쪽 덮기): a see-through bar across its half, under the key
+   * notes, centred on its time as a tap is (see noteSpan) and bright along both edges, which reach
+   * past a key tap at its time (SIDE_EDGE): its time reads whatever key notes lie over it.
+   */
+  private placeSideTap(lane: LaneGeom, z: number, color: number): void {
+    const bar = this.sidePool.next();
+    bar.material = this.sideMaterial('tap', color, 'idle');
+    const { near, far } = noteSpan(z, this.sideNoteDepth, z, null, this.extent);
+    bar.scale.set(lane.width * SIDE_SPAN, 1, near - far);
+    bar.rotation.y = 0;
+    bar.position.set(lane.x, SIDE_Y, (near + far) / 2);
+  }
+
+  /**
+   * A side long note laid over the keys: a fainter body across its half between two bright bands at
+   * its head and end, from the near edge of a side tap at its start to the far edge of one at its end
+   * (so key notes on its head or end leave the bands showing), open at the far end while its real
+   * tail is beyond it, as placeLong's.
+   */
+  private placeSideLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
+    const width = lane.width * SIDE_SPAN;
+    const open = realTailZ < tailZ;
+    const end = Math.min(SIDE_END, (headZ - tailZ) / (open ? 1 : 2));
+    const body = this.sideBodyPool.next();
+    body.material = this.sideMaterial('body', color, state);
+    const near = headZ - end;
+    const far = open ? tailZ : tailZ + end;
+    body.visible = near > far;
+    body.scale.set(width, 1, Math.max(0.001, near - far));
+    body.position.set(lane.x, SIDE_Y, (near + far) / 2);
+    this.setBodyUv(body, width, near, far, realTailZ);
+    this.placeSideEnd(lane.x, width, headZ - end / 2, end, color, state, true);
+    if (!open) this.placeSideEnd(lane.x, width, tailZ + end / 2, end, color, state, false);
+  }
+
+  /** A side long note's head or end band, `end` deep at `z` (as placeLongEnd). */
+  private placeSideEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean): void {
+    const cap = this.sidePool.next();
+    cap.material = this.sideMaterial('end', color, state);
+    cap.scale.set(width, 1, end);
+    cap.rotation.y = head ? Math.PI : 0;
+    cap.position.set(x, SIDE_Y, z);
+  }
+
+  /** A part of the side notes laid over the keys, in `color` (cached per colour and state). */
+  private sideMaterial(part: Exclude<SidePart, 'flash'>, color: number, state: 'idle' | 'held' | 'missed'): THREE.MeshBasicMaterial {
+    const key = `${part}:${color}:${state}`;
+    let m = this.sideMaterials.get(key);
+    if (!m) {
+      m = tintMaterial(
+        { color, map: this.sideTexture(part), transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false },
+        { gain: HOLD_BRIGHTNESS[state] },
+      );
+      this.sideMaterials.set(key, m);
     }
+    return m;
+  }
+
+  /**
+   * A side note's picture, painted for the bar's proportions over a half of this track (square px);
+   * a long note's body is alike all along it, so a few rows repeat.
+   */
+  private sideTexture(part: SidePart): THREE.Texture {
+    let texture = this.sideTextures.get(part);
+    if (!texture) {
+      const across = (this.geometry.width / 2) * SIDE_SPAN;
+      const w = 512;
+      const h = part === 'body' ? 8 : Math.max(8, Math.round((w * { tap: this.sideNoteDepth, end: SIDE_END, flash: SIDE_FLASH }[part]) / across));
+      texture = this.own(paintTexture(w, h, part === 'tap' ? sideTap(SIDE_EDGE / this.sideNoteDepth) : SIDE_PICTURES[part]));
+      if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
+      this.sideTextures.set(part, texture);
+    }
+    return texture;
   }
 
   private noteArt(kind: NoteKind): ArtTexture | undefined {
@@ -646,11 +1186,11 @@ export class TrackRenderer {
     const decay = Math.exp(-dt / 70);
     const peak = this.reducedFlash ? 0.24 : 0.42;
     this.beams.forEach((beam, lane) => {
-      const level = frame.keyDown(lane) ? peak : this.beamLevels[lane] * decay;
+      const level = frame.keyDown(lane) ? (this.geometry.lanes[lane].over ? peak * SIDE_BEAM : peak) : this.beamLevels[lane] * decay;
       this.beamLevels[lane] = level;
       const material = beam.material as THREE.MeshBasicMaterial;
       material.opacity = level;
-      beam.visible = level > 0.01;
+      beam.visible = level > 0.01 && this.beamLength > 0;
       if (this.style.beam === 'stem' && beam.visible) {
         const stem = this.laneStems[lane];
         material.color.setHex(stem ? STEM_COLORS[stem] : this.laneColors[lane]);
@@ -658,36 +1198,47 @@ export class TrackRenderer {
     });
   }
 
-  /** Key caps: lit while their key is down. */
-  private drawCaps(frame: TrackFrame): void {
-    this.caps.forEach((cap, lane) => {
+  /** The lane lights on the deck: lit while their key is down (STEM's in the next note's instrument). */
+  private drawKeys(frame: TrackFrame): void {
+    this.keys.forEach((key, lane) => {
       const down = frame.keyDown(lane);
       const stem = this.laneStems[lane];
-      const color = this.style.cap === 'stem' && stem ? STEM_COLORS[stem] : this.laneColors[lane];
-      cap.material = this.capMaterial(lane, down, color);
+      const color = this.style.deck === 'stem' && stem ? STEM_COLORS[stem] : this.laneColors[lane];
+      key.material = this.keyMaterial(lane, down, color);
     });
   }
 
   /** While a long note is held, its lane shows the start of the hit effect (or the skin's hold sparks). */
   private drawHolds(frame: TrackFrame): void {
-    const sparks = this.style.hit === 'flipbook' ? this.art.hitHold : undefined;
+    const sparks = this.hit === 'flipbook' ? this.art.hitHold : undefined;
     this.holds.forEach((h, lane) => {
       const held = frame.heldNote(lane) !== null;
+      const g = this.geometry.lanes[lane];
       h.mesh.visible = held;
       const core = this.holdCores[lane];
-      if (core) core.mesh.visible = held;
+      if (core) core.mesh.visible = held && !g.over;
       if (!held) return;
-      const g = this.geometry.lanes[lane];
       const w = Math.min(g.width, 1.6);
       const dim = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
       const flash = this.reducedFlash ? this.artEffects.reducedFlashScale : 1;
+      if (g.over) {
+        // a side lane over the keys: its hit's flash across the half, shallower and steady (see
+        // sideFlash), in its own colour
+        const pulse = this.reducedFlash ? 1 : 1 + 0.06 * Math.sin(frame.timeMs / 45);
+        const depth = this.flashDepth * 0.7 * pulse * this.stretch;
+        h.mesh.scale.set(g.width * SIDE_SPAN, 1, depth);
+        h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - SIDE_FLASH_LINE));
+        h.material.color.setHex(this.laneColors[lane]);
+        h.material.opacity = 0.4 * dim;
+        return;
+      }
       if (core) {
         const book = this.art.hitBurst?.spec.flipbook;
         if (book) {
           const [u, v] = flipbookOffset(book, HOLD_BURST_FRAME);
           core.texture.offset.set(u, v);
         }
-        const size = w * 1.6 * FX_SCALE * flash;
+        const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core;
         core.mesh.scale.set(size, 1, size * this.stretch);
         core.mesh.position.set(g.x, 0.029, this.judgeZ);
         core.material.color.setHex(this.laneColors[lane]);
@@ -700,7 +1251,7 @@ export class TrackRenderer {
         const [u, v] = flipbookOffset(book, ((n % book.frames) + book.frames) % book.frames);
         h.texture.offset.set(u, v);
         // the sparks rise up the track from the judge line
-        const size = w * 2.4 * FX_SCALE * flash;
+        const size = w * SPARKS_SIZE * FX_SCALE * flash * this.fxFit.sparks;
         const depth = size * this.stretch;
         const anchor = sparks.spec.anchorY ?? 0.15;
         h.mesh.scale.set(size, 1, depth);
@@ -716,24 +1267,77 @@ export class TrackRenderer {
       }
       const [u, v] = sheetOffset(sheet, HOLD_FRAME);
       h.texture.offset.set(u, v);
-      const pulse = this.reducedFlash ? 1 : 1 + 0.06 * Math.sin(frame.timeMs / 45);
+      const pulse = (this.reducedFlash ? 1 : 1 + 0.06 * Math.sin(frame.timeMs / 45)) * this.fxFit.hold;
       const across = sheet.size[0] * w * HOLD_SIZE * pulse;
       const depth = sheet.size[1] * w * HOLD_SIZE * pulse * this.stretch;
       h.mesh.scale.set(across, 1, depth);
       h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - sheet.centre));
       const stem = this.laneStems[lane];
-      h.material.color.setHex(this.style.hit === 'stemflash' && stem ? STEM_COLORS[stem] : this.laneColors[lane]);
+      h.material.color.setHex(this.hit === 'stemflash' && stem ? STEM_COLORS[stem] : this.laneColors[lane]);
       h.material.opacity = 0.75 * dim;
     });
   }
 
   private drawHits(perfNow: number): void {
     for (const h of this.hits) if (h.mesh.visible) this.drawHit(h, perfNow);
+    for (const f of this.flashes) if (f.mesh.visible) this.drawSideFlash(f, perfNow);
+  }
+
+  /**
+   * A hit of a side lane laid over the keys: a flash across its half on the judge line, with light
+   * rising a short way up it, that fades out as a hit effect does (the skin's own effect is a lane's
+   * size). It is added under the keys' own effects, which show over it in a chord.
+   */
+  private sideFlash(lane: number, color: number, perfNow: number): void {
+    let f = this.flashes.find((x) => !x.mesh.visible);
+    if (!f) {
+      f = this.flashQuad();
+      this.flashes.push(f);
+    }
+    f.material.color.setHex(color);
+    f.start = perfNow;
+    f.lane = lane;
+    f.mesh.visible = true;
+    this.drawSideFlash(f, perfNow);
+  }
+
+  private drawSideFlash(f: EffectQuad, perfNow: number): void {
+    const p = (perfNow - f.start) / EFFECT_MS;
+    if (p >= 1) {
+      f.mesh.visible = false;
+      return;
+    }
+    const g = this.geometry.lanes[f.lane];
+    const dim = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
+    // its light rises a little further up the track as it fades
+    const depth = this.flashDepth * (1 + 0.3 * p) * this.stretch;
+    f.mesh.scale.set(g.width * SIDE_SPAN, 1, depth);
+    f.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - SIDE_FLASH_LINE));
+    f.material.opacity = dim * (1 - p);
+  }
+
+  /** The flash lying across a half at the judge line (a side lane's hit or hold over the keys): one picture for all, no frames. */
+  private flashQuad(): EffectQuad {
+    const texture = this.sideTexture('flash');
+    const material = tintMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      clippingPlanes: this.sideClips,
+    });
+    const mesh = new THREE.Mesh(this.flatGeometry, material);
+    mesh.renderOrder = 9.9;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    return { mesh, texture, material, start: 0, lane: 0 };
   }
 
   /** A hit plays its frames once, lying on the track at the judge line; then its quad is free again. */
   private drawHit(h: EffectQuad, perfNow: number): void {
-    const burst = this.style.hit === 'flipbook' ? this.art.hitBurst : undefined;
+    const burst = this.hit === 'flipbook' ? this.art.hitBurst : undefined;
     const book = burst?.spec.flipbook;
     const frames = book?.frames ?? this.hitSheet?.frames ?? 16;
     const elapsed = perfNow - h.start;
@@ -749,7 +1353,7 @@ export class TrackRenderer {
     if (book) {
       const [u, v] = flipbookOffset(book, frame);
       h.texture.offset.set(u, v);
-      const size = w * 2.1 * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1);
+      const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst;
       h.mesh.scale.set(size, 1, size * this.stretch);
       h.mesh.position.set(g.x, 0.03, this.judgeZ);
       // the sheet fades by itself; its last frames fade out too, so the effect does not cut off
@@ -759,7 +1363,7 @@ export class TrackRenderer {
     const sheet = this.hitSheet as EffectSheet;
     const [u, v] = sheetOffset(sheet, frame);
     h.texture.offset.set(u, v);
-    const scale = this.reducedFlash ? 0.8 : 1;
+    const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit;
     const across = sheet.size[0] * w * HIT_SIZE * scale;
     const depth = sheet.size[1] * w * HIT_SIZE * scale * this.stretch;
     h.mesh.scale.set(across, 1, depth);
@@ -768,7 +1372,8 @@ export class TrackRenderer {
   }
 
   /**
-   * A quad lying on the track that shows one frame of a sheet (its own copy of the texture).
+   * A quad lying on the track that shows one frame of a sheet (its own copy of the texture), cut
+   * at the rails: a wide effect on an outer lane never spills over the gear's edge.
    * `core`: how bright a flipbook's light must be to stay white (see lightMaterial).
    */
   private effectQuad(source: THREE.Texture, book: { cols: number; rows: number } | null, core: number): EffectQuad {
@@ -782,6 +1387,7 @@ export class TrackRenderer {
       depthTest: false,
       blending: THREE.AdditiveBlending,
       fog: false,
+      clippingPlanes: this.sideClips,
     };
     const material = source === this.hitSheet?.texture ? tintMaterial(params) : lightMaterial(params, core);
     const mesh = new THREE.Mesh(this.flatGeometry, material);
@@ -798,13 +1404,16 @@ export class TrackRenderer {
     const tint = FEVER_COLORS[Math.min(5, Math.max(2, multiplier))] ?? FEVER_COLORS[2];
     if (active) {
       overlay.color.setHex(tint);
-      const pulse = this.reducedFlash ? 0.5 : 0.5 + 0.5 * Math.sin(frame.timeMs / 110);
-      // Fade out over the last fifth of the fever so its end is readable.
-      overlay.opacity = (0.06 + 0.07 * pulse) * Math.min(1, remaining * 5);
+      // steady (a pulse of its own, off the beat, only distracts); it fades out over the last
+      // fifth of the fever so its end is readable
+      overlay.opacity = FEVER_TINT * Math.min(1, remaining * 5);
     }
-    for (const m of this.rails[0]) m.color.setHex(active ? tint : hex(this.skin.colors.railLeft));
-    for (const m of this.rails[1]) m.color.setHex(active ? tint : hex(this.skin.colors.railRight));
-    this.judgeGlowMaterial?.color.setHex(active ? tint : hex(this.skin.colors.judgeGlow));
+    const shown = active ? tint : null;
+    if (shown === this.feverShown) return;
+    this.feverShown = shown;
+    for (const m of this.rails[0]) m.color.setHex(shown ?? hex(this.skin.colors.railLeft));
+    for (const m of this.rails[1]) m.color.setHex(shown ?? hex(this.skin.colors.railRight));
+    this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.skin.colors.judgeGlow));
   }
 
   private buildTrack(): void {
@@ -840,9 +1449,11 @@ export class TrackRenderer {
       mesh.position.set(x, 0.005, (TRACK_TAIL - length) / 2);
       return mesh.material as THREE.MeshBasicMaterial;
     };
-    // the lane colour shows faintly under coloured lanes (white ones stay the track's)
+    // the lane colour shows faintly under coloured lanes (white ones stay the track's); side lanes
+    // laid over the keys have no floor of their own
     const t = this.style.track;
-    lanes.forEach((lane) => {
+    const floorLanes = lanes.filter((lane) => !lane.over);
+    floorLanes.forEach((lane) => {
       const tint = lane.kind === 'side' ? 0.1 : lane.kind === 'scratch' ? t.scratchTint ?? t.tint : lane.color === 'white' ? 0 : t.tint;
       if (tint > 0) strip(lane.x, lane.width, this.laneColors[lane.index], tint);
     });
@@ -858,12 +1469,12 @@ export class TrackRenderer {
     if (t.stripes) pattern(this.own(stripesTexture()), 22 * PX * 2.9, 1);
     if (t.facets) pattern(this.own(facetsTexture()), 45 * PX, 0.55);
     const divider = hex(this.skin.colors.divider);
-    for (let i = 1; i < lanes.length; i++) {
-      const sideEdge = lanes[i].kind === 'side' || lanes[i - 1].kind === 'side';
-      strip(lanes[i].x - lanes[i].width / 2, sideEdge ? 0.05 : 0.025, divider, 0.9);
+    for (let i = 1; i < floorLanes.length; i++) {
+      const sideEdge = floorLanes[i].kind === 'side' || floorLanes[i - 1].kind === 'side';
+      strip(floorLanes[i].x - floorLanes[i].width / 2, sideEdge ? 0.05 : 0.025, divider, 0.9);
     }
     // crystal edges: a light line down the left of every lane
-    if (t.edges) for (const lane of lanes) strip(lane.x - lane.width / 2 + PX, 2 * PX, 0xd6e2ff, 0.18, 1.1);
+    if (t.edges) for (const lane of floorLanes) strip(lane.x - lane.width / 2 + PX, 2 * PX, 0xd6e2ff, 0.18, 1.1);
     this.buildWalls();
     this.buildRails();
   }
@@ -972,31 +1583,33 @@ export class TrackRenderer {
       }),
     );
     const j = this.style.judge;
-    line.scale.set(width + 12 * PX, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
-    line.position.set(0, 0.06, 0);
+    // between the rails: it never runs over the gear's edges
+    line.scale.set(width, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
+    line.position.set(0, LINE_Y, 0);
     line.renderOrder = 9.5;
     this.judgeGroup.add(line);
-    // a second line under it (toward the camera) or over it
+    // a second line flush under it (toward the camera) or over it: the line keeps its middle, and the deck starts under it (deckTop)
+    const flush = j.height / 2 + EXTRA_LINE / 2;
     for (const [colour, dz] of [
-      [j.under, 9],
-      [j.over, -9],
+      [j.under, flush],
+      [j.over, -flush],
     ] as [string | undefined, number][]) {
       if (!colour) continue;
       const extra = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: hex(colour), transparent: true, depthWrite: false }));
-      extra.scale.set(width + 12 * PX, 1, 5 * PX);
-      extra.position.set(0, 0.06, dz * PX);
+      extra.scale.set(width, 1, EXTRA_LINE * PX);
+      extra.position.set(0, LINE_Y, dz * PX);
       extra.renderOrder = 9.5;
       this.judgeGroup.add(extra);
     }
     this.scene.add(this.judgeGroup);
     if (!art) {
       if (!j.glow) return null;
-      // the sheets' box-shadow: 0 0 16px at 80 %, under the line
-      const lineWidth = width / PX + 12;
+      // the sheets' box-shadow: 0 0 16px at 80 %, under the line; the deck hides its lower half
+      const lineWidth = width / PX;
       const glow = new THREE.Mesh(
         this.flatGeometry,
         tintMaterial({
-          map: this.own(judgeGlowTexture(lineWidth, j.height, 16, 0.8)),
+          map: this.own(judgeGlowTexture(lineWidth, j.height, 16, 0.8, false)),
           color: hex(this.skin.colors.judgeGlow),
           transparent: true,
           opacity: this.reducedFlash ? 0.6 : 1,
@@ -1004,8 +1617,8 @@ export class TrackRenderer {
           fog: false,
         }),
       );
-      glow.scale.set((lineWidth + 2 * shadowReach(16)) * PX, 1, (j.height + 2 * shadowReach(16)) * PX);
-      glow.position.set(0, 0.058, 0);
+      glow.scale.set(width, 1, (j.height + 2 * shadowReach(16)) * PX);
+      glow.position.set(0, LINE_Y, 0);
       glow.renderOrder = 9.45;
       this.judgeGroup.add(glow);
       return glow.material as THREE.MeshBasicMaterial;
@@ -1019,8 +1632,8 @@ export class TrackRenderer {
       depthWrite: false,
     });
     const glow = new THREE.Mesh(this.flatGeometry, glowMaterial);
-    glow.scale.set(width + 1.2, 1, 1.4);
-    glow.position.set(0, 0.065, 0);
+    glow.scale.set(width, 1, 1.4);
+    glow.position.set(0, LINE_Y, 0);
     glow.renderOrder = 9.6;
     this.judgeGroup.add(glow);
     return glowMaterial;
@@ -1040,8 +1653,8 @@ export class TrackRenderer {
         depthWrite: false,
       };
       const beam = new THREE.Mesh(this.flatGeometry, tinted ? tintMaterial(params) : new THREE.MeshBasicMaterial(params));
-      beam.scale.set(lane.width * 0.96, 1, BEAM_LENGTH);
-      beam.position.set(lane.x, 0.04, -BEAM_LENGTH / 2);
+      beam.scale.set(lane.width * 0.96, 1, Math.max(this.beamLength, 1e-3));
+      beam.position.set(lane.x, 0.04, this.judgeZ - this.beamLength / 2);
       // under the notes, as the sheets draw it: a pressed lane never washes its notes out
       beam.renderOrder = 2.5;
       beam.visible = false;
@@ -1049,73 +1662,135 @@ export class TrackRenderer {
       this.beams.push(beam);
       this.beamLevels.push(0);
       this.laneStems.push(undefined);
-      // what a held long note shows: the skin's hold sparks, or the start of its hit effect
-      const hold = this.style.hit === 'flipbook' ? this.art.hitHold : undefined;
+      // what a held long note shows: the skin's hold sparks, or the start of its hit effect (a side
+      // lane over the keys: a band across its half)
+      const hold = this.hit === 'flipbook' ? this.art.hitHold : undefined;
       const source = hold?.texture ?? this.hitSheet?.texture;
-      if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
+      if (source) this.holds.push(lane.over ? this.flashQuad() : this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
       const burst = this.art.hitBurst;
       if (hold?.spec.flipbook && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
     });
   }
 
-  /** The deck under the judge line, with a key cap per lane. */
+  /**
+   * The deck under the judge line, its picture painted in layoutDeck, with a light per lane on it.
+   * It is drawn after what runs under it (renderOrder) and over it whatever the depth buffer holds:
+   * the track's long strips reach behind the camera, and their depth near it can come out nearer
+   * than the deck's, a few hundredths over them. Its own depth hides the judge line's halo under it.
+   * Its picture is opaque, so it is written as it is, with no blending.
+   */
   private buildDeck(): THREE.Mesh {
-    const deckColour = this.style.frame === 'gunmetal' ? 0xffffff : hex(this.skin.colors.trackFar);
-    const material = new THREE.MeshBasicMaterial({ color: deckColour, fog: false });
-    if (this.style.frame === 'gunmetal') {
-      material.map = this.own(
-        gradientTexture(
-          [
-            [0, '#2b313d'],
-            [0.4, '#161a22'],
-            [1, '#161a22'],
-          ],
-          true,
-          { colour: '#6b7385', width: 3, side: 'top' },
-        ),
-      );
-    } else {
-      // the track's far colour, 70 % of it in sRGB
-      material.color.convertLinearToSRGB().multiplyScalar(0.7).convertSRGBToLinear();
-    }
+    const material = new THREE.MeshBasicMaterial({ fog: false, transparent: true, blending: THREE.NoBlending, depthFunc: THREE.AlwaysDepth });
     const deck = new THREE.Mesh(this.flatGeometry, material);
     deck.renderOrder = 9.05;
     this.scene.add(deck);
     for (let i = 0; i < this.geometry.lanes.length; i++) {
-      const cap = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial());
-      cap.renderOrder = 9.1;
-      this.scene.add(cap);
-      this.caps.push(cap);
+      const key = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial());
+      key.renderOrder = 9.1;
+      this.scene.add(key);
+      this.keys.push(key);
     }
     return deck;
   }
 
-  /** Puts the deck and the caps under the judge line, sized to what the camera shows below it. */
+  /**
+   * Puts the deck under the judge line, as deep as the camera shows (and more, for a tilted
+   * camera), with the lane lights in a row at its top. Its picture is painted for that room in a
+   * later frame (see DECK_SETTLE_FRAMES).
+   */
   private layoutDeck(): void {
     if (!this.deck) return;
     const { width, lanes } = this.geometry;
-    const top = this.judgeZ + (this.style.judge.height / 2 + 3) * PX;
-    const bottom = Math.max(this.screenBottomZ(), top + 0.4);
-    this.deck.scale.set(width, 1, bottom - top + 2);
-    this.deck.position.set(0, 0.07, top + (bottom - top + 2) / 2);
-    const depth = Math.min(44 * PX, Math.max(30 * PX, (bottom - top) * 0.36));
-    if (Math.abs(depth - this.capDepth) > 1e-3) {
-      // the cap pictures follow the caps' proportions
-      this.capDepth = depth;
-      this.capTextures.forEach((t) => t.dispose());
-      this.capTextures.clear();
-      this.capMaterials.forEach((m) => m.dispose());
-      this.capMaterials.clear();
-    }
-    this.deckRoom = bottom - top;
+    const top = this.judgeZ + deckTop(this.style.judge) * PX;
+    const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
+    const room = Math.max(DECK_STEP, Math.floor(shown / PX / DECK_STEP) * DECK_STEP) * PX;
+    const depth = room + 2 + DECK_STEP * PX;
+    this.deck.scale.set(width, 1, depth);
+    this.deck.position.set(0, DECK_Y, top + depth / 2);
     this.planeVersion++;
-    const capTop = top + 8 * PX;
-    this.caps.forEach((cap, i) => {
-      cap.scale.set(lanes[i].width * 0.86, 1, depth);
-      cap.position.set(lanes[i].x, 0.075, capTop + depth / 2);
+    // the row of lane lights (a side lane laid over the keys has its bar under it): round lights
+    // look round, drawn longer along the track where the camera flattens it
+    const rows = deckRows(
+      this.style.deck,
+      lanes.filter((l) => !l.over).map((l) => ({ kind: keyKind(l), width: l.width / PX })),
+      Math.round(room / PX),
+      (row) => 0.85 / this.trackAspect(top + KEY_TOP * PX + (row * PX) / 2),
+    );
+    const { stretch, drop } = rows;
+    const keyDepth = rows.keyDepth * PX;
+    const keyTop = (KEY_TOP + drop) * PX;
+    const sideTop = rows.sideTop * PX;
+    const sideDepth = rows.sideDepth * PX;
+    const painted = `${Math.round(room / PX)}|${rows.keyDepth}|${stretch}|${drop}`;
+    if (painted !== this.deckPainted) {
+      this.deckPainted = painted;
+      this.deckPending = { room, depth, keyTop, keyDepth, sideTop, sideDepth, stretch };
+      this.deckWait = 0;
+    }
+    this.keys.forEach((key, i) => {
+      const [at, deep] = lanes[i].over ? [sideTop, sideDepth] : [keyTop, keyDepth];
+      key.scale.set(lanes[i].width, 1, deep);
+      key.position.set(lanes[i].x, KEY_Y, top + at + deep / 2);
     });
     // effects lying on the track are drawn longer where the camera flattens it
     this.stretch = Math.min(2.6, Math.max(1, EFFECT_ASPECT / this.trackAspect(this.judgeZ)));
+  }
+
+  /** Whether the deck has a picture yet (the first is painted at once). */
+  private get deckPictured(): boolean {
+    return Boolean((this.deck.material as THREE.MeshBasicMaterial).map);
+  }
+
+  /**
+   * The deck's picture: the skin's plate for `room` of it on the screen, and the lane lights' pictures
+   * for that row, lit and unlit, made now rather than at a key's first press in the play.
+   */
+  private paintDeckPicture(d: DeckLayout): void {
+    this.deckPending = null;
+    const { width, lanes } = this.geometry;
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(DECK_PICTURE, 2048 / (width / PX), 2048 / (d.depth / PX));
+    canvas.width = Math.round((width / PX) * scale);
+    canvas.height = Math.round((d.depth / PX) * scale);
+    // opaque to its last px (the deck is drawn without blending, see buildDeck)
+    const g = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
+    g.scale(scale, scale);
+    const left = (l: LaneGeom) => (l.x - l.width / 2 + width / 2) / PX;
+    paintDeck(this.style.deck, g, {
+      width: width / PX,
+      room: d.room / PX,
+      depth: d.depth / PX,
+      keyTop: d.keyTop / PX,
+      keyDepth: d.keyDepth / PX,
+      stretch: d.stretch,
+      lanes: lanes.filter((l) => !l.over).map((l) => ({ left: left(l), width: l.width / PX, kind: keyKind(l) })),
+      sides: lanes.filter((l) => l.over).map((l) => ({ left: left(l), width: l.width / PX, top: d.sideTop / PX, depth: d.sideDepth / PX })),
+      colours: this.skin.colors,
+    });
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    // seen from close by, never much smaller than painted: no mipmaps to make on every upload; but
+    // a camera that flattens the track (the plane one) shows it many times shorter along it, where
+    // its thin lines would come and go without them
+    const flattened = d.stretch > KEY_ROW_STRETCH;
+    texture.generateMipmaps = flattened;
+    texture.minFilter = flattened ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+    texture.anisotropy = 4;
+    const material = this.deck.material as THREE.MeshBasicMaterial;
+    material.map?.dispose();
+    material.map = texture;
+    material.needsUpdate = true;
+    this.keyDepth = d.keyDepth;
+    this.sideDepth = d.sideDepth;
+    this.deckStretch = d.stretch;
+    this.keyTextures.forEach((t) => t.dispose());
+    this.keyTextures.clear();
+    this.keyMaterials.forEach((m) => m.dispose());
+    this.keyMaterials.clear();
+    lanes.forEach((_, lane) => {
+      this.keyTexture(lane, false);
+      this.keyTexture(lane, true);
+    });
   }
 
   /** How tall a small square lying on the track at `z` looks for its width on the screen. */
@@ -1139,26 +1814,44 @@ export class TrackRenderer {
     return hit ? Math.min(hit.z, TRACK_TAIL) : TRACK_TAIL;
   }
 
-  private capMaterial(lane: number, down: boolean, color: number): THREE.MeshBasicMaterial {
+  private keyMaterial(lane: number, down: boolean, color: number): THREE.MeshBasicMaterial {
     const g = this.geometry.lanes[lane];
-    const kind: CapKind = g.kind === 'scratch' ? 'scratch' : g.color === 'white' ? 'white' : 'other';
-    const paint = CAP_PAINT[this.style.cap];
-    const tint = down ? (paint.neutralDown?.(kind) ? 0xffffff : color) : paint.idleColor ?? color;
-    const key = `${kind}:${down}:${tint}:${g.kind}`;
-    let m = this.capMaterials.get(key);
+    const paint = KEY_PAINT[this.style.deck];
+    const idle = (g.over ? SIDE_PAINT[this.style.deck].idleColor : undefined) ?? paint.idleColor ?? color;
+    const tint = down ? (paint.neutralDown?.(keyKind(g)) ? 0xffffff : color) : idle;
+    // each side bar has a picture of its own (they may point to their side)
+    const key = g.over ? `side:${down}:${tint}:${g.x}` : `${keyKind(g)}:${down}:${tint}:${g.width}`;
+    let m = this.keyMaterials.get(key);
     if (!m) {
-      const texKey = `${kind}:${down}:${g.kind}`;
-      let texture = this.capTextures.get(texKey);
-      if (!texture) {
-        const h = 88;
-        const w = Math.round(Math.min(512, Math.max(32, (h * (g.width * 0.86)) / this.capDepth)));
-        texture = paintTexture(w, h, (down ? paint.down : paint.idle)(kind));
-        this.capTextures.set(texKey, texture);
-      }
-      m = tintMaterial({ map: texture, color: tint, transparent: true, depthWrite: false, fog: false }, { base: paint.base });
-      this.capMaterials.set(key, m);
+      m = tintMaterial({ map: this.keyTexture(lane, down), color: tint, transparent: true, depthWrite: false, fog: false });
+      this.keyMaterials.set(key, m);
     }
     return m;
+  }
+
+  /**
+   * A lane light's picture, lit or not, for the row's proportions (lanes of one kind and width share
+   * it); a side lane's over the keys, its bar's under the row.
+   */
+  private keyTexture(lane: number, down: boolean): THREE.Texture {
+    const g = this.geometry.lanes[lane];
+    const kind = keyKind(g);
+    const key = g.over ? `side:${down}:${g.x}` : `${kind}:${down}:${g.width}`;
+    let texture = this.keyTextures.get(key);
+    if (!texture) {
+      // square px: the picture has the light's proportions on the track
+      const k = Math.min(DECK_PICTURE, 512 / (g.width / PX));
+      const [w, h] = [Math.round((g.width / PX) * k), Math.round(((g.over ? this.sideDepth : this.keyDepth) / PX) * k)];
+      if (g.over) {
+        const paint = SIDE_PAINT[this.style.deck];
+        texture = paintTexture(w, h, (down ? paint.down : paint.idle)(this.deckStretch, Math.sign(g.x)));
+      } else {
+        const paint = KEY_PAINT[this.style.deck];
+        texture = paintTexture(w, h, (down ? paint.down : paint.idle)(kind, this.deckStretch));
+      }
+      this.keyTextures.set(key, texture);
+    }
+    return texture;
   }
 
   /** A flat (XZ) quad added to the scene. */
@@ -1208,9 +1901,9 @@ export class TrackRenderer {
     if (!m) {
       const art = this.noteArt(kind);
       // a texture's alpha is the note's outline; a drawn picture's too
-      m = art
-        ? new THREE.MeshBasicMaterial({ color, vertexColors: true, clippingPlanes: this.clipPlanes, map: art.texture, transparent: true, alphaTest: 0.05 })
-        : tintMaterial({ color, vertexColors: true, clippingPlanes: this.clipPlanes, map: this.noteTexture(kind), transparent: true, alphaTest: 0.02 });
+      // no fog: a note reads at full strength from the moment it comes into view (the floor keeps it)
+      const params: THREE.MeshBasicMaterialParameters = { color, vertexColors: true, clippingPlanes: this.clipPlanes, transparent: true, fog: false };
+      m = art ? new THREE.MeshBasicMaterial({ ...params, map: art.texture, alphaTest: 0.05 }) : tintMaterial({ ...params, map: this.noteTexture(kind), alphaTest: 0.02 });
       this.noteMaterials.set(key, m);
     }
     return m;
@@ -1248,6 +1941,7 @@ export class TrackRenderer {
         opacity: HOLD_OPACITY[state],
         depthWrite: false,
         clippingPlanes: this.clipPlanes,
+        fog: false,
       };
       m = art ? new THREE.MeshBasicMaterial(params) : tintMaterial(params, { gain: HOLD_BRIGHTNESS[state] });
       this.bodyMaterials.set(key, m);
@@ -1260,7 +1954,7 @@ export class TrackRenderer {
     let m = this.endMaterials.get(key);
     if (!m) {
       m = tintMaterial(
-        { color, map: this.longEnd, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes },
+        { color, map: this.longEnd, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false },
         { gain: HOLD_BRIGHTNESS[state] },
       );
       this.endMaterials.set(key, m);
@@ -1290,7 +1984,7 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
 function createNoteGeometry(shape: Skin['noteShape'] | 'picture'): THREE.BufferGeometry {
   if (shape === 'picture') {
     // just above the track (the mesh is lifted half its height)
-    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, -0.45, 0);
+    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, PICTURE_LIFT - 0.5, 0);
     plane.setAttribute('color', new THREE.BufferAttribute(new Float32Array(plane.getAttribute('position').count * 3).fill(1), 3));
     return plane;
   }

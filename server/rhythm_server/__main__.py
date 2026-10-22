@@ -28,7 +28,8 @@ def _serve(args: argparse.Namespace) -> None:
     logging.getLogger("asyncio").addFilter(_DroppedConnectionFilter())
     if args.data:
         os.environ["GRG_DATA_DIR"] = str(Path(args.data).resolve())
-    app = create_app()
+    # the desktop app's: the server it started can be stopped by its next launch (see desktop/main.js)
+    app = create_app(shutdown_token=os.environ.get("GRG_SHUTDOWN_TOKEN") or None)
     print(f"Generative Rhythm 서버: http://{args.host}:{args.port}  (데이터: {app.state.library.root})")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

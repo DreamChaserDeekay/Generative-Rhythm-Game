@@ -102,6 +102,8 @@
   --scrim: color-mix(in srgb, var(--bg) 88%, transparent);
   /* panels over the song backdrop: flat and mostly opaque */
   --panel: color-mix(in srgb, var(--surface) 92%, transparent);
+  /* a control that cannot be pressed now */
+  --disabled-opacity: 0.45;
 
   /* judgement (the colour-blind palette below swaps them) */
   --g-max: #7cf7ff;
@@ -109,18 +111,22 @@
   --g-mid: #ffe26b;
   --g-low: #ffb15c;
   --g-break: #ff4d6a;
-  --g-fast: #6fb7ff;
-  --g-slow: #ff8a6f;
+  /* FAST / SLOW: blue and red-orange, apart from the cyan, green, yellow and orange they show
+     under and from BREAK's red (ΔE76 about 40 to both BREAK and the orange) */
+  --g-fast: #4f8dff;
+  --g-slow: #ff5a1f;
 
-  /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. */
+  /* game information: clear lamps, lanes, stems, FEVER steps. Data only, never decoration. The
+     lamps keep off the difficulty colours (engine/config.ts TIER_COLORS: ΔE76 17 and more, as
+     lamps.test.ts checks), and their marks differ in shape too (see .lamp-mark) */
   --lamp-perfect: var(--g-max);
-  --lamp-maxcombo: #ffc94f;
-  --lamp-exhard: #ff9f43;
-  --lamp-hard: #ff6b6b;
-  --lamp-clear: #4fd88b;
+  --lamp-maxcombo: #ffe7a3;
+  --lamp-exhard: #f2f550;
+  --lamp-hard: #ffffff;
+  --lamp-clear: #3d9bff;
   --lamp-easy: #b6e36f;
-  --lamp-assist: #c58bff;
-  --lamp-failed: var(--g-break);
+  --lamp-assist: #8c7dff;
+  --lamp-failed: #ff2e2e;
   --lane-white: #eaf6ff;
   --lane-blue: #4fc3ff;
   --lane-gold: #ffc94f;
@@ -197,12 +203,27 @@
   --g-mid: #e69f00;
   --g-low: #cc79a7;
   --g-break: #d55e00;
+  /* FAST / SLOW: a deeper blue and the bluish green, apart from the five above and from each
+     other with red or green weakness too */
+  --g-fast: #3b6cff;
+  --g-slow: #00b386;
   --lane-white: #f0f0f0;
   --lane-blue: #56b4e9;
   --lane-gold: #e69f00;
   --lane-scratch: #d55e00;
   --lane-sideL: #cc79a7;
   --lane-sideR: #009e73;
+  /* lamps on the same scheme, apart within each shape of mark with red or green weakness too, and
+     as far from the difficulty colours as the usual ones (CLEAR a cyan, the sky blue being
+     NORMAL's) */
+  --lamp-perfect: #e8f4ff;
+  --lamp-maxcombo: #e69f00;
+  --lamp-exhard: #f0e442;
+  --lamp-hard: #ffffff;
+  --lamp-clear: #5ac6d2;
+  --lamp-easy: #009e73;
+  --lamp-assist: #cc79a7;
+  --lamp-failed: #d55e00;
 }
 
 /* ---------- base ---------- */
@@ -223,7 +244,8 @@ body,
 }
 
 :focus-visible,
-:root[data-input='pad'] :focus {
+:root[data-input='pad'] :focus,
+:root[data-input='controller'] :focus {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -268,6 +290,8 @@ button:disabled {
   background: transparent;
   border-color: var(--line);
   cursor: default;
+  /* faded whatever the button's class: a quiet button's colours are those of a disabled one */
+  opacity: var(--disabled-opacity);
 }
 
 button.primary {
@@ -552,8 +576,36 @@ button.hint-item:hover:not(:disabled) {
   border-color: transparent;
 }
 
+/* the screen's keys: on a narrow window the minor ones give way, then any that do not fit (they
+   wrap onto a hidden line), so the main one at the end stays whole */
+.hint-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-6);
+  min-width: 0;
+  height: 32px;
+  /* (a focused hint's outline stays whole; the hidden line starts below it) */
+  overflow: clip;
+  overflow-clip-margin: var(--sp-1);
+  /* room for a clickable hint's raised edge */
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+}
+
+.hint-main .hint-item {
+  min-height: 32px;
+}
+
+@media (max-width: 1200px) {
+  .hint-item.minor {
+    display: none;
+  }
+}
+
 .hint-end {
   display: flex;
+  flex-shrink: 0;
   gap: var(--sp-6);
   margin-left: auto;
 }
@@ -770,10 +822,6 @@ p.hint {
   border-radius: var(--radius);
 }
 
-.loading-art.placeholder {
-  font-size: var(--fs-hero);
-}
-
 .loading-text {
   display: flex;
   flex-direction: column;
@@ -858,19 +906,28 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
-/* the song's sections in order */
-.section-flow {
+/* the rules the play runs on where they are not the defaults (judgement, placement, score, gauge) */
+.loading-rules {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 700;
+  gap: var(--sp-2);
 }
 
-.section-flow span + span::before {
-  content: '→';
-  margin-right: var(--sp-2);
+.loading-rule {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-label);
+  line-height: 1.2;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.loading-rule .label {
+  font-weight: 700;
   color: var(--text-dim);
+}
+
+.loading-rule b {
+  font-weight: 700;
 }
 
 .loading-status {
@@ -958,7 +1015,7 @@ p.hint {
 }
 
 /* HUD: the song sits on the screen (sizes are the type tokens times --hud-scale, 1 at 720px high,
-   up to 1.5); the judgement, combo, score, gauge, hi-speed and FEVER lie on the track in .hud-plane,
+   up to 1.5); the judgement, combo, score, gauge, speed and FEVER lie on the track in .hud-plane,
    which Hud.ts lays under the camera's projection with every part sized for the screen where it lies */
 .hud {
   --hud-scale: 1;
@@ -970,28 +1027,35 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
-/* a plate keeps the song readable over a video or the visualizer */
+/* a plate keeps the song readable over a video or the visualizer; --info-room (Hud.fit) keeps it
+   clear of the gear where the track comes near the screen's corner, and --info-scale shrinks it
+   where that room is narrower than its difficulty chip */
 .hud-info {
   position: absolute;
   top: var(--sp-4);
   left: var(--sp-4);
-  max-width: 40%;
+  max-width: min(40%, var(--info-room, 100%));
   padding: var(--sp-2) var(--sp-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   border-radius: var(--radius-sm);
+  transform: scale(var(--info-scale, 1));
+  transform-origin: 0 0;
 }
 
+/* the difficulty and key mode go under the title where the plate is too narrow for one line */
 .hud-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-1) var(--sp-3);
   white-space: nowrap;
 }
 
-.hud-head .emblem {
-  flex: none;
-  width: calc(20px * var(--hud-scale));
-  height: calc(20px * var(--hud-scale));
+.hud-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
 }
 
 .hud-title {
@@ -1028,55 +1092,49 @@ p.hint {
   color: var(--text-dim);
 }
 
-/* the song's sections, the louder the taller, and where the play is */
-.hud-map {
-  position: relative;
-  width: calc(280px * var(--hud-scale));
-  height: calc(10px * var(--hud-scale));
-  margin-top: var(--sp-2);
+/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL */
+.hud-chip {
+  flex: none;
+  padding: 0 var(--sp-1);
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
 }
 
-.hud-map i {
-  position: absolute;
-  bottom: 0;
-  border-radius: 1px;
-}
-
-.hud-map.plain::before {
-  content: '';
-  position: absolute;
-  inset: auto 0 0;
-  height: 40%;
-  background: var(--line);
-  border-radius: 1px;
-}
-
-.hud-playhead {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--text);
-}
-
-.hud-chart {
+/* the sync test's offsets as its keys move them, each with its keys */
+.hud-sync {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  width: max-content;
+  justify-content: start;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
   margin-top: var(--sp-2);
   font-size: calc(var(--fs-label) * var(--hud-scale));
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-sync-row {
+  display: contents;
+}
+
+.hud-sync-row > span:first-child {
   color: var(--text-dim);
 }
 
-.hud-practice {
-  margin-top: var(--sp-1);
-  font-size: calc(var(--fs-label) * var(--hud-scale));
-  font-weight: 800;
-  color: var(--accent);
+.hud-sync-row b {
+  min-width: 3.5em;
+  font-family: var(--font-display);
+  font-size: calc(var(--fs-body) * var(--hud-scale));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
-.hud-practice:empty {
-  display: none;
+.hud-sync kbd {
+  font-size: calc(var(--fs-label) * var(--hud-scale));
 }
 
 /* the plane lying on the track; its parts are placed in the sheets' track px */
@@ -1117,13 +1175,19 @@ p.hint {
   transition: opacity 0.15s;
 }
 
+/* the end banner takes the middle: the last judgement and the combo leave it */
+.hud.ended .hud-judge,
+.hud.ended .hud-combo {
+  display: none;
+}
+
 .hud-judge-pop.pop {
   animation: judge-pop 0.18s ease-out;
 }
 
 @keyframes judge-pop {
   from {
-    transform: scale(1.35);
+    transform: scale(1.1);
   }
   to {
     transform: scale(1);
@@ -1161,17 +1225,32 @@ p.hint {
 }
 
 .hud-judge-sub {
-  margin-top: 0.3em;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.3em;
+  margin-top: 0.2em;
   font-family: var(--font-display);
   font-style: normal;
   font-weight: 700;
   letter-spacing: 0.04em;
-  -webkit-text-stroke: var(--sub-stroke) var(--hud-outline);
+  /* a fixed dark outline: the skins' outline colours (pink, navy) blur the small blue and red */
+  -webkit-text-stroke: var(--sub-stroke) var(--bg);
   paint-order: stroke fill;
+}
+
+.hud-judge-fs:empty,
+.hud-judge-ms:empty {
+  display: none;
+}
+
+.hud-judge-ms {
+  font-size: var(--ms-size);
 }
 
 .hud-judge-sub.fast { color: var(--g-fast); }
 .hud-judge-sub.slow { color: var(--g-slow); }
+.hud-judge-sub.exact { color: var(--text); }
 
 .hud-combo {
   visibility: hidden;
@@ -1209,7 +1288,7 @@ p.hint {
 
 .hud-fever-bar {
   display: block;
-  height: 0.2em;
+  height: 0.35em;
   margin-top: 0.2em;
   background: var(--line);
   border-radius: 1px;
@@ -1224,7 +1303,12 @@ p.hint {
   transform: scaleX(0);
 }
 
-.hud-fever.ready .hud-fever-text { color: var(--text); }
+/* ready to fire (manual FEVER): a filled chip like a running FEVER, without any flashing */
+.hud-fever.ready .hud-fever-text {
+  color: var(--bg);
+  background: var(--text);
+}
+
 .hud-fever.ready .hud-fever-fill { background: var(--text); }
 .hud-fever.active.x2 { --fever: var(--fever-2); }
 .hud-fever.active.x3 { --fever: var(--fever-3); }
@@ -1263,6 +1347,36 @@ p.hint {
   transform-origin: 100% 100%;
 }
 
+/* the BPM now, under SPEED (charts that change tempo, BPM-linked scrolling) */
+.hud-bpm {
+  margin-top: var(--label-gap);
+}
+
+.hud-bpm b {
+  font-family: var(--font-display);
+  color: var(--text);
+}
+
+/* the song's progress left of the gear: a thin bar filled from the bottom (one transform per step) */
+.hud-progress {
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+.hud-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--text-dim);
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+}
+
+.hud-progress-time {
+  text-align: right;
+  transform-origin: 100% 100%;
+}
+
 .hud-gauge-value {
   transform-origin: 0 100%;
 }
@@ -1279,8 +1393,16 @@ p.hint {
 .hud-gauge-fill {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+  /* the cells over the clear line in another colour: lit there, the play clears (the clear line
+     lies on a cell's edge, so both patterns start on one) */
+  background:
+    repeating-linear-gradient(to top, var(--g-max) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) bottom / 100% var(--clear-at) no-repeat;
   clip-path: inset(100% 0 0 0);
+}
+
+.hud-gauge-value.cleared .hud-gauge-num {
+  color: var(--g-max);
 }
 
 .hud-gauge.survival .hud-gauge-fill {
@@ -1292,37 +1414,73 @@ p.hint {
   border-radius: 1px;
 }
 
-/* the score panel on the deck, under the key caps */
-.hud-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-}
-
-.hud-panel-in {
+/* the score, rate and max combo over SPEED left of the gear: a row each, placed and sized by
+   Hud.ts for where it lies; label and number in two columns, the numbers against the gear */
+.hud-row {
+  position: absolute;
   display: flex;
   align-items: baseline;
-  gap: var(--gap);
+  justify-content: space-between;
+  gap: calc(var(--label-gap) * 3);
+  white-space: nowrap;
+  transform-origin: 100% 100%;
 }
 
-.hud-panel-in > span {
-  display: flex;
+.hud-panel .hud-score {
+  font-size: calc(var(--num) * 1.25);
+}
+
+/* too narrow for two columns at a readable size: each label over its number, as SPEED (placed and
+   sized a line at a time) */
+.hud-panel.stacked .hud-row {
+  display: contents;
+}
+
+.hud-panel.stacked .hud-row > * {
+  position: absolute;
+  text-align: right;
+  white-space: nowrap;
+  transform-origin: 100% 100%;
+}
+
+.hud-panel.stacked .hud-row:not(:first-child) > .hud-label {
+  padding-top: var(--label-gap);
+}
+
+/* no room beside the gear at all (a very wide gear, a high LIFT): upright at the screen's lower
+   left, on a plate like the song's */
+.hud-panel.upright {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
+  display: grid;
+  grid-template-columns: auto auto;
   align-items: baseline;
+  column-gap: calc(var(--label-gap) * 3);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-radius: var(--radius-sm);
 }
 
-.hud-panel .hud-label {
-  margin-right: var(--label-gap);
+.hud-panel.upright .hud-row {
+  display: contents;
 }
+
+.hud-panel.upright .hud-label {
+  text-align: left;
+}
+
+.hud-panel .hud-fast { color: var(--g-fast); }
+.hud-panel .hud-slow { color: var(--g-slow); }
 
 .hud-pace.ahead { color: var(--g-high); }
 .hud-pace.behind { color: var(--g-break); }
 
 .hud-toast {
   position: absolute;
-  top: 24%;
+  top: 88%;
   left: 50%;
   transform: translateX(-50%);
   padding: var(--sp-2) var(--sp-4);
@@ -1354,14 +1512,38 @@ p.hint {
   transition: opacity 0.3s;
 }
 
+/* a long intro: its key, where READY comes later */
+.hud-skip {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: calc(var(--fs-body) * var(--hud-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--scrim);
+  border-radius: var(--radius-sm);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
 .hud-banner {
   position: absolute;
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.8);
+  /* the skin's type and outline, as the judgement: it reads over a video or the visualizer */
+  font-family: var(--hud-font), var(--font-display);
   font-size: calc(var(--fs-hero) * var(--hud-scale));
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-weight: var(--hud-weight);
+  font-style: var(--hud-style);
+  letter-spacing: var(--hud-tracking);
+  -webkit-text-stroke: calc(var(--hud-stroke) * var(--hud-scale)) var(--hud-outline);
+  paint-order: stroke fill;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.3s, transform 0.3s;
@@ -1395,7 +1577,7 @@ p.hint {
 
 @media (max-width: 720px) {
   .hud-info {
-    max-width: 50%;
+    max-width: min(50%, var(--info-room, 100%));
   }
 }
 
@@ -1423,7 +1605,8 @@ p.hint {
 }
 
 .result-hero .hero-art {
-  width: clamp(160px, 30vh, 300px);
+  /* small beside the outcome: the run strip under it takes the height */
+  width: clamp(112px, 22vh, 200px);
 }
 
 .result-song {
@@ -1469,53 +1652,84 @@ p.hint {
   color: inherit;
 }
 
-/* what the play did to the record: tags with a bar on their left */
-.record-slot {
-  min-height: 26px;
-  margin-top: var(--sp-4);
-}
-
-.record-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin: 0;
-}
-
-.record-tags .tag {
-  padding: 2px var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 700;
-  background: var(--raised);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 2px 0 0 var(--text);
-}
-
-.record-tags.error {
-  font-weight: 700;
-  color: var(--g-break);
-}
-
 .record-note {
   margin: var(--sp-4) 0 0;
   color: var(--text-dim);
 }
 
+/* the lamp (and its change), the grade (and the next one) beside the headline (its record tag and
+   how it stands against the best) */
 .result-outcome {
   display: grid;
   grid-template-columns: auto auto;
+  grid-template-areas:
+    'lamp lamp'
+    'change change'
+    'grade headline'
+    'next record';
   gap: 0 var(--sp-8);
   align-items: end;
 }
 
-.result-outcome .lamp {
-  grid-column: 1 / -1;
-  margin-bottom: var(--sp-3);
+.result-outcome > .lamp {
+  grid-area: lamp;
   font-family: var(--font-display);
   font-size: var(--fs-display);
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.lamp-change {
+  grid-area: change;
+  min-height: calc(var(--fs-body) * 1.5);
+  margin: 0 0 var(--sp-1);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* no record kept: the grade keeps clear of the lamp all the same */
+.result-outcome > .lamp + .result-grade {
+  margin-top: var(--sp-3);
+}
+
+.lamp-change .lamp {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.result-grade {
+  grid-area: grade;
+}
+
+.result-headline {
+  grid-area: headline;
+}
+
+.headline-value {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* a new best or a first record, beside the number it is about */
+.record-tag {
+  padding: 2px var(--sp-2);
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--raised);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+
+.next-grade {
+  grid-area: next;
+  align-self: center;
+  margin: var(--sp-1) 0 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -1537,50 +1751,56 @@ p.hint {
   white-space: nowrap;
 }
 
-.result-headline .num .num {
-  display: inline;
-}
-
 .result-headline small {
   font-size: var(--fs-title);
   color: var(--text-dim);
 }
 
-.result-delta {
-  grid-column: 1 / -1;
+.record-line {
+  grid-area: record;
+  align-self: center;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--sp-3);
-  min-height: calc(var(--fs-heading) * 1.5);
-  margin: var(--sp-2) 0 0;
-}
-
-.result-delta .label {
-  display: inline;
-}
-
-.result-delta .up,
-.result-delta .flat {
-  font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  font-weight: 700;
+  column-gap: var(--sp-3);
+  min-height: calc(var(--fs-title) * 1.5);
+  margin: var(--sp-1) 0 0;
   font-variant-numeric: tabular-nums;
 }
 
-.result-delta .up {
+.record-line .up,
+.record-line .down,
+.record-line .flat {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.record-line .up {
   color: var(--g-high);
 }
 
-.result-delta .flat,
-.result-delta .best {
+/* worse than the best: a low judgement's colour */
+.record-line .down {
+  color: var(--g-low);
+}
+
+.record-line .flat,
+.record-line .best {
   color: var(--text-dim);
 }
 
-/* the reveal: the lamp and the grade land, the headline counts, then the record shows */
-.result-grade.pending {
-  visibility: hidden;
+.record-line .best {
+  white-space: nowrap;
 }
 
+.record-line.error {
+  font-weight: 700;
+  color: var(--g-break);
+}
+
+/* the reveal: the lamp, the grade and the headline land together, then the record shows */
 .result-outcome .stamp {
   animation: result-stamp var(--motion-screen) ease-out;
 }
@@ -1592,28 +1812,13 @@ p.hint {
   }
 }
 
-/* the counting value is drawn over the final one, which keeps its width */
-.counting {
-  position: relative;
-  color: transparent;
-}
-
-.counting::after {
-  content: attr(data-count);
-  content: attr(data-count) / '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  color: var(--text);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .result-outcome .stamp {
     animation: none;
   }
 }
 
-/* judgement counts by colour, then combo, timing and gauge */
+/* judgement counts by colour, then combo, notes, timing and gauge */
 .result-numbers {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1708,6 +1913,9 @@ p.hint {
 .run-panel {
   display: flex;
   flex-direction: column;
+  /* the height the rest leaves, within reason (never less than its strip's least: the page scrolls then) */
+  flex: 1 1 auto;
+  max-height: 400px;
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1723,9 +1931,15 @@ p.hint {
   color: var(--text-dim);
 }
 
+.run-panel h2 .legend-gauge {
+  float: right;
+  color: var(--accent);
+}
+
 .run-strip {
   position: relative;
-  height: clamp(64px, 13vh, 168px);
+  flex: 1 1 auto;
+  min-height: 72px;
   background: var(--sunken);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1744,13 +1958,23 @@ p.hint {
 
 .run-strip .loss {
   fill: none;
+  stroke: currentColor;
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
-.run-strip .loss.g-mid { stroke: var(--g-mid); }
-.run-strip .loss.g-low { stroke: var(--g-low); }
-.run-strip .loss.g-break { stroke: var(--g-break); }
+.run-strip .gauge {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.run-strip .clear-line {
+  stroke: var(--text-dim);
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
 
 /* after a failed gauge: the rest was not played */
 .run-strip .after-fail {
@@ -1803,6 +2027,37 @@ p.hint {
   color: var(--text);
 }
 
+/* the outcome in a line over the details */
+.result-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-6);
+  margin: 0 0 var(--sp-3);
+  padding-bottom: var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+
+.result-summary .lamp {
+  letter-spacing: 0.06em;
+}
+
+.result-summary .label {
+  margin-right: var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+
+.result-summary small {
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+}
+
 .details-grid {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -1810,7 +2065,7 @@ p.hint {
 }
 
 .error-stats {
-  margin: var(--sp-2) 0 var(--sp-4);
+  margin: var(--sp-2) 0 var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1819,8 +2074,8 @@ p.hint {
 
 .percent-counts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 132px));
-  gap: var(--sp-1) var(--sp-6);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-1) var(--sp-4);
   font-size: var(--fs-label);
   font-weight: 700;
 }
@@ -1911,12 +2166,11 @@ p.hint {
 .histogram {
   display: block;
   width: 100%;
-  height: 120px;
+  height: 100px;
 }
 
-.histogram .bar-max { fill: var(--g-max); }
-.histogram .bar-fast { fill: var(--g-fast); }
-.histogram .bar-slow { fill: var(--g-slow); }
+.histogram .bar { fill: currentColor; }
+.histogram .window-line { stroke: color-mix(in srgb, var(--g-max) 45%, transparent); vector-effect: non-scaling-stroke; }
 .histogram .zero-line { stroke: var(--line-strong); stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .histogram .median-line { stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 
@@ -1935,10 +2189,37 @@ p.hint {
 }
 
 .offset-suggestion {
-  margin: 0 0 var(--sp-4);
-  padding: var(--sp-3) 0;
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+
+.offset-suggestion p {
+  margin: 0;
+}
+
+/* an offset to set: its button, what it becomes (or that it was), and 되돌리기 */
+.offset-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.offset-fix > button:first-child {
+  min-width: 120px;
+}
+
+/* a short note beside the top bar's actions (a replay exported) */
+.topbar-note {
+  margin-right: var(--sp-2);
+  font-weight: 700;
+  color: var(--g-high);
+  white-space: nowrap;
 }
 
 .result-actions {
@@ -1958,18 +2239,31 @@ p.hint {
   margin-left: var(--sp-2);
 }
 
+/* 4:3 and the desktop app's narrowest: the outcome stays beside the song (a small picture, its name
+   on one line), so the run strip under the counts is still on the screen */
 @media (max-width: 960px) {
+  .result-hero .hero-art {
+    width: 112px;
+  }
+
+  .result-song h1 {
+    -webkit-line-clamp: 1;
+  }
+
+  .result-numbers,
+  .details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* narrower still (a browser window): the outcome under the song */
+@media (max-width: 860px) {
   .result-hero {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
   .result-outcome {
     grid-column: 1 / -1;
-  }
-
-  .result-numbers,
-  .details-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2062,7 +2356,8 @@ p.hint {
 }
 
 .opt:focus,
-:root[data-input='pad'] .opt:focus {
+:root[data-input='pad'] .opt:focus,
+:root[data-input='controller'] .opt:focus {
   background: var(--raised-hover);
   outline: 2px solid var(--accent);
   outline-offset: -2px;
@@ -2307,6 +2602,117 @@ button.opt:active:not(:disabled) {
   background: color-mix(in srgb, var(--g-high) 12%, var(--surface));
 }
 
+/* a lane's keys over its second keys, column by column */
+.opt-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--lanes), minmax(48px, auto));
+  grid-template-rows: var(--control-h) 32px;
+  gap: var(--sp-1);
+}
+
+.key-grid .key-cap {
+  white-space: nowrap;
+}
+
+/* the mode's name by its keys, "보조 키" by its second keys */
+.opt-block > .key-row-names {
+  display: grid;
+  grid-template-rows: var(--control-h) 32px;
+  row-gap: var(--sp-1);
+  align-items: center;
+  line-height: 1.2;
+}
+
+.key-grid-label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.key-cap.second {
+  min-height: 32px;
+  font-size: var(--fs-label);
+  border-bottom-width: 2px;
+}
+
+.key-cap.second:not(.active) {
+  color: var(--text-dim);
+}
+
+/* nothing bound: an empty slot (a dash would read as the Minus key) */
+.key-cap.empty:not(.active) {
+  background: transparent;
+}
+
+/* a key a lane takes from an in-play function, or two functions on one key */
+.key-cap.clash {
+  border-color: var(--g-low);
+}
+
+.key-note {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.key-note.clash {
+  color: var(--g-low);
+}
+
+/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a row */
+.play-key-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-1) var(--sp-6);
+  margin-bottom: var(--sp-2);
+}
+
+.play-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.key-cap.fixed {
+  color: var(--text-dim);
+}
+
+/* inferred from the lanes until assigned */
+.key-cap.inferred:not(.active) {
+  color: var(--text-dim);
+  border-style: dashed;
+  border-bottom-style: solid;
+}
+
+.pad-row {
+  display: grid;
+  grid-template-columns: 72px auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+
+.pad-row-name {
+  font-weight: 600;
+}
+
+.pad-row-note {
+  color: var(--text-dim);
+}
+
+.pad-row-note.clash {
+  color: var(--g-low);
+}
+
 .ghost-test {
   flex-shrink: 0;
   margin: var(--sp-2) 0;
@@ -2343,7 +2749,9 @@ button.opt:active:not(:disabled) {
 
 .install-hint {
   padding: var(--sp-3) var(--sp-4);
-  overflow-x: auto;
+  /* long lines wrap: nothing to scroll sideways for */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: var(--fs-label);
   font-weight: 700;
   background: var(--sunken);
@@ -2379,6 +2787,11 @@ button.opt:active:not(:disabled) {
   color: var(--text-dim);
 }
 
+/* the two steps (Q / E), on top of either */
+.calib-steps {
+  align-self: flex-start;
+}
+
 /* the beat ring and the big numbers */
 .calib-stage {
   display: grid;
@@ -2411,15 +2824,6 @@ button.opt:active:not(:disabled) {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-}
-
-.beat-ring.on {
-  border-color: var(--accent);
-}
-
-/* the first beat of each bar */
-.beat-ring.on.accent {
-  border-color: var(--text);
 }
 
 .calib-numbers {
@@ -2547,6 +2951,47 @@ button.opt:active:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+/* the display step: the gear on the clicks beside the offset and its keys */
+.calib-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: center;
+  gap: var(--sp-8);
+}
+
+.calib-gear {
+  position: relative;
+  height: min(48vh, 440px);
+  min-height: 240px;
+  overflow: hidden;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.calib-gear canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.calib-visual-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.calib-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  color: var(--text-dim);
+}
+
 /* ---------- song select ---------- */
 
 .select-screen {
@@ -2628,6 +3073,13 @@ button.opt:active:not(:disabled) {
   border-color: transparent;
 }
 
+/* an item that adds no song (a replay file to watch), set off from those that do */
+.add-menu .menu-apart {
+  margin-top: var(--sp-1);
+  /* a 1px line in the gap over it, kept under the pointer's highlight */
+  box-shadow: 0 -3px 0 -2px var(--line-strong);
+}
+
 .add-menu b {
   font-weight: 700;
 }
@@ -2642,7 +3094,7 @@ button.opt:active:not(:disabled) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(340px, 36%, 520px) minmax(0, 1fr);
+  grid-template-columns: clamp(340px, 36%, 680px) minmax(0, 1fr);
   gap: var(--sp-6);
   padding: var(--sp-4) var(--sp-6);
 }
@@ -2697,14 +3149,21 @@ button.chip.active b {
   gap: var(--sp-2);
 }
 
-.folders .sort {
-  margin-left: auto;
+/* the search and the order on one line under the folders */
+.list-tools {
+  display: flex;
+  gap: var(--sp-2);
 }
 
 .song-list-panel .search {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 36px;
   background: var(--panel);
+}
+
+.list-tools .sort {
+  min-height: 36px;
 }
 
 .song-list {
@@ -2782,7 +3241,8 @@ button.chip.active b {
   text-overflow: ellipsis;
 }
 
-/* the best level of each tier, underlined in its lamp's colour */
+/* each tier's level in the plain text colour, its lamp's mark beside it (a full combo fills the
+   cell); the saved charts' cell before them, set apart by a rule, so the tiers line up in every row */
 .song-tiers {
   display: flex;
   gap: var(--sp-1);
@@ -2790,25 +3250,67 @@ button.chip.active b {
 }
 
 .tier-level {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
+  height: 26px;
+  padding: 0 0 0 10px;
   font-family: var(--font-display);
   font-size: var(--fs-body);
   font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  color: var(--diff);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  border-radius: var(--radius-sm);
 }
 
-.tier-level.none {
+.tier-level.unknown {
   color: var(--text-dim);
 }
 
-.tier-level i {
-  display: block;
-  height: 3px;
-  margin: 2px var(--sp-1) 0;
-  border-radius: 2px;
-  background: var(--line);
+.tier-level.saved {
+  width: 38px;
+  margin-right: var(--sp-1);
+  padding-right: 8px;
+  border-right: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+/* the lamp's mark is the cell's left band */
+.tier-level .lamp-mark {
+  position: absolute;
+  left: 2px;
+  top: 3px;
+  bottom: 3px;
+  height: auto;
+}
+
+.tier-level.lamp-maxcombo,
+.tier-level.lamp-perfect {
+  color: var(--bg);
+  background: var(--lamp);
+}
+
+.tier-level.lamp-maxcombo .lamp-mark,
+.tier-level.lamp-perfect .lamp-mark {
+  display: none;
+}
+
+/* a lamp of another chart of the tier than the one Enter plays: its mark faint, never the cell */
+.tier-level.other .lamp-mark {
+  opacity: 0.4;
+}
+
+.tier-level.other.lamp-maxcombo,
+.tier-level.other.lamp-perfect {
+  color: var(--text);
+  background: none;
+}
+
+.tier-level.other.lamp-maxcombo .lamp-mark,
+.tier-level.other.lamp-perfect .lamp-mark {
+  display: inline-block;
 }
 
 .song-state {
@@ -2853,17 +3355,6 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.song-art.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: 700;
-  color: var(--text-dim);
-  background: var(--raised);
-}
-
 .import-report {
   padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
@@ -2893,12 +3384,22 @@ button.chip.active b {
   min-height: 0;
 }
 
-/* the song, or the open panel in its place (it scrolls inside when the window is short) */
+/* the song, or the open panel in its place (it scrolls inside when the window is short); the
+   song keeps its size: the summary under the buttons takes only the room that is left */
 .detail-top {
-  flex: 0 1 auto;
+  flex: none;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* an open panel takes the column's height (the plates fold to a line under it) */
+.song-detail.panel-open .detail-top {
+  flex: 1 1 0;
+}
+
+.song-detail.panel-open .select-panel {
+  flex: 1 1 auto;
 }
 
 .detail-empty {
@@ -2917,7 +3418,7 @@ button.chip.active b {
 
 .hero-art {
   position: relative;
-  width: clamp(160px, 32vh, 280px);
+  width: clamp(160px, 32vh, 400px);
   aspect-ratio: 1;
 }
 
@@ -2926,21 +3427,6 @@ button.chip.active b {
   height: 100% !important;
   border-radius: var(--radius);
   box-shadow: 0 0 0 1px var(--line-strong);
-}
-
-.hero-art .song-art.placeholder {
-  font-size: var(--fs-hero);
-}
-
-.hero-art-bpm {
-  position: absolute;
-  left: 6%;
-  bottom: 4%;
-  font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text);
 }
 
 .hero-text {
@@ -3012,47 +3498,6 @@ button.chip.active b {
   box-shadow: inset 0 -3px 0 var(--lane-gold);
 }
 
-.hero-map-label {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-1);
-}
-
-.stem-keys {
-  display: flex;
-  gap: var(--sp-3);
-}
-
-.stem-keys > span::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: var(--sp-1);
-  border-radius: 2px;
-  background: var(--stem);
-}
-
-/* the song's sections: width = length, height = energy, colour = leading stem */
-.song-map {
-  position: relative;
-}
-
-.song-map > i {
-  position: absolute;
-  bottom: 0;
-}
-
-/* the stretch the song select previews */
-.song-map-preview {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  border: 2px solid var(--text);
-  border-radius: 2px;
-}
-
 .mode-row {
   display: flex;
   align-items: center;
@@ -3081,8 +3526,37 @@ button.chip.active b {
   background: var(--text);
 }
 
-.system-label {
+/* a key mode with the song's edited or imported charts (their entries are on it): how many */
+.mode-saved {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: var(--fs-label);
+  line-height: 1.3;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+}
+
+/* the rules beside the difficulty basis: a judgement or a score rule that is not the default */
+.mode-rules {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
   margin-left: auto;
+}
+
+.rule-chip {
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.system-label {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
@@ -3106,7 +3580,8 @@ button.chip.active b {
 .difficulty {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   justify-content: stretch;
   gap: var(--sp-1);
@@ -3199,10 +3674,30 @@ button.chip.active b {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
+  min-width: 0;
   font-size: var(--fs-label);
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* a lamp in the numbers' condensed face; a long one gives way to the number beside it */
+.diff-record .lamp-text,
+.saved-line .lamp-text {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+}
+
+.diff-record .lamp-text,
+.other-best .lamp-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lamp-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .diff-record .none {
@@ -3210,10 +3705,87 @@ button.chip.active b {
 }
 
 .diff-lamp {
+  flex-shrink: 0;
   font-family: var(--font-display);
   font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+/* the best play's MAX COMBO, and a pattern made with 새 패턴 */
+.diff-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 20px;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.diff-sub b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.other-best {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pattern-tag {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0 var(--sp-1);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* under an open panel: a line per plate (its short name, level and lamp), the panel has the room */
+.difficulty.folded {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 0;
+  padding: var(--sp-1) var(--sp-3);
+}
+
+.difficulty.folded .diff-name {
+  flex-shrink: 0;
+  font-size: var(--fs-body);
+}
+
+.diff-fold-level {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-fold-level.none {
+  color: var(--text-dim);
+}
+
+.diff-fold-level small {
+  font-size: var(--fs-body);
+  color: var(--diff);
+}
+
+.difficulty.folded .lamp-text {
+  min-width: 0;
+  margin-left: auto;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* a chart being made for the plate: a bar runs along its foot */
@@ -3242,23 +3814,63 @@ button.chip.active b {
   }
 }
 
-/* lamps: text on the plates, the underline on the song list */
-.lamp-text.lamp-perfect { color: var(--lamp-perfect); }
-.lamp-text.lamp-maxcombo { color: var(--lamp-maxcombo); }
-.lamp-text.lamp-exhard { color: var(--lamp-exhard); }
-.lamp-text.lamp-hard { color: var(--lamp-hard); }
-.lamp-text.lamp-clear { color: var(--lamp-clear); }
-.lamp-text.lamp-easy { color: var(--lamp-easy); }
-.lamp-text.lamp-assist { color: var(--lamp-assist); }
-.lamp-text.lamp-failed { color: var(--lamp-failed); }
-.tier-level i.lamp-perfect { background: var(--lamp-perfect); }
-.tier-level i.lamp-maxcombo { background: var(--lamp-maxcombo); }
-.tier-level i.lamp-exhard { background: var(--lamp-exhard); }
-.tier-level i.lamp-hard { background: var(--lamp-hard); }
-.tier-level i.lamp-clear { background: var(--lamp-clear); }
-.tier-level i.lamp-easy { background: var(--lamp-easy); }
-.tier-level i.lamp-assist { background: var(--lamp-assist); }
-.tier-level i.lamp-failed { background: var(--lamp-failed); }
+/* lamps: the lamp's colour (--lamp) on its name and its mark, on the song list, the plates and the
+   records */
+.lamp-perfect { --lamp: var(--lamp-perfect); }
+.lamp-maxcombo { --lamp: var(--lamp-maxcombo); }
+.lamp-exhard { --lamp: var(--lamp-exhard); }
+.lamp-hard { --lamp: var(--lamp-hard); }
+.lamp-clear { --lamp: var(--lamp-clear); }
+.lamp-easy { --lamp: var(--lamp-easy); }
+.lamp-assist { --lamp: var(--lamp-assist); }
+.lamp-failed { --lamp: var(--lamp-failed); }
+
+.lamp-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--lamp, var(--text-dim));
+}
+
+/* the mark's shape tells the kind of clear without its colour: hollow (failed), thin (assist,
+   easy), full (clear), double (hard, EX-HARD), a block (a full combo); none: never played */
+.lamp-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0;
+  height: 12px;
+  border-radius: 1px;
+}
+
+.lamp-failed .lamp-mark {
+  width: 6px;
+  border: 1.5px solid var(--lamp);
+}
+
+.lamp-assist .lamp-mark,
+.lamp-easy .lamp-mark {
+  width: 2px;
+  background: var(--lamp);
+}
+
+.lamp-clear .lamp-mark {
+  width: 5px;
+  background: var(--lamp);
+}
+
+.lamp-hard .lamp-mark,
+.lamp-exhard .lamp-mark {
+  width: 3px;
+  margin-right: 5px;
+  background: var(--lamp);
+  box-shadow: 5px 0 0 var(--lamp);
+}
+
+.lamp-maxcombo .lamp-mark,
+.lamp-perfect .lamp-mark {
+  width: 9px;
+  background: var(--lamp);
+}
 
 /* the selected song while it is analysed: beside the play buttons it turns off */
 .analysis-status {
@@ -3288,36 +3900,73 @@ button.chip.active b {
   transition: width 0.3s;
 }
 
-/* edited and imported charts of the song */
+/* a failed analysis: why first, the server's own words folded under it */
+.raw-error {
+  min-width: 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.raw-error summary {
+  cursor: pointer;
+}
+
+.raw-error code {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* the song's edited and imported charts: entries of the difficulty row after the tiers (←→), a
+   line each in a row of their own that scrolls across (so a 720 px window keeps the play buttons) */
 .saved-charts {
+  flex-shrink: 0;
   display: flex;
-  align-items: center;
   gap: var(--sp-2);
   overflow-x: auto;
   padding-bottom: 2px;
 }
 
-.saved-charts > .label {
-  flex-shrink: 0;
+.saved-chart {
+  flex: 0 0 auto;
+  max-width: 440px;
+  min-width: 0;
 }
 
-.saved-chart {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-2);
+button.saved-plate {
+  position: relative;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  text-align: left;
+  white-space: nowrap;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
-.saved-chart.active {
+.saved-chart.active button.saved-plate,
+.saved-chart.active button.saved-plate:hover:not(:disabled) {
+  background: var(--raised);
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.saved-chart .kind {
+.saved-head,
+.saved-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.saved-plate .kind {
+  flex-shrink: 0;
   padding: 0 var(--sp-2);
   font-size: var(--fs-label);
   font-weight: 700;
@@ -3326,16 +3975,25 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.saved-chart .name {
+.saved-plate .name {
+  min-width: 0;
   font-weight: 700;
-  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.saved-chart .sub {
+.saved-line {
+  gap: var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-  white-space: nowrap;
+}
+
+.saved-line .lamp-text b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 /* the play options at a glance, a new pattern, and play */
@@ -3380,6 +4038,110 @@ button.option-chips[aria-expanded='true'] .chip {
   font-size: var(--fs-title);
 }
 
+/* a tall window (900 px and up) has room under the play buttons: the chart and the best play,
+   as much of them as the room the song, the plates and the buttons leave holds */
+.summary-room {
+  display: none;
+}
+
+@media (min-height: 900px) {
+  .summary-room {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    container: summary / size;
+  }
+}
+
+.chart-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-height: 100%;
+  padding: var(--sp-4);
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* short of room the graph goes first, then the record (before there is a chart, the line about
+   making one), then the whole summary */
+@container summary (max-height: 235px) {
+  .chart-summary .nps-graph {
+    display: none;
+  }
+}
+
+@container summary (max-height: 159px) {
+  .chart-summary > dl:not(.summary-record) ~ .summary-record,
+  .chart-summary > .hint {
+    display: none;
+  }
+  .chart-summary > .hint + .summary-record {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+@container summary (max-height: 85px) {
+  .chart-summary {
+    display: none;
+  }
+}
+
+.chart-summary > .hint {
+  margin: 0;
+}
+
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-8);
+  margin: 0;
+}
+
+.summary-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-stats dt {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.summary-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-stats dd.none {
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+}
+
+.summary-record {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+
+/* (alone, for a song that is not analysed) */
+.summary-record:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.chart-summary .nps-graph {
+  height: 64px;
+  margin: 0;
+}
+
 .select-status {
   min-height: 24px;
   margin: 0;
@@ -3417,15 +4179,22 @@ button.option-chips[aria-expanded='true'] .chip {
   display: flex;
   align-items: center;
   gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--line);
 }
 
 .select-panel-head h2 {
+  flex-shrink: 0;
   margin: 0;
   font-size: var(--fs-title);
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* the tabs and the close button keep their size: only the song's name gives way */
+.select-panel-head .segmented,
+.select-panel-head > button {
+  flex-shrink: 0;
 }
 
 .select-panel-head .segmented button {
@@ -3459,9 +4228,108 @@ button.option-chips[aria-expanded='true'] .chip {
   padding: var(--sp-4);
 }
 
-.select-panel-body .options-grid:first-child,
+/* the song info opens with the focus in its body, on no control: nothing to outline */
+.select-panel-body:focus,
+:root[data-input] .select-panel-body:focus {
+  outline: none;
+}
+
+/* option rows sit close to the panel's edges, so a tab's rows fit a 720 px window */
+.select-panel-body:has(> .panel-rows) {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* the generation options start the body: no rule above them */
 .select-panel-body > .options-grid {
-  margin: var(--sp-3) 0;
+  margin: 0 0 var(--sp-3);
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* the focused row's help (or the tab's line), one line */
+.select-panel-help {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px var(--sp-4);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid var(--line);
+}
+
+/* the play options' speed and gear rows, beside the moving gear */
+.gear-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(180px, 34%, 300px);
+  gap: var(--sp-4);
+}
+
+/* compact, so the rows and the gear fit the panel without scrolling on a 720 px window */
+.select-panel-body:has(.gear-options) {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* the panels' option rows: compact, so a tab fits a 720 px window (and no wider than reads well) */
+.panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: var(--measure);
+  /* room for the focused row's outline */
+  padding: 2px;
+}
+
+.panel-rows + .panel-rows {
+  margin-top: var(--sp-3);
+}
+
+/* the practice's own rows follow its switch */
+.panel-rows + .practice-rows {
+  margin-top: 0;
+}
+
+.panel-rows .opt {
+  min-height: 28px;
+  padding: 0 var(--sp-3);
+  background: var(--raised);
+}
+
+.panel-rows .opt-step {
+  min-width: 28px;
+  min-height: 26px;
+  line-height: 1;
+}
+
+.panel-rows .opt-value b {
+  min-width: 132px;
+  font-size: var(--fs-body);
+}
+
+/* a row that only shows a value (the practice segment, picked on the minimap) */
+.panel-rows .opt-static {
+  background: transparent;
+}
+
+.panel-rows .opt-static .opt-value b {
+  padding-right: 28px;
+  text-align: right;
+}
+
+/* the practice segment's minimap under its rows */
+.panel-rows + .chart-minimap {
+  margin-top: var(--sp-2);
+}
+
+.gear-options .gear-preview {
+  min-height: 0;
+}
+
+.gear-options .preview-green b {
+  font-size: var(--fs-title);
 }
 
 .panel-group + .panel-group {
@@ -3600,6 +4468,17 @@ button.option-chips[aria-expanded='true'] .chip {
   touch-action: none;
 }
 
+/* the sections to practise, a button each under the minimap (the one picked marked) */
+.minimap-sections {
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0 0;
+}
+
+.minimap-sections button.active {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .graph-label {
   display: flex;
   justify-content: space-between;
@@ -3660,6 +4539,69 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .song-tools .row .label {
   min-width: 112px;
+}
+
+/* the records of the difficulty chosen, a line per chart played (the one Enter plays first) */
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-table th,
+.record-table td {
+  padding: 3px var(--sp-2) 3px 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.record-table th:first-child,
+.record-table td:first-child {
+  padding-left: var(--sp-2);
+}
+
+.record-table th {
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
+}
+
+/* two numbers a column, the second under the first */
+.record-table td {
+  vertical-align: top;
+}
+
+.record-table td > b,
+.record-table td > .sub,
+.record-table td > .lamp-text {
+  display: flex;
+}
+
+.record-table td > b {
+  color: var(--text);
+}
+
+.record-table td > .sub {
+  color: var(--text-dim);
+}
+
+/* (a saved chart's long name gives way) */
+.record-table .record-pattern {
+  display: block;
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+}
+
+.record-table tr.current td {
+  background: var(--raised);
+}
+
+.record-current {
+  color: var(--text-dim);
 }
 
 .analysis-view {
@@ -3729,8 +4671,10 @@ button.option-chips[aria-expanded='true'] .chip {
   .song-list {
     max-height: 40vh;
   }
-  .detail-top {
+  /* the screen scrolls: the summary takes its own height */
+  .summary-room {
     flex: none;
+    container-type: normal;
   }
   .hero {
     grid-template-columns: 120px minmax(0, 1fr);
@@ -3746,63 +4690,152 @@ button.option-chips[aria-expanded='true'] .chip {
 /* ---------- chart editor ---------- */
 
 .editor-screen {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100%;
+  min-height: 0;
 }
 
+/* what the screen is on, after its name: the song and the chart (the song gives way first) */
+.topbar .screen-detail {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.topbar .screen-detail b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.topbar .screen-detail span {
+  flex: none;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* one row of tools under the top bar (two only on a window narrower than about 1100 px) */
 .editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
+  gap: var(--sp-2) var(--sp-3);
+  flex-shrink: 0;
+  padding: var(--sp-2) var(--sp-6);
+  white-space: nowrap;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 
 .editor-toolbar .row {
+  flex: none;
   margin: 0;
 }
 
 .editor-toolbar button {
+  flex: none;
   padding: 0 var(--sp-3);
-}
-
-.editor-title {
-  display: flex;
-  flex-direction: column;
-  max-width: 260px;
-  margin-right: var(--sp-2);
-}
-
-.editor-title strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editor-title span {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
 }
 
 .editor-toolbar input.editor-name {
   width: 184px;
 }
 
+/* 편집: 되돌리기, 다시, 미러 under the button */
+.editor-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.editor-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  margin-top: var(--sp-1);
+  padding: var(--sp-1);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.editor-menu button {
+  justify-content: space-between;
+  gap: var(--sp-6);
+  background: transparent;
+  border-color: transparent;
+}
+
+.editor-menu button:hover:not(:disabled),
+.editor-menu button:focus-visible {
+  background: var(--raised-hover);
+  border-color: transparent;
+}
+
 .editor-body {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1fr 352px;
+  grid-template-columns: minmax(0, 1fr) 352px;
+  min-height: 0;
+}
+
+/* the canvas over the lanes' heads */
+.editor-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 
 .editor-canvas {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   display: block;
   user-select: none;
+}
+
+.editor-lanes {
+  position: relative;
+  flex: none;
+  height: 52px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+/* a lane's key in its colour; the scratch and the side lanes named */
+.editor-lane-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-top: 3px solid var(--lane);
+}
+
+/* one line, as wide as the lane at most (L-Shift fits a key lane's 48 px) */
+.editor-lane-head kbd {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.editor-lane-head span {
+  font-family: var(--font-display);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lane);
 }
 
 .editor-side {

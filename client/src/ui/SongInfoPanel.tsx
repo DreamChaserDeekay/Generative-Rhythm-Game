@@ -1,12 +1,18 @@
-import { useRef, useState } from 'react';
-import { api, EXPORT_LABELS, exportFormats, type ServerChart, type Song } from '../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { api, EXPORT_LABELS, exportFormats, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
 import { keysoundStems } from '../audio/stemKeysounds';
+import { rulesetConfigs, type RulesetId } from '../engine/ruleset';
 import type { PatternSummary, StemName } from '../engine/types';
-import type { Palette } from '../settings/settings';
+import type { Palette, Pattern } from '../settings/settings';
+import { failureReason } from './analysisError';
 import type { PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
+import type { CalibrationStep } from './CalibrationScreen';
 import { ChartMinimap } from './ChartMinimap';
+import { shortDayText } from './format';
+import { lampClass, LampMark } from './lamps';
 import { SectionEditor } from './SectionEditor';
+import { olderGenerator, recordHeadline, recordScore } from './songRecords';
 
 const SKILL_LABELS: [string, string][] = [
   ['stream', '스트림'],
@@ -25,6 +31,7 @@ const PATTERN_LABELS: [keyof PatternSummary, string, string][] = [
   ['leaps', '도약', '빠른 구간에서 세 칸 이상 건너뛰는 이동'],
 ];
 const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
+const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*';
 export const KIND_LABELS: Record<string, string> = { edited: '편집', imported: '가져옴' };
 const STEM_LABELS: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
 const BACKEND_KIND_LABELS: Record<string, string> = { stems: '스템', beats: '비트', pitch: '음높이', structure: '구조' };
@@ -39,6 +46,8 @@ type SongPatch = Parameters<typeof api.patchSong>[1];
 interface Props {
   song: Song | null;
   chart: ServerChart | null;
+  /** The chart could not be made (it is being made otherwise, when the song is analysed). */
+  chartFailed: boolean;
   palette: Palette;
   /** Keysounds of generated charts are on (the keysounded stems are marked). */
   keysound: boolean;
@@ -46,25 +55,52 @@ interface Props {
   onSelectRange: (startMs: number, endMs: number) => void;
   onEditChart: () => void;
   onWatchBest: (scoreId: number) => void;
+  /** The records of the difficulty chosen (its patterns), or of the saved charts when one is chosen. */
+  records: ScoreRecord[];
+  /** What they are of: "4K NORMAL", "BMS". */
+  recordFor: string;
+  /** The chart Enter plays (its row is marked). */
+  currentChartId: string | null;
+  ruleset: RulesetId;
+  /** Plays a pattern of the difficulty from now on (a chart by its id; null: the default one); absent for a saved chart. */
+  onPattern?: (pattern: Pattern | null) => void;
+  /** The generator of the moment (a chart of another one cannot be made again: it is played as it was). */
+  generator: string | null;
+  onPickChart: (chartId: string) => void;
+  /** The saved chart chosen (it can be deleted here). */
+  savedChart: SavedChart | null;
+  onDeleteSaved: (chart: SavedChart) => void;
   /** Saves song settings; false when the server refused them (the error is shown). */
   onPatch: (body: SongPatch) => Promise<boolean>;
+  /** The song's own play offset (ms, kept in the settings) and its change. */
+  songOffsetMs: number;
+  onSongOffset: (ms: number) => void;
+  /** The in-play keys that change it (- / =, and the 5 ms steps). */
+  songOffsetKeys: string;
   onReanalyze: () => void;
   onUploadBga: (file: File) => void;
   onRemoveBga: () => void;
+  onUploadCover: (file: File) => void;
+  onRemoveCover: () => void;
   onRemoveSong: () => void;
   onSectionsSaved: () => Promise<void>;
-  onSyncTest: () => void;
-  onCalibrate: () => void;
-  onOpenReplay: () => void;
+  /** The click-track sync test, on autoplay or played by hand. */
+  onSyncTest: (byHand: boolean) => void;
+  onCalibrate: (step: CalibrationStep) => void;
   onClose: () => void;
 }
 
 /**
- * The I panel of the song select: the chart's numbers, the song's own settings (tempo, first beat,
- * background video, sections, analysis) and the tools that need no song.
+ * The I panel of the song select: the chart's numbers, its records by pattern, the song's own
+ * settings (tempo, first beat, cover, background video, sections, analysis) and the tools that
+ * need no song. It opens with the focus in its body, on no control (its first ones change the
+ * song: BPM ×2, 채보 편집), so Enter still plays; the first ↑ or ↓ goes to its first line, then
+ * ↑↓ go from line to line, ←→ along a line's buttons, and Enter presses the focused one.
  */
 export function SongInfoPanel(props: Props) {
   const { song, chart } = props;
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => body.current?.focus({ preventScroll: true }), []);
   return (
     <section className="select-panel" data-testid="song-info" aria-label="곡 정보·도구">
       <header className="select-panel-head">
@@ -78,7 +114,7 @@ export function SongInfoPanel(props: Props) {
           닫기 <kbd>Esc</kbd>
         </button>
       </header>
-      <div className="select-panel-body">
+      <div className="select-panel-body" ref={body} tabIndex={-1}>
         {song && chart && (
           <ChartPreview
             chart={chart}
@@ -89,25 +125,41 @@ export function SongInfoPanel(props: Props) {
             onEdit={props.onEditChart}
             bestReplay={(song.records ?? []).find((r) => r.chartId === chart.meta.chartId && r.hasReplay)?.bestScoreId ?? null}
             onWatchBest={props.onWatchBest}
+            saved={props.savedChart?.chartId === chart.meta.chartId ? props.savedChart : null}
+            onDeleteSaved={props.onDeleteSaved}
           />
         )}
         {song && !chart && song.status === 'ready' && (
-          <p className="hint">
-            채보를 만들면 노트 수·밀도·패턴이 여기에 나옵니다 (<kbd>F5</kbd> 새 패턴).
+          <p className="hint" data-testid="chart-pending">
+            {props.chartFailed ? '채보를 만들지 못했습니다. Enter를 누르면 다시 만들고 이유를 알려 줍니다.' : '채보를 계산하는 중…'}
           </p>
+        )}
+        {song && song.status === 'ready' && (
+          <RecordList
+            records={props.records}
+            recordFor={props.recordFor}
+            currentChartId={props.currentChartId}
+            ruleset={props.ruleset}
+            generator={props.generator}
+            onPattern={props.onPattern}
+            onPickChart={props.onPickChart}
+          />
         )}
         {song && <SongTools key={song.id} {...props} song={song} />}
         <section className="panel-group" data-testid="select-tools">
           <h3>도구</h3>
           <div className="row">
-            <button className="small" data-testid="sync-auto" onClick={props.onSyncTest} title="박자에 맞춰 노트가 내려오는 테스트를 오토 플레이로 봅니다">
+            <button className="small" data-testid="sync-auto" onClick={() => props.onSyncTest(false)} title="박자에 맞춰 노트가 내려오는 테스트를 오토로 봅니다 (←→ 표시 오프셋)">
               싱크 테스트
             </button>
-            <button className="small" data-testid="open-calibration" onClick={props.onCalibrate}>
-              오프셋 캘리브레이션
+            <button className="small" data-testid="sync-play" onClick={() => props.onSyncTest(true)} title="같은 테스트를 직접 칩니다. 치는 동안 표시·판정 오프셋을 키로 옮길 수 있고, 그 키는 화면 왼쪽 위에 나옵니다.">
+              싱크 테스트 · 직접 치기
             </button>
-            <button className="small" data-testid="open-replay" onClick={props.onOpenReplay} title="저장한 리플레이 파일(.grgreplay.json) 보기">
-              리플레이 파일 보기
+            <button className="small" data-testid="open-calibration" onClick={() => props.onCalibrate('input')}>
+              판정 오프셋 측정
+            </button>
+            <button className="small" data-testid="open-visual-calibration" onClick={() => props.onCalibrate('visual')}>
+              표시 오프셋 맞추기
             </button>
           </div>
         </section>
@@ -123,6 +175,7 @@ function SongTools(props: Props & { song: Song }) {
   // the YouTube link being typed (null = the link form is closed)
   const [youtubeDraft, setYoutubeDraft] = useState<string | null>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
   const ready = song.status === 'ready';
 
   // A form on the page, not window.prompt: the desktop app (Electron) has no prompt dialog.
@@ -149,6 +202,25 @@ function SongTools(props: Props & { song: Song }) {
           )}
         </div>
       )}
+      {song.status === 'error' && (
+        <>
+          <div className="row">
+            <span className="label">분석</span>
+            <span className="value error" data-testid="analysis-failure">
+              실패 · {failureReason(song.error)}
+            </span>
+            <button className="small" data-testid="reanalyze" onClick={props.onReanalyze}>
+              다시 분석
+            </button>
+          </div>
+          {song.error && (
+            <details className="raw-error">
+              <summary>자세히</summary>
+              <code>{song.error}</code>
+            </details>
+          )}
+        </>
+      )}
       <div className="row">
         <span className="label">BPM 보정</span>
         <button className="small" disabled={!ready || !song.bpm} onClick={() => song.bpm && void onPatch({ bpm: song.bpm * 2 })}>×2</button>
@@ -156,6 +228,24 @@ function SongTools(props: Props & { song: Song }) {
         <BpmInput onApply={(bpm) => void onPatch({ bpm })} disabled={!ready} />
         {song.overrides.bpm !== undefined && <button className="small" onClick={() => void onPatch({ clearBpm: true })}>자동으로</button>}
       </div>
+      <div className="row" data-testid="song-offset-row">
+        <span className="label">곡 오프셋</span>
+        {[-5, -1, 1, 5].map((d) => (
+          <button key={d} className="small" data-testid={`song-offset-${d > 0 ? 'plus' : 'minus'}${Math.abs(d)}`} onClick={() => props.onSongOffset(props.songOffsetMs + d)}>
+            {d > 0 ? `+${d}` : d}ms
+          </button>
+        ))}
+        <span className="value" data-testid="song-offset">
+          {props.songOffsetMs > 0 ? '+' : ''}
+          {props.songOffsetMs}ms
+        </span>
+        <button className="small" data-testid="song-offset-reset" disabled={props.songOffsetMs === 0} onClick={() => props.onSongOffset(0)}>
+          초기화
+        </button>
+      </div>
+      <p className="hint">
+        이 곡만 판정과 노트를 함께 늦추거나(+) 당깁니다. 기록과 채보는 그대로입니다. 플레이 중에 바꾸는 키: {props.songOffsetKeys}.
+      </p>
       <div className="row">
         <span className="label">첫 박 위치</span>
         {[-10, -1, 1, 10].map((d) => (
@@ -165,7 +255,33 @@ function SongTools(props: Props & { song: Song }) {
         ))}
         <span className="value">{song.overrides.offsetShiftMs ? `${song.overrides.offsetShiftMs > 0 ? '+' : ''}${song.overrides.offsetShiftMs}ms` : '자동'}</span>
       </div>
-      <p className="hint">비트가 어긋나 보이면 보정하세요. 보정하면 곡을 다시 분석하고 채보를 새로 만듭니다.</p>
+      <p className="hint">마디선과 채보가 음악의 박과 어긋나 보일 때 분석한 박을 옮깁니다. 곡을 다시 분석해 채보를 새로 만들어서, 기록은 새 채보에 따로 남습니다. 박은 맞는데 판정만 어긋나면 곡 오프셋을 쓰세요.</p>
+      <div className="row">
+        <span className="label">커버</span>
+        <span className="value" data-testid="cover-status">
+          {song.hasCover ? '그림' : '디스크'}
+        </span>
+        <button className="small" data-testid="cover-upload" onClick={() => coverInput.current?.click()}>
+          커버 이미지 고르기
+        </button>
+        {song.hasCover && (
+          <button className="small" data-testid="cover-remove" onClick={props.onRemoveCover}>
+            지우기
+          </button>
+        )}
+        <input
+          ref={coverInput}
+          type="file"
+          accept={IMAGE_ACCEPT}
+          hidden
+          data-testid="cover-input"
+          onChange={(e) => {
+            if (e.target.files?.[0]) props.onUploadCover(e.target.files[0]);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      <p className="hint">목록과 플레이 배경에 쓰는 그림입니다 (png·jpg·webp·gif·bmp). 지우면 곡을 이끄는 악기 색의 디스크로 돌아갑니다.</p>
       <div className="row">
         <span className="label">배경 영상</span>
         {song.hasBga || song.bgaYoutube ? (
@@ -283,15 +399,12 @@ function ChartPreview(props: {
   /** Score id of the best play of this chart when its replay was kept. */
   bestReplay: number | null;
   onWatchBest: (scoreId: number) => void;
+  /** The chart as a saved (edited or imported) one, which can be deleted. */
+  saved: SavedChart | null;
+  onDeleteSaved: (chart: SavedChart) => void;
 }) {
   const { chart } = props;
   const m = chart.meta;
-  const graph = m.nps.graph;
-  const max = Math.max(1, ...graph);
-  const w = 360;
-  const h = 70;
-  const step = graph.length > 1 ? w / (graph.length - 1) : w;
-  const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
   const holds = chart.notes.filter((n) => n.type === 'hold').length;
   const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
   return (
@@ -327,6 +440,11 @@ function ChartPreview(props: {
             </strong>
           </div>
         )}
+        {m.source?.kind === 'imported' && (
+          <div title="파일이 매긴 레벨과, 이 게임이 노트 밀도로 추정한 레벨" data-testid="chart-levels">
+            <span className="label">레벨</span> <strong>{m.sourceLevel ? `원본 ${m.sourceLevel} · 추정 ${m.level}` : `추정 ${m.level}`}</strong>
+          </div>
+        )}
       </div>
       <div className="row preview-actions">
         <button className="small" data-testid="edit-chart" onClick={props.onEdit}>
@@ -335,6 +453,11 @@ function ChartPreview(props: {
         {props.bestReplay !== null && (
           <button className="small" data-testid="watch-best" onClick={() => props.onWatchBest(props.bestReplay as number)}>
             최고 기록 리플레이
+          </button>
+        )}
+        {props.saved && (
+          <button className="small danger" data-testid="delete-saved" onClick={() => props.saved && props.onDeleteSaved(props.saved)}>
+            이 채보 지우기
           </button>
         )}
         <span className="label export-label">내보내기</span>
@@ -377,10 +500,7 @@ function ChartPreview(props: {
         <span>NPS</span>
         <span>최대 {m.nps.peak}</span>
       </div>
-      <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
-        <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
-        <polyline points={points} className="nps-line" />
-      </svg>
+      <NpsGraph graph={m.nps.graph} />
       <div className="skills">
         {SKILL_LABELS.map(([key, label]) => (
           <div className="skill" key={key}>
@@ -393,3 +513,120 @@ function ChartPreview(props: {
   );
 }
 
+/** A pattern's name: the default one, or its seed (as short as tells it apart); a saved chart's name. */
+function patternName(r: ScoreRecord): string {
+  if (r.kind && r.kind !== 'generated') return r.name || r.difficulty;
+  return r.defaultSeed ? '기본' : `#${r.seed.toString(16).toUpperCase().padStart(8, '0').slice(0, 6)}`;
+}
+
+/**
+ * The records of the difficulty chosen, a line per chart played (its patterns; the saved charts
+ * when one of them is chosen): the chart Enter plays first, then the last played. Each column
+ * holds two things, one over the other, so the line fits a narrow window: the pattern (and an
+ * earlier generator's), the lamp and the level, the score rule's number and the other (RATE, or
+ * the score and its grade), MAX COMBO and the fewest BREAK, the plays and the last day. Another
+ * line is chosen with 고르기 to be played from now on: the default pattern as the options make
+ * it, any other as it was made.
+ */
+function RecordList(props: {
+  records: ScoreRecord[];
+  recordFor: string;
+  currentChartId: string | null;
+  ruleset: RulesetId;
+  generator: string | null;
+  onPattern?: (pattern: Pattern | null) => void;
+  onPickChart: (chartId: string) => void;
+}) {
+  const rows = [...props.records].sort((a, b) => Number(b.chartId === props.currentChartId) - Number(a.chartId === props.currentChartId) || (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0));
+  const rules = rulesetConfigs[props.ruleset];
+  const pick = (r: ScoreRecord) => {
+    if (r.kind && r.kind !== 'generated') props.onPickChart(r.chartId);
+    else props.onPattern?.(r.defaultSeed && !olderGenerator(r, props.generator) ? null : r.chartId);
+  };
+  return (
+    <section className="panel-group" data-testid="record-list">
+      <h3>기록 · {props.recordFor}</h3>
+      {rows.length > 0 && props.currentChartId && !rows.some((r) => r.chartId === props.currentChartId) && <p className="hint">지금 치는 채보는 아직 기록이 없습니다.</p>}
+      {rows.length === 0 ? (
+        <p className="hint">아직 기록이 없습니다.</p>
+      ) : (
+        <table className="record-table">
+          <thead>
+            <tr>
+              <th>패턴</th>
+              <th>램프</th>
+              <th>{rules.scoring === 'rate' ? 'RATE' : rules.scoring === 'exscore' ? 'EX-SCORE' : '등급·점수'}</th>
+              <th>MAX COMBO</th>
+              <th>플레이</th>
+              <th aria-label="고르기" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const head = recordHeadline(r, props.ruleset);
+              const { score, grade } = recordScore(r, props.ruleset);
+              // the RATE under the rule's own number; under 정밀 % (headed by the RATE) the score and its grade
+              const second = head.label !== 'RATE' ? `RATE ${r.rate.toFixed(2)}%` : score !== null && grade ? `${grade} ${score.toLocaleString('en-US')}` : '–';
+              const current = r.chartId === props.currentChartId;
+              return (
+                <tr key={r.chartId} className={current ? 'current' : ''} data-testid="record-row">
+                  <td>
+                    <b className="record-pattern" title={patternName(r)}>
+                      {patternName(r)}
+                    </b>
+                    {olderGenerator(r, props.generator) && <span className="sub">이전 생성기</span>}
+                  </td>
+                  <td>
+                    <span className={`lamp-text lamp-${lampClass(r.lamp)}`}>
+                      <LampMark />
+                      {r.lamp}
+                    </span>
+                    <span className="sub">{r.sourceLevel ? `원본 ${r.sourceLevel} · 추정 ${r.level}` : `Lv.${r.level}`}</span>
+                  </td>
+                  <td>
+                    <b>{head.label === 'RATE' ? head.value : `${head.label} ${head.value}`}</b>
+                    <span className="sub">{second}</span>
+                  </td>
+                  <td>
+                    <b>{r.maxCombo.toLocaleString('en-US')}</b>
+                    <span className="sub">
+                      최소 {rules.missLabel} {r.minBreaks ?? '–'}
+                    </span>
+                  </td>
+                  <td>
+                    <b>{r.plays}회</b>
+                    <span className="sub">{r.lastPlayedAt ? shortDayText(r.lastPlayedAt) : '–'}</span>
+                  </td>
+                  <td>
+                    {current ? (
+                      <span className="record-current">지금</span>
+                    ) : (r.kind && r.kind !== 'generated') || props.onPattern ? (
+                      <button className="small" data-testid="pick-pattern" onClick={() => pick(r)}>
+                        고르기
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+/** Notes per second along the chart, as an area. */
+export function NpsGraph({ graph }: { graph: number[] }) {
+  const max = Math.max(1, ...graph);
+  const w = 360;
+  const h = 70;
+  const step = graph.length > 1 ? w / (graph.length - 1) : w;
+  const points = graph.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(' ');
+  return (
+    <svg className="nps-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="NPS 그래프">
+      <polygon points={`0,${h} ${points} ${w},${h}`} className="nps-area" />
+      <polyline points={points} className="nps-line" />
+    </svg>
+  );
+}

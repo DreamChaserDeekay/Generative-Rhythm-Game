@@ -290,6 +290,77 @@ def test_import_osz_uses_its_audio(client: TestClient, tmp_path: Path) -> None:
     assert body["songs"][0]["originalName"] == "audio.wav"
 
 
+def png_bytes() -> bytes:
+    """A 1×1 PNG."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00")) + chunk(b"IEND", b"")
+
+
+def test_a_bms_chart_is_named_by_its_difficulty_and_its_level_kept_apart() -> None:
+    pkg = bms_package()
+    text = pkg["song_another.bme"].decode()
+    # #PLAYLEVEL 7 with no #DIFFICULTY: named by the level; with one, by it alone (the level is beside it)
+    assert parse_bms(text.encode(), "a.bme").chart_name == "Lv.7"
+    named = parse_bms((text + "#DIFFICULTY 3\n").encode(), "a.bme")
+    assert named.chart_name == "HYPER" and named.level_hint == "7"
+    assert parse_bms((text + "#DIFFICULTY 3\n#SUBTITLE [SP ANOTHER]\n").encode(), "a.bme").chart_name == "[SP ANOTHER]"
+
+
+def test_charts_name_their_pictures() -> None:
+    pkg = bms_package()
+    text = pkg["song_another.bme"].decode() + "#STAGEFILE stage.bmp\n#BANNER banner.png\n"
+    assert parse_bms(text.encode(), "a.bme").images == ["stage.bmp", "banner.png"]
+    assert parse_bms(pkg["song_another.bme"], "a.bme").images == []
+    chart = generate_chart(analysis(), "4K", "HARD", seed=2)
+    osu = export_osu(chart, "audio.wav").replace("//Background and Video events", '//Background and Video events\n0,0,"bg 1.jpg",0,0')
+    assert parse_osu(osu, "x.osu").images == ["bg 1.jpg"]
+    doc = export_bmson(generate_chart(analysis(), "7K+1S", "HARD", seed=2), "song.ogg")
+    doc["info"].update(eyecatch_image="eye.png", banner_image="banner.png")
+    assert parse_bmson(json.dumps(doc).encode(), "x.bmson").images == ["eye.png", "banner.png"]
+
+
+def test_import_takes_the_stagefile_as_cover_and_keeps_the_files_level(client: TestClient) -> None:
+    pkg = bms_package()
+    # the chart names a .bmp that ships as a .png (as BMS packages do), and a banner it lacks
+    pkg["song_another.bme"] = pkg["song_another.bme"] + b"#STAGEFILE Stage.bmp\n#BANNER missing.png\n"
+    pkg["stage.png"] = png_bytes()
+    files = [("files", (name, data, "application/octet-stream")) for name, data in pkg.items()]
+    body = client.post("/api/import", files=files, data={"paths": [f"Test/{n}" for n in pkg]}).json()
+    song = body["songs"][0]
+    assert song["hasCover"] and body["warnings"] == []
+    assert client.get(f"/api/songs/{song['id']}/cover").content == png_bytes()
+    saved = client.get(f"/api/songs/{song['id']}/charts").json()["charts"][0]
+    assert saved["sourceLevel"] == "7" and saved["format"] == "bms"
+    chart = client.get(f"/api/charts/{saved['chartId']}").json()["chart"]
+    assert chart["meta"]["sourceLevel"] == "7"
+    play = {"chartId": saved["chartId"], "songId": song["id"], "score": 900000, "rate": 90.0, "maxCombo": 20, "lamp": "CLEAR", "breaks": 1}
+    record = client.post("/api/scores", json=play).json()["records"][0]
+    assert record["sourceLevel"] == "7" and record["kind"] == "imported" and record["defaultSeed"] is False and record["generatorVersion"] is None
+
+
+def test_import_osz_takes_its_background_as_cover(client: TestClient) -> None:
+    song = make_song(128.0, 8, seed=8, offset=0.4)
+    buf = io.BytesIO()
+    sf.write(buf, song.pcm, SR, format="WAV")
+    chart = generate_chart(analyze(song.pcm, SR, "sha256:osz-bg", backends={}), "4K", "HARD", seed=2)
+    osu = export_osu(chart, "audio.wav").replace("//Background and Video events", '//Background and Video events\n0,0,"BG.jpg",0,0')
+    osz = io.BytesIO()
+    with zipfile.ZipFile(osz, "w") as zf:
+        zf.writestr("audio.wav", buf.getvalue())
+        zf.writestr("Song (grg) [HARD].osu", osu)
+        zf.writestr("bg.JPG", png_bytes())
+        zf.writestr("frames/frame001.png", b"never unpacked")
+    body = client.post("/api/import", files=[("files", ("song.osz", osz.getvalue(), "application/octet-stream"))]).json()
+    imported = body["songs"][0]
+    assert imported["hasCover"]
+    assert client.get(f"/api/songs/{imported['id']}/cover").content == png_bytes()
+
+
 def test_import_reports_unusable_packages(client: TestClient) -> None:
     r = client.post("/api/import", files=[("files", ("readme.txt", b"hello", "text/plain"))])
     assert r.status_code == 422

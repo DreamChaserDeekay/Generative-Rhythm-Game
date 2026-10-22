@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { tool } from './songSelect';
+import { fakeSongs, tool } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -7,21 +7,21 @@ function trackErrors(page: Page): string[] {
   return errors;
 }
 
-/** A standard-mapping pad the page reads through navigator.getGamepads. */
-async function plugPad(page: Page) {
-  await page.addInitScript(() => {
+/** A pad the page reads through navigator.getGamepads: a standard-mapping one, or (mapping '') a controller of its own layout. */
+async function plugPad(page: Page, mapping = 'standard') {
+  await page.addInitScript((m) => {
     const pad = {
       index: 0,
       id: 'E2E Pad',
       connected: true,
-      mapping: 'standard',
+      mapping: m,
       timestamp: 1,
       buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
       axes: [0, 0, 0, 0],
     };
     (window as unknown as { __pad: typeof pad }).__pad = pad;
     Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
-  });
+  }, mapping);
   const set = (button: number, down: boolean) =>
     page.evaluate(
       ([b, d]) => {
@@ -46,7 +46,7 @@ async function plugPad(page: Page) {
   };
 }
 
-const PAD = { A: 0, B: 1, LB: 4, RB: 5, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
 
 test('a pad works the settings: the d-pad moves the focus, ←→ change a row, A flips one, LB/RB change the tab; binding B stays in the settings', async ({ page }) => {
@@ -73,25 +73,29 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await press(PAD.DOWN, 600);
   await expect(page.getByTestId('opt-hidden')).toBeFocused();
 
-  // ← on a row lowers its value; A flips a switch
-  const fx = page.getByTestId('camera-fx');
-  await fx.focus();
-  const before = Number(await fx.getAttribute('data-value'));
-  await press(PAD.LEFT);
-  await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
-  expect((await stored(page)).cameraFx).toBeLessThan(before);
+  // RB steps to the next tab (기어), where A flips a switch
+  await press(PAD.RB);
+  await expect(page.getByTestId('settings-tab-gear')).toHaveAttribute('aria-selected', 'true');
+  // its gear preview starts a renderer: a tap made and let go while that keeps the page busy is
+  // never seen by the pad's polling (on a loaded machine), so wait for two frames first
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const bars = page.getByTestId('bar-lines');
   const checked = (await bars.getAttribute('aria-checked')) === 'true';
   await bars.focus();
   await press(PAD.A);
   await expect(bars).toHaveAttribute('aria-checked', String(!checked));
   expect((await stored(page)).barLines).toBe(!checked);
-
-  // RB and LB step through the tabs
+  // and on (연출·배경), where ← on a row lowers its value; LB steps back
   await press(PAD.RB);
-  await expect(page.getByTestId('settings-tab-sound')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-fx')).toHaveAttribute('aria-selected', 'true');
+  const fx = page.getByTestId('camera-fx');
+  await fx.focus();
+  const before = Number(await fx.getAttribute('data-value'));
+  await press(PAD.LEFT);
+  await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
+  expect((await stored(page)).cameraFx).toBeLessThan(before);
   await press(PAD.LB);
-  await expect(page.getByTestId('settings-tab-display')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-gear')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('settings-tab-pad').click();
   await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
 
@@ -106,6 +110,102 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   // and afterwards B is Esc again
   await press(PAD.B);
   await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('a pad works the song select: LB / RB a page, X the play options on their first row (RB the tab), B back to the list, LT the song info, RT the settings', async ({ page }) => {
+  const errors = trackErrors(page);
+  const press = await plugPad(page);
+  const songs = fakeSongs(30);
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.goto('/');
+  await expect(page.getByTestId('song-item')).toHaveCount(30);
+  const title = page.getByTestId('song-title');
+  await expect(title).toHaveText('Fake Song 01');
+
+  // the d-pad moves the cursor, RB a page down, LB back up; the key hints name the pad's buttons
+  await press(PAD.DOWN);
+  await expect(title).toHaveText('Fake Song 02');
+  const hints = page.locator('.hintbar');
+  await expect(hints).toContainText('LT');
+  await expect(hints).not.toContainText('Space');
+  await press(PAD.RB);
+  await expect.poll(async () => Number(((await title.textContent()) ?? '').replace(/\D/g, ''))).toBeGreaterThan(5);
+  await press(PAD.LB);
+  await expect(title).toHaveText('Fake Song 02');
+
+  // X: the play options, their first row focused; → changes it, RB the next tab, B closes them
+  await press(PAD.X);
+  await expect(page.getByTestId('rule-placement')).toBeFocused();
+  await press(PAD.RIGHT);
+  await expect(page.getByTestId('rule-placement')).not.toHaveAttribute('data-value', 'OFF');
+  await press(PAD.DOWN);
+  await expect(page.getByTestId('rule-gauge')).toBeFocused();
+  await expect(title).toHaveText('Fake Song 02');
+  await press(PAD.RB);
+  await expect(page.getByTestId('toggle-gear')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('quick-speed')).toBeFocused();
+  await press(PAD.B);
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.songId)).toBe(songs[1].id);
+  // Y is the key mode, as before
+  await press(PAD.Y);
+  await expect(page.locator('.key-modes button.active')).not.toHaveText('4K');
+
+  // LT: the song info; B closes it; RT: the settings
+  await press(PAD.LT);
+  await expect(page.getByTestId('song-info')).toBeVisible();
+  await expect(page.getByTestId('song-info').locator(':focus')).toHaveCount(1);
+  await press(PAD.B);
+  await expect(page.getByTestId('song-info')).toHaveCount(0);
+  await press(PAD.RT);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('a controller of its own layout reaches every tab of the play options with its menu buttons, and the hints name keys of the keyboard', async ({ page }) => {
+  const errors = trackErrors(page);
+  const press = await plugPad(page, '');
+  const songs = fakeSongs(6);
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  // its menu buttons as assigned in 게임패드 (결정, 취소, the four directions, 옵션)
+  const padMenu = { ok: 'Pad:B0', back: 'Pad:B1', up: 'Pad:B2', down: 'Pad:B3', left: 'Pad:B4', right: 'Pad:B5', options: 'Pad:B6' };
+  await page.addInitScript((menu) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', padMenu: menu })), padMenu);
+  await page.goto('/');
+  await expect(page.getByTestId('song-item')).toHaveCount(6);
+  const MENU = { OK: 0, BACK: 1, UP: 2, DOWN: 3, LEFT: 4, RIGHT: 5, OPTIONS: 6 };
+
+  // 옵션: the play options on their first row; the hints name keys, not buttons it does not have
+  await press(MENU.OPTIONS);
+  await expect(page.getByTestId('rule-placement')).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('controller');
+  const hints = page.locator('.hintbar');
+  await expect(hints).toContainText('Space');
+  await expect(hints).not.toContainText('LB');
+  // 위 from the first row: the tabs; 오른쪽 the next tab (the focus stays on them), 아래 its first row
+  await press(MENU.UP);
+  await expect(page.getByTestId('toggle-rules')).toBeFocused();
+  await press(MENU.RIGHT);
+  await expect(page.getByTestId('toggle-gear')).toHaveAttribute('aria-selected', 'true');
+  await press(MENU.RIGHT);
+  await expect(page.getByTestId('toggle-generation')).toHaveAttribute('aria-selected', 'true');
+  await press(MENU.LEFT);
+  await expect(page.getByTestId('toggle-gear')).toBeFocused();
+  await press(MENU.DOWN);
+  await expect(page.getByTestId('quick-speed')).toBeFocused();
+  const speed = Number(await page.getByTestId('quick-speed').getAttribute('data-value'));
+  await press(MENU.RIGHT);
+  await expect.poll(async () => (await stored(page)).hiSpeed).toBe(Math.round((speed + 0.1) * 10) / 10);
+  // and the cover below it
+  await press(MENU.DOWN);
+  await expect(page.getByTestId('quick-sudden')).toBeFocused();
+  await press(MENU.RIGHT);
+  await expect.poll(async () => (await stored(page)).sudden).toBeGreaterThan(0);
+  // 취소 closes them, the song under the cursor has the focus
+  await press(MENU.BACK);
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.songId)).toBe(songs[0].id);
   expect(errors).toEqual([]);
 });
 

@@ -11,25 +11,33 @@ const MAX_TIMESTAMP_SKEW_MS = 1000;
 /**
  * Maps physical keys (`KeyboardEvent.code`, so Korean IME state does not matter) and gamepad
  * controls (`Pad:…` codes fed through `handleKey`) to lanes, and converts event timestamps to
- * judgement time: song time minus the input offset.
+ * judgement time: song time minus the input offset. A lane can have several codes (a second key,
+ * a pad control): held together they are one press.
  */
 export class InputManager {
   enabled = true;
   private readonly clock: SongClock;
   private readonly sink: LaneInputSink;
-  private readonly inputOffsetMs: number;
+  private inputOffsetMs: number;
   private readonly laneByCode = new Map<string, number>();
   private readonly downCodes = new Set<string>();
   private readonly laneDown: number[];
   private target: Window | null = null;
 
-  constructor(clock: SongClock, bindings: string[], sink: LaneInputSink, inputOffsetMs: number, padBindings: readonly (string | null)[] = []) {
+  /** `more`: further codes per lane (second keys, pad controls; null = none). */
+  constructor(clock: SongClock, bindings: string[], sink: LaneInputSink, inputOffsetMs: number, more: readonly (readonly (string | null)[])[] = []) {
     this.clock = clock;
     this.sink = sink;
     this.inputOffsetMs = inputOffsetMs;
     bindings.forEach((code, lane) => this.laneByCode.set(code, lane));
-    padBindings.forEach((code, lane) => code && this.laneByCode.set(code, lane));
+    // a code already a lane's stays that lane's
+    for (const codes of more) codes.forEach((code, lane) => code && lane < bindings.length && !this.laneByCode.has(code) && this.laneByCode.set(code, lane));
     this.laneDown = new Array(bindings.length).fill(0);
+  }
+
+  /** A new input offset (a song's offset changed in play), for the presses from now on. */
+  setInputOffset(ms: number): void {
+    this.inputOffsetMs = ms;
   }
 
   attach(target: Window = window): void {

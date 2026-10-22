@@ -197,6 +197,8 @@ def parse_bmson(data: bytes, source_name: str = "") -> ParsedChart:
         sounds=sounds,
         genre=str(info.get("genre") or ""),
         level_hint=str(info.get("level") or ""),
+        # the picture shown while it loads (BMS #STAGEFILE), else its banner
+        images=[str(info[key]) for key in ("eyecatch_image", "banner_image") if info.get(key)],
         source_name=source_name,
         dropped=dropped,
     )

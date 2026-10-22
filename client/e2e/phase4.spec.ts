@@ -38,9 +38,9 @@ async function addDemoAndPreview(page: Page) {
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await page.getByRole('button', { name: '4K', exact: true }).click();
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await songInfo(page);
+  await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
 }
 
 async function noteCount(page: Page): Promise<number> {
@@ -97,21 +97,28 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
 
   const canvas = page.getByTestId('editor-canvas');
   const box = (await canvas.boundingBox())!;
-  // lanes are centred left of the waveform strip; aim at the first lane, above the playhead
-  const laneX = Math.max(16, (box.width - 4 * 46 - 90 - 24) / 2) + 23;
+  // the first lane is where its head is under the canvas: aim at it, above the playhead
+  const head = (await page.getByTestId('editor-lane-0').boundingBox())!;
   let placedAt: { x: number; y: number } | null = null;
   for (let dy = 40; dy < box.height * 0.7 && !placedAt; dy += 13) {
     const before = await noteCount(page);
-    const at = { x: box.x + laneX, y: box.y + box.height * 0.8 - dy };
+    const at = { x: head.x + head.width / 2, y: box.y + box.height * 0.8 - dy };
     await page.mouse.click(at.x, at.y);
     if ((await noteCount(page)) === before + 1) placedAt = at;
   }
   expect(placedAt).not.toBeNull();
   await page.screenshot({ path: 'test-results/editor.png' });
-  // right click removes it, undo brings it back
+  // right click removes it, undo brings it back (from the 편집 menu, as Ctrl+Z does)
   await page.mouse.click(placedAt!.x, placedAt!.y, { button: 'right' });
   expect(await noteCount(page)).toBe(generated);
+  await page.getByTestId('editor-edit-menu').click();
+  await expect(page.getByTestId('editor-undo')).toBeFocused();
+  await page.keyboard.press('Enter');
+  expect(await noteCount(page)).toBe(generated + 1);
+  await expect(page.getByTestId('editor-undo')).toHaveCount(0);
   await page.keyboard.press('Control+z');
+  expect(await noteCount(page)).toBe(generated);
+  await page.keyboard.press('Control+y');
   expect(await noteCount(page)).toBe(generated + 1);
 
   await page.getByTestId('editor-save').click();
@@ -161,8 +168,11 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await expect(page.getByTestId('import-report')).toContainText('채보 1개', { timeout: 60_000 });
   await expect(page.getByTestId('song-title')).toHaveText('E2E Keysound');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
+  // its own entry after the difficulties, on its key mode, chosen already; its file's level beside ours
   await expect(page.getByTestId('saved-chart')).toHaveCount(1);
-  await expect(page.getByTestId('saved-chart').first()).toContainText('가져옴');
+  await expect(page.getByTestId('saved-chart').first()).toContainText('BMS');
+  await expect(page.getByTestId('saved-chart').first()).toContainText('원본 5 · 추정');
+  await expect(page.getByTestId('saved-chart').first()).toHaveClass(/active/);
   await page.getByTestId('pick-saved').click();
   await songInfo(page);
   await expect(page.getByTestId('chart-source')).toContainText('키음 4개');
@@ -212,14 +222,13 @@ test('a played run keeps its replay, and watching it gives the same result', asy
 
   await page.getByTestId('watch-replay').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.hud-chart')).toContainText('REPLAY');
+  await expect(page.locator('.hud')).toHaveAttribute('data-mode', 'replay');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   expect(await page.getByTestId('result-score').textContent()).toBe(score);
   expect(await page.getByTestId('result-rate').textContent()).toBe(rate);
 
   // the best play's replay is offered on the chart again
   await page.getByTestId('result-back').click();
-  await page.getByTestId('generate-button').click();
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await songInfo(page);
   await expect(page.getByTestId('watch-best')).toBeVisible();
@@ -268,5 +277,73 @@ test('a gamepad is bound per lane in the settings and works the menus', async ({
   await expect(page.getByTestId('song-list')).toBeVisible();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
   expect(stored.padBindings['4K'][0]).toBe('Pad:B2');
+  expect(errors).toEqual([]);
+});
+
+test('the chart editor names its lanes under the canvas, keeps its menu and hints, and tests the chart as written', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ placement: 'R-RANDOM', gaugeType: 'HARD' }));
+  });
+  await addDemoAndPreview(page);
+  await page.getByTestId('edit-chart').click();
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  // the top bar names the screen and what it is on; the lanes' keys under them, in order
+  await expect(page.locator('.topbar .screen-name')).toHaveText('채보 편집');
+  await expect(page.locator('.topbar .screen-detail')).toContainText('4K');
+  await expect(page.getByTestId('editor-lanes').locator('kbd')).toHaveText(['D', 'F', 'J', 'K']);
+  const canvas = (await page.getByTestId('editor-canvas').boundingBox())!;
+  const heads = await Promise.all([0, 3].map(async (i) => (await page.getByTestId(`editor-lane-${i}`).boundingBox())!));
+  expect(heads[0].x).toBeGreaterThan(canvas.x + 90);
+  expect(heads[1].x).toBeGreaterThan(heads[0].x);
+  await expect(page.getByTestId('editor-bpm')).toContainText('BPM');
+  const hints = page.locator('.hintbar');
+  await expect(hints).toContainText('커서부터 테스트');
+  await expect(hints).toContainText('나가기');
+  await expect(page.getByTestId('editor-exit')).toContainText('Esc');
+  // the 편집 menu: ↓ through it, Esc closes it (and leaves the editor open)
+  await page.getByTestId('editor-edit-menu').click();
+  await expect(page.getByTestId('editor-mirror')).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('editor-mirror')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('editor-mirror')).toHaveCount(0);
+  await expect(page.getByTestId('editor-edit-menu')).toBeFocused();
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  // the open menu has the keys: M waits (no mirror), Space presses the focused item (미러), not
+  // the playback; ↑ from none of its items goes to the last; Tab out of it closes it
+  const detail = page.locator('.topbar .screen-detail');
+  await expect(detail).not.toContainText('저장 안 됨');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('editor-mirror')).toBeFocused();
+  await page.keyboard.press('KeyM');
+  await expect(page.getByTestId('editor-mirror')).toBeFocused();
+  await expect(detail).not.toContainText('저장 안 됨');
+  await page.keyboard.press('Space');
+  await expect(page.getByTestId('editor-mirror')).toHaveCount(0);
+  await expect(detail).toContainText('저장 안 됨');
+  await expect(hints).toContainText('재생');
+  await expect(hints).not.toContainText('정지');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('editor-undo')).toBeFocused();
+  await page.getByTestId('editor-edit-menu').focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByTestId('editor-mirror')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('editor-mirror')).toHaveCount(0);
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+
+  // T: an editor test, on no placement whatever the settings say (they stay the player's)
+  await page.keyboard.press('KeyT');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await waitForPlayStart(page, 30_000);
+  await expect(page.locator('.hud-chip')).toContainText(['에디터 테스트']);
+  // SPEED changed in it is kept, over the player's own placement and gauge
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByTestId('hud-speed')).toHaveText('4.10');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /나가기/ }).click();
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'))).toMatchObject({ placement: 'R-RANDOM', gaugeType: 'HARD', hiSpeed: 4.1 });
   expect(errors).toEqual([]);
 });

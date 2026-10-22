@@ -1,15 +1,23 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ServerChart } from '../api/client';
-import { gaugeRules, gaugeTypeIds, keyModes } from '../engine/config';
+import { cameraConfig, gaugeRules, gaugeTypeIds, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
 import type { FeverMode } from '../engine/fever';
 import { placementIds, placementLabels } from '../engine/placement';
 import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
 import {
+  bindingLabel,
+  clampHiSpeed,
   DEFAULT_GENERATION,
   GEN_STYLES,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
+  KEY_BEAM_MAX,
+  MAX_COVER,
+  MAX_LIFT,
+  playKeysOf,
   RHYTHM_SOURCES,
+  withCovers,
   type GenerationPrefs,
   type GenStyle,
   type Pacemaker,
@@ -18,6 +26,11 @@ import {
 } from '../settings/settings';
 import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
+import { GearPreview } from './GearPreview';
+import { coverText, pointText, speedText } from './format';
+import { Choice, NumberOption, OptionalNumberOption, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle, type RowProps } from './optionRows';
+import { pacemakerChoices } from './playRules';
+import { focusFirstStop } from './selectNav';
 
 export const STYLE_LABELS: Record<GenStyle, string> = {
   balanced: '균형',
@@ -37,7 +50,11 @@ const RHYTHM_LABELS: Record<RhythmSource, string> = {
   vocal: '보컬',
 };
 
-export const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동 (Enter)', OFF: '끔' };
+export const FEVER_LABELS: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
+/** A FEVER mode's name; the manual one with the key that fires it. */
+export function feverLabel(mode: FeverMode, settings: Pick<Settings, 'playKeys'>): string {
+  return mode === 'MANUAL' ? `수동 (${bindingLabel(playKeysOf(settings).fever)})` : FEVER_LABELS[mode];
+}
 /** FEVER on the song select's option chips. */
 export const FEVER_SHORT: Record<FeverMode, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
 export const PACEMAKER_LABELS: Record<Pacemaker, string> = {
@@ -48,6 +65,10 @@ export const PACEMAKER_LABELS: Record<Pacemaker, string> = {
   '98': '98%',
   '99': '99%',
   '100': '100%',
+  A: 'A',
+  AA: 'AA',
+  AAA: 'AAA',
+  MAX: 'MAX',
 };
 
 interface SettingsProps {
@@ -55,51 +76,111 @@ interface SettingsProps {
   onSettingsChange: (s: Settings) => void;
 }
 
-/** Ruleset, gauge, FEVER, placement and pacemaker (applied when the play starts). */
-export function PlayRulesPanel({ settings, onSettingsChange }: SettingsProps) {
+/** The rows of a panel: the focused one's help goes to the panel's foot; Enter is the song select's (it plays). */
+interface PanelRows {
+  onHelp: (help: string) => void;
+}
+
+/** A rule of the next play that both the settings and the song select's play options set. */
+export type PlayRule = 'placement' | 'gauge' | 'fever' | 'pacemaker' | 'judgement' | 'ruleset';
+
+/**
+ * A rule of the next play as an option row, written once for both screens that set it: its name,
+ * its choices and its help. The help is a line the play options' foot can show; `detailed` (the
+ * settings, with room beside the rows) adds what more there is to say.
+ */
+export function RuleRow({ rule, settings, onSettingsChange, detailed = false, ...row }: SettingsProps & Omit<RowProps, 'label' | 'help'> & { rule: PlayRule; detailed?: boolean }) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
+  const help = (line: string, more: string) => (detailed ? `${line} ${more}` : line);
+  switch (rule) {
+    case 'placement':
+      return (
+        <Choice
+          {...row}
+          label="배치"
+          value={settings.placement}
+          options={placementIds.map((id) => [id, placementLabels[id]])}
+          onChange={(id) => set('placement', id)}
+          help="노트를 레인에 놓는 방식: 미러는 좌우를 뒤집고, 랜덤 계열은 레인을 섞습니다."
+        />
+      );
+    case 'gauge':
+      return (
+        <Choice
+          {...row}
+          label="게이지"
+          value={settings.gaugeType}
+          options={gaugeTypeIds.map((id) => [id, gaugeRules[id].label])}
+          onChange={(id) => set('gaugeType', id)}
+          help="ASSIST EASY는 60%, EASY·NORMAL은 80%를 넘겨 끝나면 클리어. HARD·EX-HARD·HAZARD는 0%가 되는 순간 실패합니다."
+        />
+      );
+    case 'fever':
+      return (
+        <Choice
+          {...row}
+          label="FEVER"
+          value={settings.fever}
+          options={(Object.keys(FEVER_LABELS) as FeverMode[]).map((m) => [m, feverLabel(m, settings)])}
+          onChange={(m) => set('fever', m)}
+          help={help(
+            `높은 판정으로 FEVER 게이지를 채우면 점수 배율이 붙습니다. 수동이면 게이지가 찼을 때 FEVER 키(${bindingLabel(playKeysOf(settings).fever)})로 켭니다.`,
+            '배율은 기본 점수와 따로 붙고, FEVER 키는 키 설정에서 바꿉니다.',
+          )}
+        />
+      );
+    case 'pacemaker':
+      return (
+        <Choice
+          {...row}
+          label="페이스메이커"
+          value={settings.pacemaker}
+          options={pacemakerChoices(settings.ruleset, settings.pacemaker).map((p): [Pacemaker, string] => [p, PACEMAKER_LABELS[p]])}
+          onChange={(p) => set('pacemaker', p)}
+          help={help(
+            '플레이 중 점수판에 화면의 점수와 같은 단위로 목표와의 차이를 보여 줍니다.',
+            'EX-SCORE의 목표는 A·AA·AAA·MAX입니다. 내 최고 기록은 그 판의 리플레이를 노트마다 따라가고, 리플레이가 없으면 정밀 %에서만 고르게 비교하며 다른 점수 규칙에서는 —로 둡니다.',
+          )}
+        />
+      );
+    case 'judgement':
+      return (
+        <Choice
+          {...row}
+          label="판정"
+          value={settings.judgementMode}
+          options={(Object.keys(judgementConfig.modes) as JudgementModeId[]).map((m) => [m, judgementConfig.modes[m].label])}
+          onChange={(m) => set('judgementMode', m)}
+          help="HARD JUDGEMENT는 판정 범위가 절반, MAX JUDGEMENT는 4분의 1입니다. 기록에도 판정이 함께 남습니다."
+        />
+      );
+    case 'ruleset':
+      return (
+        <Choice
+          {...row}
+          label="점수 규칙"
+          value={settings.ruleset}
+          options={rulesetIds.map((id) => [id, rulesetConfigs[id].label])}
+          onChange={(id) => set('ruleset', id)}
+          help={help(
+            '판정을 묶고 점수를 세는 방식입니다. EX-SCORE에서는 BAD에도 콤보가 끊깁니다.',
+            '정밀 %는 DJMAX RESPECT V, 등급형은 EZ2ON REBOOT : R, EX-SCORE는 BMS(beatoraja · LR2)식입니다.',
+          )}
+        />
+      );
+  }
+}
+
+/** The play options' rules, in the order they are changed most. */
+const RULE_ORDER: PlayRule[] = ['placement', 'gauge', 'fever', 'pacemaker', 'judgement', 'ruleset'];
+
+/** The rules of the next play as the settings' rows (applied when the play starts). */
+export function PlayRulesPanel({ settings, onSettingsChange, onHelp }: SettingsProps & PanelRows) {
   return (
-    <div className="options-grid" data-testid="play-rules">
-      <span className="label">판정 표기</span>
-      <div className="segmented">
-        {rulesetIds.map((id) => (
-          <button key={id} className={settings.ruleset === id ? 'active' : ''} title={rulesetConfigs[id].reference} onClick={() => set('ruleset', id)}>
-            {rulesetConfigs[id].label}
-          </button>
-        ))}
-      </div>
-      <span className="label">게이지</span>
-      <div className="segmented wrap">
-        {gaugeTypeIds.map((id) => (
-          <button key={id} className={settings.gaugeType === id ? 'active' : ''} data-testid={`gauge-${id}`} onClick={() => set('gaugeType', id)}>
-            {gaugeRules[id].label}
-          </button>
-        ))}
-      </div>
-      <span className="label">FEVER</span>
-      <div className="segmented">
-        {(Object.keys(FEVER_LABELS) as FeverMode[]).map((m) => (
-          <button key={m} className={settings.fever === m ? 'active' : ''} onClick={() => set('fever', m)}>
-            {FEVER_LABELS[m]}
-          </button>
-        ))}
-      </div>
-      <span className="label">배치</span>
-      <div className="segmented wrap">
-        {placementIds.map((id) => (
-          <button key={id} className={settings.placement === id ? 'active' : ''} data-testid={`placement-${id}`} onClick={() => set('placement', id)}>
-            {placementLabels[id]}
-          </button>
-        ))}
-      </div>
-      <span className="label">페이스메이커</span>
-      <select value={settings.pacemaker} onChange={(e) => set('pacemaker', e.target.value as Pacemaker)}>
-        {(Object.keys(PACEMAKER_LABELS) as Pacemaker[]).map((p) => (
-          <option key={p} value={p}>
-            {PACEMAKER_LABELS[p]}
-          </option>
-        ))}
-      </select>
+    <div className="panel-rows" data-testid="play-rules">
+      {RULE_ORDER.map((rule) => (
+        <RuleRow key={rule} rule={rule} testId={`rule-${rule}`} settings={settings} onSettingsChange={onSettingsChange} onHelp={onHelp} passEnter />
+      ))}
     </div>
   );
 }
@@ -252,42 +333,45 @@ function OptionalSlider(props: {
   );
 }
 
-/** Practice: playback speed and loop (the A–B segment is picked on the minimap). */
-export function PracticePanel({ practice, onChange }: { practice: PracticeOptions; onChange: (p: PracticeOptions) => void }) {
-  const fmt = (ms: number) => {
-    const s = Math.max(0, Math.round(ms / 100) / 10);
-    return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-  };
+/** Practice: the segment (picked on the minimap), the playback speed and the loop. */
+export function PracticePanel({ practice, onChange, onHelp }: { practice: PracticeOptions; onChange: (p: PracticeOptions) => void } & PanelRows) {
+  const row = { onHelp, passEnter: true };
   return (
-    <div className="options-grid" data-testid="practice-options">
-      <span className="label">구간</span>
-      <span className="value" data-testid="practice-range">
-        {fmt(practice.startMs)} – {fmt(practice.endMs)} <span className="hint">(미니맵을 드래그해 고르세요)</span>
-      </span>
-      <span className="label">속도</span>
-      <div className="row">
-        <input
-          type="range"
-          min={0.5}
-          max={1.5}
-          step={0.05}
-          value={practice.rate}
-          data-testid="practice-rate"
-          onChange={(e) => onChange({ ...practice, rate: Number(e.target.value) })}
-        />
-        <span className="value">{practice.rate.toFixed(2)}배</span>
-        <span className="hint">음정은 그대로 유지됩니다</span>
+    <div className="panel-rows practice-rows" data-testid="practice-options">
+      <div className="opt opt-static">
+        <span className="opt-name">구간</span>
+        <span className="opt-value">
+          <b data-testid="practice-range">
+            {pointText(practice.startMs)} – {pointText(practice.endMs)}
+          </b>
+        </span>
       </div>
-      <span className="label">반복</span>
-      <label className="row check">
-        <input type="checkbox" checked={practice.loop} onChange={(e) => onChange({ ...practice, loop: e.target.checked })} />
-        구간 반복 (Esc → 나가기로 끝내기)
-      </label>
+      <NumberOption
+        {...row}
+        label="재생 속도"
+        testId="practice-rate"
+        value={practice.rate}
+        min={0.5}
+        max={1.5}
+        step={0.05}
+        bigStep={0.25}
+        format={(v) => `×${v.toFixed(2)}`}
+        onChange={(rate) => onChange({ ...practice, rate })}
+        help="음정은 그대로 두고 빠르기만 바꿉니다."
+      />
+      <Toggle
+        {...row}
+        label="구간 반복"
+        testId="practice-loop"
+        value={practice.loop}
+        onChange={(loop) => onChange({ ...practice, loop })}
+        help="구간이 끝나면 처음부터 다시 칩니다. 반복마다 RATE와 FAST·SLOW가 잠깐 나오고, Esc → 나가기로 끝내면 마지막 반복의 결과를 봅니다."
+      />
     </div>
   );
 }
 
-export type PlayOptionsTab = 'rules' | 'generation';
+export type PlayOptionsTab = 'rules' | 'gear' | 'generation';
 
 /** "생성 옵션 · 롱노트 · 이전 배치": the generation options that differ from the defaults. */
 export function generationSummary(g: GenerationPrefs): string {
@@ -297,8 +381,101 @@ export function generationSummary(g: GenerationPrefs): string {
 }
 
 /**
- * The Space panel of the song select: how the next play runs (autoplay, practice, hi-speed and
- * the play rules) and how its chart is made.
+ * What is changed most just before a play, as the settings' rows (←→ change, ↑↓ go through them):
+ * the speed, the covers and how the gear looks (on a key mode with side lanes, how its side notes
+ * are drawn), beside the moving gear. The settings have the rest.
+ */
+export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: SettingsProps & PanelRows & { keyMode: KeyModeId }) {
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
+  const row = { onHelp, passEnter: true };
+  const cover = (key: 'sudden' | 'hidden' | 'lift', label: string, max: number, help: string) => (
+    <NumberOption
+      {...row}
+      label={label}
+      testId={`quick-${key}`}
+      value={settings[key]}
+      min={0}
+      max={max}
+      step={0.01}
+      bigStep={0.05}
+      format={coverText}
+      onChange={(v) => onSettingsChange(withCovers(settings, { [key]: v }))}
+      help={help}
+    />
+  );
+  return (
+    <div className="gear-options" data-testid="gear-options">
+      <div className="panel-rows">
+        <NumberOption
+          {...row}
+          label="SPEED"
+          testId="quick-speed"
+          value={settings.hiSpeed}
+          min={HI_SPEED_MIN}
+          max={HI_SPEED_MAX}
+          step={0.1}
+          bigStep={0.5}
+          format={speedText}
+          onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
+          help="노트가 내려오는 빠르기"
+        />
+        {cover('sudden', 'SUDDEN+', MAX_COVER, '트랙 위쪽을 가리는 커버')}
+        {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
+        {cover('lift', 'LIFT', MAX_LIFT, '판정선을 올리는 만큼')}
+        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="노트와 기어의 모양" />
+        <Choice
+          {...row}
+          label="카메라"
+          testId="quick-camera"
+          value={settings.cameraPreset}
+          options={Object.entries(cameraConfig.presets).map(([id, p]) => [id, p.label])}
+          onChange={(id) => set('cameraPreset', id)}
+          help="트랙을 내려다보는 높이와 각도"
+        />
+        <NumberOption
+          {...row}
+          label="키 빔 길이"
+          testId="quick-key-beam"
+          value={settings.keyBeamLength}
+          min={0}
+          max={KEY_BEAM_MAX}
+          step={0.1}
+          bigStep={0.5}
+          format={(v) => (v === 0 ? '끔' : pct(v))}
+          onChange={(v) => set('keyBeamLength', v)}
+          help="키를 누를 때 올라오는 빛의 길이"
+        />
+        {keyModes[keyMode].lanes.some((l) => l.kind === 'side') && (
+          <Choice
+            {...row}
+            label="사이드 노트"
+            testId="quick-side-notes"
+            value={settings.sideNotes}
+            options={SIDE_NOTE_CHOICES}
+            onChange={(v) => set('sideNotes', v)}
+            help="양 끝 레인에 따로 두거나, DJMAX처럼 건반 레인의 절반을 덮는 막대로 그리기"
+          />
+        )}
+      </div>
+      <GearPreview settings={settings} keyMode={keyMode} />
+    </div>
+  );
+}
+
+const TAB_NAMES: Record<PlayOptionsTab, string> = { rules: '플레이 규칙', gear: '속도·기어', generation: '생성 옵션' };
+export const PLAY_OPTIONS_TABS = Object.keys(TAB_NAMES) as PlayOptionsTab[];
+/** The panel's foot while no row has the focus. */
+const TAB_HELP: Record<PlayOptionsTab, string> = {
+  rules: '다음 플레이에 적용됩니다. 설정의 플레이 탭과 같은 값입니다.',
+  gear: '움직이는 기어에 바로 보입니다.',
+  generation: '옵션이 바뀌면 채보를 새로 만듭니다.',
+};
+
+/**
+ * The Space panel of the song select: how the next play runs (its rules, autoplay, practice and
+ * the target level), its speed and gear, and how its chart is made. It opens on its tab's first
+ * row (as every tab it goes to): ↑↓ go through the rows, ←→ change them, Q / E (LB / RB) the tab.
+ * The tabs are the line above the first row: ←→ there change the tab and the focus stays on them.
  */
 export function PlayOptionsPanel(props: SettingsProps & {
   keyMode: KeyModeId;
@@ -306,37 +483,106 @@ export function PlayOptionsPanel(props: SettingsProps & {
   onTab: (tab: PlayOptionsTab) => void;
   autoPlay: boolean;
   onAutoPlay: (on: boolean) => void;
-  /** The chart a practice runs on (none yet: practice waits for it). */
+  /** The chart a practice runs on (none yet: turning practice on makes it). */
   chart: ServerChart | null;
   practice: PracticeOptions | null;
   onPracticeToggle: (on: boolean) => void;
   onPracticeChange: (p: PracticeOptions) => void;
-  targetLevel: number | null;
+  /** The level the chart is made for (null: 자동; undefined: an edited or imported chart, made already). */
+  targetLevel?: number | null;
   onTargetLevel: (level: number | null) => void;
   maxLevel: number;
+  /** Where a target level starts: the middle of the selected difficulty's levels. */
+  defaultLevel: number;
   levelLabel: (level: number) => string;
   /** The selected song, named in the header while the panel covers it. */
   songTitle: string | null;
   onClose: () => void;
 }) {
   const { settings, onSettingsChange, chart, practice } = props;
+  const body = useRef<HTMLDivElement>(null);
+  const tabs = useRef<HTMLDivElement>(null);
+  const [help, setHelp] = useState('');
+  useEffect(() => {
+    setHelp('');
+    body.current?.scrollTo(0, 0);
+    // a tab changed on the tabs (by key) keeps the focus there, on the new one
+    if (tabs.current && document.activeElement instanceof Node && tabs.current.contains(document.activeElement)) tabs.current.querySelector<HTMLElement>('.active')?.focus();
+    else focusFirstStop(body.current);
+  }, [props.tab]);
+  const row = { onHelp: setHelp, passEnter: true };
+
+  let content: ReactNode;
+  if (props.tab === 'rules') {
+    content = (
+      <>
+        <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} />
+        <div className="panel-rows">
+          <Toggle {...row} label="오토 플레이" testId="autoplay-toggle" value={props.autoPlay} onChange={props.onAutoPlay} help="노트를 자동으로 칩니다. 기록은 남지 않습니다." />
+          {props.targetLevel !== undefined && (
+            <OptionalNumberOption
+              {...row}
+              label="목표 레벨"
+              testId="target-level"
+              value={props.targetLevel === null ? null : Math.min(props.targetLevel, props.maxLevel)}
+              min={1}
+              max={props.maxLevel}
+              step={1}
+              bigStep={3}
+              auto={Math.min(props.defaultLevel, props.maxLevel)}
+              format={props.levelLabel}
+              onChange={props.onTargetLevel}
+              help="이 레벨에 맞춰 이 곡의 이 난이도 채보를 만듭니다. 자동이면 난이도에 맞는 레벨입니다."
+            />
+          )}
+          <Toggle
+            {...row}
+            label="연습 모드"
+            testId="practice-toggle"
+            value={practice !== null}
+            onChange={props.onPracticeToggle}
+            help="구간을 골라 느리게, 반복해서 칩니다. 기록은 남지 않습니다."
+          />
+        </div>
+        {practice && chart && (
+          <>
+            <PracticePanel practice={practice} onChange={props.onPracticeChange} onHelp={setHelp} />
+            <ChartMinimap
+              chart={chart}
+              palette={settings.palette}
+              selection={[practice.startMs, practice.endMs]}
+              onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
+              onHelp={setHelp}
+            />
+          </>
+        )}
+      </>
+    );
+  } else if (props.tab === 'gear') {
+    content = <GearOptions settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} onHelp={setHelp} />;
+  } else {
+    content = <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} />;
+  }
+
   return (
     <section className="select-panel" data-testid="play-options" aria-label="플레이 옵션">
       <header className="select-panel-head">
         <h2>플레이 옵션</h2>
-        <div className="segmented" role="tablist">
-          <button role="tab" aria-selected={props.tab === 'rules'} className={props.tab === 'rules' ? 'active' : ''} data-testid="toggle-rules" onClick={() => props.onTab('rules')}>
-            플레이 규칙
-          </button>
-          <button
-            role="tab"
-            aria-selected={props.tab === 'generation'}
-            className={props.tab === 'generation' ? 'active' : ''}
-            data-testid="toggle-generation"
-            onClick={() => props.onTab('generation')}
-          >
-            {generationSummary(settings.generation)}
-          </button>
+        <div className="segmented" role="tablist" ref={tabs}>
+          {PLAY_OPTIONS_TABS.map((tab) => (
+            <button
+              key={tab}
+              role="tab"
+              aria-selected={props.tab === tab}
+              className={props.tab === tab ? 'active' : ''}
+              data-testid={`toggle-${tab}`}
+              // a click opens the tab on its first row, as Q / E do (the focus is not left on the tabs)
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => props.onTab(tab)}
+            >
+              {tab === 'generation' ? generationSummary(settings.generation) : TAB_NAMES[tab]}
+            </button>
+          ))}
         </div>
         {props.songTitle && (
           <span className="panel-song" data-testid="song-title" title={props.songTitle}>
@@ -347,69 +593,12 @@ export function PlayOptionsPanel(props: SettingsProps & {
           닫기 <kbd>Esc</kbd>
         </button>
       </header>
-      <div className="select-panel-body">
-        <div className="play-toggles">
-          <label className="check">
-            <input type="checkbox" checked={props.autoPlay} onChange={(e) => props.onAutoPlay(e.target.checked)} data-testid="autoplay-toggle" />
-            오토 플레이
-          </label>
-          <label className="check" title={chart ? undefined : '채보를 만든 뒤에 고를 수 있습니다'}>
-            <input type="checkbox" checked={practice !== null} disabled={!chart} onChange={(e) => props.onPracticeToggle(e.target.checked)} data-testid="practice-toggle" />
-            연습 모드
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={props.targetLevel !== null} onChange={(e) => props.onTargetLevel(e.target.checked ? Math.min(8, props.maxLevel) : null)} />
-            목표 레벨 직접 지정
-          </label>
-          {props.targetLevel !== null && (
-            <span className="row target-level">
-              <input
-                type="range"
-                min={1}
-                max={props.maxLevel}
-                value={Math.min(props.targetLevel, props.maxLevel)}
-                aria-label="목표 레벨"
-                onChange={(e) => props.onTargetLevel(Number(e.target.value))}
-              />
-              <span className="value">{props.levelLabel(Math.min(props.targetLevel, props.maxLevel))}</span>
-            </span>
-          )}
-        </div>
-        {practice && chart && (
-          <>
-            <PracticePanel practice={practice} onChange={props.onPracticeChange} />
-            <ChartMinimap
-              chart={chart}
-              palette={settings.palette}
-              selection={[practice.startMs, practice.endMs]}
-              onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
-            />
-          </>
-        )}
-        {props.tab === 'rules' ? (
-          <>
-            <div className="options-grid">
-              <span className="label">배속</span>
-              <div className="row">
-                <input
-                  type="range"
-                  min={HI_SPEED_MIN}
-                  max={HI_SPEED_MAX}
-                  step={0.1}
-                  value={settings.hiSpeed}
-                  aria-label="배속"
-                  onChange={(e) => onSettingsChange({ ...settings, hiSpeed: Number(e.target.value) })}
-                />
-                <span className="value">{settings.hiSpeed.toFixed(1)}</span>
-                <span className="hint">플레이 중에도 ↑↓로 바꿀 수 있습니다</span>
-              </div>
-            </div>
-            <PlayRulesPanel settings={settings} onSettingsChange={onSettingsChange} />
-          </>
-        ) : (
-          <GenerationPanel settings={settings} onSettingsChange={onSettingsChange} keyMode={props.keyMode} />
-        )}
+      <div className="select-panel-body" ref={body}>
+        {content}
       </div>
+      <p className="select-panel-help" data-testid="play-options-help">
+        {help || TAB_HELP[props.tab]}
+      </p>
     </section>
   );
 }

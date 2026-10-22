@@ -1,8 +1,10 @@
-import type { GaugeTypeId, JudgementModeId } from './config';
+import { gaugeRules, judgementConfig, sideLanesOf, type GaugeTypeId, type JudgementModeId } from './config';
 import type { FeverMode } from './fever';
-import type { PlacementId } from './placement';
-import type { RulesetId } from './ruleset';
-import type { GameSession } from './session';
+import { JudgementTable } from './judgement';
+import { applyPlacement, type PlacementId } from './placement';
+import { Ruleset, type RulesetId } from './ruleset';
+import { GameSession } from './session';
+import type { Chart } from './types';
 
 export const REPLAY_VERSION = 1;
 
@@ -21,6 +23,12 @@ export interface ReplaySettings {
   placement: PlacementId;
   placementSeed: number;
   hiSpeed: number;
+  /**
+   * The judgement offsets the play ran on (ms): the player's and the song's own (the log's times
+   * have them in already). Absent from the replays kept before they were.
+   */
+  inputOffsetMs?: number;
+  songOffsetMs?: number;
 }
 
 export interface ReplayData {
@@ -119,4 +127,35 @@ export function isReplay(x: unknown): x is ReplayData {
     typeof r.settings === 'object' &&
     r.settings !== null
   );
+}
+
+/**
+ * The score a recorded play stood at after each judgement (index: judgements so far), in the
+ * unit `ruleset` shows (base score, weighted score or EX-SCORE): a pacemaker that follows a best
+ * play note by note. Judged again from its inputs, on the chart as that play placed it and under
+ * its own judgement settings. Null for a replay of another chart.
+ */
+export function replayScores(chart: Chart, replay: ReplayData, ruleset: RulesetId): number[] | null {
+  if (replay.chartId !== chart.meta.chartId) return null;
+  const s = replay.settings;
+  const played = applyPlacement(chart, s.placement, s.placementSeed).chart;
+  // the options of a play (PlayController.begin) at the song's own speed
+  const session = new GameSession(played, new JudgementTable(judgementConfig, s.judgementMode), {
+    gauge: gaugeRules[s.gaugeType] ?? gaugeRules.NORMAL,
+    holdTickBeats: judgementConfig.hold.tickBeats,
+    releaseGraceMs: judgementConfig.hold.releaseGraceMs,
+    missMarginMs: judgementConfig.missMarginMs,
+    ruleset: new Ruleset(ruleset),
+    sideLanes: sideLanesOf(played.meta.keyMode),
+    sideMissPercent: judgementConfig.sideMissPercent,
+    fever: s.fever,
+  });
+  const scoring = session.ruleset.config.scoring;
+  const scores = [0];
+  session.on((e) => {
+    if (e.type !== 'judge') return;
+    scores.push(scoring === 'exscore' ? session.currentExScore : scoring === 'weighted' ? session.currentWeightedScore : session.currentScore);
+  });
+  new ReplayPlayer(replay.log).feed(session, Infinity);
+  return scores;
 }

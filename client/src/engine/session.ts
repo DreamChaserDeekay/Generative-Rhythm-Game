@@ -266,6 +266,11 @@ export class GameSession {
     return this.judged;
   }
 
+  /** Timed hits so far (the result's hits, in the order they were judged). */
+  get hitCount(): number {
+    return this.hits.length;
+  }
+
   /** Average judgement percent so far (DJMAX "Rate"). */
   get currentRate(): number {
     return this.judged > 0 ? this.sumPercent / this.judged : 100;
@@ -283,6 +288,19 @@ export class GameSession {
 
   get currentExScore(): number {
     return this.exScore;
+  }
+
+  /** Misses so far, and the hits off the best judgement early and late (the HUD's counts). */
+  get breakCount(): number {
+    return this.breaks;
+  }
+
+  get fastCount(): number {
+    return this.fast;
+  }
+
+  get slowCount(): number {
+    return this.slow;
   }
 
   /** EX-SCORE of the notes judged so far if they had all been perfect. */

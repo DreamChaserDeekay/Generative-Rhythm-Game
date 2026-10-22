@@ -8,6 +8,7 @@ import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import { activeCovers, greenNumber, visibleTimeMs, type Settings } from '../settings/settings';
+import { coverText } from './format';
 import { PHRASE_BEATS, previewPhrase } from './previewPhrase';
 
 const BPM = 150;
@@ -32,12 +33,15 @@ type PreviewSettings = Pick<
   | 'hidden'
   | 'lift'
   | 'coversOn'
+  | 'keyBeamLength'
+  | 'hitEffectSize'
+  | 'sideNotes'
 >;
 
 /**
- * The gear as it will be played, in the settings: the skin, camera, lane width, covers and
- * hi-speed in effect, with a short phrase coming down and played on its own. Every change shows
- * at once.
+ * The gear as it will be played, in the settings: the skin, camera, lane width, side notes, covers,
+ * hit effects and hi-speed in effect, with a short phrase coming down and played on its own. Every
+ * change shows at once.
  */
 export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; keyMode: KeyModeId }) {
   const box = useRef<HTMLDivElement>(null);
@@ -47,7 +51,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
   const covers = activeCovers(settings);
 
   // what the renderer is built from; the camera, covers and speed change on a running one
-  const { skin: skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines } = settings;
+  const { skin: skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
@@ -72,6 +76,8 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
           skin,
           art,
           barLines,
+          hitEffectSize,
+          sideNotes,
           // the whole gear in the box, whatever its shape
           fitWidth: 0.84,
         });
@@ -84,24 +90,25 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
       if (renderer.current === made) renderer.current = null;
       made?.dispose();
     };
-  }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines]);
+  }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes]);
 
-  // the camera, the covers and the speed change the running preview without starting it over
+  // the camera, the covers, the speed and the key beams change the running preview without starting it over
   const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
   const { sudden, hidden, lift } = covers;
-  const { hiSpeed } = settings;
+  const { hiSpeed, keyBeamLength } = settings;
   const scroll = useRef<{ model: ScrollModel; visibleMs: number } | null>(null);
   useEffect(() => {
     const r = renderer.current;
     if (!r) return;
     r.setCamera(camera);
     r.setCovers({ sudden, hidden, lift });
+    r.setKeyBeamLength(keyBeamLength);
     const visibleMs = visibleTimeMs(hiSpeed);
     scroll.current = {
       model: new ScrollModel({ trackLength: r.geometry.length, visibleMs, lift, mode: 'time', timing: TIMING, rate: 1, durationMs: 3_600_000 }),
       visibleMs,
     };
-  }, [built, camera, sudden, hidden, lift, hiSpeed]);
+  }, [built, camera, sudden, hidden, lift, hiSpeed, keyBeamLength]);
 
   // the phrase, played over and over
   useEffect(() => {
@@ -186,10 +193,10 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
   return (
     <div className="gear-preview" ref={box} data-testid="gear-preview">
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
-      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {Math.round(settings.sudden * 100)}%</span>}
-      <span className="preview-green">
-        <span className="label">녹색 숫자</span>
-        <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}</b>
+      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {coverText(settings.sudden)}</span>}
+      <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
+        <span className="label">보이는 시간</span>
+        <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>
       </span>
     </div>
   );

@@ -67,9 +67,20 @@ export function tintMaterial(params: THREE.MeshBasicMaterialParameters, { base =
 /**
  * A flipbook of light on black, in the material's colour, as the sheets drew the crystal set's
  * flipbooks: the light takes the colour and its brightest core (from `core` up) stays white.
+ * The light is added to what is behind it, and the canvas is made only as opaque as the light is
+ * bright: its black (the whole picture is opaque) would otherwise hide a background video or the
+ * visualizer behind the see-through canvas around the gear.
  */
 export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: number): THREE.MeshBasicMaterial {
-  const material = new THREE.MeshBasicMaterial(params);
+  const material = new THREE.MeshBasicMaterial({
+    ...params,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+  });
   material.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <map_fragment>',
@@ -78,8 +89,10 @@ export function lightMaterial(params: THREE.MeshBasicMaterialParameters, core: n
         vec3 light = sRGBTransferOETF( lightTexel ).rgb;
         float lightCore = smoothstep( ${core.toFixed(3)}, 1.0, max( light.r, max( light.g, light.b ) ) );
         vec3 lit = mix( sRGBTransferOETF( vec4( diffuseColor.rgb, 1.0 ) ).rgb, vec3( 1.0 ), lightCore ) * light;
-        diffuseColor.rgb = sRGBTransferEOTF( vec4( lit, 1.0 ) ).rgb;
-        diffuseColor.a *= lightTexel.a;
+        // premultiplied: the colour as much as it shows, the alpha as bright as the light
+        float lightAlpha = diffuseColor.a * lightTexel.a;
+        diffuseColor.rgb = sRGBTransferEOTF( vec4( lit, 1.0 ) ).rgb * lightAlpha;
+        diffuseColor.a = max( lit.r, max( lit.g, lit.b ) ) * lightAlpha;
       #endif`,
     );
   };
@@ -597,185 +610,80 @@ function baguette(g: CanvasRenderingContext2D, w: number, h: number): void {
   for (const x of [0.03, 0.13, 0.26, 0.74, 0.87, 0.97]) g.fillRect(x * w - 0.006 * w, 0, Math.max(1, 0.012 * w), h);
 }
 
-// ---------- key caps on the deck below the judge line ----------
+// ---------- side notes laid over half the keys (반쪽 덮기) ----------
 
-export type CapStyle = 'flat' | 'stem' | 'gloss' | 'piano' | 'outline' | 'neon' | 'glass' | 'pill' | 'jewel';
-export type CapKind = 'white' | 'other' | 'scratch';
+/** The parts of a side note laid over the keys, and the flash of its hits and holds. */
+export type SidePart = 'tap' | 'body' | 'end' | 'flash';
+
+/** Where the judge line crosses the side flash's picture, from its far edge (share of its depth): its light rises up the track. */
+export const SIDE_FLASH_LINE = 0.8;
 
 /**
- * A key cap at rest and pressed, as the mockups' `.cap-*` rules draw it: most caps mix the lane
- * colour into a dark cap colour (`base`); a few rest in a colour of their own (`idleColor`; white
- * reads the picture as greys) and take the lane colour only while pressed.
+ * A side tap laid over half the keys, alike in every skin (in its side lane's colour): half
+ * see-through, so the key notes drawn over it and the lanes under it show, between bright bands
+ * `edge` of its depth deep along its far and near edges (what shows of it past a key note at its
+ * time), its ends bright too. Painted for the bar's proportions; canvas top = the far edge.
  */
-export interface CapPaint {
-  idle: (kind: CapKind) => Paint;
-  down: (kind: CapKind) => Paint;
-  base?: number;
-  idleColor?: number;
-  /** Pressed caps of this kind are drawn in white, not the lane colour. */
-  neutralDown?: (kind: CapKind) => boolean;
+export function sideTap(edge: number): Paint {
+  return (g, w, h) => {
+    const band = Math.max(2, Math.round(h * edge));
+    const side = Math.max(2, Math.round(w * 0.008));
+    g.save();
+    roundRect(g, 0, 0, w, h, h * 0.15);
+    g.clip();
+    g.fillStyle = ink(1, 0, 0.55);
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = ink(1, 0.3);
+    g.fillRect(0, 0, w, band);
+    g.fillRect(0, h - band, w, band);
+    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillRect(0, 0, side, h);
+    g.fillRect(w - side, 0, side, h);
+    g.restore();
+  };
 }
 
-const capBox = (r: number, fill: string | CanvasGradient): Paint => (g, w, h) => {
-  g.fillStyle = fill;
-  roundRect(g, 0, 0, w, h, (r * h) / 44);
-  g.fill();
-};
-
-/** A cap filled top to bottom from one fill to another, `r` px round. */
-const capFade = (r: number, top: string, bottom: string): Paint => (g, w, h) => {
-  const grad = g.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  capBox(r, grad)(g, w, h);
-};
-
-export const CAP_PAINT: Record<CapStyle, CapPaint> = {
-  flat: { idle: () => capBox(6, ink(0.18)), down: () => capBox(6, tone(1)), base: 0x15171f },
-  stem: {
-    idle: () => (g, w, h) => {
-      capBox(6, ink(0))(g, w, h);
-      g.save();
-      g.clip();
-      g.fillStyle = tone(1);
-      g.fillRect(0, 0, w, (6 * h) / 44);
-      g.restore();
-    },
-    down: () => capBox(6, ink(0.7)),
-    base: 0x1d2029,
+/**
+ * The rest of the side notes laid over half the keys (see sideTap): a long note's body and ends,
+ * and the flash of a hit. Painted for their proportions; canvas top = the far edge (an end's: its
+ * outer edge).
+ */
+export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
+  // fainter than a tap, bright down its sides
+  body: (g, w, h) => {
+    const side = Math.max(2, Math.round(w * 0.008));
+    g.fillStyle = ink(1, 0, 0.26);
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillRect(0, 0, side, h);
+    g.fillRect(w - side, 0, side, h);
   },
-  gloss: {
-    // #4a5263 → #20252f inside a 2 px #8a93a6 frame
-    idle: () => (g, w, h) => {
-      capFade(6, ink(0.55), ink(0.25))(g, w, h);
-      g.fillStyle = ink(1);
-      frame(g, 0, 0, w, h, (6 * h) / 44, (2 * h) / 44);
-    },
-    down: () => capFade(6, ink(1, 0.4), tone(1)),
-    idleColor: 0x8a93a6,
+  // a bright band where it starts and where it ends
+  end: (g, w, h) => {
+    g.fillStyle = ink(1, 0.3);
+    g.fillRect(0, 0, w, h);
   },
-  piano: {
-    idle: (kind) => (g, w, h) => {
-      const r = (2 * h) / 44;
-      if (kind === 'scratch') {
-        // a turntable: dark platter, a grey ring, a light rim
-        const R = Math.min(w, h * 1.4) / 2;
-        g.save();
-        g.translate(w / 2, h / 2);
-        g.scale(1, h / (R * 2));
-        g.fillStyle = ink(0.07);
-        g.beginPath();
-        g.arc(0, 0, R, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = ink(0.23);
-        g.beginPath();
-        g.arc(0, 0, R * 0.6, 0, Math.PI * 2);
-        g.fill();
-        g.fillStyle = ink(0.13);
-        g.beginPath();
-        g.arc(0, 0, R * 0.22, 0, Math.PI * 2);
-        g.fill();
-        g.strokeStyle = ink(0.55);
-        g.lineWidth = R * 0.08;
-        g.beginPath();
-        g.arc(0, 0, R * 0.96, 0, Math.PI * 2);
-        g.stroke();
-        g.restore();
-        return;
+  // light across the half: a bright bar on the judge line (SIDE_FLASH_LINE down), whitest in its
+  // middle, and light rising from it a short way up the track, fading out as it rises (under the
+  // line, over the gear, only the bar's own edge); the half's ends fade
+  flash: (g, w, h) => {
+    const image = g.createImageData(w, h);
+    const fade = w * 0.04;
+    for (let y = 0; y < h; y++) {
+      // from the line, in shares of the depth (up the track is negative)
+      const d = (y + 0.5) / h - SIDE_FLASH_LINE;
+      const bar = Math.exp(-d * d * 120);
+      const rise = d < 0 ? 0.55 * Math.exp(d * 4) : 0;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        image.data[i] = 255;
+        image.data[i + 1] = Math.round(255 * 0.7 * bar);
+        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
       }
-      if (kind === 'white') {
-        capBox(2, ink(0.81))(g, w, h);
-        g.fillStyle = ink(0.6);
-        g.fillRect(0, h - (6 * h) / 44, w, (6 * h) / 44);
-        return;
-      }
-      capBox(2, ink(0.11))(g, w, h);
-      g.fillStyle = ink(0.23);
-      frame(g, 0, 0, w, h, r, (2 * h) / 44);
-    },
-    down: (kind) => (kind === 'white' ? capBox(2, ink(1)) : capBox(2, tone(1))),
-    idleColor: 0xffffff,
-    neutralDown: (kind) => kind === 'white',
-  },
-  outline: {
-    idle: () => (g, w, h) => {
-      capBox(4, ink(0))(g, w, h);
-      g.fillStyle = tone(1);
-      frame(g, 0, 0, w, h, (4 * h) / 44, (4 * h) / 44);
-    },
-    down: () => capBox(4, tone(1)),
-    base: 0x121216,
-  },
-  neon: {
-    idle: () => (g, w, h) => {
-      capBox(6, ink(0, 0, 0.8))(g, w, h);
-      g.fillStyle = tone(1);
-      frame(g, 0, 0, w, h, (6 * h) / 44, (2 * h) / 44);
-    },
-    down: () => capBox(6, ink(1, 0.25)),
-    base: 0x0a1028,
-  },
-  glass: {
-    // rgba(214,226,255,.1) with a white top edge and hairline
-    idle: () => (g, w, h) => {
-      capBox(6, ink(1, 0, 0.1))(g, w, h);
-      g.save();
-      g.clip();
-      g.fillStyle = ink(1, 1, 0.35);
-      g.fillRect(0, 0, w, (3 * h) / 44);
-      g.restore();
-      g.fillStyle = ink(1, 1, 0.25);
-      frame(g, 0, 0, w, h, (6 * h) / 44, Math.max(1, h / 44));
-    },
-    down: () => capBox(6, ink(1, 0.15)),
-    idleColor: 0xd6e2ff,
-  },
-  pill: { idle: () => capBox(14, ink(0.25)), down: () => capBox(14, tone(1)), base: 0x2e1634 },
-  jewel: {
-    // #2c2758 → #141030, a white top edge, a lavender hairline (on the straight sides only)
-    idle: () => (g, w, h) => {
-      octagon(g, w, h);
-      g.save();
-      g.clip();
-      const grad = g.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, ink(1));
-      grad.addColorStop(1, ink(0.47));
-      g.fillStyle = grad;
-      g.fillRect(0, 0, w, h);
-      g.fillStyle = ink(1, 0.8, 0.4);
-      const t = Math.max(1, h / 44);
-      g.fillRect(0, 0, w, t);
-      g.fillRect(0, h - t, w, t);
-      g.fillRect(0, 0, t, h);
-      g.fillRect(w - t, 0, t, h);
-      g.fillStyle = ink(1, 1, 0.22);
-      g.fillRect(0, 0, w, (3 * h) / 44);
-      g.restore();
-    },
-    down: () => (g, w, h) => {
-      octagon(g, w, h);
-      const grad = g.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, ink(1, 0.55));
-      grad.addColorStop(1, tone(1));
-      g.fillStyle = grad;
-      g.fill();
-    },
-    idleColor: 0x2c2758,
+    }
+    g.putImageData(image, 0, 0);
   },
 };
-
-function octagon(g: CanvasRenderingContext2D, w: number, h: number): void {
-  polygon(g, [
-    [0.12 * w, 0],
-    [0.88 * w, 0],
-    [w, 0.22 * h],
-    [w, 0.78 * h],
-    [0.88 * w, h],
-    [0.12 * w, h],
-    [0, 0.78 * h],
-    [0, 0.22 * h],
-  ]);
-}
 
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
@@ -790,19 +698,29 @@ export interface EffectSheet {
   size: [number, number];
   /** Where the judge line crosses a frame, from its far edge (share of its depth). */
   centre: number;
+  /** How wide the effect gets while it is still bright (halfway through), in lane widths. */
+  reach: number;
 }
 
-/** One frame cell's size in px (a lane is 64 px wide in it) and its centre, per style. */
-const CELLS: Record<HitStyle, { w: number; h: number; cy: number }> = {
-  flash: { w: 128, h: 192, cy: 104 },
-  stemflash: { w: 128, h: 192, cy: 104 },
-  star: { w: 192, h: 128, cy: 64 },
-  bomb: { w: 160, h: 160, cy: 80 },
-  flare: { w: 384, h: 128, cy: 64 },
-  hex: { w: 160, h: 112, cy: 56 },
-  shards: { w: 160, h: 112, cy: 56 },
-  bubbles: { w: 160, h: 160, cy: 80 },
+/**
+ * One frame cell's size in px (a lane is 64 px wide in it), its centre, and how wide the effect
+ * drawn in it gets halfway through (in px, see drawEffect), per style.
+ */
+const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number }> = {
+  flash: { w: 128, h: 192, cy: 104, reach: 84 },
+  stemflash: { w: 128, h: 192, cy: 104, reach: 84 },
+  star: { w: 192, h: 128, cy: 64, reach: 104 },
+  bomb: { w: 160, h: 160, cy: 80, reach: 83 },
+  flare: { w: 384, h: 128, cy: 64, reach: 216 },
+  hex: { w: 160, h: 112, cy: 56, reach: 96 },
+  shards: { w: 160, h: 112, cy: 56, reach: 74 },
+  bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
 };
+
+/** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
+const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex'];
+/** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
+const ABOVE_REACH = 28;
 
 export const EFFECT_FRAMES = 16;
 
@@ -822,10 +740,31 @@ export function effectSheet(style: HitStyle): EffectSheet {
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
       drawEffect(g, style, f / EFFECT_FRAMES);
+      if (FADES_ABOVE.includes(style)) fadeAbove(g, cell, f / EFFECT_FRAMES);
       g.restore();
     }
   });
-  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h };
+  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64 };
+}
+
+/**
+ * Above the judge line (up the cell from its centre) the part a player reads the next notes in:
+ * there an effect keeps to about a lane around the hit and fades out sooner than below the line.
+ */
+function fadeAbove(g: CanvasRenderingContext2D, cell: { w: number; cy: number }, p: number): void {
+  g.save();
+  g.beginPath();
+  g.rect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
+  g.clip();
+  g.globalCompositeOperation = 'destination-in';
+  // what stays: all of it near the hit at first, less and less of it as the effect goes on
+  const grad = g.createRadialGradient(0, 0, 0, 0, 0, ABOVE_REACH);
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(Math.max(0.05, 0.6 * (1 - p)), 'rgba(0,0,0,1)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
+  g.restore();
 }
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
@@ -851,7 +790,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
   switch (style) {
     case 'flash':
     case 'stemflash': {
-      // a bright bar on the judge line, two lines opening up and down, a short column of light
+      // a bright bar on the judge line, a line opening toward the gear, a short column of light
+      // (no line opening up the track: there it read as a note or a bar line)
       const fill = style === 'stemflash' ? colour : white;
       const fw = 66 * s;
       const fh = (16 - 10 * p) * s;
@@ -865,7 +805,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       const lw = fw * (1.05 + 0.3 * p);
       const d = (8 + 26 * p) * s;
-      line(-lw / 2, -d, lw / 2, -d, fill(0.8 * a), 3 * s);
       line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
       break;
     }
@@ -1017,15 +956,16 @@ export function railGlowTexture(size: number, blur: number, alpha: number): THRE
 }
 
 /** The judge line's glow, its box-shadow at `alpha` (the canvas spans the line and the reach around it, 1 px a px). */
-export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number): THREE.CanvasTexture {
+export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number, ends = true): THREE.CanvasTexture {
   const reach = shadowReach(blur);
-  const w = Math.ceil(width + 2 * reach);
+  // without its ends the glow spreads above and below the line only, as wide as the line
+  const w = Math.ceil(ends ? width + 2 * reach : width);
   const h = Math.ceil(height + 2 * reach);
   return paintTexture(w, h, (g) => {
     const image = g.createImageData(w, h);
     const down = Array.from({ length: h }, (_, y) => shadowAt(y + 0.5 - h / 2, height, blur));
     for (let x = 0; x < w; x++) {
-      const across = alpha * shadowAt(x + 0.5 - w / 2, width, blur);
+      const across = ends ? alpha * shadowAt(x + 0.5 - w / 2, width, blur) : alpha;
       for (let y = 0; y < h; y++) {
         const i = (y * w + x) * 4;
         image.data[i] = 255;

@@ -1,14 +1,20 @@
 import type { JudgeEvent } from '../engine/session';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudType } from '../render/skins';
+import { clockText, errorKind, errorText, speedText } from './format';
+import type { KeyPairNames } from './visualSync';
 
 export interface HudInfo {
   title: string;
   keyMode: string;
   /** Difficulty chip: "DJMAX MX" on the tier colour and the level ("Lv.12", "SC 8"; empty when none). */
   difficulty: { label: string; level: string; color: string };
-  /** Options line under the song (judgement, ruleset, placement, keysounds, AUTO). */
-  chartLine: string;
+  /** How the play runs (data-mode on the HUD). */
+  mode: 'play' | 'auto' | 'replay' | 'practice';
+  /** Small chips after the key mode: AUTO / REPLAY / 연습, a judgement mode that is not NORMAL (none for a plain play). */
+  chips: string[];
+  /** Stems whose keysounds play (data-keysounds on the HUD; not shown). */
+  keysounds: string[];
   /** Label of the main score counter (SCORE / EX-SCORE). */
   scoreLabel: string;
   /** Label of the second counter (RATE / rank). */
@@ -19,19 +25,21 @@ export interface HudInfo {
   feverEnabled: boolean;
   feverManualKey: string | null;
   pacemakerLabel: string | null;
-  practiceLabel: string | null;
   /** The skin's judgement and combo type. */
   type: HudType;
-  /** The song's sections as shares of the play, for the strip under the title. */
-  sections: HudSection[];
-}
-
-export interface HudSection {
-  from: number;
-  to: number;
-  /** 0..1: how loud the section is (a taller bar). */
-  energy: number;
-  color: string;
+  /** Opacity of the judgement and the combo, so notes behind them show through (1 = solid). */
+  judgementOpacity: number;
+  /** The miss label (BREAK, MISS, POOR) of the counts under the score panel; null shows none. */
+  counterMissLabel: string | null;
+  /** The current BPM under SPEED (charts that change tempo, or BPM-linked scrolling). */
+  showBpm: boolean;
+  /** The key that skips a long intro. */
+  skipKey: string;
+  /**
+   * The sync test (null: none): its display offset and, played by hand (`judgement` given), its
+   * judgement offset under the song's line, each with the keys that move it (null: none free).
+   */
+  syncKeys?: { visual: KeyPairNames | null; judgement?: KeyPairNames | null } | null;
 }
 
 export interface HudStats {
@@ -39,10 +47,19 @@ export interface HudStats {
   sub: string;
   maxCombo: number;
   gauge: number;
-  progress: number;
   ready: string;
   fever: { gauge: number; active: boolean; multiplier: number; remaining: number; ready: boolean };
   pace: number | null;
+  /** 0..1 of the way from the run's start to its last note, and the real ms left until that note. */
+  progress: number;
+  remainingMs: number;
+  bpm: number;
+  /** The intro can be skipped now. */
+  skip: boolean;
+  /** Misses and the FAST / SLOW hits so far (the counts under the panel). */
+  breaks: number;
+  fast: number;
+  slow: number;
 }
 
 const JUDGE_VISIBLE_MS = 600;
@@ -60,19 +77,58 @@ const COMBO_BUMP_MS = 150;
 const TEXT_ASPECT = 0.7;
 const SIDE_ASPECT = 0.95;
 const MAX_STRETCH = 2.6;
+/**
+ * The column left of the gear (SPEED, the score panel, the time left) stands upright: each block
+ * as tall on the screen as it is wide, drawn up to this much longer along the track; where the
+ * camera flattens the track more (LIFT, the flat cameras), it is sized by its height and so wider.
+ */
+const UPRIGHT_MAX_STRETCH = 4;
 /** Track units the gauge stands above the judge line and runs up the track, in cells. */
 const GAUGE_FROM = 0.15;
 const GAUGE_LENGTH = 9;
 const GAUGE_CELLS = 40;
+/** The song's progress: a thin bar left of the gear, as long as the gauge right of it (screen px wide, and its gap to the panel). */
+const PROGRESS_WIDTH = 5;
+const PROGRESS_GAP = 12;
+/** Screen px between SPEED and the score panel, and between the panel (or the bar) and the time left over it. */
+const COLUMN_GAP = 18;
+const TIME_GAP = 8;
+/** Steps the progress bar moves in (one transform each). */
+const PROGRESS_STEPS = 500;
 /** Plane px per track unit (HUD_UNIT; kept here so the plane's sizes read as the sheets' px). */
 const UNIT = 73.65;
-/** Space between the gear and what stands beside it (plane px). */
+/** Space between the gear and what stands beside it (plane px), and between the score panel and the screen's edge (screen px). */
 const SIDE_GAP = 22;
+const SIDE_MARGIN = 16;
+/**
+ * Where the room beside the gear is narrower than the song's plate's widest part, the plate shrinks,
+ * its type to no less than this share of its size at 720p.
+ */
+const INFO_LEAST_TYPE = 0.8;
+/**
+ * The score panel's labels and numbers (screen px tall at 720p), and the least of them it keeps
+ * (labels 12 px, numbers about 21): where two columns would need less, each label goes over its
+ * number (as SPEED); where that needs less too, the panel leaves the track and stands on the screen.
+ */
+const PANEL_LABEL = 15;
+const PANEL_NUM = 26;
+const PANEL_MIN_SHRINK = 12 / PANEL_LABEL;
+/** FAST / SLOW at least half the judgement's size (and 18 px), the ms beside it smaller (16 px at least). */
+const SUB_SHARE = 0.5;
+const SUB_MIN = 18;
+const MS_SHARE = 0.7;
+const MS_MIN = 16;
 
 /** CSS transform of the plane: its homography (row-major 3×3, plane px to screen px) as a matrix3d. */
 export function planeMatrix(h: readonly number[]): string {
   const m = [h[0], h[3], 0, h[6], h[1], h[4], 0, h[7], 0, 0, 1, 0, h[2], h[5], 0, h[8]];
   return `matrix3d(${m.map((v) => Number(v.toPrecision(9))).join(',')})`;
+}
+
+/** Where the plane point (x, y) lies on the screen (px). */
+export function planePoint(h: readonly number[], x: number, y: number): [number, number] {
+  const w = h[6] * x + h[7] * y + h[8];
+  return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w];
 }
 
 /** Screen px per plane px across the track at (x, y), and how tall a small square there looks for its width. */
@@ -91,6 +147,42 @@ export function stretchFor(aspect: number, target: number, max = MAX_STRETCH): n
   return Math.min(max, Math.max(1, target / Math.max(aspect, 1e-6)));
 }
 
+/**
+ * Text standing upright at (x, y) of the plane: plane px per screen px (so it reads at least as
+ * tall and as wide as asked wherever it lies) and how much longer along the track it is drawn.
+ * Its height is the screen's vertical alone: up the track the plane's lines lean toward the
+ * vanishing point, which slants the text but does not make it taller. Flatter than
+ * UPRIGHT_MAX_STRETCH makes up for, it comes out wider instead of shorter.
+ */
+export function uprightAt(h: readonly number[], x: number, y: number): { k: number; stretch: number } {
+  const w = h[6] * x + h[7] * y + h[8];
+  const sy = (h[3] * x + h[4] * y + h[5]) / w;
+  const { scale } = planeScale(h, x, y);
+  const tall = Math.abs((h[4] - sy * h[7]) / w);
+  const stretch = Math.min(UPRIGHT_MAX_STRETCH, Math.max(1, scale / Math.max(tall, 1e-9)));
+  return { k: 1 / Math.max(Math.min(scale, tall * stretch), 1e-6), stretch };
+}
+
+/** The plane y where the plane's line x = `x` crosses the screen's row `sy` (px). */
+export function planeYAt(h: readonly number[], x: number, sy: number): number {
+  return (sy * (h[6] * x + h[8]) - h[3] * x - h[5]) / (h[4] - sy * h[7]);
+}
+
+/**
+ * Screen px from `left` to the gear's left edge (plane x = -`edge`, up to the track's end at `far`)
+ * on the rows `top` to `bottom` the song's plate takes. The edge is straight on the screen, so it
+ * comes nearest at one end of them: the foot where it leans out toward the camera, the top (or
+ * the track's far corner, if lower) where a roll turns the far end toward the plate. Above the
+ * horizon there is no gear.
+ */
+export function infoRoom(h: readonly number[], edge: number, far: number, left: number, top: number, bottom: number): number {
+  const horizon = h[7] < 0 ? h[4] / h[7] : -Infinity;
+  if (bottom <= horizon) return Infinity;
+  const x = (row: number) => planePoint(h, -edge, planeYAt(h, -edge, row))[0];
+  const corner = planePoint(h, -edge, far)[1];
+  return Math.min(x(bottom), x(Math.min(bottom, Math.max(top, corner)))) - left;
+}
+
 /** Loads a skin's type before the play starts, so the first judgement is not drawn in a fallback font. */
 export function loadHudFont(type: HudType): Promise<unknown> {
   const f = HUD_FONTS[type.font];
@@ -106,17 +198,11 @@ function judgementHtml(label: string, split: boolean): string {
   return `<span class="hud-split">${esc(label.slice(0, space))}</span> ${esc(label.slice(space + 1))}`;
 }
 
-const EMBLEM = `<svg class="emblem" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-  <line x1="4" y1="22" x2="10" y2="2" style="stroke: var(--accent)" stroke-width="2.2" stroke-linecap="square" />
-  <line x1="20" y1="22" x2="14" y2="2" style="stroke: var(--brand-rail)" stroke-width="2.2" stroke-linecap="square" />
-  <line x1="5.2" y1="17" x2="18.8" y2="17" style="stroke: var(--text)" stroke-width="2" />
-  <rect x="9.4" y="9" width="5.2" height="2" style="fill: var(--text)" />
-</svg>`;
-
 /**
- * Imperative DOM overlay; only touches the DOM when a value changes. The song and the messages sit
- * on the screen; the judgement, combo, score panel, gauge, hi-speed and FEVER lie on the track
- * (one plane under the camera's projection: they tilt and zoom with it).
+ * Imperative DOM overlay; only touches the DOM when a value changes. The song (title, level, key
+ * mode, how the play runs) and the messages sit on the screen; the judgement, combo, score panel,
+ * gauge, speed, progress and FEVER lie on the track (one plane under the camera's projection: they
+ * tilt and zoom with it).
  */
 export class Hud {
   private readonly root: HTMLElement;
@@ -130,12 +216,18 @@ export class Hud {
   private readonly judgeLabel: HTMLElement;
   private readonly judgeCombo: HTMLElement;
   private readonly judgeSub: HTMLElement;
+  private readonly judgeFastSlow: HTMLElement;
+  private readonly judgeMs: HTMLElement;
   private readonly score: HTMLElement;
   private readonly sub: HTMLElement;
   private readonly maxCombo: HTMLElement;
   private readonly pace: HTMLElement;
+  private readonly misses: HTMLElement;
+  private readonly fastCount: HTMLElement;
+  private readonly slowCount: HTMLElement;
   private readonly panel: HTMLElement;
-  private readonly panelIn: HTMLElement;
+  /** The panel's rows, from the bottom up. */
+  private readonly panelRows: HTMLElement[];
   private readonly gauge: HTMLElement;
   private readonly gaugeFill: HTMLElement;
   private readonly gaugeClear: HTMLElement;
@@ -144,18 +236,25 @@ export class Hud {
   private readonly gaugeNum: HTMLElement;
   private readonly speed: HTMLElement;
   private readonly speedNum: HTMLElement;
-  private readonly speedGreen: HTMLElement;
-  private readonly playhead: HTMLElement;
-  private readonly map: HTMLElement;
+  private readonly bpm: HTMLElement;
+  private readonly progress: HTMLElement;
+  private readonly progressFill: HTMLElement;
+  private readonly progressTime: HTMLElement;
+  private readonly remaining: HTMLElement;
   private readonly fever: HTMLElement;
   private readonly feverFill: HTMLElement;
   private readonly feverText: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly ready: HTMLElement;
+  private readonly skip: HTMLElement;
   private readonly toast: HTMLElement;
-  private readonly loop: HTMLElement;
+  private readonly syncVisual: HTMLElement | null = null;
+  private readonly syncInput: HTMLElement | null = null;
   private readonly showErrorMs: boolean;
   private readonly gaugeClearShare: number;
+  private readonly survival: boolean;
+  private readonly counter: boolean;
+  private readonly judgeOpacity: string;
   /** Off with the reduced-flash setting, like the judgement pop. */
   private readonly bumpCombo: boolean;
   private readonly feverManualKey: string | null;
@@ -163,19 +262,31 @@ export class Hud {
   private judgeAt = -Infinity;
   private toastAt = -Infinity;
   private hudScale = 1;
+  private screenHeight = 0;
   private lastCombo = -1;
   private lastScore = -1;
   private lastSub = '';
   private lastMaxCombo = -1;
-  private lastPace: number | null = null;
+  /** undefined: not written yet (null is a pace with nothing to compare, shown as a dash). */
+  private lastPace: number | null | undefined = undefined;
   private lastGauge = -1;
-  private lastProgress = -1;
-  private lastReady = '';
+  /** null: not written yet ('' is no READY, a value shown too). */
+  private lastReady: string | null = null;
   private lastFever = '';
+  private lastProgress = -1;
+  private lastRemaining = -1;
+  private lastBpm = -1;
+  private lastSkip: boolean | null = null;
+  private lastCounts = '';
+  private lastSync = '';
   private lastMatrix = '';
-  /** The score panel's size for the screen (plane px to a screen px) and its room, from the last layout. */
-  private panelK = 1;
-  private panelRoom = 0;
+  /** Where the screen's top keeps clear of the song's plate (px). */
+  private infoBottom = 0;
+  /**
+   * The column left of the gear from the last layout: the plane, the panel's right edge and foot
+   * over SPEED, the progress bar's right edge and top (plane px), and the screen's margins (px).
+   */
+  private column: { h: readonly number[]; x: number; bottom: number; barX: number; barTop: number; margin: number; top: number } | null = null;
 
   constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
@@ -184,31 +295,36 @@ export class Hud {
     this.bumpCombo = !reducedFlash;
     this.feverManualKey = info.feverManualKey;
     this.gaugeClearShare = Math.min(1, Math.max(0, info.gaugeClear / 100));
+    this.survival = info.survivalGauge;
+    this.counter = info.counterMissLabel !== null;
+    this.judgeOpacity = String(info.judgementOpacity);
     root.innerHTML = `
       <div class="hud-info">
-        <div class="hud-head">${EMBLEM}<span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
-        <div class="hud-map"><b class="hud-playhead"></b></div>
-        <div class="hud-chart"></div>
-        <div class="hud-practice"></div>
+        <div class="hud-head"><span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
       </div>
       <div class="hud-plane">
-        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span><span class="hud-judge-combo"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"></div></div></div>
+        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span><span class="hud-judge-combo"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
         <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
         <div class="hud-fever" data-testid="hud-fever"><span class="hud-fever-text"></span><span class="hud-fever-bar"><i class="hud-fever-fill"></i></span></div>
-        <div class="hud-speed"><span class="hud-label">HI-SPEED</span><span class="hud-num hud-speed-num"></span><span class="hud-label hud-speed-green"></span></div>
+        <div class="hud-speed"><span class="hud-label">SPEED</span><span class="hud-num hud-speed-num" data-testid="hud-speed"></span><span class="hud-label hud-bpm" data-testid="hud-bpm">BPM <b class="hud-bpm-num"></b></span></div>
+        <div class="hud-progress" data-testid="hud-progress"><i class="hud-progress-fill"></i></div>
+        <div class="hud-progress-time"><span class="hud-num hud-remaining" data-testid="hud-remaining"></span></div>
         <div class="hud-gauge"><i class="hud-gauge-fill"></i></div>
         <i class="hud-gauge-clear"></i>
         <div class="hud-gauge-clear-label"><span class="hud-label">CLEAR</span></div>
-        <div class="hud-gauge-value"><span class="hud-num hud-gauge-num"></span><span class="hud-label hud-gauge-type"></span></div>
-        <div class="hud-panel"><div class="hud-panel-in">
-          <span><span class="hud-label hud-score-label"></span><span class="hud-num hud-score">0</span></span>
-          <span class="hud-pace-item"><span class="hud-label hud-pace-label"></span><span class="hud-num hud-pace"></span></span>
-          <span><span class="hud-label hud-rate-label"></span><span class="hud-num hud-rate"></span></span>
-          <span><span class="hud-label">MAX COMBO</span><span class="hud-num hud-max-combo">0</span></span>
-        </div></div>
+        <div class="hud-gauge-value" data-testid="hud-gauge"><span class="hud-num hud-gauge-num"></span><span class="hud-label hud-gauge-type"></span></div>
+        <div class="hud-panel" data-testid="hud-panel">
+          <div class="hud-row"><span class="hud-label hud-score-label"></span><span class="hud-num hud-score">0</span></div>
+          <div class="hud-row hud-pace-item"><span class="hud-label hud-pace-label"></span><span class="hud-num hud-pace" data-testid="hud-pace"></span></div>
+          <div class="hud-row"><span class="hud-label hud-rate-label"></span><span class="hud-num hud-rate"></span></div>
+          <div class="hud-row"><span class="hud-label">MAX COMBO</span><span class="hud-num hud-max-combo">0</span></div>
+          <div class="hud-row hud-counter-item"><span class="hud-label hud-miss-label"></span><span class="hud-num hud-misses" data-testid="hud-misses">0</span></div>
+          <div class="hud-row hud-counter-item"><span class="hud-label">FAST · SLOW</span><span class="hud-num" data-testid="hud-fast-slow"><span class="hud-fast">0</span> · <span class="hud-slow">0</span></span></div>
+        </div>
       </div>
-      <div class="hud-toast"></div>
-      <div class="hud-ready"></div>
+      <div class="hud-toast" data-testid="hud-toast"></div>
+      <div class="hud-ready" data-testid="hud-ready"></div>
+      <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
       <div class="hud-banner" data-testid="hud-banner"></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
@@ -216,38 +332,71 @@ export class Hud {
     q('.hud-diff-tier').textContent = info.difficulty.label;
     q('.hud-diff-level').textContent = info.difficulty.level;
     q('.hud-keymode').textContent = info.keyMode;
-    q('.hud-chart').textContent = info.chartLine;
-    this.loop = q('.hud-practice');
-    this.loop.textContent = info.practiceLabel ?? '';
-    this.map = q('.hud-map');
-    this.playhead = q('.hud-playhead');
-    for (const s of info.sections) {
-      const bar = document.createElement('i');
-      bar.style.left = `${s.from * 100}%`;
-      bar.style.width = `calc(${(s.to - s.from) * 100}% - 2px)`;
-      bar.style.height = `${Math.round(40 + 60 * Math.min(1, Math.max(0, s.energy)))}%`;
-      bar.style.background = s.color;
-      this.map.insertBefore(bar, this.playhead);
+    if (info.chips.length > 0) {
+      // under the song's line, so a long title keeps its room
+      const chips = document.createElement('div');
+      chips.className = 'hud-chips';
+      for (const text of info.chips) {
+        const chip = document.createElement('span');
+        chip.className = 'hud-chip';
+        chip.textContent = text;
+        chips.append(chip);
+      }
+      q('.hud-info').append(chips);
     }
-    this.map.classList.toggle('plain', info.sections.length === 0);
+    const syncKeys = info.syncKeys;
+    if (syncKeys) {
+      // the offsets the sync test's keys move, each with its keys (those the lanes leave free)
+      const sync = document.createElement('div');
+      sync.className = 'hud-sync';
+      sync.dataset.testid = 'hud-sync';
+      const row = (label: string, id: string, keys: KeyPairNames | null): HTMLElement => {
+        const line = document.createElement('div');
+        line.className = 'hud-sync-row';
+        const name = document.createElement('span');
+        name.textContent = label;
+        const value = document.createElement('b');
+        value.className = `hud-sync-${id}`;
+        value.dataset.testid = `hud-sync-${id}`;
+        const caps = document.createElement('span');
+        if (keys) {
+          const cap = (text: string) => Object.assign(document.createElement('kbd'), { textContent: text });
+          if (keys.modifier) caps.append(cap(keys.modifier), '+');
+          caps.append(cap(keys.keys[0]), cap(keys.keys[1]));
+        }
+        line.append(name, value, caps);
+        sync.append(line);
+        return value;
+      };
+      this.syncVisual = row('표시 오프셋', 'visual', syncKeys.visual);
+      this.syncInput = syncKeys.judgement === undefined ? null : row('판정 오프셋', 'input', syncKeys.judgement);
+      q('.hud-info').append(sync);
+    }
+    root.dataset.mode = info.mode;
+    root.dataset.keysounds = info.keysounds.join(' ');
 
-    this.plane = q('.hud-plane');
+    // the skin's type on the whole HUD: the plane's judgement and combo, and the end banner
     const t = info.type;
     const font = HUD_FONTS[t.font];
-    this.plane.style.setProperty('--hud-font', `'${t.font}'`);
-    this.plane.style.setProperty('--hud-weight', String(font.weight));
-    this.plane.style.setProperty('--hud-style', font.italic ? 'italic' : 'normal');
-    this.plane.style.setProperty('--hud-tracking', `${t.tracking}em`);
-    this.plane.style.setProperty('--hud-outline', t.outline);
-    this.plane.style.setProperty('--judge-max', t.max);
+    root.style.setProperty('--hud-font', `'${t.font}'`);
+    root.style.setProperty('--hud-weight', String(font.weight));
+    root.style.setProperty('--hud-style', font.italic ? 'italic' : 'normal');
+    root.style.setProperty('--hud-tracking', `${t.tracking}em`);
+    root.style.setProperty('--hud-outline', t.outline);
+    root.style.setProperty('--hud-stroke', `${t.stroke}px`);
+    root.style.setProperty('--judge-max', t.max);
+    this.plane = q('.hud-plane');
     this.plane.classList.toggle('inline', Boolean(t.inline));
     this.comboBox = q('.hud-combo');
+    this.comboBox.style.opacity = this.judgeOpacity;
     this.comboNum = q('.hud-combo-num');
     this.judgeBox = q('.hud-judge');
     this.judgePop = q('.hud-judge-pop');
     this.judgeLabel = q('.hud-judge-label');
     this.judgeCombo = q('.hud-judge-combo');
     this.judgeSub = q('.hud-judge-sub');
+    this.judgeFastSlow = q('.hud-judge-fs');
+    this.judgeMs = q('.hud-judge-ms');
     this.judgeText = q('.hud-judge-text');
     if (t.skew) this.judgeText.style.transform = `skewX(${t.skew}deg)`;
     const bar = q('.hud-judge-bar');
@@ -258,15 +407,21 @@ export class Hud {
     q('.hud-rate-label').textContent = info.subLabel;
     q('.hud-pace-label').textContent = info.pacemakerLabel ?? '';
     this.pace = q('.hud-pace');
-    if (info.pacemakerLabel === null) q('.hud-pace-item').remove();
+    if (info.pacemakerLabel === null) root.querySelectorAll('.hud-pace-item').forEach((el) => el.remove());
+    q('.hud-miss-label').textContent = info.counterMissLabel ?? '';
+    this.misses = q('.hud-misses');
+    this.fastCount = q('.hud-fast');
+    this.slowCount = q('.hud-slow');
+    if (!this.counter) root.querySelectorAll('.hud-counter-item').forEach((el) => el.remove());
     this.score = q('.hud-score');
     this.sub = q('.hud-rate');
     this.maxCombo = q('.hud-max-combo');
     this.panel = q('.hud-panel');
-    this.panelIn = q('.hud-panel-in');
+    this.panelRows = ([...this.panel.children] as HTMLElement[]).reverse();
 
     this.gauge = q('.hud-gauge');
     this.gauge.classList.toggle('survival', info.survivalGauge);
+    this.gauge.style.setProperty('--clear-at', `${this.gaugeClearShare * 100}%`);
     this.gaugeFill = q('.hud-gauge-fill');
     this.gaugeClear = q('.hud-gauge-clear');
     this.gaugeClearLabel = q('.hud-gauge-clear-label');
@@ -279,7 +434,12 @@ export class Hud {
     q('.hud-gauge-type').textContent = info.gaugeLabel;
     this.speed = q('.hud-speed');
     this.speedNum = q('.hud-speed-num');
-    this.speedGreen = q('.hud-speed-green');
+    this.bpm = q('.hud-bpm-num');
+    if (!info.showBpm) q('.hud-bpm').remove();
+    this.progress = q('.hud-progress');
+    this.progressFill = q('.hud-progress-fill');
+    this.progressTime = q('.hud-progress-time');
+    this.remaining = q('.hud-remaining');
 
     this.fever = q('.hud-fever');
     this.fever.style.display = info.feverEnabled ? '' : 'none';
@@ -287,17 +447,41 @@ export class Hud {
     this.feverText = q('.hud-fever-text');
     this.banner = q('.hud-banner');
     this.ready = q('.hud-ready');
+    this.skip = q('.hud-skip');
+    q('.hud-skip kbd').textContent = info.skipKey;
     this.toast = q('.hud-toast');
     this.setCombo(0);
   }
 
-  /** Sizes the screen layer to the screen (on start and resize; reading the size lays the page out). */
-  fit(): void {
-    const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.root.clientHeight / BASE_HEIGHT)) * 100) / 100;
+  /**
+   * Sizes the screen layer to the screen, and the song's plate no wider than the room left of the
+   * gear (`p`: the track as the camera shows it at the chart's peak, see CameraFx.peak), on start,
+   * resize and an in-play change; reading the size lays the page out.
+   */
+  fit(p: HudPlane): void {
+    this.screenHeight = this.root.clientHeight;
+    const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.screenHeight / BASE_HEIGHT)) * 100) / 100;
     if (scale !== this.hudScale) {
       this.hudScale = scale;
       this.root.style.setProperty('--hud-scale', String(scale));
     }
+    const info = this.root.querySelector('.hud-info') as HTMLElement;
+    info.style.removeProperty('--info-scale');
+    info.style.removeProperty('--info-room');
+    // the plate's narrowest: its widest part that does not wrap (the difficulty, the key mode, a chip)
+    const style = getComputedStyle(info);
+    const parts = [...info.querySelectorAll<HTMLElement>('.hud-diff, .hud-keymode, .hud-chip, .hud-sync')];
+    const least = Math.max(0, ...parts.map((e) => e.offsetWidth)) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 1;
+    let shrink = 1;
+    // a narrower plate may wrap its chips and grow: then measured again from its new foot
+    for (let pass = 0; pass < 2; pass++) {
+      const room = infoRoom(p.h, p.halfWidth + p.sideOut, p.far, info.offsetLeft, info.offsetTop, info.offsetTop + info.offsetHeight * shrink) - SIDE_MARGIN * scale;
+      // narrower than that, the plate shrinks as a whole (on a screen narrower still it covers the gear)
+      shrink = Math.min(1, Math.max(INFO_LEAST_TYPE / scale, Math.floor((room / least) * 100) / 100));
+      info.style.setProperty('--info-scale', String(shrink));
+      info.style.setProperty('--info-room', room < Infinity ? `${Math.max(least, Math.floor(room / shrink))}px` : '');
+    }
+    this.infoBottom = info.offsetTop + info.offsetHeight * shrink;
   }
 
   /**
@@ -318,15 +502,18 @@ export class Hud {
     // the judgement and the combo, centred on the track; the judgement no wider than the track
     const j = at(0, -judgeAt, TEXT_ASPECT);
     this.place(this.judgeBox, 0, -judgeAt, `translate(-50%, -50%) scaleY(${j.stretch.toFixed(3)})`);
-    const fit = this.widest(this.judgeText, [
+    const [fit] = this.measure(this.judgeText, [
       [this.judgeLabel, 'MAX 100%'],
       [this.judgeCombo, t.inline ? '0000' : ''],
     ], () => (this.judgeBox.style.fontSize = px(t.size * j.k)));
     const jk = j.k * Math.min(1, (2 * p.halfWidth - 24) / Math.max(1, fit));
     this.judgeBox.style.fontSize = px(t.size * jk);
     this.judgeBox.style.setProperty('--stroke', px(t.stroke * jk));
-    this.judgeSub.style.fontSize = px(16 * jk);
-    this.judgeSub.style.setProperty('--sub-stroke', px(Math.min(3, t.stroke / 3) * jk));
+    // FAST / SLOW large enough to read beside the judgement, the error in ms smaller beside it
+    const sub = Math.max(SUB_MIN, t.size * SUB_SHARE);
+    this.judgeSub.style.fontSize = px(sub * jk);
+    this.judgeSub.style.setProperty('--ms-size', px(Math.max(MS_MIN, sub * MS_SHARE) * jk));
+    this.judgeSub.style.setProperty('--sub-stroke', px(Math.max(3, sub * 0.16) * jk));
     const c = at(0, -comboAt, TEXT_ASPECT);
     this.place(this.comboBox, 0, -comboAt, `translate(-50%, -50%) scaleY(${c.stretch.toFixed(3)})`);
     this.comboNum.style.fontSize = px(t.combo * c.k);
@@ -334,19 +521,16 @@ export class Hud {
     this.comboBox.style.setProperty('--label-size', px(16 * c.k));
     this.comboBox.style.setProperty('--label-stroke', px(Math.max(3, t.stroke - 2) * c.k));
 
-    // beside the gear, on the same plane: FEVER level with the combo, the gauge and hi-speed standing on the judge line
+    // beside the gear, on the same plane: FEVER level with the combo, the gauge and SPEED standing on the judge line
     const right = p.halfWidth + p.sideOut + SIDE_GAP;
     const foot = -GAUGE_FROM * UNIT;
+    const length = GAUGE_LENGTH * UNIT;
     const f = at(right, -comboAt, SIDE_ASPECT);
     this.place(this.fever, right, -comboAt, `translateY(-50%) scaleY(${f.stretch.toFixed(3)})`);
     this.fever.style.fontSize = px(20 * f.k);
-    const s = at(-right, foot, SIDE_ASPECT);
-    this.place(this.speed, -right, foot, `translate(-100%, -100%) scaleY(${s.stretch.toFixed(3)})`);
-    this.sizeText(this.speed, s.k, 15, 30);
 
     const g = at(right, foot, SIDE_ASPECT);
     const width = 14 * 1.3 * g.k;
-    const length = GAUGE_LENGTH * UNIT;
     this.place(this.gauge, right, foot - length, '');
     this.gauge.style.width = px(width);
     this.gauge.style.height = px(length);
@@ -364,43 +548,156 @@ export class Hud {
     this.place(this.gaugeValue, textX, foot, `translateY(-100%) scaleY(${v.stretch.toFixed(3)})`);
     this.sizeText(this.gaugeValue, v.k, 15, 30);
 
-    // the score panel on the deck, under the caps
-    const top = p.deckTop + 8 + p.capDepth + 8;
-    const height = Math.min(56, Math.max(36, p.deckRoom - 6 - (top - p.deckTop) - 4));
-    this.place(this.panel, -p.halfWidth + 12, top, '');
-    this.panel.style.width = px(2 * p.halfWidth - 24);
-    this.panel.style.height = px(height);
-    const m = at(0, top + height / 2, TEXT_ASPECT, 1.8);
-    this.panelIn.style.transform = `scaleY(${m.stretch.toFixed(3)})`;
-    this.panelK = m.k;
-    this.panelRoom = 2 * p.halfWidth - 48;
+    // left of the gear, as the gauge is right of it: the song's progress up the track
+    const pr = at(-right, foot, SIDE_ASPECT);
+    const barWidth = PROGRESS_WIDTH * pr.k;
+    this.place(this.progress, -right - barWidth, foot - length, '');
+    this.progress.style.width = px(barWidth);
+    this.progress.style.height = px(length);
+
+    // beside the progress a column standing on the judge line (under the line is the gear's own):
+    // SPEED, the score panel over it and the time left on top (fitPanel), each upright
+    const left = right + barWidth + PROGRESS_GAP * pr.k;
+    const speedTop = foot - this.stand(this.speed, p.h, -left, foot, hud, 15, 30);
+    const panelFoot = planeYAt(p.h, -left, planePoint(p.h, -left, speedTop)[1] - COLUMN_GAP * hud);
+    // the column keeps under the song's plate, and on this side of the horizon (h[4] / h[7])
+    const horizon = p.h[7] < 0 ? p.h[4] / p.h[7] : -Infinity;
+    const top = Math.max(this.infoBottom, horizon) + SIDE_MARGIN * hud;
+    this.column = { h: p.h, x: -left, bottom: panelFoot, barX: -right, barTop: foot - length, margin: SIDE_MARGIN * hud, top };
     this.fitPanel();
     this.movePlane(p);
+
+    // messages under the judge line, over the gear: they hide neither the combo nor a note coming
+    const [lineX, lineY] = planePoint(p.h, 0, 0);
+    this.toast.style.left = px(lineX);
+    this.toast.style.top = px(lineY + Math.max(0, this.screenHeight - lineY) * 0.3);
   }
 
   /**
-   * Sizes the score panel's text as large as the screen wants but never wider than the panel (a
-   * narrow camera shrinks it), for the widest numbers usual in a play or the live ones if wider.
+   * Lays the score panel over SPEED, bottom up, a line at a time (a row of label and number, or
+   * stacked, each label and each number), each sized for the screen where it lies and upright
+   * there (uprightAt), so the farthest line reads as large as the nearest; in two columns every row
+   * as wide as the widest, for the widest numbers usual in a play (or the live ones if wider). It
+   * keeps the size the screen wants unless a line would pass the screen's edge left of the gear
+   * (the gear widens toward the camera) or the column the song's plate: then smaller, down to
+   * 12 px labels; below that each label stands over its number; below that again the panel leaves
+   * the track and stands at the screen's lower left. The time left tops the column (over the
+   * progress bar, or over the panel where that reaches higher).
    */
   private fitPanel(): void {
+    const c = this.column;
+    if (!c) return;
+    const hud = this.hudScale;
     const wider = (el: HTMLElement, sample: string) => ((el.textContent ?? '').length > sample.length ? el.textContent ?? '' : sample);
-    const wide = this.widest(this.panelIn, [
+    const samples: [HTMLElement, string][] = [
       [this.score, wider(this.score, '000,000')],
       [this.sub, wider(this.sub, '100.00%')],
       [this.maxCombo, wider(this.maxCombo, '0000')],
       [this.pace, wider(this.pace, '+00,000')],
-    ], () => this.sizeText(this.panel, this.panelK, 17, 30));
-    if (wide > this.panelRoom) this.sizeText(this.panel, (this.panelK * this.panelRoom) / wide, 17, 30);
+      [this.misses, wider(this.misses, '000')],
+      [this.fastCount, wider(this.fastCount, '00')],
+      [this.slowCount, wider(this.slowCount, '00')],
+    ];
+    const rows = this.panelRows;
+    const cells = rows.flatMap((row) => ([...row.children] as HTMLElement[]).reverse());
+    // measured on the track (upright on the screen its rows have no box of their own), from no layout
+    this.panel.classList.remove('upright');
+    if (this.panel.parentElement !== this.plane) this.plane.append(this.panel);
+    for (const el of [...rows, ...cells]) el.removeAttribute('style');
+    /** The lines of a layout, bottom up, and each one's screen px (width, height) upright at the HUD's size. */
+    const lines = (stacked: boolean): [HTMLElement[], [number, number][]] => {
+      this.panel.classList.toggle('stacked', stacked);
+      const els = stacked ? cells : rows;
+      for (const el of els) this.sizeText(el, hud, PANEL_LABEL, PANEL_NUM);
+      return [els, this.measureAll(els, samples)];
+    };
+    this.sizeText(this.progressTime, hud, PANEL_LABEL, PANEL_NUM);
+    const timeTall = this.progressTime.offsetHeight + TIME_GAP * hud;
+    const foot = planePoint(c.h, c.x, c.bottom)[1];
+    const edgeAt = (sy: number) => planePoint(c.h, c.x, planeYAt(c.h, c.x, sy))[0];
+    /** The share of its size the panel keeps: every line clear of the screen's edge, the column under the plate. */
+    const share = (sizes: [number, number][], widest: number | null): number => {
+      const tall = sizes.reduce((sum, [, ht]) => sum + ht, 0);
+      let k = Math.min(1, (foot - c.top - timeTall) / tall);
+      // a smaller panel lies lower, where the gear is wider: once more for the lines' new places
+      for (let pass = 0; pass < 2; pass++) {
+        let sy = foot;
+        let least = k;
+        for (const [w, ht] of sizes) {
+          least = Math.min(least, (edgeAt(sy) - c.margin) / (widest ?? w));
+          sy -= ht * k;
+        }
+        k = Math.min(k, least);
+      }
+      return k;
+    };
+    // two columns, every row as wide as the widest; else stacked, each line its own width
+    let [els, sizes] = lines(false);
+    let widest: number | null = Math.max(...sizes.map(([w]) => w));
+    let k = share(sizes, widest);
+    if (k < PANEL_MIN_SHRINK) {
+      [els, sizes] = lines(true);
+      widest = null;
+      k = share(sizes, null);
+    }
+    let timeFoot = c.barTop;
+    if (k < PANEL_MIN_SHRINK) {
+      // no room on the track at a readable size: upright on the screen, in two columns at full size
+      this.panel.classList.remove('stacked');
+      this.panel.classList.add('upright');
+      this.root.append(this.panel);
+      for (const el of [...rows, ...cells]) el.removeAttribute('style');
+      this.sizeText(this.panel, hud, PANEL_LABEL, PANEL_NUM);
+    } else {
+      let y = c.bottom;
+      els.forEach((el, i) => {
+        const ht = sizes[i][1];
+        const u = uprightAt(c.h, c.x, planeYAt(c.h, c.x, planePoint(c.h, c.x, y)[1] - (ht * k) / 2));
+        this.sizeText(el, hud * k * u.k, PANEL_LABEL, PANEL_NUM);
+        // two columns line up: every row as wide on the screen as the widest (a live number wider still grows it leftward)
+        if (widest !== null) el.style.minWidth = `${Math.round(widest * k * u.k * 100) / 100}px`;
+        this.place(el, c.x, y, `translate(-100%, -100%) scaleY(${u.stretch.toFixed(3)})`);
+        y -= ht * k * u.k * u.stretch;
+      });
+      timeFoot = Math.min(timeFoot, y);
+    }
+    // the time left over the bar, or over the panel where that reaches higher; under the plate
+    const timeY = Math.max(planePoint(c.h, c.barX, timeFoot)[1] - TIME_GAP * hud, c.top + this.progressTime.offsetHeight);
+    this.stand(this.progressTime, c.h, c.barX, planeYAt(c.h, c.barX, timeY), hud, PANEL_LABEL, PANEL_NUM);
   }
 
-  /** How wide `box` lays out (plane px) with these texts in place of the live ones, sized by `size` first. */
-  private widest(box: HTMLElement, samples: [HTMLElement, string][], size: () => void): number {
+  /**
+   * Sizes a block of labels and numbers (`label`, `num` screen px, times `size`) upright for where
+   * its top line lies (the lines under it are nearer, so larger) and stands its lower right corner
+   * at (x, y) of the plane; how far up the track it reaches (plane px).
+   */
+  private stand(el: HTMLElement, h: readonly number[], x: number, y: number, size: number, label: number, num: number): number {
+    this.sizeText(el, size, label, num);
+    const tall = el.offsetHeight;
+    const first = el.firstElementChild as HTMLElement;
+    const u = uprightAt(h, x, planeYAt(h, x, planePoint(h, x, y)[1] - tall + first.offsetTop + first.offsetHeight / 2));
+    this.sizeText(el, size * u.k, label, num);
+    this.place(el, x, y, `translate(-100%, -100%) scaleY(${u.stretch.toFixed(3)})`);
+    return tall * u.k * u.stretch;
+  }
+
+  /** How large each of `els` lays out (px) with these texts in place of the live ones. */
+  private measureAll(els: HTMLElement[], samples: [HTMLElement, string][]): [number, number][] {
+    const live = samples.map(([el]) => el.innerHTML);
+    samples.forEach(([el, text]) => (el.textContent = text));
+    const sizes = els.map((el): [number, number] => [el.offsetWidth, el.offsetHeight]);
+    samples.forEach(([el], i) => (el.innerHTML = live[i]));
+    return sizes;
+  }
+
+  /** How large `box` lays out (plane px) with these texts in place of the live ones, sized by `size` first. */
+  private measure(box: HTMLElement, samples: [HTMLElement, string][], size: () => void): [number, number] {
     size();
     const live = samples.map(([el]) => el.innerHTML);
     samples.forEach(([el, text]) => (el.textContent = text));
-    const width = box.scrollWidth;
+    const measured: [number, number] = [box.scrollWidth, box.scrollHeight];
     samples.forEach(([el], i) => (el.innerHTML = live[i]));
-    return width;
+    return measured;
   }
 
   /** Labels and numbers of a block on the plane, `k` plane px to a screen px (gaps scale with the numbers). */
@@ -426,28 +723,35 @@ export class Hud {
     el.style.transform = transform;
   }
 
-  /** HI-SPEED and the green number beside the gear (on start and when they change). */
-  setSpeed(hiSpeed: number, green: number): void {
-    this.speedNum.textContent = hiSpeed.toFixed(hiSpeed % 1 === 0 ? 1 : 2);
-    this.speedGreen.textContent = `녹색 ${Math.round(green)}`;
+  /** SPEED beside the gear (on start and when it changes). */
+  setSpeed(hiSpeed: number): void {
+    this.speedNum.textContent = speedText(hiSpeed);
+  }
+
+  /** The sync test's offsets (ms) under the song's line, written when they change. */
+  setSyncOffsets(visualMs: number, inputMs: number): void {
+    const key = `${visualMs} ${inputMs}`;
+    if (key === this.lastSync) return;
+    this.lastSync = key;
+    const text = (ms: number) => `${ms > 0 ? '+' : ''}${ms}ms`;
+    if (this.syncVisual) this.syncVisual.textContent = text(visualMs);
+    if (this.syncInput) this.syncInput.textContent = text(inputMs);
   }
 
   showJudge(e: JudgeEvent, perfNow: number): void {
     this.judgeAt = perfNow;
     this.judgeLabel.innerHTML = judgementHtml(e.label, Boolean(this.type.split));
     this.judgeLabel.className = `hud-judge-label ${e.cls}`;
-    let sub = '';
-    if (!e.isBreak && e.errorMs !== null && e.percent < 100) sub = e.errorMs < 0 ? 'FAST' : 'SLOW';
-    if (this.showErrorMs && e.errorMs !== null && !e.isBreak) {
-      sub += `${sub ? ' ' : ''}${e.errorMs > 0 ? '+' : ''}${e.errorMs.toFixed(1)}ms`;
-    }
-    this.judgeSub.textContent = sub;
-    this.judgeSub.className = `hud-judge-sub ${e.errorMs !== null && e.errorMs < 0 ? 'fast' : 'slow'}`;
+    // FAST / SLOW off the best judgement, the error in whole ms (exact ones in a neutral colour)
+    const error = e.isBreak ? null : e.errorMs;
+    this.judgeFastSlow.textContent = error !== null && e.percent < 100 ? (error < 0 ? 'FAST' : 'SLOW') : '';
+    this.judgeMs.textContent = error !== null && this.showErrorMs ? errorText(error) : '';
+    this.judgeSub.className = `hud-judge-sub ${error !== null ? errorKind(error) : ''}`;
     // restart the pop animation
     this.judgePop.classList.remove('pop');
     void this.judgePop.offsetWidth;
     this.judgePop.classList.add('pop');
-    this.judgeBox.style.opacity = '1';
+    this.judgeBox.style.opacity = this.judgeOpacity;
     this.setCombo(e.combo);
   }
 
@@ -467,15 +771,38 @@ export class Hud {
     }
   }
 
-  /** Short message in the middle of the screen (hi-speed, covers). */
+  /** Short message under the judge line (hi-speed, covers, practice). */
   showToast(text: string, perfNow: number): void {
     this.toastAt = perfNow;
     this.toast.textContent = text;
     this.toast.style.opacity = '1';
   }
 
-  setPracticeLabel(text: string): void {
-    this.loop.textContent = text;
+  /**
+   * Back to how a play starts (a retry, a practice loop): no combo, judgement, message, banner,
+   * and every shown value written again at the next update.
+   */
+  reset(): void {
+    this.comboBump?.cancel();
+    this.comboBump = null;
+    this.setCombo(0);
+    this.judgeAt = -Infinity;
+    this.judgeBox.style.opacity = '0';
+    this.toastAt = -Infinity;
+    this.toast.style.opacity = '0';
+    this.hideBanner();
+    this.lastScore = -1;
+    this.lastSub = '';
+    this.lastMaxCombo = -1;
+    this.lastPace = undefined;
+    this.lastGauge = -1;
+    this.lastReady = null;
+    this.lastFever = '';
+    this.lastProgress = -1;
+    this.lastRemaining = -1;
+    this.lastBpm = -1;
+    this.lastSkip = null;
+    this.lastCounts = '';
   }
 
   update(perfNow: number, stats: HudStats): void {
@@ -500,26 +827,50 @@ export class Hud {
     const pace = stats.pace === null ? null : Math.round(stats.pace);
     if (pace !== this.lastPace) {
       this.lastPace = pace;
-      this.pace.textContent = pace === null ? '' : `${pace >= 0 ? '+' : '−'}${Math.abs(pace).toLocaleString('en-US')}`;
-      this.pace.className = `hud-num hud-pace ${pace !== null && pace < 0 ? 'behind' : 'ahead'}`;
+      // a dash: nothing to compare with (a best without its replay under EX-SCORE or 등급형)
+      this.pace.textContent = pace === null ? '—' : `${pace >= 0 ? '+' : '−'}${Math.abs(pace).toLocaleString('en-US')}`;
+      this.pace.className = `hud-num hud-pace ${pace === null ? '' : pace < 0 ? 'behind' : 'ahead'}`;
     }
-    // the gauge fills whole cells, from the bottom (a clip, no layout while playing)
-    const cells = Math.round((Math.min(100, Math.max(0, stats.gauge)) / 100) * GAUGE_CELLS);
-    const gauge = Math.round(stats.gauge);
+    if (this.counter) {
+      const counts = `${stats.breaks}|${stats.fast}|${stats.slow}`;
+      if (counts !== this.lastCounts) {
+        this.lastCounts = counts;
+        this.misses.textContent = String(stats.breaks);
+        this.fastCount.textContent = String(stats.fast);
+        this.slowCount.textContent = String(stats.slow);
+      }
+    }
+    const gauge = gaugeShown(stats.gauge, this.survival);
     if (gauge !== this.lastGauge) {
       this.lastGauge = gauge;
+      // whole cells from the bottom (a clip, no layout while playing), rounded down as the number
+      const cells = gaugeCells(gauge);
       this.gaugeFill.style.clipPath = `inset(${(100 * (GAUGE_CELLS - cells)) / GAUGE_CELLS}% 0 0 0)`;
       this.gaugeNum.textContent = `${gauge}%`;
+      this.gaugeValue.classList.toggle('cleared', !this.survival && stats.gauge >= this.gaugeClearShare * 100);
     }
-    const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * 1000) / 1000;
+    const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * PROGRESS_STEPS);
     if (progress !== this.lastProgress) {
       this.lastProgress = progress;
-      this.playhead.style.left = `${progress * 100}%`;
+      this.progressFill.style.transform = `scaleY(${progress / PROGRESS_STEPS})`;
+    }
+    const remaining = Math.ceil(Math.max(0, stats.remainingMs) / 1000 - 1e-6);
+    if (remaining !== this.lastRemaining) {
+      this.lastRemaining = remaining;
+      this.remaining.textContent = clockText(remaining * 1000);
+    }
+    if (stats.bpm !== this.lastBpm) {
+      this.lastBpm = stats.bpm;
+      this.bpm.textContent = String(stats.bpm);
     }
     if (stats.ready !== this.lastReady) {
       this.lastReady = stats.ready;
       this.ready.textContent = stats.ready;
       this.ready.style.opacity = stats.ready ? '1' : '0';
+    }
+    if (stats.skip !== this.lastSkip) {
+      this.lastSkip = stats.skip;
+      this.skip.style.opacity = stats.skip ? '1' : '0';
     }
     const f = stats.fever;
     const fill = f.active ? f.remaining : f.gauge;
@@ -533,16 +884,34 @@ export class Hud {
     }
   }
 
+  /** The end of a play: its lamp in the middle, the judgement and the combo out of its way. */
   showBanner(text: string, kind: string): void {
     this.banner.textContent = text;
     this.banner.className = `hud-banner show ${kind}`;
+    this.root.classList.add('ended');
   }
 
   hideBanner(): void {
     this.banner.className = 'hud-banner';
+    this.root.classList.remove('ended');
   }
 
   dispose(): void {
     this.root.innerHTML = '';
   }
+}
+
+/**
+ * The gauge as shown: whole percent, rounded down, so it never reads 80 % before it clears at 80 %
+ * (a survival gauge still alive shows at least 1 %).
+ */
+export function gaugeShown(value: number, survival: boolean): number {
+  const v = Math.min(100, Math.max(0, value));
+  const shown = Math.floor(v + 1e-9);
+  return survival && v > 0 ? Math.max(1, shown) : shown;
+}
+
+/** The gauge's lit cells for a shown percent (rounded down: a cell is lit once it is full). */
+export function gaugeCells(shown: number): number {
+  return Math.floor((shown * GAUGE_CELLS) / 100 + 1e-9);
 }

@@ -60,15 +60,24 @@ export interface KeyModeConfig {
 
 export interface CameraPreset {
   label: string;
+  /**
+   * Orthographic: parallel rays (the plane preset), so the rails stay parallel and the notes keep
+   * one speed up the whole track; `fov` then sizes the view as it would at the target. Default perspective.
+   */
+  projection?: 'perspective' | 'orthographic';
   height: number;
   distance: number;
   lookAhead: number;
   fov: number;
+  /** Share of the track's length up it where the floor's fog starts (default 0.55, see fogStartZ). */
+  fogStart?: number;
 }
 
 export interface CameraConfig {
   trackWidth: number;
   trackLength: number;
+  /** Where the play puts the judge line: this share of the screen's height from the top. */
+  judgeLineY: number;
   presets: Record<string, CameraPreset>;
   default: string;
   /** Strength of the chart's camera cues (see render/cameraFx.ts). */

@@ -1,5 +1,5 @@
 import type { ReplayData } from '../engine/replay';
-import type { DifficultySystemId } from '../engine/config';
+import type { DifficultySystemId, JudgementModeId } from '../engine/config';
 import type { Chart, ChartSection, KeyModeId, StemName } from '../engine/types';
 
 export type SongStatus = 'queued' | 'analyzing' | 'ready' | 'error';
@@ -15,15 +15,42 @@ export interface ScoreRecord {
   seed: number;
   kind?: 'generated' | 'edited' | 'imported';
   name?: string;
+  /** The level an imported chart's file gives it, as written. */
+  sourceLevel?: string | null;
+  /** A generated chart on its tier's default pattern (no target level), and the generator that made it. */
+  defaultSeed?: boolean;
+  generatorVersion?: string | null;
+  /** The best play's base score and RATE. */
   score: number;
   rate: number;
+  /**
+   * The best of any play: MAX COMBO, and the fewest BREAK of the plays that reached the end (null:
+   * none did; a run its gauge stopped never judged the rest).
+   */
   maxCombo: number;
+  minBreaks?: number | null;
   lamp: string;
+  /** The best EX-SCORE and grade-weighted score of the plays under those score rules (null: none). */
+  exScore?: number | null;
+  weightedScore?: number | null;
   plays: number;
   /** Score id of the best play and whether its replay was kept. */
   bestScoreId?: number;
   hasReplay?: boolean;
+  /** When the chart was last played (seconds since 1970, as createdAt). */
+  lastPlayedAt?: number;
+  /**
+   * The same bests of the plays under each judgement mode played (a song's own records only, not
+   * the library's list): a play is compared with those of its mode.
+   */
+  byMode?: Partial<Record<JudgementModeId, ModeRecord>>;
 }
+
+/** A chart's bests under one judgement mode, as the record's own. */
+export type ModeRecord = Pick<
+  ScoreRecord,
+  'score' | 'rate' | 'maxCombo' | 'minBreaks' | 'lamp' | 'exScore' | 'weightedScore' | 'plays' | 'bestScoreId' | 'hasReplay' | 'lastPlayedAt'
+>;
 
 /** An edited or imported chart kept in the library. */
 export interface SavedChart {
@@ -36,6 +63,9 @@ export interface SavedChart {
   kind: 'edited' | 'imported';
   name: string;
   createdAt: number;
+  /** The file's format (imported charts) and the level it gives the chart, as written. */
+  format?: ExportFormat | null;
+  sourceLevel?: string | null;
 }
 
 export interface ImportResult {
@@ -67,6 +97,8 @@ export interface Song {
   audioHash: string;
   durationMs: number;
   hasCover: boolean;
+  /** When the cover was last set or removed (null: as it came), so a new one is fetched again. */
+  coverAt?: number | null;
   status: SongStatus;
   progress: number;
   progressLabel: string;
@@ -253,6 +285,8 @@ export const api = {
   sections: (id: string) => request<SongSections>(`/api/songs/${id}/sections`),
   sketch: (id: string) => request<SongSketch>(`/api/songs/${id}/sketch`),
   generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean }>(`/api/songs/${id}/charts`, json(req)),
+  /** The chart's meta only (made and kept by the server like the whole chart). */
+  chartMeta: async (id: string, req: ChartRequest) => (await request<{ meta: ServerChart['meta']; cached: boolean }>(`/api/songs/${id}/charts`, json({ ...req, brief: true }))).meta,
   saveScore: (record: {
     chartId: string;
     songId: string;
@@ -274,6 +308,12 @@ export const api = {
     return (await request<{ song: Song }>(`/api/songs/${id}/bga`, { method: 'POST', body: form })).song;
   },
   deleteBga: (id: string) => request<void>(`/api/songs/${id}/bga`, { method: 'DELETE' }),
+  uploadCover: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await request<{ song: Song }>(`/api/songs/${id}/cover`, { method: 'POST', body: form })).song;
+  },
+  deleteCover: (id: string) => request<void>(`/api/songs/${id}/cover`, { method: 'DELETE' }),
   savedCharts: async (songId: string) => (await request<{ charts: SavedChart[] }>(`/api/songs/${songId}/charts`)).charts,
   chart: async (chartId: string) => (await request<{ chart: ServerChart }>(`/api/charts/${chartId}`)).chart,
   saveEditedChart: async (songId: string, baseChartId: string, notes: Chart['notes'], name: string) =>
@@ -294,6 +334,7 @@ export const api = {
     `/api/charts/${chartId}/export?format=${format}${offsetMs ? `&offsetMs=${offsetMs}` : ''}`,
   audioUrl: (id: string) => `/api/songs/${id}/audio`,
   stemUrl: (id: string, stem: StemName) => `/api/songs/${id}/stems/${stem}`,
-  coverUrl: (id: string) => `/api/songs/${id}/cover`,
+  /** The cover of a song (`song.coverAt` keeps a changed one from being shown from the cache). */
+  coverUrl: (song: Pick<Song, 'id' | 'coverAt'>) => `/api/songs/${song.id}/cover${song.coverAt ? `?v=${Math.round(song.coverAt * 1000)}` : ''}`,
   bgaUrl: (id: string) => `/api/songs/${id}/bga`,
 };

@@ -4,10 +4,10 @@ import { getAudioEngine } from './AudioEngine';
 export const PREVIEW_LENGTH_MS = 60000;
 /** The preview plays at this share of the music volume. */
 export const PREVIEW_VOLUME = 0.6;
-const FADE_IN_MS = 1000;
-const FADE_OUT_MS = 1500;
-/** Leaving the song (another song, a play) fades the preview out this fast. */
-const STOP_FADE_MS = 300;
+const FADE_IN_MS = 3000;
+const FADE_OUT_MS = 3500;
+/** Leaving the song (another song, a play) fades the preview out over this long. */
+const STOP_FADE_MS = 2300;
 const TICK_MS = 30;
 /** Behind the settings the preview plays a little quieter and muffled, as if from the next room. */
 export const MUFFLED_GAIN = 0.7;
@@ -39,7 +39,7 @@ export function previewLength(durationMs: number, startMs: number): number {
 
 /**
  * The song preview: the highlight from `startMs` fades in, plays PREVIEW_LENGTH_MS (fading out
- * before the song's end when that comes first) and starts again. `stop` fades it out quickly.
+ * before the song's end when that comes first) and starts again. `stop` fades it out.
  */
 export class SongPreview {
   private readonly audio: HTMLAudioElement;

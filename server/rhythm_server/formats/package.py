@@ -14,12 +14,15 @@ from pathlib import Path, PurePosixPath
 from .bms import decode_text, parse_bms
 from .bmson import parse_bmson
 from .common import FormatError, ParsedChart
+from .images import IMAGE_EXTENSIONS, MAX_IMAGE_BYTES, image_stem
 from .keysounds import SOUND_EXTENSIONS, SoundIndex
 from .osu import parse_osu
 
 CHART_EXTENSIONS = {".osu": "osu", ".bms": "bms", ".bme": "bms", ".bml": "bms", ".pms": "bms", ".bmson": "bmson"}
 ARCHIVE_EXTENSIONS = (".zip", ".osz")
-IMPORT_EXTENSIONS = frozenset(CHART_EXTENSIONS) | frozenset(SOUND_EXTENSIONS) | frozenset(ARCHIVE_EXTENSIONS)
+# a folder's pictures come only when a chart names them (the client sends those)
+IMPORT_EXTENSIONS = frozenset(CHART_EXTENSIONS) | frozenset(SOUND_EXTENSIONS) | frozenset(IMAGE_EXTENSIONS) | frozenset(ARCHIVE_EXTENSIONS)
+UNPACKED_EXTENSIONS = frozenset(CHART_EXTENSIONS) | frozenset(SOUND_EXTENSIONS)
 MAX_ARCHIVE_BYTES = 4 * 1024**3
 MAX_FILES = 20_000
 
@@ -62,7 +65,8 @@ def _member_name(info: zipfile.ZipInfo) -> str:
 
 
 def extract_archive(path: Path, dest: Path) -> list[str]:
-    """Extract the chart and sound files of a .zip/.osz; returns warnings."""
+    """Extract the chart and sound files of a .zip/.osz (its pictures wait for extract_images);
+    returns warnings."""
     warnings: list[str] = []
     with zipfile.ZipFile(path) as zf:
         members = [m for m in zf.infolist() if not m.is_dir()]
@@ -75,7 +79,7 @@ def extract_archive(path: Path, dest: Path) -> list[str]:
             if rel is None:
                 warnings.append(f"건너뛴 경로: {m.filename}")
                 continue
-            if PurePosixPath(rel).suffix.lower() not in IMPORT_EXTENSIONS - set(ARCHIVE_EXTENSIONS):
+            if PurePosixPath(rel).suffix.lower() not in UNPACKED_EXTENSIONS:
                 continue
             target = dest / rel
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -83,6 +87,24 @@ def extract_archive(path: Path, dest: Path) -> list[str]:
                 while chunk := src.read(1 << 20):
                     out.write(chunk)
     return warnings
+
+
+def extract_images(path: Path, dest: Path, root: Path, wanted: set[str]) -> None:
+    """Extract the pictures of a .zip/.osz (unpacked into `dest` under the package's `root`) that
+    its charts name: `wanted` holds their image_stem from the root. The rest (a BMS's video
+    frames) stays packed."""
+    prefix = dest.relative_to(root).as_posix()
+    with zipfile.ZipFile(path) as zf:
+        for m in zf.infolist():
+            rel = safe_relpath(_member_name(m))
+            if m.is_dir() or rel is None or PurePosixPath(rel).suffix.lower() not in IMAGE_EXTENSIONS or m.file_size > MAX_IMAGE_BYTES:
+                continue
+            if image_stem(rel if prefix in ("", ".") else f"{prefix}/{rel}") not in wanted:
+                continue
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(m) as src, open(target, "wb") as out:
+                out.write(src.read(MAX_IMAGE_BYTES))
 
 
 def scan_package(root: Path) -> tuple[list[ChartGroup], list[str]]:

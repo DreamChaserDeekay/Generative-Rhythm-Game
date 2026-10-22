@@ -41,6 +41,9 @@ class ParsedChart:
     audio_file: str | None = None
     genre: str = ""
     level_hint: str = ""
+    # pictures the file names for the song, the one to try first first (BMS #STAGEFILE, #BANNER;
+    # the osu! background)
+    images: list[str] = field(default_factory=list)
     preview_ms: float | None = None
     source_name: str = ""
     # notes removed because they overlapped others in the file

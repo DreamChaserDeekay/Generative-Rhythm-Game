@@ -1,9 +1,11 @@
 {
-  "description": "SDVX식 3D 트랙 카메라 프리셋. 단위는 월드 좌표(트랙 폭 trackWidth 기준). 판정선은 z=0, 트랙은 -z 방향으로 trackLength만큼 뻗는다. 16:9 화면에서 판정선이 화면 높이의 약 84%, 트랙 끝이 약 12%에 오도록 맞춘 값이다. fx는 채보의 카메라 연출(effects) 세기: tilt 값 ±1일 때 최대 기울기(도), zoom 값 1일 때 시야각을 줄이는 비율. 설정의 카메라 연출 세기(0~1)를 곱해 쓴다.",
+  "description": "SDVX식 3D 트랙 카메라 프리셋. 단위는 월드 좌표(트랙 폭 trackWidth 기준). 판정선은 z=0, 트랙은 -z 방향으로 trackLength만큼 뻗는다. 게임은 원근을 그대로 둔 채 화면만 위아래로 옮겨 판정선을 judgeLineY(화면 위에서부터의 비율)에 둔다. 프리셋 값은 16:9 화면에서 그렇게 옮긴 뒤 트랙 끝이 화면 위에서 약 4~5%(LOW는 약 15%)에 오도록 맞춘 값이다. PLANE은 projection이 orthographic인 완전한 평면(직교 투영) 시점이다. 광선이 평행해 레일이 화면에서 평행하고(트랙 끝 폭이 판정선 폭과 같다) 노트가 화면 위에서 아래까지 같은 빠르기로 내려온다. 내려다보는 각도는 다른 프리셋처럼 height·distance·lookAhead로 정하고, fov는 카메라에서 lookAhead 지점까지의 거리에서 그 시야각의 원근 카메라가 담는 높이를 화면 높이로 삼는다. 판정선(judgeLineY)과 트랙 끝(화면 위에서 약 4.4%)의 높이가 정해져 있으므로 각도(약 15.2°)가 트랙 폭을 정한다: 1280x720에서 판정선 폭이 약 398px이다. 바닥 안개는 트랙 길이의 fogStart(기본 0.55) 지점부터 트랙 끝까지 짙어진다. PLANE은 트랙의 먼 쪽이 화면에서 줄어들지 않으므로 0.835부터 시작해, 안개가 화면에서 차지하는 몫이 SDVX와 비슷하다(레인 높이의 약 16.5%). 판정선 아래는 기어 하단(스킨별 패널과 키 표시등)이 차지한다. fx는 채보의 카메라 연출(effects) 세기: tilt 값 ±1일 때 최대 기울기(도), zoom 값 1일 때 시야각을 줄이는 비율. 설정의 카메라 연출 세기(0~1)를 곱해 쓴다. 줌과 기울기는 판정선 가운데를 중심으로 걸려 판정선은 제자리에 있다(PLANE도 시야각을 같은 비율로 줄여 원근 카메라만큼 화면이 커지고, 기울기는 판정선 가운데를 지나는 시선 방향 축으로 돈다).",
   "trackWidth": 8.0,
   "trackLength": 40.0,
+  "judgeLineY": 0.77,
   "presets": {
-    "FLAT": { "label": "약한 원근", "height": 17.0, "distance": 17.2, "lookAhead": 10.2, "fov": 35 },
+    "PLANE": { "label": "평면", "projection": "orthographic", "height": 99.4, "distance": 350, "lookAhead": 15, "fov": 2.193, "fogStart": 0.835 },
+    "FLAT": { "label": "약한 원근", "height": 16.7, "distance": 19.9, "lookAhead": 10.2, "fov": 33.3 },
     "SDVX": { "label": "SDVX", "height": 8.73, "distance": 10.73, "lookAhead": 7.8, "fov": 40 },
     "LOW": { "label": "강한 원근", "height": 6.06, "distance": 6.47, "lookAhead": 8.11, "fov": 55 }
   },

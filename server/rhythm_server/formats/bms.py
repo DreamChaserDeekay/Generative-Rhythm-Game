@@ -445,7 +445,8 @@ def parse_bms(data: bytes, source_name: str = "", seed: int = 0) -> ParsedChart:
     except ValueError:
         level = 0
     playlevel = head.get("PLAYLEVEL", "")
-    chart_name = head.get("SUBTITLE", "") or " ".join(x for x in (DIFFICULTY_NAMES.get(level, ""), f"Lv.{playlevel}" if playlevel else "") if x)
+    # its name: the subtitle, else its difficulty's (the level it gives goes beside it: sourceLevel), else that level
+    chart_name = head.get("SUBTITLE", "") or DIFFICULTY_NAMES.get(level, "") or (f"Lv.{playlevel}" if playlevel else "")
     return ParsedChart(
         format="bms",
         key_mode=key_mode,
@@ -458,6 +459,7 @@ def parse_bms(data: bytes, source_name: str = "", seed: int = 0) -> ParsedChart:
         sounds=sounds,
         genre=head.get("GENRE", ""),
         level_hint=head.get("PLAYLEVEL", ""),
+        images=[name for name in (head.get("STAGEFILE", ""), head.get("BANNER", "")) if name],
         source_name=source_name,
         dropped=dropped,
     )

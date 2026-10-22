@@ -1,8 +1,41 @@
 import { expect, type Page } from '@playwright/test';
 import type { DifficultySystemId } from '../src/engine/config';
 
+/**
+ * A library of songs that failed to analyse (the list and the controls, with nothing to play), or
+ * of `ready` ones that only the routes of a test answer for.
+ */
+export function fakeSongs(n: number, status: 'error' | 'ready' = 'error') {
+  return Array.from({ length: n }, (_, i) => ({
+    id: (0xa000 + i).toString(16).padStart(16, '0'),
+    title: `Fake Song ${String(i + 1).padStart(2, '0')}`,
+    artist: 'E2E',
+    album: '',
+    audioHash: `fake${i}`,
+    durationMs: 60_000,
+    hasCover: false,
+    status,
+    progress: status === 'ready' ? 1 : 0,
+    progressLabel: '',
+    error: status === 'error' ? 'e2e' : null,
+    bpm: null,
+    bpmMin: null,
+    bpmMax: null,
+    previewMs: null,
+    overrides: {},
+    createdAt: i,
+    analyzedAt: null,
+    analyzer: {},
+    hasBga: false,
+    bgaOffsetMs: 0,
+    bgaYoutube: null,
+    sections: null,
+    records: [] as Record<string, unknown>[],
+  }));
+}
+
 /** Opens the song select's play options (Space), on a tab when one is given. */
-export async function playOptions(page: Page, tab?: 'rules' | 'generation') {
+export async function playOptions(page: Page, tab?: 'rules' | 'gear' | 'generation') {
   const panel = page.getByTestId('play-options');
   if (!(await panel.isVisible())) await page.getByTestId('hint-options').click();
   await expect(panel).toBeVisible();
@@ -11,7 +44,7 @@ export async function playOptions(page: Page, tab?: 'rules' | 'generation') {
 
 /** Plays the next chart on autoplay. */
 export async function autoplay(page: Page) {
-  await playOptions(page);
+  await playOptions(page, 'rules');
   await page.getByTestId('autoplay-toggle').check();
 }
 
@@ -37,20 +70,28 @@ export async function songInfo(page: Page) {
   await expect(panel).toBeVisible();
 }
 
-/** Presses a tool of the song info panel (sync-auto, open-calibration, open-replay). */
-export async function tool(page: Page, testId: 'sync-auto' | 'open-calibration' | 'open-replay') {
+/** Presses a tool of the song info panel: the sync test (on autoplay, by hand) or a step of the calibration. */
+export async function tool(page: Page, testId: 'sync-auto' | 'sync-play' | 'open-calibration' | 'open-visual-calibration') {
   await songInfo(page);
   await page.getByTestId(testId).click();
 }
 
-/** Adds a song from the top bar's menu (demo-button, upload-button, import-button …). */
+/**
+ * Adds a song from the top bar's menu (demo-button, upload-button, import-button …). The demo takes
+ * a few seconds to make: this waits until it is made and chosen, as the song chosen before stays
+ * until then (and its chart comes by itself).
+ */
 export async function addFromMenu(page: Page, testId: 'demo-button' | 'upload-button' | 'import-button' | 'import-folder-button') {
   await page.getByTestId('add-menu').click();
+  const demo = testId === 'demo-button' ? page.waitForResponse((r) => r.url().endsWith('/api/songs/demo'), { timeout: 60_000 }) : null;
   await page.getByTestId(testId).click();
+  if (!demo) return;
+  await demo;
+  await expect(page.getByTestId('busy')).toHaveCount(0, { timeout: 30_000 });
 }
 
 /** Opens a tab of the settings (the settings are open). */
-export async function settingsTab(page: Page, tab: 'play' | 'judge' | 'display' | 'sound' | 'keys' | 'pad' | 'advanced') {
+export async function settingsTab(page: Page, tab: 'play' | 'judge' | 'speed' | 'gear' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced') {
   await page.getByTestId(`settings-tab-${tab}`).click();
   await expect(page.getByTestId(`settings-tab-${tab}`)).toHaveAttribute('aria-selected', 'true');
 }
