@@ -355,7 +355,11 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     4+5: 0.2-3.7% of their two-note chords from level 2 to 14), which no chord shape cost covered
     before generator 0.9.13 (11-13% of ours). They play one hand with a key between (1+3) more than
     we did on normal charts and half as often on MASTER (PATTERN_DESIGN 29). The default system's
-    7K chords pay hands.chordShapes by skill; other systems and key modes have none."""
+    7K chords pay hands.chordShapes by skill; other systems and key modes have none. Since 0.9.19
+    the default system has no soft role regions at levels 6 and 10 and its own refitted table, in
+    which symmetric pairs pay a cost too (without the regions they ran to 34-36% against the human
+    22-26%), so 3+4 stays above 3+5 by a smaller margin while landing on the human share (level 10
+    1.4% against 1.5%; PATTERN_DESIGN 38)."""
     from rhythm_server.generator.motifs import SlotPlan, _shape_cost, motif_context, pair_shape
 
     lanes = lane_infos("7K+1S")
@@ -365,7 +369,7 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     assert shapes == ["symmetric", "middleAdjacent", "middle", "adjacent", "oneHandGap", "lopsided"]
     for skill in (0.1, 0.4, 0.7, 0.96):
         grg = motif_context(lanes, skill, system="GRG", key_mode="7K+1S")
-        assert _shape_cost(grg, sp, (2, 3)) > _shape_cost(grg, sp, (2, 4)) + 0.1, skill  # 3+4 well above 3+5
+        assert _shape_cost(grg, sp, (2, 3)) > _shape_cost(grg, sp, (2, 4)) + 0.05, skill  # 3+4 above 3+5
     normal, master = (motif_context(lanes, s, system="GRG", key_mode="7K+1S") for s in (0.4, 0.96))
     assert _shape_cost(normal, sp, (0, 2)) < _shape_cost(normal, sp, (1, 4))  # 1+3 below 2+5 on NORMAL ...
     assert _shape_cost(master, sp, (0, 2)) > _shape_cost(master, sp, (1, 4))  # ... above it on MASTER
