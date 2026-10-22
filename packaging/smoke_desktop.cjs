@@ -40,8 +40,8 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: 180000 });
   await win.screenshot({ path: path.join(outDir, '1-song-select.png') });
-  await win.getByTestId('generate-button').click();
-  // the chart's numbers are in the song info (I)
+  // the chart's numbers are in the song info (I), which gets the default pattern's chart by itself
+  // (F5, the button that made the chart before, now makes a new pattern)
   await win.getByTestId('hint-info').click();
   await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
   await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
