@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { addFromMenu, autoplay, chooseSetting, settingsTab, songInfo, tool } from './songSelect';
+import { addFromMenu, autoplay, chooseSetting, fakeSongs, playOptions, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -28,6 +28,36 @@ function trackErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   return errors;
+}
+
+/**
+ * The widest run of FXL's colour (the default palette's purple) along a row of the play's track
+ * above the judge line, and its middle, as shares of the screen's width: a side note in a lane of
+ * its own is a narrow one at the track's edge; laid over the keys, a bar across their left half.
+ */
+async function sideBar(page: Page): Promise<{ width: number; middle: number }> {
+  const screen = page.viewportSize() ?? { width: 1280, height: 720 };
+  // from near the track's far end down to just above the judge line (77 % of the height)
+  const png = await page.screenshot({ clip: { x: 0, y: Math.round(screen.height * 0.1), width: screen.width, height: Math.round(screen.height * 0.62) } });
+  return page.evaluate(async (data) => {
+    const picture = await createImageBitmap(await (await fetch(data)).blob());
+    const canvas = new OffscreenCanvas(picture.width, picture.height);
+    const g = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    g.drawImage(picture, 0, 0);
+    const { width, height } = canvas;
+    const px = g.getImageData(0, 0, width, height).data;
+    const widest = { width: 0, middle: 0 };
+    for (let y = 0; y < height; y += 2) {
+      let run = 0;
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const [r, gr, b] = [px[i], px[i + 1], px[i + 2]];
+        run = b > 120 && b - r > 25 && r - gr > 15 ? run + 1 : 0;
+        if (run / width > widest.width) Object.assign(widest, { width: run / width, middle: (x - run / 2) / width });
+      }
+    }
+    return widest;
+  }, `data:image/png;base64,${png.toString('base64')}`);
 }
 
 test('stem keysound, background video, camera effects and a skin on a generated chart', async ({ page }) => {
@@ -227,6 +257,69 @@ test('the plane camera and smaller or no hit effects, in the settings and in a p
   });
   await page.goto('/');
   await play('no-hits-lift');
+  expect(errors).toEqual([]);
+});
+
+test('side notes over half the keys (반쪽 덮기): in the settings and on the song select with their previews, and in a play', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: fakeSongs(3) } }));
+  // slow, so each side note of the sync test is in view for a few of the checks of its drawing below
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', hiSpeed: 1 }));
+  });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  const row = page.getByTestId('opt-side-notes');
+  const head = page.locator('.settings-side-head');
+  await expect(row).toHaveAttribute('data-value', 'lanes');
+  await expect(row).toContainText('별도 레인');
+  // on its row the preview has side lanes, though the last key mode has none; on another row it has that mode again
+  await expect(head).toContainText('7K+1S');
+  await row.focus();
+  await expect(head).toContainText('6K+FX');
+  await expect(page.getByTestId('settings-help')).toContainText('DJMAX');
+  await page.keyboard.press('ArrowRight');
+  await expect(row).toHaveAttribute('data-value', 'half');
+  await expect(row).toContainText('반쪽 덮기');
+  await expect(page.getByTestId('gear-preview')).toBeVisible();
+  expect(await stored()).toMatchObject({ sideNotes: 'half' });
+  await page.keyboard.press('ArrowDown');
+  await expect(head).toContainText('7K+1S');
+  await page.getByRole('button', { name: /완료/ }).click();
+
+  // the song select's speed and gear rows have it on a key mode with side lanes only
+  await playOptions(page, 'gear');
+  await expect(page.getByTestId('quick-speed')).toBeVisible();
+  await expect(page.getByTestId('quick-side-notes')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.locator('.key-modes').getByRole('button', { name: '6K+FX', exact: true }).click();
+  await playOptions(page, 'gear');
+  const quick = page.getByTestId('quick-side-notes');
+  await expect(quick).toHaveAttribute('data-value', 'half');
+  await quick.focus();
+  await expect(page.getByTestId('play-options-help')).toContainText('DJMAX');
+  await page.keyboard.press('ArrowRight');
+  await expect(quick).toHaveAttribute('data-value', 'lanes');
+  expect(await stored()).toMatchObject({ sideNotes: 'lanes' });
+  await page.keyboard.press('ArrowLeft');
+  await expect(quick).toHaveAttribute('data-value', 'half');
+  await page.keyboard.press('Escape');
+
+  // the sync test on 6K+FX draws its side notes over the keys: from the 17th beat (10 s in) bars of
+  // FXL's colour across the left half, wider than a tenth of the screen (its own lane never is)
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-side-notes', 'half');
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+  let bar = { width: 0, middle: 0 };
+  await expect.poll(async () => (bar = await sideBar(page)).width, { timeout: 30_000, intervals: [250] }).toBeGreaterThan(0.1);
+  expect(bar.middle).toBeLessThan(0.5);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

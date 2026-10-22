@@ -32,6 +32,17 @@ export interface DeckLane {
   kind: KeyKind;
 }
 
+/**
+ * The light of a side lane laid over half the keys (반쪽 덮기): a bar across its half under the row
+ * of lane lights, which it has no place in. Plane px from the deck's left edge and top.
+ */
+export interface DeckSide {
+  left: number;
+  width: number;
+  top: number;
+  depth: number;
+}
+
 /** The deck in plane px (the sheets' px, 73.65 to a track unit): y runs from just under the judge line toward the camera. */
 export interface DeckSpec {
   width: number;
@@ -43,7 +54,10 @@ export interface DeckSpec {
   keyDepth: number;
   /** How much longer along the track round things are drawn, so they look round where the camera flattens it. */
   stretch: number;
+  /** The lanes of the row (a side lane laid over the keys is none of them). */
   lanes: DeckLane[];
+  /** The side bars under the row (none unless side lanes are laid over the keys). */
+  sides: DeckSide[];
   colours: SkinColors;
 }
 
@@ -105,8 +119,11 @@ function separators(g: CanvasRenderingContext2D, s: DeckSpec, y0: number, y1: nu
   }
 }
 
+/** Where the lower part of a design may start: under the lights, and under the side bars when there are some. */
+export const lowerTop = (s: DeckSpec) => Math.max(keyBottom(s), ...s.sides.map((b) => b.top + b.depth));
+
 /** Room under the lights for the lower part of a design (none when the screen shows too little). */
-const lowerRoom = (s: DeckSpec) => s.room - keyBottom(s);
+const lowerRoom = (s: DeckSpec) => s.room - lowerTop(s);
 
 /**
  * A panel with cut corners across the deck under the lights, `inset` from its sides, down to just
@@ -114,7 +131,7 @@ const lowerRoom = (s: DeckSpec) => s.room - keyBottom(s);
  * when the screen shows too little for one.
  */
 function panel(g: CanvasRenderingContext2D, s: DeckSpec, inset: number, cut: number): number | null {
-  const top = keyBottom(s) + 10;
+  const top = lowerTop(s) + 10;
   const bottom = s.room - 10;
   if (bottom - top < 18) return null;
   const cy = Math.min(cut * s.stretch, (bottom - top) / 2);
@@ -134,6 +151,69 @@ function panel(g: CanvasRenderingContext2D, s: DeckSpec, inset: number, cut: num
 /** The sockets ARCADE's buttons and JEWEL's gems sit in on the plate, this much larger than they are. */
 const ARCADE_SOCKET = 1.14;
 const JEWEL_SOCKET = 1.16;
+
+/** A side bar's ends lie this share of its half in from the half's ends, so the two halves' bars stay apart. */
+const SIDE_INSET = 0.05;
+/** At rest some designs show only a side bar's two ends, this share of it each (see ends). */
+const SIDE_ENDS = 0.07;
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Where a design draws a side bar in its box (`w`×`h` at x, y: its half by the side row): `share` of the row deep, in its middle. */
+function barBox(x: number, y: number, w: number, h: number, share: number): Box {
+  return { x: x + w * SIDE_INSET, y: y + (h * (1 - share)) / 2, w: w * (1 - 2 * SIDE_INSET), h: h * share };
+}
+
+/** How deep ARCADE's side button and JEWEL's side gem are in their row: the plate sets them in sockets that size. */
+const ARCADE_BAR = 0.78;
+const JEWEL_BAR = 0.8;
+
+/** A rectangle whose corners are round on the screen (`r` across, `st` times longer along the track). */
+function rounded(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
+  g.beginPath();
+  g.roundRect(b.x, b.y, b.w, b.h, [{ x: Math.min(r, b.w / 2), y: Math.min(r * st, b.h / 2) }]);
+}
+
+/** A rectangle with its corners cut at 45° on the screen, `cut` deep along the track. */
+function chamfered(g: CanvasRenderingContext2D, b: Box, cut: number, st: number): void {
+  const c = cut / st;
+  polygon(g, [
+    [b.x + c, b.y],
+    [b.x + b.w - c, b.y],
+    [b.x + b.w, b.y + cut],
+    [b.x + b.w, b.y + b.h - cut],
+    [b.x + b.w - c, b.y + b.h],
+    [b.x + c, b.y + b.h],
+    [b.x, b.y + b.h - cut],
+    [b.x, b.y + cut],
+  ]);
+}
+
+/** A bar whose ends come to a point, `reach` of its depth long (0.5: at 45° on the screen). */
+function pointed(g: CanvasRenderingContext2D, b: Box, st: number, reach: number): void {
+  const c = (b.h * reach) / st;
+  polygon(g, [
+    [b.x + c, b.y],
+    [b.x + b.w - c, b.y],
+    [b.x + b.w, b.y + b.h / 2],
+    [b.x + b.w - c, b.y + b.h],
+    [b.x + c, b.y + b.h],
+    [b.x, b.y + b.h / 2],
+  ]);
+}
+
+/** The side bars' sockets on the plate: `b` grown by `pad` px all round (as much along the track on the screen). */
+function sideSockets(s: DeckSpec, share: number, pad: number, draw: (b: Box) => void): void {
+  for (const side of s.sides) {
+    const b = barBox(side.left, side.top, side.width, side.depth, share);
+    draw({ x: b.x - pad, y: b.y - pad * s.stretch, w: b.w + 2 * pad, h: b.h + 2 * pad * s.stretch });
+  }
+}
 
 /**
  * The deck's top edge, just under the judge line: a dim line this many px deep (neon's) in every
@@ -213,9 +293,18 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.strokeStyle = '#4a5263';
       g.stroke();
     }
+    // a long button's socket under the row for each side bar
+    sideSockets(s, ARCADE_BAR, 2.5, (b) => {
+      rounded(g, b, (b.h / s.stretch) * 0.4, s.stretch);
+      g.fillStyle = '#0b0d12';
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = '#4a5263';
+      g.stroke();
+    });
     const room = lowerRoom(s);
     if (room < 30) return;
-    const top = keyBottom(s) + 12;
+    const top = lowerTop(s) + 12;
     const bottom = s.room - 10;
     const screw = (x: number, y: number) => {
       disc(g, x, y, 4, s.stretch);
@@ -254,7 +343,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     separators(g, s, s.keyTop, keyBottom(s), shade(s.colours.divider, 0.8));
     const room = lowerRoom(s);
     if (room < 30) return;
-    const top = keyBottom(s) + 12;
+    const top = lowerTop(s) + 12;
     const bottom = s.room - 14;
     g.fillStyle = '#1e1e24';
     for (let row = 0, y = top; y <= bottom; row++, y += 5 * s.stretch) {
@@ -305,7 +394,7 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     g.fillRect(0, 0, s.width, s.depth);
     g.fillStyle = shade(s.colours.divider, 1, 0.8);
     g.fillRect(0, 0, s.width, EDGE);
-    const y = Math.max(keyBottom(s) + 8, s.room - 10);
+    const y = Math.max(lowerTop(s) + 8, s.room - 10);
     const turn = 18 * s.stretch;
     g.lineWidth = 2;
     g.lineJoin = 'round';
@@ -407,6 +496,13 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.fill();
       g.stroke();
     }
+    // a long setting under the band for each side bar's gem
+    sideSockets(s, JEWEL_BAR, 2, (b) => {
+      chamfered(g, b, b.h * 0.3, s.stretch);
+      g.fillStyle = shade(s.colours.trackFar, 1);
+      g.fill();
+      g.stroke();
+    });
     if (lowerRoom(s) < 28) return;
     const y = s.room - 16;
     g.lineWidth = 1.5;
@@ -692,6 +788,297 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
 export function rowDrop(style: DeckStyle, lanes: readonly Pick<DeckLane, 'kind' | 'width'>[], depth: number, stretch: number): number {
   const [paint, neon] = [KEY_PAINT[style], KEY_PAINT.neon];
   return Math.max(0, ...lanes.map((l) => paint.reach(l.kind, l.width, depth, stretch) - neon.reach(l.kind, l.width, depth, stretch)));
+}
+
+/**
+ * The light of a side lane laid over the keys, at rest and lit, in a picture as large as its box
+ * (its half by the side row, square px): a bar drawn as the design draws its lane lights (a tint
+ * picture; KEY_PAINT's neutralDown holds for it, and its idleColor unless the bar has its own). Lit,
+ * it is the whole bar in the lane's colour; at rest no lane-coloured bar across the half, which would
+ * read as a side note just under the line: the bar's ends, marks along it, or a grey button.
+ * `side`: -1 the left half, 1 the right.
+ */
+export interface SidePaint {
+  idle: (stretch: number, side: number) => Paint;
+  down: (stretch: number, side: number) => Paint;
+  /** At rest in this colour, not the lane's. */
+  idleColor?: number;
+}
+
+/**
+ * The glow of the next fill: a lit light's halo, painted once with the picture (the canvas's
+ * shadow follows a bar's shape, its pointed or chevroned ends, as KEY_PAINT's round halo cannot).
+ */
+function glow(g: CanvasRenderingContext2D, alpha: number, blur: number): void {
+  g.shadowColor = ink(1, 0.15, alpha);
+  g.shadowBlur = blur;
+}
+
+/** Only the two ends of the bar `draw` draws in box `b` (SIDE_ENDS of it each), in a `w`×`h` picture. */
+function ends(g: CanvasRenderingContext2D, w: number, h: number, b: Box, draw: () => void): void {
+  const reach = b.w * SIDE_ENDS;
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, b.x + reach, h);
+  g.rect(b.x + b.w - reach, 0, w - (b.x + b.w - reach), h);
+  g.clip();
+  draw();
+  g.restore();
+}
+
+/** A row of chevrons pointing out to the half's own side, as a road's bend is signed. */
+function chevrons(g: CanvasRenderingContext2D, b: Box, st: number, side: number): void {
+  const cw = (b.h * 0.55) / st;
+  const t = cw * 0.45;
+  const step = cw * 3;
+  const count = Math.max(1, Math.floor((b.w - cw - t) / step) + 1);
+  const start = b.x + (b.w - (count - 1) * step - cw - t) / 2;
+  const cy = b.y + b.h / 2;
+  g.beginPath();
+  for (let i = 0; i < count; i++) {
+    const x = start + i * step;
+    // drawn pointing left, then turned for the right half
+    const p = (dx: number): number => (side < 0 ? x + dx : 2 * b.x + b.w - x - dx);
+    const points: [number, number][] = [
+      [p(0), cy],
+      [p(cw), b.y],
+      [p(cw + t), b.y],
+      [p(t), cy],
+      [p(cw + t), b.y + b.h],
+      [p(cw), b.y + b.h],
+    ];
+    points.forEach(([px, py], k) => (k === 0 ? g.moveTo(px, py) : g.lineTo(px, py)));
+    g.closePath();
+  }
+}
+
+/** The dots of an LED meter along a bar (MIXER's lights in a row rather than a ring). */
+function meter(g: CanvasRenderingContext2D, b: Box, st: number, fill: (i: number, n: number) => string): void {
+  const r = Math.max(1.2, (b.h / 2 / st) * 0.8);
+  const step = r * 3.2;
+  const n = Math.max(1, Math.floor((b.w - 2 * r) / step) + 1);
+  const start = b.x + (b.w - (n - 1) * step) / 2;
+  for (let i = 0; i < n; i++) {
+    disc(g, start + i * step, b.y + b.h / 2, r, st);
+    g.fillStyle = fill(i, n);
+    g.fill();
+  }
+}
+
+/** JEWEL's side gem: a baguette cut, its table in the middle and facets to its corners. */
+function sideGem(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  const cut = b.h * 0.3;
+  chamfered(g, b, cut, st);
+  g.fillStyle = lit ? tone(1.05) : ink(0.42);
+  g.fill();
+  // a lit gem's glow is its outline's (see glow)
+  g.shadowBlur = 0;
+  const inset = b.h * 0.3;
+  const table: Box = { x: b.x + inset / st, y: b.y + inset, w: b.w - (2 * inset) / st, h: b.h - 2 * inset };
+  g.lineWidth = Math.max(1, b.h * 0.05);
+  g.strokeStyle = lit ? ink(1, 0.9, 0.7) : ink(1, 0.35, 0.4);
+  g.beginPath();
+  for (const [ox, oy, tx, ty] of [
+    [b.x, b.y, table.x, table.y],
+    [b.x + b.w, b.y, table.x + table.w, table.y],
+    [b.x, b.y + b.h, table.x, table.y + table.h],
+    [b.x + b.w, b.y + b.h, table.x + table.w, table.y + table.h],
+  ]) {
+    g.moveTo(ox, oy);
+    g.lineTo(tx, ty);
+  }
+  g.stroke();
+  g.fillStyle = lit ? ink(1, 0.75) : ink(0.7);
+  g.fillRect(table.x, table.y, table.w, table.h);
+}
+
+export const SIDE_PAINT: Record<DeckStyle, SidePaint> = {
+  line: {
+    // at rest only its ends, dim as the lanes' ticks are; lit a bright LED bar
+    idle: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.3);
+      ends(g, w, h, b, () => {
+        rounded(g, b, b.h / 2 / st, st);
+        g.fillStyle = ink(0.3);
+        g.fill();
+      });
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.42);
+      glow(g, 0.7, h * 0.5);
+      rounded(g, b, b.h / 2 / st, st);
+      g.fillStyle = tone(1.3);
+      g.fill();
+    },
+  },
+  stem: {
+    // the dot's ring and core drawn long: at rest only their ends
+    idle: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.6);
+      const lw = Math.max(1.5, b.h * 0.16);
+      ends(g, w, h, b, () => {
+        rounded(g, b, b.h / 2 / st, st);
+        g.lineWidth = lw;
+        g.strokeStyle = ink(0.9);
+        g.stroke();
+        const core = barBox(0, 0, w, h, 0.26);
+        rounded(g, { ...core, x: b.x + lw * 2, w: b.w - lw * 4 }, core.h / 2 / st, st);
+        g.fillStyle = ink(0.5);
+        g.fill();
+      });
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.6);
+      glow(g, 0.55, h * 0.5);
+      rounded(g, b, b.h / 2 / st, st);
+      g.fillStyle = tone(1.25);
+      g.fill();
+    },
+  },
+  arcade: {
+    // a long domed button with a gloss on top (the plate sets it in a socket), grey until lit
+    idle: (st) => (g, w, h) => arcadeBar(g, barBox(0, 0, w, h, ARCADE_BAR), st, false),
+    down: (st) => (g, w, h) => arcadeBar(g, barBox(0, 0, w, h, ARCADE_BAR), st, true),
+    idleColor: 0xffffff,
+  },
+  mixer: {
+    // a level meter: the knobs' ring of lights in a row
+    idle: (st) => (g, w, h) => meter(g, barBox(0, 0, w, h, 0.5), st, () => ink(0.2)),
+    down: (st) => (g, w, h) => {
+      glow(g, 0.45, h * 0.35);
+      meter(g, barBox(0, 0, w, h, 0.5), st, (i, n) => (i === 0 || i === n - 1 ? ink(1, 0.6) : tone(1)));
+    },
+  },
+  hazard: {
+    // chevrons pointing out to its side, as a bend is signed
+    idle: (st, side) => (g, w, h) => {
+      chevrons(g, barBox(0, 0, w, h, 0.62), st, side);
+      g.fillStyle = ink(1, 0, 0.6);
+      g.fill();
+    },
+    down: (st, side) => (g, w, h) => {
+      glow(g, 0.5, h * 0.4);
+      chevrons(g, barBox(0, 0, w, h, 0.62), st, side);
+      g.fillStyle = tone(1.2);
+      g.fill();
+      g.shadowBlur = 0;
+      g.lineWidth = 1.5;
+      g.strokeStyle = ink(1, 0.7);
+      g.stroke();
+    },
+  },
+  neon: {
+    // a tube with the hexagons' pointed ends: at rest only its ends
+    idle: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.62);
+      ends(g, w, h, b, () => {
+        pointed(g, b, st, 0.5);
+        g.fillStyle = ink(1, 0, 0.1);
+        g.fill();
+        g.lineWidth = Math.max(1.5, b.h * 0.1);
+        g.strokeStyle = ink(1, 0, 0.7);
+        g.stroke();
+      });
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.62);
+      glow(g, 0.7, h * 0.5);
+      pointed(g, b, st, 0.5);
+      g.fillStyle = ink(1, 0.3, 0.75);
+      g.fill();
+      g.shadowBlur = 0;
+      g.lineWidth = Math.max(2, b.h * 0.12);
+      g.strokeStyle = ink(1, 0.7);
+      g.stroke();
+    },
+  },
+  crystal: {
+    // a long prism, pointed as the diamonds are, white at its heart when lit: at rest only its ends
+    idle: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.66);
+      ends(g, w, h, b, () => {
+        pointed(g, b, st, 1.2);
+        g.fillStyle = ink(1, 0.2, 0.16);
+        g.fill();
+        g.lineWidth = Math.max(1.2, b.h * 0.08);
+        g.strokeStyle = ink(1, 0.55, 0.75);
+        g.stroke();
+      });
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.66);
+      glow(g, 0.55, h * 0.45);
+      pointed(g, b, st, 1.2);
+      const grad = g.createLinearGradient(b.x, 0, b.x + b.w, 0);
+      grad.addColorStop(0, tone(1));
+      grad.addColorStop(0.5, ink(1, 0.85));
+      grad.addColorStop(1, tone(1));
+      g.fillStyle = grad;
+      g.fill();
+    },
+  },
+  candy: {
+    // a long jelly button with a shine, grey until lit
+    idle: (st) => (g, w, h) => candyBar(g, barBox(0, 0, w, h, 0.74), st, false),
+    down: (st) => (g, w, h) => candyBar(g, barBox(0, 0, w, h, 0.74), st, true),
+    idleColor: 0xffffff,
+  },
+  jewel: {
+    // a baguette in a setting on the plate, grey until lit
+    idle: (st) => (g, w, h) => sideGem(g, barBox(0, 0, w, h, JEWEL_BAR), st, false),
+    down: (st) => (g, w, h) => {
+      glow(g, 0.55, h * 0.45);
+      sideGem(g, barBox(0, 0, w, h, JEWEL_BAR), st, true);
+    },
+    idleColor: 0xffffff,
+  },
+  mono: {
+    // an outline, filled white when lit: at rest only its ends
+    idle: () => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.5);
+      const lw = Math.max(2, b.h * 0.12);
+      ends(g, w, h, b, () => {
+        g.lineWidth = lw;
+        g.strokeStyle = ink(1, 1);
+        g.strokeRect(b.x + lw / 2, b.y + lw / 2, b.w - lw, b.h - lw);
+      });
+    },
+    down: () => (g, w, h) => {
+      const b = barBox(0, 0, w, h, 0.5);
+      g.fillStyle = ink(1, 1);
+      g.fillRect(b.x, b.y, b.w, b.h);
+    },
+  },
+};
+
+function arcadeBar(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  const r = (b.h / st) * 0.4;
+  if (lit) glow(g, 0.55, b.h * 0.6);
+  rounded(g, b, r, st);
+  const grad = g.createLinearGradient(0, b.y, 0, b.y + b.h);
+  grad.addColorStop(0, lit ? ink(1, 0.45) : ink(0.5));
+  grad.addColorStop(1, lit ? tone(1) : ink(0.22));
+  g.fillStyle = grad;
+  g.fill();
+  g.shadowBlur = 0;
+  rounded(g, { x: b.x + r, y: b.y + b.h * 0.14, w: b.w - 2 * r, h: b.h * 0.26 }, (b.h * 0.13) / st, st);
+  g.fillStyle = lit ? ink(1, 1, 0.55) : ink(1, 0.7, 0.3);
+  g.fill();
+}
+
+function candyBar(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  if (lit) glow(g, 0.5, b.h * 0.6);
+  rounded(g, b, b.h / 2 / st, st);
+  g.fillStyle = lit ? tone(1.1) : ink(0.55);
+  g.fill();
+  g.shadowBlur = 0;
+  g.lineWidth = Math.max(2, b.h * 0.12);
+  g.strokeStyle = lit ? ink(1, 0.85) : ink(1, 0.6, 0.55);
+  g.stroke();
+  g.beginPath();
+  g.ellipse(b.x + b.w * 0.16, b.y + b.h * 0.34, b.w * 0.07, b.h * 0.16, 0, 0, Math.PI * 2);
+  g.fillStyle = ink(1, 1, lit ? 0.85 : 0.5);
+  g.fill();
 }
 
 function knob(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit: boolean): void {

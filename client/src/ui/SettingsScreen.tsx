@@ -45,7 +45,7 @@ import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, NumberOption, pct, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, NumberOption, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -192,6 +192,8 @@ export function SettingsScreen({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
+  /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
+  const [sideRow, setSideRow] = useState(false);
   const rows = useRef<HTMLDivElement>(null);
   /** What a key or pad control is being bound for in the 키 설정 or 게임패드 tab (the hints), or null. */
   const [capture, setCapture] = useState<CaptureKind | null>(null);
@@ -202,6 +204,7 @@ export function SettingsScreen({
   const focusFirstRow = () => requestAnimationFrame(() => (rows.current && rowStops(rows.current)[0])?.focus({ preventScroll: true }));
   useEffect(() => {
     setHelp('');
+    setSideRow(false);
     rows.current?.scrollTo(0, 0);
   }, [tab]);
   useEffect(() => {
@@ -262,7 +265,15 @@ export function SettingsScreen({
   });
 
   const system = difficultySystems[settings.difficultySystem];
-  const row = { onHelp: setHelp };
+  const row = {
+    onHelp: (text: string) => {
+      setHelp(text);
+      setSideRow(false);
+    },
+  };
+  // the side notes' row shows them on 4K+FX or 6K+FX when the last key mode has no side lanes
+  const previewMode: KeyModeId =
+    sideRow && !keyModes[settings.lastKeyMode].lanes.some((l) => l.kind === 'side') ? (settings.lastKeyMode === '4K' ? '4K+FX' : '6K+FX') : settings.lastKeyMode;
   const playKeys = playKeysOf(settings);
   const keyPair = (down: PlayAction, up: PlayAction) => `${bindingLabel(playKeys[down])} / ${bindingLabel(playKeys[up])}`;
   const [, heading] = TABS.find(([id]) => id === tab) ?? TABS[0];
@@ -503,6 +514,19 @@ export function SettingsScreen({
             onChange={(v) => set('laneWidthScale', v)}
             help="트랙의 폭입니다."
           />
+          <Choice
+            {...row}
+            onHelp={(text) => {
+              setHelp(text);
+              setSideRow(true);
+            }}
+            label="사이드 노트"
+            testId="opt-side-notes"
+            value={settings.sideNotes}
+            options={SIDE_NOTE_CHOICES}
+            onChange={(v) => set('sideNotes', v)}
+            help="4K+FX·6K+FX의 사이드 노트를 양 끝 레인에 따로 둘지, DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮는 막대로 그릴지 고릅니다. 판정과 키는 그대로이고, 에디터는 늘 별도 레인으로 보여 줍니다."
+          />
           <NumberOption
             {...row}
             label="키 빔 길이"
@@ -594,7 +618,7 @@ export function SettingsScreen({
               ] as [HitEffectSize, string][]
             }
             onChange={(v) => set('hitEffectSize', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 작게는 한 레인 남짓으로 줄이고, 끄기는 그리지 않습니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 작게는 한 레인 남짓으로 줄이고(반쪽 덮기의 사이드 노트는 절반 폭 그대로 낮게), 끄기는 그리지 않습니다."
           />
           <Toggle
             {...row}
@@ -720,9 +744,9 @@ export function SettingsScreen({
             <>
               <span className="settings-side-head">
                 <span>미리보기</span>
-                <span>{settings.lastKeyMode}</span>
+                <span>{previewMode}</span>
               </span>
-              <GearPreview settings={settings} keyMode={settings.lastKeyMode} />
+              <GearPreview settings={settings} keyMode={previewMode} />
               <p className="settings-help" data-testid="settings-help">
                 {sideHelp}
               </p>

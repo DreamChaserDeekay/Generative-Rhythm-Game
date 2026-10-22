@@ -39,6 +39,49 @@ describe('track layout', () => {
     expect(g.lanes.reduce((s, l) => s + l.width, 0)).toBeCloseTo(8, 9);
   });
 
+  it('lays the side lanes over half the keys when asked (반쪽 덮기): the keys take the whole track, as without them', () => {
+    for (const [mode, plain, half] of [
+      ['6K+FX', '6K', 3],
+      ['4K+FX', '4K', 2],
+    ] as const) {
+      const g = computeTrackGeometry(keyModes[mode], 8, 40, 'half');
+      const keys = g.lanes.filter((l) => l.kind === 'key');
+      // the key lanes lie where the mode without side lanes has them
+      const without = computeTrackGeometry(keyModes[plain], 8, 40).lanes;
+      expect(keys).toHaveLength(without.length);
+      keys.forEach((l, i) => {
+        expect(l.x).toBeCloseTo(without[i].x, 9);
+        expect(l.width).toBeCloseTo(without[i].width, 9);
+        expect(l.over).toBeUndefined();
+      });
+      // FXL over keys 1 to `half` (from the left rail to the middle), FXR over the rest
+      const [left, right] = [g.lanes[0], g.lanes[g.lanes.length - 1]];
+      expect([left.kind, left.over, right.kind, right.over]).toEqual(['side', true, 'side', true]);
+      const edges = (l: { x: number; width: number }) => [l.x - l.width / 2, l.x + l.width / 2];
+      expect(edges(left)[0]).toBeCloseTo(-4, 9);
+      expect(edges(left)[1]).toBeCloseTo(edges(keys[half - 1])[1], 9);
+      expect(edges(right)[0]).toBeCloseTo(edges(keys[half])[0], 9);
+      expect(edges(right)[1]).toBeCloseTo(4, 9);
+      expect(edges(left)[1]).toBeCloseTo(0, 9);
+      // the chart's lanes keep their places in the list (judgement, keys and placement are the same)
+      expect(g.lanes.map((l) => l.index)).toEqual(keyModes[mode].lanes.map((_, i) => i));
+      // separate lanes, the default, are as they were (see the test above)
+      expect(computeTrackGeometry(keyModes[mode], 8, 40, 'lanes')).toEqual(computeTrackGeometry(keyModes[mode], 8, 40));
+      expect(computeTrackGeometry(keyModes[mode], 8, 40).lanes.some((l) => l.over)).toBe(false);
+    }
+    // a mode without side lanes is the same either way
+    for (const mode of ['4K', '5K', '6K', '7K+1S', '8K'] as const) {
+      expect(computeTrackGeometry(keyModes[mode], 8, 40, 'half')).toEqual(computeTrackGeometry(keyModes[mode], 8, 40, 'lanes'));
+    }
+    // FXL (sideL) lies over the left half and FXR (sideR) over the right, whatever their places in the list
+    const reversed = { ...keyModes['6K+FX'], lanes: [...keyModes['6K+FX'].lanes].reverse() };
+    const sides = computeTrackGeometry(reversed, 8, 40, 'half').lanes.filter((l) => l.over);
+    expect(sides.map((l) => [l.color, l.x])).toEqual([
+      ['sideR', 2],
+      ['sideL', -2],
+    ]);
+  });
+
   it('frames the SDVX preset with the judgement line low and the track end high on screen', () => {
     const L = cameraConfig.trackLength;
     expect(screenY('SDVX', 0)).toBeCloseTo(0.84, 2);

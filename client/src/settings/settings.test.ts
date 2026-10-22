@@ -54,6 +54,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
   });
 
+  it('keeps how the side notes are drawn (settings saved before the option: lanes of their own)', () => {
+    expect(DEFAULT_SETTINGS.sideNotes).toBe('lanes');
+    expect(sanitizeSettings({}).sideNotes).toBe('lanes');
+    expect(sanitizeSettings({ sideNotes: 'half' }).sideNotes).toBe('half');
+    expect(sanitizeSettings({ sideNotes: 'djmax' as never }).sideNotes).toBe('lanes');
+    expect(sanitizeSettings({ sideNotes: 1 as never }).sideNotes).toBe('lanes');
+    expect(resetSettings({ ...DEFAULT_SETTINGS, sideNotes: 'half' }).sideNotes).toBe('lanes');
+  });
+
   it('keeps the judgement opacity, the judge counter and the EX-SCORE pacemaker targets (settings saved before them: solid, off)', () => {
     expect(sanitizeSettings({})).toMatchObject({ judgementOpacity: 1, judgeCounter: false });
     expect(sanitizeSettings({ judgementOpacity: 0.4, judgeCounter: true })).toMatchObject({ judgementOpacity: 0.4, judgeCounter: true });

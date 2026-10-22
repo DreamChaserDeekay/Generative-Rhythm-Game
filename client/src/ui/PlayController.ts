@@ -253,7 +253,10 @@ export class PlayController {
       barLines: settings.barLines,
       keyBeamLength: settings.keyBeamLength,
       hitEffectSize: settings.hitEffectSize,
+      sideNotes: settings.sideNotes,
     });
+    // how a mode's side lanes are drawn (data-side-notes on the canvas; not shown)
+    if (mode.lanes.some((l) => l.kind === 'side')) setup.canvas.dataset.sideNotes = this.renderer.geometry.lanes.some((l) => l.over) ? 'half' : 'lanes';
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =
       setup.keysounds && this.chart.sounds

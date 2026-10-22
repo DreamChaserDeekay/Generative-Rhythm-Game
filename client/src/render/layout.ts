@@ -1,7 +1,13 @@
-import { cameraConfig, type CameraPreset, type KeyModeConfig, type LaneColor, type LaneKind } from '../engine/config';
+import { cameraConfig, type CameraPreset, type KeyModeConfig, type LaneColor, type LaneConfig, type LaneKind } from '../engine/config';
 
 /** Where the judge line sits on the screen: this share of the height from the top (the view moves, not the camera). */
 export const JUDGE_LINE_Y = cameraConfig.judgeLineY;
+
+/**
+ * How the side lanes of the FX modes are drawn: lanes of their own at the track's edges, or (as
+ * DJMAX draws its side tracks) bars over the left or right half of the key lanes.
+ */
+export type SideNotes = 'lanes' | 'half';
 
 export interface LaneGeom {
   index: number;
@@ -10,6 +16,8 @@ export interface LaneGeom {
   width: number;
   color: LaneColor;
   kind: LaneKind;
+  /** A side lane laid over half the key lanes (SideNotes 'half'): it takes no width of the track, and spans that half. */
+  over?: boolean;
 }
 
 export interface TrackGeometry {
@@ -18,12 +26,22 @@ export interface TrackGeometry {
   length: number;
 }
 
-/** Splits the track width between lanes in proportion to their configured widths. */
-export function computeTrackGeometry(mode: KeyModeConfig, trackWidth: number, trackLength: number): TrackGeometry {
-  const total = mode.lanes.reduce((sum, l) => sum + l.width, 0);
+/**
+ * Splits the track width between lanes in proportion to their configured widths. Side lanes laid
+ * over the keys (`sideNotes` 'half') take none of it, so the key lanes share the whole track as in
+ * a mode without them, and each spans the half of the track on its side.
+ */
+export function computeTrackGeometry(mode: KeyModeConfig, trackWidth: number, trackLength: number, sideNotes: SideNotes = 'lanes'): TrackGeometry {
+  const over = (l: LaneConfig) => sideNotes === 'half' && l.kind === 'side';
+  const total = mode.lanes.reduce((sum, l) => (over(l) ? sum : sum + l.width), 0);
   const unit = trackWidth / total;
   let left = -trackWidth / 2;
   const lanes = mode.lanes.map((l, index) => {
+    if (over(l)) {
+      // FXL (in sideL's colour) lies over the left half, FXR over the right one
+      const side = l.color === 'sideL' ? -1 : 1;
+      return { index, x: (side * trackWidth) / 4, width: trackWidth / 2, color: l.color, kind: l.kind, over: true };
+    }
     const width = l.width * unit;
     const lane: LaneGeom = { index, x: left + width / 2, width, color: l.color, kind: l.kind };
     left += width;

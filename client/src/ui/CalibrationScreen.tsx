@@ -412,7 +412,7 @@ function VisualStep({
 function ClickGear({ settings, offset }: { settings: Settings; offset: { readonly current: number } }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { lastKeyMode: keyMode, skin: skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, hiSpeed, lift, musicVolume } = settings;
+  const { lastKeyMode: keyMode, skin: skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume } = settings;
 
   useEffect(() => {
     const el = canvas.current;
@@ -444,6 +444,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         barLines,
         keyBeamLength,
         hitEffectSize,
+        sideNotes,
         fitWidth: 0.84,
       });
       renderer = r;
@@ -509,7 +510,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
       renderer?.dispose();
       engine.stop();
     };
-  }, [keyMode, skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, hiSpeed, lift, musicVolume, offset]);
+  }, [keyMode, skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume, offset]);
 
   return (
     <div className="calib-gear" ref={box} data-testid="calib-gear">

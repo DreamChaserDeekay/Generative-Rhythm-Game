@@ -17,6 +17,7 @@ import { placementIds, type PlacementId } from '../engine/placement';
 import { defaultRuleset, rulesetIds, type RulesetId } from '../engine/ruleset';
 import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
+import type { SideNotes } from '../render/layout';
 import type { Palette } from '../render/palette';
 import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
@@ -28,6 +29,8 @@ export type { ScrollMode } from '../engine/scroll';
 export type { Palette } from '../render/palette';
 export type { HitEffectSize } from '../render/TrackRenderer';
 export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
+export type { SideNotes } from '../render/layout';
+export const SIDE_NOTES: readonly SideNotes[] = ['lanes', 'half'];
 export type JudgePosition = 'low' | 'mid' | 'high';
 /** A window, or full screen (the desktop app keeps its window's; a browser asks for it). */
 export type DisplayMode = 'window' | 'fullscreen';
@@ -169,6 +172,8 @@ export interface Settings {
   cameraFx: number;
   /** Hit and hold effects at the skin's size, about a lane wide, or none. */
   hitEffectSize: HitEffectSize;
+  /** 4K+FX and 6K+FX: side notes in lanes of their own at the edges, or as bars over half the key lanes (DJMAX's side tracks). */
+  sideNotes: SideNotes;
   skin: string;
   /** User skin (JSON object), used when `skin` is "custom". */
   customSkin: unknown;
@@ -250,6 +255,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keysound: true,
   cameraFx: 0.6,
   hitEffectSize: 'normal',
+  sideNotes: 'lanes',
   skin: 'flat',
   customSkin: null,
   bgBrightness: 0.35,
@@ -356,6 +362,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
   s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);
+  s.sideNotes = pick(s.sideNotes, SIDE_NOTES, d.sideNotes);
   // skins of earlier versions open as the skin that took their place
   s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);

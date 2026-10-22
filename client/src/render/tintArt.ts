@@ -610,6 +610,81 @@ function baguette(g: CanvasRenderingContext2D, w: number, h: number): void {
   for (const x of [0.03, 0.13, 0.26, 0.74, 0.87, 0.97]) g.fillRect(x * w - 0.006 * w, 0, Math.max(1, 0.012 * w), h);
 }
 
+// ---------- side notes laid over half the keys (반쪽 덮기) ----------
+
+/** The parts of a side note laid over the keys, and the flash of its hits and holds. */
+export type SidePart = 'tap' | 'body' | 'end' | 'flash';
+
+/** Where the judge line crosses the side flash's picture, from its far edge (share of its depth): its light rises up the track. */
+export const SIDE_FLASH_LINE = 0.8;
+
+/**
+ * A side tap laid over half the keys, alike in every skin (in its side lane's colour): half
+ * see-through, so the key notes drawn over it and the lanes under it show, between bright bands
+ * `edge` of its depth deep along its far and near edges (what shows of it past a key note at its
+ * time), its ends bright too. Painted for the bar's proportions; canvas top = the far edge.
+ */
+export function sideTap(edge: number): Paint {
+  return (g, w, h) => {
+    const band = Math.max(2, Math.round(h * edge));
+    const side = Math.max(2, Math.round(w * 0.008));
+    g.save();
+    roundRect(g, 0, 0, w, h, h * 0.15);
+    g.clip();
+    g.fillStyle = ink(1, 0, 0.55);
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = ink(1, 0.3);
+    g.fillRect(0, 0, w, band);
+    g.fillRect(0, h - band, w, band);
+    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillRect(0, 0, side, h);
+    g.fillRect(w - side, 0, side, h);
+    g.restore();
+  };
+}
+
+/**
+ * The rest of the side notes laid over half the keys (see sideTap): a long note's body and ends,
+ * and the flash of a hit. Painted for their proportions; canvas top = the far edge (an end's: its
+ * outer edge).
+ */
+export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
+  // fainter than a tap, bright down its sides
+  body: (g, w, h) => {
+    const side = Math.max(2, Math.round(w * 0.008));
+    g.fillStyle = ink(1, 0, 0.26);
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = ink(1, 0.2, 0.9);
+    g.fillRect(0, 0, side, h);
+    g.fillRect(w - side, 0, side, h);
+  },
+  // a bright band where it starts and where it ends
+  end: (g, w, h) => {
+    g.fillStyle = ink(1, 0.3);
+    g.fillRect(0, 0, w, h);
+  },
+  // light across the half: a bright bar on the judge line (SIDE_FLASH_LINE down), whitest in its
+  // middle, and light rising from it a short way up the track, fading out as it rises (under the
+  // line, over the gear, only the bar's own edge); the half's ends fade
+  flash: (g, w, h) => {
+    const image = g.createImageData(w, h);
+    const fade = w * 0.04;
+    for (let y = 0; y < h; y++) {
+      // from the line, in shares of the depth (up the track is negative)
+      const d = (y + 0.5) / h - SIDE_FLASH_LINE;
+      const bar = Math.exp(-d * d * 120);
+      const rise = d < 0 ? 0.55 * Math.exp(d * 4) : 0;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        image.data[i] = 255;
+        image.data[i + 1] = Math.round(255 * 0.7 * bar);
+        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
+      }
+    }
+    g.putImageData(image, 0, 0);
+  },
+};
+
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
 export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles';

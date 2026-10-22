@@ -1,6 +1,6 @@
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { BUILTIN_SKINS } from '../render/skins';
-import type { Settings } from '../settings/settings';
+import type { Settings, SideNotes } from '../settings/settings';
 
 /** The option rows of the settings and the song select's play options. */
 
@@ -13,6 +13,12 @@ export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, st
     ...(settings.customSkin !== null ? [['custom', (settings.customSkin as { label?: string }).label ?? '사용자 스킨'] as [string, string]] : []),
   ];
 }
+
+/** How the side notes of 4K+FX and 6K+FX are drawn, by name (the settings' gear tab and the song select's gear rows). */
+export const SIDE_NOTE_CHOICES: [SideNotes, string][] = [
+  ['lanes', '별도 레인'],
+  ['half', '반쪽 덮기'],
+];
 
 export interface RowProps {
   label: string;
