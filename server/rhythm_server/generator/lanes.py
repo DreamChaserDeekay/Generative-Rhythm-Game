@@ -93,7 +93,8 @@ class _Weights:
     # hand-shape feedback (hands.runTarget / barTarget, Udo 2023): the share of fast-run notes that
     # are a hand's third or later in a row, and the share of full bars outside the hands' band, are
     # steered toward a target by a bonus (below it) or a cost (above it) that grows with the gap;
-    # `feedback_prior` notes / bars at the target start the count
+    # `feedback_prior` notes / bars at the target start the count. The strengths (runFeedback /
+    # barFeedback) may be {key mode: strength}: the targets come from 7-key BMS charts
     run_target: float = 0.0
     run_feedback: float = 0.0
     bar_target: float = 0.0
@@ -142,9 +143,9 @@ class _Weights:
             memory=by_skill(hands.get("soundMemory", 0.0), params.skill),
             memory_size=int(hands.get("soundMemorySize", 24)),
             run_target=by_skill(hands.get("runTarget", 0.0), params.skill),
-            run_feedback=float(hands.get("runFeedback", 0.0)),
+            run_feedback=by_key_mode(hands.get("runFeedback", 0.0), params.key_mode),
             bar_target=by_skill(hands.get("barTarget", 0.0), params.skill),
-            bar_feedback=float(hands.get("barFeedback", 0.0)),
+            bar_feedback=by_key_mode(hands.get("barFeedback", 0.0), params.key_mode),
             feedback_prior=float(hands.get("feedbackPrior", 20.0)),
         )
 
