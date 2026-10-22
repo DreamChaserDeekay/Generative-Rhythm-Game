@@ -24,6 +24,10 @@ test('with no server the select says how to start it, its buttons work by keys, 
   await expect(hints).toContainText('누르기');
   await expect(hints).not.toContainText('플레이 옵션');
   await expect(page.getByTestId('song-list')).toContainText('서버에 연결되면 곡을 추가할 수 있습니다');
+  // 곡 추가 cannot be pressed, and looks it (a quiet button's colours alone are those of a disabled one)
+  const add = page.getByTestId('add-menu');
+  await expect(add).toBeDisabled();
+  expect(Number(await add.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1);
   await page.keyboard.press('ArrowRight');
   await expect(page.getByTestId('offline-sync-test')).toBeFocused();
   await page.keyboard.press('ArrowRight');

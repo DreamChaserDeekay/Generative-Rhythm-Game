@@ -102,6 +102,8 @@
   --scrim: color-mix(in srgb, var(--bg) 88%, transparent);
   /* panels over the song backdrop: flat and mostly opaque */
   --panel: color-mix(in srgb, var(--surface) 92%, transparent);
+  /* a control that cannot be pressed now */
+  --disabled-opacity: 0.45;
 
   /* judgement (the colour-blind palette below swaps them) */
   --g-max: #7cf7ff;
@@ -288,6 +290,8 @@ button:disabled {
   background: transparent;
   border-color: var(--line);
   cursor: default;
+  /* faded whatever the button's class: a quiet button's colours are those of a disabled one */
+  opacity: var(--disabled-opacity);
 }
 
 button.primary {

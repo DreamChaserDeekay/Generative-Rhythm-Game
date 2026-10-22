@@ -1035,6 +1035,15 @@ export function SongSelectScreen(props: Props) {
           { keys: ['I'], pad: ['LT'], label: '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
           settingsHint,
         ]
+      : filtered.length === 0 && panel === 'none'
+      ? // a folder or a search that shows no song: the folder key that changes it, and what needs no song
+        [
+          { keys: [folderKey], label: '폴더', onClick: stepFolder, testId: 'hint-folder' },
+          { keys: ['Tab'], pad: ['Y'], label: '키 모드' },
+          { keys: ['Space'], pad: ['X'], label: '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
+          { keys: ['I'], pad: ['LT'], label: '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
+          settingsHint,
+        ]
       : panel === 'none'
       ? [
           { keys: ['↑', '↓'], pad: ['↑', '↓'], label: '곡' },
@@ -1056,8 +1065,8 @@ export function SongSelectScreen(props: Props) {
           { keys: ['I'], pad: ['LT'], label: panel === 'info' ? '곡 정보·도구 닫기' : '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
         ];
   // Enter picks an item of the add menu, presses a panel's focused button or box (or the offline
-  // panel's), or plays (nothing to play without songs)
-  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : songs.length > 0 ? '플레이' : null;
+  // panel's), or plays (nothing to play without a song in sight)
+  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
   const endHints: KeyHint[] = enterLabel ? [{ keys: ['Enter'], pad: ['A'], label: enterLabel, testId: 'hint-enter' }] : [];
   if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : closePanel()) });
 

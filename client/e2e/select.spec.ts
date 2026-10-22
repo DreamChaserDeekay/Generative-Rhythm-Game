@@ -291,6 +291,12 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   await page.keyboard.press('Escape');
   await expect(search).not.toBeFocused();
   await expect(search).toHaveValue('Song 1x');
+  // the hints name the folder key and what needs no song: no song, difficulty, random or Enter to play
+  const hintbar = page.locator('.hintbar');
+  await expect(page.getByTestId('hint-folder')).toBeVisible();
+  await expect(page.getByTestId('hint-enter')).toHaveCount(0);
+  await expect(page.getByTestId('hint-random')).toHaveCount(0);
+  await expect(hintbar).not.toContainText('난이도');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(500);
   expect(posts).toHaveLength(asked);
@@ -302,6 +308,8 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   await page.getByTestId('folder-favorites').click();
   await expect(page.getByTestId('song-item')).toHaveCount(0);
   await expect(page.getByTestId('play-button')).toHaveCount(0);
+  await expect(page.getByTestId('hint-folder')).toBeVisible();
+  await expect(page.getByTestId('hint-enter')).toHaveCount(0);
   await page.waitForTimeout(500);
   const before = posts.length;
   await page.keyboard.press('Enter');
