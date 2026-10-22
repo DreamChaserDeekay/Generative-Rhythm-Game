@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { keysoundBusGain } from './audio';
 import { addFromMenu, autoplay, chooseSetting, fakeSongs, playOptions, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
@@ -92,6 +93,8 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.getByTestId('play-screen')).toBeVisible();
   // the play's keysounds come from the stems (the HUD names them, not on the screen)
   await expect(page.locator('.hud')).toHaveAttribute('data-keysounds', /\S/, { timeout: 60_000 });
+  // a hit sounds 1.1 times as loud as its stem in the song
+  await expect.poll(() => keysoundBusGain(page)).toBeCloseTo(1.1, 5);
   await expect(page.locator('.play-bg video.bg-video')).toHaveCount(1);
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(1);
   await page.waitForTimeout(9000);

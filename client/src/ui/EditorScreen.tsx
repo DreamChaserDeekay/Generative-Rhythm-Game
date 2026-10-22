@@ -203,7 +203,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
         if (keysounded && base.sounds) {
           const bank = await keysoundBank(song.id);
           const engine = getAudioEngine();
-          engine.keysoundBus.gain.value = bank.gain;
+          engine.setKeysoundGain(bank.gain);
           voices = new KeysoundVoices(engine.ctx, engine.keysoundBus, bank, base.sounds);
         }
         if (alive) {

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { keysoundBusGain } from './audio';
 import { addFromMenu, autoplay, settingsTab, songInfo } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
@@ -179,10 +180,16 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await expect(page.getByTestId('export-bms')).toBeVisible();
   const bms = await page.request.get(await page.getByTestId('export-bms').getAttribute('href') as string);
   expect(await bms.text()).toContain('kick.wav');
+  // the gain that keeps the package's mix from clipping
+  const { songs } = (await (await page.request.get('/api/songs')).json()) as { songs: { id: string; title: string }[] };
+  const songId = songs.find((s) => s.title === 'E2E Keysound')?.id;
+  const { gain } = (await (await page.request.get(`/api/songs/${songId}/keysounds.json`)).json()) as { gain: number };
 
   await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
+  // the note keysounds sound 1.1 times as loud as that
+  await expect.poll(() => keysoundBusGain(page), { timeout: 60_000 }).toBeCloseTo(gain * 1.1, 5);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
   await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
