@@ -8,7 +8,40 @@ const ANALYSER_FFT = 512;
 /** Ramp where a stem leaves or rejoins the mix (config/instruments.json). */
 const CUT_FADE_SEC = instrumentsJson.keysound.fadeMs / 1000;
 /** Note keysounds play this much louder than their own level, so a hit stands out over the song. */
-const KEYSOUND_BOOST = 1.1;
+const KEYSOUND_BOOST = 1.2;
+/** The output is left as it is up to this level; above it a soft shoulder keeps it under full scale. */
+const LIMIT_KNEE = 0.9;
+/** The limiter's curve covers inputs up to this many times full scale. */
+const LIMIT_RANGE = 4;
+const LIMIT_POINTS = 4097;
+
+/**
+ * The output limiter's curve over inputs from -LIMIT_RANGE to LIMIT_RANGE: the input itself up to
+ * the knee, then a tanh shoulder that rises toward full scale and never goes past it (1 comes out
+ * at 0.976, 1.2 at 0.9995). It shapes each sample, with no latency: a compressor's lookahead would put the
+ * music late on the song clock.
+ */
+export function softLimitCurve(points = LIMIT_POINTS, range = LIMIT_RANGE, knee = LIMIT_KNEE): Float32Array<ArrayBuffer> {
+  const curve = new Float32Array(points);
+  for (let i = 0; i < points; i++) {
+    const x = ((2 * i) / (points - 1) - 1) * range;
+    const a = Math.abs(x);
+    curve[i] = Math.sign(x) * (a <= knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)));
+  }
+  return curve;
+}
+
+/** The output limiter, playing into `destination`: connect sources to the node returned. */
+export function softLimiter(ctx: BaseAudioContext, destination: AudioNode): AudioNode {
+  const input = ctx.createGain();
+  // the shaper reads its curve over -1..1
+  input.gain.value = 1 / LIMIT_RANGE;
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = softLimitCurve();
+  shaper.oversample = 'none';
+  input.connect(shaper).connect(destination);
+  return input;
+}
 
 export interface BufferPlacement {
   /** Song time (ms) of the buffer's first sample. */
@@ -34,7 +67,8 @@ export interface StemCut {
  * source, sample-aligned with the mix and phase-inverted, whose gain steps from 0 (mix untouched)
  * to -1 (mix - stem) over the stem's keysound ranges. No accompaniment buffer is needed, and the
  * stems sum to the mix, so the hits put the song back together, the keysounded stems
- * KEYSOUND_BOOST louder.
+ * KEYSOUND_BOOST louder. The music and the effects reach the speakers through softLimiter, so
+ * those louder keysounds over a loud song do not clip.
  */
 export class AudioEngine implements SongClock {
   readonly ctx: AudioContext;
@@ -64,10 +98,11 @@ export class AudioEngine implements SongClock {
     this.analyser.smoothingTimeConstant = 0.75;
     this.keysoundBus = this.ctx.createGain();
     this.setKeysoundGain(1);
+    const output = softLimiter(this.ctx, this.ctx.destination);
     this.keysoundBus.connect(this.musicGain);
     this.musicGain.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
-    this.sfxGain.connect(this.ctx.destination);
+    this.analyser.connect(output);
+    this.sfxGain.connect(output);
   }
 
   /** Must be called from a user gesture before playback (autoplay policy). */
