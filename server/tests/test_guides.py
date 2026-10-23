@@ -114,9 +114,12 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # over the 855 held-out charts it moves them toward the human rate, not past it (level 10 13.6
     # -> 14.2 against the human 15.2, level 14 13.8 -> 15.8 against 15.5). This song is a drum loop
     # repeating its sounds on the phrase's keys, so it stacks the same-sound bonus on top and runs
-    # higher than any real chart - the limit guards runaway, it is not the human rate.
+    # higher than any real chart - the limit guards runaway, it is not the human rate. Generator 0.9.23
+    # keeps the drum keys more firmly (1.5) and 0.9.24 adds the middle-key feedback: on this loop the
+    # mean goes 26.5 -> 35.0 (one seed 56.8, on key 3), while over the held-out charts jack streaks
+    # stay where they were (level 14 15.0 -> 15.2 per 1000 notes, human 16.6; PATTERN_DESIGN 46-3).
     profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
-    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 30.0, [g["jackStreaks"] for g in profiles]
+    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 40.0, [g["jackStreaks"] for g in profiles]
     assert sum(g["offBars"] or 0.0 for g in profiles) / len(profiles) <= 0.2, [g["offBars"] for g in profiles]
 
 
@@ -155,10 +158,47 @@ def test_the_hand_run_feedback_counts_like_the_bms_measure() -> None:
     for k, t in seq:
         lane = keys[k]
         fb = _feedback_counts(state, (lane,), (lane,), t, int(t // 2000), hand_of, w)
-        state = dataclasses.replace(state, prev_t=t, bar=int(t // 2000), **fb)
+        state = dataclasses.replace(state, prev_t=t, prev_lanes=(lane,), bar=int(t // 2000), **fb)
         notes.append({"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"})
     assert (state.fb_run, state.fb_hand3) == (11, 4)
     assert round(state.fb_hand3 / state.fb_run, 3) == hands(notes, "7K+1S")["handRuns"]
+    # the middle-key feedback (PATTERN_DESIGN 46) counts the moves of single notes at most 260 ms
+    # apart (not across the pause; the jack 1-1 is a move but a stay) and those through key 4: 3-4, 4-5
+    assert (state.fb_moves, state.fb_mid) == (9, 2)
+
+
+def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkeypatch) -> None:
+    # The hand-run feedback counts the middle key as ending a run, so since generator 0.9.21 our 7K
+    # charts moved through it less than human charts at levels 6-10 (PATTERN_DESIGN 45-3). Since
+    # 0.9.24 the lane search also steers the share of fast moves that enter or leave the middle key
+    # toward the level's human value (hands.middleTarget / middleFeedback, PATTERN_DESIGN 46); on
+    # these songs the share starts below the target, so the feedback raises it.
+    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+
+    def middle_share(notes: list[dict]) -> float:
+        by_t: dict[float, list[int]] = {}
+        for n in notes:
+            if 1 <= int(n["lane"]) <= 7:
+                by_t.setdefault(round(float(n["t"]), 1), []).append(int(n["lane"]))
+        times = sorted(by_t)
+        moves = middle = 0
+        for t0, t1 in zip(times, times[1:]):
+            if len(by_t[t0]) == 1 and len(by_t[t1]) == 1 and t1 - t0 <= 260.0:
+                a, b = by_t[t0][0], by_t[t1][0]
+                moves += 1
+                middle += a != b and 4 in (a, b)
+        return middle / moves
+
+    songs = [song(124.0, 1)[1], song(140.0, 2)[1]]
+
+    def mean_share() -> float:
+        shares = [middle_share(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for a in songs for seed in range(3)]
+        return sum(shares) / len(shares)
+
+    with_feedback = mean_share()
+    monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 0.0, "*": 0.0})
+    without = mean_share()
+    assert with_feedback > without + 0.02, (with_feedback, without)
 
 
 def test_lane_move_contexts_are_counted_like_the_bms_table() -> None:
