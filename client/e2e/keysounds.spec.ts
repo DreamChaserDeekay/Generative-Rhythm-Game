@@ -86,3 +86,40 @@ test('stem keysounds put the song back together, and a miss drops only its slice
   expect(result.beforeMiss).toBeLessThan(1e-4);
   expect(result.afterMiss).toBeLessThan(1e-4);
 });
+
+// The play's output limiter in the browser's own wave shaper: up to its knee the sound comes out as
+// it went in, and louder peaks (keysounds 1.2 times as loud over a song at full scale) come out
+// under full scale instead of clipping.
+test('the output limiter leaves the sound up to its knee as it is and keeps louder peaks under full scale', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const modulePath = '/src/audio/AudioEngine.ts';
+    const m = (await import(/* @vite-ignore */ modulePath)) as typeof import('../src/audio/AudioEngine');
+    const SR = 44100;
+    const ctx = new OfflineAudioContext(1, SR, SR);
+    const input = ctx.createBuffer(1, SR, SR);
+    const x = input.getChannelData(0);
+    // a 220 Hz tone rising from silence to 1.6 times full scale over a second
+    for (let i = 0; i < SR; i++) x[i] = 1.6 * (i / SR) * Math.sin((2 * Math.PI * 220 * i) / SR);
+    const src = ctx.createBufferSource();
+    src.buffer = input;
+    src.connect(m.softLimiter(ctx, ctx.destination));
+    src.start(0);
+    const y = (await ctx.startRendering()).getChannelData(0);
+    let belowKnee = 0;
+    let peak = 0;
+    let loudest = 0;
+    for (let i = 0; i < SR; i++) {
+      const a = Math.abs(x[i]);
+      if (a <= 0.9) belowKnee = Math.max(belowKnee, Math.abs(y[i] - x[i]));
+      peak = Math.max(peak, Math.abs(y[i]));
+      loudest = Math.max(loudest, a);
+    }
+    return { belowKnee, peak, loudest };
+  });
+  console.log('output limiter:', JSON.stringify(result));
+  expect(result.loudest).toBeGreaterThan(1.5);
+  expect(result.belowKnee).toBeLessThan(1e-5);
+  expect(result.peak).toBeLessThanOrEqual(1);
+  expect(result.peak).toBeGreaterThan(0.99);
+});

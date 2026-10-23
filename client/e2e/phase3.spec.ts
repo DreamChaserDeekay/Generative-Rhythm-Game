@@ -93,8 +93,8 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   await expect(page.getByTestId('play-screen')).toBeVisible();
   // the play's keysounds come from the stems (the HUD names them, not on the screen)
   await expect(page.locator('.hud')).toHaveAttribute('data-keysounds', /\S/, { timeout: 60_000 });
-  // a hit sounds 1.1 times as loud as its stem in the song
-  await expect.poll(() => keysoundBusGain(page)).toBeCloseTo(1.1, 5);
+  // a hit sounds 1.2 times as loud as its stem in the song
+  await expect.poll(() => keysoundBusGain(page)).toBeCloseTo(1.2, 5);
   await expect(page.locator('.play-bg video.bg-video')).toHaveCount(1);
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(1);
   await page.waitForTimeout(9000);

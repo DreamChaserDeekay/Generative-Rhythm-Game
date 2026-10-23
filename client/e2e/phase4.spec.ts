@@ -188,8 +188,8 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   await autoplay(page);
   await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  // the note keysounds sound 1.1 times as loud as that
-  await expect.poll(() => keysoundBusGain(page), { timeout: 60_000 }).toBeCloseTo(gain * 1.1, 5);
+  // the note keysounds sound 1.2 times as loud as that
+  await expect.poll(() => keysoundBusGain(page), { timeout: 60_000 }).toBeCloseTo(gain * 1.2, 5);
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveText('AUTO');
   await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
