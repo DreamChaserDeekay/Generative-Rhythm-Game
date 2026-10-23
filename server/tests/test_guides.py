@@ -7,12 +7,15 @@ import dataclasses
 import math
 from functools import lru_cache
 
+import numpy as np
+
 from rhythm_server.analysis.analyzer import analyze
 from rhythm_server.config import load_config
 from rhythm_server.difficulty.consistency import structure_accuracy
 from rhythm_server.difficulty.guides import balance, guide_profile, hands, onset_pitches, pivots
 from rhythm_server.generator.core import generate_chart
 from rhythm_server.generator.lanes import (
+    _costs,
     _feedback_counts,
     _State,
     _Weights,
@@ -25,6 +28,7 @@ from rhythm_server.generator.lanes import (
 from rhythm_server.generator.motifs import SlotPlan, expected_keys, motif_context
 from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.sections import Unit, _cap_opening
+from rhythm_server.generator.select import Slot
 from rhythm_server.synth import CHORUS_FIRST_FORM, make_structured_song
 
 
@@ -120,7 +124,10 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # stay where they were (level 14 15.0 -> 15.2 per 1000 notes, human 16.6; PATTERN_DESIGN 46-3).
     profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
     assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 40.0, [g["jackStreaks"] for g in profiles]
-    assert sum(g["offBars"] or 0.0 for g in profiles) / len(profiles) <= 0.2, [g["offBars"] for g in profiles]
+    # Lopsided bars: 0.9.25 steers their share up toward the human one (hands.barTarget, PATTERN_DESIGN
+    # 47); on this loop the mean of these seeds goes 0.09 -> 0.23 (one seed 0.42, as an eighth of the
+    # human charts at levels 6-10 lean in more than 40% of their bars) - the limit guards runaway.
+    assert sum(g["offBars"] or 0.0 for g in profiles) / len(profiles) <= 0.3, [g["offBars"] for g in profiles]
 
 
 def test_bms_hand_measures() -> None:
@@ -172,8 +179,10 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # charts moved through it less than human charts at levels 6-10 (PATTERN_DESIGN 45-3). Since
     # 0.9.24 the lane search also steers the share of fast moves that enter or leave the middle key
     # toward the level's human value (hands.middleTarget / middleFeedback, PATTERN_DESIGN 46); on
-    # these songs the share starts below the target, so the feedback raises it.
+    # these songs the share starts below the target, so the feedback raises it (the lopsided-bar
+    # feedback of 0.9.25 is left out: it moves single notes between the hands too).
     grg = load_config("patterns")["hands"]["systems"]["GRG"]
+    monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
 
     def middle_share(notes: list[dict]) -> float:
         by_t: dict[float, list[int]] = {}
@@ -199,6 +208,39 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 0.0, "*": 0.0})
     without = mean_share()
     assert with_feedback > without + 0.02, (with_feedback, without)
+
+
+def test_the_lopsided_bar_feedback_rewards_single_notes_for_the_leaning_hand() -> None:
+    # Human 7-key BMS charts leave 30-70% for one hand in 16% of their busy bars at level 6 and 9% at
+    # level 10; 0.9.24 did in 11% and 6% (PATTERN_DESIGN 47). Since 0.9.25 the lane search steers that
+    # share toward hands.barTarget like the hand-run share: while the path has too few such bars, a
+    # single note for the hand its bar already leans to costs barFeedback x (target - share) less and
+    # one for the other hand as much more. Chords are left alone (a bonus per key of a chord made
+    # one-hand adjacent chords, PATTERN_DESIGN 43), and so are EASY charts (below barMinSkill 0.35).
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    n = len(lanes)
+    pos = [l.pos for l in lanes]
+    hand_of = [l.hand for l in lanes]
+    sides = [
+        ((1.0 if l.hand == "L" else 0.5 if l.hand == "T" else 0.0), (1.0 if l.hand == "R" else 0.5 if l.hand == "T" else 0.0)) if l.kind == "key" else (0.0, 0.0)
+        for l in lanes
+    ]
+    w = _Weights.of(resolve_params("7K+1S", "HARD", system="GRG"))
+    assert w.bar_feedback > 0 and _Weights.of(resolve_params("7K+1S", "EASY", system="GRG")).bar_feedback == 0
+    # bar 3 leans left so far (four left notes, one right), and none of the 20 full bars before did
+    start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    state = dataclasses.replace(start, bar=3, bar_hands=(4.0, 1.0), fb_bars=20, fb_off=0)
+    slot = Slot(beat=12.0, t=6000.0, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
+                bands=np.array([0.2, 0.3, 0.5]), score=1.0, subdivision=2, strength=1.0)
+    combos = [(keys[0],), (keys[6],), (keys[0], keys[1])]
+
+    def costs(weights: _Weights) -> list[float]:
+        return _costs(state, combos, pos, hand_of, slot, None, 6000.0, weights, 0.0, sides=sides, bar=3)
+
+    on, off = costs(w), costs(dataclasses.replace(w, bar_feedback=0.0))
+    assert on[0] < off[0] - 0.5 and on[1] > off[1] + 0.5 and on[2] == off[2], (on, off)
+
 
 
 def test_lane_move_contexts_are_counted_like_the_bms_table() -> None:

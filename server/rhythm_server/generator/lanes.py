@@ -162,7 +162,7 @@ class _Weights:
             run_target=by_skill(hands.get("runTarget", 0.0), params.skill),
             run_feedback=by_key_mode(hands.get("runFeedback", 0.0), params.key_mode),
             bar_target=by_skill(hands.get("barTarget", 0.0), params.skill),
-            bar_feedback=by_key_mode(hands.get("barFeedback", 0.0), params.key_mode),
+            bar_feedback=by_key_mode(hands.get("barFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("barMinSkill", 0.0)) else 0.0,
             mid_target=by_skill(hands.get("middleTarget", 0.0), params.skill),
             mid_feedback=by_key_mode(hands.get("middleFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("middleMinSkill", 0.0)) else 0.0,
             feedback_prior=float(hands.get("feedbackPrior", 20.0)),
@@ -1055,8 +1055,9 @@ def _costs(
             # into the middle key (and so out of it next) while the path has too few such moves; only
             # for the notes no shape plans (a role kept to one hand still may take the middle key)
             cost -= w.mid_feedback * mid_gap
-        if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0:
-            # toward the hand the bar already leans to (a lopsided bar) while there are too few
+        if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0 and len(combo) == 1:
+            # toward the hand the bar already leans to (a lopsided bar) while there are too few; for
+            # single notes only (a bonus per key of a chord made one-hand adjacent chords)
             lean = 1.0 if bar_left > bar_right else -1.0 if bar_right > bar_left else 0.0
             if lean:
                 add = 0.0
