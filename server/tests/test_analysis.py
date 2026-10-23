@@ -104,6 +104,66 @@ def test_tempo_change_is_split_into_segments() -> None:
         assert abs(b - round(b)) * tempo.beat_ms(b) < GRID_LIMIT_MS
 
 
+def _grid_onsets(bpm: float, duration: float, offset: float = 0.5) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+    """Onsets on every beat (strong, low) and half-beat (weaker, high) of one tempo, with an onset
+    function at 100 frames a second: (times, strengths, low fractions, onset function, frame rate)."""
+    period = 60.0 / bpm
+    beats = np.arange(offset, duration - 1.0, period)
+    times = np.concatenate([beats, beats + period / 2])
+    order = np.argsort(times)
+    strengths = np.concatenate([np.ones(len(beats)), 0.5 * np.ones(len(beats))])[order]
+    low = np.concatenate([0.7 * np.ones(len(beats)), 0.2 * np.ones(len(beats))])[order]
+    odf = np.zeros(int(duration * 100.0))
+    odf[np.round(times[order] * 100.0).astype(int)] = strengths
+    return times[order], strengths, low, odf, 100.0
+
+
+def test_a_tempo_split_that_explains_the_onsets_no_better_is_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two windows whose local fit wanders to another tempo split a third of the one-BPM BMS songs
+    into segments, most of them off the chart's beats; a split stands only when its beats explain
+    the onsets clearly better than the one grid."""
+    from rhythm_server.analysis import tempo
+
+    times, strengths, low, odf, rate = _grid_onsets(128.0, 120.0)
+    real = tempo._local_tempos
+    monkeypatch.setattr(tempo, "_local_tempos", lambda *a: [(c, b * (1.02 if 40.0 < c < 70.0 else 1.0)) for c, b in real(*a)])
+    kept = tempo.estimate_tempo(times, strengths, low, odf, rate, 120.0)
+    assert kept.constant and abs(kept.bpm - 128.0) < 0.01
+    on_beats = times[strengths == 1.0]
+    assert max(np.min(np.abs(kept.beats - t)) for t in on_beats) < 0.005
+    monkeypatch.setattr(tempo, "PIECEWISE_WINDOW_SHARE", -1.0)  # without the check the same song splits
+    assert not tempo.estimate_tempo(times, strengths, low, odf, rate, 120.0).constant
+
+
+@pytest.mark.parametrize("cue", ["harmony", "drums over mid"])
+def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
+    """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
+    drums clearly on the beats, though the mid-band onsets (an off-beat bass's partials) sit on the
+    off-beats."""
+    from rhythm_server.analysis.tempo import DrumFlux, _half_phase
+
+    bpm, duration, rate = 120.0, 60.0, 100.0
+    period = 60.0 / bpm
+    beats = np.arange(0.0, duration, period)
+    frames = int(duration * rate)
+    flux = np.full(frames, 0.01)
+    times = beats + period / 2
+    mid = np.zeros(len(times))
+    chroma = None
+    if cue == "harmony":
+        chord = np.random.default_rng(0).integers(0, 12, len(beats))
+        chroma = np.zeros((frames, 12))
+        for i, b in enumerate(beats):
+            chroma[int(b * rate) : int((b + period) * rate), chord[i]] = 1.0
+    else:
+        mid[:] = 1.0  # every mid-band onset on the off-beats
+        flux = flux.copy()
+        flux[np.round(beats * rate).astype(int)] = 1.0
+    drums = DrumFlux(high=flux.copy(), full=flux.copy(), frame_rate=rate)
+    phase = _half_phase(times, mid, drums, bpm, period / 2, duration, chroma, rate)
+    assert min(phase, period - phase) < 1e-6
+
+
 def test_downbeats_match_bar_starts() -> None:
     song = synth(128.0, 32, 1)
     a = analysis_of(128.0, 32, 1)
@@ -124,6 +184,29 @@ def test_bar_harmony_places_the_downbeat_between_like_accents() -> None:
     chroma = np.array([chords[(i - first) // 4 + 1] for i in range(n)])
     assert estimate_meter(cues).first_downbeat_index == first + 2
     meter = estimate_meter(cues, chroma)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+@pytest.mark.parametrize("song", ["kick on one", "four on the floor"])
+def test_the_drums_place_the_downbeat_with_the_harmony(song: str) -> None:
+    """Over one held chord the kick on beat 1 and the snares on 2 and 4 place the downbeat. Under
+    four-on-the-floor, whose claps on 2 and 4 put a little more into the kicks' band there, the
+    chord changing every bar still does."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 1
+    beat = [(i - first) % 4 for i in range(n)]
+    cues = np.zeros(n)  # the per-beat cues say nothing
+    snares = np.array([1.0 if b in (1, 3) else 0.1 for b in beat])
+    if song == "kick on one":
+        kicks = np.array([1.0 if b == 0 else 0.3 for b in beat])
+        chroma = np.ones((n, 12))
+    else:
+        kicks = np.array([1.05 if b in (1, 3) else 1.0 for b in beat])
+        chords = np.random.default_rng(2).random((n // 4 + 2, 12))
+        chroma = np.array([chords[(i - first) // 4 + 1] for i in range(n)])
+    accents = BeatAccents(kicks=kicks, snares=snares, onsets=np.full(n, 0.5))
+    meter = estimate_meter(cues, chroma, accents)
     assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
 
 

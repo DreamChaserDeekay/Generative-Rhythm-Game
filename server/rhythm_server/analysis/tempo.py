@@ -11,9 +11,11 @@
    A constant grid fitted to the whole song is far steadier than per-beat tracking. A shuffle's
    swung eighths can carry as many onsets as its beats; the drums tell them apart (the phase moves
    by a triplet when they hit there far more). The comb weights low onsets up, so an off-beat bass
-   can pull it onto the off-beats; the drums and the mid-band onsets move it back by half a beat.
+   can pull it onto the off-beats; the drums, the mid-band onsets and the harmony's changes move it
+   back by half a beat.
 4. Local phase drift is measured in windows; if the grid drifts, the song is split into
-   constant-tempo segments that are fitted separately (piecewise tempo map).
+   constant-tempo segments that are fitted separately (piecewise tempo map), kept only when their
+   beats explain the onsets clearly better than the one grid.
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from .structure import beat_sync
 
 BPM_MIN = 60.0
 BPM_MAX = 300.0
@@ -62,13 +66,27 @@ FAST_LEVEL_RATIO = 0.85
 # The fitted phase moves by a third of a beat when the drums (all of the percussive flux) hit the
 # grid shifted so this many times harder than the fitted one.
 TRIPLET_SHIFT_RATIO = 1.5
-# It moves by half a beat when the drums and the mid-band onsets (snares, chords; within
-# HALF_SHIFT_TOL_S of a grid point) together hit the half-beat grid clearly harder: the drums' log
-# ratio plus HALF_SHIFT_MID times the mid onsets' over HALF_SHIFT_LOG. The mid band counts less: a
-# bass's upper partials fall in it too.
-HALF_SHIFT_LOG = 0.2
-HALF_SHIFT_MID = 0.5
+# It moves by half a beat when the cues below say the half-beat grid is the beat (the comb fit
+# weights low onsets up, so an off-beat bass can pull it there): a logistic model of the log ratios
+# (half-beat grid over fitted grid) of how hard each hits there, fitted on BMS charts' beats
+# (docs/PATTERN_DESIGN.md 48): the drums above and below BACKBEAT_MIN_HZ (snares and claps, kicks),
+# the mid-band onsets (snares, chords; within HALF_SHIFT_TOL_S of a grid point) and the harmony's
+# change into each beat (chords change on the beat). The drums alone settle it when all of their
+# flux prefers one grid by a log ratio over HALF_SHIFT_DRUMS_LOG (BMS: 22 of the 24 songs past it
+# towards the half-beats needed the move, 394 of the 401 past it the other way did not), so an
+# off-beat bass's mid-band partials do not outvote a clear kick and clap.
+HALF_SHIFT_WEIGHTS = {"drumHigh": 3.12, "drumLow": 2.20, "onsetMid": 3.69, "harmony": 2.81}
+HALF_SHIFT_BIAS = 0.02
+HALF_SHIFT_DRUMS_LOG = 0.4
 HALF_SHIFT_TOL_S = 0.025
+# A piecewise tempo map stands only when it explains the onsets clearly better than the one grid:
+# in more than PIECEWISE_WINDOW_SHARE of the windows of WINDOW_BEATS beats its beats and half-beats
+# (within PIECEWISE_HIT_S) hold PIECEWISE_GAIN more of the onset weight. A drifting phase or two
+# windows of a different local tempo split a third of the one-BPM BMS songs; most of the splits
+# moved the beats off the chart's.
+PIECEWISE_GAIN = 0.2
+PIECEWISE_WINDOW_SHARE = 0.15
+PIECEWISE_HIT_S = 0.025
 
 
 @dataclass
@@ -270,20 +288,55 @@ def _triplet_phase(drums: DrumFlux, bpm: float, phase: float, duration: float) -
     return (phase + shift * period / 3) % period if best >= TRIPLET_SHIFT_RATIO * max(base, 1e-12) else phase
 
 
-def _half_phase(times: np.ndarray, mid_weights: np.ndarray, drums: DrumFlux, bpm: float, phase: float, duration: float) -> float:
-    """The phase moved by half a beat when the drums and the mid-band onsets hit there clearly
-    harder (an off-beat bass pulled the comb fit, whose weights favour low onsets, off the beat)."""
+def _log_ratio(a: float, b: float) -> float:
+    return float(np.log((a + 1e-9) / (b + 1e-9)))
+
+
+def _half_phase(
+    times: np.ndarray,
+    mid_weights: np.ndarray,
+    drums: DrumFlux,
+    bpm: float,
+    phase: float,
+    duration: float,
+    chroma: np.ndarray | None = None,
+    chroma_rate: float = 0.0,
+) -> float:
+    """The phase moved by half a beat when the cues hit there harder (HALF_SHIFT_WEIGHTS; an
+    off-beat bass pulled the comb fit, whose weights favour low onsets, off the beat)."""
     period = 60.0 / bpm
+    low = np.maximum(drums.full - drums.high, 0.0)
 
-    def accent(p: float) -> tuple[float, float]:
-        hits = _grid_hits(drums.full, drums.frame_rate, bpm, p, duration)
+    def grid_mean(env: np.ndarray, rate: float, p: float) -> float:
+        hits = _grid_hits(env, rate, bpm, p, duration)
+        return float(np.mean(hits)) if len(hits) else 0.0
+
+    def mid_sum(p: float) -> float:
         u = np.mod(times - p, period)
-        near = np.minimum(u, period - u) <= HALF_SHIFT_TOL_S
-        return (float(np.mean(hits)) if len(hits) else 0.0), float(np.sum(mid_weights[near]))
+        return float(np.sum(mid_weights[np.minimum(u, period - u) <= HALF_SHIFT_TOL_S]))
 
-    (drum_on, mid_on), (drum_off, mid_off) = accent(phase), accent(phase + period / 2)
-    cue = np.log((drum_off + 1e-9) / (drum_on + 1e-9)) + HALF_SHIFT_MID * np.log((mid_off + 1e-9) / (mid_on + 1e-9))
-    return (phase + period / 2) % period if cue > HALF_SHIFT_LOG else phase
+    def harmony(p: float) -> float:
+        grid = _beats_from_grid(0.0, duration, period, p % period)
+        if chroma is None or len(grid) < 8:
+            return 0.0
+        unit = beat_sync(chroma, chroma_rate, grid)
+        unit /= np.linalg.norm(unit, axis=1, keepdims=True) + 1e-9
+        return float(np.mean(1.0 - np.sum(unit[1:] * unit[:-1], axis=1)))
+
+    cues = {
+        "drumFull": lambda p: grid_mean(drums.full, drums.frame_rate, p),
+        "drumHigh": lambda p: grid_mean(drums.high, drums.frame_rate, p),
+        "drumLow": lambda p: grid_mean(low, drums.frame_rate, p),
+        "onsetMid": mid_sum,
+        "harmony": harmony,
+    }
+    off = phase + period / 2
+    drums_say = _log_ratio(cues["drumFull"](off), cues["drumFull"](phase))
+    if abs(drums_say) > HALF_SHIFT_DRUMS_LOG:
+        score = drums_say
+    else:
+        score = HALF_SHIFT_BIAS + sum(w * _log_ratio(cues[name](off), cues[name](phase)) for name, w in HALF_SHIFT_WEIGHTS.items())
+    return off % period if score > 0 else phase
 
 
 def _even_thirds(times: np.ndarray, weights: np.ndarray, fit: GridFit) -> bool:
@@ -355,12 +408,14 @@ def estimate_tempo(
     bpm_hint: float | None = None,
     drums: DrumFlux | None = None,
     mid_fraction: np.ndarray | None = None,
+    chroma: np.ndarray | None = None,
+    chroma_rate: float = 0.0,
 ) -> TempoResult:
     """`bpm_hint` (e.g. from an ML beat tracker) picks the beat level instead of the
     autocorrelation; the grid is still fitted to the onsets. `drums` lets the snares settle the
     level the autocorrelation chose (and vouch for a hint above FAST_LEVEL_BPM) and the drums the
-    phase of a shuffle, and with `mid_fraction` (each onset's mid-band share) a phase on the
-    off-beats."""
+    phase of a shuffle, and with `mid_fraction` (each onset's mid-band share) and `chroma` (frames
+    of pitch-class energy at `chroma_rate`) a phase on the off-beats."""
     if len(times) < 8:
         bpm = bpm_override or 120.0
         period = 60.0 / bpm
@@ -382,21 +437,49 @@ def estimate_tempo(
     drift = float(np.ptp(offsets)) if len(offsets) >= 3 else 0.0
     local = [] if bpm_override else _local_tempos(times, weights, fit.bpm, duration)
     deviating = _sustained_deviation(local, fit.bpm)
-    if bpm_override or (not deviating and drift <= 2 * DRIFT_LIMIT_S):
-        # Remove any residual constant offset (median of local offsets) from the phase.
-        phase = fit.phase + (float(np.median(offsets)) if len(offsets) else 0.0)
-        if drums is not None:
-            phase = _triplet_phase(drums, fit.bpm, phase, duration)
-            if mid_fraction is not None and not bpm_override and duration >= 16 * period:
-                phase = _half_phase(times, strengths * mid_fraction, drums, fit.bpm, phase, duration)
-        beats = _beats_from_grid(0.0, duration, period, phase % period)
-        return TempoResult(
-            beats=beats,
-            segments=[TempoSegment(float(beats[0]) if len(beats) else 0.0, fit.bpm, len(beats))],
-            constant=True,
-            confidence=float(min(1.0, fit.score * 2)),
-        )
-    return _piecewise(times, weights, fit.bpm, duration, fit.score, local)
+    # Remove any residual constant offset (median of local offsets) from the phase.
+    phase = fit.phase + (float(np.median(offsets)) if len(offsets) else 0.0)
+    if not bpm_override and (deviating or drift > 2 * DRIFT_LIMIT_S):
+        piecewise = _piecewise(times, weights, fit.bpm, duration, fit.score, local)
+        plain = _beats_from_grid(0.0, duration, period, phase % period)
+        if _windows_gained(times, weights, piecewise.beats, plain, period, duration) > PIECEWISE_WINDOW_SHARE:
+            return piecewise
+    if drums is not None:
+        phase = _triplet_phase(drums, fit.bpm, phase, duration)
+        if mid_fraction is not None and not bpm_override and duration >= 16 * period:
+            phase = _half_phase(times, strengths * mid_fraction, drums, fit.bpm, phase, duration, chroma, chroma_rate)
+    beats = _beats_from_grid(0.0, duration, period, phase % period)
+    return TempoResult(
+        beats=beats,
+        segments=[TempoSegment(float(beats[0]) if len(beats) else 0.0, fit.bpm, len(beats))],
+        constant=True,
+        confidence=float(min(1.0, fit.score * 2)),
+    )
+
+
+def _explained(times: np.ndarray, weights: np.ndarray, beats: np.ndarray) -> float:
+    """Share of the onset weight within PIECEWISE_HIT_S of the beats or the half-beats."""
+    if len(beats) < 2 or not len(times):
+        return 0.0
+    marks = np.sort(np.concatenate([beats, beats[:-1] + np.diff(beats) / 2]))
+    i = np.clip(np.searchsorted(marks, times), 1, len(marks) - 1)
+    gap = np.minimum(np.abs(times - marks[i - 1]), np.abs(times - marks[i]))
+    return float(np.sum(weights[gap <= PIECEWISE_HIT_S]) / max(float(np.sum(weights)), 1e-12))
+
+
+def _windows_gained(times: np.ndarray, weights: np.ndarray, beats: np.ndarray, plain: np.ndarray, period: float, duration: float) -> float:
+    """Share of the windows of WINDOW_BEATS beats where `beats` explain PIECEWISE_GAIN more of the
+    onset weight than the one grid `plain`."""
+    window = WINDOW_BEATS * period
+    gains = []
+    for t0 in np.arange(0.0, duration, window):
+        sel = (times >= t0) & (times < t0 + window)
+        if np.count_nonzero(sel) < 12:
+            continue
+        lo, hi = t0 - period, t0 + window + period
+        split = _explained(times[sel], weights[sel], beats[(beats >= lo) & (beats < hi)])
+        gains.append(split - _explained(times[sel], weights[sel], plain[(plain >= lo) & (plain < hi)]))
+    return float(np.mean(np.asarray(gains) > PIECEWISE_GAIN)) if gains else 0.0
 
 
 def _sustained_deviation(local: list[tuple[float, float]], bpm: float) -> bool:
