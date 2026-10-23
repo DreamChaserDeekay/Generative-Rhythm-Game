@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import threading
 import types
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -356,15 +357,35 @@ def _tagged_analysis() -> dict:
 def test_instrument_mapping_puts_kicks_left_and_hats_right() -> None:
     a = _tagged_analysis()
 
-    def spread(mapping: float) -> float:
-        chart = generate_chart(a, "7K+1S", "HARD", seed=2, overrides={"instrumentMapping": mapping})
-        lanes = lane_infos("7K+1S")
-        kicks = [lanes[n["lane"]].pos for n in chart["notes"] if lanes[n["lane"]].kind == "key" and round(n["beat"] * 2) % 2 == 0]
-        hats = [lanes[n["lane"]].pos for n in chart["notes"] if lanes[n["lane"]].kind == "key" and round(n["beat"] * 2) % 2 == 1]
-        return float(np.mean(hats) - np.mean(kicks))
+    def drums(mode: str, tier: str, level: int | None, system: str, mapping: float, seed: int = 2) -> tuple[list, list[int], list[int]]:
+        chart = generate_chart(a, mode, tier, level, seed=seed, overrides={"instrumentMapping": mapping}, system=system)
+        lanes = lane_infos(mode)
+        keys = [n for n in chart["notes"] if lanes[n["lane"]].kind == "key"]
+        return lanes, [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 0], [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 1]
 
-    assert spread(1.0) > 0.25
-    assert spread(1.0) > spread(0.0) + 0.2
+    def spread(*chart: object) -> float:
+        lanes, kicks, hats = drums(*chart)  # type: ignore[arg-type]
+        return float(np.mean([lanes[l].pos for l in hats]) - np.mean([lanes[l].pos for l in kicks]))
+
+    for chart in (("7K+1S", "NORMAL", None, "GRG"), ("8K", "HD", 13, "EZ2ON")):
+        assert spread(*chart, 1.0) > 0.25, chart
+        assert spread(*chart, 1.0) > spread(*chart, 0.0) + 0.2, chart
+    # From skill 0.35 the default system draws each chart's drum keys from the spread of human BMS
+    # charts (generator 0.9.23, roles.drawnHomes): kicks need not be left, but each drum keeps a key
+    # of its own. (The lopsided-bar feedback of 0.9.25 moves some single hats to the hand a bar
+    # leans to; over the held-out charts the same-sound lane share still rises a little, PATTERN_DESIGN
+    # 47. On this song the hats also repeat on the off-beats, so how firmly they keep their key with
+    # the mapping off or on goes either way by seed.)
+    def home(lanes_used: list[int]) -> tuple[int, float]:
+        lane, n = Counter(lanes_used).most_common(1)[0]
+        return lane, n / len(lanes_used)
+
+    shares = []
+    for seed in range(4):
+        _, kicks, hats = drums("7K+1S", "HARD", None, "GRG", 1.0, seed)
+        assert home(kicks)[0] != home(hats)[0], seed
+        shares.append(home(hats)[1])
+    assert float(np.mean(shares)) > 0.35, shares  # one key of the seven would hold 0.14
 
 
 def test_old_analyses_without_stems_still_generate() -> None:

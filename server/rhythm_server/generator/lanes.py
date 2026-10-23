@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -29,6 +31,9 @@ W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
 ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
+RUN_MS = 400.0  # single notes closer than this form a run (bms_stats.RUN_MS: the hand-shape feedback counts like it)
+MID_MS = 260.0  # moves between single notes closer than this count for the middle-key feedback
+REST_MS = 1000.0  # a key note this long after the last one starts afresh (lane moves: no move into it)
 TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
 # (the weight would pick it anyway; skipping the rest keeps copied sections cheap)
@@ -89,6 +94,29 @@ class _Weights:
     # the lane it last had (BMS charts keep 70-86% of a keysound's notes on one lane)
     memory: float = 0.0
     memory_size: int = 0
+    # hand-shape feedback (hands.runTarget / barTarget, Udo 2023): the share of fast-run notes that
+    # are a hand's third or later in a row, and the share of full bars outside the hands' band, are
+    # steered toward a target by a bonus (below it) or a cost (above it) that grows with the gap;
+    # `feedback_prior` notes / bars at the target start the count. The strengths (runFeedback /
+    # barFeedback) may be {key mode: strength}: the targets come from 7-key BMS charts
+    run_target: float = 0.0
+    run_feedback: float = 0.0
+    bar_target: float = 0.0
+    bar_feedback: float = 0.0
+    # the share of moves between single key notes (MID_MS apart at most; a repeat on one key is a
+    # stay) that enter or leave the middle key, steered the same way toward hands.middleTarget
+    mid_target: float = 0.0
+    mid_feedback: float = 0.0
+    feedback_prior: float = 20.0
+    # lane moves (hands.laneMoves, config/lane_moves.json): a single key note right after a single
+    # key note pays this times -log P(key | previous key, the move into that key, beat phase, note
+    # density) of human 7-key BMS charts
+    lane_moves: float = 0.0
+    # draw the key from those counts (Gumbel noise on the log-probabilities) instead of taking the
+    # likeliest: the likeliest key every time walks the same few moves (trills) far more than people
+    lane_moves_draw: bool = False
+    # only on the notes no shape plans (step slots): a planned stair, trill or doubles keeps its own
+    lane_moves_free: bool = False
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -131,6 +159,16 @@ class _Weights:
             balance_band=(float(hands["balanceBand"][0]), float(hands["balanceBand"][1])),
             memory=by_skill(hands.get("soundMemory", 0.0), params.skill),
             memory_size=int(hands.get("soundMemorySize", 24)),
+            run_target=by_skill(hands.get("runTarget", 0.0), params.skill),
+            run_feedback=by_key_mode(hands.get("runFeedback", 0.0), params.key_mode),
+            bar_target=by_skill(hands.get("barTarget", 0.0), params.skill),
+            bar_feedback=by_key_mode(hands.get("barFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("barMinSkill", 0.0)) else 0.0,
+            mid_target=by_skill(hands.get("middleTarget", 0.0), params.skill),
+            mid_feedback=by_key_mode(hands.get("middleFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("middleMinSkill", 0.0)) else 0.0,
+            feedback_prior=float(hands.get("feedbackPrior", 20.0)),
+            lane_moves=by_skill(hands.get("laneMoves", 0.0), params.skill),
+            lane_moves_draw=bool(hands.get("laneMovesDraw", False)),
+            lane_moves_free=bool(hands.get("laneMovesFree", False)),
         )
 
 
@@ -188,6 +226,23 @@ class _State:
     bar: int = -1  # bar of this slot
     bar_hands: tuple[float, float] = (0.0, 0.0)  # left / right key notes of that bar so far (a middle key: half each)
     memory: tuple[tuple[Any, int], ...] = ()  # (sound, lane) of the latest single key notes, one per sound, oldest first
+    # hand-shape feedback counts, measured like the BMS statistics (scripts/bms_stats.py): notes in
+    # runs of single notes, those a hand plays third or later in a row, full bars and lopsided ones
+    fb_run: int = 0
+    fb_hand3: int = 0
+    fb_bars: int = 0
+    fb_off: int = 0
+    fb_single: bool = False  # this slot is a single key note (no chord, no special lane)
+    fb_in_run: bool = False  # ...already counted in a run
+    fb_side: str | None = None  # hand of the run's latest note (T for the middle key)
+    fb_len: int = 0  # notes in a row that hand has played in the run
+    fb_moves: int = 0  # moves between single key notes at most MID_MS apart
+    fb_mid: int = 0  # ...that enter or leave the middle key
+    # the latest key instant, for the lane moves: its key (1-7) when single (0: a chord), the move
+    # class into it (lane_move_class) and its time
+    mv_key: int = 0
+    mv_class: int = 16
+    mv_t: float = -1e9
 
 
 def _remember(memory: tuple[tuple[Any, int], ...], sound: Any, keys_used: tuple[int, ...], size: int) -> tuple[tuple[Any, int], ...]:
@@ -256,6 +311,89 @@ def lane_search(
     return choices
 
 
+@lru_cache(maxsize=None)
+def lane_move_logp() -> dict[tuple[int, int, int, int], tuple[float, ...]]:
+    """log P(key | previous key, move class into the previous key, beat phase, density band) for
+    7-key charts from the aggregate counts of config/lane_moves.json. Each context is smoothed
+    toward the next more general one: without the phase, then without the density, then the
+    previous key alone, then all moves."""
+    cfg = load_config("lane_moves")
+    alpha = float(cfg["alpha"])
+    n = 7
+    fine: dict[tuple[int, int, int, int], list[float]] = {}
+    for ctx, counts in cfg["counts"].items():
+        j, c, ph, b = (int(x) for x in ctx.split("|"))
+        fine[(j, c, ph, b)] = [float(x) for x in counts]
+
+    def total(keep) -> dict[Any, list[float]]:
+        out: dict[Any, list[float]] = {}
+        for ctx, counts in fine.items():
+            row = out.setdefault(keep(ctx), [0.0] * n)
+            for k in range(n):
+                row[k] += counts[k]
+        return out
+
+    def smooth(counts: list[float] | None, prior: list[float]) -> list[float]:
+        if not counts:
+            return prior
+        t = sum(counts)
+        return [(x + alpha * n * q) / (t + alpha * n) for x, q in zip(counts, prior)]
+
+    by_jcb, by_jc, by_j = total(lambda x: (x[0], x[1], x[3])), total(lambda x: (x[0], x[1])), total(lambda x: x[0])
+    overall = smooth(total(lambda x: 0).get(0), [1.0 / n] * n)
+    out: dict[tuple[int, int, int, int], tuple[float, ...]] = {}
+    for j in range(1, n + 1):
+        pj = smooth(by_j.get(j), overall)
+        for c in range(17):
+            pjc = smooth(by_jc.get((j, c)), pj)
+            for b in range(len(cfg["densityBands"]) + 1):
+                pjcb = smooth(by_jcb.get((j, c, b)), pjc)
+                for ph in range(len(cfg["phases"])):
+                    out[(j, c, ph, b)] = tuple(math.log(q) for q in smooth(fine.get((j, c, ph, b)), pjcb))
+    return out
+
+
+def lane_move_phase(beat: float) -> int:
+    """Beat phase of config/lane_moves.json: 0 on a beat, 1 an 8th, 2 a 16th, 3 anything else."""
+    f = beat % 1.0
+    for value, cls in ((0.0, 0), (1.0, 0), (0.5, 1), (0.25, 2), (0.75, 2)):
+        if abs(f - value) < 0.01:
+            return cls
+    return 3
+
+
+def lane_move_bands(slots: list[Slot], edges: list[float]) -> list[int]:
+    """Density band per slot (config/lane_moves.json): notes per second within 2 s either side,
+    over the span those notes cover (1 s at least), against the band edges."""
+    times = [s.t for s in slots]
+    sizes = [s.size for s in slots]
+    out = []
+    lo = hi = 0
+    count = 0
+    for t in times:
+        while hi < len(times) and times[hi] <= t + 2000.0:
+            count += sizes[hi]
+            hi += 1
+        while times[lo] < t - 2000.0:
+            count -= sizes[lo]
+            lo += 1
+        span = (min(times[hi - 1], t + 2000.0) - max(times[lo], t - 2000.0)) / 1000.0
+        nps = count / max(span, 1.0)
+        out.append(sum(1 for e in edges if nps >= e))
+    return out
+
+
+def lane_move_class(prev_key: int, prev_t: float, keys: tuple[int, ...], t: float) -> int:
+    """The move into a key instant (keys 1-7), as config/lane_moves.json counts them: 0-12 a single
+    key after a single key (step -6..+6), 13 single -> chord, 14 chord -> single, 15 chord ->
+    chord, 16 at the start or after a rest (REST_MS)."""
+    if t - prev_t > REST_MS:
+        return 16
+    if len(keys) == 1:
+        return keys[0] - prev_key + 6 if prev_key else 14
+    return 13 if prev_key else 15
+
+
 def search(
     slots: list[Slot],
     lanes: list[LaneInfo],
@@ -283,6 +421,10 @@ def search(
         weights = dataclasses.replace(weights, repeat=repeat_weight)
     exact = repeat_weight is not None and repeat_weight >= EXACT_COPY_WEIGHT
     repeat_targets = targets_by_slot or [None] * len(slots)
+    feedback = weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0
+    moves = lane_move_logp() if weights.lane_moves > 0 and len(key_lanes) == 7 else None
+    key_no = {lane: n + 1 for n, lane in enumerate(key_lanes)}
+    move_bands = lane_move_bands(slots, load_config("lane_moves")["densityBands"]) if moves is not None else []
     pos = [l.pos for l in lanes]
     hands = [l.hand for l in lanes]
     # each key's part of the left / right count of a bar (a shared middle key: half to each hand)
@@ -448,6 +590,17 @@ def search(
                 home = next((lane for s, lane in reversed(state.memory) if s == sound), None)
                 if home is not None:
                     costs = [c + weights.memory if len(combo) == 1 and combo[0] != home else c for c, combo in zip(costs, combos)]
+            planned = sp is not None and sp.motif != "step"
+            if moves is not None and state.mv_key and t - state.mv_t <= REST_MS and not (weights.lane_moves_free and planned):
+                # how people move on from the last key (a single one): continue a stair, repeat a
+                # jack, come back... (the counts' context: that key, the move into it, phase, density)
+                logp = moves[(state.mv_key, state.mv_class, lane_move_phase(slot.beat), move_bands[si])]
+                lm = weights.lane_moves
+                if weights.lane_moves_draw:
+                    gumbel = -np.log(-np.log(rng.random(len(combos)) + 1e-12) + 1e-12)
+                    costs = [c - lm * (logp[key_no[combo[0]] - 1] + g) if len(combo) == 1 else c for c, combo, g in zip(costs, combos, gumbel)]
+                else:
+                    costs = [c - lm * logp[key_no[combo[0]] - 1] if len(combo) == 1 else c for c, combo in zip(costs, combos)]
             scored = []
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
@@ -498,6 +651,14 @@ def search(
                 streak[i] = 0 if hands[i] == "T" else state.streak[i] + 1 if close else 1
                 left += sides[i][0]
                 right += sides[i][1]
+            fb = _feedback_counts(state, keys_used, lanes_used, t, bar, hands, weights) if feedback else None
+            mv: dict[str, Any] = {}
+            if moves is not None:
+                if keys_used:
+                    ks = tuple(key_no[i] for i in keys_used)
+                    mv = {"mv_key": ks[0] if len(ks) == 1 else 0, "mv_class": lane_move_class(state.mv_key, state.mv_t, ks, t), "mv_t": t}
+                else:
+                    mv = {"mv_key": state.mv_key, "mv_class": state.mv_class, "mv_t": state.mv_t}
             expansions.append(
                 _State(
                     cost=total,
@@ -519,6 +680,8 @@ def search(
                     bar=bar,
                     bar_hands=(left, right),
                     memory=_remember(state.memory, sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
+                    **(fb or {}),
+                    **mv,
                 )
             )
         beam = expansions or beam
@@ -797,6 +960,20 @@ def _costs(
         for i, n in enumerate(state.streak):
             if n >= w.jack_free:
                 streak_cost[i] = w.jack_streak * (n + 1 - w.jack_free)
+    # hand-shape feedback: how far the path so far is from the target shares (positive: too few)
+    run_gap = bar_gap = mid_gap = 0.0
+    continues_run = False
+    if w.mid_feedback > 0 and slot.special is None and state.fb_single and dt <= MID_MS:
+        prior = w.feedback_prior
+        mid_gap = w.mid_target - (state.fb_mid + prior * w.mid_target) / (state.fb_moves + prior)
+    if w.run_feedback > 0 and slot.special is None:
+        continues_run = state.fb_single and dt <= RUN_MS
+        prior = w.feedback_prior
+        run_gap = w.run_target - (state.fb_hand3 + prior * w.run_target) / (state.fb_run + prior)
+    if w.bar_feedback > 0 and sides is not None:
+        prior = w.feedback_prior / 2.0
+        bar_gap = w.bar_target - (state.fb_off + prior * w.bar_target) / (state.fb_bars + prior)
+    bar_left, bar_right = state.bar_hands if state.bar == bar else (0.0, 0.0)
     left = right = 0.0
     use_balance = sides is not None and balance_rule and w.balance_bar > 0
     if use_balance:
@@ -866,6 +1043,27 @@ def _costs(
         if streak_cost:
             for i in combo:
                 cost += streak_cost.get(i, 0.0)
+        if run_gap and continues_run and len(combo) == 1 and hand_rule:
+            hand = hands[combo[0]]
+            # the note's place in its hand's streak, counted like bms_stats (the middle key ends it)
+            length = 0 if hand == "T" else state.fb_len + 1 if hand == state.fb_side else 1
+            if length >= 3:
+                cost -= w.run_feedback * run_gap
+            elif length == 2:
+                cost -= 0.5 * w.run_feedback * run_gap
+        if mid_gap and len(combo) == 1 and pull_rule and single_prev is not None and hands[combo[0]] == "T" and hands[single_prev] != "T":
+            # into the middle key (and so out of it next) while the path has too few such moves; only
+            # for the notes no shape plans (a role kept to one hand still may take the middle key)
+            cost -= w.mid_feedback * mid_gap
+        if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0 and len(combo) == 1:
+            # toward the hand the bar already leans to (a lopsided bar) while there are too few; for
+            # single notes only (a bonus per key of a chord made one-hand adjacent chords)
+            lean = 1.0 if bar_left > bar_right else -1.0 if bar_right > bar_left else 0.0
+            if lean:
+                add = 0.0
+                for i in combo:
+                    add += lean * (sides[i][0] - sides[i][1])
+                cost -= w.bar_feedback * bar_gap * add
         if use_balance:
             add_l = add_r = 0.0
             for i in combo:
@@ -880,6 +1078,43 @@ def _costs(
                     cost += w.balance_bar * add_r
         out.append(cost)
     return out
+
+
+def _feedback_counts(
+    state: _State, keys_used: tuple[int, ...], lanes_used: tuple[int, ...], t: float, bar: int, hands: list[str], w: _Weights
+) -> dict[str, Any]:
+    """The hand-shape feedback counts after a slot, as scripts/bms_stats.py counts them: notes in
+    runs of single notes (each within RUN_MS of the last), the ones a hand plays third or later in a
+    row (the middle key ends the count), the full bars that end outside the hands' band, and the
+    moves between single notes at most MID_MS apart with those that enter or leave the middle key.
+    (One difference: bms_stats leaves the scratch out, here a slot with a scratch or side note ends
+    a run.)"""
+    run, hand3, bars, off = state.fb_run, state.fb_hand3, state.fb_bars, state.fb_off
+    moves, mid = state.fb_moves, state.fb_mid
+    if state.bar >= 0 and bar != state.bar:
+        left, right = state.bar_hands
+        if left + right >= w.balance_min:
+            bars += 1
+            if not w.balance_band[0] <= left / (left + right) <= w.balance_band[1]:
+                off += 1
+    single = len(lanes_used) == 1 and len(keys_used) == 1
+    in_run, side, length = False, None, 0
+    if single:
+        side = hands[keys_used[0]]
+        if state.fb_single and t - state.prev_t <= MID_MS:
+            moves += 1
+            mid += keys_used != state.prev_lanes and "T" in (side, state.fb_side)
+        if state.fb_single and t - state.prev_t <= RUN_MS:
+            run += 1 if state.fb_in_run else 2
+            in_run = True
+            length = 0 if side == "T" else state.fb_len + 1 if side == state.fb_side else 1
+            hand3 += length >= 3
+        else:
+            length = 0 if side == "T" else 1
+    return {
+        "fb_run": run, "fb_hand3": hand3, "fb_bars": bars, "fb_off": off, "fb_single": single, "fb_in_run": in_run, "fb_side": side, "fb_len": length,
+        "fb_moves": moves, "fb_mid": mid,
+    }
 
 
 def _streak_over(state: _State, combo: tuple[int, ...], t: float, w: _Weights) -> bool:
