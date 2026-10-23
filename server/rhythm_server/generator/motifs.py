@@ -68,6 +68,9 @@ class MotifContext:
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
+    # share of rolls that change their reach every turn (a zigzag, rolls.waveShare by skill) instead
+    # of fanning out slowly (which plays mostly trills)
+    roll_wave: float = 0.0
     adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord, by skill)
     stretch_span: int = 2  # keys apart within one hand from which a chord is a stretch (hands.stretchSpan)
     asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
@@ -110,6 +113,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         # less so as charts get harder
         home_scale=instrument_mapping * (_song_home_weight(cfg["roles"], system) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
+        roll_wave=by_skill(_for_system(cfg["rolls"].get("waveShare", 0.0), system, 0.0), skill),
         adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
         asymmetric=float(hands["asymmetricChord"]),
@@ -140,6 +144,11 @@ def pair_shape(ctx: MotifContext, a: int, b: int) -> str:
     if ctx.hand[a] == ctx.hand[b]:
         return "adjacent" if b - a == 1 else "oneHandGap"
     return "lopsided"
+
+
+def _for_system(value: Any, system: str, default: Any) -> Any:
+    """A setting, or {system: setting} ("*" for the systems it leaves out, else `default`)."""
+    return value.get(system, value.get("*", default)) if isinstance(value, dict) else value
 
 
 def _song_home_weight(roles: dict[str, Any], system: str) -> float:
@@ -207,12 +216,13 @@ def _step(ctx: MotifContext, sp: SlotPlan, prev: int, d: int, wrap: bool) -> int
 
 def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = False, mirrored: bool = False, prev: int | None = None) -> int | None:
     """Key of a drum roll's note (좌우 연타): the hands take turns, from the middle keys outward as
-    the roll goes on (easy charts stay nearer the middle). A roll starts on the left (the right in
-    a repeat played mirrored), so a repeat of the build-up plays it the same way; after that each
-    note takes the other hand from the roll's previous note `prev` (a key), so a note a held note
-    pushed aside does not leave two in a row on one hand. A roll too fast for one key every other
-    note (`spread`: the jack spacing) turns between two keys of each hand (2-3-1-4). None on a key
-    mode without two hands of keys."""
+    the roll goes on (easy charts stay nearer the middle), or for a share of the roll lengths on
+    hard charts (rolls.waveShare) one key further out every turn and back in. A roll starts on the
+    left (the right in a repeat played mirrored), so a repeat of the build-up plays it the same
+    way; after that each note takes the other hand from the roll's previous note `prev` (a key), so
+    a note a held note pushed aside does not leave two in a row on one hand. A roll too fast for
+    one key every other note (`spread`: the jack spacing) turns between two keys of each hand
+    (2-3-1-4). None on a key mode without two hands of keys."""
     pos, hits, _ = roll
     left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]  # inner key first
     right = [k for k, h in enumerate(ctx.hand) if h == "R"]
@@ -221,7 +231,15 @@ def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = 
         return None
     width = 2 if spread and levels >= 2 else 1
     reach = 1 + int(round((levels - width) * min(1.0, ctx.skill / ctx.fan_skill)))
-    level = min(reach - 1, pos * reach // max(1, hits)) + (pos // 2) % width
+    if reach > 1 and ((hits * 2654435761) % 1000) / 1000.0 < ctx.roll_wave:
+        # each turn of the hands reaches one key further out, then back in (3-5-2-6-1-7-2-6-3-5):
+        # the harder the chart, the more human BMS charts play rolls this way (PATTERN_DESIGN 45).
+        # Which rolls do goes by their length, so a fill played again is played the same way
+        cycle = 2 * (reach - 1)
+        q = (pos // 2) % cycle
+        level = min((q if q < reach else cycle - q) + (pos // 2) % width, levels - 1)
+    else:
+        level = min(reach - 1, pos * reach // max(1, hits)) + (pos // 2) % width
     if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
         on_left = ctx.hand[prev] == "R"
     else:

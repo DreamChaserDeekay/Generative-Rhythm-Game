@@ -377,6 +377,29 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
 
 
+def test_hard_default_rolls_zigzag_instead_of_trilling() -> None:
+    """A roll fanning out slowly from the middle keys plays its first part as a trill (3-5-3-5). Human
+    7-key BMS charts play rolls with few trills on hard charts (level 14: 16% of three-note shapes
+    inside rolls against our 55%), so since generator 0.9.23 the default system's MASTER rolls reach
+    one key further out every turn and back in (rolls.waveShare); NORMAL charts and the other
+    systems keep the fan (PATTERN_DESIGN 45)."""
+    from rhythm_server.generator.motifs import alternate_key, motif_context
+
+    lanes = lane_infos("7K+1S")
+
+    def roll(ctx, hits: int = 10) -> list[int]:
+        keys: list[int] = []
+        for pos in range(hits):
+            key = alternate_key(ctx, (pos, hits, 3), prev=keys[-1] if keys else None)
+            assert key is not None
+            keys.append(key)
+        return [k + 1 for k in keys]  # keys 1-7
+
+    assert roll(motif_context(lanes, 0.96, system="GRG", key_mode="7K+1S")) == [3, 5, 2, 6, 1, 7, 2, 6, 3, 5]
+    for ctx in (motif_context(lanes, 0.96, system="DJMAX", key_mode="7K+1S"), motif_context(lanes, 0.4, system="GRG", key_mode="7K+1S")):
+        assert roll(ctx)[:4] == [3, 5, 3, 5]
+
+
 def test_every_system_balances_lane_use_over_the_same_many_notes() -> None:
     """The lane-usage balance charges a lane for use above the others' mean in its memory, which
     fades by hands.usageDecay each slot. Remembering only the last ten or so notes (0.9) spreads every
@@ -527,6 +550,29 @@ def hand_sides(chart: dict, mode: str) -> dict[tuple[str, str], list[str]]:
         role = "drums" if abs(n["beat"] - round(n["beat"])) < 1e-6 else "melody"
         out.setdefault((group, role), []).append(lanes[n["lane"]].hand)
     return out
+
+
+def test_default_system_draws_each_charts_drum_keys() -> None:
+    """Human 7-key BMS charts keep each drum on a key, but every chart picks its own: the snare's
+    home is on keys 3-5 in 59-67% of the charts at levels 6-14 and on the other keys in the rest, so
+    over many charts the drums spread over all keys. Ours put the snare on key 4 in nearly half the
+    charts at levels 2-10 (kick low, snare in the middle, hats high every time). Since generator 0.9.23 the default system draws each
+    chart's kick, snare and hat keys from the human spread (roles.drawnHomes, PATTERN_DESIGN 45),
+    each on a key of its own (a kick and a snare sharing a key could not keep their lanes when they
+    alternate fast); a chart keeps its draw. EASY and NORMAL (below skill 0.35, whose phrases stay
+    in narrow windows) and the other systems keep the fixed places."""
+    from rhythm_server.generator.planner import _own_keys, drum_places
+
+    grg = resolve_params("7K+1S", "EXPERT", None, None, "GRG")
+    assert drum_places(grg, 7) == drum_places(grg, 7)
+    draws = [drum_places(grg, seed) for seed in range(400)]
+    assert all(p is not None and len(set(p)) == 3 for p in draws)
+    snare = [round(p[1] * 6) + 1 for p in draws if p is not None]
+    assert set(snare) == set(range(1, 8))
+    assert max(snare.count(k) for k in range(1, 8)) / len(snare) < 0.35
+    assert _own_keys((2 / 6, 3 / 6, 1.0), 0, 5) == (2, 3, 5)  # 7-key places that round to one 6-key lane
+    assert drum_places(resolve_params("6K", "HD", 9, None, "DJMAX"), 7) is None
+    assert drum_places(resolve_params("7K+1S", "NORMAL", None, None, "GRG"), 7) is None
 
 
 def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:

@@ -541,14 +541,19 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
     return out
 
 
-def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int) -> list[int | None]:
+def sound_homes(
+    slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int, seed: int = 0
+) -> list[int | None]:
     """A home key for each drum hit: kick low, snare in the middle, hats high, inside the rhythm
     region when the phrase has one. The region changes only between repetition groups (or never on
     song-home systems), so a drum sound keeps its key through a section. On the systems in
     roles.tonalHomes a pitched sound has a home too, by its pitch's place among the song's pitched
     notes (low left, high right, inside the melody region): human BMS charts keep 76-86% of a
-    pitched keysound's notes on one lane at levels 6-10."""
+    pitched keysound's notes on one lane at levels 6-10. On the systems in roles.drawnHomes each
+    chart (`seed`) draws its kick, snare and hat keys from the human charts' spread instead."""
     roles = pattern_config()["roles"]
+    drawn = drum_places(params, seed)
+    drawn_keys: dict[tuple[int, int], tuple[int, ...]] = {}
     song = params.system in roles["songHomes"]
     rank: dict[int, float] = {}
     if params.system in roles.get("tonalHomes", []):
@@ -574,8 +579,46 @@ def sound_homes(slots: list[Slot], phrases: list[Phrase], regions: list[dict[str
             if s.sources is None or int(np.argmax(s.sources)) != DRUMS or _melodic(s):
                 continue
             band = int(np.argmax(s.bands))  # 0 low (kick), 1 mid (snare), 2 high (hats)
-            out[i] = int(round(lo + (hi - lo) * (0.15, 0.5, 0.85)[band]))
+            if drawn is None:
+                out[i] = int(round(lo + (hi - lo) * (0.15, 0.5, 0.85)[band]))
+                continue
+            if (lo, hi) not in drawn_keys:
+                drawn_keys[(lo, hi)] = _own_keys(drawn, lo, hi)
+            out[i] = drawn_keys[(lo, hi)][band]
     return out
+
+
+def _own_keys(places: tuple[float, ...], lo: int, hi: int) -> tuple[int, ...]:
+    """The places (0..1) on the keys lo..hi, each on a key of its own while there are keys enough:
+    a later one takes the nearest free key."""
+    taken: list[int] = []
+    for p in places:
+        want = lo + (hi - lo) * p
+        free = [k for k in range(lo, hi + 1) if k not in taken] or list(range(lo, hi + 1))
+        taken.append(min(free, key=lambda k: (abs(k - want), k)))
+    return tuple(taken)
+
+
+def drum_places(params: GenParams, seed: int) -> tuple[float, float, float] | None:
+    """On the systems in roles.drawnHomes, where the chart (`seed`) keeps its kick, snare and hats
+    across their keys (0 the left end, 1 the right): each a key drawn from the human 7-key charts'
+    spread of that drum's home key at the chart's skill (roles.drawnHomes.kick / snare / hat:
+    [skill, seven weights] pairs, keys 1-7), each on a key of its own. None on the other systems
+    (kick low, snare in the middle, hats high)."""
+    cfg = pattern_config()["roles"].get("drawnHomes")
+    if not cfg or params.system not in cfg.get("systems", []) or params.skill < float(cfg.get("minSkill", 0.0)):
+        return None
+    rng = np.random.default_rng([int(seed) % (2**32), 0xD8])
+    keys: list[int] = []
+    for name in ("kick", "snare", "hat"):
+        points = sorted(cfg[name], key=lambda p: float(p[0]))
+        skills = [float(a) for a, _ in points]
+        weights = np.array([[float(x) for x in w] for _, w in points])
+        at = np.array([np.interp(params.skill, skills, weights[:, k]) for k in range(weights.shape[1])])
+        at[keys] = 0.0
+        keys.append(int(rng.choice(len(at), p=at / at.sum())))
+    n = len(at) - 1
+    return (keys[0] / n, keys[1] / n, keys[2] / n)
 
 
 def plan_patterns(
@@ -610,7 +653,7 @@ def plan_patterns(
     pals = palettes(phrases, params, n_keys, keys, seed)
     textures = [chord_texture(p, params) for p in phrases]
     regions = role_regions(slots, phrases, params, hands)
-    homes = sound_homes(slots, phrases, regions, params, n_keys) if params.instrument_mapping > 0 else [None] * len(slots)
+    homes = sound_homes(slots, phrases, regions, params, n_keys, seed) if params.instrument_mapping > 0 else [None] * len(slots)
     plan: list[SlotPlan] = [None] * len(slots)  # type: ignore[list-item]  # every slot is in a phrase
     # rolls too fast for one key every other note (the jack spacing) use two keys per hand
     roll_gap: dict[int, float] = {}
