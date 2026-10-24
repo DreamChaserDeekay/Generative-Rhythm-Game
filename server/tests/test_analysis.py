@@ -150,6 +150,27 @@ def test_the_tempo_octave_moves_only_on_a_clear_margin(monkeypatch: pytest.Monke
     assert tempo._choose_octave(np.zeros(1), np.zeros(1), None, np.zeros(1), 100.0, fit, 60.0).bpm == picked
 
 
+@pytest.mark.parametrize("half_beats,picked", [(1.0, 240.0), (0.0, 120.0)])
+def test_drums_on_the_half_beats_take_a_kept_tempo_up(monkeypatch: pytest.MonkeyPatch, half_beats: float, picked: float) -> None:
+    """Twice the level found wins below the margin when the kicks and snares hit its half-beats
+    about as hard as its beats (a fast song read at half its tempo), not when they keep to its beats."""
+    from rhythm_server.analysis import tempo
+
+    def score(*args: object) -> tuple[tempo.GridFit, float]:
+        bpm = float(args[5])
+        return tempo.GridFit(bpm=bpm, phase=0.0, score=0.5), 1.5 if abs(bpm - 240.0) < 1.0 else 0.0
+
+    monkeypatch.setattr(tempo, "_octave_score", score)
+    rate, duration = 100.0, 60.0
+    env = np.full(int(duration * rate), 0.01)
+    beats = np.round(np.arange(0.0, duration, 0.5) * rate).astype(int)
+    env[beats] = 1.0
+    env[beats + 25] = max(half_beats, 0.01)  # the half-beats
+    drums = tempo.DrumFlux(high=env.copy(), full=2 * env, frame_rate=rate)
+    fit = tempo.GridFit(bpm=120.0, phase=0.0, score=0.5)
+    assert tempo._choose_octave(np.zeros(1), np.zeros(1), drums, np.zeros(1), 100.0, fit, duration).bpm == picked
+
+
 @pytest.mark.parametrize("cue", ["harmony", "drums over mid", "sound"])
 def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
     """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
