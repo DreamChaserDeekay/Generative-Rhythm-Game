@@ -15,7 +15,7 @@ from scipy.ndimage import uniform_filter1d
 
 from . import ml
 from .backends import Backend, detect as detect_backends
-from .meter import beat_cues, estimate_meter
+from .meter import BeatAccents, beat_cues, beat_onsets, beat_peaks, estimate_meter
 from .onsets import attack_confidence, band_levels, detect_onsets
 from .pitch import analyze_notes, held_swells
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.6.1"
+ANALYZER_VERSION = "1.7.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -155,16 +155,16 @@ def analyze(
     report(0.45, "템포 분석")
     hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
     drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
+    chroma = (harmonic.astype(np.float64) ** 2) @ chroma_matrix(sr, COARSE_NFFT)[:, :max_bin].T
+    chroma /= np.linalg.norm(chroma, axis=1, keepdims=True) + 1e-9
     tempo = estimate_tempo(
         od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums,
-        mid_fraction=od.bands[:, 1],
+        mid_fraction=od.bands[:, 1], chroma=chroma, chroma_rate=coarse_rate,
     )
     beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
     beats = beats[(beats >= 0) & (beats <= duration)]
 
     report(0.6, "마디 분석")
-    chroma = (harmonic.astype(np.float64) ** 2) @ chroma_matrix(sr, COARSE_NFFT)[:, :max_bin].T
-    chroma /= np.linalg.norm(chroma, axis=1, keepdims=True) + 1e-9
     beat_chroma = beat_sync(chroma, coarse_rate, beats)
     unit = beat_chroma / (np.linalg.norm(beat_chroma, axis=1, keepdims=True) + 1e-9)
     novelty = np.zeros(len(beats))
@@ -172,7 +172,12 @@ def analyze(
         novelty[1:] = 1.0 - np.sum(unit[1:] * unit[:-1], axis=1)
     meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None else None
     if meter is None:
-        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma)
+        accents = BeatAccents(
+            kicks=beat_peaks(beats, np.maximum(drums.full - drums.high, 0.0), drums.frame_rate),
+            snares=beat_peaks(beats, drums.high, drums.frame_rate),
+            onsets=beat_onsets(beats, od.times, od.strength),
+        )
+        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma, accents)
     bpb = meter.beats_per_bar
     beat0 = meter.first_downbeat_index if len(beats) else 0
 
