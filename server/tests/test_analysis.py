@@ -171,6 +171,19 @@ def test_drums_on_the_half_beats_take_a_kept_tempo_up(monkeypatch: pytest.Monkey
     assert tempo._choose_octave(np.zeros(1), np.zeros(1), drums, np.zeros(1), 100.0, fit, duration).bpm == picked
 
 
+@pytest.mark.parametrize("drum_offset,expected", [(0.125, 0.125), (0.0, 0.0), (0.375, 0.375)])
+def test_drums_a_sixteenth_away_move_the_phase(drum_offset: float, expected: float) -> None:
+    """A grid a sixteenth before or after the drums moves a quarter of a beat onto them; on them it
+    stays."""
+    from rhythm_server.analysis.tempo import DrumFlux, _quarter_phase
+
+    bpm, duration, rate = 120.0, 60.0, 200.0  # a beat is 0.5 s, a quarter of it 0.125 s
+    env = np.full(int(duration * rate), 0.01)
+    env[np.round((np.arange(0.0, duration - 1.0, 0.5) + drum_offset) * rate).astype(int)] = 1.0
+    drums = DrumFlux(high=env.copy(), full=env.copy(), frame_rate=rate)
+    assert abs(_quarter_phase(drums, bpm, 0.0, duration) - expected) < 1e-6
+
+
 @pytest.mark.parametrize("cue", ["harmony", "drums over mid", "sound"])
 def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
     """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
