@@ -122,8 +122,11 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # keeps the drum keys more firmly (1.5) and 0.9.24 adds the middle-key feedback: on this loop the
     # mean goes 26.5 -> 35.0 (one seed 56.8, on key 3), while over the held-out charts jack streaks
     # stay where they were (level 14 15.0 -> 15.2 per 1000 notes, human 16.6; PATTERN_DESIGN 46-3).
+    # Generator 0.9.28 keeps each sound group on its lane (hands.soundMemory): this loop's mean goes
+    # 23.2 -> 38.0 (one seed 52.5), while the held-out charts' level 10 / 14 go 14.6 / 15.3 -> 14.8 /
+    # 16.0 (human 14.0 / 17.4; PATTERN_DESIGN 58), so the runaway guard is 45.
     profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
-    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 40.0, [g["jackStreaks"] for g in profiles]
+    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 45.0, [g["jackStreaks"] for g in profiles]
     # Lopsided bars: 0.9.25 steers their share up toward the human one (hands.barTarget, PATTERN_DESIGN
     # 47); on this loop the mean of these seeds goes 0.09 -> 0.23 (one seed 0.42, as an eighth of the
     # human charts at levels 6-10 lean in more than 40% of their bars) - the limit guards runaway.
@@ -180,9 +183,11 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # 0.9.24 the lane search also steers the share of fast moves that enter or leave the middle key
     # toward the level's human value (hands.middleTarget / middleFeedback, PATTERN_DESIGN 46); on
     # these songs the share starts below the target, so the feedback raises it (the lopsided-bar
-    # feedback of 0.9.25 is left out: it moves single notes between the hands too).
+    # feedback of 0.9.25 is left out: it moves single notes between the hands too; so is the sound
+    # memory of 0.9.28, which holds each sound group on its key).
     grg = load_config("patterns")["hands"]["systems"]["GRG"]
     monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
+    monkeypatch.setitem(grg, "soundMemory", 0.0)
 
     def middle_share(notes: list[dict]) -> float:
         by_t: dict[float, list[int]] = {}
@@ -296,6 +301,40 @@ def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
 
     on, off = costs(w), costs(dataclasses.replace(w, stair_feedback=0.0))
     assert on[0] < off[0] - 1.0 and on[1] == off[1] and on[2] == off[2], (on, off)
+
+
+def test_the_sound_memory_keeps_each_sound_group_on_its_lane(monkeypatch) -> None:
+    # Human BMS charts keep 50-73% of a keysound's notes on its commonest lane (levels 2-14). Since
+    # analyzer 1.8.0 every onset carries a same-sound group (onsets alike at their attack), and the
+    # default system's sound memory (hands.soundMemory) keys on it: a group coming back pays for
+    # leaving the lane it last had. Four groups take turns over three changing bands (stem + band,
+    # the planner's sound) here; with the memory each group mostly keeps one lane, without it not.
+    from collections import Counter, defaultdict
+
+    from rhythm_server.generator.lanes import lane_search, notes_from_choices
+    from rhythm_server.generator.tempo import TempoMap
+
+    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+    shipped = grg["soundMemory"]
+    assert shipped > 0
+    tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
+    lanes = lane_infos("7K+1S")
+    bands = [np.array([0.6, 0.3, 0.1]), np.array([0.1, 0.6, 0.3]), np.array([0.1, 0.3, 0.6])]
+
+    def home_share(groups: bool, memory: float) -> float:
+        monkeypatch.setitem(grg, "soundMemory", memory)
+        slots = [Slot(beat=0.5 * i, t=tempo.beat_to_ms(0.5 * i), size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
+                      bands=bands[i % 3], score=1.0, subdivision=2, strength=1.0, sound_group=i % 4 if groups else None) for i in range(64)]
+        params = resolve_params("7K+1S", "NORMAL", system="GRG")
+        notes = notes_from_choices(slots, lane_search(slots, lanes, params, tempo, np.random.default_rng(3)), tempo)
+        group_at = {round(s.t, 3): i % 4 for i, s in enumerate(slots)}
+        lanes_of: dict[int, Counter] = defaultdict(Counter)
+        for n in notes:
+            lanes_of[group_at[round(float(n["t"]), 3)]][n["lane"]] += 1
+        return float(np.mean([max(c.values()) / sum(c.values()) for c in lanes_of.values()]))
+
+    kept = home_share(True, shipped)
+    assert kept >= 0.5 and kept > home_share(True, 0.0) + 0.2 and kept > home_share(False, shipped) + 0.2
 
 
 def test_the_lopsided_bar_feedback_rewards_single_notes_for_the_leaning_hand() -> None:

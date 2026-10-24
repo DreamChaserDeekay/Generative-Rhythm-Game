@@ -39,6 +39,7 @@ class Candidate:
     roll: tuple[int, int] | None = None  # (roll id, hit index) when it is a hit of a drum roll (rolls.py)
     attack: float = 1.0  # how surely a new sound starts here, not a sounding one changing (0..1)
     grid: int | None = None  # the straight subdivision a triplet in a swinging bar is scored and capped as
+    sound_group: int | None = None  # the analysis's same-sound group of the (strongest) onset
 
 
 def grid_of(c: Candidate) -> int:
@@ -241,6 +242,7 @@ def build_candidates(
                 melody=melody,
                 attack=attack,
                 grid=roles.get(sub),
+                sound_group=o.get("soundGroup"),
             )
         else:
             stronger = o["strength"] > c.strength
@@ -253,6 +255,8 @@ def build_candidates(
             c.bands = c.bands + bands
             if o.get("pitch") is not None and (c.pitch is None or stronger):
                 c.pitch = o["pitch"]
+            if o.get("soundGroup") is not None and (c.sound_group is None or stronger):
+                c.sound_group = o["soundGroup"]
             c.harmonic = max(c.harmonic, float(o.get("harmonic", 0.0)))
             c.sustain_beats = max(c.sustain_beats, sustain_beats)
             if melody is not None:

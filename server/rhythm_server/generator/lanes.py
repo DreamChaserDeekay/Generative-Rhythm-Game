@@ -15,7 +15,7 @@ from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
 from .motifs import MotifContext, SlotPlan, by_key_mode, by_skill, motif_context, motif_costs, one_hand_region
 from .params import GenParams
-from .select import Slot, sound_of
+from .select import Slot, home_of, sound_of
 from .tempo import TempoMap
 
 BEAM_WIDTH = 5
@@ -90,8 +90,9 @@ class _Weights:
     balance_bar: float
     balance_min: float
     balance_band: tuple[float, float]
-    # sound memory (hands.soundMemory): a sound coming back after other notes pays this for leaving
-    # the lane it last had (BMS charts keep 70-86% of a keysound's notes on one lane)
+    # sound memory (hands.soundMemory): a sound group (the analysis's soundGroup, analyzer 1.8.0)
+    # coming back pays this for leaving the lane it last had (BMS charts keep 50-73% of a keysound's
+    # notes on its commonest lane); analyses without groups get no memory
     memory: float = 0.0
     memory_size: int = 0
     # hand-shape feedback (hands.runTarget / barTarget, Udo 2023): the share of fast-run notes that
@@ -512,6 +513,7 @@ def search(
         repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
         laser = sp is not None and sp.motif == "laser"
         sound = sound_of(slot)
+        home_sound = home_of(slot)
         bar = int(slot.beat // bpb + 1e-9)
         # The same-hand and balance rules leave alone what the plan puts on one hand on purpose: a
         # shape that stays on a hand, and a role kept to one hand (rhythm one hand, melody the other).
@@ -595,8 +597,8 @@ def search(
             if reserved[si]:
                 pen = RESERVE_SHARE * weights.repeat
                 costs = [c + pen * sum(1 for i in combo if i in reserved[si]) for c, combo in zip(costs, combos)]
-            if weights.memory > 0 and sound is not None and not same_sound and state.memory:
-                home = next((lane for s, lane in reversed(state.memory) if s == sound), None)
+            if weights.memory > 0 and home_sound is not None and not same_sound and slot.roll is None and state.memory:
+                home = next((lane for s, lane in reversed(state.memory) if s == home_sound), None)
                 if home is not None:
                     costs = [c + weights.memory if len(combo) == 1 and combo[0] != home else c for c, combo in zip(costs, combos)]
             planned = sp is not None and sp.motif != "step"
@@ -688,7 +690,7 @@ def search(
                     streak=tuple(streak),
                     bar=bar,
                     bar_hands=(left, right),
-                    memory=_remember(state.memory, sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
+                    memory=_remember(state.memory, home_sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
                     **(fb or {}),
                     **mv,
                 )

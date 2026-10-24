@@ -52,6 +52,7 @@ class Slot:
     strength: float
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
     roll: tuple[int, int, int, bool] | None = None  # a drum roll's note: (roll, hit index, hits, in a mirrored repeat)
+    sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
 
     @property
     def src(self) -> int | None:
@@ -71,6 +72,13 @@ def sound_of(slot: Slot) -> tuple[Any, ...]:
     if melodic(slot):
         return (slot.src, round(float(slot.pitch)))  # type: ignore[arg-type]
     return (slot.src, int(np.argmax(slot.bands)))
+
+
+def home_of(slot: Slot) -> int | None:
+    """The sound memory's key: the analysis's same-sound group (analyzer 1.8.0; None before). The
+    planner's sound (stem and pitch) is too loose a key: keeping it on a lane cost lane patterns
+    more than it gained sound homes (docs/PATTERN_DESIGN.md 46)."""
+    return slot.sound_group
 
 
 def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> float | None:
@@ -251,6 +259,7 @@ def select_slots(
             subdivision=c.subdivision,
             strength=c.strength,
             sources=c.sources,
+            sound_group=c.sound_group,
         )
         for c in chosen
     ]
