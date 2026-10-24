@@ -15,8 +15,8 @@ from scipy.ndimage import uniform_filter1d
 
 from . import ml
 from .backends import Backend, detect as detect_backends
-from .meter import BeatAccents, beat_cues, beat_onsets, beat_peaks, estimate_meter
-from .onsets import attack_confidence, band_levels, detect_onsets
+from .meter import BeatAccents, beat_cues, beat_onsets, beat_peaks, beat_timbre, estimate_meter
+from .onsets import attack_confidence, band_levels, detect_onsets, onset_spectra
 from .pitch import analyze_notes, held_swells
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.7.3"
+ANALYZER_VERSION = "1.7.4"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -176,6 +176,7 @@ def analyze(
             kicks=beat_peaks(beats, np.maximum(drums.full - drums.high, 0.0), drums.frame_rate),
             snares=beat_peaks(beats, drums.high, drums.frame_rate),
             onsets=beat_onsets(beats, od.times, od.strength),
+            timbre=beat_timbre(beats, od.times, od.strength, onset_spectra(mel, od)),
         )
         meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma, accents)
     bpb = meter.beats_per_bar

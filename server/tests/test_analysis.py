@@ -237,6 +237,36 @@ def test_the_loudness_changing_bar_by_bar_places_the_downbeat() -> None:
     assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
 
 
+def test_the_sound_changing_bar_by_bar_places_the_downbeat() -> None:
+    """With even drums, even onsets and one held chord, onsets that sound different in every bar
+    place the downbeat: bars shifted off it straddle the changes."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 2
+    sounds = np.random.default_rng(3).random((n // 4 + 2, 20))
+    timbre = np.array([sounds[(i - first) // 4 + 1] for i in range(n)])
+    accents = BeatAccents(kicks=np.ones(n), snares=np.ones(n), onsets=np.ones(n))
+    assert estimate_meter(np.zeros(n), np.ones((n, 12)), accents).first_downbeat_index != first  # nothing to go by
+    accents.timbre = timbre
+    meter = estimate_meter(np.zeros(n), np.ones((n, 12)), accents)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+@pytest.mark.parametrize("beats_per_bar", [3, 4])
+def test_the_drums_and_the_harmony_settle_three_against_four(beats_per_bar: int) -> None:
+    """A kick on the first beat of each bar, snares on the others and chords that change with every
+    bar and come back two bars on: bars of three read as 3/4, bars of four as 4/4."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, m = 96, beats_per_bar
+    beat = np.arange(n) % m
+    chords = np.random.default_rng(4).random((2, 12))
+    chroma = np.array([chords[(i // m) % 2] for i in range(n)])
+    accents = BeatAccents(kicks=np.where(beat == 0, 1.0, 0.3), snares=np.where(beat == 0, 0.2, 1.0), onsets=np.where(beat == 0, 1.0, 0.6))
+    meter = estimate_meter(np.where(beat == 0, 1.0, 0.1), chroma, accents)
+    assert meter.beats_per_bar == m and meter.first_downbeat_index == 0
+
+
 @pytest.mark.parametrize("chord_beats,meter", [(4, 4), (3, 3)])
 def test_bar_harmony_settles_three_against_four(chord_beats: int, meter: int) -> None:
     """Accents every third beat read as 3/4; the chords say whether the bars hold three beats or four."""
