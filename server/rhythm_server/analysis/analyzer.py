@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.7.1"
+ANALYZER_VERSION = "1.7.2"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
