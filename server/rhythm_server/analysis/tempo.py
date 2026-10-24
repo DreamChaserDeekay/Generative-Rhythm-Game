@@ -6,7 +6,8 @@
 2. The backbeat settles the octave: snares and claps fall on beats 2 and 4, so when the drums'
    mid and high band hits fall on one grid position in four, the grid runs at twice the beat (busy
    hi-hats pull the onset functions to the faster level). A level above 200 BPM stands only when
-   the kicks and snares hit the half-beats of half that tempo about as hard as its beats.
+   the kicks and snares hit the half-beats of half that tempo about as hard as its beats. A model
+   fitted on BMS charts moves the level to half or twice it only when sure of it.
 3. A smoothed comb template is fitted to all onsets to find BPM (to ~0.001) and phase.
    A constant grid fitted to the whole song is far steadier than per-beat tracking. A shuffle's
    swung eighths can carry as many onsets as its beats; the drums tell them apart (the phase moves
@@ -63,6 +64,17 @@ BACKBEAT_ACTIVE = 2.0  # the strongest position's mean against the median flux
 # (busy hi-hats) has both on its own beats.
 FAST_LEVEL_BPM = 200.0
 FAST_LEVEL_RATIO = 0.85
+# The tempo octave: the level found stands unless half or twice it scores OCTAVE_MARGIN more on
+# these cues, each measured on a grid fitted at that level (a conditional logit fitted on BMS
+# charts' tempos, docs/PATTERN_DESIGN.md 49): the comb fit (log; it rises for faster grids), the
+# perceptual prior (log), the onset function's autocorrelation at the beat and the backbeat ratio
+# (log; snares on one grid position in four mean the grid runs at twice the beat). The rules above
+# left a tenth of the one-BPM BMS songs at half or twice the chart's tempo; without the margin the
+# model, fitted on fast BMS songs, read the slow synthetic pop and hip-hop songs at twice their
+# tempo.
+OCTAVE_WEIGHTS = {"comb": 4.19, "prior": 5.58, "acf": 3.56, "backbeat": -1.00}
+OCTAVE_MARGIN = 2.5
+OCTAVE_RANGE = (30.0, 520.0)
 # The fitted phase moves by a third of a beat when the drums (all of the percussive flux) hit the
 # grid shifted so this many times harder than the fitted one.
 TRIPLET_SHIFT_RATIO = 1.5
@@ -274,6 +286,36 @@ def _halve_on_backbeat(times: np.ndarray, weights: np.ndarray, bpm: float, drums
     return bpm / 2 if active and ratio >= BACKBEAT_RATIO else bpm
 
 
+def _octave_score(times: np.ndarray, weights: np.ndarray, drums: DrumFlux, odf: np.ndarray, frame_rate: float, bpm: float, duration: float) -> tuple[GridFit, float]:
+    """A grid fitted at `bpm` and its OCTAVE_WEIGHTS score."""
+    fit = fit_grid(times, weights, bpm, search=0.004)
+    x = odf - float(np.mean(odf))
+    lag = int(round(60.0 / fit.bpm * frame_rate))
+    acf = float(np.dot(x[:-lag], x[lag:]) / (np.dot(x, x) + 1e-12)) if 0 < lag < len(x) // 2 else 0.0
+    ratio, _ = backbeat_ratio(drums, fit.bpm, fit.phase, duration)
+    cues = {
+        "comb": float(np.log(fit.score + 1e-9)),
+        "prior": float(np.log(_prior(fit.bpm) + 1e-12)),
+        "acf": acf,
+        "backbeat": float(np.log(max(ratio, 1e-9))),
+    }
+    return fit, sum(w * cues[name] for name, w in OCTAVE_WEIGHTS.items())
+
+
+def _choose_octave(times: np.ndarray, weights: np.ndarray, drums: DrumFlux, odf: np.ndarray, frame_rate: float, fit: GridFit, duration: float) -> GridFit:
+    """The grid at the level found, or at half or twice it when that scores OCTAVE_MARGIN more."""
+    best, best_score = fit, -np.inf
+    for f in (1.0, 0.5, 2.0):
+        if not OCTAVE_RANGE[0] <= fit.bpm * f <= OCTAVE_RANGE[1]:
+            continue
+        grid, score = _octave_score(times, weights, drums, odf, frame_rate, fit.bpm * f, duration)
+        if f == 1.0:
+            best_score = score + OCTAVE_MARGIN
+        elif score > best_score:
+            best, best_score = grid, score
+    return best
+
+
 def _triplet_phase(drums: DrumFlux, bpm: float, phase: float, duration: float) -> float:
     """The phase moved by a third of a beat when the drums hit there far harder (a shuffle whose
     swung eighths the comb fit took for the beat)."""
@@ -431,6 +473,8 @@ def estimate_tempo(
     fit = fit_grid(times, weights, bpm0, search=0.002 if bpm_override else 0.01)
     if bpm_override:
         fit = GridFit(bpm=bpm_override, phase=_best_phase(times, weights, 60.0 / bpm_override)[0], score=fit.score)
+    elif drums is not None and not bpm_hint:
+        fit = _choose_octave(times, weights, drums, odf, frame_rate, fit, duration)
     period = 60.0 / fit.bpm
 
     centers, offsets = _local_offsets(times, weights, period, fit.phase, duration)

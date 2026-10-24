@@ -135,6 +135,21 @@ def test_a_tempo_split_that_explains_the_onsets_no_better_is_dropped(monkeypatch
     assert not tempo.estimate_tempo(times, strengths, low, odf, rate, 120.0).constant
 
 
+@pytest.mark.parametrize("gain,picked", [(2.0, 120.0), (3.0, 240.0)])
+def test_the_tempo_octave_moves_only_on_a_clear_margin(monkeypatch: pytest.MonkeyPatch, gain: float, picked: float) -> None:
+    """Half or twice the level found wins only when it scores OCTAVE_MARGIN more: fitted on fast
+    BMS songs, the model alone read slow pop and hip-hop at twice their tempo."""
+    from rhythm_server.analysis import tempo
+
+    def score(*args: object) -> tuple[tempo.GridFit, float]:
+        bpm = float(args[5])  # (times, weights, drums, odf, frame_rate, bpm, duration)
+        return tempo.GridFit(bpm=bpm, phase=0.0, score=0.5), gain if abs(bpm - 240.0) < 1.0 else 0.0
+
+    monkeypatch.setattr(tempo, "_octave_score", score)
+    fit = tempo.GridFit(bpm=120.0, phase=0.1, score=0.5)
+    assert tempo._choose_octave(np.zeros(1), np.zeros(1), None, np.zeros(1), 100.0, fit, 60.0).bpm == picked
+
+
 @pytest.mark.parametrize("cue", ["harmony", "drums over mid"])
 def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
     """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
