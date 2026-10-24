@@ -11,7 +11,8 @@
 3. A smoothed comb template is fitted to all onsets to find BPM (to ~0.001) and phase.
    A constant grid fitted to the whole song is far steadier than per-beat tracking. A shuffle's
    swung eighths can carry as many onsets as its beats; the drums tell them apart (the phase moves
-   by a triplet when they hit there far more). The comb weights low onsets up, so an off-beat bass
+   by a triplet, or at last by a sixteenth, when they hit there far more). The comb weights low
+   onsets up, so an off-beat bass
    can pull it onto the off-beats; the drums, the mid-band onsets, the harmony's changes and how
    clearly the harmony and the onsets' sound change from bar to bar move it back by half a beat.
 4. Local phase drift is measured in windows; if the grid drifts, the song is split into
@@ -88,6 +89,11 @@ DOUBLE_MIN_P = 0.5
 # The fitted phase moves by a third of a beat when the drums (all of the percussive flux) hit the
 # grid shifted so this many times harder than the fitted one.
 TRIPLET_SHIFT_RATIO = 1.5
+# After the half-beat step it moves by a quarter of a beat (syncopated kicks and claps held the comb
+# fit a sixteenth off) when the drums hit the grid shifted so this many times harder: no BMS song
+# read on the beat had a quarter-shifted grid more than 1.11 times harder, 8 of the 18 a sixteenth
+# off moved onto the beat (docs/PATTERN_DESIGN.md 55).
+QUARTER_SHIFT_RATIO = 1.2
 # It moves by half a beat when the cues below say the half-beat grid is the beat (the comb fit
 # weights low onsets up, so an off-beat bass can pull it there): a logistic model of the log ratios
 # (half-beat grid over fitted grid) of how hard each hits there, fitted on BMS charts' beats
@@ -365,6 +371,20 @@ def _triplet_phase(drums: DrumFlux, bpm: float, phase: float, duration: float) -
     return (phase + shift * period / 3) % period if best >= TRIPLET_SHIFT_RATIO * max(base, 1e-12) else phase
 
 
+def _quarter_phase(drums: DrumFlux, bpm: float, phase: float, duration: float) -> float:
+    """The phase moved by a quarter of a beat when the drums hit there QUARTER_SHIFT_RATIO times
+    harder (a grid a sixteenth off the beat)."""
+    period = 60.0 / bpm
+
+    def accent(p: float) -> float:
+        hits = _grid_hits(drums.full, drums.frame_rate, bpm, p, duration)
+        return float(np.mean(hits)) if len(hits) else 0.0
+
+    base = accent(phase)
+    best, shift = max((accent(phase + k * period / 4), k) for k in (1, 3))
+    return (phase + shift * period / 4) % period if best >= QUARTER_SHIFT_RATIO * max(base, 1e-12) else phase
+
+
 def _log_ratio(a: float, b: float) -> float:
     return float(np.log((a + 1e-9) / (b + 1e-9)))
 
@@ -548,6 +568,7 @@ def estimate_tempo(
         phase = _triplet_phase(drums, fit.bpm, phase, duration)
         if mid_fraction is not None and not bpm_override and duration >= 16 * period:
             phase = _half_phase(times, strengths * mid_fraction, drums, fit.bpm, phase, duration, chroma, chroma_rate, strengths, onset_spectra)
+        phase = _quarter_phase(drums, fit.bpm, phase, duration)
     beats = _beats_from_grid(0.0, duration, period, phase % period)
     return TempoResult(
         beats=beats,
