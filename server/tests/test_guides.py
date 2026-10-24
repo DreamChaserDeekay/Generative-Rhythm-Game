@@ -210,6 +210,94 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     assert with_feedback > without + 0.02, (with_feedback, without)
 
 
+def _bms_stairs(notes: list[dict]) -> tuple[int, int]:
+    """(run notes, run notes in stairs) the way scripts/bms_stats.py counts them: runs of single key
+    notes at most 400 ms apart, stairs of three notes or more one key at a time the same way."""
+    by_t: dict[float, list[int]] = {}
+    for n in notes:
+        if 1 <= int(n["lane"]) <= 7:
+            by_t.setdefault(round(float(n["t"]), 1), []).append(int(n["lane"]))
+    runs, run = [], []
+    for t in sorted(by_t):
+        if len(by_t[t]) == 1 and run and t - run[-1][0] <= 400.0:
+            run.append((t, by_t[t][0]))
+        else:
+            if len(run) >= 2:
+                runs.append(run)
+            run = [(t, by_t[t][0])] if len(by_t[t]) == 1 else []
+    if len(run) >= 2:
+        runs.append(run)
+    fast = stairs = 0
+    for r in runs:
+        lanes = [k for _, k in r]
+        fast += len(lanes)
+        i = 0
+        while i < len(lanes) - 2:
+            step = lanes[i + 1] - lanes[i]
+            j = i + 1
+            while abs(step) == 1 and j + 1 < len(lanes) and lanes[j + 1] - lanes[j] == step:
+                j += 1
+            if abs(step) == 1 and j - i + 1 >= 3:
+                stairs += j - i + 1
+                i = j
+            else:
+                i += 1
+    return fast, stairs
+
+
+def test_the_stair_feedback_counts_stairs_like_the_bms_measure() -> None:
+    # Since generator 0.9.27 the lane search keeps a running count of the run notes in stairs (three
+    # notes or more one key at a time the same way, PATTERN_DESIGN 57): it has to be the BMS
+    # statistics' count of the path so far, a turning note counted in both of its stairs.
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "EXPERT", system="GRG"))
+    assert w.stair_feedback > 0 and _Weights.of(resolve_params("7K+1S", "EXPERT", system="DJMAX")).stair_feedback == 0
+    n = len(lanes)
+    state = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    # 1-2-3-4-5 then back 4-3 (5-4-3 is a stair too), a jack, a leap to 5, then 6-7 (5-6-7); a pause, 2-3
+    seq = [1, 2, 3, 4, 5, 4, 3, 3, 5, 6, 7]
+    notes = []
+    for i, k in enumerate(seq):
+        t = 150.0 * i
+        lane = keys[k - 1]
+        fb = _feedback_counts(state, (lane,), (lane,), t, int(t // 2000), hand_of, w)
+        state = dataclasses.replace(state, prev_t=t, prev_lanes=(lane,), bar=int(t // 2000), **fb)
+        notes.append({"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"})
+    for k, t in ((2, 3000.0), (3, 3150.0)):
+        fb = _feedback_counts(state, (keys[k - 1],), (keys[k - 1],), t, int(t // 2000), hand_of, w)
+        state = dataclasses.replace(state, prev_t=t, prev_lanes=(keys[k - 1],), bar=int(t // 2000), **fb)
+        notes.append({"t": t, "beat": t / 500.0, "lane": keys[k - 1], "type": "tap"})
+    assert (state.fb_run, state.fb_stairs) == _bms_stairs(notes) == (13, 11)
+
+
+def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
+    # Human 7-key BMS charts put 11-24% of their fast-run notes in stairs (levels 2-14, the fitting
+    # songs); 0.9.26 put 9-13% (level 14 0.128 against 0.238, PATTERN_DESIGN 57). While the path has
+    # too few stair notes, the key that goes on with a one-key move costs stairFeedback x (target -
+    # share) less, for the notes no shape plans; other keys and chords cost the same.
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    n = len(lanes)
+    pos = [l.pos for l in lanes]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "MASTER", system="GRG"))
+    start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    # key 2 then key 3 (a one-key move up) 150 ms apart; 40 run notes so far, none in stairs
+    state = dataclasses.replace(start, prev_t=1000.0, prev_lanes=(keys[2],), fb_single=True, fb_in_run=True, fb_run=40, fb_stairs=0,
+                                fb_stair=2, fb_step=1)
+    slot = Slot(beat=2.3, t=1150.0, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
+                bands=np.array([0.2, 0.3, 0.5]), score=1.0, subdivision=4, strength=1.0)
+    combos = [(keys[3],), (keys[1],), (keys[3], keys[5])]
+
+    def costs(weights: _Weights) -> list[float]:
+        return _costs(state, combos, pos, hand_of, slot, None, 1150.0, weights, 0.0)
+
+    on, off = costs(w), costs(dataclasses.replace(w, stair_feedback=0.0))
+    assert on[0] < off[0] - 1.0 and on[1] == off[1] and on[2] == off[2], (on, off)
+
+
 def test_the_lopsided_bar_feedback_rewards_single_notes_for_the_leaning_hand() -> None:
     # Human 7-key BMS charts leave 30-70% for one hand in 16% of their busy bars at level 6 and 9% at
     # level 10; 0.9.24 did in 11% and 6% (PATTERN_DESIGN 47). Since 0.9.25 the lane search steers that
