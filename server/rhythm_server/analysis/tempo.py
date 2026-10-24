@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .meter import bar_changes
 from .structure import beat_sync
 
 BPM_MIN = 60.0
@@ -81,14 +82,16 @@ TRIPLET_SHIFT_RATIO = 1.5
 # It moves by half a beat when the cues below say the half-beat grid is the beat (the comb fit
 # weights low onsets up, so an off-beat bass can pull it there): a logistic model of the log ratios
 # (half-beat grid over fitted grid) of how hard each hits there, fitted on BMS charts' beats
-# (docs/PATTERN_DESIGN.md 48): the drums above and below BACKBEAT_MIN_HZ (snares and claps, kicks),
-# the mid-band onsets (snares, chords; within HALF_SHIFT_TOL_S of a grid point) and the harmony's
-# change into each beat (chords change on the beat). The drums alone settle it when all of their
+# (docs/PATTERN_DESIGN.md 48, 51): the drums above and below BACKBEAT_MIN_HZ (snares and claps,
+# kicks), the mid-band onsets (snares, chords; within HALF_SHIFT_TOL_S of a grid point), the
+# harmony's change into each beat (chords change on the beat) and how sharply its bar-to-bar change
+# stands out at the best downbeat phase (the largest of meter.bar_changes over their mean: bars of
+# the off-beat grid straddle the chord changes). The drums alone settle it when all of their
 # flux prefers one grid by a log ratio over HALF_SHIFT_DRUMS_LOG (BMS: 22 of the 24 songs past it
 # towards the half-beats needed the move, 394 of the 401 past it the other way did not), so an
 # off-beat bass's mid-band partials do not outvote a clear kick and clap.
-HALF_SHIFT_WEIGHTS = {"drumHigh": 3.12, "drumLow": 2.20, "onsetMid": 3.69, "harmony": 2.81}
-HALF_SHIFT_BIAS = 0.02
+HALF_SHIFT_WEIGHTS = {"drumHigh": 3.20, "drumLow": 2.19, "onsetMid": 3.75, "harmony": 2.80, "barHarmony": 4.81}
+HALF_SHIFT_BIAS = 0.04
 HALF_SHIFT_DRUMS_LOG = 0.4
 HALF_SHIFT_TOL_S = 0.025
 # A piecewise tempo map stands only when it explains the onsets clearly better than the one grid:
@@ -365,12 +368,20 @@ def _half_phase(
         unit /= np.linalg.norm(unit, axis=1, keepdims=True) + 1e-9
         return float(np.mean(1.0 - np.sum(unit[1:] * unit[:-1], axis=1)))
 
+    def bar_harmony(p: float) -> float:
+        grid = _beats_from_grid(0.0, duration, period, p % period)
+        if chroma is None or len(grid) < 48:
+            return 1.0
+        changes = bar_changes(beat_sync(chroma, chroma_rate, grid), 4)
+        return float(np.max(changes) / (np.mean(changes) + 1e-9))
+
     cues = {
         "drumFull": lambda p: grid_mean(drums.full, drums.frame_rate, p),
         "drumHigh": lambda p: grid_mean(drums.high, drums.frame_rate, p),
         "drumLow": lambda p: grid_mean(low, drums.frame_rate, p),
         "onsetMid": mid_sum,
         "harmony": harmony,
+        "barHarmony": bar_harmony,
     }
     off = phase + period / 2
     drums_say = _log_ratio(cues["drumFull"](off), cues["drumFull"](phase))
