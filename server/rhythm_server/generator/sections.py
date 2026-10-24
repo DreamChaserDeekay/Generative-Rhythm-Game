@@ -26,7 +26,7 @@ import numpy as np
 from ..analysis.ml import section_stems
 from ..analysis.stems import STEM_NAMES
 from ..config import load_config
-from .candidates import Candidate
+from .candidates import Candidate, grid_of
 from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
@@ -508,7 +508,7 @@ def layout(
             if len(picks) >= want:
                 break
             times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
-            sub = cands[next(per_unit[m][k] for m in ms if k in per_unit[m])].subdivision
+            sub = grid_of(cands[next(per_unit[m][k] for m in ms if k in per_unit[m])])
             if partial_ok(sub, len(times)) and window_ok(times):
                 picks.append(k)
                 take(times)

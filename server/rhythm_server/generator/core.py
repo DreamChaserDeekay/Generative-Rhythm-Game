@@ -14,7 +14,7 @@ from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
-from .candidates import TRIPLETS, build_candidates, triplet_bars, triplet_share
+from .candidates import TRIPLETS, build_candidates, swing_bars, triplet_share
 from .effects import camera_effects
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .motifs import SlotPlan
@@ -27,7 +27,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.25"
+GENERATOR_VERSION = "0.9.26"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -82,12 +82,14 @@ def generate_chart(
     kinds = {l.kind for l in lanes}
     special_kind = "scratch" if "scratch" in kinds else "side" if "side" in kinds else None
     duration = float(analysis["durationMs"])
-    straight = triplet_share(analysis, tempo) < float(cfg["tripletFeel"]["minShare"])
+    feel = cfg["tripletFeel"]
+    # the default system opens the triplet grid in the bars that swing, the others in the whole of a
+    # song whose rhythm leans to triplets
+    swing = swing_bars(analysis, tempo) if params.system in feel.get("localSystems", []) else None
+    straight = not swing if swing is not None else triplet_share(analysis, tempo) < float(feel["minShare"])
     if straight:
         params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
-    feel = cfg["tripletFeel"]
-    local = not straight and params.system in feel.get("localSystems", []) and params.skill >= float(feel["localFromSkill"])
-    candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), triplet_bars(analysis, tempo) if local else None)
+    candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), swing)
     if not candidates:
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")
     song_rolls(analysis, tempo, params, float(cfg["snapToleranceMs"]), candidates)
