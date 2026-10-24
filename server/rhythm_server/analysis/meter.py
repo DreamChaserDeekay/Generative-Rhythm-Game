@@ -129,17 +129,14 @@ def beat_timbre(beats: np.ndarray, onset_times: np.ndarray, onset_strength: np.n
     return out
 
 
-def timbre_changes(timbre: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """For each downbeat phase k, how much the sound of the onsets (beat_timbre) changes from bar to
-    bar for bars that start on beats k, k + 4, ... (the mean squared change between consecutive
-    bars' means), and into the beats k, k + 4, ... from the beat before, both over the song's mean
-    square. A beat without onsets keeps the last one's sound; TIMBRE_EDGE_BEATS at either end of the
-    onsets are left out."""
-    bar_out, beat_out = np.zeros(4), np.zeros(4)
+def _timbre_span(timbre: np.ndarray) -> tuple[np.ndarray, float, int, int] | None:
+    """The sound of the onsets (beat_timbre) with each beat without onsets keeping the last one's,
+    less its mean; its mean square; and the beats from TIMBRE_EDGE_BEATS after the first beat with
+    onsets to as many before the last."""
     has = ~np.isnan(timbre[:, 0]) if timbre.size else np.zeros(0, dtype=bool)
     sounding = np.flatnonzero(has)
     if not len(sounding):
-        return bar_out, beat_out
+        return None
     filled = timbre.copy()
     last = np.nanmean(timbre, axis=0)
     for i in range(len(filled)):
@@ -149,7 +146,20 @@ def timbre_changes(timbre: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
             filled[i] = last
     filled -= filled.mean(axis=0)
     scale = float(np.mean(np.sum(filled**2, axis=1))) + 1e-9
-    lo, hi = int(sounding[0]) + TIMBRE_EDGE_BEATS, int(sounding[-1]) + 1 - TIMBRE_EDGE_BEATS
+    return filled, scale, int(sounding[0]) + TIMBRE_EDGE_BEATS, int(sounding[-1]) + 1 - TIMBRE_EDGE_BEATS
+
+
+def timbre_changes(timbre: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For each downbeat phase k, how much the sound of the onsets (beat_timbre) changes from bar to
+    bar for bars that start on beats k, k + 4, ... (the mean squared change between consecutive
+    bars' means), and into the beats k, k + 4, ... from the beat before, both over the song's mean
+    square. A beat without onsets keeps the last one's sound; TIMBRE_EDGE_BEATS at either end of the
+    onsets are left out."""
+    bar_out, beat_out = np.zeros(4), np.zeros(4)
+    span = _timbre_span(timbre)
+    if span is None:
+        return bar_out, beat_out
+    filled, scale, lo, hi = span
     for k in range(4):
         start = lo + (k - lo) % 4
         bars = np.array([filled[i : i + 4].mean(axis=0) for i in range(start, hi - 3, 4)])
