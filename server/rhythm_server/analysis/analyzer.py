@@ -26,7 +26,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.7.4"
+ANALYZER_VERSION = "1.7.5"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -157,9 +157,10 @@ def analyze(
     drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
     chroma = (harmonic.astype(np.float64) ** 2) @ chroma_matrix(sr, COARSE_NFFT)[:, :max_bin].T
     chroma /= np.linalg.norm(chroma, axis=1, keepdims=True) + 1e-9
+    spectra = onset_spectra(mel, od)
     tempo = estimate_tempo(
         od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums,
-        mid_fraction=od.bands[:, 1], chroma=chroma, chroma_rate=coarse_rate,
+        mid_fraction=od.bands[:, 1], chroma=chroma, chroma_rate=coarse_rate, onset_spectra=spectra,
     )
     beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
     beats = beats[(beats >= 0) & (beats <= duration)]
@@ -176,7 +177,7 @@ def analyze(
             kicks=beat_peaks(beats, np.maximum(drums.full - drums.high, 0.0), drums.frame_rate),
             snares=beat_peaks(beats, drums.high, drums.frame_rate),
             onsets=beat_onsets(beats, od.times, od.strength),
-            timbre=beat_timbre(beats, od.times, od.strength, onset_spectra(mel, od)),
+            timbre=beat_timbre(beats, od.times, od.strength, spectra),
         )
         meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma, accents)
     bpb = meter.beats_per_bar

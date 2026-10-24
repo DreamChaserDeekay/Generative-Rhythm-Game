@@ -12,8 +12,8 @@
    A constant grid fitted to the whole song is far steadier than per-beat tracking. A shuffle's
    swung eighths can carry as many onsets as its beats; the drums tell them apart (the phase moves
    by a triplet when they hit there far more). The comb weights low onsets up, so an off-beat bass
-   can pull it onto the off-beats; the drums, the mid-band onsets and the harmony's changes move it
-   back by half a beat.
+   can pull it onto the off-beats; the drums, the mid-band onsets, the harmony's changes and how
+   clearly the harmony and the onsets' sound change from bar to bar move it back by half a beat.
 4. Local phase drift is measured in windows; if the grid drifts, the song is split into
    constant-tempo segments that are fitted separately (piecewise tempo map), kept only when their
    beats explain the onsets clearly better than the one grid.
@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .meter import bar_changes
+from .meter import bar_changes, beat_timbre, timbre_changes
 from .structure import beat_sync
 
 BPM_MIN = 60.0
@@ -82,15 +82,17 @@ TRIPLET_SHIFT_RATIO = 1.5
 # It moves by half a beat when the cues below say the half-beat grid is the beat (the comb fit
 # weights low onsets up, so an off-beat bass can pull it there): a logistic model of the log ratios
 # (half-beat grid over fitted grid) of how hard each hits there, fitted on BMS charts' beats
-# (docs/PATTERN_DESIGN.md 48, 51): the drums above and below BACKBEAT_MIN_HZ (snares and claps,
-# kicks), the mid-band onsets (snares, chords; within HALF_SHIFT_TOL_S of a grid point), the
+# (docs/PATTERN_DESIGN.md 48, 51, 53): the drums above and below BACKBEAT_MIN_HZ (snares and
+# claps, kicks), the mid-band onsets (snares, chords; within HALF_SHIFT_TOL_S of a grid point), the
 # harmony's change into each beat (chords change on the beat) and how sharply its bar-to-bar change
 # stands out at the best downbeat phase (the largest of meter.bar_changes over their mean: bars of
-# the off-beat grid straddle the chord changes). The drums alone settle it when all of their
+# the off-beat grid straddle the chord changes), and the same sharpness of the onsets' sound
+# changing from bar to bar (meter.timbre_changes: instruments come in and drop out on downbeats).
+# The drums alone settle it when all of their
 # flux prefers one grid by a log ratio over HALF_SHIFT_DRUMS_LOG (BMS: 22 of the 24 songs past it
 # towards the half-beats needed the move, 394 of the 401 past it the other way did not), so an
 # off-beat bass's mid-band partials do not outvote a clear kick and clap.
-HALF_SHIFT_WEIGHTS = {"drumHigh": 3.20, "drumLow": 2.19, "onsetMid": 3.75, "harmony": 2.80, "barHarmony": 4.81}
+HALF_SHIFT_WEIGHTS = {"drumHigh": 3.42, "drumLow": 2.15, "onsetMid": 3.41, "harmony": 3.36, "barHarmony": 6.02, "barTimbre": 5.52}
 HALF_SHIFT_BIAS = 0.04
 HALF_SHIFT_DRUMS_LOG = 0.4
 HALF_SHIFT_TOL_S = 0.025
@@ -346,9 +348,12 @@ def _half_phase(
     duration: float,
     chroma: np.ndarray | None = None,
     chroma_rate: float = 0.0,
+    strengths: np.ndarray | None = None,
+    spectra: np.ndarray | None = None,
 ) -> float:
     """The phase moved by half a beat when the cues hit there harder (HALF_SHIFT_WEIGHTS; an
-    off-beat bass pulled the comb fit, whose weights favour low onsets, off the beat)."""
+    off-beat bass pulled the comb fit, whose weights favour low onsets, off the beat). `spectra`
+    (each onset's, with `strengths`) lets the onsets' sound speak."""
     period = 60.0 / bpm
     low = np.maximum(drums.full - drums.high, 0.0)
 
@@ -375,6 +380,13 @@ def _half_phase(
         changes = bar_changes(beat_sync(chroma, chroma_rate, grid), 4)
         return float(np.max(changes) / (np.mean(changes) + 1e-9))
 
+    def bar_timbre(p: float) -> float:
+        grid = _beats_from_grid(0.0, duration, period, p % period)
+        if spectra is None or strengths is None or len(grid) < 48:
+            return 1.0
+        changes = timbre_changes(beat_timbre(grid, times, strengths, spectra))[0] + 1e-6
+        return float(np.max(changes) / (np.mean(changes) + 1e-9))
+
     cues = {
         "drumFull": lambda p: grid_mean(drums.full, drums.frame_rate, p),
         "drumHigh": lambda p: grid_mean(drums.high, drums.frame_rate, p),
@@ -382,6 +394,7 @@ def _half_phase(
         "onsetMid": mid_sum,
         "harmony": harmony,
         "barHarmony": bar_harmony,
+        "barTimbre": bar_timbre,
     }
     off = phase + period / 2
     drums_say = _log_ratio(cues["drumFull"](off), cues["drumFull"](phase))
@@ -463,12 +476,14 @@ def estimate_tempo(
     mid_fraction: np.ndarray | None = None,
     chroma: np.ndarray | None = None,
     chroma_rate: float = 0.0,
+    onset_spectra: np.ndarray | None = None,
 ) -> TempoResult:
     """`bpm_hint` (e.g. from an ML beat tracker) picks the beat level instead of the
     autocorrelation; the grid is still fitted to the onsets. `drums` lets the snares settle the
     level the autocorrelation chose (and vouch for a hint above FAST_LEVEL_BPM) and the drums the
-    phase of a shuffle, and with `mid_fraction` (each onset's mid-band share) and `chroma` (frames
-    of pitch-class energy at `chroma_rate`) a phase on the off-beats."""
+    phase of a shuffle, and with `mid_fraction` (each onset's mid-band share), `chroma` (frames of
+    pitch-class energy at `chroma_rate`) and `onset_spectra` (onsets.onset_spectra) a phase on the
+    off-beats."""
     if len(times) < 8:
         bpm = bpm_override or 120.0
         period = 60.0 / bpm
@@ -502,7 +517,7 @@ def estimate_tempo(
     if drums is not None:
         phase = _triplet_phase(drums, fit.bpm, phase, duration)
         if mid_fraction is not None and not bpm_override and duration >= 16 * period:
-            phase = _half_phase(times, strengths * mid_fraction, drums, fit.bpm, phase, duration, chroma, chroma_rate)
+            phase = _half_phase(times, strengths * mid_fraction, drums, fit.bpm, phase, duration, chroma, chroma_rate, strengths, onset_spectra)
     beats = _beats_from_grid(0.0, duration, period, phase % period)
     return TempoResult(
         beats=beats,

@@ -150,11 +150,11 @@ def test_the_tempo_octave_moves_only_on_a_clear_margin(monkeypatch: pytest.Monke
     assert tempo._choose_octave(np.zeros(1), np.zeros(1), None, np.zeros(1), 100.0, fit, 60.0).bpm == picked
 
 
-@pytest.mark.parametrize("cue", ["harmony", "drums over mid"])
+@pytest.mark.parametrize("cue", ["harmony", "drums over mid", "sound"])
 def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
     """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
     drums clearly on the beats, though the mid-band onsets (an off-beat bass's partials) sit on the
-    off-beats."""
+    off-beats, and onsets on the beats and half-beats whose sound changes with every bar."""
     from rhythm_server.analysis.tempo import DrumFlux, _half_phase
 
     bpm, duration, rate = 120.0, 60.0, 100.0
@@ -164,19 +164,27 @@ def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
     flux = np.full(frames, 0.01)
     times = beats + period / 2
     mid = np.zeros(len(times))
-    chroma = None
+    chroma = strengths = spectra = None
     if cue == "harmony":
         chord = np.random.default_rng(0).integers(0, 12, len(beats))
         chroma = np.zeros((frames, 12))
         for i, b in enumerate(beats):
             chroma[int(b * rate) : int((b + period) * rate), chord[i]] = 1.0
+    elif cue == "sound":
+        times = np.sort(np.concatenate([beats, beats + period / 2]))
+        mid = np.zeros(len(times))
+        strengths = np.ones(len(times))
+        spectra = np.repeat(np.random.default_rng(1).random((len(beats) // 4 + 1, 20)), 8, axis=0)[: len(times)]  # one sound a bar
     else:
         mid[:] = 1.0  # every mid-band onset on the off-beats
         flux = flux.copy()
         flux[np.round(beats * rate).astype(int)] = 1.0
     drums = DrumFlux(high=flux.copy(), full=flux.copy(), frame_rate=rate)
-    phase = _half_phase(times, mid, drums, bpm, period / 2, duration, chroma, rate)
+    phase = _half_phase(times, mid, drums, bpm, period / 2, duration, chroma, rate, strengths, spectra)
     assert min(phase, period - phase) < 1e-6
+    if cue == "sound":  # and a grid on the beats stays, which the bias alone would move
+        assert _half_phase(times, mid, drums, bpm, 0.0, duration, chroma, rate, strengths, spectra) == 0.0
+        assert _half_phase(times, mid, drums, bpm, 0.0, duration, chroma, rate) != 0.0
 
 
 def test_downbeats_match_bar_starts() -> None:
