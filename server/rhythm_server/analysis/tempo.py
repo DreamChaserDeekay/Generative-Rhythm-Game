@@ -76,6 +76,15 @@ FAST_LEVEL_RATIO = 0.85
 OCTAVE_WEIGHTS = {"comb": 4.19, "prior": 5.58, "acf": 3.56, "backbeat": -1.00}
 OCTAVE_MARGIN = 2.5
 OCTAVE_RANGE = (30.0, 520.0)
+# A level the margin kept still goes to twice its tempo when this logistic model is DOUBLE_MIN_P
+# sure of it: the kicks' and the snares' flux on its half-beats against its beats (log ratios; at
+# half a fast song's tempo they hit the half-beats, its real beats, about as hard) and how much
+# higher twice the level scores on OCTAVE_WEIGHTS. Fitted on the BMS songs the margin kept
+# (docs/PATTERN_DESIGN.md 54): 33 of the 75 left at half their chart's tempo (drum and bass at
+# 174, songs of 175-215 BPM) moved up, 3 of 1727 slow songs read right moved too.
+DOUBLE_WEIGHTS = {"kickHalf": 1.07, "snareHalf": 0.90, "scoreGain": 0.92}
+DOUBLE_BIAS = -0.35
+DOUBLE_MIN_P = 0.5
 # The fitted phase moves by a third of a beat when the drums (all of the percussive flux) hit the
 # grid shifted so this many times harder than the fitted one.
 TRIPLET_SHIFT_RATIO = 1.5
@@ -307,17 +316,38 @@ def _octave_score(times: np.ndarray, weights: np.ndarray, drums: DrumFlux, odf: 
     return fit, sum(w * cues[name] for name, w in OCTAVE_WEIGHTS.items())
 
 
+def _half_beat_drums(drums: DrumFlux, grid: GridFit, duration: float) -> dict[str, float]:
+    """Log ratios of the kicks' and the snares' flux on the grid's half-beats to its beats."""
+    half = 30.0 / grid.bpm
+    low = np.maximum(drums.full - drums.high, 0.0)
+    out = {}
+    for name, env in (("kickHalf", low), ("snareHalf", drums.high)):
+        on = _grid_hits(env, drums.frame_rate, grid.bpm, grid.phase, duration)
+        off = _grid_hits(env, drums.frame_rate, grid.bpm, grid.phase + half, duration)
+        out[name] = _log_ratio(float(np.mean(off)) if len(off) else 0.0, float(np.mean(on)) if len(on) else 0.0)
+    return out
+
+
 def _choose_octave(times: np.ndarray, weights: np.ndarray, drums: DrumFlux, odf: np.ndarray, frame_rate: float, fit: GridFit, duration: float) -> GridFit:
-    """The grid at the level found, or at half or twice it when that scores OCTAVE_MARGIN more."""
+    """The grid at the level found, or at half or twice it when that scores OCTAVE_MARGIN more, or
+    at twice it when DOUBLE_WEIGHTS are sure of it."""
     best, best_score = fit, -np.inf
+    scored: dict[float, tuple[GridFit, float]] = {}
     for f in (1.0, 0.5, 2.0):
         if not OCTAVE_RANGE[0] <= fit.bpm * f <= OCTAVE_RANGE[1]:
             continue
         grid, score = _octave_score(times, weights, drums, odf, frame_rate, fit.bpm * f, duration)
+        scored[f] = (grid, score)
         if f == 1.0:
             best_score = score + OCTAVE_MARGIN
         elif score > best_score:
             best, best_score = grid, score
+    if best is fit and drums is not None and 1.0 in scored and 2.0 in scored:
+        cues = _half_beat_drums(drums, scored[1.0][0], duration)
+        cues["scoreGain"] = scored[2.0][1] - scored[1.0][1]
+        logit = DOUBLE_BIAS + sum(w * cues[name] for name, w in DOUBLE_WEIGHTS.items())
+        if 1.0 / (1.0 + np.exp(-logit)) >= DOUBLE_MIN_P:
+            best = scored[2.0][0]
     return best
 
 
