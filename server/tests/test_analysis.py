@@ -225,6 +225,18 @@ def test_the_drums_place_the_downbeat_with_the_harmony(song: str) -> None:
     assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
 
 
+def test_the_loudness_changing_bar_by_bar_places_the_downbeat() -> None:
+    """With even drums and one held chord, bars that alternate loud and soft place the downbeat:
+    bars shifted off it straddle the changes."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 1
+    onsets = np.array([1.0 if ((i - first) // 4) % 2 == 0 else 0.4 for i in range(n)])
+    accents = BeatAccents(kicks=np.ones(n), snares=np.ones(n), onsets=onsets)
+    meter = estimate_meter(np.zeros(n), np.ones((n, 12)), accents)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
 @pytest.mark.parametrize("chord_beats,meter", [(4, 4), (3, 3)])
 def test_bar_harmony_settles_three_against_four(chord_beats: int, meter: int) -> None:
     """Accents every third beat read as 3/4; the chords say whether the bars hold three beats or four."""

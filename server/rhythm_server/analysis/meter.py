@@ -15,11 +15,16 @@ THREE_BAR_CHANGE_MARGIN = 1.1
 # With the drums' flux at every beat, the downbeat of a 4/4 bar is where these cues peak, each the
 # mean over the phase's downbeats as a log ratio to its mean over the four phases (a cue that hardly
 # varies, like the kicks of four-on-the-floor, stays small), weighed by a conditional logit fitted
-# on BMS charts' bar lines (docs/PATTERN_DESIGN.md 48): the kicks hit the downbeat and the snares
-# and claps the beats between; the harmony changes into it and from bar to bar (bar_changes); a
-# fill or a pickup leads into it (the strongest onset on the beat before). The onsets' low-band
-# share, which the per-beat cues weigh, is no kick: a bass line fills it on every beat.
-DOWNBEAT_WEIGHTS = {"kicks": 6.14, "snares": -0.95, "novelty": 3.01, "barChange": 7.46, "pickup": 1.75}
+# on BMS charts' bar lines (docs/PATTERN_DESIGN.md 48, 50): the kicks hit the downbeat and the
+# snares and claps the beats between; the harmony changes into it and from bar to bar
+# (bar_changes); a fill or a pickup leads into it (the strongest onset on the beat before); the
+# loudness changes from bar to bar (energy_changes). The onsets' low-band share, which the
+# per-beat cues weigh, is no kick: a bass line fills it on every beat.
+DOWNBEAT_WEIGHTS = {"kicks": 6.05, "snares": -0.81, "novelty": 3.31, "barChange": 6.26, "pickup": 1.07, "energyChange": 4.18}
+# The energy change's log ratio counts at least this much change: in a song that loops one bar
+# (the synthetic pop and rock songs) the bars hardly differ, and the ratios of those slivers put
+# the downbeat anywhere.
+ENERGY_CHANGE_FLOOR = 0.005
 
 
 @dataclass
@@ -100,12 +105,29 @@ def bar_changes(beat_chroma: np.ndarray, beats_per_bar: int) -> np.ndarray:
     return out
 
 
+def energy_changes(onsets: np.ndarray) -> np.ndarray:
+    """For each downbeat phase k, how much the onset energy changes from bar to bar for bars that
+    start on beats k, k + 4, ...: 1 - cosine between consecutive bars' (mean onset, song mean)
+    pairs, so a bar louder or quieter than the last counts by how far apart they are against the
+    song's level. Bars shifted off the downbeat straddle the changes."""
+    level = np.full(len(onsets), float(np.mean(onsets)) + 1e-6)
+    pairs = np.stack([onsets, level], axis=1)
+    out = np.zeros(4)
+    for k in range(4):
+        bars = np.array([pairs[i : i + 4].mean(axis=0) for i in range(k, len(pairs) - 3, 4)])
+        if len(bars) < 5:
+            continue
+        cos = np.sum(bars[1:] * bars[:-1], axis=1) / (np.linalg.norm(bars[1:], axis=1) * np.linalg.norm(bars[:-1], axis=1) + 1e-9)
+        out[k] = float(np.mean(1.0 - cos))
+    return out
+
+
 def _z(x: np.ndarray) -> np.ndarray:
     return (x - x.mean()) / (x.std() + 1e-9)
 
 
-def _log_ratio(x: np.ndarray) -> np.ndarray:
-    return np.log((x + 1e-6) / (x.mean() + 1e-6))
+def _log_ratio(x: np.ndarray, floor: float = 1e-6) -> np.ndarray:
+    return np.log((x + floor) / (x.mean() + floor))
 
 
 def estimate_meter(cues: np.ndarray, beat_chroma: np.ndarray | None = None, accents: BeatAccents | None = None) -> MeterResult:
@@ -144,8 +166,10 @@ def estimate_meter(cues: np.ndarray, beat_chroma: np.ndarray | None = None, acce
                 "novelty": per_phase(novelty),
                 "barChange": bar_changes(beat_chroma, 4),
                 "pickup": np.roll(per_phase(accents.onsets), 1),  # the beat before each downbeat
+                "energyChange": energy_changes(accents.onsets),
             }
-            total = sum(w * _log_ratio(phases[name]) for name, w in DOWNBEAT_WEIGHTS.items())
+            floors = {"energyChange": ENERGY_CHANGE_FLOOR}
+            total = sum(w * _log_ratio(phases[name], floors.get(name, 1e-6)) for name, w in DOWNBEAT_WEIGHTS.items())
         else:
             total = _z(per_phase(cues)) + BAR_CHANGE_WEIGHT * _z(bar_changes(beat_chroma, 4))
         best = (best[0], 4, int(np.argmax(total)))
