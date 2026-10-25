@@ -272,13 +272,13 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     assert all(math.isclose(d.score, c.score * r, rel_tol=1e-9) for d, c, r in zip(drum_cands, easy_cands, ratio))
 
 
-def test_hard_charts_open_the_triplet_grid_only_in_bars_that_swing() -> None:
-    """A song can swing overall and still be straight in most bars: human BMS charts of triplet-feel
-    songs put 6.6% of their level-10 notes on triplets, where a song-wide triplet grid put 14.7%
-    (PATTERN_DESIGN 28). Since generator 0.9.12 the default system opens the triplet grid from HARD
-    on only in bars whose neighbourhood swings; a triplet-like onset in a straight bar takes the
-    straight grid. Easy charts and the other systems keep the song-wide grid."""
-    from rhythm_server.generator.candidates import build_candidates, triplet_bars
+def test_the_default_system_opens_the_triplet_grid_in_the_bars_that_swing() -> None:
+    """A song can swing overall and still be straight in most bars. Since generator 0.9.26 the
+    default system decides bar by bar with a model fitted on human BMS charts (PATTERN_DESIGN 56):
+    the triplet grid opens only in bars that swing, a triplet-like onset in a straight bar takes the
+    straight grid, and a triplet in a swinging bar is scored and capped as the eighth it plays the
+    part of (the swung eighth of a shuffle)."""
+    from rhythm_server.generator.candidates import build_candidates, grid_of, swing_bars
 
     beat_ms = 500.0  # 120 BPM, 4/4: bars of 2000 ms
 
@@ -296,23 +296,26 @@ def test_hard_charts_open_the_triplet_grid_only_in_bars_that_swing() -> None:
         "sections": [],
     }
     tempo = TempoMap(analysis["timing"])
-    swinging = triplet_bars(analysis, tempo)
-    assert swinging is not None and set(range(9, 16)) <= swinging and not swinging & set(range(0, 7)), swinging
+    swinging = swing_bars(analysis, tempo)
+    assert set(range(9, 16)) <= swinging and not swinging & set(range(0, 7)), swinging
     hard = resolve_params("7K+1S", "HARD")
     tolerance = float(difficulty_config()["snapToleranceMs"])
 
-    def triplets(bars: set[int] | None) -> set[int]:
-        cands = build_candidates(analysis, tempo, hard, tolerance, bars)
-        return {int(c.beat // 4) for c in cands if c.subdivision in (3, 6)}
+    def triplets(bars: set[int] | None) -> list:
+        return [c for c in build_candidates(analysis, tempo, hard, tolerance, bars) if c.subdivision in (3, 6)]
 
-    assert 3 in triplets(None)  # song-wide grid: the stray onset snaps to a triplet in a straight bar
-    assert 3 not in triplets(swinging) and set(range(9, 16)) <= triplets(swinging)
+    assert 3 in {int(c.beat // 4) for c in triplets(None)}  # song-wide grid: the stray onset snaps to a triplet in a straight bar
+    local = triplets(swinging)
+    assert 3 not in {int(c.beat // 4) for c in local} and set(range(9, 16)) <= {int(c.beat // 4) for c in local}
+    assert all(grid_of(c) == 2 for c in local) and all(c.grid is None for c in triplets(None))
 
 
 def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
     """Human BMS charts of triplet-feel songs put 3-6% of their notes on triplet positions from
-    level 2 on (PATTERN_DESIGN 23). Since generator 0.9.7 the default system's EASY and NORMAL read
-    the eighth-note triplets of such a song (before, none); a straight song keeps none."""
+    level 2 on (PATTERN_DESIGN 23), and in the bars that swing 21% even at level 6 (56). Since
+    generator 0.9.7 the default system's EASY and NORMAL read the eighth-note triplets of such a
+    song (before, none), since 0.9.26 as the eighths they stand for, past the triplet caps (5% and
+    7% of the notes); a straight song keeps none."""
     from rhythm_server.analysis.analyzer import analyze
     from rhythm_server.synth import make_drum_song
 
@@ -322,9 +325,9 @@ def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
         out = {}
         for tier in ("EASY", "NORMAL"):
             fractions = [n["beat"] % 1.0 for n in generate_chart(a, "7K+1S", tier)["notes"]]
-            out[tier] = sum(1 for f in fractions if min(abs(f - 1 / 3), abs(f - 2 / 3)) < 0.02)
+            out[tier] = sum(1 for f in fractions if min(abs(f - 1 / 3), abs(f - 2 / 3)) < 0.02) / len(fractions)
         return out
 
     swung, straight = triplet_notes("shuffle"), triplet_notes("pop16")
-    assert swung["EASY"] >= 3 and swung["NORMAL"] >= 10, swung
+    assert swung["EASY"] >= 0.15 and swung["NORMAL"] >= 0.25, swung
     assert straight == {"EASY": 0, "NORMAL": 0}, straight

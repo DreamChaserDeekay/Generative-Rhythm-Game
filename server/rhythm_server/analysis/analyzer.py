@@ -18,6 +18,7 @@ from .backends import Backend, detect as detect_backends
 from .meter import BeatAccents, beat_cues, beat_onsets, beat_peaks, beat_timbre, estimate_meter
 from .onsets import attack_confidence, band_levels, detect_onsets, onset_spectra
 from .pitch import analyze_notes, held_swells
+from .sound_groups import sound_groups
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
 from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
@@ -26,7 +27,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.7.7"
+ANALYZER_VERSION = "1.8.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -205,6 +206,8 @@ def analyze(
     attack = attack_confidence(
         times, strength, bands, notes.harmonic_rise[keep], shares[:, STEM_NAMES.index("drums")], band_levels(mel, centers), fine_rate, od.time_offset,
     )
+    # onsets of one sound (the generator keeps a sound on its lane)
+    groups = sound_groups(harmonic, coarse_rate, times)
 
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
@@ -258,6 +261,7 @@ def analyze(
                 "sources": [round(float(x), 3) for x in shares[i]],
                 "melody": round(float(melody[i]), 3),
                 "attack": round(float(attack[i]), 3),
+                "soundGroup": int(groups[i]),
             }
         )
     sustains = [

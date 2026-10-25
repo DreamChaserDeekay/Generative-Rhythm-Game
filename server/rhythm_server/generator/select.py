@@ -11,7 +11,7 @@ import numpy as np
 
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, load_config
-from .candidates import Candidate
+from .candidates import Candidate, grid_of
 from .params import GenParams, skill_for_rating
 from .rolls import coarser, mark_rolls, roll_level
 from .tempo import TempoMap
@@ -52,6 +52,7 @@ class Slot:
     strength: float
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
     roll: tuple[int, int, int, bool] | None = None  # a drum roll's note: (roll, hit index, hits, in a mirrored repeat)
+    sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
 
     @property
     def src(self) -> int | None:
@@ -71,6 +72,13 @@ def sound_of(slot: Slot) -> tuple[Any, ...]:
     if melodic(slot):
         return (slot.src, round(float(slot.pitch)))  # type: ignore[arg-type]
     return (slot.src, int(np.argmax(slot.bands)))
+
+
+def home_of(slot: Slot) -> int | None:
+    """The sound memory's key: the analysis's same-sound group (analyzer 1.8.0; None before). The
+    planner's sound (stem and pitch) is too loose a key: keeping it on a lane cost lane patterns
+    more than it gained sound homes (docs/PATTERN_DESIGN.md 46)."""
+    return slot.sound_group
 
 
 def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> float | None:
@@ -173,16 +181,16 @@ def select_slots(
         return True
 
     def partial_ok(c: Candidate) -> bool:
-        limit = params.partial.get(c.subdivision)
+        limit = params.partial.get(grid_of(c))
         if limit is None:
             return True
-        return (sub_counts.get(c.subdivision, 0) + 1) <= max(1.0, limit * max(count, target_slots * 0.5))
+        return (sub_counts.get(grid_of(c), 0) + 1) <= max(1.0, limit * max(count, target_slots * 0.5))
 
     def accept(i: int) -> None:
         nonlocal count
         accepted[i] = True
         buckets[bucket(cands[i])] += 1
-        sub_counts[cands[i].subdivision] = sub_counts.get(cands[i].subdivision, 0) + 1
+        sub_counts[grid_of(cands[i])] = sub_counts.get(grid_of(cands[i]), 0) + 1
         count += 1
 
     # drum rolls first, on the grid the tier reads (rolls.py), all of a roll's hits or a coarser grid
@@ -207,7 +215,7 @@ def select_slots(
             for i in taken:  # all of the roll or a coarser grid
                 accepted[i] = False
                 buckets[bucket(cands[i])] -= 1
-                sub_counts[cands[i].subdivision] -= 1
+                sub_counts[grid_of(cands[i])] -= 1
                 count -= 1
             level = coarser(level)
 
@@ -251,6 +259,7 @@ def select_slots(
             subdivision=c.subdivision,
             strength=c.strength,
             sources=c.sources,
+            sound_group=c.sound_group,
         )
         for c in chosen
     ]

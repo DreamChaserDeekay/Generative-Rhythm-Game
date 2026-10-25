@@ -38,6 +38,14 @@ class Candidate:
     melody: float | None = None  # how clearly it starts a note of the main melody (0..1)
     roll: tuple[int, int] | None = None  # (roll id, hit index) when it is a hit of a drum roll (rolls.py)
     attack: float = 1.0  # how surely a new sound starts here, not a sounding one changing (0..1)
+    grid: int | None = None  # the straight subdivision a triplet in a swinging bar is scored and capped as
+    sound_group: int | None = None  # the analysis's same-sound group of the (strongest) onset
+
+
+def grid_of(c: Candidate) -> int:
+    """The subdivision a candidate is scored and capped as: its own, or for a triplet in a bar that
+    swings the straight grid point it plays the part of (see swing_bars)."""
+    return c.subdivision if c.grid is None else c.grid
 
 
 TRIPLETS = (3, 6)
@@ -63,31 +71,51 @@ def _triplet_weights(analysis: dict[str, Any], tempo: TempoMap) -> list[tuple[fl
     return out
 
 
-def triplet_bars(analysis: dict[str, Any], tempo: TempoMap) -> set[int] | None:
-    """Bars of a triplet-feel song whose own rhythm sits on triplets: the triplet share of the bars
-    around each (tripletFeel.localBars on either side) reaches tripletFeel.localMinShare. None when
-    the config keeps the whole song on the triplet grid (localBars 0)."""
-    cfg = difficulty_config()["tripletFeel"]
-    reach = int(cfg.get("localBars", 0))
-    if reach <= 0:
-        return None
+# where a beat's onsets are counted for the swing decision, and what each point is: 0 the beat,
+# 1 a straight sixteenth, 2 the eighth, 3 an eighth-note triplet, 4 a sixteenth-note triplet
+SWING_POINTS = np.array([0.0, 1 / 6, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 5 / 6, 1.0])
+SWING_KIND = np.array([0, 4, 1, 3, 2, 3, 1, 4, 0])
+
+
+def swing_bars(analysis: dict[str, Any], tempo: TempoMap) -> set[int]:
+    """Bars a human BMS charter hears as swinging (eighth-note triplets or a shuffle): a logistic
+    model (config tripletFeel.swing) on the strength of the bar's onsets at the triplet points and
+    at the straight sixteenths, the same over the bar and its neighbours, and the song's triplet
+    and eighth shares. Fitted on the human charts of 755 songs, bar by bar: the share of their
+    off-beat notes on triplets (docs/PATTERN_DESIGN.md 56)."""
+    cfg = difficulty_config()["tripletFeel"]["swing"]
     bpb = tempo.beats_per_bar
-    straight: dict[int, float] = {}
-    triplet: dict[int, float] = {}
-    for b, s, t in _triplet_weights(analysis, tempo):
-        bar = int(np.floor(b / bpb))
-        straight[bar] = straight.get(bar, 0.0) + s
-        triplet[bar] = triplet.get(bar, 0.0) + t
-    if not straight and not triplet:
+    n_bars = int(tempo.ms_to_beat(float(analysis["durationMs"])) // bpb) + 1
+    if n_bars < 1:
         return set()
-    lo, hi = min(straight.keys() | triplet.keys()), max(straight.keys() | triplet.keys())
-    out = set()
-    for bar in range(lo, hi + 1):
-        s = sum(straight.get(j, 0.0) for j in range(bar - reach, bar + reach + 1))
-        t = sum(triplet.get(j, 0.0) for j in range(bar - reach, bar + reach + 1))
-        if t > 0 and t / (s + t) >= float(cfg["localMinShare"]):
-            out.add(bar)
-    return out
+    tol = float(cfg["toleranceBeats"])
+    mass = np.zeros((n_bars, int(SWING_KIND.max()) + 1))
+    for o in analysis["onsets"]:
+        b = tempo.ms_to_beat(float(o["t"]))
+        bar = int(b // bpb)
+        if not 0 <= bar < n_bars:
+            continue
+        d = np.abs(SWING_POINTS - (b - math.floor(b)))
+        j = int(np.argmin(d))
+        if d[j] <= tol:
+            mass[bar, SWING_KIND[j]] += float(o["strength"])
+    summed = np.vstack([np.zeros((1, mass.shape[1])), np.cumsum(mass, axis=0)])
+    i = np.arange(n_bars)
+    near = summed[np.minimum(i + 2, n_bars)] - summed[np.maximum(i - 1, 0)]  # the bar and the bars either side
+    song = mass.sum(axis=0)
+    x = {
+        "triplets": np.log1p(mass[:, 3]),
+        "sixteenths": np.log1p(mass[:, 1]),
+        "tripletsNear": np.log1p(near[:, 3]),
+        "sixteenthsNear": np.log1p(near[:, 1]),
+        "songTripletShare": np.full(n_bars, song[3] / (song[1] + song[3] + 1e-6)),
+        "songEighthShare": np.full(n_bars, song[2] / (song.sum() + 1e-6)),
+    }
+    z = float(cfg["bias"]) + sum(
+        float(w) * (x[name] - float(m)) / float(sd) for name, m, sd, w in zip(cfg["features"], cfg["mean"], cfg["scale"], cfg["weights"])
+    )
+    p = 1.0 / (1.0 + np.exp(-z))
+    return {int(k) for k in np.flatnonzero(p >= float(cfg["minP"]))}
 
 
 def triplet_share(analysis: dict[str, Any], tempo: TempoMap) -> float:
@@ -163,10 +191,11 @@ def _section_leader(sections: list[dict[str, Any]], t: float) -> int | None:
 
 
 def build_candidates(
-    analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float, triplets_in: set[int] | None = None
+    analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float, swing: set[int] | None = None
 ) -> list[Candidate]:
-    """Snapped, scored candidates. With `triplets_in` (bars, see triplet_bars) the triplet grid is
-    open only in those bars."""
+    """Snapped, scored candidates. With `swing` (bars, see swing_bars) the triplet grid is open only
+    in those bars, and a triplet there is scored and capped as the straight subdivision it plays
+    the part of (config tripletFeel.swing.roles: the swung eighth as an eighth)."""
     duration = float(analysis["durationMs"])
     n_beats = max(1, int(np.ceil(tempo.ms_to_beat(duration))) + 1)
     intensity = intensity_curve(analysis, tempo, n_beats)
@@ -175,9 +204,10 @@ def build_candidates(
     melody_cfg = load_config("instruments")["rhythmSource"]["melody"]
     merged: dict[float, Candidate] = {}
     straight_subs = tuple(s for s in params.subdivisions if s not in TRIPLETS)
+    roles = {int(k): int(v) for k, v in difficulty_config()["tripletFeel"]["swing"]["roles"].items()} if swing is not None else {}
     for o in analysis["onsets"]:
         allowed = params.subdivisions
-        if triplets_in is not None and int(np.floor(tempo.ms_to_beat(float(o["t"])) / bpb)) not in triplets_in:
+        if swing is not None and int(np.floor(tempo.ms_to_beat(float(o["t"])) / bpb)) not in swing:
             allowed = straight_subs
         snapped = snap(o["t"], tempo, allowed, tolerance_ms)
         if snapped is None:
@@ -211,6 +241,8 @@ def build_candidates(
                 leader=_section_leader(sections, o["t"]),
                 melody=melody,
                 attack=attack,
+                grid=roles.get(sub),
+                sound_group=o.get("soundGroup"),
             )
         else:
             stronger = o["strength"] > c.strength
@@ -223,6 +255,8 @@ def build_candidates(
             c.bands = c.bands + bands
             if o.get("pitch") is not None and (c.pitch is None or stronger):
                 c.pitch = o["pitch"]
+            if o.get("soundGroup") is not None and (c.sound_group is None or stronger):
+                c.sound_group = o["soundGroup"]
             c.harmonic = max(c.harmonic, float(o.get("harmonic", 0.0)))
             c.sustain_beats = max(c.sustain_beats, sustain_beats)
             if melody is not None:
@@ -318,7 +352,7 @@ def pick_features(c: Candidate) -> dict[str, float]:
         "sustain": min(4.0, c.sustain_beats),
         "intensity": c.intensity,
         "downbeat": float(c.downbeat),
-        **{f"sub{s}": float(c.subdivision == s) for s in SNAP_ORDER},
+        **{f"sub{s}": float(grid_of(c) == s) for s in SNAP_ORDER},
         **{name: float(src[i]) for i, name in enumerate(STEM_NAMES)},
         "leader": float(src[c.leader]) if c.leader is not None else 1.0 / len(STEM_NAMES),
         "melody": float(c.melody or 0.0),
@@ -357,13 +391,14 @@ def _hand_scores(cands: list[Candidate], params: GenParams) -> list[float]:
         melody = (c.melody or 0.0) if follows_melody else 0.0
         # a melody chart lets its notes off the beat: syncopation is the melody's own rhythm
         p = power * (1.0 - float(melody_cfg["offbeat"]) * melody) if params.rhythm_source in ("melody", "vocal") else power
-        metrical = downbeat_weight * downbeat if c.downbeat else weights.get(c.subdivision, 0.3) ** p
+        grid = grid_of(c)
+        metrical = downbeat_weight * downbeat if c.downbeat else weights.get(grid, 0.3) ** p
         if push != 1.0 and c.subdivision == 4:
             # a 16th before an empty or weaker grid point pushes the beat or the off-beat early
             after = strength_at.get(round(c.beat + 0.25, 4))
             if after is None or after < c.strength:
                 metrical *= push
-        metrical *= boosts.get(c.subdivision, 1.0) * (offbeat if c.subdivision > 1 else 1.0)
+        metrical *= boosts.get(grid, 1.0) * (offbeat if grid > 1 else 1.0)
         total = float(np.sum(c.bands)) + 1e-9
         w_band = float(np.dot(c.bands, band_weight)) / total
         stem_weight = _stem_source_weight(c, params, source_cfg)

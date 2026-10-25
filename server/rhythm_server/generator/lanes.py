@@ -15,7 +15,7 @@ from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
 from .motifs import MotifContext, SlotPlan, by_key_mode, by_skill, motif_context, motif_costs, one_hand_region
 from .params import GenParams
-from .select import Slot, sound_of
+from .select import Slot, home_of, sound_of
 from .tempo import TempoMap
 
 BEAM_WIDTH = 5
@@ -90,8 +90,9 @@ class _Weights:
     balance_bar: float
     balance_min: float
     balance_band: tuple[float, float]
-    # sound memory (hands.soundMemory): a sound coming back after other notes pays this for leaving
-    # the lane it last had (BMS charts keep 70-86% of a keysound's notes on one lane)
+    # sound memory (hands.soundMemory): a sound group (the analysis's soundGroup, analyzer 1.8.0)
+    # coming back pays this for leaving the lane it last had (BMS charts keep 50-73% of a keysound's
+    # notes on its commonest lane); analyses without groups get no memory
     memory: float = 0.0
     memory_size: int = 0
     # hand-shape feedback (hands.runTarget / barTarget, Udo 2023): the share of fast-run notes that
@@ -107,6 +108,10 @@ class _Weights:
     # stay) that enter or leave the middle key, steered the same way toward hands.middleTarget
     mid_target: float = 0.0
     mid_feedback: float = 0.0
+    # the share of fast-run notes in stairs (three or more notes one key at a time the same way,
+    # counted like bms_stats), steered the same way toward hands.stairTarget
+    stair_target: float = 0.0
+    stair_feedback: float = 0.0
     feedback_prior: float = 20.0
     # lane moves (hands.laneMoves, config/lane_moves.json): a single key note right after a single
     # key note pays this times -log P(key | previous key, the move into that key, beat phase, note
@@ -165,6 +170,8 @@ class _Weights:
             bar_feedback=by_key_mode(hands.get("barFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("barMinSkill", 0.0)) else 0.0,
             mid_target=by_skill(hands.get("middleTarget", 0.0), params.skill),
             mid_feedback=by_key_mode(hands.get("middleFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("middleMinSkill", 0.0)) else 0.0,
+            stair_target=by_skill(hands.get("stairTarget", 0.0), params.skill),
+            stair_feedback=by_key_mode(hands.get("stairFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("stairMinSkill", 0.0)) else 0.0,
             feedback_prior=float(hands.get("feedbackPrior", 20.0)),
             lane_moves=by_skill(hands.get("laneMoves", 0.0), params.skill),
             lane_moves_draw=bool(hands.get("laneMovesDraw", False)),
@@ -238,6 +245,9 @@ class _State:
     fb_len: int = 0  # notes in a row that hand has played in the run
     fb_moves: int = 0  # moves between single key notes at most MID_MS apart
     fb_mid: int = 0  # ...that enter or leave the middle key
+    fb_stair: int = 0  # notes of the one-key-at-a-time line this run note ends (1: none), like bms_stats
+    fb_step: int = 0  # ...and its way (+1 / -1; 0 when it has no move yet)
+    fb_stairs: int = 0  # run notes in stairs so far (lines of three notes or more)
     # the latest key instant, for the lane moves: its key (1-7) when single (0: a chord), the move
     # class into it (lane_move_class) and its time
     mv_key: int = 0
@@ -421,7 +431,7 @@ def search(
         weights = dataclasses.replace(weights, repeat=repeat_weight)
     exact = repeat_weight is not None and repeat_weight >= EXACT_COPY_WEIGHT
     repeat_targets = targets_by_slot or [None] * len(slots)
-    feedback = weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0
+    feedback = weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0 or weights.stair_feedback > 0
     moves = lane_move_logp() if weights.lane_moves > 0 and len(key_lanes) == 7 else None
     key_no = {lane: n + 1 for n, lane in enumerate(key_lanes)}
     move_bands = lane_move_bands(slots, load_config("lane_moves")["densityBands"]) if moves is not None else []
@@ -503,6 +513,7 @@ def search(
         repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
         laser = sp is not None and sp.motif == "laser"
         sound = sound_of(slot)
+        home_sound = home_of(slot)
         bar = int(slot.beat // bpb + 1e-9)
         # The same-hand and balance rules leave alone what the plan puts on one hand on purpose: a
         # shape that stays on a hand, and a role kept to one hand (rhythm one hand, melody the other).
@@ -586,8 +597,8 @@ def search(
             if reserved[si]:
                 pen = RESERVE_SHARE * weights.repeat
                 costs = [c + pen * sum(1 for i in combo if i in reserved[si]) for c, combo in zip(costs, combos)]
-            if weights.memory > 0 and sound is not None and not same_sound and state.memory:
-                home = next((lane for s, lane in reversed(state.memory) if s == sound), None)
+            if weights.memory > 0 and home_sound is not None and not same_sound and slot.roll is None and state.memory:
+                home = next((lane for s, lane in reversed(state.memory) if s == home_sound), None)
                 if home is not None:
                     costs = [c + weights.memory if len(combo) == 1 and combo[0] != home else c for c, combo in zip(costs, combos)]
             planned = sp is not None and sp.motif != "step"
@@ -679,7 +690,7 @@ def search(
                     streak=tuple(streak),
                     bar=bar,
                     bar_hands=(left, right),
-                    memory=_remember(state.memory, sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
+                    memory=_remember(state.memory, home_sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
                     **(fb or {}),
                     **mv,
                 )
@@ -961,11 +972,16 @@ def _costs(
             if n >= w.jack_free:
                 streak_cost[i] = w.jack_streak * (n + 1 - w.jack_free)
     # hand-shape feedback: how far the path so far is from the target shares (positive: too few)
-    run_gap = bar_gap = mid_gap = 0.0
+    run_gap = bar_gap = mid_gap = stair_gap = 0.0
     continues_run = False
     if w.mid_feedback > 0 and slot.special is None and state.fb_single and dt <= MID_MS:
         prior = w.feedback_prior
         mid_gap = w.mid_target - (state.fb_mid + prior * w.mid_target) / (state.fb_moves + prior)
+    stair_on = -1  # the key that goes on with the one-key move into the previous note
+    if w.stair_feedback > 0 and slot.special is None and state.fb_single and state.fb_step and dt <= RUN_MS:
+        prior = w.feedback_prior
+        stair_gap = w.stair_target - (state.fb_stairs + prior * w.stair_target) / (state.fb_run + prior)
+        stair_on = prev[0] + state.fb_step
     if w.run_feedback > 0 and slot.special is None:
         continues_run = state.fb_single and dt <= RUN_MS
         prior = w.feedback_prior
@@ -1055,6 +1071,10 @@ def _costs(
             # into the middle key (and so out of it next) while the path has too few such moves; only
             # for the notes no shape plans (a role kept to one hand still may take the middle key)
             cost -= w.mid_feedback * mid_gap
+        if stair_gap and len(combo) == 1 and pull_rule and combo[0] == stair_on:
+            # one key on the same way after a one-key move (a stair goes on) while the path has too
+            # few stair notes; for the notes no shape plans, like the middle-key feedback
+            cost -= w.stair_feedback * stair_gap
         if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0 and len(combo) == 1:
             # toward the hand the bar already leans to (a lopsided bar) while there are too few; for
             # single notes only (a bonus per key of a chord made one-hand adjacent chords)
@@ -1091,6 +1111,7 @@ def _feedback_counts(
     a run.)"""
     run, hand3, bars, off = state.fb_run, state.fb_hand3, state.fb_bars, state.fb_off
     moves, mid = state.fb_moves, state.fb_mid
+    stair, step, stairs = 1, 0, state.fb_stairs
     if state.bar >= 0 and bar != state.bar:
         left, right = state.bar_hands
         if left + right >= w.balance_min:
@@ -1107,13 +1128,19 @@ def _feedback_counts(
         if state.fb_single and t - state.prev_t <= RUN_MS:
             run += 1 if state.fb_in_run else 2
             in_run = True
+            # the line of one-key moves the same way: it goes on, or a one-key move starts a new
+            # one from the previous note (bms_stats counts a turning note in both lines)
+            move = keys_used[0] - state.prev_lanes[0]
+            if abs(move) == 1:
+                stair, step = (state.fb_stair + 1, move) if move == state.fb_step else (2, move)
+                stairs += 3 if stair == 3 else 1 if stair > 3 else 0
             length = 0 if side == "T" else state.fb_len + 1 if side == state.fb_side else 1
             hand3 += length >= 3
         else:
             length = 0 if side == "T" else 1
     return {
         "fb_run": run, "fb_hand3": hand3, "fb_bars": bars, "fb_off": off, "fb_single": single, "fb_in_run": in_run, "fb_side": side, "fb_len": length,
-        "fb_moves": moves, "fb_mid": mid,
+        "fb_moves": moves, "fb_mid": mid, "fb_stair": stair, "fb_step": step, "fb_stairs": stairs,
     }
 
 

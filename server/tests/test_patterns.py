@@ -423,16 +423,26 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # holds 12.6% of their notes against our 9.3% over the 855 held-out charts). Generator 0.9.17
     # dropped it to 7% for the weaker lane-usage balance; refitting keyBias to close the key-share
     # gap instead moves every key the right way and still loses 3.1pp overall (PATTERN_DESIGN 34).
-    for tier in ("EASY", "NORMAL", "HARD"):
+    # Generator 0.9.28 keeps each sound group on its lane (hands.soundMemory). An EASY chart plays
+    # few sounds and leans on their keys (on this song key 7 0.086 -> 0.064); over the held-out
+    # songs a key holds more than 30% of the notes in 18 of 102 of our EASY charts (9 of 101 before)
+    # and in 11 of 95 human level 1-3 charts (PATTERN_DESIGN 58), so the EASY guard is looser.
+    for tier, floor, ceiling in (("EASY", 0.05, 0.35), ("NORMAL", 0.07, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []
         for seed in range(4):
             keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
             per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
         shares = np.mean(per_seed, axis=0)
-        assert min(shares[0], shares[6]) >= 0.07 and max(shares) <= 0.3, (tier, [round(float(s), 3) for s in shares])
-    notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY")["notes"] if n["lane"] != 0)
-    moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
-    assert sum(m >= 3 for m in moves) / len(moves) >= 0.2
+        assert min(shares[0], shares[6]) >= floor and max(shares) <= ceiling, (tier, [round(float(s), 3) for s in shares])
+    # leaps of three keys or more among the EASY charts' moves within 450 ms, a mean over seeds: a
+    # chart keeping its kick group on one key repeats it (0.12-0.39 by seed since 0.9.28, mean 0.20;
+    # 0.19-0.24 before), while over the held-out songs level 2's fast leaps stay at 0.30 (human 0.29)
+    leaps = []
+    for seed in range(4):
+        notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY", seed=seed)["notes"] if n["lane"] != 0)
+        moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
+        leaps.append(sum(m >= 3 for m in moves) / len(moves))
+    assert np.mean(leaps) >= 0.15, leaps
 
 
 def test_default_7k_phrases_keep_to_a_few_keys_and_easy_chords_use_one_hand(dense_song: dict) -> None:

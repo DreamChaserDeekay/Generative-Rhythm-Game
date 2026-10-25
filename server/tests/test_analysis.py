@@ -69,6 +69,45 @@ def test_attack_ranks_a_new_sound_above_a_sounding_one_changing() -> None:
     assert attack[1] < 0.5 < min(attack[0], attack[2]), attack
 
 
+def _two_sounds(onsets: int, rate: float = 43.0, bins: int = 400) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """A harmonic spectrogram where two tones with different partials take turns over a quiet
+    floor, louder and softer each time: (spectrogram, onset times, which tone)."""
+    harmonic = np.full((onsets * 25 + 60, bins), 0.01)
+    tones = (np.zeros(bins), np.zeros(bins))
+    tones[0][[20, 40, 60, 80]] = [1.0, 0.5, 0.3, 0.2]
+    tones[1][[30, 45, 90, 135]] = [1.0, 0.7, 0.4, 0.2]
+    times, which = [], []
+    for k in range(onsets):
+        frame = 20 + 25 * k
+        harmonic[frame : frame + 10] += tones[k % 2] * (0.4 + 0.1 * (k % 5))
+        times.append(frame / rate)
+        which.append(k % 2)
+    return harmonic, np.array(times), np.array(which)
+
+
+def test_the_onsets_of_one_sound_share_a_sound_group() -> None:
+    """A keysound chart plays one sample again and again; its onsets rise alike in the harmonic
+    spectrum however loud they are, and another sound's onsets rise elsewhere (PATTERN_DESIGN 58)."""
+    from rhythm_server.analysis.sound_groups import sound_groups
+
+    harmonic, times, which = _two_sounds(20)
+    groups = sound_groups(harmonic, 43.0, times)
+    assert len(set(groups[which == 0])) == 1 and len(set(groups[which == 1])) == 1, groups
+    assert groups[which == 0][0] != groups[which == 1][0]
+
+
+def test_a_long_song_groups_an_even_spread_and_the_rest_by_likeness(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Linkage memory grows with the square of the onsets: past MAX_LINKED onsets an even spread is
+    grouped and every other onset takes the group of its most alike grouped onset."""
+    import rhythm_server.analysis.sound_groups as sg
+
+    harmonic, times, which = _two_sounds(40)
+    full = sg.sound_groups(harmonic, 43.0, times)
+    monkeypatch.setattr(sg, "MAX_LINKED", 15)
+    spread = sg.sound_groups(harmonic, 43.0, times)
+    assert len(set(zip(full.tolist(), spread.tolist()))) == len(set(full.tolist())) == 2, (full, spread)
+
+
 def test_attack_is_high_on_the_true_onsets_of_a_song(analysis128: dict, song128) -> None:
     detected = np.array([o["t"] for o in analysis128["onsets"]]) / 1000.0
     attack = np.array([o["attack"] for o in analysis128["onsets"]])
@@ -363,7 +402,7 @@ def test_result_shape(analysis128: dict) -> None:
         assert key in a
     assert a["timing"]["tempoMap"][0]["beat"] == 0
     o = a["onsets"][0]
-    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd", "attack"}
+    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd", "attack", "soundGroup"}
     assert o["band"] in ("low", "mid", "high")
 
 
