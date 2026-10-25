@@ -228,7 +228,8 @@ def alternate_key(
     - "wave": one key further out every turn and back in (3-5-2-6-1-7-2-6-3-5)
     - "shift": both hands walk the same way (1-4-2-5-3-6), back again when they reach the end
     - "trill": a trill on one key of each hand (2-5-2-5...), its keys from the shape's number; a
-      long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half
+      long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half, a build-up
+      twice that long or longer every TRILL_STEP_HITS notes
 
     Easy charts reach less far out (fanSkill). A roll starts on the left (the right in a repeat
     played mirrored), so a repeat of the build-up plays it the same way; after that each note takes
@@ -251,9 +252,17 @@ def alternate_key(
     name, number = shape if shape is not None and width == 1 else ("fan", 0)
     turn = pos // 2
     if name == "trill":
-        a, b = number % reach, (number // 7) % reach
-        if hits >= TRILL_STEP_HITS and pos >= hits // 2:
-            a, b = (a + 1 if a + 1 < reach else max(0, a - 1)), (b + 1 if b + 1 < reach else max(0, b - 1))
+        # every TRILL_STEP_HITS notes the trill moves a key (out, then back in at the edge)
+        shift = pos // TRILL_STEP_HITS if hits >= 2 * TRILL_STEP_HITS else (1 if hits >= TRILL_STEP_HITS and pos >= hits // 2 else 0)
+
+        def bounce(x: int) -> int:
+            if reach <= 1:
+                return 0
+            cycle = 2 * (reach - 1)
+            q = x % cycle
+            return q if q < reach else cycle - q
+
+        a, b = bounce(number % reach + shift), bounce((number // 7) % reach + shift)
         level = a if on_left else b
     elif name == "shift" and reach > 1:
         cycle = 2 * (reach - 1)

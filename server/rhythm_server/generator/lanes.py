@@ -645,15 +645,21 @@ def search(
                     elif options:
                         ln_lane = min(options, key=lambda i: abs(lanes[i].pos - (target if target is not None else 0.5)))
                 ln_lanes: tuple[int, ...] = () if ln_lane is None else (ln_lane,)
-                if ln_lane is not None and slot.hold_pair and lanes[ln_lane].kind == "key":
-                    # a held chord: a key of the other hand holds too (one long note per hand)
-                    pair = [
-                        i for i in combo
-                        if lanes[i].hand in ("L", "R") and lanes[i].hand != lanes[ln_lane].hand
-                        and holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand
-                    ]
-                    if pair:
-                        ln_lanes = tuple(sorted((ln_lane, min(pair, key=lambda i: abs(lanes[i].pos - lanes[ln_lane].pos)))))
+                if ln_lane is not None and slot.hold_count > 1 and lanes[ln_lane].kind == "key":
+                    # a held chord: more keys of the chord hold, the other hand's first, each hand
+                    # within its long-note limit
+                    held = dict(holding_hands)
+                    held[lanes[ln_lane].hand] = held.get(lanes[ln_lane].hand, 0) + 1
+                    picked = [ln_lane]
+                    rest = sorted((i for i in combo if i != ln_lane and lanes[i].kind == "key"), key=lambda i: (lanes[i].hand == lanes[ln_lane].hand, abs(lanes[i].pos - lanes[ln_lane].pos)))
+                    for i in rest:
+                        if len(picked) >= slot.hold_count:
+                            break
+                        hand = lanes[i].hand
+                        if held.get(hand, 0) < (1 if hand == "T" else params.max_holds_per_hand):
+                            picked.append(i)
+                            held[hand] = held.get(hand, 0) + 1
+                    ln_lanes = tuple(sorted(picked))
                 scored.append((cost, lanes_used, ln_lanes, keys))
             scored.sort(key=lambda x: x[0])
             for cost, lanes_used, ln_lanes, keys in scored[:BEAM_WIDTH]:

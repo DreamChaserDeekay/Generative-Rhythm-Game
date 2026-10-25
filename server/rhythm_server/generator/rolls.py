@@ -96,6 +96,10 @@ def find_rolls(cands: list[Candidate], section_starts: list[float] | None = None
             runs.append(cur)
             cur, gap = [], None
         g = _gap(cands[prev].beat, c.beat) if prev is not None else None
+        # one hit the analysis missed inside a fast roll leaves twice the spacing: the roll goes on
+        skipped = prev is not None and gap is not None and gap <= 0.25 + 1e-6 and len(cur) >= 4 and abs((c.beat - cands[prev].beat) - 2 * gap) < 1e-6
+        if skipped:
+            g = gap
         # the same spacing goes on; a roll may speed up (8ths -> 16ths, 8th triplets -> 16th triplets)
         if prev is not None and g is not None and (gap is None or abs(g - gap) < 1e-6 or abs(g - gap / 2) < 1e-6):
             if not cur:

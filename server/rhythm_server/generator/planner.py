@@ -621,6 +621,9 @@ def drum_places(params: GenParams, seed: int) -> tuple[float, float, float] | No
     return (keys[0] / n, keys[1] / n, keys[2] / n)
 
 
+CHORD_JACK_MAX_HITS = 8  # a chord-jack roll is a short fill (rolls.shapes "chordJack")
+
+
 def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, seed: int, beats_per_bar: float = 4.0) -> dict[int, tuple[str, int]]:
     """Each roll's shape and key number (motifs.alternate_key) on a system with rolls.shapes: drawn
     by the shapes' weights at the chart's skill, the trill's times rolls.buildUpTrill for a roll
@@ -642,8 +645,13 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
     for run, hits in runs.items():
         first, last = hits[0].beat, hits[-1].beat
         into = any(0.0 < b - last <= 1.0 + 1e-6 for b in starts)
-        # a chord jack repeats both keys every hit: only on a roll slow enough to jack
-        jackable = min(b.t - a.t for a, b in zip(hits, hits[1:])) >= params.min_jack_ms if len(hits) >= 2 else False
+        # a chord jack repeats both keys every hit: only on a short fill of eighths or slower that
+        # is slow enough to jack, never a build-up (that goes hand over hand)
+        jackable = (
+            len(hits) >= 2 and not into and len(hits) <= CHORD_JACK_MAX_HITS
+            and min(b.beat - a.beat for a, b in zip(hits, hits[1:])) >= 0.5 - 1e-6
+            and min(b.t - a.t for a, b in zip(hits, hits[1:])) >= params.min_jack_ms
+        )
         weights = [
             0.0 if name == "chordJack" and not jackable
             else by_skill(table[name], params.skill) * (float(cfg.get("buildUpTrill", 1.0)) if into and name == "trill" else 1.0)

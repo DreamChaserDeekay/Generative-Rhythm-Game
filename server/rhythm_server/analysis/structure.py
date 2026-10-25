@@ -30,6 +30,7 @@ BOUNDARY_COST = 0.55
 PATH_WEIGHT = 0.8
 LOOP_CHOICES = (1, 2, 4)
 LOUD_ENERGY = 0.75  # with nothing repeated, the loudest section is the chorus from this energy (0..1)
+LEAD_IN_MARGIN = 0.08  # a group that leads into another is the chorus only when louder than the others by this (0..1)
 
 
 @dataclass
@@ -295,7 +296,17 @@ def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.n
     labels = [""] * k
     chorus = None
     if repeated:
-        chorus = max(repeated, key=lambda g: (round(group_energy[g], 2), count[g], -groups.index(g)))
+        # A group every occurrence of which leads straight into one same other group (a verse into
+        # its pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the
+        # loudest. A long crescendo build-up is often as loud as the chorus it opens.
+        def leads_in(g: int) -> bool:
+            idx = [i for i in range(k) if groups[i] == g]
+            nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
+            return len(nxt) == 1 and None not in nxt and next(iter(nxt)) in repeated and next(iter(nxt)) != g
+
+        top = max(group_energy[g] for g in repeated)
+        near = [g for g in repeated if group_energy[g] >= top - LEAD_IN_MARGIN]
+        chorus = max(near, key=lambda g: (not leads_in(g), round(group_energy[g], 2), count[g], -groups.index(g)))
     elif k > 2:
         # nothing repeats: a clearly loudest passage is still the chorus
         loudest = max(count, key=lambda g: group_energy[g])
