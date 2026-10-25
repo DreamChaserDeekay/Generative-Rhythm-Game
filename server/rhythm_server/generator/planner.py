@@ -621,6 +621,49 @@ def drum_places(params: GenParams, seed: int) -> tuple[float, float, float] | No
     return (keys[0] / n, keys[1] / n, keys[2] / n)
 
 
+def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, seed: int, beats_per_bar: float = 4.0) -> dict[int, tuple[str, int]]:
+    """Each roll's shape and key number (motifs.alternate_key) on a system with rolls.shapes: drawn
+    by the shapes' weights at the chart's skill, the trill's times rolls.buildUpTrill for a roll
+    that leads into a new section (a build-up). The draw goes by the chart's seed, the roll's
+    length and where in the bar it starts, so a fill played again is played the same way while the
+    song's other rolls take other shapes."""
+    cfg = pattern_config()["rolls"]
+    table = cfg.get("shapes", {})
+    table = table.get(params.system, table.get("*")) if isinstance(table, dict) else None
+    if not table:
+        return {}
+    runs: dict[int, list[Slot]] = {}
+    for s in slots:
+        if s.roll is not None:
+            runs.setdefault(s.roll[0], []).append(s)
+    starts = [float(s["startBeat"]) for s in sections if s.get("startBeat") is not None]
+    names = sorted(table)
+    out: dict[int, tuple[str, int]] = {}
+    for run, hits in runs.items():
+        first, last = hits[0].beat, hits[-1].beat
+        into = any(0.0 < b - last <= 1.0 + 1e-6 for b in starts)
+        # a chord jack repeats both keys every hit: only on a roll slow enough to jack
+        jackable = min(b.t - a.t for a, b in zip(hits, hits[1:])) >= params.min_jack_ms if len(hits) >= 2 else False
+        weights = [
+            0.0 if name == "chordJack" and not jackable
+            else by_skill(table[name], params.skill) * (float(cfg.get("buildUpTrill", 1.0)) if into and name == "trill" else 1.0)
+            for name in names
+        ]
+        total = sum(weights)
+        if total <= 0:
+            continue
+        phase = int(round((first % beats_per_bar) * 12))
+        h = (seed * 1000003 + len(hits) * 7919 + phase * 104729) % 2147483647
+        h = (h * 48271) % 2147483647
+        x = (h % 10000) / 10000.0 * total
+        for name, w in zip(names, weights):
+            if x < w:
+                break
+            x -= w
+        out[run] = (name, (h // 10000) % 1000)
+    return out
+
+
 def plan_patterns(
     slots: list[Slot],
     sections: list[dict[str, Any]],
@@ -660,6 +703,7 @@ def plan_patterns(
     for a, b in zip(slots, slots[1:]):
         if a.roll is not None and b.roll is not None and a.roll[0] == b.roll[0]:
             roll_gap[a.roll[0]] = min(roll_gap.get(a.roll[0], math.inf), b.t - a.t)
+    shapes = roll_shapes(slots, sections, params, seed, tempo.beats_per_bar)
     for n, (p, motif, win) in enumerate(zip(phrases, motifs, wins)):
         # rhythm phrases have no melodic direction: alternate it so stairs and rolls vary (by class
         # in the sectioned engine, so a loop keeps its direction)
@@ -668,12 +712,17 @@ def plan_patterns(
         layers = [layer_of(slots[i]) for i in p.slots]
         for k, i in enumerate(p.slots):
             if slots[i].roll is not None:
-                # a drum roll's note: the hands take turns (motifs.alternate_key), over the whole keys
+                # a drum roll's note: the hands take turns (motifs.alternate_key), over the whole keys;
+                # a chord-jack roll hits one key of each hand together every time (동치 연타)
                 run, pos, hits, mirrored = slots[i].roll  # type: ignore[misc]
+                chord_jack = shapes.get(run, ("", 0))[0] == "chordJack"
+                if chord_jack:
+                    slots[i].size = max(slots[i].size, 2)
                 plan[i] = SlotPlan(
-                    phrase=n, k=k, motif="alternate", chords=textures[n], hold_tap=p.holds > 0, direction=direction,
+                    phrase=n, k=k, motif="alternate", chords="jack" if chord_jack else textures[n], hold_tap=p.holds > 0, direction=direction,
                     step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False, layer="rhythm", roll=(pos, hits, run),
                     roll_spread=2 * roll_gap.get(run, math.inf) < params.min_jack_ms, roll_mirrored=mirrored,
+                    roll_shape=shapes.get(run),
                 )
                 continue
             mirror_ref = k - p.halves if motif == "callResponse" and p.halves is not None and k >= p.halves else None

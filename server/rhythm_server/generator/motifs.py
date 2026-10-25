@@ -14,6 +14,7 @@ from ..config import load_config
 
 FAST_MS = 260.0  # moves closer than this get the ergonomic costs (same threshold as the profile)
 WEAK_FINGER_PAIRS = ({2, 3}, {3, 4})  # middle-ring, ring-pinky
+TRILL_STEP_HITS = 16  # a trill roll this long moves one key out for its second half (alternate_key)
 
 
 @lru_cache(maxsize=None)
@@ -46,6 +47,7 @@ class SlotPlan:
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
     roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
     roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
+    roll_shape: tuple[str, int] | None = None  # the roll's shape (rolls.shapes) and a number picking its keys
     palette: tuple[int, ...] | None = None  # keys the phrase keeps to (the others pay weights.palette)
 
     def repeats(self, size: int) -> bool:
@@ -68,9 +70,6 @@ class MotifContext:
     readability_ms: float
     home_scale: float  # how firmly drum sounds keep their home keys ("instrument lanes" strength included)
     fan_skill: float = 0.6  # from this skill a roll fans out to the outermost keys (rolls.fanSkill)
-    # share of rolls that change their reach every turn (a zigzag, rolls.waveShare by skill) instead
-    # of fanning out slowly (which plays mostly trills)
-    roll_wave: float = 0.0
     adjacent: float = 0.0  # per pair of neighbouring keys of one hand in a chord (hands.adjacentChord, by skill)
     stretch_span: int = 2  # keys apart within one hand from which a chord is a stretch (hands.stretchSpan)
     asymmetric: float = 0.4  # a two-note chord neither symmetric nor on neighbouring keys (hands.asymmetricChord)
@@ -113,7 +112,6 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         # less so as charts get harder
         home_scale=instrument_mapping * (_song_home_weight(cfg["roles"], system) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
-        roll_wave=by_skill(_for_system(cfg["rolls"].get("waveShare", 0.0), system, 0.0), skill),
         adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
         asymmetric=float(hands["asymmetricChord"]),
@@ -214,15 +212,30 @@ def _step(ctx: MotifContext, sp: SlotPlan, prev: int, d: int, wrap: bool) -> int
     return back if lo <= back <= hi else prev
 
 
-def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = False, mirrored: bool = False, prev: int | None = None) -> int | None:
-    """Key of a drum roll's note (좌우 연타): the hands take turns, from the middle keys outward as
-    the roll goes on (easy charts stay nearer the middle), or for a share of the roll lengths on
-    hard charts (rolls.waveShare) one key further out every turn and back in. A roll starts on the
-    left (the right in a repeat played mirrored), so a repeat of the build-up plays it the same
-    way; after that each note takes the other hand from the roll's previous note `prev` (a key), so
-    a note a held note pushed aside does not leave two in a row on one hand. A roll too fast for
-    one key every other note (`spread`: the jack spacing) turns between two keys of each hand
-    (2-3-1-4). None on a key mode without two hands of keys."""
+def alternate_key(
+    ctx: MotifContext,
+    roll: tuple[int, int, int],
+    spread: bool = False,
+    mirrored: bool = False,
+    prev: int | None = None,
+    shape: tuple[str, int] | None = None,
+) -> int | None:
+    """Key of a drum roll's note (좌우 연타): the hands take turns, each on the key its `shape`
+    (rolls.shapes, chosen per roll by the planner; "fan" without one) gives it:
+
+    - "fan": from the middle keys outward as the roll goes on (3-4, 2-5, 1-6 on 6K)
+    - "inward": from the outer keys in (1-6, 2-5, 3-4)
+    - "wave": one key further out every turn and back in (3-5-2-6-1-7-2-6-3-5)
+    - "shift": both hands walk the same way (1-4-2-5-3-6), back again when they reach the end
+    - "trill": a trill on one key of each hand (2-5-2-5...), its keys from the shape's number; a
+      long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half
+
+    Easy charts reach less far out (fanSkill). A roll starts on the left (the right in a repeat
+    played mirrored), so a repeat of the build-up plays it the same way; after that each note takes
+    the other hand from the roll's previous note `prev` (a key), so a note a held note pushed aside
+    does not leave two in a row on one hand. A roll too fast for one key every other note (`spread`:
+    the jack spacing) fans out between two keys of each hand (2-3-1-4). None on a key mode without
+    two hands of keys."""
     pos, hits, _ = roll
     left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]  # inner key first
     right = [k for k, h in enumerate(ctx.hand) if h == "R"]
@@ -231,26 +244,52 @@ def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = 
         return None
     width = 2 if spread and levels >= 2 else 1
     reach = 1 + int(round((levels - width) * min(1.0, ctx.skill / ctx.fan_skill)))
-    if reach > 1 and ((hits * 2654435761) % 1000) / 1000.0 < ctx.roll_wave:
-        # each turn of the hands reaches one key further out, then back in (3-5-2-6-1-7-2-6-3-5):
-        # the harder the chart, the more human BMS charts play rolls this way (PATTERN_DESIGN 45).
-        # Which rolls do goes by their length, so a fill played again is played the same way
-        cycle = 2 * (reach - 1)
-        q = (pos // 2) % cycle
-        level = min((q if q < reach else cycle - q) + (pos // 2) % width, levels - 1)
-    else:
-        level = min(reach - 1, pos * reach // max(1, hits)) + (pos // 2) % width
     if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
         on_left = ctx.hand[prev] == "R"
     else:
         on_left = (pos % 2 == 0) != mirrored
+    name, number = shape if shape is not None and width == 1 else ("fan", 0)
+    turn = pos // 2
+    if name == "trill":
+        a, b = number % reach, (number // 7) % reach
+        if hits >= TRILL_STEP_HITS and pos >= hits // 2:
+            a, b = (a + 1 if a + 1 < reach else max(0, a - 1)), (b + 1 if b + 1 < reach else max(0, b - 1))
+        level = a if on_left else b
+    elif name == "shift" and reach > 1:
+        cycle = 2 * (reach - 1)
+        q = turn % cycle
+        step = q if q < reach else cycle - q
+        level = (reach - 1 - step) if on_left else step
+    elif name == "wave" and reach > 1:
+        cycle = 2 * (reach - 1)
+        q = turn % cycle
+        level = q if q < reach else cycle - q
+    elif name == "inward":
+        level = reach - 1 - min(reach - 1, pos * reach // max(1, hits))
+    else:
+        level = min(reach - 1, pos * reach // max(1, hits)) + turn % width
+    level = min(level, levels - 1)
     return left[level] if on_left else right[level]
+
+
+def chord_jack_keys(ctx: MotifContext, number: int) -> tuple[int, ...] | None:
+    """The two keys a chord-jack roll repeats (rolls.shapes "chordJack"): one of each hand, picked
+    by the shape's number within the reach the skill allows (as a trill roll's keys)."""
+    left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]
+    right = [k for k, h in enumerate(ctx.hand) if h == "R"]
+    levels = min(len(left), len(right))
+    if levels == 0:
+        return None
+    reach = 1 + int(round((levels - 1) * min(1.0, ctx.skill / ctx.fan_skill)))
+    return tuple(sorted((left[number % reach], right[(number // 7) % reach])))
 
 
 def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], size: int, carry: int | None = None) -> tuple[int, ...] | None:
     """Lanes the slot's pattern asks for, or None when it leaves them to the music. Shapes follow
     the phrase's single notes (chords in between do not break a stair); chord textures follow its
     chords. `carry` is the previous phrase's last single note (a roll goes on across bar lines)."""
+    if size >= 2 and sp.roll is not None and sp.roll_shape is not None and sp.roll_shape[0] == "chordJack":
+        return chord_jack_keys(ctx, sp.roll_shape[1])
     if size >= 2:
         chords = [h for h in hist if len(h) >= 2]
         prev_chord = chords[-1] if chords and len(chords[-1]) == size else None
@@ -279,7 +318,7 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
     if m == "laser" and ctx.center is not None:
         return (ctx.center,)
     if m == "alternate" and sp.roll is not None:
-        key = alternate_key(ctx, sp.roll, sp.roll_spread, sp.roll_mirrored, singles[-1] if singles else carry)
+        key = alternate_key(ctx, sp.roll, sp.roll_spread, sp.roll_mirrored, singles[-1] if singles else carry, sp.roll_shape)
         return None if key is None else (key,)
     if not singles:
         return None

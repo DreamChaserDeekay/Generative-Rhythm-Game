@@ -45,6 +45,7 @@ RESERVE_SHARE = 0.5
 # instruments first), and the instruments a long note prefers (the ones that sustain).
 STEM_POSITION = {"bass": 0, "drums": 1, "other": 2, "vocals": 3}
 STEM_SUSTAIN = {"vocals": 0, "other": 1, "bass": 2, "drums": 3}
+DRUMS = STEM_NAMES.index("drums")
 # Pattern shapes that stay on one hand for a while (a 6K stair 1-2-3, a one-hand trill, a jack):
 # their fast runs are not held to the same-hand limit (patterns.json "hands").
 ONE_HAND_MOTIFS = frozenset({"stair", "roll", "trill", "anchor", "brokenStair", "jack", "doubles"})
@@ -122,6 +123,12 @@ class _Weights:
     lane_moves_draw: bool = False
     # only on the notes no shape plans (step slots): a planned stair, trill or doubles keeps its own
     lane_moves_free: bool = False
+    # fast repeats of one sound (hands.fastRepeatMs apart at most, from skill fastMinSkill): a drum's
+    # take turns between the hands (fastDrumAlternate per note on the last note's hand, no same-sound
+    # bonus to keep its lane) and a tune's follow its pitch harder (fastContourScale times the contour)
+    fast_ms: float = 0.0
+    drum_alternate: float = 0.0
+    fast_contour: float = 1.0
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -176,6 +183,9 @@ class _Weights:
             lane_moves=by_skill(hands.get("laneMoves", 0.0), params.skill),
             lane_moves_draw=bool(hands.get("laneMovesDraw", False)),
             lane_moves_free=bool(hands.get("laneMovesFree", False)),
+            fast_ms=float(hands.get("fastRepeatMs", 0.0)) if params.skill >= float(hands.get("fastMinSkill", 0.0)) else 0.0,
+            drum_alternate=by_skill(hands.get("fastDrumAlternate", 0.0), params.skill),
+            fast_contour=float(hands.get("fastContourScale", 1.0)),
         )
 
 
@@ -279,7 +289,7 @@ def _pitch_targets(slots: list[Slot]) -> list[float | None]:
     return targets
 
 
-Choice = tuple[int, tuple[int, ...], int | None]  # (slot index, lanes used, long-note lane)
+Choice = tuple[int, tuple[int, ...], tuple[int, ...]]  # (slot index, lanes used, long-note lanes)
 
 
 def assign_lanes(
@@ -521,7 +531,7 @@ def search(
         one_hand = split or (sp is not None and sp.motif in ONE_HAND_MOTIFS)
         # (total cost, state, lanes, long-note lane, keys, hist, single_t): states are only built
         # for the candidates that make the beam
-        candidates: list[tuple[float, _State, tuple[int, ...], int | None, tuple[int, ...], tuple[tuple[int, ...], ...], float]] = []
+        candidates: list[tuple[float, _State, tuple[int, ...], tuple[int, ...], tuple[int, ...], tuple[tuple[int, ...], ...], float]] = []
         for state in beam:
             free = [
                 i for i in range(n_lanes)
@@ -616,7 +626,7 @@ def search(
             for ci, combo in enumerate(combos):
                 lanes_used = combo + ((special,) if special is not None else ())
                 if not lanes_used:
-                    scored.append((W_DROP * slot.size, lanes_used, None, ()))
+                    scored.append((W_DROP * slot.size, lanes_used, (), ()))
                     continue
                 cost = dropped * W_DROP + costs[ci] + noise[ci]
                 keys = ()
@@ -634,13 +644,23 @@ def search(
                         ln_lane = max(options, key=lambda i: abs(lanes[i].pos - 0.5))
                     elif options:
                         ln_lane = min(options, key=lambda i: abs(lanes[i].pos - (target if target is not None else 0.5)))
-                scored.append((cost, lanes_used, ln_lane, keys))
+                ln_lanes: tuple[int, ...] = () if ln_lane is None else (ln_lane,)
+                if ln_lane is not None and slot.hold_pair and lanes[ln_lane].kind == "key":
+                    # a held chord: a key of the other hand holds too (one long note per hand)
+                    pair = [
+                        i for i in combo
+                        if lanes[i].hand in ("L", "R") and lanes[i].hand != lanes[ln_lane].hand
+                        and holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand
+                    ]
+                    if pair:
+                        ln_lanes = tuple(sorted((ln_lane, min(pair, key=lambda i: abs(lanes[i].pos - lanes[ln_lane].pos)))))
+                scored.append((cost, lanes_used, ln_lanes, keys))
             scored.sort(key=lambda x: x[0])
-            for cost, lanes_used, ln_lane, keys in scored[:BEAM_WIDTH]:
-                candidates.append((state.cost + cost, state, lanes_used, ln_lane, keys, hist, single_t))
+            for cost, lanes_used, ln_lanes, keys in scored[:BEAM_WIDTH]:
+                candidates.append((state.cost + cost, state, lanes_used, ln_lanes, keys, hist, single_t))
         candidates.sort(key=lambda c: c[0])
         expansions: list[_State] = []
-        for total, state, lanes_used, ln_lane, keys, hist, single_t in candidates[:BEAM_WIDTH]:
+        for total, state, lanes_used, ln_lanes, keys, hist, single_t in candidates[:BEAM_WIDTH]:
             last = list(state.last)
             head = list(state.head)
             hold = list(state.hold_end)
@@ -652,8 +672,9 @@ def search(
                 last[i] = t
                 head[i] = t
                 usage[i] += 1.0
-            if ln_lane is not None and hold_end_t is not None:
-                hold[ln_lane] = hold_end_t
+            if hold_end_t is not None:
+                for i in ln_lanes:
+                    hold[i] = hold_end_t
             close = t - state.prev_t <= weights.jack_span
             streak = [0] * n_lanes
             left, right = state.bar_hands if state.bar == bar else (0.0, 0.0)
@@ -680,7 +701,7 @@ def search(
                     prev_pitch=slot.pitch,
                     prev_t=t,
                     parent=state,
-                    choice=(si, lanes_used, ln_lane),
+                    choice=(si, lanes_used, ln_lanes),
                     phrase=sp.phrase if sp else -1,
                     hist=hist + (keys,) if sp else (),
                     single_t=t if sp and len(keys) == 1 else single_t,
@@ -728,17 +749,17 @@ def notes_from_choices(
     share = float(load_config("instruments")["keysound"]["chordShare"])
     n_keys = sum(1 for l in lanes if l.kind == "key") if lanes else 0
     notes: list[dict[str, Any]] = []
-    for si, lanes_used, ln_lane in choices:
+    for si, lanes_used, ln_lanes in choices:
         slot = slots[si]
         stems = None
         if lanes is not None and slot.sources is not None:
             rhythm_left = _rhythm_left(plan[si] if plan else None, n_keys)
-            stems = note_sources(slot.sources, lanes_used, ln_lane, lanes, rhythm_left, share)
+            stems = note_sources(slot.sources, lanes_used, ln_lanes[0] if ln_lanes else None, lanes, rhythm_left, share)
         for lane in sorted(lanes_used):
             note: dict[str, Any] = {"beat": round(slot.beat, 6), "t": round(slot.t, 3), "lane": lane, "type": "tap"}
             if slot.src is not None:
                 note["src"] = STEM_NAMES[stems[lane] if stems else slot.src]
-            if lane == ln_lane and slot.hold_end_beat is not None:
+            if lane in ln_lanes and slot.hold_end_beat is not None:
                 note["type"] = "hold"
                 note["endBeat"] = round(slot.hold_end_beat, 6)
                 note["endT"] = round(tempo.beat_to_ms(slot.hold_end_beat), 3)
@@ -947,7 +968,13 @@ def _costs(
     # weight (BMS: 87% of slow same-keysound repeats keep their lane). A roll keeps its own
     # hand-over-hand plan.
     slow = dt >= w.slow_ms
-    bonus = (w.slow_bonus if slow else w.jack_bonus) if dt < w.bonus_ms and same_sound and slot.roll is None else 0.0
+    # a fast repeat: the same drum sound again, or the same pitched instrument (stem) going on (an
+    # arpeggio or a run moves its pitch, so the same sound would miss it)
+    fast = dt < w.fast_ms and slot.roll is None
+    fast_drum = fast and same_sound and slot.sources is not None and int(np.argmax(slot.sources)) == DRUMS
+    fast_line = fast and not fast_drum and state.prev_sound is not None and slot.src is not None and state.prev_sound[0] == slot.src
+    bonus = (w.slow_bonus if slow else w.jack_bonus) if dt < w.bonus_ms and same_sound and slot.roll is None and not fast_drum else 0.0
+    contour = w.contour * (w.fast_contour if fast_line else 1.0)
     jack = 0.0
     if not keep_pitch and not bonus:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
@@ -1028,9 +1055,12 @@ def _costs(
             elif direction != 0:
                 move = pos[lane] - pos[single_prev]
                 if ((move > 0) - (move < 0)) != direction:
-                    cost += pitch_scale * w.contour
+                    # (a fast line follows its pitch whatever the phrase's shape asks)
+                    cost += (max(pitch_scale, 1.0) if fast_line else pitch_scale) * contour
             if alternate and hands[lane] == hands[single_prev]:
                 cost += alternate
+            if fast_drum and hands[lane] == hands[single_prev]:
+                cost += w.drum_alternate
         repeated = 0
         for i in combo:
             if i in prev:

@@ -16,6 +16,7 @@ from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
 from .candidates import TRIPLETS, build_candidates, swing_bars, triplet_share
 from .effects import camera_effects
+from .ending import finish as ending_hold
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .motifs import SlotPlan
 from .linter import lint
@@ -27,7 +28,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.28"
+GENERATOR_VERSION = "0.9.29"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -173,6 +174,8 @@ def generate_chart(
         if consistent is not None:
             notes, repeat_score = consistent
             est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
+    if ending_hold(notes, analysis, tempo, params, lanes, SILENCE_LEVEL):
+        est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
     problems = lint(notes, lanes, params, tempo)
     if problems:
         raise GenerationError("생성된 채보가 플레이 규칙을 어겼습니다: " + "; ".join(problems[:5]))
