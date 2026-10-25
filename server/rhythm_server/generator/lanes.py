@@ -971,7 +971,7 @@ def _costs(
     # a fast repeat: the same drum sound again, or the same pitched instrument (stem) going on (an
     # arpeggio or a run moves its pitch, so the same sound would miss it)
     fast = dt < w.fast_ms and slot.roll is None
-    fast_drum = fast and same_sound and slot.sources is not None and int(np.argmax(slot.sources)) == DRUMS
+    fast_drum = fast and same_sound and slot.src == DRUMS
     fast_line = fast and not fast_drum and state.prev_sound is not None and slot.src is not None and state.prev_sound[0] == slot.src
     bonus = (w.slow_bonus if slow else w.jack_bonus) if dt < w.bonus_ms and same_sound and slot.roll is None and not fast_drum else 0.0
     contour = w.contour * (w.fast_contour if fast_line else 1.0)

@@ -32,6 +32,7 @@ GENERATOR_VERSION = "0.9.29"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
+STALL_SHARE = 0.02  # a round within the level range, rated above its middle, that thins less than this share ends the fit
 SILENCE_LEVEL = 0.15  # energy curve value (0 = -60 dB) below which the song counts as silent  # share of the preset's minimum average NPS a chart keeps at least
 
 
@@ -113,6 +114,7 @@ def generate_chart(
     sections = analysis.get("sections", [])
     engine = params.pattern_engine
     prev_count = None
+    prev_notes: int | None = None
     relax = False
     loud = _loudness_gate(analysis)
     rounds = 0
@@ -131,10 +133,19 @@ def generate_chart(
         notes = notes_from_choices(slots, choices, tempo, lanes, plan)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
-        if best is None or rank < best[0]:
+        improved = best is None or rank < best[0]
+        if improved:
             best = (rank, notes, est, slots, choices, plan, kept)
         if rank[0] == 0 and rank[1] <= 0.75:
             break
+        if (
+            rank[0] == 0 and not improved and est["rating"] > target_rating and prev_notes is not None
+            and len(notes) > (1.0 - STALL_SHARE) * prev_notes
+        ):
+            # within the level range but rated above its middle, and thinning no longer takes notes
+            # off (the density floor; long notes rate a chart a little high): more rounds only cost time
+            break
+        prev_notes = len(notes)
         eff = max(0.3, est["effectiveNps"])
         # every usable sound is a note (the sectioned engine keeps to the sounds its loops share:
         # it is out of sounds when a denser setting no longer adds notes)

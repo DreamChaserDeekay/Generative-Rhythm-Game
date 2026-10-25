@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
 
 import numpy as np
@@ -55,9 +56,10 @@ class Slot:
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
     hold_pair: bool = False  # a held chord: a key of each hand holds the long note (two long notes)
 
-    @property
+    @cached_property
     def src(self) -> int | None:
-        """Dominant stem index, or None without stem analysis."""
+        """Dominant stem index, or None without stem analysis (a slot's stem shares do not change
+        once it is made: the lane search asks for it many times per slot)."""
         return int(np.argmax(self.sources)) if self.sources is not None else None
 
 
@@ -65,7 +67,7 @@ def melodic(slot: Slot) -> bool:
     """A slot whose pitch belongs to its sound (not a drum hit that inherits a melody pitch)."""
     if slot.pitch is None:
         return False
-    return slot.sources is None or int(np.argmax(slot.sources)) != DRUMS
+    return slot.sources is None or slot.src != DRUMS
 
 
 def sound_of(slot: Slot) -> tuple[Any, ...]:
