@@ -240,7 +240,14 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     import math
     from dataclasses import replace
 
-    from rhythm_server.generator.candidates import _hand_scores, build_candidates, pick_features, pick_model, pick_probability
+    from rhythm_server.config import load_config
+    from rhythm_server.generator.candidates import _hand_scores, _melody_splits, build_candidates, pad_like, pick_features, pick_model, pick_probability
+
+    def plain(cands: list, params) -> list:
+        """The candidates no default-system rule rescales after the model (generator 0.9.29: pads,
+        solos and lines split into sixteenths, PATTERN_DESIGN 60)."""
+        split = {id(c) for c in _melody_splits(cands, load_config("instruments")["rhythmSource"]["melody"], params.system, params.skill)}
+        return [c for c in cands if not pad_like(c, params.system) and not c.solo and id(c) not in split]
 
     tempo = TempoMap(analysis128["timing"])
     tolerance = float(difficulty_config()["snapToleranceMs"])
@@ -254,7 +261,7 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     # the probability is the configured logistic model
     model = pick_model(master)
     cands = build_candidates(analysis128, tempo, master, tolerance)
-    c = max(cands, key=lambda c: c.score)
+    c = max(plain(cands, master), key=lambda c: c.score)
     x = pick_features(c)
     z = model["bias"] + sum(w * (x[n] - m) / sd for n, m, sd, w in zip(model["features"], model["mean"], model["scale"], model["weights"]))
     assert math.isclose(pick_probability(c, model), 1.0 / (1.0 + math.exp(-z)))
@@ -263,7 +270,9 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     easy_cands = build_candidates(analysis128, tempo, easy, tolerance)
     hand = _hand_scores(easy_cands, easy)
     model = pick_model(easy)
-    assert all(math.isclose(c.score, math.sqrt(h * pick_probability(c, model)), rel_tol=1e-9) for c, h in zip(easy_cands, hand))
+    kept = {id(c) for c in plain(easy_cands, easy)}
+    assert len(kept) > 0.5 * len(easy_cands)
+    assert all(math.isclose(c.score, math.sqrt(h * pick_probability(c, model)), rel_tol=1e-9) for c, h in zip(easy_cands, hand) if id(c) in kept)
     # a drum rhythm source multiplies the scores as it multiplies the hand-made ones
     drum = replace(easy, rhythm_source="drum")
     drum_cands = build_candidates(analysis128, tempo, drum, tolerance)

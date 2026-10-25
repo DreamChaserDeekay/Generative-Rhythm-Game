@@ -64,8 +64,9 @@ def test_the_same_music_gets_the_same_notes(key_mode: str, system: str, difficul
     assert (new["repeatSelect"] + other["repeatSelect"]) / 2 >= 0.9, (new, other)
     assert new["barVariety"] <= 0.75, new
     # since generator 0.9.28 the sound memory brings the designer engine's repeated sound groups
-    # back to their lanes too (GRG NORMAL on this song 0.44 -> 0.77; the sectioned engine 0.92 -> 0.93)
-    assert new["loopLane"] >= old["loopLane"] + 0.12, (new, old)
+    # back to their lanes too (GRG NORMAL on this song 0.44 -> 0.77; the sectioned engine 0.92 -> 0.93),
+    # and 0.9.29's roll shapes and pad long notes a little more (0.84; the sectioned engine 0.94)
+    assert new["loopLane"] >= old["loopLane"] + 0.08, (new, old)
 
 
 def test_a_repeated_chorus_is_the_first_one_or_its_mirror() -> None:

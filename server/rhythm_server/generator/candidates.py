@@ -40,6 +40,7 @@ class Candidate:
     attack: float = 1.0  # how surely a new sound starts here, not a sounding one changing (0..1)
     grid: int | None = None  # the straight subdivision a triplet in a swinging bar is scored and capped as
     sound_group: int | None = None  # the analysis's same-sound group of the (strongest) onset
+    solo: bool = False  # in a section a melody instrument leads (melody.solo)
 
 
 def grid_of(c: Candidate) -> int:
@@ -263,9 +264,74 @@ def build_candidates(
                 c.melody = max(c.melody or 0.0, melody)
             c.attack = max(c.attack, attack)
     cands = sorted(merged.values(), key=lambda c: c.beat)
+    split = _melody_splits(cands, melody_cfg, params.system, params.skill)
+    _mark_solos(cands, analysis, sections, melody_cfg, params.system)
     _end_melody_notes(cands, float(melody_cfg["note"]))
     _score(cands, params)
+    if split:
+        scale = float(melody_cfg["split"]["scale"])
+        for c in split:
+            c.score *= scale
     return cands
+
+
+def _melody_splits(cands: list[Candidate], cfg: dict[str, Any], system: str, skill: float = 1.0) -> list[Candidate]:
+    """Tonal candidates (a note of the melody, or a pitched sound that is hardly a drum: a guitar,
+    a piano, a synth line) that split a note rather than start one (melody.split, on its systems):
+    soon after the last tonal note without a sure attack (a strum, a slide, a tremolo, an ornament:
+    `attackBelow`, a number or [skill, value] pairs), or inside the last note's own sound at about
+    its pitch with a weak attack (vibrato, a swell). Their scores are scaled down, so a line is not
+    chopped into sixteenths where it holds."""
+    rule = cfg.get("split")
+    if not rule or system not in rule["systems"]:
+        return []
+    presence = float(cfg["note"])
+    drums = STEM_NAMES.index("drums")
+    points = rule["attackBelow"] if isinstance(rule["attackBelow"], list) else [[0.0, rule["attackBelow"]]]
+    attack_below = float(np.interp(skill, [float(x) for x, _ in points], [float(y) for _, y in points]))
+    out: list[Candidate] = []
+    prev: Candidate | None = None
+    for c in cands:
+        tonal = (c.melody or 0.0) >= presence or (
+            c.sources is not None and float(c.sources[drums]) < float(rule["tonalDrumsBelow"]) and c.harmonic >= float(rule["tonalHarmonic"])
+        )
+        if not tonal:
+            continue
+        if prev is not None:
+            gap = c.beat - prev.beat
+            soon = gap <= float(rule["withinBeats"]) + 1e-6 and c.attack < attack_below
+            same = (c.sound_group is not None and c.sound_group == prev.sound_group) or (
+                c.pitch is not None and prev.pitch is not None and abs(c.pitch - prev.pitch) < 1.0
+            )
+            inside = prev.sustain_beats > gap + 0.05 and same and c.attack < float(rule["insideAttackBelow"])
+            if soon or inside:
+                out.append(c)
+                continue  # the note it splits goes on sounding: later onsets still answer to it
+        prev = c
+    return out
+
+
+def _mark_solos(cands: list[Candidate], analysis: dict[str, Any], sections: list[dict[str, Any]], cfg: dict[str, Any], system: str) -> None:
+    """`solo` of the candidates in sections a melody instrument leads (melody.solo, on its systems):
+    the section's leader is one of `leaders` and at least `minMelodyShare` of its onsets are notes
+    of the melody (a guitar or piano solo, a lead line over the beat)."""
+    rule = cfg.get("solo")
+    if not rule or system not in rule["systems"]:
+        return
+    presence = float(cfg["note"])
+    onsets = analysis.get("onsets", [])
+    spans = []
+    for s in sections:
+        if s.get("leader") not in rule["leaders"]:
+            continue
+        inside = [o for o in onsets if s["t"] <= o["t"] < s["endT"]]
+        if len(inside) < 8:
+            continue
+        share = sum(1 for o in inside if (melody_of(o, cfg) or 0.0) >= presence) / len(inside)
+        if share >= float(rule["minMelodyShare"]):
+            spans.append((float(s["t"]), float(s["endT"])))
+    for c in cands:
+        c.solo = any(a <= c.t < b for a, b in spans)
 
 
 def _end_melody_notes(cands: list[Candidate], presence: float) -> None:
@@ -278,6 +344,19 @@ def _end_melody_notes(cands: list[Candidate], presence: float) -> None:
             if nxt is not None:
                 c.sustain_beats = min(c.sustain_beats, nxt - c.beat)
             nxt = c.beat
+
+
+def pad_like(c: Candidate, system: str | None) -> bool:
+    """Whether a sound is a held tonal sound such as a pad, a choir or strings on a system that
+    gives those long notes (difficulty.json holds.pad): tonal, hardly a drum, on the eighths and
+    sounding at least `minBeats`, however soft its attack."""
+    pad = difficulty_config()["holds"].get("pad")
+    if not pad or system not in pad["systems"] or c.sources is None:
+        return False
+    return (
+        c.sustain_beats >= float(pad["minBeats"]) and c.harmonic >= float(pad["harmonicAtLeast"])
+        and float(c.sources[STEM_NAMES.index("drums")]) < float(pad["drumsBelow"]) and c.subdivision <= int(pad["maxSubdivision"])
+    )
 
 
 def _stem_source_weight(c: Candidate, params: GenParams, cfg: dict[str, Any]) -> float | None:
@@ -319,16 +398,39 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
     style) still multiplying it as they change the hand-made score."""
     hand = _hand_scores(cands, params)
     model = pick_model(params)
+    pad = difficulty_config()["holds"].get("pad")
+    boost = 1.0
+    if pad and params.system in pad["systems"]:
+        # (easy charts keep their picks: a soft pad note there pushes the other notes across the keys)
+        points = pad["pickBoost"] if isinstance(pad["pickBoost"], list) else [[0.0, pad["pickBoost"]]]
+        boost = float(np.interp(params.skill, [float(x) for x, _ in points], [float(y) for _, y in points]))
     if model is None:
         for c, h in zip(cands, hand):
             c.score = h
-        return
-    neutral_params = replace(params, rhythm_source="auto", extra={k: v for k, v in params.extra.items() if k not in SCORE_WEIGHTS})
-    neutral = hand if neutral_params == params else _hand_scores(cands, neutral_params)
-    points = sorted((float(a), float(b)) for a, b in load_config("pick")["share"])
-    share = float(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]))
-    for c, h, n in zip(cands, hand, neutral):
-        c.score = h * (pick_probability(c, model) / n) ** share if n > 0 else 0.0
+    else:
+        neutral_params = replace(params, rhythm_source="auto", extra={k: v for k, v in params.extra.items() if k not in SCORE_WEIGHTS})
+        neutral = hand if neutral_params == params else _hand_scores(cands, neutral_params)
+        points = sorted((float(a), float(b)) for a, b in load_config("pick")["share"])
+        share = float(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]))
+        for c, h, n in zip(cands, hand, neutral):
+            c.score = h * (pick_probability(c, model) / n) ** share if n > 0 else 0.0
+    if boost != 1.0:
+        # a pad or choir chord is played (as a long note) however soft its attack
+        for c in cands:
+            if pad_like(c, params.system):
+                c.score *= boost
+    melody_cfg = load_config("instruments")["rhythmSource"]["melody"]
+    solo = melody_cfg.get("solo")
+    if solo and params.system in solo["systems"]:
+        # a solo plays the lead line, the drums keep only their beats under it
+        presence = float(melody_cfg["note"])
+        for c in cands:
+            if not c.solo:
+                continue
+            if (c.melody or 0.0) >= presence:
+                c.score *= float(solo["melodyBoost"])
+            elif c.subdivision > 1:
+                c.score *= float(solo["offBeatScale"])
 
 
 def pick_model(params: GenParams) -> dict[str, Any] | None:

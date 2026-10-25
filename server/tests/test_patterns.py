@@ -377,27 +377,65 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
     assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
 
 
-def test_hard_default_rolls_zigzag_instead_of_trilling() -> None:
-    """A roll fanning out slowly from the middle keys plays its first part as a trill (3-5-3-5). Human
-    7-key BMS charts play rolls with few trills on hard charts (level 14: 16% of three-note shapes
-    inside rolls against our 55%), so since generator 0.9.23 the default system's MASTER rolls reach
-    one key further out every turn and back in (rolls.waveShare); NORMAL charts and the other
-    systems keep the fan (PATTERN_DESIGN 45)."""
+def test_roll_shapes_go_hand_over_hand_in_many_ways() -> None:
+    """A roll's notes take turns between the hands, each on the key its shape gives (rolls.shapes).
+    Since generator 0.9.29 the default system draws a shape per roll: 6K play feedback found every
+    build-up roll played 3-4, 2-5, 1-6 (the fan, and the zigzag that 0.9.23 took from 7-key BMS
+    charts, both come out so on 6 keys) and no trills (PATTERN_DESIGN 60). Without a shape a roll
+    fans out from the middle keys, as the other systems play them."""
     from rhythm_server.generator.motifs import alternate_key, motif_context
 
-    lanes = lane_infos("7K+1S")
-
-    def roll(ctx, hits: int = 10) -> list[int]:
+    def roll(ctx, hits: int, shape=None) -> list[int]:
         keys: list[int] = []
         for pos in range(hits):
-            key = alternate_key(ctx, (pos, hits, 3), prev=keys[-1] if keys else None)
+            key = alternate_key(ctx, (pos, hits, 3), prev=keys[-1] if keys else None, shape=shape)
             assert key is not None
             keys.append(key)
-        return [k + 1 for k in keys]  # keys 1-7
+        return [k + 1 for k in keys]
 
-    assert roll(motif_context(lanes, 0.96, system="GRG", key_mode="7K+1S")) == [3, 5, 2, 6, 1, 7, 2, 6, 3, 5]
-    for ctx in (motif_context(lanes, 0.96, system="DJMAX", key_mode="7K+1S"), motif_context(lanes, 0.4, system="GRG", key_mode="7K+1S")):
-        assert roll(ctx)[:4] == [3, 5, 3, 5]
+    six = motif_context(lane_infos("6K"), 0.75, system="GRG", key_mode="6K")
+    assert roll(six, 6) == [3, 4, 2, 5, 1, 6]  # fan
+    assert roll(six, 6, ("inward", 0)) == [1, 6, 2, 5, 3, 4]
+    assert roll(six, 6, ("shift", 0)) == [1, 4, 2, 5, 3, 6]
+    trill = roll(six, 8, ("trill", 1))
+    assert len(set(trill)) == 2 and trill[0] != 3  # a trill on one key of each hand, not always 3-4
+    long_trill = roll(six, 16, ("trill", 0))
+    assert set(long_trill[:8]) == {3, 4} and set(long_trill[8:]) == {2, 5}  # a long trill moves out
+    seven = motif_context(lane_infos("7K+1S"), 0.96, system="GRG", key_mode="7K+1S")
+    assert roll(seven, 10, ("wave", 0)) == [3, 5, 2, 6, 1, 7, 2, 6, 3, 5]
+    assert roll(motif_context(lane_infos("7K+1S"), 0.96, system="DJMAX", key_mode="7K+1S"), 10)[:4] == [3, 5, 3, 5]
+
+
+def test_default_rolls_draw_their_shapes_per_roll() -> None:
+    """The planner draws each roll's shape by the chart's seed, the roll's length and its place in the
+    bar (a fill played again keeps its shape); a roll leading into a new section (a build-up) is a
+    trill more often (rolls.buildUpTrill). Only the default system has shapes."""
+    from collections import Counter
+
+    from rhythm_server.generator.planner import roll_shapes
+    from rhythm_server.generator.select import Slot
+
+    def song(n_rolls: int) -> list:
+        slots = []
+        for r in range(n_rolls):
+            hits = 6 + r % 7
+            for k in range(hits):
+                beat = 16.0 * r + 8.0 + 0.25 * k + (r % 3) * 0.5
+                slots.append(Slot(beat=beat, t=beat * 500.0, size=1, hold_end_beat=None, special=None, special_hold=False,
+                                  pitch=None, bands=np.ones(3), score=1.0, subdivision=4, strength=1.0, roll=(r, k, hits, False)))
+        return slots
+
+    expert = resolve_params("6K", "EXPERT")
+    shapes = roll_shapes(song(40), [], expert, 11)
+    assert len(Counter(name for name, _ in shapes.values())) >= 4
+    assert roll_shapes(song(40), [], expert, 11) == shapes
+    lasts: dict[int, float] = {}
+    for slot in song(40):
+        lasts[slot.roll[0]] = slot.beat
+    into = [{"startBeat": b + 0.5} for b in lasts.values()]
+    trills = sum(name == "trill" for name, _ in roll_shapes(song(40), into, expert, 11).values())
+    assert trills > sum(name == "trill" for name, _ in shapes.values())
+    assert roll_shapes(song(10), [], resolve_params("6K", "MX", 13, system="DJMAX"), 11) == {}
 
 
 def test_every_system_balances_lane_use_over_the_same_many_notes() -> None:

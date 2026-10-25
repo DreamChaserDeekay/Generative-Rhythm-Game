@@ -31,7 +31,7 @@ from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable, mark_hold_pair
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -751,10 +751,10 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
         sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
         if min(sustains) < params.min_ln_beats or any(slots[i].roll is not None for i in idxs):
             continue
-        if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
+        if not all(holdable(cands[slot_cand[i]], tempo, params.system) for i in idxs):
             continue
         mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
-        value = float(np.mean([hold_value(cands[slot_cand[i]], tempo) for i in idxs])) * mult
+        value = float(np.mean([hold_value(cands[slot_cand[i]], tempo, params.system) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))
     placed = 0
@@ -769,6 +769,7 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             continue
         for i in idxs:
             slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
+            mark_hold_pair(slots[i], cands[slot_cand[i]], params)
         placed += len(idxs)
 
 
@@ -791,7 +792,7 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
         holds = []
         for key, idxs in decisions:
             cs = [cands[slot_cand[i]] for i in idxs]
-            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs) and all(holdable(c, tempo) for c in cs):
+            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs) and all(holdable(c, tempo, params.system) for c in cs):
                 sustain = min(c.sustain_beats for c in cs)
                 if hold_end(slots[idxs[0]].beat, sustain, min_hold, 0.0) is not None:
                     holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, sustain))
