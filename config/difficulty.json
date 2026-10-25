@@ -71,7 +71,7 @@
       "minJackMs": 95,
       "handChordLimit": 2,
       "holdHandLimit": 2,
-      "maxHoldsPerHand": 1,
+      "maxHoldsPerHand": 2,
       "scratchRate": 0.089,
       "sideRate": 0.08,
       "highBandWeight": 0.85
@@ -91,7 +91,7 @@
       "minJackMs": 85,
       "handChordLimit": 3,
       "holdHandLimit": 2,
-      "maxHoldsPerHand": 2,
+      "maxHoldsPerHand": 3,
       "scratchRate": 0.103,
       "sideRate": 0.1,
       "highBandWeight": 1.0
@@ -397,16 +397,16 @@
     "power": [[0.0, 1.0], [0.3, 1.0], [0.65, 0.45]]
   },
   "holds": {
-    "description": "롱노트를 둘 수 있는 소리. 소리 자체가 minSoundMs 이상 울려야 하고(BMS-Generator: 키음이 350ms 이상인 노트만 롱노트), 멜로디의 음(존재도가 instruments.json의 rhythmSource.melody.note 이상)이거나, 드럼 비율이 drumsBelow 미만인 음 있는 소리로서 머리가 maxSubdivision 분할(2 = 8분) 위에 있어야 한다. 드럼 타격이 밑에 깔린 베이스·패드의 길이를 물려받은 것과 늦게 잡힌 느린 어택은 롱노트가 되지 않는다. 온셋 세기가 strengthAtLeast 미만인 소리도 롱노트가 되지 않는다. model(선택)은 분석값(지속 시간·조화음·멜로디·세기·드럼/보컬/그 외 스템 비율·저역 우세)으로 소리가 정말 350ms 넘게 울릴 확률을 내는 로지스틱 모델(BMS 키음 길이로 맞춤)이다. atLeast가 있으면 그 확률 이상인 소리만 롱노트가 되고, rank가 참이면 롱노트를 고르는 순위에 그 확률을 곱한다. 다른 소리 위에 겹친 작은 소리가 많고, 분석한 지속 시간은 대개 밑에 깔린 소리의 것이다(BMS 키음 비교, docs/PATTERN_DESIGN.md 20장). 스템 분석이 없는 예전 분석은 조화음 비율이 harmonicAtLeast 이상이면 된다. 난이도의 longNoteRatio는 상한일 뿐이라 이런 소리가 적은 곡은 롱노트도 적다. 사이드 롱노트도 같은 규칙을 쓴다. pad(기준별, 60장): 그 기준에서는 화성 비율 harmonicAtLeast 이상, 드럼 비율 drumsBelow 미만, 8분 격자(maxSubdivision) 위, minBeats박 이상 울리는 소리(패드·콰이어·현)를 어택 세기와 상관없이 롱노트로 둘 수 있고(6키 EXPERT 40곡에서 이런 소리 556개 가운데 17개만 롱노트였다: 세기 0.4 문턱), 롱노트 순위에 valueBoost, 노트 고르기 점수에 pickBoost(숫자나 [단계값, 값]: HARD부터, 쉬운 채보에 약한 패드 노트를 끼우면 다른 노트가 건반을 건너뛰었다)를 곱한다. 단계값 pairSkill부터는 패드의 롱노트, 또는 동치에서 pairMinBeats박 이상 울리는 롱노트를 양손에 하나씩 두 줄로 잡는다(패드의 단타는 2노트 동치가 된다). 손마다 롱노트 하나(maxHoldsPerHand)는 그대로다.",
+    "description": "롱노트를 둘 수 있는 소리. 소리 자체가 minSoundMs 이상 울려야 하고(BMS-Generator: 키음이 350ms 이상인 노트만 롱노트), 멜로디의 음(존재도가 instruments.json의 rhythmSource.melody.note 이상)이거나, 드럼 비율이 drumsBelow 미만인 음 있는 소리로서 머리가 maxSubdivision 분할(2 = 8분) 위에 있어야 한다. 드럼 타격이 밑에 깔린 베이스·패드의 길이를 물려받은 것과 늦게 잡힌 느린 어택은 롱노트가 되지 않는다. 온셋 세기가 strengthAtLeast 미만인 소리도 롱노트가 되지 않는다. model(선택)은 분석값(지속 시간·조화음·멜로디·세기·드럼/보컬/그 외 스템 비율·저역 우세)으로 소리가 정말 350ms 넘게 울릴 확률을 내는 로지스틱 모델(BMS 키음 길이로 맞춤)이다. atLeast가 있으면 그 확률 이상인 소리만 롱노트가 되고, rank가 참이면 롱노트를 고르는 순위에 그 확률을 곱한다. 다른 소리 위에 겹친 작은 소리가 많고, 분석한 지속 시간은 대개 밑에 깔린 소리의 것이다(BMS 키음 비교, docs/PATTERN_DESIGN.md 20장). 스템 분석이 없는 예전 분석은 조화음 비율이 harmonicAtLeast 이상이면 된다. 난이도의 longNoteRatio는 상한일 뿐이라 이런 소리가 적은 곡은 롱노트도 적다. 사이드 롱노트도 같은 규칙을 쓴다. pad(기준별, 60장): 그 기준에서는 화성 비율 harmonicAtLeast 이상, 드럼 비율 drumsBelow 미만, 8분 격자(maxSubdivision) 위, minBeats박 이상 울리는 소리(패드·콰이어·현)를 어택 세기와 상관없이 롱노트로 둘 수 있고(6키 EXPERT 40곡에서 이런 소리 556개 가운데 17개만 롱노트였다: 세기 0.4 문턱), 롱노트 순위에 valueBoost, 노트 고르기 점수에 pickBoost(숫자나 [단계값, 값]: HARD부터, 쉬운 채보에 약한 패드 노트를 끼우면 다른 노트가 건반을 건너뛰었다)를 곱한다. 롱노트 개수(61장): 오래 울리는 단음(멜로디 음)은 하나, 화음이나 풍부한 소리(멜로디 음이 아닌 패드·콰이어·현, 또는 음 있는 스템 둘 이상이 각각 stemShare 이상)는 둘에 음 있는 스템 하나마다 하나, longBeats박 이상이면 하나, 세기 strongAtLeast 이상이면 하나를 더해 단계값의 countMax([단계값, 개수]: NORMAL 1, HARD 2, EXPERT 3, MASTER 6)까지 둔다. 그 슬롯은 그만큼의 동치가 된다(난이도 최대 동치·키 수 안). 손마다 동시 롱노트는 프리셋 maxHoldsPerHand(EXPERT 2, MASTER 3)까지. 곡 끝 잔향(ending)이 2박 이상이면 마지막 화음도 countMax개 롱노트로 끝난다(빈 키가 함께 잡는다).",
     "minSoundMs": 350,
     "strengthAtLeast": 0.4,
     "drumsBelow": 0.4,
     "maxSubdivision": 2,
     "harmonicAtLeast": 0.5,
-    "pad": {"systems": ["GRG"], "minBeats": 1.0, "harmonicAtLeast": 0.5, "drumsBelow": 0.4, "maxSubdivision": 2, "valueBoost": 2.0, "pickBoost": [[0.45, 1.0], [0.5, 1.6]], "pairSkill": 0.5, "pairMinBeats": 2.0}
+    "pad": {"systems": ["GRG"], "minBeats": 1.0, "harmonicAtLeast": 0.5, "drumsBelow": 0.4, "maxSubdivision": 2, "valueBoost": 2.0, "pickBoost": [[0.45, 1.0], [0.5, 1.6]], "countMax": [[0.45, 1], [0.5, 2], [0.7, 2], [0.75, 3], [0.96, 6]], "stemShare": 0.3, "longBeats": 2.0, "strongAtLeast": 0.7}
   },
   "ending": {
-    "description": "곡의 끝(PATTERN_DESIGN 60장). 마지막 노트 뒤에 곡의 온셋 세기 중앙값의 clearStrength배 이상인 소리가 없고(뚜렷한 멜로디·드럼이 이어지면 단노트로 친다), 에너지 곡선이 마지막 노트 자리의 수준에서 dropLevel(0..1 곡선, 0.1 = 6 dB)만큼 떨어지거나 무음 수준 아래로 내려갈 때까지가 minBeats박(그리고 난이도의 최소 롱노트 길이) 이상이면 잔향만 남은 끝으로 보고, 마지막 노트를 잔향이 끝나는 반 박까지(maxBeats박까지) 롱노트로 늘린다. 한 손에 하나씩, 바깥 노트부터(holds.pad의 pairSkill부터 두 손, 그 아래는 하나). 곧 조용해지는 곡은 그대로 끝난다. systems의 기준에만 쓴다.",
+    "description": "곡의 끝(PATTERN_DESIGN 60장). 마지막 노트 뒤에 곡의 온셋 세기 중앙값의 clearStrength배 이상인 소리가 없고(뚜렷한 멜로디·드럼이 이어지면 단노트로 친다), 에너지 곡선이 마지막 노트 자리의 수준에서 dropLevel(0..1 곡선, 0.1 = 6 dB)만큼 떨어지거나 무음 수준 아래로 내려갈 때까지가 minBeats박(그리고 난이도의 최소 롱노트 길이) 이상이면 잔향만 남은 끝으로 보고, 마지막 노트를 잔향이 끝나는 반 박까지(maxBeats박까지) 롱노트로 늘린다. 잔향이 2박 이상이면 holds.pad countMax개(EXPERT 3, MASTER 6)의 롱노트 화음으로, 마지막 노트에 빈 키가 함께하며 손마다 동치·롱노트 한도 안에서, 바깥 키부터(2박 미만이면 하나). 곧 조용해지는 곡은 그대로 끝난다. systems의 기준에만 쓴다.",
     "systems": ["GRG"],
     "clearStrength": 0.5,
     "dropLevel": 0.3,

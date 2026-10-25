@@ -74,6 +74,9 @@ def test_build_up_rolls_go_hand_over_hand() -> None:
         ("groove", "6K", "DJMAX", "NM", 6, 2), ("groove", "6K", "GRG", "NORMAL", None, (4, 2)),
         # every tier plays the song's rolls: the tier's grid alone, without the soft sixteenths, misses this one
         ("soft", "6K", "GRG", "NORMAL", None, (4, 2)), ("soft", "6K", "DJMAX", "HD", 9, 4),
+        # a build-up is hand over hand on the default system's hard tiers too: a chord-jack shape
+        # once made this one chords all the way (generator 0.9.30)
+        ("groove", "6K", "GRG", "EXPERT", None, 4), ("groove", "6K", "GRG", "MASTER", None, 4),
     ):
         s, a = song(kind)
         tempo = TempoMap(a["timing"])

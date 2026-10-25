@@ -31,7 +31,7 @@ from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable, mark_hold_pair
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -244,9 +244,42 @@ def classify(units: list[Unit], per_unit: list[dict[int, int]], cands: list[Cand
     return len(classes)
 
 
-def blueprint(label: str) -> dict[str, float]:
-    labels = sectioned_config()["labels"]
-    return {"density": 1.0, "chord": 1.0, "hold": 1.0, "ramp": 0.0, **labels.get(label, labels.get("verse", {}))}
+def blueprint(label: str, system: str | None = None) -> dict[str, float]:
+    """A section label's multipliers; `labelsBySystem` changes a system's entries."""
+    cfg = sectioned_config()
+    labels = cfg["labels"]
+    own = cfg.get("labelsBySystem", {}).get(system, {}) if system else {}
+    base = labels.get(label, labels.get("verse", {}))
+    return {"density": 1.0, "chord": 1.0, "hold": 1.0, "ramp": 0.0, **base, **own.get(label, {})}
+
+
+def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], per_unit_n: list[float], params: GenParams) -> bool:
+    """Keep the highlight the densest part (sectioned.highlightCap, on its systems): a full chorus
+    or drop masks its own onsets and often offers fewer sounds per beat than a sparse verse, so the
+    units of the other labels play at most their label's density share of what the highlight units
+    can play per beat (the most of their target and their sounds). Lowers `per_unit_n` in place;
+    True when it did."""
+    rule = sectioned_config().get("highlightCap")
+    if not rule or params.system not in rule["systems"]:
+        return False
+    tops = set(rule["labels"])
+    top_density = max(blueprint(lab, params.system)["density"] for lab in tops)
+    high = [
+        min(n, float(rule["soundShare"]) * len(per_unit[u.index])) / u.length
+        for u, n in zip(units, per_unit_n) if u.label in tops and u.length > 0 and per_unit[u.index]
+    ]
+    if not high:
+        return False
+    level = max(high)
+    changed = False
+    for k, u in enumerate(units):
+        if u.label in tops or u.length <= 0:
+            continue
+        cap = level * u.length * blueprint(u.label, params.system)["density"] / top_density
+        if per_unit_n[k] > cap:
+            per_unit_n[k] = cap
+            changed = True
+    return changed
 
 
 LAYERS = {"rhythm": ("drums", "bass"), "melody": ("vocals", "other")}
@@ -304,6 +337,8 @@ def _mark_variation(units: list[Unit], params: GenParams) -> None:
 
 
 def _chord_worth(c: Candidate, params: GenParams) -> float:
+    if lone_sound(c, params.system):
+        return 0.0
     total = float(np.sum(c.bands)) + 1e-9
     spread = int(np.sum(c.bands / total > 0.22))
     w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
@@ -395,17 +430,19 @@ def layout(
         if not _cap_opening(units, weight, per_unit_n):
             break
         per_unit_n = spread()
+    _cap_below_highlight(units, per_unit, per_unit_n, params)
 
     end_ms = cands[-1].t + 1000.0
     buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
     window = int(round(1000.0 / BUCKET_MS))
     peak_cap = params.peak_nps / expected_chord_notes
 
-    def window_ok(times: list[float]) -> bool:
+    def window_ok(times: list[float], cap: float | None = None) -> bool:
+        cap = peak_cap if cap is None else cap
         for t in times:
             b = int(max(0.0, t) / BUCKET_MS)
             for start in range(max(0, b - window + 1), b + 1):
-                if buckets[start : start + window].sum() + 1 > peak_cap:
+                if buckets[start : start + window].sum() + 1 > cap:
                     return False
         return True
 
@@ -417,11 +454,11 @@ def layout(
         for t in times:
             buckets[int(max(0.0, t) / BUCKET_MS)] -= 1
 
-    def fits(times: list[float]) -> bool:
+    def fits(times: list[float], cap: float | None = None) -> bool:
         """Whether all these notes fit the peak density together (window_ok checks one at a time)."""
         added = []
         for t in sorted(times):
-            if not window_ok([t]):
+            if not window_ok([t], cap):
                 break
             take([t])
             added.append(t)
@@ -458,7 +495,9 @@ def layout(
         level = roll_level(list(roll.values()), params) if len(roll) >= 2 else 1
         while level > 1:
             keep = {k for k, sub in roll.items() if level % sub == 0}
-            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]]):
+            # a roll's notes are single notes: the tier's peak density itself, not that density
+            # shared out over the chords a slot takes on the mean
+            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]], params.peak_nps):
                 return keep
             level = coarser(level)
         return set()
@@ -722,7 +761,7 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
     for key, idxs in _realized(positions, _outside(slots, positions)):
         if any(slots[i].roll is not None for i in idxs):
             continue  # a roll is one hand at a time
-        mult = blueprint(units[slot_unit[idxs[0]]].label)["chord"]
+        mult = blueprint(units[slot_unit[idxs[0]]].label, params.system)["chord"]
         worth = float(np.mean([_chord_worth(cands[slot_cand[i]], params) for i in idxs])) * mult
         if worth > 0:
             options.append((worth, key, idxs))
@@ -769,7 +808,7 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             continue
         for i in idxs:
             slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
-            mark_hold_pair(slots[i], cands[slot_cand[i]], params)
+            mark_hold_count(slots[i], cands[slot_cand[i]], params)
         placed += len(idxs)
 
 

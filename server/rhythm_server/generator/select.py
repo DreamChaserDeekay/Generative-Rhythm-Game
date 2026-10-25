@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from ..config import difficulty_config, load_config
+from ..config import difficulty_config, key_modes, load_config
 from .candidates import Candidate, grid_of, pad_like
 from .params import GenParams, skill_for_rating
 from .rolls import coarser, mark_rolls, roll_level
@@ -54,7 +54,7 @@ class Slot:
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
     roll: tuple[int, int, int, bool] | None = None  # a drum roll's note: (roll, hit index, hits, in a mirrored repeat)
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
-    hold_pair: bool = False  # a held chord: a key of each hand holds the long note (two long notes)
+    hold_count: int = 1  # long notes the slot holds: more than one over a held chord (holds.pad countMax)
 
     @cached_property
     def src(self) -> int | None:
@@ -124,20 +124,56 @@ def hold_probability(c: Candidate, tempo: TempoMap, model: dict[str, Any]) -> fl
     return 1.0 / (1.0 + math.exp(-z))
 
 
-def mark_hold_pair(slot: Slot, c: Candidate, params: GenParams) -> None:
-    """A long note over a held chord (a pad, or a sound held `pairMinBeats` or more in a chord) is
-    held by a key of each hand from `pairSkill` on (holds.pad); a pad's single note becomes a chord
-    for it."""
+def lone_sound(c: Candidate, system: str) -> bool:
+    """A hit where the drums are out (`Candidate.quiet`) on a system that keeps chords to the
+    sounds (patterns.json chordSounds): a melody, a pluck or their echoes over a quiet passage are
+    one sound, not a chord (a held chord gets its long notes from holds.pad instead)."""
+    rule = load_config("patterns").get("chordSounds")
+    return bool(rule) and system in rule["systems"] and c.quiet
+
+
+def hold_cap(params: GenParams) -> int:
+    """The most long notes one held chord takes at the chart's skill (holds.pad countMax), 1 on a
+    system without it."""
     pad = difficulty_config()["holds"].get("pad")
-    if not pad or params.system not in pad["systems"] or params.skill < float(pad["pairSkill"]) or slot.hold_end_beat is None:
+    if not pad or params.system not in pad["systems"]:
+        return 1
+    points = sorted((float(a), float(b)) for a, b in pad["countMax"])
+    return max(1, int(np.floor(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]) + 1e-9)))
+
+
+def hold_count(c: Candidate, params: GenParams) -> int:
+    """How many long notes a held sound takes (holds.pad): one for a single held note (a long
+    note of the tune); a chord or a rich sound (a pad, a choir or strings that is no note of the
+    melody, or two or more pitched instruments sounding together) takes two and one more for
+    each further pitched instrument, for lasting `longBeats` or more and for a strength of
+    `strongAtLeast` or more, up to the skill's countMax."""
+    pad = difficulty_config()["holds"]["pad"]
+    cap = hold_cap(params)
+    if cap <= 1 or c.sources is None:
+        return 1
+    share = float(pad["stemShare"])
+    pitched = sum(1 for name in ("bass", "vocals", "other") if float(c.sources[STEM_NAMES.index(name)]) >= share)
+    melody = (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"])
+    rich = pitched >= 2 or (pad_like(c, params.system) and not melody)
+    if not rich:
+        return 1
+    n = 2 + max(0, pitched - 1) + (1 if c.sustain_beats >= float(pad["longBeats"]) else 0) + (1 if c.strength >= float(pad["strongAtLeast"]) else 0)
+    return min(cap, n)
+
+
+def mark_hold_count(slot: Slot, c: Candidate, params: GenParams) -> None:
+    """The long notes of a slot that holds (`hold_count`): a held chord's slot becomes a chord
+    of at least that many notes (within the tier's chord size and the keys)."""
+    if slot.hold_end_beat is None or slot.special is not None or slot.roll is not None:
         return
-    if slot.special is not None or slot.roll is not None:
+    n = hold_count(c, params)
+    if n <= 1:
         return
-    if pad_like(c, params.system):
-        slot.size = max(slot.size, 2)
-        slot.hold_pair = True
-    elif slot.size >= 2 and c.sustain_beats >= float(pad["pairMinBeats"]):
-        slot.hold_pair = True
+    keys = sum(1 for lane in key_modes()[params.key_mode]["lanes"] if lane["kind"] == "key")
+    n = min(n, params.max_chord, keys)
+    slot.hold_count = n
+    slot.size = max(slot.size, n)
 
 
 def holdable(c: Candidate, tempo: TempoMap, system: str | None = None) -> bool:
@@ -308,7 +344,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
         total = float(np.sum(c.bands)) + 1e-9
         spread = int(np.sum(c.bands / total > 0.22))
         w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
-        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat or s.roll is not None:
+        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat or s.roll is not None or lone_sound(c, params.system):
             w = 0.0
         worth.append(w)
     # On few keys every chord eats a large share of the lanes; keep them rarer.
@@ -339,7 +375,7 @@ def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenPa
         end = hold_end(c.beat, c.sustain_beats, params.min_ln_beats, params.skill)
         if end is not None:
             slots[i].hold_end_beat = end
-            mark_hold_pair(slots[i], c, params)
+            mark_hold_count(slots[i], c, params)
 
 
 def _assign_scratch(slots: list[Slot], params: GenParams) -> None:

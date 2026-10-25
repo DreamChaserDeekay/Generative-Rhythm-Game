@@ -41,6 +41,7 @@ class Candidate:
     grid: int | None = None  # the straight subdivision a triplet in a swinging bar is scored and capped as
     sound_group: int | None = None  # the analysis's same-sound group of the (strongest) onset
     solo: bool = False  # in a section a melody instrument leads (melody.solo)
+    quiet: bool = False  # no clear drum hit near it: the drums are out here (melody.quiet)
 
 
 def grid_of(c: Candidate) -> int:
@@ -264,7 +265,14 @@ def build_candidates(
                 c.melody = max(c.melody or 0.0, melody)
             c.attack = max(c.attack, attack)
     cands = sorted(merged.values(), key=lambda c: c.beat)
+    _mark_quiet(cands, sections, melody_cfg, params.system)
     split = _melody_splits(cands, melody_cfg, params.system, params.skill)
+    echoes = _echoes(cands, melody_cfg, params.system)
+    quiet = _quiet_tails(cands, split + echoes, melody_cfg, params.system)
+    if quiet:
+        cands = [c for c in cands if id(c) not in quiet]
+        split = [c for c in split if id(c) not in quiet]
+        echoes = [c for c in echoes if id(c) not in quiet]
     _mark_solos(cands, analysis, sections, melody_cfg, params.system)
     _end_melody_notes(cands, float(melody_cfg["note"]))
     _score(cands, params)
@@ -272,7 +280,77 @@ def build_candidates(
         scale = float(melody_cfg["split"]["scale"])
         for c in split:
             c.score *= scale
+    if echoes:
+        scale = float(melody_cfg["echo"]["scale"])
+        for c in echoes:
+            c.score *= scale
     return cands
+
+
+def _mark_quiet(cands: list[Candidate], sections: list[dict[str, Any]], cfg: dict[str, Any], system: str) -> None:
+    """`quiet` of the candidates where the drums are out (melody.quiet, on its systems): in a
+    section whose drum share is under `sectionShare` of the song's most drummed section (and under
+    `sectionFloor` at least), a breakdown or a quiet intro, in a song with drums (its most drummed
+    section's share `songDrumsAtLeast` or more). A single hit's drum share says little (under a loud
+    lead a snare reads 0.2), so analyses without section stem shares mark nothing."""
+    rule = cfg.get("quiet")
+    if not rule or system not in rule["systems"]:
+        return
+    drums = STEM_NAMES.index("drums")
+    shares = [(float(s["t"]), float(s["endT"]), float(s["stems"][drums])) for s in sections if s.get("stems")]
+    if not shares:
+        return
+    top = max(d for _, _, d in shares)
+    if top < float(rule["songDrumsAtLeast"]):
+        return  # a song without drums (a piano piece) has no breakdown: its sounds are its music
+    limit = max(float(rule["sectionFloor"]), float(rule["sectionShare"]) * top)
+    for c in cands:
+        c.quiet = any(a <= c.t < b and d < limit for a, b, d in shares)
+
+
+def _quiet_tails(cands: list[Candidate], flagged: list[Candidate], cfg: dict[str, Any], system: str) -> set[int]:
+    """Candidates left out where the drums are out (`quiet`, melody.quiet on its systems): the
+    splits and echoes found above, and tonal sounds whose attack is under `attackBelow` (a reverb's
+    swells, a pad breathing). There the mix lays bare every repeat of a delay and every swell of a
+    reverb, and a score cut alone does not keep them out: a density fit short of sounds still takes
+    them (PATTERN_DESIGN 61)."""
+    rule = cfg.get("quiet")
+    if not rule or system not in rule["systems"]:
+        return set()
+    presence = float(cfg["note"])
+    out = {id(c) for c in flagged if c.quiet}
+    out |= {id(c) for c in cands if c.quiet and c.attack < float(rule["attackBelow"]) and _tonal(c, presence, cfg["split"])}
+    return out
+
+
+def _tonal(c: Candidate, presence: float, rule: dict[str, Any]) -> bool:
+    """A note of the melody, or a pitched sound that is hardly a drum (melody.split's test)."""
+    return (c.melody or 0.0) >= presence or (
+        c.sources is not None and float(c.sources[STEM_NAMES.index("drums")]) < float(rule["tonalDrumsBelow"]) and c.harmonic >= float(rule["tonalHarmonic"])
+    )
+
+
+def _echoes(cands: list[Candidate], cfg: dict[str, Any], system: str) -> list[Candidate]:
+    """Tonal candidates that repeat a louder sound of the same pitch a little earlier with a softer
+    attack (melody.echo, on its systems): a delay's repeats and a reverb's swells, which a mix
+    carries most clearly where the drums are out (a breakdown) but which are no new notes."""
+    rule = cfg.get("echo")
+    if not rule or system not in rule["systems"]:
+        return []
+    presence = float(cfg["note"])
+    tonal_rule = cfg["split"]
+    within, ratio, attack = float(rule["withinBeats"]), float(rule["strengthRatio"]), float(rule["attackBelow"])
+    out: list[Candidate] = []
+    recent: list[Candidate] = []
+    for c in cands:
+        recent = [p for p in recent if c.beat - p.beat <= within + 1e-6]
+        if c.pitch is not None and c.attack < attack and _tonal(c, presence, tonal_rule):
+            if any(p.pitch is not None and abs(p.pitch - c.pitch) < 0.5 and c.strength <= ratio * p.strength for p in recent):
+                out.append(c)
+                continue  # an echo is no source of echoes: its own repeats answer to the note
+        if c.pitch is not None:
+            recent.append(c)
+    return out
 
 
 def _melody_splits(cands: list[Candidate], cfg: dict[str, Any], system: str, skill: float = 1.0) -> list[Candidate]:
@@ -286,16 +364,12 @@ def _melody_splits(cands: list[Candidate], cfg: dict[str, Any], system: str, ski
     if not rule or system not in rule["systems"]:
         return []
     presence = float(cfg["note"])
-    drums = STEM_NAMES.index("drums")
     points = rule["attackBelow"] if isinstance(rule["attackBelow"], list) else [[0.0, rule["attackBelow"]]]
     attack_below = float(np.interp(skill, [float(x) for x, _ in points], [float(y) for _, y in points]))
     out: list[Candidate] = []
     prev: Candidate | None = None
     for c in cands:
-        tonal = (c.melody or 0.0) >= presence or (
-            c.sources is not None and float(c.sources[drums]) < float(rule["tonalDrumsBelow"]) and c.harmonic >= float(rule["tonalHarmonic"])
-        )
-        if not tonal:
+        if not _tonal(c, presence, rule):
             continue
         if prev is not None:
             gap = c.beat - prev.beat

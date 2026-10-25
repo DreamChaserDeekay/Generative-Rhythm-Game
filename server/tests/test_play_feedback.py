@@ -13,7 +13,7 @@ from rhythm_server.generator.candidates import Candidate, _mark_solos, _melody_s
 from rhythm_server.generator.ending import finish
 from rhythm_server.generator.lanes import lane_infos
 from rhythm_server.generator.params import resolve_params
-from rhythm_server.generator.select import Slot, holdable, mark_hold_pair
+from rhythm_server.generator.select import Slot, hold_cap, hold_count, holdable, lone_sound, mark_hold_count
 from rhythm_server.generator.tempo import TempoMap
 from rhythm_server.synth import make_song
 
@@ -52,34 +52,42 @@ def test_pads_and_choirs_take_long_notes_however_soft_their_attack() -> None:
     assert not pad_like(kick, "GRG")
 
 
-def test_held_chords_hold_on_both_hands() -> None:
-    """A slot could hold one long note only. From HARD (holds.pad pairSkill) a pad's long note, or a
-    sound held two beats or more in a chord, is held by a key of each hand."""
-    pad = _cand(4.0, strength=0.15, sustain_beats=2.0, sources=np.array([0.05, 0.15, 0.3, 0.5]))
+def test_held_chords_take_more_long_notes_than_held_notes() -> None:
+    """A held single note (a long note of the tune) is one long note; a held chord or rich sound (a
+    pad that is no melody note, or pitched instruments sounding together) takes two and more with
+    each further instrument, a long sound and a loud one, up to the skill's countMax: NORMAL 1,
+    HARD 2, EXPERT 3, MASTER 6 (holds.pad, RUNAWAY play feedback, PATTERN_DESIGN 61)."""
+    assert [hold_cap(resolve_params("6K", t)) for t in ("NORMAL", "HARD", "EXPERT", "MASTER")] == [1, 2, 3, 6]
+    assert hold_cap(resolve_params("6K", "MX", 13, system="DJMAX")) == 1
+    master = resolve_params("6K", "MASTER")
+    tune = _cand(4.0, melody=0.9, sustain_beats=3.0, sources=np.array([0.05, 0.1, 0.75, 0.1]))
+    assert hold_count(tune, master) == 1
+    pad = _cand(4.0, strength=0.3, melody=0.1, sustain_beats=1.5, sources=np.array([0.05, 0.15, 0.2, 0.6]))
+    assert hold_count(pad, master) == 2
+    big = _cand(4.0, strength=0.9, melody=0.1, sustain_beats=4.0, sources=np.array([0.05, 0.3, 0.3, 0.35]))
+    assert hold_count(big, master) == 6 and hold_count(big, resolve_params("6K", "EXPERT")) == 3
     slot = _slot(4.0)
-    slot.hold_end_beat = 6.0
-    mark_hold_pair(slot, pad, resolve_params("6K", "EXPERT"))
-    assert slot.hold_pair and slot.size == 2
-    easy = _slot(4.0)
-    easy.hold_end_beat = 6.0
-    mark_hold_pair(easy, pad, resolve_params("6K", "NORMAL"))
-    assert not easy.hold_pair and easy.size == 1
+    slot.hold_end_beat = 8.0
+    mark_hold_count(slot, big, resolve_params("6K", "EXPERT"))
+    assert slot.hold_count == 3 and slot.size == 3
 
 
-def test_default_expert_charts_hold_chords_on_two_lanes(dense_song: dict) -> None:
+def test_default_charts_hold_chords_within_the_tier(dense_song: dict) -> None:
     from rhythm_server.generator import generate_chart
 
-    chart = generate_chart(dense_song, "6K", "EXPERT")
-    holds = [n for n in chart["notes"] if n["type"] == "hold"]
-    at: dict[float, int] = {}
-    for n in holds:
-        at[n["beat"]] = at.get(n["beat"], 0) + 1
-    assert holds and max(at.values()) <= 2
+    for tier, most in (("NORMAL", 1), ("EXPERT", 3), ("MASTER", 6)):
+        chart = generate_chart(dense_song, "6K", tier)
+        at: dict[float, int] = {}
+        for n in chart["notes"]:
+            if n["type"] == "hold":
+                at[n["beat"]] = at.get(n["beat"], 0) + 1
+        assert at and max(at.values()) <= most, (tier, at)
 
 
 def test_the_last_notes_hold_over_the_closing_reverb() -> None:
-    """A song ending on a chord that rings on: the last notes hold over the reverb (one per hand from
-    pairSkill on); a clear sound after them or a song going quiet at once keeps the tap."""
+    """A song ending on a chord that rings on: the last notes hold over the reverb, as a chord of the
+    skill's long-note count when it rings two beats or more (more keys join: EXPERT 3, MASTER 6);
+    a clear sound after them or a song going quiet at once keeps the tap."""
     tempo = TempoMap(TIMING)
     lanes = lane_infos("6K")
     values = [0.6] * 200 + [0.55, 0.5, 0.45, 0.42, 0.4, 0.38, 0.36, 0.35, 0.34, 0.33, 0.32, 0.3, 0.29, 0.28] + [0.0] * 20
@@ -93,7 +101,10 @@ def test_the_last_notes_hold_over_the_closing_reverb() -> None:
     notes = last_chord()
     assert finish(notes, analysis, tempo, resolve_params("6K", "EXPERT"), lanes, 0.15)
     held = [n for n in notes if n["type"] == "hold"]
-    assert len(held) == 2 and all(n["endBeat"] > 41.0 for n in held)
+    assert len(held) == 3 and all(n["endBeat"] > 41.0 and n["beat"] == 40.0 for n in held)
+    notes = last_chord()
+    assert finish(notes, analysis, tempo, resolve_params("6K", "MASTER"), lanes, 0.15)
+    assert sorted(n["lane"] for n in notes if n["type"] == "hold") == [0, 1, 2, 3, 4, 5]
     notes = last_chord()
     assert finish(notes, analysis, tempo, resolve_params("6K", "NORMAL"), lanes, 0.15)
     assert sum(n["type"] == "hold" for n in notes) == 1

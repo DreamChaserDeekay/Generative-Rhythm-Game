@@ -241,12 +241,13 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     from dataclasses import replace
 
     from rhythm_server.config import load_config
-    from rhythm_server.generator.candidates import _hand_scores, _melody_splits, build_candidates, pad_like, pick_features, pick_model, pick_probability
+    from rhythm_server.generator.candidates import _echoes, _hand_scores, _melody_splits, build_candidates, pad_like, pick_features, pick_model, pick_probability
 
     def plain(cands: list, params) -> list:
         """The candidates no default-system rule rescales after the model (generator 0.9.29: pads,
-        solos and lines split into sixteenths, PATTERN_DESIGN 60)."""
-        split = {id(c) for c in _melody_splits(cands, load_config("instruments")["rhythmSource"]["melody"], params.system, params.skill)}
+        solos and lines split into sixteenths, PATTERN_DESIGN 60; 0.9.30: echoes, 61)."""
+        melody = load_config("instruments")["rhythmSource"]["melody"]
+        split = {id(c) for c in _melody_splits(cands, melody, params.system, params.skill) + _echoes(cands, melody, params.system)}
         return [c for c in cands if not pad_like(c, params.system) and not c.solo and id(c) not in split]
 
     tempo = TempoMap(analysis128["timing"])

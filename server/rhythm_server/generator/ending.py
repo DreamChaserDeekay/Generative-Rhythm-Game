@@ -12,6 +12,7 @@ import numpy as np
 
 from ..config import difficulty_config
 from .params import GenParams
+from .select import hold_cap
 from .tempo import TempoMap
 
 
@@ -57,18 +58,37 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
     end = math.floor(end * 2 + 1e-9) / 2  # on a half beat
     if end - start < max(float(cfg["minBeats"]), params.min_ln_beats) - 1e-9:
         return False
-    # one note per hand holds (two from holds.pad pairSkill on), the outer notes first
-    pad = difficulty_config()["holds"].get("pad") or {}
-    most = 2 if params.system in pad.get("systems", []) and params.skill >= float(pad.get("pairSkill", 1.0)) else 1
+    # the last chord rings on: its notes hold, and a chord takes the skill's count of long notes
+    # (holds.pad countMax: up to six on MASTER), more keys joining it where the hands have room
+    want = min(hold_cap(params), params.max_chord) if end - start >= 2.0 - 1e-9 else 1
+    keys = [l for l in lanes if l.kind == "key"]
+    per_hand: dict[str, int] = {}
     held: list[dict[str, Any]] = []
-    hands: set[str] = set()
+
+    def room(hand: str) -> bool:
+        most = 1 if hand == "T" else min(params.hand_chord_limit, params.max_holds_per_hand)
+        return per_hand.get(hand, 0) < most
+
     for n in sorted(last, key=lambda n: -abs(lanes[n["lane"]].pos - 0.5)):
         hand = lanes[n["lane"]].hand
-        if len(held) < most and hand not in hands:
+        if len(held) < max(1, want) and room(hand):
             held.append(n)
-            hands.add(hand)
+            per_hand[hand] = per_hand.get(hand, 0) + 1
+    taken = {n["lane"] for n in notes if n["t"] == last_t}
+    for lane in sorted(keys, key=lambda l: (-abs(l.pos - 0.5), l.index)):
+        if len(held) >= want:
+            break
+        if lane.index in taken or not room(lane.hand):
+            continue
+        extra = {k: v for k, v in last[0].items() if k not in ("type", "endBeat", "endT")}
+        extra["lane"] = lane.index
+        notes.append(extra)
+        held.append(extra)
+        taken.add(lane.index)
+        per_hand[lane.hand] = per_hand.get(lane.hand, 0) + 1
     for n in held:
         n["type"] = "hold"
         n["endBeat"] = round(end, 6)
         n["endT"] = round(tempo.beat_to_ms(end), 3)
+    notes.sort(key=lambda n: (n["t"], n["lane"]))
     return True
