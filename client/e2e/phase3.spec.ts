@@ -383,7 +383,7 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   expect(errors).toEqual([]);
 });
 
-test('notes, long notes, side notes, gear and hit effect picked apart from the skin: named with the skin’s own, kept, and played', async ({ page }) => {
+test('notes, side notes, gear and hit effect picked apart from the skin: named with the skin’s own, kept, and played; long notes go with the note', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
   await page.goto('/');
@@ -393,16 +393,22 @@ test('notes, long notes, side notes, gear and hit effect picked apart from the s
   // each part names what the skin draws while it follows the skin
   await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'skin');
   await expect(page.getByTestId('opt-note-style')).toContainText('스킨 (메카 챔퍼)');
-  await expect(page.getByTestId('opt-long-style')).toContainText('노트에 맞춤 (레일)');
   await expect(page.getByTestId('opt-deck-style')).toContainText('스킨 (아케이드)');
-  // a note picked brings its own family's long note
+  // no row of its own for the long notes: they are of the note's family
+  await expect(page.getByTestId('opt-long-style')).toHaveCount(0);
+  // the side notes are drawn as picked, as the notes or as dots: no skin's own to follow
+  await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
+  await expect(page.getByTestId('opt-side-style')).toContainText('노트와 같게');
   await chooseSetting(page, 'opt-note-style', 'round');
-  await expect(page.getByTestId('opt-long-style')).toContainText('노트에 맞춤 (캡슐)');
   await chooseSetting(page, 'opt-side-style', 'dots');
+  await page.getByTestId('opt-side-style').press('ArrowRight');
+  await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
+  await page.getByTestId('opt-side-style').press('ArrowRight');
+  await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'dots');
   await chooseSetting(page, 'opt-deck-style', 'grand');
   await chooseSetting(page, 'opt-hit-style', 'wave');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', long: 'auto', side: 'dots', deck: 'grand', hit: 'wave' } });
+  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'grand', hit: 'wave' } });
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
@@ -419,7 +425,8 @@ test('notes, long notes, side notes, gear and hit effect picked apart from the s
   // back to the skin's own: the skin as it was
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  for (const id of ['opt-note-style', 'opt-side-style', 'opt-deck-style', 'opt-hit-style']) await chooseSetting(page, id, 'skin');
+  for (const id of ['opt-note-style', 'opt-deck-style', 'opt-hit-style']) await chooseSetting(page, id, 'skin');
+  await chooseSetting(page, 'opt-side-style', 'bar');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar arcade star');

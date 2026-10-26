@@ -492,7 +492,7 @@ export function SettingsScreen({
             value={settings.skin}
             options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
-            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 아래 노트·롱노트·사이드 노트 모양·기어·타격 효과 모양은 스킨과 따로 고를 수 있습니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 아래 노트·사이드 노트 모양·기어·타격 효과 모양은 스킨과 따로 고를 수 있습니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
           <Choice
             {...row}
@@ -501,16 +501,7 @@ export function SettingsScreen({
             value={settings.parts.note}
             options={parts.note}
             onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 메카 챔퍼와 원형은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있고, 별은 파란·금색 건반에 꼭짓점이 더 있어 색이 같아도 건반을 구분할 수 있습니다. 스킨은 그 스킨에 정해진 모양입니다."
-          />
-          <Choice
-            {...row}
-            label="롱노트"
-            testId="opt-long-style"
-            value={settings.parts.long}
-            options={parts.long}
-            onChange={(v) => setPart('long', v)}
-            help="롱노트 몸통의 모양입니다. 시작과 끝에 단노트를 따로 그리지 않고 몸통의 끝 모양으로 닫습니다. 노트에 맞춤은 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별은 별빛)입니다."
+            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별은 별빛)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼와 원형은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있고, 별은 파란·금색 건반에 꼭짓점이 더 있어 색이 같아도 건반을 구분할 수 있습니다. 스킨은 그 스킨에 정해진 모양입니다."
           />
           <Choice
             {...row}
@@ -523,7 +514,7 @@ export function SettingsScreen({
             value={settings.parts.side}
             options={parts.side}
             onChange={(v) => setPart('side', v)}
-            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 도트 매트릭스는 LED 점으로 그리고, 노트의 시점에 놓인 줄이 가장 밝습니다. 별도 레인과 반쪽 덮기 모두에 쓰입니다."
+            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 노트와 같게는 고른 노트 모양으로(반쪽 덮기는 비치는 막대로) 그리고, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다. 별도 레인과 반쪽 덮기 모두에 쓰입니다."
           />
           <Choice
             {...row}

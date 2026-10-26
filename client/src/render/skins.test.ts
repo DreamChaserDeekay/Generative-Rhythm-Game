@@ -52,7 +52,7 @@ describe('skins', () => {
     });
     expect(skin?.hitEffect).toBe('sprite');
     expect(skin?.textures).toEqual({ note: 'glass/note', hitBurst: 'fx/hitBurstRing' });
-    expect(skin?.style).toMatchObject({ note: 'star4', long: 'solid', rails: { width: 20, glow: 8 }, judge: { under: '#ff9f43' }, camera: 'LOW' });
+    expect(skin?.style).toMatchObject({ note: 'star4', rails: { width: 20, glow: 8 }, judge: { under: '#ff9f43' }, camera: 'LOW' });
     expect(skin?.style?.judge.over).toBeUndefined();
     expect(sanitizeSkin({ textures: { note: 'a b' } })?.textures).toBeUndefined();
     // every built-in skin survives a round trip through "현재 스킨 JSON 보기"
@@ -118,48 +118,46 @@ describe('skins', () => {
     expect(sanitizeSkin({ style: { deck: 'keys' } })?.style?.deck).toBe('line');
   });
 
-  it('opens the note and long note styles of earlier versions as the families that took their place', () => {
+  it('opens the note styles of earlier versions as the families that took their place, and their long notes as theirs', () => {
     const style = (note: string, long: string) => sanitizeSkin({ style: { note, long } })?.style;
-    expect(style('gloss', 'gloss')).toMatchObject({ note: 'chamfer', long: 'rail' });
-    expect(style('thin', 'hollow')).toMatchObject({ note: 'round', long: 'capsule' });
-    expect(style('chip', 'neon')).toMatchObject({ note: 'star5', long: 'ray' });
-    expect(style('gem', 'glass')).toMatchObject({ note: 'star4', long: 'ray' });
-    expect(style('pill', 'pill')).toMatchObject({ note: 'round', long: 'capsule' });
-    expect(style('jewel', 'striped')).toMatchObject({ note: 'chamfer', long: 'rail' });
-    expect(style('toString', 'nope')).toMatchObject({ note: 'flat', long: 'solid' });
-    expect(sanitizeSkin({ style: { side: 'dots' } })?.style?.side).toBe('dots');
-    expect(sanitizeSkin({ style: { side: 'stars' } })?.style?.side).toBe('bar');
+    expect(style('gloss', 'gloss')?.note).toBe('chamfer');
+    expect(style('thin', 'hollow')?.note).toBe('round');
+    expect(style('chip', 'neon')?.note).toBe('star5');
+    expect(style('gem', 'glass')?.note).toBe('star4');
+    expect(style('pill', 'pill')?.note).toBe('round');
+    expect(style('jewel', 'striped')?.note).toBe('chamfer');
+    expect(style('toString', 'nope')?.note).toBe('flat');
+    // a long note of its own is no part of a skin any more: the note's family has it
+    expect(style('round', 'rail')).not.toHaveProperty('long');
   });
 
-  it('gives every built-in skin a note with the long note of its own family', () => {
-    for (const skin of BUILTIN_SKINS) expect(skin.style?.long).toBe(LONG_OF[skin.style!.note]);
-    // the families are spread over the skins: no two of the old rectangles left but the plain ones
+  it('spreads the note families over the built-in skins', () => {
+    // no two of the old rectangles left but the plain ones
     expect(new Set(BUILTIN_SKINS.map((s) => s.style?.note))).toEqual(new Set(['flat', 'stem', 'chamfer', 'round', 'star4', 'star5']));
+    for (const skin of BUILTIN_SKINS) expect(LONG_OF[skin.style!.note]).toBeDefined();
   });
 
-  it('draws the parts a player picks in place of the skin’s, a long note going with its note', () => {
+  it('draws the parts a player picks in place of the skin’s', () => {
     const arcade = skinById('arcade', null);
     // none picked: the skin itself
     expect(withParts(arcade, DEFAULT_PARTS)).toBe(arcade);
-    // a note picked: its own family's long note, unless one is picked too
-    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', long: 'capsule', deck: 'arcade', hit: 'star' });
-    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'star5', long: 'solid' }).style).toMatchObject({ note: 'star5', long: 'solid' });
-    // the skin's note keeps the skin's long note
-    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'grand' }).style).toMatchObject({ note: 'chamfer', long: 'rail', deck: 'grand' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'arcade', hit: 'star' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'grand' }).style).toMatchObject({ note: 'chamfer', deck: 'grand' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'shutter', side: 'dots' }).style).toMatchObject({ hit: 'shutter', side: 'dots' });
     // everything else stays the skin's: colours, rails, camera, type
-    const picked = withParts(arcade, { note: 'star4', long: 'auto', side: 'dots', deck: 'cassette', hit: 'wave' });
+    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'cassette', hit: 'wave' });
     expect(picked.colors).toBe(arcade.colors);
-    expect({ ...picked.style, note: 'chamfer', long: 'rail', side: undefined, deck: 'arcade', hit: 'star' }).toEqual({ ...arcade.style, side: undefined });
+    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', hit: 'star' }).toEqual({ ...arcade.style, side: undefined });
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
-    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), deck: 'concrete' });
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), side: 'bar', deck: 'concrete' });
   });
 
-  it('keeps the picked parts it knows and the skin’s for the rest', () => {
+  it('keeps the picked parts it knows and the skin’s for the rest; the side notes as the notes when unknown', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
-    expect(sanitizeParts({ note: 'star4', long: 'ray', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', long: 'ray', side: 'dots', deck: 'avionics', hit: 'grid' });
-    expect(sanitizeParts({ note: 'gloss', long: 'skin', side: 'bars', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
+    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' });
+    // what earlier versions kept: a long note picked, the side notes as the skin's
+    expect(sanitizeParts({ note: 'gloss', long: 'ray', side: 'skin', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {

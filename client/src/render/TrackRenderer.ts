@@ -29,6 +29,7 @@ import {
   gradientTexture,
   judgeGlowTexture,
   lightMaterial,
+  LONG_OF,
   LONG_PAINT,
   neonBeamTexture,
   laneDepthOf,
@@ -663,7 +664,7 @@ export class TrackRenderer {
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
     this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
-    this.long = LONG_PAINT[this.style.long];
+    this.long = LONG_PAINT[LONG_OF[this.style.note]];
     this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
     this.longBody.wrapT = THREE.RepeatWrapping;
     this.longEnd = this.own(paintTexture(64, Math.max(4, Math.round(64 * this.long.endDepth)), this.long.end));

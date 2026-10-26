@@ -27,6 +27,7 @@ import {
   withPattern,
   withSongOffset,
 } from './settings';
+import { skinById } from '../render/skins';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -89,12 +90,14 @@ describe('settings', () => {
   });
 
   it('keeps the parts picked apart from the skin and draws the skin with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', long: 'auto', side: 'skin', deck: 'skin', hit: 'skin' });
-    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'skin' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', long: 'ray', side: 'dots', deck: 'grand', hit: 'bubbles' });
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', side: 'bar', deck: 'skin', hit: 'skin' });
+    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'skin' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'bubbles' });
     // nothing picked: the skin as it is
-    expect(skinOf({ ...s, parts: DEFAULT_SETTINGS.parts }).style).toMatchObject({ note: 'round', long: 'capsule', deck: 'candy', hit: 'bubbles' });
+    const pop = skinOf({ ...s, parts: DEFAULT_SETTINGS.parts });
+    expect(pop.style).toMatchObject({ note: 'round', deck: 'candy', hit: 'bubbles' });
+    expect(pop).toBe(skinById('pop', null));
   });
 
   it('opens a skin of an earlier version as the skin that took its place', () => {
