@@ -7,6 +7,7 @@ import {
   chartPickOf,
   DEFAULT_SETTINGS,
   greenNumber,
+  laneColorsOf,
   laneKeysFor,
   padMenuFor,
   padMenuKeysFor,
@@ -27,6 +28,8 @@ import {
   withPattern,
   withSongOffset,
 } from './settings';
+import { skinById, laneColorsFor } from '../render/skins';
+import { keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -88,13 +91,31 @@ describe('settings', () => {
     expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
   });
 
+  it('keeps the note colours picked, the player’s own presets, and draws the lanes in them', () => {
+    expect([DEFAULT_SETTINGS.noteColors, DEFAULT_SETTINGS.colorPresets]).toEqual(['skin', []]);
+    const own = { id: 'user-1', name: '밤', lanes: { '4K': ['#111111', '#222222', '#333333', '#444444'] } };
+    const s = sanitizeSettings({ skin: 'club', noteColors: 'user-1', colorPresets: [own] as never });
+    expect(s.noteColors).toBe('user-1');
+    expect(laneColorsOf(s, '4K')).toEqual([0x111111, 0x222222, 0x333333, 0x444444]);
+    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(skinById('club', null), 'default', keyModes['4K']));
+    // a preset gone, or one no version had: 기본
+    expect(sanitizeSettings({ noteColors: 'user-2', colorPresets: [own] as never }).noteColors).toBe('skin');
+    expect(sanitizeSettings({ noteColors: 'neon' }).noteColors).toBe('skin');
+    expect(sanitizeSettings({ noteColors: 'aurora' }).noteColors).toBe('aurora');
+    // a reset keeps the player's presets (as the favourites), and goes back to 기본
+    const reset = resetSettings(s);
+    expect([reset.noteColors, reset.colorPresets]).toEqual(['skin', s.colorPresets]);
+  });
+
   it('keeps the parts picked apart from the skin and draws the skin with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', long: 'auto', side: 'skin', deck: 'skin', hit: 'skin' });
-    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'skin' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', long: 'ray', side: 'dots', deck: 'grand', hit: 'bubbles' });
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', side: 'bar', deck: 'skin', hit: 'skin' });
+    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'skin' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'bubbles' });
     // nothing picked: the skin as it is
-    expect(skinOf({ ...s, parts: DEFAULT_SETTINGS.parts }).style).toMatchObject({ note: 'round', long: 'capsule', deck: 'candy', hit: 'bubbles' });
+    const pop = skinOf({ ...s, parts: DEFAULT_SETTINGS.parts });
+    expect(pop.style).toMatchObject({ note: 'round', deck: 'candy', hit: 'bubbles' });
+    expect(pop).toBe(skinById('pop', null));
   });
 
   it('opens a skin of an earlier version as the skin that took its place', () => {

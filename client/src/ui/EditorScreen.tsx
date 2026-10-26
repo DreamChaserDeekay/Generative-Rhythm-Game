@@ -7,8 +7,8 @@ import { EditorDoc, SNAP_DIVISIONS, type ClipNote, type EditNote } from '../edit
 import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView';
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
-import { laneColorsFor, skinById } from '../render/skins';
-import { bindingsFor, keyLabel, secondBindingsFor, type Settings } from '../settings/settings';
+import { hexString } from '../render/noteColors';
+import { bindingsFor, keyLabel, laneColorsOf, secondBindingsFor, type Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
 
 /** Everything the editor keeps while the player test-plays and comes back. */
@@ -98,7 +98,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   /** The 편집 menu (되돌리기, 다시, 미러) is open. */
   const [menu, setMenu] = useState(false);
   const menuWrap = useRef<HTMLDivElement>(null);
-  const laneColors = laneColorsFor(skinById(settings.skin, settings.customSkin), settings.palette, mode).map((c) => `#${c.toString(16).padStart(6, '0')}`);
+  // the lanes in the note colours the play draws them in
+  const laneColors = laneColorsOf(settings, base.meta.keyMode).map(hexString);
   const durationMs = Math.max(base.meta.durationMs ?? 0, song.durationMs);
 
   const say = useCallback((text: string) => setToast({ text, at: performance.now() }), []);

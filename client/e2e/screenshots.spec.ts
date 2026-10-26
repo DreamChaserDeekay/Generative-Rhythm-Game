@@ -344,10 +344,10 @@ test('play: the gears for any skin, each with notes, side notes and a hit effect
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [parts, keyMode, sideNotes, name] of [
-    [{ note: 'chamfer', long: 'auto', side: 'skin', deck: 'concrete', hit: 'wave' }, '7K+1S', 'lanes', '22-gear-concrete'],
-    [{ note: 'round', long: 'auto', side: 'skin', deck: 'avionics', hit: 'spark' }, '8K', 'lanes', '23-gear-avionics'],
-    [{ note: 'star4', long: 'auto', side: 'dots', deck: 'cassette', hit: 'grid' }, '6K+FX', 'lanes', '24-gear-cassette'],
-    [{ note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'shutter' }, '6K+FX', 'half', '25-gear-grand'],
+    [{ note: 'chamfer', side: 'bar', deck: 'concrete', hit: 'wave' }, '7K+1S', 'lanes', '22-gear-concrete'],
+    [{ note: 'round', side: 'bar', deck: 'avionics', hit: 'spark' }, '8K', 'lanes', '23-gear-avionics'],
+    [{ note: 'star4', side: 'dots', deck: 'cassette', hit: 'grid' }, '6K+FX', 'lanes', '24-gear-cassette'],
+    [{ note: 'star5', side: 'dots', deck: 'grand', hit: 'shutter' }, '6K+FX', 'half', '25-gear-grand'],
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, sideNotes, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'MAXIMUM');
@@ -425,9 +425,15 @@ test('settings and calibration', async ({ page }) => {
   await chooseSetting(page, 'opt-skin', 'arcade');
   await chooseSetting(page, 'opt-note-style', 'round');
   await chooseSetting(page, 'opt-deck-style', 'cassette');
-  await page.getByTestId('opt-long-style').focus();
+  await page.getByTestId('opt-note-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '26-settings-parts');
+  // the note colours: a preset, one lane chosen and its colour on the box, the hue bar and the rows
+  await settingsTab(page, 'colors');
+  await chooseSetting(page, 'opt-color-preset', 'hands');
+  await page.getByTestId('color-lane-2').focus();
+  await page.waitForTimeout(1500);
+  await shot(page, '27-settings-colors');
 
   await page.goto('/');
   await tool(page, 'open-calibration');
