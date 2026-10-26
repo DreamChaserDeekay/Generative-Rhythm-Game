@@ -28,7 +28,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.30"
+GENERATOR_VERSION = "0.9.31"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -235,7 +235,7 @@ def generate_chart(
         },
         "timing": analysis["timing"],
         "sections": sections,
-        "effects": camera_effects(analysis.get("sections", []), tempo),
+        "effects": camera_effects(analysis.get("sections", []), tempo, notes, lane_infos(key_mode), analysis.get("onsets", [])),
         "notes": notes,
     }
 
