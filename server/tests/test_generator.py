@@ -69,10 +69,53 @@ def test_levels_land_in_their_preset_range_unless_density_limited(charts: dict) 
             assert lo <= level <= hi, f"{name} {mode} {d}: level {level}"
 
 
+def test_a_chart_above_its_range_thins_past_the_density_floor(analysis128: dict, monkeypatch) -> None:
+    """The level range comes before the density floor: on real songs GRG tiers stayed at their floor
+    above their range (generator 0.9.33). A floor far above the tier's density holds them no more."""
+    import rhythm_server.generator.core as core
+
+    monkeypatch.setattr(core, "DENSITY_FLOOR", 3.0)
+    presets = difficulty_config()["presets"]
+    for d in ("NORMAL", "HARD"):
+        lo, hi = presets[d]["levels"]
+        assert lo <= generate_chart(analysis128, "6K", d)["meta"]["level"] <= hi, d
+
+
+def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch) -> None:
+    """GRG lowers the 1-second peak by the square root of a note budget under the preset's (the
+    density setting times the level loop's scale), so a roll does not stay a burst over a thinned
+    chart; DJMAX and EZ2ON keep their peak. Both engines take the peak from it."""
+    from rhythm_server.generator.params import GenParams
+
+    grg = resolve_params("6K", "HARD")
+    assert grg.peak_at(0.25) == pytest.approx(0.5 * grg.peak_nps)
+    assert grg.peak_at(1.5) == grg.peak_nps
+    sparse = resolve_params("6K", "HARD", overrides={"density": 0.5})
+    assert sparse.peak_at(1.0) == pytest.approx(0.5 ** 0.5 * sparse.peak_nps)
+    assert sparse.peak_at(2.0) == sparse.peak_nps
+    for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
+        other = resolve_params("6K", tier, system=system)
+        assert other.peak_at(0.25) == other.peak_nps
+    scales = []
+    real = GenParams.peak_at
+    monkeypatch.setattr(GenParams, "peak_at", lambda self, s: scales.append(s) or real(self, s))
+    for engine in ("sectioned", "classic"):
+        scales.clear()
+        generate_chart(analysis128, "6K", "HARD", overrides={"patternEngine": engine})
+        assert scales and min(scales) < 1.0, engine  # the level loop thinned this one
+
+
 def test_target_level_is_respected(analysis128: dict) -> None:
     chart = generate_chart(analysis128, "4K", "NORMAL", target_level=8)
     assert chart["meta"]["difficulty"] == "HARD"
     assert abs(chart["meta"]["level"] - 8) <= 1
+
+
+def test_higher_target_levels_keep_more_notes(analysis128: dict) -> None:
+    """A chart above its target level thins past the density floor (generator 0.9.33), so only the
+    estimator keeps the note count rising with the target level."""
+    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 16)]
+    assert counts == sorted(counts), counts
 
 
 def test_notes_are_on_the_audio_timeline_and_lanes_are_valid(charts: dict) -> None:

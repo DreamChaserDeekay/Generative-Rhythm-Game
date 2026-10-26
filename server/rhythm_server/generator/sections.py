@@ -435,7 +435,8 @@ def layout(
     end_ms = cands[-1].t + 1000.0
     buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
     window = int(round(1000.0 / BUCKET_MS))
-    peak_cap = params.peak_nps / expected_chord_notes
+    peak_nps = params.peak_at(density_scale)
+    peak_cap = peak_nps / expected_chord_notes
 
     def window_ok(times: list[float], cap: float | None = None) -> bool:
         cap = peak_cap if cap is None else cap
@@ -497,7 +498,7 @@ def layout(
             keep = {k for k, sub in roll.items() if level % sub == 0}
             # a roll's notes are single notes: the tier's peak density itself, not that density
             # shared out over the chords a slot takes on the mean
-            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]], params.peak_nps):
+            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]], peak_nps):
                 return keep
             level = coarser(level)
         return set()

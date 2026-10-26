@@ -58,6 +58,8 @@ class GenParams:
     skill: float = 0.5
     # chords a pad cannot press (sets of lane indices), for the DJMAX tiers below SC
     pad_forbidden: tuple[tuple[int, ...], ...] = ()
+    # the 1-second peak density shrinks with a note budget under the preset's (config "peakFollowsDensity")
+    peak_follows_density: bool = False
     # "sectioned" builds the chart from the song structure down (sections.py), "designer" plans
     # patterns per phrase (planner.py), "classic" places notes one by one
     pattern_engine: str = "sectioned"
@@ -88,6 +90,13 @@ class GenParams:
             "instrumentMapping": round(self.instrument_mapping, 3),
             "repeatConsistency": round(self.repeat_consistency, 3),
         }
+
+    def peak_at(self, density_scale: float) -> float:
+        """The 1-second peak density for a note budget of `density` x the level loop's
+        `density_scale` times the preset's. With `peak_follows_density` a budget under the preset
+        lowers it by the square root, so a roll or a dense fill does not stay a burst over a
+        thinned chart (lowering it by the budget itself took EASY's trills)."""
+        return self.peak_nps * (min(1.0, self.density * density_scale) ** 0.5 if self.peak_follows_density else 1.0)
 
     def weight(self, name: str, default: float = 1.0) -> float:
         """A style weight (see "styles" in config/difficulty.json)."""
@@ -204,6 +213,7 @@ def resolve_params(
         level_scale=p.get("levelScale"),
         skill=chart_skill(p, levels),
         pad_forbidden=pad_forbidden_lanes(sys_cfg, key_mode) if p.get("padPlayable") else (),
+        peak_follows_density=sys_cfg["id"] in cfg.get("peakFollowsDensity", {}).get("systems", []),
     )
     # the game's habits per key mode (e.g. DJMAX 8B holds fewer long notes than 6B at the same level)
     tendency = sys_cfg.get("keyModeTendency", {}).get(key_mode, {})

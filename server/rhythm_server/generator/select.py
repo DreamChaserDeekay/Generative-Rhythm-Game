@@ -226,7 +226,7 @@ def select_slots(
     end_ms = cands[-1].t + 1000.0
     buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
     window = int(round(1000.0 / BUCKET_MS))
-    peak_cap = params.peak_nps / expected_chord_notes
+    peak_cap = params.peak_at(density_scale) / expected_chord_notes
     sub_counts: dict[int, int] = {}
     accepted = np.zeros(len(cands), dtype=bool)
     count = 0

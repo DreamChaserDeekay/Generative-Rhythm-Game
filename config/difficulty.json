@@ -384,6 +384,10 @@
       }
     }
   },
+  "peakFollowsDensity": {
+    "description": "노트 예산이 프리셋보다 줄면(밀도 설정 × 난이도 루프의 배율이 1 미만) 1초 최고 밀도(peakNps1s)도 그 배율의 제곱근만큼 줄인다. 롤 · 빽빽한 필인처럼 노트 예산 밖에서 들어오는 몰아치기가 그대로 남으면, 레벨을 맞추려고 고른 부분만 솎여 채보가 더 몰아친다(1초 최고 ÷ 평균 밀도: BMS 사람 7키 2.0–2.4, 생성기 0.9.32 2.5–2.9). 배율만큼 줄이면 EASY의 트릴이 거의 사라졌다(docs/PATTERN_DESIGN.md 65장). systems의 기준에만 쓴다.",
+    "systems": ["GRG"]
+  },
   "overrideLimits": {
     "density": [0.5, 1.5],
     "longNoteRatio": [0.0, 0.5],
