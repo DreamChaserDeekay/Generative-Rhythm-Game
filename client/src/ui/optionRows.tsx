@@ -1,5 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { BUILTIN_SKINS } from '../render/skins';
+import { DECK_STYLES, type DeckStyle } from '../render/deckArt';
+import { BUILTIN_SKINS, skinById, styleOf, type SkinParts } from '../render/skins';
+import { HIT_STYLES, LONG_OF, LONG_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type LongStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 import type { Settings, SideNotes } from '../settings/settings';
 
 /** The option rows of the settings and the song select's play options. */
@@ -12,6 +14,57 @@ export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, st
     ...BUILTIN_SKINS.map((k): [string, string] => [k.id, k.label]),
     ...(settings.customSkin !== null ? [['custom', (settings.customSkin as { label?: string }).label ?? '사용자 스킨'] as [string, string]] : []),
   ];
+}
+
+/** The parts of the gear by name (설정 → 기어). */
+export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
+export const LONG_NAMES: Record<LongStyle, string> = { solid: '기본', stem: '악기색', rail: '레일', capsule: '캡슐', ray: '별빛' };
+export const SIDE_NAMES: Record<SideStyle, string> = { bar: '노트와 같게', dots: '도트 매트릭스' };
+export const DECK_NAMES: Record<DeckStyle, string> = {
+  line: '라인',
+  stem: '악기색',
+  arcade: '아케이드',
+  mixer: '믹서',
+  hazard: '해저드',
+  neon: '네온',
+  crystal: '크리스털',
+  candy: '캔디',
+  jewel: '보석',
+  mono: '모노',
+  concrete: '콘크리트 슬래브',
+  avionics: '에이비오닉스',
+  cassette: '카세트 데크',
+  grand: '그랜드 피아노',
+};
+export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
+  flash: '플래시',
+  stemflash: '악기색 플래시',
+  star: '별빛',
+  bomb: '사각 폭발',
+  flare: '플레어',
+  hex: '육각',
+  shards: '파편',
+  bubbles: '거품',
+  wave: '임팩트 웨이브',
+  spark: '스파크',
+  grid: 'LED 그리드',
+  shutter: '셔터',
+  flipbook: '보석 섬광',
+  none: '없음',
+};
+
+/** Each part's choices: the skin's own (named, so it shows what it is), then every style. */
+export function partChoices(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts'>): { [K in keyof SkinParts]: [SkinParts[K], string][] } {
+  const own = styleOf(skinById(settings.skin, settings.customSkin));
+  const note = settings.parts.note === 'skin' ? own.note : settings.parts.note;
+  const long = settings.parts.note === 'skin' ? own.long : LONG_OF[note];
+  return {
+    note: [['skin', `스킨 (${NOTE_NAMES[own.note]})`], ...NOTE_STYLES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]])],
+    long: [['auto', `노트에 맞춤 (${LONG_NAMES[long]})`], ...LONG_STYLES.map((v): [LongStyle, string] => [v, LONG_NAMES[v]])],
+    side: [['skin', `스킨 (${SIDE_NAMES[own.side ?? 'bar']})`], ...SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]])],
+    deck: [['skin', `스킨 (${DECK_NAMES[own.deck]})`], ...DECK_STYLES.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]])],
+    hit: [['skin', `스킨 (${HIT_NAMES[own.hit]})`], ...HIT_STYLES.map((v): [HitStyle, string] => [v, HIT_NAMES[v]])],
+  };
 }
 
 /** How the side notes of 4K+FX and 6K+FX are drawn, by name (the settings' gear tab and the song select's gear rows). */

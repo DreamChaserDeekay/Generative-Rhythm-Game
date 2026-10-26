@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CameraPreset, KeyModeConfig, LaneKind } from '../engine/config';
+import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
@@ -19,17 +19,20 @@ import {
 } from './layout';
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
-import { deckTop, DEFAULT_HUD_TYPE, EXTRA_LINE, hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
+import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
 import {
+  DOTS_ACROSS,
+  DOTS_LONG,
+  dotsNote,
   effectSheet,
-  JEWEL_SIDE,
-  jewelNote,
   facetsTexture,
   gradientTexture,
   judgeGlowTexture,
   lightMaterial,
   LONG_PAINT,
   neonBeamTexture,
+  laneDepthOf,
+  noteDepthOf,
   NOTE_PAINT,
   paintTexture,
   railBevelTexture,
@@ -38,12 +41,16 @@ import {
   sheetOffset,
   SIDE_FLASH_LINE,
   SIDE_PICTURES,
+  sideDotsBody,
+  sideDotsEnd,
+  sideDotsTap,
   sideTap,
   stripesTexture,
   tintMaterial,
   type EffectSheet,
   type HitStyle,
   type LongPaint,
+  type NoteMark,
   type SidePart,
 } from './tintArt';
 
@@ -120,6 +127,8 @@ const HOLD_FRAME = 2;
 const HOLD_BURST_FRAME = 13;
 /** Note pictures are drawn this many px deep. */
 const NOTE_PICTURE_PX = 96;
+/** The coin's and the stars' depth moves in steps this deep (track units), see fitNoteDepth. */
+const NOTE_DEPTH_STEP = 0.05;
 /** A fitted preview keeps the far end of the track no higher than this share of the height. */
 export const FIT_TRACK_END_Y = 0.06;
 /** Picture px per plane px of the deck under the judge line. */
@@ -268,8 +277,11 @@ export interface TrackRendererOptions {
   fitWidth?: number;
 }
 
-type NoteKind = 'note' | 'side' | 'scratch';
-const NOTE_KIND: Record<LaneKind, NoteKind> = { key: 'note', side: 'side', scratch: 'scratch' };
+/** What a lane's notes are drawn as: the scratch's, a side lane's, or a key's by its colour (the families mark it). */
+function noteKindOf(lane: Pick<LaneGeom, 'kind' | 'color'>): NoteMark {
+  if (lane.kind !== 'key') return lane.kind;
+  return lane.color === 'blue' || lane.color === 'gold' ? lane.color : 'white';
+}
 
 /** An effect lying on the track: a hit (played once) or the sparks of a held long note. */
 interface EffectQuad {
@@ -503,24 +515,6 @@ export function deckRows(style: DeckStyle, lanes: readonly Pick<DeckLane, 'kind'
   return { keyTop: KEY_TOP + drop, keyDepth: depth, stretch, drop, sideTop: KEY_TOP + drop + depth + Math.round((SIDE_GAP * side) / SIDE_ROW), sideDepth: side };
 }
 
-/** The drawing style of a skin; a user skin of an earlier version gets one from its shape and effect. */
-export function styleOf(skin: Skin): SkinStyle {
-  if (skin.style) return skin.style;
-  const hit = skin.hitEffect === 'none' ? 'none' : skin.hitEffect === 'sprite' ? 'flipbook' : skin.hitEffect === 'ring' ? 'hex' : 'flash';
-  return {
-    note: skin.noteShape === 'round' ? 'pill' : 'flat',
-    long: 'solid',
-    deck: 'line',
-    beam: 'fade',
-    hit,
-    rails: { width: 10 },
-    judge: { height: 12, glow: true },
-    track: { tint: 0.08 },
-    camera: 'SDVX',
-    type: DEFAULT_HUD_TYPE,
-  };
-}
-
 /** What a lane's light on the deck is drawn as: the scratch has its own, white keys may differ from the rest. */
 function keyKind(lane: LaneGeom): KeyKind {
   return lane.kind === 'scratch' ? 'scratch' : lane.color === 'white' ? 'white' : 'other';
@@ -548,11 +542,15 @@ export class TrackRenderer {
   private readonly barLines: boolean;
   private readonly fitWidth: number | null;
   private readonly noteGeometry: THREE.BufferGeometry;
-  private readonly noteDepth: number;
+  /** A plain bar's depth (the skin's), and the notes' as drawn: the coin's and the stars' keep their shape at the judge line (see fitNoteDepth). */
+  private readonly barDepth: number;
+  private noteDepth: number;
+  /** Each lane's notes' depth: a key lane's noteDepth; the scratch's and a side lane's as keeps the families' shape (see laneDepthOf). */
+  private laneDepths: number[];
   /** A side tap laid over the keys: deeper than a key tap (see SIDE_EDGE). */
-  private readonly sideNoteDepth: number;
+  private sideNoteDepth: number;
   /** Half the deepest note's depth: a note is in view once its time is this far past the track's far end. */
-  private readonly noteReach: number;
+  private noteReach: number;
   private readonly basePosition = new THREE.Vector3();
   private readonly baseQuaternion = new THREE.Quaternion();
   private baseFov = 40;
@@ -566,7 +564,7 @@ export class TrackRenderer {
   private readonly clipPlanes = [this.farClip, this.nearClip];
   /** Effects stay between the rails (set for the track's width in the constructor). */
   private readonly sideClips = [new THREE.Plane(new THREE.Vector3(1, 0, 0), FAR_AWAY), new THREE.Plane(new THREE.Vector3(-1, 0, 0), FAR_AWAY)];
-  private readonly noteTextures = new Map<NoteKind, THREE.Texture>();
+  private readonly noteTextures = new Map<NoteMark, THREE.Texture>();
   private readonly noteMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly bodyMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly endMaterials = new Map<string, THREE.MeshBasicMaterial>();
@@ -587,6 +585,9 @@ export class TrackRenderer {
   private readonly long: LongPaint;
   private readonly longBody: THREE.Texture;
   private readonly longEnd: THREE.Texture;
+  /** Side notes drawn as an LED panel's dots (SideStyle 'dots'), and their long notes' pictures in lanes of their own. */
+  private readonly sideDots: boolean;
+  private dotsLong: { body: THREE.Texture; end: THREE.Texture } | null = null;
   private readonly beams: THREE.Mesh[] = [];
   private beamLength: number;
   private readonly beamLevels: number[] = [];
@@ -653,9 +654,11 @@ export class TrackRenderer {
     this.laneColors = laneColorsFor(options.skin, options.palette, options.mode);
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
-    this.noteDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
+    this.barDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
+    this.noteDepth = this.barDepth;
+    this.laneDepths = this.lanesDeep(this.barDepth);
     this.sideNoteDepth = this.noteDepth + 2 * SIDE_EDGE;
-    this.noteReach = (this.geometry.lanes.some((l) => l.over) ? this.sideNoteDepth : this.noteDepth) / 2;
+    this.noteReach = this.deepestNote() / 2;
     this.reducedFlash = options.reducedFlash;
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
@@ -664,6 +667,7 @@ export class TrackRenderer {
     this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
     this.longBody.wrapT = THREE.RepeatWrapping;
     this.longEnd = this.own(paintTexture(64, Math.max(4, Math.round(64 * this.long.endDepth)), this.long.end));
+    this.sideDots = this.style.side === 'dots';
     const hit = this.hit;
     // a flipbook skin draws shards in code when its textures are missing
     this.hitSheet = hit === 'none' || (hit === 'flipbook' && this.art.hitBurst) ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
@@ -704,7 +708,7 @@ export class TrackRenderer {
     this.setCovers(options.covers);
 
     this.notePool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.laneColors[0], 'note'));
+      const mesh = new THREE.Mesh(this.noteGeometry, this.noteMaterial(this.laneColors[0], 'white'));
       mesh.renderOrder = 4;
       return mesh;
     });
@@ -985,17 +989,17 @@ export class TrackRenderer {
       const lane = this.geometry.lanes[n.lane];
       const color = this.noteColor(n);
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
-      const kind = NOTE_KIND[lane.kind];
+      const kind = noteKindOf(lane);
       if (n.type === 'tap') {
         if (!n.headDone) {
           if (lane.over) this.placeSideTap(lane, z(n.t), color);
           else {
             this.laneStems[n.lane] ??= n.src;
-            this.placeNote(lane.x, lane.width, z(n.t), color, height, kind);
+            this.placeNote(lane.x, lane.width, z(n.t), this.laneDepths[n.lane], color, height, kind);
           }
         } else if (n.broken && n.t > timeMs - MISSED_VISIBLE_MS) {
           if (lane.over) this.placeSideTap(lane, z(n.t), MISSED_COLOR);
-          else this.placeNote(lane.x, lane.width, z(n.t), MISSED_COLOR, height, kind);
+          else this.placeNote(lane.x, lane.width, z(n.t), this.laneDepths[n.lane], MISSED_COLOR, height, kind);
         }
         continue;
       }
@@ -1005,7 +1009,7 @@ export class TrackRenderer {
       if (!n.broken && !lane.over) this.laneStems[n.lane] ??= n.src;
       // from the near edge of a tap at its start to the far edge of a tap at its end (a side tap's
       // over the keys)
-      const span = noteSpan(z(n.t), lane.over ? this.sideNoteDepth : this.noteDepth, z(n.endT), held ? this.judgeZ : null, this.extent);
+      const span = noteSpan(z(n.t), lane.over ? this.sideNoteDepth : this.laneDepths[n.lane], z(n.endT), held ? this.judgeZ : null, this.extent);
       const tailZ = Math.max(-L, span.far);
       if (span.near <= tailZ) continue;
       const state = n.broken ? 'missed' : held ? 'held' : 'idle';
@@ -1029,14 +1033,12 @@ export class TrackRenderer {
   }
 
   /** A tap note centred on `z`: where noteSpan puts a long note's ends, so a chord lines up. */
-  private placeNote(x: number, laneWidth: number, z: number, color: number, height: number, kind: NoteKind): void {
+  private placeNote(x: number, laneWidth: number, z: number, depth: number, color: number, height: number, kind: NoteMark): void {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color, kind);
-    const { near, far } = noteSpan(z, this.noteDepth, z, null, this.extent);
-    // JEWEL's picture runs on below the note: its side
-    const side = this.style.note === 'jewel' && !this.noteArt(kind) ? this.noteDepth * JEWEL_SIDE : 0;
-    mesh.scale.set(laneWidth * 0.9, height, near + side - far);
-    mesh.position.set(x, height / 2, (near + side + far) / 2);
+    const { near, far } = noteSpan(z, depth, z, null, this.extent);
+    mesh.scale.set(laneWidth * 0.9, height, near - far);
+    mesh.position.set(x, height / 2, (near + far) / 2);
   }
 
   /**
@@ -1046,27 +1048,30 @@ export class TrackRenderer {
    * there: the far clip cuts it, as no outline must show an end that is not there.
    */
   private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
-    const art = this.art.longBody;
-    const width = lane.width * (art ? 0.8 : this.long.width);
+    // a side lane's long note of dots (SideStyle 'dots') is the side style's, not the note style's
+    const dots = this.sideDots && lane.kind === 'side';
+    const paint = dots ? DOTS_LONG : this.long;
+    const art = dots ? undefined : this.art.longBody;
+    const width = lane.width * (art ? 0.8 : paint.width);
     const open = realTailZ < tailZ;
-    const end = art ? 0 : Math.min(this.long.endDepth * width, (headZ - tailZ) / (open ? 1 : 2));
+    const end = art ? 0 : Math.min(paint.endDepth * width, (headZ - tailZ) / (open ? 1 : 2));
     const body = this.bodyPool.next();
-    body.material = this.bodyMaterial(color, state);
+    body.material = this.bodyMaterial(color, state, dots);
     const near = headZ - end;
     const far = open ? tailZ : tailZ + end;
     body.visible = near > far;
     body.scale.set(width, 1, Math.max(0.001, near - far));
     body.position.set(lane.x, 0.02, (near + far) / 2);
-    this.setBodyUv(body, width * (art ? art.spec.tileAspect ?? 2 : this.long.tile), near, far, realTailZ);
+    this.setBodyUv(body, width * (art ? art.spec.tileAspect ?? 2 : paint.tile), near, far, realTailZ);
     if (end <= 0) return;
-    this.placeLongEnd(lane.x, width, headZ - end / 2, end, color, state, true);
-    if (!open) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false);
+    this.placeLongEnd(lane.x, width, headZ - end / 2, end, color, state, true, dots);
+    if (!open) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false, dots);
   }
 
   /** One end of a long note, `end` deep at `z`; the picture's top is its outer edge (`head`: toward the camera). */
-  private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean): void {
+  private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean, dots: boolean): void {
     const cap = this.endPool.next();
-    cap.material = this.endMaterial(color, state);
+    cap.material = this.endMaterial(color, state, dots);
     cap.scale.set(width, 1, end);
     cap.rotation.y = head ? Math.PI : 0;
     cap.position.set(x, 0.021, z);
@@ -1140,16 +1145,25 @@ export class TrackRenderer {
     if (!texture) {
       const across = (this.geometry.width / 2) * SIDE_SPAN;
       const w = 512;
-      const h = part === 'body' ? 8 : Math.max(8, Math.round((w * { tap: this.sideNoteDepth, end: SIDE_END, flash: SIDE_FLASH }[part]) / across));
-      texture = this.own(paintTexture(w, h, part === 'tap' ? sideTap(SIDE_EDGE / this.sideNoteDepth) : SIDE_PICTURES[part]));
+      // dots repeat along a body as across it (square px): a picture as deep as the half is wide
+      const dots = this.sideDots && part !== 'flash';
+      const h = part === 'body' ? (dots ? w : 8) : Math.max(8, Math.round((w * { tap: this.sideNoteDepth, end: SIDE_END, flash: SIDE_FLASH }[part]) / across));
+      const key = this.geometry.lanes.find((l) => l.kind === 'key');
+      const cols = Math.max(8, Math.round((across / (key?.width ?? 1)) * DOTS_ACROSS));
+      const paint = dots
+        ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
+        : part === 'tap'
+          ? sideTap(SIDE_EDGE / this.sideNoteDepth)
+          : SIDE_PICTURES[part];
+      texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
       this.sideTextures.set(part, texture);
     }
     return texture;
   }
 
-  private noteArt(kind: NoteKind): ArtTexture | undefined {
-    return this.art[kind] ?? this.art.note;
+  private noteArt(kind: NoteMark): ArtTexture | undefined {
+    return (kind === 'scratch' || kind === 'side' ? this.art[kind] : undefined) ?? this.art.note;
   }
 
   /** The body picture is pinned to the note's real tail, so it travels with the note (also while held). */
@@ -1700,6 +1714,7 @@ export class TrackRenderer {
    */
   private layoutDeck(): void {
     if (!this.deck) return;
+    this.fitNoteDepth();
     const { width, lanes } = this.geometry;
     const top = this.judgeZ + deckTop(this.style.judge) * PX;
     const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
@@ -1734,6 +1749,49 @@ export class TrackRenderer {
     });
     // effects lying on the track are drawn longer where the camera flattens it
     this.stretch = Math.min(2.6, Math.max(1, EFFECT_ASPECT / this.trackAspect(this.judgeZ)));
+  }
+
+  /**
+   * The coin and the stars as deep as keeps their shape at the judge line for this camera and screen
+   * (see noteDepthOf), in steps, so a window being resized paints their pictures again only now and
+   * then: a new depth drops the pictures made for the old one.
+   */
+  private fitNoteDepth(): void {
+    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * 0.9, 1 / this.trackAspect(this.judgeZ));
+    const stepped = Math.round(depth / NOTE_DEPTH_STEP) * NOTE_DEPTH_STEP;
+    if (Math.abs(stepped - this.noteDepth) < 1e-9) return;
+    this.noteDepth = stepped;
+    this.laneDepths = this.lanesDeep(stepped);
+    this.sideNoteDepth = stepped + 2 * SIDE_EDGE;
+    this.noteReach = this.deepestNote() / 2;
+    for (const [textures, materials] of [
+      [this.noteTextures, this.noteMaterials],
+      [this.sideTextures, this.sideMaterials],
+    ] as [Map<unknown, THREE.Texture>, Map<string, THREE.Material>][]) {
+      textures.forEach((t) => {
+        t.dispose();
+        const at = this.ownedTextures.indexOf(t);
+        if (at >= 0) this.ownedTextures.splice(at, 1);
+      });
+      textures.clear();
+      materials.forEach((m) => m.dispose());
+      materials.clear();
+    }
+  }
+
+  /** A key lane: the notes of the others are drawn after its. */
+  private get keyLane(): LaneGeom {
+    return this.geometry.lanes.find((l) => l.kind === 'key') ?? this.geometry.lanes[0];
+  }
+
+  /** Each lane's notes' depth for key notes `depth` deep (see laneDepthOf). */
+  private lanesDeep(depth: number): number[] {
+    return this.geometry.lanes.map((l) => laneDepthOf(this.style.note, depth, l.width / this.keyLane.width, this.barDepth));
+  }
+
+  /** The deepest note on the track: a note is in view once its time is half this past the track's far end. */
+  private deepestNote(): number {
+    return Math.max(...this.geometry.lanes.map((l, i) => (l.over ? this.sideNoteDepth : this.laneDepths[i])));
   }
 
   /** Whether the deck has a picture yet (the first is painted at once). */
@@ -1880,22 +1938,20 @@ export class TrackRenderer {
   }
 
   /** The note picture of a lane kind, drawn for its notes' proportions. */
-  private noteTexture(kind: NoteKind): THREE.Texture {
+  private noteTexture(kind: NoteMark): THREE.Texture {
     let texture = this.noteTextures.get(kind);
     if (!texture) {
-      const lane = this.geometry.lanes.find((l) => NOTE_KIND[l.kind] === kind) ?? this.geometry.lanes[0];
-      const jewel = this.style.note === 'jewel';
-      // JEWEL's cut was drawn 4:1 and stretched over the note (its corners stay small), its side below it; the rest keep the note's proportions
-      const h = Math.round(NOTE_PICTURE_PX * (jewel ? 1 + JEWEL_SIDE : 1));
-      const w = jewel ? NOTE_PICTURE_PX * 4 : Math.round(Math.min(512, Math.max(32, (h * lane.width * 0.9) / this.noteDepth)));
-      const scratch = jewel && kind === 'scratch';
-      texture = this.own(paintTexture(w, h, scratch ? (g, pw, ph) => jewelNote(g, pw, ph, true) : NOTE_PAINT[this.style.note]));
+      const lane = this.geometry.lanes.find((l) => noteKindOf(l) === kind) ?? this.geometry.lanes[0];
+      const h = NOTE_PICTURE_PX;
+      const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * 0.9) / this.laneDepths[lane.index])));
+      const paint = NOTE_PAINT[this.style.note];
+      texture = this.own(paintTexture(w, h, kind === 'side' && this.sideDots ? dotsNote : (g, pw, ph) => paint(g, pw, ph, kind)));
       this.noteTextures.set(kind, texture);
     }
     return texture;
   }
 
-  private noteMaterial(color: number, kind: NoteKind): THREE.MeshBasicMaterial {
+  private noteMaterial(color: number, kind: NoteMark): THREE.MeshBasicMaterial {
     const key = `${kind}:${color}`;
     let m = this.noteMaterials.get(key);
     if (!m) {
@@ -1929,14 +1985,14 @@ export class TrackRenderer {
     return texture;
   }
 
-  private bodyMaterial(color: number, state: 'idle' | 'held' | 'missed'): THREE.MeshBasicMaterial {
-    const key = `${color}:${state}`;
+  private bodyMaterial(color: number, state: 'idle' | 'held' | 'missed', dots = false): THREE.MeshBasicMaterial {
+    const key = `${dots ? 'dots:' : ''}${color}:${state}`;
     let m = this.bodyMaterials.get(key);
     if (!m) {
-      const art = this.art.longBody?.texture;
+      const art = dots ? undefined : this.art.longBody?.texture;
       const params: THREE.MeshBasicMaterialParameters = {
         color: art ? brightened(color, HOLD_BRIGHTNESS[state]) : color,
-        map: art ?? this.longBody,
+        map: art ?? (dots ? this.dotsLongTextures().body : this.longBody),
         transparent: true,
         opacity: HOLD_OPACITY[state],
         depthWrite: false,
@@ -1949,17 +2005,25 @@ export class TrackRenderer {
     return m;
   }
 
-  private endMaterial(color: number, state: 'idle' | 'held' | 'missed'): THREE.MeshBasicMaterial {
-    const key = `${color}:${state}`;
+  private endMaterial(color: number, state: 'idle' | 'held' | 'missed', dots = false): THREE.MeshBasicMaterial {
+    const key = `${dots ? 'dots:' : ''}${color}:${state}`;
     let m = this.endMaterials.get(key);
     if (!m) {
-      m = tintMaterial(
-        { color, map: this.longEnd, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false },
-        { gain: HOLD_BRIGHTNESS[state] },
-      );
+      const map = dots ? this.dotsLongTextures().end : this.longEnd;
+      m = tintMaterial({ color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false }, { gain: HOLD_BRIGHTNESS[state] });
       this.endMaterials.set(key, m);
     }
     return m;
+  }
+
+  /** The pictures of a side lane's long note of dots, painted at its first. */
+  private dotsLongTextures(): { body: THREE.Texture; end: THREE.Texture } {
+    if (!this.dotsLong) {
+      const body = this.own(paintTexture(64, Math.round(64 * DOTS_LONG.tile), DOTS_LONG.body));
+      body.wrapT = THREE.RepeatWrapping;
+      this.dotsLong = { body, end: this.own(paintTexture(64, Math.max(4, Math.round(64 * DOTS_LONG.endDepth)), DOTS_LONG.end)) };
+    }
+    return this.dotsLong;
   }
 }
 

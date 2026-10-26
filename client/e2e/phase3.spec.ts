@@ -382,3 +382,46 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   expect(loaded.filter((f) => f.endsWith('.png'))).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+test('notes, long notes, side notes, gear and hit effect picked apart from the skin: named with the skin’s own, kept, and played', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-skin', 'arcade');
+  // each part names what the skin draws while it follows the skin
+  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'skin');
+  await expect(page.getByTestId('opt-note-style')).toContainText('스킨 (메카 챔퍼)');
+  await expect(page.getByTestId('opt-long-style')).toContainText('노트에 맞춤 (레일)');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('스킨 (아케이드)');
+  // a note picked brings its own family's long note
+  await chooseSetting(page, 'opt-note-style', 'round');
+  await expect(page.getByTestId('opt-long-style')).toContainText('노트에 맞춤 (캡슐)');
+  await chooseSetting(page, 'opt-side-style', 'dots');
+  await chooseSetting(page, 'opt-deck-style', 'grand');
+  await chooseSetting(page, 'opt-hit-style', 'wave');
+  await expect(page.getByTestId('gear-preview')).toBeVisible();
+  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', long: 'auto', side: 'dots', deck: 'grand', hit: 'wave' } });
+  await page.getByRole('button', { name: /완료/ }).click();
+
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots grand wave');
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: 'test-results/play-parts.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  // back to the skin's own: the skin as it was
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  for (const id of ['opt-note-style', 'opt-side-style', 'opt-deck-style', 'opt-hit-style']) await chooseSetting(page, id, 'skin');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar arcade star');
+  expect(errors).toEqual([]);
+});

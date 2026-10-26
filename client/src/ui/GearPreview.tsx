@@ -5,7 +5,7 @@ import type { SessionNote } from '../engine/session';
 import type { ChartTiming, KeyModeId } from '../engine/types';
 import { GRADE_PALETTES } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
-import { skinById } from '../render/skins';
+import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import { activeCovers, greenNumber, visibleTimeMs, type Settings } from '../settings/settings';
 import { coverText } from './format';
@@ -23,6 +23,7 @@ type PreviewSettings = Pick<
   Settings,
   | 'skin'
   | 'customSkin'
+  | 'parts'
   | 'cameraPreset'
   | 'laneWidthScale'
   | 'palette'
@@ -51,13 +52,13 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
   const covers = activeCovers(settings);
 
   // what the renderer is built from; the camera, covers and speed change on a running one
-  const { skin: skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
+  const { skin: skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
     let alive = true;
     let made: TrackRenderer | null = null;
-    const skin = skinById(skinId, customSkin);
+    const skin = withParts(skinById(skinId, customSkin), parts);
     void loadSkinArt(skin)
       .catch(() => null)
       .then((art) => {
@@ -90,7 +91,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
       if (renderer.current === made) renderer.current = null;
       made?.dispose();
     };
-  }, [keyMode, skinId, customSkin, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes]);
+  }, [keyMode, skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes]);
 
   // the camera, the covers, the speed and the key beams change the running preview without starting it over
   const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];

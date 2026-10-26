@@ -1,7 +1,7 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import { LANE_PALETTES, type Palette } from './palette';
 import { CAP_DECKS, DECK_STYLES, type DeckStyle } from './deckArt';
-import type { HitStyle, LongStyle, NoteStyle } from './tintArt';
+import { HIT_STYLES, LONG_OF, LONG_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type LongStyle, type NoteStyle, type SideStyle } from './tintArt';
 
 export type NoteShape = 'box' | 'flat' | 'round';
 export type LaneLayout = 'mode' | 'uniform' | 'rainbow';
@@ -76,6 +76,8 @@ export interface HudType {
 export interface SkinStyle {
   note: NoteStyle;
   long: LongStyle;
+  /** How the side lanes' notes are drawn (default 'bar': as the note style draws them; over the keys, see-through bars). */
+  side?: SideStyle;
   /** The gear under the judge line: its plate and the lane lights that light with the keys (render/deckArt.ts). */
   deck: DeckStyle;
   beam: BeamStyle;
@@ -150,7 +152,7 @@ function skin(id: string, d: SkinDef): Skin {
   return {
     id,
     label: d.label,
-    noteShape: d.style.note === 'pill' ? 'round' : 'flat',
+    noteShape: d.style.note === 'round' ? 'round' : 'flat',
     laneLayout: d.laneLayout ?? 'mode',
     hitEffect: d.style.hit === 'flipbook' ? 'sprite' : d.style.hit === 'none' ? 'none' : 'burst',
     colors: {
@@ -243,8 +245,8 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#ffffff',
     glow: '#ff9f43',
     style: {
-      note: 'gloss',
-      long: 'gloss',
+      note: 'chamfer',
+      long: 'rail',
       deck: 'arcade',
       beam: 'white',
       hit: 'star',
@@ -265,12 +267,11 @@ export const BUILTIN_SKINS: Skin[] = [
     rails: ['#8c8c98', '#8c8c98'],
     judge: '#ff3b3b',
     style: {
-      note: 'thin',
-      long: 'hollow',
+      note: 'round',
+      long: 'capsule',
       deck: 'mixer',
       beam: 'fade',
       hit: 'bomb',
-      noteDepth: 30 / 51.5,
       rails: { width: 3 },
       judge: { height: 6, glow: true },
       track: { tint: 0, scratchTint: 0.1 },
@@ -288,8 +289,8 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#ffffff',
     glow: '#ffd23f',
     style: {
-      note: 'outline',
-      long: 'striped',
+      note: 'chamfer',
+      long: 'rail',
       deck: 'hazard',
       beam: 'fade',
       hit: 'flare',
@@ -311,8 +312,8 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#ffffff',
     glow: '#5fe7ff',
     style: {
-      note: 'chip',
-      long: 'neon',
+      note: 'star5',
+      long: 'ray',
       deck: 'neon',
       beam: 'neon',
       hit: 'hex',
@@ -333,8 +334,8 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#f6f4ff',
     glow: '#bfe9ff',
     style: {
-      note: 'gem',
-      long: 'glass',
+      note: 'star4',
+      long: 'ray',
       deck: 'crystal',
       beam: 'white',
       hit: 'shards',
@@ -354,8 +355,8 @@ export const BUILTIN_SKINS: Skin[] = [
     rails: ['#ffb38a', '#ff6fa5'],
     judge: '#fff1d6',
     style: {
-      note: 'pill',
-      long: 'pill',
+      note: 'round',
+      long: 'capsule',
       deck: 'candy',
       beam: 'fade',
       hit: 'bubbles',
@@ -376,8 +377,8 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#ffffff',
     glow: '#bfe9ff',
     style: {
-      note: 'jewel',
-      long: 'jewel',
+      note: 'chamfer',
+      long: 'rail',
       deck: 'jewel',
       beam: 'white',
       hit: 'flipbook',
@@ -418,16 +419,18 @@ const SHAPES: NoteShape[] = ['box', 'flat', 'round'];
 const LAYOUTS: LaneLayout[] = ['mode', 'uniform', 'rainbow'];
 const EFFECTS: HitEffectStyle[] = ['burst', 'ring', 'sprite', 'none'];
 const LANE_KEYS: LaneColor[] = ['white', 'blue', 'gold', 'scratch', 'sideL', 'sideR'];
-const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'gloss', 'thin', 'outline', 'chip', 'gem', 'pill', 'jewel'];
-const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'gloss', 'hollow', 'striped', 'neon', 'glass', 'pill', 'jewel'];
+/** Note and long note styles of earlier versions, by the family that took their place in their skins. */
+const NOTE_RENAMES: Record<string, NoteStyle> = { gloss: 'chamfer', thin: 'round', outline: 'chamfer', chip: 'star5', gem: 'star4', pill: 'round', jewel: 'chamfer' };
+const LONG_RENAMES: Record<string, LongStyle> = { gloss: 'rail', hollow: 'capsule', striped: 'rail', neon: 'ray', glass: 'ray', pill: 'capsule', jewel: 'rail' };
 const BEAM_STYLES: BeamStyle[] = ['fade', 'white', 'stem', 'neon'];
-const HIT_STYLES: SkinStyle['hit'][] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'flipbook', 'none'];
+const HIT_CHOICES: SkinStyle['hit'][] = [...HIT_STYLES, 'flipbook', 'none'];
 const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW', 'PLANE'];
 const FONTS = Object.keys(HUD_FONTS) as HudFont[];
 /** Manifest texture ids look like "glass/note" or "fx/keyBeam". */
 const TEXTURE_ID = /^[a-z0-9]+\/[A-Za-z0-9]+$/;
 
 const pick = <T,>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
+const renamed = <T,>(v: unknown, renames: Record<string, T>): T | undefined => (typeof v === 'string' && Object.hasOwn(renames, v) ? renames[v] : undefined);
 const num = (v: unknown, min: number, max: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
 const colour = (v: unknown): string | undefined => (typeof v === 'string' && HEX.test(v) ? v : undefined);
 
@@ -461,12 +464,12 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
   const judge = part(r.judge);
   const track = part(r.track);
   const style: SkinStyle = {
-    note: pick(r.note, NOTE_STYLES, d.note),
-    long: pick(r.long, LONG_STYLES, d.long),
+    note: pick(r.note, NOTE_STYLES, renamed(r.note, NOTE_RENAMES) ?? d.note),
+    long: pick(r.long, LONG_STYLES, renamed(r.long, LONG_RENAMES) ?? d.long),
     // a skin of an earlier version names the key cap that stood under the judge line
     deck: pick(r.deck, DECK_STYLES, typeof r.cap === 'string' && Object.hasOwn(CAP_DECKS, r.cap) ? CAP_DECKS[r.cap] : d.deck),
     beam: pick(r.beam, BEAM_STYLES, d.beam),
-    hit: pick(r.hit, HIT_STYLES, d.hit),
+    hit: pick(r.hit, HIT_CHOICES, d.hit),
     rails: { width: num(rails.width, 1, 20, d.rails.width) },
     judge: { height: num(judge.height, 2, 20, d.judge.height) },
     track: { tint: num(track.tint, 0, 0.5, d.track.tint) },
@@ -474,6 +477,7 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
     type: sanitizeType(r.type),
   };
   if (r.noteDepth !== undefined) style.noteDepth = num(r.noteDepth, 0.3, 1.5, 1);
+  if (r.side !== undefined) style.side = pick(r.side, SIDE_STYLES, 'bar');
   if (rails.glow !== undefined) style.rails.glow = num(rails.glow, 0, 40, 0);
   if (rails.bevel === true) style.rails.bevel = true;
   if (colour(judge.under)) style.judge.under = colour(judge.under);
@@ -524,6 +528,63 @@ export function sanitizeSkin(raw: unknown): Skin | null {
   const style = sanitizeStyle(r.style);
   if (style) skin.style = style;
   return skin;
+}
+
+/** The drawing style of a skin; a user skin of an earlier version gets one from its shape and effect. */
+export function styleOf(skin: Skin): SkinStyle {
+  if (skin.style) return skin.style;
+  const hit = skin.hitEffect === 'none' ? 'none' : skin.hitEffect === 'sprite' ? 'flipbook' : skin.hitEffect === 'ring' ? 'hex' : 'flash';
+  return {
+    note: skin.noteShape === 'round' ? 'round' : 'flat',
+    long: skin.noteShape === 'round' ? 'capsule' : 'solid',
+    deck: 'line',
+    beam: 'fade',
+    hit,
+    rails: { width: 10 },
+    judge: { height: 12, glow: true },
+    track: { tint: 0.08 },
+    camera: 'SDVX',
+    type: DEFAULT_HUD_TYPE,
+  };
+}
+
+/**
+ * The parts of the gear a player picks apart from the skin (설정 → 기어): 'skin' keeps the skin's
+ * own; a long note 'auto' goes with the note (the skin's own while the note is the skin's, else its
+ * family's, see LONG_OF).
+ */
+export interface SkinParts {
+  note: NoteStyle | 'skin';
+  long: LongStyle | 'auto';
+  side: SideStyle | 'skin';
+  deck: DeckStyle | 'skin';
+  hit: HitStyle | 'skin';
+}
+
+export const DEFAULT_PARTS: SkinParts = { note: 'skin', long: 'auto', side: 'skin', deck: 'skin', hit: 'skin' };
+
+/** Saved parts; what is missing or unknown is the skin's. */
+export function sanitizeParts(raw: unknown): SkinParts {
+  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  return {
+    note: pick(r.note, ['skin', ...NOTE_STYLES] as const, 'skin'),
+    long: pick(r.long, ['auto', ...LONG_STYLES] as const, 'auto'),
+    side: pick(r.side, ['skin', ...SIDE_STYLES] as const, 'skin'),
+    deck: pick(r.deck, ['skin', ...DECK_STYLES] as const, 'skin'),
+    hit: pick(r.hit, ['skin', ...HIT_STYLES] as const, 'skin'),
+  };
+}
+
+/** The skin with the parts the player picked in place of its own (the skin itself when none is). */
+export function withParts(skin: Skin, parts: SkinParts): Skin {
+  if (parts.note === 'skin' && parts.long === 'auto' && parts.side === 'skin' && parts.deck === 'skin' && parts.hit === 'skin') return skin;
+  const own = styleOf(skin);
+  const note = parts.note === 'skin' ? own.note : parts.note;
+  const long = parts.long !== 'auto' ? parts.long : parts.note === 'skin' ? own.long : LONG_OF[note];
+  const style: SkinStyle = { ...own, note, long, deck: parts.deck === 'skin' ? own.deck : parts.deck, hit: parts.hit === 'skin' ? own.hit : parts.hit };
+  const side = parts.side === 'skin' ? own.side : parts.side;
+  if (side) style.side = side;
+  return { ...skin, style };
 }
 
 export function skinById(id: string, custom: unknown): Skin {
