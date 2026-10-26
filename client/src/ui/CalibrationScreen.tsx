@@ -7,7 +7,7 @@ import { ScrollModel } from '../engine/scroll';
 import { GamepadMenuBridge, GamepadPoller, padMenuKey, SHOULDER_KEYS } from '../input/gamepad';
 import { GRADE_PALETTES } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
-import { skinById } from '../render/skins';
+import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import { visibleTimeMs, type Settings } from '../settings/settings';
 import { offsetText } from './resultBreakdown';
@@ -412,7 +412,7 @@ function VisualStep({
 function ClickGear({ settings, offset }: { settings: Settings; offset: { readonly current: number } }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { lastKeyMode: keyMode, skin: skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume } = settings;
+  const { lastKeyMode: keyMode, skin: skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume } = settings;
 
   useEffect(() => {
     const el = canvas.current;
@@ -423,7 +423,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
     let watch: ResizeObserver | null = null;
     let raf = 0;
     const engine = getAudioEngine();
-    const skin = skinById(skinId, customSkin);
+    const skin = withParts(skinById(skinId, customSkin), parts);
     void Promise.all([loadSkinArt(skin).catch(() => null), engine.unlock()]).then(([art]) => {
       if (!alive) {
         disposeSkinArt(art);
@@ -510,7 +510,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
       renderer?.dispose();
       engine.stop();
     };
-  }, [keyMode, skinId, customSkin, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume, offset]);
+  }, [keyMode, skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume, offset]);
 
   return (
     <div className="calib-gear" ref={box} data-testid="calib-gear">

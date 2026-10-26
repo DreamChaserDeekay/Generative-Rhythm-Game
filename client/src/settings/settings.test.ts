@@ -17,6 +17,7 @@ import {
   rebindKey,
   resetSettings,
   sanitizeSettings,
+  skinOf,
   secondBindingsFor,
   songOffsetOf,
   withChartPick,
@@ -85,6 +86,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
     const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
     expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  });
+
+  it('keeps the parts picked apart from the skin and draws the skin with them', () => {
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', long: 'auto', side: 'skin', deck: 'skin', hit: 'skin' });
+    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', long: 'auto', side: 'dots', deck: 'grand', hit: 'skin' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', long: 'ray', side: 'dots', deck: 'grand', hit: 'bubbles' });
+    // nothing picked: the skin as it is
+    expect(skinOf({ ...s, parts: DEFAULT_SETTINGS.parts }).style).toMatchObject({ note: 'round', long: 'capsule', deck: 'candy', hit: 'bubbles' });
   });
 
   it('opens a skin of an earlier version as the skin that took its place', () => {

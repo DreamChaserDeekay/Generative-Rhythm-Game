@@ -19,7 +19,7 @@ import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { SideNotes } from '../render/layout';
 import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, sanitizeSkin, SKIN_RENAMES } from '../render/skins';
+import { BUILTIN_SKINS, DEFAULT_PARTS, sanitizeParts, sanitizeSkin, SKIN_RENAMES, skinById, withParts, type Skin, type SkinParts } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
 import { DEFAULT_TURNTABLE, isPadCode, MENU_BUTTON_KEYS, MENU_BUTTONS, MENU_PAD_CODE, type MenuButton } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, type PadPlayButton } from '../input/padPlay';
@@ -177,6 +177,8 @@ export interface Settings {
   skin: string;
   /** User skin (JSON object), used when `skin` is "custom". */
   customSkin: unknown;
+  /** Notes, long notes, side notes, gear and hit effect picked apart from the skin (each the skin's by default). */
+  parts: SkinParts;
   /** Background: blurred jacket, visualizer and user video under a dimming layer. */
   bgBrightness: number;
   visualizer: boolean;
@@ -258,6 +260,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sideNotes: 'lanes',
   skin: 'flat',
   customSkin: null,
+  parts: DEFAULT_PARTS,
   bgBrightness: 0.35,
   visualizer: true,
   bga: true,
@@ -367,6 +370,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);
   if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
+  s.parts = sanitizeParts(s.parts);
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);
   s.visualizer = s.visualizer !== false;
   s.bga = s.bga !== false;
@@ -627,6 +631,11 @@ export function clampHiSpeed(hiSpeed: number): number {
 }
 
 /** Time a note takes over the whole (unlifted) track length. */
+/** The skin the gear is drawn with: the chosen one, with the parts picked apart from it. */
+export function skinOf(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts'>): Skin {
+  return withParts(skinById(settings.skin, settings.customSkin), settings.parts);
+}
+
 export function visibleTimeMs(hiSpeed: number): number {
   return BASE_VISIBLE_MS / clampHiSpeed(hiSpeed);
 }

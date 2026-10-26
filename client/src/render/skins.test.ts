@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, hex, HUD_FONTS, laneColorsFor, sanitizeSkin, skinById } from './skins';
+import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, styleOf, withParts } from './skins';
 import { LONG_OF } from './tintArt';
 
 describe('skins', () => {
@@ -135,6 +135,31 @@ describe('skins', () => {
     for (const skin of BUILTIN_SKINS) expect(skin.style?.long).toBe(LONG_OF[skin.style!.note]);
     // the families are spread over the skins: no two of the old rectangles left but the plain ones
     expect(new Set(BUILTIN_SKINS.map((s) => s.style?.note))).toEqual(new Set(['flat', 'stem', 'chamfer', 'round', 'star4', 'star5']));
+  });
+
+  it('draws the parts a player picks in place of the skin’s, a long note going with its note', () => {
+    const arcade = skinById('arcade', null);
+    // none picked: the skin itself
+    expect(withParts(arcade, DEFAULT_PARTS)).toBe(arcade);
+    // a note picked: its own family's long note, unless one is picked too
+    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', long: 'capsule', deck: 'arcade', hit: 'star' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'star5', long: 'solid' }).style).toMatchObject({ note: 'star5', long: 'solid' });
+    // the skin's note keeps the skin's long note
+    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'grand' }).style).toMatchObject({ note: 'chamfer', long: 'rail', deck: 'grand' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'shutter', side: 'dots' }).style).toMatchObject({ hit: 'shutter', side: 'dots' });
+    // everything else stays the skin's: colours, rails, camera, type
+    const picked = withParts(arcade, { note: 'star4', long: 'auto', side: 'dots', deck: 'cassette', hit: 'wave' });
+    expect(picked.colors).toBe(arcade.colors);
+    expect({ ...picked.style, note: 'chamfer', long: 'rail', side: undefined, deck: 'arcade', hit: 'star' }).toEqual({ ...arcade.style, side: undefined });
+    // a user skin of an earlier version (no style) gets one to put the parts in
+    const old = sanitizeSkin({ noteShape: 'round' })!;
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), deck: 'concrete' });
+  });
+
+  it('keeps the picked parts it knows and the skin’s for the rest', () => {
+    expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
+    expect(sanitizeParts({ note: 'star4', long: 'ray', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', long: 'ray', side: 'dots', deck: 'avionics', hit: 'grid' });
+    expect(sanitizeParts({ note: 'gloss', long: 'skin', side: 'bars', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {

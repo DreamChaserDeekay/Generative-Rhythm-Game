@@ -6,7 +6,7 @@ import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, su
 import { PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
 import type { Palette } from '../render/palette';
-import { sanitizeSkin, skinById } from '../render/skins';
+import { sanitizeSkin, skinById, type SkinParts } from '../render/skins';
 import {
   bindingLabel,
   bindingsFor,
@@ -45,7 +45,7 @@ import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, NumberOption, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, NumberOption, partChoices, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -190,6 +190,7 @@ export function SettingsScreen({
   onUndoReset,
 }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
+  const setPart = <K extends keyof SkinParts>(key: K, value: SkinParts[K]) => onSettingsChange({ ...settings, parts: { ...settings.parts, [key]: value } });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
   /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
@@ -265,6 +266,7 @@ export function SettingsScreen({
   });
 
   const system = difficultySystems[settings.difficultySystem];
+  const parts = partChoices(settings);
   const row = {
     onHelp: (text: string) => {
       setHelp(text);
@@ -490,7 +492,56 @@ export function SettingsScreen({
             value={settings.skin}
             options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
-            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 아래 노트·롱노트·사이드 노트 모양·기어·타격 효과 모양은 스킨과 따로 고를 수 있습니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+          />
+          <Choice
+            {...row}
+            label="노트"
+            testId="opt-note-style"
+            value={settings.parts.note}
+            options={parts.note}
+            onChange={(v) => setPart('note', v)}
+            help="노트 모양입니다. 메카 챔퍼와 원형은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있고, 별은 파란·금색 건반에 꼭짓점이 더 있어 색이 같아도 건반을 구분할 수 있습니다. 스킨은 그 스킨에 정해진 모양입니다."
+          />
+          <Choice
+            {...row}
+            label="롱노트"
+            testId="opt-long-style"
+            value={settings.parts.long}
+            options={parts.long}
+            onChange={(v) => setPart('long', v)}
+            help="롱노트 몸통의 모양입니다. 시작과 끝에 단노트를 따로 그리지 않고 몸통의 끝 모양으로 닫습니다. 노트에 맞춤은 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별은 별빛)입니다."
+          />
+          <Choice
+            {...row}
+            onHelp={(text) => {
+              setHelp(text);
+              setSideRow(true);
+            }}
+            label="사이드 노트 모양"
+            testId="opt-side-style"
+            value={settings.parts.side}
+            options={parts.side}
+            onChange={(v) => setPart('side', v)}
+            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 도트 매트릭스는 LED 점으로 그리고, 노트의 시점에 놓인 줄이 가장 밝습니다. 별도 레인과 반쪽 덮기 모두에 쓰입니다."
+          />
+          <Choice
+            {...row}
+            label="기어"
+            testId="opt-deck-style"
+            value={settings.parts.deck}
+            options={parts.deck}
+            onChange={(v) => setPart('deck', v)}
+            help="판정선 아래 기어(키를 누르면 켜지는 레인 표시등과 그 아래 판)의 모양입니다. 판정선의 위치와 모양은 어느 기어에서나 같습니다."
+          />
+          <Choice
+            {...row}
+            label="타격 효과 모양"
+            testId="opt-hit-style"
+            value={settings.parts.hit}
+            options={parts.hit}
+            onChange={(v) => setPart('hit', v)}
+            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 임팩트 웨이브·스파크·LED 그리드·셔터는 판정선 아래(기어 쪽)에만 그려 내려오는 노트를 가리지 않습니다. 크기는 효과 탭의 타격 효과에서 정합니다."
           />
           <Choice
             {...row}

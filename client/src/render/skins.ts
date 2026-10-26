@@ -1,7 +1,7 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import { LANE_PALETTES, type Palette } from './palette';
 import { CAP_DECKS, DECK_STYLES, type DeckStyle } from './deckArt';
-import { HIT_STYLES, LONG_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type LongStyle, type NoteStyle, type SideStyle } from './tintArt';
+import { HIT_STYLES, LONG_OF, LONG_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type LongStyle, type NoteStyle, type SideStyle } from './tintArt';
 
 export type NoteShape = 'box' | 'flat' | 'round';
 export type LaneLayout = 'mode' | 'uniform' | 'rainbow';
@@ -546,6 +546,45 @@ export function styleOf(skin: Skin): SkinStyle {
     camera: 'SDVX',
     type: DEFAULT_HUD_TYPE,
   };
+}
+
+/**
+ * The parts of the gear a player picks apart from the skin (설정 → 기어): 'skin' keeps the skin's
+ * own; a long note 'auto' goes with the note (the skin's own while the note is the skin's, else its
+ * family's, see LONG_OF).
+ */
+export interface SkinParts {
+  note: NoteStyle | 'skin';
+  long: LongStyle | 'auto';
+  side: SideStyle | 'skin';
+  deck: DeckStyle | 'skin';
+  hit: HitStyle | 'skin';
+}
+
+export const DEFAULT_PARTS: SkinParts = { note: 'skin', long: 'auto', side: 'skin', deck: 'skin', hit: 'skin' };
+
+/** Saved parts; what is missing or unknown is the skin's. */
+export function sanitizeParts(raw: unknown): SkinParts {
+  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  return {
+    note: pick(r.note, ['skin', ...NOTE_STYLES] as const, 'skin'),
+    long: pick(r.long, ['auto', ...LONG_STYLES] as const, 'auto'),
+    side: pick(r.side, ['skin', ...SIDE_STYLES] as const, 'skin'),
+    deck: pick(r.deck, ['skin', ...DECK_STYLES] as const, 'skin'),
+    hit: pick(r.hit, ['skin', ...HIT_STYLES] as const, 'skin'),
+  };
+}
+
+/** The skin with the parts the player picked in place of its own (the skin itself when none is). */
+export function withParts(skin: Skin, parts: SkinParts): Skin {
+  if (parts.note === 'skin' && parts.long === 'auto' && parts.side === 'skin' && parts.deck === 'skin' && parts.hit === 'skin') return skin;
+  const own = styleOf(skin);
+  const note = parts.note === 'skin' ? own.note : parts.note;
+  const long = parts.long !== 'auto' ? parts.long : parts.note === 'skin' ? own.long : LONG_OF[note];
+  const style: SkinStyle = { ...own, note, long, deck: parts.deck === 'skin' ? own.deck : parts.deck, hit: parts.hit === 'skin' ? own.hit : parts.hit };
+  const side = parts.side === 'skin' ? own.side : parts.side;
+  if (side) style.side = side;
+  return { ...skin, style };
 }
 
 export function skinById(id: string, custom: unknown): Skin {

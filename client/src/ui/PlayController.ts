@@ -19,7 +19,7 @@ import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
-import { skinById, styleOf } from '../render/skins';
+import { styleOf } from '../render/skins';
 import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
 import {
   activeCovers,
@@ -33,6 +33,7 @@ import {
   MAX_COVER,
   MAX_LIFT,
   secondBindingsFor,
+  skinOf,
   songOffsetOf,
   visibleTimeMs,
   withCovers,
@@ -239,7 +240,7 @@ export class PlayController {
 
     const mode = keyModes[this.chart.meta.keyMode];
     const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
-    const skin = skinById(settings.skin, settings.customSkin);
+    const skin = skinOf(settings);
     this.renderer = new TrackRenderer(setup.canvas, {
       mode,
       camera,
@@ -257,6 +258,9 @@ export class PlayController {
     });
     // how a mode's side lanes are drawn (data-side-notes on the canvas; not shown)
     if (mode.lanes.some((l) => l.kind === 'side')) setup.canvas.dataset.sideNotes = this.renderer.geometry.lanes.some((l) => l.over) ? 'half' : 'lanes';
+    // what the gear is drawn with, the skin's own or the parts picked apart from it (data-style; not shown)
+    const style = styleOf(skin);
+    setup.canvas.dataset.style = [style.note, style.long, style.side ?? 'bar', style.deck, style.hit].join(' ');
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =
       setup.keysounds && this.chart.sounds
