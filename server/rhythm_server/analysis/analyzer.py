@@ -27,7 +27,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.8.1"
+ANALYZER_VERSION = "1.9.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -227,7 +227,9 @@ def analyze(
         sections = ml.sections_from_segments(ml_struct["segments"], beats, beat0, bpb, beat_energy)
         add_loops(sections, features, beat0, bpb)
     if not sections and len(beats) >= 8:
-        sections = find_sections(features, beat_energy, beat0, bpb)
+        beat_strength = np.zeros(len(beats))
+        np.add.at(beat_strength, np.clip(np.searchsorted(beats, times, side="right") - 1, 0, len(beats) - 1), strength)
+        sections = find_sections(features, beat_energy, beat0, bpb, beat_strength)
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
