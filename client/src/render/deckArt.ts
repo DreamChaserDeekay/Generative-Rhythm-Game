@@ -6,10 +6,26 @@ import { ink, tone, type Paint } from './tintArt';
  * picture in real colours, painted again when the screen shows more or less of it) and, on it, a
  * light per lane in the lane's colour that lights while its key is down (a tint picture, see
  * tintArt). Each design follows its skin: LED bars, instrument dots, arcade buttons, a mixer's
- * knobs, road chevrons, neon hexagons, crystal diamonds, candy buttons, cut gems, outlines.
+ * knobs, road chevrons, neon hexagons, crystal diamonds, candy buttons, cut gems, outlines; and
+ * four for any skin (설정 → 기어): a concrete slab with a pocket per key, a cockpit panel of
+ * switches, a cassette deck's keys, a grand piano's keys.
  */
-export type DeckStyle = 'line' | 'stem' | 'arcade' | 'mixer' | 'hazard' | 'neon' | 'crystal' | 'candy' | 'jewel' | 'mono';
-export const DECK_STYLES: DeckStyle[] = ['line', 'stem', 'arcade', 'mixer', 'hazard', 'neon', 'crystal', 'candy', 'jewel', 'mono'];
+export type DeckStyle =
+  | 'line'
+  | 'stem'
+  | 'arcade'
+  | 'mixer'
+  | 'hazard'
+  | 'neon'
+  | 'crystal'
+  | 'candy'
+  | 'jewel'
+  | 'mono'
+  | 'concrete'
+  | 'avionics'
+  | 'cassette'
+  | 'grand';
+export const DECK_STYLES: DeckStyle[] = ['line', 'stem', 'arcade', 'mixer', 'hazard', 'neon', 'crystal', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette', 'grand'];
 /** Earlier skins named the key caps that stood here; each cap is now the deck of its skin. */
 export const CAP_DECKS: Record<string, DeckStyle> = {
   flat: 'line',
@@ -172,6 +188,12 @@ function barBox(x: number, y: number, w: number, h: number, share: number): Box 
 /** How deep ARCADE's side button and JEWEL's side gem are in their row: the plate sets them in sockets that size. */
 const ARCADE_BAR = 0.78;
 const JEWEL_BAR = 0.8;
+
+/** How deep the new designs' side bars are in their row (their plates set them in sockets that size). */
+const CONCRETE_BAR = 0.84;
+const AVIONICS_BAR = 0.78;
+const CASSETTE_BAR = 0.8;
+const GRAND_BAR = 0.86;
 
 /** A rectangle whose corners are round on the screen (`r` across, `st` times longer along the track). */
 function rounded(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
@@ -525,7 +547,376 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     if (lowerRoom(s) < 20) return;
     g.fillRect(12, s.room - 10, s.width - 24, 2);
   },
+  // raw concrete cast in boards: a pocket sunk in it per key, form-tie holes in rows below
+  concrete: (g, s) => {
+    const grad = g.createLinearGradient(0, 0, 0, s.room);
+    grad.addColorStop(0, '#2b2c2f');
+    grad.addColorStop(1, '#222326');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, s.width, s.depth);
+    // the board marks of the formwork and the grain of the cast
+    const rand = seeded(23);
+    for (let i = 0; i < (s.width * s.depth) / 22; i++) {
+      g.fillStyle = rand() < 0.5 ? `rgba(0,0,0,${0.06 + rand() * 0.08})` : white(0.02 + rand() * 0.04);
+      g.fillRect(rand() * s.width, rand() * s.depth, 1.4, 1.4 * s.stretch);
+    }
+    for (let y = lowerTop(s) + 14 * s.stretch; y < s.depth; y += 30 * s.stretch) {
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      g.fillRect(0, y, s.width, 1);
+      g.fillStyle = white(0.035);
+      g.fillRect(0, y + 1, s.width, 1);
+    }
+    g.fillStyle = white(0.08);
+    g.fillRect(0, 0, s.width, EDGE);
+    for (const l of s.lanes) pocket(g, lightBox('concrete', l.left, s.keyTop, l.width, s.keyDepth), s.stretch);
+    sideSockets(s, CONCRETE_BAR, 0, (b) => pocket(g, b, s.stretch));
+    if (lowerRoom(s) < 34) return;
+    // the tie holes: a row of them between the lights and the screen's bottom
+    const y = (lowerTop(s) + s.room) / 2;
+    for (let x = 22; x <= s.width - 22; x += Math.max(44, s.width / 12)) {
+      disc(g, x, y, 4.2, s.stretch);
+      g.fillStyle = '#121315';
+      g.fill();
+      disc(g, x + 0.8, y + 0.8 * s.stretch, 3.2, s.stretch);
+      g.fillStyle = '#08090a';
+      g.fill();
+    }
+  },
+  // a cockpit panel: a well per switch, amber brackets framing a panel below, a striped strip over it
+  avionics: (g, s) => {
+    const grad = g.createLinearGradient(0, 0, 0, s.room);
+    grad.addColorStop(0, '#181a1e');
+    grad.addColorStop(1, '#121417');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, s.width, s.depth);
+    g.fillStyle = white(0.07);
+    g.fillRect(0, 0, s.width, EDGE);
+    const well = (b: Box) => {
+      const pad = 2.5;
+      g.beginPath();
+      g.roundRect(b.x - pad, b.y - pad * s.stretch, b.w + 2 * pad, b.h + 2 * pad * s.stretch, [{ x: 5, y: 5 * s.stretch }]);
+      g.fillStyle = '#0a0b0e';
+      g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = '#2c3038';
+      g.stroke();
+    };
+    for (const l of s.lanes) well(lightBox('avionics', l.left, s.keyTop, l.width, s.keyDepth));
+    sideSockets(s, AVIONICS_BAR, 0, well);
+    const room = lowerRoom(s);
+    if (room < 34) return;
+    // the strip: amber and white dashes, dim, under the row
+    const top = lowerTop(s) + 6;
+    const strip = Math.min(4, room * 0.08);
+    for (let x = 12, i = 0; x < s.width - 12; x += 16, i++) {
+      g.fillStyle = i % 2 ? 'rgba(236,238,242,0.42)' : 'rgba(255,150,40,0.6)';
+      g.fillRect(x, top, 10, strip);
+    }
+    const mid = panel(g, { ...s, sides: [] }, 16, 12);
+    if (mid === null) return;
+    g.fillStyle = '#111317';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = '#2b3038';
+    g.stroke();
+    g.fillStyle = white(0.12);
+    g.fillRect(s.width / 2 - 30, mid - 1, 60, 2);
+    // amber brackets at the panel's corners
+    const p0 = lowerTop(s) + 10;
+    const p1 = s.room - 10;
+    if (p1 - p0 < 24) return;
+    const arm = 9;
+    g.fillStyle = 'rgba(255,178,30,0.85)';
+    for (const [x, dx] of [
+      [6, 1],
+      [s.width - 6, -1],
+    ] as [number, number][]) {
+      for (const [y, dy] of [
+        [p0 + 8, 1],
+        [p1, -1],
+      ] as [number, number][]) {
+        g.fillRect(dx > 0 ? x : x - 2, dy > 0 ? y : y - arm * s.stretch, 2, arm * s.stretch);
+        g.fillRect(dx > 0 ? x : x - arm, dy > 0 ? y : y - 2 * s.stretch, arm, 2 * s.stretch);
+      }
+    }
+  },
+  // a cassette deck: brushed black metal, a slot per key, a cassette's window with its reels below
+  cassette: (g, s) => {
+    g.fillStyle = '#131315';
+    g.fillRect(0, 0, s.width, s.depth);
+    const rand = seeded(31);
+    for (let y = 2; y < s.depth; y += 2) {
+      g.fillStyle = white(0.008 + rand() * 0.022);
+      g.fillRect(0, y, s.width, 1);
+    }
+    g.fillStyle = white(0.07);
+    g.fillRect(0, 0, s.width, EDGE);
+    const slot = (b: Box, bottom: number) => {
+      g.fillStyle = '#050506';
+      g.fillRect(b.x - 2, b.y - 2 * s.stretch, b.w + 4, bottom - b.y + 2 * s.stretch);
+      g.fillStyle = '#2a2a2e';
+      g.fillRect(b.x - 2, bottom, b.w + 4, 1);
+    };
+    for (const l of s.lanes) slot(lightBox('cassette', l.left, s.keyTop, l.width, s.keyDepth), s.keyTop + s.keyDepth * 0.97);
+    sideSockets(s, CASSETTE_BAR, 0, (b) => slot(b, b.y + b.h));
+    const room = lowerRoom(s);
+    if (room < 40) return;
+    const top = lowerTop(s) + 8;
+    // a dim chrome trim over the cassette's door
+    g.fillStyle = '#3a3c42';
+    g.fillRect(14, top, s.width - 28, 1.5);
+    const bottom = s.room - 10;
+    const h = bottom - top - 8;
+    if (h < 24) return;
+    const w = Math.min(s.width * 0.5, 280);
+    const x = s.width / 2 - w / 2;
+    const y = top + 8;
+    g.beginPath();
+    g.roundRect(x, y, w, h, [{ x: 6, y: 6 * s.stretch }]);
+    g.fillStyle = '#0c0c0e';
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = '#34353a';
+    g.stroke();
+    // the window and the cassette behind it: the tape between the reels, the reels
+    const wx = x + 10;
+    const ww = w - 20;
+    const wy = y + 5 * s.stretch;
+    const wh = h - 10 * s.stretch;
+    g.fillStyle = '#070708';
+    g.fillRect(wx, wy, ww, wh);
+    const r = Math.min(ww * 0.17, (wh / 2 / s.stretch) * 0.8);
+    const cy = wy + wh / 2;
+    g.fillStyle = '#2e2119';
+    g.fillRect(wx + ww * 0.28, cy + r * s.stretch * 0.55, ww * 0.44, r * s.stretch * 0.3);
+    for (const cx of [wx + ww * 0.28, wx + ww * 0.72]) {
+      disc(g, cx, cy, r * 0.92, s.stretch);
+      g.fillStyle = '#3a2a1f';
+      g.fill();
+      disc(g, cx, cy, r * 0.5, s.stretch);
+      g.fillStyle = '#18181b';
+      g.fill();
+      g.lineWidth = 1.2;
+      g.strokeStyle = '#4a4b52';
+      g.stroke();
+      regular(g, cx, cy, r * 0.24, s.stretch, 6);
+      g.fillStyle = '#5a5b62';
+      g.fill();
+    }
+    g.fillStyle = white(0.03);
+    polygon(g, [
+      [wx + ww * 0.1, wy],
+      [wx + ww * 0.24, wy],
+      [wx + ww * 0.12, wy + wh],
+      [wx - ww * 0.02, wy + wh],
+    ]);
+    g.fill();
+  },
+  // a grand piano's keys in black lacquer: a felt strip under them, a gold line on the fallboard
+  grand: (g, s) => {
+    const grad = g.createLinearGradient(0, 0, 0, s.room);
+    grad.addColorStop(0, '#0d0d10');
+    grad.addColorStop(1, '#09090b');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, s.width, s.depth);
+    g.fillStyle = white(0.06);
+    g.fillRect(0, 0, s.width, EDGE);
+    // the key bed, the gaps between the keys dark
+    g.fillStyle = '#040405';
+    g.fillRect(0, s.keyTop, s.width, s.keyDepth);
+    sideSockets(s, GRAND_BAR, 1, (b) => {
+      g.fillStyle = '#040405';
+      g.fillRect(b.x, b.y, b.w, b.h);
+    });
+    // the felt along the keys' fronts
+    const felt = lowerTop(s) + 1;
+    g.fillStyle = '#4a1218';
+    g.fillRect(0, felt, s.width, Math.min(3 * s.stretch, Math.max(0, s.room - felt)));
+    if (lowerRoom(s) < 30) return;
+    const y = lowerTop(s) + 14;
+    g.fillStyle = 'rgba(184,140,60,0.55)';
+    g.fillRect(16, y, s.width - 32, 1.5);
+    const sheen = g.createLinearGradient(0, y + 4, 0, s.room);
+    sheen.addColorStop(0, white(0.035));
+    sheen.addColorStop(1, white(0));
+    g.fillStyle = sheen;
+    g.fillRect(0, y + 4, s.width, s.room - y - 4);
+  },
 };
+
+// ---------- the gears for any skin: concrete, avionics, cassette, grand ----------
+
+/**
+ * Where these designs' lights lie in a lane's place in the row (`w` × `h`, `x`, `y` its corner): a
+ * share of it in from its sides and from the row's top and bottom. The plate draws the socket round
+ * it (the pocket's walls, the switch's well, the key's slot); the light picture draws what is in it.
+ */
+const LIGHT_BOX: Record<'concrete' | 'avionics' | 'cassette' | 'grand', { side: number; top: number; bottom: number }> = {
+  concrete: { side: 0.09, top: 0.07, bottom: 0.07 },
+  avionics: { side: 0.11, top: 0.13, bottom: 0.13 },
+  cassette: { side: 0.08, top: 0.06, bottom: 0.14 },
+  grand: { side: 0.05, top: 0.04, bottom: 0.06 },
+};
+
+function lightBox(style: keyof typeof LIGHT_BOX, x: number, y: number, w: number, h: number): Box {
+  const b = LIGHT_BOX[style];
+  return { x: x + w * b.side, y: y + h * b.top, w: w * (1 - 2 * b.side), h: h * (1 - b.top - b.bottom) };
+}
+
+/** CONCRETE's pocket walls round `b`: `wall` across, `st` times that along (a pocket's floor is `b` less its walls). */
+function pocketWall(b: Box, st: number): number {
+  return Math.min(b.w * 0.17, (b.h * 0.24) / st);
+}
+
+function pocketFloor(b: Box, st: number): Box {
+  const t = pocketWall(b, st);
+  return { x: b.x + t, y: b.y + t * st, w: b.w - 2 * t, h: b.h - 2 * t * st };
+}
+
+/** The four walls of a pocket sunk in a slab, lit from the far left: the far and left walls in shade, the near and right ones lit. */
+function pocket(g: CanvasRenderingContext2D, b: Box, st: number): void {
+  const f = pocketFloor(b, st);
+  const [x0, y0, x1, y1] = [b.x, b.y, b.x + b.w, b.y + b.h];
+  const [fx0, fy0, fx1, fy1] = [f.x, f.y, f.x + f.w, f.y + f.h];
+  for (const [points, fill] of [
+    [[[x0, y0], [x1, y0], [fx1, fy0], [fx0, fy0]], '#0f1012'],
+    [[[x0, y0], [fx0, fy0], [fx0, fy1], [x0, y1]], '#18191c'],
+    [[[x1, y0], [x1, y1], [fx1, fy1], [fx1, fy0]], '#3a3b3f'],
+    [[[x0, y1], [x1, y1], [fx1, fy1], [fx0, fy1]], '#46474c'],
+  ] as [[number, number][], string][]) {
+    polygon(g, points);
+    g.fillStyle = fill;
+    g.fill();
+  }
+  g.fillStyle = '#08080a';
+  g.fillRect(f.x, f.y, f.w, f.h);
+}
+
+/** A switch's cap in the cockpit panel: a rounded box narrowing to its far edge. */
+function capPath(g: CanvasRenderingContext2D, b: Box, st: number): void {
+  const taper = b.w * 0.07;
+  const r = Math.min(b.w * 0.14, (b.h * 0.2) / st);
+  g.beginPath();
+  g.moveTo(b.x + taper + r, b.y);
+  g.lineTo(b.x + b.w - taper - r, b.y);
+  g.quadraticCurveTo(b.x + b.w - taper, b.y, b.x + b.w - taper * 0.8, b.y + r * st);
+  g.lineTo(b.x + b.w, b.y + b.h - r * st);
+  g.quadraticCurveTo(b.x + b.w, b.y + b.h, b.x + b.w - r, b.y + b.h);
+  g.lineTo(b.x + r, b.y + b.h);
+  g.quadraticCurveTo(b.x, b.y + b.h, b.x, b.y + b.h - r * st);
+  g.lineTo(b.x + taper * 0.8, b.y + r * st);
+  g.quadraticCurveTo(b.x + taper, b.y, b.x + taper + r, b.y);
+  g.closePath();
+}
+
+/**
+ * AVIONICS's switch, at rest (in its amber, see idleColor) a dark cap with a lit tick and a mark
+ * under it, lit the cap's face in the lane's colour.
+ */
+function switchCap(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  capPath(g, b, st);
+  g.fillStyle = lit ? ink(0.3) : ink(0.09);
+  g.fill();
+  const t = Math.min(b.w * 0.1, (b.h * 0.12) / st);
+  const face: Box = { x: b.x + t, y: b.y + t * st, w: b.w - 2 * t, h: b.h - 2 * t * st };
+  capPath(g, face, st);
+  if (lit) {
+    g.fillStyle = tone(1.08);
+    g.fill();
+    g.save();
+    g.clip();
+    g.fillStyle = ink(1, 0.65, 0.7);
+    g.fillRect(face.x, face.y, face.w, face.h * 0.22);
+    g.restore();
+    return;
+  }
+  g.fillStyle = ink(0.14);
+  g.fill();
+  g.lineWidth = Math.max(1, t * 0.35);
+  g.strokeStyle = ink(0.26);
+  g.stroke();
+  // the tick and the mark under it
+  const tw = Math.max(1.5, face.w * 0.06);
+  g.fillStyle = ink(1, 0.05, 0.9);
+  g.fillRect(face.x + face.w / 2 - tw / 2, face.y + face.h * 0.16, tw, face.h * 0.26);
+  g.fillStyle = ink(0.55);
+  g.fillRect(face.x + face.w * 0.32, face.y + face.h * 0.74, face.w * 0.36, Math.max(1.5, face.h * 0.06));
+}
+
+/**
+ * CASSETTE's key: a grey key with ridges to grip, lit pressed down a little with light showing
+ * out of the slot under it in the lane's colour.
+ */
+function deckKey(g: CanvasRenderingContext2D, b: Box, slotBottom: number, st: number, lit: boolean): void {
+  const press = lit ? b.h * 0.05 : 0;
+  const k: Box = { x: b.x, y: b.y + press, w: b.w, h: b.h - press };
+  if (lit) {
+    // the light out of the slot under the key
+    const slot = { y: k.y + k.h, h: Math.max(2, slotBottom - (k.y + k.h)) };
+    g.fillStyle = tone(1.25);
+    g.fillRect(k.x, slot.y, k.w, slot.h);
+    g.fillStyle = ink(1, 0.85);
+    g.fillRect(k.x + k.w * 0.12, slot.y + slot.h * 0.3, k.w * 0.76, slot.h * 0.4);
+  }
+  const r = Math.min(k.w * 0.08, (k.h * 0.1) / st);
+  g.beginPath();
+  g.roundRect(k.x, k.y, k.w, k.h, [{ x: r, y: r * st }]);
+  const grad = g.createLinearGradient(0, k.y, 0, k.y + k.h);
+  grad.addColorStop(0, lit ? ink(0.3) : ink(0.4));
+  grad.addColorStop(1, lit ? ink(0.18) : ink(0.24));
+  g.fillStyle = grad;
+  g.fill();
+  // its edges: lit on the left and at the far end, in shade on the right
+  const e = Math.max(1, k.w * 0.03);
+  g.fillStyle = ink(lit ? 0.4 : 0.52);
+  g.fillRect(k.x + r, k.y, k.w - 2 * r, e * st);
+  g.fillRect(k.x, k.y + r * st, e, k.h - 2 * r * st);
+  g.fillStyle = ink(0.12);
+  g.fillRect(k.x + k.w - e, k.y + r * st, e, k.h - 2 * r * st);
+  // the ridges on its near half
+  g.fillStyle = ink(lit ? 0.1 : 0.15);
+  const ridges = 4;
+  for (let i = 0; i < ridges; i++) {
+    const y = k.y + k.h * (0.5 + (0.38 * i) / (ridges - 1));
+    g.fillRect(k.x + k.w * 0.18, y, k.w * 0.64, Math.max(1, k.h * 0.035));
+  }
+}
+
+/**
+ * GRAND's key: a piano key the length of the row, white keys pale and the others dark at rest (a
+ * key's colour mixed into black), lit in the lane's colour with a bright front edge.
+ */
+function pianoKey(g: CanvasRenderingContext2D, b: Box, st: number, kind: KeyKind, lit: boolean): void {
+  const k = kind === 'white' ? 0.48 : kind === 'scratch' ? 0.4 : 0.32;
+  const r = Math.min(b.w * 0.09, (b.h * 0.08) / st);
+  g.beginPath();
+  g.roundRect(b.x, b.y, b.w, b.h, [0, 0, { x: r, y: r * st }, { x: r, y: r * st }]);
+  g.save();
+  g.clip();
+  if (lit) {
+    g.fillStyle = tone(1.05);
+    g.fillRect(b.x, b.y, b.w, b.h);
+    const grad = g.createLinearGradient(0, b.y, 0, b.y + b.h * 0.6);
+    grad.addColorStop(0, ink(1, 0.75, 0.75));
+    grad.addColorStop(1, ink(1, 0.75, 0));
+    g.fillStyle = grad;
+    g.fillRect(b.x, b.y, b.w, b.h * 0.6);
+  } else {
+    g.fillStyle = ink(k);
+    g.fillRect(b.x, b.y, b.w, b.h);
+    // under the fallboard at its far end
+    g.fillStyle = ink(k * 0.55);
+    g.fillRect(b.x, b.y, b.w, b.h * 0.1);
+    // a sheen down its left side
+    g.fillStyle = ink(Math.min(1, k * 1.25));
+    g.fillRect(b.x, b.y + b.h * 0.1, b.w * 0.12, b.h * 0.76);
+  }
+  // its front edge, toward the player
+  g.fillStyle = lit ? ink(1, 0.85) : ink(Math.min(1, k * 1.35));
+  g.fillRect(b.x, b.y + b.h * 0.86, b.w, b.h * 0.14);
+  g.restore();
+}
+
 
 /** Paints the plate of `style` on `g`, whose units are plane px. */
 export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: DeckSpec): void {
@@ -777,6 +1168,45 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       const { r } = fit(w, h, st, 0.26);
       return r * st * 0.8 + Math.max(2, r * 0.1);
     },
+  },
+  concrete: {
+    // the pocket's floor: dark at rest, lit, the light spilling onto its walls
+    idle: (_, st) => (g, w, h) => {
+      const f = pocketFloor(lightBox('concrete', 0, 0, w, h), st);
+      g.fillStyle = ink(0.12);
+      g.fillRect(f.x, f.y, f.w, f.h);
+    },
+    down: (_, st) => (g, w, h) => {
+      const b = lightBox('concrete', 0, 0, w, h);
+      const f = pocketFloor(b, st);
+      g.fillStyle = ink(1, 0.1, 0.32);
+      g.fillRect(b.x, b.y, b.w, b.h);
+      g.fillStyle = tone(1.12);
+      g.fillRect(f.x, f.y, f.w, f.h);
+      g.fillStyle = ink(1, 0.8);
+      g.fillRect(f.x + f.w * 0.18, f.y + f.h * 0.2, f.w * 0.64, f.h * 0.6);
+    },
+    // the pocket the plate sinks round it
+    reach: (_, _w, h) => h / 2 - h * LIGHT_BOX.concrete.top,
+  },
+  avionics: {
+    idle: (_, st) => (g, w, h) => switchCap(g, lightBox('avionics', 0, 0, w, h), st, false),
+    down: (_, st) => (g, w, h) => switchCap(g, lightBox('avionics', 0, 0, w, h), st, true),
+    idleColor: 0xffb21e,
+    // the well round the cap
+    reach: (_, _w, h, st) => h / 2 - h * LIGHT_BOX.avionics.top + 2.5 * st + 0.5,
+  },
+  cassette: {
+    idle: (_, st) => (g, w, h) => deckKey(g, lightBox('cassette', 0, 0, w, h), h * 0.97, st, false),
+    down: (_, st) => (g, w, h) => deckKey(g, lightBox('cassette', 0, 0, w, h), h * 0.97, st, true),
+    idleColor: 0xffffff,
+    // the slot round the key
+    reach: (_, _w, h, st) => h / 2 - h * LIGHT_BOX.cassette.top + 2 * st,
+  },
+  grand: {
+    idle: (kind, st) => (g, w, h) => pianoKey(g, lightBox('grand', 0, 0, w, h), st, kind, false),
+    down: (kind, st) => (g, w, h) => pianoKey(g, lightBox('grand', 0, 0, w, h), st, kind, true),
+    reach: (_, _w, h) => h / 2 - h * LIGHT_BOX.grand.top,
   },
 };
 
@@ -1048,6 +1478,46 @@ export const SIDE_PAINT: Record<DeckStyle, SidePaint> = {
       g.fillStyle = ink(1, 1);
       g.fillRect(b.x, b.y, b.w, b.h);
     },
+  },
+  concrete: {
+    // a long pocket (the plate sinks it): its floor dark at rest, lit in the lane's colour
+    idle: (st) => (g, w, h) => {
+      const f = pocketFloor(barBox(0, 0, w, h, CONCRETE_BAR), st);
+      g.fillStyle = ink(0.12);
+      g.fillRect(f.x, f.y, f.w, f.h);
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, CONCRETE_BAR);
+      const f = pocketFloor(b, st);
+      g.fillStyle = ink(1, 0.1, 0.32);
+      g.fillRect(b.x, b.y, b.w, b.h);
+      g.fillStyle = tone(1.12);
+      g.fillRect(f.x, f.y, f.w, f.h);
+    },
+    idleColor: 0xffffff,
+  },
+  avionics: {
+    // a long switch: at rest dark with its ticks, lit its face
+    idle: (st) => (g, w, h) => switchCap(g, barBox(0, 0, w, h, AVIONICS_BAR), st, false),
+    down: (st) => (g, w, h) => switchCap(g, barBox(0, 0, w, h, AVIONICS_BAR), st, true),
+    idleColor: 0xffb21e,
+  },
+  cassette: {
+    idle: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, CASSETTE_BAR);
+      deckKey(g, b, b.y + b.h, st, false);
+    },
+    down: (st) => (g, w, h) => {
+      const b = barBox(0, 0, w, h, CASSETTE_BAR);
+      deckKey(g, { ...b, h: b.h * 0.86 }, b.y + b.h, st, true);
+    },
+    idleColor: 0xffffff,
+  },
+  grand: {
+    // a long key, grey until lit
+    idle: (st) => (g, w, h) => pianoKey(g, barBox(0, 0, w, h, GRAND_BAR), st, 'other', false),
+    down: (st) => (g, w, h) => pianoKey(g, barBox(0, 0, w, h, GRAND_BAR), st, 'other', true),
+    idleColor: 0xffffff,
   },
 };
 

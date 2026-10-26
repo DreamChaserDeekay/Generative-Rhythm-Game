@@ -19,8 +19,8 @@ import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx } from '../render/cameraFx';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
-import { skinById } from '../render/skins';
-import { HUD_UNIT, styleOf, TrackRenderer } from '../render/TrackRenderer';
+import { skinById, styleOf } from '../render/skins';
+import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
 import {
   activeCovers,
   bindingLabel,
