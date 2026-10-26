@@ -28,7 +28,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.30"
+GENERATOR_VERSION = "0.9.32"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -94,7 +94,7 @@ def generate_chart(
     candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), swing)
     if not candidates:
         raise GenerationError("채보로 만들 소리를 찾지 못했습니다")
-    song_rolls(analysis, tempo, params, float(cfg["snapToleranceMs"]), candidates)
+    rolls = song_rolls(analysis, tempo, params, float(cfg["snapToleranceMs"]), candidates)
 
     key_count = sum(1 for l in lanes if l.kind == "key")
     key_hands = tuple(l.hand for l in lanes if l.kind == "key")
@@ -235,7 +235,8 @@ def generate_chart(
         },
         "timing": analysis["timing"],
         "sections": sections,
-        "effects": camera_effects(analysis.get("sections", []), tempo),
+        "effects": camera_effects(analysis.get("sections", []), tempo, notes, lane_infos(key_mode), analysis.get("onsets", []),
+                                  [(candidates[r.hits[0]].beat, candidates[r.hits[-1]].beat) for r in rolls]),
         "notes": notes,
     }
 

@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from ..config import difficulty_config
+from .lanes import ln_gap_ms
 from .params import GenParams
 from .select import hold_cap
 from .tempo import TempoMap
@@ -75,6 +76,11 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
             held.append(n)
             per_hand[hand] = per_hand.get(hand, 0) + 1
     taken = {n["lane"] for n in notes if n["t"] == last_t}
+    # a lane played just before is no free lane: the chord's new note would be a jack the linter
+    # refuses (a MASTER chart of six held notes failed on a tap 69 ms earlier)
+    for n in notes:
+        if n["t"] < last_t and (last_t - n["t"] < params.min_jack_ms or ("endT" in n and last_t < n["endT"] + ln_gap_ms(tempo, n["endBeat"]))):
+            taken.add(n["lane"])
     for lane in sorted(keys, key=lambda l: (-abs(l.pos - 0.5), l.index)):
         if len(held) >= want:
             break

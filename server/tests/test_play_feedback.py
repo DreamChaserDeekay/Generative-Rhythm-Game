@@ -115,6 +115,25 @@ def test_the_last_notes_hold_over_the_closing_reverb() -> None:
     assert not finish(last_chord(), analysis, tempo, resolve_params("6K", "MX", 13, system="DJMAX"), lanes, 0.15)
 
 
+def test_the_closing_chord_leaves_a_lane_just_played() -> None:
+    """MASTER holds the last chord on all six keys; a key played 69 ms before it would be a jack the
+    linter refuses, and the whole chart failed (Imagine Dragons - My Fault, generator 0.9.32)."""
+    from rhythm_server.generator.linter import lint
+
+    tempo = TempoMap(TIMING)
+    lanes = lane_infos("6K")
+    master = resolve_params("6K", "MASTER")
+    values = [0.6] * 200 + [0.55, 0.5, 0.45, 0.42, 0.4, 0.38, 0.36, 0.35, 0.34, 0.33, 0.32, 0.3, 0.29, 0.28] + [0.0] * 20
+    analysis = {"energy": {"frameMs": 100, "values": values}, "durationMs": 23400.0,
+                "onsets": [{"t": 500.0 * b, "strength": 0.5} for b in range(41)]}
+    notes = [{"beat": 39.0, "t": 19500.0, "lane": 1, "type": "tap"}, {"beat": 39.862, "t": 19931.0, "lane": 4, "type": "tap"},
+             {"beat": 40.0, "t": 20000.0, "lane": 1, "type": "tap"}]
+    assert finish(notes, analysis, tempo, master, lanes, 0.15)
+    held = sorted(n["lane"] for n in notes if n["type"] == "hold")
+    assert 4 not in held and len(held) == 5
+    assert lint(notes, lanes, master, tempo) == []
+
+
 def test_lines_are_not_chopped_into_sixteenths() -> None:
     """A tonal sound a sixteenth after the last tonal note without a sure attack (a strum, a slide,
     an ornament), or inside the last note's own sound at its pitch with a weak attack, splits a
