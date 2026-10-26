@@ -428,6 +428,12 @@ test('settings and calibration', async ({ page }) => {
   await page.getByTestId('opt-note-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '26-settings-parts');
+  // the note colours: a preset, one lane chosen and its colour on the box, the hue bar and the rows
+  await settingsTab(page, 'colors');
+  await chooseSetting(page, 'opt-color-preset', 'hands');
+  await page.getByTestId('color-lane-2').focus();
+  await page.waitForTimeout(1500);
+  await shot(page, '27-settings-colors');
 
   await page.goto('/');
   await tool(page, 'open-calibration');
