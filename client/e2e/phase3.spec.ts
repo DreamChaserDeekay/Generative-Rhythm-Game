@@ -383,6 +383,122 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   expect(errors).toEqual([]);
 });
 
+test('note colours: a preset, a lane set by hue, typed in or dragged in a copy of it, shown at once on the gear and played; named, deleted, kept over a reset', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { noteColors: string; colorPresets: { id: string; name: string; lanes: Record<string, string[]> }[] });
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S' })));
+  await page.reload();
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'colors');
+  const preview = page.getByTestId('gear-preview');
+  const shown = async () => (await preview.getAttribute('data-lane-colors'))!.split(' ');
+  await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
+  await expect(page.getByTestId('opt-color-preset')).toContainText('기본');
+  // the skin's colours: the scratch and the white keys of 7K+1S
+  expect((await shown()).slice(0, 2)).toEqual(['#ff5c8a', '#eaf6ff']);
+
+  // a preset: its colours on the gear at once, the lanes of the key mode shown
+  await chooseSetting(page, 'opt-color-preset', 'aurora');
+  const aurora = ['#27d4e8', '#d4fff0', '#2ee0a0', '#d4fff0', '#c7a2ff', '#d4fff0', '#2ee0a0', '#d4fff0'];
+  await expect(preview).toHaveAttribute('data-lane-colors', aurora.join(' '));
+  await chooseSetting(page, 'opt-color-mode', '4K');
+  await expect(page.getByTestId('color-lanes').locator('button')).toHaveCount(4);
+  await expect(preview).toHaveAttribute('data-lane-colors', '#d4fff0 #2ee0a0 #2ee0a0 #d4fff0');
+  await chooseSetting(page, 'opt-color-mode', '7K+1S');
+  await expect(page.getByTestId('color-lane-0')).toHaveText('S');
+
+  // ←→ along the lanes, ↓ to the hue: a colour changed on a built-in preset goes to a copy of it
+  await page.getByTestId('color-lane-1').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('color-lane-3')).toBeFocused();
+  await expect(page.getByTestId('color-lane-3')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('opt-color-hue')).toBeFocused();
+  const hue = Number(await page.getByTestId('opt-color-hue').getAttribute('data-value'));
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(page.getByTestId('opt-color-hue')).toHaveAttribute('data-value', String((hue + 15) % 360));
+  await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'user-1');
+  await expect(page.getByTestId('opt-color-preset')).toContainText('내 색 1');
+  await expect(page.getByTestId('settings-help')).toContainText('그대로 두고');
+  const edited = await shown();
+  expect(edited.filter((c, i) => c !== aurora[i])).toEqual([edited[3]]);
+  let saved = await stored();
+  expect(saved.noteColors).toBe('user-1');
+  expect(saved.colorPresets.map((p) => [p.id, p.name])).toEqual([['user-1', '내 색 1']]);
+  expect(saved.colorPresets[0].lanes['7K+1S']).toEqual(edited);
+  // the preset itself is as it was
+  await chooseSetting(page, 'opt-color-preset', 'aurora');
+  await expect(preview).toHaveAttribute('data-lane-colors', aurora.join(' '));
+  await chooseSetting(page, 'opt-color-preset', 'user-1');
+
+  // a colour typed in shows at once, Enter keeps it
+  const hex = page.getByTestId('color-hex');
+  await hex.fill('#ff8800');
+  await expect(preview).toHaveAttribute('data-lane-colors', /^(\S+ ){3}#ff8800 /);
+  expect((await stored()).colorPresets[0].lanes['7K+1S'][3]).toBe(edited[3]);
+  await hex.press('Enter');
+  await expect.poll(async () => (await stored()).colorPresets[0].lanes['7K+1S'][3]).toBe('#ff8800');
+  await expect(page.getByTestId('color-lane-3')).toHaveAttribute('data-color', '#ff8800');
+
+  // a drag on the colour box: the gear shows each colour on the way, the last is kept when let go
+  const box = (await page.locator('.color-box').boundingBox())!;
+  // its top left corner: no saturation, full value
+  await page.mouse.move(box.x + 0.5, box.y + 0.5);
+  await page.mouse.down();
+  await expect(preview).toHaveAttribute('data-lane-colors', /^(\S+ ){3}#ffffff /);
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 6 });
+  const dragging = (await shown())[3];
+  expect(dragging).not.toBe('#ffffff');
+  expect((await stored()).colorPresets[0].lanes['7K+1S'][3]).toBe('#ff8800');
+  await page.mouse.up();
+  await expect.poll(async () => (await stored()).colorPresets[0].lanes['7K+1S'][3]).toBe(dragging);
+
+  // named; played in its colours
+  await page.getByTestId('color-preset-name').fill('밤 연습');
+  await page.getByTestId('color-preset-name').press('Enter');
+  await expect(page.getByTestId('opt-color-preset')).toContainText('밤 연습');
+  const played = await shown();
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-lane-colors', played.join(' '));
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  // a new preset from a built-in one; a reset keeps the player's presets; one deleted on a second press
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'colors');
+  await chooseSetting(page, 'opt-color-preset', 'hands');
+  await page.getByTestId('color-preset-new').click();
+  await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'user-2');
+  saved = await stored();
+  expect(saved.colorPresets.map((p) => [p.id, p.name])).toEqual([
+    ['user-1', '밤 연습'],
+    ['user-2', '내 색 2'],
+  ]);
+  expect(saved.colorPresets[1].lanes['7K+1S']).toEqual(['#4f8dff', '#cfe2ff', '#4f8dff', '#cfe2ff', '#f4f4f4', '#ffe0c4', '#ff9a3c', '#ffe0c4']);
+  await settingsTab(page, 'advanced');
+  await page.getByTestId('reset-all').click();
+  await page.getByTestId('reset-all').click();
+  await expect(page.getByTestId('reset-done')).toBeVisible();
+  await settingsTab(page, 'colors');
+  await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
+  expect((await stored()).colorPresets).toHaveLength(2);
+  await chooseSetting(page, 'opt-color-preset', 'user-1');
+  const del = page.getByTestId('color-preset-delete');
+  await del.click();
+  await expect(del).toHaveText('한 번 더 누르면 삭제');
+  await del.click();
+  await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
+  await expect(page.getByTestId('opt-color-preset')).toBeFocused();
+  expect((await stored()).colorPresets.map((p) => p.id)).toEqual(['user-2']);
+  expect(errors).toEqual([]);
+});
+
 test('notes, side notes, gear and hit effect picked apart from the skin: named with the skin’s own, kept, and played; long notes go with the note', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);

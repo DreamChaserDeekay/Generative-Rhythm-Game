@@ -9,7 +9,7 @@ import { GRADE_PALETTES } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { visibleTimeMs, type Settings } from '../settings/settings';
+import { laneColorsOf, visibleTimeMs, type Settings } from '../settings/settings';
 import { offsetText } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { clickChords, offsetStep } from './visualSync';
@@ -413,6 +413,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const { lastKeyMode: keyMode, skin: skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume } = settings;
+  const { noteColors, colorPresets } = settings;
 
   useEffect(() => {
     const el = canvas.current;
@@ -445,6 +446,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         keyBeamLength,
         hitEffectSize,
         sideNotes,
+        laneColors: laneColorsOf({ skin: skinId, customSkin, parts, palette, noteColors, colorPresets }, keyMode),
         fitWidth: 0.84,
       });
       renderer = r;
@@ -510,7 +512,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
       renderer?.dispose();
       engine.stop();
     };
-  }, [keyMode, skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume, offset]);
+  }, [keyMode, skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, noteColors, colorPresets, hiSpeed, lift, musicVolume, offset]);
 
   return (
     <div className="calib-gear" ref={box} data-testid="calib-gear">

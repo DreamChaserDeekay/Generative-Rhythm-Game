@@ -43,6 +43,7 @@ import type { CalibrationStep } from './CalibrationScreen';
 import { desktopShell, heldEscLeaves } from './displayMode';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
+import { NoteColorsPanel } from './NoteColorsPanel';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, NumberOption, partChoices, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle } from './optionRows';
@@ -66,7 +67,7 @@ interface Props {
   onUndoReset: () => void;
 }
 
-export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
+export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'colors' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
 
 /** The tabs in order: name and the line under it. */
 const TABS: [SettingsTab, string, string][] = [
@@ -74,6 +75,7 @@ const TABS: [SettingsTab, string, string][] = [
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
   ['speed', '속도·커버', '움직이는 미리보기에 바로 보입니다'],
   ['gear', '기어', '움직이는 미리보기에 바로 보입니다'],
+  ['colors', '노트 색', '레인마다 노트 색을 고릅니다 · 미리보기에 바로 보입니다'],
   ['fx', '연출·배경', '카메라 연출, 타격 효과와 플레이 배경'],
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '레인의 키와 플레이 중 키'],
@@ -195,6 +197,9 @@ export function SettingsScreen({
   const [help, setHelp] = useState('');
   /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
   const [sideRow, setSideRow] = useState(false);
+  /** The key mode whose note colours the 노트 색 tab shows, and colours being picked there, not kept yet. */
+  const [colorMode, setColorMode] = useState<KeyModeId>(settings.lastKeyMode);
+  const [colorDraft, setColorDraft] = useState<number[] | null>(null);
   const rows = useRef<HTMLDivElement>(null);
   /** What a key or pad control is being bound for in the 키 설정 or 게임패드 tab (the hints), or null. */
   const [capture, setCapture] = useState<CaptureKind | null>(null);
@@ -275,7 +280,13 @@ export function SettingsScreen({
   };
   // the side notes' row shows them on 4K+FX or 6K+FX when the last key mode has no side lanes
   const previewMode: KeyModeId =
-    sideRow && !keyModes[settings.lastKeyMode].lanes.some((l) => l.kind === 'side') ? (settings.lastKeyMode === '4K' ? '4K+FX' : '6K+FX') : settings.lastKeyMode;
+    tab === 'colors'
+      ? colorMode
+      : sideRow && !keyModes[settings.lastKeyMode].lanes.some((l) => l.kind === 'side')
+        ? settings.lastKeyMode === '4K'
+          ? '4K+FX'
+          : '6K+FX'
+        : settings.lastKeyMode;
   const playKeys = playKeysOf(settings);
   const keyPair = (down: PlayAction, up: PlayAction) => `${bindingLabel(playKeys[down])} / ${bindingLabel(playKeys[up])}`;
   const [, heading] = TABS.find(([id]) => id === tab) ?? TABS[0];
@@ -626,10 +637,13 @@ export function SettingsScreen({
               ] as [Palette, string][]
             }
             onChange={(p) => set('palette', p)}
-            help="색각 보정은 판정과 레인을 색각 이상이 있어도 구분되는 색으로 칠합니다."
+            help="색각 보정은 판정과 레인을 색각 이상이 있어도 구분되는 색으로 칠합니다. 레인 색은 노트 색 탭의 프리셋이 기본일 때 바뀝니다."
           />
         </>
       );
+      break;
+    case 'colors':
+      content = <NoteColorsPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} mode={colorMode} onMode={setColorMode} onDraft={setColorDraft} />;
       break;
     case 'fx':
       content = (
@@ -782,13 +796,13 @@ export function SettingsScreen({
         </section>
         <aside className="settings-side">
           {/* the gear as it will be played, where a row changes how it looks (the hit effects too) */}
-          {tab === 'speed' || tab === 'gear' || tab === 'fx' ? (
+          {tab === 'speed' || tab === 'gear' || tab === 'colors' || tab === 'fx' ? (
             <>
               <span className="settings-side-head">
                 <span>미리보기</span>
                 <span>{previewMode}</span>
               </span>
-              <GearPreview settings={settings} keyMode={previewMode} />
+              <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'colors' ? colorDraft ?? undefined : undefined} />
               <p className="settings-help" data-testid="settings-help">
                 {sideHelp}
               </p>
@@ -1527,7 +1541,7 @@ function AdvancedPanel({
               if (e.repeat && (e.code === 'Enter' || e.code === 'NumpadEnter')) e.preventDefault();
             }}
             onFocus={() =>
-              onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
+              onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 내 노트 색 프리셋, 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
             }
             onBlur={() => setArmed(false)}
             onClick={pressReset}

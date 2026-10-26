@@ -3,11 +3,12 @@ import { cameraConfig, keyModes } from '../engine/config';
 import { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { ChartTiming, KeyModeId } from '../engine/types';
+import { hexString } from '../render/noteColors';
 import { GRADE_PALETTES } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { activeCovers, greenNumber, visibleTimeMs, type Settings } from '../settings/settings';
+import { activeCovers, greenNumber, laneColorsOf, visibleTimeMs, type Settings } from '../settings/settings';
 import { coverText } from './format';
 import { PHRASE_BEATS, previewPhrase } from './previewPhrase';
 
@@ -37,19 +38,26 @@ type PreviewSettings = Pick<
   | 'keyBeamLength'
   | 'hitEffectSize'
   | 'sideNotes'
+  | 'noteColors'
+  | 'colorPresets'
 >;
 
 /**
- * The gear as it will be played, in the settings: the skin, camera, lane width, side notes, covers,
- * hit effects and hi-speed in effect, with a short phrase coming down and played on its own. Every
- * change shows at once.
+ * The gear as it will be played, in the settings: the skin, camera, lane width, side notes, note
+ * colours, covers, hit effects and hi-speed in effect, with a short phrase coming down and played on
+ * its own. Every change shows at once; `laneColors` shows colours not kept yet (one being picked).
  */
-export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; keyMode: KeyModeId }) {
+export function GearPreview({ settings, keyMode, laneColors }: { settings: PreviewSettings; keyMode: KeyModeId; laneColors?: readonly number[] }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<TrackRenderer | null>(null);
   const [built, setBuilt] = useState(0);
   const covers = activeCovers(settings);
+  // the note colours recolour the running preview (a colour being picked changes them many times a second)
+  const colours = laneColors ?? laneColorsOf(settings, keyMode);
+  const colourKey = colours.join(',');
+  const shownColours = useRef(colours);
+  shownColours.current = colours;
 
   // what the renderer is built from; the camera, covers and speed change on a running one
   const { skin: skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
@@ -79,6 +87,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
           barLines,
           hitEffectSize,
           sideNotes,
+          laneColors: shownColours.current,
           // the whole gear in the box, whatever its shape
           fitWidth: 0.84,
         });
@@ -92,6 +101,8 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
       made?.dispose();
     };
   }, [keyMode, skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes]);
+
+  useEffect(() => renderer.current?.setLaneColors(shownColours.current), [built, colourKey]);
 
   // the camera, the covers, the speed and the key beams change the running preview without starting it over
   const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
@@ -192,7 +203,7 @@ export function GearPreview({ settings, keyMode }: { settings: PreviewSettings; 
   }, [built, keyMode, palette]);
 
   return (
-    <div className="gear-preview" ref={box} data-testid="gear-preview">
+    <div className="gear-preview" ref={box} data-testid="gear-preview" data-lane-colors={colours.map(hexString).join(' ')}>
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
       {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {coverText(settings.sudden)}</span>}
       <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
