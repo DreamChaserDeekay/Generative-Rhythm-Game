@@ -29,8 +29,11 @@ ODD_BAR_PENALTY = 0.25
 BOUNDARY_COST = 0.55
 PATH_WEIGHT = 0.8
 LOOP_CHOICES = (1, 2, 4)
-LOUD_ENERGY = 0.75  # with nothing repeated, the loudest section is the chorus from this energy (0..1)
 LEAD_IN_MARGIN = 0.08  # a group that leads into another is the chorus only when louder than the others by this (0..1)
+HIGHLIGHT_MARGIN = 0.1  # the chorus is this near the most intense section, else the most intense sections are (0..1)
+HIGHLIGHT_MATE_MARGIN = 0.25  # ... with their group's other occurrences this near the most intense one (0..1)
+GROUP_SHIFT_BARS = 1  # two sections are compared from their starts and this many bars off
+HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
 
 
 @dataclass
@@ -201,7 +204,7 @@ def segment_bars(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, ma
     return sorted(out)
 
 
-def _segment_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int]) -> float:
+def _aligned_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int]) -> float:
     """Mean similarity of the two sections' bars aligned from their starts (shorter length)."""
     m = min(a[1] - a[0], b[1] - b[0])
     if m <= 0:
@@ -209,6 +212,18 @@ def _segment_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int])
     sims = [ssm[a[0] + t, b[0] + t] for t in range(m)]
     short, long_ = sorted((a[1] - a[0], b[1] - b[0]))
     return float(np.mean(sims)) * (short / long_) ** 0.25
+
+
+def _segment_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int]) -> float:
+    """The two sections aligned from their starts, or with one of them starting up to
+    GROUP_SHIFT_BARS later: a boundary a bar off (a fill, a pickup bar) no longer splits a repeated
+    section from its repeat (on 2,200 BMS songs a third had no repeated section at all)."""
+    best = _aligned_similarity(ssm, a, b)
+    for d in range(1, GROUP_SHIFT_BARS + 1):
+        for a2, b2 in (((a[0] + d, a[1]), b), (a, (b[0] + d, b[1]))):
+            if a2[1] - a2[0] >= 2 and b2[1] - b2[0] >= 2:
+                best = max(best, _aligned_similarity(ssm, a2, b2))
+    return best
 
 
 def group_segments(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float) -> tuple[list[int], list[float]]:
@@ -287,42 +302,74 @@ def loop_length(ssm: np.ndarray, start: int, end: int, threshold: float) -> int:
     return length
 
 
+def _scale(x: np.ndarray) -> np.ndarray:
+    """0..1 over the values (all 0.5 when they are equal)."""
+    lo, hi = float(np.min(x)), float(np.max(x))
+    return (x - lo) / (hi - lo) if hi - lo > 1e-9 else np.full(len(x), 0.5)
+
+
+def section_intensity(beat_energy: np.ndarray, beat_strength: np.ndarray | None, ranges: list[tuple[int, int]]) -> np.ndarray:
+    """Per beat range (start, end): its loudness (median beat energy) and, with `beat_strength`
+    (onset strength per beat), how hard its onsets hit, each scaled 0..1 over the ranges and
+    averaged. A beat counts up to HIT_CAP_PERCENTILE of the song's beats, so a build-up's rolls do
+    not make it the loudest part. On 2,200 BMS songs this follows the human charts' density over
+    the sections better than loudness alone (a mastered song is about as loud everywhere)."""
+    loud = _scale(np.array([float(np.median(beat_energy[a : max(b, a + 1)])) for a, b in ranges]))
+    if beat_strength is None or len(beat_strength) != len(beat_energy) or not np.any(beat_strength > 0):
+        return loud
+    capped = np.minimum(beat_strength, float(np.percentile(beat_strength[beat_strength > 0], HIT_CAP_PERCENTILE)))
+    hits = np.array([float(np.mean(capped[a : max(b, a + 1)])) for a, b in ranges])
+    return _scale((loud + _scale(hits)) / 2)
+
+
 def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.ndarray) -> list[str]:
-    """intro / verse / pre-chorus / chorus / bridge / outro from position, energy and repetition."""
+    """intro / verse / pre-chorus / chorus / bridge / outro from position, intensity and repetition.
+
+    The chorus is the highlight: the loudest repeated group when it is near the most intense
+    section, else the most intense sections whatever repeats (with their group's other occurrences
+    near them). On 2,200 BMS songs the repeated group alone put the chorus in the human charts'
+    densest third of the song in about half of the songs (docs/PATTERN_DESIGN.md 62)."""
     k = len(spans)
     count = {g: groups.count(g) for g in set(groups)}
     repeated = [g for g in count if count[g] >= 2]
     group_energy = {g: float(np.mean([energy[i] for i in range(k) if groups[i] == g])) for g in count}
     labels = [""] * k
-    chorus = None
-    if repeated:
-        # A group every occurrence of which leads straight into one same other group (a verse into
-        # its pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the
-        # loudest. A long crescendo build-up is often as loud as the chorus it opens.
-        def leads_in(g: int) -> bool:
-            idx = [i for i in range(k) if groups[i] == g]
-            nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
-            return len(nxt) == 1 and None not in nxt and next(iter(nxt)) in repeated and next(iter(nxt)) != g
 
+    # A group every occurrence of which leads straight into one same other group (a verse into its
+    # pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the loudest.
+    # A long crescendo build-up is often as loud as the chorus it opens, and its rolls hit hard.
+    def leads_in(g: int) -> bool:
+        idx = [i for i in range(k) if groups[i] == g]
+        nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
+        return len(nxt) == 1 and None not in nxt and next(iter(nxt)) in repeated and next(iter(nxt)) != g
+
+    hot: set[int] = set()
+    if repeated:
         top = max(group_energy[g] for g in repeated)
-        near = [g for g in repeated if group_energy[g] >= top - LEAD_IN_MARGIN]
+        # a group that does not lead in and is near the top beats one that does (HIGHLIGHT_MATE_MARGIN)
+        landing = [g for g in repeated if not leads_in(g) and group_energy[g] >= top - HIGHLIGHT_MATE_MARGIN]
+        near = landing or [g for g in repeated if group_energy[g] >= top - LEAD_IN_MARGIN]
         chorus = max(near, key=lambda g: (not leads_in(g), round(group_energy[g], 2), count[g], -groups.index(g)))
-    elif k > 2:
-        # nothing repeats: a clearly loudest passage is still the chorus
-        loudest = max(count, key=lambda g: group_energy[g])
-        if group_energy[loudest] >= LOUD_ENERGY:
-            chorus = loudest
+        hot = {i for i in range(k) if groups[i] == chorus}
+    if k > 2:
+        lead = {i for i in range(k) if groups[i] in repeated and leads_in(groups[i]) and i not in hot}
+        free = [i for i in range(k) if i not in lead] or list(range(k))
+        peak = max(float(energy[i]) for i in free)
+        if not hot or float(np.mean([energy[i] for i in hot])) < peak - HIGHLIGHT_MARGIN:
+            hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
+            hot_groups = {groups[i] for i in hot}
+            hot |= {i for i in free if groups[i] in hot_groups and energy[i] >= peak - HIGHLIGHT_MATE_MARGIN}
+    hot_groups = {groups[i] for i in hot}
     pre = set()
-    if chorus is not None:
-        for g in repeated:
-            if g == chorus:
-                continue
-            idx = [i for i in range(k) if groups[i] == g]
-            if all(i + 1 < k and groups[i + 1] == chorus for i in idx) and all(spans[i][1] - spans[i][0] <= 8 for i in idx):
-                pre.add(g)
+    for g in repeated:
+        if g in hot_groups:
+            continue
+        idx = [i for i in range(k) if groups[i] == g]
+        if all(i + 1 in hot for i in idx) and all(spans[i][1] - spans[i][0] <= 8 for i in idx):
+            pre.add(g)
     for i in range(k):
         g = groups[i]
-        if g == chorus:
+        if i in hot:
             labels[i] = "chorus"
         elif g in pre:
             labels[i] = "pre-chorus"
@@ -338,7 +385,7 @@ def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.n
     if k > 2:
         for g in set(groups):
             idx = [i for i in range(k) if groups[i] == g]
-            if set(idx) <= {0, k - 1} and g != chorus:
+            if set(idx) <= {0, k - 1} and not hot & set(idx):
                 for i in idx:
                     labels[i] = "intro" if i == 0 else "outro"
     return labels
@@ -349,7 +396,10 @@ def find_sections(
     beat_energy: np.ndarray,
     first_downbeat: int,
     beats_per_bar: int,
+    beat_strength: np.ndarray | None = None,
 ) -> list[Section]:
+    """Sections of the song; a section's energy is its intensity (section_intensity, with the
+    onset strength per beat when given)."""
     n_beats = len(feat)
     if n_beats == 0:
         return []
@@ -371,9 +421,7 @@ def find_sections(
         spans = regrouped
         groups, firm = group_segments(ssm, spans, threshold)
     beat_of = lambda bar: starts[bar] if bar < n_bars else n_beats  # noqa: E731
-    raw_e = np.array([float(np.median(beat_energy[beat_of(a) : max(beat_of(b), beat_of(a) + 1)])) for a, b in spans])
-    lo, hi = float(np.min(raw_e)), float(np.max(raw_e))
-    energy = (raw_e - lo) / (hi - lo) if hi - lo > 1e-9 else np.full(len(spans), 0.5)
+    energy = section_intensity(beat_energy, beat_strength, [(beat_of(a), beat_of(b)) for a, b in spans])
     labels = label_sections(spans, groups, energy)
     top = max(float(np.max(scores)), 1e-9)
     out = []
