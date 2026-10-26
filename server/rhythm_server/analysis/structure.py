@@ -33,6 +33,7 @@ LEAD_IN_MARGIN = 0.08  # a group that leads into another is the chorus only when
 HIGHLIGHT_MARGIN = 0.1  # the chorus is this near the most intense section, else the most intense sections are (0..1)
 HIGHLIGHT_MATE_MARGIN = 0.25  # ... with their group's other occurrences this near the most intense one (0..1)
 GROUP_SHIFT_BARS = 1  # two sections are compared from their starts and this many bars off
+INTENSITY_TIE_BREAK = 1e-3  # the share of loudness that decides between equally intense sections
 HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
 
 
@@ -319,7 +320,9 @@ def section_intensity(beat_energy: np.ndarray, beat_strength: np.ndarray | None,
         return loud
     capped = np.minimum(beat_strength, float(np.percentile(beat_strength[beat_strength > 0], HIT_CAP_PERCENTILE)))
     hits = np.array([float(np.mean(capped[a : max(b, a + 1)])) for a, b in ranges])
-    return _scale((loud + _scale(hits)) / 2)
+    # loudness breaks a tie: two sections, one louder and one hitting harder, would both be 0.5
+    # (a short song got no intense section and so no camera cue at all)
+    return _scale((loud + _scale(hits)) / 2 + INTENSITY_TIE_BREAK * loud)
 
 
 def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.ndarray) -> list[str]:

@@ -59,3 +59,12 @@ def test_a_roll_is_not_louder_than_a_groove() -> None:
     uncapped = (np.array([0.0, 0.6, 1.0]) + np.array([0.0, 1.0, 1.0 / 3.5])) / 2
     assert uncapped[1] > uncapped[2]  # counted in full, the roll would be the most intense
     assert np.allclose(section_intensity(beat_energy, None, ranges), [0.0, 0.6, 1.0])
+
+
+def test_loudness_breaks_an_intensity_tie() -> None:
+    """Two sections, the louder one hitting less hard: the cues cancel out, and the louder one is
+    the more intense (a 12-bar song got no intense section and so no camera cue at all)."""
+    beat_energy = np.array([0.5] * 32 + [1.0] * 21)
+    strength = np.array([1.0] * 32 + [0.5] * 21)
+    e = section_intensity(beat_energy, strength, [(0, 32), (32, 53)])
+    assert e[1] == 1.0 and e[0] == 0.0
