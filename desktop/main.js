@@ -265,6 +265,17 @@ async function createWindow() {
     // (its page names the files of that build): the game's files are local, so none of them is
     // kept (other sites' stay: a background video's player)
     await win.webContents.session.clearData({ dataTypes: ['cache'], origins: [gameOrigin], originMatchingMode: 'origin-in-all-contexts' });
+    // YouTube refuses a video whose owner limits embedding (error 150, e.g. official MVs) to a page
+    // on an IP address: its player is told the page is on localhost (the game's origin stays
+    // 127.0.0.1, where the settings are kept)
+    const ipReferer = `${gameOrigin}/`;
+    win.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['https://*.youtube.com/*', 'https://*.youtube-nocookie.com/*'] }, (details, callback) => {
+      const headers = details.requestHeaders;
+      for (const name of Object.keys(headers)) {
+        if (/^referer$/i.test(name) && headers[name].startsWith(ipReferer)) headers[name] = headers[name].replace('://127.0.0.1:', '://localhost:');
+      }
+      callback({ requestHeaders: headers });
+    });
     await win.loadURL(`${gameOrigin}/`);
     if (!home) {
       void dialog.showMessageBox(win, {
