@@ -17,6 +17,7 @@ import { InputManager } from '../input/InputManager';
 import { PadPlayControls, type PadPlayAction } from '../input/padPlay';
 import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx } from '../render/cameraFx';
+import { hexString } from '../render/noteColors';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
 import { styleOf } from '../render/skins';
@@ -27,6 +28,7 @@ import {
   bindingLabel,
   bindingsFor,
   clampHiSpeed,
+  laneColorsOf,
   laneKeysFor,
   padBindingsFor,
   padPlayOf,
@@ -242,6 +244,7 @@ export class PlayController {
     const mode = keyModes[this.chart.meta.keyMode];
     const camera = cameraConfig.presets[settings.cameraPreset] ?? cameraConfig.presets[cameraConfig.default];
     const skin = skinOf(settings);
+    const laneColors = laneColorsOf(settings, this.chart.meta.keyMode);
     this.renderer = new TrackRenderer(setup.canvas, {
       mode,
       camera,
@@ -256,12 +259,15 @@ export class PlayController {
       keyBeamLength: settings.keyBeamLength,
       hitEffectSize: settings.hitEffectSize,
       sideNotes: settings.sideNotes,
+      laneColors,
     });
     // how a mode's side lanes are drawn (data-side-notes on the canvas; not shown)
     if (mode.lanes.some((l) => l.kind === 'side')) setup.canvas.dataset.sideNotes = this.renderer.geometry.lanes.some((l) => l.over) ? 'half' : 'lanes';
     // what the gear is drawn with, the skin's own or the parts picked apart from it (data-style; not shown)
     const style = styleOf(skin);
     setup.canvas.dataset.style = [style.note, LONG_OF[style.note], style.side ?? 'bar', style.deck, style.hit].join(' ');
+    // and in which colours, lane by lane (data-lane-colors; not shown)
+    setup.canvas.dataset.laneColors = laneColors.map(hexString).join(' ');
     this.cameraFx = new CameraFx(this.chart.effects ?? [], this.chart.timing, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1));
     this.voices =
       setup.keysounds && this.chart.sounds

@@ -7,6 +7,7 @@ import {
   chartPickOf,
   DEFAULT_SETTINGS,
   greenNumber,
+  laneColorsOf,
   laneKeysFor,
   padMenuFor,
   padMenuKeysFor,
@@ -27,7 +28,8 @@ import {
   withPattern,
   withSongOffset,
 } from './settings';
-import { skinById } from '../render/skins';
+import { skinById, laneColorsFor } from '../render/skins';
+import { keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -87,6 +89,22 @@ describe('settings', () => {
     expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
     const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
     expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  });
+
+  it('keeps the note colours picked, the player’s own presets, and draws the lanes in them', () => {
+    expect([DEFAULT_SETTINGS.noteColors, DEFAULT_SETTINGS.colorPresets]).toEqual(['skin', []]);
+    const own = { id: 'user-1', name: '밤', lanes: { '4K': ['#111111', '#222222', '#333333', '#444444'] } };
+    const s = sanitizeSettings({ skin: 'club', noteColors: 'user-1', colorPresets: [own] as never });
+    expect(s.noteColors).toBe('user-1');
+    expect(laneColorsOf(s, '4K')).toEqual([0x111111, 0x222222, 0x333333, 0x444444]);
+    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(skinById('club', null), 'default', keyModes['4K']));
+    // a preset gone, or one no version had: 기본
+    expect(sanitizeSettings({ noteColors: 'user-2', colorPresets: [own] as never }).noteColors).toBe('skin');
+    expect(sanitizeSettings({ noteColors: 'neon' }).noteColors).toBe('skin');
+    expect(sanitizeSettings({ noteColors: 'aurora' }).noteColors).toBe('aurora');
+    // a reset keeps the player's presets (as the favourites), and goes back to 기본
+    const reset = resetSettings(s);
+    expect([reset.noteColors, reset.colorPresets]).toEqual(['skin', s.colorPresets]);
   });
 
   it('keeps the parts picked apart from the skin and draws the skin with them', () => {

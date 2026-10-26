@@ -270,6 +270,8 @@ export interface TrackRendererOptions {
   hitEffectSize?: HitEffectSize;
   /** Side notes in lanes of their own at the edges (default), or as bars over half the key lanes (DJMAX's side tracks). */
   sideNotes?: SideNotes;
+  /** Every lane's colour (the settings' note colours); without it, the palette's and the skin's (laneColorsFor). */
+  laneColors?: readonly number[];
   /**
    * A preview's framing: the field of view is set so the judge line spans this share of the
    * canvas width, whatever its shape (play keeps the camera preset's own). Either way the view
@@ -531,8 +533,12 @@ export class TrackRenderer {
   private pose!: CameraPose;
   /** The screen's width over its height (16:9 until the first resize). */
   private aspect = 16 / 9;
-  /** Colour of each lane (palette, skin overrides and lane layout applied). */
-  private readonly laneColors: number[];
+  /** Colour of each lane: the note colours picked, or the palette's with the skin's overrides and lane layout. */
+  private laneColors: number[];
+  /** Under the coloured lanes, their colour on the floor: recoloured with the lanes (setLaneColors). */
+  private readonly floorTints: { lane: number; material: THREE.MeshBasicMaterial }[] = [];
+  /** Materials of colours no lane has any more: let go after the next frame (see setLaneColors). */
+  private readonly staleMaterials: THREE.Material[] = [];
   private readonly skin: Skin;
   private readonly style: SkinStyle;
   /** The skin's hit effect, or none when the settings turn them off. */
@@ -652,7 +658,7 @@ export class TrackRenderer {
     this.art = { ...options.art?.slots };
     this.artEffects = options.art?.effects ?? { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
     this.prepareArt();
-    this.laneColors = laneColorsFor(options.skin, options.palette, options.mode);
+    this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.palette, options.mode);
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
     this.barDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
@@ -940,6 +946,27 @@ export class TrackRenderer {
     this.drawFever(frame);
     this.applyCameraFx(frame.camera);
     this.renderer.render(this.scene, this.camera);
+    if (this.staleMaterials.length > 0) {
+      for (const m of this.staleMaterials) m.dispose();
+      this.staleMaterials.length = 0;
+    }
+  }
+
+  /**
+   * Every lane's colour, on a running renderer (a colour being picked in the settings): the notes,
+   * long notes and lane lights take it from the next frame, the floor and the key beams at once.
+   */
+  setLaneColors(colors: readonly number[]): void {
+    if (colors.length !== this.laneColors.length || colors.every((c, i) => c === this.laneColors[i])) return;
+    this.laneColors = [...colors];
+    for (const { lane, material } of this.floorTints) material.color.setHex(this.laneColors[lane]);
+    if (this.style.beam !== 'white') this.beams.forEach((beam, lane) => (beam.material as THREE.MeshBasicMaterial).color.setHex(this.laneColors[lane]));
+    // the cached materials are made again in the new colours; the old ones go once a frame has
+    // drawn with the new (their shaders stay compiled in between)
+    for (const cache of [this.noteMaterials, this.bodyMaterials, this.endMaterials, this.sideMaterials, this.keyMaterials]) {
+      cache.forEach((m) => this.staleMaterials.push(m));
+      cache.clear();
+    }
   }
 
   private applyCameraFx(fx: CameraPoseFx | undefined): void {
@@ -962,6 +989,7 @@ export class TrackRenderer {
       }
     });
     for (const cache of [this.noteMaterials, this.bodyMaterials, this.endMaterials, this.keyMaterials, this.sideMaterials]) cache.forEach((m) => m.dispose());
+    for (const m of this.staleMaterials) m.dispose();
     this.keyTextures.forEach((t) => t.dispose());
     (this.deck.material as THREE.MeshBasicMaterial).map?.dispose();
     this.flatGeometry.dispose();
@@ -1470,7 +1498,7 @@ export class TrackRenderer {
     const floorLanes = lanes.filter((lane) => !lane.over);
     floorLanes.forEach((lane) => {
       const tint = lane.kind === 'side' ? 0.1 : lane.kind === 'scratch' ? t.scratchTint ?? t.tint : lane.color === 'white' ? 0 : t.tint;
-      if (tint > 0) strip(lane.x, lane.width, this.laneColors[lane.index], tint);
+      if (tint > 0) this.floorTints.push({ lane: lane.index, material: strip(lane.x, lane.width, this.laneColors[lane.index], tint) });
     });
     const pattern = (texture: THREE.Texture, tile: number, opacity: number) => {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
