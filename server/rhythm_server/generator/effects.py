@@ -3,7 +3,8 @@
 - `zoom`: a pulse where the energy jumps (a chorus, a drop) and, smaller, on the strong beats of a
   chorus or drop;
 - `view`: a held zoom level: wider (negative) through a breakdown or a quiet passage, closing in bar
-  by bar through a build-up (positive) and let go at once where the chorus or drop lands;
+  by bar through a build-up (positive: a pre-chorus before a chorus or drop, or a roll of a bar or
+  more ending within two bars of the next section) and let go at once where the next section lands;
 - `tilt`: the track leans in high-energy sections towards the hand the notes crowd on, else the
   way the tune climbs (right) or falls (left), and levels where the energy drops.
 """
@@ -72,7 +73,9 @@ def camera_effects(
     notes: list[dict[str, Any]] | None = None,
     lanes: list[Any] | None = None,
     onsets: list[dict[str, Any]] | None = None,
+    rolls: list[tuple[float, float]] | None = None,
 ) -> list[dict[str, Any]]:
+    """`rolls` are the song's drum rolls as (first hit, last hit) beats."""
     cfg = load_config("instruments")["effects"]
     vcfg, pcfg, tcfg = cfg["view"], cfg["beatPulse"], cfg["tiltFollow"]
     secs = sorted(sections, key=lambda s: s["startBeat"])
@@ -94,16 +97,24 @@ def camera_effects(
         energy = float(sec.get("energy", 0.0))
         label = sec.get("label")
         jump = prev is not None and energy - prev >= cfg["energyJump"]
-        landing = label in HIGHLIGHT and i > 0 and view > 0.0
+        landing = i > 0 and view > 0.0
         if jump or landing:
             out.append(_cue(tempo, start, "zoom", min(1.0, max(2.0 * (energy - (prev or 0.0)), vcfg["releasePulse"] if landing else 0.0)), cfg["zoomBeats"]))
         # the held zoom: a build-up closes in bar by bar, a quiet passage opens out, the rest lets go
         nxt = secs[i + 1].get("label") if i + 1 < len(secs) else None
-        if label == "pre-chorus" and nxt in HIGHLIGHT and end - start >= bpb:
-            bars = max(1, int(round((end - start) / bpb)))
+        ramp = start if label == "pre-chorus" and nxt in HIGHLIGHT else None
+        if ramp is None and i + 1 < len(secs):
+            ends = [lo for lo, hi in rolls or () if hi - lo >= vcfg["buildUpRollBeats"] and 0.0 < end - hi <= vcfg["buildUpLandingBeats"] and lo < end]
+            if ends:
+                ramp = max(start, start + bpb * int((min(ends) - start) // bpb))  # from the bar the roll starts in
+        if ramp is not None and end - ramp >= bpb:
+            if quiet[i] and i > 0 and ramp > start and view != vcfg["quiet"]:
+                view = vcfg["quiet"]
+                out.append(_cue(tempo, start, "view", view, vcfg["easeBeats"]))
+            bars = max(1, int(round((end - ramp) / bpb)))
             for k in range(bars):
                 view = vcfg["buildUp"] * (k + 1) / bars
-                out.append(_cue(tempo, start + k * bpb, "view", view, float(bpb)))
+                out.append(_cue(tempo, ramp + k * bpb, "view", view, float(bpb)))
         elif quiet[i] and i > 0:
             if view != vcfg["quiet"]:
                 view = vcfg["quiet"]

@@ -62,6 +62,28 @@ def _shape(c: Candidate) -> np.ndarray:
     return c.bands / (float(np.sum(c.bands)) + 1e-9)
 
 
+def _cosine(a: np.ndarray, b: np.ndarray) -> float:
+    return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
+
+
+def _run_shape(cands: list[Candidate], run: list[int]) -> np.ndarray:
+    return np.mean([_shape(cands[i]) for i in run], axis=0)
+
+
+def _off_grid(d: float, gap: float) -> bool:
+    """Whether a hit `d` beats after the run's last hit falls between the run's grid points."""
+    k = d / gap
+    return abs(k - round(k)) > 1e-6
+
+
+def _pitch_scattered(hits: list[Candidate], semitones: float) -> bool:
+    """Whether the hits' estimated pitches jump about (median step of `semitones` or more): a
+    drum's pitch is noise, a melody moves by steps. A lead or a riser doubling a build-up lifts
+    the roll's melody presence (USAO - RUNAWAY: 0.5-0.9 on its snare rolls)."""
+    p = [float(c.pitch) for c in hits if c.pitch is not None]
+    return len(p) >= 4 and float(np.median(np.abs(np.diff(p)))) >= semitones
+
+
 def _longest_stretch(beats: list[float]) -> float:
     """Longest span (beats) of the run on a single spacing."""
     best, start = 0.0, 0
@@ -74,7 +96,11 @@ def _longest_stretch(beats: list[float]) -> float:
 
 def find_rolls(cands: list[Candidate], section_starts: list[float] | None = None) -> list[Roll]:
     """Rolls among the candidates (time-ordered); marks every hit's `roll` (id, index).
-    `section_starts` are the analysed sections' first beats."""
+    `section_starts` are the analysed sections' first beats.
+
+    Runs are formed over all qualifying hits and again over each band's hits alone (a snare roll
+    whose hits a bass line or stabs interleave on other grid points is still one drum's run); of
+    overlapping runs that qualify, the one with the most hits is the roll."""
     cfg = rolls_config()
     for c in cands:
         c.roll = None
@@ -82,15 +108,48 @@ def find_rolls(cands: list[Candidate], section_starts: list[float] | None = None
         return []
     typical = [c.strength for c in cands if c.subdivision in TYPICAL_GRID]
     median = float(np.median(typical or [c.strength for c in cands]))
-    ok = [float(_shape(c)[2]) < float(cfg["maxHighShare"]) and c.strength >= float(cfg["hitStrength"]) * median for c in cands]
-    starts = {round(float(b), 6) for b in section_starts or ()}
+    ok = [i for i, c in enumerate(cands) if float(_shape(c)[2]) < float(cfg["maxHighShare"]) and c.strength >= float(cfg["hitStrength"]) * median]
+    voices = [ok] + [[i for i in ok if int(np.argmax(cands[i].bands)) == band] for band in range(3)]
+    found = []
+    for order in voices:
+        for run in _runs(cands, order, section_starts or [], cfg):
+            # a build-up is a run's end: a run that is no roll as a whole is tried again from each
+            # of its bar lines on (its first bars may be other sounds'), unless it is a groove
+            while len(run) >= int(cfg["minHits"]):
+                roll = _qualify(cands, run, section_starts or [], median, cfg)
+                if roll:
+                    found.append(roll)
+                    break
+                if _groove(cands, run, section_starts or [], cfg):
+                    break  # a steady groove's last bars are no build-up
+                bar = next((k for k in range(1, len(run)) if cands[run[k]].downbeat), None)
+                if bar is None:
+                    break
+                run = run[bar:]
+    taken: list[list[int]] = []
+    for run in sorted(found, key=len, reverse=True):
+        lo, hi = cands[run[0]].beat, cands[run[-1]].beat
+        if not any(lo <= cands[t[-1]].beat and cands[t[0]].beat <= hi for t in taken):
+            taken.append(run)
+    out: list[Roll] = []
+    for run in sorted(taken, key=lambda r: cands[r[0]].beat):
+        rid = len(out)
+        for k, i in enumerate(run):
+            cands[i].roll = (rid, k)
+        out.append(Roll(hits=run))
+    return out
+
+
+def _runs(cands: list[Candidate], order: list[int], section_starts: list[float], cfg: dict[str, Any]) -> list[list[int]]:
+    """Consecutive hits of `order` (candidate indices, time order) on one spacing."""
+    starts = {round(float(b), 6) for b in section_starts}
+    similarity = float(cfg["shapeSimilarity"])
     runs: list[list[int]] = []
     cur: list[int] = []
     gap: float | None = None
     prev: int | None = None
-    for i, c in enumerate(cands):
-        if not ok[i]:
-            continue
+    for i in order:
+        c = cands[i]
         if prev is not None and len(cur) >= 2 and round(cands[prev].beat, 6) in starts:
             # a roll lands on the next section's first beat: the run ends there
             runs.append(cur)
@@ -106,6 +165,9 @@ def find_rolls(cands: list[Candidate], section_starts: list[float] | None = None
                 cur = [prev]
             cur.append(i)
             gap = g
+        elif len(cur) >= 2 and gap is not None and _off_grid(c.beat - cands[prev].beat, gap) and _cosine(_shape(c), _run_shape(cands, cur)) < similarity:
+            # another sound between the roll's hits (a bass note, a stab) does not cut the roll
+            continue
         else:
             if len(cur) >= 2:
                 runs.append(cur)
@@ -113,43 +175,60 @@ def find_rolls(cands: list[Candidate], section_starts: list[float] | None = None
         prev = i
     if len(cur) >= 2:
         runs.append(cur)
-    out: list[Roll] = []
+    return runs
+
+
+def _groove(cands: list[Candidate], run: list[int], section_starts: list[float], cfg: dict[str, Any]) -> bool:
+    """Whether a stretch of the run on one spacing lasts too long for a roll (`maxSpanBeats`,
+    `maxSpanBeatsAtEnd` when the run leads into a new section): a groove. A landing on the next
+    bar line counts as no part of it."""
+    beats = [cands[i].beat for i in run]
+    while len(beats) > 1 and cands[run[len(beats) - 1]].downbeat:
+        beats.pop()
+    into_section = any(0.0 < b - beats[-1] <= 1.0 + 1e-6 for b in section_starts)
+    return _longest_stretch(beats) > float(cfg["maxSpanBeatsAtEnd" if into_section else "maxSpanBeats"]) + 1e-6
+
+
+def _qualify(cands: list[Candidate], run: list[int], section_starts: list[float], median: float, cfg: dict[str, Any]) -> list[int] | None:
+    """The run trimmed to its roll (landing and leading pitched off-beats left out), or None when
+    it is no roll."""
     max_harmonic = float(cfg["maxHarmonic"])
-    for run in runs:
-        while run and cands[run[-1]].downbeat:
-            run.pop()  # the landing on the next bar line is the next phrase's accent, not the roll
-        # a roll starts at its first drum hit: the groove's pitched off-beats before a fill (a bass
-        # line, an open hat between the kicks) are no part of it
-        while run:
-            first = next((k for k, i in enumerate(run) if cands[i].subdivision > 1), None)
-            if first is None or cands[run[first]].harmonic < max_harmonic:
-                break
-            run = run[first + 1 :]
-        if not run:
-            continue
-        beats = [cands[i].beat for i in run]
-        if len(run) < int(cfg["minHits"]) or beats[-1] - beats[0] < float(cfg["minBeats"]) - 1e-6:
-            continue
-        into_section = any(0.0 < b - beats[-1] <= 1.0 + 1e-6 for b in section_starts or ())
-        if _longest_stretch(beats) > float(cfg["maxSpanBeatsAtEnd" if into_section else "maxSpanBeats"]) + 1e-6:
-            continue
-        off = [cands[i] for i in run if cands[i].subdivision > 1]
-        if len(off) < 2 or float(np.median([c.strength for c in off])) < float(cfg["minStrength"]) * median:
-            continue
-        if float(np.mean([c.melody or 0.0 for c in off])) >= float(cfg["maxMelody"]):
-            continue
-        if float(np.mean([c.harmonic for c in off])) >= max_harmonic:
-            continue
-        shapes = np.array([_shape(c) for c in off])
-        mean = shapes.mean(axis=0)
-        sims = shapes @ mean / (np.linalg.norm(shapes, axis=1) * np.linalg.norm(mean) + 1e-9)
-        if float(np.mean(sims >= float(cfg["shapeSimilarity"]))) < float(cfg["shapeShare"]):
-            continue
-        rid = len(out)
-        for k, i in enumerate(run):
-            cands[i].roll = (rid, k)
-        out.append(Roll(hits=run))
-    return out
+    run = list(run)
+    while run and cands[run[-1]].downbeat:
+        run.pop()  # the landing on the next bar line is the next phrase's accent, not the roll
+    # a roll starts at its first drum hit: the groove's pitched off-beats before a fill (a bass
+    # line, an open hat between the kicks) are no part of it
+    while run:
+        first = next((k for k, i in enumerate(run) if cands[i].subdivision > 1), None)
+        if first is None or cands[run[first]].harmonic < max_harmonic:
+            break
+        run = run[first + 1 :]
+    if not run:
+        return None
+    beats = [cands[i].beat for i in run]
+    if len(run) < int(cfg["minHits"]) or beats[-1] - beats[0] < float(cfg["minBeats"]) - 1e-6:
+        return None
+    if _groove(cands, run, section_starts, cfg):
+        return None
+    off = [cands[i] for i in run if cands[i].subdivision > 1]
+    if len(off) < 2 or float(np.median([c.strength for c in off])) < float(cfg["minStrength"]) * median:
+        return None
+    # scattered pitches excuse the melody presence of drum-like hits in a build-up only (the run
+    # ends within `scatterLandingBeats` of a new section): strings and an orchestra's runs scatter
+    # too, with more of their sound pitched (0.68-0.78 in a film score), and inside a section a
+    # figure that comes back every bar became a roll a bar (52 songs: 223 of the 280 it let in)
+    drum_like = float(np.mean([c.harmonic for c in off])) < float(cfg["scatterMaxHarmonic"])
+    build_up = any(0.0 < s - beats[-1] <= float(cfg["scatterLandingBeats"]) + 1e-6 for s in section_starts)
+    if float(np.mean([c.melody or 0.0 for c in off])) >= float(cfg["maxMelody"]) and not (build_up and drum_like and _pitch_scattered(off, float(cfg["melodyPitchScatter"]))):
+        return None
+    if float(np.mean([c.harmonic for c in off])) >= max_harmonic:
+        return None
+    shapes = np.array([_shape(c) for c in off])
+    mean = shapes.mean(axis=0)
+    sims = shapes @ mean / (np.linalg.norm(shapes, axis=1) * np.linalg.norm(mean) + 1e-9)
+    if float(np.mean(sims >= float(cfg["shapeSimilarity"]))) < float(cfg["shapeShare"]):
+        return None
+    return run
 
 
 def song_rolls(analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float, cands: list[Candidate]) -> list[Roll]:

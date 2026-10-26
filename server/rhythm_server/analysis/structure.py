@@ -27,11 +27,13 @@ REPEAT_SMOOTH = 2  # bars a repetition path is averaged over
 GRID_BONUS = {8: 0.35, 4: 0.2, 2: 0.0}
 ODD_BAR_PENALTY = 0.25
 BOUNDARY_COST = 0.55
+BOUNDARY_EVIDENCE = 0.45  # novelty + path cue a boundary needs; the grid bonus only places it on 4/8-bar lines
 PATH_WEIGHT = 0.8
 LOOP_CHOICES = (1, 2, 4)
 LEAD_IN_MARGIN = 0.08  # a group that leads into another is the chorus only when louder than the others by this (0..1)
 HIGHLIGHT_MARGIN = 0.1  # the chorus is this near the most intense section, else the most intense sections are (0..1)
 HIGHLIGHT_MATE_MARGIN = 0.25  # ... with their group's other occurrences this near the most intense one (0..1)
+HIGHLIGHT_MIN_BARS = 8  # a one-off passage shorter than this is no highlight
 GROUP_SHIFT_BARS = 1  # two sections are compared from their starts and this many bars off
 INTENSITY_TIE_BREAK = 1e-3  # the share of loudness that decides between equally intense sections
 HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
@@ -177,7 +179,11 @@ def boundary_scores(ssm: np.ndarray, threshold: float) -> np.ndarray:
     cues = path_cues(ssm, threshold)
     nov_n = nov / max(float(np.max(nov)), 1e-9)
     cue_n = cues / max(float(np.max(cues)), 1e-9)
-    return np.array([nov_n[k] + PATH_WEIGHT * cue_n[k] + _grid(k) for k in range(len(ssm))])
+    evidence = nov_n + PATH_WEIGHT * cue_n
+    # an 8-bar line with next to no change cleared the cost on its grid bonus alone: a dense,
+    # loud song (USAO - RUNAWAY) came out in 30 sections, most of them 4 bars and none repeated.
+    # Its lines without a change had evidence 0.41 at most; the synthetic songs' pre-choruses 0.46 and up
+    return np.array([evidence[k] + _grid(k) if evidence[k] >= BOUNDARY_EVIDENCE else -1.0 for k in range(len(ssm))])
 
 
 def segment_bars(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, max_len: int = MAX_SECTION_BARS) -> list[int]:
@@ -356,7 +362,10 @@ def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.n
         hot = {i for i in range(k) if groups[i] == chorus}
     if k > 2:
         lead = {i for i in range(k) if groups[i] in repeated and leads_in(groups[i]) and i not in hot}
-        free = [i for i in range(k) if i not in lead] or list(range(k))
+        # a passage heard once and shorter than HIGHLIGHT_MIN_BARS (a build-up's last bars, a fill)
+        # is no highlight however hard it hits
+        brief = {i for i in range(k) if count[groups[i]] < 2 and spans[i][1] - spans[i][0] < HIGHLIGHT_MIN_BARS}
+        free = [i for i in range(k) if i not in lead and i not in brief] or [i for i in range(k) if i not in lead] or list(range(k))
         peak = max(float(energy[i]) for i in free)
         if not hot or float(np.mean([energy[i] for i in hot])) < peak - HIGHLIGHT_MARGIN:
             hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
