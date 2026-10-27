@@ -49,6 +49,7 @@ import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
+import { useTwoPress } from './twoPress';
 import { keyPairText, syncTestKeys } from './visualSync';
 
 interface Props {
@@ -170,8 +171,7 @@ function tabHints(tab: SettingsTab): KeyHint[] {
   return [...hints, tabs];
 }
 
-/** How long 모두 초기화 waits for its second press, and how long it can be undone (from its last press). */
-const RESET_CONFIRM_MS = 3000;
+/** How long 모두 초기화 can be undone (from its last press; its second press waits TWO_PRESS_MS). */
 export const RESET_UNDO_MS = 10000;
 
 /**
@@ -1374,7 +1374,7 @@ function GamepadPanel({
 
 /**
  * The window or full screen, a user skin from JSON, the analysis backends, and a full reset: a
- * press arms it, a second within RESET_CONFIRM_MS resets, and 되돌리기 brings the settings back.
+ * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
  */
 function AdvancedPanel({
   settings,
@@ -1395,12 +1395,7 @@ function AdvancedPanel({
   const [skinText, setSkinText] = useState('');
   const [skinError, setSkinError] = useState<string | null>(null);
   const [backends, setBackends] = useState<BackendStatus[] | null>(null);
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const id = window.setTimeout(() => setArmed(false), RESET_CONFIRM_MS);
-    return () => window.clearTimeout(id);
-  }, [armed]);
+  const reset = useTwoPress(onReset);
   // the undo gone (pressed, or its time up) with the focus on it: the focus goes back to the reset
   const resetButton = useRef<HTMLButtonElement>(null);
   const hadUndo = useRef(undo);
@@ -1408,14 +1403,6 @@ function AdvancedPanel({
     if (hadUndo.current && !undo && (document.activeElement === null || document.activeElement === document.body)) resetButton.current?.focus();
     hadUndo.current = undo;
   }, [undo]);
-  const pressReset = () => {
-    if (!armed) {
-      setArmed(true);
-      return;
-    }
-    setArmed(false);
-    onReset();
-  };
   useEffect(() => {
     api
       .health()
@@ -1515,17 +1502,13 @@ function AdvancedPanel({
             ref={resetButton}
             className="danger"
             data-testid="reset-all"
-            onKeyDown={(e) => {
-              // a held Enter presses it once (its repeats would make the second press): the second is a press of its own
-              if (e.repeat && (e.code === 'Enter' || e.code === 'NumpadEnter')) e.preventDefault();
-            }}
+            {...reset.buttonProps}
             onFocus={() =>
               onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 내 노트 색 프리셋, 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
             }
-            onBlur={() => setArmed(false)}
-            onClick={pressReset}
+            onClick={reset.press}
           >
-            {armed ? '한 번 더 누르면 초기화' : '모두 초기화'}
+            {reset.armed ? '한 번 더 누르면 초기화' : '모두 초기화'}
           </button>
           {undo && (
             <>
