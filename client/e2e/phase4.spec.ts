@@ -157,6 +157,42 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   expect(errors).toEqual([]);
 });
 
+test('the chart editor zooms its timeline with Ctrl+wheel, not the page', async ({ page }) => {
+  const errors = trackErrors(page);
+  await addDemoAndPreview(page);
+  await page.getByTestId('edit-chart').click();
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  const stats = page.locator('.editor-stats');
+  await expect(stats).toContainText('확대 ×1.00');
+
+  // Ctrl+wheel up over the timeline: one step in, the page's own zoom untouched
+  const canvas = page.getByTestId('editor-canvas');
+  const box = (await canvas.boundingBox())!;
+  const ratio = await page.evaluate(() => devicePixelRatio);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  await expect(stats).toContainText('확대 ×1.20');
+  expect(await page.evaluate(() => devicePixelRatio)).toBe(ratio);
+  // the browser is told the wheel is the editor's
+  const prevented = await canvas.evaluate((c) => {
+    const e = new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true });
+    c.dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
+  await expect(stats).toContainText('확대 ×1.44');
+
+  // the wheel alone still moves the cursor, at the same zoom
+  const cursor = stats.locator('div').nth(1);
+  const before = (await cursor.textContent())!;
+  await page.mouse.wheel(0, -300);
+  await expect(cursor).not.toHaveText(before);
+  await expect(stats).toContainText('확대 ×1.44');
+  expect(errors).toEqual([]);
+});
+
 test('import a keysounded BMS folder and autoplay it with its keysounds', async ({ page }) => {
   const errors = trackErrors(page);
   const dir = 'test-results/e2e-bms';

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import { keysoundBank, keysoundBgm, songBuffer } from '../audio/bufferCache';
@@ -447,14 +447,22 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     apply(doc.remove(ids));
   };
 
-  const onWheel = (e: ReactWheelEvent<HTMLCanvasElement>) => {
-    if (e.ctrlKey || e.metaKey) {
-      session.pxPerMs = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, session.pxPerMs * (e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
-      changed();
-    } else if (!playback.current) {
-      setCursor(session.cursorMs - e.deltaY / session.pxPerMs);
-    }
-  };
+  // the wheel listened to natively: React's is passive, so Ctrl+wheel there zoomed the page as well
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        session.pxPerMs = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, session.pxPerMs * (e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
+        changed();
+      } else if (!playback.current) {
+        setCursor(session.cursorMs - e.deltaY / session.pxPerMs);
+      }
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [changed, session, setCursor]);
 
   // ---------------------------------------------------------------- keyboard
 
@@ -716,7 +724,6 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
               redraw();
             }}
             onContextMenu={onContextMenu}
-            onWheel={onWheel}
           />
           {/* each lane's key, colour and kind under its lane */}
           <div className="editor-lanes" data-testid="editor-lanes" aria-label="레인">
