@@ -339,6 +339,8 @@ export class PlayController {
         type: styleOf(skin).type,
         judgementOpacity: settings.judgementOpacity,
         counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
+        // in real ms as the errors are (the table's windows are song ms: a practice's rate stretches them)
+        errorBar: settings.errorBar ? { outerMs: this.table.outerMs / this.rate, bestMs: this.table.topGrade.windowMs / this.rate } : null,
         showBpm: this.bpmChanges.length > 1 || settings.scrollMode === 'beat',
         skipKey: this.skipLabel ?? '',
         syncKeys: this.syncKeys && {

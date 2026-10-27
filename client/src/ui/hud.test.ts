@@ -3,7 +3,7 @@ import { cameraConfig } from '../engine/config';
 import { MAX_TILT_DEG, ZOOM_DEPTH } from '../render/cameraFx';
 import { cameraPose } from '../render/layout';
 import { frameCamera, HUD_UNIT, planeHomography, poseCamera } from '../render/TrackRenderer';
-import { gaugeCells, gaugeShown, infoRoom, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
+import { type ErrorBar, errorBarAt, gaugeCells, gaugeShown, infoRoom, markError, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
 
 /** Where a homography (row-major 3×3) puts a plane point on the screen. */
 const project = (h: number[], x: number, y: number) => {
@@ -57,6 +57,41 @@ describe('HUD lying on the track', () => {
     // a survival gauge still alive never reads 0 %
     expect(gaugeShown(0.4, true)).toBe(1);
     expect(gaugeShown(0, true)).toBe(0);
+  });
+
+  it('lays a hit on the error bar by its error over the widest window: early left, late right, past it at the edge', () => {
+    // HARD JUDGEMENT: 90 ms each way
+    expect(errorBarAt(0, 90)).toBe(0);
+    expect(errorBarAt(-45, 90)).toBe(-0.5);
+    expect(errorBarAt(90, 90)).toBe(1);
+    // past the widest window: held at the edge, never off the bar
+    expect(errorBarAt(-130, 90)).toBe(-1);
+    expect(errorBarAt(400, 90)).toBe(1);
+  });
+
+  it('reuses the error bar\'s 20 ticks in turn, the newest brightest, and means the hits shown, not every hit', () => {
+    // stand-ins for the bar's elements: markError only writes the class, transform, opacity and data-mean-ms
+    const part = () => ({ className: '', style: { transform: '', opacity: '0' }, dataset: {} }) as unknown as HTMLElement;
+    const ticks = Array.from({ length: 20 }, part);
+    const bar: ErrorBar = { el: part(), ticks, mean: part(), outerMs: 90, errors: [], next: 0, meanMs: 0, half: 100 };
+    // five late hits, then twenty early ones: -25 ms to -6 ms
+    const hits = Array.from({ length: 25 }, (_, i) => (i < 5 ? 60 : i - 30));
+    markError(bar, hits[0]);
+    expect(ticks[0].className).toBe('hud-eb-tick slow');
+    expect(ticks[0].style.transform).toBe('translateX(66.67px)');
+    expect(ticks[0].style.opacity).toBe('1');
+    hits.slice(1, 21).forEach((ms) => markError(bar, ms));
+    // the 21st hit (-10 ms) takes the first tick back, early: left of the middle
+    expect(ticks[0].className).toBe('hud-eb-tick fast');
+    expect(ticks[0].style.transform).toBe('translateX(-11.11px)');
+    hits.slice(21).forEach((ms) => markError(bar, ms));
+    // the newest (tick 4) is full, the oldest still shown (tick 5) the faintest
+    expect(ticks[4].style.opacity).toBe('1');
+    expect(ticks[5].style.opacity).toBe('0.24');
+    // the mean of the last 20 (-15.5 ms), not of all 25 (-0.4 ms)
+    expect(bar.meanMs).toBeCloseTo(-15.5, 9);
+    expect(bar.mean.style.transform).toBe('translateX(-17.22px)');
+    expect(bar.el.dataset.meanMs).toBe('-15');
   });
 
   it('stands side text upright: as tall as it is wide on the screen, by the screen\'s vertical alone', () => {

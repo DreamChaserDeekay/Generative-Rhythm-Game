@@ -74,6 +74,13 @@ describe('settings', () => {
     expect(sanitizeSettings({ pacemaker: '97' as never }).pacemaker).toBe('OFF');
   });
 
+  it('shows the timing error bar only when it was saved on (settings saved before it: off)', () => {
+    expect(DEFAULT_SETTINGS.errorBar).toBe(false);
+    expect(sanitizeSettings({}).errorBar).toBe(false);
+    expect(sanitizeSettings({ errorBar: true }).errorBar).toBe(true);
+    for (const v of ['true', 1, null]) expect(sanitizeSettings({ errorBar: v as never }).errorBar).toBe(false);
+  });
+
   it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
     expect(sanitizeSettings({}).barLines).toBe(true);
     expect(sanitizeSettings({ barLines: false }).barLines).toBe(false);

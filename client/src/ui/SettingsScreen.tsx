@@ -396,6 +396,14 @@ export function SettingsScreen({
           />
           <Toggle
             {...row}
+            label="판정 오차 막대"
+            testId="opt-error-bar"
+            value={settings.errorBar}
+            onChange={(v) => set('errorBar', v)}
+            help="판정 아래 막대에 최근 20번 친 타이밍을 보여 줍니다. 왼쪽이 FAST, 오른쪽이 SLOW이고, 가운데 옅은 칸이 최고 판정 범위, 긴 선이 평균입니다."
+          />
+          <Toggle
+            {...row}
             label="판정 카운터"
             testId="opt-judge-counter"
             value={settings.judgeCounter}

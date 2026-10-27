@@ -1252,6 +1252,54 @@ p.hint {
 .hud-judge-sub.slow { color: var(--g-slow); }
 .hud-judge-sub.exact { color: var(--text); }
 
+/* the timing error bar under the judgement (Hud.ts): early to the left, the best window shaded, a
+   tick per recent hit in the FAST / SLOW colours, their mean longer and thicker */
+.hud-errorbar {
+  transform-origin: 50% 0;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.hud-errorbar > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--tick);
+  margin-left: calc(var(--tick) / -2);
+}
+
+/* its width the best window's share (Hud.ts), centred */
+.hud-errorbar > .hud-eb-best {
+  margin-left: 0;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--g-max) 22%, transparent);
+}
+
+.hud-eb-zero {
+  background: var(--line-strong);
+}
+
+.hud-eb-tick {
+  opacity: 0;
+  background: var(--text);
+}
+
+.hud-eb-tick.fast { background: var(--g-fast); }
+.hud-eb-tick.slow { background: var(--g-slow); }
+
+.hud-errorbar > .hud-eb-mean {
+  top: -50%;
+  bottom: -50%;
+  width: var(--mean);
+  margin-left: calc(var(--mean) / -2);
+  opacity: 0;
+  background: var(--text);
+}
+
+.hud.ended .hud-errorbar {
+  display: none;
+}
+
 .hud-combo {
   visibility: hidden;
 }
