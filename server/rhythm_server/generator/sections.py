@@ -946,10 +946,20 @@ def place(
     tempo: TempoMap,
     rng: np.random.Generator,
     plan: list[SlotPlan] | None,
+    lane_plan: dict[int, float] | None = None,
+    plan_weight: float = 0.0,
 ) -> tuple[list[Choice], float | None]:
     """Lanes unit by unit (module docstring, step 5); returns the choices and the share of copied
-    slots that kept their reference's lanes."""
+    slots that kept their reference's lanes. `lane_plan` (core.lane_plan: the top tier's single
+    notes by beat * GRID) sets the way each slot moves from the one before, at `plan_weight`
+    (sectioned.tierPlan)."""
     force = float(sectioned_config()["force"]) * params.repeat_consistency
+    dirs: list[int | None] = [None] * len(lay.slots)
+    if lane_plan:
+        at = [lane_plan.get(round(s.beat * GRID)) for s in lay.slots]
+        for i in range(1, len(at)):
+            if at[i] is not None and at[i - 1] is not None:
+                dirs[i] = (at[i] > at[i - 1] + 1e-9) - (at[i] < at[i - 1] - 1e-9)
     keys = [l.index for l in lanes if l.kind == "key"]
     mirror_of = {lane: keys[len(keys) - 1 - n] for n, lane in enumerate(keys)}
     pitch = _pitch_targets(lay.slots)
@@ -976,6 +986,7 @@ def place(
         choices, state = search(
             [lay.slots[i] for i in idxs], lanes, params, tempo, rng, targets, sub_plan,
             start=state, pitch_targets=[pitch[i] for i in idxs], repeat_weight=force if targets else None, cache=cache,
+            plan_dirs=[dirs[i] for i in idxs] if lane_plan else None, plan_weight=plan_weight,
         )
         for li, used, ln in choices:
             gi = idxs[li]

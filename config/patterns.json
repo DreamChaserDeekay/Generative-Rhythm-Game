@@ -228,6 +228,12 @@
     "buildUp": { "repeatGrowth": 0.1, "openingShare": 0.35, "openingCap": 0.9 },
     "follow": { "pairSkill": 0.5, "otherWeight": 0.3 },
     "force": 40.0,
+    "tierPlan": {
+      "description": "난이도 사이 움직임 따르기(생성기 0.9.36, docs/PATTERN_DESIGN.md 68장). 그 기준의 가장 높은 난이도(기본 기준 MASTER)를 그 채보의 옵션과 기본 시드로, 레벨 맞춤 없이 한 번 만든 채보가 곡의 뼈대다. 이어지는 두 단타가 뼈대에서도 단타인 자리이면, 우리 이동의 방향(오르기 · 내리기 · 같은 키)이 뼈대의 그 두 자리 사이 방향과 다를 때 weight를 더 낸다. MASTER는 어떤 시드 · 목표 레벨이든 자기 첫 판이 뼈대이고 레벨 맞춤의 뒤 판은 ownWeight로 따른다(1.0이면 판을 거듭하며 첫 판과 달라졌다). 키를 그대로 따르게 하면 쉬운 채보의 계단이 사라졌고(67장), 뼈대를 동치의 평균 위치나 가장 높은 키로 잡아도 계단이 깨져 단타끼리만 쓴다(Rock Band 제작 문서의 움직임 지키기). 사람 7키 BMS 채보는 쉬운 채보의 단타 이동 방향이 바로 위 채보와 0.75 같다. 롤 노트에는 걸지 않는다",
+      "systems": ["GRG"],
+      "weight": 2.0,
+      "ownWeight": 3.0
+    },
     "mirrorRepeats": { "DJMAX": 0.7 },
     "themes": { "twoSkill": 0.5, "offTheme": 1.0 },
     "accent": { "minSkill": 0.15 }
