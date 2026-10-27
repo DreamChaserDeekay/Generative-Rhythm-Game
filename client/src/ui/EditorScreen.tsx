@@ -470,6 +470,12 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   const seconds = secondBindingsFor(settings, base.meta.keyMode);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // F5 (a new pattern on the song select) never reloads the editor, nor Ctrl+R over unsaved edits
+      if (e.code === 'F5' || (doc.dirty && (e.ctrlKey || e.metaKey) && e.code === 'KeyR')) {
+        e.preventDefault();
+        if (doc.dirty) say('저장하지 않은 편집이 있습니다 · Ctrl+S 저장');
+        return;
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
       if (menu && !e.ctrlKey && !e.metaKey) {
         // the open menu has the keys (Ctrl ones go on): Esc closes it, the arrows go through its

@@ -4,7 +4,7 @@
 // The window opens as it was left (size, place, maximized, full screen), on the home port (the
 // game's settings are kept in that origin's storage).
 const { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } = require('electron');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -187,7 +187,8 @@ async function startServer() {
 
 function stopServer() {
   if (!server || server.exitCode !== null) return;
-  if (isWindows) spawn('taskkill', ['/pid', String(server.pid), '/t', '/f']);
+  // waited for: on will-quit the app may exit before an async taskkill /t reaches the server's children
+  if (isWindows) spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { windowsHide: true });
   else server.kill('SIGTERM');
 }
 
@@ -290,6 +291,22 @@ async function createWindow() {
     const message = String(e instanceof Error ? e.message : e).replace(/</g, '&lt;');
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<body style="background:#05070f;color:#ff8fa3;font:16px sans-serif;padding:40px">${message}<br><br>로그: ${path.join(app.getPath('userData'), 'server.log')}</body>`)}`);
   }
+  // the page holds the window over unsaved edits (the chart editor's beforeunload): the player picks
+  // here, as Electron otherwise keeps the window open without a word (the same event for a close
+  // and a reload, so the button names neither)
+  win.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      title: 'Generative Rhythm',
+      buttons: ['편집 버리기', '돌아가기'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      message: '저장하지 않은 편집이 있습니다',
+    });
+    // prevented, the page's beforeunload is ignored and the window goes on closing (or reloading)
+    if (choice === 0) event.preventDefault();
+  });
   // links to other sites open in the system browser, the window stays on the game
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
@@ -346,7 +363,8 @@ if (!app.requestSingleInstanceLock()) {
     );
     createWindow();
   });
-  app.on('before-quit', () => {
+  // once the window has closed: a quit the window turns back (돌아가기 over unsaved edits) keeps the server
+  app.on('will-quit', () => {
     quitting = true;
     stopServer();
   });

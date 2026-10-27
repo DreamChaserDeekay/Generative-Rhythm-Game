@@ -157,7 +157,7 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   expect(errors).toEqual([]);
 });
 
-test('the chart editor zooms its timeline with Ctrl+wheel, not the page', async ({ page }) => {
+test('the chart editor zooms its timeline with Ctrl+wheel, not the page, and keeps unsaved edits from a reload', async ({ page }) => {
   const errors = trackErrors(page);
   await addDemoAndPreview(page);
   await page.getByTestId('edit-chart').click();
@@ -190,6 +190,31 @@ test('the chart editor zooms its timeline with Ctrl+wheel, not the page', async 
   await page.mouse.wheel(0, -300);
   await expect(cursor).not.toHaveText(before);
   await expect(stats).toContainText('확대 ×1.44');
+
+  // F5 (a new pattern on the song select) never reloads the editor; Ctrl+R and leaving the page
+  // are held back only over unsaved edits (the browser, or the desktop app, then asks)
+  const keyHeld = (code: string, ctrlKey = false) =>
+    page.evaluate(({ code, ctrlKey }) => {
+      const e = new KeyboardEvent('keydown', { code, key: code, ctrlKey, bubbles: true, cancelable: true });
+      document.body.dispatchEvent(e);
+      return e.defaultPrevented;
+    }, { code, ctrlKey });
+  const unloadAsks = () =>
+    page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+  expect(await keyHeld('F5')).toBe(true);
+  expect(await keyHeld('KeyR', true)).toBe(false);
+  expect(await unloadAsks()).toBe(false);
+  await page.keyboard.press('KeyM');
+  await expect(page.locator('.topbar .screen-detail')).toContainText('저장 안 됨');
+  expect(await keyHeld('F5')).toBe(true);
+  expect(await keyHeld('KeyR', true)).toBe(true);
+  await expect(page.getByTestId('editor-toast')).toContainText('저장하지 않은 편집이 있습니다');
+  expect(await unloadAsks()).toBe(true);
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
