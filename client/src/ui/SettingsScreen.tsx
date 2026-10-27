@@ -981,77 +981,79 @@ function KeysPanel({
           );
         };
         return (
-          <div className="opt opt-block" key={mode} data-testid={`keys-${mode}`}>
-            <span className="opt-name key-row-names">
-              <span>{mode}</span>
-              <span className="key-grid-label">보조 키</span>
-            </span>
-            <div className="opt-lanes">
-              <div className="opt-keys">
-                <div className="key-grid" style={{ ['--lanes' as string]: lanes.length } as CSSProperties}>
-                  {first.map((code, lane) => cap(code, lane, false))}
-                  {second.map((code, lane) => cap(code, lane, true))}
-                </div>
-                <div className="opt-actions">
-                  <button
-                    className="small"
-                    data-testid={`keys-run-${mode}`}
-                    onFocus={() => onHelp('1번 레인부터 차례로 키를 누르면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
-                    onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, second: false, run: true })}
-                  >
-                    {running ? '멈추기' : '차례로 지정'}
-                  </button>
-                  {mode === '7K+1S' && (
-                    <button className="small" onClick={() => onSettingsChange(sanitizeSettings({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.BMS } }))}>
-                      BMS 배치
+          <Fragment key={mode}>
+            <div className="opt opt-block" data-testid={`keys-${mode}`}>
+              <span className="opt-name key-row-names">
+                <span>{mode}</span>
+                <span className="key-grid-label">보조 키</span>
+              </span>
+              <div className="opt-lanes">
+                <div className="opt-keys">
+                  <div className="key-grid" style={{ ['--lanes' as string]: lanes.length } as CSSProperties}>
+                    {first.map((code, lane) => cap(code, lane, false))}
+                    {second.map((code, lane) => cap(code, lane, true))}
+                  </div>
+                  <div className="opt-actions">
+                    <button
+                      className="small"
+                      data-testid={`keys-run-${mode}`}
+                      onFocus={() => onHelp('1번 레인부터 차례로 키를 누르면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
+                      onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, second: false, run: true })}
+                    >
+                      {running ? '멈추기' : '차례로 지정'}
                     </button>
-                  )}
-                  <button
-                    className="small"
-                    data-testid={`keys-default-${mode}`}
-                    onClick={() => onSettingsChange({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.default }, secondBindings: { ...settings.secondBindings, [mode]: undefined } })}
-                  >
-                    기본값
-                  </button>
-                  <button
-                    className="small"
-                    data-testid={`ghost-${mode}`}
-                    onFocus={() => onHelp('키보드가 여러 키를 한꺼번에 인식하는지 봅니다. 레인 키를 (보조 키까지) 모두 누르세요.')}
-                    onClick={() => setGhostMode(ghostMode === mode ? null : mode)}
-                  >
-                    동시 입력 테스트
-                  </button>
+                    {mode === '7K+1S' && (
+                      <button className="small" onClick={() => onSettingsChange(sanitizeSettings({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.BMS } }))}>
+                        BMS 배치
+                      </button>
+                    )}
+                    <button
+                      className="small"
+                      data-testid={`keys-default-${mode}`}
+                      onClick={() => onSettingsChange({ ...settings, bindings: { ...settings.bindings, [mode]: keyModes[mode].bindings.default }, secondBindings: { ...settings.secondBindings, [mode]: undefined } })}
+                    >
+                      기본값
+                    </button>
+                    <button
+                      className="small"
+                      data-testid={`ghost-${mode}`}
+                      onFocus={() => onHelp('키보드가 여러 키를 한꺼번에 인식하는지 봅니다. 레인 키를 (보조 키까지) 모두 누르세요.')}
+                      onClick={() => setGhostMode(ghostMode === mode ? null : mode)}
+                    >
+                      {ghostMode === mode ? '테스트 닫기' : '동시 입력 테스트'}
+                    </button>
+                  </div>
                 </div>
+                {clashes.length > 0 && (
+                  <p className="key-note clash" data-testid={`keys-clash-${mode}`}>
+                    플레이 중 키와 겹침:{' '}
+                    {[...clashGroups].map(([names, codes], i) => (
+                      <Fragment key={names}>
+                        {i > 0 && ', '}
+                        <KeyNames names={codes} /> {names}
+                      </Fragment>
+                    ))}
+                    . 이 모드에서는 레인이 먼저 받습니다.
+                    {twins.length > 0 && (
+                      <>
+                        {' '}
+                        다른 쪽 키(<KeyNames names={twins.map(keyLabel)} />)와 함께 누르면 레인은 눌리지 않습니다.
+                      </>
+                    )}
+                  </p>
+                )}
+                {modifiers.length > 0 && (
+                  <p className="key-note" data-testid={`keys-note-${mode}`}>
+                    {modifiers.map((m) => MODIFIER_NAMES[m]).join('·')} 레인: Windows 고정 키 단축키를 끄세요 (설정 → 접근성 → 키보드).
+                    {bothShifts && ' 양쪽 Shift를 함께 누르다 한쪽을 떼면 늦게 떼어질 수 있습니다.'}
+                  </p>
+                )}
               </div>
-              {clashes.length > 0 && (
-                <p className="key-note clash" data-testid={`keys-clash-${mode}`}>
-                  플레이 중 키와 겹침:{' '}
-                  {[...clashGroups].map(([names, codes], i) => (
-                    <Fragment key={names}>
-                      {i > 0 && ', '}
-                      <KeyNames names={codes} /> {names}
-                    </Fragment>
-                  ))}
-                  . 이 모드에서는 레인이 먼저 받습니다.
-                  {twins.length > 0 && (
-                    <>
-                      {' '}
-                      다른 쪽 키(<KeyNames names={twins.map(keyLabel)} />)와 함께 누르면 레인은 눌리지 않습니다.
-                    </>
-                  )}
-                </p>
-              )}
-              {modifiers.length > 0 && (
-                <p className="key-note" data-testid={`keys-note-${mode}`}>
-                  {modifiers.map((m) => MODIFIER_NAMES[m]).join('·')} 레인: Windows 고정 키 단축키를 끄세요 (설정 → 접근성 → 키보드).
-                  {bothShifts && ' 양쪽 Shift를 함께 누르다 한쪽을 떼면 늦게 떼어질 수 있습니다.'}
-                </p>
-              )}
             </div>
-          </div>
+            {ghostMode === mode && <KeyGhostTest mode={mode} bindings={first} seconds={second} onClose={() => setGhostMode(null)} />}
+          </Fragment>
         );
       })}
-      {ghostMode && <KeyGhostTest mode={ghostMode} bindings={bindingsFor(settings, ghostMode)} seconds={secondBindingsFor(settings, ghostMode)} onClose={() => setGhostMode(null)} />}
 
       <div className="settings-group" data-testid="play-keys">
         <h3>플레이 중 키</h3>
