@@ -90,6 +90,10 @@ test('on the result Enter continues, R plays the same lane order again and Shift
 
 test('a new pattern from the result keeps its difficulty system; a failure is shown, a late one dropped', async ({ page }) => {
   const errors = trackErrors(page);
+  // on DJMAX, not the default GRG (the system a request falls back to)
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ difficultySystem: 'DJMAX' }));
+  });
   await page.goto('/');
   expect((await page.request.post('/api/songs/demo', { data: { bpm: 131, bars: 8, seed: 9 } })).ok()).toBe(true);
   await expect

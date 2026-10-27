@@ -79,8 +79,9 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${OUT}/${name}.png` });
 }
 
+/** The saved settings, on DJMAX's scale (the showcase's MAXIMUM and HARD, as the README tells the shots). */
 async function settings(page: Page, values: Record<string, unknown>): Promise<void> {
-  await page.addInitScript((v) => localStorage.setItem('grg.settings.v1', JSON.stringify(v)), values);
+  await page.addInitScript((v) => localStorage.setItem('grg.settings.v1', JSON.stringify(v)), { difficultySystem: 'DJMAX', ...values });
 }
 
 async function selectShowcase(page: Page, keyMode: string, difficulty: string): Promise<void> {
@@ -223,6 +224,7 @@ async function playByHand(page: Page, notes: ChartNoteLite[], keys: string[], ha
 
 test('song select with a generated chart, and the analysis view', async ({ page }) => {
   mkdirSync(OUT, { recursive: true });
+  await settings(page, {});
   await page.setViewportSize(TALL);
   await page.goto('/');
   for (const demo of [
@@ -273,10 +275,11 @@ test('play: 7K+1S', async ({ page }) => {
   await shot(page, '03-play-7k');
 });
 
-test('play: background video, visualizer, camera effects and a skin', async ({ page }) => {
+test('play: background video, camera effects and a skin', async ({ page }) => {
   mkdirSync('test-results', { recursive: true });
   const video = 'test-results/showcase-bga.webm';
   if (!existsSync(video)) execFileSync(python, ['-c', MAKE_VIDEO, video]);
+  // visualizer: true as an earlier version saved it; the background draws no visualizer now
   await settings(page, { lastKeyMode: '5K', skin: 'pop', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
   await selectShowcase(page, '5K', 'HARD');
   await songInfo(page);
@@ -284,6 +287,7 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
   await expect(page.getByTestId('bga-status')).toHaveText('등록됨', { timeout: 60_000 });
   // the chart tilts the track at 13.6 s (until 26.4 s)
   await autoplayFor(page, 19_000);
+  await expect(page.locator('canvas.bg-visualizer')).toHaveCount(0);
   await shot(page, '04-play-effects');
   // the other shots go without the video
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
@@ -291,25 +295,27 @@ test('play: background video, visualizer, camera effects and a skin', async ({ p
 });
 
 /**
- * The 6K+FX showcase as its side notes are drawn (in lanes of their own, or over half the keys),
- * at the same moment: a side long note held, the next ones coming.
+ * The 6K+FX showcase as its side notes are drawn (over half the keys, whatever was saved: lanes of
+ * their own are no longer offered), at the same moment: a side long note held, the next ones coming.
  */
-async function sideNotesShot(page: Page, sideNotes: 'lanes' | 'half', name: string): Promise<void> {
+async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
   await watchSources(page);
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes });
+  // an earlier version's saved 별도 레인 is drawn over half the keys too
+  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'mixer', hit: 'bomb' } });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
   const notes = await showcaseChart(page, '6K+FX', 'MX');
-  const side = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
-  await autoplayAt(page, side.t + 250);
+  const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
+  await autoplayAt(page, held.t + 250);
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-side-notes', 'half');
   await shot(page, name);
 }
 
-test('play: 6K+FX side tracks with a lane cover', async ({ page }) => {
-  await sideNotesShot(page, 'lanes', '05-play-6kfx');
+test('play: 6K+FX side notes over half the keys with a lane cover', async ({ page }) => {
+  await sideNotesShot(page, 'bar', '05-play-6kfx');
 });
 
-test('play: 6K+FX side notes over half the keys (반쪽 덮기)', async ({ page }) => {
-  await sideNotesShot(page, 'half', '19-play-6kfx-half');
+test('play: 6K+FX side notes of dots over half the keys', async ({ page }) => {
+  await sideNotesShot(page, 'dots', '19-play-6kfx-half');
 });
 
 test('play: the flat PLANE camera, with the judge counter and a pacemaker', async ({ page }) => {
@@ -324,14 +330,15 @@ test('play: four of the skins', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // each with the camera it was drawn for; FEVER off: its tint would cover the skins' rail colours
-  for (const [skin, keyMode, name, cameraPreset] of [
-    ['glass', '7K+1S', '15-skin-crystal', 'SDVX'],
-    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX'],
-    ['arcade', '8K', '17-skin-arcade', 'FLAT'],
-    ['pop', '4K', '18-skin-pop', 'SDVX'],
-  ]) {
-    await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF' });
+  // each with the camera it was drawn for and the parts that suit it (the skin draws colours, track
+  // and type only); FEVER off: its tint would cover the skins' rail colours
+  for (const [skin, keyMode, name, cameraPreset, parts] of [
+    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'shards' }],
+    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'jewel', hit: 'shards' }],
+    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'star' }],
+    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'candy', hit: 'bubbles' }],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF', parts });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
@@ -343,13 +350,13 @@ test('play: the gears for any skin, each with notes, side notes and a hit effect
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  for (const [parts, keyMode, sideNotes, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'concrete', hit: 'wave' }, '7K+1S', 'lanes', '22-gear-concrete'],
-    [{ note: 'round', side: 'bar', deck: 'avionics', hit: 'spark' }, '8K', 'lanes', '23-gear-avionics'],
-    [{ note: 'star4', side: 'dots', deck: 'cassette', hit: 'grid' }, '6K+FX', 'lanes', '24-gear-cassette'],
-    [{ note: 'star5', side: 'dots', deck: 'grand', hit: 'shutter' }, '6K+FX', 'half', '25-gear-grand'],
+  for (const [parts, keyMode, name] of [
+    [{ note: 'chamfer', side: 'bar', deck: 'concrete', hit: 'wave' }, '7K+1S', '22-gear-concrete'],
+    [{ note: 'round', side: 'bar', deck: 'avionics', hit: 'spark' }, '8K', '23-gear-avionics'],
+    [{ note: 'star4', side: 'dots', deck: 'cassette', hit: 'grid' }, '6K+FX', '24-gear-cassette'],
+    [{ note: 'star5', side: 'dots', deck: 'grand', hit: 'shutter' }, '6K+FX', '25-gear-grand'],
   ] as const) {
-    await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, sideNotes, hiSpeed: 3, fever: 'OFF' });
+    await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
@@ -421,7 +428,7 @@ test('settings and calibration', async ({ page }) => {
   await chooseSetting(page, 'opt-skin', 'jewel');
   await page.waitForTimeout(1500);
   await shot(page, '11-settings-skins');
-  // the parts picked apart from the skin, named with the skin's own
+  // the parts picked for the gear, drawn whatever the skin
   await chooseSetting(page, 'opt-skin', 'arcade');
   await chooseSetting(page, 'opt-note-style', 'round');
   await chooseSetting(page, 'opt-deck-style', 'cassette');

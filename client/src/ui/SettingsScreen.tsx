@@ -46,7 +46,7 @@ import { KeyGhostTest } from './KeyGhostTest';
 import { NoteColorsPanel } from './NoteColorsPanel';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, NumberOption, partChoices, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -271,7 +271,7 @@ export function SettingsScreen({
   });
 
   const system = difficultySystems[settings.difficultySystem];
-  const parts = partChoices(settings);
+
   const row = {
     onHelp: (text: string) => {
       setHelp(text);
@@ -503,16 +503,16 @@ export function SettingsScreen({
             value={settings.skin}
             options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
-            help="노트·롱노트·키 빔·타격 효과·레일·판정선·트랙과 판정선 아래 기어(키를 누르면 켜지는 레인 표시등)의 모양입니다. 아래 노트·사이드 노트 모양·기어·타격 효과 모양은 스킨과 따로 고를 수 있습니다. 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            help="키 빔·레일·판정선·트랙의 색과 모양, 판정·콤보 글꼴입니다. 노트·사이드 노트·기어·타격 효과는 아래에서 따로 고르고, 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
           <Choice
             {...row}
             label="노트"
             testId="opt-note-style"
             value={settings.parts.note}
-            options={parts.note}
+            options={PART_CHOICES.note}
             onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별은 별빛)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼와 원형은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있고, 별은 파란·금색 건반에 꼭짓점이 더 있어 색이 같아도 건반을 구분할 수 있습니다. 스킨은 그 스킨에 정해진 모양입니다."
+            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별은 별빛)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼와 원형은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있고, 별은 파란·금색 건반에 꼭짓점이 더 있어 색이 같아도 건반을 구분할 수 있습니다."
           />
           <Choice
             {...row}
@@ -520,30 +520,30 @@ export function SettingsScreen({
               setHelp(text);
               setSideRow(true);
             }}
-            label="사이드 노트 모양"
+            label="사이드 노트"
             testId="opt-side-style"
             value={settings.parts.side}
-            options={parts.side}
+            options={PART_CHOICES.side}
             onChange={(v) => setPart('side', v)}
-            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 노트와 같게는 고른 노트 모양으로(반쪽 덮기는 비치는 막대로) 그리고, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다. 별도 레인과 반쪽 덮기 모두에 쓰입니다."
+            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮습니다. 기본은 비치는 막대로, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다."
           />
           <Choice
             {...row}
             label="기어"
             testId="opt-deck-style"
             value={settings.parts.deck}
-            options={parts.deck}
+            options={PART_CHOICES.deck}
             onChange={(v) => setPart('deck', v)}
             help="판정선 아래 기어(키를 누르면 켜지는 레인 표시등과 그 아래 판)의 모양입니다. 판정선의 위치와 모양은 어느 기어에서나 같습니다."
           />
           <Choice
             {...row}
-            label="타격 효과 모양"
+            label="타격 효과"
             testId="opt-hit-style"
             value={settings.parts.hit}
-            options={parts.hit}
+            options={PART_CHOICES.hit}
             onChange={(v) => setPart('hit', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 임팩트 웨이브·스파크·LED 그리드·셔터는 판정선 아래(기어 쪽)에만 그려 내려오는 노트를 가리지 않습니다. 크기는 효과 탭의 타격 효과에서 정합니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 임팩트 웨이브·스파크·LED 그리드·셔터는 판정선 아래(기어 쪽)에만 그려 내려오는 노트를 가리지 않습니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
           />
           <Choice
             {...row}
@@ -566,19 +566,6 @@ export function SettingsScreen({
             format={pct}
             onChange={(v) => set('laneWidthScale', v)}
             help="트랙의 폭입니다."
-          />
-          <Choice
-            {...row}
-            onHelp={(text) => {
-              setHelp(text);
-              setSideRow(true);
-            }}
-            label="사이드 노트"
-            testId="opt-side-notes"
-            value={settings.sideNotes}
-            options={SIDE_NOTE_CHOICES}
-            onChange={(v) => set('sideNotes', v)}
-            help="4K+FX·6K+FX의 사이드 노트를 양 끝 레인에 따로 둘지, DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮는 막대로 그릴지 고릅니다. 판정과 키는 그대로이고, 에디터는 늘 별도 레인으로 보여 줍니다."
           />
           <NumberOption
             {...row}
@@ -663,7 +650,7 @@ export function SettingsScreen({
           />
           <Choice
             {...row}
-            label="타격 효과"
+            label="타격 효과 크기"
             testId="opt-hit-effect"
             value={settings.hitEffectSize}
             options={
@@ -696,14 +683,6 @@ export function SettingsScreen({
             format={pct}
             onChange={(v) => set('bgBrightness', v)}
             help="플레이 배경(곡 그림·영상)의 밝기입니다."
-          />
-          <Toggle
-            {...row}
-            label="배경 비주얼라이저"
-            testId="opt-visualizer"
-            value={settings.visualizer}
-            onChange={(v) => set('visualizer', v)}
-            help="음악에 반응하는 스펙트럼을 배경에 그립니다."
           />
           <Toggle
             {...row}

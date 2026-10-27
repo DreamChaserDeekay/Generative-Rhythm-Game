@@ -28,7 +28,7 @@ import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
 import { coverText, pointText, speedText } from './format';
-import { Choice, NumberOption, OptionalNumberOption, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle, type RowProps } from './optionRows';
+import { Choice, NumberOption, OptionalNumberOption, pct, skinChoices, Toggle, type RowProps } from './optionRows';
 import { pacemakerChoices } from './playRules';
 import { focusFirstStop } from './selectNav';
 
@@ -445,17 +445,6 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
           onChange={(v) => set('keyBeamLength', v)}
           help="키를 누를 때 올라오는 빛의 길이"
         />
-        {keyModes[keyMode].lanes.some((l) => l.kind === 'side') && (
-          <Choice
-            {...row}
-            label="사이드 노트"
-            testId="quick-side-notes"
-            value={settings.sideNotes}
-            options={SIDE_NOTE_CHOICES}
-            onChange={(v) => set('sideNotes', v)}
-            help="양 끝 레인에 따로 두거나, DJMAX처럼 건반 레인의 절반을 덮는 막대로 그리기"
-          />
-        )}
       </div>
       <GearPreview settings={settings} keyMode={keyMode} />
     </div>

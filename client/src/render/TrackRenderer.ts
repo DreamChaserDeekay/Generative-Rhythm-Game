@@ -104,8 +104,8 @@ const FAR_AWAY = 1e4;
  * Bar lines keep about this thickness on screen (CSS px) all the way up the track (a fixed depth
  * on the track thinned to nothing in the distance), at this opacity of the skin's bar colour.
  */
-export const BAR_LINE_PX = 2.5;
-const BAR_LINE_OPACITY = 0.7;
+export const BAR_LINE_PX = 4;
+const BAR_LINE_OPACITY = 0.95;
 /** Track units per px of the approved skin sheets (73.65 px to a unit at the judge line). */
 const PX = 1 / 73.65;
 /** Hits and holds are drawn this much larger than lane-sized (1.2 times the first sheets). */

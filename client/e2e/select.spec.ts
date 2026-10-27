@@ -219,10 +219,10 @@ test('the song info of a song that plays: I then Enter plays it, and never press
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
   await page.goto('/');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
-  // the song select asks for its charts by itself (the route refuses them: no level, no message)
+  // the song select asks for its charts by itself, one per DJMAX tier (the route refuses them: no level, no message)
   await expect.poll(() => sent.length).toBe(4);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
   await page.keyboard.press('KeyI');
@@ -252,7 +252,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
   await page.goto('/');
   await expect(page.getByTestId('song-item')).toHaveCount(12);
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
@@ -274,7 +274,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   expect(await focusedSong()).toBe(songs[10].id);
   await page.waitForTimeout(300);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
-  // (the song select asks for the charts of the song it rests on by itself, quietly)
+  // (the song select asks for the charts of the song it rests on by itself, quietly: one per DJMAX tier)
   await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(4);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('select-error')).toContainText('e2e');

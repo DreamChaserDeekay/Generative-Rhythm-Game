@@ -2418,10 +2418,26 @@ button.opt:active:not(:disabled) {
   transform: none;
 }
 
-.opt-action .opt-value b {
-  min-width: 0;
+/* its action as a button, in the middle of where the other rows show their value (‹ value ›) */
+.opt-action .opt-value {
+  justify-content: center;
+  width: calc(2 * 32px + 2 * var(--sp-2) + 120px);
+}
+
+.opt-action .opt-button {
+  min-width: 120px;
+  padding: var(--sp-1) var(--sp-3);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.opt-action:hover:not(:disabled) .opt-button,
+.opt-action:focus .opt-button {
+  background: var(--raised-hover);
+  border-color: var(--accent);
 }
 
 /* keys and pad controls: the mode, its caps and its buttons */

@@ -162,8 +162,8 @@ function skin(id: string, d: SkinDef): Skin {
       railLeft: d.rails[0],
       railRight: d.rails[1],
       divider,
-      // drawn at 70%: about 16% white over the track
-      bar: over('#ffffff', 0.23, d.near),
+      // drawn at 95%: about a third white over the track, so a bar stands out from the lane dividers
+      bar: over('#ffffff', 0.35, d.near),
       judgeLine: d.judge,
       judgeGlow: d.glow ?? d.judge,
       cover: over('#000000', 0.3, d.far),
@@ -535,42 +535,37 @@ export function styleOf(skin: Skin): SkinStyle {
 }
 
 /**
- * The parts of the gear a player picks apart from the skin (설정 → 기어): 'skin' keeps the skin's
- * own. Long notes go with the note (its family's, see LONG_OF); the side notes are drawn as the
- * player picks, whatever the skin.
+ * The parts of the gear a player picks (설정 → 기어), drawn whatever the skin (the skin keeps its
+ * colours, track, rails and type). Long notes go with the note (its family's, see LONG_OF).
  */
 export interface SkinParts {
-  note: NoteStyle | 'skin';
+  note: NoteStyle;
   side: SideStyle;
-  deck: DeckStyle | 'skin';
-  hit: HitStyle | 'skin';
+  deck: DeckStyle;
+  hit: HitStyle;
 }
 
-export const DEFAULT_PARTS: SkinParts = { note: 'skin', side: 'bar', deck: 'skin', hit: 'skin' };
+/** What a player can pick: the instrument-colour note, gear and effect and the plain line gear are the skins' own only. */
+export const PART_NOTES = NOTE_STYLES.filter((s) => s !== 'stem');
+export const PART_DECKS = DECK_STYLES.filter((s) => s !== 'line' && s !== 'stem');
+export const PART_HITS = HIT_STYLES.filter((s) => s !== 'stemflash');
 
-/** Saved parts; what is missing or unknown is the skin's (the side notes: as the notes draw them). */
+export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' };
+
+/** Saved parts; what is missing or no longer picked (an earlier version's 'skin' among them) is the default. */
 export function sanitizeParts(raw: unknown): SkinParts {
   const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   return {
-    note: pick(r.note, ['skin', ...NOTE_STYLES] as const, 'skin'),
-    side: pick(r.side, SIDE_STYLES, 'bar'),
-    deck: pick(r.deck, ['skin', ...DECK_STYLES] as const, 'skin'),
-    hit: pick(r.hit, ['skin', ...HIT_STYLES] as const, 'skin'),
+    note: pick(r.note, PART_NOTES, DEFAULT_PARTS.note),
+    side: pick(r.side, SIDE_STYLES, DEFAULT_PARTS.side),
+    deck: pick(r.deck, PART_DECKS, DEFAULT_PARTS.deck),
+    hit: pick(r.hit, PART_HITS, DEFAULT_PARTS.hit),
   };
 }
 
-/** The skin with the parts the player picked in place of its own (the skin itself when they are all its own). */
+/** The skin with the parts the player picked in place of its own. */
 export function withParts(skin: Skin, parts: SkinParts): Skin {
-  const own = styleOf(skin);
-  if (parts.note === 'skin' && parts.deck === 'skin' && parts.hit === 'skin' && parts.side === (own.side ?? 'bar')) return skin;
-  const style: SkinStyle = {
-    ...own,
-    note: parts.note === 'skin' ? own.note : parts.note,
-    side: parts.side,
-    deck: parts.deck === 'skin' ? own.deck : parts.deck,
-    hit: parts.hit === 'skin' ? own.hit : parts.hit,
-  };
-  return { ...skin, style };
+  return { ...skin, style: { ...styleOf(skin), note: parts.note, side: parts.side, deck: parts.deck, hit: parts.hit } };
 }
 
 export function skinById(id: string, custom: unknown): Skin {
