@@ -373,11 +373,35 @@ export function PracticePanel({ practice, onChange, onHelp }: { practice: Practi
 
 export type PlayOptionsTab = 'rules' | 'gear' | 'generation';
 
-/** "생성 옵션 · 롱노트 · 이전 배치": the generation options that differ from the defaults. */
-export function generationSummary(g: GenerationPrefs): string {
-  const style = g.style !== 'balanced' ? ` · ${STYLE_LABELS[g.style]}` : '';
-  const engine = g.patternEngine === 'classic' ? ' · 이전 배치' : g.patternEngine === 'designer' ? ' · 악구 배치' : '';
-  return `생성 옵션${style}${engine}`;
+/**
+ * The generation options that make another chart than the defaults on a key mode (what reaches
+ * the generator: a scratch rate on a mode without scratch does not), by name, in the tab's order.
+ */
+export function generationChanges(g: GenerationPrefs, keyMode: KeyModeId): string[] {
+  const params = generationParams(g, keyMode);
+  const base = generationParams(DEFAULT_GENERATION, keyMode);
+  const names: Record<string, string> = {
+    style: STYLE_LABELS[g.style],
+    rhythmSource: `리듬 ${RHYTHM_LABELS[g.rhythmSource]}`,
+    density: '밀도',
+    longNoteRatio: '롱노트 비율',
+    maxChord: '최대 동시 노트',
+    instrumentMapping: '악기별 레인',
+    patternEngine: g.patternEngine === 'classic' ? '이전 배치' : '악구 배치',
+    repeatConsistency: '반복 구간',
+    scratchRate: '스크래치 비율',
+    sideRate: '사이드 비율',
+  };
+  return Object.keys(names)
+    .filter((k) => params[k] !== base[k])
+    .map((k) => names[k]);
+}
+
+/** "생성 옵션 · 롱노트 · 이전 배치": the tab's name with what is changed (two at most, so the tabs keep their line). */
+export function generationSummary(g: GenerationPrefs, keyMode: KeyModeId): string {
+  const changes = generationChanges(g, keyMode);
+  const more = changes.length > 2 ? ` 외 ${changes.length - 2}개` : '';
+  return ['생성 옵션', ...changes.slice(0, 2)].join(' · ') + more;
 }
 
 /**
@@ -569,7 +593,7 @@ export function PlayOptionsPanel(props: SettingsProps & {
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => props.onTab(tab)}
             >
-              {tab === 'generation' ? generationSummary(settings.generation) : TAB_NAMES[tab]}
+              {tab === 'generation' ? generationSummary(settings.generation, props.keyMode) : TAB_NAMES[tab]}
             </button>
           ))}
         </div>

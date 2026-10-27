@@ -37,7 +37,7 @@ import { desktopShell } from './displayMode';
 import { dayText, speedText } from './format';
 import { namedPictures } from './importPictures';
 import { lampClass, LampMark } from './lamps';
-import { FEVER_SHORT, generationParams, PLAY_OPTIONS_TABS, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
+import { FEVER_SHORT, generationChanges, generationParams, PLAY_OPTIONS_TABS, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { judgementChip } from './playRules';
 import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pressesOnEnter, randomIndex, shiftChangesFolder } from './selectNav';
@@ -143,6 +143,7 @@ export function SongSelectScreen(props: Props) {
   const folder = settings.songFolder;
   const generationKey = JSON.stringify(settings.generation);
   const params = useMemo(() => generationParams(settings.generation, keyMode), [generationKey, keyMode]);
+  const generationChanged = useMemo(() => generationChanges(settings.generation, keyMode), [generationKey, keyMode]);
 
   /** Where a tier of a song keeps its pattern and target level. */
   const tierKey = (song: Song, tier: string) => patternKey(song.id, keyMode, system.id, tier);
@@ -1369,6 +1370,12 @@ export function SongSelectScreen(props: Props) {
                   <kbd>Tab</kbd>
                 </div>
                 <span className="mode-rules">
+                  {/* generation options that make another chart (Space → 생성 옵션): its records are of that chart */}
+                  {generationChanged.length > 0 && (
+                    <span className="rule-chip" data-testid="chip-generation" title={generationChanged.join(' · ')}>
+                      생성 옵션 변경
+                    </span>
+                  )}
                   {/* a judgement or score rule that is not the default (Space → 플레이 규칙) */}
                   {judgementChip(settings.judgementMode) && (
                     <span className="rule-chip" data-testid="chip-judgement">

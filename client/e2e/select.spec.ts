@@ -207,6 +207,32 @@ test('Space and I open their panel: ↑↓ lines (the tabs above the first row),
   expect(errors).toEqual([]);
 });
 
+test('generation options that make another chart show beside the rules, named in their tab, until 생성 옵션 초기화', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: fakeSongs(2) } }));
+  // (a scratch rate makes no other 4K chart: there only the density and the chord size count)
+  await page.addInitScript(() =>
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', generation: { density: 1.2, maxChord: 3, specialRate: 0.1 } })),
+  );
+  await page.goto('/');
+  const chip = page.getByTestId('chip-generation');
+  await expect(chip).toHaveText('생성 옵션 변경');
+  await expect(chip).toHaveAttribute('title', '밀도 · 최대 동시 노트');
+  await page.getByRole('button', { name: '7K+1S', exact: true }).click();
+  await expect(chip).toHaveAttribute('title', '밀도 · 최대 동시 노트 · 스크래치 비율');
+  // the tab names two of them and how many more
+  await playOptions(page);
+  const tab = page.getByTestId('toggle-generation');
+  await expect(tab).toHaveText('생성 옵션 · 밀도 · 최대 동시 노트 외 1개');
+  await tab.click();
+  await page.getByRole('button', { name: '생성 옵션 초기화' }).click();
+  await expect(tab).toHaveText('생성 옵션');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+  await expect(chip).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('the song info of a song that plays: I then Enter plays it, and never presses BPM ×2', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(3, 'ready').map((s) => ({ ...s, bpm: 128, bpmMin: 128, bpmMax: 128 }));
