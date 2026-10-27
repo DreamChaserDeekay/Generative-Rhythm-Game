@@ -134,6 +134,35 @@ def test_the_closing_chord_leaves_a_lane_just_played() -> None:
     assert lint(notes, lanes, master, tempo) == []
 
 
+def test_the_closing_chord_counts_a_scratch_in_it() -> None:
+    """A 7K chart ending on a scratch and a left key: the scratch and every key of the chord count
+    against the hand and the chord size. The chord grew three presses on the left hand on EXPERT and
+    seven notes on MASTER, and the linter refused the chart (generator 0.9.34 review)."""
+    from rhythm_server.generator.linter import lint
+
+    tempo = TempoMap(TIMING)
+    lanes = lane_infos("7K+1S")
+    values = [0.6] * 200 + [0.55, 0.5, 0.45, 0.42, 0.4, 0.38, 0.36, 0.35, 0.34, 0.33, 0.32, 0.3, 0.29, 0.28] + [0.0] * 20
+    analysis = {"energy": {"frameMs": 100, "values": values}, "durationMs": 23400.0,
+                "onsets": [{"t": 500.0 * b, "strength": 0.5} for b in range(41)]}
+    for tier in ("EXPERT", "MASTER"):
+        params = resolve_params("7K+1S", tier)
+        notes = [{"beat": 39.0, "t": 19500.0, "lane": 3, "type": "tap"}, {"beat": 40.0, "t": 20000.0, "lane": 0, "type": "tap"},
+                 {"beat": 40.0, "t": 20000.0, "lane": 1, "type": "tap"}]
+        assert finish(notes, analysis, tempo, params, lanes, 0.15), tier
+        assert sum(n["type"] == "hold" for n in notes) >= 2, tier
+        assert lint(notes, lanes, params, tempo) == [], tier
+    # a side note just before the chord keeps its hand's keys out of it (a bar over those keys)
+    lanes = lane_infos("6K+FX")
+    params = resolve_params("6K+FX", "EXPERT")
+    side = next(l for l in lanes if l.kind == "side" and l.hand == "L")
+    right = [l.index for l in lanes if l.kind == "key" and l.hand == "R"]
+    notes = [{"beat": 39.88, "t": 19940.0, "lane": side.index, "type": "tap"}, {"beat": 40.0, "t": 20000.0, "lane": right[0], "type": "tap"}]
+    assert finish(notes, analysis, tempo, params, lanes, 0.15)
+    assert all(lanes[n["lane"]].hand != "L" or lanes[n["lane"]].kind == "side" for n in notes)
+    assert lint(notes, lanes, params, tempo) == []
+
+
 def test_lines_are_not_chopped_into_sixteenths() -> None:
     """A tonal sound a sixteenth after the last tonal note without a sure attack (a strum, a slide,
     an ornament), or inside the last note's own sound at its pitch with a weak attack, splits a

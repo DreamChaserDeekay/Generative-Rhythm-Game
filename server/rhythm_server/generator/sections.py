@@ -608,18 +608,25 @@ def layout(
         # notes in the class's own order, so a unit that adds more adds the same notes first and
         # every repeat plays what the earlier ones did.
         ranked = sorted((k for k in consensus if k not in picks and not inside(k)), key=lambda k: (-consensus[k], k))
-        for m in ms:
-            u = units[m]
-            n_more = int(round(unit_n[m] * (1 + u.extra))) - len(picks)
-            if n_more <= 0:
-                continue
-            pool = [k for k in ranked if k in per_unit[m] and k not in unit_rolls.get(m, ()) and k not in unit_drop.get(m, ())]
+        n_more = {m: int(round(unit_n[m] * (1 + units[m].extra))) - len(picks) for m in ms}
+        pools = {m: [k for k in ranked if k in per_unit[m] and k not in unit_rolls.get(m, ()) and k not in unit_drop.get(m, ())] for m in ms if n_more[m] > 0}
+        # the tier's grid limits hold for these notes too (MASTER's 32nds came in here: 6% of a
+        # chart's hits against the 1.5% limit), decided once per key for every repeat that may add
+        # it, so a later repeat is not refused a note an earlier one added
+        allowed: dict[int, bool] = {}
+        for m, pool in pools.items():
             extra: list[int] = []
             for k in pool:
-                if len(extra) >= n_more:
+                if len(extra) >= n_more[m]:
                     break
+                if k not in allowed:
+                    sub = grid_of(cands[per_unit[m][k]])
+                    takers = sum(1 for p in pools.values() if k in p)
+                    allowed[k] = partial_ok(sub, takers)
+                    if allowed[k]:
+                        sub_counts[sub] = sub_counts.get(sub, 0) + takers
                 t = cands[per_unit[m][k]].t
-                if window_ok([t]):
+                if allowed[k] and window_ok([t]):
                     extra.append(k)
                     take([t])
                     picked_total += 1
