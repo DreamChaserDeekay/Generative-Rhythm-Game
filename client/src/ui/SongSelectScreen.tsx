@@ -1249,7 +1249,16 @@ export function SongSelectScreen(props: Props) {
               </div>
             )}
             {filtered.map((s, i) => (
-              <SongRow key={s.id} song={s} active={s.id === selected?.id} favorite={favorites.has(s.id)} cells={listCells[i]} onPick={onSelectSong} />
+              <SongRow
+                key={s.id}
+                song={s}
+                active={s.id === selected?.id}
+                favorite={favorites.has(s.id)}
+                cells={listCells[i]}
+                // the column ←→ picked; on the selected song a saved chart picked there takes it
+                tier={savedEntry && s.id === selected?.id ? null : difficulty}
+                onPick={onSelectSong}
+              />
             ))}
           </div>
         </section>
@@ -1577,11 +1586,14 @@ interface ListCells {
 /**
  * A level on the song list with its lamp's mark beside it (on a full combo the whole cell is the
  * lamp's); a level never played has no mark, one not known yet a dash. A lamp of another chart of
- * the tier than the one Enter plays is a faint mark.
+ * the tier than the one Enter plays is a faint mark. The entry picked with ←→ is underlined.
  */
-function LampCell({ mark, title, saved = false }: { mark: TierMark; title: string; saved?: boolean }) {
+function LampCell({ mark, title, saved = false, active }: { mark: TierMark; title: string; saved?: boolean; active: boolean }) {
   return (
-    <span className={`tier-level lamp-${mark.lamp ? lampClass(mark.lamp) : 'none'} ${mark.level === null ? 'unknown' : ''} ${mark.other ? 'other' : ''} ${saved ? 'saved' : ''}`} title={title}>
+    <span
+      className={`tier-level lamp-${mark.lamp ? lampClass(mark.lamp) : 'none'} ${mark.level === null ? 'unknown' : ''} ${mark.other ? 'other' : ''} ${saved ? 'saved' : ''} ${active ? 'active' : ''}`}
+      title={title}
+    >
       <LampMark />
       {mark.level ?? '–'}
     </span>
@@ -1593,6 +1605,8 @@ interface SongRowProps {
   active: boolean;
   favorite: boolean;
   cells: ListCells;
+  /** The tier picked with ←→ (null: the song's saved chart is picked, its cell is the one). */
+  tier: string | null;
   onPick: (songId: string) => void;
 }
 
@@ -1604,6 +1618,7 @@ function sameRow(a: SongRowProps, b: SongRowProps): boolean {
     a.song === b.song &&
     a.active === b.active &&
     a.favorite === b.favorite &&
+    a.tier === b.tier &&
     a.onPick === b.onPick &&
     at.length === bt.length &&
     at.every((m, i) => m.tier === bt[i].tier && sameMark(m, bt[i])) &&
@@ -1645,9 +1660,9 @@ const SongRow = memo(function SongRow(props: SongRowProps) {
         <span className="song-state error">분석 실패</span>
       ) : (
         <span className="song-tiers">
-          {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} />}
+          {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} active={props.tier === null} />}
           {cells.tiers.map((m) => (
-            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} />
+            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} active={m.tier.id === props.tier} />
           ))}
         </span>
       )}

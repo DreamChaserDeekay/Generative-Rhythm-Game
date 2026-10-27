@@ -654,7 +654,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   expect(errors).toEqual([]);
 });
 
-test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), and the colour-blind palette has lamps of its own', async ({ page }) => {
+test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), the difficulty ←→ picked underlined, and the colour-blind palette has lamps of its own', async ({ page }) => {
   const errors = trackErrors(page);
   // (its charts are not to be had: the list shows what its records say)
   const [song] = fakeSongs(1, 'ready');
@@ -679,6 +679,15 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   expect(await style(2, 'background-color', true)).toBe('rgba(0, 0, 0, 0)');
   expect(await style(2, 'border-top-color', true)).toBe('rgb(255, 46, 46)');
   expect(await style(0, 'background-color')).toBe('rgb(255, 231, 163)');
+  // the difficulty ←→ picked (NORMAL) is the cell set apart: bold, a line of the accent under it
+  await expect(page.locator('.tier-level.active')).toHaveCount(1);
+  await expect(cells.nth(0)).toHaveClass(/active/);
+  expect(await style(0, 'box-shadow')).toContain('rgb(55, 226, 255)');
+  expect(await style(0, 'font-weight')).toBe('700');
+  expect(await style(1, 'font-weight')).toBe('600');
+  await page.keyboard.press('ArrowRight');
+  await expect(cells.nth(1)).toHaveClass(/active/);
+  await expect(cells.nth(0)).not.toHaveClass(/active/);
   // the colour-blind palette: its own lamp colours, the same shapes
   await page.evaluate(() => document.documentElement.classList.add('palette-cb'));
   expect(await style(2, 'border-top-color', true)).toBe('rgb(213, 94, 0)');
