@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type ServerChart } from '../api/client';
-import { analysisStamp, ChartStore, chartKey, savedChartKey, type ChartSpec } from './chartCache';
+import { analysisStamp, BRIEFS_STORAGE_KEY, BRIEFS_STORED, ChartStore, chartKey, savedChartKey, type ChartSpec } from './chartCache';
 
 const spec = (extra: Partial<ChartSpec> = {}): ChartSpec => ({
   songId: '0123456789abcdef',
@@ -158,5 +158,127 @@ describe('the song select chart store', () => {
     expect(saved?.meta.level).toBe(9);
     expect(s.chart(savedChartKey('c' + 'a'.repeat(20)))).toBe(saved);
     expect(s.getVersion()).toBeGreaterThan(version);
+  });
+});
+
+describe('the briefs kept across restarts', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** The browser's storage, as a map. */
+  function storage() {
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, v),
+      removeItem: (k: string) => void items.delete(k),
+    });
+    return items;
+  }
+  const storedOf = (items: Map<string, string>) => JSON.parse(items.get(BRIEFS_STORAGE_KEY) ?? 'null') as { generator: string; briefs: [string, unknown][] } | null;
+
+  it('come back on the next run of the same generator: known at once, nothing asked', async () => {
+    storage();
+    const first = store();
+    first.s.remember('0.9.35');
+    await first.s.loadChart(spec());
+    await first.s.loadBrief(spec({ difficulty: 'HD' }));
+
+    const next = store();
+    const version = next.s.getVersion();
+    next.s.remember('0.9.35');
+    expect(next.s.getVersion()).toBeGreaterThan(version);
+    expect(next.s.brief(chartKey(spec({ difficulty: 'HD' })))).toEqual({ chartId: 'c-HD-d', level: 5, noteCount: 120, seed: 7 });
+    expect(await next.s.loadBrief(spec())).toMatchObject({ level: 5 });
+    expect(next.calls).toEqual([]);
+    // the whole charts are not kept: Enter asks for its own
+    expect(next.s.chart(chartKey(spec()))).toBeNull();
+    // the server answering again (another visit of the song select) changes nothing
+    next.s.remember('0.9.35');
+    expect(next.s.brief(chartKey(spec()))).not.toBeNull();
+  });
+
+  it('go with another generator, whose charts are other ones', async () => {
+    const items = storage();
+    const first = store();
+    first.s.remember('0.9.35');
+    await first.s.loadBrief(spec());
+
+    const next = store(new Map([['MX', cannot()]]));
+    next.s.remember('0.9.36');
+    expect(next.s.brief(chartKey(spec()))).toBeNull();
+    expect(storedOf(items)).toEqual({ generator: '0.9.36', briefs: [] });
+    // the server updated while the game runs: what came from the old one goes too (whole charts and
+    // refusals with the briefs), the saved charts stay
+    const saved = 'c' + 'a'.repeat(20);
+    await next.s.loadBrief(spec({ difficulty: 'HD' }));
+    await next.s.loadChart(spec());
+    await next.s.loadBrief(spec({ difficulty: 'MX' }));
+    await next.s.loadSaved(saved);
+    next.s.remember('0.9.37');
+    expect(next.s.brief(chartKey(spec({ difficulty: 'HD' })))).toBeNull();
+    expect(next.s.chart(chartKey(spec()))).toBeNull();
+    expect(next.s.hasFailed(chartKey(spec({ difficulty: 'MX' })))).toBe(false);
+    expect(next.s.brief(savedChartKey(saved))).toMatchObject({ level: 9 });
+    expect(next.s.chart(savedChartKey(saved))).not.toBeNull();
+    expect(storedOf(items)?.briefs).toEqual([]);
+  });
+
+  it('are stored once the generator is known, generated charts only; an unreadable store is an empty one', async () => {
+    const items = storage();
+    const { s } = store();
+    await s.loadBrief(spec());
+    expect(items.size).toBe(0);
+    // what came before is stored then
+    s.remember('g');
+    expect(storedOf(items)?.briefs.map(([key]) => key)).toEqual([chartKey(spec())]);
+    // a saved chart is known by its id (and can be deleted): not stored
+    await s.loadSaved('c' + 'a'.repeat(20));
+    expect(storedOf(items)?.briefs).toHaveLength(1);
+
+    items.set(BRIEFS_STORAGE_KEY, '{not json');
+    const broken = store();
+    expect(() => broken.s.remember('g')).not.toThrow();
+    expect(broken.s.brief(chartKey(spec()))).toBeNull();
+    items.set(BRIEFS_STORAGE_KEY, JSON.stringify({ generator: 'g', briefs: [['k', { level: 'x' }], 5, [chartKey(spec()), { chartId: 'c', level: 3, noteCount: 9, seed: 1 }]] }));
+    const odd = store();
+    odd.s.remember('g');
+    expect(odd.s.brief('k')).toBeNull();
+    expect(odd.s.brief(chartKey(spec()))).toMatchObject({ level: 3 });
+  });
+
+  it('keep the most recent ones only', async () => {
+    const items = storage();
+    const brief = { chartId: 'c', level: 1, noteCount: 1, seed: null };
+    const old = Array.from({ length: BRIEFS_STORED + 5 }, (_, i) => [`k${i}`, brief]);
+    items.set(BRIEFS_STORAGE_KEY, JSON.stringify({ generator: 'g', briefs: old }));
+    const { s } = store();
+    s.remember('g');
+    expect(s.brief('k4')).toBeNull();
+    expect(s.brief('k5')).not.toBeNull();
+    // one more: the oldest goes, the newest is last
+    await s.loadBrief(spec());
+    const kept = storedOf(items)?.briefs.map(([key]) => key) ?? [];
+    expect(kept).toHaveLength(BRIEFS_STORED);
+    expect(kept[0]).toBe('k6');
+    expect(kept.at(-1)).toBe(chartKey(spec()));
+  });
+
+  it('keep the ones asked for again, however long ago they came in', async () => {
+    const items = storage();
+    const brief = { chartId: 'c', level: 1, noteCount: 1, seed: null };
+    const old = [[chartKey(spec()), brief], ...Array.from({ length: BRIEFS_STORED - 1 }, (_, i) => [`k${i}`, brief])];
+    items.set(BRIEFS_STORAGE_KEY, JSON.stringify({ generator: 'g', briefs: old }));
+    const { s, calls } = store();
+    s.remember('g');
+    // the oldest one is asked for again (nothing written), then a new one comes in: the next oldest goes
+    await s.loadBrief(spec());
+    await s.loadBrief(spec({ difficulty: 'HD' }));
+    expect(calls).toEqual(['meta HD']);
+    const kept = storedOf(items)?.briefs.map(([key]) => key) ?? [];
+    expect(kept).toHaveLength(BRIEFS_STORED);
+    expect(kept).not.toContain('k0');
+    expect(kept.slice(-2)).toEqual([chartKey(spec()), chartKey(spec({ difficulty: 'HD' }))]);
   });
 });

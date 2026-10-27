@@ -58,13 +58,11 @@ describe('settings', () => {
     expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
   });
 
-  it('keeps how the side notes are drawn (settings saved before the option: lanes of their own)', () => {
-    expect(DEFAULT_SETTINGS.sideNotes).toBe('lanes');
-    expect(sanitizeSettings({}).sideNotes).toBe('lanes');
-    expect(sanitizeSettings({ sideNotes: 'half' }).sideNotes).toBe('half');
-    expect(sanitizeSettings({ sideNotes: 'djmax' as never }).sideNotes).toBe('lanes');
-    expect(sanitizeSettings({ sideNotes: 1 as never }).sideNotes).toBe('lanes');
-    expect(resetSettings({ ...DEFAULT_SETTINGS, sideNotes: 'half' }).sideNotes).toBe('lanes');
+  it('lays the side notes over half the keys whatever was saved, shows no visualizer, and starts on the game’s own difficulty system', () => {
+    expect(DEFAULT_SETTINGS.sideNotes).toBe('half');
+    for (const sideNotes of [undefined, 'lanes', 'half', 'djmax']) expect(sanitizeSettings({ sideNotes: sideNotes as never }).sideNotes).toBe('half');
+    expect(sanitizeSettings({ visualizer: true }).visualizer).toBe(false);
+    expect(DEFAULT_SETTINGS.difficultySystem).toBe('GRG');
   });
 
   it('keeps the judgement opacity, the judge counter and the EX-SCORE pacemaker targets (settings saved before them: solid, off)', () => {
@@ -74,6 +72,13 @@ describe('settings', () => {
     expect(sanitizeSettings({ pacemaker: 'AAA' }).pacemaker).toBe('AAA');
     expect(sanitizeSettings({ pacemaker: 'MAX' }).pacemaker).toBe('MAX');
     expect(sanitizeSettings({ pacemaker: '97' as never }).pacemaker).toBe('OFF');
+  });
+
+  it('shows the timing error bar only when it was saved on (settings saved before it: off)', () => {
+    expect(DEFAULT_SETTINGS.errorBar).toBe(false);
+    expect(sanitizeSettings({}).errorBar).toBe(false);
+    expect(sanitizeSettings({ errorBar: true }).errorBar).toBe(true);
+    for (const v of ['true', 1, null]) expect(sanitizeSettings({ errorBar: v as never }).errorBar).toBe(false);
   });
 
   it('shows bar lines unless they were turned off (settings saved before the option too)', () => {
@@ -108,14 +113,12 @@ describe('settings', () => {
   });
 
   it('keeps the parts picked apart from the skin and draws the skin with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'skin', side: 'bar', deck: 'skin', hit: 'skin' });
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
     const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'skin' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'bubbles' });
-    // nothing picked: the skin as it is
-    const pop = skinOf({ ...s, parts: DEFAULT_SETTINGS.parts });
-    expect(pop.style).toMatchObject({ note: 'round', deck: 'candy', hit: 'bubbles' });
-    expect(pop).toBe(skinById('pop', null));
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
+    // the skin keeps its colours
+    expect(skinOf(s).colors).toBe(skinById('pop', null).colors);
   });
 
   it('opens a skin of an earlier version as the skin that took its place', () => {

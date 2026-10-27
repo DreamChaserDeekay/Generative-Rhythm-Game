@@ -1252,6 +1252,54 @@ p.hint {
 .hud-judge-sub.slow { color: var(--g-slow); }
 .hud-judge-sub.exact { color: var(--text); }
 
+/* the timing error bar under the judgement (Hud.ts): early to the left, the best window shaded, a
+   tick per recent hit in the FAST / SLOW colours, their mean longer and thicker */
+.hud-errorbar {
+  transform-origin: 50% 0;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.hud-errorbar > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--tick);
+  margin-left: calc(var(--tick) / -2);
+}
+
+/* its width the best window's share (Hud.ts), centred */
+.hud-errorbar > .hud-eb-best {
+  margin-left: 0;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--g-max) 22%, transparent);
+}
+
+.hud-eb-zero {
+  background: var(--line-strong);
+}
+
+.hud-eb-tick {
+  opacity: 0;
+  background: var(--text);
+}
+
+.hud-eb-tick.fast { background: var(--g-fast); }
+.hud-eb-tick.slow { background: var(--g-slow); }
+
+.hud-errorbar > .hud-eb-mean {
+  top: -50%;
+  bottom: -50%;
+  width: var(--mean);
+  margin-left: calc(var(--mean) / -2);
+  opacity: 0;
+  background: var(--text);
+}
+
+.hud.ended .hud-errorbar {
+  display: none;
+}
+
 .hud-combo {
   visibility: hidden;
 }
@@ -2418,10 +2466,26 @@ button.opt:active:not(:disabled) {
   transform: none;
 }
 
-.opt-action .opt-value b {
-  min-width: 0;
+/* its action as a button, in the middle of where the other rows show their value (‹ value ›) */
+.opt-action .opt-value {
+  justify-content: center;
+  width: calc(2 * 32px + 2 * var(--sp-2) + 120px);
+}
+
+.opt-action .opt-button {
+  min-width: 120px;
+  padding: var(--sp-1) var(--sp-3);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.opt-action:hover:not(:disabled) .opt-button,
+.opt-action:focus .opt-button {
+  background: var(--raised-hover);
+  border-color: var(--accent);
 }
 
 /* keys and pad controls: the mode, its caps and its buttons */
@@ -2910,7 +2974,7 @@ button.opt:active:not(:disabled) {
   align-self: flex-start;
 }
 
-/* the beat ring and the big numbers */
+/* the beat ring (a count only, no beat number) and the big numbers */
 .calib-stage {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2927,14 +2991,6 @@ button.opt:active:not(:disabled) {
   height: 176px;
   border: 6px solid var(--raised-hover);
   border-radius: 50%;
-}
-
-.beat-ring b {
-  min-height: 1em;
-  font-family: var(--font-display);
-  font-size: var(--fs-hero);
-  font-weight: 700;
-  line-height: 1;
 }
 
 .beat-ring span {
@@ -3377,10 +3433,16 @@ button.chip.active b {
   padding: 0 0 0 10px;
   font-family: var(--font-display);
   font-size: var(--fs-body);
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   border-radius: var(--radius-sm);
+}
+
+/* the column ←→ picked (the entry Enter plays): bold, underlined */
+.tier-level.active {
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .tier-level.unknown {
@@ -3526,6 +3588,23 @@ button.chip.active b {
   border-radius: var(--radius);
 }
 
+/* an empty library: the first things to do, one under another (↑↓ go between them) */
+.first-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.first-run button {
+  min-width: 240px;
+  justify-content: flex-start;
+}
+
+.first-run .hint {
+  margin: var(--sp-2) 0 0;
+}
+
 .hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -3549,6 +3628,7 @@ button.chip.active b {
 
 .hero-text {
   min-width: 0;
+  container: hero-text / inline-size;
 }
 
 .hero-text h2 {
@@ -3606,9 +3686,19 @@ button.chip.active b {
 }
 
 .hero-facts .hero-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-self: center;
   margin-left: auto;
   gap: var(--sp-1);
+}
+
+/* a narrow column: 오토 플레이 without its key (in its title), so the buttons keep one line and the
+   song's place no taller than its picture */
+@container hero-text (max-width: 400px) {
+  .hero-actions .autoplay kbd {
+    display: none;
+  }
 }
 
 .fav-toggle.on {

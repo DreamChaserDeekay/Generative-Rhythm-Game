@@ -21,9 +21,7 @@ import {
 } from '../render/noteColors';
 import { laneColorsOf, skinOf, type Settings } from '../settings/settings';
 import { Choice, NumberOption, OptionRow } from './optionRows';
-
-/** How long 삭제 waits for its second press (as 모두 초기화 does). */
-const DELETE_CONFIRM_MS = 3000;
+import { useTwoPress } from './twoPress';
 
 /** A lane's short name on its swatch: S for the scratch, L / R for the side lanes, the keys by number. */
 function laneLabel(lanes: LaneConfig[], i: number): string {
@@ -89,12 +87,6 @@ export function NoteColorsPanel({
   const [hexEdit, setHexEdit] = useState<string | null>(null);
   const typed = useRef(false);
 
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const id = window.setTimeout(() => setArmed(false), DELETE_CONFIRM_MS);
-    return () => window.clearTimeout(id);
-  }, [armed]);
 
   // a drag left unfinished (the tab changed under it) leaves no colour on the preview
   useEffect(() => () => onDraft(null), [onDraft]);
@@ -179,18 +171,13 @@ export function NoteColorsPanel({
     onSettingsChange({ ...settings, noteColors: made.id, colorPresets: [...own, made] });
     onHelp(`지금 색을 새 프리셋 '${made.name}'으로 저장했습니다. 아래에서 이름을 바꿀 수 있습니다.`);
   };
-  const pressDelete = () => {
+  const remove = useTwoPress(() => {
     if (!user) return;
-    if (!armed) {
-      setArmed(true);
-      return;
-    }
-    setArmed(false);
     onSettingsChange({ ...settings, noteColors: SKIN_COLORS, colorPresets: own.filter((p) => p.id !== user.id) });
     onHelp(`'${user.name}'을 지우고 기본 색으로 돌아갔습니다.`);
     // the button goes with the preset: the keys and a pad go on from the preset row
     requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="opt-color-preset"]')?.focus());
-  };
+  });
 
   const [nameText, setNameText] = useState(user?.name ?? '');
   useEffect(() => setNameText(user?.name ?? ''), [user?.id, user?.name]);
@@ -356,15 +343,11 @@ export function NoteColorsPanel({
                 type="button"
                 className="small danger"
                 data-testid="color-preset-delete"
-                onKeyDown={(e) => {
-                  // a held Enter presses it once: the second press is a press of its own
-                  if (e.repeat && (e.code === 'Enter' || e.code === 'NumpadEnter')) e.preventDefault();
-                }}
+                {...remove.buttonProps}
                 onFocus={() => onHelp(`'${user.name}'을 지웁니다. 3초 안에 두 번 누르면 지우고 기본 색으로 돌아갑니다.`)}
-                onBlur={() => setArmed(false)}
-                onClick={pressDelete}
+                onClick={remove.press}
               >
-                {armed ? '한 번 더 누르면 삭제' : '삭제'}
+                {remove.armed ? '한 번 더 누르면 삭제' : '삭제'}
               </button>
             )}
           </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, styleOf, withParts } from './skins';
+import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, skinJson, styleOf, withParts } from './skins';
 import { LONG_OF } from './tintArt';
 
 describe('skins', () => {
@@ -139,10 +139,9 @@ describe('skins', () => {
 
   it('draws the parts a player picks in place of the skin’s', () => {
     const arcade = skinById('arcade', null);
-    // none picked: the skin itself
-    expect(withParts(arcade, DEFAULT_PARTS)).toBe(arcade);
-    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'arcade', hit: 'star' });
-    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'grand' }).style).toMatchObject({ note: 'chamfer', deck: 'grand' });
+    // nothing picked: the defaults, whatever the skin
+    expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'grand', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'shutter', side: 'dots' }).style).toMatchObject({ hit: 'shutter', side: 'dots' });
     // everything else stays the skin's: colours, rails, camera, type
     const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'cassette', hit: 'wave' });
@@ -150,14 +149,35 @@ describe('skins', () => {
     expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', hit: 'star' }).toEqual({ ...arcade.style, side: undefined });
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
-    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), side: 'bar', deck: 'concrete' });
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'concrete', hit: 'flash' });
   });
 
-  it('keeps the picked parts it knows and the skin’s for the rest; the side notes as the notes when unknown', () => {
+  it('shows a skin as JSON without the parts the gear tab picks, and reads it back to the same drawing', () => {
+    const old = sanitizeSkin({ noteShape: 'round', hitEffect: 'ring' })!;
+    for (const skin of [...BUILTIN_SKINS, old]) {
+      const json = JSON.parse(JSON.stringify(skinJson(skin)));
+      expect(json).not.toHaveProperty('noteShape');
+      expect(json).not.toHaveProperty('hitEffect');
+      for (const part of ['note', 'side', 'deck', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
+      const back = sanitizeSkin(json)!;
+      expect(back.colors).toEqual(skin.colors);
+      expect(back.textures).toEqual(skin.textures);
+      expect(back.laneLayout).toBe(skin.laneLayout);
+      expect(withParts(back, DEFAULT_PARTS).style).toEqual(withParts(skin, DEFAULT_PARTS).style);
+    }
+    // the skin itself is left as it was
+    expect(BUILTIN_SKINS[0].style?.note).toBe('flat');
+  });
+
+  it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
+    expect(DEFAULT_PARTS.deck).toBe('grand');
     expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' });
-    // what earlier versions kept: a long note picked, the side notes as the skin's
+    // what earlier versions kept: a long note picked, the skin's own, and the skins' own styles no longer picked
     expect(sanitizeParts({ note: 'gloss', long: 'ray', side: 'skin', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
+    expect(sanitizeParts({ note: 'skin', deck: 'skin', hit: 'skin' })).toEqual(DEFAULT_PARTS);
+    expect(sanitizeParts({ note: 'stem', deck: 'line', hit: 'stemflash' })).toEqual(DEFAULT_PARTS);
+    expect(sanitizeParts({ deck: 'stem' }).deck).toBe('grand');
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {

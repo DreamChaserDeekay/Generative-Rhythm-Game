@@ -403,12 +403,21 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
 
   // the rollover test counts the second key too; Esc closes it, not the settings
   await page.getByTestId('ghost-4K').click();
+  // it opens right under its own row, in sight, and its button now closes it
+  await expect(page.locator('[data-testid="keys-4K"] + [data-testid="ghost-test"]')).toBeInViewport();
+  await expect(page.getByTestId('ghost-4K')).toHaveText('테스트 닫기');
   for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyQ']) await page.keyboard.down(key);
   await expect(page.getByTestId('ghost-result')).toContainText('5 / 5');
   for (const key of ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyQ']) await page.keyboard.up(key);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('ghost-test')).toHaveCount(0);
+  await expect(page.getByTestId('ghost-4K')).toHaveText('동시 입력 테스트');
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  // the last mode's opens under it too, and its button closes it again
+  await page.getByTestId('ghost-8K').click();
+  await expect(page.locator('[data-testid="keys-8K"] + [data-testid="ghost-test"]')).toBeInViewport();
+  await page.getByTestId('ghost-8K').click();
+  await expect(page.getByTestId('ghost-test')).toHaveCount(0);
 
   // a lane on Enter is marked against FEVER and the skip; L-Shift lanes get the Windows note
   await page.getByTestId('key-4K-3').click();

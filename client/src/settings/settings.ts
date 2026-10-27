@@ -161,6 +161,8 @@ export interface Settings {
   judgementOpacity: number;
   /** Counts of BREAK and of FAST / SLOW under the score panel. */
   judgeCounter: boolean;
+  /** A bar under the judgement marking the last hits' timing errors and their mean. */
+  errorBar: boolean;
   /** A line across the track at every bar. */
   barLines: boolean;
   reducedFlash: boolean;
@@ -240,7 +242,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chartPicks: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
-  difficultySystem: difficultySystemIds.includes('DJMAX') ? 'DJMAX' : 'GRG',
+  difficultySystem: 'GRG',
   ruleset: defaultRuleset,
   gaugeType: defaultGauge,
   fever: 'AUTO',
@@ -254,6 +256,7 @@ export const DEFAULT_SETTINGS: Settings = {
   judgePosition: 'mid',
   judgementOpacity: 1,
   judgeCounter: false,
+  errorBar: false,
   barLines: true,
   reducedFlash: false,
   palette: 'default',
@@ -262,14 +265,14 @@ export const DEFAULT_SETTINGS: Settings = {
   keysound: true,
   cameraFx: 0.6,
   hitEffectSize: 'normal',
-  sideNotes: 'lanes',
+  sideNotes: 'half',
   skin: 'flat',
   customSkin: null,
   parts: DEFAULT_PARTS,
   noteColors: SKIN_COLORS,
   colorPresets: [],
   bgBrightness: 0.35,
-  visualizer: true,
+  visualizer: false,
   bga: true,
   favorites: [],
   songFolder: 'all',
@@ -366,13 +369,15 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
   s.judgementOpacity = pick(s.judgementOpacity, JUDGEMENT_OPACITIES, d.judgementOpacity);
   s.judgeCounter = s.judgeCounter === true;
+  s.errorBar = s.errorBar === true;
   s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
   s.cameraFx = num(s.cameraFx, 0, 1, d.cameraFx);
   s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);
-  s.sideNotes = pick(s.sideNotes, SIDE_NOTES, d.sideNotes);
+  // side notes are always laid over half the keys (DJMAX's side tracks); lanes of their own are no longer offered
+  s.sideNotes = 'half';
   // skins of earlier versions open as the skin that took their place
   s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
   s.customSkin = sanitizeSkin(s.customSkin);
@@ -381,7 +386,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.colorPresets = sanitizePresets(raw.colorPresets);
   s.noteColors = typeof s.noteColors === 'string' && presetById(s.noteColors, s.colorPresets) ? s.noteColors : SKIN_COLORS;
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);
-  s.visualizer = s.visualizer !== false;
+  // the background visualizer is no longer shown
+  s.visualizer = false;
   s.bga = s.bga !== false;
   s.favorites = Array.isArray(raw.favorites) ? [...new Set(raw.favorites.filter((id) => typeof id === 'string'))].slice(0, 5000) : [];
   s.songFolder = pick(s.songFolder, SONG_FOLDERS, d.songFolder);

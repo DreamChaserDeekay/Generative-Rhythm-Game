@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { api, EXPORT_LABELS, exportFormats } from '../api/client';
+import { api, EXPORT_LABELS, exportFormats, type ScoreRecord } from '../api/client';
 import { gaugeRules, judgementConfig, type GaugeRule } from '../engine/config';
 import type { ReplayData } from '../engine/replay';
 import { gradeClass, rulesetConfigs } from '../engine/ruleset';
@@ -41,6 +41,7 @@ import {
 } from './resultBreakdown';
 import { HintBar, TopBar, usePadInput, type KeyHint } from './shell';
 import { Backdrop, Disc, SongArt } from './songArt';
+import { useTwoPress } from './twoPress';
 
 interface Props {
   request: PlayRequest;
@@ -127,45 +128,60 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
     return () => window.clearTimeout(timer);
   }, [reduced]);
 
-  // Store the play once (generated charts only; autoplay, practice and the sync test are not records).
+  // Store the play (generated charts only; autoplay, practice and the sync test are not records):
+  // as the result shows, and again on 다시 저장 when that failed (the server down). The record it is
+  // compared with is read once, before the play is in it.
   const recording = !request.autoPlay && !request.replay && !practice && !!meta.songId;
-  useEffect(() => {
+  const before = useRef<ScoreRecord | null | undefined>(undefined);
+  const [storing, setStoring] = useState(false);
+  const store = async () => {
     const songId = meta.songId;
-    if (saved.current || !recording || !songId) return;
+    if (!songId) return;
+    setStoring(true);
+    try {
+      if (before.current === undefined) before.current = (await api.song(songId)).records?.find((r) => r.chartId === meta.chartId) ?? null;
+      await api.saveScore({
+        chartId: meta.chartId,
+        songId,
+        score: result.score,
+        rate: Math.round(result.rate * 100) / 100,
+        maxCombo: result.maxCombo,
+        lamp: result.lamp,
+        judgementMode: played.judgementMode,
+        breaks: result.breaks,
+        detail: {
+          fast: result.fast,
+          slow: result.slow,
+          meanErrorMs: result.meanErrorMs,
+          ruleset: result.ruleset,
+          exScore: result.exScore,
+          weightedScore: result.weightedScore,
+          gauge: result.gaugeLabel,
+          placement: played.placement,
+          laneOrder: placement.laneOrder,
+          feverBonus: result.fever.bonus,
+          failedAtMs: result.failedAtMs,
+        },
+        replay: outcome.replay,
+      });
+      setSave({ change: recordChange(result, before.current, played.judgementMode, result.ruleset) });
+    } catch (e) {
+      setSave({ error: e instanceof Error ? e.message : String(e) });
+    }
+    setStoring(false);
+  };
+  useEffect(() => {
+    if (saved.current || !recording) return;
     saved.current = true;
-    (async () => {
-      try {
-        const before = (await api.song(songId)).records?.find((r) => r.chartId === meta.chartId) ?? null;
-        await api.saveScore({
-          chartId: meta.chartId,
-          songId,
-          score: result.score,
-          rate: Math.round(result.rate * 100) / 100,
-          maxCombo: result.maxCombo,
-          lamp: result.lamp,
-          judgementMode: played.judgementMode,
-          breaks: result.breaks,
-          detail: {
-            fast: result.fast,
-            slow: result.slow,
-            meanErrorMs: result.meanErrorMs,
-            ruleset: result.ruleset,
-            exScore: result.exScore,
-            weightedScore: result.weightedScore,
-            gauge: result.gaugeLabel,
-            placement: played.placement,
-            laneOrder: placement.laneOrder,
-            feverBonus: result.fever.bonus,
-            failedAtMs: result.failedAtMs,
-          },
-          replay: outcome.replay,
-        });
-        setSave({ change: recordChange(result, before, played.judgementMode, result.ruleset) });
-      } catch (e) {
-        setSave({ error: e instanceof Error ? e.message : String(e) });
-      }
-    })();
-  }, [meta, recording, result, played.judgementMode, played.placement, placement.laneOrder, outcome.replay]);
+    void store();
+  });
+  const retrySave = () => {
+    if (!storing) void store();
+  };
+  // not stored (the server down): the first Enter or Esc (a pad's A or B) says so, the second leaves
+  const unsaved = recording && save !== null && 'error' in save;
+  const leave = useTwoPress(onBack);
+  const back = unsaved ? leave.press : onBack;
 
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
@@ -258,10 +274,10 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
       } else if (e.code === 'Escape') {
         e.preventDefault();
         if (details) toggleDetails();
-        else onBack();
+        else back();
       } else if (e.code === 'Enter' && !ownsEnter(e.target)) {
         e.preventDefault();
-        onBack();
+        back();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -401,7 +417,14 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               </p>
             )}
             {recording && (
-              <RecordLine save={settled ? save : null} scoring={rules.scoring} missLabel={rules.missLabel} modeLabel={played.judgementMode !== 'NORMAL' ? played.judgementMode : null} />
+              <RecordLine
+                save={settled ? save : null}
+                scoring={rules.scoring}
+                missLabel={rules.missLabel}
+                modeLabel={played.judgementMode !== 'NORMAL' ? played.judgementMode : null}
+                storing={storing}
+                onRetry={thenBack(retrySave)}
+              />
             )}
           </div>
         </section>
@@ -579,7 +602,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
         )}
 
         <div className="result-actions">
-          <button ref={backButton} className="primary" data-testid="result-back" onClick={onBack}>
+          <button ref={backButton} className="primary" data-testid="result-back" onClick={back} {...leave.buttonProps}>
             {backLabel} <kbd>{padInput ? 'A' : 'Enter'}</kbd>
           </button>
           <button data-testid="result-retry" onClick={() => onRetry(false)}>
@@ -621,6 +644,11 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               새 패턴을 만들지 못했습니다: {regenerateError}
             </span>
           )}
+          {unsaved && leave.armed && (
+            <span className="error" role="status" data-testid="result-unsaved">
+              기록이 저장되지 않았습니다 · 한 번 더 누르면 나갑니다
+            </span>
+          )}
         </div>
       </div>
       <HintBar hints={hints} end={endHints} />
@@ -638,14 +666,31 @@ function firstTag(first: RecordChange['first'], mode: string, ruleLabel: string)
 /**
  * Under the headline once the play is stored: how far it is from the best of its judgement mode
  * (the headline and the BREAKs, worse in a low judgement's colour) and that best; or that it was
- * stored, or why not. The line keeps its place until then.
+ * stored, or why not with 다시 저장. The line keeps its place until then.
  */
-function RecordLine({ save, scoring, missLabel, modeLabel }: { save: SaveState | null; scoring: 'rate' | 'weighted' | 'exscore'; missLabel: string; modeLabel: string | null }) {
+function RecordLine({
+  save,
+  scoring,
+  missLabel,
+  modeLabel,
+  storing,
+  onRetry,
+}: {
+  save: SaveState | null;
+  scoring: 'rate' | 'weighted' | 'exscore';
+  missLabel: string;
+  modeLabel: string | null;
+  storing: boolean;
+  onRetry: () => void;
+}) {
   if (!save) return <p className="record-line" />;
   if ('error' in save) {
     return (
       <p className="record-line error" data-testid="save-state">
         기록을 저장하지 못했습니다: {save.error}
+        <button className="small" data-testid="save-retry" disabled={storing} onClick={onRetry}>
+          {storing ? '저장하는 중…' : '다시 저장'}
+        </button>
       </p>
     );
   }

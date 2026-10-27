@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { api, type ServerChart, type Song } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import { keysoundBank, keysoundBgm, songBuffer } from '../audio/bufferCache';
@@ -10,6 +10,7 @@ import type { Chart } from '../engine/types';
 import { hexString } from '../render/noteColors';
 import { bindingsFor, keyLabel, laneColorsOf, secondBindingsFor, type Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
+import { useTwoPress } from './twoPress';
 
 /** Everything the editor keeps while the player test-plays and comes back. */
 export interface EditorSession {
@@ -328,11 +329,17 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     onTestPlay({ ...base, notes }, start);
   }, [base, doc, onTestPlay, say, session, stop]);
 
-  const exit = useCallback(() => {
-    if (doc.dirty && !window.confirm('저장하지 않은 변경이 있습니다. 편집을 끝낼까요?')) return;
+  const leave = useCallback(() => {
     stop();
     onExit();
-  }, [doc, onExit, stop]);
+  }, [onExit, stop]);
+  // over unsaved edits a first press warns and a second leaves (a pad cannot answer a confirm box)
+  const leaveUnsaved = useTwoPress(leave);
+  const exit = () => {
+    if (!doc.dirty) return leave();
+    if (!leaveUnsaved.armed) say('저장하지 않은 편집이 있습니다 · 한 번 더 누르면 저장하지 않고 나갑니다 · Ctrl+S 저장');
+    leaveUnsaved.press();
+  };
 
   const mirror = useCallback(() => {
     const ids = selection.current.size > 0 ? [...selection.current] : doc.notes.map((n) => n.id);
@@ -447,14 +454,22 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     apply(doc.remove(ids));
   };
 
-  const onWheel = (e: ReactWheelEvent<HTMLCanvasElement>) => {
-    if (e.ctrlKey || e.metaKey) {
-      session.pxPerMs = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, session.pxPerMs * (e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
-      changed();
-    } else if (!playback.current) {
-      setCursor(session.cursorMs - e.deltaY / session.pxPerMs);
-    }
-  };
+  // the wheel listened to natively: React's is passive, so Ctrl+wheel there zoomed the page as well
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        session.pxPerMs = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, session.pxPerMs * (e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
+        changed();
+      } else if (!playback.current) {
+        setCursor(session.cursorMs - e.deltaY / session.pxPerMs);
+      }
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [changed, session, setCursor]);
 
   // ---------------------------------------------------------------- keyboard
 
@@ -462,6 +477,12 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
   const seconds = secondBindingsFor(settings, base.meta.keyMode);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // F5 (a new pattern on the song select) never reloads the editor, nor Ctrl+R over unsaved edits
+      if (e.code === 'F5' || (doc.dirty && (e.ctrlKey || e.metaKey) && e.code === 'KeyR')) {
+        e.preventDefault();
+        if (doc.dirty) say('저장하지 않은 편집이 있습니다 · Ctrl+S 저장');
+        return;
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
       if (menu && !e.ctrlKey && !e.metaKey) {
         // the open menu has the keys (Ctrl ones go on): Esc closes it, the arrows go through its
@@ -547,7 +568,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
         setCursor(0);
       } else if (e.code === 'End') {
         setCursor(doc.notes.length > 0 ? doc.notes[doc.notes.length - 1].t : 0);
-      } else if (e.code === 'Escape') {
+      } else if (e.code === 'Escape' && !e.repeat) {
+        // a held Esc (or pad B) counts once: its repeats must not be the second press that leaves
         if (selection.current.size > 0) {
           selection.current = new Set();
           changed();
@@ -615,8 +637,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
           </>
         }
       >
-        <button className="quiet" data-testid="editor-exit" onClick={exit}>
-          ← 나가기 <kbd>Esc</kbd>
+        <button className="quiet" data-testid="editor-exit" {...leaveUnsaved.buttonProps} onClick={exit}>
+          {leaveUnsaved.armed ? '한 번 더 누르면 나가기' : '← 나가기'} <kbd>Esc</kbd>
         </button>
         <button className="primary" data-testid="editor-save" disabled={saving} onClick={() => void save()}>
           저장 <kbd>Ctrl+S</kbd>
@@ -716,7 +738,6 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
               redraw();
             }}
             onContextMenu={onContextMenu}
-            onWheel={onWheel}
           />
           {/* each lane's key, colour and kind under its lane */}
           <div className="editor-lanes" data-testid="editor-lanes" aria-label="레인">

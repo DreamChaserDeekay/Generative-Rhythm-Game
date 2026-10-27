@@ -90,6 +90,10 @@ test('on the result Enter continues, R plays the same lane order again and Shift
 
 test('a new pattern from the result keeps its difficulty system; a failure is shown, a late one dropped', async ({ page }) => {
   const errors = trackErrors(page);
+  // on DJMAX, not the default GRG (the system a request falls back to)
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ difficultySystem: 'DJMAX' }));
+  });
   await page.goto('/');
   expect((await page.request.post('/api/songs/demo', { data: { bpm: 131, bars: 8, seed: 9 } })).ok()).toBe(true);
   await expect
@@ -471,5 +475,64 @@ test('the offset fix of a late play: the song offset changed in play counted, on
   await page.keyboard.press('Space');
   await expect(page.locator('.error-stats')).toContainText('녹화 때 판정 오프셋 0ms · 곡 오프셋 +10ms');
   await expect(page.getByTestId('offset-suggestion')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+const UNSAVED_SONG = 'Demo Groove 138';
+
+test("a play the server could not store: the first Enter or Esc (a pad's B) says so and the second leaves; 다시 저장 stores it and shows the record", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' }));
+  });
+  const press = await plugPad(page);
+  const find = async () => ((await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string; status: string }[]).find((s) => s.title === UNSAVED_SONG);
+  expect((await page.request.post('/api/songs/demo', { data: { bpm: 138, bars: 8, seed: 5 } })).ok()).toBe(true);
+  await expect.poll(async () => (await find())?.status, { timeout: 60_000 }).toBe('ready');
+  const id = (await find())!.id;
+  const records = async () => (await (await page.request.get(`/api/songs/${id}/scores`)).json()).records as { plays: number }[];
+  await page.goto('/');
+  await page.getByTestId('song-item').filter({ hasText: UNSAVED_SONG }).click();
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+
+  // the server down for the scores; played with nothing pressed, to the result
+  await page.route('**/api/scores', (route) => route.abort());
+  const playUnsaved = async () => {
+    await page.getByTestId('play-button').click();
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
+    await settled(page);
+    await expect(page.getByTestId('save-state')).toContainText('기록을 저장하지 못했습니다');
+    await expect(page.getByTestId('save-retry')).toHaveText('다시 저장');
+    await expect(page.getByTestId('result-back')).toBeFocused();
+  };
+  await playUnsaved();
+  // Enter says the play is not stored and stays; the pad's B then leaves
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('result-unsaved')).toHaveText('기록이 저장되지 않았습니다 · 한 번 더 누르면 나갑니다');
+  await expect(page.getByTestId('result-screen')).toBeVisible();
+  await press(1);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(await records()).toEqual([]);
+
+  // again: 다시 저장 with the server still down says so once more, then with it back stores the play
+  await playUnsaved();
+  const tried = page.waitForRequest((r) => r.url().endsWith('/api/scores'));
+  await page.getByTestId('save-retry').click();
+  await tried;
+  await expect(page.getByTestId('save-retry')).toHaveText('다시 저장');
+  await expect(page.getByTestId('save-state')).toContainText('기록을 저장하지 못했습니다');
+  await expect(page.getByTestId('result-back')).toBeFocused();
+  await page.unroute('**/api/scores');
+  await page.getByTestId('save-retry').click();
+  await expect(page.getByTestId('save-state')).toHaveText('기록 저장됨');
+  await expect(page.getByTestId('record-tag')).toHaveText('첫 기록');
+  await expect(page.getByTestId('save-retry')).toHaveCount(0);
+  // stored: Enter leaves at once
+  await expect(page.getByTestId('result-back')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  await expect(page.getByTestId('result-unsaved')).toHaveCount(0);
+  expect((await records())[0].plays).toBe(1);
   expect(errors).toEqual([]);
 });

@@ -28,7 +28,7 @@ import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
 import { coverText, pointText, speedText } from './format';
-import { Choice, NumberOption, OptionalNumberOption, pct, SIDE_NOTE_CHOICES, skinChoices, Toggle, type RowProps } from './optionRows';
+import { Choice, NumberOption, OptionalNumberOption, pct, skinChoices, Toggle, type RowProps } from './optionRows';
 import { pacemakerChoices } from './playRules';
 import { focusFirstStop } from './selectNav';
 
@@ -373,11 +373,35 @@ export function PracticePanel({ practice, onChange, onHelp }: { practice: Practi
 
 export type PlayOptionsTab = 'rules' | 'gear' | 'generation';
 
-/** "생성 옵션 · 롱노트 · 이전 배치": the generation options that differ from the defaults. */
-export function generationSummary(g: GenerationPrefs): string {
-  const style = g.style !== 'balanced' ? ` · ${STYLE_LABELS[g.style]}` : '';
-  const engine = g.patternEngine === 'classic' ? ' · 이전 배치' : g.patternEngine === 'designer' ? ' · 악구 배치' : '';
-  return `생성 옵션${style}${engine}`;
+/**
+ * The generation options that make another chart than the defaults on a key mode (what reaches
+ * the generator: a scratch rate on a mode without scratch does not), by name, in the tab's order.
+ */
+export function generationChanges(g: GenerationPrefs, keyMode: KeyModeId): string[] {
+  const params = generationParams(g, keyMode);
+  const base = generationParams(DEFAULT_GENERATION, keyMode);
+  const names: Record<string, string> = {
+    style: STYLE_LABELS[g.style],
+    rhythmSource: `리듬 ${RHYTHM_LABELS[g.rhythmSource]}`,
+    density: '밀도',
+    longNoteRatio: '롱노트 비율',
+    maxChord: '최대 동시 노트',
+    instrumentMapping: '악기별 레인',
+    patternEngine: g.patternEngine === 'classic' ? '이전 배치' : '악구 배치',
+    repeatConsistency: '반복 구간',
+    scratchRate: '스크래치 비율',
+    sideRate: '사이드 비율',
+  };
+  return Object.keys(names)
+    .filter((k) => params[k] !== base[k])
+    .map((k) => names[k]);
+}
+
+/** "생성 옵션 · 롱노트 · 이전 배치": the tab's name with what is changed (two at most, so the tabs keep their line). */
+export function generationSummary(g: GenerationPrefs, keyMode: KeyModeId): string {
+  const changes = generationChanges(g, keyMode);
+  const more = changes.length > 2 ? ` 외 ${changes.length - 2}개` : '';
+  return ['생성 옵션', ...changes.slice(0, 2)].join(' · ') + more;
 }
 
 /**
@@ -422,7 +446,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
         {cover('sudden', 'SUDDEN+', MAX_COVER, '트랙 위쪽을 가리는 커버')}
         {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
         {cover('lift', 'LIFT', MAX_LIFT, '판정선을 올리는 만큼')}
-        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="노트와 기어의 모양" />
+        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="트랙·레일·판정선의 색과 글꼴 (노트·기어는 설정 → 기어)" />
         <Choice
           {...row}
           label="카메라"
@@ -445,17 +469,6 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
           onChange={(v) => set('keyBeamLength', v)}
           help="키를 누를 때 올라오는 빛의 길이"
         />
-        {keyModes[keyMode].lanes.some((l) => l.kind === 'side') && (
-          <Choice
-            {...row}
-            label="사이드 노트"
-            testId="quick-side-notes"
-            value={settings.sideNotes}
-            options={SIDE_NOTE_CHOICES}
-            onChange={(v) => set('sideNotes', v)}
-            help="양 끝 레인에 따로 두거나, DJMAX처럼 건반 레인의 절반을 덮는 막대로 그리기"
-          />
-        )}
       </div>
       <GearPreview settings={settings} keyMode={keyMode} />
     </div>
@@ -580,7 +593,7 @@ export function PlayOptionsPanel(props: SettingsProps & {
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => props.onTab(tab)}
             >
-              {tab === 'generation' ? generationSummary(settings.generation) : TAB_NAMES[tab]}
+              {tab === 'generation' ? generationSummary(settings.generation, props.keyMode) : TAB_NAMES[tab]}
             </button>
           ))}
         </div>

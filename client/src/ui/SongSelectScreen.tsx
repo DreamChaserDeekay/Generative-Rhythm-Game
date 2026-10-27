@@ -11,9 +11,11 @@ import type { KeyModeId } from '../engine/types';
 import type { PlayAction } from '../input/playKeys';
 import {
   bindingLabel,
+  bindingsFor,
   chartPickKey,
   chartPickOf,
   DEFAULT_SETTINGS,
+  keyLabel,
   laneKeysFor,
   patternKey,
   patternOf,
@@ -34,10 +36,11 @@ import type { PlayRequest, PracticeOptions } from './App';
 import type { CalibrationStep } from './CalibrationScreen';
 import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
 import { desktopShell } from './displayMode';
+import { CHART_FILE, entryFiles, sortDrop, type DroppedFile } from './dropFiles';
 import { dayText, speedText } from './format';
 import { namedPictures } from './importPictures';
 import { lampClass, LampMark } from './lamps';
-import { FEVER_SHORT, generationParams, PLAY_OPTIONS_TABS, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
+import { FEVER_SHORT, generationChanges, generationParams, PLAY_OPTIONS_TABS, PlayOptionsPanel, type PlayOptionsTab } from './PlayOptions';
 import { buildPlayRequest } from './playRequest';
 import { judgementChip } from './playRules';
 import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pressesOnEnter, randomIndex, shiftChangesFolder } from './selectNav';
@@ -83,7 +86,6 @@ interface Props {
 
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
-const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
 const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
 const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
 /** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
@@ -112,6 +114,8 @@ export function SongSelectScreen(props: Props) {
   const { settings, onSettingsChange, onPlay, selectedSongId, onSelectSong } = props;
   const [health, setHealth] = useState<Health | null | 'offline'>(null);
   const [songs, setSongs] = useState<Song[]>([]);
+  // the library has come once (until then no song is not an empty library)
+  const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -143,6 +147,7 @@ export function SongSelectScreen(props: Props) {
   const folder = settings.songFolder;
   const generationKey = JSON.stringify(settings.generation);
   const params = useMemo(() => generationParams(settings.generation, keyMode), [generationKey, keyMode]);
+  const generationChanged = useMemo(() => generationChanges(settings.generation, keyMode), [generationKey, keyMode]);
 
   /** Where a tier of a song keeps its pattern and target level. */
   const tierKey = (song: Song, tier: string) => patternKey(song.id, keyMode, system.id, tier);
@@ -206,6 +211,7 @@ export function SongSelectScreen(props: Props) {
     try {
       const list = await api.songs();
       setSongs(list);
+      setLoaded(true);
       return list;
     } catch (e) {
       if (e instanceof ApiError && e.status === 0) setHealth('offline');
@@ -218,7 +224,10 @@ export function SongSelectScreen(props: Props) {
     async (quiet = false) => {
       if (!quiet) setHealth(null);
       try {
-        setHealth(await api.health());
+        const h = await api.health();
+        // the levels kept from an earlier run of this generator are there before the list
+        chartStore.remember(h.generator);
+        setHealth(h);
         const list = await refresh();
         if (list && list.length > 0 && !list.some((s) => s.id === selectedSongId)) onSelectSong(list[0].id);
       } catch {
@@ -243,6 +252,13 @@ export function SongSelectScreen(props: Props) {
   useEffect(() => {
     if (offline) offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]')?.focus();
   }, [offline]);
+  // An empty library on a server that answers: the first things to do in the song's place, the
+  // first of them focused (and again when a panel over them closes); a song added takes them away.
+  const firstRun = loaded && !offline && songs.length === 0;
+  const startPanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (firstRun && panel === 'none') startPanel.current?.querySelector<HTMLElement>('button')?.focus();
+  }, [firstRun, panel]);
 
   // Poll while something is being analyzed.
   const analyzing = songs.some((s) => s.status === 'queued' || s.status === 'analyzing');
@@ -378,11 +394,12 @@ export function SongSelectScreen(props: Props) {
   };
 
   /**
-   * Chart packages: files picked one by one, a picked folder, or .zip/.osz archives (with the
-   * pictures their charts name for a cover). The first chart imported is chosen, on its key mode.
+   * Chart packages: files picked one by one, a picked or dropped folder, or .zip/.osz archives
+   * (with the pictures their charts name for a cover). The first chart imported is chosen, on its
+   * key mode.
    */
-  const importFiles = async (list: FileList | File[]) => {
-    const all = Array.from(list).map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
+  const importFiles = async (list: FileList | DroppedFile[]) => {
+    const all = Array.from<File | DroppedFile, DroppedFile>(list, (f) => (f instanceof File ? { file: f, path: f.webkitRelativePath || f.name } : f));
     if (!all.some((f) => CHART_FILE.test(f.file.name))) {
       setError('가져올 채보 파일이 없습니다 (.osz · .zip · .osu · .bms · .bme · .bml · .bmson)');
       return;
@@ -446,8 +463,8 @@ export function SongSelectScreen(props: Props) {
     onSettingsChange('tier' in entry ? { ...next, lastDifficulty: entry.tier } : next);
   };
 
+  // (asked once more by its button: a second press, see useTwoPress)
   const deleteSaved = async (c: SavedChart) => {
-    if (!window.confirm(`"${c.name}" 채보를 지울까요? 이 채보의 기록도 함께 지워집니다.`)) return;
     await api.deleteChart(c.chartId).catch((e: Error) => setError(e.message));
     if (pickKey && chartPickOf(current.current, pickKey) === c.chartId) onSettingsChange(withChartPick(current.current, pickKey, null));
     await loadSaved(selected?.id ?? null);
@@ -493,7 +510,8 @@ export function SongSelectScreen(props: Props) {
 
   // one play per press: a held Enter or a second press while the chart is generated starts nothing more
   const starting = useRef(false);
-  const play = async () => {
+  /** Plays the chart chosen; `auto` plays this one on autoplay (오토 플레이, Shift+Enter) whatever the play options' switch says. */
+  const play = async ({ auto = autoPlay }: { auto?: boolean } = {}) => {
     if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
     starting.current = true;
     try {
@@ -502,7 +520,7 @@ export function SongSelectScreen(props: Props) {
       const best = recordOf(selected, c.meta.chartId);
       onPlay(
         buildPlayRequest(selected, c, settings, {
-          autoPlay,
+          autoPlay: auto,
           best: best ? { score: best.score, rate: best.rate, scoreId: best.bestScoreId, hasReplay: best.hasReplay } : null,
           practice: practice ?? undefined,
         }),
@@ -628,8 +646,9 @@ export function SongSelectScreen(props: Props) {
     }
   };
 
+  // (asked once more by its button, as deleteSaved)
   const remove = async () => {
-    if (!selected || !window.confirm(`"${selected.title}"을(를) 라이브러리에서 지울까요? 기록도 함께 지워집니다.`)) return;
+    if (!selected) return;
     const id = selected.id;
     try {
       await api.deleteSong(id);
@@ -702,13 +721,18 @@ export function SongSelectScreen(props: Props) {
   };
   /**
    * The song row under the cursor takes the focus (leaving the search or a panel); with no server,
-   * the offline panel's 다시 연결 (as when it came); else nothing does.
+   * the offline panel's 다시 연결 (as when it came), and in an empty library its first button; else
+   * nothing does.
    */
   const focusList = () => {
     const row = selected ? songList.current?.querySelector<HTMLElement>(`[data-song-id="${selected.id}"]`) : null;
-    const reconnect = offline ? offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]') : null;
+    const button = offline
+      ? offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]')
+      : firstRun
+        ? startPanel.current?.querySelector<HTMLElement>('button')
+        : null;
     if (row) row.focus({ preventScroll: true });
-    else if (reconnect) reconnect.focus();
+    else if (button) button.focus();
     else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
@@ -790,12 +814,12 @@ export function SongSelectScreen(props: Props) {
   };
 
   // Keyboard: ↑↓ song (PageUp / PageDown a page, Home / End the ends), ←→ difficulty (and the
-  // saved charts after it), Enter plays, Tab (Shift+Tab back) key mode, Shift alone or F6 the
-  // folder, F2 a random song, F3 a favourite, Space the play options, I the song info, / or Ctrl+F
-  // the search, + the add menu, F4 the order, F5 a new pattern (Shift+F5 the default one), F10 the
-  // settings, Esc closes what is open. A panel takes the arrows, Home /
-  // End and Enter while it is open (panelKey), and the song under it stays (F2 waits). A text
-  // field, a slider or a drop-down keeps the keys it uses itself.
+  // saved charts after it), Enter plays (Shift+Enter on autoplay: a pad's RS), Tab (Shift+Tab
+  // back) key mode, Shift alone or F6 the folder, F2 a random song, F3 a favourite, Space the play
+  // options, I the song info, / or Ctrl+F the search, + the add menu, F4 the order, F5 a new
+  // pattern (Shift+F5 the default one), F10 the settings, Esc closes what is open. A panel takes
+  // the arrows, Home / End and Enter while it is open (panelKey), and the song under it stays (F2
+  // waits). A text field, a slider or a drop-down keeps the keys it uses itself.
   const shiftAlone = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -844,6 +868,12 @@ export function SongSelectScreen(props: Props) {
         else if (panel !== 'none') closePanel();
         return;
       }
+      if (e.code === 'Enter' && e.shiftKey && !keepsKey(e.target, e.code)) {
+        // Shift+Enter (a pad's RS) is the autoplay wherever the focus is: it presses no focused button or menu item
+        e.preventDefault();
+        if (!e.repeat && !addMenu) void play({ auto: true });
+        return;
+      }
       if (addMenu) {
         // the menu keeps the arrows; Enter presses its focused item
         if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
@@ -854,21 +884,29 @@ export function SongSelectScreen(props: Props) {
         }
         return;
       }
-      if (offline && e.target instanceof HTMLElement && offlinePanel.current?.contains(e.target)) {
-        // the offline panel's buttons: the arrows go between them, Enter or Space (a pad's A) press one
+      const buttonPanel = offline ? offlinePanel.current : firstRun ? startPanel.current : null;
+      if (buttonPanel && e.target instanceof HTMLElement && buttonPanel.contains(e.target)) {
+        // the offline panel's buttons, or an empty library's: the arrows go between them, Enter (a
+        // pad's A) presses one, and Space too on the offline panel (else it is the play options')
         if (e.code.startsWith('Arrow')) {
           e.preventDefault();
-          const buttons = [...offlinePanel.current.querySelectorAll<HTMLElement>('button')];
+          const buttons = [...buttonPanel.querySelectorAll<HTMLElement>('button')];
           const at = buttons.indexOf(e.target);
           buttons[(at + (e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
           return;
         }
-        if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+        if (e.code === 'Enter' || e.code === 'NumpadEnter' || (offline && e.code === 'Space')) {
           // (pressed here: the select keeps Space's key-up from the buttons)
           e.preventDefault();
           if (!e.repeat) e.target.click();
           return;
         }
+      }
+      if (firstRun && panel === 'none' && e.code.startsWith('Arrow') && !keepsKey(e.target, e.code)) {
+        // the focus left an empty library's buttons (the add menu closed, a file was picked): the arrows bring it back
+        e.preventDefault();
+        focusList();
+        return;
       }
       if (keepsKey(e.target, e.code)) return;
       if (panel !== 'none' && (e.defaultPrevented || panelKey(e, inList))) return;
@@ -923,13 +961,13 @@ export function SongSelectScreen(props: Props) {
     };
   });
 
-  // Whether Enter presses what has the focus (a panel's button or box), for the key hints; a
+  // Whether Enter presses what has the focus (a panel's button or box, an empty library's button), for the key hints; a
   // render can take the focused control away (a panel closing, a tab changing), so it is read
   // after every render as well as on every move of the focus.
   const [enterPresses, setEnterPresses] = useState(false);
   const readFocus = useCallback(() => {
     const at = document.activeElement;
-    setEnterPresses(Boolean(at && detailTop.current?.querySelector('.select-panel')?.contains(at)) && pressesOnEnter(at));
+    setEnterPresses(Boolean(at && detailTop.current?.querySelector('.select-panel, .first-run')?.contains(at)) && pressesOnEnter(at));
   }, []);
   useEffect(readFocus);
   useEffect(() => {
@@ -959,12 +997,27 @@ export function SongSelectScreen(props: Props) {
     centerCursor.current = false;
   }, [selected?.id, order]);
 
+  /** A drop: a chart package or its folder (as the folder picker gives it), a replay file, or music. */
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.some((f) => CHART_FILE.test(f.name))) void importFiles(files);
-    else if (files.length > 0) void upload(files);
+    // the entries are taken now (the drop's data is gone once the handler returns); a file with
+    // no entry (a page's own drop) is taken as it is
+    const dropped = [...e.dataTransfer.items].filter((item) => item.kind === 'file').map((item) => item.webkitGetAsEntry() ?? item.getAsFile());
+    // a text or a link dragged across the page is no file: nothing to say about it
+    if (dropped.length === 0) return;
+    void (async () => {
+      try {
+        const files = (await Promise.all(dropped.map((d) => (d instanceof File ? [{ file: d, path: d.name }] : d ? entryFiles(d) : [])))).flat();
+        const drop = sortDrop(files);
+        if (drop?.kind === 'import') await importFiles(drop.files);
+        else if (drop?.kind === 'replay') await openReplayFile(drop.file);
+        else if (drop?.kind === 'upload') await upload(drop.files);
+        else setError('음악 파일 · 채보 파일이나 폴더 · 리플레이 파일을 놓을 수 있습니다');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
   };
 
   /** A tier's chart is being worked out, so its record is not known yet either (a chart chosen by its id is known at once). */
@@ -1029,6 +1082,7 @@ export function SongSelectScreen(props: Props) {
     ? [{ keys: ['←', '→'], pad: ['←', '→'], label: '버튼' }, settingsHint]
     : songs.length === 0 && panel === 'none'
       ? [
+          ...(firstRun ? [{ keys: ['↑', '↓'], pad: ['↑', '↓'], label: '버튼' }] : []),
           { keys: ['+'], label: '곡 추가', onClick: () => setAddMenu(true), testId: 'hint-add' },
           { keys: ['Tab'], pad: ['Y'], label: '키 모드' },
           { keys: ['Space'], pad: ['X'], label: '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
@@ -1065,9 +1119,11 @@ export function SongSelectScreen(props: Props) {
           { keys: ['I'], pad: ['LT'], label: panel === 'info' ? '곡 정보·도구 닫기' : '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
         ];
   // Enter picks an item of the add menu, presses a panel's focused button or box (or the offline
-  // panel's), or plays (nothing to play without a song in sight)
-  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
+  // panel's, or an empty library's), or plays (nothing to play without a song in sight)
+  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
   const endHints: KeyHint[] = enterLabel ? [{ keys: ['Enter'], pad: ['A'], label: enterLabel, testId: 'hint-enter' }] : [];
+  // beside it the play on autoplay (with the play options' switch on, Enter is one already)
+  if (enterLabel === '플레이' && !autoPlay) endHints.unshift({ keys: ['Shift+Enter'], pad: ['RS'], label: '오토 플레이', testId: 'hint-autoplay', minor: true });
   if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : closePanel()) });
 
   return (
@@ -1249,7 +1305,16 @@ export function SongSelectScreen(props: Props) {
               </div>
             )}
             {filtered.map((s, i) => (
-              <SongRow key={s.id} song={s} active={s.id === selected?.id} favorite={favorites.has(s.id)} cells={listCells[i]} onPick={onSelectSong} />
+              <SongRow
+                key={s.id}
+                song={s}
+                active={s.id === selected?.id}
+                favorite={favorites.has(s.id)}
+                cells={listCells[i]}
+                // the column ←→ picked; on the selected song a saved chart picked there takes it
+                tier={savedEntry && s.id === selected?.id ? null : difficulty}
+                onPick={onSelectSong}
+              />
             ))}
           </div>
         </section>
@@ -1322,7 +1387,28 @@ export function SongSelectScreen(props: Props) {
                 onFavorite={() => toggleFavorite(selected.id)}
                 onInfo={() => setPanel('info')}
                 onReanalyze={() => void reanalyze()}
+                onAutoplay={ready && !autoPlay ? () => void play({ auto: true }) : null}
+                autoplayDisabled={busy !== null || entryLoading}
               />
+            ) : firstRun ? (
+              <section className="detail-empty first-run" data-testid="first-run" ref={startPanel} aria-label="시작하기">
+                <button className="primary" data-testid="first-upload" onClick={() => fileInput.current?.click()}>
+                  음악 파일 고르기
+                </button>
+                <button data-testid="first-demo" onClick={() => void addDemo()}>
+                  데모 곡으로 해 보기
+                </button>
+                <button data-testid="first-calibrate" onClick={() => props.onCalibrate('input')}>
+                  판정 오프셋 측정
+                </button>
+                <p className="hint" data-testid="first-run-keys">
+                  {keyMode} 키는{' '}
+                  {bindingsFor(settings, keyMode).map((code, lane) => (
+                    <kbd key={lane}>{keyLabel(code)}</kbd>
+                  ))}
+                  입니다. 음악 파일(mp3 · ogg · wav · flac · m4a)과 채보 파일(.osz · .zip · .osu · .bms · .bmson)을 넣을 수 있습니다.
+                </p>
+              </section>
             ) : (
               <div className="detail-empty">
                 <p className="hint">
@@ -1360,6 +1446,12 @@ export function SongSelectScreen(props: Props) {
                   <kbd>Tab</kbd>
                 </div>
                 <span className="mode-rules">
+                  {/* generation options that make another chart (Space → 생성 옵션): its records are of that chart */}
+                  {generationChanged.length > 0 && (
+                    <span className="rule-chip" data-testid="chip-generation" title={generationChanged.join(' · ')}>
+                      생성 옵션 변경
+                    </span>
+                  )}
                   {/* a judgement or score rule that is not the default (Space → 플레이 규칙) */}
                   {judgementChip(settings.judgementMode) && (
                     <span className="rule-chip" data-testid="chip-judgement">
@@ -1577,11 +1669,14 @@ interface ListCells {
 /**
  * A level on the song list with its lamp's mark beside it (on a full combo the whole cell is the
  * lamp's); a level never played has no mark, one not known yet a dash. A lamp of another chart of
- * the tier than the one Enter plays is a faint mark.
+ * the tier than the one Enter plays is a faint mark. The entry picked with ←→ is underlined.
  */
-function LampCell({ mark, title, saved = false }: { mark: TierMark; title: string; saved?: boolean }) {
+function LampCell({ mark, title, saved = false, active }: { mark: TierMark; title: string; saved?: boolean; active: boolean }) {
   return (
-    <span className={`tier-level lamp-${mark.lamp ? lampClass(mark.lamp) : 'none'} ${mark.level === null ? 'unknown' : ''} ${mark.other ? 'other' : ''} ${saved ? 'saved' : ''}`} title={title}>
+    <span
+      className={`tier-level lamp-${mark.lamp ? lampClass(mark.lamp) : 'none'} ${mark.level === null ? 'unknown' : ''} ${mark.other ? 'other' : ''} ${saved ? 'saved' : ''} ${active ? 'active' : ''}`}
+      title={title}
+    >
       <LampMark />
       {mark.level ?? '–'}
     </span>
@@ -1593,6 +1688,8 @@ interface SongRowProps {
   active: boolean;
   favorite: boolean;
   cells: ListCells;
+  /** The tier picked with ←→ (null: the song's saved chart is picked, its cell is the one). */
+  tier: string | null;
   onPick: (songId: string) => void;
 }
 
@@ -1604,6 +1701,7 @@ function sameRow(a: SongRowProps, b: SongRowProps): boolean {
     a.song === b.song &&
     a.active === b.active &&
     a.favorite === b.favorite &&
+    a.tier === b.tier &&
     a.onPick === b.onPick &&
     at.length === bt.length &&
     at.every((m, i) => m.tier === bt[i].tier && sameMark(m, bt[i])) &&
@@ -1645,9 +1743,9 @@ const SongRow = memo(function SongRow(props: SongRowProps) {
         <span className="song-state error">분석 실패</span>
       ) : (
         <span className="song-tiers">
-          {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} />}
+          {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} active={props.tier === null} />}
           {cells.tiers.map((m) => (
-            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} />
+            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} active={m.tier.id === props.tier} />
           ))}
         </span>
       )}
@@ -1656,8 +1754,29 @@ const SongRow = memo(function SongRow(props: SongRowProps) {
   );
 }, sameRow);
 
-/** The selected song: its picture, name, tempo, length and metre (and, when its analysis failed, a new try). */
-function SongHero({ song, favorite, onFavorite, onInfo, onReanalyze }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void; onReanalyze: () => void }) {
+/**
+ * The selected song: its picture, name, tempo, length and metre (and, when its analysis failed, a
+ * new try). One of its buttons plays the chart on autoplay (`onAutoplay`; null before the song is
+ * ready, or while the play options' switch makes Enter one already): up here rather than beside
+ * the play button, so the play row keeps one line and a 900 px window the room for the summary.
+ */
+function SongHero({
+  song,
+  favorite,
+  onFavorite,
+  onInfo,
+  onReanalyze,
+  onAutoplay,
+  autoplayDisabled,
+}: {
+  song: Song;
+  favorite: boolean;
+  onFavorite: () => void;
+  onInfo: () => void;
+  onReanalyze: () => void;
+  onAutoplay: (() => void) | null;
+  autoplayDisabled: boolean;
+}) {
   const sketch = useSketch(song);
   return (
     <section className="hero">
@@ -1687,6 +1806,11 @@ function SongHero({ song, favorite, onFavorite, onInfo, onReanalyze }: { song: S
             {song.status === 'error' && (
               <button className="small" data-testid="reanalyze-failed" onClick={onReanalyze}>
                 다시 분석
+              </button>
+            )}
+            {onAutoplay && (
+              <button className="quiet small autoplay" data-testid="autoplay-button" disabled={autoplayDisabled} onClick={onAutoplay} title="이번 판만 노트를 자동으로 칩니다(Shift+Enter). 기록은 남지 않습니다">
+                오토 플레이 <kbd>Shift+Enter</kbd>
               </button>
             )}
             <button className={`quiet small fav-toggle ${favorite ? 'on' : ''}`} aria-pressed={favorite} data-testid="favorite-toggle" onClick={onFavorite}>

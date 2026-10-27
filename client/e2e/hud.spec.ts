@@ -38,6 +38,8 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
   // the counts under the panel, and the pacemaker in the panel's own score
   await expect(page.getByTestId('hud-misses')).toHaveText('0');
   await expect(page.getByTestId('hud-fast-slow')).toHaveText('0 · 0');
+  // the timing error bar is off unless chosen
+  await expect(page.getByTestId('hud-error-bar')).toHaveCount(0);
   await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 20_000 }).toBeGreaterThan(4);
   await expect(page.getByTestId('hud-pace')).toHaveText(/^\+/);
   // the gauge reads whole percents
@@ -225,5 +227,38 @@ test('the settings: judgement and combo opacity, the judge counter, and pacemake
   await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 20_000 }).toBeGreaterThan(2);
   // autoplay is perfect: ahead of an AAA pace by the EX it is over 8/9 of the most
   await expect(page.getByTestId('hud-pace')).toHaveText(/^\+\d/);
+  expect(errors).toEqual([]);
+});
+
+test('the timing error bar: on from 판정·싱크, under the judgement, as wide as the judgement mode’s widest window, the last 20 hits and their mean', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', judgementMode: 'HARD' })));
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'judge');
+  await chooseSetting(page, 'opt-error-bar', 'true');
+  expect(await stored(page)).toMatchObject({ errorBar: true });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  const bar = page.getByTestId('hud-error-bar');
+  // HARD JUDGEMENT: the widest window (MAX 1%) is 90 ms each way
+  await expect(bar).toHaveAttribute('data-outer-ms', '90', { timeout: 30_000 });
+  // a tick per hit, no more than the last 20 at once; autoplay hits on time, so their mean is in the middle
+  const shown = () => bar.locator('.hud-eb-tick').evaluateAll((ticks) => ticks.filter((t) => getComputedStyle(t).opacity !== '0').length);
+  await expect.poll(shown, { timeout: 20_000 }).toBe(20);
+  await expect(bar.locator('.hud-eb-tick')).toHaveCount(20);
+  await expect(bar).toHaveAttribute('data-mean-ms', '0');
+  // on the track under the judgement (its FAST / SLOW and ms too), centred with it
+  const [judge, box] = [await page.locator('.hud-judge').boundingBox(), await bar.boundingBox()];
+  expect(judge && box && box.y >= judge.y + judge.height - 1).toBe(true);
+  expect(judge && box && Math.abs(box.x + box.width / 2 - (judge.x + judge.width / 2)) < 4).toBe(true);
+
+  // a retry starts with no ticks
+  await page.keyboard.press('F2');
+  expect(await shown()).toBe(0);
+  expect(await bar.getAttribute('data-mean-ms')).toBeNull();
   expect(errors).toEqual([]);
 });

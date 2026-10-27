@@ -13,6 +13,7 @@ import { shortDayText } from './format';
 import { lampClass, LampMark } from './lamps';
 import { SectionEditor } from './SectionEditor';
 import { olderGenerator, recordHeadline, recordScore } from './songRecords';
+import { useTwoPress } from './twoPress';
 
 const SKILL_LABELS: [string, string][] = [
   ['stream', '스트림'],
@@ -177,6 +178,8 @@ function SongTools(props: Props & { song: Song }) {
   const videoInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
   const ready = song.status === 'ready';
+  // a second press within TWO_PRESS_MS, not the browser's confirm box (a pad cannot answer it)
+  const removeSong = useTwoPress(props.onRemoveSong);
 
   // A form on the page, not window.prompt: the desktop app (Electron) has no prompt dialog.
   const linkYoutube = async () => {
@@ -369,7 +372,10 @@ function SongTools(props: Props & { song: Song }) {
         <button className="small" data-testid="toggle-analysis" disabled={!ready} onClick={() => setShowAnalysis((v) => !v)}>
           {showAnalysis ? '분석 보기 닫기' : '분석 보기'}
         </button>
-        <button className="small danger" onClick={props.onRemoveSong}>라이브러리에서 삭제</button>
+        <button className="small danger" data-testid="remove-song" {...removeSong.buttonProps} onClick={removeSong.press} title="이 곡의 기록도 함께 지워집니다">
+          {removeSong.armed ? '한 번 더 누르면 지웁니다' : '라이브러리에서 삭제'}
+        </button>
+        {removeSong.armed && <span className="hint">이 곡의 기록도 함께 지워집니다</span>}
       </div>
       {showAnalysis && ready && <AnalysisView songId={song.id} />}
     </section>
@@ -407,6 +413,9 @@ function ChartPreview(props: {
   const m = chart.meta;
   const holds = chart.notes.filter((n) => n.type === 'hold').length;
   const keyed = props.keysound && !(chart.sounds?.length ?? 0) ? keysoundStems(chart.notes) : [];
+  const deleteSaved = useTwoPress(() => props.saved && props.onDeleteSaved(props.saved));
+  // another chart in place (Tab to another key mode keeps the focus on this button): the first press was for the one before
+  useEffect(deleteSaved.disarm, [props.saved?.chartId]);
   return (
     <section className="panel-group chart-preview" data-testid="chart-preview">
       <h3>채보 정보</h3>
@@ -456,10 +465,11 @@ function ChartPreview(props: {
           </button>
         )}
         {props.saved && (
-          <button className="small danger" data-testid="delete-saved" onClick={() => props.saved && props.onDeleteSaved(props.saved)}>
-            이 채보 지우기
+          <button className="small danger" data-testid="delete-saved" {...deleteSaved.buttonProps} onClick={deleteSaved.press} title="이 채보의 기록도 함께 지워집니다">
+            {deleteSaved.armed ? '한 번 더 누르면 지웁니다' : '이 채보 지우기'}
           </button>
         )}
+        {props.saved && deleteSaved.armed && <span className="hint">이 채보의 기록도 함께 지워집니다</span>}
         <span className="label export-label">내보내기</span>
         {exportFormats(m.keyMode).map((f) => (
           <a key={f} className="button small" href={api.exportUrl(m.chartId, f)} download data-testid={`export-${f}`}>

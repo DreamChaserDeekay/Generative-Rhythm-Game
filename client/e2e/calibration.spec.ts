@@ -95,6 +95,83 @@ test('the judgement offset by ear: Esc stops a run and stays, the ring counts un
   expect(errors).toEqual([]);
 });
 
+test('the judgement offset by ear: the ring counts with no beat number, and scattered taps say so and put the focus on 다시 재기 without blocking 적용', async ({ page }) => {
+  const errors = trackErrors(page);
+  // an offset no measurement below comes to (the mean of these taps stays within ±150 ms)
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ inputOffsetMs: 200 }));
+  });
+  await judgeTab(page);
+  await page.getByTestId('open-calibration-settings').click();
+  const ring = page.locator('.beat-ring');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('calib-start')).toBeDisabled();
+  // past the warm-up: a count of the beats, nothing that changes with each beat
+  await expect.poll(async () => Number(await ring.getAttribute('data-beat')), { timeout: 10_000 }).toBeGreaterThanOrEqual(4);
+  await expect(ring.locator('b')).toHaveCount(0);
+  await expect(ring).toContainText('/ 36');
+  // taps 300 and 700 ms apart on 500 ms beats: every other one 200 ms or more off the one before
+  // (each counts: the nearest beat is never more than 250 ms away)
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('KeyJ');
+    await page.waitForTimeout(i % 2 === 0 ? 300 : 700);
+  }
+  await expect(page.getByTestId('calib-count')).toHaveText('12');
+  await expect(page.getByTestId('calib-scattered')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('calib-start')).toBeEnabled();
+  await expect(page.getByTestId('calib-std')).toHaveClass(/g-low/);
+  await expect(page.getByTestId('calib-scattered')).toHaveText('입력이 많이 흩어졌습니다. 다시 재면 더 정확합니다');
+  await expect(page.getByTestId('calib-start')).toBeFocused();
+  await expect(page.getByTestId('calib-start')).toHaveText('다시 재기');
+  await expect(page.locator('.hintbar')).toContainText('다시 재기');
+  // applying is still there
+  await expect(page.getByTestId('calib-apply')).toBeEnabled();
+  await page.getByTestId('calib-apply').click();
+  await expect.poll(async () => (await stored(page)).inputOffsetMs).not.toBe(200);
+  await expect(page.getByTestId('calib-next')).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+test('on MAX JUDGEMENT an even run is not called scattered: the measure is NORMAL’s window whatever the judgement', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ judgementMode: 'MAX' }));
+  });
+  await judgeTab(page);
+  await page.getByTestId('open-calibration-settings').click();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('calib-start')).toBeDisabled();
+  // 12 taps on the beats, 15 ms early and late by turns: a spread wider than MAX's ±10.4 ms window,
+  // well inside NORMAL's ±41.7 ms. Timed in the page (no drift from one key press to the next) from
+  // the ring's count of the first beat past the warm-up, half a beat after that beat sounds.
+  await page.evaluate(
+    (warmup) =>
+      new Promise<void>((done) => {
+        const ring = document.querySelector('.beat-ring')!;
+        const observer = new MutationObserver(() => {
+          if (Number(ring.getAttribute('data-beat')) < warmup) return;
+          observer.disconnect();
+          const next = performance.now() + 250;
+          for (let i = 0; i < 12; i++) {
+            const at = next + i * 500 + (i % 2 === 0 ? -15 : 15);
+            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ', key: 'j' })), at - performance.now());
+          }
+          setTimeout(done, 12 * 500 + 300);
+        });
+        observer.observe(ring, { attributes: true, attributeFilter: ['data-beat'] });
+      }),
+    4,
+  );
+  await expect(page.getByTestId('calib-count')).toHaveText('12');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('calib-start')).toBeEnabled();
+  await expect(page.getByTestId('calib-std')).not.toHaveClass(/g-low/);
+  await expect(page.getByTestId('calib-scattered')).toHaveCount(0);
+  await expect(page.getByTestId('calib-apply')).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test('the sync test played by hand from the settings: ←→ the display offset, Shift+←→ the judgement offset, shown as they move; leaving it goes back to the tab', async ({ page }) => {
   const errors = trackErrors(page);
   await judgeTab(page);

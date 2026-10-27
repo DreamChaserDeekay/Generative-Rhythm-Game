@@ -12,6 +12,9 @@ export function KeyGhostTest({ mode, bindings, seconds, onClose }: { mode: KeyMo
   const [down, setDown] = useState<Set<string>>(new Set());
   const [best, setBest] = useState(0);
   const [seen, setSeen] = useState<Set<string>>(new Set());
+  const box = useRef<HTMLDivElement>(null);
+  // it opens under its row: in sight, without moving the focus
+  useEffect(() => box.current?.scrollIntoView({ block: 'nearest' }), []);
 
   const keys = [...bindings.map((code, lane) => ({ code, lane })), ...seconds.flatMap((code, lane) => (code ? [{ code, lane }] : []))];
   const all = keys.map((k) => k.code).join(' ');
@@ -57,7 +60,7 @@ export function KeyGhostTest({ mode, bindings, seconds, onClose }: { mode: KeyMo
 
   const lanes = keyModes[mode].lanes;
   return (
-    <div className="ghost-test" data-testid="ghost-test">
+    <div className="ghost-test" ref={box} data-testid="ghost-test">
       <div className="keys">
         {keys.map(({ code, lane }) => (
           <div key={code} className={`key-cap lane-${lanes[lane].color} ${down.has(code) ? 'active' : ''} ${seen.has(code) ? 'seen' : ''}`}>

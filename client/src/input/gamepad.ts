@@ -36,6 +36,8 @@ export interface PadEvent {
    * that comes as axes); a turntable or a knob only ever gets there a step at a time.
    */
   jump?: boolean;
+  /** A turntable's scratch pressed: the way it turns (1: its axis rising, -1: falling). */
+  way?: number;
 }
 
 export type GamepadSource = () => readonly (Gamepad | null)[];
@@ -150,8 +152,7 @@ export class GamepadPoller {
       const fresh = gp.timestamp !== st.timestamp;
       const t = fresh && gp.timestamp > 0 && gp.timestamp <= now + 1 && now - gp.timestamp <= CFG.maxTimestampAgeMs ? gp.timestamp : now;
       const standard = st.standard;
-      const emit = (code: string, down: boolean, timeMs: number, jump?: boolean) =>
-        this.onEvent(jump === undefined ? { code, down, timeMs, standard } : { code, down, timeMs, standard, jump });
+      const emit = (code: string, down: boolean, timeMs: number, extra?: Pick<PadEvent, 'jump' | 'way'>) => this.onEvent({ code, down, timeMs, standard, ...extra });
       st.timestamp = gp.timestamp;
       gp.buttons.forEach((b, i) => {
         if (b.pressed !== (st.buttons[i] ?? false)) {
@@ -166,7 +167,7 @@ export class GamepadPoller {
         const prevDir = st.axisDir[i] ?? 0;
         if (dir !== prevDir) {
           if (prevDir !== 0) emit(`Pad:A${i}${prevDir > 0 ? '+' : '-'}`, false, t);
-          if (dir !== 0) emit(`Pad:A${i}${dir > 0 ? '+' : '-'}`, true, t, Math.abs(wrapped(v - prev)) >= CFG.axisThreshold);
+          if (dir !== 0) emit(`Pad:A${i}${dir > 0 ? '+' : '-'}`, true, t, { jump: Math.abs(wrapped(v - prev)) >= CFG.axisThreshold });
           st.axisDir[i] = dir;
         }
         this.turntable(st, i, v, now, t, emit);
@@ -195,7 +196,7 @@ export class GamepadPoller {
    * keeps one held (nor does a platter stopped by the hand bouncing a step back). No progress for
    * releaseMs lets go.
    */
-  private turntable(st: PadState, i: number, v: number, now: number, t: number, emit: (code: string, down: boolean, timeMs: number) => void): void {
+  private turntable(st: PadState, i: number, v: number, now: number, t: number, emit: (code: string, down: boolean, timeMs: number, extra?: Pick<PadEvent, 'way'>) => void): void {
     const way = st.way[i] ?? 0;
     const d = wrapped(v - (st.peak[i] ?? v));
     const code = `Pad:TT${i}`;
@@ -214,7 +215,7 @@ export class GamepadPoller {
       st.lastMove[i] = now;
       if (st.moved[i] >= this.spinThreshold && spin !== st.way[i]) {
         if (spin !== 0) emit(code, false, t);
-        emit(code, true, t);
+        emit(code, true, t, { way: st.way[i] });
         st.spin[i] = st.way[i];
       }
     } else if (now - (st.lastMove[i] ?? now) > this.releaseMs) {
@@ -296,8 +297,11 @@ export function padMenuKey(e: Pick<PadEvent, 'code' | 'standard'>): string | nul
  */
 export const SHOULDER_KEYS: Readonly<Record<string, string>> = { 'Pad:B4': 'PageUp', 'Pad:B5': 'PageDown' };
 
-/** On the song select also X, LT and RT: the play options (Space), the song info (I) and the settings (F10). */
-export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10' };
+/**
+ * On the song select also X, LT, RT and RS (the right stick pressed): the play options (Space),
+ * the song info (I), the settings (F10) and a play on autoplay (Shift+Enter).
+ */
+export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', 'Pad:B11': 'Shift+Enter' };
 
 /** On the result also X: 다시 하기 on the same placement (R). */
 export const RESULT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'KeyR' };
@@ -440,12 +444,14 @@ export class GamepadMenuBridge {
  * Sends a menu key for the pad control `from` to the focused element. The page is marked as
  * driven by a pad ('pad': a standard one, whose buttons the key hints can name) or by a
  * controller of its own layout ('controller': its menu buttons send the keyboard's keys, so the
- * hints stay the keyboard's).
+ * hints stay the keyboard's). A key named with "Shift+" is sent with Shift held.
  */
-function dispatchKey(code: string, down: boolean, repeat: boolean, standard: boolean, from: string): void {
+function dispatchKey(key: string, down: boolean, repeat: boolean, standard: boolean, from: string): void {
   document.documentElement.dataset.input = standard ? 'pad' : 'controller';
   const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-  const event = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true });
+  const shiftKey = key.startsWith('Shift+');
+  const code = shiftKey ? key.slice('Shift+'.length) : key;
+  const event = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, shiftKey, repeat, bubbles: true, cancelable: true });
   sentFrom.set(event, from);
   const unhandled = target.dispatchEvent(event);
   if (!unhandled || !down) return;

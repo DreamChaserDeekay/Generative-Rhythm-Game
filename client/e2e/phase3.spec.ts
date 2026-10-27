@@ -96,7 +96,8 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   // a hit sounds 1.2 times as loud as its stem in the song
   await expect.poll(() => keysoundBusGain(page)).toBeCloseTo(1.2, 5);
   await expect(page.locator('.play-bg video.bg-video')).toHaveCount(1);
-  await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(1);
+  // the background visualizer is gone: an earlier version's saved visualizer: true draws none
+  await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(0);
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase3.png' });
   // the score panel stands over SPEED left of the gear, on the screen; under the judge line is the gear's
@@ -212,7 +213,14 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   await chooseSetting(page, 'opt-skin', 'club');
   await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toBeVisible();
-  await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
+  // the skin is colours, track and type: the notes and the gear are the gear tab's
+  await expect(page.getByTestId('skin-settings')).toContainText('노트·사이드 노트·기어·타격 효과는 기어 탭에서 고릅니다');
+  await page.getByRole('button', { name: '현재 스킨 JSON 보기' }).click();
+  await expect(page.locator('.skin-json')).toHaveValue(/"judgeLine"/);
+  await expect(page.locator('.skin-json')).not.toHaveValue(/noteShape|hitEffect|"note"|"deck"/);
+  // the install hint has the Windows path too
+  await expect(page.locator('.install-hint')).toContainText('.venv\\Scripts\\pip');
+  await page.locator('.skin-json').fill('{"label": "테스트 스킨", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
   // the user skin is now the track's skin
   await settingsTab(page, 'gear');
@@ -239,6 +247,7 @@ test('the plane camera and smaller or no hit effects, in the settings and in a p
   // the hit effects' size sits with the other effects, and the gear beside it shows them
   await settingsTab(page, 'fx');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
+  await expect(page.getByTestId('opt-hit-effect')).toContainText('타격 효과 크기');
   await expect(page.getByTestId('opt-hit-effect')).toHaveAttribute('data-value', 'normal');
   await chooseSetting(page, 'opt-hit-effect', 'small');
   await expect(page.getByTestId('opt-hit-effect')).toContainText('작게');
@@ -263,51 +272,39 @@ test('the plane camera and smaller or no hit effects, in the settings and in a p
   expect(errors).toEqual([]);
 });
 
-test('side notes over half the keys (반쪽 덮기): in the settings and on the song select with their previews, and in a play', async ({ page }) => {
+test('side notes always over half the keys (반쪽 덮기): no row to lay them in lanes in the settings or on the song select, their row’s preview, and in a play', async ({ page }) => {
   const errors = trackErrors(page);
-  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: fakeSongs(3) } }));
-  // slow, so each side note of the sync test is in view for a few of the checks of its drawing below
+  // slow, so each side note of the sync test is in view for a few of the checks of its drawing below;
+  // side notes in lanes of their own, as an earlier version saved them, are laid over the keys all the same
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', hiSpeed: 1 }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', hiSpeed: 1, sideNotes: 'lanes' }));
   });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  const row = page.getByTestId('opt-side-notes');
+  await expect(page.getByTestId('opt-side-notes')).toHaveCount(0);
+  const row = page.getByTestId('opt-side-style');
   const head = page.locator('.settings-side-head');
-  await expect(row).toHaveAttribute('data-value', 'lanes');
-  await expect(row).toContainText('별도 레인');
-  // on its row the preview has side lanes, though the last key mode has none; on another row it has that mode again
+  // on the side notes' row the preview has side lanes, though the last key mode has none; on another row it has that mode again
   await expect(head).toContainText('7K+1S');
   await row.focus();
   await expect(head).toContainText('6K+FX');
   await expect(page.getByTestId('settings-help')).toContainText('DJMAX');
-  await page.keyboard.press('ArrowRight');
-  await expect(row).toHaveAttribute('data-value', 'half');
-  await expect(row).toContainText('반쪽 덮기');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ sideNotes: 'half' });
   await page.keyboard.press('ArrowDown');
   await expect(head).toContainText('7K+1S');
   await page.getByRole('button', { name: /완료/ }).click();
 
-  // the song select's speed and gear rows have it on a key mode with side lanes only
+  // the song select's speed and gear rows have no side notes' row, on a key mode with side lanes either
   await playOptions(page, 'gear');
   await expect(page.getByTestId('quick-speed')).toBeVisible();
   await expect(page.getByTestId('quick-side-notes')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.locator('.key-modes').getByRole('button', { name: '6K+FX', exact: true }).click();
   await playOptions(page, 'gear');
-  const quick = page.getByTestId('quick-side-notes');
-  await expect(quick).toHaveAttribute('data-value', 'half');
-  await quick.focus();
-  await expect(page.getByTestId('play-options-help')).toContainText('DJMAX');
-  await page.keyboard.press('ArrowRight');
-  await expect(quick).toHaveAttribute('data-value', 'lanes');
-  expect(await stored()).toMatchObject({ sideNotes: 'lanes' });
-  await page.keyboard.press('ArrowLeft');
-  await expect(quick).toHaveAttribute('data-value', 'half');
+  await expect(page.getByTestId('quick-speed')).toBeVisible();
+  await expect(page.getByTestId('quick-side-notes')).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // the sync test on 6K+FX draws its side notes over the keys: from the 17th beat (10 s in) bars of
@@ -499,37 +496,41 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   expect(errors).toEqual([]);
 });
 
-test('notes, side notes, gear and hit effect picked apart from the skin: named with the skin’s own, kept, and played; long notes go with the note', async ({ page }) => {
+test('notes, side notes, gear and hit effect picked whatever the skin: plain names, the same defaults on any skin, kept, and played; long notes go with the note', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-skin', 'arcade');
-  // each part names what the skin draws while it follows the skin
-  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'skin');
-  await expect(page.getByTestId('opt-note-style')).toContainText('스킨 (메카 챔퍼)');
-  await expect(page.getByTestId('opt-deck-style')).toContainText('스킨 (아케이드)');
+  // each part is named as picked, the defaults on this skin too: there is no skin's own to follow
+  for (const [id, value, name] of [
+    ['opt-note-style', 'flat', '기본'],
+    ['opt-side-style', 'bar', '기본'],
+    ['opt-deck-style', 'grand', '그랜드 피아노'],
+    ['opt-hit-style', 'flash', '플래시'],
+  ]) {
+    await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
+    await expect(page.getByTestId(id)).toContainText(name);
+    await expect(page.getByTestId(id)).not.toContainText('스킨');
+  }
   // no row of its own for the long notes: they are of the note's family
   await expect(page.getByTestId('opt-long-style')).toHaveCount(0);
-  // the side notes are drawn as picked, as the notes or as dots: no skin's own to follow
-  await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
-  await expect(page.getByTestId('opt-side-style')).toContainText('노트와 같게');
   await chooseSetting(page, 'opt-note-style', 'round');
   await chooseSetting(page, 'opt-side-style', 'dots');
   await page.getByTestId('opt-side-style').press('ArrowRight');
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
   await page.getByTestId('opt-side-style').press('ArrowRight');
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'dots');
-  await chooseSetting(page, 'opt-deck-style', 'grand');
+  await chooseSetting(page, 'opt-deck-style', 'cassette');
   await chooseSetting(page, 'opt-hit-style', 'wave');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'grand', hit: 'wave' } });
+  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'cassette', hit: 'wave' } });
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots grand wave');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots cassette wave');
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'test-results/play-parts.png' });
@@ -538,13 +539,19 @@ test('notes, side notes, gear and hit effect picked apart from the skin: named w
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('song-list')).toBeVisible();
 
-  // back to the skin's own: the skin as it was
+  // back to the defaults: drawn as on any skin, not as arcade's own (chamfer rail bar arcade star)
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  for (const id of ['opt-note-style', 'opt-deck-style', 'opt-hit-style']) await chooseSetting(page, id, 'skin');
-  await chooseSetting(page, 'opt-side-style', 'bar');
+  for (const [id, value] of [
+    ['opt-note-style', 'flat'],
+    ['opt-side-style', 'bar'],
+    ['opt-deck-style', 'grand'],
+    ['opt-hit-style', 'flash'],
+  ]) {
+    await chooseSetting(page, id, value);
+  }
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar arcade star');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar grand flash');
   expect(errors).toEqual([]);
 });

@@ -1,17 +1,21 @@
 import { expect, test } from '@playwright/test';
 import { addFromMenu, difficultySystem, playOptions, songInfo } from './songSelect';
 
-// Difficulty systems: DJMAX RESPECT V tiers by default, EZ2ON's on a 1-20 scale, and the
-// original five steps.
+// Difficulty systems: DJMAX RESPECT V tiers, EZ2ON's on a 1-20 scale, and the original five
+// steps (the default).
 test('charts are generated on the DJMAX, EZ2ON and original difficulty scales', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // start on DJMAX (written only when there are no settings, so a reload keeps the switches below)
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ difficultySystem: 'DJMAX' }));
+  });
   await page.goto('/');
   await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   const tiers = page.getByTestId('difficulty-row').getByRole('button');
 
-  // DJMAX is the default: NORMAL · HARD · MAXIMUM · SC
+  // DJMAX: NORMAL · HARD · MAXIMUM · SC
   await expect(page.locator('.system-label')).toHaveText('난이도 기준 DJMAX');
   await expect(tiers).toHaveText([/NORMAL\s*NM/, /HARD\s*HD/, /MAXIMUM\s*MX/, /SC\s*SC/]);
   await page.getByRole('button', { name: /MAXIMUM/ }).click();

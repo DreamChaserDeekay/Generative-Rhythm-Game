@@ -92,7 +92,7 @@ describe('GamepadPoller', () => {
     pad.axes[0] = -0.99; // crossed the end: +0.02, the same direction
     pad.timestamp = 4;
     p.poll(4);
-    expect(events.filter((e) => e.code === 'Pad:TT0')).toEqual([{ code: 'Pad:TT0', down: true, timeMs: 4, standard: true }]);
+    expect(events.filter((e) => e.code === 'Pad:TT0')).toEqual([{ code: 'Pad:TT0', down: true, timeMs: 4, standard: true, way: 1 }]);
   });
 
   it('releases what is held when stopped', () => {
@@ -130,6 +130,8 @@ describe('GamepadPoller', () => {
       [false, 500],
       [true, 500],
     ]);
+    // each scratch says which way it turns
+    expect(events.filter((e) => e.code === 'Pad:TT0' && e.down).map((e) => e.way)).toEqual([1, -1]);
     // standing still for the release time lets go
     p.poll(500 + CFG.turntable.releaseMs + 10);
     expect(tt().at(-1)).toEqual([false, 500 + CFG.turntable.releaseMs + 10]);
@@ -246,8 +248,8 @@ describe('menu keys of a pad', () => {
     setPadMenuKeys({});
   });
 
-  it('gives the song select X, LT and RT for its play options, song info and settings, and LB / RB as everywhere', () => {
-    expect(SELECT_PAD_KEYS).toMatchObject({ 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', ...SHOULDER_KEYS });
+  it('gives the song select X, LT, RT and RS for its play options, song info, settings and an autoplay, and LB / RB as everywhere', () => {
+    expect(SELECT_PAD_KEYS).toEqual({ 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', 'Pad:B11': 'Shift+Enter', ...SHOULDER_KEYS });
     // nothing of the standard layout's own (A, B, Y, Start, Back, the d-pad) is taken
     for (const code of Object.keys(SELECT_PAD_KEYS)) expect(padMenuKey({ code, standard: true })).toBe(null);
   });

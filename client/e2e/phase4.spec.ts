@@ -157,6 +157,87 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   expect(errors).toEqual([]);
 });
 
+test('the chart editor zooms its timeline with Ctrl+wheel, not the page, and keeps unsaved edits from a reload and a single Esc', async ({ page }) => {
+  const errors = trackErrors(page);
+  await addDemoAndPreview(page);
+  await page.getByTestId('edit-chart').click();
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  const stats = page.locator('.editor-stats');
+  await expect(stats).toContainText('확대 ×1.00');
+
+  // Ctrl+wheel up over the timeline: one step in, the page's own zoom untouched
+  const canvas = page.getByTestId('editor-canvas');
+  const box = (await canvas.boundingBox())!;
+  const ratio = await page.evaluate(() => devicePixelRatio);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('Control');
+  await expect(stats).toContainText('확대 ×1.20');
+  expect(await page.evaluate(() => devicePixelRatio)).toBe(ratio);
+  // the browser is told the wheel is the editor's
+  const prevented = await canvas.evaluate((c) => {
+    const e = new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true });
+    c.dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
+  await expect(stats).toContainText('확대 ×1.44');
+
+  // the wheel alone still moves the cursor, at the same zoom
+  const cursor = stats.locator('div').nth(1);
+  const before = (await cursor.textContent())!;
+  await page.mouse.wheel(0, -300);
+  await expect(cursor).not.toHaveText(before);
+  await expect(stats).toContainText('확대 ×1.44');
+
+  // F5 (a new pattern on the song select) never reloads the editor; Ctrl+R and leaving the page
+  // are held back only over unsaved edits (the browser, or the desktop app, then asks)
+  const keyHeld = (code: string, ctrlKey = false) =>
+    page.evaluate(({ code, ctrlKey }) => {
+      const e = new KeyboardEvent('keydown', { code, key: code, ctrlKey, bubbles: true, cancelable: true });
+      document.body.dispatchEvent(e);
+      return e.defaultPrevented;
+    }, { code, ctrlKey });
+  const unloadAsks = () =>
+    page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+  expect(await keyHeld('F5')).toBe(true);
+  expect(await keyHeld('KeyR', true)).toBe(false);
+  expect(await unloadAsks()).toBe(false);
+  await page.keyboard.press('KeyM');
+  await expect(page.locator('.topbar .screen-detail')).toContainText('저장 안 됨');
+  expect(await keyHeld('F5')).toBe(true);
+  expect(await keyHeld('KeyR', true)).toBe(true);
+  await expect(page.getByTestId('editor-toast')).toContainText('저장하지 않은 편집이 있습니다');
+  expect(await unloadAsks()).toBe(true);
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+
+  // leaving over them takes a second press (Esc, a pad's B, or 나가기), which the toast asks for
+  const exit = page.getByTestId('editor-exit');
+  // held: the key's repeats (repeat=true from the second down) are not the second press
+  await page.keyboard.down('Escape');
+  await page.keyboard.down('Escape');
+  await page.keyboard.down('Escape');
+  await page.keyboard.up('Escape');
+  await expect(page.getByTestId('editor-toast')).toContainText('한 번 더 누르면 저장하지 않고 나갑니다');
+  await expect(exit).toContainText('한 번 더 누르면 나가기');
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  // armed for 3 s only
+  await expect(exit).not.toContainText('한 번 더', { timeout: 5_000 });
+  await expect(exit).toContainText('나가기');
+  await exit.click();
+  await expect(exit).toContainText('한 번 더 누르면 나가기');
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('editor-screen')).toHaveCount(0);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('import a keysounded BMS folder and autoplay it with its keysounds', async ({ page }) => {
   const errors = trackErrors(page);
   const dir = 'test-results/e2e-bms';

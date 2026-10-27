@@ -1,8 +1,8 @@
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { DECK_STYLES, type DeckStyle } from '../render/deckArt';
-import { BUILTIN_SKINS, skinById, styleOf, type SkinParts } from '../render/skins';
-import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
-import type { Settings, SideNotes } from '../settings/settings';
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import type { DeckStyle } from '../render/deckArt';
+import { BUILTIN_SKINS, PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
+import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
+import type { Settings } from '../settings/settings';
 
 /** The option rows of the settings and the song select's play options. */
 
@@ -18,7 +18,7 @@ export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, st
 
 /** The parts of the gear by name (설정 → 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
-export const SIDE_NAMES: Record<SideStyle, string> = { bar: '노트와 같게', dots: '도트 매트릭스' };
+export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<DeckStyle, string> = {
   line: '라인',
   stem: '악기색',
@@ -52,22 +52,13 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   none: '없음',
 };
 
-/** Each part's choices: the skin's own (named, so it shows what it is), then every style; the side notes' styles alone. */
-export function partChoices(settings: Pick<Settings, 'skin' | 'customSkin'>): { [K in keyof SkinParts]: [SkinParts[K], string][] } {
-  const own = styleOf(skinById(settings.skin, settings.customSkin));
-  return {
-    note: [['skin', `스킨 (${NOTE_NAMES[own.note]})`], ...NOTE_STYLES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]])],
-    side: SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]]),
-    deck: [['skin', `스킨 (${DECK_NAMES[own.deck]})`], ...DECK_STYLES.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]])],
-    hit: [['skin', `스킨 (${HIT_NAMES[own.hit]})`], ...HIT_STYLES.map((v): [HitStyle, string] => [v, HIT_NAMES[v]])],
-  };
-}
-
-/** How the side notes of 4K+FX and 6K+FX are drawn, by name (the settings' gear tab and the song select's gear rows). */
-export const SIDE_NOTE_CHOICES: [SideNotes, string][] = [
-  ['lanes', '별도 레인'],
-  ['half', '반쪽 덮기'],
-];
+/** Each part's choices, by name. */
+export const PART_CHOICES: { [K in keyof SkinParts]: [SkinParts[K], string][] } = {
+  note: PART_NOTES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
+  side: SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]]),
+  deck: PART_DECKS.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]]),
+  hit: PART_HITS.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
+};
 
 export interface RowProps {
   label: string;
@@ -102,6 +93,12 @@ export function OptionRow(
       if (!e.repeat) props.onPress?.();
     }
   };
+  // the help follows the value (some rows explain the value chosen) while the row has the focus
+  const row = useRef<HTMLDivElement>(null);
+  const { onHelp, help } = props;
+  useEffect(() => {
+    if (row.current && document.activeElement === row.current) onHelp(help);
+  }, [help]);
   // the arrows change the value and leave the focus on the row
   const arrow = (dir: 1 | -1) => ({
     onMouseDown: (e: ReactMouseEvent) => e.preventDefault(),
@@ -112,6 +109,7 @@ export function OptionRow(
   });
   return (
     <div
+      ref={row}
       className="opt"
       tabIndex={0}
       role={props.checked === undefined ? 'spinbutton' : 'switch'}
@@ -200,7 +198,7 @@ export function ActionOption(props: RowProps & { action: string; onPress: () => 
     <button className="opt opt-action" data-testid={props.testId} onClick={props.onPress} onFocus={() => props.onHelp(props.help)}>
       <span className="opt-name">{props.label}</span>
       <span className="opt-value">
-        <b>{props.action}</b> <kbd>Enter</kbd>
+        <b className="opt-button">{props.action}</b>
       </span>
     </button>
   );

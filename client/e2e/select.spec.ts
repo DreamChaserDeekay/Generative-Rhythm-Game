@@ -75,6 +75,8 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   const skin = page.getByTestId('quick-skin');
   const camera = await page.getByTestId('quick-camera').getAttribute('data-value');
   await skin.focus();
+  // a skin is the track's colours: the notes and the gear are picked in the settings
+  await expect(page.getByTestId('play-options-help')).toContainText('노트·기어는 설정 → 기어');
   const skinBefore = (await skin.getAttribute('data-value')) ?? '';
   await page.keyboard.press('ArrowRight');
   await expect(skin).not.toHaveAttribute('data-value', skinBefore);
@@ -205,6 +207,32 @@ test('Space and I open their panel: ↑↓ lines (the tabs above the first row),
   expect(errors).toEqual([]);
 });
 
+test('generation options that make another chart show beside the rules, named in their tab, until 생성 옵션 초기화', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: fakeSongs(2) } }));
+  // (a scratch rate makes no other 4K chart: there only the density and the chord size count)
+  await page.addInitScript(() =>
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', generation: { density: 1.2, maxChord: 3, specialRate: 0.1 } })),
+  );
+  await page.goto('/');
+  const chip = page.getByTestId('chip-generation');
+  await expect(chip).toHaveText('생성 옵션 변경');
+  await expect(chip).toHaveAttribute('title', '밀도 · 최대 동시 노트');
+  await page.getByRole('button', { name: '7K+1S', exact: true }).click();
+  await expect(chip).toHaveAttribute('title', '밀도 · 최대 동시 노트 · 스크래치 비율');
+  // the tab names two of them and how many more
+  await playOptions(page);
+  const tab = page.getByTestId('toggle-generation');
+  await expect(tab).toHaveText('생성 옵션 · 밀도 · 최대 동시 노트 외 1개');
+  await tab.click();
+  await page.getByRole('button', { name: '생성 옵션 초기화' }).click();
+  await expect(tab).toHaveText('생성 옵션');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+  await expect(chip).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('the song info of a song that plays: I then Enter plays it, and never presses BPM ×2', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(3, 'ready').map((s) => ({ ...s, bpm: 128, bpmMin: 128, bpmMax: 128 }));
@@ -219,10 +247,10 @@ test('the song info of a song that plays: I then Enter plays it, and never press
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
   await page.goto('/');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
-  // the song select asks for its charts by itself (the route refuses them: no level, no message)
+  // the song select asks for its charts by itself, one per DJMAX tier (the route refuses them: no level, no message)
   await expect.poll(() => sent.length).toBe(4);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
   await page.keyboard.press('KeyI');
@@ -239,6 +267,41 @@ test('the song info of a song that plays: I then Enter plays it, and never press
   expect(errors).toEqual([]);
 });
 
+test('오토 플레이 from the song select: Shift+Enter or its button plays this once on autoplay, the play options\' switch left off', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await readyDemo(page, 139);
+  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.reload();
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 139' }).click();
+  const auto = page.getByTestId('autoplay-button');
+  await expect(auto).toContainText('Shift+Enter');
+  await expect(auto).toBeEnabled();
+  await expect(page.getByTestId('hint-autoplay')).toContainText('오토 플레이');
+  await expect(page.getByTestId('play-button')).toHaveText(/^플레이/);
+
+  // Shift+Enter: this play on autoplay
+  await page.keyboard.press('Shift+Enter');
+  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.hud-chip').first()).toHaveText('AUTO', { timeout: 30_000 });
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-title')).toHaveText('Demo Groove 139');
+  // the switch was not turned on: Enter still plays by hand
+  await playOptions(page, 'rules');
+  await expect(page.getByTestId('autoplay-toggle')).not.toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+
+  // the button does the same
+  await auto.click();
+  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.hud-chip').first()).toHaveText('AUTO', { timeout: 30_000 });
+  expect(errors).toEqual([]);
+});
+
 test('a search or a folder that leaves the song out puts the cursor on what it shows, with nothing shown nothing plays; / and Ctrl+F go to the search', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(12, 'ready');
@@ -252,7 +315,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
   await page.goto('/');
   await expect(page.getByTestId('song-item')).toHaveCount(12);
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
@@ -274,7 +337,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   expect(await focusedSong()).toBe(songs[10].id);
   await page.waitForTimeout(300);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
-  // (the song select asks for the charts of the song it rests on by itself, quietly)
+  // (the song select asks for the charts of the song it rests on by itself, quietly: one per DJMAX tier)
   await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(4);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('select-error')).toContainText('e2e');
@@ -652,7 +715,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   expect(errors).toEqual([]);
 });
 
-test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), and the colour-blind palette has lamps of its own', async ({ page }) => {
+test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), the difficulty ←→ picked underlined, and the colour-blind palette has lamps of its own', async ({ page }) => {
   const errors = trackErrors(page);
   // (its charts are not to be had: the list shows what its records say)
   const [song] = fakeSongs(1, 'ready');
@@ -677,6 +740,15 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   expect(await style(2, 'background-color', true)).toBe('rgba(0, 0, 0, 0)');
   expect(await style(2, 'border-top-color', true)).toBe('rgb(255, 46, 46)');
   expect(await style(0, 'background-color')).toBe('rgb(255, 231, 163)');
+  // the difficulty ←→ picked (NORMAL) is the cell set apart: bold, a line of the accent under it
+  await expect(page.locator('.tier-level.active')).toHaveCount(1);
+  await expect(cells.nth(0)).toHaveClass(/active/);
+  expect(await style(0, 'box-shadow')).toContain('rgb(55, 226, 255)');
+  expect(await style(0, 'font-weight')).toBe('700');
+  expect(await style(1, 'font-weight')).toBe('600');
+  await page.keyboard.press('ArrowRight');
+  await expect(cells.nth(1)).toHaveClass(/active/);
+  await expect(cells.nth(0)).not.toHaveClass(/active/);
   // the colour-blind palette: its own lamp colours, the same shapes
   await page.evaluate(() => document.documentElement.classList.add('palette-cb'));
   expect(await style(2, 'border-top-color', true)).toBe('rgb(213, 94, 0)');
@@ -735,6 +807,111 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   await expect(cell).toHaveClass(/lamp-hard/);
   await page.getByTestId('folder-noFullCombo').click();
   await expect(page.locator(`[data-song-id="${id}"]`)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/**
+ * Drops files on the song list as a browser hands them over: each its own item, or (`folder`) one
+ * item whose entry is the folder with the files under it. The files are made in the page; a
+ * page's own DataTransfer has no entries, so the folder's is given for the drop's moment.
+ */
+async function drop(page: Page, files: { name: string; text: string }[], folder: string | null = null) {
+  await page.evaluate(
+    ([list, dir]) => {
+      const made = list.map((f) => new File([f.text], f.name));
+      const data = new DataTransfer();
+      const proto = DataTransferItem.prototype;
+      const own = proto.webkitGetAsEntry;
+      if (dir === null) for (const f of made) data.items.add(f);
+      else {
+        data.items.add(new File([''], dir));
+        const entries = made.map((f) => ({ isFile: true, isDirectory: false, name: f.name, fullPath: `/${dir}/${f.name}`, file: (ok: (file: File) => void) => ok(f) }));
+        const entry = {
+          isFile: false,
+          isDirectory: true,
+          name: dir,
+          fullPath: `/${dir}`,
+          createReader: () => {
+            let read = false;
+            return {
+              readEntries: (ok: (batch: unknown[]) => void) => {
+                ok(read ? [] : entries);
+                read = true;
+              },
+            };
+          },
+        };
+        proto.webkitGetAsEntry = () => entry as unknown as FileSystemEntry;
+      }
+      document.querySelector('[data-testid="song-list"]')?.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+      proto.webkitGetAsEntry = own;
+    },
+    [files, folder] as const,
+  );
+}
+
+test('a drop takes a chart folder (its paths as the folder picker gives them), a replay file or music; anything else says what can be dropped', async ({ page }) => {
+  const errors = trackErrors(page);
+  const songs = fakeSongs(1);
+  let uploads = 0;
+  let imports = 0;
+  await page.route(
+    (url) => url.pathname === '/api/songs',
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { songs } });
+      uploads++;
+      return route.fulfill({ status: 201, json: { song: songs[0], created: false } });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === '/api/import',
+    (route) => {
+      imports++;
+      return route.fulfill({ json: { songs: [], charts: [], warnings: [] } });
+    },
+  );
+  await page.goto('/');
+  await expect(page.getByTestId('song-item')).toHaveCount(1);
+  // what the page sends: each form part as it is put in (a path, or a file by its name)
+  await page.evaluate(() => {
+    const sent: string[] = [];
+    (window as unknown as { __sent: string[] }).__sent = sent;
+    const append = FormData.prototype.append as (this: FormData, ...args: unknown[]) => void;
+    FormData.prototype.append = function (this: FormData, ...args: unknown[]) {
+      const [name, value] = args;
+      sent.push(typeof value === 'string' ? `${name}=${value}` : `${name}:${(value as File).name}`);
+      append.apply(this, args);
+    };
+  });
+  const sent = () => page.evaluate(() => (window as unknown as { __sent: string[] }).__sent);
+  const error = page.getByTestId('select-error');
+
+  // a text dragged across the page is no file: no word about it
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'Fake Song 01');
+    document.querySelector('[data-testid="song-list"]')?.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(200);
+  await expect(error).toBeHidden();
+
+  // a BMS folder goes to the import with every file's path inside it
+  await drop(page, [{ name: 'song.bms', text: '#TITLE E2E Drop' }, { name: 'kick.wav', text: 'RIFF' }], 'E2E Drop Pack');
+  await expect.poll(() => imports).toBe(1);
+  expect(await sent()).toEqual(expect.arrayContaining(['paths=E2E Drop Pack/song.bms', 'paths=E2E Drop Pack/kick.wav']));
+  await expect(page.getByTestId('import-report')).toContainText('채보 0개');
+  // a replay file is opened as one (this one is not), not uploaded
+  await drop(page, [{ name: 'play.grgreplay.json', text: '{}' }]);
+  await expect(error).toHaveText('리플레이 파일이 아닙니다');
+  expect(uploads).toBe(0);
+  // music is uploaded
+  await drop(page, [{ name: 'tune.mp3', text: 'ID3' }]);
+  await expect.poll(() => uploads).toBe(1);
+  expect(await sent()).toContainEqual(expect.stringMatching(/:tune\.mp3$/));
+  // anything else
+  await drop(page, [{ name: 'notes.txt', text: 'x' }]);
+  await expect(error).toHaveText('음악 파일 · 채보 파일이나 폴더 · 리플레이 파일을 놓을 수 있습니다');
+  expect(uploads + imports).toBe(2);
   expect(errors).toEqual([]);
 });
 
@@ -916,6 +1093,68 @@ test("a chart that found the server down is asked again on the next visit, its p
   expect(errors).toEqual([]);
 });
 
+test('the levels that came in are on the list at once after a restart, in the level order too; under another generator they are asked for again', async ({ page }) => {
+  const errors = trackErrors(page);
+  const songs = fakeSongs(3, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
+  // the songs whose levels (brief) and whole charts were asked for
+  const briefs: string[] = [];
+  const whole: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      const songId = new URL(route.request().url()).pathname.split('/')[3];
+      (body.brief ? briefs : whole).push(songId);
+      // each song a level lower than the one before
+      const level = ({ NM: 4, HD: 7, MX: 10, SC: 13 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.toLowerCase().padEnd(2, '0')}`, songId, keyMode: '4K', difficulty: body.difficulty, difficultySystem: 'DJMAX', level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
+      return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
+    },
+  );
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM', songSort: 'level' })));
+  await page.goto('/');
+  const rows = page.getByTestId('song-item');
+  const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
+  const dashes = ['–', '–', '–', '–'];
+
+  // the cursor rests on the first song, then on the second: their levels come; the third's are not asked for
+  await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('song-title')).toHaveText('Fake Song 02');
+  await expect(cells(1)).toHaveText(['3', '6', '9', '12'], { timeout: 30_000 });
+  await expect(cells(2)).toHaveText(dashes);
+  const [asked, played] = [briefs.length, whole.length];
+
+  // a restart: both songs show their levels at once and the level order puts them first, the
+  // lower first; the song under the cursor asks only for the chart Enter plays
+  await page.reload();
+  await expect(rows).toHaveText([/Fake Song 02/, /Fake Song 01/, /Fake Song 03/]);
+  await expect(cells(1)).toHaveText(['3', '6', '9', '12']);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13']);
+  await expect(cells(2)).toHaveText(dashes);
+  await expect.poll(() => whole.length).toBeGreaterThan(played);
+  await page.waitForTimeout(500);
+  expect(briefs).toHaveLength(asked);
+
+  // the server's generator is another one (an update): its charts are other ones, asked for again
+  await page.addInitScript(() => {
+    const stored = JSON.parse(localStorage.getItem('grg.briefs.v1') ?? '{}');
+    localStorage.setItem('grg.briefs.v1', JSON.stringify({ ...stored, generator: 'older' }));
+  });
+  await page.reload();
+  await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
+  await expect(cells(1)).toHaveText(dashes);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await expect.poll(() => briefs.length).toBe(asked + 3);
+  const generator = (await (await page.request.get('/api/health')).json()).generator as string;
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('grg.briefs.v1') ?? '{}').generator)).toBe(generator);
+  expect(errors).toEqual([]);
+});
+
 test('a song taken out of the library takes what was kept for it; a chosen chart the server no longer has gives way to the default pattern; one chosen from the records drops the target level', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
@@ -987,15 +1226,130 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
   await expect(plate).toContainText('고른 패턴');
   await expect(plate).not.toContainText('목표');
 
-  // taken out of the library: its patterns, its chart chosen and its offset go, the other song's stay
-  page.on('dialog', (d) => void d.accept());
+  // taken out of the library (a second press of its button, no dialog): its patterns, its chart
+  // chosen and its offset go, the other song's stay
+  page.on('dialog', (d) => {
+    errors.push(`unexpected dialog: ${d.message()}`);
+    void d.dismiss();
+  });
   await songInfo(page);
-  await page.getByRole('button', { name: '라이브러리에서 삭제' }).click();
+  const remove = page.getByTestId('remove-song');
+  await expect(remove).toHaveText('라이브러리에서 삭제');
+  await remove.click();
+  await expect(remove).toHaveText('한 번 더 누르면 지웁니다');
+  await expect(page.getByTestId('song-info')).toContainText('이 곡의 기록도 함께 지워집니다');
+  await expect(page.getByTestId('song-item')).toHaveCount(2);
+  await remove.click();
   await expect(page.getByTestId('song-item')).toHaveCount(1);
   const after = await stored(page);
   expect(after.patterns).toEqual({ [`${b}|4K|DJMAX|NM`]: 5 });
   expect(after.chartPicks).toEqual({});
   expect(after.songOffsets).toEqual({ [b]: -3 });
+  expect(errors).toEqual([]);
+});
+
+test('an edited chart goes from the song info on a second press (Enter twice, no dialog); a first press left alone gives way', async ({ page }) => {
+  const errors = trackErrors(page);
+  page.on('dialog', (d) => {
+    errors.push(`unexpected dialog: ${d.message()}`);
+    void d.dismiss();
+  });
+  const [song] = fakeSongs(1, 'ready');
+  const chartId = 'c' + '7'.repeat(20);
+  let saved = [{ chartId, songId: song.id, name: 'My Edit', kind: 'edited', keyMode: '4K', difficulty: 'NM', level: 5, noteCount: 120, createdAt: 1 }];
+  const deleted: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  const meta = { chartId, songId: song.id, keyMode: '4K', difficulty: 'NM', difficultySystem: 'DJMAX', level: 5, noteCount: 120, durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: 'My Edit' };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { charts: saved } }) : route.fulfill({ status: 500, json: { detail: 'e2e' } })),
+  );
+  await page.route(
+    (url) => url.pathname === `/api/charts/${chartId}`,
+    (route) => {
+      if (route.request().method() !== 'DELETE') return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] } } });
+      deleted.push(chartId);
+      saved = [];
+      return route.fulfill({ status: 204 });
+    },
+  );
+  await page.addInitScript(
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    { [`${song.id}|4K`]: chartId },
+  );
+  await page.goto('/');
+  await expect(page.getByTestId('saved-chart')).toHaveClass(/active/);
+  await songInfo(page);
+  const del = page.getByTestId('delete-saved');
+  await expect(del).toHaveText('이 채보 지우기');
+  // a first press asks once more; left alone for 3 s it gives way, nothing deleted
+  await del.focus();
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  await expect(page.getByTestId('song-info')).toContainText('이 채보의 기록도 함께 지워집니다');
+  await expect(del).toHaveText('이 채보 지우기', { timeout: 5_000 });
+  expect(deleted).toEqual([]);
+  // two presses within the time: the chart and its entry go
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => deleted).toEqual([chartId]);
+  await expect(page.getByTestId('saved-charts')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a first press of 이 채보 지우기 gives way when Tab puts the next key mode’s chart under the focused button', async ({ page }) => {
+  const errors = trackErrors(page);
+  const [song] = fakeSongs(1, 'ready');
+  const ids = { '4K': 'c' + '8'.repeat(20), '4K+FX': 'c' + '9'.repeat(20) };
+  const saved = Object.entries(ids).map(([keyMode, chartId]) => ({ chartId, songId: song.id, name: `Edit ${keyMode}`, kind: 'edited', keyMode, difficulty: 'NM', level: 5, noteCount: keyMode === '4K' ? 120 : 140, createdAt: 1 }));
+  const deleted: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { charts: saved } }) : route.fulfill({ status: 500, json: { detail: 'e2e' } })),
+  );
+  await page.route(
+    (url) => url.pathname.startsWith('/api/charts/'),
+    (route) => {
+      const c = saved.find((s) => route.request().url().includes(s.chartId));
+      if (!c) return route.fallback();
+      if (route.request().method() === 'DELETE') {
+        deleted.push(c.chartId);
+        return route.fulfill({ status: 204 });
+      }
+      const meta = { ...c, difficultySystem: 'DJMAX', durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: c.name };
+      return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] } } });
+    },
+  );
+  await page.addInitScript(
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    { [`${song.id}|4K`]: ids['4K'], [`${song.id}|4K+FX`]: ids['4K+FX'] },
+  );
+  await page.goto('/');
+  const notes = page.getByTestId('chart-notes');
+  // both charts loaded once (the next key mode's comes back from the store, under the same button)
+  await songInfo(page);
+  await expect(notes).toHaveText('120');
+  await page.keyboard.press('Tab');
+  await expect(notes).toHaveText('140');
+  await page.keyboard.press('Shift+Tab');
+  await expect(notes).toHaveText('120');
+
+  const del = page.getByTestId('delete-saved');
+  await del.focus();
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  // Tab: another chart under the focus, so the first press was not for it (said at once, well
+  // before the 3 s a first press waits run out), and the next Enter is a first press again
+  await page.keyboard.press('Tab');
+  await expect(notes).toHaveText('140');
+  await expect(del).toBeFocused();
+  await expect(del).toHaveText('이 채보 지우기', { timeout: 1000 });
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  expect(deleted).toEqual([]);
   expect(errors).toEqual([]);
 });
 

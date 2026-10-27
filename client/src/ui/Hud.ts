@@ -31,6 +31,8 @@ export interface HudInfo {
   judgementOpacity: number;
   /** The miss label (BREAK, MISS, POOR) of the counts under the score panel; null shows none. */
   counterMissLabel: string | null;
+  /** The timing error bar under the judgement (null: none): the widest and the best window, real ms each way. */
+  errorBar: { outerMs: number; bestMs: number } | null;
   /** The current BPM under SPEED (charts that change tempo, or BPM-linked scrolling). */
   showBpm: boolean;
   /** The key that skips a long intro. */
@@ -118,6 +120,29 @@ const SUB_SHARE = 0.5;
 const SUB_MIN = 18;
 const MS_SHARE = 0.7;
 const MS_MIN = 16;
+/**
+ * The timing error bar under the judgement (screen px at 720p, no wider than the track): the widest
+ * window each way across it, a tick per hit and a longer, thicker one for their mean.
+ */
+const ERROR_BAR_WIDTH = 240;
+const ERROR_BAR_HEIGHT = 10;
+const ERROR_BAR_GAP = 6;
+const ERROR_TICK = 2;
+const ERROR_MEAN = 4;
+/** The last hits the error bar shows (a tick each, reused in turn) and takes the mean of. */
+const ERROR_TICKS = 20;
+
+/** The error bar's parts, the errors (real ms) its ticks show, the next tick to use, and half its width (plane px). */
+export interface ErrorBar {
+  el: HTMLElement;
+  ticks: HTMLElement[];
+  mean: HTMLElement;
+  outerMs: number;
+  errors: number[];
+  next: number;
+  meanMs: number;
+  half: number;
+}
 
 /** CSS transform of the plane: its homography (row-major 3×3, plane px to screen px) as a matrix3d. */
 export function planeMatrix(h: readonly number[]): string {
@@ -250,6 +275,7 @@ export class Hud {
   private readonly toast: HTMLElement;
   private readonly syncVisual: HTMLElement | null = null;
   private readonly syncInput: HTMLElement | null = null;
+  private readonly errorBar: ErrorBar | null = null;
   private readonly showErrorMs: boolean;
   private readonly gaugeClearShare: number;
   private readonly survival: boolean;
@@ -402,6 +428,20 @@ export class Hud {
     const bar = q('.hud-judge-bar');
     if (t.bar) bar.style.background = t.bar;
     else bar.remove();
+    const errors = info.errorBar;
+    if (errors) {
+      // the best window shaded, the centre, a tick per recent hit and their mean (data-outer-ms, data-mean-ms; not shown)
+      const el = document.createElement('div');
+      el.className = 'hud-errorbar';
+      el.dataset.testid = 'hud-error-bar';
+      el.dataset.outerMs = String(Math.round(errors.outerMs * 100) / 100);
+      el.style.opacity = this.judgeOpacity;
+      el.innerHTML = `<i class="hud-eb-best"></i><i class="hud-eb-zero"></i>${'<i class="hud-eb-tick"></i>'.repeat(ERROR_TICKS)}<i class="hud-eb-mean"></i>`;
+      (el.firstElementChild as HTMLElement).style.width = `${(100 * errors.bestMs) / errors.outerMs}%`;
+      this.plane.append(el);
+      const ticks = [...el.querySelectorAll<HTMLElement>('.hud-eb-tick')];
+      this.errorBar = { el, ticks, mean: el.querySelector('.hud-eb-mean') as HTMLElement, outerMs: errors.outerMs, errors: [], next: 0, meanMs: 0, half: 0 };
+    }
 
     q('.hud-score-label').textContent = info.scoreLabel;
     q('.hud-rate-label').textContent = info.subLabel;
@@ -514,6 +554,32 @@ export class Hud {
     this.judgeSub.style.fontSize = px(sub * jk);
     this.judgeSub.style.setProperty('--ms-size', px(Math.max(MS_MIN, sub * MS_SHARE) * jk));
     this.judgeSub.style.setProperty('--sub-stroke', px(Math.max(3, sub * 0.16) * jk));
+    const eb = this.errorBar;
+    if (eb) {
+      // under the judgement and its FAST / SLOW (measured as they show at their largest), drawn longer as they are
+      const [, tall] = this.measure(
+        this.judgeBox,
+        [
+          [this.judgeLabel, 'MAX 100%'],
+          [this.judgeCombo, t.inline ? '0000' : ''],
+          [this.judgeFastSlow, 'FAST'],
+          [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
+        ],
+        () => undefined,
+      );
+      const below = -judgeAt + (tall * j.stretch) / 2;
+      const e = at(0, below, TEXT_ASPECT);
+      const width = Math.min(ERROR_BAR_WIDTH * e.k, 2 * p.halfWidth - 24);
+      this.place(eb.el, 0, below + ERROR_BAR_GAP * e.k * e.stretch, `translateX(-50%) scaleY(${e.stretch.toFixed(3)})`);
+      eb.el.style.width = px(width);
+      eb.el.style.height = px(ERROR_BAR_HEIGHT * e.k);
+      eb.el.style.setProperty('--tick', px(ERROR_TICK * e.k));
+      eb.el.style.setProperty('--mean', px(ERROR_MEAN * e.k));
+      eb.half = width / 2;
+      // the hits shown so far keep their place across the new width
+      eb.errors.forEach((ms, i) => (eb.ticks[i].style.transform = errorShift(eb, ms)));
+      eb.mean.style.transform = errorShift(eb, eb.meanMs);
+    }
     const c = at(0, -comboAt, TEXT_ASPECT);
     this.place(this.comboBox, 0, -comboAt, `translate(-50%, -50%) scaleY(${c.stretch.toFixed(3)})`);
     this.comboNum.style.fontSize = px(t.combo * c.k);
@@ -747,6 +813,7 @@ export class Hud {
     this.judgeFastSlow.textContent = error !== null && e.percent < 100 ? (error < 0 ? 'FAST' : 'SLOW') : '';
     this.judgeMs.textContent = error !== null && this.showErrorMs ? errorText(error) : '';
     this.judgeSub.className = `hud-judge-sub ${error !== null ? errorKind(error) : ''}`;
+    if (error !== null && this.errorBar) markError(this.errorBar, error);
     // restart the pop animation
     this.judgePop.classList.remove('pop');
     void this.judgePop.offsetWidth;
@@ -790,6 +857,14 @@ export class Hud {
     this.judgeBox.style.opacity = '0';
     this.toastAt = -Infinity;
     this.toast.style.opacity = '0';
+    const eb = this.errorBar;
+    if (eb) {
+      for (const el of [...eb.ticks, eb.mean]) el.style.opacity = '0';
+      eb.errors.length = 0;
+      eb.next = 0;
+      eb.meanMs = 0;
+      delete eb.el.dataset.meanMs;
+    }
     this.hideBanner();
     this.lastScore = -1;
     this.lastSub = '';
@@ -909,6 +984,35 @@ export function gaugeShown(value: number, survival: boolean): number {
   const v = Math.min(100, Math.max(0, value));
   const shown = Math.floor(v + 1e-9);
   return survival && v > 0 ? Math.max(1, shown) : shown;
+}
+
+/** Where an error (+ = late) lies across the error bar: -1 at the widest window's early edge, 1 at its late edge, past them at the edge. */
+export function errorBarAt(errorMs: number, outerMs: number): number {
+  return Math.min(1, Math.max(-1, errorMs / outerMs));
+}
+
+/** The transform that moves a tick (or the mean) of the error bar from its middle to an error. */
+function errorShift(bar: ErrorBar, errorMs: number): string {
+  return `translateX(${(errorBarAt(errorMs, bar.outerMs) * bar.half).toFixed(2)}px)`;
+}
+
+/**
+ * A hit on the error bar: the next tick (the oldest once all are used) moves to its error, the
+ * newest brightest and each older one fainter, and the mean of the hits shown follows. Only
+ * transforms and opacity, on a judgement: nothing a frame.
+ */
+export function markError(bar: ErrorBar, errorMs: number): void {
+  const { ticks, errors } = bar;
+  errors[bar.next] = errorMs;
+  const tick = ticks[bar.next];
+  tick.className = `hud-eb-tick ${errorKind(errorMs)}`;
+  tick.style.transform = errorShift(bar, errorMs);
+  for (let age = 0; age < errors.length; age++) ticks[(bar.next - age + ERROR_TICKS) % ERROR_TICKS].style.opacity = String((100 - (80 * age) / ERROR_TICKS) / 100);
+  bar.next = (bar.next + 1) % ERROR_TICKS;
+  bar.meanMs = errors.reduce((sum, ms) => sum + ms, 0) / errors.length;
+  bar.mean.style.transform = errorShift(bar, bar.meanMs);
+  bar.mean.style.opacity = '1';
+  bar.el.dataset.meanMs = String(Math.round(bar.meanMs));
 }
 
 /** The gauge's lit cells for a shown percent (rounded down: a cell is lit once it is full). */
