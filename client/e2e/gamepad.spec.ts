@@ -31,9 +31,19 @@ async function plugPad(page: Page, mapping = 'standard') {
       },
       [button, down],
     );
+  const axis = (index: number, value: number) =>
+    page.evaluate(
+      ([i, v]) => {
+        const pad = (window as unknown as { __pad: { axes: number[]; timestamp: number } }).__pad;
+        pad.axes[i] = v;
+        pad.timestamp = performance.now();
+      },
+      [index, value],
+    );
   // held long enough for the 16 ms menu polling to see it; with `busyMs` the page is kept busy that
-  // long (no polling, no frames) before the button is let go
-  return async (button: number, busyMs = 0) => {
+  // long (no polling, no frames) before the button is let go. `set` holds or lets go of a button,
+  // `axis` moves an axis.
+  const press = async (button: number, busyMs = 0) => {
     await set(button, true);
     await page.waitForTimeout(80);
     if (busyMs > 0)
@@ -44,6 +54,7 @@ async function plugPad(page: Page, mapping = 'standard') {
     await set(button, false);
     await page.waitForTimeout(80);
   };
+  return Object.assign(press, { set, axis });
 }
 
 const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
@@ -123,6 +134,89 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   // and afterwards B is Esc again
   await press(PAD.B);
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('입력 확인 under a key mode lights its lanes, names any button, counts the turntable lane’s scratches, and closes with Esc or Start held', async ({ page }) => {
+  const errors = trackErrors(page);
+  const pad = await plugPad(page);
+  // 7K+1S: the turntable on axis 0, the keys on buttons 2–7 and 10; the longest 정지 판정, so a
+  // slow machine's gaps between the steps below are not taken for a stop
+  const lanes = ['Pad:TT0', 'Pad:B2', 'Pad:B3', 'Pad:B4', 'Pad:B5', 'Pad:B6', 'Pad:B7', 'Pad:B10'];
+  await page.addInitScript((l) => localStorage.setItem('grg.settings.v1', JSON.stringify({ padBindings: { '7K+1S': l }, turntableReleaseMs: 300 })), lanes);
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-pad').click();
+  const open = page.getByTestId('pad-test-7K+1S');
+  await open.click();
+  await expect(open).toHaveText('입력 확인 닫기');
+  const strip = page.getByTestId('pad-test');
+  await expect(strip).toBeVisible();
+  await expect(strip).toBeInViewport();
+  await expect(page.locator('.hintbar')).toContainText('닫기');
+  await expect(page.getByTestId('pad-test-lane-0')).toHaveText('턴테이블 0');
+  const held = page.getByTestId('pad-test-held');
+  await expect(held).toContainText('없음');
+
+  // a lane's button lights its lane while held, and stays marked as seen
+  const lane2 = page.getByTestId('pad-test-lane-2');
+  await pad.set(3, true);
+  await expect(lane2).toHaveClass(/active/);
+  await expect(held).toContainText('버튼 3');
+  await pad.set(3, false);
+  await expect(lane2).not.toHaveClass(/active/);
+  await expect(lane2).toHaveClass(/seen/);
+  // a button no lane has is named too, and B does not leave the settings meanwhile
+  await pad.set(1, true);
+  await expect(held).toContainText('버튼 1');
+  await pad.set(1, false);
+  await expect(held).toContainText('없음');
+  await page.waitForTimeout(200);
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+
+  // the turntable: a scratch one way, then (after it stood still) one the other way
+  const turntable = page.getByTestId('pad-test-turntable');
+  await expect(turntable).toContainText('돌려 보세요');
+  for (let i = 1; i <= 4; i++) {
+    await pad.axis(0, i * 0.02);
+    await page.waitForTimeout(30);
+  }
+  await expect(turntable).toContainText('스크래치 1번');
+  await expect(turntable).toContainText('+ 방향');
+  await expect(page.getByTestId('pad-test-lane-0')).toHaveClass(/seen/);
+  await page.waitForTimeout(600);
+  for (let i = 1; i <= 4; i++) {
+    await pad.axis(0, 0.08 - i * 0.03);
+    await page.waitForTimeout(30);
+  }
+  await expect(turntable).toContainText('스크래치 2번');
+  await expect(turntable).toContainText('− 방향');
+  // a platter that comes to rest past half way is not named as a held axis
+  for (let i = 1; i <= 7; i++) {
+    await pad.axis(0, -0.04 + i * 0.1);
+    await page.waitForTimeout(30);
+  }
+  await expect(held).toContainText('없음');
+  await expect(held).not.toContainText('축 0');
+
+  // Esc closes it (not the settings)
+  await page.keyboard.press('Escape');
+  await expect(strip).toHaveCount(0);
+  await expect(open).toHaveText('입력 확인');
+  await expect(page.getByTestId('settings-screen')).toBeVisible();
+  // and so does Start held, after which the menus have the pad again
+  await open.focus();
+  await page.keyboard.press('Enter');
+  await expect(strip).toBeVisible();
+  await pad.set(9, true);
+  await page.waitForTimeout(400);
+  await expect(strip).toBeVisible();
+  await expect(strip).toHaveCount(0, { timeout: 2000 });
+  await pad.set(9, false);
+  await page.waitForTimeout(200);
+  await expect(strip).toHaveCount(0);
+  await pad(PAD.B);
   await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });

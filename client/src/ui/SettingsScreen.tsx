@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, type BackendStatus } from '../api/client';
 import { cameraConfig, difficultySystemIds, difficultySystems, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
-import { PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
+import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
 import type { Palette } from '../render/palette';
 import { sanitizeSkin, skinById, skinJson, type SkinParts } from '../render/skins';
@@ -44,6 +44,7 @@ import { desktopShell, heldEscLeaves } from './displayMode';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { NoteColorsPanel } from './NoteColorsPanel';
+import { PadInputTest } from './PadInputTest';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
@@ -136,8 +137,11 @@ function navStops(stops: HTMLElement[]): NavStop[] {
 
 const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
-/** What a key or pad control is being bound for, as the hint bar names it (a run goes on to the next lane). */
-type CaptureKind = 'key' | 'second' | 'run' | 'playKey' | 'pad' | 'padRun' | 'padButton';
+/**
+ * What a key or pad control is being bound for, as the hint bar names it (a run goes on to the
+ * next lane), or the pad's input check, which has the pad to itself too.
+ */
+type CaptureKind = 'key' | 'second' | 'run' | 'playKey' | 'pad' | 'padRun' | 'padButton' | 'padTest';
 
 const CAPTURE_HINTS: Record<CaptureKind, KeyHint[]> = {
   key: [{ keys: ['아무 키'], label: '이 레인에 지정' }],
@@ -153,6 +157,8 @@ const CAPTURE_HINTS: Record<CaptureKind, KeyHint[]> = {
     { keys: ['패드 버튼'], label: '지정' },
     { keys: ['Backspace'], label: '비우기' },
   ],
+  // the keyboard's Esc is the end hint; with the pad working the menus, only Start held shows
+  padTest: [{ keys: [], pad: ['Start'], label: '길게 눌러 닫기' }],
 };
 
 /** The keys of a tab (a pad's buttons beside them, shown while the pad works the menus). */
@@ -803,7 +809,7 @@ export function SettingsScreen({
       </div>
       <HintBar
         hints={capture ? CAPTURE_HINTS[capture] : tabHints(tab)}
-        end={[capture ? { keys: ['Esc'], label: capture === 'run' || capture === 'padRun' ? '멈추기' : '취소' } : { keys: ['Esc'], pad: ['B'], label: '완료' }]}
+        end={[capture ? { keys: ['Esc'], label: capture === 'run' || capture === 'padRun' ? '멈추기' : capture === 'padTest' ? '닫기' : '취소' } : { keys: ['Esc'], pad: ['B'], label: '완료' }]}
       />
     </div>
   );
@@ -1125,7 +1131,8 @@ function axisOf(code: string | null): string | null {
 }
 
 /**
- * Connected controllers, the turntable's sensitivity, a gamepad control per lane, the pad's
+ * Connected controllers, the turntable's sensitivity, a gamepad control per lane (with a check of
+ * what the pad sends, under its key mode), the pad's
  * buttons in play, and the menu buttons of a controller without the standard mapping (inferred
  * from its lanes until assigned). A play button on a lane's control is marked: the lane takes it.
  */
@@ -1142,7 +1149,17 @@ function GamepadPanel({
 }) {
   const [pads, setPads] = useState<string[]>([]);
   const [capture, setCapture] = useState<PadCapture | null>(null);
-  useEffect(() => onCapture(capture === null ? null : capture.kind !== 'lane' ? 'padButton' : capture.run ? 'padRun' : 'pad'), [capture, onCapture]);
+  // the key mode whose input check is open
+  const [padTest, setPadTest] = useState<KeyModeId | null>(null);
+  const closePadTest = useCallback(() => setPadTest(null), []);
+  useEffect(
+    () => onCapture(capture !== null ? (capture.kind !== 'lane' ? 'padButton' : capture.run ? 'padRun' : 'pad') : padTest !== null ? 'padTest' : null),
+    [capture, padTest, onCapture],
+  );
+  // both read the pad: binding a control closes the input check
+  useEffect(() => {
+    if (capture) setPadTest(null);
+  }, [capture]);
   useEffect(() => () => onCapture(null), [onCapture]);
 
   // list connected pads (a pad shows up only after one of its buttons is pressed on this page)
@@ -1257,43 +1274,68 @@ function GamepadPanel({
       {enabledKeyModes.map((mode) => {
         const running = capture?.kind === 'lane' && capture.mode === mode && capture.run;
         return (
-          <div className="opt opt-block" key={mode}>
-            <span className="opt-name">{mode}</span>
-            <div className="opt-keys">
-              <div className="keys">
-                {padBindingsFor(settings, mode).map((code, lane) => {
-                  const active = capture?.kind === 'lane' && capture.mode === mode && capture.lane === lane;
-                  return (
-                    <button
-                      key={lane}
-                      className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color}${active ? ' active' : ''}${code ? '' : ' empty'}`}
-                      data-testid={`pad-${mode}-${lane}`}
-                      data-nav-line={`pad-${mode}`}
-                      data-lane={lane}
-                      title={code ? padCodeLabel(code) : '지정 안 됨'}
-                      onFocus={() => onHelp(padHelp)}
-                      onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, run: false })}
-                    >
-                      {active ? '…' : code ? padCodeLabel(code) : ''}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="opt-actions">
-                <button
-                  className="small"
-                  data-testid={`pad-run-${mode}`}
-                  onFocus={() => onHelp('1번 레인부터 차례로 버튼을 누르거나 턴테이블을 돌리면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
-                  onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, run: true })}
-                >
-                  {running ? '멈추기' : '차례로 지정'}
-                </button>
-                <button className="small" onClick={() => onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [mode]: undefined } })}>
-                  지우기
-                </button>
+          <Fragment key={mode}>
+            <div className="opt opt-block">
+              <span className="opt-name">{mode}</span>
+              <div className="opt-keys">
+                <div className="keys">
+                  {padBindingsFor(settings, mode).map((code, lane) => {
+                    const active = capture?.kind === 'lane' && capture.mode === mode && capture.lane === lane;
+                    return (
+                      <button
+                        key={lane}
+                        className={`key-cap pad-cap lane-${keyModes[mode].lanes[lane].color}${active ? ' active' : ''}${code ? '' : ' empty'}`}
+                        data-testid={`pad-${mode}-${lane}`}
+                        data-nav-line={`pad-${mode}`}
+                        data-lane={lane}
+                        title={code ? padCodeLabel(code) : '지정 안 됨'}
+                        onFocus={() => onHelp(padHelp)}
+                        onClick={() => setCapture(active ? null : { kind: 'lane', mode, lane, run: false })}
+                      >
+                        {active ? '…' : code ? padCodeLabel(code) : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="opt-actions">
+                  <button
+                    className="small"
+                    data-testid={`pad-run-${mode}`}
+                    onFocus={() => onHelp('1번 레인부터 차례로 버튼을 누르거나 턴테이블을 돌리면 한 칸씩 넘어가며 지정합니다. Esc로 멈춥니다.')}
+                    onClick={() => setCapture(running ? null : { kind: 'lane', mode, lane: 0, run: true })}
+                  >
+                    {running ? '멈추기' : '차례로 지정'}
+                  </button>
+                  <button className="small" onClick={() => onSettingsChange({ ...settings, padBindings: { ...settings.padBindings, [mode]: undefined } })}>
+                    지우기
+                  </button>
+                  <button
+                    className="small"
+                    data-testid={`pad-test-${mode}`}
+                    onFocus={() =>
+                      onHelp('패드 버튼과 턴테이블이 들어오는지 봅니다. 누른 레인이 켜지고, 턴테이블은 스크래치 횟수와 도는 방향이 나옵니다. Esc나 패드의 Start를 길게 눌러 닫습니다.')
+                    }
+                    onClick={() => {
+                      setCapture(null);
+                      setPadTest(padTest === mode ? null : mode);
+                    }}
+                  >
+                    {padTest === mode ? '입력 확인 닫기' : '입력 확인'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+            {padTest === mode && (
+              <PadInputTest
+                mode={mode}
+                lanes={padBindingsFor(settings, mode)}
+                // with no Start for play the pad's own Start still closes it, as the hint bar says
+                start={playButtons.start ?? DEFAULT_PAD_PLAY.start}
+                turntable={{ steps: settings.turntableSteps, releaseMs: settings.turntableReleaseMs }}
+                onClose={closePadTest}
+              />
+            )}
+          </Fragment>
         );
       })}
 

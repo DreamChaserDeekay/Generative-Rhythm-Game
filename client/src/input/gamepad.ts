@@ -36,6 +36,8 @@ export interface PadEvent {
    * that comes as axes); a turntable or a knob only ever gets there a step at a time.
    */
   jump?: boolean;
+  /** A turntable's scratch pressed: the way it turns (1: its axis rising, -1: falling). */
+  way?: number;
 }
 
 export type GamepadSource = () => readonly (Gamepad | null)[];
@@ -150,8 +152,7 @@ export class GamepadPoller {
       const fresh = gp.timestamp !== st.timestamp;
       const t = fresh && gp.timestamp > 0 && gp.timestamp <= now + 1 && now - gp.timestamp <= CFG.maxTimestampAgeMs ? gp.timestamp : now;
       const standard = st.standard;
-      const emit = (code: string, down: boolean, timeMs: number, jump?: boolean) =>
-        this.onEvent(jump === undefined ? { code, down, timeMs, standard } : { code, down, timeMs, standard, jump });
+      const emit = (code: string, down: boolean, timeMs: number, extra?: Pick<PadEvent, 'jump' | 'way'>) => this.onEvent({ code, down, timeMs, standard, ...extra });
       st.timestamp = gp.timestamp;
       gp.buttons.forEach((b, i) => {
         if (b.pressed !== (st.buttons[i] ?? false)) {
@@ -166,7 +167,7 @@ export class GamepadPoller {
         const prevDir = st.axisDir[i] ?? 0;
         if (dir !== prevDir) {
           if (prevDir !== 0) emit(`Pad:A${i}${prevDir > 0 ? '+' : '-'}`, false, t);
-          if (dir !== 0) emit(`Pad:A${i}${dir > 0 ? '+' : '-'}`, true, t, Math.abs(wrapped(v - prev)) >= CFG.axisThreshold);
+          if (dir !== 0) emit(`Pad:A${i}${dir > 0 ? '+' : '-'}`, true, t, { jump: Math.abs(wrapped(v - prev)) >= CFG.axisThreshold });
           st.axisDir[i] = dir;
         }
         this.turntable(st, i, v, now, t, emit);
@@ -195,7 +196,7 @@ export class GamepadPoller {
    * keeps one held (nor does a platter stopped by the hand bouncing a step back). No progress for
    * releaseMs lets go.
    */
-  private turntable(st: PadState, i: number, v: number, now: number, t: number, emit: (code: string, down: boolean, timeMs: number) => void): void {
+  private turntable(st: PadState, i: number, v: number, now: number, t: number, emit: (code: string, down: boolean, timeMs: number, extra?: Pick<PadEvent, 'way'>) => void): void {
     const way = st.way[i] ?? 0;
     const d = wrapped(v - (st.peak[i] ?? v));
     const code = `Pad:TT${i}`;
@@ -214,7 +215,7 @@ export class GamepadPoller {
       st.lastMove[i] = now;
       if (st.moved[i] >= this.spinThreshold && spin !== st.way[i]) {
         if (spin !== 0) emit(code, false, t);
-        emit(code, true, t);
+        emit(code, true, t, { way: st.way[i] });
         st.spin[i] = st.way[i];
       }
     } else if (now - (st.lastMove[i] ?? now) > this.releaseMs) {
