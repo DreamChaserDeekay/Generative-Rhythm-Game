@@ -20,8 +20,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+# boundaries are found on structure units (UNIT_MIN_S): these two, NOVELTY_BARS, REPEAT_SMOOTH and the
+# grid count units; grouping, labels and loops count bars
 MIN_SECTION_BARS = 4
 MAX_SECTION_BARS = 32
+# a structure unit is the fewest bars (1, 2 or 4) lasting this long: a bar of a song read at twice its
+# tempo is half a bar, and its 4-bar sections came out 3–5 s long (people mark 10–30 s ones)
+UNIT_MIN_S = 1.5
+GRID_PHASES = 4  # the 4- and 8-bar grid may start on any of the first four bar lines (a 10-bar intro)
+NO_REPEAT_STEPS = (0.05, 0.1, 0.15)  # sections group from this much under the repeat threshold when nothing would repeat
 NOVELTY_BARS = 4  # half width of the checkerboard kernel
 REPEAT_SMOOTH = 2  # bars a repetition path is averaged over
 GRID_BONUS = {8: 0.35, 4: 0.2, 2: 0.0}
@@ -174,7 +181,8 @@ def _grid(k: int) -> float:
     return -ODD_BAR_PENALTY
 
 
-def boundary_scores(ssm: np.ndarray, threshold: float) -> np.ndarray:
+def boundary_scores(ssm: np.ndarray, threshold: float, phase: int = 0) -> np.ndarray:
+    """Per bar line its evidence plus the grid bonus of its place counted from bar `phase`."""
     nov = novelty_curve(ssm)
     cues = path_cues(ssm, threshold)
     nov_n = nov / max(float(np.max(nov)), 1e-9)
@@ -183,13 +191,18 @@ def boundary_scores(ssm: np.ndarray, threshold: float) -> np.ndarray:
     # an 8-bar line with next to no change cleared the cost on its grid bonus alone: a dense,
     # loud song (USAO - RUNAWAY) came out in 30 sections, most of them 4 bars and none repeated.
     # Its lines without a change had evidence 0.41 at most; the synthetic songs' pre-choruses 0.46 and up
-    return np.array([evidence[k] + _grid(k) if evidence[k] >= BOUNDARY_EVIDENCE else -1.0 for k in range(len(ssm))])
+    return np.array([evidence[k] + _grid(k - phase) if evidence[k] >= BOUNDARY_EVIDENCE else -1.0 for k in range(len(ssm))])
 
 
 def segment_bars(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, max_len: int = MAX_SECTION_BARS) -> list[int]:
     """Section start bars (0 first) maximising the summed boundary scores minus a cost per section."""
+    return _segmentation(scores, n, min_len, max_len)[0]
+
+
+def _segmentation(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, max_len: int = MAX_SECTION_BARS) -> tuple[list[int], float]:
+    """segment_bars and the score it reached."""
     if n < 2 * min_len:
-        return [0]
+        return [0], -np.inf
     best = np.full(n + 1, -np.inf)
     back = np.zeros(n + 1, dtype=int)
     best[0] = 0.0
@@ -202,13 +215,13 @@ def segment_bars(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, ma
             if v > best[end]:
                 best[end], back[end] = v, start
     if best[n] == -np.inf:  # a tail shorter than min_len: let the last section be short
-        return [0]
+        return [0], -np.inf
     out = []
     k = n
     while k > 0:
         k = int(back[k])
         out.append(k)
-    return sorted(out)
+    return sorted(out), float(best[n])
 
 
 def _aligned_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int]) -> float:
@@ -266,6 +279,18 @@ def group_segments(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: flo
         outside = max(others) if others else 0.0
         firm.append(float(np.clip(0.5 + (inside - outside) / max(2 * (1 - threshold), 1e-9) * 0.5, 0.0, 1.0)))
     return group, firm
+
+
+def _group_some(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float) -> tuple[list[int], list[float]]:
+    """group_segments, from lower thresholds (NO_REPEAT_STEPS) when nothing would repeat: a song
+    hardly repeats nothing, and with longer sections 23% of the 52 PC songs came out so (8% before).
+    Lowering the threshold for every song joined more of the section pairs people marked apart than
+    of those they marked as one (docs/PATTERN_DESIGN.md 69)."""
+    for d in (0.0, *NO_REPEAT_STEPS):
+        groups, firm = group_segments(ssm, spans, threshold - d)
+        if len(set(groups)) < len(groups):
+            return groups, firm
+    return group_segments(ssm, spans, threshold)
 
 
 def merge_and_split(spans: list[tuple[int, int]], groups: list[int]) -> list[tuple[int, int]]:
@@ -409,9 +434,10 @@ def find_sections(
     first_downbeat: int,
     beats_per_bar: int,
     beat_strength: np.ndarray | None = None,
+    beat_s: float = 0.0,
 ) -> list[Section]:
     """Sections of the song; a section's energy is its intensity (section_intensity, with the
-    onset strength per beat when given)."""
+    onset strength per beat when given). `beat_s` (seconds per beat) sets the structure unit."""
     n_beats = len(feat)
     if n_beats == 0:
         return []
@@ -421,24 +447,37 @@ def find_sections(
         return [Section(0, n_beats, 0.5, "A", "verse", len(starts) or 1, 0.0)]
     ssm = vecs @ vecs.T
     threshold = repeat_threshold(ssm)
-    scores = boundary_scores(ssm, threshold)
     n_bars = len(starts)
-    bounds = segment_bars(scores, n_bars)
+    # boundaries on units of bars; sections are compared bar by bar (on units fewer of them repeat)
+    unit = 1
+    while beat_s > 0 and unit < 4 and unit * bpb * beat_s < UNIT_MIN_S:
+        unit *= 2
+    u_starts, u_vecs = bar_vectors(feat, first_downbeat, bpb * unit) if unit > 1 else (starts, vecs)
+    if len(u_starts) < 2:
+        u_starts, u_vecs = starts, vecs
+    u_ssm = u_vecs @ u_vecs.T
+    u_threshold = repeat_threshold(u_ssm)
+    # the grid phase whose segmentation scores best (phase 0 on a tie): marked songs start their
+    # 4-bar phrases on any bar line, after an intro of 10 bars or a pickup bar
+    runs = [(*_segmentation(scores, len(u_starts)), scores) for scores in (boundary_scores(u_ssm, u_threshold, p) for p in range(GRID_PHASES))]
+    u_bounds, _, u_scores = max(runs, key=lambda r: r[1])
+    edges = {(u_starts[u] - starts[0]) // bpb: float(u_scores[u]) for u in u_bounds if u > 0}
+    bounds = [0] + sorted(edges)
     spans = [(b, bounds[i + 1] if i + 1 < len(bounds) else n_bars) for i, b in enumerate(bounds)]
-    groups, firm = group_segments(ssm, spans, threshold)
+    groups, firm = _group_some(ssm, spans, threshold)
     for _ in range(2):
         regrouped = merge_and_split(spans, groups)
         if regrouped == spans:
             break
         spans = regrouped
-        groups, firm = group_segments(ssm, spans, threshold)
+        groups, firm = _group_some(ssm, spans, threshold)
     beat_of = lambda bar: starts[bar] if bar < n_bars else n_beats  # noqa: E731
     energy = section_intensity(beat_energy, beat_strength, [(beat_of(a), beat_of(b)) for a, b in spans])
     labels = label_sections(spans, groups, energy)
-    top = max(float(np.max(scores)), 1e-9)
+    top = max(float(np.max(u_scores)), 1e-9)
     out = []
     for i, (a, b) in enumerate(spans):
-        edge = 1.0 if a == 0 else float(np.clip(scores[a] / top, 0.0, 1.0))
+        edge = 1.0 if a == 0 else float(np.clip(edges.get(a, 0.0) / top, 0.0, 1.0))
         out.append(
             Section(
                 start_beat=0 if i == 0 else starts[a],

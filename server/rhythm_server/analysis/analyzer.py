@@ -8,6 +8,7 @@ is missing or fails leaves the core result for that part.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
@@ -21,13 +22,13 @@ from .pitch import analyze_notes, held_swells
 from .sound_groups import sound_groups
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
-from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
+from .structure import Section, add_loops, beat_sync, find_sections, rhythm_grid, structure_features
 from .tempo import drum_flux, estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.10.0"
+ANALYZER_VERSION = "1.11.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -74,6 +75,46 @@ def _beat_activity(beats: np.ndarray, times: np.ndarray, strength: np.ndarray, b
     out = uniform_filter1d(out, size=4, axis=0, mode="nearest")
     scale = np.percentile(out, 95, axis=0)
     return out / np.maximum(scale, 1e-9)
+
+
+@dataclass
+class StructureInputs:
+    """What the structure step reads (scripts/measure_structure.py stores it and replays it)."""
+
+    log_mel: np.ndarray  # coarse frames x 40
+    chroma: np.ndarray  # coarse frames x 12
+    frame_rate: float  # coarse frames per second
+    rms_db: np.ndarray  # per coarse frame
+    beats: np.ndarray  # seconds
+    beat0: int  # first downbeat
+    beats_per_bar: int
+    times: np.ndarray  # onsets (seconds), their strength and band shares
+    strength: np.ndarray
+    bands: np.ndarray
+
+
+def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -> list[Section]:
+    """Sections of the song: the ML backend's segments when it gave any, else find_sections."""
+    beats, rate, bpb = x.beats, x.frame_rate, x.beats_per_bar
+    if len(beats) < 8:
+        return []
+    features = structure_features(
+        [
+            (beat_sync(x.log_mel, rate, beats), STRUCTURE_WEIGHTS["timbre"]),
+            (beat_sync(x.chroma, rate, beats), STRUCTURE_WEIGHTS["harmony"]),
+            (rhythm_grid(beats, x.times, x.strength, x.bands), STRUCTURE_WEIGHTS["rhythm"]),
+            (_beat_activity(beats, x.times, x.strength, x.bands), STRUCTURE_WEIGHTS["activity"]),
+        ]
+    )
+    beat_energy = beat_sync(x.rms_db[:, None], rate, beats)[:, 0]
+    if ml_struct is not None:
+        sections = ml.sections_from_segments(ml_struct["segments"], beats, x.beat0, bpb, beat_energy)
+        add_loops(sections, features, x.beat0, bpb)
+        if sections:
+            return sections
+    beat_strength = np.zeros(len(beats))
+    np.add.at(beat_strength, np.clip(np.searchsorted(beats, x.times, side="right") - 1, 0, len(beats) - 1), x.strength)
+    return find_sections(features, beat_energy, x.beat0, bpb, beat_strength, float(np.median(np.diff(beats))))
 
 
 def _frame_rms_db(mono: np.ndarray, hop: int, size: int) -> np.ndarray:
@@ -212,24 +253,8 @@ def analyze(
     report(0.8, "곡 구조 분석")
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
     log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
-    features = structure_features(
-        [
-            (beat_sync(log_mel, coarse_rate, beats), STRUCTURE_WEIGHTS["timbre"]),
-            (beat_sync(chroma, coarse_rate, beats), STRUCTURE_WEIGHTS["harmony"]),
-            (rhythm_grid(beats, times, strength, bands), STRUCTURE_WEIGHTS["rhythm"]),
-            (_beat_activity(beats, times, strength, bands), STRUCTURE_WEIGHTS["activity"]),
-        ]
-    ) if len(beats) else np.zeros((0, 1))
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
-    beat_energy = beat_sync(rms_db[:, None], coarse_rate, beats)[:, 0] if len(beats) else np.zeros(0)
-    sections = []
-    if ml_struct is not None and len(beats) >= 8:
-        sections = ml.sections_from_segments(ml_struct["segments"], beats, beat0, bpb, beat_energy)
-        add_loops(sections, features, beat0, bpb)
-    if not sections and len(beats) >= 8:
-        beat_strength = np.zeros(len(beats))
-        np.add.at(beat_strength, np.clip(np.searchsorted(beats, times, side="right") - 1, 0, len(beats) - 1), strength)
-        sections = find_sections(features, beat_energy, beat0, bpb, beat_strength)
+    sections = song_sections(StructureInputs(log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands), ml_struct)
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
