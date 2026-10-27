@@ -1093,6 +1093,68 @@ test("a chart that found the server down is asked again on the next visit, its p
   expect(errors).toEqual([]);
 });
 
+test('the levels that came in are on the list at once after a restart, in the level order too; under another generator they are asked for again', async ({ page }) => {
+  const errors = trackErrors(page);
+  const songs = fakeSongs(3, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
+  // the songs whose levels (brief) and whole charts were asked for
+  const briefs: string[] = [];
+  const whole: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      const songId = new URL(route.request().url()).pathname.split('/')[3];
+      (body.brief ? briefs : whole).push(songId);
+      // each song a level lower than the one before
+      const level = ({ NM: 4, HD: 7, MX: 10, SC: 13 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.toLowerCase().padEnd(2, '0')}`, songId, keyMode: '4K', difficulty: body.difficulty, difficultySystem: 'DJMAX', level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
+      return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
+    },
+  );
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM', songSort: 'level' })));
+  await page.goto('/');
+  const rows = page.getByTestId('song-item');
+  const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
+  const dashes = ['–', '–', '–', '–'];
+
+  // the cursor rests on the first song, then on the second: their levels come; the third's are not asked for
+  await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('song-title')).toHaveText('Fake Song 02');
+  await expect(cells(1)).toHaveText(['3', '6', '9', '12'], { timeout: 30_000 });
+  await expect(cells(2)).toHaveText(dashes);
+  const [asked, played] = [briefs.length, whole.length];
+
+  // a restart: both songs show their levels at once and the level order puts them first, the
+  // lower first; the song under the cursor asks only for the chart Enter plays
+  await page.reload();
+  await expect(rows).toHaveText([/Fake Song 02/, /Fake Song 01/, /Fake Song 03/]);
+  await expect(cells(1)).toHaveText(['3', '6', '9', '12']);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13']);
+  await expect(cells(2)).toHaveText(dashes);
+  await expect.poll(() => whole.length).toBeGreaterThan(played);
+  await page.waitForTimeout(500);
+  expect(briefs).toHaveLength(asked);
+
+  // the server's generator is another one (an update): its charts are other ones, asked for again
+  await page.addInitScript(() => {
+    const stored = JSON.parse(localStorage.getItem('grg.briefs.v1') ?? '{}');
+    localStorage.setItem('grg.briefs.v1', JSON.stringify({ ...stored, generator: 'older' }));
+  });
+  await page.reload();
+  await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
+  await expect(cells(1)).toHaveText(dashes);
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await expect.poll(() => briefs.length).toBe(asked + 3);
+  const generator = (await (await page.request.get('/api/health')).json()).generator as string;
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('grg.briefs.v1') ?? '{}').generator)).toBe(generator);
+  expect(errors).toEqual([]);
+});
+
 test('a song taken out of the library takes what was kept for it; a chosen chart the server no longer has gives way to the default pattern; one chosen from the records drops the target level', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));

@@ -224,7 +224,10 @@ export function SongSelectScreen(props: Props) {
     async (quiet = false) => {
       if (!quiet) setHealth(null);
       try {
-        setHealth(await api.health());
+        const h = await api.health();
+        // the levels kept from an earlier run of this generator are there before the list
+        chartStore.remember(h.generator);
+        setHealth(h);
         const list = await refresh();
         if (list && list.length > 0 && !list.some((s) => s.id === selectedSongId)) onSelectSong(list[0].id);
       } catch {

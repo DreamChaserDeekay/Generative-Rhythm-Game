@@ -57,8 +57,10 @@ export function chartKey(spec: ChartSpec): string {
   return JSON.stringify([songId, analysis, keyMode, system, difficulty, targetLevel, seed, paramsText(params)]);
 }
 
+const SAVED = 'saved:';
+
 /** The key of a saved (edited or imported) chart, which is known by its id. */
-export const savedChartKey = (chartId: string) => `saved:${chartId}`;
+export const savedChartKey = (chartId: string) => `${SAVED}${chartId}`;
 
 export function requestOf(spec: ChartSpec): ChartRequest {
   return { keyMode: spec.keyMode, difficulty: spec.difficulty, system: spec.system, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
@@ -71,6 +73,9 @@ export function briefOf(meta: ServerChart['meta']): ChartBrief {
 /** So many briefs (a few numbers each) and whole charts are kept, the oldest going first. */
 const BRIEFS_KEPT = 4000;
 const CHARTS_KEPT = 8;
+/** So many briefs of generated charts outlive a restart (the ones asked for last), under the generator's version. */
+export const BRIEFS_STORED = 2000;
+export const BRIEFS_STORAGE_KEY = 'grg.briefs.v1';
 /** Answers that asking again will not change (a bad request, no such chart, one that cannot be made). */
 const LASTING_FAILURES = new Set([400, 404, 422]);
 
@@ -85,10 +90,13 @@ interface Fetchers {
  * charts, kept across the song select's visits (a play, the settings). A request is made once
  * however many ask for it. One the server refused for good (LASTING_FAILURES) is not made again
  * until it is asked for anew (`retry`); one that found the server or the network down is made
- * again the next time it is asked for (the song select asks once per visit of a song).
+ * again the next time it is asked for (the song select asks once per visit of a song). Once the
+ * server names its generator (`remember`), the briefs of generated charts also outlive a restart.
  */
 export class ChartStore {
   private readonly briefs = new Map<string, ChartBrief>();
+  /** The generator version the briefs are of (null: not heard yet, nothing is stored). */
+  private generator: string | null = null;
   private readonly charts = new Map<string, ServerChart>();
   /** The requests that failed, with the server's status (0: no answer). */
   private readonly failed = new Map<string, number>();
@@ -125,6 +133,29 @@ export class ChartStore {
     return this.failed.get(key) ?? null;
   }
 
+  /**
+   * The server's generator version: the briefs stored under it come back (the song list shows
+   * their levels at once), and from now on what comes in is stored under it. Another version makes
+   * other charts of the same options, so the briefs of any other one go.
+   */
+  remember(generator: string): void {
+    if (generator === this.generator) return;
+    // the server updated in this run: what its old generator made (briefs, whole charts, refusals)
+    // goes as well, the saved charts (known by their id) stay
+    const updated = this.generator !== null;
+    const mine = [...this.briefs].filter(([key]) => !updated || key.startsWith(SAVED));
+    if (updated) {
+      for (const kept of [this.charts, this.failed]) {
+        for (const key of [...kept.keys()]) if (!key.startsWith(SAVED)) kept.delete(key);
+      }
+    }
+    this.generator = generator;
+    this.briefs.clear();
+    for (const [key, brief] of [...storedBriefs(generator), ...mine]) this.keepBrief(key, brief, false);
+    this.saveBriefs();
+    this.changed();
+  }
+
   /** Stores a chart (and its brief) under the key of what it was made of. */
   put(key: string, chart: ServerChart): void {
     this.failed.delete(key);
@@ -156,7 +187,11 @@ export class ChartStore {
   loadBrief(spec: ChartSpec): Promise<ChartBrief | null> {
     const key = chartKey(spec);
     const known = this.briefs.get(key);
-    if (known) return Promise.resolve(known);
+    if (known) {
+      // the one asked for last goes last (stored with the next brief that comes in, kept the longest)
+      this.keepBrief(key, known, false);
+      return Promise.resolve(known);
+    }
     const whole = this.pending.get(key);
     if (whole) return whole.then(() => this.briefs.get(key) ?? null);
     if (!this.pending.has(`brief:${key}`) && !this.askAgain(key, false)) return Promise.resolve(null);
@@ -221,10 +256,22 @@ export class ChartStore {
     return promise;
   }
 
-  private keepBrief(key: string, brief: ChartBrief): void {
+  private keepBrief(key: string, brief: ChartBrief, save = true): void {
     this.briefs.delete(key);
     this.briefs.set(key, brief);
     while (this.briefs.size > BRIEFS_KEPT) this.briefs.delete(this.briefs.keys().next().value as string);
+    if (save && !key.startsWith(SAVED)) this.saveBriefs();
+  }
+
+  /** The most recent briefs of generated charts, to the browser's storage (a saved chart is known by its id, and can be deleted). */
+  private saveBriefs(): void {
+    if (this.generator === null) return;
+    const briefs = [...this.briefs].filter(([key]) => !key.startsWith(SAVED)).slice(-BRIEFS_STORED);
+    try {
+      localStorage.setItem(BRIEFS_STORAGE_KEY, JSON.stringify({ generator: this.generator, briefs }));
+    } catch {
+      // storage unavailable or full: the briefs stay for this run only
+    }
   }
 
   private keepChart(key: string, chart: ServerChart): void {
@@ -236,6 +283,17 @@ export class ChartStore {
   private changed(): void {
     this.version++;
     for (const listener of this.listeners) listener();
+  }
+}
+
+/** The briefs stored under `generator`, oldest first (none when another generator stored them, or the storage is unreadable). */
+function storedBriefs(generator: string): [string, ChartBrief][] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(BRIEFS_STORAGE_KEY) ?? 'null') as { generator?: unknown; briefs?: unknown } | null;
+    if (stored?.generator !== generator || !Array.isArray(stored.briefs)) return [];
+    return stored.briefs.filter((e): e is [string, ChartBrief] => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1]?.level === 'number').slice(-BRIEFS_STORED);
+  } catch {
+    return [];
   }
 }
 
