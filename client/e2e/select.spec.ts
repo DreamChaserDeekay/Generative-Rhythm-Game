@@ -775,6 +775,111 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   expect(errors).toEqual([]);
 });
 
+/**
+ * Drops files on the song list as a browser hands them over: each its own item, or (`folder`) one
+ * item whose entry is the folder with the files under it. The files are made in the page; a
+ * page's own DataTransfer has no entries, so the folder's is given for the drop's moment.
+ */
+async function drop(page: Page, files: { name: string; text: string }[], folder: string | null = null) {
+  await page.evaluate(
+    ([list, dir]) => {
+      const made = list.map((f) => new File([f.text], f.name));
+      const data = new DataTransfer();
+      const proto = DataTransferItem.prototype;
+      const own = proto.webkitGetAsEntry;
+      if (dir === null) for (const f of made) data.items.add(f);
+      else {
+        data.items.add(new File([''], dir));
+        const entries = made.map((f) => ({ isFile: true, isDirectory: false, name: f.name, fullPath: `/${dir}/${f.name}`, file: (ok: (file: File) => void) => ok(f) }));
+        const entry = {
+          isFile: false,
+          isDirectory: true,
+          name: dir,
+          fullPath: `/${dir}`,
+          createReader: () => {
+            let read = false;
+            return {
+              readEntries: (ok: (batch: unknown[]) => void) => {
+                ok(read ? [] : entries);
+                read = true;
+              },
+            };
+          },
+        };
+        proto.webkitGetAsEntry = () => entry as unknown as FileSystemEntry;
+      }
+      document.querySelector('[data-testid="song-list"]')?.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+      proto.webkitGetAsEntry = own;
+    },
+    [files, folder] as const,
+  );
+}
+
+test('a drop takes a chart folder (its paths as the folder picker gives them), a replay file or music; anything else says what can be dropped', async ({ page }) => {
+  const errors = trackErrors(page);
+  const songs = fakeSongs(1);
+  let uploads = 0;
+  let imports = 0;
+  await page.route(
+    (url) => url.pathname === '/api/songs',
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { songs } });
+      uploads++;
+      return route.fulfill({ status: 201, json: { song: songs[0], created: false } });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === '/api/import',
+    (route) => {
+      imports++;
+      return route.fulfill({ json: { songs: [], charts: [], warnings: [] } });
+    },
+  );
+  await page.goto('/');
+  await expect(page.getByTestId('song-item')).toHaveCount(1);
+  // what the page sends: each form part as it is put in (a path, or a file by its name)
+  await page.evaluate(() => {
+    const sent: string[] = [];
+    (window as unknown as { __sent: string[] }).__sent = sent;
+    const append = FormData.prototype.append as (this: FormData, ...args: unknown[]) => void;
+    FormData.prototype.append = function (this: FormData, ...args: unknown[]) {
+      const [name, value] = args;
+      sent.push(typeof value === 'string' ? `${name}=${value}` : `${name}:${(value as File).name}`);
+      append.apply(this, args);
+    };
+  });
+  const sent = () => page.evaluate(() => (window as unknown as { __sent: string[] }).__sent);
+  const error = page.getByTestId('select-error');
+
+  // a text dragged across the page is no file: no word about it
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'Fake Song 01');
+    document.querySelector('[data-testid="song-list"]')?.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(200);
+  await expect(error).toBeHidden();
+
+  // a BMS folder goes to the import with every file's path inside it
+  await drop(page, [{ name: 'song.bms', text: '#TITLE E2E Drop' }, { name: 'kick.wav', text: 'RIFF' }], 'E2E Drop Pack');
+  await expect.poll(() => imports).toBe(1);
+  expect(await sent()).toEqual(expect.arrayContaining(['paths=E2E Drop Pack/song.bms', 'paths=E2E Drop Pack/kick.wav']));
+  await expect(page.getByTestId('import-report')).toContainText('채보 0개');
+  // a replay file is opened as one (this one is not), not uploaded
+  await drop(page, [{ name: 'play.grgreplay.json', text: '{}' }]);
+  await expect(error).toHaveText('리플레이 파일이 아닙니다');
+  expect(uploads).toBe(0);
+  // music is uploaded
+  await drop(page, [{ name: 'tune.mp3', text: 'ID3' }]);
+  await expect.poll(() => uploads).toBe(1);
+  expect(await sent()).toContainEqual(expect.stringMatching(/:tune\.mp3$/));
+  // anything else
+  await drop(page, [{ name: 'notes.txt', text: 'x' }]);
+  await expect(error).toHaveText('음악 파일 · 채보 파일이나 폴더 · 리플레이 파일을 놓을 수 있습니다');
+  expect(uploads + imports).toBe(2);
+  expect(errors).toEqual([]);
+});
+
 test('a cover picked in the song info shows at once, and goes again', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');

@@ -36,6 +36,7 @@ import type { PlayRequest, PracticeOptions } from './App';
 import type { CalibrationStep } from './CalibrationScreen';
 import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
 import { desktopShell } from './displayMode';
+import { CHART_FILE, entryFiles, sortDrop, type DroppedFile } from './dropFiles';
 import { dayText, speedText } from './format';
 import { namedPictures } from './importPictures';
 import { lampClass, LampMark } from './lamps';
@@ -85,7 +86,6 @@ interface Props {
 
 const ACCEPT = '.mp3,.ogg,.oga,.opus,.wav,.flac,.m4a,.aac,audio/*';
 const IMPORT_ACCEPT = '.osz,.zip,.osu,.bms,.bme,.bml,.bmson';
-const CHART_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson)$/i;
 const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m4a|aac|opus)$/i;
 const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
 /** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
@@ -391,11 +391,12 @@ export function SongSelectScreen(props: Props) {
   };
 
   /**
-   * Chart packages: files picked one by one, a picked folder, or .zip/.osz archives (with the
-   * pictures their charts name for a cover). The first chart imported is chosen, on its key mode.
+   * Chart packages: files picked one by one, a picked or dropped folder, or .zip/.osz archives
+   * (with the pictures their charts name for a cover). The first chart imported is chosen, on its
+   * key mode.
    */
-  const importFiles = async (list: FileList | File[]) => {
-    const all = Array.from(list).map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
+  const importFiles = async (list: FileList | DroppedFile[]) => {
+    const all = Array.from<File | DroppedFile, DroppedFile>(list, (f) => (f instanceof File ? { file: f, path: f.webkitRelativePath || f.name } : f));
     if (!all.some((f) => CHART_FILE.test(f.file.name))) {
       setError('가져올 채보 파일이 없습니다 (.osz · .zip · .osu · .bms · .bme · .bml · .bmson)');
       return;
@@ -986,12 +987,27 @@ export function SongSelectScreen(props: Props) {
     centerCursor.current = false;
   }, [selected?.id, order]);
 
+  /** A drop: a chart package or its folder (as the folder picker gives it), a replay file, or music. */
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.some((f) => CHART_FILE.test(f.name))) void importFiles(files);
-    else if (files.length > 0) void upload(files);
+    // the entries are taken now (the drop's data is gone once the handler returns); a file with
+    // no entry (a page's own drop) is taken as it is
+    const dropped = [...e.dataTransfer.items].filter((item) => item.kind === 'file').map((item) => item.webkitGetAsEntry() ?? item.getAsFile());
+    // a text or a link dragged across the page is no file: nothing to say about it
+    if (dropped.length === 0) return;
+    void (async () => {
+      try {
+        const files = (await Promise.all(dropped.map((d) => (d instanceof File ? [{ file: d, path: d.name }] : d ? entryFiles(d) : [])))).flat();
+        const drop = sortDrop(files);
+        if (drop?.kind === 'import') await importFiles(drop.files);
+        else if (drop?.kind === 'replay') await openReplayFile(drop.file);
+        else if (drop?.kind === 'upload') await upload(drop.files);
+        else setError('음악 파일 · 채보 파일이나 폴더 · 리플레이 파일을 놓을 수 있습니다');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
   };
 
   /** A tier's chart is being worked out, so its record is not known yet either (a chart chosen by its id is known at once). */
