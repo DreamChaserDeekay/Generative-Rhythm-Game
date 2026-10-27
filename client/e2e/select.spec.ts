@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { addFromMenu, autoplay, difficultySystem, fakeSongs, playOptions, songInfo } from './songSelect';
+import { addFromMenu, autoplay, fakeSongs, playOptions, songInfo } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -247,10 +247,10 @@ test('the song info of a song that plays: I then Enter plays it, and never press
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
   await page.goto('/');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
-  // the song select asks for its charts by itself, one per DJMAX tier (the route refuses them: no level, no message)
+  // the song select asks for its charts by itself, one per tier (the route refuses them: no level, no message)
   await expect.poll(() => sent.length).toBe(4);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
   await page.keyboard.press('KeyI');
@@ -315,7 +315,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
       return route.fulfill({ status: 500, json: { detail: 'e2e' } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
   await page.goto('/');
   await expect(page.getByTestId('song-item')).toHaveCount(12);
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
@@ -337,7 +337,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   expect(await focusedSong()).toBe(songs[10].id);
   await page.waitForTimeout(300);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
-  // (the song select asks for the charts of the song it rests on by itself, quietly: one per DJMAX tier)
+  // (the song select asks for the charts of the song it rests on by itself, quietly: one per tier)
   await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(4);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('select-error')).toContainText('e2e');
@@ -409,12 +409,12 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
 test('the list: page keys, Home / End, ↑↓ wrap on a fresh press, F2 a random song, F4 the record orders, Shift or F6 the folder', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(40);
-  // two songs with a NORMAL record on 4K DJMAX: the level order puts them first, the lowest first
-  const record = { songId: '', keyMode: '4K', system: 'DJMAX', difficulty: 'NM', seed: 1, score: 900_000, rate: 90, maxCombo: 50, lamp: 'CLEAR', plays: 1 };
+  // two songs with a NORMAL record on 4K: the level order puts them first, the lowest first
+  const record = { songId: '', keyMode: '4K', difficulty: 'NORMAL', seed: 1, score: 900_000, rate: 90, maxCombo: 50, lamp: 'CLEAR', plays: 1 };
   songs[29].records = [{ ...record, chartId: 'c' + '1'.repeat(20), songId: songs[29].id, level: 7 }];
   songs[34].records = [{ ...record, chartId: 'c' + '2'.repeat(20), songId: songs[34].id, level: 3 }];
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' })));
   await page.goto('/');
   const rows = page.getByTestId('song-item');
   await expect(rows).toHaveCount(40);
@@ -496,7 +496,7 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
       return list.filter((s) => /^Demo Groove 13[37]$/.test(s.title) && s.status === 'ready').length;
     }, { timeout: 90_000 })
     .toBe(2);
-  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' })));
+  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' })));
   await page.reload();
   const row = (bpm: number) => page.getByTestId('song-item').filter({ hasText: `Demo Groove ${bpm}` });
   const level = page.getByTestId('chart-level');
@@ -572,28 +572,28 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   expect(errors).toEqual([]);
 });
 
-test('a best shows on its own difficulty system only (DJMAX NM is not EZ2ON NM), and on a tall window in full under the play buttons', async ({ page }) => {
+test('a best shows on its own tier only (none of a removed EASY or DJMAX tier), and on a tall window in full under the play buttons', async ({ page }) => {
   const errors = trackErrors(page);
   const [song] = fakeSongs(1);
-  const record = { chartId: 'c' + '1'.repeat(20), songId: song.id, keyMode: '4K', difficulty: 'NM', level: 5, seed: 1, score: 912_000, rate: 91.2, maxCombo: 40, lamp: 'CLEAR', plays: 3, lastPlayedAt: 1_790_000_000 };
-  const songs = [{ ...song, records: [{ ...record, system: 'DJMAX' }] }];
+  const record = { chartId: 'c' + '1'.repeat(20), songId: song.id, keyMode: '4K', difficulty: 'NORMAL', level: 5, seed: 1, score: 912_000, rate: 91.2, maxCombo: 40, lamp: 'CLEAR', plays: 3, lastPlayedAt: 1_790_000_000 };
+  const old = [{ ...record, chartId: 'c' + '2'.repeat(20), difficulty: 'EASY' }, { ...record, chartId: 'c' + '3'.repeat(20), difficulty: 'MX' }];
+  const songs = [{ ...song, records: [record, ...old] }];
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' })));
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/');
   const plate = page.getByTestId('difficulty-row').getByRole('button', { name: /NORMAL/ });
   await expect(plate.locator('.diff-lamp')).toHaveText('91.20%');
+  await expect(page.getByTestId('difficulty-row').locator('.diff-lamp')).toHaveCount(1);
+  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /MASTER/]);
   // the range of a difficulty's levels reads as levels
-  await expect(page.getByTestId('difficulty-row').getByRole('button', { name: /HARD/ })).toContainText('Lv.5–11');
+  await expect(page.getByTestId('difficulty-row').getByRole('button', { name: /HARD/ })).toContainText('Lv.7–9');
   const summary = page.getByTestId('summary-record');
   await expect(summary).toContainText('CLEAR');
   await expect(summary).toContainText('912,000');
   await expect(summary).toContainText('3회');
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByTestId('chart-summary')).toBeHidden();
-  await difficultySystem(page, 'EZ2ON');
-  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/EASY/, /NORMAL/, /HARD/, /SUPER HARD/]);
-  await expect(page.getByTestId('difficulty-row').locator('.diff-lamp')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -656,7 +656,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   const errors = trackErrors(page);
   await page.goto('/');
   const id = await readyDemo(page, 139);
-  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' })));
+  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' })));
   await page.reload();
   await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 139' }).click();
   const plates = page.getByTestId('difficulty-row').getByRole('button');
@@ -693,7 +693,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   await expect(normal).toContainText('기록 없음');
   await expect(normal.locator('.other-best')).toContainText('CLEAR');
   const patterns = (await stored(page)).patterns as Record<string, number>;
-  expect(typeof patterns[`${id}|4K|DJMAX|NM`]).toBe('number');
+  expect(typeof patterns[`${id}|4K|GRG|NORMAL`]).toBe('number');
   // the song info lists the records by pattern: the default one is chosen again from there
   await songInfo(page);
   const records = page.getByTestId('record-row');
@@ -711,7 +711,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   await page.keyboard.press('Shift+F5');
   await expect(level).toHaveAttribute('data-chart-id', chartId);
   await expect(page.getByTestId('default-pattern')).toHaveCount(0);
-  expect(((await stored(page)).patterns as Record<string, number>)[`${id}|4K|DJMAX|NM`]).toBeUndefined();
+  expect(((await stored(page)).patterns as Record<string, number>)[`${id}|4K|GRG|NORMAL`]).toBeUndefined();
   expect(errors).toEqual([]);
 });
 
@@ -719,14 +719,14 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   const errors = trackErrors(page);
   // (its charts are not to be had: the list shows what its records say)
   const [song] = fakeSongs(1, 'ready');
-  const record = { songId: song.id, keyMode: '4K', system: 'DJMAX', seed: 1, score: 900_000, rate: 90, maxCombo: 50, plays: 1, kind: 'generated' };
+  const record = { songId: song.id, keyMode: '4K', seed: 1, score: 900_000, rate: 90, maxCombo: 50, plays: 1, kind: 'generated' };
   const records = [
-    { ...record, chartId: 'c' + '1'.repeat(20), difficulty: 'NM', level: 4, lamp: 'MAX COMBO' },
-    { ...record, chartId: 'c' + '2'.repeat(20), difficulty: 'HD', level: 8, lamp: 'HARD CLEAR' },
-    { ...record, chartId: 'c' + '3'.repeat(20), difficulty: 'MX', level: 12, lamp: 'FAILED' },
+    { ...record, chartId: 'c' + '1'.repeat(20), difficulty: 'NORMAL', level: 4, lamp: 'MAX COMBO' },
+    { ...record, chartId: 'c' + '2'.repeat(20), difficulty: 'HARD', level: 8, lamp: 'HARD CLEAR' },
+    { ...record, chartId: 'c' + '3'.repeat(20), difficulty: 'EXPERT', level: 12, lamp: 'FAILED' },
   ];
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [{ ...song, records }] } }));
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
   await page.goto('/');
   const cells = page.getByTestId('song-item').locator('.tier-level');
   await expect(cells).toHaveText(['4', '8', '12', '–']);
@@ -757,7 +757,7 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   expect(errors).toEqual([]);
 });
 
-test('an imported chart is an entry after the difficulties (←→, kept for the song), its picture the cover, its record on any difficulty system, its file\'s level beside ours', async ({ page }) => {
+test('an imported chart is an entry after the difficulties (←→, kept for the song), its picture the cover, its record its own, its file\'s level beside ours', async ({ page }) => {
   const errors = trackErrors(page);
   const dir = 'test-results/e2e-bms-cover';
   rmSync(dir, { recursive: true, force: true });
@@ -766,7 +766,7 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   // the chart names a .bmp that ships as a .png (as BMS packages do)
   writeFileSync(`${dir}/stage.png`, PNG);
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'HD' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'HARD' }));
   });
   await page.goto('/');
   await page.getByTestId('import-folder-input').setInputFiles(dir);
@@ -784,7 +784,7 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   await expect(page.locator('.difficulty.active')).toHaveCount(0);
   // ← the last difficulty, → the chart again
   await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('.difficulty.active')).toContainText('SC');
+  await expect(page.locator('.difficulty.active')).toContainText('MASTER');
   await expect(saved).not.toHaveClass(/active/);
   await page.keyboard.press('ArrowRight');
   await expect(saved).toHaveClass(/active/);
@@ -792,7 +792,7 @@ test('an imported chart is an entry after the difficulties (←→, kept for the
   await expect(page.getByTestId('chart-levels')).toContainText('원본 6 · 추정');
   await page.keyboard.press('Escape');
 
-  // a play of it counts on DJMAX (the list's cell after the difficulties, the folders), and the song keeps the chart chosen
+  // a play of it counts (the list's cell after the difficulties, the folders), and the song keeps the chart chosen
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
   const id = songs.find((s) => s.title === 'E2E Cover Keysound')!.id;
   const chart = ((await (await page.request.get(`/api/songs/${id}/charts`)).json()).charts as { chartId: string }[])[0];
@@ -998,7 +998,7 @@ test('the chosen one of many imported charts stays in view, the key modes say wh
   );
   await page.route((url) => /^\/api\/charts\/c\d{20}$/.test(url.pathname), (route) => route.fulfill({ status: 404, json: { detail: 'e2e' } }));
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', difficultySystem: 'DJMAX', lastDifficulty: 'SC' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', lastDifficulty: 'MASTER' }));
   });
   await page.goto('/');
   // the key modes with charts of the song say how many
@@ -1045,7 +1045,7 @@ test("a chart that found the server down is asked again on the next visit, its p
   const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
   // NORMAL was HARD CLEARed on its default pattern as an earlier generator made it
   songs[0].records = [
-    { chartId: 'c' + '1'.repeat(20), songId: songs[0].id, keyMode: '4K', system: 'DJMAX', difficulty: 'NM', level: 5, seed: 7, kind: 'generated', defaultSeed: true, generatorVersion: '0.0.1', score: 950_000, rate: 95, maxCombo: 100, lamp: 'HARD CLEAR', plays: 1 },
+    { chartId: 'c' + '1'.repeat(20), songId: songs[0].id, keyMode: '4K', difficulty: 'NORMAL', level: 5, seed: 7, kind: 'generated', defaultSeed: true, generatorVersion: '0.0.1', score: 950_000, rate: 95, maxCombo: 100, lamp: 'HARD CLEAR', plays: 1 },
   ];
   let down = true;
   const asked: string[] = [];
@@ -1058,12 +1058,12 @@ test("a chart that found the server down is asked again on the next visit, its p
       const songId = new URL(route.request().url()).pathname.split('/')[3];
       asked.push(`${songId} ${body.difficulty}`);
       if (down) return route.fulfill({ status: 503, json: { detail: 'e2e down' } });
-      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.toLowerCase().padEnd(2, '0')}`, songId, keyMode: '4K', difficulty: body.difficulty, difficultySystem: 'DJMAX', level: 6, noteCount: 300, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: 6, generator: { seed: 7, version: 'now' } };
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '4K', difficulty: body.difficulty, level: 6, noteCount: 300, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: 6, generator: { seed: 7, version: 'now' } };
       const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
       return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'HD' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'HARD' })));
   await page.goto('/');
   const normal = page.getByTestId('difficulty-row').getByRole('button').filter({ hasText: 'NORMAL' });
   // the server is down: the plates say their charts could not be made, NORMAL shows its best all the same
@@ -1109,12 +1109,12 @@ test('the levels that came in are on the list at once after a restart, in the le
       const songId = new URL(route.request().url()).pathname.split('/')[3];
       (body.brief ? briefs : whole).push(songId);
       // each song a level lower than the one before
-      const level = ({ NM: 4, HD: 7, MX: 10, SC: 13 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
-      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.toLowerCase().padEnd(2, '0')}`, songId, keyMode: '4K', difficulty: body.difficulty, difficultySystem: 'DJMAX', level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
+      const level = ({ NORMAL: 4, HARD: 7, EXPERT: 10, MASTER: 13 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '4K', difficulty: body.difficulty, level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
       return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
     },
   );
-  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM', songSort: 'level' })));
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL', songSort: 'level' })));
   await page.goto('/');
   const rows = page.getByTestId('song-item');
   const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
@@ -1160,10 +1160,10 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
   const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
   const [a, b] = songs.map((s) => s.id);
   const picked = 'c' + 'd'.repeat(20);
-  songs[0].records = [{ chartId: picked, songId: a, keyMode: '4K', system: 'DJMAX', difficulty: 'HD', level: 8, seed: 9, kind: 'generated', defaultSeed: false, score: 900_000, rate: 90, maxCombo: 80, lamp: 'CLEAR', plays: 1 }];
+  songs[0].records = [{ chartId: picked, songId: a, keyMode: '4K', difficulty: 'HARD', level: 8, seed: 9, kind: 'generated', defaultSeed: false, score: 900_000, rate: 90, maxCombo: 80, lamp: 'CLEAR', plays: 1 }];
   const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
   const chartOf = (chartId: string, songId: string, difficulty: string) => ({
-    meta: { chartId, songId, keyMode: '4K', difficulty, difficultySystem: 'DJMAX', level: 7, noteCount: 250, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: 7, generator: { seed: 3, version: 'now' } },
+    meta: { chartId, songId, keyMode: '4K', difficulty, level: 7, noteCount: 250, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: 7, generator: { seed: 3, version: 'now' } },
     timing,
     notes: [],
     sections: [],
@@ -1175,14 +1175,14 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
       if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
       const body = JSON.parse(route.request().postData() ?? '{}');
       const songId = new URL(route.request().url()).pathname.split('/')[3];
-      const chart = chartOf(`c${songId.slice(-4)}${'0'.repeat(14)}${body.difficulty.toLowerCase().padEnd(2, '0')}`, songId, body.difficulty);
+      const chart = chartOf(`c${songId.slice(-4)}${'0'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, body.difficulty);
       return route.fulfill({ json: body.brief ? { meta: chart.meta, cached: true } : { chart, cached: true } });
     },
   );
   // the chart chosen from the records is there; one chosen before the data was wiped is not
   await page.route(
     (url) => /^\/api\/charts\/c[0-9a-f]{20}$/.test(url.pathname),
-    (route) => (route.request().url().endsWith(picked) ? route.fulfill({ json: { chart: chartOf(picked, a, 'HD') } }) : route.fulfill({ status: 404, json: { detail: 'e2e' } })),
+    (route) => (route.request().url().endsWith(picked) ? route.fulfill({ json: { chart: chartOf(picked, a, 'HARD') } }) : route.fulfill({ status: 404, json: { detail: 'e2e' } })),
   );
   await page.route(
     (url) => url.pathname === `/api/songs/${a}`,
@@ -1192,12 +1192,11 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
       return route.fulfill({ status: 204 });
     },
   );
-  const hd = `${a}|4K|DJMAX|HD`;
+  const hd = `${a}|4K|GRG|HARD`;
   const settings = {
     lastKeyMode: '4K',
-    difficultySystem: 'DJMAX',
-    lastDifficulty: 'HD',
-    patterns: { [hd]: 'c' + 'e'.repeat(20), [`${b}|4K|DJMAX|NM`]: 5 },
+    lastDifficulty: 'HARD',
+    patterns: { [hd]: 'c' + 'e'.repeat(20), [`${b}|4K|GRG|NORMAL`]: 5 },
     chartPicks: { [`${a}|7K+1S`]: 'c' + 'f'.repeat(20) },
     songOffsets: { [a]: 12, [b]: -3 },
   };
@@ -1242,7 +1241,7 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
   await remove.click();
   await expect(page.getByTestId('song-item')).toHaveCount(1);
   const after = await stored(page);
-  expect(after.patterns).toEqual({ [`${b}|4K|DJMAX|NM`]: 5 });
+  expect(after.patterns).toEqual({ [`${b}|4K|GRG|NORMAL`]: 5 });
   expect(after.chartPicks).toEqual({});
   expect(after.songOffsets).toEqual({ [b]: -3 });
   expect(errors).toEqual([]);
@@ -1256,10 +1255,10 @@ test('an edited chart goes from the song info on a second press (Enter twice, no
   });
   const [song] = fakeSongs(1, 'ready');
   const chartId = 'c' + '7'.repeat(20);
-  let saved = [{ chartId, songId: song.id, name: 'My Edit', kind: 'edited', keyMode: '4K', difficulty: 'NM', level: 5, noteCount: 120, createdAt: 1 }];
+  let saved = [{ chartId, songId: song.id, name: 'My Edit', kind: 'edited', keyMode: '4K', difficulty: 'NORMAL', level: 5, noteCount: 120, createdAt: 1 }];
   const deleted: string[] = [];
   const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
-  const meta = { chartId, songId: song.id, keyMode: '4K', difficulty: 'NM', difficultySystem: 'DJMAX', level: 5, noteCount: 120, durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: 'My Edit' };
+  const meta = { chartId, songId: song.id, keyMode: '4K', difficulty: 'NORMAL', level: 5, noteCount: 120, durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: 'My Edit' };
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
   await page.route(
     (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
@@ -1275,7 +1274,7 @@ test('an edited chart goes from the song info on a second press (Enter twice, no
     },
   );
   await page.addInitScript(
-    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', chartPicks: picks })),
     { [`${song.id}|4K`]: chartId },
   );
   await page.goto('/');
@@ -1302,7 +1301,7 @@ test('a first press of 이 채보 지우기 gives way when Tab puts the next key
   const errors = trackErrors(page);
   const [song] = fakeSongs(1, 'ready');
   const ids = { '4K': 'c' + '8'.repeat(20), '4K+FX': 'c' + '9'.repeat(20) };
-  const saved = Object.entries(ids).map(([keyMode, chartId]) => ({ chartId, songId: song.id, name: `Edit ${keyMode}`, kind: 'edited', keyMode, difficulty: 'NM', level: 5, noteCount: keyMode === '4K' ? 120 : 140, createdAt: 1 }));
+  const saved = Object.entries(ids).map(([keyMode, chartId]) => ({ chartId, songId: song.id, name: `Edit ${keyMode}`, kind: 'edited', keyMode, difficulty: 'NORMAL', level: 5, noteCount: keyMode === '4K' ? 120 : 140, createdAt: 1 }));
   const deleted: string[] = [];
   const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
   await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
@@ -1319,12 +1318,12 @@ test('a first press of 이 채보 지우기 gives way when Tab puts the next key
         deleted.push(c.chartId);
         return route.fulfill({ status: 204 });
       }
-      const meta = { ...c, difficultySystem: 'DJMAX', durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: c.name };
+      const meta = { ...c, durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: c.name };
       return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] } } });
     },
   );
   await page.addInitScript(
-    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', chartPicks: picks })),
     { [`${song.id}|4K`]: ids['4K'], [`${song.id}|4K+FX`]: ids['4K+FX'] },
   );
   await page.goto('/');

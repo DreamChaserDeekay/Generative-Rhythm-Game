@@ -1,4 +1,4 @@
-"""The default system's rules from 6-key EXPERT play feedback (generator 0.9.29, PATTERN_DESIGN 60):
+"""Rules from 6-key EXPERT play feedback (generator 0.9.29, PATTERN_DESIGN 60):
 pad and choir long notes, held chords on both hands, the song's last notes over its reverb, lines
 not chopped into sixteenths, solo sections led by the solo and fast repeats of one sound."""
 
@@ -42,34 +42,33 @@ def _slot(beat: float, size: int = 1) -> Slot:
 
 def test_pads_and_choirs_take_long_notes_however_soft_their_attack() -> None:
     """A soft pad chord under the 0.4 strength gate held no long note: 17 of 556 pad-like sounds were
-    long notes on 40 songs (6K EXPERT). On the default system a tonal sound that is hardly a drum
-    and sounds a beat or more is holdable whatever its attack (holds.pad)."""
+    long notes on 40 songs (6K EXPERT). A tonal sound that is hardly a drum and sounds a beat or more is holdable whatever its attack (holds.pad)."""
     tempo = TempoMap(TIMING)
     pad = _cand(4.0, strength=0.15, sustain_beats=2.0, sources=np.array([0.05, 0.15, 0.3, 0.5]))
-    assert pad_like(pad, "GRG") and holdable(pad, tempo, "GRG")
-    assert not pad_like(pad, "DJMAX") and not holdable(pad, tempo, "DJMAX")
+    assert pad_like(pad) and holdable(pad, tempo)
     kick = _cand(4.0, strength=0.15, sustain_beats=2.0, sources=np.array([0.7, 0.1, 0.1, 0.1]))
-    assert not pad_like(kick, "GRG")
+    assert not pad_like(kick)
 
 
 def test_held_chords_take_more_long_notes_than_held_notes() -> None:
     """A held single note (a long note of the tune) is one long note; a held chord or rich sound (a
     pad that is no melody note, or pitched instruments sounding together) takes two and more with
-    each further instrument, a long sound and a loud one, up to the skill's countMax: NORMAL 1,
-    HARD 2, EXPERT 3, MASTER 6 (holds.pad, RUNAWAY play feedback, PATTERN_DESIGN 61)."""
-    assert [hold_cap(resolve_params("6K", t)) for t in ("NORMAL", "HARD", "EXPERT", "MASTER")] == [1, 2, 3, 6]
-    assert hold_cap(resolve_params("6K", "MX", 13, system="DJMAX")) == 1
+    each further instrument, a long sound and a loud one, up to the skill's countMax (holds.pad,
+    RUNAWAY play feedback, PATTERN_DESIGN 61): NORMAL and HARD 1, EXPERT and MASTER 2 since
+    generator 0.9.37 (HARD 2, EXPERT 3, MASTER 6 before: twice to five times human BMS charts' long
+    notes, PATTERN_DESIGN 71). The song's closing chord keeps up to six (ending.countMax)."""
+    assert [hold_cap(resolve_params("6K", t)) for t in ("NORMAL", "HARD", "EXPERT", "MASTER")] == [1, 1, 2, 2]
     master = resolve_params("6K", "MASTER")
     tune = _cand(4.0, melody=0.9, sustain_beats=3.0, sources=np.array([0.05, 0.1, 0.75, 0.1]))
     assert hold_count(tune, master) == 1
     pad = _cand(4.0, strength=0.3, melody=0.1, sustain_beats=1.5, sources=np.array([0.05, 0.15, 0.2, 0.6]))
     assert hold_count(pad, master) == 2
     big = _cand(4.0, strength=0.9, melody=0.1, sustain_beats=4.0, sources=np.array([0.05, 0.3, 0.3, 0.35]))
-    assert hold_count(big, master) == 6 and hold_count(big, resolve_params("6K", "EXPERT")) == 3
+    assert hold_count(big, master) == 2 and hold_count(big, resolve_params("6K", "EXPERT")) == 2
     slot = _slot(4.0)
     slot.hold_end_beat = 8.0
     mark_hold_count(slot, big, resolve_params("6K", "EXPERT"))
-    assert slot.hold_count == 3 and slot.size == 3
+    assert slot.hold_count == 2 and slot.size == 2
 
 
 def test_default_charts_hold_chords_within_the_tier(dense_song: dict) -> None:
@@ -112,7 +111,6 @@ def test_the_last_notes_hold_over_the_closing_reverb() -> None:
     assert not finish(last_chord(), going_on, tempo, resolve_params("6K", "EXPERT"), lanes, 0.15)
     quiet = dict(analysis, energy={"frameMs": 100, "values": [0.6] * 200 + [0.0] * 30})
     assert not finish(last_chord(), quiet, tempo, resolve_params("6K", "EXPERT"), lanes, 0.15)
-    assert not finish(last_chord(), analysis, tempo, resolve_params("6K", "MX", 13, system="DJMAX"), lanes, 0.15)
 
 
 def test_the_closing_chord_leaves_a_lane_just_played() -> None:
@@ -171,11 +169,10 @@ def test_lines_are_not_chopped_into_sixteenths() -> None:
     cfg = load_config("instruments")["rhythmSource"]["melody"]
     line = [_cand(0.0, melody=0.9), _cand(0.25, melody=0.9, attack=0.5), _cand(0.5, melody=0.9, attack=0.95),
             _cand(0.75, melody=0.9, attack=0.95), _cand(1.0, melody=0.9, sustain_beats=2.0, attack=0.95), _cand(1.5, melody=0.9, attack=0.3)]
-    split = _melody_splits(line, cfg, "GRG", 0.75)
+    split = _melody_splits(line, cfg, 0.75)
     assert [c.beat for c in split] == [0.25, 1.5]
-    assert _melody_splits(line, cfg, "DJMAX", 0.75) == []
     drums = [_cand(b / 4, sources=np.array([0.8, 0.1, 0.05, 0.05]), harmonic=0.1, attack=0.3) for b in range(8)]
-    assert _melody_splits(drums, cfg, "GRG", 0.75) == []
+    assert _melody_splits(drums, cfg, 0.75) == []
 
 
 def test_solo_sections_are_led_by_the_solo() -> None:
@@ -185,11 +182,8 @@ def test_solo_sections_are_led_by_the_solo() -> None:
     sections = [{"t": 0.0, "endT": 8000.0, "leader": "other"}, {"t": 8000.0, "endT": 16000.0, "leader": "drums"}]
     onsets = [{"t": 250.0 * k, "melody": 0.9 if k % 4 else 0.1} for k in range(64)]
     cands = [_cand(k / 2, t=250.0 * k) for k in range(64)]
-    _mark_solos(cands, {"onsets": onsets}, sections, cfg, "GRG")
+    _mark_solos(cands, {"onsets": onsets}, sections, cfg)
     assert all(c.solo for c in cands[:32]) and not any(c.solo for c in cands[32:])
-    fresh = [_cand(k / 2, t=250.0 * k) for k in range(64)]
-    _mark_solos(fresh, {"onsets": onsets}, sections, cfg, "EZ2ON")
-    assert not any(c.solo for c in fresh)
 
 
 def test_fast_drum_repeats_take_turns_between_the_hands() -> None:
@@ -199,5 +193,3 @@ def test_fast_drum_repeats_take_turns_between_the_hands() -> None:
 
     w = _Weights.of(resolve_params("6K", "EXPERT"))
     assert w.fast_ms > 0 and w.drum_alternate > 0 and w.fast_contour > 1
-    dj = _Weights.of(resolve_params("6K", "MX", 13, system="DJMAX"))
-    assert dj.drum_alternate == 0 and dj.fast_contour == 1

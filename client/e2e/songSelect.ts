@@ -1,5 +1,4 @@
 import { expect, type Page } from '@playwright/test';
-import type { DifficultySystemId } from '../src/engine/config';
 
 /**
  * A library of songs that failed to analyse (the list and the controls, with nothing to play), or
@@ -102,13 +101,4 @@ export async function chooseSetting(page: Page, testId: string, value: string) {
   await row.focus();
   for (let i = 0; i < 24 && (await row.getAttribute('data-value')) !== value; i++) await page.keyboard.press('ArrowRight');
   await expect(row).toHaveAttribute('data-value', value);
-}
-
-/** Switches the difficulty system in the settings and comes back to the song select. */
-export async function difficultySystem(page: Page, id: DifficultySystemId) {
-  await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'play');
-  await chooseSetting(page, 'opt-system', id);
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('song-list')).toBeVisible();
 }

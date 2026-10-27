@@ -14,7 +14,7 @@ import numpy as np
 from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
 from .candidates import Candidate, grid_of, pad_like
-from .params import GenParams, skill_for_rating
+from .params import SIDE_HOLD_SHARE, GenParams, skill_for_rating
 from .rolls import coarser, mark_rolls, roll_level
 from .tempo import TempoMap
 
@@ -53,7 +53,7 @@ class Slot:
     subdivision: int
     strength: float
     sources: np.ndarray | None = None  # stem shares (drums, bass, vocals, other)
-    roll: tuple[int, int, int, bool] | None = None  # a drum roll's note: (roll, hit index, hits, in a mirrored repeat)
+    roll: tuple[int, int, int] | None = None  # a drum roll's note: (roll, hit index, hits)
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
     hold_count: int = 1  # long notes the slot holds: more than one over a held chord (holds.pad countMax)
 
@@ -99,13 +99,13 @@ def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> fl
     return None
 
 
-def hold_value(c: Candidate, tempo: TempoMap | None = None, system: str | None = None) -> float:
+def hold_value(c: Candidate, tempo: TempoMap | None = None) -> float:
     """How much a sound wants a long note: how long it sounds, how tonal it is, and most of all
     whether it is a note of the melody (a long sung note rather than a kick over a pad); with a
-    ranking hold model (holds.model.rank), times how likely the sound really lasts; a pad on a
-    system with holds.pad times its valueBoost."""
+    ranking hold model (holds.model.rank), times how likely the sound really lasts; a pad times
+    holds.pad valueBoost."""
     value = c.sustain_beats * (0.5 + c.harmonic) * (1.2 if c.pitch is not None else 1.0) * (HOLD_PLAIN + (1.0 - HOLD_PLAIN) * 2.0 * (c.melody or 0.0))
-    if pad_like(c, system):
+    if pad_like(c):
         value *= float(difficulty_config()["holds"]["pad"]["valueBoost"])
     model = difficulty_config()["holds"].get("model")
     if tempo is not None and model and model.get("rank"):
@@ -125,21 +125,21 @@ def hold_probability(c: Candidate, tempo: TempoMap, model: dict[str, Any]) -> fl
     return 1.0 / (1.0 + math.exp(-z))
 
 
-def lone_sound(c: Candidate, system: str) -> bool:
-    """A hit where the drums are out (`Candidate.quiet`) on a system that keeps chords to the
-    sounds (patterns.json chordSounds): a melody, a pluck or their echoes over a quiet passage are
+def lone_sound(c: Candidate) -> bool:
+    """A hit where the drums are out (`Candidate.quiet`), where chords keep to the sounds
+    (patterns.json chordSounds): a melody, a pluck or their echoes over a quiet passage are
     one sound, not a chord (a held chord gets its long notes from holds.pad instead)."""
     rule = load_config("patterns").get("chordSounds")
-    return bool(rule) and system in rule["systems"] and c.quiet
+    return bool(rule) and c.quiet
 
 
-def hold_cap(params: GenParams) -> int:
-    """The most long notes one held chord takes at the chart's skill (holds.pad countMax), 1 on a
-    system without it."""
+def hold_cap(params: GenParams, table: list | None = None) -> int:
+    """The most long notes one held chord takes at the chart's skill (holds.pad countMax, or the
+    [skill, count] `table` given), 1 without it."""
     pad = difficulty_config()["holds"].get("pad")
-    if not pad or params.system not in pad["systems"]:
+    if table is None and not pad:
         return 1
-    points = sorted((float(a), float(b)) for a, b in pad["countMax"])
+    points = sorted((float(a), float(b)) for a, b in (table if table is not None else pad["countMax"]))
     return max(1, int(np.floor(np.interp(params.skill, [a for a, _ in points], [b for _, b in points]) + 1e-9)))
 
 
@@ -156,7 +156,7 @@ def hold_count(c: Candidate, params: GenParams) -> int:
     share = float(pad["stemShare"])
     pitched = sum(1 for name in ("bass", "vocals", "other") if float(c.sources[STEM_NAMES.index(name)]) >= share)
     melody = (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"])
-    rich = pitched >= 2 or (pad_like(c, params.system) and not melody)
+    rich = pitched >= 2 or (pad_like(c) and not melody)
     if not rich:
         return 1
     n = 2 + max(0, pitched - 1) + (1 if c.sustain_beats >= float(pad["longBeats"]) else 0) + (1 if c.strength >= float(pad["strongAtLeast"]) else 0)
@@ -208,13 +208,13 @@ def clear_holds(slots: list[Slot], params: GenParams) -> None:
             s.hold_count = 1
 
 
-def holdable(c: Candidate, tempo: TempoMap, system: str | None = None) -> bool:
+def holdable(c: Candidate, tempo: TempoMap) -> bool:
     """Whether a long note may go on this sound (difficulty.json `holds`): the sound is held
     itself, a note of the melody or a tonal sound with its own attack on the eighths, not a drum
-    hit over a bass or a pad that goes on sounding. On a system with holds.pad a pad, choir or
-    string sound qualifies however soft its attack (`pad_like`)."""
+    hit over a bass or a pad that goes on sounding. A pad, choir or string sound (holds.pad)
+    qualifies however soft its attack (`pad_like`)."""
     cfg = difficulty_config()["holds"]
-    if c.sustain_beats * tempo.beat_ms(c.beat) >= float(cfg["minSoundMs"]) and pad_like(c, system):
+    if c.sustain_beats * tempo.beat_ms(c.beat) >= float(cfg["minSoundMs"]) and pad_like(c):
         return True
     if c.sustain_beats * tempo.beat_ms(c.beat) < float(cfg["minSoundMs"]):
         return False
@@ -377,7 +377,7 @@ def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams
         total = float(np.sum(c.bands)) + 1e-9
         spread = int(np.sum(c.bands / total > 0.22))
         w = c.strength * (0.6 + 0.4 * spread) * (0.6 + 0.6 * c.intensity) * (1.4 if c.downbeat else 1.0)
-        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat or s.roll is not None or lone_sound(c, params.system):
+        if params.skill < DOWNBEAT_CHORDS_BELOW and not c.downbeat or s.roll is not None or lone_sound(c):
             w = 0.0
         worth.append(w)
     # On few keys every chord eats a large share of the lanes; keep them rarer.
@@ -399,8 +399,8 @@ def _assign_long_notes(slots: list[Slot], chosen: list[Candidate], params: GenPa
         return
     picks = []
     for i, c in enumerate(chosen):
-        if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None and holdable(c, tempo, params.system):
-            picks.append((hold_value(c, tempo, params.system), i))
+        if c.sustain_beats >= params.min_ln_beats and slots[i].roll is None and holdable(c, tempo):
+            picks.append((hold_value(c, tempo), i))
     picks.sort(reverse=True)
     limit = int(round(params.long_note_ratio * len(slots)))
     for _, i in picks[:limit]:
@@ -440,12 +440,12 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams, 
         (c.sustain_beats * (0.5 + c.harmonic), i)
         for i, c in enumerate(chosen)
         if c.sustain_beats >= min_hold and slots[i].subdivision <= 2 and slots[i].roll is None
-        and hold_end(c.beat, c.sustain_beats, min_hold, 0.0) is not None and holdable(c, tempo, params.system)
+        and hold_end(c.beat, c.sustain_beats, min_hold, 0.0) is not None and holdable(c, tempo)
     ]
     hold_score = [0.0] * len(slots)
     for value, i in holds:
         hold_score[i] = value
-    picked = _spaced_picks(slots, hold_score, int(round(n * params.side_hold_share)), gap, positive_only=True)
+    picked = _spaced_picks(slots, hold_score, int(round(n * SIDE_HOLD_SHARE)), gap, positive_only=True)
     for i in picked:
         # the sustained sound becomes the side hold; a key long note on the same slot turns into a tap
         slot, c = slots[i], chosen[i]
@@ -454,7 +454,7 @@ def _assign_side(slots: list[Slot], chosen: list[Candidate], params: GenParams, 
         slot.hold_end_beat = hold_end(c.beat, c.sustain_beats, min_hold, 0.0)
     impact = [s.strength * (1.3 if s.subdivision == 1 else 0.8) * (0.7 + 0.6 * c.intensity) for s, c in zip(slots, chosen)]
     taken = [slots[i].t for i in picked]
-    taps = n - len(picked) if params.side_hold_share < 1.0 else 0
+    taps = n - len(picked)
     for i in _spaced_picks(slots, impact, taps, gap, avoid=taken):
         slots[i].special = "side"
 

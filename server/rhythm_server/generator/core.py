@@ -10,11 +10,11 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, load_config
+from ..config import difficulty_config, difficulty_order, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
-from .candidates import TRIPLETS, build_candidates, swing_bars, triplet_share
+from .candidates import TRIPLETS, build_candidates, swing_bars
 from .effects import camera_effects
 from .ending import finish as ending_hold
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
@@ -29,7 +29,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.36"
+GENERATOR_VERSION = "0.9.37"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -41,10 +41,9 @@ class GenerationError(RuntimeError):
     pass
 
 
-def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None, system: str = DEFAULT_SYSTEM) -> int:
+def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None) -> int:
     """Stable per song/mode/difficulty, so the default chart of a song never changes."""
-    tier = difficulty if system == DEFAULT_SYSTEM else f"{system}:{difficulty}"
-    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{tier}|{target_level}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{difficulty}|{target_level}".encode()).hexdigest()
     return int(digest[:8], 16)
 
 
@@ -71,12 +70,12 @@ def _plan_of(notes: list[dict[str, Any]], lanes: list[LaneInfo]) -> dict[int, fl
     return {k: v[0] for k, v in at.items() if len(v) == 1}
 
 
-def lane_plan(analysis: dict[str, Any], key_mode: str, tier: str, system: str, overrides: dict[str, Any] | None = None) -> dict[int, float] | None:
+def lane_plan(analysis: dict[str, Any], key_mode: str, tier: str, overrides: dict[str, Any] | None = None) -> dict[int, float] | None:
     """The song's plan (patterns.json sectioned.tierPlan): where the top tier's first round, with
     the chart's options and its default seed, plays at each beat. The industry derives the easier
     charts from the hardest one and keeps its motion (PATTERN_DESIGN 68)."""
     try:
-        notes = generate_chart(analysis, key_mode, tier, overrides=overrides, system=system, _plan_round=True)["notes"]
+        notes = generate_chart(analysis, key_mode, tier, overrides=overrides, _plan_round=True)["notes"]
     except GenerationError:
         return None
     return _plan_of(notes, lane_infos(key_mode))
@@ -95,26 +94,23 @@ def generate_chart(
     seed: int | None = None,
     overrides: dict[str, Any] | None = None,
     meta: dict[str, Any] | None = None,
-    system: str | None = None,
     *,
     _plan_round: bool = False,
 ) -> dict[str, Any]:
     """A chart of the song. `_plan_round` (lane_plan) stops after the level loop's first round and
     returns only {"notes": ...}."""
-    params = resolve_params(key_mode, difficulty, target_level, overrides, system)
+    params = resolve_params(key_mode, difficulty, target_level, overrides)
     if seed is None:
-        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level, params.system)
+        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level)
     tempo = TempoMap(analysis["timing"])
     cfg = difficulty_config()
     lanes = lane_infos(key_mode)
     kinds = {l.kind for l in lanes}
     special_kind = "scratch" if "scratch" in kinds else "side" if "side" in kinds else None
     duration = float(analysis["durationMs"])
-    feel = cfg["tripletFeel"]
-    # the default system opens the triplet grid in the bars that swing, the others in the whole of a
-    # song whose rhythm leans to triplets
-    swing = swing_bars(analysis, tempo) if params.system in feel.get("localSystems", []) else None
-    straight = not swing if swing is not None else triplet_share(analysis, tempo) < float(feel["minShare"])
+    # the triplet grid opens in the bars that swing
+    swing = swing_bars(analysis, tempo)
+    straight = not swing
     if straight:
         params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
     candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), swing)
@@ -150,11 +146,11 @@ def generate_chart(
     plan_cfg = sectioned.sectioned_config().get("tierPlan")
     lanes_plan: dict[int, float] | None = None
     own_plan = False
-    if not _plan_round and engine == "sectioned" and plan_cfg and params.system in plan_cfg["systems"]:
-        top = difficulty_system(params.system)["order"][-1]
+    if not _plan_round and engine == "sectioned" and plan_cfg:
+        top = difficulty_order()[-1]
         own_plan = params.difficulty == top
         if not own_plan:
-            lanes_plan = lane_plan(analysis, key_mode, top, params.system, overrides)
+            lanes_plan = lane_plan(analysis, key_mode, top, overrides)
     # the top tier keeps to its own first round harder: its later rounds are the chart the plan
     # stands for, and they drifted from it (4 rounds on the test song)
     plan_weight = float(plan_cfg["ownWeight"] if own_plan else plan_cfg["weight"]) if plan_cfg else 0.0
@@ -259,8 +255,6 @@ def generate_chart(
             "keyMode": key_mode,
             "lanes": [l["id"] for l in mode_cfg["lanes"]],
             "difficulty": params.difficulty,
-            "difficultySystem": params.system,
-            **({"levelScale": params.level_scale} if params.level_scale else {}),
             "level": est["level"],
             "rating": est["rating"],
             "durationMs": duration,

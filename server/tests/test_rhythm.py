@@ -34,9 +34,9 @@ def song(kind: str):
 
 
 @lru_cache(maxsize=None)
-def chart(kind: str, key_mode: str, system: str, difficulty: str, level: int | None, source: str | None = None, style: str | None = None) -> dict:
+def chart(kind: str, key_mode: str, difficulty: str, level: int | None, source: str | None = None, style: str | None = None) -> dict:
     overrides = {k: v for k, v in (("rhythmSource", source), ("style", style)) if v}
-    return generate_chart(song(kind)[1], key_mode, difficulty, level, system=system, overrides=overrides or None)
+    return generate_chart(song(kind)[1], key_mode, difficulty, level, overrides=overrides or None)
 
 
 def covered(true_s: list[float], notes: list[dict]) -> float:
@@ -67,20 +67,20 @@ def test_melody_presence_tells_sung_notes_from_drums() -> None:
 
 
 def test_build_up_rolls_go_hand_over_hand() -> None:
-    for kind, key_mode, system, difficulty, level, per_beat in (
-        ("groove", "6K", "DJMAX", "HD", 9, 4), ("groove", "4K", "DJMAX", "MX", 13, 4), ("groove", "8K", "EZ2ON", "HD", 13, 4),
-        # GRG's NORMAL reads sixteenths since generator 0.9.4 (BMS charts of that density do), and
-        # plays a roll as eighths where sixteenths would pass its one-second note limit
-        ("groove", "6K", "DJMAX", "NM", 6, 2), ("groove", "6K", "GRG", "NORMAL", None, (4, 2)),
+    for kind, key_mode, difficulty, level, per_beat in (
+        ("groove", "6K", "HARD", 9, 4), ("groove", "4K", "MASTER", 13, 4), ("groove", "8K", "MASTER", 13, 4),
+        # NORMAL reads sixteenths since generator 0.9.4 (BMS charts of that density do), and plays a
+        # roll as eighths where sixteenths would pass its one-second note limit
+        ("groove", "6K", "NORMAL", 6, (4, 2)), ("groove", "6K", "NORMAL", None, (4, 2)),
         # every tier plays the song's rolls: the tier's grid alone, without the soft sixteenths, misses this one
-        ("soft", "6K", "GRG", "NORMAL", None, (4, 2)), ("soft", "6K", "DJMAX", "HD", 9, 4),
-        # a build-up is hand over hand on the default system's hard tiers too: a chord-jack shape
-        # once made this one chords all the way (generator 0.9.30)
-        ("groove", "6K", "GRG", "EXPERT", None, 4), ("groove", "6K", "GRG", "MASTER", None, 4),
+        ("soft", "6K", "NORMAL", None, (4, 2)), ("soft", "6K", "HARD", 9, 4),
+        # a build-up is hand over hand on the hard tiers too: a chord-jack shape once made this one
+        # chords all the way (generator 0.9.30)
+        ("groove", "6K", "EXPERT", None, 4), ("groove", "6K", "MASTER", None, 4),
     ):
         s, a = song(kind)
         tempo = TempoMap(a["timing"])
-        notes = chart(kind, key_mode, system, difficulty, level)["notes"]
+        notes = chart(kind, key_mode, difficulty, level)["notes"]
         lanes = lane_infos(key_mode)
         keys = [n for n in notes if lanes[n["lane"]].kind == "key"]
         at = {round(n["beat"], 4): [] for n in keys}
@@ -88,7 +88,7 @@ def test_build_up_rolls_go_hand_over_hand() -> None:
             at[round(n["beat"], 4)].append(n)
         for b0, b1, rate in s.rolls:
             for grid in per_beat if isinstance(per_beat, tuple) else (per_beat,):
-                step = 1.0 / min(rate, grid)  # DJMAX NM plays a sixteenth roll as eighths
+                step = 1.0 / min(rate, grid)  # NORMAL may play a sixteenth roll as eighths
                 want = [b0 + k * step for k in range(int(round((b1 - b0) / step)))]
                 got = [at.get(round(b, 4)) for b in want]
                 if all(got):
@@ -102,7 +102,7 @@ def test_build_up_rolls_go_hand_over_hand() -> None:
 
 def test_a_fill_rolls_only_in_its_own_bar() -> None:
     s, _ = song("structured")
-    notes = chart("structured", "6K", "DJMAX", "HD", 9)["notes"]
+    notes = chart("structured", "6K", "HARD", 9)["notes"]
     lanes = lane_infos("6K")
     verses = [x for x in s.structure if x["label"] == "verse"]
     for v in verses:
@@ -145,15 +145,17 @@ def test_steady_grooves_are_no_rolls() -> None:
 
 def test_the_melody_option_follows_the_melody() -> None:
     s, _ = song("groove")
+    # (the numbers below are of DJMAX NM 6 and HD 9, which these tests used until the DJMAX tiers
+    # were taken out on 2026-10-27; NORMAL 6 and HARD 9 pass the same checks.)
     # NM's budget leaves out much of the song, so the source decides what it plays; HD's covers
     # most of the song's sounds whichever source leads. Since generator 0.9.3 onsets that may start
     # no new sound come last; a few of this lead's softer notes are among them, so NM plays 0.79 of
     # the lead (0.80 before). Since 0.9.4 a long note needs a stronger sound; with fewer of them the
     # level fit lands both HD charts at about 650 notes (676 and 601 before), where the melody one
     # plays 0.85 of the lead and the drum one 0.84
-    for difficulty, level, margin in (("NM", 6, 0.04), ("HD", 9, 0.0)):
-        melody = chart("groove", "6K", "DJMAX", difficulty, level, "melody")["notes"]
-        drum = chart("groove", "6K", "DJMAX", difficulty, level, "drum")["notes"]
+    for difficulty, level, margin in (("NORMAL", 6, 0.04), ("HARD", 9, 0.0)):
+        melody = chart("groove", "6K", difficulty, level, "melody")["notes"]
+        drum = chart("groove", "6K", difficulty, level, "drum")["notes"]
         assert covered(s.onsets["lead"], melody) >= 0.78
         assert covered(s.onsets["lead"], melody) > covered(s.onsets["lead"], drum) + margin
         # both play nearly every kick (0.96-0.99): the melody adds to the beat, it does not drop it
@@ -162,10 +164,10 @@ def test_the_melody_option_follows_the_melody() -> None:
         # on its first round (397 notes, 0.88 of the kicks) instead of 5 and then 6 at 426 (0.96)
         assert min(covered(s.onsets["kick"], melody), covered(s.onsets["kick"], drum)) >= 0.85
         # the melody style follows the melody too, unless the player picks another rhythm source
-        styled = chart("groove", "6K", "DJMAX", difficulty, level, "auto", "melody")
+        styled = chart("groove", "6K", difficulty, level, "auto", "melody")
         assert styled["meta"]["generator"]["params"]["rhythmSource"] == "melody"
         assert covered(s.onsets["lead"], styled["notes"]) > covered(s.onsets["lead"], drum) + margin
-        assert chart("groove", "6K", "DJMAX", difficulty, level, "drum", "melody")["meta"]["generator"]["params"]["rhythmSource"] == "drum"
+        assert chart("groove", "6K", difficulty, level, "drum", "melody")["meta"]["generator"]["params"]["rhythmSource"] == "drum"
 
 
 def test_harder_charts_follow_the_song_off_the_beat() -> None:
@@ -176,9 +178,9 @@ def test_harder_charts_follow_the_song_off_the_beat() -> None:
     def share(beats: list[float], sub: int) -> float:
         return float(np.mean([abs(b * sub - round(b * sub)) < 1e-6 and (sub == 1 or abs(b * sub / 2 - round(b * sub / 2)) > 1e-6) for b in beats]))
 
-    for key_mode, system, difficulty, level in (("6K", "DJMAX", "HD", 9), ("6K", "DJMAX", "MX", 13), ("8K", "EZ2ON", "HD", 13)):
-        hits = sorted({n["beat"] for n in chart("groove", key_mode, system, difficulty, level)["notes"]})
-        params = resolve_params(key_mode, difficulty, level, None, system)
+    for key_mode, difficulty, level in (("6K", "HARD", 9), ("6K", "MASTER", 13), ("8K", "MASTER", 13)):
+        hits = sorted({n["beat"] for n in chart("groove", key_mode, difficulty, level)["notes"]})
+        params = resolve_params(key_mode, difficulty, level)
         beats = [c.beat for c in build_candidates(a, tempo, params, tolerance)]
         assert share(hits, 1) <= share(beats, 1) + 0.15, (difficulty, share(hits, 1), share(beats, 1))
         assert share(hits, 4) >= 0.6 * share(beats, 4), (difficulty, share(hits, 4), share(beats, 4))
@@ -198,7 +200,7 @@ def test_long_notes_go_on_held_sounds_only() -> None:
     assert not holdable(cand(sources=np.array([0.6, 0.3, 0.05, 0.05])), tempo)  # a kick over a held bass
     assert not holdable(cand(beat=4.333333, subdivision=3), tempo)  # a slow attack caught late
     assert not holdable(cand(melody=1.0, sustain_beats=0.6), tempo)  # 300 ms: too short a sound
-    assert not holdable(cand(melody=1.0, strength=0.3), tempo)  # a faint sound over another one
+    assert not holdable(cand(melody=1.0, strength=0.3, harmonic=0.3), tempo)  # a faint sound over another one (a faint pad holds, holds.pad)
     assert holdable(cand(sources=None, harmonic=0.7), tempo)  # an analysis without stems
     assert not holdable(cand(sources=None, harmonic=0.3), tempo)
 
@@ -212,10 +214,10 @@ def test_long_notes_let_go_on_the_grid() -> None:
     # (since generator 0.9.36 the default NORMAL follows MASTER's motion and rates lower, so the level
     # fit gives it more notes, 400 -> 447 on this song: more long notes stop half a beat before a note
     # that comes in under them, 0.77 -> 0.64)
-    for kind, key_mode, system, difficulty, level, share in (
-        ("groove", "6K", "DJMAX", "HD", 9, 0.75), ("groove", "8K", "EZ2ON", "HD", 13, 0.75), ("structured", "6K", "DJMAX", "MX", 13, 0.75), ("structured", "6K", "GRG", "NORMAL", None, 0.6),
+    for kind, key_mode, difficulty, level, share in (
+        ("groove", "6K", "HARD", 9, 0.75), ("groove", "8K", "MASTER", 13, 0.75), ("structured", "6K", "MASTER", 13, 0.75), ("structured", "6K", "NORMAL", None, 0.6),
     ):
-        notes = chart(kind, key_mode, system, difficulty, level)["notes"]
+        notes = chart(kind, key_mode, difficulty, level)["notes"]
         holds = [n for n in notes if n["type"] == "hold"]
         starts = {round(n["beat"], 4) for n in notes}
         assert holds and all(abs(2 * n["endBeat"] - round(2 * n["endBeat"])) < 1e-6 for n in holds), (kind, difficulty)

@@ -12,7 +12,6 @@ import re
 from collections import defaultdict
 from typing import Any
 
-from ..config import DEFAULT_SYSTEM, difficulty_config
 from ..generator.tempo import TempoMap
 from .common import (
     FormatError,
@@ -36,12 +35,7 @@ DIFFICULTY_NAMES = {1: "BEGINNER", 2: "NORMAL", 3: "HYPER", 4: "ANOTHER", 5: "IN
 
 
 def bms_difficulty(meta: dict[str, Any]) -> int:
-    """#DIFFICULTY: the tier's bmsDifficulty on DJMAX / EZ2ON, from the five-step name otherwise."""
-    system = meta.get("difficultySystem")
-    if system and system != DEFAULT_SYSTEM:
-        tier = difficulty_config().get("systems", {}).get(system, {}).get("tiers", {}).get(meta.get("difficulty", ""), {})
-        if "bmsDifficulty" in tier:
-            return int(tier["bmsDifficulty"])
+    """#DIFFICULTY from the tier name (EASY: a chart from before the tier was taken out)."""
     return DIFFICULTY_LEVEL.get(meta.get("difficulty", ""), 3)
 RESOLUTIONS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 192, 384, 768, 960, 1536, 1920, 3840]
 POSITION_TOLERANCE_MS = 0.5

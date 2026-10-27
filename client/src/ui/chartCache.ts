@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react';
 import { api, ApiError, type ChartRequest, type ServerChart, type Song } from '../api/client';
-import type { DifficultySystemId } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 
 /** What a generated chart is made of: the song as analysed, its difficulty, the options and the pattern. */
@@ -9,7 +8,6 @@ export interface ChartSpec {
   /** The song's analysis as it stands (a new analysis or edited sections make other charts). */
   analysis: string;
   keyMode: KeyModeId;
-  system: DifficultySystemId;
   difficulty: string;
   targetLevel: number | null;
   /** The pattern made with 새 패턴 (null: the default one). */
@@ -22,7 +20,6 @@ export interface ChartSpec {
 export interface ChartBrief {
   chartId: string;
   level: number;
-  levelScale?: string;
   noteCount: number;
   /** The seed it was made with (the default pattern's too; none for a chart not generated). */
   seed: number | null;
@@ -53,8 +50,8 @@ function paramsText(params: Record<string, unknown>): string {
 }
 
 export function chartKey(spec: ChartSpec): string {
-  const { songId, analysis, keyMode, system, difficulty, targetLevel, seed, params } = spec;
-  return JSON.stringify([songId, analysis, keyMode, system, difficulty, targetLevel, seed, paramsText(params)]);
+  const { songId, analysis, keyMode, difficulty, targetLevel, seed, params } = spec;
+  return JSON.stringify([songId, analysis, keyMode, difficulty, targetLevel, seed, paramsText(params)]);
 }
 
 const SAVED = 'saved:';
@@ -63,11 +60,11 @@ const SAVED = 'saved:';
 export const savedChartKey = (chartId: string) => `${SAVED}${chartId}`;
 
 export function requestOf(spec: ChartSpec): ChartRequest {
-  return { keyMode: spec.keyMode, difficulty: spec.difficulty, system: spec.system, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
+  return { keyMode: spec.keyMode, difficulty: spec.difficulty, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
 }
 
 export function briefOf(meta: ServerChart['meta']): ChartBrief {
-  return { chartId: meta.chartId, level: meta.level, levelScale: meta.levelScale, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
+  return { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
 }
 
 /** So many briefs (a few numbers each) and whole charts are kept, the oldest going first. */

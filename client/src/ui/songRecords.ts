@@ -1,5 +1,5 @@
 import type { ScoreRecord, Song } from '../api/client';
-import { lampOrder, type ClearLamp, type DifficultySystemId } from '../engine/config';
+import { difficultyTiers, lampOrder, type ClearLamp } from '../engine/config';
 import { gradeOf, rulesetConfigs, type RulesetId } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
 import type { SongFolder, SongSort } from '../settings/settings';
@@ -17,15 +17,17 @@ export const SORT_LABELS: Record<SongSort, string> = {
   recent: '최근 플레이순',
 };
 
-/** A record of an edited or imported chart (its own entry, on no difficulty system). */
+/** A record of an edited or imported chart (its own entry, on no tier). */
 export const isSaved = (r: ScoreRecord) => r.kind !== undefined && r.kind !== 'generated';
 
-/** The song's bests of generated charts on a key mode and difficulty system (DJMAX NM is not EZ2ON NM). */
-export function recordsOn(song: Song, keyMode: KeyModeId, system: DifficultySystemId): ScoreRecord[] {
-  return (song.records ?? []).filter((r) => r.keyMode === keyMode && !isSaved(r) && (r.system ?? 'GRG') === system);
+const TIER_IDS = new Set(difficultyTiers.map((t) => t.id));
+
+/** The song's bests of generated charts on a key mode (records of the removed EASY, DJMAX and EZ2ON tiers left out). */
+export function recordsOn(song: Song, keyMode: KeyModeId): ScoreRecord[] {
+  return (song.records ?? []).filter((r) => r.keyMode === keyMode && !isSaved(r) && TIER_IDS.has(r.difficulty));
 }
 
-/** The song's bests of its edited and imported charts on a key mode, whatever the difficulty system. */
+/** The song's bests of its edited and imported charts on a key mode. */
 export function savedRecordsOn(song: Song, keyMode: KeyModeId): ScoreRecord[] {
   return (song.records ?? []).filter((r) => r.keyMode === keyMode && isSaved(r));
 }
@@ -64,12 +66,12 @@ function lampByGroup(records: ScoreRecord[]): Map<string, number> {
 
 /**
  * Whether a song is in a folder of the song select. 미플레이, 미클리어 and 풀콤 미달 look at the
- * selected key mode and difficulty system (and the saved charts on the key mode, each its own),
- * never at the selected tier, so ←→ never changes the list: 미클리어 has a tier or a saved chart
- * whose every play failed, 풀콤 미달 one cleared without MAX COMBO.
+ * selected key mode (and the saved charts on the key mode, each its own), never at the selected
+ * tier, so ←→ never changes the list: 미클리어 has a tier or a saved chart whose every play
+ * failed, 풀콤 미달 one cleared without MAX COMBO.
  */
-export function inFolder(song: Song, folder: SongFolder, keyMode: KeyModeId, system: DifficultySystemId, favorites: ReadonlySet<string>): boolean {
-  const played = () => [...recordsOn(song, keyMode, system), ...savedRecordsOn(song, keyMode)];
+export function inFolder(song: Song, folder: SongFolder, keyMode: KeyModeId, favorites: ReadonlySet<string>): boolean {
+  const played = () => [...recordsOn(song, keyMode), ...savedRecordsOn(song, keyMode)];
   switch (folder) {
     case 'favorites':
       return favorites.has(song.id);
@@ -87,8 +89,6 @@ export function inFolder(song: Song, folder: SongFolder, keyMode: KeyModeId, sys
 /** A tier's cell on the song list: its level and lamp (null: not known, never played). */
 export interface TierMark {
   level: number | null;
-  /** A level on a scale of its own (SC). */
-  levelScale?: string;
   lamp: string | null;
   /** The lamp is another chart's of the tier than the one Enter plays (never played itself). */
   other?: boolean;
@@ -105,14 +105,14 @@ export function tierMark(records: ScoreRecord[], tier: string, brief: ChartBrief
   const lamp = bestLamp(own);
   if (!brief) return { level: bestByTier(own).get(tier)?.level ?? null, lamp };
   const played = own.find((r) => r.chartId === brief.chartId);
-  if (played) return { level: brief.level, levelScale: brief.levelScale, lamp: played.lamp };
-  return { level: brief.level, levelScale: brief.levelScale, lamp, other: lamp !== null };
+  if (played) return { level: brief.level, lamp: played.lamp };
+  return { level: brief.level, lamp, other: lamp !== null };
 }
 
 /** Two cells that show the same (a row of the song list is drawn again only when one of its cells changes). */
 export function sameMark(a: TierMark | null, b: TierMark | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.level === b.level && a.levelScale === b.levelScale && a.lamp === b.lamp && Boolean(a.other) === Boolean(b.other);
+  return a.level === b.level && a.lamp === b.lamp && Boolean(a.other) === Boolean(b.other);
 }
 
 /** The best of `records` by lamp, then score (null: none). */
@@ -166,10 +166,9 @@ export function recordHeadline(r: Pick<ScoreRecord, 'rate' | 'exScore' | 'weight
   return { label: 'RATE', value: `${r.rate.toFixed(2)}%` };
 }
 
-/** What the record orders read: the key mode, difficulty system and tier selected. */
+/** What the record orders read: the key mode and tier selected. */
 export interface SortTier {
   keyMode: KeyModeId;
-  system: DifficultySystemId;
   difficulty: string;
   /** The level of the chart Enter plays on a song's selected tier, once known (as its cell shows it). */
   knownLevel?: (song: Song) => number | null;
@@ -191,7 +190,7 @@ function recordKey(song: Song, sort: SongSort, on: SortTier): number | null {
   }
   const known = sort === 'level' ? (on.knownLevel?.(song) ?? null) : null;
   if (known !== null) return known;
-  const onTier = recordsOn(song, on.keyMode, on.system).filter((r) => r.difficulty === on.difficulty);
+  const onTier = recordsOn(song, on.keyMode).filter((r) => r.difficulty === on.difficulty);
   const records = onTier.length > 0 ? onTier : savedRecordsOn(song, on.keyMode);
   if (records.length === 0) return null;
   if (sort === 'lamp') return Math.max(...records.map((r) => lampRank(r.lamp)));

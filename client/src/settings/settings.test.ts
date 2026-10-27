@@ -23,13 +23,12 @@ import {
   songOffsetOf,
   withChartPick,
   withCovers,
-  withDifficultySystem,
   withoutSong,
   withPattern,
   withSongOffset,
 } from './settings';
 import { skinById, laneColorsFor } from '../render/skins';
-import { keyModes } from '../engine/config';
+import { difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -58,11 +57,10 @@ describe('settings', () => {
     expect(sanitizeSettings({ cameraPreset: 'TOP' }).cameraPreset).toBe('SDVX');
   });
 
-  it('lays the side notes over half the keys whatever was saved, shows no visualizer, and starts on the game’s own difficulty system', () => {
+  it('lays the side notes over half the keys whatever was saved, and shows no visualizer', () => {
     expect(DEFAULT_SETTINGS.sideNotes).toBe('half');
     for (const sideNotes of [undefined, 'lanes', 'half', 'djmax']) expect(sanitizeSettings({ sideNotes: sideNotes as never }).sideNotes).toBe('half');
     expect(sanitizeSettings({ visualizer: true }).visualizer).toBe(false);
-    expect(DEFAULT_SETTINGS.difficultySystem).toBe('GRG');
   });
 
   it('keeps the judgement opacity, the judge counter and the EX-SCORE pacemaker targets (settings saved before them: solid, off)', () => {
@@ -134,23 +132,22 @@ describe('settings', () => {
     expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: 'y' as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
   });
 
-  it('keeps the pattern engine choice and the difficulty basis, dropping unknown ones', () => {
+  it('keeps the pattern engine choice, dropping unknown ones', () => {
     expect(sanitizeSettings({}).generation.patternEngine).toBe('sectioned');
     expect(sanitizeSettings({ generation: { patternEngine: 'classic' } as never }).generation.patternEngine).toBe('classic');
     expect(sanitizeSettings({ generation: { patternEngine: 'random' } as never }).generation.patternEngine).toBe('sectioned');
     // "designer" was the default before the sectioned engine; only a picked one stays
     expect(sanitizeSettings({ generation: { patternEngine: 'designer' } as never }).generation.patternEngine).toBe('sectioned');
     expect(sanitizeSettings({ generation: { patternEngine: 'designer', engineSet: true } as never }).generation.patternEngine).toBe('designer');
-    const ez = sanitizeSettings({ difficultySystem: 'EZ2ON', lastDifficulty: 'NORMAL' });
-    expect([ez.difficultySystem, ez.lastDifficulty]).toEqual(['EZ2ON', 'NM']);
-    expect(sanitizeSettings({ difficultySystem: 'PUMP' as never }).difficultySystem).toBe(DEFAULT_SETTINGS.difficultySystem);
   });
 
-  it('moves to another difficulty system on the same step (NORMAL → NM, MX → SHD)', () => {
-    const s = { ...DEFAULT_SETTINGS, difficultySystem: 'GRG' as const, lastDifficulty: 'NORMAL' };
-    expect(withDifficultySystem(s, 'DJMAX').lastDifficulty).toBe('NM');
-    const mx = { ...DEFAULT_SETTINGS, difficultySystem: 'DJMAX' as const, lastDifficulty: 'MX' };
-    expect(withDifficultySystem(mx, 'EZ2ON')).toMatchObject({ difficultySystem: 'EZ2ON', lastDifficulty: 'SHD' });
+  it('drops the difficulty system of settings saved when there were three, and a tier gone with it or with EASY', () => {
+    expect(difficultyTiers.map((t) => t.id)).toEqual(['NORMAL', 'HARD', 'EXPERT', 'MASTER']);
+    const s = sanitizeSettings({ difficultySystem: 'DJMAX', lastDifficulty: 'MX' } as never);
+    expect(s).not.toHaveProperty('difficultySystem');
+    expect(s.lastDifficulty).toBe('NORMAL');
+    expect(sanitizeSettings({ lastDifficulty: 'EASY' }).lastDifficulty).toBe('NORMAL');
+    expect(sanitizeSettings({ difficultySystem: 'GRG', lastDifficulty: 'EXPERT' } as never).lastDifficulty).toBe('EXPERT');
   });
 
   it('computes the green number from SUDDEN+ and LIFT (not HIDDEN+)', () => {
@@ -258,7 +255,7 @@ describe('settings', () => {
     const song = '0123456789abcdef';
     const kept = {
       favorites: [song],
-      patterns: { [patternKey(song, '4K', 'DJMAX', 'NM')]: 7 },
+      patterns: { [patternKey(song, '4K', 'HARD')]: 7 },
       chartPicks: { [chartPickKey(song, '4K')]: 'c0123456789abcdef0123' },
       songOffsets: { [song]: 12 },
     };
@@ -283,28 +280,32 @@ describe('settings', () => {
 
   it('keeps the pattern of a difficulty of a song and the saved chart of a key mode of a song, of their kinds', () => {
     const song = '0123456789abcdef';
-    const mx = patternKey(song, '7K+1S', 'DJMAX', 'MX');
+    const mx = patternKey(song, '7K+1S', 'MASTER');
     const raw = {
       patterns: {
         [mx]: 42,
-        [patternKey(song, '6K+FX', 'GRG', 'MASTER')]: 2 ** 32 - 1,
-        [patternKey(song, '7K+1S', 'DJMAX', 'HD')]: `c${'d'.repeat(20)}`,
-        [patternKey(song, '7K+1S', 'DJMAX', 'NM')]: 'c-not-a-chart',
-        [patternKey(song, '4K', 'DJMAX', 'NM')]: -1,
-        [patternKey(song, '4K', 'EZ2ON', 'SHD')]: 1.5,
-        [`${song}|9K|DJMAX|MX`]: 1,
-        [`${song}|4K|PUMP|NM`]: 1,
-        'abc|4K|DJMAX|NM': 1,
+        [patternKey(song, '6K+FX', 'MASTER')]: 2 ** 32 - 1,
+        [patternKey(song, '7K+1S', 'HARD')]: `c${'d'.repeat(20)}`,
+        [patternKey(song, '7K+1S', 'NORMAL')]: 'c-not-a-chart',
+        [patternKey(song, '4K', 'NORMAL')]: -1,
+        [patternKey(song, '4K', 'EXPERT')]: 1.5,
+        [`${song}|9K|GRG|MASTER`]: 1,
+        // the DJMAX and EZ2ON difficulty systems were taken out
+        [`${song}|4K|DJMAX|NM`]: 1,
+        [`${song}|4K|EZ2ON|SHD`]: 1,
+        'abc|4K|GRG|NORMAL': 1,
       },
       chartPicks: { [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}`, [chartPickKey(song, '4K')]: 'c123', [`${song}|9K`]: `c${'b'.repeat(20)}` },
     };
     const s = sanitizeSettings(raw as never);
     // a seed (새 패턴) or a chart chosen by its id
-    expect(s.patterns).toEqual({ [mx]: 42, [patternKey(song, '6K+FX', 'GRG', 'MASTER')]: 2 ** 32 - 1, [patternKey(song, '7K+1S', 'DJMAX', 'HD')]: `c${'d'.repeat(20)}` });
+    expect(s.patterns).toEqual({ [mx]: 42, [patternKey(song, '6K+FX', 'MASTER')]: 2 ** 32 - 1, [patternKey(song, '7K+1S', 'HARD')]: `c${'d'.repeat(20)}` });
+    // stored under the key the patterns were kept with before
+    expect(mx).toBe(`${song}|7K+1S|GRG|MASTER`);
     expect(s.chartPicks).toEqual({ [chartPickKey(song, '7K+1S')]: `c${'a'.repeat(20)}` });
     expect(sanitizeSettings({ patterns: [1] as never, chartPicks: 'x' as never })).toMatchObject({ patterns: {}, chartPicks: {} });
     expect(patternOf(s, mx)).toBe(42);
-    expect(patternOf(s, patternKey(song, '4K', 'DJMAX', 'NM'))).toBeNull();
+    expect(patternOf(s, patternKey(song, '4K', 'NORMAL'))).toBeNull();
     // back to the default pattern, and to a difficulty
     expect(patternOf(withPattern(s, mx, null), mx)).toBeNull();
     expect(withPattern(s, mx, 7).patterns[mx]).toBe(7);
@@ -317,7 +318,7 @@ describe('settings', () => {
     const other = 'fedcba9876543210';
     const s = withSongOffset(
       withSongOffset(
-        withChartPick(withPattern(withPattern(DEFAULT_SETTINGS, patternKey(song, '4K', 'DJMAX', 'NM'), `c${'d'.repeat(20)}`), patternKey(other, '4K', 'DJMAX', 'NM'), 5), chartPickKey(song, '7K+1S'), `c${'a'.repeat(20)}`),
+        withChartPick(withPattern(withPattern(DEFAULT_SETTINGS, patternKey(song, '4K', 'NORMAL'), `c${'d'.repeat(20)}`), patternKey(other, '4K', 'NORMAL'), 5), chartPickKey(song, '7K+1S'), `c${'a'.repeat(20)}`),
         song,
         12,
       ),
@@ -325,7 +326,7 @@ describe('settings', () => {
       -3,
     );
     const t = withoutSong(s, song);
-    expect(t.patterns).toEqual({ [patternKey(other, '4K', 'DJMAX', 'NM')]: 5 });
+    expect(t.patterns).toEqual({ [patternKey(other, '4K', 'NORMAL')]: 5 });
     expect(t.chartPicks).toEqual({});
     expect(t.songOffsets).toEqual({ [other]: -3 });
   });

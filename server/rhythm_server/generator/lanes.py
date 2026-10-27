@@ -135,14 +135,13 @@ class _Weights:
         cfg = load_config("instruments")
         mapping = cfg["laneMapping"]
         drums = mapping["drums"]
-        base_hands = load_config("patterns")["hands"]
-        hands = {**base_hands, **base_hands["systems"].get(params.system, {})}
+        hands = load_config("patterns")["hands"]
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
             alternate=W_ALTERNATE * params.weight("alternateWeight") * by_key_mode(hands["alternateScale"], params.key_mode),
-            jack=W_JACK * params.weight("jackWeight") * float(hands["jackScale"]),
-            # a repeat of the same sound keeps its lane: the jack style's bonus, or the system's own
+            jack=W_JACK * params.weight("jackWeight") * by_skill(hands["jackScale"], params.skill),
+            # a repeat of the same sound keeps its lane: the jack style's bonus, or the hands' own
             jack_bonus=max(params.weight("jackBonus", 0.0), by_skill(hands["sameSoundBonus"], params.skill)),
             bonus_ms=float(hands["sameSoundWithinMs"]),
             slow_ms=float(hands["slowRepeatMs"]),
@@ -164,7 +163,7 @@ class _Weights:
             same_hand_pull=by_skill(hands["sameHandPull"], params.skill),
             same_hand_pull_max=int(hands["sameHandPullMax"]),
             jack_streak=float(hands["jackStreak"]) * params.weight("jackWeight"),
-            jack_free=int(hands["jackFree"]),
+            jack_free=int(round(by_skill(hands["jackFree"], params.skill))),
             jack_span=max(float(hands["jackStreakSpan"]) * params.min_jack_ms, float(hands["jackStreakMinMs"])),
             balance_bar=float(hands["balance"]),
             balance_min=float(hands["balanceMinNotes"]),
@@ -459,8 +458,7 @@ def search(
         for l in lanes
     ]
     bpb = tempo.beats_per_bar
-    # a shared middle key can be hit by either thumb, so it may repeat faster (DJMAX 5K "laser")
-    min_gap = [params.thumb_jack_ms if l.hand == "T" and params.thumb_jack_ms else params.min_jack_ms for l in lanes]
+    min_gap = [params.min_jack_ms for l in lanes]
     # A side note is a bar over its hand's keys: around its head that hand keeps the jack spacing
     # (DPC judges mark notes squeezed against side notes). Key lanes watch their hand's side lanes
     # and side lanes their hand's keys.
@@ -471,7 +469,7 @@ def search(
     ctx: MotifContext | None = None
     if plan:
         if "ctx" not in shared:
-            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.system, params.key_mode)
+            shared["ctx"] = motif_context(lanes, params.skill, params.instrument_mapping, params.key_mode)
         ctx = shared["ctx"]
     # lanes a copied slot right after needs: a slot of its own (no reference: a note a later repeat
     # adds) keeps out of them, or the copy would find its lane still inside the jack spacing (a
@@ -526,7 +524,6 @@ def search(
         repeat_set = frozenset(repeat_targets[si]) if repeat_targets[si] else None
         pitch_scale = ctx.pitch_weight.get(sp.motif, 1.0) if ctx and sp else 1.0
         repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
-        laser = sp is not None and sp.motif == "laser"
         sound = sound_of(slot)
         home_sound = home_of(slot)
         bar = int(slot.beat // bpb + 1e-9)
@@ -570,9 +567,9 @@ def search(
                     dropped = want_keys - k
                     break
             # A pattern of repeats repeats a sound: a different sound on the same lane is a forced
-            # jack (the 5K laser alternates thumbs on the middle key, so it is not one).
+            # jack.
             same_sound = state.prev_sound == sound
-            planned_repeat = repeats and (same_sound or laser)
+            planned_repeat = repeats and same_sound
             jack_scale = 0.1 if planned_repeat else 1.0
             if not combos:
                 combos = [()]
@@ -699,7 +696,7 @@ def search(
             streak = [0] * n_lanes
             left, right = state.bar_hands if state.bar == bar else (0.0, 0.0)
             for i in keys_used:
-                # (a shared middle key is hit by either thumb in turn: no jack streak, like the laser)
+                # (a shared middle key is hit by either thumb in turn: no jack streak)
                 streak[i] = 0 if hands[i] == "T" else state.streak[i] + 1 if close else 1
                 left += sides[i][0]
                 right += sides[i][1]
@@ -904,9 +901,6 @@ def _valid_combos(
             if count > limit:
                 ok = False
                 break
-        if ok and params.pad_forbidden:
-            pressed = set(combo)
-            ok = not any(pressed.issuperset(chord) for chord in params.pad_forbidden)
         if ok:
             out.append(combo)
         if len(out) >= MAX_COMBOS * 4:
@@ -969,7 +963,7 @@ def _costs(
 
     The hand rules (patterns.json "hands", after BMS-Generator): a fast single past the same-hand
     run limit (with `hand_rule`), a key in more slots in a row than the jack-streak limit (not for
-    a `planned_repeat`: a jack, laser or 재봉틀 of the same sound), and notes that push a busy bar out
+    a `planned_repeat`: a jack or 재봉틀 of the same sound), and notes that push a busy bar out
     of the hands' share band (with `balance_rule`; `sides` gives each lane's left / right part)."""
     dt = t - state.prev_t
     prev = state.prev_lanes
@@ -1093,7 +1087,7 @@ def _costs(
                 # up to the jack-streak limit: past it a lane pays its streak cost like any other
                 cost -= bonus * sum(1 for i in combo if i in prev and i not in streak_cost and not (planned_repeat and state.streak and state.streak[i] >= 2))
         if not planned_repeat:
-            # (a planned repeat keeps its lane however much it is used: the laser's middle key)
+            # (a planned repeat keeps its lane however much it is used)
             for i in combo:
                 cost += balance[i]
         for i in combo:

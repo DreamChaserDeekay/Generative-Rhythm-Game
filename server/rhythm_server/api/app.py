@@ -28,7 +28,7 @@ from ..analysis.analyzer import ANALYZER_NAME, ANALYZER_VERSION
 from ..analysis.backends import detect as detect_backends, status as backend_status
 from ..analysis.stems import STEM_NAMES, separate
 from ..audio_io import SUPPORTED_EXTENSIONS
-from ..config import CLIENT_DIST, DEFAULT_SYSTEM, data_dir, difficulty_config, difficulty_system, difficulty_systems, load_config
+from ..config import CLIENT_DIST, data_dir, difficulty_config, load_config, max_level
 from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
 from ..formats.images import MAX_IMAGE_BYTES, MEDIA_TYPES, image_kind
@@ -48,15 +48,12 @@ MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 MAX_BGA_BYTES = 1024 * 1024 * 1024
 MAX_IMPORT_BYTES = 4 * 1024**3
 MAX_REPLAY_ENTRIES = 200_000
-# highest level of any difficulty system (EZ2ON goes up to 20); each system clamps to its own
-MAX_TARGET_LEVEL = max(int(difficulty_system(name)["maxLevel"]) for name in difficulty_systems())
+MAX_TARGET_LEVEL = max_level()
 
 
 class ChartRequest(BaseModel):
     keyMode: str
     difficulty: str = "NORMAL"
-    # difficulty system: GRG (five steps), DJMAX or EZ2ON (config/difficulty.json)
-    system: str = DEFAULT_SYSTEM
     targetLevel: int | None = Field(default=None, ge=1, le=MAX_TARGET_LEVEL)
     seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
     newSeed: bool = False
@@ -233,7 +230,6 @@ def create_app(
             "generator": GENERATOR_VERSION,
             "keyModes": keymodes["enabled"],
             "difficulties": difficulty_config()["order"],
-            "difficultySystems": difficulty_systems(),
             "formats": sorted(SUPPORTED_EXTENSIONS),
             "backends": backend_status(),
             "stems": list(STEM_NAMES),
@@ -490,14 +486,14 @@ def create_app(
         if song.get("sections"):
             analysis = edited_analysis(analysis, song["sections"])
         try:
-            params = resolve_params(req.keyMode, req.difficulty, req.targetLevel, req.params, req.system)
+            params = resolve_params(req.keyMode, req.difficulty, req.targetLevel, req.params)
         except (ValueError, StopIteration) as e:
             raise HTTPException(400, str(e)) from e
         seed = req.seed
         if req.newSeed:
             seed = random.SystemRandom().randrange(2**32)
         if seed is None:
-            seed = default_seed(analysis["audioHash"], req.keyMode, params.difficulty, params.target_level, params.system)
+            seed = default_seed(analysis["audioHash"], req.keyMode, params.difficulty, params.target_level)
         chart_id = chart_id_for(analysis, req.keyMode, params, seed)
         cached = library.load_chart(chart_id)
         if cached is not None:
@@ -511,7 +507,7 @@ def create_app(
             meta = {"songId": song_id, "title": song["title"], "artist": song["artist"]}
             try:
                 chart = await run_in_threadpool(
-                    generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta, req.system
+                    generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta
                 )
             except GenerationError as e:
                 raise HTTPException(422, str(e)) from e
@@ -569,8 +565,6 @@ def create_app(
                 extra_meta=extra,
                 sounds=base.get("sounds"),
                 bgm=base.get("bgm"),
-                system=bmeta.get("difficultySystem", DEFAULT_SYSTEM),
-                level_scale=bmeta.get("levelScale"),
             )
         except (FormatError, KeyError, TypeError, ValueError) as e:
             raise HTTPException(422, str(e)) from e

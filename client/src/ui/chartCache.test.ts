@@ -6,8 +6,7 @@ const spec = (extra: Partial<ChartSpec> = {}): ChartSpec => ({
   songId: '0123456789abcdef',
   analysis: '1:null',
   keyMode: '4K',
-  system: 'DJMAX',
-  difficulty: 'NM',
+  difficulty: 'NORMAL',
   targetLevel: null,
   seed: null,
   params: { style: 'balanced' },
@@ -50,7 +49,7 @@ const down = () => new ApiError(503, 'down');
 describe('the song select chart store', () => {
   it('keys a chart by all it is made of', () => {
     expect(chartKey(spec())).toBe(chartKey(spec()));
-    for (const other of [spec({ seed: 3 }), spec({ targetLevel: 9 }), spec({ params: { style: 'jack' } }), spec({ analysis: '2:null' }), spec({ keyMode: '7K+1S' }), spec({ system: 'EZ2ON' })]) {
+    for (const other of [spec({ seed: 3 }), spec({ targetLevel: 9 }), spec({ params: { style: 'jack' } }), spec({ analysis: '2:null' }), spec({ keyMode: '7K+1S' }), spec({ difficulty: 'HARD' })]) {
       expect(chartKey(other)).not.toBe(chartKey(spec()));
     }
     // a new analysis or edited sections make other charts
@@ -62,49 +61,49 @@ describe('the song select chart store', () => {
     const { s, calls } = store();
     const [a, b] = await Promise.all([s.loadChart(spec()), s.loadChart(spec())]);
     expect(a).toBe(b);
-    expect(calls).toEqual(['chart NM']);
-    expect(s.brief(chartKey(spec()))).toMatchObject({ chartId: 'c-NM-d', level: 5, noteCount: 120, seed: 7 });
+    expect(calls).toEqual(['chart NORMAL']);
+    expect(s.brief(chartKey(spec()))).toMatchObject({ chartId: 'c-NORMAL-d', level: 5, noteCount: 120, seed: 7 });
     // kept: no more requests, its brief included
     expect(await s.loadChart(spec())).toBe(a);
     expect(await s.loadBrief(spec())).toMatchObject({ level: 5 });
-    expect(calls).toEqual(['chart NM']);
+    expect(calls).toEqual(['chart NORMAL']);
   });
 
   it('loads a whole chart after its brief on its way: one generation, then the stored chart', async () => {
     const { s, calls } = store();
-    const brief = s.loadBrief(spec({ difficulty: 'HD' }));
-    const chart = s.loadChart(spec({ difficulty: 'HD' }));
+    const brief = s.loadBrief(spec({ difficulty: 'HARD' }));
+    const chart = s.loadChart(spec({ difficulty: 'HARD' }));
     expect(await brief).toMatchObject({ level: 5 });
-    expect((await chart)?.meta.chartId).toBe('c-HD-d');
-    expect(calls).toEqual(['meta HD', 'chart HD']);
+    expect((await chart)?.meta.chartId).toBe('c-HARD-d');
+    expect(calls).toEqual(['meta HARD', 'chart HARD']);
   });
 
   it('tells whoever renders when a chart or a brief comes in, not when it is asked for', async () => {
     const { s } = store();
     const version = s.getVersion();
-    const brief = s.loadBrief(spec({ difficulty: 'HD' }));
+    const brief = s.loadBrief(spec({ difficulty: 'HARD' }));
     expect(s.getVersion()).toBe(version);
     await brief;
     expect(s.getVersion()).toBe(version + 1);
   });
 
   it('a chart the server cannot make is not asked again until asked anew, which hears why', async () => {
-    const fail = new Map([['MX', cannot()]]);
+    const fail = new Map([['MASTER', cannot()]]);
     const { s, calls } = store(fail);
-    expect(await s.loadBrief(spec({ difficulty: 'MX' }))).toBeNull();
-    expect(s.hasFailed(chartKey(spec({ difficulty: 'MX' })))).toBe(true);
-    expect(s.failure(chartKey(spec({ difficulty: 'MX' })))).toBe(422);
-    expect(await s.loadChart(spec({ difficulty: 'MX' }))).toBeNull();
-    expect(await s.loadBrief(spec({ difficulty: 'MX' }))).toBeNull();
-    expect(calls).toEqual(['meta MX']);
-    await expect(s.loadChart(spec({ difficulty: 'MX' }), true)).rejects.toThrow('nope');
-    expect(calls).toEqual(['meta MX', 'chart MX']);
+    expect(await s.loadBrief(spec({ difficulty: 'MASTER' }))).toBeNull();
+    expect(s.hasFailed(chartKey(spec({ difficulty: 'MASTER' })))).toBe(true);
+    expect(s.failure(chartKey(spec({ difficulty: 'MASTER' })))).toBe(422);
+    expect(await s.loadChart(spec({ difficulty: 'MASTER' }))).toBeNull();
+    expect(await s.loadBrief(spec({ difficulty: 'MASTER' }))).toBeNull();
+    expect(calls).toEqual(['meta MASTER']);
+    await expect(s.loadChart(spec({ difficulty: 'MASTER' }), true)).rejects.toThrow('nope');
+    expect(calls).toEqual(['meta MASTER', 'chart MASTER']);
     // asked anew while the song select's own request is under way: it waits, then asks itself
-    const quiet = s.loadChart(spec({ difficulty: 'SC', seed: 1 }));
-    fail.set('SC', cannot());
-    await expect(s.loadChart(spec({ difficulty: 'SC', seed: 1 }), true)).rejects.toThrow('nope');
+    const quiet = s.loadChart(spec({ difficulty: 'EXPERT', seed: 1 }));
+    fail.set('EXPERT', cannot());
+    await expect(s.loadChart(spec({ difficulty: 'EXPERT', seed: 1 }), true)).rejects.toThrow('nope');
     expect(await quiet).toBeNull();
-    expect(calls.filter((c) => c === 'chart SC')).toHaveLength(2);
+    expect(calls.filter((c) => c === 'chart EXPERT')).toHaveLength(2);
     // a chosen chart that is gone says so (the song select goes back to the default pattern)
     fail.set('c' + 'e'.repeat(20), new ApiError(404, 'gone'));
     expect(await s.loadSaved('c' + 'e'.repeat(20))).toBeNull();
@@ -113,22 +112,22 @@ describe('the song select chart store', () => {
 
   it('a chart that found the server or the network down is asked again the next time, and then known', async () => {
     const fail = new Map<string, Error>([
-      ['HD', down()],
-      ['MX', new ApiError(0, 'offline')],
+      ['HARD', down()],
+      ['MASTER', new ApiError(0, 'offline')],
     ]);
     const { s, calls } = store(fail);
-    expect(await s.loadBrief(spec({ difficulty: 'HD' }))).toBeNull();
-    expect(await s.loadChart(spec({ difficulty: 'MX' }))).toBeNull();
-    expect(s.hasFailed(chartKey(spec({ difficulty: 'HD' })))).toBe(true);
+    expect(await s.loadBrief(spec({ difficulty: 'HARD' }))).toBeNull();
+    expect(await s.loadChart(spec({ difficulty: 'MASTER' }))).toBeNull();
+    expect(s.hasFailed(chartKey(spec({ difficulty: 'HARD' })))).toBe(true);
     // the server is back: the next visit asks again, and the failure is forgotten as it does
     fail.clear();
     const version = s.getVersion();
-    const again = s.loadBrief(spec({ difficulty: 'HD' }));
-    expect(s.hasFailed(chartKey(spec({ difficulty: 'HD' })))).toBe(false);
+    const again = s.loadBrief(spec({ difficulty: 'HARD' }));
+    expect(s.hasFailed(chartKey(spec({ difficulty: 'HARD' })))).toBe(false);
     expect(s.getVersion()).toBeGreaterThan(version);
     expect(await again).toMatchObject({ level: 5 });
-    expect(await s.loadChart(spec({ difficulty: 'MX' }))).not.toBeNull();
-    expect(calls).toEqual(['meta HD', 'chart MX', 'meta HD', 'chart MX']);
+    expect(await s.loadChart(spec({ difficulty: 'MASTER' }))).not.toBeNull();
+    expect(calls).toEqual(['meta HARD', 'chart MASTER', 'meta HARD', 'chart MASTER']);
   });
 
   it('keeps the last few whole charts, the one used last the longest', async () => {
@@ -183,13 +182,13 @@ describe('the briefs kept across restarts', () => {
     const first = store();
     first.s.remember('0.9.35');
     await first.s.loadChart(spec());
-    await first.s.loadBrief(spec({ difficulty: 'HD' }));
+    await first.s.loadBrief(spec({ difficulty: 'HARD' }));
 
     const next = store();
     const version = next.s.getVersion();
     next.s.remember('0.9.35');
     expect(next.s.getVersion()).toBeGreaterThan(version);
-    expect(next.s.brief(chartKey(spec({ difficulty: 'HD' })))).toEqual({ chartId: 'c-HD-d', level: 5, noteCount: 120, seed: 7 });
+    expect(next.s.brief(chartKey(spec({ difficulty: 'HARD' })))).toEqual({ chartId: 'c-HARD-d', level: 5, noteCount: 120, seed: 7 });
     expect(await next.s.loadBrief(spec())).toMatchObject({ level: 5 });
     expect(next.calls).toEqual([]);
     // the whole charts are not kept: Enter asks for its own
@@ -205,21 +204,21 @@ describe('the briefs kept across restarts', () => {
     first.s.remember('0.9.35');
     await first.s.loadBrief(spec());
 
-    const next = store(new Map([['MX', cannot()]]));
+    const next = store(new Map([['MASTER', cannot()]]));
     next.s.remember('0.9.36');
     expect(next.s.brief(chartKey(spec()))).toBeNull();
     expect(storedOf(items)).toEqual({ generator: '0.9.36', briefs: [] });
     // the server updated while the game runs: what came from the old one goes too (whole charts and
     // refusals with the briefs), the saved charts stay
     const saved = 'c' + 'a'.repeat(20);
-    await next.s.loadBrief(spec({ difficulty: 'HD' }));
+    await next.s.loadBrief(spec({ difficulty: 'HARD' }));
     await next.s.loadChart(spec());
-    await next.s.loadBrief(spec({ difficulty: 'MX' }));
+    await next.s.loadBrief(spec({ difficulty: 'MASTER' }));
     await next.s.loadSaved(saved);
     next.s.remember('0.9.37');
-    expect(next.s.brief(chartKey(spec({ difficulty: 'HD' })))).toBeNull();
+    expect(next.s.brief(chartKey(spec({ difficulty: 'HARD' })))).toBeNull();
     expect(next.s.chart(chartKey(spec()))).toBeNull();
-    expect(next.s.hasFailed(chartKey(spec({ difficulty: 'MX' })))).toBe(false);
+    expect(next.s.hasFailed(chartKey(spec({ difficulty: 'MASTER' })))).toBe(false);
     expect(next.s.brief(savedChartKey(saved))).toMatchObject({ level: 9 });
     expect(next.s.chart(savedChartKey(saved))).not.toBeNull();
     expect(storedOf(items)?.briefs).toEqual([]);
@@ -274,11 +273,11 @@ describe('the briefs kept across restarts', () => {
     s.remember('g');
     // the oldest one is asked for again (nothing written), then a new one comes in: the next oldest goes
     await s.loadBrief(spec());
-    await s.loadBrief(spec({ difficulty: 'HD' }));
-    expect(calls).toEqual(['meta HD']);
+    await s.loadBrief(spec({ difficulty: 'HARD' }));
+    expect(calls).toEqual(['meta HARD']);
     const kept = storedOf(items)?.briefs.map(([key]) => key) ?? [];
     expect(kept).toHaveLength(BRIEFS_STORED);
     expect(kept).not.toContain('k0');
-    expect(kept.slice(-2)).toEqual([chartKey(spec()), chartKey(spec({ difficulty: 'HD' }))]);
+    expect(kept.slice(-2)).toEqual([chartKey(spec()), chartKey(spec({ difficulty: 'HARD' }))]);
   });
 });

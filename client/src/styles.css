@@ -3764,19 +3764,6 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.system-label {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-.system-label b {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  color: var(--text);
-}
-
 /* the difficulty plates */
 .difficulty-row {
   display: grid;

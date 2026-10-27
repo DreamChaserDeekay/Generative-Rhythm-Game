@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, type BackendStatus } from '../api/client';
-import { cameraConfig, difficultySystemIds, difficultySystems, enabledKeyModes, keyModes } from '../engine/config';
+import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
@@ -31,7 +31,6 @@ import {
   TURNTABLE_RELEASE_MIN,
   TURNTABLE_STEPS_MAX,
   withCovers,
-  withDifficultySystem,
   withPlayKey,
   type DisplayMode,
   type HitEffectSize,
@@ -276,8 +275,6 @@ export function SettingsScreen({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const system = difficultySystems[settings.difficultySystem];
-
   const row = {
     onHelp: (text: string) => {
       setHelp(text);
@@ -303,19 +300,6 @@ export function SettingsScreen({
     case 'play':
       content = (
         <>
-          <Choice
-            {...row}
-            label="난이도 기준"
-            testId="opt-system"
-            value={settings.difficultySystem}
-            options={difficultySystemIds.map((id) => [id, difficultySystems[id].label])}
-            onChange={(id) => onSettingsChange(withDifficultySystem(settings, id))}
-            help={
-              settings.difficultySystem === 'GRG'
-                ? '이 게임의 5단계 (Lv.1–15)로 채보를 만듭니다.'
-                : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel}). 기록도 기준마다 따로 남습니다.`
-            }
-          />
           {(['ruleset', 'gauge', 'fever', 'placement', 'pacemaker'] as const).map((rule) => (
             <RuleRow key={rule} {...row} rule={rule} testId={`opt-${rule}`} settings={settings} onSettingsChange={onSettingsChange} detailed />
           ))}

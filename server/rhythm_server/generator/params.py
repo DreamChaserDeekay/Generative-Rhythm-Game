@@ -5,14 +5,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, level_table_for, load_config
+from ..config import difficulty_config, key_modes, level_table_for, load_config, max_level
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
 RHYTHM_SOURCES = ("auto", "drum", "bass", "melody", "vocal")
 PATTERN_ENGINES = ("sectioned", "designer", "classic")
-SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds (default)
-MAX_CHORD_SHARE = 0.6
-MAX_LONG_NOTE_SHARE = 0.5
+SIDE_HOLD_SHARE = 0.6  # share of side notes that are long holds over sustained sounds
 
 
 @dataclass
@@ -41,30 +39,20 @@ class GenParams:
     rhythm_source: str = "auto"
     instrument_mapping: float = 0.6  # 0 = off, 1 = strong pull of drums/bass toward their lane regions
     repeat_consistency: float = 1.0  # 0 = off, 1 = reuse the first occurrence's lanes in repeated sections
-    system: str = DEFAULT_SYSTEM
-    # effective NPS at levels 1..N of this tier's scale, and what divides a chart's effective NPS
-    # before the lookup (the key mode factor for a 4K table, 1 for a table of this key mode)
+    # effective NPS at levels 1..N, and what divides a chart's effective NPS before the lookup
+    # (the key mode factor of the 4K table)
     level_table: tuple[float, ...] = ()
     level_factor: float = 1.0
     # lowest average NPS of the tier (density floor of the adjustment loop), key mode factor included
     min_avg_nps: float = 0.0
-    side_hold_share: float = SIDE_HOLD_SHARE
-    # stem weights for the automatic rhythm source (which instruments the tier follows)
-    source_mix: dict[str, float] | None = None
-    # "SC" for DJMAX SC charts, whose levels are a scale of their own
-    level_scale: str | None = None
-    # 0..1 position on the five-step scale (GRG levels 1..15) whatever the difficulty system: rules
-    # that grow with difficulty use it instead of tier names
+    # 0..1 position on the level scale (levels 1..15): rules that grow with difficulty use it
+    # instead of tier names
     skill: float = 0.5
-    # chords a pad cannot press (sets of lane indices), for the DJMAX tiers below SC
-    pad_forbidden: tuple[tuple[int, ...], ...] = ()
     # the 1-second peak density shrinks with a note budget under the preset's (config "peakFollowsDensity")
     peak_follows_density: bool = False
     # "sectioned" builds the chart from the song structure down (sections.py), "designer" plans
     # patterns per phrase (planner.py), "classic" places notes one by one
     pattern_engine: str = "sectioned"
-    # shortest repeat on a shared middle key (either thumb can hit it); 0 = min_jack_ms
-    thumb_jack_ms: float = 0.0
     # hits from which an anchor (one lane every other note of a fast run) costs; 0 = no limit
     anchor_cap: int = 0
     # how fast chord sizes fall off from two notes (smaller = more three- and four-note chords)
@@ -73,10 +61,8 @@ class GenParams:
 
     def public(self) -> dict[str, Any]:
         """The user-facing subset stored in chart meta (and hashed into the chart id)."""
-        system = {} if self.system == DEFAULT_SYSTEM else {"system": self.system}
         engine = {} if self.pattern_engine == "sectioned" else {"patternEngine": self.pattern_engine}
         return {
-            **system,
             **engine,
             "difficulty": self.difficulty,
             "targetLevel": self.target_level,
@@ -107,41 +93,15 @@ class GenParams:
         return asdict(self)
 
 
-def resolve_tier(system: dict[str, Any], difficulty: str) -> str:
-    """A tier id of the system from its id, an alias (the five GRG names) or its label."""
-    tiers = system["tiers"]
-    if difficulty in tiers:
-        return difficulty
-    alias = system["aliases"].get(difficulty.upper())
-    if alias in tiers:
-        return alias
-    for tier_id, tier in tiers.items():
-        if str(tier.get("label", "")).upper() == difficulty.upper():
-            return tier_id
-    raise ValueError(f"unknown difficulty: {difficulty}")
-
-
 def skill_for_rating(rating: float) -> float:
-    """A five-step rating (GRG levels 1..15) as a 0..1 skill value."""
+    """A rating on the level scale (levels 1..15) as a 0..1 skill value."""
     return max(0.0, min(1.0, (rating - 1.0) / 14.0))
 
 
-def chart_skill(tier: dict[str, Any], levels: tuple[int, int]) -> float:
-    """Skill value of the level a tier aims at (the middle of its range). Level numbers mean about
-    the same on every system and key mode (DJMAX and EZ2ON have nearly the same density per level
-    up to 15, and GRG levels were made on the same scale); a tier with a scale of its own maps onto
-    it with "levelEquivalent" [offset, slope] (DJMAX SC: SC 2 / 4 / 6 / 8 = levels 12 / 13 / 14 / 15)."""
+def chart_skill(levels: tuple[int, int]) -> float:
+    """Skill value of the level a tier aims at (the middle of its range)."""
     lo, hi = levels
-    rating = (lo + hi) / 2 + 0.5
-    if "levelEquivalent" in tier:
-        offset, slope = tier["levelEquivalent"]
-        rating = float(offset) + float(slope) * rating
-    return skill_for_rating(rating)
-
-
-def pad_forbidden_lanes(system: dict[str, Any], key_mode: str) -> tuple[tuple[int, ...], ...]:
-    ids = [lane["id"] for lane in key_modes()[key_mode]["lanes"]]
-    return tuple(tuple(sorted(ids.index(x) for x in chord)) for chord in system["padForbiddenChords"].get(key_mode, []))
+    return skill_for_rating((lo + hi) / 2 + 0.5)
 
 
 def _at(value: Any, frac: float) -> float:
@@ -156,29 +116,25 @@ def resolve_params(
     difficulty: str,
     target_level: int | None = None,
     overrides: dict[str, Any] | None = None,
-    system: str | None = None,
 ) -> GenParams:
     cfg = difficulty_config()
     if key_mode not in key_modes():
         raise ValueError(f"unknown key mode: {key_mode}")
-    sys_cfg = difficulty_system(system)
-    tiers = sys_cfg["tiers"]
-    difficulty = resolve_tier(sys_cfg, difficulty)
+    tiers = cfg["presets"]
+    if difficulty not in tiers:
+        raise ValueError(f"unknown difficulty: {difficulty}")
     if target_level is not None:
-        target_level = max(1, min(int(sys_cfg["maxLevel"]), int(target_level)))
+        # levels under the easiest tier's range are not made
+        target_level = max(int(tiers[cfg["order"][0]]["levels"][0]), min(max_level(), int(target_level)))
         lo, hi = tiers[difficulty]["levels"]
-        own_scale = "levelEffectiveNps" in tiers[difficulty]
-        if not own_scale and not lo <= target_level <= hi:
-            # another tier on the system's level scale covers that level
-            covering = [
-                d for d in sys_cfg["order"] if "levelEffectiveNps" not in tiers[d] and tiers[d]["levels"][0] <= target_level <= tiers[d]["levels"][1]
-            ]
+        if not lo <= target_level <= hi:
+            # another tier covers that level
+            covering = [d for d in cfg["order"] if tiers[d]["levels"][0] <= target_level <= tiers[d]["levels"][1]]
             if covering:
                 difficulty = covering[0]
     p = tiers[difficulty]
     lo, hi = p["levels"]
-    factor = float(sys_cfg["keyModeNpsFactor"].get(key_mode, 1.0))
-    table, level_factor = level_table_for(sys_cfg, difficulty, key_mode)
+    table, factor = level_table_for(key_mode)
     # Position of the target inside the preset's level range picks the starting density and the
     # tier's level-dependent character (chords, long notes, side notes).
     frac = 0.5 if target_level is None else min(1.0, max(0.0, (target_level - lo) / max(1, hi - lo)))
@@ -204,21 +160,12 @@ def resolve_params(
         scratch_rate=_at(p["scratchRate"], frac),
         side_rate=_at(p.get("sideRate", 0.0), frac),
         high_band_weight=float(p["highBandWeight"]),
-        system=sys_cfg["id"],
         level_table=tuple(table),
-        level_factor=level_factor,
+        level_factor=factor,
         min_avg_nps=float(p["avgNps"][0]) * factor,
-        side_hold_share=float(p.get("sideHoldShare", SIDE_HOLD_SHARE)),
-        source_mix={k: float(v) for k, v in p["sourceMix"].items()} if "sourceMix" in p else None,
-        level_scale=p.get("levelScale"),
-        skill=chart_skill(p, levels),
-        pad_forbidden=pad_forbidden_lanes(sys_cfg, key_mode) if p.get("padPlayable") else (),
-        peak_follows_density=sys_cfg["id"] in cfg.get("peakFollowsDensity", {}).get("systems", []),
+        skill=chart_skill(levels),
+        peak_follows_density="peakFollowsDensity" in cfg,
     )
-    # the game's habits per key mode (e.g. DJMAX 8B holds fewer long notes than 6B at the same level)
-    tendency = sys_cfg.get("keyModeTendency", {}).get(key_mode, {})
-    params.chord_ratio = min(MAX_CHORD_SHARE, params.chord_ratio * float(tendency.get("chordRatio", 1.0)))
-    params.long_note_ratio = min(MAX_LONG_NOTE_SHARE, params.long_note_ratio * float(tendency.get("longNoteRatio", 1.0)))
     overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
     style = overrides.get("style")
     if style in STYLES:
@@ -254,20 +201,8 @@ def resolve_params(
         elif key == "patternEngine" and value in PATTERN_ENGINES:
             params.pattern_engine = value
     if params.pattern_engine != "classic":
-        for idiom in load_config("patterns")["idioms"]:
-            if "chordSizePower" in idiom and idiom.get("keyMode") == key_mode and idiom.get("system", params.system) == params.system:
-                params.chord_size_power = float(idiom["chordSizePower"])
-    laser = load_config("patterns")["motifs"]["laser"]
-    if (
-        params.pattern_engine != "classic"
-        and params.key_mode in laser.get("keyModes", [])
-        and params.system in laser.get("systems", [])
-        and params.skill >= float(laser["minSkill"])
-    ):
-        params.thumb_jack_ms = min(params.min_jack_ms, float(load_config("patterns")["laser"]["thumbJackMs"]))
-    if params.pattern_engine != "classic":
         anchors = load_config("patterns")["anchors"]
-        caps = sorted((float(skill), int(hits)) for skill, hits in anchors.get("bySystem", {}).get(params.system, anchors["caps"]))
+        caps = sorted((float(skill), int(hits)) for skill, hits in anchors["caps"])
         params.anchor_cap = next((hits for skill, hits in reversed(caps) if params.skill >= skill), 0)
     return params
 

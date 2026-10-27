@@ -7,7 +7,7 @@ import type { KeyPairNames } from './visualSync';
 export interface HudInfo {
   title: string;
   keyMode: string;
-  /** Difficulty chip: "DJMAX MX" on the tier colour and the level ("Lv.12", "SC 8"; empty when none). */
+  /** Difficulty chip: the tier on its colour and the level ("Lv.12"; empty when none). */
   difficulty: { label: string; level: string; color: string };
   /** How the play runs (data-mode on the HUD). */
   mode: 'play' | 'auto' | 'replay' | 'practice';

@@ -143,8 +143,8 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
   await expect(help).toContainText('HARD JUDGEMENT');
   // 플레이 and 판정·싱크 both start on a row of the same kind: the help is the new row's, not empty
   await page.keyboard.press('KeyQ');
-  await expect(page.getByTestId('opt-system')).toBeFocused();
-  await expect(help).toContainText('Lv.1');
+  await expect(page.getByTestId('opt-ruleset')).toBeFocused();
+  await expect(help).toContainText('점수를 세는 방식');
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-judgement')).toBeFocused();
   await expect(help).toContainText('HARD JUDGEMENT');
