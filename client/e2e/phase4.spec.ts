@@ -157,7 +157,7 @@ test('chart editor: place, remove and save notes, then test-play from the cursor
   expect(errors).toEqual([]);
 });
 
-test('the chart editor zooms its timeline with Ctrl+wheel, not the page, and keeps unsaved edits from a reload', async ({ page }) => {
+test('the chart editor zooms its timeline with Ctrl+wheel, not the page, and keeps unsaved edits from a reload and a single Esc', async ({ page }) => {
   const errors = trackErrors(page);
   await addDemoAndPreview(page);
   await page.getByTestId('edit-chart').click();
@@ -215,6 +215,26 @@ test('the chart editor zooms its timeline with Ctrl+wheel, not the page, and kee
   await expect(page.getByTestId('editor-toast')).toContainText('저장하지 않은 편집이 있습니다');
   expect(await unloadAsks()).toBe(true);
   await expect(page.getByTestId('editor-screen')).toBeVisible();
+
+  // leaving over them takes a second press (Esc, a pad's B, or 나가기), which the toast asks for
+  const exit = page.getByTestId('editor-exit');
+  // held: the key's repeats (repeat=true from the second down) are not the second press
+  await page.keyboard.down('Escape');
+  await page.keyboard.down('Escape');
+  await page.keyboard.down('Escape');
+  await page.keyboard.up('Escape');
+  await expect(page.getByTestId('editor-toast')).toContainText('한 번 더 누르면 저장하지 않고 나갑니다');
+  await expect(exit).toContainText('한 번 더 누르면 나가기');
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  // armed for 3 s only
+  await expect(exit).not.toContainText('한 번 더', { timeout: 5_000 });
+  await expect(exit).toContainText('나가기');
+  await exit.click();
+  await expect(exit).toContainText('한 번 더 누르면 나가기');
+  await expect(page.getByTestId('editor-screen')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('editor-screen')).toHaveCount(0);
+  await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

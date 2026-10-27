@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-/** How long a first press waits for the second (모두 초기화, deleting a preset, a song or a chart). */
+/** How long a first press waits for the second (모두 초기화, deleting a preset, a song or a chart, leaving the editor unsaved). */
 export const TWO_PRESS_MS = 3000;
 
 /**
