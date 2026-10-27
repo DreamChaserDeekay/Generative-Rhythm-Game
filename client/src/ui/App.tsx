@@ -118,7 +118,8 @@ export function App() {
   useEffect(() => setPadMenuKeys(menuKeys), [menuKeys]);
 
   // a gamepad works the menus (not during play, where its controls are lanes); the song select
-  // also opens its panels and the settings with X, LT and RT, and the result plays again with X
+  // also opens its panels and the settings with X, LT and RT and plays on autoplay with RS, and
+  // the result plays again with X
   const menuPad = screen.name !== 'play' && screen.name !== 'calibration';
   const padKeys = screen.name === 'select' ? SELECT_PAD_KEYS : screen.name === 'result' ? RESULT_PAD_KEYS : SHOULDER_KEYS;
   useEffect(() => {

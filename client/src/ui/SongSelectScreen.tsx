@@ -507,7 +507,8 @@ export function SongSelectScreen(props: Props) {
 
   // one play per press: a held Enter or a second press while the chart is generated starts nothing more
   const starting = useRef(false);
-  const play = async () => {
+  /** Plays the chart chosen; `auto` plays this one on autoplay (오토 플레이, Shift+Enter) whatever the play options' switch says. */
+  const play = async ({ auto = autoPlay }: { auto?: boolean } = {}) => {
     if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
     starting.current = true;
     try {
@@ -516,7 +517,7 @@ export function SongSelectScreen(props: Props) {
       const best = recordOf(selected, c.meta.chartId);
       onPlay(
         buildPlayRequest(selected, c, settings, {
-          autoPlay,
+          autoPlay: auto,
           best: best ? { score: best.score, rate: best.rate, scoreId: best.bestScoreId, hasReplay: best.hasReplay } : null,
           practice: practice ?? undefined,
         }),
@@ -810,12 +811,12 @@ export function SongSelectScreen(props: Props) {
   };
 
   // Keyboard: ↑↓ song (PageUp / PageDown a page, Home / End the ends), ←→ difficulty (and the
-  // saved charts after it), Enter plays, Tab (Shift+Tab back) key mode, Shift alone or F6 the
-  // folder, F2 a random song, F3 a favourite, Space the play options, I the song info, / or Ctrl+F
-  // the search, + the add menu, F4 the order, F5 a new pattern (Shift+F5 the default one), F10 the
-  // settings, Esc closes what is open. A panel takes the arrows, Home /
-  // End and Enter while it is open (panelKey), and the song under it stays (F2 waits). A text
-  // field, a slider or a drop-down keeps the keys it uses itself.
+  // saved charts after it), Enter plays (Shift+Enter on autoplay: a pad's RS), Tab (Shift+Tab
+  // back) key mode, Shift alone or F6 the folder, F2 a random song, F3 a favourite, Space the play
+  // options, I the song info, / or Ctrl+F the search, + the add menu, F4 the order, F5 a new
+  // pattern (Shift+F5 the default one), F10 the settings, Esc closes what is open. A panel takes
+  // the arrows, Home / End and Enter while it is open (panelKey), and the song under it stays (F2
+  // waits). A text field, a slider or a drop-down keeps the keys it uses itself.
   const shiftAlone = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -862,6 +863,12 @@ export function SongSelectScreen(props: Props) {
       if (e.code === 'Escape') {
         if (addMenu) closeAddMenu(true);
         else if (panel !== 'none') closePanel();
+        return;
+      }
+      if (e.code === 'Enter' && e.shiftKey && !keepsKey(e.target, e.code)) {
+        // Shift+Enter (a pad's RS) is the autoplay wherever the focus is: it presses no focused button or menu item
+        e.preventDefault();
+        if (!e.repeat && !addMenu) void play({ auto: true });
         return;
       }
       if (addMenu) {
@@ -1112,6 +1119,8 @@ export function SongSelectScreen(props: Props) {
   // panel's, or an empty library's), or plays (nothing to play without a song in sight)
   const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
   const endHints: KeyHint[] = enterLabel ? [{ keys: ['Enter'], pad: ['A'], label: enterLabel, testId: 'hint-enter' }] : [];
+  // beside it the play on autoplay (with the play options' switch on, Enter is one already)
+  if (enterLabel === '플레이' && !autoPlay) endHints.unshift({ keys: ['Shift+Enter'], pad: ['RS'], label: '오토 플레이', testId: 'hint-autoplay', minor: true });
   if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : closePanel()) });
 
   return (
@@ -1375,6 +1384,8 @@ export function SongSelectScreen(props: Props) {
                 onFavorite={() => toggleFavorite(selected.id)}
                 onInfo={() => setPanel('info')}
                 onReanalyze={() => void reanalyze()}
+                onAutoplay={ready && !autoPlay ? () => void play({ auto: true }) : null}
+                autoplayDisabled={busy !== null || entryLoading}
               />
             ) : firstRun ? (
               <section className="detail-empty first-run" data-testid="first-run" ref={startPanel} aria-label="시작하기">
@@ -1740,8 +1751,29 @@ const SongRow = memo(function SongRow(props: SongRowProps) {
   );
 }, sameRow);
 
-/** The selected song: its picture, name, tempo, length and metre (and, when its analysis failed, a new try). */
-function SongHero({ song, favorite, onFavorite, onInfo, onReanalyze }: { song: Song; favorite: boolean; onFavorite: () => void; onInfo: () => void; onReanalyze: () => void }) {
+/**
+ * The selected song: its picture, name, tempo, length and metre (and, when its analysis failed, a
+ * new try). One of its buttons plays the chart on autoplay (`onAutoplay`; null before the song is
+ * ready, or while the play options' switch makes Enter one already): up here rather than beside
+ * the play button, so the play row keeps one line and a 900 px window the room for the summary.
+ */
+function SongHero({
+  song,
+  favorite,
+  onFavorite,
+  onInfo,
+  onReanalyze,
+  onAutoplay,
+  autoplayDisabled,
+}: {
+  song: Song;
+  favorite: boolean;
+  onFavorite: () => void;
+  onInfo: () => void;
+  onReanalyze: () => void;
+  onAutoplay: (() => void) | null;
+  autoplayDisabled: boolean;
+}) {
   const sketch = useSketch(song);
   return (
     <section className="hero">
@@ -1771,6 +1803,11 @@ function SongHero({ song, favorite, onFavorite, onInfo, onReanalyze }: { song: S
             {song.status === 'error' && (
               <button className="small" data-testid="reanalyze-failed" onClick={onReanalyze}>
                 다시 분석
+              </button>
+            )}
+            {onAutoplay && (
+              <button className="quiet small autoplay" data-testid="autoplay-button" disabled={autoplayDisabled} onClick={onAutoplay} title="이번 판만 노트를 자동으로 칩니다(Shift+Enter). 기록은 남지 않습니다">
+                오토 플레이 <kbd>Shift+Enter</kbd>
               </button>
             )}
             <button className={`quiet small fav-toggle ${favorite ? 'on' : ''}`} aria-pressed={favorite} data-testid="favorite-toggle" onClick={onFavorite}>

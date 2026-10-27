@@ -267,6 +267,41 @@ test('the song info of a song that plays: I then Enter plays it, and never press
   expect(errors).toEqual([]);
 });
 
+test('오토 플레이 from the song select: Shift+Enter or its button plays this once on autoplay, the play options\' switch left off', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await readyDemo(page, 139);
+  await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.reload();
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 139' }).click();
+  const auto = page.getByTestId('autoplay-button');
+  await expect(auto).toContainText('Shift+Enter');
+  await expect(auto).toBeEnabled();
+  await expect(page.getByTestId('hint-autoplay')).toContainText('오토 플레이');
+  await expect(page.getByTestId('play-button')).toHaveText(/^플레이/);
+
+  // Shift+Enter: this play on autoplay
+  await page.keyboard.press('Shift+Enter');
+  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.hud-chip').first()).toHaveText('AUTO', { timeout: 30_000 });
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-title')).toHaveText('Demo Groove 139');
+  // the switch was not turned on: Enter still plays by hand
+  await playOptions(page, 'rules');
+  await expect(page.getByTestId('autoplay-toggle')).not.toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('play-options')).toHaveCount(0);
+
+  // the button does the same
+  await auto.click();
+  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.hud-chip').first()).toHaveText('AUTO', { timeout: 30_000 });
+  expect(errors).toEqual([]);
+});
+
 test('a search or a folder that leaves the song out puts the cursor on what it shows, with nothing shown nothing plays; / and Ctrl+F go to the search', async ({ page }) => {
   const errors = trackErrors(page);
   const songs = fakeSongs(12, 'ready');

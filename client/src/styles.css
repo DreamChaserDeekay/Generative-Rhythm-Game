@@ -3628,6 +3628,7 @@ button.chip.active b {
 
 .hero-text {
   min-width: 0;
+  container: hero-text / inline-size;
 }
 
 .hero-text h2 {
@@ -3685,9 +3686,19 @@ button.chip.active b {
 }
 
 .hero-facts .hero-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-self: center;
   margin-left: auto;
   gap: var(--sp-1);
+}
+
+/* a narrow column: 오토 플레이 without its key (in its title), so the buttons keep one line and the
+   song's place no taller than its picture */
+@container hero-text (max-width: 400px) {
+  .hero-actions .autoplay kbd {
+    display: none;
+  }
 }
 
 .fav-toggle.on {

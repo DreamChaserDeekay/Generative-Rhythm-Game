@@ -297,8 +297,11 @@ export function padMenuKey(e: Pick<PadEvent, 'code' | 'standard'>): string | nul
  */
 export const SHOULDER_KEYS: Readonly<Record<string, string>> = { 'Pad:B4': 'PageUp', 'Pad:B5': 'PageDown' };
 
-/** On the song select also X, LT and RT: the play options (Space), the song info (I) and the settings (F10). */
-export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10' };
+/**
+ * On the song select also X, LT, RT and RS (the right stick pressed): the play options (Space),
+ * the song info (I), the settings (F10) and a play on autoplay (Shift+Enter).
+ */
+export const SELECT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'Space', 'Pad:B6': 'KeyI', 'Pad:B7': 'F10', 'Pad:B11': 'Shift+Enter' };
 
 /** On the result also X: 다시 하기 on the same placement (R). */
 export const RESULT_PAD_KEYS: Readonly<Record<string, string>> = { ...SHOULDER_KEYS, 'Pad:B2': 'KeyR' };
@@ -441,12 +444,14 @@ export class GamepadMenuBridge {
  * Sends a menu key for the pad control `from` to the focused element. The page is marked as
  * driven by a pad ('pad': a standard one, whose buttons the key hints can name) or by a
  * controller of its own layout ('controller': its menu buttons send the keyboard's keys, so the
- * hints stay the keyboard's).
+ * hints stay the keyboard's). A key named with "Shift+" is sent with Shift held.
  */
-function dispatchKey(code: string, down: boolean, repeat: boolean, standard: boolean, from: string): void {
+function dispatchKey(key: string, down: boolean, repeat: boolean, standard: boolean, from: string): void {
   document.documentElement.dataset.input = standard ? 'pad' : 'controller';
   const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-  const event = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, repeat, bubbles: true, cancelable: true });
+  const shiftKey = key.startsWith('Shift+');
+  const code = shiftKey ? key.slice('Shift+'.length) : key;
+  const event = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, shiftKey, repeat, bubbles: true, cancelable: true });
   sentFrom.set(event, from);
   const unhandled = target.dispatchEvent(event);
   if (!unhandled || !down) return;

@@ -57,7 +57,7 @@ async function plugPad(page: Page, mapping = 'standard') {
   return Object.assign(press, { set, axis });
 }
 
-const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const PAD = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, START: 9, RS: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
 
 test('a pad works the settings: the d-pad moves the focus, ←→ change a row, A flips one, LB/RB change the tab; binding B stays in the settings', async ({ page }) => {
@@ -269,6 +269,34 @@ test('a pad works the song select: LB / RB a page, X the play options on their f
   await expect(page.getByTestId('song-info')).toHaveCount(0);
   await press(PAD.RT);
   await expect(page.getByTestId('settings-screen')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a pad's RS plays the song on autoplay from the song select, as its hint says, with a button of the song info focused too", async ({ page }) => {
+  const errors = trackErrors(page);
+  const press = await plugPad(page);
+  await page.goto('/');
+  const demo = async () => ((await (await page.request.get('/api/songs')).json()).songs as { title: string; status: string }[]).find((s) => s.title === 'Demo Groove 127');
+  if (!(await demo())) expect((await page.request.post('/api/songs/demo', { data: { bpm: 127, bars: 8, seed: 3 } })).ok()).toBe(true);
+  await expect.poll(async () => (await demo())?.status, { timeout: 60_000 }).toBe('ready');
+  await page.reload();
+  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 127' }).first().click();
+  // a press of the pad (the song info, closed again) turns the hints to its buttons
+  await press(PAD.LT);
+  await expect(page.getByTestId('song-info')).toBeVisible();
+  await press(PAD.B);
+  await expect(page.getByTestId('song-info')).toHaveCount(0);
+  await expect(page.getByTestId('hint-autoplay').locator('kbd')).toHaveText('RS');
+  await expect(page.getByTestId('hint-autoplay')).toContainText('오토 플레이');
+  // a button of the song info under the focus is not pressed by it (A presses that)
+  await press(PAD.LT);
+  const remove = page.getByTestId('remove-song');
+  await remove.focus();
+  await remove.evaluate((b) => b.addEventListener('click', () => ((window as unknown as { __pressed?: boolean }).__pressed = true)));
+  await press(PAD.RS);
+  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.hud-chip').first()).toHaveText('AUTO', { timeout: 30_000 });
+  expect(await page.evaluate(() => (window as unknown as { __pressed?: boolean }).__pressed)).toBeUndefined();
   expect(errors).toEqual([]);
 });
 
