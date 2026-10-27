@@ -2926,7 +2926,7 @@ button.opt:active:not(:disabled) {
   align-self: flex-start;
 }
 
-/* the beat ring and the big numbers */
+/* the beat ring (a count only, no beat number) and the big numbers */
 .calib-stage {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2943,14 +2943,6 @@ button.opt:active:not(:disabled) {
   height: 176px;
   border: 6px solid var(--raised-hover);
   border-radius: 50%;
-}
-
-.beat-ring b {
-  min-height: 1em;
-  font-family: var(--font-display);
-  font-size: var(--fs-hero);
-  font-weight: 700;
-  line-height: 1;
 }
 
 .beat-ring span {

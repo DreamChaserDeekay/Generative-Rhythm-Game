@@ -445,12 +445,13 @@ test('settings and calibration', async ({ page }) => {
   await page.goto('/');
   await tool(page, 'open-calibration');
   await expect(page.getByTestId('calibration-screen')).toBeVisible();
-  // a player tapping a little after each click (as people do), from the beat count
+  // a player tapping a little after each click (as people do), from the beat count: data-beat
+  // changes half a beat (250 ms at the screen's 120 BPM) after a click, so the tap goes on the next one
   await page.evaluate(() => {
     const ring = document.querySelector('.beat-ring') as HTMLElement;
     new MutationObserver(() => {
       if (Number(ring.dataset.beat) < 0) return;
-      setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 4 + Math.random() * 18);
+      setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' })), 250 + 4 + Math.random() * 18);
     }).observe(ring, { attributes: true, attributeFilter: ['data-beat'] });
   });
   await page.getByRole('button', { name: '시작' }).click();

@@ -10,6 +10,7 @@ import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
 import { laneColorsOf, visibleTimeMs, type Settings } from '../settings/settings';
+import { countedBeat } from './inputSync';
 import { offsetText } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { clickChords, offsetStep } from './visualSync';
@@ -35,6 +36,12 @@ const WARMUP_BEATS = 4;
 const MAX_ERROR_MS = 250;
 /** Taps that count before an offset can be applied. */
 const MIN_TAPS = 8;
+/**
+ * Taps spread wider than this (their standard deviation) are a run worth doing again: NORMAL's
+ * MAX 100% window whatever judgement is played, as how even a run is has nothing to do with it
+ * (HARD's or MAX's window would call almost every run scattered).
+ */
+const SCATTERED_MS = new JudgementTable(judgementConfig, 'NORMAL').topGrade.windowMs;
 /** Ticks on the rail (ms either side of the beat). */
 const RAIL_TICKS = [-200, -100, 0, 100, 200];
 /** The display step's metronome: played over and over, the notes coming down again each time. */
@@ -132,14 +139,16 @@ interface StepProps {
 type InputButton = 'start' | 'apply' | 'next' | 'back';
 
 /**
- * 판정 오프셋 측정: the metronome's taps by ear. The ring counts the beats without lighting up on
- * them (a light to tap on would put the screen's lag into the judgement offset). A run's end puts
- * the focus on 적용 (or 시작 when there is nothing to apply); 적용 then hands it to the next step.
+ * 판정 오프셋 측정: the metronome's taps by ear. The ring shows no beat number and counts each beat
+ * half a beat late (anything changing on the beat is something to tap to by eye, and the screen's
+ * lag would go into the judgement offset). A run's end puts the focus on 적용, or on 다시 재기 when
+ * there is nothing to apply or the taps spread wider than the top judgement's window (applying is
+ * still allowed); 적용 then hands it to the next step.
  */
 function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNext }: StepProps & { onMeasuring: (running: boolean) => void; onNext: () => void }) {
   const [running, setRunning] = useState(false);
   const [errors, setErrors] = useState<number[]>([]);
-  /** The last beat passed (-1 before the first). */
+  /** The last beat counted, half a beat after it sounded (-1 before the first). */
   const [beat, setBeat] = useState(-1);
   const [focused, setFocused] = useState<InputButton | null>(null);
   const rafRef = useRef(0);
@@ -154,12 +163,18 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
 
   useEffect(() => onMeasuring(running), [running, onMeasuring]);
 
-  // a run's end (and the step's start) puts the focus on 적용, or on 시작 when there is nothing to apply
+  const s = stats(errors);
+  const topGrade = new JudgementTable(judgementConfig, settings.judgementMode).topGrade;
+  /** The taps spread wider than SCATTERED_MS: a run again would measure better. */
+  const scattered = s.std !== null && s.std > SCATTERED_MS;
+
+  // a run's end (and the step's start) puts the focus on 적용, or on 시작 (다시 재기) when there is
+  // nothing to apply or the taps were scattered
   useEffect(() => {
     if (running) return;
-    const target = applyButton.current && !applyButton.current.disabled ? applyButton.current : startButton.current;
+    const target = applyButton.current && !applyButton.current.disabled && !scattered ? applyButton.current : startButton.current;
     target?.focus();
-  }, [running]);
+  }, [running, scattered]);
 
   useEffect(() => {
     if (!running) return;
@@ -191,9 +206,7 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
     const tick = (now: number) => {
       engine.clock.sample();
       const t = engine.songTimeAtPerf(now);
-      let idx = -1;
-      for (let i = 0; i < BEATS.length; i++) if (t >= BEATS[i]) idx = i;
-      setBeat(idx);
+      setBeat(countedBeat(BEATS, t));
       if (t > BEATS[BEATS.length - 1] + 800) setRunning(false);
       else rafRef.current = requestAnimationFrame(tick);
     };
@@ -218,7 +231,6 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
     setRunning(true);
   };
 
-  const s = stats(errors);
   const suggestion = s.mean !== null ? Math.round(s.mean) : null;
   const canApply = suggestion !== null && s.count >= MIN_TAPS;
   const applied = canApply && suggestion === settings.inputOffsetMs;
@@ -228,7 +240,6 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
     // the next step is the display offset's
     nextButton.current?.focus();
   };
-  const topGrade = new JudgementTable(judgementConfig, settings.judgementMode).topGrade;
   const startLabel = running ? '측정 중…' : errors.length > 0 ? '다시 재기' : '시작';
   const applyLabel = suggestion === null ? '적용' : `${suggestion}ms로 적용`;
   const enterLabels: Record<InputButton, string> = { start: startLabel, apply: applyLabel, next: '다음 단계', back: '돌아가기' };
@@ -246,14 +257,7 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
         <p className="calib-intro">메트로놈 소리에 맞춰 아무 키나 누르세요. 화면 말고 소리를 듣고 치세요. 처음 {WARMUP_BEATS}박은 연습으로 제외합니다.</p>
         <section className="calib-stage">
           <div className="beat-ring" data-beat={running ? beat : -1} aria-hidden="true">
-            {running && beat >= 0 ? (
-              <>
-                <b>{(beat % 4) + 1}</b>
-                <span>{beat < WARMUP_BEATS ? '연습' : `${beat + 1 - WARMUP_BEATS} / ${BEATS.length - WARMUP_BEATS}`}</span>
-              </>
-            ) : (
-              <span>{running ? '준비' : '대기'}</span>
-            )}
+            <span>{!running ? '대기' : beat < 0 ? '준비' : beat < WARMUP_BEATS ? '연습' : `${beat + 1 - WARMUP_BEATS} / ${BEATS.length - WARMUP_BEATS}`}</span>
           </div>
           <dl className="calib-numbers">
             <div className="calib-mean">
@@ -262,7 +266,9 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
             </div>
             <div>
               <dt>표준편차</dt>
-              <dd>{s.std === null ? '-' : `${s.std.toFixed(1)}ms`}</dd>
+              <dd data-testid="calib-std" className={scattered ? 'g-low' : undefined}>
+                {s.std === null ? '-' : `${s.std.toFixed(1)}ms`}
+              </dd>
             </div>
             <div>
               <dt>입력 수</dt>
@@ -281,6 +287,11 @@ function InputStep({ settings, onSettingsChange, onBack, tabs, onMeasuring, onNe
           )}
           {applied && ' · 측정값과 같습니다'}
         </p>
+        {!running && scattered && (
+          <p className="calib-offset g-low" data-testid="calib-scattered">
+            입력이 많이 흩어졌습니다. 다시 재면 더 정확합니다
+          </p>
+        )}
         <div className="row buttons">
           <button ref={startButton} className="primary" data-testid="calib-start" onClick={start} disabled={running} onFocus={() => setFocused('start')}>
             {startLabel}
