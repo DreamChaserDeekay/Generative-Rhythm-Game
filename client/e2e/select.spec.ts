@@ -1024,15 +1024,130 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
   await expect(plate).toContainText('고른 패턴');
   await expect(plate).not.toContainText('목표');
 
-  // taken out of the library: its patterns, its chart chosen and its offset go, the other song's stay
-  page.on('dialog', (d) => void d.accept());
+  // taken out of the library (a second press of its button, no dialog): its patterns, its chart
+  // chosen and its offset go, the other song's stay
+  page.on('dialog', (d) => {
+    errors.push(`unexpected dialog: ${d.message()}`);
+    void d.dismiss();
+  });
   await songInfo(page);
-  await page.getByRole('button', { name: '라이브러리에서 삭제' }).click();
+  const remove = page.getByTestId('remove-song');
+  await expect(remove).toHaveText('라이브러리에서 삭제');
+  await remove.click();
+  await expect(remove).toHaveText('한 번 더 누르면 지웁니다');
+  await expect(page.getByTestId('song-info')).toContainText('이 곡의 기록도 함께 지워집니다');
+  await expect(page.getByTestId('song-item')).toHaveCount(2);
+  await remove.click();
   await expect(page.getByTestId('song-item')).toHaveCount(1);
   const after = await stored(page);
   expect(after.patterns).toEqual({ [`${b}|4K|DJMAX|NM`]: 5 });
   expect(after.chartPicks).toEqual({});
   expect(after.songOffsets).toEqual({ [b]: -3 });
+  expect(errors).toEqual([]);
+});
+
+test('an edited chart goes from the song info on a second press (Enter twice, no dialog); a first press left alone gives way', async ({ page }) => {
+  const errors = trackErrors(page);
+  page.on('dialog', (d) => {
+    errors.push(`unexpected dialog: ${d.message()}`);
+    void d.dismiss();
+  });
+  const [song] = fakeSongs(1, 'ready');
+  const chartId = 'c' + '7'.repeat(20);
+  let saved = [{ chartId, songId: song.id, name: 'My Edit', kind: 'edited', keyMode: '4K', difficulty: 'NM', level: 5, noteCount: 120, createdAt: 1 }];
+  const deleted: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  const meta = { chartId, songId: song.id, keyMode: '4K', difficulty: 'NM', difficultySystem: 'DJMAX', level: 5, noteCount: 120, durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: 'My Edit' };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { charts: saved } }) : route.fulfill({ status: 500, json: { detail: 'e2e' } })),
+  );
+  await page.route(
+    (url) => url.pathname === `/api/charts/${chartId}`,
+    (route) => {
+      if (route.request().method() !== 'DELETE') return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] } } });
+      deleted.push(chartId);
+      saved = [];
+      return route.fulfill({ status: 204 });
+    },
+  );
+  await page.addInitScript(
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    { [`${song.id}|4K`]: chartId },
+  );
+  await page.goto('/');
+  await expect(page.getByTestId('saved-chart')).toHaveClass(/active/);
+  await songInfo(page);
+  const del = page.getByTestId('delete-saved');
+  await expect(del).toHaveText('이 채보 지우기');
+  // a first press asks once more; left alone for 3 s it gives way, nothing deleted
+  await del.focus();
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  await expect(page.getByTestId('song-info')).toContainText('이 채보의 기록도 함께 지워집니다');
+  await expect(del).toHaveText('이 채보 지우기', { timeout: 5_000 });
+  expect(deleted).toEqual([]);
+  // two presses within the time: the chart and its entry go
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => deleted).toEqual([chartId]);
+  await expect(page.getByTestId('saved-charts')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a first press of 이 채보 지우기 gives way when Tab puts the next key mode’s chart under the focused button', async ({ page }) => {
+  const errors = trackErrors(page);
+  const [song] = fakeSongs(1, 'ready');
+  const ids = { '4K': 'c' + '8'.repeat(20), '4K+FX': 'c' + '9'.repeat(20) };
+  const saved = Object.entries(ids).map(([keyMode, chartId]) => ({ chartId, songId: song.id, name: `Edit ${keyMode}`, kind: 'edited', keyMode, difficulty: 'NM', level: 5, noteCount: keyMode === '4K' ? 120 : 140, createdAt: 1 }));
+  const deleted: string[] = [];
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs: [song] } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { charts: saved } }) : route.fulfill({ status: 500, json: { detail: 'e2e' } })),
+  );
+  await page.route(
+    (url) => url.pathname.startsWith('/api/charts/'),
+    (route) => {
+      const c = saved.find((s) => route.request().url().includes(s.chartId));
+      if (!c) return route.fallback();
+      if (route.request().method() === 'DELETE') {
+        deleted.push(c.chartId);
+        return route.fulfill({ status: 204 });
+      }
+      const meta = { ...c, difficultySystem: 'DJMAX', durationMs: 60_000, nps: { avg: 2, peak: 4, graph: [1, 2] }, rating: 5, source: { kind: 'edited' }, chartName: c.name };
+      return route.fulfill({ json: { chart: { meta, timing, notes: [], sections: [] } } });
+    },
+  );
+  await page.addInitScript(
+    (picks) => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', chartPicks: picks })),
+    { [`${song.id}|4K`]: ids['4K'], [`${song.id}|4K+FX`]: ids['4K+FX'] },
+  );
+  await page.goto('/');
+  const notes = page.getByTestId('chart-notes');
+  // both charts loaded once (the next key mode's comes back from the store, under the same button)
+  await songInfo(page);
+  await expect(notes).toHaveText('120');
+  await page.keyboard.press('Tab');
+  await expect(notes).toHaveText('140');
+  await page.keyboard.press('Shift+Tab');
+  await expect(notes).toHaveText('120');
+
+  const del = page.getByTestId('delete-saved');
+  await del.focus();
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  // Tab: another chart under the focus, so the first press was not for it (said at once, well
+  // before the 3 s a first press waits run out), and the next Enter is a first press again
+  await page.keyboard.press('Tab');
+  await expect(notes).toHaveText('140');
+  await expect(del).toBeFocused();
+  await expect(del).toHaveText('이 채보 지우기', { timeout: 1000 });
+  await page.keyboard.press('Enter');
+  await expect(del).toHaveText('한 번 더 누르면 지웁니다');
+  expect(deleted).toEqual([]);
   expect(errors).toEqual([]);
 });
 

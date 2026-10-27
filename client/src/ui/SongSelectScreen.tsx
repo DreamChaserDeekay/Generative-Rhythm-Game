@@ -459,8 +459,8 @@ export function SongSelectScreen(props: Props) {
     onSettingsChange('tier' in entry ? { ...next, lastDifficulty: entry.tier } : next);
   };
 
+  // (asked once more by its button: a second press, see useTwoPress)
   const deleteSaved = async (c: SavedChart) => {
-    if (!window.confirm(`"${c.name}" 채보를 지울까요? 이 채보의 기록도 함께 지워집니다.`)) return;
     await api.deleteChart(c.chartId).catch((e: Error) => setError(e.message));
     if (pickKey && chartPickOf(current.current, pickKey) === c.chartId) onSettingsChange(withChartPick(current.current, pickKey, null));
     await loadSaved(selected?.id ?? null);
@@ -641,8 +641,9 @@ export function SongSelectScreen(props: Props) {
     }
   };
 
+  // (asked once more by its button, as deleteSaved)
   const remove = async () => {
-    if (!selected || !window.confirm(`"${selected.title}"을(를) 라이브러리에서 지울까요? 기록도 함께 지워집니다.`)) return;
+    if (!selected) return;
     const id = selected.id;
     try {
       await api.deleteSong(id);
