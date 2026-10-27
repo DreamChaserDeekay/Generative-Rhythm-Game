@@ -6,7 +6,7 @@ import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, su
 import { PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
 import type { Palette } from '../render/palette';
-import { sanitizeSkin, skinById, type SkinParts } from '../render/skins';
+import { sanitizeSkin, skinById, skinJson, type SkinParts } from '../render/skins';
 import {
   bindingLabel,
   bindingsFor,
@@ -1452,14 +1452,14 @@ function AdvancedPanel({
       <div className="settings-group" data-testid="skin-settings">
         <h3>사용자 스킨</h3>
         <p className="settings-note">
-          노트 모양(box·flat·round), 레인 색 배치(mode·uniform·rainbow), 타격 효과(burst·ring·sprite·none), 그리는 방식(style), 텍스처(textures)와 트랙 색을 JSON으로 바꿀 수 있습니다.
+          트랙·레일·판정선의 색과 키 빔, 판정·콤보 글꼴, 레인 색 배치(mode·uniform·rainbow), 텍스처(textures)를 JSON으로 바꿀 수 있습니다. 노트·사이드 노트·기어·타격 효과는 기어 탭에서 고릅니다.
           {custom ? ` 지금 사용자 스킨: ${custom.label ?? '사용자 스킨'}${settings.skin === 'custom' ? ' (사용 중)' : ''}` : ''}
         </p>
         <textarea
           className="skin-json"
           rows={6}
           spellCheck={false}
-          placeholder='{"label": "내 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff3b3b"}}'
+          placeholder='{"label": "내 스킨", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff3b3b"}}'
           value={skinText}
           onFocus={() => onHelp('JSON을 붙여 넣고 적용하면 기어 탭의 트랙 스킨(선곡에서는 Space → 속도·기어)에 사용자 스킨으로 들어갑니다.')}
           onChange={(e) => setSkinText(e.target.value)}
@@ -1468,7 +1468,7 @@ function AdvancedPanel({
           <button className="small" onClick={applySkinText} disabled={!skinText.trim()}>
             사용자 스킨 적용
           </button>
-          <button className="small" onClick={() => setSkinText(JSON.stringify(skinById(settings.skin, settings.customSkin), null, 2))}>
+          <button className="small" onClick={() => setSkinText(JSON.stringify(skinJson(skinById(settings.skin, settings.customSkin)), null, 2))}>
             현재 스킨 JSON 보기
           </button>
           {skinError && <span className="error">{skinError}</span>}
@@ -1499,7 +1499,8 @@ function AdvancedPanel({
         <pre className="install-hint">
           {'cd server\n'}
           {'.venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu\n'}
-          {'.venv/bin/pip install -e ".[ml]"     # demucs · beat-this (+ basic-pitch: Python 3.11)'}
+          {'.venv/bin/pip install -e ".[ml]"     # demucs · beat-this (+ basic-pitch: Python 3.11)\n'}
+          {'# Windows: .venv/bin/pip 대신 .venv\\Scripts\\pip'}
         </pre>
       </div>
 

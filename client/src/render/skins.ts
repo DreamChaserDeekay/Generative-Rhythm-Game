@@ -568,6 +568,23 @@ export function withParts(skin: Skin, parts: SkinParts): Skin {
   return { ...skin, style: { ...styleOf(skin), note: parts.note, side: parts.side, deck: parts.deck, hit: parts.hit } };
 }
 
+/**
+ * A skin as 현재 스킨 JSON 보기 shows it: without what the gear tab picks whatever the skin (its
+ * note shape and hit effect, and its style's note, side notes, gear and hit), which a user skin
+ * would only carry unused.
+ */
+export function skinJson(skin: Skin): Record<string, unknown> {
+  const json: Record<string, unknown> = { ...skin };
+  delete json.noteShape;
+  delete json.hitEffect;
+  if (skin.style) {
+    const style: Record<string, unknown> = { ...skin.style };
+    for (const part of ['note', 'side', 'deck', 'hit']) delete style[part];
+    json.style = style;
+  }
+  return json;
+}
+
 export function skinById(id: string, custom: unknown): Skin {
   if (id === 'custom') return sanitizeSkin(custom) ?? FLAT;
   const name = SKIN_RENAMES[id] ?? id;

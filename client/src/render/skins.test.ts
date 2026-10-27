@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
 import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, styleOf, withParts } from './skins';
+import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, skinJson, styleOf, withParts } from './skins';
 import { LONG_OF } from './tintArt';
 
 describe('skins', () => {
@@ -150,6 +150,23 @@ describe('skins', () => {
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
     expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'concrete', hit: 'flash' });
+  });
+
+  it('shows a skin as JSON without the parts the gear tab picks, and reads it back to the same drawing', () => {
+    const old = sanitizeSkin({ noteShape: 'round', hitEffect: 'ring' })!;
+    for (const skin of [...BUILTIN_SKINS, old]) {
+      const json = JSON.parse(JSON.stringify(skinJson(skin)));
+      expect(json).not.toHaveProperty('noteShape');
+      expect(json).not.toHaveProperty('hitEffect');
+      for (const part of ['note', 'side', 'deck', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
+      const back = sanitizeSkin(json)!;
+      expect(back.colors).toEqual(skin.colors);
+      expect(back.textures).toEqual(skin.textures);
+      expect(back.laneLayout).toBe(skin.laneLayout);
+      expect(withParts(back, DEFAULT_PARTS).style).toEqual(withParts(skin, DEFAULT_PARTS).style);
+    }
+    // the skin itself is left as it was
+    expect(BUILTIN_SKINS[0].style?.note).toBe('flat');
   });
 
   it('keeps the picked parts it knows and the defaults for the rest', () => {

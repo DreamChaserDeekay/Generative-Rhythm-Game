@@ -422,7 +422,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
         {cover('sudden', 'SUDDEN+', MAX_COVER, '트랙 위쪽을 가리는 커버')}
         {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
         {cover('lift', 'LIFT', MAX_LIFT, '판정선을 올리는 만큼')}
-        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="노트와 기어의 모양" />
+        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="트랙·레일·판정선의 색과 글꼴 (노트·기어는 설정 → 기어)" />
         <Choice
           {...row}
           label="카메라"

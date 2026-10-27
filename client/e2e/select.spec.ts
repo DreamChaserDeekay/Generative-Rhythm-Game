@@ -75,6 +75,8 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   const skin = page.getByTestId('quick-skin');
   const camera = await page.getByTestId('quick-camera').getAttribute('data-value');
   await skin.focus();
+  // a skin is the track's colours: the notes and the gear are picked in the settings
+  await expect(page.getByTestId('play-options-help')).toContainText('노트·기어는 설정 → 기어');
   const skinBefore = (await skin.getAttribute('data-value')) ?? '';
   await page.keyboard.press('ArrowRight');
   await expect(skin).not.toHaveAttribute('data-value', skinBefore);

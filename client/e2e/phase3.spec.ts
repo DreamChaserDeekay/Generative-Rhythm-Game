@@ -213,7 +213,14 @@ test('custom skin from JSON in the settings', async ({ page }) => {
   await chooseSetting(page, 'opt-skin', 'club');
   await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toBeVisible();
-  await page.locator('.skin-json').fill('{"label": "테스트 스킨", "noteShape": "round", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
+  // the skin is colours, track and type: the notes and the gear are the gear tab's
+  await expect(page.getByTestId('skin-settings')).toContainText('노트·사이드 노트·기어·타격 효과는 기어 탭에서 고릅니다');
+  await page.getByRole('button', { name: '현재 스킨 JSON 보기' }).click();
+  await expect(page.locator('.skin-json')).toHaveValue(/"judgeLine"/);
+  await expect(page.locator('.skin-json')).not.toHaveValue(/noteShape|hitEffect|"note"|"deck"/);
+  // the install hint has the Windows path too
+  await expect(page.locator('.install-hint')).toContainText('.venv\\Scripts\\pip');
+  await page.locator('.skin-json').fill('{"label": "테스트 스킨", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
   await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
   // the user skin is now the track's skin
   await settingsTab(page, 'gear');

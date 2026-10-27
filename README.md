@@ -178,9 +178,7 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 ```json
 {
   "label": "내 스킨",
-  "noteShape": "round",
   "laneLayout": "rainbow",
-  "hitEffect": "ring",
   "colors": {
     "trackNear": "#16224a", "trackFar": "#060a1a", "fog": "#060a1a",
     "railLeft": "#37e2ff", "railRight": "#ff4fd8", "divider": "#3a4c86", "bar": "#9fb4ff",
@@ -192,7 +190,7 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 
 `noteShape`는 `box`(상자) · `flat`(납작) · `round`(캡슐), `laneLayout`은 `mode`(키 모드별 흰·파랑·금색) · `uniform`(모든 건반 레인을 `lanes.white` 색으로) · `rainbow`(무지개), `hitEffect`는 `burst` · `ring` · `sprite`(그림으로 된 타격 이펙트, 없으면 `burst`) · `none`입니다. 다만 노트와 타격 효과의 모양은 스킨과 상관없이 설정 → 기어에서 고른 것을 그리므로, 지금은 `noteShape`·`hitEffect`를 읽기만 하고 화면에는 쓰지 않습니다.
 
-`textures`에 부분별로 그림 이름을 넣으면 그 부분만 그림으로 그립니다(예: `"textures": {"note": "gel/note", "floor": "glass/floor", "hitBurst": "fx/hitBurstGlow"}`). 부분은 `note` · `side` · `scratch` · `longBody` · `judgeLine` · `rails` · `floor` · `keyBeam` · `hitBurst` · `hitHold`이고, 쓸 수 있는 그림 이름은 `client/public/media/manifest.json`에 있습니다. 사이드 노트는 코드로 그리는 반쪽 덮기 막대라 `side` 그림을 쓰지 않고, 사이드 롱노트도 `longBody` 그림을 쓰지 않습니다. `hitBurst`·`hitHold`는 지금 고를 수 있는 타격 효과에서는 쓰이지 않습니다. 설정 → 고급의 **현재 스킨 JSON 보기**로 지금 고른 스킨의 값을 그대로 가져와 고칠 수 있습니다.
+`textures`에 부분별로 그림 이름을 넣으면 그 부분만 그림으로 그립니다(예: `"textures": {"note": "gel/note", "floor": "glass/floor", "hitBurst": "fx/hitBurstGlow"}`). 부분은 `note` · `side` · `scratch` · `longBody` · `judgeLine` · `rails` · `floor` · `keyBeam` · `hitBurst` · `hitHold`이고, 쓸 수 있는 그림 이름은 `client/public/media/manifest.json`에 있습니다. 사이드 노트는 코드로 그리는 반쪽 덮기 막대라 `side` 그림을 쓰지 않고, 사이드 롱노트도 `longBody` 그림을 쓰지 않습니다. `hitBurst`·`hitHold`는 지금 고를 수 있는 타격 효과에서는 쓰이지 않습니다. 설정 → 고급의 **현재 스킨 JSON 보기**로 지금 고른 스킨의 값을 가져와 고칠 수 있습니다(기어 탭에서 고르는 노트·사이드 노트·기어·타격 효과는 빼고 보여 줍니다).
 
 ### 채보 에디터
 
