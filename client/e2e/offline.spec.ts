@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fakeSongs } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -89,7 +90,9 @@ test('an empty library: the hints name 곡 추가 and the song tools, nothing to
   await expect(page.getByTestId('song-list')).toContainText('곡 추가');
   const hints = page.locator('.hintbar');
   await expect(page.getByTestId('hint-add')).toBeVisible();
-  await expect(page.getByTestId('hint-enter')).toHaveCount(0);
+  // Enter presses the focused first step, it plays nothing
+  await expect(page.getByTestId('first-upload')).toBeFocused();
+  await expect(page.getByTestId('hint-enter')).toContainText('누르기');
   await expect(hints).not.toContainText('난이도');
   await expect(hints).not.toContainText('랜덤');
   // the sync test and the calibration need no song: the song info's tools are a key away
@@ -100,5 +103,55 @@ test('an empty library: the hints name 곡 추가 and the song tools, nothing to
   await page.getByTestId('hint-add').click();
   await expect(page.getByTestId('upload-button')).toBeFocused();
   await expect(hints).toContainText('고르기');
+  expect(errors).toEqual([]);
+});
+
+test('an empty library starts from a music file, the demo song or the judgement offset: ↑↓ and Enter press them, and they go once a song is in', async ({ page }) => {
+  const errors = trackErrors(page);
+  const songs: ReturnType<typeof fakeSongs> = [];
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.route(
+    (url) => url.pathname === '/api/songs/demo',
+    (route) => {
+      songs.push(...fakeSongs(1));
+      return route.fulfill({ status: 201, json: { song: songs[0] } });
+    },
+  );
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
+  await page.goto('/');
+  const start = page.getByTestId('first-run');
+  await expect(start.getByRole('button')).toHaveText(['음악 파일 고르기', '데모 곡으로 해 보기', '판정 오프셋 측정']);
+  await expect(page.getByTestId('first-upload')).toBeFocused();
+  // the key mode's keys and what can be put in, on one line
+  await expect(page.getByTestId('first-run-keys')).toContainText('4K 키는');
+  await expect(page.getByTestId('first-run-keys').locator('kbd')).toHaveText(['D', 'F', 'J', 'K']);
+  await expect(page.getByTestId('first-run-keys')).toContainText('mp3');
+  await expect(page.locator('.hintbar')).toContainText('버튼');
+
+  // ↓↓: the calibration, which Enter opens; back from it, the first button has the focus again
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('first-demo')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('first-calibrate')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('calib-start')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('first-upload')).toBeFocused();
+  // + then Esc leaves the focus on 곡 추가: ↓ brings it back to the first button
+  await page.keyboard.press('Shift+Equal');
+  await expect(page.getByTestId('upload-button')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('add-menu')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('first-upload')).toBeFocused();
+
+  // ↑ (round to the last) ↑: the demo song; once it is in, the buttons are gone and the song is chosen
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByTestId('first-demo')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('song-item')).toHaveCount(1);
+  await expect(start).toHaveCount(0);
+  await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
   expect(errors).toEqual([]);
 });

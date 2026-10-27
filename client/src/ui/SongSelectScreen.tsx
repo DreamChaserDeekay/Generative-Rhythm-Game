@@ -11,9 +11,11 @@ import type { KeyModeId } from '../engine/types';
 import type { PlayAction } from '../input/playKeys';
 import {
   bindingLabel,
+  bindingsFor,
   chartPickKey,
   chartPickOf,
   DEFAULT_SETTINGS,
+  keyLabel,
   laneKeysFor,
   patternKey,
   patternOf,
@@ -112,6 +114,8 @@ export function SongSelectScreen(props: Props) {
   const { settings, onSettingsChange, onPlay, selectedSongId, onSelectSong } = props;
   const [health, setHealth] = useState<Health | null | 'offline'>(null);
   const [songs, setSongs] = useState<Song[]>([]);
+  // the library has come once (until then no song is not an empty library)
+  const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -207,6 +211,7 @@ export function SongSelectScreen(props: Props) {
     try {
       const list = await api.songs();
       setSongs(list);
+      setLoaded(true);
       return list;
     } catch (e) {
       if (e instanceof ApiError && e.status === 0) setHealth('offline');
@@ -244,6 +249,13 @@ export function SongSelectScreen(props: Props) {
   useEffect(() => {
     if (offline) offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]')?.focus();
   }, [offline]);
+  // An empty library on a server that answers: the first things to do in the song's place, the
+  // first of them focused (and again when a panel over them closes); a song added takes them away.
+  const firstRun = loaded && !offline && songs.length === 0;
+  const startPanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (firstRun && panel === 'none') startPanel.current?.querySelector<HTMLElement>('button')?.focus();
+  }, [firstRun, panel]);
 
   // Poll while something is being analyzed.
   const analyzing = songs.some((s) => s.status === 'queued' || s.status === 'analyzing');
@@ -703,13 +715,18 @@ export function SongSelectScreen(props: Props) {
   };
   /**
    * The song row under the cursor takes the focus (leaving the search or a panel); with no server,
-   * the offline panel's 다시 연결 (as when it came); else nothing does.
+   * the offline panel's 다시 연결 (as when it came), and in an empty library its first button; else
+   * nothing does.
    */
   const focusList = () => {
     const row = selected ? songList.current?.querySelector<HTMLElement>(`[data-song-id="${selected.id}"]`) : null;
-    const reconnect = offline ? offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]') : null;
+    const button = offline
+      ? offlinePanel.current?.querySelector<HTMLElement>('[data-testid="reconnect"]')
+      : firstRun
+        ? startPanel.current?.querySelector<HTMLElement>('button')
+        : null;
     if (row) row.focus({ preventScroll: true });
-    else if (reconnect) reconnect.focus();
+    else if (button) button.focus();
     else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
@@ -855,21 +872,29 @@ export function SongSelectScreen(props: Props) {
         }
         return;
       }
-      if (offline && e.target instanceof HTMLElement && offlinePanel.current?.contains(e.target)) {
-        // the offline panel's buttons: the arrows go between them, Enter or Space (a pad's A) press one
+      const buttonPanel = offline ? offlinePanel.current : firstRun ? startPanel.current : null;
+      if (buttonPanel && e.target instanceof HTMLElement && buttonPanel.contains(e.target)) {
+        // the offline panel's buttons, or an empty library's: the arrows go between them, Enter (a
+        // pad's A) presses one, and Space too on the offline panel (else it is the play options')
         if (e.code.startsWith('Arrow')) {
           e.preventDefault();
-          const buttons = [...offlinePanel.current.querySelectorAll<HTMLElement>('button')];
+          const buttons = [...buttonPanel.querySelectorAll<HTMLElement>('button')];
           const at = buttons.indexOf(e.target);
           buttons[(at + (e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
           return;
         }
-        if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+        if (e.code === 'Enter' || e.code === 'NumpadEnter' || (offline && e.code === 'Space')) {
           // (pressed here: the select keeps Space's key-up from the buttons)
           e.preventDefault();
           if (!e.repeat) e.target.click();
           return;
         }
+      }
+      if (firstRun && panel === 'none' && e.code.startsWith('Arrow') && !keepsKey(e.target, e.code)) {
+        // the focus left an empty library's buttons (the add menu closed, a file was picked): the arrows bring it back
+        e.preventDefault();
+        focusList();
+        return;
       }
       if (keepsKey(e.target, e.code)) return;
       if (panel !== 'none' && (e.defaultPrevented || panelKey(e, inList))) return;
@@ -924,13 +949,13 @@ export function SongSelectScreen(props: Props) {
     };
   });
 
-  // Whether Enter presses what has the focus (a panel's button or box), for the key hints; a
+  // Whether Enter presses what has the focus (a panel's button or box, an empty library's button), for the key hints; a
   // render can take the focused control away (a panel closing, a tab changing), so it is read
   // after every render as well as on every move of the focus.
   const [enterPresses, setEnterPresses] = useState(false);
   const readFocus = useCallback(() => {
     const at = document.activeElement;
-    setEnterPresses(Boolean(at && detailTop.current?.querySelector('.select-panel')?.contains(at)) && pressesOnEnter(at));
+    setEnterPresses(Boolean(at && detailTop.current?.querySelector('.select-panel, .first-run')?.contains(at)) && pressesOnEnter(at));
   }, []);
   useEffect(readFocus);
   useEffect(() => {
@@ -1030,6 +1055,7 @@ export function SongSelectScreen(props: Props) {
     ? [{ keys: ['←', '→'], pad: ['←', '→'], label: '버튼' }, settingsHint]
     : songs.length === 0 && panel === 'none'
       ? [
+          ...(firstRun ? [{ keys: ['↑', '↓'], pad: ['↑', '↓'], label: '버튼' }] : []),
           { keys: ['+'], label: '곡 추가', onClick: () => setAddMenu(true), testId: 'hint-add' },
           { keys: ['Tab'], pad: ['Y'], label: '키 모드' },
           { keys: ['Space'], pad: ['X'], label: '플레이 옵션', onClick: () => togglePanel('options'), testId: 'hint-options' },
@@ -1066,8 +1092,8 @@ export function SongSelectScreen(props: Props) {
           { keys: ['I'], pad: ['LT'], label: panel === 'info' ? '곡 정보·도구 닫기' : '곡 정보·도구', onClick: () => togglePanel('info'), testId: 'hint-info' },
         ];
   // Enter picks an item of the add menu, presses a panel's focused button or box (or the offline
-  // panel's), or plays (nothing to play without a song in sight)
-  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : panel !== 'none' && enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
+  // panel's, or an empty library's), or plays (nothing to play without a song in sight)
+  const enterLabel = offlineKeys ? '누르기' : addMenu ? '고르기' : enterPresses ? '누르기' : filtered.length > 0 ? '플레이' : null;
   const endHints: KeyHint[] = enterLabel ? [{ keys: ['Enter'], pad: ['A'], label: enterLabel, testId: 'hint-enter' }] : [];
   if (panel !== 'none' || addMenu) endHints.unshift({ keys: ['Esc'], pad: ['B'], label: '닫기', onClick: () => (addMenu ? closeAddMenu(false) : closePanel()) });
 
@@ -1333,6 +1359,25 @@ export function SongSelectScreen(props: Props) {
                 onInfo={() => setPanel('info')}
                 onReanalyze={() => void reanalyze()}
               />
+            ) : firstRun ? (
+              <section className="detail-empty first-run" data-testid="first-run" ref={startPanel} aria-label="시작하기">
+                <button className="primary" data-testid="first-upload" onClick={() => fileInput.current?.click()}>
+                  음악 파일 고르기
+                </button>
+                <button data-testid="first-demo" onClick={() => void addDemo()}>
+                  데모 곡으로 해 보기
+                </button>
+                <button data-testid="first-calibrate" onClick={() => props.onCalibrate('input')}>
+                  판정 오프셋 측정
+                </button>
+                <p className="hint" data-testid="first-run-keys">
+                  {keyMode} 키는{' '}
+                  {bindingsFor(settings, keyMode).map((code, lane) => (
+                    <kbd key={lane}>{keyLabel(code)}</kbd>
+                  ))}
+                  입니다. 음악 파일(mp3 · ogg · wav · flac · m4a)과 채보 파일(.osz · .zip · .osu · .bms · .bmson)을 넣을 수 있습니다.
+                </p>
+              </section>
             ) : (
               <div className="detail-empty">
                 <p className="hint">

@@ -3588,6 +3588,23 @@ button.chip.active b {
   border-radius: var(--radius);
 }
 
+/* an empty library: the first things to do, one under another (↑↓ go between them) */
+.first-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.first-run button {
+  min-width: 240px;
+  justify-content: flex-start;
+}
+
+.first-run .hint {
+  margin: var(--sp-2) 0 0;
+}
+
 .hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
