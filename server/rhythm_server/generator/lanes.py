@@ -636,8 +636,10 @@ def search(
                 ln_lane = None
                 if hold_end_t is not None and slot.special_hold and special is not None:
                     ln_lane = special
-                elif hold_end_t is not None and combo:
-                    # a hand may only hold so many long notes at once
+                elif hold_end_t is not None and combo and not slot.special_hold:
+                    # a hand may only hold so many long notes at once (a side hold whose side lane
+                    # is taken leaves taps: its keys gave their long note to the side, and
+                    # select.clear_holds never shortened it for a key)
                     options = [i for i in combo if holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand]
                     if options and sp is not None and sp.motif == "holdTap":
                         # the hold goes to the outside, leaving the other lanes to the melody
@@ -845,7 +847,8 @@ def _special_lane(
         if i not in free:
             continue
         hand = lanes[i].hand
-        if holding_hands.get(hand) and params.hold_hand_limit < 1:
+        # the turntable takes the whole hand: under a long note it needs room for two presses
+        if holding_hands.get(hand) and params.hold_hand_limit < (2 if lanes[i].kind == "scratch" else 1):
             continue
         if slot.special_hold and hold_end_t is not None and holding_hands.get(hand, 0) >= params.max_holds_per_hand:
             continue

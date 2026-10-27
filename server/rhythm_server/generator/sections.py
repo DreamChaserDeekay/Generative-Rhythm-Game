@@ -31,7 +31,7 @@ from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, clear_holds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -689,6 +689,9 @@ def layout(
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
     elif special_kind == "side":
         _assign_special(slots, slot_cand, positions, cands, params, "side", tempo)
+    before = [s.hold_end_beat for s in slots]
+    clear_holds(slots, params)
+    _same_holds(slots, positions, before)
     _accents(slots, units, unit_slots, params, key_count)
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
@@ -811,6 +814,24 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
             mark_hold_count(slots[i], cands[slot_cand[i]], params)
         placed += len(idxs)
+
+
+def _same_holds(slots: list[Slot], positions: dict, before: list[float | None]) -> None:
+    """Every repeat of a class position keeps the same long note after select.clear_holds cut some
+    of them (a later repeat plays more notes under it): the shortest one left, or none when a
+    repeat lost it. The slots sit at the same place in their bars, so one length stays on the grid."""
+    for idxs in positions.values():
+        held = [i for i in idxs if before[i] is not None]
+        if not any(slots[i].hold_end_beat != before[i] for i in held):
+            continue
+        if any(slots[i].hold_end_beat is None for i in held):
+            for i in held:
+                slots[i].hold_end_beat = None
+                slots[i].hold_count = 1
+            continue
+        length = min(slots[i].hold_end_beat - slots[i].beat for i in held)  # type: ignore[operator]
+        for i in held:
+            slots[i].hold_end_beat = slots[i].beat + length
 
 
 def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind: str, tempo: TempoMap) -> None:

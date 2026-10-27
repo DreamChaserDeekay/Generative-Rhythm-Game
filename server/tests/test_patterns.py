@@ -468,7 +468,9 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # Generator 0.9.30 steers chords to the choruses (sectioned.labelsBySystem): on EASY key 7 goes to
     # 0.0499 and key 1 to 0.3500 on this song, so the EASY band was 0.045-0.36. Analyzer 1.9.0 gives
     # the sections their intensity (the verses 0.80 -> 0.54 against the choruses on this song): the
-    # verses play fewer notes and key 7 goes to 0.0449, so the EASY floor is 0.04.
+    # verses play fewer notes and key 7 goes to 0.0449, so the EASY floor is 0.04. Generator 0.9.34
+    # evens the chord weights out (1.2 / 0.9 / 0.85): EASY key 1 0.27, key 7 0.07 on this song over the
+    # seeds; the same weight everywhere put key 1 at 0.52 and was left out (PATTERN_DESIGN 66).
     for tier, floor, ceiling in (("EASY", 0.04, 0.36), ("NORMAL", 0.07, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []
         for seed in range(4):

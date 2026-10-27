@@ -49,10 +49,13 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
         for chord in params.pad_forbidden:
             if pressed.issuperset(chord):
                 problems.append(f"chord {'+'.join(str(i) for i in chord)} at {t}ms cannot be pressed on a pad")
+        held_hands = {lanes[h["lane"]].hand for h in holds if h["t"] < t - TIME_EPS and h["endT"] > t + TIME_EPS}
         per_hand: dict[str, int] = defaultdict(int)
         for n in ns:
             per_hand[lanes[n["lane"]].hand] += 1
-        held_hands = {lanes[h["lane"]].hand for h in holds if h["t"] < t - TIME_EPS and h["endT"] > t + TIME_EPS}
+            # the turntable takes the whole hand: under a long note it needs room for two presses
+            if lanes[n["lane"]].kind == "scratch" and lanes[n["lane"]].hand in held_hands and params.hold_hand_limit < 2:
+                problems.append(f"scratch under a held long note at {t}ms")
         for hand, count in per_hand.items():
             limit = 1 if hand == "T" else params.hand_chord_limit
             if hand in held_hands:

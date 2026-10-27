@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import bisect
 import math
 from dataclasses import dataclass
 from functools import cached_property
@@ -176,6 +177,37 @@ def mark_hold_count(slot: Slot, c: Candidate, params: GenParams) -> None:
     slot.size = max(slot.size, n)
 
 
+def clear_holds(slots: list[Slot], params: GenParams) -> None:
+    """Easy charts keep a held key to itself (difficulty.json holds.clear): below `allBelow` no hit
+    starts while a key long note is held, below `gapBelow` the hits under it keep `gapBeats` from
+    each other and from its head. A long note over a closer hit lets go at the last whole or half
+    beat at or before that hit, or becomes a tap when that leaves it shorter than the tier allows."""
+    cfg = difficulty_config()["holds"].get("clear")
+    if not cfg or params.skill >= float(cfg["gapBelow"]):
+        return
+    gap = math.inf if params.skill < float(cfg["allBelow"]) else float(cfg["gapBeats"])
+    beats = sorted({s.beat for s in slots})
+    for s in slots:
+        if s.hold_end_beat is None or s.special_hold:
+            continue
+        prev, limit = s.beat, s.hold_end_beat
+        for b in beats[bisect.bisect_right(beats, s.beat + 1e-6):]:
+            if b >= s.hold_end_beat - 1e-6:
+                break
+            if b - prev < gap - 1e-6:
+                limit = b
+                break
+            prev = b
+        if limit >= s.hold_end_beat - 1e-6:
+            continue
+        end = math.floor(limit * 2.0 + 1e-6) / 2.0
+        if end - s.beat >= params.min_ln_beats - 1e-6:
+            s.hold_end_beat = end
+        else:
+            s.hold_end_beat = None
+            s.hold_count = 1
+
+
 def holdable(c: Candidate, tempo: TempoMap, system: str | None = None) -> bool:
     """Whether a long note may go on this sound (difficulty.json `holds`): the sound is held
     itself, a note of the melody or a tonal sound with its own attack on the eighths, not a drum
@@ -331,6 +363,7 @@ def select_slots(
         _assign_scratch(slots, params)
     elif special_kind == "side":
         _assign_side(slots, chosen, params, tempo)
+    clear_holds(slots, params)
     return slots
 
 

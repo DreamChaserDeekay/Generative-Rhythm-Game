@@ -407,6 +407,12 @@
     "drumsBelow": 0.4,
     "maxSubdivision": 2,
     "harmonicAtLeast": 0.5,
+    "clear": {
+      "description": "쉬운 채보는 롱노트를 잡는 동안 다른 노트를 줄인다(모든 기준, 건반 롱노트만). 단계값 allBelow 미만(레벨 1–3)은 롱노트를 잡는 동안 아무 노트도 시작하지 않고, gapBelow 미만(레벨 4–6)은 그 사이 노트끼리, 그리고 롱노트 머리와 gapBeats박 이상 떨어진다. 더 가까운 노트가 있으면 롱노트는 그 노트 자리나 그 앞의 마지막 정박 · 반박에서 떼고, 그러면 티어의 최소 길이보다 짧아질 때는 단타가 된다. osu!mania 랭크 기준(Easy: 1박 롱노트 동안 노트 없음, Normal: 1/2박 롱노트 동안 노트 없음 · 1박 롱노트 동안 1/2박보다 빠른 노트 없음)과 Rock Band 축소 규칙(쉬운 단계는 롱노트 꼬리를 줄여 다음 노트 앞을 비움)을 따랐다. BMS 7키 사람 채보는 레벨 1–3 · 4–6 롱노트의 0 · 13%만 그 사이에 다른 노트가 시작하는데 0.9.33 기본 7키 EASY · NORMAL은 23 · 37%였다. osu!mania Normal처럼 반 박 간격으로 두면 NORMAL이 36%에 그쳐 한 박으로 둔다(21%, docs/PATTERN_DESIGN.md 66장).",
+      "allBelow": 0.2,
+      "gapBelow": 0.45,
+      "gapBeats": 1.0
+    },
     "pad": {"systems": ["GRG"], "minBeats": 1.0, "harmonicAtLeast": 0.5, "drumsBelow": 0.4, "maxSubdivision": 2, "valueBoost": 2.0, "pickBoost": [[0.45, 1.0], [0.5, 1.6]], "countMax": [[0.45, 1], [0.5, 2], [0.7, 2], [0.75, 3], [0.96, 6]], "stemShare": 0.3, "longBeats": 2.0, "strongAtLeast": 0.7}
   },
   "ending": {
