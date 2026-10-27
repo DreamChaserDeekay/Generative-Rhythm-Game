@@ -31,7 +31,7 @@ from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
 from .params import GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
-from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
+from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, clear_holds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
 from .tempo import TempoMap
 
 GRID = 48  # positions per beat for matching candidates between units
@@ -435,7 +435,8 @@ def layout(
     end_ms = cands[-1].t + 1000.0
     buckets = np.zeros(int(end_ms / BUCKET_MS) + 12)
     window = int(round(1000.0 / BUCKET_MS))
-    peak_cap = params.peak_nps / expected_chord_notes
+    peak_nps = params.peak_at(density_scale)
+    peak_cap = peak_nps / expected_chord_notes
 
     def window_ok(times: list[float], cap: float | None = None) -> bool:
         cap = peak_cap if cap is None else cap
@@ -497,7 +498,7 @@ def layout(
             keep = {k for k, sub in roll.items() if level % sub == 0}
             # a roll's notes are single notes: the tier's peak density itself, not that density
             # shared out over the chords a slot takes on the mean
-            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]], params.peak_nps):
+            if fits([cands[per_unit[m][k]].t for k in keep for m in ms if k in per_unit[m]], peak_nps):
                 return keep
             level = coarser(level)
         return set()
@@ -607,18 +608,25 @@ def layout(
         # notes in the class's own order, so a unit that adds more adds the same notes first and
         # every repeat plays what the earlier ones did.
         ranked = sorted((k for k in consensus if k not in picks and not inside(k)), key=lambda k: (-consensus[k], k))
-        for m in ms:
-            u = units[m]
-            n_more = int(round(unit_n[m] * (1 + u.extra))) - len(picks)
-            if n_more <= 0:
-                continue
-            pool = [k for k in ranked if k in per_unit[m] and k not in unit_rolls.get(m, ()) and k not in unit_drop.get(m, ())]
+        n_more = {m: int(round(unit_n[m] * (1 + units[m].extra))) - len(picks) for m in ms}
+        pools = {m: [k for k in ranked if k in per_unit[m] and k not in unit_rolls.get(m, ()) and k not in unit_drop.get(m, ())] for m in ms if n_more[m] > 0}
+        # the tier's grid limits hold for these notes too (MASTER's 32nds came in here: 6% of a
+        # chart's hits against the 1.5% limit), decided once per key for every repeat that may add
+        # it, so a later repeat is not refused a note an earlier one added
+        allowed: dict[int, bool] = {}
+        for m, pool in pools.items():
             extra: list[int] = []
             for k in pool:
-                if len(extra) >= n_more:
+                if len(extra) >= n_more[m]:
                     break
+                if k not in allowed:
+                    sub = grid_of(cands[per_unit[m][k]])
+                    takers = sum(1 for p in pools.values() if k in p)
+                    allowed[k] = partial_ok(sub, takers)
+                    if allowed[k]:
+                        sub_counts[sub] = sub_counts.get(sub, 0) + takers
                 t = cands[per_unit[m][k]].t
-                if window_ok([t]):
+                if allowed[k] and window_ok([t]):
                     extra.append(k)
                     take([t])
                     picked_total += 1
@@ -688,6 +696,9 @@ def layout(
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
     elif special_kind == "side":
         _assign_special(slots, slot_cand, positions, cands, params, "side", tempo)
+    before = [s.hold_end_beat for s in slots]
+    clear_holds(slots, params)
+    _same_holds(slots, positions, before)
     _accents(slots, units, unit_slots, params, key_count)
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
@@ -810,6 +821,24 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
             mark_hold_count(slots[i], cands[slot_cand[i]], params)
         placed += len(idxs)
+
+
+def _same_holds(slots: list[Slot], positions: dict, before: list[float | None]) -> None:
+    """Every repeat of a class position keeps the same long note after select.clear_holds cut some
+    of them (a later repeat plays more notes under it): the shortest one left, or none when a
+    repeat lost it. The slots sit at the same place in their bars, so one length stays on the grid."""
+    for idxs in positions.values():
+        held = [i for i in idxs if before[i] is not None]
+        if not any(slots[i].hold_end_beat != before[i] for i in held):
+            continue
+        if any(slots[i].hold_end_beat is None for i in held):
+            for i in held:
+                slots[i].hold_end_beat = None
+                slots[i].hold_count = 1
+            continue
+        length = min(slots[i].hold_end_beat - slots[i].beat for i in held)  # type: ignore[operator]
+        for i in held:
+            slots[i].hold_end_beat = slots[i].beat + length
 
 
 def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind: str, tempo: TempoMap) -> None:

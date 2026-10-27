@@ -157,8 +157,10 @@ def test_the_melody_option_follows_the_melody() -> None:
         assert covered(s.onsets["lead"], melody) >= 0.78
         assert covered(s.onsets["lead"], melody) > covered(s.onsets["lead"], drum) + margin
         # both play nearly every kick (0.96-0.99): the melody adds to the beat, it does not drop it
-        # (which of the two plays a few more kicks depends on where the level fit lands)
-        assert min(covered(s.onsets["kick"], melody), covered(s.onsets["kick"], drum)) >= 0.9
+        # (which of the two plays a few more kicks depends on where the level fit lands). Since
+        # generator 0.9.34 NM's long notes keep the hands clear and the melody chart rates level 6
+        # on its first round (397 notes, 0.88 of the kicks) instead of 5 and then 6 at 426 (0.96)
+        assert min(covered(s.onsets["kick"], melody), covered(s.onsets["kick"], drum)) >= 0.85
         # the melody style follows the melody too, unless the player picks another rhythm source
         styled = chart("groove", "6K", "DJMAX", difficulty, level, "auto", "melody")
         assert styled["meta"]["generator"]["params"]["rhythmSource"] == "melody"

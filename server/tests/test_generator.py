@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from rhythm_server.config import difficulty_config
@@ -69,10 +70,53 @@ def test_levels_land_in_their_preset_range_unless_density_limited(charts: dict) 
             assert lo <= level <= hi, f"{name} {mode} {d}: level {level}"
 
 
+def test_a_chart_above_its_range_thins_past_the_density_floor(analysis128: dict, monkeypatch) -> None:
+    """The level range comes before the density floor: on real songs GRG tiers stayed at their floor
+    above their range (generator 0.9.33). A floor far above the tier's density holds them no more."""
+    import rhythm_server.generator.core as core
+
+    monkeypatch.setattr(core, "DENSITY_FLOOR", 3.0)
+    presets = difficulty_config()["presets"]
+    for d in ("NORMAL", "HARD"):
+        lo, hi = presets[d]["levels"]
+        assert lo <= generate_chart(analysis128, "6K", d)["meta"]["level"] <= hi, d
+
+
+def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch) -> None:
+    """GRG lowers the 1-second peak by the square root of a note budget under the preset's (the
+    density setting times the level loop's scale), so a roll does not stay a burst over a thinned
+    chart; DJMAX and EZ2ON keep their peak. Both engines take the peak from it."""
+    from rhythm_server.generator.params import GenParams
+
+    grg = resolve_params("6K", "HARD")
+    assert grg.peak_at(0.25) == pytest.approx(0.5 * grg.peak_nps)
+    assert grg.peak_at(1.5) == grg.peak_nps
+    sparse = resolve_params("6K", "HARD", overrides={"density": 0.5})
+    assert sparse.peak_at(1.0) == pytest.approx(0.5 ** 0.5 * sparse.peak_nps)
+    assert sparse.peak_at(2.0) == sparse.peak_nps
+    for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
+        other = resolve_params("6K", tier, system=system)
+        assert other.peak_at(0.25) == other.peak_nps
+    scales = []
+    real = GenParams.peak_at
+    monkeypatch.setattr(GenParams, "peak_at", lambda self, s: scales.append(s) or real(self, s))
+    for engine in ("sectioned", "classic"):
+        scales.clear()
+        generate_chart(analysis128, "6K", "HARD", overrides={"patternEngine": engine})
+        assert scales and min(scales) < 1.0, engine  # the level loop thinned this one
+
+
 def test_target_level_is_respected(analysis128: dict) -> None:
     chart = generate_chart(analysis128, "4K", "NORMAL", target_level=8)
     assert chart["meta"]["difficulty"] == "HARD"
     assert abs(chart["meta"]["level"] - 8) <= 1
+
+
+def test_higher_target_levels_keep_more_notes(analysis128: dict) -> None:
+    """A chart above its target level thins past the density floor (generator 0.9.33), so only the
+    estimator keeps the note count rising with the target level."""
+    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 16)]
+    assert counts == sorted(counts), counts
 
 
 def test_notes_are_on_the_audio_timeline_and_lanes_are_valid(charts: dict) -> None:
@@ -123,6 +167,95 @@ def test_long_notes_and_chords_scale_with_difficulty(charts: dict) -> None:
         for n in hard:
             chord_sizes_hard[n["t"]] = chord_sizes_hard.get(n["t"], 0) + 1
         assert max(chord_sizes_hard.values()) >= 2
+
+
+def test_easy_long_notes_let_go_before_a_close_hit() -> None:
+    """EASY starts nothing while a key long note is held, NORMAL keeps the hits under it a beat apart
+    and from its head (holds.clear): a long note over a closer hit lets go at the last whole or half
+    beat at or before it, or becomes a tap when that is under the tier's shortest."""
+    from rhythm_server.generator.select import Slot, clear_holds
+
+    def slots(*spec):
+        return [Slot(beat=b, t=b * 500.0, size=1, hold_end_beat=e, special=None, special_hold=False, pitch=None,
+                     bands=np.ones(3), score=1.0, subdivision=1, strength=1.0) for b, e in spec]
+
+    easy, normal, hard = (resolve_params("7K+1S", d) for d in ("EASY", "NORMAL", "HARD"))
+    s = slots((0.0, 4.0), (2.75, None), (8.0, 9.0), (8.5, None))
+    clear_holds(s, easy)
+    assert [x.hold_end_beat for x in s] == [2.5, None, None, None]  # 2.5 beats long; 8.0 would be half a beat
+    s = slots((0.0, 4.0), (1.0, None), (2.0, None), (2.75, None))
+    clear_holds(s, normal)
+    assert s[0].hold_end_beat == 2.5  # 2.0 -> 2.75 is under a beat
+    s = slots((0.0, 4.0), (0.25, None))
+    clear_holds(s, normal)
+    assert s[0].hold_end_beat is None  # the first close hit comes before the shortest long note (1 beat)
+    s = slots((0.0, 4.0), (0.25, None), (0.5, None))
+    clear_holds(s, hard)
+    assert s[0].hold_end_beat == 4.0
+    s = slots((0.0, 4.0), (2.0, None))
+    s[0].special = "side"  # a side tap on the slot: its key long note still clears
+    clear_holds(s, easy)
+    assert s[0].hold_end_beat == 2.0
+    s[0].special_hold, s[0].hold_end_beat = True, 4.0  # the side lane's own long note stays
+    clear_holds(s, easy)
+    assert s[0].hold_end_beat == 4.0
+
+
+def test_repeats_keep_the_same_long_note_after_clearing() -> None:
+    """The sectioned engine decides a long note once per class position; after clearing, every repeat
+    keeps the shortest one left, or none when one repeat lost it."""
+    from types import SimpleNamespace
+
+    from rhythm_server.generator.sections import _same_holds
+
+    def slot(beat, end):
+        return SimpleNamespace(beat=beat, hold_end_beat=end, hold_count=2)
+
+    s = [slot(0.0, 4.0), slot(16.0, 18.5), slot(32.0, 36.0), slot(48.0, None), slot(64.0, None)]
+    _same_holds(s, {"a": [0, 1, 2], "b": [3, 4]}, [4.0, 20.0, 36.0, None, None])
+    assert [x.hold_end_beat for x in s[:3]] == [2.5, 18.5, 34.5]
+    s = [slot(0.0, 4.0), slot(16.0, None)]
+    _same_holds(s, {"a": [0, 1]}, [4.0, 20.0])
+    assert [(x.hold_end_beat, x.hold_count) for x in s] == [(None, 1), (None, 1)]
+
+
+def test_generated_easy_charts_keep_long_notes_clear(charts: dict, analysis128: dict) -> None:
+    """Both engines, and a side-lane mode: a side tap on a key long note's slot does not exempt the
+    key, and a side hold that loses its side lane does not move to a key."""
+    gap = float(difficulty_config()["holds"]["clear"]["gapBeats"])
+    more = {("128", mode, d, engine): generate_chart(analysis128, mode, d, overrides={"patternEngine": engine, "sideRate": 0.2})
+            for mode, engine in (("6K+FX", "sectioned"), ("6K+FX", "classic"), ("7K+1S", "classic")) for d in ("EASY", "NORMAL")}
+    for (name, mode, d, *_), chart in [*charts.items(), *more.items()]:
+        if d not in ("EASY", "NORMAL"):
+            continue
+        keys = {l.index for l in lane_infos(mode) if l.kind != "side"}
+        heads = sorted({n["beat"] for n in chart["notes"]})
+        for h in (n for n in chart["notes"] if n["type"] == "hold" and n["lane"] in keys):
+            inside = [b for b in heads if h["beat"] + 1e-6 < b < h["endBeat"] - 1e-6]
+            if d == "EASY":
+                assert not inside, (name, mode, h["beat"])
+            else:
+                gaps = np.diff([h["beat"], *inside]) if inside else []
+                assert all(g >= gap - 1e-6 for g in gaps), (name, mode, h["beat"], inside)
+
+
+def test_no_scratch_under_a_left_hand_long_note_below_expert(analysis128: dict) -> None:
+    """The turntable takes the whole hand: a hand holding a long note scratches only on tiers that let
+    it press two more keys (EXPERT up), and the linter says so."""
+    lanes = lane_infos("7K+1S")
+    left = {l.index for l in lanes if l.hand == "L" and l.kind == "key"}
+    over = {"longNoteRatio": 0.5, "scratchRate": 0.2}
+    for d in ("NORMAL", "HARD"):
+        notes = generate_chart(analysis128, "7K+1S", d, seed=7, overrides=over)["notes"]
+        holds = [n for n in notes if n["type"] == "hold" and n["lane"] in left]
+        assert holds, d
+        for s in (n for n in notes if n["lane"] == 0):
+            assert not any(h["t"] < s["t"] < h["endT"] for h in holds), (d, s["t"])
+    hold = {"beat": 0.0, "t": 0.0, "lane": 1, "type": "hold", "endBeat": 2.0, "endT": 1000.0}
+    scratch = {"beat": 1.0, "t": 500.0, "lane": 0, "type": "tap"}
+    tempo = TempoMap(analysis128["timing"])
+    assert lint([hold, scratch], lanes, resolve_params("7K+1S", "HARD"), tempo) == ["scratch under a held long note at 500.0ms"]
+    assert lint([hold, scratch], lanes, resolve_params("7K+1S", "EXPERT"), tempo) == []
 
 
 ALL_MODES = ("4K", "4K+FX", "5K", "6K", "6K+FX", "7K+1S", "8K")

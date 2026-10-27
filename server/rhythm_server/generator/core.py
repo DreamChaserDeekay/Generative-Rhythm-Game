@@ -28,7 +28,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.32"
+GENERATOR_VERSION = "0.9.35"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -104,8 +104,8 @@ def generate_chart(
     # Aim at the middle of the level range: the effective NPS halfway through it (4K scale).
     target_rating = (lo + hi) / 2 + 0.5
     target_eff = float(np.interp(target_rating, np.arange(1, len(table) + 1), table)) * factor
-    # Never thin a chart below the preset's density floor just because chords/jacks rate it high;
-    # this keeps note counts increasing from one difficulty to the next.
+    # Never thin a chart in its level range below the preset's density floor just because
+    # chords/jacks rate it high; this keeps note counts increasing from one difficulty to the next.
     floor_nps = params.min_avg_nps * DENSITY_FLOOR
     scale = 1.0
     chord_scale = 1.0
@@ -170,7 +170,9 @@ def generate_chart(
             continue
         new_scale = float(np.clip(scale * (target_eff / eff) ** 0.9, MIN_SCALE, MAX_SCALE))
         avg = max(0.1, est["nps"]["avg"])
-        if new_scale < scale and avg * new_scale / scale < floor_nps:
+        # the level range comes first: the floor only stops thinning a chart already in its range
+        # (GRG tiers stayed at their floor on real songs, 6K EXPERT around level 14 of its 10-12)
+        if new_scale < scale and est["level"] <= params.levels[1] and avg * new_scale / scale < floor_nps:
             new_scale = max(new_scale, scale * floor_nps / avg)
             if new_scale >= scale - 0.01:
                 break  # already at the density floor

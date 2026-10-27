@@ -63,35 +63,49 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
     # (holds.pad countMax: up to six on MASTER), more keys joining it where the hands have room
     want = min(hold_cap(params), params.max_chord) if end - start >= 2.0 - 1e-9 else 1
     keys = [l for l in lanes if l.kind == "key"]
-    per_hand: dict[str, int] = {}
+    # every press at the last instant counts against its hand and the chord size, a scratch or a
+    # key that stays a tap too (a 7K EXPERT chart ending on scratch + key 1 grew three presses on
+    # the left hand, MASTER a chord of seven, and the linter refused both)
+    chord = [n for n in notes if n["t"] == last_t]
+    pressed: dict[str, int] = {}
+    for n in chord:
+        pressed[lanes[n["lane"]].hand] = pressed.get(lanes[n["lane"]].hand, 0) + 1
+    holding: dict[str, int] = {}
     held: list[dict[str, Any]] = []
 
-    def room(hand: str) -> bool:
-        most = 1 if hand == "T" else min(params.hand_chord_limit, params.max_holds_per_hand)
-        return per_hand.get(hand, 0) < most
+    def can_hold(hand: str) -> bool:
+        return holding.get(hand, 0) < (1 if hand == "T" else min(params.hand_chord_limit, params.max_holds_per_hand))
+
+    def can_press(hand: str) -> bool:
+        return pressed.get(hand, 0) < (1 if hand == "T" else params.hand_chord_limit)
 
     for n in sorted(last, key=lambda n: -abs(lanes[n["lane"]].pos - 0.5)):
         hand = lanes[n["lane"]].hand
-        if len(held) < max(1, want) and room(hand):
+        if len(held) < max(1, want) and can_hold(hand):
             held.append(n)
-            per_hand[hand] = per_hand.get(hand, 0) + 1
-    taken = {n["lane"] for n in notes if n["t"] == last_t}
+            holding[hand] = holding.get(hand, 0) + 1
+    taken = {n["lane"] for n in chord}
     # a lane played just before is no free lane: the chord's new note would be a jack the linter
     # refuses (a MASTER chart of six held notes failed on a tap 69 ms earlier)
     for n in notes:
         if n["t"] < last_t and (last_t - n["t"] < params.min_jack_ms or ("endT" in n and last_t < n["endT"] + ln_gap_ms(tempo, n["endBeat"]))):
             taken.add(n["lane"])
+    # a side note is a bar over its hand's keys: they keep the jack spacing from its head (linter)
+    side_hands = {lanes[n["lane"]].hand for n in notes if lanes[n["lane"]].kind == "side" and 1e-3 < last_t - n["t"] < params.min_jack_ms}
+    taken.update(l.index for l in keys if l.hand in side_hands)
     for lane in sorted(keys, key=lambda l: (-abs(l.pos - 0.5), l.index)):
-        if len(held) >= want:
+        if len(held) >= want or len(chord) >= params.max_chord:
             break
-        if lane.index in taken or not room(lane.hand):
+        if lane.index in taken or not (can_hold(lane.hand) and can_press(lane.hand)):
             continue
         extra = {k: v for k, v in last[0].items() if k not in ("type", "endBeat", "endT")}
         extra["lane"] = lane.index
         notes.append(extra)
+        chord.append(extra)
         held.append(extra)
         taken.add(lane.index)
-        per_hand[lane.hand] = per_hand.get(lane.hand, 0) + 1
+        holding[lane.hand] = holding.get(lane.hand, 0) + 1
+        pressed[lane.hand] = pressed.get(lane.hand, 0) + 1
     for n in held:
         n["type"] = "hold"
         n["endBeat"] = round(end, 6)
