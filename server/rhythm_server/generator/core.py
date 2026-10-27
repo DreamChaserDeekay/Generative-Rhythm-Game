@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from ..config import DEFAULT_SYSTEM, difficulty_config, key_modes, load_config
+from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
@@ -20,6 +20,7 @@ from .ending import finish as ending_hold
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
 from .motifs import SlotPlan
 from .linter import lint
+from .near import merge_near
 from .params import GenParams, resolve_params
 from .planner import plan_patterns
 from . import sections as sectioned
@@ -28,7 +29,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.35"
+GENERATOR_VERSION = "0.9.36"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -60,6 +61,27 @@ def chart_id_for(analysis: dict[str, Any], key_mode: str, params: GenParams, see
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
 
+def _plan_of(notes: list[dict[str, Any]], lanes: list[LaneInfo]) -> dict[int, float]:
+    """Key position of a chart's single notes by beat (beat * sections.GRID): a chord says nothing
+    clear of where the line goes (its mean, or its top key, took the easy charts' stairs)."""
+    at: dict[int, list[float]] = {}
+    for n in notes:
+        if lanes[n["lane"]].kind == "key":
+            at.setdefault(round(n["beat"] * sectioned.GRID), []).append(lanes[n["lane"]].pos)
+    return {k: v[0] for k, v in at.items() if len(v) == 1}
+
+
+def lane_plan(analysis: dict[str, Any], key_mode: str, tier: str, system: str, overrides: dict[str, Any] | None = None) -> dict[int, float] | None:
+    """The song's plan (patterns.json sectioned.tierPlan): where the top tier's first round, with
+    the chart's options and its default seed, plays at each beat. The industry derives the easier
+    charts from the hardest one and keeps its motion (PATTERN_DESIGN 68)."""
+    try:
+        notes = generate_chart(analysis, key_mode, tier, overrides=overrides, system=system, _plan_round=True)["notes"]
+    except GenerationError:
+        return None
+    return _plan_of(notes, lane_infos(key_mode))
+
+
 def _level_distance(level: int, levels: tuple[int, int]) -> int:
     lo, hi = levels
     return lo - level if level < lo else (level - hi if level > hi else 0)
@@ -74,7 +96,11 @@ def generate_chart(
     overrides: dict[str, Any] | None = None,
     meta: dict[str, Any] | None = None,
     system: str | None = None,
+    *,
+    _plan_round: bool = False,
 ) -> dict[str, Any]:
+    """A chart of the song. `_plan_round` (lane_plan) stops after the level loop's first round and
+    returns only {"notes": ...}."""
     params = resolve_params(key_mode, difficulty, target_level, overrides, system)
     if seed is None:
         seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level, params.system)
@@ -117,6 +143,21 @@ def generate_chart(
     prev_notes: int | None = None
     relax = False
     loud = _loudness_gate(analysis)
+    # the song's plan (patterns.json sectioned.tierPlan): every tier moves the way the top tier's
+    # first round does; the plan takes the chart's options (a player who turns the instrument lanes
+    # or the repeats off gets that in the plan too). The top tier takes its own first round, whatever
+    # its seed or level: building the default one too cost it a round (5.2 s on the 4-minute song)
+    plan_cfg = sectioned.sectioned_config().get("tierPlan")
+    lanes_plan: dict[int, float] | None = None
+    own_plan = False
+    if not _plan_round and engine == "sectioned" and plan_cfg and params.system in plan_cfg["systems"]:
+        top = difficulty_system(params.system)["order"][-1]
+        own_plan = params.difficulty == top
+        if not own_plan:
+            lanes_plan = lane_plan(analysis, key_mode, top, params.system, overrides)
+    # the top tier keeps to its own first round harder: its later rounds are the chart the plan
+    # stands for, and they drifted from it (4 rounds on the test song)
+    plan_weight = float(plan_cfg["ownWeight"] if own_plan else plan_cfg["weight"]) if plan_cfg else 0.0
     rounds = 0
     while rounds < int(cfg["maxAdjustIterations"]):
         rounds += 1
@@ -125,12 +166,16 @@ def generate_chart(
             lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
-            choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan)
+            choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan, lanes_plan, plan_weight)
         else:
             slots = select_slots(candidates, params, tempo, scale, special_kind, key_count, chord_scale)
             plan = plan_patterns(slots, sections, params, key_hands, tempo, seed=seed) if engine == "designer" else None
             choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
-        notes = notes_from_choices(slots, choices, tempo, lanes, plan)
+        notes = merge_near(notes_from_choices(slots, choices, tempo, lanes, plan), lanes, params, tempo)
+        if _plan_round:
+            return {"notes": notes}
+        if own_plan and lanes_plan is None:
+            lanes_plan = _plan_of(notes, lanes)
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         improved = best is None or rank < best[0]
@@ -186,6 +231,7 @@ def generate_chart(
         consistent = _repeat_consistent(slots, choices, sections, lanes, params, tempo, seed, plan)
         if consistent is not None:
             notes, repeat_score = consistent
+            notes = merge_near(notes, lanes, params, tempo)
             est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
     if ending_hold(notes, analysis, tempo, params, lanes, SILENCE_LEVEL):
         est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)

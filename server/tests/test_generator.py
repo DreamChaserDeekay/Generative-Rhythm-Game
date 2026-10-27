@@ -201,6 +201,75 @@ def test_easy_long_notes_let_go_before_a_close_hit() -> None:
     assert s[0].hold_end_beat == 4.0
 
 
+def test_isolated_near_pairs_become_chords() -> None:
+    """Two hits a 32nd or a twelfth of a beat apart with room around them are one hit split by the
+    grid ("zure"): the finer one joins the coarser as a chord, or goes when the chord does not fit;
+    a 16th triplet apart, or inside a run, they stay (generator 0.9.36)."""
+    from rhythm_server.generator.near import merge_near
+
+    tempo = TempoMap({"offsetMs": 0, "tempoMap": [{"beat": 0, "bpm": 150}]})
+    lanes = lane_infos("7K+1S")
+
+    def tap(beat, lane):
+        return {"beat": beat, "t": beat * 400.0, "lane": lane, "type": "tap"}
+
+    master = resolve_params("7K+1S", "MASTER")
+    notes = [tap(10.0, 2), tap(10.125, 5), tap(12.25, 2), tap(12.0 + 1 / 3, 6), tap(14.0, 1), tap(14.0 + 1 / 6, 6), tap(16.5, 3), tap(16.5 + 1 / 6, 6)]
+    notes += [tap(20.0 + i / 8, 1 + i % 2 * 5) for i in range(4)]
+    out = merge_near(notes, lanes, master, tempo)
+    assert sorted((n["beat"], n["lane"]) for n in out if n["beat"] < 11) == [(10.0, 2), (10.0, 5)]  # a 32nd: onto the beat
+    assert sorted((n["beat"], n["lane"]) for n in out if 12 <= n["beat"] < 13) == [(12.0 + 1 / 3, 2), (12.0 + 1 / 3, 6)]  # a 1/12: onto the triplet
+    assert all(n["t"] == n["beat"] * 400.0 for n in out)
+    assert sorted(n["beat"] for n in out if 14 <= n["beat"] < 15) == [14.0, 14.0 + 1 / 6]  # a triplet figure stays
+    assert sorted((n["beat"], n["lane"]) for n in out if 16 <= n["beat"] < 17) == [(16.5, 3), (16.5, 6)]  # an 8th met by a triplet
+    assert len([n for n in out if n["beat"] >= 20]) == 4  # a run stays
+    easy = resolve_params("7K+1S", "EASY")  # two notes at most: the finer note goes
+    out = merge_near([tap(10.0, 1), tap(10.0, 7), tap(10.125, 3)], lanes, easy, tempo)
+    assert sorted(n["lane"] for n in out) == [1, 7] and lint(out, lanes, easy, tempo) == []
+
+
+def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
+    """The default system's tiers move the way the top tier's first round does between the same
+    two single notes (sectioned.tierPlan), and MASTER keeps to that round harder (ownWeight):
+    EXPERT goes MASTER's way more often than with the plan off (0.44 -> 0.72 on this song; HARD has
+    only 14 such pairs here). MASTER starts from its own first round and builds no other, whatever its
+    options or seed; DJMAX keeps its own lanes."""
+    import rhythm_server.generator.core as core
+    from rhythm_server.config import load_config
+
+    calls = []
+    real = core.lane_plan
+    monkeypatch.setattr(core, "lane_plan", lambda *a: calls.append(a[2]) or real(*a))
+
+    def singles(chart):
+        rows: dict[float, list[int]] = {}
+        for n in chart["notes"]:
+            if n["lane"] != 0:
+                rows.setdefault(round(n["beat"], 4), []).append(n["lane"])
+        return {b: ls[0] for b, ls in rows.items() if len(ls) == 1}
+
+    def agreement(easy, hard):
+        a, b = singles(easy), singles(hard)
+        beats = sorted(a)
+        pairs = [(x, y) for x, y in zip(beats, beats[1:]) if x in b and y in b]
+        sign = lambda d: (d > 0) - (d < 0)  # noqa: E731
+        return sum(sign(a[y] - a[x]) == sign(b[y] - b[x]) for x, y in pairs) / len(pairs)
+
+    master = generate_chart(analysis128, "7K+1S", "MASTER")
+    app = generate_chart(analysis128, "7K+1S", "MASTER", overrides={"style": "balanced", "rhythmSource": "auto"})
+    generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
+    assert calls == [] and app["notes"] == master["notes"]
+    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
+    assert calls == ["MASTER"]
+    generate_chart(analysis128, "7K+1S", "HD", system="DJMAX")
+    assert calls == ["MASTER"]
+    plan = load_config("patterns")["sectioned"]["tierPlan"]
+    monkeypatch.setitem(plan, "weight", 0.0)
+    monkeypatch.setitem(plan, "ownWeight", 0.0)
+    master = generate_chart(analysis128, "7K+1S", "MASTER")
+    assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.15
+
+
 def test_repeats_keep_the_same_long_note_after_clearing() -> None:
     """The sectioned engine decides a long note once per class position; after clearing, every repeat
     keeps the shortest one left, or none when one repeat lost it."""

@@ -209,8 +209,11 @@ def test_long_notes_let_go_on_the_grid() -> None:
     assert hold_end(0.0, 1.38, 0.5, 0.2) == 1.0  # the beat before the end, not a quarter-beat length
     assert hold_end(0.0, 0.7, 0.5, 0.9) == 0.5
     assert hold_end(0.0, 0.3, 0.5, 0.9) is None
-    for kind, key_mode, system, difficulty, level in (
-        ("groove", "6K", "DJMAX", "HD", 9), ("groove", "8K", "EZ2ON", "HD", 13), ("structured", "6K", "DJMAX", "MX", 13), ("structured", "6K", "GRG", "NORMAL", None),
+    # (since generator 0.9.36 the default NORMAL follows MASTER's motion and rates lower, so the level
+    # fit gives it more notes, 400 -> 447 on this song: more long notes stop half a beat before a note
+    # that comes in under them, 0.77 -> 0.64)
+    for kind, key_mode, system, difficulty, level, share in (
+        ("groove", "6K", "DJMAX", "HD", 9, 0.75), ("groove", "8K", "EZ2ON", "HD", 13, 0.75), ("structured", "6K", "DJMAX", "MX", 13, 0.75), ("structured", "6K", "GRG", "NORMAL", None, 0.6),
     ):
         notes = chart(kind, key_mode, system, difficulty, level)["notes"]
         holds = [n for n in notes if n["type"] == "hold"]
@@ -226,4 +229,4 @@ def test_long_notes_let_go_on_the_grid() -> None:
             ends = [e for st, e in sung.items() if abs(st - n["t"]) < 35]
             return bool(ends) and abs(n["endT"] - ends[0]) <= 0.3 * beat_ms
 
-        assert np.mean([round(n["endBeat"], 4) in starts or at_sound_end(n) for n in holds]) >= 0.75, (kind, difficulty)
+        assert np.mean([round(n["endBeat"], 4) in starts or at_sound_end(n) for n in holds]) >= share, (kind, difficulty)

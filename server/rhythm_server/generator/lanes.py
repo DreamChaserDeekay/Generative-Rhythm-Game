@@ -427,8 +427,13 @@ def search(
     pitch_targets: list[float | None] | None = None,
     repeat_weight: float | None = None,
     cache: dict[str, Any] | None = None,
+    plan_dirs: list[int | None] | None = None,
+    plan_weight: float = 0.0,
 ) -> tuple[list[Choice], "_State"]:
-    """`lane_search` that also returns the state the best path ends in."""
+    """`lane_search` that also returns the state the best path ends in. `plan_dirs` is the way the
+    song's plan (the top tier, core.lane_plan) moves into each slot from the one before (-1 down,
+    0 the same key, 1 up, None where it has no note): a single note after a single note that goes
+    another way pays `plan_weight`."""
     n_lanes = len(lanes)
     key_lanes = [l.index for l in lanes if l.kind == "key"]
     special_lanes = [l.index for l in lanes if l.kind in ("scratch", "side")]
@@ -611,6 +616,13 @@ def search(
                 home = next((lane for s, lane in reversed(state.memory) if s == home_sound), None)
                 if home is not None:
                     costs = [c + weights.memory if len(combo) == 1 and combo[0] != home else c for c, combo in zip(costs, combos)]
+            if (
+                plan_dirs is not None and plan_dirs[si] is not None and slot.roll is None and len(state.prev_lanes) == 1
+                and lanes[state.prev_lanes[0]].kind == "key" and t - state.prev_t <= REST_MS
+            ):
+                # the easier chart moves the way the harder one does between the same two hits
+                p0, way = pos[state.prev_lanes[0]], plan_dirs[si]
+                costs = [c + plan_weight if len(combo) == 1 and (pos[combo[0]] > p0) - (pos[combo[0]] < p0) != way else c for c, combo in zip(costs, combos)]
             planned = sp is not None and sp.motif != "step"
             if moves is not None and state.mv_key and t - state.mv_t <= REST_MS and not (weights.lane_moves_free and planned):
                 # how people move on from the last key (a single one): continue a stair, repeat a
