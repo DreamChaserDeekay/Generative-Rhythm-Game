@@ -1,7 +1,8 @@
 """Song structure against the sections a person marked on real songs (docs/PATTERN_DESIGN.md 69).
 
     python scripts/measure_structure.py capture TRUTH.json CACHE --music DIR [--music DIR ...]
-    python scripts/measure_structure.py score TRUTH.json CACHE [--split SPLIT.json] [--songs]
+    python scripts/measure_structure.py score TRUTH.json CACHE [--split SPLIT.json] [--songs] [--rules R,R…] [--parts P,P…]
+    python scripts/measure_structure.py score TRUTH.json CACHE --split SPLIT.json --sweep [--parts P,P…]
 
 TRUTH.json is what the marking page exports: {"songs": [{"file", "size", "durationS", "sections":
 [{"t", "label", "group"}]}]}, t in seconds from the start of the file and group "" for "by label".
@@ -19,7 +20,13 @@ and prints numbers only (per-song lines with --songs):
 and the kinds of error: boundaries within 3 s but not 0.5 s (how many bars off), marked boundaries
 missed, found boundaries with nothing marked near, and time per (marked, found) label.
 SPLIT.json ({"dev": ["file|size" …], "test": […]}) prints the songs the rules were tuned on apart
-from the ones kept for checking.
+from the ones kept for checking; --parts keeps only those parts (also out of "all"), so songs kept
+for a last check stay unseen.
+
+--rules turns on exactly the named label and boundary rules of the structure step (structure.
+LABEL_RULES, BOUNDARY_RULES; "none" is analyzer 1.11.0, "default" what the analyzer uses). --sweep
+scores "none", "default", each rule alone and the default without each rule, one line per rule set
+and part (docs/PATTERN_DESIGN.md 69-12).
 """
 
 from __future__ import annotations
@@ -37,6 +44,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from rhythm_server.analysis import analyzer as A  # noqa: E402
+from rhythm_server.analysis import structure as S  # noqa: E402
 from rhythm_server.config import SAMPLE_RATE  # noqa: E402
 
 FRAME_S = 0.5
@@ -229,21 +237,77 @@ def summary(rows: list[dict], title: str) -> None:
         f"{a} " + " ".join(f"{b} {c / sum(conf[a].values()):.2f}" for b, c in conf[a].most_common(3)) for a in LABELS if a in conf))
 
 
-def score(truth: dict, cache: Path, split: dict | None, per_song: bool) -> None:
+DEFAULT_RULES = (S.LABEL_RULES, S.BOUNDARY_RULES)
+ALL_RULES = sorted(S.LABEL_RULES | S.BOUNDARY_RULES | {"tail_outro"})
+
+
+def use_rules(spec: str) -> None:
+    """Turn on exactly the rules in `spec` ("none", "default" or names joined by commas)."""
+    if spec == "default":
+        S.LABEL_RULES, S.BOUNDARY_RULES = DEFAULT_RULES
+        return
+    names = set() if spec == "none" else {r.strip() for r in spec.split(",") if r.strip()}
+    unknown = names - set(ALL_RULES)
+    if unknown:
+        raise SystemExit(f"unknown rules: {', '.join(sorted(unknown))} (known: {', '.join(ALL_RULES)})")
+    boundary = {"bar_refine", "oneoff_twins"}
+    S.LABEL_RULES, S.BOUNDARY_RULES = frozenset(names - boundary), frozenset(names & boundary)
+
+
+def wanted(truth: dict, split: dict | None, parts: list[str] | None) -> dict[str, list[str]]:
+    """Song keys per part (only `parts` when given; "all" is their union)."""
+    keys = [f"{s['file']}|{s.get('size', '')}" for s in truth["songs"]]
+    out = {p: list(f) for p, f in (split or {}).items() if not parts or p in parts}
+    out["all"] = [k for k in keys if k in {f for fs in out.values() for f in fs}] if parts else keys
+    return out
+
+
+def score_rows(truth: dict, cache: Path, keep: set[str], per_song: bool = False) -> dict[str, dict]:
     rows: dict[str, dict] = {}
     for s in truth["songs"]:
+        key = f"{s['file']}|{s.get('size', '')}"
+        if key not in keep:
+            continue
         p = cache / f"{song_key(s)}.npz"
         if not p.exists():
             print(f"no capture: {s['file']}")
             continue
-        r = rows[f"{s['file']}|{s.get('size', '')}"] = score_song(s, np.load(p))
+        r = rows[key] = score_song(s, np.load(p))
         if per_song:
             print(f"{s['file'][:40]:40s} HR.5F {r['HR.5F']:.2f} HR3F {r['HR3F']:.2f} label {r['label']:.2f} groupF {r['groupF']:.2f} "
                   f"So {r['So']:.2f} Su {r['Su']:.2f} ch {r['chP']:.2f}/{r['chR']:.2f} {r['nRef']:2d}/{r['nEst']:2d} sections")
-    if split:
-        for part, files in split.items():
+    return rows
+
+
+def score(truth: dict, cache: Path, split: dict | None, per_song: bool, parts: list[str] | None) -> None:
+    sets = wanted(truth, split, parts)
+    rows = score_rows(truth, cache, set(sets["all"]), per_song)
+    for part, files in sets.items():
+        if part != "all":
             summary([rows[f] for f in files if f in rows], part)
-    summary(list(rows.values()), "all")
+    summary([rows[f] for f in sets["all"] if f in rows], "all")
+
+
+def sweep(truth: dict, cache: Path, split: dict | None, parts: list[str] | None) -> None:
+    """One line per rule set and part: the rule sets of 69-12 against "none" (analyzer 1.11.0)."""
+    sets = wanted(truth, split, parts)
+    default = sorted(DEFAULT_RULES[0] | DEFAULT_RULES[1])
+    specs = ["none", "default"] + [f"{r}" for r in ALL_RULES] + [",".join(x for x in default if x != r) or "none" for r in default]
+    names = ["none", "default"] + [f"+{r}" for r in ALL_RULES] + [f"default-{r}" for r in default]
+    keys = ("HR.5F", "HR3F", "label", "groupF", "chP", "chR")
+    print(f"{'rules':28s} {'part':6s} {'n':>3s} " + " ".join(f"{k:>6s}" for k in keys) + "   secs  extra  1bar  2bar")
+    for name, spec in zip(names, specs):
+        use_rules(spec)
+        rows = score_rows(truth, cache, set(sets["all"]))
+        for part, files in sets.items():
+            got = [rows[f] for f in files if f in rows]
+            if not got:
+                continue
+            off = [abs(o) for r in got for o in r["offBars"]]
+            print(f"{name:28s} {part:6s} {len(got):3d} " + " ".join(f"{np.mean([r[k] for r in got]):6.3f}" for k in keys)
+                  + f"  {np.mean([r['nEst'] for r in got]):5.1f}  {sum(r['extra'] for r in got):5d}"
+                  + f"  {sum(1 for o in off if abs(o - 1) < 0.25):4d}  {sum(1 for o in off if abs(o - 2) < 0.25):4d}", flush=True)
+    use_rules("default")
 
 
 def main() -> None:
@@ -255,12 +319,21 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--split")
     ap.add_argument("--songs", action="store_true")
+    ap.add_argument("--rules", default="default", help='"none" (analyzer 1.11.0), "default", or rule names joined by commas')
+    ap.add_argument("--parts", help="split parts to score, joined by commas (the rest stay unseen)")
+    ap.add_argument("--sweep", action="store_true", help="score the rule sets of PATTERN_DESIGN 69-12 one line each")
     a = ap.parse_args()
     truth = json.load(open(a.truth, encoding="utf-8"))
     if a.mode == "capture":
         capture(truth, Path(a.cache), a.music, a.force)
+        return
+    split = json.load(open(a.split, encoding="utf-8")) if a.split else None
+    parts = [p.strip() for p in a.parts.split(",")] if a.parts else None
+    if a.sweep:
+        sweep(truth, Path(a.cache), split, parts)
     else:
-        score(truth, Path(a.cache), json.load(open(a.split, encoding="utf-8")) if a.split else None, a.songs)
+        use_rules(a.rules)
+        score(truth, Path(a.cache), split, a.songs, parts)
 
 
 if __name__ == "__main__":
