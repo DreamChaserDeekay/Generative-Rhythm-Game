@@ -50,5 +50,21 @@ test('song sections: shown by group on the minimap, edited and reset in the song
   await page.getByTestId('reset-sections').click();
   await expect(page.getByTestId('sections-status')).toHaveText('자동 분석');
   expect((await (await page.request.get(`/api/songs/${id}/sections`)).json()).edited).toBe(false);
+
+  // a boundary set by ear: a click on the waveform goes there, M adds a section on that bar line,
+  // and Enter (which plays the chart in the song select) plays the section from just before it
+  await expect(page.getByTestId('section-row')).toHaveCount(analysed.sections.length);
+  const analysis = await (await page.request.get(`/api/songs/${id}/analysis`)).json();
+  const middle = (analysis.sections[1].t + analysis.sections[1].endT) / 2;
+  const wave = page.locator('.section-wave').first();
+  const box = (await wave.boundingBox())!;
+  await wave.click({ position: { x: (middle / analysis.durationMs) * box.width, y: box.height / 2 } });
+  await page.keyboard.press('KeyM');
+  await expect(page.getByTestId('section-row')).toHaveCount(analysed.sections.length + 1);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('section-play')).toHaveText('멈춤');
+  await expect(page.getByTestId('section-editor')).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(page.getByTestId('section-play')).toHaveText('재생');
   expect(errors).toEqual([]);
 });
