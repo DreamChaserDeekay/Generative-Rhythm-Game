@@ -158,7 +158,7 @@
 | POST / DELETE | `/api/songs/{id}/cover` | 커버 그림 올리기(png · jpg · gif · bmp · webp를 첫 바이트로 판별, 최대 20MB; 태그·패키지 그림 대신) / 지우기(디스크 그림으로) |
 | GET | `/api/songs/{id}/sketch` | 메뉴용 구간과 파형 봉우리(고친 구간이 있으면 그것) |
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
-| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency · patternEngine) — 같은 chartId면 캐시. 곡에 고친 구간이 있으면 그 구간으로 만든다. `brief: true`면 메타만 답하고 디스크에 저장하지 않는다(메모리에 마지막 12개 채보와 메타 1000개; 다음에 전체를 요청하면 다시 만들지 않고 그때 저장) |
+| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency · patternEngine) — 같은 chartId면 캐시. 곡에 고친 구간이 있으면 그 구간으로 만든다. `brief: true`면 메타만 답하고 디스크에 저장하지 않는다(메모리에 마지막 12개 채보와 메타 1000개; 다음에 전체를 요청하면 다시 만들지 않고 그때 저장). 목표 레벨 없이 요청한 MASTER가 잔잔한 곡이라 없으면 404(같은 요청은 다시 만들지 않고 404; `docs/PATTERN_DESIGN.md` 72장), 만들 수 없는 채보는 422 |
 | GET | `/api/charts/{chartId}` | 채보 |
 | POST | `/api/scores` | 플레이 기록 저장(선택: `replay`, 그 `settings`에 녹화 때 `inputOffsetMs`·`songOffsetMs`) → 곡의 기록 |
 | GET | `/api/songs/{id}/scores` | 채보별 최고 기록: 기본 점수가 가장 높은 판(`bestScoreId`, `hasReplay`, `score`, `rate`), 모든 판 중 가장 좋은 `lamp`·`maxCombo`, 끝까지 친 판의 최소 BREAK `minBreaks`(그런 판이 없으면 null), 그 점수 규칙으로 친 판의 최고 `exScore`·`weightedScore`(없으면 null), `plays`, `lastPlayedAt`, 생성 채보면 `generatorVersion`과 기본 패턴인지(`defaultSeed`), 가져온 채보면 파일의 레벨 `sourceLevel`, 판정 모드마다 같은 항목 `byMode` |

@@ -103,7 +103,7 @@ export interface DifficultyTier {
   id: string;
   label: string;
   short: string;
-  /** Typical level range (a default chart aims at its middle). */
+  /** Level range (a default chart takes the part of it the song's own density calls for). */
   levels: [number, number];
   /** Badge colour. */
   color: string;
@@ -125,4 +125,11 @@ export const maxLevel = difficultyJson.levelEffectiveNps.length;
 /** The tier of a stored difficulty, else the first (an old EASY plays as NORMAL). */
 export function tierOf(difficulty: string): DifficultyTier {
   return difficultyTiers.find((t) => t.id === difficulty) ?? difficultyTiers[0];
+}
+
+/** The hardest of a song's tiers up to `tier` (its easiest when none is). */
+export function tierUpTo(has: DifficultyTier[], tier: string): string {
+  const at = difficultyTiers.findIndex((t) => t.id === tier);
+  const under = has.filter((t) => difficultyTiers.indexOf(t) <= at);
+  return (under[under.length - 1] ?? has[0] ?? tierOf(tier)).id;
 }

@@ -661,12 +661,15 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 139' }).click();
   const plates = page.getByTestId('difficulty-row').getByRole('button');
   const level = page.getByTestId('chart-level');
-  // no chart asked for by hand: every plate gets its level and notes
+  // no chart asked for by hand: every plate gets its level and notes (a song too calm for MASTER,
+  // as the demo songs may be, has no MASTER plate and an empty cell on the list)
   await expect(level).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('.difficulty .diff-level em')).toHaveText([/\d+ 노트/, /\d+ 노트/, /\d+ 노트/, /\d+ 노트/], { timeout: 30_000 });
-  await expect(page.locator('.level-pending')).toHaveCount(0);
-  const row = page.locator(`[data-song-id="${id}"] .tier-level`);
-  await expect(row).toHaveText([/^\d+$/, /^\d+$/, /^\d+$/, /^\d+$/]);
+  await expect(page.locator('.level-pending')).toHaveCount(0, { timeout: 30_000 });
+  const shown = await plates.count();
+  expect(shown).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('.difficulty .diff-level em')).toHaveText(Array(shown).fill(/\d+ 노트/));
+  const row = page.locator(`[data-song-id="${id}"] .tier-level:not(.absent)`);
+  await expect(row).toHaveText(Array(shown).fill(/^\d+$/));
   // away (the settings) and back: known at once
   await page.keyboard.press('F10');
   await expect(page.getByTestId('settings-screen')).toBeVisible();

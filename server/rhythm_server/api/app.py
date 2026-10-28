@@ -33,7 +33,7 @@ from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
 from ..formats.images import MAX_IMAGE_BYTES, MEDIA_TYPES, image_kind
 from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, extract_images, safe_relpath
-from ..generator import GENERATOR_VERSION, GenerationError, chart_id_for, default_seed, generate_chart
+from ..generator import GENERATOR_VERSION, GenerationError, TierNotMade, chart_id_for, default_seed, generate_chart
 from ..generator.sections import edited_analysis
 from .sketch import sketch_of
 from ..generator.core import keysound_meta
@@ -468,8 +468,11 @@ def create_app(
     # asked for whole next is saved then, not made again) and the metas of more.
     brief_charts: OrderedDict[str, dict[str, Any]] = OrderedDict()
     brief_metas: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    # tiers a song has no chart on (its top tier on a calm song): the generator's answer, worked out
+    # over a whole level fit, is kept so the song select's next visit does not make it again
+    not_made: OrderedDict[str, str] = OrderedDict()
 
-    def keep(cache: OrderedDict[str, dict[str, Any]], key: str, value: dict[str, Any], size: int) -> None:
+    def keep(cache: OrderedDict[str, Any], key: str, value: Any, size: int) -> None:
         cache[key] = value
         cache.move_to_end(key)
         while len(cache) > size:
@@ -501,6 +504,8 @@ def create_app(
         if req.brief and chart_id in brief_metas:
             brief_metas.move_to_end(chart_id)
             return {"meta": brief_metas[chart_id], "cached": True}
+        if chart_id in not_made:
+            raise HTTPException(404, not_made[chart_id])
         chart = brief_charts.pop(chart_id, None)
         made = chart is not None
         if chart is None:
@@ -509,6 +514,9 @@ def create_app(
                 chart = await run_in_threadpool(
                     generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta
                 )
+            except TierNotMade as e:
+                keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
+                raise HTTPException(404, str(e)) from e
             except GenerationError as e:
                 raise HTTPException(422, str(e)) from e
         if req.brief:

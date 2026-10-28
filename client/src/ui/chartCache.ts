@@ -59,6 +59,9 @@ const SAVED = 'saved:';
 /** The key of a saved (edited or imported) chart, which is known by its id. */
 export const savedChartKey = (chartId: string) => `${SAVED}${chartId}`;
 
+/** The server makes no chart of that key: a tier the song does not have (a saved chart that is gone is not one). */
+export const tierAbsent = (store: Pick<ChartStore, 'failure'>, key: string): boolean => !key.startsWith(SAVED) && store.failure(key) === 404;
+
 export function requestOf(spec: ChartSpec): ChartRequest {
   return { keyMode: spec.keyMode, difficulty: spec.difficulty, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
 }

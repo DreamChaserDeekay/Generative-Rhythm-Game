@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type ServerChart } from '../api/client';
-import { analysisStamp, BRIEFS_STORAGE_KEY, BRIEFS_STORED, ChartStore, chartKey, savedChartKey, type ChartSpec } from './chartCache';
+import { difficultyTiers, tierUpTo } from '../engine/config';
+import { analysisStamp, BRIEFS_STORAGE_KEY, BRIEFS_STORED, ChartStore, chartKey, savedChartKey, tierAbsent, type ChartSpec } from './chartCache';
 
 const spec = (extra: Partial<ChartSpec> = {}): ChartSpec => ({
   songId: '0123456789abcdef',
@@ -279,5 +280,26 @@ describe('the briefs kept across restarts', () => {
     expect(kept).toHaveLength(BRIEFS_STORED);
     expect(kept).not.toContain('k0');
     expect(kept.slice(-2)).toEqual([chartKey(spec()), chartKey(spec({ difficulty: 'HARD' }))]);
+  });
+});
+
+describe('a tier a song does not have', () => {
+  it('is one the server answered 404 for, not a refusal or a saved chart that is gone', async () => {
+    const { s } = store(new Map([['MASTER', new ApiError(404, 'none')], ['EXPERT', cannot()], ['c-gone', new ApiError(404, 'gone')]]));
+    await s.loadBrief(spec({ difficulty: 'MASTER' }));
+    await s.loadBrief(spec({ difficulty: 'EXPERT' }));
+    await s.loadSaved('c-gone');
+    expect(tierAbsent(s, chartKey(spec({ difficulty: 'MASTER' })))).toBe(true);
+    expect(tierAbsent(s, chartKey(spec({ difficulty: 'EXPERT' })))).toBe(false);
+    expect(tierAbsent(s, savedChartKey('c-gone'))).toBe(false);
+    expect(tierAbsent(s, chartKey(spec()))).toBe(false);
+  });
+
+  it('plays the hardest tier the song has up to the one chosen', () => {
+    const noTop = difficultyTiers.slice(0, -1);
+    expect(tierUpTo(noTop, 'MASTER')).toBe('EXPERT');
+    expect(tierUpTo(noTop, 'HARD')).toBe('HARD');
+    expect(tierUpTo(difficultyTiers, 'MASTER')).toBe('MASTER');
+    expect(tierUpTo(difficultyTiers.slice(1), 'NORMAL')).toBe('HARD');
   });
 });

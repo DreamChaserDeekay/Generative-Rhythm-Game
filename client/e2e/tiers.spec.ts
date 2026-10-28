@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addFromMenu, playOptions, settingsTab, songInfo } from './songSelect';
+import { addFromMenu, fakeSongs, playOptions, settingsTab, songInfo } from './songSelect';
 
 // The four tiers of the game's own scale (Lv.4–15); the DJMAX and EZ2ON difficulty systems were taken out.
 test('charts are generated on the four tiers, and settings saved on a removed difficulty system load on NORMAL', async ({ page }) => {
@@ -45,5 +45,53 @@ test('charts are generated on the four tiers, and settings saved on a removed di
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'play');
   await expect(page.getByTestId('opt-system')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// A song too calm for the top tier has none (the server answers 404, difficulty.json songFit): its
+// cell on the list is left empty and, with MASTER chosen, Enter plays its EXPERT; no notice says so.
+test('a song without a MASTER leaves its cell empty and plays its EXPERT, and the next song is on MASTER again', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const songs = fakeSongs(2, 'ready').map((s) => ({ ...s, analyzedAt: 1 }));
+  const timing = { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
+  await page.route((url) => url.pathname === '/api/songs', (route) => route.fulfill({ json: { songs } }));
+  await page.route(
+    (url) => /^\/api\/songs\/[^/]+\/charts$/.test(url.pathname),
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fulfill({ json: { charts: [] } });
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      const songId = new URL(route.request().url()).pathname.split('/')[3];
+      if (songId === songs[1].id && body.difficulty === 'MASTER') return route.fulfill({ status: 404, json: { detail: '이 곡에는 MASTER 채보가 없습니다' } });
+      const level = ({ NORMAL: 4, HARD: 7, EXPERT: 10, MASTER: 13 } as Record<string, number>)[body.difficulty];
+      const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '7K+1S', difficulty: body.difficulty, level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
+      return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
+    },
+  );
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S', lastDifficulty: 'MASTER' })));
+  await page.goto('/');
+  const plates = page.getByTestId('difficulty-row').getByRole('button');
+  const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
+
+  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await expect(plates).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /MASTER/]);
+  await expect(page.locator('.difficulty.active')).toContainText('MASTER');
+
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('song-title')).toHaveText('Fake Song 02');
+  await expect(plates).toHaveText([/NORMAL/, /HARD/, /EXPERT/], { timeout: 30_000 });
+  await expect(page.locator('.difficulty.active')).toContainText('EXPERT');
+  await expect(cells(1)).toHaveText(['4', '7', '10', '']);
+  await expect(cells(1).nth(3)).toHaveClass(/absent/);
+  await expect(cells(1).nth(2)).toHaveClass(/active/);
+  await expect(page.getByTestId('chart-level')).toHaveText('Lv.10');
+  // → past the song's last tier goes nowhere; the choice stays MASTER
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.difficulty.active')).toContainText('EXPERT');
+
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.difficulty.active')).toContainText('MASTER');
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
+  expect(stored.lastDifficulty).toBe('MASTER');
   expect(errors).toEqual([]);
 });

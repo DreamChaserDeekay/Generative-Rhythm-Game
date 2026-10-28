@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { api, ApiError, EXPORT_LABELS, type Health, type ImportResult, type SavedChart, type ScoreRecord, type ServerChart, type Song } from '../api/client';
 import { forgetSongBuffer } from '../audio/bufferCache';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
-import { difficultyTiers as tiers, enabledKeyModes, gaugeRules, maxLevel, tierOf, type DifficultyTier } from '../engine/config';
+import { difficultyTiers as tiers, enabledKeyModes, gaugeRules, maxLevel, tierOf, tierUpTo, type DifficultyTier } from '../engine/config';
 import { placementLabels } from '../engine/placement';
 import { isReplay, type ReplayData } from '../engine/replay';
 import { rulesetConfigs, type RulesetId } from '../engine/ruleset';
@@ -34,7 +34,7 @@ import {
 import { failureReason } from './analysisError';
 import type { PlayRequest, PracticeOptions } from './App';
 import type { CalibrationStep } from './CalibrationScreen';
-import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
+import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, tierAbsent, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
 import { desktopShell } from './displayMode';
 import { CHART_FILE, entryFiles, sortDrop, type DroppedFile } from './dropFiles';
 import { dayText, speedText } from './format';
@@ -140,7 +140,8 @@ export function SongSelectScreen(props: Props) {
   const current = useRef(settings);
   current.current = settings;
   const keyMode = settings.lastKeyMode;
-  const difficulty = tierOf(settings.lastDifficulty).id;
+  // the tier chosen last; a song without it plays the hardest tier it has under it (tierOn)
+  const chosen = tierOf(settings.lastDifficulty).id;
   const favorites = useMemo(() => new Set(settings.favorites), [settings.favorites]);
   const folder = settings.songFolder;
   const generationKey = JSON.stringify(settings.generation);
@@ -180,6 +181,11 @@ export function SongSelectScreen(props: Props) {
     if (chartId) return chartStore.loadSaved(chartId, retry);
     return spec ? (whole ? chartStore.loadChart(spec, retry) : chartStore.loadBrief(spec)) : Promise.resolve(null);
   };
+  /** The tiers a song has: the server makes no top tier on a song too calm for it (it answers 404). */
+  const tiersOn = (song: Song): DifficultyTier[] =>
+    song.status === 'ready' ? tiers.filter((t) => !tierAbsent(chartStore, tierChart(song, t.id).key)) : tiers;
+  /** The tier a song is played on for the one chosen: the hardest it has up to that one. */
+  const tierOn = (song: Song, tier: string): string => tierUpTo(tiersOn(song), tier);
 
   // the folder, then the search, in the chosen order
   const folderCounts = useMemo(
@@ -191,13 +197,15 @@ export function SongSelectScreen(props: Props) {
     const shown = songs.filter((s) => inFolder(s, folder, keyMode, favorites) && (!q || `${s.title} ${s.artist}`.toLowerCase().includes(q)));
     // 레벨순 takes the levels known when the list is ordered (a level coming in later does not move
     // the songs under the cursor; the next order, folder or search takes it)
-    const knownLevel = (s: Song) => briefOn(s, difficulty)?.level ?? null;
-    return sortSongs(shown, settings.songSort, { keyMode, difficulty, knownLevel });
-  }, [songs, query, folder, keyMode, difficulty, favorites, settings.songSort]);
+    const knownLevel = (s: Song) => briefOn(s, tierOn(s, chosen))?.level ?? null;
+    return sortSongs(shown, settings.songSort, { keyMode, difficulty: chosen, knownLevel });
+  }, [songs, query, folder, keyMode, chosen, favorites, settings.songSort]);
   // The song under the cursor is always one the list shows: a folder or a search that leaves the
   // chosen one out puts the cursor on its first song, and with no song shown nothing is selected
   // (or played).
   const selected = filtered.find((s) => s.id === selectedSongId) ?? filtered[0] ?? null;
+  const difficulty = selected ? tierOn(selected, chosen) : chosen;
+  const tiersShown = selected ? tiersOn(selected) : tiers;
   useEffect(() => {
     if (selected && selected.id !== selectedSongId) onSelectSong(selected.id);
   }, [selected?.id, selectedSongId]);
@@ -663,10 +671,11 @@ export function SongSelectScreen(props: Props) {
   const setTargetLevel = (level: number | null) => selected && props.onTargetLevel(tierKey(selected, difficulty), level);
   /** ←→: the next entry of the difficulty row (the tiers, then the saved charts), none past either end. */
   const stepEntry = (dir: 1 | -1) => {
-    const at = savedEntry ? tiers.length + savedOnMode.indexOf(savedEntry) : tiers.findIndex((t) => t.id === difficulty);
+    const row = tiersShown;
+    const at = savedEntry ? row.length + savedOnMode.indexOf(savedEntry) : row.findIndex((t) => t.id === difficulty);
     const next = at + dir;
-    if (next < 0 || next >= tiers.length + savedOnMode.length) return;
-    pickEntry(next < tiers.length ? { tier: tiers[next].id } : { chartId: savedOnMode[next - tiers.length].chartId });
+    if (next < 0 || next >= row.length + savedOnMode.length) return;
+    pickEntry(next < row.length ? { tier: row[next].id } : { chartId: savedOnMode[next - row.length].chartId });
   };
   const toggleFavorite = (id: string) =>
     onSettingsChange({ ...settings, favorites: favorites.has(id) ? settings.favorites.filter((f) => f !== id) : [...settings.favorites, id] });
@@ -1057,7 +1066,11 @@ export function SongSelectScreen(props: Props) {
       filtered.map((s, i): ListCells => {
         const records = recordsOn(s, keyMode);
         return {
-          tiers: tiers.map((t, j) => ({ tier: t, ...tierMark(records, t.id, s.status === 'ready' ? chartStore.brief(listCharts[i][j]) : null) })),
+          tiers: tiers.map((t, j) => ({
+            tier: t,
+            ...tierMark(records, t.id, s.status === 'ready' ? chartStore.brief(listCharts[i][j]) : null),
+            absent: s.status === 'ready' && tierAbsent(chartStore, listCharts[i][j]),
+          })),
           saved: savedMark(savedRecordsOn(s, keyMode)),
         };
       }),
@@ -1309,7 +1322,7 @@ export function SongSelectScreen(props: Props) {
                 favorite={favorites.has(s.id)}
                 cells={listCells[i]}
                 // the column ←→ picked; on the selected song a saved chart picked there takes it
-                tier={savedEntry && s.id === selected?.id ? null : difficulty}
+                tier={savedEntry && s.id === selected?.id ? null : chosen}
                 onPick={onSelectSong}
               />
             ))}
@@ -1464,7 +1477,7 @@ export function SongSelectScreen(props: Props) {
               </div>
 
               <div className="difficulty-row" data-testid="difficulty-row">
-                {tiers.map((t) => {
+                {tiersShown.map((t) => {
                   const brief = briefOn(selected, t.id);
                   const record = tierRecord(selected, t.id);
                   const target = props.targetLevels[tierKey(selected, t.id)];
@@ -1646,8 +1659,8 @@ function headlineText(r: ScoreRecord, ruleset: RulesetId): string {
   return head.label === 'RATE' ? head.value : `${head.label} ${head.value}`;
 }
 
-/** A tier's cell on the song list with its tier. */
-type RowMark = TierMark & { tier: DifficultyTier };
+/** A tier's cell on the song list with its tier (`absent`: the song has no chart on it, the cell is left empty). */
+type RowMark = TierMark & { tier: DifficultyTier; absent: boolean };
 
 /** A song's cells on the song list: its tiers', and its saved charts' best (null: none played). */
 interface ListCells {
@@ -1693,7 +1706,7 @@ function sameRow(a: SongRowProps, b: SongRowProps): boolean {
     a.tier === b.tier &&
     a.onPick === b.onPick &&
     at.length === bt.length &&
-    at.every((m, i) => m.tier === bt[i].tier && sameMark(m, bt[i])) &&
+    at.every((m, i) => m.tier === bt[i].tier && m.absent === bt[i].absent && sameMark(m, bt[i])) &&
     sameMark(a.cells.saved, b.cells.saved) &&
     a.cells.saved?.name === b.cells.saved?.name
   );
@@ -1713,6 +1726,8 @@ function cellTitle(m: RowMark): string {
  */
 const SongRow = memo(function SongRow(props: SongRowProps) {
   const { song, cells } = props;
+  // a song without the tier chosen plays the hardest it has under it
+  const playedTier = props.tier === null ? null : tierUpTo(cells.tiers.filter((m) => !m.absent).map((m) => m.tier), props.tier);
   const working = song.status === 'queued' || song.status === 'analyzing';
   return (
     <button className={`song-item ${props.active ? 'active' : ''}`} data-testid="song-item" data-song-id={song.id} onClick={() => props.onPick(song.id)}>
@@ -1733,9 +1748,9 @@ const SongRow = memo(function SongRow(props: SongRowProps) {
       ) : (
         <span className="song-tiers">
           {cells.saved && <LampCell mark={cells.saved} saved title={`${cells.saved.name} · ${cells.saved.lamp}`} active={props.tier === null} />}
-          {cells.tiers.map((m) => (
-            <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} active={m.tier.id === props.tier} />
-          ))}
+          {cells.tiers.map((m) =>
+            m.absent ? <span key={m.tier.id} className="tier-level absent" /> : <LampCell key={m.tier.id} mark={m} title={cellTitle(m)} active={m.tier.id === playedTier} />,
+          )}
         </span>
       )}
       {props.favorite && <i className="fav-mark" aria-label="즐겨찾기" />}

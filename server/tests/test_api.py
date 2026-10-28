@@ -107,6 +107,27 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
+def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkeypatch) -> None:
+    """The top tier of a song too calm for it (difficulty.json songFit) is a 404, worked out once."""
+    import rhythm_server.api.app as app_module
+    from rhythm_server.config import difficulty_config
+
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
+    fit = difficulty_config()["songFit"]
+    monkeypatch.setitem(fit, "from", 99.0)
+    monkeypatch.setitem(fit, "to", 100.0)
+    made = []
+    real = app_module.generate_chart
+    monkeypatch.setattr(app_module, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
+    req = {"keyMode": "7K+1S", "difficulty": "MASTER", "brief": True}
+    for _ in range(2):
+        r = client.post(f"/api/songs/{song['id']}/charts", json=req)
+        assert r.status_code == 404 and "MASTER" in r.json()["detail"]
+    assert made == ["MASTER"]
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 14}).status_code == 200
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "difficulty": "EXPERT"}).status_code == 200
+
+
 def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
     req = {"keyMode": "4K", "difficulty": "NORMAL"}

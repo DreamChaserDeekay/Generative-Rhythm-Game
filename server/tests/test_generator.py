@@ -241,7 +241,7 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     two single notes (sectioned.tierPlan), and MASTER keeps to that round harder (ownWeight):
     EXPERT goes MASTER's way more often than with the plan off (0.44 -> 0.72 on this song with the
     sections of analyzer 1.10.0, 0.46 -> 0.54 with those of 1.11.0; HARD has only 14 such pairs). MASTER starts from its own first round and builds no other, whatever its
-    options or seed."""
+    options; with another seed it builds the default one for the song's strength (songFit)."""
     import rhythm_server.generator.core as core
     from rhythm_server.config import load_config
 
@@ -265,15 +265,42 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
 
     master = generate_chart(analysis128, "7K+1S", "MASTER")
     app = generate_chart(analysis128, "7K+1S", "MASTER", overrides={"style": "balanced", "rhythmSource": "auto"})
-    generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
     assert calls == [] and app["notes"] == master["notes"]
-    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
+    generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
     assert calls == ["MASTER"]
+    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
+    assert calls == ["MASTER", "MASTER"]
     plan = load_config("patterns")["sectioned"]["tierPlan"]
     monkeypatch.setitem(plan, "weight", 0.0)
     monkeypatch.setitem(plan, "ownWeight", 0.0)
     master = generate_chart(analysis128, "7K+1S", "MASTER")
     assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.05
+
+
+def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(analysis128: dict, monkeypatch) -> None:
+    """difficulty.json songFit: a default chart aims at the part of its tier's level range the
+    song's strength (the top tier's first-round rating) calls for, and a song under `from` has no
+    top tier. A chart asked for at a level is made all the same."""
+    import rhythm_server.generator.core as core
+
+    fit = difficulty_config()["songFit"]
+    strength = core.lane_plan(analysis128, "7K+1S", "MASTER")[1]
+    assert strength is not None
+    monkeypatch.setitem(fit, "floorAtBottom", 0.7)
+    monkeypatch.setitem(fit, "from", strength + 1.0)
+    monkeypatch.setitem(fit, "to", strength + 2.0)
+    with pytest.raises(core.TierNotMade):
+        generate_chart(analysis128, "7K+1S", "MASTER")
+    with pytest.raises(core.TierNotMade):
+        generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
+    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=14)["meta"]["difficulty"] == "MASTER"
+    bottom = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
+    monkeypatch.setitem(fit, "from", strength - 2.0)
+    monkeypatch.setitem(fit, "to", strength - 1.0)
+    top = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
+    assert bottom["rating"] < top["rating"] and bottom["noteCount"] < top["noteCount"]
+    assert core.song_place(15.0, {"from": 14.0, "to": 20.0}) == pytest.approx(1 / 6)
+    assert core.song_place(10.0, {"from": 14.0, "to": 20.0}) == 0.0 and core.song_place(25.0, {"from": 14.0, "to": 20.0}) == 1.0
 
 
 def test_repeats_keep_the_same_long_note_after_clearing() -> None:
