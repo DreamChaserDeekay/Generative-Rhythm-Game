@@ -4834,6 +4834,34 @@ button.option-chips[aria-expanded='true'] .chip {
   display: block;
 }
 
+.section-player {
+  border-radius: var(--radius-sm);
+}
+
+.section-player:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.section-wave {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-bottom: var(--sp-2);
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.section-wave.zoom {
+  height: 88px;
+}
+
+.section-row.selected {
+  outline: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
 .offline pre {
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-label);

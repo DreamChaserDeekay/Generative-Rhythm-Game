@@ -43,6 +43,13 @@ HIGHLIGHT_MATE_MARGIN = 0.25  # ... with their group's other occurrences this ne
 HIGHLIGHT_MIN_BARS = 8  # a one-off passage shorter than this is no highlight
 GROUP_SHIFT_BARS = 1  # two sections are compared from their starts and this many bars off
 INTENSITY_TIE_BREAK = 1e-3  # the share of loudness that decides between equally intense sections
+# Label and boundary rules of analyzer 1.12.0 (docs/PATTERN_DESIGN.md 69-10 – 69-12), kept because
+# they scored better on both the tuning and the checking songs people marked. Each can be turned off
+# (scripts/measure_structure.py --rules); with none of them the structure step is that of 1.11.0.
+LABEL_RULES = frozenset({"oneoff_verse", "drop_halves"})
+BOUNDARY_RULES = frozenset({"oneoff_twins"})
+HALF_MARGIN = 0.15  # a group always right before the chorus, this near the threshold to it and as intense, is its first half
+TWIN_MARGIN = 0.1  # two neighbouring one-off sections this near the repeat threshold are one section
 HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
 
 
@@ -246,13 +253,20 @@ def _segment_similarity(ssm: np.ndarray, a: tuple[int, int], b: tuple[int, int])
     return best
 
 
-def group_segments(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float) -> tuple[list[int], list[float]]:
-    """Group number per section (average linkage) and how firmly it sits in its group."""
+def section_similarity(ssm: np.ndarray, spans: list[tuple[int, int]]) -> np.ndarray:
+    """Section-by-section similarity (_segment_similarity; 1 on the diagonal)."""
     k = len(spans)
     sim = np.eye(k)
     for i in range(k):
         for j in range(i + 1, k):
             sim[i, j] = sim[j, i] = _segment_similarity(ssm, spans[i], spans[j])
+    return sim
+
+
+def group_segments(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float) -> tuple[list[int], list[float]]:
+    """Group number per section (average linkage) and how firmly it sits in its group."""
+    k = len(spans)
+    sim = section_similarity(ssm, spans)
     clusters = [[i] for i in range(k)]
     while len(clusters) > 1:
         best, pair = -1.0, None
@@ -291,6 +305,19 @@ def _group_some(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float)
         if len(set(groups)) < len(groups):
             return groups, firm
     return group_segments(ssm, spans, threshold)
+
+
+def join_twins(sim: np.ndarray, groups: list[int], threshold: float) -> list[int]:
+    """Neighbouring sections each heard once and nearly alike (TWIN_MARGIN under the repeat
+    threshold) take one group, so that merge_and_split makes them one section: a change inside a
+    part split it (1.11.0 found 13.6 sections a song where people marked 9.5; on the marked songs
+    this took HR.5F 0.441 -> 0.448 and 0.565 -> 0.569 and 116 extra boundaries down to 109)."""
+    out = list(groups)
+    count = {g: out.count(g) for g in set(out)}
+    for i in range(1, len(out)):
+        if count[groups[i]] == 1 and count[groups[i - 1]] == 1 and sim[i - 1, i] >= threshold - TWIN_MARGIN:
+            out[i] = out[i - 1]
+    return out
 
 
 def merge_and_split(spans: list[tuple[int, int]], groups: list[int]) -> list[tuple[int, int]]:
@@ -356,18 +383,30 @@ def section_intensity(beat_energy: np.ndarray, beat_strength: np.ndarray | None,
     return _scale((loud + _scale(hits)) / 2 + INTENSITY_TIE_BREAK * loud)
 
 
-def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.ndarray) -> list[str]:
+def label_sections(
+    spans: list[tuple[int, int]],
+    groups: list[int],
+    energy: np.ndarray,
+    sim: np.ndarray | None = None,
+    threshold: float | None = None,
+    rules: frozenset[str] | None = None,
+) -> list[str]:
     """intro / verse / pre-chorus / chorus / bridge / outro from position, intensity and repetition.
 
     The chorus is the highlight: the loudest repeated group when it is near the most intense
     section, else the most intense sections whatever repeats (with their group's other occurrences
     near them). On 2,200 BMS songs the repeated group alone put the chorus in the human charts'
-    densest third of the song in about half of the songs (docs/PATTERN_DESIGN.md 62)."""
+    densest third of the song in about half of the songs (docs/PATTERN_DESIGN.md 62).
+
+    `sim` (section_similarity) and the repeat `threshold` let the chorus take in the first half of
+    a drop; `rules` (default LABEL_RULES) are the rules of 69-10 in use."""
+    rules = LABEL_RULES if rules is None else rules
     k = len(spans)
     count = {g: groups.count(g) for g in set(groups)}
     repeated = [g for g in count if count[g] >= 2]
     group_energy = {g: float(np.mean([energy[i] for i in range(k) if groups[i] == g])) for g in count}
     labels = [""] * k
+    length = [b - a for a, b in spans]
 
     # A group every occurrence of which leads straight into one same other group (a verse into its
     # pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the loudest.
@@ -389,21 +428,37 @@ def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.n
         lead = {i for i in range(k) if groups[i] in repeated and leads_in(groups[i]) and i not in hot}
         # a passage heard once and shorter than HIGHLIGHT_MIN_BARS (a build-up's last bars, a fill)
         # is no highlight however hard it hits
-        brief = {i for i in range(k) if count[groups[i]] < 2 and spans[i][1] - spans[i][0] < HIGHLIGHT_MIN_BARS}
+        brief = {i for i in range(k) if count[groups[i]] < 2 and length[i] < HIGHLIGHT_MIN_BARS}
         free = [i for i in range(k) if i not in lead and i not in brief] or [i for i in range(k) if i not in lead] or list(range(k))
         peak = max(float(energy[i]) for i in free)
         if not hot or float(np.mean([energy[i] for i in hot])) < peak - HIGHLIGHT_MARGIN:
             hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
             hot_groups = {groups[i] for i in hot}
             hot |= {i for i in free if groups[i] in hot_groups and energy[i] >= peak - HIGHLIGHT_MATE_MARGIN}
+    if hot and sim is not None and threshold is not None:
+        hot_energy = float(np.mean([energy[i] for i in hot]))
+        if "drop_halves" in rules:
+            # A drop people often mark as two groups of 8 bars: the first always comes right before
+            # the second, sounds like it and hits as hard. A build-up before a drop does not sound
+            # like it (no full drums), so it stays the lead-in.
+            for g in repeated:
+                idx = [i for i in range(k) if groups[i] == g]
+                if (g not in {groups[i] for i in hot} and all(i + 1 in hot for i in idx)
+                        and float(np.mean([sim[i, i + 1] for i in idx])) >= threshold - HALF_MARGIN
+                        and group_energy[g] >= hot_energy - HIGHLIGHT_MARGIN):
+                    hot |= set(idx)
     hot_groups = {groups[i] for i in hot}
     pre = set()
     for g in repeated:
         if g in hot_groups:
             continue
         idx = [i for i in range(k) if groups[i] == g]
-        if all(i + 1 in hot for i in idx) and all(spans[i][1] - spans[i][0] <= 8 for i in idx):
+        if all(i + 1 in hot for i in idx) and all(length[i] <= 8 for i in idx):
             pre.add(g)
+
+    def chorus_runs(before: int) -> int:
+        return sum(1 for j in range(before) if j in hot and (j == 0 or j - 1 not in hot))
+
     for i in range(k):
         g = groups[i]
         if i in hot:
@@ -416,6 +471,12 @@ def label_sections(spans: list[tuple[int, int]], groups: list[int], energy: np.n
             labels[i] = "intro"
         elif i == k - 1:
             labels[i] = "outro"
+        elif "oneoff_verse" in rules and hot and chorus_runs(i) < 2:
+            # Heard once before the second chorus is a verse the grouping missed (1.11.0 called 49%
+            # of the verse time people marked a bridge; with this rule the label score of the
+            # marked songs went 0.472 -> 0.506 and 0.459 -> 0.592); a bridge comes after the
+            # second chorus.
+            labels[i] = "verse"
         else:
             labels[i] = "bridge"
     # a group that only opens and closes the song (an intro that comes back as the outro)
@@ -466,6 +527,8 @@ def find_sections(
     spans = [(b, bounds[i + 1] if i + 1 < len(bounds) else n_bars) for i, b in enumerate(bounds)]
     groups, firm = _group_some(ssm, spans, threshold)
     for _ in range(2):
+        if "oneoff_twins" in BOUNDARY_RULES:
+            groups = join_twins(section_similarity(ssm, spans), groups, threshold)
         regrouped = merge_and_split(spans, groups)
         if regrouped == spans:
             break
@@ -473,7 +536,7 @@ def find_sections(
         groups, firm = _group_some(ssm, spans, threshold)
     beat_of = lambda bar: starts[bar] if bar < n_bars else n_beats  # noqa: E731
     energy = section_intensity(beat_energy, beat_strength, [(beat_of(a), beat_of(b)) for a, b in spans])
-    labels = label_sections(spans, groups, energy)
+    labels = label_sections(spans, groups, energy, section_similarity(ssm, spans), threshold)
     top = max(float(np.max(u_scores)), 1e-9)
     out = []
     for i, (a, b) in enumerate(spans):
