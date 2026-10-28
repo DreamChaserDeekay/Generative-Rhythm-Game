@@ -238,7 +238,7 @@ def summary(rows: list[dict], title: str) -> None:
 
 
 DEFAULT_RULES = (S.LABEL_RULES, S.BOUNDARY_RULES)
-ALL_RULES = sorted(S.LABEL_RULES | S.BOUNDARY_RULES | {"tail_outro"})
+ALL_RULES = sorted(S.LABEL_RULES | S.BOUNDARY_RULES)
 
 
 def use_rules(spec: str) -> None:
@@ -250,7 +250,7 @@ def use_rules(spec: str) -> None:
     unknown = names - set(ALL_RULES)
     if unknown:
         raise SystemExit(f"unknown rules: {', '.join(sorted(unknown))} (known: {', '.join(ALL_RULES)})")
-    boundary = {"bar_refine", "oneoff_twins"}
+    boundary = set(DEFAULT_RULES[1])
     S.LABEL_RULES, S.BOUNDARY_RULES = frozenset(names - boundary), frozenset(names & boundary)
 
 

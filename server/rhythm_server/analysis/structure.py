@@ -43,18 +43,13 @@ HIGHLIGHT_MATE_MARGIN = 0.25  # ... with their group's other occurrences this ne
 HIGHLIGHT_MIN_BARS = 8  # a one-off passage shorter than this is no highlight
 GROUP_SHIFT_BARS = 1  # two sections are compared from their starts and this many bars off
 INTENSITY_TIE_BREAK = 1e-3  # the share of loudness that decides between equally intense sections
-# Label and boundary rules of analyzer 1.12.0 (docs/PATTERN_DESIGN.md 69-10, 69-11). Each can be
-# turned off (scripts/measure_structure.py --rules) to score the songs people marked without it;
-# with none of them the structure step is that of 1.11.0.
-LABEL_RULES = frozenset({"oneoff_verse", "oneoff_pre", "chorus_kin", "drop_halves"})  # also "tail_outro" (off)
-BOUNDARY_RULES = frozenset({"bar_refine", "oneoff_twins"})
-PRE_CHORUS_MAX_BARS = 8  # a pre-chorus is at most this long
-PRE_CHORUS_SHARE = 2 / 3  # a repeated group is a pre-chorus when this share of its occurrences leads into the chorus
-KIN_MARGIN = 0.1  # a section this near the repeat threshold to the chorus (and about as intense) is a chorus too
+# Label and boundary rules of analyzer 1.12.0 (docs/PATTERN_DESIGN.md 69-10 – 69-12), kept because
+# they scored better on both the tuning and the checking songs people marked. Each can be turned off
+# (scripts/measure_structure.py --rules); with none of them the structure step is that of 1.11.0.
+LABEL_RULES = frozenset({"oneoff_verse", "drop_halves"})
+BOUNDARY_RULES = frozenset({"oneoff_twins"})
 HALF_MARGIN = 0.15  # a group always right before the chorus, this near the threshold to it and as intense, is its first half
 TWIN_MARGIN = 0.1  # two neighbouring one-off sections this near the repeat threshold are one section
-REFINE_BARS = 2  # half width (bars) of the novelty that moves a boundary to the bar line where the music changes
-REFINE_GAIN = 0.15  # how much more change a neighbouring bar line needs to take the boundary
 HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
 
 
@@ -312,33 +307,11 @@ def _group_some(ssm: np.ndarray, spans: list[tuple[int, int]], threshold: float)
     return group_segments(ssm, spans, threshold)
 
 
-def refine_bounds(ssm: np.ndarray, bounds: list[int], reach: int) -> list[int]:
-    """Each boundary (bar index, 0 first) moved up to `reach` bars to the bar line with clearly more
-    change (bar novelty over REFINE_BARS, REFINE_GAIN more than where it is). Boundaries found on
-    units of two or four bars can only fall on every second or fourth bar line: 24 of the 47
-    boundaries 1.11.0 put within 3 s but not 0.5 s of a marked one were one bar off, 9 two bars,
-    both ways (docs/PATTERN_DESIGN.md 69-11)."""
-    n = len(ssm)
-    nov = novelty_curve(ssm, REFINE_BARS)
-    nov = nov / max(float(np.max(nov)), 1e-9)
-    out = list(bounds)
-    for i in range(1, len(out)):
-        b = out[i]
-        lo = out[i - 1] + 2
-        hi = (out[i + 1] if i + 1 < len(out) else n) - 2
-        cands = [c for c in range(b - reach, b + reach + 1) if lo <= c <= hi and c != b]
-        if not cands:
-            continue
-        best = max(cands, key=lambda c: (nov[c], -abs(c - b)))
-        if nov[best] >= nov[b] + REFINE_GAIN:
-            out[i] = best
-    return out
-
-
 def join_twins(sim: np.ndarray, groups: list[int], threshold: float) -> list[int]:
     """Neighbouring sections each heard once and nearly alike (TWIN_MARGIN under the repeat
     threshold) take one group, so that merge_and_split makes them one section: a change inside a
-    part split it (1.11.0 found 13.6 sections a song where people marked 9.5)."""
+    part split it (1.11.0 found 13.6 sections a song where people marked 9.5; on the marked songs
+    this took HR.5F 0.441 -> 0.448 and 0.565 -> 0.569 and 116 extra boundaries down to 109)."""
     out = list(groups)
     count = {g: out.count(g) for g in set(out)}
     for i in range(1, len(out)):
@@ -425,8 +398,8 @@ def label_sections(
     near them). On 2,200 BMS songs the repeated group alone put the chorus in the human charts'
     densest third of the song in about half of the songs (docs/PATTERN_DESIGN.md 62).
 
-    `sim` (section_similarity) and the repeat `threshold` let the chorus take in what is nearly
-    its repeat; `rules` (default LABEL_RULES) are the rules of 69-10 in use."""
+    `sim` (section_similarity) and the repeat `threshold` let the chorus take in the first half of
+    a drop; `rules` (default LABEL_RULES) are the rules of 69-10 in use."""
     rules = LABEL_RULES if rules is None else rules
     k = len(spans)
     count = {g: groups.count(g) for g in set(groups)}
@@ -474,28 +447,14 @@ def label_sections(
                         and float(np.mean([sim[i, i + 1] for i in idx])) >= threshold - HALF_MARGIN
                         and group_energy[g] >= hot_energy - HIGHLIGHT_MARGIN):
                     hot |= set(idx)
-        if "chorus_kin" in rules:
-            # a chorus the grouping missed: nearly a repeat of one and about as intense (33–41% of
-            # the section pairs people marked as one group stay under the repeat threshold)
-            kin = {i for i in range(k) if i not in hot and length[i] >= HIGHLIGHT_MIN_BARS
-                   and max(float(sim[i, j]) for j in hot) >= threshold - KIN_MARGIN
-                   and energy[i] >= hot_energy - HIGHLIGHT_MATE_MARGIN}
-            hot |= kin
     hot_groups = {groups[i] for i in hot}
     pre = set()
-    one_pre: set[int] = set()
-    share = PRE_CHORUS_SHARE if "oneoff_pre" in rules else 1.0
     for g in repeated:
         if g in hot_groups:
             continue
         idx = [i for i in range(k) if groups[i] == g]
-        into = sum(i + 1 in hot for i in idx)
-        if into >= share * len(idx) - 1e-9 and all(length[i] <= PRE_CHORUS_MAX_BARS for i in idx):
+        if all(i + 1 in hot for i in idx) and all(length[i] <= 8 for i in idx):
             pre.add(g)
-    if "oneoff_pre" in rules:
-        # a short passage heard once right before a chorus that does not follow one
-        one_pre = {i for i in range(1, k - 1) if count[groups[i]] < 2 and i not in hot and i + 1 in hot
-                   and i - 1 not in hot and length[i] <= PRE_CHORUS_MAX_BARS}
 
     def chorus_runs(before: int) -> int:
         return sum(1 for j in range(before) if j in hot and (j == 0 or j - 1 not in hot))
@@ -504,7 +463,7 @@ def label_sections(
         g = groups[i]
         if i in hot:
             labels[i] = "chorus"
-        elif g in pre or i in one_pre:
+        elif g in pre:
             labels[i] = "pre-chorus"
         elif count[g] >= 2:
             labels[i] = "verse"
@@ -512,12 +471,11 @@ def label_sections(
             labels[i] = "intro"
         elif i == k - 1:
             labels[i] = "outro"
-        elif "tail_outro" in rules and hot and chorus_runs(i) >= 1 and not any(j in hot for j in range(i + 1, k)):
-            labels[i] = "outro"  # after the last chorus: the song winding down
         elif "oneoff_verse" in rules and hot and chorus_runs(i) < 2:
-            # Heard once before the second chorus is a verse the grouping missed (people marked
-            # 49% of the verse time and 35% of the pre-chorus time that 1.11.0 called a bridge);
-            # a bridge comes after the second chorus.
+            # Heard once before the second chorus is a verse the grouping missed (1.11.0 called 49%
+            # of the verse time people marked a bridge; with this rule the label score of the
+            # marked songs went 0.472 -> 0.506 and 0.459 -> 0.592); a bridge comes after the
+            # second chorus.
             labels[i] = "verse"
         else:
             labels[i] = "bridge"
@@ -566,13 +524,6 @@ def find_sections(
     u_bounds, _, u_scores = max(runs, key=lambda r: r[1])
     edges = {(u_starts[u] - starts[0]) // bpb: float(u_scores[u]) for u in u_bounds if u > 0}
     bounds = [0] + sorted(edges)
-    if "bar_refine" in BOUNDARY_RULES and unit > 1 and len(bounds) > 1:
-        # only where boundaries were found on units of bars: on single bars the dynamic program
-        # already chose among all bar lines, and moving them off its choice lost the synthetic
-        # groove song's build-up edges
-        moved = refine_bounds(ssm, bounds, unit // 2)
-        edges = {m: edges[b] for b, m in zip(bounds[1:], moved[1:])}
-        bounds = moved
     spans = [(b, bounds[i + 1] if i + 1 < len(bounds) else n_bars) for i, b in enumerate(bounds)]
     groups, firm = _group_some(ssm, spans, threshold)
     for _ in range(2):
