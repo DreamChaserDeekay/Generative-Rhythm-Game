@@ -31,16 +31,17 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.39"
+GENERATOR_VERSION = "0.9.40"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
 STALL_SHARE = 0.02  # a round within the level range, rated above its middle, that thins less than this share ends the fit
+AT_FLOOR = 1.05  # ... when its notes per second are at most this times the density floor
 SILENCE_LEVEL = 0.15  # energy curve value (0 = -60 dB) below which the song counts as silent  # share of the preset's minimum average NPS a chart keeps at least
 # lane_plan results kept in memory: every tier of a song asks for the same top-tier first round,
 # and the song select asks for every tier (29% of the five tiers' time, docs/PAPER_SURVEY.md 11)
 PLAN_CACHE_SIZE = 32
-PLAN_CONFIGS = ("difficulty", "patterns", "instruments", "pick", "lane_moves", "keymodes")
+PLAN_CONFIGS = ("difficulty", "patterns", "instruments", "pick", "lane_moves", "keymodes", "plan")
 _plan_cache: OrderedDict[str, tuple[dict[int, float] | None, float | None]] = OrderedDict()
 _plan_lock = threading.Lock()
 
@@ -230,11 +231,12 @@ def generate_chart(
     # stands for, and they drifted from it (4 rounds on the test song)
     plan_weight = float(plan_cfg["ownWeight"] if own_plan else plan_cfg["weight"]) if plan_cfg else 0.0
     rounds = 0
+    plan_memo: dict[str, Any] = {}  # the section plan of this chart's units, the same every round
     while rounds < int(cfg["maxAdjustIterations"]):
         rounds += 1
         kept = None
         if engine == "sectioned":
-            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan, lanes_plan, plan_weight)
@@ -264,10 +266,12 @@ def generate_chart(
             break
         if (
             rank[0] == 0 and not improved and est["rating"] > target_rating and prev_notes is not None
-            and len(notes) > (1.0 - STALL_SHARE) * prev_notes
+            and len(notes) > (1.0 - STALL_SHARE) * prev_notes and est["nps"]["avg"] <= AT_FLOOR * floor_nps
         ):
             # within the level range but rated above its middle, and thinning no longer takes notes
-            # off (the density floor; long notes rate a chart a little high): more rounds only cost time
+            # off (the density floor; long notes rate a chart a little high): more rounds only cost time.
+            # A chart well over the floor goes on: units at their sounds' ceiling only give notes back
+            # once the budget falls under it (the section plan fills the busy units up to it)
             break
         prev_notes = len(notes)
         eff = max(0.3, est["effectiveNps"])

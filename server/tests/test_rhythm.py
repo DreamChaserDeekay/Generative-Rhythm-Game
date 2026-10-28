@@ -213,9 +213,11 @@ def test_long_notes_let_go_on_the_grid() -> None:
     assert hold_end(0.0, 0.3, 0.5, 0.9) is None
     # (since generator 0.9.36 the default NORMAL follows MASTER's motion and rates lower, so the level
     # fit gives it more notes, 400 -> 447 on this song: more long notes stop half a beat before a note
-    # that comes in under them, 0.77 -> 0.64)
+    # that comes in under them, 0.77 -> 0.64. NORMAL lets go on the beat before the sound ends, so its
+    # share is how often another note sits on that beat: since 0.9.40 the section plan thins this
+    # song's bridge of pads, where most of its long notes are, and 7 of 10 -> 2 of 7 do)
     for kind, key_mode, difficulty, level, share in (
-        ("groove", "6K", "HARD", 8, 0.75), ("groove", "8K", "MASTER", 17, 0.75), ("structured", "6K", "MASTER", 17, 0.75), ("structured", "6K", "NORMAL", None, 0.6),
+        ("groove", "6K", "HARD", 8, 0.75), ("groove", "8K", "MASTER", 17, 0.75), ("structured", "6K", "MASTER", 17, 0.75), ("structured", "6K", "NORMAL", None, 0.25),
     ):
         notes = chart(kind, key_mode, difficulty, level)["notes"]
         holds = [n for n in notes if n["type"] == "hold"]

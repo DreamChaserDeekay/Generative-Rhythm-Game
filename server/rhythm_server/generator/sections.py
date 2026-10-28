@@ -29,6 +29,7 @@ from ..config import load_config
 from .candidates import Candidate, grid_of
 from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
+from . import plan as section_plan
 from .params import SIDE_HOLD_SHARE, GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
 from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, clear_holds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
@@ -57,6 +58,8 @@ class Unit:
     cls: int = -1
     extra: float = 0.0  # notes beyond its class (pre-chorus ramp, last chorus), as a share
     accent: bool = False  # opens a section: its downbeat is accented
+    density: float | None = None  # the section plan's density for it, against the song's (plan.py)
+    chord: float | None = None  # the section plan's chord weight for it
 
 
 @dataclass
@@ -270,11 +273,16 @@ def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], pe
     if not high:
         return False
     level = max(high)
+    # with the section plan (plan.json highlightRatio "plan") a unit's share is its planned density
+    # against the highlight's, at most the highlight's own
+    planned = [u.density for u in units if u.label in tops and u.density is not None]
+    by_plan = bool(planned) and section_plan.plan_config().get("highlightRatio") == "plan"
     changed = False
     for k, u in enumerate(units):
         if u.label in tops or u.length <= 0:
             continue
-        cap = level * u.length * blueprint(u.label)["density"] / top_density
+        share = min(1.0, u.density / max(planned)) if by_plan and u.density is not None else blueprint(u.label)["density"] / top_density
+        cap = level * u.length * share
         if per_unit_n[k] > cap:
             per_unit_n[k] = cap
             changed = True
@@ -367,6 +375,49 @@ def _cap_opening(units: list[Unit], weight: list[float], per_unit_n: list[float]
     return bool(over)
 
 
+def _plan_units(units: list[Unit], cands: list[Candidate], analysis: dict[str, Any] | None, tempo: TempoMap, memo: dict[str, Any] | None) -> None:
+    """Each unit's density and chord weight from the section plan (plan.py, config/plan.json),
+    blended with the label rule in log space by the config's `blend`; left None (the rule alone)
+    without an analysis or with the plan off."""
+    if analysis is None or not units or not section_plan.plan_config().get("enabled", True):
+        return
+    cached = memo.get("plan") if memo is not None else None
+    if cached is None or len(cached[0]) != len(units):
+        cfg = section_plan.plan_config()
+        raw = section_plan.unit_raw(units, cands, analysis, tempo)
+        lim = float(cfg.get("clip", 1.5))
+        dens = sectioned_config()["density"]
+        rules = (np.log([blueprint(u.label)["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy) for u in units]),
+                 np.log([blueprint(u.label)["chord"] for u in units]))
+        blend = cfg.get("blend", {})
+        out: list[np.ndarray | None] = []
+        for target, rule in zip(("density", "chord"), rules):
+            pred = section_plan.predict(raw, target, [u.group for u in units])
+            w = float(blend.get(target, 1.0))
+            out.append(None if pred is None or w <= 0 else np.exp((1.0 - w) * (rule - rule.mean()) + w * np.clip(pred, -lim, lim)))
+        cached = (np.zeros(len(units)) if out[0] is None else out[0], out[1], out[0] is not None)
+        if memo is not None:
+            memo["plan"] = cached
+    dens_plan, chord_plan, has_density = cached
+    for k, u in enumerate(units):
+        u.density = float(dens_plan[k]) if has_density else None
+        u.chord = float(chord_plan[k]) if chord_plan is not None else None
+    # repeats of the same music play its lightest unit's notes and add over it: a repeat the plan
+    # wants denser adds that much (plan.json repeatExtra: at most this share). The first time of
+    # music that comes back keeps the build-up's (a song that opens on its chorus still builds up)
+    most = float(section_plan.plan_config().get("repeatExtra", 0.0))
+    if has_density and most > 0:
+        lightest: dict[int, float] = {}
+        times: dict[str, int] = {}
+        for u in units:
+            times[u.group] = max(times.get(u.group, 0), u.occurrence + 1)
+            if u.cls >= 0 and u.density is not None:
+                lightest[u.cls] = min(lightest.get(u.cls, u.density), u.density)
+        for u in units:
+            if u.cls in lightest and lightest[u.cls] > 0 and (u.occurrence > 0 or times[u.group] == 1):
+                u.extra = max(u.extra, min(most, u.density / lightest[u.cls] - 1.0))
+
+
 def layout(
     cands: list[Candidate],
     sections: list[dict[str, Any]],
@@ -378,11 +429,15 @@ def layout(
     chord_scale: float = 1.0,
     loud: Any = None,
     relax: bool = False,
+    analysis: dict[str, Any] | None = None,
+    memo: dict[str, Any] | None = None,
 ) -> Layout:
     """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
     detection missed a repeat); None trusts the consensus alone. `relax` gives up the build-up that
     costs notes (earlier repeats playing fewer where the music has no more sounds, the opening
-    cap) when the chart cannot reach its level otherwise."""
+    cap) when the chart cannot reach its level otherwise. With the `analysis` the section plan
+    (plan.py) sets how dense each unit is and how much it is chords; `memo` keeps that plan for
+    the next rounds of the same chart."""
     """Slots chosen per material class (module docstring, steps 1–4)."""
     if not cands:
         return Layout([], [], [], [], [])
@@ -391,6 +446,7 @@ def layout(
     per_unit = _unit_cands(units, cands)
     n_classes = classify(units, per_unit, cands)
     _mark_variation(units, params)
+    _plan_units(units, cands, analysis, tempo, memo)
     follow = follow_weights(sections, params)
     members: list[list[int]] = [[] for _ in range(n_classes)]
     for u in units:
@@ -413,7 +469,8 @@ def layout(
             weight.append(0.0)
             continue
         bp = blueprint(u.label)
-        weight.append(u.length * bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy))
+        rule = bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy)
+        weight.append(u.length * (rule if u.density is None else u.density))
 
     def spread() -> list[float]:
         total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
@@ -766,7 +823,8 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
     for key, idxs in _realized(positions, _outside(slots, positions)):
         if any(slots[i].roll is not None for i in idxs):
             continue  # a roll is one hand at a time
-        mult = blueprint(units[slot_unit[idxs[0]]].label)["chord"]
+        u = units[slot_unit[idxs[0]]]
+        mult = blueprint(u.label)["chord"] if u.chord is None else u.chord
         worth = float(np.mean([_chord_worth(cands[slot_cand[i]], params) for i in idxs])) * mult
         if worth > 0:
             options.append((worth, key, idxs))

@@ -108,7 +108,14 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     ):
         g = guide_profile(chart(124.0, 1, False, key_mode, difficulty, level)["notes"], key_mode)
         assert g[measure] <= most, (key_mode, difficulty, measure, g[measure])
-        assert g["offBars"] is None or g["offBars"] <= 0.1, (key_mode, difficulty, g["offBars"])
+        # Lopsided bars: every busy bar of this loop repeats the chorus loop's pattern, so a chart has
+        # none or about 0.45 of them (a loop with 8 of its 11 notes on one hand), by seed. The bar
+        # balance (hands.balance 0.1, fitted to human BMS charts) does not decide which: over the
+        # default chart and seeds 0-4 of 6K HARD the mean is 0.30 with it and 0.31 without it (0.09
+        # before the section plan of 0.9.40, whose charts reach their level with fewer chords). Over
+        # the held-out BMS charts the plan has fewer lopsided bars (level 6: 0.082 -> 0.071, human
+        # 0.161; PATTERN_DESIGN 74), so this is the runaway guard, as for 7K below.
+        assert g["offBars"] is None or g["offBars"] <= 0.5, (key_mode, difficulty, g["offBars"])
     # Since generator 0.9.4 the generator follows the human BMS charts' jacks instead (PATTERN_DESIGN
     # 20): about 15 jack streaks in 1000 notes at levels 10-14. Since 0.9.7 a 7K phrase keeps to a few
     # keys drawn by the seed, and this drum-loop song repeats its sounds on them: 0-29 by seed, a mean
@@ -125,9 +132,12 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # stay where they were (level 14 15.0 -> 15.2 per 1000 notes, human 16.6; PATTERN_DESIGN 46-3).
     # Generator 0.9.28 keeps each sound group on its lane (hands.soundMemory): this loop's mean goes
     # 23.2 -> 38.0 (one seed 52.5), while the held-out charts' level 10 / 14 go 14.6 / 15.3 -> 14.8 /
-    # 16.0 (human 14.0 / 17.4; PATTERN_DESIGN 58), so the runaway guard is 45.
+    # 16.0 (human 14.0 / 17.4; PATTERN_DESIGN 58), so the runaway guard is 45. Generator 0.9.40's
+    # section plan packs the notes into the busy units, the drum choruses here: the mean goes 31 ->
+    # 61 (seeds 36-86), while over the held-out BMS charts jack streaks at levels 6 / 10 / 14 go 10.9 /
+    # 16.9 / 15.0 -> 11.6 / 16.8 / 17.6 (human 12.0 / 14.1 / 17.4; PATTERN_DESIGN 74), so the guard is 75.
     profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", seed=seed)["notes"], "7K+1S") for seed in range(4)]
-    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 45.0, [g["jackStreaks"] for g in profiles]
+    assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 75.0, [g["jackStreaks"] for g in profiles]
     # Lopsided bars: 0.9.25 steers their share up toward the human one (hands.barTarget, PATTERN_DESIGN
     # 47); on this loop the mean of these seeds goes 0.09 -> 0.23 (one seed 0.42, as an eighth of the
     # human charts at levels 6-10 lean in more than 40% of their bars) - the limit guards runaway.
