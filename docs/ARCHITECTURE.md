@@ -230,7 +230,7 @@ Phase 0–4를 완료했다. 분석·생성 알고리즘의 세부와 측정값�
 
 | 항목 | 구현 | 검증 |
 |---|---|---|
-| 난이도 | `config/difficulty.json`의 `order` · `presets`(NORMAL · HARD · EXPERT · MASTER), 4K 레벨 표 `levelEffectiveNps`와 키 모드 보정값 `keyModeNpsFactor`(`config.level_table_for`). 목표 레벨 4 미만은 4로, 레벨이 난이도 밖이면 그 레벨을 맡는 난이도로(`params.resolve_params`). 예전 설정의 `difficultySystem`은 버리고 넷에 없는 마지막 난이도는 NORMAL로(`settings.sanitizeSettings`). DJMAX · EZ2ON으로 만든 채보의 기록은 서버가 목록에서 빼고(`library`), EASY 기록은 클라이언트가 숨김(`songRecords.recordsOn`). 가져온 채보는 Lv.6까지 NORMAL(`imports`) | E2E `tiers.spec.ts`(네 난이도 버튼, 예전 DJMAX 설정이 NORMAL로, 설정에 난이도 기준 줄 없음) |
+| 난이도 | `config/difficulty.json`의 `order` · `presets`(NORMAL · HARD · EXPERT · ELITE · MASTER), 4K 레벨 표 `levelEffectiveNps`와 키 모드 보정값 `keyModeNpsFactor`(`config.level_table_for`). 목표 레벨은 1–20, 레벨이 난이도 밖이면 그 레벨을 맡는 난이도로(`params.resolve_params`). 예전 설정의 `difficultySystem`은 버리고 다섯에 없는 마지막 난이도는 NORMAL로(`settings.sanitizeSettings`). DJMAX · EZ2ON으로 만든 채보의 기록은 서버가 목록에서 빼고(`library`), EASY 기록은 클라이언트가 숨김(`songRecords.recordsOn`). 가져온 채보는 Lv.4까지 NORMAL, 8까지 HARD, 12까지 EXPERT, 16까지 ELITE(`imports`) | E2E `tiers.spec.ts`(다섯 난이도 버튼, 예전 DJMAX 설정이 NORMAL로, 설정에 난이도 기준 줄 없음) |
 | 노트별 키음 | 4절 "생성 채보 키음"·"출력 리미터"(키음 1.2배). 설정 기본값 켬, HUD에 "키음 드럼·보컬"처럼 키음 스템 표시. 생성기 0.4.1부터 동치의 노트가 그 소리의 악기를 나눠 맡는다 | Vitest 3개(키음 스템 고르기, 조각·동치·최대 길이, 없는 스템) + 5개(출력 리미터 곡선, 엔진 연결: 음악·키음·효과음이 리미터만 지나 출력, 키음 1.2배) / E2E: 오프라인 렌더로 다 맞히면 원곡과 오차 < 1e-4, 놓친 조각만 무음, 리미터 브라우저 렌더(0.9까지 오차 < 1e-5, 1.6배 소리도 1 이하), 플레이 중 키음 게인(생성 1.2, BMS 서버 게인 × 1.2) / pytest: 분석 뒤 스템 백그라운드 분리 |
 | 롱노트 표시 | 누르기 전 몸통을 노트 색에서 35% 밝게, 불투명도 0.92, 가장자리가 밝은 텍스처 | 스크린샷 비교 |
 | 생성 에셋 스킨(P0) | ElevenLabs로 만든 4세트(글래스·크리스털·메탈·젤)의 탭 노트·롱노트 몸통·판정선·레일·바닥, 공용 키 빔, 타격 이펙트 영상 3편(Veo 3.1 Fast → 4×4 플립북). 원본 24개 `assets-src/`(14MB), 게임용 32장 `client/public/media/`(1.1MB). 텍스처 메모리는 스킨 하나에 약 9.7MB(밉맵 포함, 그중 타격 이펙트 시트 5.6MB) | Vitest 13개(매니페스트 검증·실제 파일 크기·2의 거듭제곱·30MB 예산·스킨이 쓰는 이름, 불러오기 실패·크기 불일치 제외, 플립북 칸 위치, 사용자 스킨 `textures`, 설정 이전) / E2E: 글래스로 플레이, 노트 그림이 깨지면 노트만, 매니페스트가 없으면 전부 기본 모양(페이지 오류 없음) / 성능(SwiftShader, 8K MX 오토 플레이 12초, rAF 간격): 네온 16.7ms(p95 16.8), 텍스처 스킨 4종 17.6–18.2ms(p95 16.8–33.3, 프레임의 약 6–9%가 33ms) · 부분별로 하나씩 켜면 모두 16.7(3선형 읽기일 때는 바닥 18.0 · 이펙트 17.7) / 데스크톱: 설치 확인 스크립트가 묶인 서버와 설치한 앱에서 `/media/` 확인 |
@@ -344,7 +344,7 @@ Phase 0–4를 완료했다. 분석·생성 알고리즘의 세부와 측정값�
 | 캘리브레이션 평균·표준편차 표시, 오프셋 적용 | 캘리브레이션 화면(지금의 판정 오프셋 측정) + 결과 화면 오프셋 추천 |
 | 고정 BPM 합성 음원 그리드 누적 오차 ≤ 10ms | 최대 1.4ms (97·128·140·174 BPM), 템포 변화 곡 1.3ms |
 | 같은 입력·시드 → 같은 채보 | pytest로 검증, 기본 시드는 오디오 해시에서 파생 |
-| 모든 난이도 채보가 린터 통과 | 4K·7K+1S × 4단계 × 2곡 |
+| 모든 난이도 채보가 린터 통과 | 4K·7K+1S × 5단계 × 2곡 |
 | 난이도가 오를수록 노트 수·평균 NPS·레벨 단조 증가 | pytest로 검증 |
 | 4분 곡 분석 30초·재생성 3초 이내 | Phase 3 기준(스템 활동량 포함, ML 없이) 분석 18.0초, 재생성 0.8~2.1초(7K+1S MASTER가 가장 느림). Phase 2는 분석 약 15초. 생성기 0.4.1(패턴 엔진) 재생성 0.9~2.7초(8K MASTER가 가장 느림, GENERATION 6장). 생성기 0.5.0(구간 엔진) 0.3~1.4초(6K+FX MASTER가 가장 느림) |
 

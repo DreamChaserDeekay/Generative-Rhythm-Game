@@ -70,7 +70,7 @@
 | `audioHash` | 업로드 원본의 `sha256:` 해시. |
 | `songId` | 서버 라이브러리의 곡 ID(원본 해시 앞 16자). |
 | `keyMode` / `lanes` | 키 모드와 레인 ID. `lane` 값은 이 배열의 인덱스다. 7K+1S에서 0번은 스크래치, FX 모드(4K+FX · 6K+FX)에서 처음(`FXL`)과 끝(`FXR`)은 사이드 트랙. 레인 종류는 `config/keymodes.json`의 `kind`. |
-| `difficulty` / `level` / `rating` | 난이도(NORMAL · HARD · EXPERT · MASTER), 정수 레벨(1–15), 소수 세부 난이도. 예전 채보에는 EASY나 DJMAX · EZ2ON의 난이도 이름(NM · MX · SHD 등)이 남아 있을 수 있다. |
+| `difficulty` / `level` / `rating` | 난이도(NORMAL · HARD · EXPERT · ELITE · MASTER), 정수 레벨(1–20, 생성기 0.9.38까지 만든 채보는 예전 1–15 척도), 소수 세부 난이도. 예전 채보에는 EASY나 DJMAX · EZ2ON의 난이도 이름(NM · MX · SHD 등)이 남아 있을 수 있다. |
 | `nps` | 평균·최대(1초 창) NPS와 2초 단위 NPS 그래프. |
 | `effectiveNps` | 난이도 산정기의 유효 NPS(동치·연타·롱잡 부담이 반영된 값). |
 | `densityLimited` | 곡에 들리는 소리가 부족해 목표 레벨까지 올리지 못했으면 `true`. |
@@ -217,7 +217,7 @@ SDVX식 카메라 연출 신호. 생성기가 구간 에너지에서 만들며, 
 - **템포**: BMS는 #BPMxx(채널 08), bmson은 `bpm_events`, osu!는 빨간 타이밍 포인트. osu!는 STOP이 없어 STOP 끝에 타이밍 포인트를 다시 둔다(시각은 정확, 스크롤만 다름). BMS #STOP 값은 4/4 마디의 1/192 단위다.
 - **롱노트**: BMS는 LNTYPE 1(채널 5x의 시작·끝 쌍)으로 쓰고, 읽을 때는 #LNOBJ도 받는다. bmson은 `l`(펄스 길이), osu!는 타입 128.
 - **BMS 위치 해상도**: 마디·채널마다 모든 오브젝트가 0.5ms 안에 들어가는 가장 작은 분할(1 … 3840)을 고른다.
-- **난이도 이름**: osu! `Version`은 "5K HARD Lv.9", bmson `chart_name`은 "HARD", BMS `#DIFFICULTY`는 NORMAL 2 · HARD 3 · EXPERT 4 · MASTER 5(예전 채보의 EASY는 1). 편집·가져온 채보는 `chartName`을 쓴다.
+- **난이도 이름**: osu! `Version`은 "5K HARD Lv.9", bmson `chart_name`은 "HARD", BMS `#DIFFICULTY`는 NORMAL 2 · HARD 3 · EXPERT 4 · ELITE 4 · MASTER 5(예전 채보의 EASY는 1). 편집·가져온 채보는 `chartName`을 쓴다.
 - **가져올 때 정리**: 같은 레인·같은 시각이나 롱노트 안에 겹친 노트는 하나만 남기고 알림에 개수를 적는다. 레벨·NPS·스킬 지표는 우리 난이도 모델로 다시 계산한다(파일의 레벨은 `sourceLevel`로 따로).
 - **커버**: 곡에 커버가 없으면 채보가 이름 붙인 그림 중 패키지에 있는 첫 그림을 커버로 쓴다. BMS #STAGEFILE → #BANNER, bmson `eyecatch_image` → `banner_image`, osu! [Events]의 배경. 이름은 대소문자·확장자와 상관없이 맞추고(BMS가 .bmp로 적은 그림이 .png로 들어 있는 경우), 형식은 파일의 첫 바이트로 판별한다.
 

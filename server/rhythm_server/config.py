@@ -34,7 +34,7 @@ def difficulty_config() -> dict[str, Any]:
 
 
 def difficulty_order() -> list[str]:
-    """The difficulty tiers, easiest first (NORMAL, HARD, EXPERT, MASTER)."""
+    """The difficulty tiers, easiest first (NORMAL, HARD, EXPERT, ELITE, MASTER)."""
     return list(difficulty_config()["order"])
 
 

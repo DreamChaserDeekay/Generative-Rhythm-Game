@@ -68,12 +68,12 @@ def test_melody_presence_tells_sung_notes_from_drums() -> None:
 
 def test_build_up_rolls_go_hand_over_hand() -> None:
     for kind, key_mode, difficulty, level, per_beat in (
-        ("groove", "6K", "HARD", 9, 4), ("groove", "4K", "MASTER", 13, 4), ("groove", "8K", "MASTER", 13, 4),
+        ("groove", "6K", "HARD", 8, 4), ("groove", "4K", "MASTER", 17, 4), ("groove", "8K", "MASTER", 17, 4),
         # NORMAL reads sixteenths since generator 0.9.4 (BMS charts of that density do), and plays a
         # roll as eighths where sixteenths would pass its one-second note limit
-        ("groove", "6K", "NORMAL", 6, (4, 2)), ("groove", "6K", "NORMAL", None, (4, 2)),
+        ("groove", "6K", "NORMAL", 4, (4, 2)), ("groove", "6K", "NORMAL", None, (4, 2)),
         # every tier plays the song's rolls: the tier's grid alone, without the soft sixteenths, misses this one
-        ("soft", "6K", "NORMAL", None, (4, 2)), ("soft", "6K", "HARD", 9, 4),
+        ("soft", "6K", "NORMAL", None, (4, 2)), ("soft", "6K", "HARD", 8, 4),
         # a build-up is hand over hand on the hard tiers too: a chord-jack shape once made this one
         # chords all the way (generator 0.9.30)
         ("groove", "6K", "EXPERT", None, 4), ("groove", "6K", "MASTER", None, 4),
@@ -102,7 +102,7 @@ def test_build_up_rolls_go_hand_over_hand() -> None:
 
 def test_a_fill_rolls_only_in_its_own_bar() -> None:
     s, _ = song("structured")
-    notes = chart("structured", "6K", "HARD", 9)["notes"]
+    notes = chart("structured", "6K", "HARD", 8)["notes"]
     lanes = lane_infos("6K")
     verses = [x for x in s.structure if x["label"] == "verse"]
     for v in verses:
@@ -153,7 +153,7 @@ def test_the_melody_option_follows_the_melody() -> None:
     # the lead (0.80 before). Since 0.9.4 a long note needs a stronger sound; with fewer of them the
     # level fit lands both HD charts at about 650 notes (676 and 601 before), where the melody one
     # plays 0.85 of the lead and the drum one 0.84
-    for difficulty, level, margin in (("NORMAL", 6, 0.04), ("HARD", 9, 0.0)):
+    for difficulty, level, margin in (("NORMAL", 4, 0.04), ("HARD", 8, 0.0)):
         melody = chart("groove", "6K", difficulty, level, "melody")["notes"]
         drum = chart("groove", "6K", difficulty, level, "drum")["notes"]
         assert covered(s.onsets["lead"], melody) >= 0.78
@@ -178,7 +178,7 @@ def test_harder_charts_follow_the_song_off_the_beat() -> None:
     def share(beats: list[float], sub: int) -> float:
         return float(np.mean([abs(b * sub - round(b * sub)) < 1e-6 and (sub == 1 or abs(b * sub / 2 - round(b * sub / 2)) > 1e-6) for b in beats]))
 
-    for key_mode, difficulty, level in (("6K", "HARD", 9), ("6K", "MASTER", 13), ("8K", "MASTER", 13)):
+    for key_mode, difficulty, level in (("6K", "HARD", 8), ("6K", "MASTER", 17), ("8K", "MASTER", 17)):
         hits = sorted({n["beat"] for n in chart("groove", key_mode, difficulty, level)["notes"]})
         params = resolve_params(key_mode, difficulty, level)
         beats = [c.beat for c in build_candidates(a, tempo, params, tolerance)]
@@ -215,7 +215,7 @@ def test_long_notes_let_go_on_the_grid() -> None:
     # fit gives it more notes, 400 -> 447 on this song: more long notes stop half a beat before a note
     # that comes in under them, 0.77 -> 0.64)
     for kind, key_mode, difficulty, level, share in (
-        ("groove", "6K", "HARD", 9, 0.75), ("groove", "8K", "MASTER", 13, 0.75), ("structured", "6K", "MASTER", 13, 0.75), ("structured", "6K", "NORMAL", None, 0.6),
+        ("groove", "6K", "HARD", 8, 0.75), ("groove", "8K", "MASTER", 17, 0.75), ("structured", "6K", "MASTER", 17, 0.75), ("structured", "6K", "NORMAL", None, 0.6),
     ):
         notes = chart(kind, key_mode, difficulty, level)["notes"]
         holds = [n for n in notes if n["type"] == "hold"]

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+import numpy as np
+
 from ..config import difficulty_config, key_modes, level_table_for, load_config, max_level
 
 STYLES = ("balanced", "stream", "chord", "jack", "longnote", "technical", "melody")
@@ -93,9 +95,21 @@ class GenParams:
         return asdict(self)
 
 
+def table_value(rating: float, table: Any) -> float:
+    """The effective NPS at a rating on a level table, past its last level by the last step."""
+    if rating > len(table):
+        return float(table[-1] + (rating - len(table)) * (table[-1] - table[-2]))
+    return float(np.interp(rating, np.arange(1, len(table) + 1), table))
+
+
 def skill_for_rating(rating: float) -> float:
-    """A rating on the level scale (levels 1..15) as a 0..1 skill value."""
-    return max(0.0, min(1.0, (rating - 1.0) / 14.0))
+    """A rating on the level scale (levels 1..20) as a 0..1 skill value: the rating moved onto the
+    levels 1..15 of the scale before generator 0.9.39, which every skill threshold in config/ was
+    set on (difficulty.json skillRatings: each tier's middle where it was, ELITE between EXPERT and
+    MASTER), docs/PATTERN_DESIGN.md 73."""
+    points = np.asarray(difficulty_config()["skillRatings"]["points"], dtype=np.float64)
+    old = float(np.interp(rating, points[:, 0], points[:, 1]))
+    return max(0.0, min(1.0, (old - 1.0) / 14.0))
 
 
 def chart_skill(levels: tuple[int, int]) -> float:

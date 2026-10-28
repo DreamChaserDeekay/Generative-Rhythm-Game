@@ -124,7 +124,7 @@ def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkey
         r = client.post(f"/api/songs/{song['id']}/charts", json=req)
         assert r.status_code == 404 and "MASTER" in r.json()["detail"]
     assert made == ["MASTER"]
-    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 14}).status_code == 200
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 18}).status_code == 200
     assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "difficulty": "EXPERT"}).status_code == 200
 
 
@@ -178,7 +178,7 @@ def test_records_leave_out_charts_of_the_removed_difficulty_systems(tmp_path) ->
     with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
         sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 8, "seed": 3}).json()["song"]["id"]
         req = {"keyMode": "4K", "difficulty": "NORMAL"}
-        assert c.post(f"/api/songs/{sid}/charts", json={**req, "targetLevel": 16}).status_code == 422  # levels end at 15
+        assert c.post(f"/api/songs/{sid}/charts", json={**req, "targetLevel": 21}).status_code == 422  # levels end at 20
         ids = [c.post(f"/api/songs/{sid}/charts", json={**req, "newSeed": k > 0}).json()["chart"]["meta"]["chartId"] for k in range(2)]
         for cid in ids:
             score = {"chartId": cid, "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}

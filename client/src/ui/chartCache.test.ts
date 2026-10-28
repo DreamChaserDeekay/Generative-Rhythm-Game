@@ -297,7 +297,7 @@ describe('a tier a song does not have', () => {
 
   it('plays the hardest tier the song has up to the one chosen', () => {
     const noTop = difficultyTiers.slice(0, -1);
-    expect(tierUpTo(noTop, 'MASTER')).toBe('EXPERT');
+    expect(tierUpTo(noTop, 'MASTER')).toBe('ELITE');
     expect(tierUpTo(noTop, 'HARD')).toBe('HARD');
     expect(tierUpTo(difficultyTiers, 'MASTER')).toBe('MASTER');
     expect(tierUpTo(difficultyTiers.slice(1), 'NORMAL')).toBe('HARD');

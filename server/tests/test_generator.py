@@ -104,21 +104,27 @@ def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch)
 
 
 def test_target_level_is_respected(analysis128: dict) -> None:
-    chart = generate_chart(analysis128, "4K", "NORMAL", target_level=8)
+    chart = generate_chart(analysis128, "4K", "NORMAL", target_level=7)
     assert chart["meta"]["difficulty"] == "HARD"
-    assert abs(chart["meta"]["level"] - 8) <= 1
+    assert abs(chart["meta"]["level"] - 7) <= 1
 
 
-def test_the_four_tiers_and_no_other() -> None:
-    """The game's own four tiers only (DJMAX, EZ2ON and EASY were taken out, 2026-10-27); a target
-    level under NORMAL's range is made at its lowest level."""
-    assert difficulty_config()["order"] == ["NORMAL", "HARD", "EXPERT", "MASTER"]
+def test_the_five_tiers_and_no_other() -> None:
+    """The game's own five tiers only (DJMAX, EZ2ON and EASY were taken out, 2026-10-27; ELITE came
+    in between EXPERT and MASTER with the 1-20 level scale, generator 0.9.39), four levels each; a
+    target level outside the scale is made at its nearest end."""
+    cfg = difficulty_config()
+    assert cfg["order"] == ["NORMAL", "HARD", "EXPERT", "ELITE", "MASTER"]
+    assert [tuple(cfg["presets"][t]["levels"]) for t in cfg["order"]] == [(1, 4), (5, 8), (9, 12), (13, 16), (17, 20)]
+    assert len(cfg["levelEffectiveNps"]) == 20
     for gone in ("EASY", "NM", "SC"):
         with pytest.raises(ValueError):
             resolve_params("4K", gone)
-    low = resolve_params("4K", "NORMAL", 2)
-    assert (low.difficulty, low.target_level) == ("NORMAL", 4)
+    low = resolve_params("4K", "NORMAL", 0)
+    assert (low.difficulty, low.target_level) == ("NORMAL", 1)
     assert resolve_params("4K", "HARD", 2).difficulty == "NORMAL"
+    top = resolve_params("4K", "ELITE", 25)
+    assert (top.difficulty, top.target_level) == ("MASTER", 20)
     # the same long notes on every key mode (no per-game key mode habits)
     assert len({resolve_params(m, "HARD").long_note_ratio for m in ("4K", "6K", "8K")}) == 1
 
@@ -126,7 +132,7 @@ def test_the_four_tiers_and_no_other() -> None:
 def test_higher_target_levels_keep_more_notes(analysis128: dict) -> None:
     """A chart above its target level thins past the density floor (generator 0.9.33), so only the
     estimator keeps the note count rising with the target level."""
-    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 16)]
+    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 21, 2)]
     assert counts == sorted(counts), counts
 
 
@@ -293,7 +299,7 @@ def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(anal
         generate_chart(analysis128, "7K+1S", "MASTER")
     with pytest.raises(core.TierNotMade):
         generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
-    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=14)["meta"]["difficulty"] == "MASTER"
+    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=18)["meta"]["difficulty"] == "MASTER"
     bottom = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
     monkeypatch.setitem(fit, "from", strength - 2.0)
     monkeypatch.setitem(fit, "to", strength - 1.0)

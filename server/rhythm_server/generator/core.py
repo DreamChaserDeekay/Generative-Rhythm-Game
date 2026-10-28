@@ -21,7 +21,7 @@ from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, note
 from .motifs import SlotPlan
 from .linter import lint
 from .near import merge_near
-from .params import GenParams, resolve_params
+from .params import GenParams, resolve_params, table_value
 from .planner import plan_patterns
 from . import sections as sectioned
 from .repeat import consistency, repeat_references, repeat_targets
@@ -29,7 +29,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.38"
+GENERATOR_VERSION = "0.9.39"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -141,7 +141,7 @@ def generate_chart(
     # default chart aims where the song's strength puts it (songFit, set once that is known)
     def aim(place: float) -> tuple[float, float]:
         rating = lo + place * (hi - lo) + 0.5
-        return rating, float(np.interp(rating, np.arange(1, len(table) + 1), table)) * factor
+        return rating, table_value(rating, table) * factor
 
     target_rating, target_eff = aim(0.5)
     # Never thin a chart in its level range below the preset's density floor just because
@@ -217,7 +217,9 @@ def generate_chart(
         if own_strength and strength is None:
             strength = est["rating"]
             target_rating, target_eff, floor_nps = place(strength)
-        rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
+        # the level table's last level is the cap (MASTER 20): a rating past it is a level over the range
+        level = max(est["level"], int(est["rating"])) if est["rating"] >= len(table) + 1 else est["level"]
+        rank = (_level_distance(level, params.levels), abs(est["rating"] - target_rating))
         improved = best is None or rank < best[0]
         if improved:
             best = (rank, notes, est, slots, choices, plan, kept)
@@ -257,7 +259,7 @@ def generate_chart(
         avg = max(0.1, est["nps"]["avg"])
         # the level range comes first: the floor only stops thinning a chart already in its range
         # (GRG tiers stayed at their floor on real songs, 6K EXPERT around level 14 of its 10-12)
-        if new_scale < scale and est["level"] <= params.levels[1] and avg * new_scale / scale < floor_nps:
+        if new_scale < scale and level <= params.levels[1] and avg * new_scale / scale < floor_nps:
             new_scale = max(new_scale, scale * floor_nps / avg)
             if new_scale >= scale - 0.01:
                 break  # already at the density floor
