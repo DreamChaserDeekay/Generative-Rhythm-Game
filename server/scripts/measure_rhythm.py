@@ -39,13 +39,13 @@ SONGS = (
     ("structured 150 played", lambda: make_structured_song(150.0, 2, humanize=True)),
 )
 CHARTS = (
-    ("6K", "GRG", "NORMAL", None, {}),
-    ("6K", "DJMAX", "NM", 6, {}),
-    ("6K", "DJMAX", "HD", 9, {}),
-    ("6K", "DJMAX", "HD", 9, {"rhythmSource": "melody"}),
-    ("6K", "DJMAX", "MX", 13, {}),
-    ("4K", "DJMAX", "HD", 9, {}),
-    ("8K", "EZ2ON", "HD", 13, {}),
+    ("6K", "NORMAL", None, {}),
+    ("6K", "NORMAL", 6, {}),
+    ("6K", "HARD", 9, {}),
+    ("6K", "HARD", 9, {"rhythmSource": "melody"}),
+    ("6K", "MASTER", 13, {}),
+    ("4K", "HARD", 9, {}),
+    ("8K", "MASTER", 13, {}),
 )
 MEASURES = ("beat", "cBeat", "16th", "c16th", "lead", "kick", "roll", "turns", "grid", "onNote")
 
@@ -123,14 +123,14 @@ def main() -> None:
         tempo = TempoMap(analysis["timing"])
         print(f"\n== {name}")
         print(f"  {'chart':28s} " + " ".join(f"{m:>6s}" for m in MEASURES) + "   level  time")
-        for key_mode, system, difficulty, level, overrides in charts:
+        for key_mode, difficulty, level, overrides in charts:
             t0 = time.perf_counter()
-            chart = generate_chart(analysis, key_mode, difficulty, level, system=system, overrides=overrides or None)
+            chart = generate_chart(analysis, key_mode, difficulty, level, overrides=overrides or None)
             dt = time.perf_counter() - t0
-            params = resolve_params(key_mode, difficulty, level, overrides or None, system)
+            params = resolve_params(key_mode, difficulty, level, overrides or None)
             beats = [c.beat for c in build_candidates(analysis, tempo, params, tolerance)]
             row = measure(song, analysis, chart, beats)
-            label = f"{key_mode} {system} {difficulty}{'' if level is None else ' ' + str(level)}" + (f" {overrides['rhythmSource']}" if overrides else "")
+            label = f"{key_mode} {difficulty}{'' if level is None else ' ' + str(level)}" + (f" {overrides['rhythmSource']}" if overrides else "")
             print(f"  {label:28s} " + " ".join(f"{fmt(row[m]):>6s}" for m in MEASURES) + f"   L{chart['meta']['level']:<3d} {dt:5.2f}s")
 
 

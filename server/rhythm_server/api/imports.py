@@ -20,7 +20,7 @@ from .jobs import AnalysisQueue
 from .library import Library
 
 # imported charts get our difficulty name from the level we rate them at
-DIFFICULTY_BY_LEVEL = ((3, "EASY"), (6, "NORMAL"), (9, "HARD"), (12, "EXPERT"))
+DIFFICULTY_BY_LEVEL = ((6, "NORMAL"), (9, "HARD"), (12, "EXPERT"))
 DECODE_WORKERS = 4
 # "Song [ANOTHER]", "Song (7KEYS HYPER)" … → "Song" for the song entry shared by all difficulties
 DIFFICULTY_SUFFIX = re.compile(

@@ -85,7 +85,7 @@ def test_a_chart_above_its_range_thins_past_the_density_floor(analysis128: dict,
 def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch) -> None:
     """GRG lowers the 1-second peak by the square root of a note budget under the preset's (the
     density setting times the level loop's scale), so a roll does not stay a burst over a thinned
-    chart; DJMAX and EZ2ON keep their peak. Both engines take the peak from it."""
+    chart. Both engines take the peak from it."""
     from rhythm_server.generator.params import GenParams
 
     grg = resolve_params("6K", "HARD")
@@ -94,9 +94,6 @@ def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch)
     sparse = resolve_params("6K", "HARD", overrides={"density": 0.5})
     assert sparse.peak_at(1.0) == pytest.approx(0.5 ** 0.5 * sparse.peak_nps)
     assert sparse.peak_at(2.0) == sparse.peak_nps
-    for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
-        other = resolve_params("6K", tier, system=system)
-        assert other.peak_at(0.25) == other.peak_nps
     scales = []
     real = GenParams.peak_at
     monkeypatch.setattr(GenParams, "peak_at", lambda self, s: scales.append(s) or real(self, s))
@@ -110,6 +107,20 @@ def test_target_level_is_respected(analysis128: dict) -> None:
     chart = generate_chart(analysis128, "4K", "NORMAL", target_level=8)
     assert chart["meta"]["difficulty"] == "HARD"
     assert abs(chart["meta"]["level"] - 8) <= 1
+
+
+def test_the_four_tiers_and_no_other() -> None:
+    """The game's own four tiers only (DJMAX, EZ2ON and EASY were taken out, 2026-10-27); a target
+    level under NORMAL's range is made at its lowest level."""
+    assert difficulty_config()["order"] == ["NORMAL", "HARD", "EXPERT", "MASTER"]
+    for gone in ("EASY", "NM", "SC"):
+        with pytest.raises(ValueError):
+            resolve_params("4K", gone)
+    low = resolve_params("4K", "NORMAL", 2)
+    assert (low.difficulty, low.target_level) == ("NORMAL", 4)
+    assert resolve_params("4K", "HARD", 2).difficulty == "NORMAL"
+    # the same long notes on every key mode (no per-game key mode habits)
+    assert len({resolve_params(m, "HARD").long_note_ratio for m in ("4K", "6K", "8K")}) == 1
 
 
 def test_higher_target_levels_keep_more_notes(analysis128: dict) -> None:
@@ -131,10 +142,10 @@ def test_notes_are_on_the_audio_timeline_and_lanes_are_valid(charts: dict) -> No
 
 def test_scratch_notes_only_where_allowed(charts: dict) -> None:
     for name in ("128", "174"):
-        # EASY has a few spaced scratches, like the BMS charts of that density (7.8% of their notes)
-        easy = charts[(name, "7K+1S", "EASY")]["notes"]
-        scratch = sorted(n["t"] for n in easy if n["lane"] == 0)
-        assert len(scratch) <= 0.1 * len(easy)
+        # NORMAL has a few spaced scratches, like the BMS charts of that density (7.2% of their notes)
+        normal = charts[(name, "7K+1S", "NORMAL")]["notes"]
+        scratch = sorted(n["t"] for n in normal if n["lane"] == 0)
+        assert len(scratch) <= 0.1 * len(normal)
         assert all(b - a >= 250.0 for a, b in zip(scratch, scratch[1:]))
         assert any(n["lane"] == 0 for n in charts[(name, "7K+1S", "HARD")]["notes"])
         assert all(len(charts[(name, "4K", d)]["meta"]["lanes"]) == 4 for d in ORDER)
@@ -160,29 +171,26 @@ def test_notes_follow_detected_sounds(charts: dict, analysis128: dict, song128) 
 
 def test_long_notes_and_chords_scale_with_difficulty(charts: dict) -> None:
     for name in ("128", "174"):
-        easy = charts[(name, "7K+1S", "EASY")]["notes"]
+        normal = charts[(name, "7K+1S", "NORMAL")]["notes"]
         hard = charts[(name, "7K+1S", "HARD")]["notes"]
-        assert sum(n["type"] == "hold" for n in hard) > sum(n["type"] == "hold" for n in easy)
+        assert sum(n["type"] == "hold" for n in hard) > sum(n["type"] == "hold" for n in normal)
         chord_sizes_hard = {}
         for n in hard:
             chord_sizes_hard[n["t"]] = chord_sizes_hard.get(n["t"], 0) + 1
         assert max(chord_sizes_hard.values()) >= 2
 
 
-def test_easy_long_notes_let_go_before_a_close_hit() -> None:
-    """EASY starts nothing while a key long note is held, NORMAL keeps the hits under it a beat apart
-    and from its head (holds.clear): a long note over a closer hit lets go at the last whole or half
-    beat at or before it, or becomes a tap when that is under the tier's shortest."""
+def test_normal_long_notes_let_go_before_a_close_hit() -> None:
+    """NORMAL keeps the hits under a key long note a beat apart and from its head (holds.clear): a
+    long note over a closer hit lets go at the last whole or half beat at or before it, or becomes a
+    tap when that is under the tier's shortest."""
     from rhythm_server.generator.select import Slot, clear_holds
 
     def slots(*spec):
         return [Slot(beat=b, t=b * 500.0, size=1, hold_end_beat=e, special=None, special_hold=False, pitch=None,
                      bands=np.ones(3), score=1.0, subdivision=1, strength=1.0) for b, e in spec]
 
-    easy, normal, hard = (resolve_params("7K+1S", d) for d in ("EASY", "NORMAL", "HARD"))
-    s = slots((0.0, 4.0), (2.75, None), (8.0, 9.0), (8.5, None))
-    clear_holds(s, easy)
-    assert [x.hold_end_beat for x in s] == [2.5, None, None, None]  # 2.5 beats long; 8.0 would be half a beat
+    normal, hard = (resolve_params("7K+1S", d) for d in ("NORMAL", "HARD"))
     s = slots((0.0, 4.0), (1.0, None), (2.0, None), (2.75, None))
     clear_holds(s, normal)
     assert s[0].hold_end_beat == 2.5  # 2.0 -> 2.75 is under a beat
@@ -192,12 +200,12 @@ def test_easy_long_notes_let_go_before_a_close_hit() -> None:
     s = slots((0.0, 4.0), (0.25, None), (0.5, None))
     clear_holds(s, hard)
     assert s[0].hold_end_beat == 4.0
-    s = slots((0.0, 4.0), (2.0, None))
+    s = slots((0.0, 4.0), (1.0, None), (1.5, None))
     s[0].special = "side"  # a side tap on the slot: its key long note still clears
-    clear_holds(s, easy)
-    assert s[0].hold_end_beat == 2.0
+    clear_holds(s, normal)
+    assert s[0].hold_end_beat == 1.5
     s[0].special_hold, s[0].hold_end_beat = True, 4.0  # the side lane's own long note stays
-    clear_holds(s, easy)
+    clear_holds(s, normal)
     assert s[0].hold_end_beat == 4.0
 
 
@@ -223,17 +231,17 @@ def test_isolated_near_pairs_become_chords() -> None:
     assert sorted(n["beat"] for n in out if 14 <= n["beat"] < 15) == [14.0, 14.0 + 1 / 6]  # a triplet figure stays
     assert sorted((n["beat"], n["lane"]) for n in out if 16 <= n["beat"] < 17) == [(16.5, 3), (16.5, 6)]  # an 8th met by a triplet
     assert len([n for n in out if n["beat"] >= 20]) == 4  # a run stays
-    easy = resolve_params("7K+1S", "EASY")  # two notes at most: the finer note goes
-    out = merge_near([tap(10.0, 1), tap(10.0, 7), tap(10.125, 3)], lanes, easy, tempo)
-    assert sorted(n["lane"] for n in out) == [1, 7] and lint(out, lanes, easy, tempo) == []
+    normal = resolve_params("7K+1S", "NORMAL")  # two notes at most: the finer note goes
+    out = merge_near([tap(10.0, 1), tap(10.0, 7), tap(10.125, 3)], lanes, normal, tempo)
+    assert sorted(n["lane"] for n in out) == [1, 7] and lint(out, lanes, normal, tempo) == []
 
 
 def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
-    """The default system's tiers move the way the top tier's first round does between the same
+    """The tiers move the way the top tier's first round does between the same
     two single notes (sectioned.tierPlan), and MASTER keeps to that round harder (ownWeight):
     EXPERT goes MASTER's way more often than with the plan off (0.44 -> 0.72 on this song with the
     sections of analyzer 1.10.0, 0.46 -> 0.54 with those of 1.11.0; HARD has only 14 such pairs). MASTER starts from its own first round and builds no other, whatever its
-    options or seed; DJMAX keeps its own lanes."""
+    options; with another seed it builds the default one for the song's strength (songFit)."""
     import rhythm_server.generator.core as core
     from rhythm_server.config import load_config
 
@@ -257,17 +265,42 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
 
     master = generate_chart(analysis128, "7K+1S", "MASTER")
     app = generate_chart(analysis128, "7K+1S", "MASTER", overrides={"style": "balanced", "rhythmSource": "auto"})
-    generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
     assert calls == [] and app["notes"] == master["notes"]
+    generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
+    assert calls == ["MASTER"]
     with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
-    assert calls == ["MASTER"]
-    generate_chart(analysis128, "7K+1S", "HD", system="DJMAX")
-    assert calls == ["MASTER"]
+    assert calls == ["MASTER", "MASTER"]
     plan = load_config("patterns")["sectioned"]["tierPlan"]
     monkeypatch.setitem(plan, "weight", 0.0)
     monkeypatch.setitem(plan, "ownWeight", 0.0)
     master = generate_chart(analysis128, "7K+1S", "MASTER")
     assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.05
+
+
+def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(analysis128: dict, monkeypatch) -> None:
+    """difficulty.json songFit: a default chart aims at the part of its tier's level range the
+    song's strength (the top tier's first-round rating) calls for, and a song under `from` has no
+    top tier. A chart asked for at a level is made all the same."""
+    import rhythm_server.generator.core as core
+
+    fit = difficulty_config()["songFit"]
+    strength = core.lane_plan(analysis128, "7K+1S", "MASTER")[1]
+    assert strength is not None
+    monkeypatch.setitem(fit, "floorAtBottom", 0.7)
+    monkeypatch.setitem(fit, "from", strength + 1.0)
+    monkeypatch.setitem(fit, "to", strength + 2.0)
+    with pytest.raises(core.TierNotMade):
+        generate_chart(analysis128, "7K+1S", "MASTER")
+    with pytest.raises(core.TierNotMade):
+        generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
+    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=14)["meta"]["difficulty"] == "MASTER"
+    bottom = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
+    monkeypatch.setitem(fit, "from", strength - 2.0)
+    monkeypatch.setitem(fit, "to", strength - 1.0)
+    top = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
+    assert bottom["rating"] < top["rating"] and bottom["noteCount"] < top["noteCount"]
+    assert core.song_place(15.0, {"from": 14.0, "to": 20.0}) == pytest.approx(1 / 6)
+    assert core.song_place(10.0, {"from": 14.0, "to": 20.0}) == 0.0 and core.song_place(25.0, {"from": 14.0, "to": 20.0}) == 1.0
 
 
 def test_repeats_keep_the_same_long_note_after_clearing() -> None:
@@ -288,24 +321,21 @@ def test_repeats_keep_the_same_long_note_after_clearing() -> None:
     assert [(x.hold_end_beat, x.hold_count) for x in s] == [(None, 1), (None, 1)]
 
 
-def test_generated_easy_charts_keep_long_notes_clear(charts: dict, analysis128: dict) -> None:
+def test_generated_normal_charts_keep_long_notes_clear(charts: dict, analysis128: dict) -> None:
     """Both engines, and a side-lane mode: a side tap on a key long note's slot does not exempt the
     key, and a side hold that loses its side lane does not move to a key."""
     gap = float(difficulty_config()["holds"]["clear"]["gapBeats"])
     more = {("128", mode, d, engine): generate_chart(analysis128, mode, d, overrides={"patternEngine": engine, "sideRate": 0.2})
-            for mode, engine in (("6K+FX", "sectioned"), ("6K+FX", "classic"), ("7K+1S", "classic")) for d in ("EASY", "NORMAL")}
+            for mode, engine in (("6K+FX", "sectioned"), ("6K+FX", "classic"), ("7K+1S", "classic")) for d in ("NORMAL",)}
     for (name, mode, d, *_), chart in [*charts.items(), *more.items()]:
-        if d not in ("EASY", "NORMAL"):
+        if d != "NORMAL":
             continue
         keys = {l.index for l in lane_infos(mode) if l.kind != "side"}
         heads = sorted({n["beat"] for n in chart["notes"]})
         for h in (n for n in chart["notes"] if n["type"] == "hold" and n["lane"] in keys):
             inside = [b for b in heads if h["beat"] + 1e-6 < b < h["endBeat"] - 1e-6]
-            if d == "EASY":
-                assert not inside, (name, mode, h["beat"])
-            else:
-                gaps = np.diff([h["beat"], *inside]) if inside else []
-                assert all(g >= gap - 1e-6 for g in gaps), (name, mode, h["beat"], inside)
+            gaps = np.diff([h["beat"], *inside]) if inside else []
+            assert all(g >= gap - 1e-6 for g in gaps), (name, mode, h["beat"], inside)
 
 
 def test_no_scratch_under_a_left_hand_long_note_below_expert(analysis128: dict) -> None:
@@ -346,8 +376,6 @@ def test_every_key_mode_generates_playable_charts(analysis128: dict) -> None:
 def test_side_lanes_get_taps_and_long_notes_from_hard_up(analysis128: dict) -> None:
     for mode in ("4K+FX", "6K+FX"):
         side = [l.index for l in lane_infos(mode) if l.kind == "side"]
-        easy = generate_chart(analysis128, mode, "EASY", seed=7)["notes"]
-        assert all(n["lane"] not in side for n in easy)
         notes = generate_chart(analysis128, mode, "EXPERT", seed=7)["notes"]
         on_side = [n for n in notes if n["lane"] in side]
         assert on_side, mode
@@ -419,7 +447,7 @@ def test_a_sixteenth_that_pushes_the_next_beat_scores_above_one_before_a_stronge
 
     from rhythm_server.generator.candidates import Candidate, _hand_scores
 
-    params = resolve_params("7K+1S", "EASY")
+    params = resolve_params("7K+1S", "NORMAL")
     push = float(difficulty_config()["metrical"]["push"])
     assert push > 1.0
 
@@ -434,11 +462,10 @@ def test_a_sixteenth_that_pushes_the_next_beat_scores_above_one_before_a_stronge
     assert score[8.75] == pytest.approx(push * score[4.75])
 
 
-def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis128: dict) -> None:
+def test_the_note_pick_model_scores_every_tier_and_keeps_the_options(analysis128: dict) -> None:
     """Since generator 0.9.9 candidates are scored with a note-pick model fitted on human BMS charts
-    (config/pick.json), blended in by skill. Generator 0.9.15 gave it to DJMAX and EZ2ON too, since
-    which sounds of a song deserve a note does not depend on the game (PATTERN_DESIGN 32). A rhythm
-    source still moves the scores as it moves the hand-made ones."""
+    (config/pick.json), blended in by skill. A rhythm source still moves the scores as it moves the
+    hand-made ones."""
     import math
     from dataclasses import replace
 
@@ -446,21 +473,16 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     from rhythm_server.generator.candidates import _echoes, _hand_scores, _melody_splits, build_candidates, pad_like, pick_features, pick_model, pick_probability
 
     def plain(cands: list, params) -> list:
-        """The candidates no default-system rule rescales after the model (generator 0.9.29: pads,
+        """The candidates no rule rescales after the model (generator 0.9.29: pads,
         solos and lines split into sixteenths, PATTERN_DESIGN 60; 0.9.30: echoes, 61)."""
         melody = load_config("instruments")["rhythmSource"]["melody"]
-        split = {id(c) for c in _melody_splits(cands, melody, params.system, params.skill) + _echoes(cands, melody, params.system)}
-        return [c for c in cands if not pad_like(c, params.system) and not c.solo and id(c) not in split]
+        split = {id(c) for c in _melody_splits(cands, melody, params.skill) + _echoes(cands, melody)}
+        return [c for c in cands if not pad_like(c) and not c.solo and id(c) not in split]
 
     tempo = TempoMap(analysis128["timing"])
     tolerance = float(difficulty_config()["snapToleranceMs"])
-    easy, master = resolve_params("7K+1S", "EASY"), resolve_params("7K+1S", "MASTER")
-    assert pick_model(easy) is not pick_model(master)
-    for system, tier in (("DJMAX", "HD"), ("EZ2ON", "HD")):
-        params = resolve_params("6K", tier, None, None, system)
-        assert pick_model(params) is not None
-        cands = build_candidates(analysis128, tempo, params, tolerance)
-        assert [c.score for c in cands] != _hand_scores(cands, params)
+    normal, master = resolve_params("7K+1S", "NORMAL"), resolve_params("7K+1S", "MASTER")
+    assert pick_model(normal) is not pick_model(master)
     # the probability is the configured logistic model
     model = pick_model(master)
     cands = build_candidates(analysis128, tempo, master, tolerance)
@@ -468,25 +490,25 @@ def test_the_note_pick_model_scores_every_system_and_keeps_the_options(analysis1
     x = pick_features(c)
     z = model["bias"] + sum(w * (x[n] - m) / sd for n, m, sd, w in zip(model["features"], model["mean"], model["scale"], model["weights"]))
     assert math.isclose(pick_probability(c, model), 1.0 / (1.0 + math.exp(-z)))
-    # MASTER takes the model's ranking; EASY half the model, half the hand-made score
+    # MASTER takes the model's ranking; NORMAL half the model, half the hand-made score
     assert math.isclose(c.score, pick_probability(c, model), rel_tol=1e-9)
-    easy_cands = build_candidates(analysis128, tempo, easy, tolerance)
-    hand = _hand_scores(easy_cands, easy)
-    model = pick_model(easy)
-    kept = {id(c) for c in plain(easy_cands, easy)}
-    assert len(kept) > 0.5 * len(easy_cands)
-    assert all(math.isclose(c.score, math.sqrt(h * pick_probability(c, model)), rel_tol=1e-9) for c, h in zip(easy_cands, hand) if id(c) in kept)
+    normal_cands = build_candidates(analysis128, tempo, normal, tolerance)
+    hand = _hand_scores(normal_cands, normal)
+    model = pick_model(normal)
+    kept = {id(c) for c in plain(normal_cands, normal)}
+    assert len(kept) > 0.5 * len(normal_cands)
+    assert all(math.isclose(c.score, math.sqrt(h * pick_probability(c, model)), rel_tol=1e-9) for c, h in zip(normal_cands, hand) if id(c) in kept)
     # a drum rhythm source multiplies the scores as it multiplies the hand-made ones
-    drum = replace(easy, rhythm_source="drum")
+    drum = replace(normal, rhythm_source="drum")
     drum_cands = build_candidates(analysis128, tempo, drum, tolerance)
     ratio = [d / a for d, a in zip(_hand_scores(drum_cands, drum), hand)]
     assert len(set(round(r, 6) for r in ratio)) > 1
-    assert all(math.isclose(d.score, c.score * r, rel_tol=1e-9) for d, c, r in zip(drum_cands, easy_cands, ratio))
+    assert all(math.isclose(d.score, c.score * r, rel_tol=1e-9) for d, c, r in zip(drum_cands, normal_cands, ratio))
 
 
-def test_the_default_system_opens_the_triplet_grid_in_the_bars_that_swing() -> None:
+def test_the_triplet_grid_opens_in_the_bars_that_swing() -> None:
     """A song can swing overall and still be straight in most bars. Since generator 0.9.26 the
-    default system decides bar by bar with a model fitted on human BMS charts (PATTERN_DESIGN 56):
+    generator decides bar by bar with a model fitted on human BMS charts (PATTERN_DESIGN 56):
     the triplet grid opens only in bars that swing, a triplet-like onset in a straight bar takes the
     straight grid, and a triplet in a swinging bar is scored and capped as the eighth it plays the
     part of (the swung eighth of a shuffle)."""
@@ -522,12 +544,12 @@ def test_the_default_system_opens_the_triplet_grid_in_the_bars_that_swing() -> N
     assert all(grid_of(c) == 2 for c in local) and all(c.grid is None for c in triplets(None))
 
 
-def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
+def test_normal_charts_of_swung_songs_play_the_swung_eighths() -> None:
     """Human BMS charts of triplet-feel songs put 3-6% of their notes on triplet positions from
     level 2 on (PATTERN_DESIGN 23), and in the bars that swing 21% even at level 6 (56). Since
-    generator 0.9.7 the default system's EASY and NORMAL read the eighth-note triplets of such a
-    song (before, none), since 0.9.26 as the eighths they stand for, past the triplet caps (5% and
-    7% of the notes); a straight song keeps none."""
+    generator 0.9.7 NORMAL reads the eighth-note triplets of such a song (before, none), since
+    0.9.26 as the eighths they stand for, past the triplet cap (7% of the notes); a straight song
+    keeps none."""
     from rhythm_server.analysis.analyzer import analyze
     from rhythm_server.synth import make_drum_song
 
@@ -535,11 +557,11 @@ def test_easy_charts_of_swung_songs_play_the_swung_eighths() -> None:
         song = make_drum_song(style, 100.0)
         a = analyze(song.pcm, song.sample_rate, f"sha256:grid-{style}-100", backends={})
         out = {}
-        for tier in ("EASY", "NORMAL"):
+        for tier in ("NORMAL",):
             fractions = [n["beat"] % 1.0 for n in generate_chart(a, "7K+1S", tier)["notes"]]
             out[tier] = sum(1 for f in fractions if min(abs(f - 1 / 3), abs(f - 2 / 3)) < 0.02) / len(fractions)
         return out
 
     swung, straight = triplet_notes("shuffle"), triplet_notes("pop16")
-    assert swung["EASY"] >= 0.15 and swung["NORMAL"] >= 0.25, swung
-    assert straight == {"EASY": 0, "NORMAL": 0}, straight
+    assert swung["NORMAL"] >= 0.25, swung
+    assert straight == {"NORMAL": 0}, straight

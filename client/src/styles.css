@@ -3764,19 +3764,6 @@ button.chip.active b {
   border-radius: var(--radius-sm);
 }
 
-.system-label {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-.system-label b {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  color: var(--text);
-}
-
 /* the difficulty plates */
 .difficulty-row {
   display: grid;
@@ -4845,6 +4832,34 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .analysis-scroll canvas {
   display: block;
+}
+
+.section-player {
+  border-radius: var(--radius-sm);
+}
+
+.section-player:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.section-wave {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-bottom: var(--sp-2);
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.section-wave.zoom {
+  height: 88px;
+}
+
+.section-row.selected {
+  outline: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
 }
 
 .offline pre {

@@ -1,4 +1,4 @@
-"""The default system's rules from the RUNAWAY play feedback (generator 0.9.30, analyzer 1.8.1,
+"""Rules from the RUNAWAY play feedback (generator 0.9.30, analyzer 1.8.1,
 PATTERN_DESIGN 61): build-ups go hand over hand, a delay's echoes and a reverb's swells stay off the
 chart where the drums are out, a lone sound is no chord, the highlight is the densest part and a
 long build-up does not take the chorus label."""
@@ -35,7 +35,7 @@ def test_a_build_up_never_turns_into_a_chord_jack() -> None:
     for k in range(40):
         beat = 52.0 + (0.5 * k if k < 8 else 4.0 + 0.25 * (k - 8))
         slots.append(Slot(beat=beat, t=beat * 470.0, size=1, hold_end_beat=None, special=None, special_hold=False,
-                          pitch=None, bands=np.ones(3), score=1.0, subdivision=4, strength=1.0, roll=(0, k, 40, False)))
+                          pitch=None, bands=np.ones(3), score=1.0, subdivision=4, strength=1.0, roll=(0, k, 40)))
     into = [{"startBeat": 64.0}]
     for seed in range(200):
         shape = roll_shapes(slots, into, expert, seed).get(0)
@@ -62,22 +62,21 @@ def test_echoes_and_swells_stay_off_where_the_drums_are_out() -> None:
     other = _cand(1.0, strength=0.3, attack=0.5, pitch=67.0, melody=0.5)
     swell = _cand(1.5, strength=0.3, attack=0.3, pitch=60.0, melody=0.5)
     cands = [note, echo, other, swell]
-    assert _echoes(cands, cfg, "GRG") == [echo] and _echoes(cands, cfg, "DJMAX") == []
+    assert _echoes(cands, cfg) == [echo]
     # the drums are out in a section with a small share of drums against the song's busiest
     sections = [{"t": 0.0, "endT": 4000.0, "stems": [0.08, 0.2, 0.3, 0.42]}, {"t": 4000.0, "endT": 8000.0, "stems": [0.35, 0.2, 0.2, 0.25]}]
     later = [_cand(b, strength=0.3, attack=0.3, melody=0.5) for b in (9.0, 9.5)]
-    _mark_quiet(cands + later, sections, cfg, "GRG")
+    _mark_quiet(cands + later, sections, cfg)
     assert all(c.quiet for c in cands) and not any(c.quiet for c in later)
-    assert _quiet_tails(cands, [echo], cfg, "GRG") == {id(echo), id(swell)}
-    assert _quiet_tails(later, later, cfg, "GRG") == set()
+    assert _quiet_tails(cands, [echo], cfg) == {id(echo), id(swell)}
+    assert _quiet_tails(later, later, cfg) == set()
 
 
 def test_a_lone_sound_is_no_chord() -> None:
     """A breakdown's pluck melody got two or three notes per hit (66 slots, 154 notes on 6K EXPERT):
     without drums a hit is one sound, one note (chordSounds); held chords take long notes instead."""
-    assert lone_sound(_cand(0.0, quiet=True), "GRG")
-    assert not lone_sound(_cand(0.0, quiet=False), "GRG")
-    assert not lone_sound(_cand(0.0, quiet=True), "EZ2ON")
+    assert lone_sound(_cand(0.0, quiet=True))
+    assert not lone_sound(_cand(0.0, quiet=False))
 
 
 def test_the_highlight_stays_the_densest_part() -> None:
@@ -93,8 +92,6 @@ def test_the_highlight_stays_the_densest_part() -> None:
     assert _cap_below_highlight(units, per_unit, n, resolve_params("6K", "EXPERT"))
     chorus_per_beat = min(30.0, 0.9 * 22) / 8.0
     assert n[1] == 30.0 and n[0] < chorus_per_beat * 8.0
-    m = [30.0, 30.0]
-    assert not _cap_below_highlight(units, per_unit, m, resolve_params("6K", "HD", 9, system="DJMAX")) and m == [30.0, 30.0]
 
 
 def test_a_build_up_as_loud_as_the_chorus_does_not_take_its_label() -> None:

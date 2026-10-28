@@ -39,7 +39,7 @@ def _tail_end(analysis: dict[str, Any], t: float, drop: float, silence: float) -
 def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMap, params: GenParams, lanes: list[Any], silence: float) -> bool:
     """Hold the chart's last notes over the reverb that ends the song (in place); whether it did."""
     cfg = difficulty_config().get("ending")
-    if not cfg or params.system not in cfg["systems"] or not notes:
+    if not cfg or not notes:
         return False
     last_t = max(n["t"] for n in notes)
     last = [n for n in notes if n["t"] == last_t and lanes[n["lane"]].kind == "key"]
@@ -60,8 +60,9 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
     if end - start < max(float(cfg["minBeats"]), params.min_ln_beats) - 1e-9:
         return False
     # the last chord rings on: its notes hold, and a chord takes the skill's count of long notes
-    # (holds.pad countMax: up to six on MASTER), more keys joining it where the hands have room
-    want = min(hold_cap(params), params.max_chord) if end - start >= 2.0 - 1e-9 else 1
+    # (ending.countMax: up to six on MASTER, more than a held chord inside the song), more keys
+    # joining it where the hands have room
+    want = min(hold_cap(params, cfg.get("countMax")), params.max_chord) if end - start >= 2.0 - 1e-9 else 1
     keys = [l for l in lanes if l.kind == "key"]
     # every press at the last instant counts against its hand and the chord size, a scratch or a
     # key that stays a tap too (a 7K EXPERT chart ending on scratch + key 1 grew three presses on

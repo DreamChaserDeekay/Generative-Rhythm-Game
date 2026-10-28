@@ -1,14 +1,11 @@
 import {
   cameraConfig,
   defaultGauge,
-  difficultySystemIds,
-  difficultySystems,
   enabledKeyModes,
   gaugeTypeIds,
   judgementConfig,
   keyModes,
   tierOf,
-  type DifficultySystemId,
   type GaugeTypeId,
   type JudgementModeId,
 } from '../engine/config';
@@ -37,7 +34,7 @@ export type JudgePosition = 'low' | 'mid' | 'high';
 export type DisplayMode = 'window' | 'fullscreen';
 export const DISPLAY_MODES: readonly DisplayMode[] = ['window', 'fullscreen'];
 /** Song select folders (Shift or F6 steps through them): every song, the favourites, the ones not
- * played on this key mode and difficulty system, the ones played but not cleared on a difficulty,
+ * played on this key mode, the ones played but not cleared on a difficulty,
  * the ones cleared but short of MAX COMBO on a difficulty. */
 export type SongFolder = 'all' | 'favorites' | 'unplayed' | 'uncleared' | 'noFullCombo';
 export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplayed', 'uncleared', 'noFullCombo'];
@@ -136,10 +133,8 @@ export interface Settings {
   /** Per song and key mode (chartPickKey): the edited or imported chart chosen last (none: a difficulty). */
   chartPicks: Record<string, string>;
   lastKeyMode: KeyModeId;
-  /** Difficulty tier of `difficultySystem` (NM, MX, SHD …). */
+  /** Difficulty tier (NORMAL … MASTER). */
   lastDifficulty: string;
-  /** Which game's difficulties and levels the generator follows (GRG = the original five steps). */
-  difficultySystem: DifficultySystemId;
   ruleset: RulesetId;
   gaugeType: GaugeTypeId;
   fever: FeverMode;
@@ -242,7 +237,6 @@ export const DEFAULT_SETTINGS: Settings = {
   chartPicks: {},
   lastKeyMode: '4K',
   lastDifficulty: 'NORMAL',
-  difficultySystem: 'GRG',
   ruleset: defaultRuleset,
   gaugeType: defaultGauge,
   fever: 'AUTO',
@@ -322,6 +316,8 @@ function picked<K extends string>(raw: unknown, names: readonly K[], clean: (v: 
 /** Fills defaults and drops values that the current config no longer knows. */
 export function sanitizeSettings(raw: Partial<Settings>): Settings {
   const s = { ...DEFAULT_SETTINGS, ...raw };
+  // the DJMAX and EZ2ON difficulty systems were taken out: only the four tiers remain
+  delete (s as Partial<Settings> & { difficultySystem?: unknown }).difficultySystem;
   // a mode's keys: all keyboard codes; its second keys: none that is already a key of the mode
   s.bindings = perLane(raw.bindings, (_, codes) => (codes.every((c) => typeof c === 'string' && KEY_CODE.test(c)) ? (codes as string[]) : null));
   s.secondBindings = perLane(raw.secondBindings, (mode, codes) => {
@@ -355,8 +351,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.hiSpeed = num(s.hiSpeed, HI_SPEED_MIN, HI_SPEED_MAX, d.hiSpeed);
   s.cameraPreset = pick(s.cameraPreset, Object.keys(cameraConfig.presets), d.cameraPreset);
   s.lastKeyMode = pick(s.lastKeyMode, Object.keys(keyModes) as KeyModeId[], d.lastKeyMode);
-  s.difficultySystem = pick(s.difficultySystem, difficultySystemIds, d.difficultySystem);
-  s.lastDifficulty = tierOf(difficultySystems[s.difficultySystem], String(s.lastDifficulty)).id;
+  s.lastDifficulty = tierOf(String(s.lastDifficulty)).id;
   s.ruleset = pick(s.ruleset, rulesetIds, d.ruleset);
   s.gaugeType = pick(s.gaugeType, gaugeTypeIds, d.gaugeType);
   s.fever = pick(s.fever, ['AUTO', 'MANUAL', 'OFF'] as FeverMode[], d.fever);
@@ -434,19 +429,6 @@ export function saveSettings(settings: Settings): void {
   } catch {
     // storage unavailable (private mode); settings stay in memory
   }
-}
-
-/**
- * The settings on another difficulty system, on the same step of it (NORMAL → NM …), else on the
- * step at the same place, else on its first.
- */
-export function withDifficultySystem(s: Settings, id: DifficultySystemId): Settings {
-  const from = difficultySystems[s.difficultySystem];
-  const difficulty = tierOf(from, s.lastDifficulty).id;
-  const next = difficultySystems[id];
-  const index = Math.min(from.tiers.findIndex((t) => t.id === difficulty), next.tiers.length - 1);
-  const tier = next.tiers.find((t) => t.id === next.aliases[difficulty]) ?? next.tiers[Math.max(0, index)] ?? next.tiers[0];
-  return { ...s, difficultySystem: id, lastDifficulty: tier.id };
 }
 
 export function bindingsFor(settings: Pick<Settings, 'bindings'>, mode: KeyModeId): string[] {
@@ -554,7 +536,8 @@ const SEED_MAX = 2 ** 32 - 1;
 const CHART_ID = /^c[0-9a-f]{20}$/;
 const SONG = '[0-9a-f]{16}';
 const MODES = Object.keys(keyModes).map((m) => m.replace(/[+]/g, '\\+')).join('|');
-const PATTERN_KEY = new RegExp(`^${SONG}\\|(${MODES})\\|(${difficultySystemIds.join('|')})\\|[A-Z0-9_-]{1,16}$`);
+// GRG: the difficulty system the keys were made under when there were three (kept so stored patterns stay)
+const PATTERN_KEY = new RegExp(`^${SONG}\\|(${MODES})\\|GRG\\|[A-Z0-9_-]{1,16}$`);
 const CHART_PICK_KEY = new RegExp(`^${SONG}\\|(${MODES})$`);
 
 /** The entries of a stored map whose key and value are of their kind, the last SONG_OFFSETS_KEPT of them. */
@@ -571,9 +554,9 @@ export function withEntry<T>(all: Record<string, T>, key: string, value: T | nul
   return next;
 }
 
-/** Where a difficulty's pattern is kept: the song, the key mode and the tier of its difficulty system. */
-export function patternKey(songId: string, keyMode: KeyModeId, system: DifficultySystemId, difficulty: string): string {
-  return `${songId}|${keyMode}|${system}|${difficulty}`;
+/** Where a difficulty's pattern is kept: the song, the key mode and the tier. */
+export function patternKey(songId: string, keyMode: KeyModeId, difficulty: string): string {
+  return `${songId}|${keyMode}|GRG|${difficulty}`;
 }
 
 /** A difficulty's pattern (null: the default pattern). */

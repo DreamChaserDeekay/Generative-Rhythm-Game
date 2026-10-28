@@ -395,7 +395,7 @@ def test_edited_charts_are_saved_validated_and_deleted(client: TestClient) -> No
 
 def test_scores_keep_their_replays(client: TestClient, tmp_path: Path) -> None:
     sid = client.post("/api/songs/demo", json={"bpm": 128, "bars": 10, "seed": 5}).json()["song"]["id"]
-    chart = client.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "EASY"}).json()["chart"]
+    chart = client.post(f"/api/songs/{sid}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]
     cid = chart["meta"]["chartId"]
     replay = {"version": 1, "chartId": cid, "songId": sid, "recordedAt": 1, "settings": {}, "log": [1, 0, 1000.5, 0, 0, 1040.25], "result": {}}
     score = {"chartId": cid, "songId": sid, "score": 812345, "rate": 81.2, "maxCombo": 40, "lamp": "CLEAR"}

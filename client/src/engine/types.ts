@@ -1,4 +1,3 @@
-import type { DifficultySystemId } from './config';
 
 export type KeyModeId = '4K' | '4K+FX' | '5K' | '6K' | '6K+FX' | '7K+1S' | '8K';
 
@@ -121,10 +120,6 @@ export interface ChartMeta {
   keyMode: KeyModeId;
   lanes: string[];
   difficulty: string;
-  /** Difficulty system of `difficulty` and `level` (absent = GRG, the five steps). */
-  difficultySystem?: DifficultySystemId;
-  /** "SC" when the level is on DJMAX's SC scale. */
-  levelScale?: string;
   level: number;
   songId?: string;
   durationMs?: number;

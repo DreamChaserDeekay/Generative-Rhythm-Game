@@ -28,7 +28,7 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
 
     for lane, ns in by_lane.items():
         ns.sort(key=lambda n: n["t"])
-        min_gap = params.thumb_jack_ms if lanes[lane].hand == "T" and params.thumb_jack_ms else params.min_jack_ms
+        min_gap = params.min_jack_ms
         for a, b in zip(ns, ns[1:]):
             if abs(a["t"] - b["t"]) < TIME_EPS:
                 problems.append(f"duplicate note lane {lane} at {a['t']}ms")
@@ -45,10 +45,6 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
     for t, ns in chords.items():
         if len(ns) > max(1, params.max_chord):
             problems.append(f"chord of {len(ns)} at {t}ms exceeds {params.max_chord}")
-        pressed = {n["lane"] for n in ns}
-        for chord in params.pad_forbidden:
-            if pressed.issuperset(chord):
-                problems.append(f"chord {'+'.join(str(i) for i in chord)} at {t}ms cannot be pressed on a pad")
         held_hands = {lanes[h["lane"]].hand for h in holds if h["t"] < t - TIME_EPS and h["endT"] > t + TIME_EPS}
         per_hand: dict[str, int] = defaultdict(int)
         for n in ns:

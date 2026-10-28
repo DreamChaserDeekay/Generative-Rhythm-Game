@@ -1,4 +1,4 @@
-"""Lane patterns: pad-playable DJMAX chords, the skill value, and (later phases) the pattern engine."""
+"""Lane patterns: the skill value and (later phases) the pattern engine."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from rhythm_server.formats import export_chart
 from rhythm_server.generator import generate_chart
 from rhythm_server.generator.lanes import lane_infos, note_sources
 from rhythm_server.generator.linter import lint
+from rhythm_server.generator.motifs import by_skill
 from rhythm_server.generator.params import resolve_params
 from rhythm_server.generator.tempo import TempoMap
 from rhythm_server.synth import make_song
@@ -31,75 +32,33 @@ def chords_of(chart: dict) -> list[set[int]]:
     return [lanes for lanes in by_t.values() if len(lanes) >= 2]
 
 
-def test_djmax_below_sc_never_asks_for_chords_a_pad_cannot_press(dense_song: dict) -> None:
-    for mode, tier, level in (("6K", "HD", 10), ("6K", "MX", 14), ("6K+FX", "MX", 13), ("5K", "MX", 14)):
-        params = resolve_params(mode, tier, level, system="DJMAX")
-        assert params.pad_forbidden, (mode, tier)
-        chart = generate_chart(dense_song, mode, tier, level, system="DJMAX")
-        bad = [c for c in chords_of(chart) if any(c.issuperset(f) for f in params.pad_forbidden)]
-        assert bad == [], (mode, tier, bad[:3])
-    # SC is keyboard-only: the same shapes are allowed there
-    assert resolve_params("6K", "SC", system="DJMAX").pad_forbidden == ()
-    sc = generate_chart(dense_song, "6K", "SC", 8, system="DJMAX")
-    assert any({0, 2} <= c or {3, 5} <= c for c in chords_of(sc))
-    # EZ2ON and the five steps have no pad rule
-    assert resolve_params("6K", "HD", system="EZ2ON").pad_forbidden == ()
-    assert resolve_params("6K", "MASTER").pad_forbidden == ()
+def test_skill_is_the_level_on_one_scale_for_every_key_mode() -> None:
+    def skill(mode: str, tier: str, level: int | None = None) -> float:
+        return resolve_params(mode, tier, level).skill
+
+    # the same level is the same skill on every key mode
+    assert skill("4K", "NORMAL", 5) == skill("8K", "NORMAL", 5) == skill("6K", "NORMAL", 5)
+    grg = [skill("4K", d) for d in ("NORMAL", "HARD", "EXPERT", "MASTER")]
+    assert grg == sorted(grg) and grg[0] < 0.4 and grg[-1] > 0.9
 
 
-def test_the_linter_rejects_pad_impossible_chords() -> None:
-    lanes = lane_infos("6K")
-    tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
-    notes = [{"t": 1000.0, "beat": 2.0, "lane": 0, "type": "tap"}, {"t": 1000.0, "beat": 2.0, "lane": 2, "type": "tap"}]
-    assert any("pad" in p for p in lint(notes, lanes, resolve_params("6K", "MX", system="DJMAX"), tempo))
-    assert not any("pad" in p for p in lint(notes, lanes, resolve_params("6K", "SC", system="DJMAX"), tempo))
-
-
-def test_skill_is_the_level_on_one_scale_for_every_system() -> None:
-    def skill(mode: str, tier: str, level: int | None = None, system: str | None = None) -> float:
-        return resolve_params(mode, tier, level, system=system).skill
-
-    # the same level is the same skill on every system and key mode
-    assert skill("4K", "NM", 5, "DJMAX") == skill("8K", "NM", 5, "DJMAX") == skill("6K", "NORMAL", 5) == skill("6K", "EZ", 5, "EZ2ON")
-    grg = [skill("4K", d) for d in ("EASY", "NORMAL", "HARD", "EXPERT", "MASTER")]
-    assert grg == sorted(grg) and grg[0] < 0.2 and grg[-1] > 0.9
-    # SC levels sit above normal levels: SC 2 / 8 are level 12 / 15
-    assert skill("6K", "SC", 2, "DJMAX") == pytest.approx(skill("6K", "MX", 12, "DJMAX"), abs=0.04)
-    assert skill("6K", "SC", 8, "DJMAX") == 1.0 and skill("6K", "SHD", 20, "EZ2ON") == 1.0
-
-
-def test_easy_rules_follow_skill_not_tier_names(dense_song: dict) -> None:
-    # EZ2ON EZ Lv.2 is as easy as GRG EASY: chords only on downbeats, long notes end on half beats
-    for chart in (generate_chart(dense_song, "6K", "EZ", 2, system="EZ2ON"), generate_chart(dense_song, "6K", "EASY", 3)):
-        by_t: dict[float, list[dict]] = {}
-        for n in chart["notes"]:
-            by_t.setdefault(round(n["t"], 3), []).append(n)
-        for ns in by_t.values():
-            if len(ns) >= 2:
-                assert abs(ns[0]["beat"] - round(ns[0]["beat"])) < 1e-6 and round(ns[0]["beat"]) % 4 == 0, ns[0]["beat"]
-    nm = generate_chart(dense_song, "6K", "NM", 5, system="DJMAX")
-    holds = [n for n in nm["notes"] if n["type"] == "hold"]
+def test_normal_long_notes_end_on_half_beats(dense_song: dict) -> None:
+    normal = generate_chart(dense_song, "6K", "NORMAL", 5)
+    holds = [n for n in normal["notes"] if n["type"] == "hold"]
     assert holds and all(abs(n["endBeat"] * 2 - round(n["endBeat"] * 2)) < 1e-6 for n in holds)
 
 
-def test_exports_name_djmax_and_ez2on_difficulties(dense_song: dict) -> None:
-    mx = generate_chart(dense_song, "5K", "MX", 12, system="DJMAX", meta={"title": "Song"})
-    ez = generate_chart(dense_song, "5K", "EZ", 3, system="EZ2ON", meta={"title": "Song"})
+def test_exports_name_the_tier(dense_song: dict) -> None:
     hard = generate_chart(dense_song, "5K", "HARD", meta={"title": "Song"})
-    sc = generate_chart(dense_song, "5K", "SC", 5, system="DJMAX", meta={"title": "Song"})
+    master = generate_chart(dense_song, "5K", "MASTER", meta={"title": "Song"})
 
     def bms_difficulty(chart: dict) -> str:
         text = export_chart(chart, "bms", "song.ogg")[0].decode()
         return next(line for line in text.splitlines() if line.startswith("#DIFFICULTY")).split()[1]
 
-    assert [bms_difficulty(c) for c in (ez, hard, mx, sc)] == ["1", "3", "4", "5"]
-    osu_text, name, _ = export_chart(mx, "osu", "song.ogg")
-    assert f"Version:5K DJMAX MX Lv.{mx['meta']['level']}" in osu_text.decode() and name == "Song [5K DJMAX MX].osu"
-    assert f"Version:5K DJMAX SC {sc['meta']['level']}" in export_chart(sc, "osu", "song.ogg")[0].decode()
-    assert f"Version:5K HARD Lv.{hard['meta']['level']}" in export_chart(hard, "osu", "song.ogg")[0].decode()
-    import json
-
-    assert json.loads(export_chart(mx, "bmson", "song.ogg")[0])["info"]["chart_name"] == "DJMAX MX"
+    assert [bms_difficulty(c) for c in (hard, master)] == ["3", "5"]
+    osu_text, name, _ = export_chart(hard, "osu", "song.ogg")
+    assert f"Version:5K HARD Lv.{hard['meta']['level']}" in osu_text.decode() and name == "Song [5K HARD].osu"
 
 
 # ---------- P1: pattern profile ----------
@@ -129,15 +88,13 @@ def test_pattern_profile_finds_stairs_trills_jacks_chords_and_leaps() -> None:
     assert jacks["chordShapes"] == {"adjacent": 0.0, "symmetric": 1.0, "other": 0.0}
     leaps = pattern_profile(_taps([(i * 150, (0, 5)[i % 2]) for i in range(6)]), "6K")
     assert leaps["leaps"] == 1.0 and leaps["alternation"] == 1.0 and leaps["sameHandLeaps"] == 0.0
-    pad = pattern_profile(_taps([(0, (0, 2)), (500, (3, 5)), (1000, (2, 3))]), "6K")
-    assert pad["padImpossible"] == 2
     held = [{"t": 0.0, "beat": 0.0, "lane": 1, "type": "hold", "endT": 1000.0, "endBeat": 2.0}] + _taps([(200, 3), (400, 4), (1200, 5)])
     assert pattern_profile(held, "6K")["holdTaps"] == 0.5
     assert pattern_summary([], "6K") == {k: 0.0 for k in ("stairs", "trills", "chords", "jacks", "holdTaps", "leaps")}
 
 
 def test_charts_carry_their_pattern_summary(dense_song: dict) -> None:
-    chart = generate_chart(dense_song, "6K", "MX", 12, system="DJMAX")
+    chart = generate_chart(dense_song, "6K", "EXPERT", 12)
     patterns = chart["meta"]["patterns"]
     assert set(patterns) == {"stairs", "trills", "chords", "jacks", "holdTaps", "leaps"}
     assert all(0.0 <= v <= 1.0 for v in patterns.values()) and patterns["chords"] > 0
@@ -196,14 +153,14 @@ def gesture_analysis(bpm: float = 120.0, repeats: int = 2) -> tuple[dict, dict[s
     return analysis, bars
 
 
-def place(analysis: dict, mode: str, tier: str, level: int | None = None, system: str | None = None, engine: str = "designer") -> dict:
+def place(analysis: dict, mode: str, tier: str, level: int | None = None, engine: str = "designer") -> dict:
     """Every sound of the song as a note (no level loop), placed by the pattern engine."""
     import numpy as np
 
     from rhythm_server.generator.lanes import lane_search, notes_from_choices
     from rhythm_server.generator.planner import plan_patterns
 
-    params = resolve_params(mode, tier, level, system=system)
+    params = resolve_params(mode, tier, level)
     tempo = TempoMap(analysis["timing"])
     lanes = lane_infos(mode)
     n_keys = sum(1 for l in lanes if l.kind == "key")
@@ -260,7 +217,7 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
     assert trill_share(key_sequence(classic, bars["oscillate"])) < 0.5
     # a repeated note may stay on its lane (BMS: about half the jacks repeat their keysound), but it
     # does not pile up past the jack-streak limit; note by note nearly every repeat was a jack
-    free = int(load_config("patterns")["hands"]["systems"]["GRG"]["jackFree"])
+    free = int(round(by_skill(load_config("patterns")["hands"]["jackFree"], resolve_params("6K", "HARD").skill)))
     for seq in key_sequence(designer, bars["repeat"]):
         assert max(len(list(run)) for _, run in itertools.groupby(seq)) <= free, seq
         assert len(set(seq)) >= 2, seq
@@ -270,10 +227,7 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
 def test_slow_repeated_notes_stay_on_their_lane() -> None:
     # Eighths 500 ms apart: a repeat this slow is easy on one key, and human BMS charts keep 86-88%
     # of slow same-keysound repeats on their lane. Fast ones (250 ms) keep it more on easy charts
-    # than on MASTER (BMS: 37-39% at levels 2-6, 16% at 14). Generator 0.9.15 gives the slow rules
-    # to DJMAX and EZ2ON as well (reaching a key again half a second later is easy on a pad too, and
-    # test_guides checks the DPC limit on real jacks), but the fast bonus stays with the default
-    # system: carrying it over pushes DJMAX 4K MX past that limit (PATTERN_DESIGN 32).
+    # than on MASTER (BMS: 37-39% at levels 2-6, 16% at 14).
     slow, bars = gesture_analysis(60.0)
     fast, _ = gesture_analysis(120.0)
 
@@ -281,12 +235,10 @@ def test_slow_repeated_notes_stay_on_their_lane() -> None:
         stays = [a == b for seq in key_sequence(chart, bars["repeat"]) for a, b in zip(seq, seq[1:])]
         return sum(stays) / len(stays)
 
-    for tier in ("EASY", "NORMAL", "MASTER"):
+    for tier in ("NORMAL", "MASTER"):
         assert stay_share(place(slow, "7K+1S", tier)) >= 0.8, tier
     master = stay_share(place(fast, "7K+1S", "MASTER"))
-    assert stay_share(place(fast, "7K+1S", "EASY")) > master and stay_share(place(fast, "7K+1S", "NORMAL")) > master
-    for system in ("DJMAX", "EZ2ON"):
-        assert stay_share(place(slow, "6K", "NM", system=system)) >= 0.4, system
+    assert stay_share(place(fast, "7K+1S", "NORMAL")) > master
 
 
 def test_pedals_anchor_and_drums_keep_one_lane_per_sound() -> None:
@@ -310,53 +262,30 @@ def test_pedals_anchor_and_drums_keep_one_lane_per_sound() -> None:
             assert len(used) <= (2 if name == "hat" else 1), (b, name, used)
 
 
-def test_djmax_5k_repeated_notes_become_a_laser() -> None:
-    analysis, bars = gesture_analysis(150.0)  # eighths 200 ms apart: faster than an HD jack (250 ms)
-    params = resolve_params("5K", "HD", 10, system="DJMAX")
-    assert params.thumb_jack_ms == 150.0 and resolve_params("5K", "HD", 10, system="EZ2ON").thumb_jack_ms == 0.0
-    chart = place(analysis, "5K", "HD", 10, system="DJMAX")
-    def longest_center_run(seq: list[int]) -> int:
-        best = run = 0
-        for k in seq:
-            run = run + 1 if k == 2 else 0
-            best = max(best, run)
-        return best
-
-    runs = [longest_center_run(seq) for seq in key_sequence(chart, bars["repeat"])]
-    assert min(runs) >= 5, runs  # the middle key repeated by both thumbs
-    ez = place(analysis, "5K", "HD", 10, system="EZ2ON")
-    # EZ2ON has no laser: the same repeated notes alternate between two keys
-    assert all(a != b for seq in key_sequence(ez, bars["repeat"]) for a, b in zip(seq, seq[1:]))
-
-
-def test_the_default_system_plays_doubles_and_longer_anchors_from_normal() -> None:
+def test_doubles_and_longer_anchors_from_normal() -> None:
     """Human BMS charts play 6.4 doubles (재봉틀) and 2.2 anchors of four hits or more in 1000 notes
-    at level 6 (PATTERN_DESIGN 26). Since generator 0.9.10 the default system's repeated-note and
-    drum phrases prefer doubles to the hand-alternating split, and its anchors may run six hits from
-    NORMAL on. DJMAX keeps the short anchors of the DPC guidelines below its hardest tiers."""
+    at level 6 (PATTERN_DESIGN 26). Since generator 0.9.10 repeated-note and drum phrases prefer
+    doubles to the hand-alternating split, and anchors may run six hits from NORMAL on; since 0.9.37
+    from NORMAL's level 6 (the default NORMAL keeps three: the human charts in the BMS folder play
+    0.14 anchors of four hits in 1000 notes at levels 4-6, ours 0.6-0.9, PATTERN_DESIGN 71)."""
     from types import SimpleNamespace
 
     from rhythm_server.generator.planner import _fit, vocabulary
 
-    assert resolve_params("7K+1S", "EASY").anchor_cap == 3
-    assert resolve_params("7K+1S", "NORMAL").anchor_cap == 6
-    assert resolve_params("6K", "NM", 6, system="DJMAX").anchor_cap == 3
-    grg, dj = resolve_params("7K+1S", "NORMAL"), resolve_params("6K", "MX", 13, system="DJMAX")
+    grg = resolve_params("7K+1S", "NORMAL")
+    assert grg.anchor_cap == 3 and resolve_params("7K+1S", "NORMAL", 6).anchor_cap == 6
     for gesture in ("repeat", "rhythm"):
         p = SimpleNamespace(gesture=gesture, halves=None)
         v = vocabulary(grg)
-        assert _fit("doubles", p, "GRG") * v["doubles"]["weight"] > _fit("split", p, "GRG") * v["split"]["weight"], gesture
-        v = vocabulary(dj)
-        assert _fit("doubles", p, "DJMAX") * v["doubles"]["weight"] < _fit("split", p, "DJMAX") * v["split"]["weight"], gesture
+        assert _fit("doubles", p) * v["doubles"]["weight"] > _fit("split", p) * v["split"]["weight"], gesture
 
 
 def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours() -> None:
     """Human BMS charts almost never put a two-note chord on the middle key and its neighbour (3+4,
     4+5: 0.2-3.7% of their two-note chords from level 2 to 14), which no chord shape cost covered
     before generator 0.9.13 (11-13% of ours). They play one hand with a key between (1+3) more than
-    we did on normal charts and half as often on MASTER (PATTERN_DESIGN 29). The default system's
-    7K chords pay hands.chordShapes by skill; other systems and key modes have none. Since 0.9.19
-    the default system has no soft role regions at levels 6 and 10 and its own refitted table, in
+    we did on normal charts and half as often on MASTER (PATTERN_DESIGN 29). 7K chords pay
+    hands.chordShapes by skill; other key modes have none. Since 0.9.19 there are no soft role regions at levels 6 and 10 and its own refitted table, in
     which symmetric pairs pay a cost too (without the regions they ran to 34-36% against the human
     22-26%), so 3+4 stays above 3+5 by a smaller margin while landing on the human share (level 10
     1.4% against 1.5%; PATTERN_DESIGN 38)."""
@@ -364,25 +293,24 @@ def test_default_7k_two_note_chords_keep_off_the_middle_key_and_its_neighbours()
 
     lanes = lane_infos("7K+1S")
     sp = SlotPlan(phrase=0, k=0, motif="step", chords="vary", hold_tap=False, direction=1, step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False)
-    ctx = motif_context(lanes, 0.1, system="GRG", key_mode="7K+1S")
+    ctx = motif_context(lanes, 0.1, key_mode="7K+1S")
     shapes = [pair_shape(ctx, a, b) for a, b in ((0, 6), (2, 3), (1, 3), (0, 1), (0, 2), (1, 4))]
     assert shapes == ["symmetric", "middleAdjacent", "middle", "adjacent", "oneHandGap", "lopsided"]
     for skill in (0.1, 0.4, 0.7, 0.96):
-        grg = motif_context(lanes, skill, system="GRG", key_mode="7K+1S")
+        grg = motif_context(lanes, skill, key_mode="7K+1S")
         assert _shape_cost(grg, sp, (2, 3)) > _shape_cost(grg, sp, (2, 4)) + 0.05, skill  # 3+4 above 3+5
-    normal, master = (motif_context(lanes, s, system="GRG", key_mode="7K+1S") for s in (0.4, 0.96))
+    normal, master = (motif_context(lanes, s, key_mode="7K+1S") for s in (0.4, 0.96))
     assert _shape_cost(normal, sp, (0, 2)) < _shape_cost(normal, sp, (1, 4))  # 1+3 below 2+5 on NORMAL ...
     assert _shape_cost(master, sp, (0, 2)) > _shape_cost(master, sp, (1, 4))  # ... above it on MASTER
-    assert motif_context(lane_infos("6K"), 0.96, system="DJMAX", key_mode="6K").pair_shapes is None
-    assert motif_context(lane_infos("5K"), 0.5, system="GRG", key_mode="5K").pair_shapes is None
+    assert motif_context(lane_infos("5K"), 0.5, key_mode="5K").pair_shapes is None
 
 
 def test_roll_shapes_go_hand_over_hand_in_many_ways() -> None:
     """A roll's notes take turns between the hands, each on the key its shape gives (rolls.shapes).
-    Since generator 0.9.29 the default system draws a shape per roll: 6K play feedback found every
+    Since generator 0.9.29 the planner draws a shape per roll: 6K play feedback found every
     build-up roll played 3-4, 2-5, 1-6 (the fan, and the zigzag that 0.9.23 took from 7-key BMS
     charts, both come out so on 6 keys) and no trills (PATTERN_DESIGN 60). Without a shape a roll
-    fans out from the middle keys, as the other systems play them."""
+    fans out from the middle keys."""
     from rhythm_server.generator.motifs import alternate_key, motif_context
 
     def roll(ctx, hits: int, shape=None) -> list[int]:
@@ -393,7 +321,7 @@ def test_roll_shapes_go_hand_over_hand_in_many_ways() -> None:
             keys.append(key)
         return [k + 1 for k in keys]
 
-    six = motif_context(lane_infos("6K"), 0.75, system="GRG", key_mode="6K")
+    six = motif_context(lane_infos("6K"), 0.75, key_mode="6K")
     assert roll(six, 6) == [3, 4, 2, 5, 1, 6]  # fan
     assert roll(six, 6, ("inward", 0)) == [1, 6, 2, 5, 3, 4]
     assert roll(six, 6, ("shift", 0)) == [1, 4, 2, 5, 3, 6]
@@ -401,15 +329,14 @@ def test_roll_shapes_go_hand_over_hand_in_many_ways() -> None:
     assert len(set(trill)) == 2 and trill[0] != 3  # a trill on one key of each hand, not always 3-4
     long_trill = roll(six, 16, ("trill", 0))
     assert set(long_trill[:8]) == {3, 4} and set(long_trill[8:]) == {2, 5}  # a long trill moves out
-    seven = motif_context(lane_infos("7K+1S"), 0.96, system="GRG", key_mode="7K+1S")
+    seven = motif_context(lane_infos("7K+1S"), 0.96, key_mode="7K+1S")
     assert roll(seven, 10, ("wave", 0)) == [3, 5, 2, 6, 1, 7, 2, 6, 3, 5]
-    assert roll(motif_context(lane_infos("7K+1S"), 0.96, system="DJMAX", key_mode="7K+1S"), 10)[:4] == [3, 5, 3, 5]
 
 
 def test_default_rolls_draw_their_shapes_per_roll() -> None:
     """The planner draws each roll's shape by the chart's seed, the roll's length and its place in the
     bar (a fill played again keeps its shape); a roll leading into a new section (a build-up) is a
-    trill more often (rolls.buildUpTrill). Only the default system has shapes."""
+    trill more often (rolls.buildUpTrill)."""
     from collections import Counter
 
     from rhythm_server.generator.planner import roll_shapes
@@ -422,7 +349,7 @@ def test_default_rolls_draw_their_shapes_per_roll() -> None:
             for k in range(hits):
                 beat = 16.0 * r + 8.0 + 0.25 * k + (r % 3) * 0.5
                 slots.append(Slot(beat=beat, t=beat * 500.0, size=1, hold_end_beat=None, special=None, special_hold=False,
-                                  pitch=None, bands=np.ones(3), score=1.0, subdivision=4, strength=1.0, roll=(r, k, hits, False)))
+                                  pitch=None, bands=np.ones(3), score=1.0, subdivision=4, strength=1.0, roll=(r, k, hits)))
         return slots
 
     expert = resolve_params("6K", "EXPERT")
@@ -435,20 +362,16 @@ def test_default_rolls_draw_their_shapes_per_roll() -> None:
     into = [{"startBeat": b + 0.5} for b in lasts.values()]
     trills = sum(name == "trill" for name, _ in roll_shapes(song(40), into, expert, 11).values())
     assert trills > sum(name == "trill" for name, _ in shapes.values())
-    assert roll_shapes(song(10), [], resolve_params("6K", "MX", 13, system="DJMAX"), 11) == {}
 
 
-def test_every_system_balances_lane_use_over_the_same_many_notes() -> None:
+def test_lane_use_is_balanced_over_many_notes() -> None:
     """The lane-usage balance charges a lane for use above the others' mean in its memory, which
     fades by hands.usageDecay each slot. Remembering only the last ten or so notes (0.9) spreads every
     run over both hands: human BMS charts play more jack streaks, doubles and trills and keep more
-    bars on one side (PATTERN_DESIGN 30). The default system remembered about 33 notes (0.97) from
-    generator 0.9.14; 0.9.15 moved that to the base, so DJMAX and EZ2ON remember as many (32장)."""
+    bars on one side (PATTERN_DESIGN 30). Since generator 0.9.14 it remembers about 33 notes (0.97)."""
     from rhythm_server.generator.lanes import _Weights
 
     assert _Weights.of(resolve_params("7K+1S", "NORMAL")).usage_decay == 0.97
-    assert _Weights.of(resolve_params("6K", "NM", 6, system="DJMAX")).usage_decay == 0.97
-    assert _Weights.of(resolve_params("6K", "NM", 6, system="EZ2ON")).usage_decay == 0.97
 
 
 def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
@@ -461,72 +384,63 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # holds 12.6% of their notes against our 9.3% over the 855 held-out charts). Generator 0.9.17
     # dropped it to 7% for the weaker lane-usage balance; refitting keyBias to close the key-share
     # gap instead moves every key the right way and still loses 3.1pp overall (PATTERN_DESIGN 34).
-    # Generator 0.9.28 keeps each sound group on its lane (hands.soundMemory). An EASY chart plays
-    # few sounds and leans on their keys (on this song key 7 0.086 -> 0.064); over the held-out
-    # songs a key holds more than 30% of the notes in 18 of 102 of our EASY charts (9 of 101 before)
-    # and in 11 of 95 human level 1-3 charts (PATTERN_DESIGN 58), so the EASY guard is looser.
-    # Generator 0.9.30 steers chords to the choruses (sectioned.labelsBySystem): on EASY key 7 goes to
-    # 0.0499 and key 1 to 0.3500 on this song, so the EASY band was 0.045-0.36. Analyzer 1.9.0 gives
-    # the sections their intensity (the verses 0.80 -> 0.54 against the choruses on this song): the
-    # verses play fewer notes and key 7 goes to 0.0449, so the EASY floor is 0.04. Generator 0.9.34
-    # evens the chord weights out (1.2 / 0.9 / 0.85): EASY key 1 0.27, key 7 0.07 on this song over the
-    # seeds; the same weight everywhere put key 1 at 0.52 and was left out (PATTERN_DESIGN 66).
-    for tier, floor, ceiling in (("EASY", 0.04, 0.36), ("NORMAL", 0.07, 0.3), ("HARD", 0.07, 0.3)):
+    # Generator 0.9.37's fewer NORMAL chords (0.14 -> 0.08, as human charts) leave key 7 6.3% here.
+    for tier, floor, ceiling in (("NORMAL", 0.06, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []
         for seed in range(4):
             keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
             per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
         shares = np.mean(per_seed, axis=0)
         assert min(shares[0], shares[6]) >= floor and max(shares) <= ceiling, (tier, [round(float(s), 3) for s in shares])
-    # leaps of three keys or more among the EASY charts' moves within 450 ms, a mean over seeds: a
-    # chart keeping its kick group on one key repeats it (0.12-0.39 by seed since 0.9.28, mean 0.20;
-    # 0.19-0.24 before), while over the held-out songs level 2's fast leaps stay at 0.30 (human 0.29)
+    # leaps of three keys or more among the NORMAL charts' moves within 450 ms, a mean over seeds: a
+    # chart keeping its kick group on one key repeats it (0.29-0.42 by seed, mean 0.36), while human
+    # level 2 charts leap in 0.29 of their fast moves
     leaps = []
     for seed in range(4):
-        notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "EASY", seed=seed)["notes"] if n["lane"] != 0)
+        notes = sorted((n["t"], n["lane"]) for n in generate_chart(dense_song, "7K+1S", "NORMAL", seed=seed)["notes"] if n["lane"] != 0)
         moves = [abs(b - a) for (ta, a), (tb, b) in zip(notes, notes[1:]) if 0 < tb - ta <= 450]
         leaps.append(sum(m >= 3 for m in moves) / len(moves))
     assert np.mean(leaps) >= 0.15, leaps
 
 
-def test_default_7k_phrases_keep_to_a_few_keys_and_easy_chords_use_one_hand(dense_song: dict) -> None:
+def test_default_7k_phrases_keep_to_a_few_keys_and_normal_chords_use_one_hand(dense_song: dict) -> None:
     # Human BMS 7K charts keep a 4-bar window on a few keys (80% of its notes on 3.8 keys below 4
     # notes a second, 4.2 up to 8, PATTERN_DESIGN 23) and play a sixth of the two-note chords of
     # levels 2 and 6 with one hand, a key between (1+3), rarely on neighbouring keys of one hand.
     # Generator 0.9.6 spread 4-bar windows over 4.4 keys here and had no one-hand chords below HARD.
+    # NORMAL alone keeps them to 4.34 keys over these seeds (with the EASY tier there was, whose
+    # windows are narrower, the mean stayed under 4.2).
     hand = {1: "L", 2: "L", 3: "L", 4: "T", 5: "R", 6: "R", 7: "R"}
     sizes, shapes = [], {"gap": 0, "adjacent": 0, "all": 0}
-    for tier in ("EASY", "NORMAL"):
-        for seed in range(4):
-            notes = [n for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
-            windows: dict[int, dict[int, int]] = {}
-            for n in notes:
-                w = windows.setdefault(int(n["beat"] // 16), {})
-                w[n["lane"]] = w.get(n["lane"], 0) + 1
-            for counts in windows.values():
-                total = sum(counts.values())
-                if total >= 12:
-                    held = list(itertools.accumulate(sorted(counts.values(), reverse=True)))
-                    sizes.append(next(i + 1 for i, h in enumerate(held) if h >= 0.8 * total))
-            for lanes in chords_of({"notes": notes}):
-                if len(lanes) == 2:
-                    a, b = sorted(lanes)
-                    same = hand[a] == hand[b] != "T"
-                    shapes["all"] += 1
-                    shapes["gap"] += same and b - a > 1
-                    shapes["adjacent"] += same and b - a == 1
-    assert np.mean(sizes) <= 4.2, np.mean(sizes)
+    for seed in range(4):
+        notes = [n for n in generate_chart(dense_song, "7K+1S", "NORMAL", seed=seed)["notes"] if n["lane"] != 0]
+        windows: dict[int, dict[int, int]] = {}
+        for n in notes:
+            w = windows.setdefault(int(n["beat"] // 16), {})
+            w[n["lane"]] = w.get(n["lane"], 0) + 1
+        for counts in windows.values():
+            total = sum(counts.values())
+            if total >= 12:
+                held = list(itertools.accumulate(sorted(counts.values(), reverse=True)))
+                sizes.append(next(i + 1 for i, h in enumerate(held) if h >= 0.8 * total))
+        for lanes in chords_of({"notes": notes}):
+            if len(lanes) == 2:
+                a, b = sorted(lanes)
+                same = hand[a] == hand[b] != "T"
+                shapes["all"] += 1
+                shapes["gap"] += same and b - a > 1
+                shapes["adjacent"] += same and b - a == 1
+    assert np.mean(sizes) < 4.4, np.mean(sizes)
     assert shapes["gap"] >= 0.03 * shapes["all"] and shapes["adjacent"] <= 0.03 * shapes["all"], shapes
 
 
 def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
     for mode, limit in (("6K", 0.12), ("8K", 0.15)):
-        for tier, system, level in (("NORMAL", None, None), ("EZ", "EZ2ON", 4)):
-            # the share of stairs swings a lot from one seed to the next (8K NORMAL: 0.03-0.25, a
-            # mean of 0.09-0.11 over 24 seeds)
-            profiles = [pattern_profile(generate_chart(dense_song, mode, tier, level, system=system, seed=seed)["notes"], mode) for seed in range(8)]
-            assert max(p["leaps"] for p in profiles) <= limit, (mode, tier, [p["leaps"] for p in profiles])
-            assert np.mean([p["stairs"] for p in profiles]) >= 0.08, (mode, tier, [p["stairs"] for p in profiles])
+        # the share of stairs swings a lot from one seed to the next (8K NORMAL: 0.03-0.25, a mean
+        # of 0.09-0.11 over 24 seeds)
+        profiles = [pattern_profile(generate_chart(dense_song, mode, "NORMAL", seed=seed)["notes"], mode) for seed in range(8)]
+        assert max(p["leaps"] for p in profiles) <= limit, (mode, [p["leaps"] for p in profiles])
+        assert np.mean([p["stairs"] for p in profiles]) >= 0.08, (mode, [p["stairs"] for p in profiles])
     # Hard charts vary. The shape count only sees single-note runs: since chords follow the music in
     # every section like human charts (generator 0.9.2) instead of gathering in the choruses, this
     # song's verses have chords too and shorter runs. From MX 12 on the song runs out of sounds and
@@ -534,8 +448,8 @@ def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> 
     # seed swings by a few kinds either way, so the count is a mean over seeds (since generator
     # 0.9.3 the weak and false onsets that filled some of HD's runs come last: about 31 kinds, 34
     # before).
-    for tier, level in (("HD", 9), ("MX", 11)):
-        profiles = [pattern_profile(generate_chart(dense_song, "6K", tier, level, system="DJMAX", seed=seed)["notes"], "6K") for seed in range(4)]
+    for tier, level in (("HARD", 9), ("EXPERT", 11)):
+        profiles = [pattern_profile(generate_chart(dense_song, "6K", tier, level, seed=seed)["notes"], "6K") for seed in range(4)]
         tops, kinds = [p["topShape"] for p in profiles], [p["shapeKinds"] for p in profiles]
         assert max(tops) <= 0.25 and np.mean(kinds) >= 30, (tier, tops, kinds)
 
@@ -549,8 +463,6 @@ def test_the_classic_engine_stays_available(dense_song: dict) -> None:
 
 
 # ---------- P4: roles, sound homes, styles ----------
-
-from rhythm_server.generator.planner import vocabulary  # noqa: E402
 
 
 def groove_analysis(bpm: float = 120.0) -> dict:
@@ -606,18 +518,18 @@ def hand_sides(chart: dict, mode: str) -> dict[tuple[str, str], list[str]]:
     return out
 
 
-def test_default_system_draws_each_charts_drum_keys() -> None:
+def test_each_chart_draws_its_drum_keys() -> None:
     """Human 7-key BMS charts keep each drum on a key, but every chart picks its own: the snare's
     home is on keys 3-5 in 59-67% of the charts at levels 6-14 and on the other keys in the rest, so
     over many charts the drums spread over all keys. Ours put the snare on key 4 in nearly half the
-    charts at levels 2-10 (kick low, snare in the middle, hats high every time). Since generator 0.9.23 the default system draws each
+    charts at levels 2-10 (kick low, snare in the middle, hats high every time). Since generator 0.9.23 the generator draws each
     chart's kick, snare and hat keys from the human spread (roles.drawnHomes, PATTERN_DESIGN 45),
     each on a key of its own (a kick and a snare sharing a key could not keep their lanes when they
-    alternate fast); a chart keeps its draw. EASY and NORMAL (below skill 0.35, whose phrases stay
-    in narrow windows) and the other systems keep the fixed places."""
+    alternate fast); a chart keeps its draw. NORMAL (below skill 0.35, whose phrases stay in narrow
+    windows) keeps the fixed places."""
     from rhythm_server.generator.planner import _own_keys, drum_places
 
-    grg = resolve_params("7K+1S", "EXPERT", None, None, "GRG")
+    grg = resolve_params("7K+1S", "EXPERT")
     assert drum_places(grg, 7) == drum_places(grg, 7)
     draws = [drum_places(grg, seed) for seed in range(400)]
     assert all(p is not None and len(set(p)) == 3 for p in draws)
@@ -625,8 +537,7 @@ def test_default_system_draws_each_charts_drum_keys() -> None:
     assert set(snare) == set(range(1, 8))
     assert max(snare.count(k) for k in range(1, 8)) / len(snare) < 0.35
     assert _own_keys((2 / 6, 3 / 6, 1.0), 0, 5) == (2, 3, 5)  # 7-key places that round to one 6-key lane
-    assert drum_places(resolve_params("6K", "HD", 9, None, "DJMAX"), 7) is None
-    assert drum_places(resolve_params("7K+1S", "NORMAL", None, None, "GRG"), 7) is None
+    assert drum_places(resolve_params("7K+1S", "NORMAL"), 7) is None
 
 
 def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:
@@ -636,61 +547,29 @@ def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:
         main = max(set(hands), key=hands.count)
         return main, hands.count(main) / len(hands)
 
-    # DJMAX swaps sides per repetition group; EZ2ON keeps them, and so does the default system since
-    # generator 0.9.8 (human BMS charts keep 71-72% of a drum keysound's notes on one lane)
-    for system, tier, level, flips in (("DJMAX", "MX", 13, True), ("EZ2ON", "HD", 14, False), ("GRG", "MASTER", None, False)):
-        sides = hand_sides(place(a, "6K", tier, level, system=system), "6K")
-        drums_a, share_da = side(sides[("A", "drums")])
-        melody_a, share_ma = side(sides[("A", "melody")])
-        drums_b, _ = side(sides[("B", "drums")])
-        assert drums_a != melody_a and share_da >= 0.85 and share_ma >= 0.85, (system, sides)
-        assert (drums_b != drums_a) == flips, system
+    # each repetition group keeps the sides since generator 0.9.8 (human BMS charts keep 71-72% of a
+    # drum keysound's notes on one lane)
+    sides = hand_sides(place(a, "6K", "MASTER"), "6K")
+    drums_a, share_da = side(sides[("A", "drums")])
+    melody_a, share_ma = side(sides[("A", "melody")])
+    drums_b, _ = side(sides[("B", "drums")])
+    assert drums_a != melody_a and share_da >= 0.85 and share_ma >= 0.85, sides
+    assert drums_b == drums_a
     # easy charts do not split the hands
-    assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NM", 4, system="DJMAX"), "6K").values() if len(h) > 8)
-
-
-def test_ez2on_drums_keep_their_keys_for_the_whole_song() -> None:
-    a = groove_analysis()
-    chart = place(a, "6K", "HD", 14, system="EZ2ON")
-    by_beat: dict[float, list[int]] = {}
-    for n in chart["notes"]:
-        by_beat.setdefault(n["beat"], []).append(n["lane"])
-    kicks: dict[str, list[int]] = {}
-    for beat, lanes in by_beat.items():
-        if abs(beat % 2) < 1e-6 and len(lanes) == 1:  # single-note kicks (beats 1 and 3; downbeats are often chords)
-            kicks.setdefault("AB"[int(beat // 32) % 2], []).append(lanes[0])
-    main = {g: max(set(v), key=v.count) for g, v in kicks.items()}
-    assert main["A"] == main["B"]
-    assert all(v.count(main[g]) / len(v) >= 0.8 for g, v in kicks.items())
-
-
-def test_key_mode_habits_of_each_game(dense_song: dict) -> None:
-    def weight(mode: str, system: str, tier: str) -> float:
-        return vocabulary(resolve_params(mode, tier, system=system)).get("jack", {}).get("weight", 0.0)
-
-    assert weight("4K", "DJMAX", "MX") > weight("6K", "DJMAX", "MX") and weight("4K", "DJMAX", "MX") > weight("4K", "EZ2ON", "HD")
-    assert resolve_params("8K", "HD", system="EZ2ON").chord_size_power < resolve_params("8K", "MX", system="DJMAX").chord_size_power
-
-    def big_chords(chart: dict) -> float:
-        sizes = [len(c) for c in chords_of(chart)]
-        return sum(1 for x in sizes if x >= 3) / max(1, len(sizes))
-
-    designer = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON")
-    classic = generate_chart(dense_song, "8K", "HD", 14, system="EZ2ON", overrides={"patternEngine": "classic"})
-    assert big_chords(designer) > big_chords(classic) + 0.05
+    assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NORMAL", 4), "6K").values() if len(h) > 8)
 
 
 # DPC (DJMAX PATTERN-DESIGN CHALLENGE) guidelines, docs/PATTERN_DESIGN.md 12
 
 
 def test_side_notes_keep_their_hand_clear(dense_song: dict) -> None:
-    for mode, tier, level in (("6K+FX", "HD", 9), ("4K+FX", "MX", 13), ("6K+FX", "SC", 6)):
-        params = resolve_params(mode, tier, level, system="DJMAX")
+    for mode, tier, level in (("6K+FX", "HARD", 9), ("4K+FX", "MASTER", 13), ("6K+FX", "MASTER", 15)):
+        params = resolve_params(mode, tier, level)
         lanes = lane_infos(mode)
-        chart = generate_chart(dense_song, mode, tier, level, system="DJMAX")
+        chart = generate_chart(dense_song, mode, tier, level)
         side = [n for n in chart["notes"] if lanes[n["lane"]].kind == "side"]
         keys = [n for n in chart["notes"] if lanes[n["lane"]].kind == "key"]
-        assert side and all(n["type"] == "hold" for n in side), (mode, tier)
+        assert side, (mode, tier)
         squeezed = [
             (s["t"], k["t"]) for s in side for k in keys
             if lanes[k["lane"]].hand == lanes[s["lane"]].hand and 1e-3 < abs(k["t"] - s["t"]) < params.min_jack_ms
@@ -707,7 +586,7 @@ def test_side_notes_keep_their_hand_clear(dense_song: dict) -> None:
 def test_the_linter_keeps_key_notes_off_a_side_note() -> None:
     lanes = lane_infos("6K+FX")  # FXL, keys 1-3 (left hand), keys 4-6 (right hand), FXR
     tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
-    params = resolve_params("6K+FX", "MX", 13, system="DJMAX")  # jacks from 180 ms
+    params = resolve_params("6K+FX", "NORMAL")  # jacks from 115 ms
     side = {"t": 1000.0, "beat": 2.0, "lane": 0, "type": "hold", "endT": 2000.0, "endBeat": 4.0}
 
     def squeezed(lane: int, t: float) -> bool:
@@ -738,7 +617,7 @@ def test_chord_notes_take_the_instruments_of_the_hit(dense_song: dict) -> None:
     # one instrument only: the whole chord follows it
     assert note_sources(np.array([0.7, 0.1, 0.1, 0.1]), (1, 5), None, lanes, True, 0.2) == {1: drums, 5: drums}
 
-    chart = generate_chart(dense_song, "6K", "MX", 13, system="DJMAX")
+    chart = generate_chart(dense_song, "6K", "MASTER", 13)
     by_t: dict[float, set[str]] = {}
     sizes: dict[float, int] = {}
     for n in chart["notes"]:

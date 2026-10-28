@@ -88,12 +88,8 @@ test('on the result Enter continues, R plays the same lane order again and Shift
   expect(errors).toEqual([]);
 });
 
-test('a new pattern from the result keeps its difficulty system; a failure is shown, a late one dropped', async ({ page }) => {
+test('a new pattern from the result keeps its tier; a failure is shown, a late one dropped', async ({ page }) => {
   const errors = trackErrors(page);
-  // on DJMAX, not the default GRG (the system a request falls back to)
-  await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ difficultySystem: 'DJMAX' }));
-  });
   await page.goto('/');
   expect((await page.request.post('/api/songs/demo', { data: { bpm: 131, bars: 8, seed: 9 } })).ok()).toBe(true);
   await expect
@@ -122,13 +118,13 @@ test('a new pattern from the result keeps its difficulty system; a failure is sh
   await expect(page.getByTestId('result-screen')).toBeVisible();
   await page.unroute('**/api/songs/*/charts');
 
-  // the new pattern is asked for on the chart's own system (DJMAX NM), and played
+  // the new pattern is asked for on the chart's own tier (NORMAL), and played
   const asked = page.waitForRequest((r) => isChartPost(r.method(), r.url()));
   // Esc pauses once the play has loaded (while it loads, Esc leaves it), even the moment it has
   await escWhenLoaded(page);
   await page.getByTestId('result-regenerate').click();
   const body = JSON.parse((await asked).postData() ?? '{}');
-  expect([body.system, body.difficulty, body.newSeed]).toEqual(['DJMAX', 'NM', true]);
+  expect([body.difficulty, body.newSeed]).toEqual(['NORMAL', true]);
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('pause-menu')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('KeyQ');
@@ -393,15 +389,15 @@ test('the offset fix of a late play: the song offset changed in play counted, on
   const errors = trackErrors(page);
   await watchSources(page);
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' }));
   });
   const find = async () => ((await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string; status: string }[]).find((s) => s.title === LATE_SONG);
   expect((await page.request.post('/api/songs/demo', { data: { bpm: 136, bars: 8, seed: 3 } })).ok()).toBe(true);
   await expect.poll(async () => (await find())?.status, { timeout: 60_000 }).toBe('ready');
   const id = (await find())!.id;
   await page.goto('/');
-  // the chart the song select gets for NM, to press along with
-  const chart = page.waitForResponse(async (r) => isChartPost(r.request().method(), r.url()) && !JSON.parse(r.request().postData() ?? '{}').brief && (await r.json()).chart?.meta.difficulty === 'NM');
+  // the chart the song select gets for NORMAL, to press along with
+  const chart = page.waitForResponse(async (r) => isChartPost(r.request().method(), r.url()) && !JSON.parse(r.request().postData() ?? '{}').brief && (await r.json()).chart?.meta.difficulty === 'NORMAL');
   await page.getByTestId('song-item').filter({ hasText: LATE_SONG }).click();
   const notes = (await (await chart).json()).chart.notes;
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
@@ -483,7 +479,7 @@ const UNSAVED_SONG = 'Demo Groove 138';
 test("a play the server could not store: the first Enter or Esc (a pad's B) says so and the second leaves; 다시 저장 stores it and shows the record", async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', difficultySystem: 'DJMAX', lastDifficulty: 'NM' }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', lastDifficulty: 'NORMAL' }));
   });
   const press = await plugPad(page);
   const find = async () => ((await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string; status: string }[]).find((s) => s.title === UNSAVED_SONG);

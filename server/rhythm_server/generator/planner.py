@@ -255,27 +255,21 @@ def phrases_of(slots: list[Slot], sections: list[dict[str, Any]], tempo: TempoMa
 
 
 def _idioms(params: GenParams) -> list[dict[str, Any]]:
-    """Key mode habits of the chart's system (config "idioms")."""
-    return [
-        i for i in pattern_config()["idioms"]
-        if i.get("keyMode", params.key_mode) == params.key_mode and i.get("system", params.system) == params.system
-    ]
+    """Key mode habits (config "idioms")."""
+    return [i for i in pattern_config()["idioms"] if i.get("keyMode", params.key_mode) == params.key_mode]
 
 
 def vocabulary(params: GenParams) -> dict[str, dict[str, Any]]:
-    """Patterns this chart may use, with their weight for its system, style and key mode."""
+    """Patterns this chart may use, with their weight for its style and key mode."""
     cfg = pattern_config()
-    style = cfg["styles"].get(params.system, {})
+    style = cfg["motifWeights"]
     bias = cfg["styleBias"].get(params.style, {})
     idiom = {i["motif"]: float(i["weight"]) for i in _idioms(params) if "motif" in i}
     out = {}
     for name, m in cfg["motifs"].items():
-        m = {**m, **m.get("bySystem", {}).get(params.system, {})}  # a system's own minSkill / complexity
         if params.skill < float(m["minSkill"]):
             continue
         if "keyModes" in m and params.key_mode not in m["keyModes"]:
-            continue
-        if "systems" in m and params.system not in m["systems"]:
             continue
         out[name] = {
             "complexity": float(m["complexity"]),
@@ -294,24 +288,19 @@ def _feasible(name: str, p: Phrase, params: GenParams) -> bool:
     if name == "jack":
         return p.singles >= 3 and p.median_ioi >= params.min_jack_ms
     if name == "doubles":
-        m = pattern_config()["motifs"]["doubles"]
-        most = float({**m, **m.get("bySystem", {}).get(params.system, {})}.get("maxIoiMs", math.inf))
+        most = float(pattern_config()["motifs"]["doubles"].get("maxIoiMs", math.inf))
         return p.singles >= 4 and params.min_jack_ms <= p.median_ioi <= most
     if name == "anchor":
         return p.singles >= 5
     if name == "callResponse":
         return p.halves is not None
-    if name == "laser":
-        return p.singles >= 3 and p.gesture in ("repeat", "rhythm")
     return True  # step
 
 
-def _fit(name: str, p: Phrase, system: str) -> float:
-    """How well a pattern fits a phrase's gesture (config "fit"; "fitBySystem" changes a system's
-    entries)."""
+def _fit(name: str, p: Phrase) -> float:
+    """How well a pattern fits a phrase's gesture (config "fit")."""
     cfg = pattern_config()
-    own = cfg.get("fitBySystem", {}).get(system, {}).get(p.gesture, {})
-    score = float(own.get(name, cfg["fit"].get(p.gesture, {}).get(name, 0.0)))
+    score = float(cfg["fit"].get(p.gesture, {}).get(name, 0.0))
     if name == "callResponse" and p.halves is not None:
         score += cfg["overlays"]["callResponse"]
     return score
@@ -322,7 +311,7 @@ def chord_texture(p: Phrase, params: GenParams) -> str:
     middle key (pivot, 5K) or varied."""
     cfg = pattern_config()
     textures = cfg["chordTextures"]
-    style = cfg["styles"].get(params.system, {})
+    style = cfg["motifWeights"]
     bias = cfg["styleBias"].get(params.style, {})
     best, best_score = "vary", float(textures["vary"]["fit"].get(p.gesture, 0.5))
     if p.chords < 3:
@@ -355,7 +344,7 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
     themes: dict[Any, set[str]] = {}
     for key in {p.group if p.group is not None else p.section for p in phrases}:
         members = [p for p in phrases if (p.group if p.group is not None else p.section) == key]
-        totals = {m: sum(_fit(m, p, params.system) * vocab[m]["weight"] for p in members if _feasible(m, p, params)) for m in names if m != "step"}
+        totals = {m: sum(_fit(m, p) * vocab[m]["weight"] for p in members if _feasible(m, p, params)) for m in names if m != "step"}
         themes[key] = {m for m, v in sorted(totals.items(), key=lambda x: (-x[1], x[0]))[:n_themes] if v > 0}
 
     def budget(i: int, p: Phrase) -> float:
@@ -369,7 +358,7 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
         theme = trans["themeBonus"] if m in own else 0.0
         over = max(0.0, vocab[m]["complexity"] - max(budget(i, p), 0.5))
         off = float(theme_cfg["offTheme"]) if sectioned and own and m not in own and m != "step" else 0.0
-        return (_fit(m, p, params.system) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over - off
+        return (_fit(m, p) + theme) * vocab[m]["weight"] - budget_cfg["penalty"] * over - off
 
     if not phrases:
         return []
@@ -416,15 +405,14 @@ def choose_motifs(phrases: list[Phrase], params: GenParams, keys: list[tuple[int
 def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple[int, int] | None]:
     """Easy charts keep each phrase on a few neighbouring lanes, following its register slowly.
 
-    A system may change the settings for all its key modes or one (windows.systems, .keyModes).
+    The settings may change for one key mode (windows.keyModes).
     With `spread` the window follows the phrase's register among the song's phrases instead of
     its pitch rank, `step` keys at most per phrase: the lowest phrases sit on the left keys and the
     highest on the right, so the windows cover every key over the song (BMS charts stay on a few
     keys for a while and use all of them over the song)."""
     base = pattern_config()["windows"]
-    own = base.get("systems", {}).get(params.system, {})
-    mode = own.get("keyModes", {}).get(params.key_mode, {})
-    cfg = {**base, **own, **mode, "width": {**base["width"], **own.get("width", {}), **mode.get("width", {})}}
+    mode = base.get("keyModes", {}).get(params.key_mode, {})
+    cfg = {**base, **mode, "width": {**base["width"], **mode.get("width", {})}}
     if params.skill >= cfg["looseSkill"]:
         return [None] * len(phrases)
     width = int(cfg["width"].get(params.key_mode, n_keys)) + (0 if params.skill < cfg["skill"] else 1)
@@ -449,7 +437,7 @@ def windows(phrases: list[Phrase], params: GenParams, n_keys: int) -> list[tuple
 def palettes(
     phrases: list[Phrase], params: GenParams, n_keys: int, keys: list[tuple[int, int]] | None = None, seed: int = 0
 ) -> list[tuple[int, ...] | None]:
-    """Per phrase the keys it keeps to (config "palettes" of the system, or "*", and key mode).
+    """Per phrase the keys it keeps to (config "palettes" of the key mode).
 
     Human BMS charts stay on a few keys for a while (the keys holding 80% of a 7K chart's 4-bar
     window: 3.8 below 4 notes a second, 5.4 above 12), mostly not neighbouring ones (1-3-5-7), and
@@ -458,8 +446,7 @@ def palettes(
     many keys with the previous phrase's set (`shared`) and a pull toward the phrase's register
     among the song's phrases (`register`). A phrase of an earlier material class (the sectioned
     engine's `keys`) takes that class's set."""
-    systems = pattern_config()["palettes"].get("systems", {})
-    cfg = systems.get(params.system, systems.get("*", {})).get(params.key_mode)
+    cfg = pattern_config()["palettes"].get(params.key_mode)
     if not cfg:
         return [None] * len(phrases)
     size = int(round(by_skill(cfg["size"], params.skill)))
@@ -499,28 +486,13 @@ def palettes(
     return out
 
 
-def chord_size_power(params: GenParams) -> float | None:
-    """How often chords grow past two notes on this system and key mode (EZ2ON 8K: often)."""
-    powers = [float(i["chordSizePower"]) for i in _idioms(params) if "chordSizePower" in i]
-    return powers[0] if powers else None
-
-
 def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, hands: tuple[str, ...]) -> list[dict[str, tuple[int, int]] | None]:
     """Where rhythm and melody go in phrases that have both: two overlapping thirds of the keys
-    from the middle skill, one hand each on hard charts. Systems in flipSystems swap sides from one
-    repetition group to the next; the others keep them for the whole song."""
+    from the middle skill, one hand each on hard charts, kept for the whole song."""
     cfg = pattern_config()["roles"]
     n = len(hands)
     split_at = cfg["handSplitSkill8K"] if params.key_mode == "8K" else cfg["handSplitSkill"]
-    # a number, or {system: number} ("*" for the others)
-    melody_at = cfg["melodySkill"]
-    if isinstance(melody_at, dict):
-        melody_at = melody_at.get(params.system, melody_at.get("*", 0.35))
-    groups: list[Any] = []
-    for p in phrases:
-        key = p.group if p.group is not None else p.section
-        if key not in groups:
-            groups.append(key)
+    melody_at = float(cfg["melodySkill"])
     out: list[dict[str, tuple[int, int]] | None] = []
     for p in phrases:
         layers = [layer_of(slots[i]) for i in p.slots]
@@ -534,9 +506,6 @@ def role_regions(slots: list[Slot], phrases: list[Phrase], params: GenParams, ha
         else:
             third = max(1, n // 3)
             rhythm, melody = (0, n - 1 - third), (third, n - 1)
-        flip = params.system in cfg["flipSystems"] and groups.index(p.group if p.group is not None else p.section) % 2 == 1
-        if flip:
-            rhythm, melody = (n - 1 - rhythm[1], n - 1 - rhythm[0]), (n - 1 - melody[1], n - 1 - melody[0])
         out.append({"rhythm": rhythm, "melody": melody})
     return out
 
@@ -545,37 +514,19 @@ def sound_homes(
     slots: list[Slot], phrases: list[Phrase], regions: list[dict[str, tuple[int, int]] | None], params: GenParams, n_keys: int, seed: int = 0
 ) -> list[int | None]:
     """A home key for each drum hit: kick low, snare in the middle, hats high, inside the rhythm
-    region when the phrase has one. The region changes only between repetition groups (or never on
-    song-home systems), so a drum sound keeps its key through a section. On the systems in
-    roles.tonalHomes a pitched sound has a home too, by its pitch's place among the song's pitched
-    notes (low left, high right, inside the melody region): human BMS charts keep 76-86% of a
-    pitched keysound's notes on one lane at levels 6-10. On the systems in roles.drawnHomes each
-    chart (`seed`) draws its kick, snare and hat keys from the human charts' spread instead."""
+    region of the song's first phrase that has one, so a drum sound keeps its key through the
+    song. From roles.drawnHomes.minSkill each chart (`seed`) draws its kick, snare and hat keys
+    from the human charts' spread instead."""
     roles = pattern_config()["roles"]
     drawn = drum_places(params, seed)
     drawn_keys: dict[tuple[int, int], tuple[int, ...]] = {}
-    song = params.system in roles["songHomes"]
-    rank: dict[int, float] = {}
-    if params.system in roles.get("tonalHomes", []):
-        counts: dict[int, int] = {}
-        for s in slots:
-            if _melodic(s):
-                counts[round(float(s.pitch))] = counts.get(round(float(s.pitch)), 0) + 1  # type: ignore[arg-type]
-        total, below = sum(counts.values()), 0
-        for pitch in sorted(counts):
-            rank[pitch] = (below + 0.5 * counts[pitch]) / total
-            below += counts[pitch]
     first = next((r for r in regions if r is not None), None)
     out: list[int | None] = [None] * len(slots)
     for p, region in zip(phrases, regions):
-        roles_of = first if song and first else region or {}
+        roles_of = first or region or {}
         lo, hi = roles_of.get("rhythm", (0, n_keys - 1))
-        mlo, mhi = roles_of.get("melody", (0, n_keys - 1))
         for i in p.slots:
             s = slots[i]
-            if rank and _melodic(s):
-                out[i] = int(round(mlo + (mhi - mlo) * rank[round(float(s.pitch))]))  # type: ignore[arg-type]
-                continue
             if s.sources is None or int(np.argmax(s.sources)) != DRUMS or _melodic(s):
                 continue
             band = int(np.argmax(s.bands))  # 0 low (kick), 1 mid (snare), 2 high (hats)
@@ -600,13 +551,13 @@ def _own_keys(places: tuple[float, ...], lo: int, hi: int) -> tuple[int, ...]:
 
 
 def drum_places(params: GenParams, seed: int) -> tuple[float, float, float] | None:
-    """On the systems in roles.drawnHomes, where the chart (`seed`) keeps its kick, snare and hats
+    """Where the chart (`seed`) keeps its kick, snare and hats (roles.drawnHomes)
     across their keys (0 the left end, 1 the right): each a key drawn from the human 7-key charts'
     spread of that drum's home key at the chart's skill (roles.drawnHomes.kick / snare / hat:
-    [skill, seven weights] pairs, keys 1-7), each on a key of its own. None on the other systems
-    (kick low, snare in the middle, hats high)."""
+    [skill, seven weights] pairs, keys 1-7), each on a key of its own. None under minSkill (kick
+    low, snare in the middle, hats high)."""
     cfg = pattern_config()["roles"].get("drawnHomes")
-    if not cfg or params.system not in cfg.get("systems", []) or params.skill < float(cfg.get("minSkill", 0.0)):
+    if not cfg or params.skill < float(cfg.get("minSkill", 0.0)):
         return None
     rng = np.random.default_rng([int(seed) % (2**32), 0xD8])
     keys: list[int] = []
@@ -625,14 +576,13 @@ CHORD_JACK_MAX_HITS = 8  # a chord-jack roll is a short fill (rolls.shapes "chor
 
 
 def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, seed: int, beats_per_bar: float = 4.0) -> dict[int, tuple[str, int]]:
-    """Each roll's shape and key number (motifs.alternate_key) on a system with rolls.shapes: drawn
+    """Each roll's shape and key number (motifs.alternate_key) from rolls.shapes: drawn
     by the shapes' weights at the chart's skill, the trill's times rolls.buildUpTrill for a roll
     that leads into a new section (a build-up). The draw goes by the chart's seed, the roll's
     length and where in the bar it starts, so a fill played again is played the same way while the
     song's other rolls take other shapes."""
     cfg = pattern_config()["rolls"]
-    table = cfg.get("shapes", {})
-    table = table.get(params.system, table.get("*")) if isinstance(table, dict) else None
+    table = cfg.get("shapes")
     if not table:
         return {}
     runs: dict[int, list[Slot]] = {}
@@ -722,14 +672,14 @@ def plan_patterns(
             if slots[i].roll is not None:
                 # a drum roll's note: the hands take turns (motifs.alternate_key), over the whole keys;
                 # a chord-jack roll hits one key of each hand together every time (동치 연타)
-                run, pos, hits, mirrored = slots[i].roll  # type: ignore[misc]
+                run, pos, hits = slots[i].roll
                 chord_jack = shapes.get(run, ("", 0))[0] == "chordJack"
                 if chord_jack:
                     slots[i].size = max(slots[i].size, 2)
                 plan[i] = SlotPlan(
                     phrase=n, k=k, motif="alternate", chords="jack" if chord_jack else textures[n], hold_tap=p.holds > 0, direction=direction,
                     step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False, layer="rhythm", roll=(pos, hits, run),
-                    roll_spread=2 * roll_gap.get(run, math.inf) < params.min_jack_ms, roll_mirrored=mirrored,
+                    roll_spread=2 * roll_gap.get(run, math.inf) < params.min_jack_ms,
                     roll_shape=shapes.get(run),
                 )
                 continue

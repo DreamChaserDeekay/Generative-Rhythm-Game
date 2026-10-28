@@ -33,6 +33,7 @@ def test_health(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] and "4K" in body["keyModes"] and "MASTER" in body["difficulties"]
+    assert "difficultySystems" not in body
 
 
 def test_shutdown_only_with_the_desktop_apps_token(tmp_path, monkeypatch) -> None:
@@ -106,9 +107,30 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
+def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkeypatch) -> None:
+    """The top tier of a song too calm for it (difficulty.json songFit) is a 404, worked out once."""
+    import rhythm_server.api.app as app_module
+    from rhythm_server.config import difficulty_config
+
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
+    fit = difficulty_config()["songFit"]
+    monkeypatch.setitem(fit, "from", 99.0)
+    monkeypatch.setitem(fit, "to", 100.0)
+    made = []
+    real = app_module.generate_chart
+    monkeypatch.setattr(app_module, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
+    req = {"keyMode": "7K+1S", "difficulty": "MASTER", "brief": True}
+    for _ in range(2):
+        r = client.post(f"/api/songs/{song['id']}/charts", json=req)
+        assert r.status_code == 404 and "MASTER" in r.json()["detail"]
+    assert made == ["MASTER"]
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 14}).status_code == 200
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "difficulty": "EXPERT"}).status_code == 200
+
+
 def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
-    req = {"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}
+    req = {"keyMode": "4K", "difficulty": "NORMAL"}
     # the song select's levels: the meta alone, of the same (cached) chart
     brief = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
     assert "chart" not in brief and not brief["cached"] and "notes" not in brief["meta"]
@@ -146,9 +168,42 @@ def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     assert records[other["meta"]["chartId"]]["exScore"] is None and records[other["meta"]["chartId"]]["weightedScore"] is None
 
 
+def test_records_leave_out_charts_of_the_removed_difficulty_systems(tmp_path) -> None:
+    """DJMAX and EZ2ON were taken out (2026-10-27): a chart saved on one of them keeps its file, but
+    its records are no longer listed, also when the library learns its system from the chart file."""
+    import json
+    import sqlite3
+
+    data = tmp_path / "data"
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 8, "seed": 3}).json()["song"]["id"]
+        req = {"keyMode": "4K", "difficulty": "NORMAL"}
+        assert c.post(f"/api/songs/{sid}/charts", json={**req, "targetLevel": 16}).status_code == 422  # levels end at 15
+        ids = [c.post(f"/api/songs/{sid}/charts", json={**req, "newSeed": k > 0}).json()["chart"]["meta"]["chartId"] for k in range(2)]
+        for cid in ids:
+            score = {"chartId": cid, "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}
+            assert c.post("/api/scores", json=score).status_code == 201
+        records = c.get(f"/api/songs/{sid}/scores").json()["records"]
+        assert {r["chartId"] for r in records} == set(ids) and all("system" not in r for r in records)
+
+    # the second chart as one made on DJMAX before: its file says so, the library column is not filled yet
+    path = data / "charts" / f"{ids[1]}.json"
+    chart = json.loads(path.read_text(encoding="utf-8"))
+    chart["meta"]["difficultySystem"] = "DJMAX"
+    path.write_text(json.dumps(chart), encoding="utf-8")
+    db = sqlite3.connect(data / "library.sqlite3")
+    db.execute("UPDATE charts SET system = NULL WHERE id = ?", (ids[1],))
+    db.commit()
+    db.close()
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        assert [r["chartId"] for r in c.get(f"/api/songs/{sid}/scores").json()["records"]] == [ids[0]]
+        songs = {s["id"]: s for s in c.get("/api/songs").json()["songs"]}
+        assert [r["chartId"] for r in songs[sid]["records"]] == [ids[0]]
+
+
 def test_records_by_judgement_mode(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
-    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]["meta"]["chartId"]
     play = {"chartId": cid, "songId": song["id"]}
     plays = [
         dict(play, judgementMode="NORMAL", score=950000, rate=95.0, maxCombo=180, lamp="CLEAR", breaks=4, detail={"ruleset": "RESPECT"}),
@@ -173,7 +228,7 @@ def test_records_by_judgement_mode(client: TestClient) -> None:
 
 def test_the_fewest_break_is_of_the_runs_that_reached_the_end(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
-    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]["meta"]["chartId"]
     play = {"chartId": cid, "songId": song["id"], "score": 500000, "rate": 50.0, "maxCombo": 40}
 
     def record() -> dict:

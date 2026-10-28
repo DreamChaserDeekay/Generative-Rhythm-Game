@@ -46,13 +46,12 @@ class SlotPlan:
     same_layer: tuple[int, ...] | None = None
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
     roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
-    roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
     roll_shape: tuple[str, int] | None = None  # the roll's shape (rolls.shapes) and a number picking its keys
     palette: tuple[int, ...] | None = None  # keys the phrase keeps to (the others pay weights.palette)
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
-        return self.motif in ("jack", "laser", "doubles") if size == 1 else self.chords == "jack"
+        return self.motif in ("jack", "doubles") if size == 1 else self.chords == "jack"
 
 
 @dataclass(frozen=True)
@@ -87,12 +86,12 @@ class MotifContext:
     pair_shapes: dict[str, float] | None = None
 
 
-def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
+def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, key_mode: str | None = None) -> MotifContext:
     cfg = pattern_config()
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
     n = len(keys)
-    hands = {**cfg["hands"], **cfg["hands"]["systems"].get(system, {})}
+    hands = cfg["hands"]
     hand = tuple(lane.hand for lane in keys)
     return MotifContext(
         key_index={lane.index: k for k, lane in enumerate(keys)},
@@ -108,9 +107,8 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
-        # song-home systems (EZ2ON, GRG) keep every drum on its key whatever the level; the others
-        # less so as charts get harder
-        home_scale=instrument_mapping * (_song_home_weight(cfg["roles"], system) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
+        # every drum keeps its key through the song whatever the level
+        home_scale=instrument_mapping * float(cfg["roles"]["songHomeWeight"]),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
         adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
@@ -118,7 +116,7 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
-        chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
+        chord_region=float(cfg["roles"].get("chordRegion", 1.0)),
         pair_shapes=_pair_shapes(hands["chordShapes"], key_mode, skill),
     )
 
@@ -142,18 +140,6 @@ def pair_shape(ctx: MotifContext, a: int, b: int) -> str:
     if ctx.hand[a] == ctx.hand[b]:
         return "adjacent" if b - a == 1 else "oneHandGap"
     return "lopsided"
-
-
-def _for_system(value: Any, system: str, default: Any) -> Any:
-    """A setting, or {system: setting} ("*" for the systems it leaves out, else `default`)."""
-    return value.get(system, value.get("*", default)) if isinstance(value, dict) else value
-
-
-def _song_home_weight(roles: dict[str, Any], system: str) -> float:
-    """How firmly a song-home system keeps its drums on their keys: roles.songHomeWeight, a number or
-    {system: number} ("*" for the others)."""
-    w = roles["songHomeWeight"]
-    return float(w.get(system, w.get("*", 1.0))) if isinstance(w, dict) else float(w)
 
 
 def by_skill(value: Any, skill: float) -> float:
@@ -216,7 +202,6 @@ def alternate_key(
     ctx: MotifContext,
     roll: tuple[int, int, int],
     spread: bool = False,
-    mirrored: bool = False,
     prev: int | None = None,
     shape: tuple[str, int] | None = None,
 ) -> int | None:
@@ -231,8 +216,8 @@ def alternate_key(
       long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half, a build-up
       twice that long or longer every TRILL_STEP_HITS notes
 
-    Easy charts reach less far out (fanSkill). A roll starts on the left (the right in a repeat
-    played mirrored), so a repeat of the build-up plays it the same way; after that each note takes
+    Easy charts reach less far out (fanSkill). A roll starts on the left, so a repeat of the
+    build-up plays it the same way; after that each note takes
     the other hand from the roll's previous note `prev` (a key), so a note a held note pushed aside
     does not leave two in a row on one hand. A roll too fast for one key every other note (`spread`:
     the jack spacing) fans out between two keys of each hand (2-3-1-4). None on a key mode without
@@ -248,7 +233,7 @@ def alternate_key(
     if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
         on_left = ctx.hand[prev] == "R"
     else:
-        on_left = (pos % 2 == 0) != mirrored
+        on_left = pos % 2 == 0
     name, number = shape if shape is not None and width == 1 else ("fan", 0)
     turn = pos // 2
     if name == "trill":
@@ -324,10 +309,8 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
     else:
         singles = [h[0] for h in hist if len(h) == 1]
     m = sp.motif
-    if m == "laser" and ctx.center is not None:
-        return (ctx.center,)
     if m == "alternate" and sp.roll is not None:
-        key = alternate_key(ctx, sp.roll, sp.roll_spread, sp.roll_mirrored, singles[-1] if singles else carry, sp.roll_shape)
+        key = alternate_key(ctx, sp.roll, sp.roll_spread, singles[-1] if singles else carry, sp.roll_shape)
         return None if key is None else (key,)
     if not singles:
         return None

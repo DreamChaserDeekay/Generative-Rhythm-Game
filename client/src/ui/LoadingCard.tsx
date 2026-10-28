@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { difficultySystems } from '../engine/config';
+import { difficultyTiers } from '../engine/config';
 import type { Chart, StemName } from '../engine/types';
 import { STEM_NAMES } from '../engine/types';
 import { bindingsFor, keyLabel, secondBindingsFor, songOffsetOf, type Settings } from '../settings/settings';
@@ -38,9 +38,8 @@ function laneStems(chart: Chart): (StemName | null)[] {
 export function LoadingCard({ request, settings, text, onCancel }: { request: PlayRequest; settings: Settings; text: string; onCancel: () => void }) {
   const { chart, song } = request;
   const m = chart.meta;
-  const system = difficultySystems[m.difficultySystem ?? 'GRG'] ?? difficultySystems.GRG;
-  const tier = system.tiers.find((t) => t.id === m.difficulty);
-  const level = m.level > 0 ? `${m.levelScale ? `${m.levelScale} ` : 'Lv.'}${m.level}` : null;
+  const tier = difficultyTiers.find((t) => t.id === m.difficulty);
+  const level = m.level > 0 ? `Lv.${m.level}` : null;
   const stems = laneStems(chart);
   const keys = bindingsFor(settings, m.keyMode);
   const seconds = secondBindingsFor(settings, m.keyMode);

@@ -178,7 +178,7 @@ export function App() {
     screenRun.current++;
   }, [screen]);
   /**
-   * Result screen: the same key mode, difficulty system and tier with a new seed, played right
+   * Result screen: the same key mode and tier with a new seed, played right
    * away and kept as the tier's pattern (as F5 on the song select). Resolves with the error to
    * show on the result screen, or null.
    */
@@ -191,7 +191,6 @@ export function App() {
       const { chart } = await api.generate(meta.songId, {
         keyMode: meta.keyMode,
         difficulty: meta.difficulty,
-        system: meta.difficultySystem ?? 'GRG',
         targetLevel: (meta.generator.params.targetLevel as number | null | undefined) ?? null,
         newSeed: true,
         params: generationParams(settings.generation, meta.keyMode),
@@ -199,7 +198,7 @@ export function App() {
       // the player left the result screen while it was generating
       if (run !== screenRun.current) return null;
       const seed = chart.meta.generator?.seed;
-      if (seed !== undefined) setSettings(withPattern(current.current, patternKey(song.id, meta.keyMode, meta.difficultySystem ?? 'GRG', meta.difficulty), seed));
+      if (seed !== undefined) setSettings(withPattern(current.current, patternKey(song.id, meta.keyMode, meta.difficulty), seed));
       play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
       return null;
     } catch (e) {

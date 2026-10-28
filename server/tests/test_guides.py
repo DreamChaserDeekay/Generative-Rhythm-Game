@@ -39,8 +39,8 @@ def song(bpm: float, seed: int, chorus_first: bool = False):
 
 
 @lru_cache(maxsize=None)
-def chart(bpm: float, seed: int, chorus_first: bool, key_mode: str, system: str, difficulty: str, level: int | None) -> dict:
-    return generate_chart(song(bpm, seed, chorus_first)[1], key_mode, difficulty, level, system=system)
+def chart(bpm: float, seed: int, chorus_first: bool, key_mode: str, difficulty: str, level: int | None) -> dict:
+    return generate_chart(song(bpm, seed, chorus_first)[1], key_mode, difficulty, level)
 
 
 def truth(s) -> list[dict]:
@@ -68,8 +68,8 @@ def test_repeats_build_up_on_the_same_notes() -> None:
     verses = [x for x in truth(s) if x["label"] == "verse"]
     # the level comes first: a chart that needs every sound of the song (HD 9 on this sparse song)
     # gives up the build-up that costs notes, so its repeats only keep and add, they do not grow much
-    for system, difficulty, level, growth in (("GRG", "NORMAL", None, 1.05), ("DJMAX", "HD", 9, 1.0)):
-        notes = chart(124.0, 1, False, "6K", system, difficulty, level)["notes"]
+    for difficulty, level, growth in (("NORMAL", None, 1.05), ("HARD", 9, 1.0)):
+        notes = chart(124.0, 1, False, "6K", difficulty, level)["notes"]
         first, last = offsets(notes, choruses[0]), offsets(notes, choruses[-1])
         assert len(last) >= growth * len(first), (difficulty, len(first), len(last))
         assert len(first & last) >= 0.95 * len(first)  # the last chorus plays what the first did, and more
@@ -79,36 +79,36 @@ def test_repeats_build_up_on_the_same_notes() -> None:
 def test_a_song_that_opens_on_its_chorus_still_builds_up() -> None:
     s, analysis = song(132.0, 3, True)
     sections = truth(s)
-    for key_mode, system, difficulty, level in (("6K", "DJMAX", "HD", 9), ("8K", "GRG", "HARD", None)):
-        notes = chart(132.0, 3, True, key_mode, system, difficulty, level)["notes"]
+    for key_mode, difficulty, level in (("6K", "HARD", 9), ("8K", "HARD", None)):
+        notes = chart(132.0, 3, True, key_mode, difficulty, level)["notes"]
         g = guide_profile(notes, key_mode, sections, None, sections[-1]["endBeat"])
         assert g["repeatGrowth"] >= 1.03 and g["peakAt"] >= 0.6, g
         choruses = [x for x in sections if x["label"] == "chorus"]
         assert len(offsets(notes, choruses[0])) < len(offsets(notes, choruses[-1]))
 
 
-def test_no_forced_jacks_and_short_anchors() -> None:
+def test_anchors_stay_within_the_tiers_cap() -> None:
+    # (the DPC limit on forced jacks, unmotivatedJacks <= 0.5, was DJMAX's: doubles from NORMAL on
+    # (generator 0.9.10) repeat a key over two sounds, 4K NORMAL 6 10.9 per 100 key notes on this song)
     _, analysis = song(124.0, 1)
     pitch_of = onset_pitches(analysis)
-    for key_mode, system, difficulty, level, cap in (("4K", "DJMAX", "NM", 6, 3), ("4K", "DJMAX", "MX", 13, 8), ("6K", "EZ2ON", "HD", 13, 8)):
-        h = hands(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode, pitch_of)
-        assert h["unmotivatedJacks"] <= 0.5, (key_mode, difficulty, h)
-        assert h["anchorMax"] <= cap, (key_mode, difficulty, h)
+    for key_mode, difficulty, level in (("4K", "NORMAL", 6), ("4K", "MASTER", 13), ("6K", "MASTER", 13)):
+        h = hands(chart(124.0, 1, False, key_mode, difficulty, level)["notes"], key_mode, pitch_of)
+        assert h["anchorMax"] <= resolve_params(key_mode, difficulty, level).anchor_cap, (key_mode, difficulty, h)
 
 
 def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None:
     # BMS-Generator's hand rules, adapted (PATTERN_DESIGN 16-6). Before them, on this song: 4K NM 6
     # handRuns 0.24, 6K HD 9 / 4K HD 9 adjacentChords 0.57 / 0.54, 7K+1S HARD jackStreaks 2.9.
-    for key_mode, system, difficulty, level, measure, most in (
-        ("4K", "DJMAX", "NM", 6, "handRuns", 0.18),
-        ("6K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
-        ("4K", "DJMAX", "HD", 9, "adjacentChords", 0.35),
-        ("6K", "DJMAX", "HD", 9, "jackStreaks", 1.0),
+    for key_mode, difficulty, level, measure, most in (
+        ("4K", "NORMAL", 6, "handRuns", 0.18),
+        ("6K", "HARD", 9, "adjacentChords", 0.35),
+        ("4K", "HARD", 9, "adjacentChords", 0.35),
     ):
-        g = guide_profile(chart(124.0, 1, False, key_mode, system, difficulty, level)["notes"], key_mode)
+        g = guide_profile(chart(124.0, 1, False, key_mode, difficulty, level)["notes"], key_mode)
         assert g[measure] <= most, (key_mode, difficulty, measure, g[measure])
         assert g["offBars"] is None or g["offBars"] <= 0.1, (key_mode, difficulty, g["offBars"])
-    # Since generator 0.9.4 the default system follows the human BMS charts' jacks instead (PATTERN_DESIGN
+    # Since generator 0.9.4 the generator follows the human BMS charts' jacks instead (PATTERN_DESIGN
     # 20): about 15 jack streaks in 1000 notes at levels 10-14. Since 0.9.7 a 7K phrase keeps to a few
     # keys drawn by the seed, and this drum-loop song repeats its sounds on them: 0-29 by seed, a mean
     # of about 20 over these four (3.2 before the phrases' key sets). A phrase on one side's keys makes
@@ -125,7 +125,7 @@ def test_hand_rules_keep_runs_short_chords_apart_and_jacks_off_streaks() -> None
     # Generator 0.9.28 keeps each sound group on its lane (hands.soundMemory): this loop's mean goes
     # 23.2 -> 38.0 (one seed 52.5), while the held-out charts' level 10 / 14 go 14.6 / 15.3 -> 14.8 /
     # 16.0 (human 14.0 / 17.4; PATTERN_DESIGN 58), so the runaway guard is 45.
-    profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", system="GRG", seed=seed)["notes"], "7K+1S") for seed in range(4)]
+    profiles = [guide_profile(generate_chart(song(124.0, 1)[1], "7K+1S", "HARD", seed=seed)["notes"], "7K+1S") for seed in range(4)]
     assert sum(g["jackStreaks"] for g in profiles) / len(profiles) <= 45.0, [g["jackStreaks"] for g in profiles]
     # Lopsided bars: 0.9.25 steers their share up toward the human one (hands.barTarget, PATTERN_DESIGN
     # 47); on this loop the mean of these seeds goes 0.09 -> 0.23 (one seed 0.42, as an eighth of the
@@ -162,7 +162,7 @@ def test_the_hand_run_feedback_counts_like_the_bms_measure() -> None:
     lanes = lane_infos("7K+1S")
     keys = [l.index for l in lanes if l.kind == "key"]
     hand_of = [l.hand for l in lanes]
-    w = _Weights.of(resolve_params("7K+1S", "HARD", system="GRG"))
+    w = _Weights.of(resolve_params("7K+1S", "HARD"))
     n = len(lanes)
     state = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
     # key 1-2-3 (third on the left), the middle key, 5-6-7 (third on the right), a pause, 1-1-2-3
@@ -185,11 +185,12 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # The hand-run feedback counts the middle key as ending a run, so since generator 0.9.21 our 7K
     # charts moved through it less than human charts at levels 6-10 (PATTERN_DESIGN 45-3). Since
     # 0.9.24 the lane search also steers the share of fast moves that enter or leave the middle key
-    # toward the level's human value (hands.middleTarget / middleFeedback, PATTERN_DESIGN 46); on
-    # these songs the share starts below the target, so the feedback raises it (the lopsided-bar
+    # toward the level's human value (hands.middleTarget / middleFeedback, PATTERN_DESIGN 46). Since
+    # 0.9.37's fewer HARD chords the share starts near the target at HARD; at EXPERT it starts above
+    # it (0.336 against 0.309), so the feedback brings it down to the target (0.296) (the lopsided-bar
     # feedback of 0.9.25 is left out: it moves single notes between the hands too; so is the sound
     # memory of 0.9.28, which holds each sound group on its key).
-    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+    grg = load_config("patterns")["hands"]
     monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
     monkeypatch.setitem(grg, "soundMemory", 0.0)
 
@@ -210,13 +211,14 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     songs = [song(124.0, 1)[1], song(140.0, 2)[1]]
 
     def mean_share() -> float:
-        shares = [middle_share(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for a in songs for seed in range(3)]
+        shares = [middle_share(generate_chart(a, "7K+1S", "EXPERT", seed=seed)["notes"]) for a in songs for seed in range(3)]
         return sum(shares) / len(shares)
 
+    target = float(np.interp(resolve_params("7K+1S", "EXPERT").skill, *zip(*grg["middleTarget"])))
     with_feedback = mean_share()
     monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 0.0, "*": 0.0})
     without = mean_share()
-    assert with_feedback > without + 0.02, (with_feedback, without)
+    assert abs(with_feedback - target) < abs(without - target) - 0.01, (with_feedback, without, target)
 
 
 def _bms_stairs(notes: list[dict]) -> tuple[int, int]:
@@ -261,8 +263,8 @@ def test_the_stair_feedback_counts_stairs_like_the_bms_measure() -> None:
     lanes = lane_infos("7K+1S")
     keys = [l.index for l in lanes if l.kind == "key"]
     hand_of = [l.hand for l in lanes]
-    w = _Weights.of(resolve_params("7K+1S", "EXPERT", system="GRG"))
-    assert w.stair_feedback > 0 and _Weights.of(resolve_params("7K+1S", "EXPERT", system="DJMAX")).stair_feedback == 0
+    w = _Weights.of(resolve_params("7K+1S", "EXPERT"))
+    assert w.stair_feedback > 0
     n = len(lanes)
     state = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
     # 1-2-3-4-5 then back 4-3 (5-4-3 is a stair too), a jack, a leap to 5, then 6-7 (5-6-7); a pause, 2-3
@@ -291,7 +293,7 @@ def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
     n = len(lanes)
     pos = [l.pos for l in lanes]
     hand_of = [l.hand for l in lanes]
-    w = _Weights.of(resolve_params("7K+1S", "MASTER", system="GRG"))
+    w = _Weights.of(resolve_params("7K+1S", "MASTER"))
     start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
     # key 2 then key 3 (a one-key move up) 150 ms apart; 40 run notes so far, none in stairs
     state = dataclasses.replace(start, prev_t=1000.0, prev_lanes=(keys[2],), fb_single=True, fb_in_run=True, fb_run=40, fb_stairs=0,
@@ -310,7 +312,7 @@ def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
 def test_the_sound_memory_keeps_each_sound_group_on_its_lane(monkeypatch) -> None:
     # Human BMS charts keep 50-73% of a keysound's notes on its commonest lane (levels 2-14). Since
     # analyzer 1.8.0 every onset carries a same-sound group (onsets alike at their attack), and the
-    # default system's sound memory (hands.soundMemory) keys on it: a group coming back pays for
+    # sound memory (hands.soundMemory) keys on it: a group coming back pays for
     # leaving the lane it last had. Four groups take turns over three changing bands (stem + band,
     # the planner's sound) here; with the memory each group mostly keeps one lane, without it not.
     from collections import Counter, defaultdict
@@ -318,7 +320,7 @@ def test_the_sound_memory_keeps_each_sound_group_on_its_lane(monkeypatch) -> Non
     from rhythm_server.generator.lanes import lane_search, notes_from_choices
     from rhythm_server.generator.tempo import TempoMap
 
-    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+    grg = load_config("patterns")["hands"]
     shipped = grg["soundMemory"]
     assert shipped > 0
     tempo = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]})
@@ -329,7 +331,7 @@ def test_the_sound_memory_keeps_each_sound_group_on_its_lane(monkeypatch) -> Non
         monkeypatch.setitem(grg, "soundMemory", memory)
         slots = [Slot(beat=0.5 * i, t=tempo.beat_to_ms(0.5 * i), size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
                       bands=bands[i % 3], score=1.0, subdivision=2, strength=1.0, sound_group=i % 4 if groups else None) for i in range(64)]
-        params = resolve_params("7K+1S", "NORMAL", system="GRG")
+        params = resolve_params("7K+1S", "NORMAL")
         notes = notes_from_choices(slots, lane_search(slots, lanes, params, tempo, np.random.default_rng(3)), tempo)
         group_at = {round(s.t, 3): i % 4 for i, s in enumerate(slots)}
         lanes_of: dict[int, Counter] = defaultdict(Counter)
@@ -347,7 +349,8 @@ def test_the_lopsided_bar_feedback_rewards_single_notes_for_the_leaning_hand() -
     # share toward hands.barTarget like the hand-run share: while the path has too few such bars, a
     # single note for the hand its bar already leans to costs barFeedback x (target - share) less and
     # one for the other hand as much more. Chords are left alone (a bonus per key of a chord made
-    # one-hand adjacent chords, PATTERN_DESIGN 43), and so are EASY charts (below barMinSkill 0.35).
+    # one-hand adjacent chords, PATTERN_DESIGN 43), and so are NORMAL charts up to level 5 (below
+    # barMinSkill 0.35).
     lanes = lane_infos("7K+1S")
     keys = [l.index for l in lanes if l.kind == "key"]
     n = len(lanes)
@@ -357,8 +360,8 @@ def test_the_lopsided_bar_feedback_rewards_single_notes_for_the_leaning_hand() -
         ((1.0 if l.hand == "L" else 0.5 if l.hand == "T" else 0.0), (1.0 if l.hand == "R" else 0.5 if l.hand == "T" else 0.0)) if l.kind == "key" else (0.0, 0.0)
         for l in lanes
     ]
-    w = _Weights.of(resolve_params("7K+1S", "HARD", system="GRG"))
-    assert w.bar_feedback > 0 and _Weights.of(resolve_params("7K+1S", "EASY", system="GRG")).bar_feedback == 0
+    w = _Weights.of(resolve_params("7K+1S", "HARD"))
+    assert w.bar_feedback > 0 and _Weights.of(resolve_params("7K+1S", "NORMAL", 5)).bar_feedback == 0
     # bar 3 leans left so far (four left notes, one right), and none of the 20 full bars before did
     start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
     state = dataclasses.replace(start, bar=3, bar_hands=(4.0, 1.0), fb_bars=20, fb_off=0)
@@ -391,9 +394,9 @@ def test_lane_move_contexts_are_counted_like_the_bms_table() -> None:
 
 def test_lane_moves_make_the_moves_more_like_peoples(monkeypatch) -> None:
     # Human 7-key charts go on in a line (1-2-3, 1-3-5) and repeat jacks far more than our charts
-    # did, which zigzag (PATTERN_DESIGN 44). With the lane-move cost the default system's 7K moves
-    # are likelier under the human counts; DJMAX and EZ2ON do not use it.
-    grg = load_config("patterns")["hands"]["systems"]["GRG"]
+    # did, which zigzag (PATTERN_DESIGN 44). With the lane-move cost the 7K moves are likelier under
+    # the human counts.
+    grg = load_config("patterns")["hands"]
 
     def mean_logp(notes: list[dict]) -> float:
         table = lane_move_logp()
@@ -417,11 +420,12 @@ def test_lane_moves_make_the_moves_more_like_peoples(monkeypatch) -> None:
     a = song(124.0, 1)[1]
     for key, value in (("laneMoves", 1.0), ("laneMovesDraw", True), ("laneMovesFree", True)):
         monkeypatch.setitem(grg, key, value)
-    with_moves = [mean_logp(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for seed in range(3)]
+    with_moves = [mean_logp(generate_chart(a, "7K+1S", "EXPERT", seed=seed)["notes"]) for seed in range(3)]
     monkeypatch.setitem(grg, "laneMoves", 0.0)
-    without = [mean_logp(generate_chart(a, "7K+1S", "HARD", system="GRG", seed=seed)["notes"]) for seed in range(3)]
+    without = [mean_logp(generate_chart(a, "7K+1S", "EXPERT", seed=seed)["notes"]) for seed in range(3)]
     # (0.9.30's chorus chords and held chords move the charts both ways: the gap on this song went
-    # from about 0.06 to 0.043, so the margin is 0.03)
+    # from about 0.06 to 0.043, so the margin is 0.03. Since 0.9.37 HARD repeats jacks like human
+    # charts with or without the cost, which leaves it little to add there: EXPERT is measured)
     assert sum(with_moves) / 3 > sum(without) / 3 + 0.03, (with_moves, without)
 
 
@@ -460,11 +464,11 @@ def test_pivot_chords_and_doubles_ask_for_their_keys() -> None:
     def plan(motif: str, chords: str = "vary") -> SlotPlan:
         return SlotPlan(phrase=0, k=0, motif=motif, chords=chords, hold_tap=False, direction=1, step=0, pedal=False, window=None, cell_ref=None, mirror_ref=None, wide=False)
 
-    five = motif_context(lane_infos("5K"), 0.8, system="DJMAX")
+    five = motif_context(lane_infos("5K"), 0.8)
     assert expected_keys(five, plan("step", "pivot"), [], 2) == (0, 2)  # 1+3 ...
     assert expected_keys(five, plan("step", "pivot"), [(0, 2)], 2) == (2, 4)  # ... then 3+5
     assert expected_keys(five, plan("step", "pivot"), [(0, 2), (2, 4)], 2) == (0, 2)
-    six = motif_context(lane_infos("6K"), 0.8, system="DJMAX")
+    six = motif_context(lane_infos("6K"), 0.8)
     assert expected_keys(six, plan("doubles"), [(1,)], 1) == (1,)  # 재봉틀: twice on a key ...
     assert expected_keys(six, plan("doubles"), [(1,), (1,)], 1) == (4,)  # ... then the other hand
     assert expected_keys(six, plan("doubles"), [(1,), (1,), (4,)], 1) == (4,)

@@ -27,16 +27,15 @@ from rhythm_server.synth import CHORUS_FIRST_FORM, detection_noise, make_structu
 
 SONGS = ((124.0, 1, None), (150.0, 2, None), (132.0, 3, CHORUS_FIRST_FORM))
 CHARTS = (
-    ("4K", "DJMAX", "NM", 6),
-    ("4K", "DJMAX", "MX", 13),
-    ("5K", "DJMAX", "HD", 9),
-    ("5K", "DJMAX", "MX", 13),
-    ("6K", "GRG", "NORMAL", None),
-    ("6K", "DJMAX", "HD", 9),
-    ("6K", "DJMAX", "MX", 13),
-    ("6K", "EZ2ON", "HD", 13),
-    ("8K", "GRG", "HARD", None),
-    ("8K", "EZ2ON", "HD", 13),
+    ("4K", "NORMAL", 6),
+    ("4K", "MASTER", 13),
+    ("5K", "HARD", 9),
+    ("5K", "MASTER", 13),
+    ("6K", "NORMAL", None),
+    ("6K", "HARD", 9),
+    ("6K", "MASTER", 13),
+    ("8K", "HARD", None),
+    ("8K", "MASTER", 13),
 )
 MEASURES = (
     "repeatGrowth", "halfRatio", "peakAt",
@@ -76,15 +75,15 @@ def main() -> None:
         name = f"{bpm:g} BPM seed {seed}" + (" (chorus first)" if form else "")
         print(f"\n== {name}")
         print(f"  {'chart':20s} " + " ".join(f"{SHORT[m]:>7s}" for m in MEASURES) + "   time")
-        for key_mode, system, difficulty, level in charts:
+        for key_mode, difficulty, level in charts:
             t0 = time.perf_counter()
-            chart = generate_chart(analysis, key_mode, difficulty, level, system=system)
+            chart = generate_chart(analysis, key_mode, difficulty, level)
             dt = time.perf_counter() - t0
             g = guide_profile(chart["notes"], key_mode, truth, pitch_of, end_beat)
             c = chart_consistency(chart["notes"], truth, key_mode)
             row = {**g, "loopLane": c["loopLane"], "repeatLane": c["repeatLaneMirror"], "song": name}
             rows.append(row)
-            label = f"{key_mode} {system} {difficulty}{'' if level is None else ' ' + str(level)}"
+            label = f"{key_mode} {difficulty}{'' if level is None else ' ' + str(level)}"
             print(f"  {label:20s} " + " ".join(f"{fmt(row.get(m)):>7s}" for m in MEASURES) + f"  {dt:5.2f}s")
     print("\n== mean over all charts")
     means = []

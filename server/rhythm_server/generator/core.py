@@ -10,11 +10,11 @@ from typing import Any
 import numpy as np
 
 from ..analysis.stems import STEM_NAMES
-from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, load_config
+from ..config import difficulty_config, difficulty_order, key_modes, load_config
 from ..difficulty.estimator import estimate
 from ..difficulty.consistency import chart_consistency
 from ..difficulty.patterns import pattern_summary
-from .candidates import TRIPLETS, build_candidates, swing_bars, triplet_share
+from .candidates import TRIPLETS, build_candidates, swing_bars
 from .effects import camera_effects
 from .ending import finish as ending_hold
 from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, notes_from_choices
@@ -29,7 +29,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.36"
+GENERATOR_VERSION = "0.9.38"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -41,10 +41,13 @@ class GenerationError(RuntimeError):
     pass
 
 
-def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None, system: str = DEFAULT_SYSTEM) -> int:
+class TierNotMade(GenerationError):
+    """The song has no chart on the tier: the top tier of a song too calm for it (difficulty.json songFit)."""
+
+
+def default_seed(audio_hash: str, key_mode: str, difficulty: str, target_level: int | None) -> int:
     """Stable per song/mode/difficulty, so the default chart of a song never changes."""
-    tier = difficulty if system == DEFAULT_SYSTEM else f"{system}:{difficulty}"
-    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{tier}|{target_level}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{audio_hash}|{key_mode}|{difficulty}|{target_level}".encode()).hexdigest()
     return int(digest[:8], 16)
 
 
@@ -71,15 +74,24 @@ def _plan_of(notes: list[dict[str, Any]], lanes: list[LaneInfo]) -> dict[int, fl
     return {k: v[0] for k, v in at.items() if len(v) == 1}
 
 
-def lane_plan(analysis: dict[str, Any], key_mode: str, tier: str, system: str, overrides: dict[str, Any] | None = None) -> dict[int, float] | None:
+def lane_plan(
+    analysis: dict[str, Any], key_mode: str, tier: str, overrides: dict[str, Any] | None = None
+) -> tuple[dict[int, float] | None, float | None]:
     """The song's plan (patterns.json sectioned.tierPlan): where the top tier's first round, with
     the chart's options and its default seed, plays at each beat. The industry derives the easier
-    charts from the hardest one and keeps its motion (PATTERN_DESIGN 68)."""
+    charts from the hardest one and keeps its motion (PATTERN_DESIGN 68). With it the round's
+    rating: how hard the song is at the top tier's own density (difficulty.json songFit)."""
     try:
-        notes = generate_chart(analysis, key_mode, tier, overrides=overrides, system=system, _plan_round=True)["notes"]
+        first = generate_chart(analysis, key_mode, tier, overrides=overrides, _plan_round=True)
     except GenerationError:
-        return None
-    return _plan_of(notes, lane_infos(key_mode))
+        return None, None
+    return _plan_of(first["notes"], lane_infos(key_mode)), first["rating"]
+
+
+def song_place(strength: float, fit: dict[str, Any]) -> float:
+    """Where in its tier's level range a song's chart aims (0 the bottom, 1 the top), by the top
+    tier's first-round rating (difficulty.json songFit)."""
+    return float(np.clip((strength - float(fit["from"])) / (float(fit["to"]) - float(fit["from"])), 0.0, 1.0))
 
 
 def _level_distance(level: int, levels: tuple[int, int]) -> int:
@@ -95,26 +107,24 @@ def generate_chart(
     seed: int | None = None,
     overrides: dict[str, Any] | None = None,
     meta: dict[str, Any] | None = None,
-    system: str | None = None,
     *,
     _plan_round: bool = False,
 ) -> dict[str, Any]:
     """A chart of the song. `_plan_round` (lane_plan) stops after the level loop's first round and
-    returns only {"notes": ...}."""
-    params = resolve_params(key_mode, difficulty, target_level, overrides, system)
+    returns only {"notes": ..., "rating": ...}. Raises TierNotMade for the top tier of a song too
+    calm for it (difficulty.json songFit; a chart asked for at a level is always made)."""
+    params = resolve_params(key_mode, difficulty, target_level, overrides)
     if seed is None:
-        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level, params.system)
+        seed = default_seed(analysis.get("audioHash", ""), key_mode, params.difficulty, params.target_level)
     tempo = TempoMap(analysis["timing"])
     cfg = difficulty_config()
     lanes = lane_infos(key_mode)
     kinds = {l.kind for l in lanes}
     special_kind = "scratch" if "scratch" in kinds else "side" if "side" in kinds else None
     duration = float(analysis["durationMs"])
-    feel = cfg["tripletFeel"]
-    # the default system opens the triplet grid in the bars that swing, the others in the whole of a
-    # song whose rhythm leans to triplets
-    swing = swing_bars(analysis, tempo) if params.system in feel.get("localSystems", []) else None
-    straight = not swing if swing is not None else triplet_share(analysis, tempo) < float(feel["minShare"])
+    # the triplet grid opens in the bars that swing
+    swing = swing_bars(analysis, tempo)
+    straight = not swing
     if straight:
         params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
     candidates = build_candidates(analysis, tempo, params, float(cfg["snapToleranceMs"]), swing)
@@ -127,9 +137,13 @@ def generate_chart(
     factor = params.level_factor
     table = params.level_table
     lo, hi = params.levels
-    # Aim at the middle of the level range: the effective NPS halfway through it (4K scale).
-    target_rating = (lo + hi) / 2 + 0.5
-    target_eff = float(np.interp(target_rating, np.arange(1, len(table) + 1), table)) * factor
+    # Aim at the middle of the level range: the effective NPS halfway through it (4K scale); a
+    # default chart aims where the song's strength puts it (songFit, set once that is known)
+    def aim(place: float) -> tuple[float, float]:
+        rating = lo + place * (hi - lo) + 0.5
+        return rating, float(np.interp(rating, np.arange(1, len(table) + 1), table)) * factor
+
+    target_rating, target_eff = aim(0.5)
     # Never thin a chart in its level range below the preset's density floor just because
     # chords/jacks rate it high; this keeps note counts increasing from one difficulty to the next.
     floor_nps = params.min_avg_nps * DENSITY_FLOOR
@@ -150,11 +164,34 @@ def generate_chart(
     plan_cfg = sectioned.sectioned_config().get("tierPlan")
     lanes_plan: dict[int, float] | None = None
     own_plan = False
-    if not _plan_round and engine == "sectioned" and plan_cfg and params.system in plan_cfg["systems"]:
-        top = difficulty_system(params.system)["order"][-1]
-        own_plan = params.difficulty == top
-        if not own_plan:
-            lanes_plan = lane_plan(analysis, key_mode, top, params.system, overrides)
+    # the song's strength (songFit): the top tier's first round with its default seed, which the
+    # top tier with that seed makes itself, and the plan's round of the other tiers
+    fit = cfg.get("songFit") if params.target_level is None and not _plan_round else None
+    top = difficulty_order()[-1]
+    is_top = params.difficulty == top
+    own_strength = fit is not None and is_top and seed == default_seed(analysis.get("audioHash", ""), key_mode, top, None)
+    strength: float | None = None
+    if not _plan_round:
+        own_plan = engine == "sectioned" and bool(plan_cfg) and is_top
+        wants_plan = engine == "sectioned" and bool(plan_cfg) and not own_plan
+        if wants_plan or (fit is not None and not own_strength):
+            top_plan, strength = lane_plan(analysis, key_mode, top, overrides)
+            if wants_plan:
+                lanes_plan = top_plan
+
+    def place(found: float) -> tuple[float, float, float]:
+        """The target (rating, effective NPS) and density floor of a song of strength `found`: a
+        song placed low in the range thins further (songFit floorAtBottom; with the tier's floor
+        every song stopped there, whatever its place)."""
+        assert fit is not None
+        if is_top and found < float(fit["from"]):
+            raise TierNotMade(f"이 곡에는 {top} 채보가 없습니다")
+        at = song_place(found, fit)
+        low = float(fit["floorAtBottom"])
+        return (*aim(at), params.min_avg_nps * DENSITY_FLOOR * (low + (1.0 - low) * at))
+
+    if fit is not None and strength is not None:
+        target_rating, target_eff, floor_nps = place(strength)
     # the top tier keeps to its own first round harder: its later rounds are the chart the plan
     # stands for, and they drifted from it (4 rounds on the test song)
     plan_weight = float(plan_cfg["ownWeight"] if own_plan else plan_cfg["weight"]) if plan_cfg else 0.0
@@ -172,11 +209,14 @@ def generate_chart(
             plan = plan_patterns(slots, sections, params, key_hands, tempo, seed=seed) if engine == "designer" else None
             choices = lane_search(slots, lanes, params, tempo, np.random.default_rng(seed), plan=plan)
         notes = merge_near(notes_from_choices(slots, choices, tempo, lanes, plan), lanes, params, tempo)
+        est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
         if _plan_round:
-            return {"notes": notes}
+            return {"notes": notes, "rating": est["rating"]}
         if own_plan and lanes_plan is None:
             lanes_plan = _plan_of(notes, lanes)
-        est = estimate(notes, key_mode, len(lanes), duration, params.min_jack_ms, table, factor)
+        if own_strength and strength is None:
+            strength = est["rating"]
+            target_rating, target_eff, floor_nps = place(strength)
         rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
         improved = best is None or rank < best[0]
         if improved:
@@ -259,8 +299,6 @@ def generate_chart(
             "keyMode": key_mode,
             "lanes": [l["id"] for l in mode_cfg["lanes"]],
             "difficulty": params.difficulty,
-            "difficultySystem": params.system,
-            **({"levelScale": params.level_scale} if params.level_scale else {}),
             "level": est["level"],
             "rating": est["rating"],
             "durationMs": duration,

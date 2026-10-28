@@ -18,7 +18,7 @@ import soundfile as sf
 
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
-from ..config import DEFAULT_SYSTEM, SAMPLE_RATE, load_config
+from ..config import SAMPLE_RATE, load_config
 from ..generator.core import default_seed
 
 SCHEMA = """
@@ -89,8 +89,10 @@ MIGRATIONS = {
     "cover_at": "REAL",  # when the cover was last set or removed (the client's cache key)
 }
 # charts: where a chart came from (generated / edited / imported), its display name, and the
-# difficulty system its tier belongs to (DJMAX and EZ2ON both have an NM and an HD; null = not
-# read yet from the chart file, done when its records are first listed)
+# difficulty system of a chart made before the DJMAX and EZ2ON systems were taken out (2026-10-27;
+# null = not read yet from the chart file, done when its records are first listed): their records
+# are left out
+GRG_SYSTEM = "GRG"
 CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
@@ -423,7 +425,7 @@ class Library:
                 (
                     meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
                     len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
-                    meta.get("difficultySystem") or DEFAULT_SYSTEM, meta.get("sourceLevel"),
+                    GRG_SYSTEM, meta.get("sourceLevel"),
                 ),
             )
             self._db.commit()
@@ -502,7 +504,7 @@ class Library:
             chart = self.load_chart(chart_id)
         except (OSError, ValueError):
             chart = None
-        system = ((chart or {}).get("meta") or {}).get("difficultySystem") or DEFAULT_SYSTEM
+        system = ((chart or {}).get("meta") or {}).get("difficultySystem") or GRG_SYSTEM
         with self._lock:
             self._db.execute("UPDATE charts SET system = ? WHERE id = ?", (system, chart_id))
             self._db.commit()
@@ -527,12 +529,12 @@ class Library:
         for r in rows:
             cur = best.get(r["chart_id"])
             if cur is None:
-                system = r["system"] or self._chart_system(r["chart_id"])
+                if (r["system"] or self._chart_system(r["chart_id"])) != GRG_SYSTEM:
+                    continue
                 best[r["chart_id"]] = cur = {
                     "chartId": r["chart_id"],
                     "songId": r["song_id"],
                     "keyMode": r["key_mode"],
-                    "system": system,
                     "difficulty": r["difficulty"],
                     "level": r["level"],
                     "seed": r["seed"],
@@ -540,7 +542,7 @@ class Library:
                     "name": r["name"],
                     "sourceLevel": r["source_level"],
                     "generatorVersion": r["generator_version"] if r["kind"] == "generated" else None,
-                    "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None, system),
+                    "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None),
                     **_bests_from(r),
                 }
             detail = _detail(r["detail"])

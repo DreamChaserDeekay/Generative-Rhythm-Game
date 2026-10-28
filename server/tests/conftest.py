@@ -19,6 +19,22 @@ def analysis_of(bpm: float, bars: int = 32, seed: int = 0, offset: float = 0.537
     return analyze(song.pcm, song.sample_rate, f"sha256:test-{bpm}-{bars}-{seed}-{tempo_change}")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def every_tier_on_the_test_songs():
+    """The synthetic test songs are calm (top tier first-round rating 11-14.4, under songFit's
+    `from`), so they would have no MASTER: here every one aims at the middle of each range with the
+    tiers' own density floors, as before songFit (a span this wide puts them all at 0.5). The tests
+    that check songFit set it themselves. Session wide: the module-wide chart fixtures are made
+    before any function's monkeypatch."""
+    from rhythm_server.config import difficulty_config
+
+    fit = difficulty_config()["songFit"]
+    was = dict(fit)
+    fit.update({"from": -1e6, "to": 1e6, "floorAtBottom": 1.0})
+    yield
+    fit.update(was)
+
+
 @pytest.fixture(scope="session")
 def song128() -> SynthSong:
     return synth(128.0, 40, 1)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ServerChart } from '../api/client';
-import { cameraConfig, gaugeRules, gaugeTypeIds, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
+import { cameraConfig, difficultyTiers, gaugeRules, gaugeTypeIds, judgementConfig, keyModes, type JudgementModeId } from '../engine/config';
 import type { FeverMode } from '../engine/fever';
 import { placementIds, placementLabels } from '../engine/placement';
 import { rulesetConfigs, rulesetIds } from '../engine/ruleset';
@@ -538,7 +538,7 @@ export function PlayOptionsPanel(props: SettingsProps & {
               label="목표 레벨"
               testId="target-level"
               value={props.targetLevel === null ? null : Math.min(props.targetLevel, props.maxLevel)}
-              min={1}
+              min={difficultyTiers[0].levels[0]}
               max={props.maxLevel}
               step={1}
               bigStep={3}

@@ -32,7 +32,7 @@ SONGS = (
     ("pop 128", lambda: make_pop_song(128.0, 2)),
     ("groove 112", lambda: make_groove_song(112.0, 2)),
 )
-CHARTS = tuple(("7K+1S", "GRG", d, None) for d in ("EASY", "NORMAL", "HARD", "EXPERT", "MASTER"))
+CHARTS = tuple(("7K+1S", d, None) for d in ("NORMAL", "HARD", "EXPERT", "MASTER"))
 MEASURES = (
     "nps", "chord", "ln", "scratchShare", "onBeat", "eighth", "sixteenth", "triplet", "jack", "jackStreaks",
     "runNotes", "stairs", "trills", "handRuns", "handRunsNoStair", "anchors", "adjacent2", "symmetric2",
@@ -55,18 +55,18 @@ def our_notes(chart: dict, key_mode: str) -> tuple[list[tuple], str]:
 def measure_ours(quick: bool) -> dict:
     agg = bms_stats.Aggregate()
     songs = SONGS[:2] if quick else SONGS
-    charts = list(CHARTS) + [("5K", "DJMAX", d, lv) for d, lv in (("NM", 6), ("HD", 9), ("MX", 13))]
+    charts = list(CHARTS) + [("5K", d, lv) for d, lv in (("NORMAL", 6), ("HARD", 9), ("MASTER", 13))]
     for name, make in songs:
         song = make()
         analysis = analyze(song.pcm, song.sample_rate, f"sha256:compare-{name}", backends={})
-        for key_mode, system, difficulty, level in charts:
-            chart = generate_chart(analysis, key_mode, difficulty, level, system=system)
+        for key_mode, difficulty, level in charts:
+            chart = generate_chart(analysis, key_mode, difficulty, level)
             notes, mode = our_notes(chart, key_mode)
             beats = chart["timing"]["meter"][0]["beatsPerMeasure"] if chart["timing"].get("meter") else 4
             row, hist = bms_stats.chart_features(notes, mode, None if beats == 4 else [float(beats)] * 1000)
             for group in bms_stats.groups_of(mode, int(chart["meta"]["level"]), row["nps"]):
                 agg.add(group, row, hist)
-            print(f"  {name:15s} {key_mode:6s} {system} {difficulty:6s} Lv.{chart['meta']['level']:<2} nps {row['nps']:.1f}", flush=True)
+            print(f"  {name:15s} {key_mode:6s} {difficulty:6s} Lv.{chart['meta']['level']:<2} nps {row['nps']:.1f}", flush=True)
     return {"groups": agg.summary()}
 
 

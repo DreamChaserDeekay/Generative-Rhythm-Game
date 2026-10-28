@@ -10,7 +10,7 @@
    in every unit that has the sound there. Chords, long notes and side / scratch notes are also
    decided per class position, so every repeat of a loop gets the same notes.
 5. Lanes (`place`): units are placed in song order. The first unit of a class gets its lanes from the
-   pattern planner and the lane search; every later unit copies them (mirrored on mirrored repeats)
+   pattern planner and the lane search; every later unit copies them
    through the same lane search with a large bonus for the copy, so it only changes a note where
    the hard rules (jack spacing, hand limits, long notes) forbid the copy.
 """
@@ -29,7 +29,7 @@ from ..config import load_config
 from .candidates import Candidate, grid_of
 from .lanes import Choice, LaneInfo, _pitch_targets, search
 from .motifs import SlotPlan
-from .params import GenParams
+from .params import SIDE_HOLD_SHARE, GenParams
 from .rolls import coarser, mark_rolls, roll_level, rolls_config
 from .select import BUCKET_MS, DOWNBEAT_CHORDS_BELOW, MAX_CHORD_RATIO, Slot, active_seconds, clear_holds, hold_end, hold_value, holdable, lone_sound, mark_hold_count
 from .tempo import TempoMap
@@ -56,7 +56,6 @@ class Unit:
     last_in_group: bool = False  # in the group's last occurrence
     cls: int = -1
     extra: float = 0.0  # notes beyond its class (pre-chorus ramp, last chorus), as a share
-    mirror: bool = False  # a repeat played mirrored
     accent: bool = False  # opens a section: its downbeat is accented
 
 
@@ -244,26 +243,26 @@ def classify(units: list[Unit], per_unit: list[dict[int, int]], cands: list[Cand
     return len(classes)
 
 
-def blueprint(label: str, system: str | None = None) -> dict[str, float]:
-    """A section label's multipliers; `labelsBySystem` changes a system's entries."""
+def blueprint(label: str) -> dict[str, float]:
+    """A section label's multipliers (`labels`, with the chord weights of `labelChords`)."""
     cfg = sectioned_config()
     labels = cfg["labels"]
-    own = cfg.get("labelsBySystem", {}).get(system, {}) if system else {}
+    own = cfg.get("labelChords", {})
     base = labels.get(label, labels.get("verse", {}))
     return {"density": 1.0, "chord": 1.0, "hold": 1.0, "ramp": 0.0, **base, **own.get(label, {})}
 
 
 def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], per_unit_n: list[float], params: GenParams) -> bool:
-    """Keep the highlight the densest part (sectioned.highlightCap, on its systems): a full chorus
+    """Keep the highlight the densest part (sectioned.highlightCap): a full chorus
     or drop masks its own onsets and often offers fewer sounds per beat than a sparse verse, so the
     units of the other labels play at most their label's density share of what the highlight units
     can play per beat (the most of their target and their sounds). Lowers `per_unit_n` in place;
     True when it did."""
     rule = sectioned_config().get("highlightCap")
-    if not rule or params.system not in rule["systems"]:
+    if not rule:
         return False
     tops = set(rule["labels"])
-    top_density = max(blueprint(lab, params.system)["density"] for lab in tops)
+    top_density = max(blueprint(lab)["density"] for lab in tops)
     high = [
         min(n, float(rule["soundShare"]) * len(per_unit[u.index])) / u.length
         for u, n in zip(units, per_unit_n) if u.label in tops and u.length > 0 and per_unit[u.index]
@@ -275,7 +274,7 @@ def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], pe
     for k, u in enumerate(units):
         if u.label in tops or u.length <= 0:
             continue
-        cap = level * u.length * blueprint(u.label, params.system)["density"] / top_density
+        cap = level * u.length * blueprint(u.label)["density"] / top_density
         if per_unit_n[k] > cap:
             per_unit_n[k] = cap
             changed = True
@@ -300,8 +299,6 @@ def follow_weights(sections: list[dict[str, Any]], params: GenParams) -> dict[st
     out = {}
     for g, rows in mixes.items():
         mix = np.mean(rows, axis=0)
-        if params.source_mix:
-            mix = mix * np.array([params.source_mix.get(n, 1.0) for n in STEM_NAMES])
         share = {name: sum(float(mix[STEM_NAMES.index(st)]) for st in stems) for name, stems in LAYERS.items()}
         main = max(share, key=lambda k: (share[k], k))
         w = np.full(len(STEM_NAMES), float(cfg["otherWeight"]))
@@ -313,7 +310,6 @@ def follow_weights(sections: list[dict[str, Any]], params: GenParams) -> dict[st
 
 def _mark_variation(units: list[Unit], params: GenParams) -> None:
     cfg = sectioned_config()
-    mirror_from = cfg["mirrorRepeats"].get(params.system)
     growth = float(cfg["buildUp"]["repeatGrowth"])
     chorus_groups = {u.group for u in units if u.label == "chorus"}
     occurrences: dict[str, int] = {}
@@ -332,12 +328,10 @@ def _mark_variation(units: list[Unit], params: GenParams) -> None:
                 u.extra += growth * u.occurrence / (occurrences[u.group] - 1)
             if u.group in chorus_groups and u.last_in_group and u.occurrence >= 1:
                 u.extra = max(u.extra, float(cfg["lastChorusBoost"]))
-            if mirror_from is not None and params.skill >= float(mirror_from) and u.occurrence % 2 == 1:
-                u.mirror = True
 
 
 def _chord_worth(c: Candidate, params: GenParams) -> float:
-    if lone_sound(c, params.system):
+    if lone_sound(c):
         return 0.0
     total = float(np.sum(c.bands)) + 1e-9
     spread = int(np.sum(c.bands / total > 0.22))
@@ -674,7 +668,7 @@ def layout(
         unit_slots.append(idx)
 
     in_roll = [slot_key[i] in roll_keys.get(units[slot_unit[i]].cls, ()) or slot_key[i] in unit_rolls.get(slot_unit[i], ()) for i in range(len(slots))]
-    mark_rolls(slots, in_roll, [units[slot_unit[i]].mirror for i in range(len(slots))])
+    mark_rolls(slots, in_roll)
 
     # class positions: (class, key, roll note) -> slots realizing it; the first one is the reference
     # (a note a repeat adds is copied by the later repeats that add it too; a fill's roll notes
@@ -772,7 +766,7 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
     for key, idxs in _realized(positions, _outside(slots, positions)):
         if any(slots[i].roll is not None for i in idxs):
             continue  # a roll is one hand at a time
-        mult = blueprint(units[slot_unit[idxs[0]]].label, params.system)["chord"]
+        mult = blueprint(units[slot_unit[idxs[0]]].label)["chord"]
         worth = float(np.mean([_chord_worth(cands[slot_cand[i]], params) for i in idxs])) * mult
         if worth > 0:
             options.append((worth, key, idxs))
@@ -801,10 +795,10 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
         sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
         if min(sustains) < params.min_ln_beats or any(slots[i].roll is not None for i in idxs):
             continue
-        if not all(holdable(cands[slot_cand[i]], tempo, params.system) for i in idxs):
+        if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
             continue
         mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
-        value = float(np.mean([hold_value(cands[slot_cand[i]], tempo, params.system) for i in idxs])) * mult
+        value = float(np.mean([hold_value(cands[slot_cand[i]], tempo) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))
     placed = 0
@@ -860,12 +854,12 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
         holds = []
         for key, idxs in decisions:
             cs = [cands[slot_cand[i]] for i in idxs]
-            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs) and all(holdable(c, tempo, params.system) for c in cs):
+            if min(c.sustain_beats for c in cs) >= min_hold and all(slots[i].subdivision <= 2 for i in idxs) and all(holdable(c, tempo) for c in cs):
                 sustain = min(c.sustain_beats for c in cs)
                 if hold_end(slots[idxs[0]].beat, sustain, min_hold, 0.0) is not None:
                     holds.append((float(np.mean([c.sustain_beats * (0.5 + c.harmonic) for c in cs])), key, idxs, sustain))
         holds.sort(key=lambda o: (-o[0], str(o[1])))
-        want_holds = n * params.side_hold_share
+        want_holds = n * SIDE_HOLD_SHARE
         for value, key, idxs, sustain in holds:
             if placed >= want_holds - 0.5 * len(idxs):
                 break
@@ -878,8 +872,6 @@ def _assign_special(slots, slot_cand, positions, cands, params: GenParams, kind:
                 slots[i].hold_end_beat = slots[i].beat + (end - slots[idxs[0]].beat)  # type: ignore[operator]
                 taken.append(slots[i].t)
             placed += len(idxs)
-        if params.side_hold_share >= 1.0:
-            return
     impacts = []
     for key, idxs in decisions:
         cs = [cands[slot_cand[i]] for i in idxs]
@@ -960,8 +952,6 @@ def place(
         for i in range(1, len(at)):
             if at[i] is not None and at[i - 1] is not None:
                 dirs[i] = (at[i] > at[i - 1] + 1e-9) - (at[i] < at[i - 1] - 1e-9)
-    keys = [l.index for l in lanes if l.kind == "key"]
-    mirror_of = {lane: keys[len(keys) - 1 - n] for n, lane in enumerate(keys)}
     pitch = _pitch_targets(lay.slots)
     cache: dict[str, Any] = {}
     chosen: list[tuple[int, ...] | None] = [None] * len(lay.slots)
@@ -979,8 +969,6 @@ def place(
                 # that a held note blocks would leave two notes on one hand
                 r = lay.ref[i] if lay.slots[i].roll is None else None
                 t = chosen[r] if r is not None else None
-                if t and lay.units[lay.slot_unit[r]].mirror != u.mirror:
-                    t = tuple(sorted(mirror_of[l] for l in t))
                 targets.append(t or None)
         sub_plan = [plan[i] for i in idxs] if plan else None
         choices, state = search(

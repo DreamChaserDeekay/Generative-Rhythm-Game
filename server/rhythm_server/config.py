@@ -33,55 +33,17 @@ def difficulty_config() -> dict[str, Any]:
     return load_config("difficulty")
 
 
-DEFAULT_SYSTEM = "GRG"
+def difficulty_order() -> list[str]:
+    """The difficulty tiers, easiest first (NORMAL, HARD, EXPERT, MASTER)."""
+    return list(difficulty_config()["order"])
 
 
-def difficulty_system(name: str | None = None) -> dict[str, Any]:
-    """A difficulty system with its tiers (presets), level table and key mode factors.
+def max_level() -> int:
+    return len(difficulty_config()["levelEffectiveNps"])
 
-    GRG is the five-step system at the top of config/difficulty.json; DJMAX and EZ2ON (under
-    "systems") follow those games' tiers, level scales and per-level chart character. A tier may
-    bring its own level table (DJMAX SC levels are a separate scale).
-    """
+
+def level_table_for(key_mode: str) -> tuple[list[float], float]:
+    """The 4K level table and the key mode factor that divides a chart's effective NPS before the
+    lookup."""
     cfg = difficulty_config()
-    name = name or DEFAULT_SYSTEM
-    if name == DEFAULT_SYSTEM:
-        return {
-            "id": DEFAULT_SYSTEM,
-            "maxLevel": len(cfg["levelEffectiveNps"]),
-            "order": cfg["order"],
-            "tiers": cfg["presets"],
-            "levelEffectiveNps": cfg["levelEffectiveNps"],
-            "keyModeNpsFactor": cfg["keyModeNpsFactor"],
-            "aliases": {},
-            "padForbiddenChords": {},
-            "keyModeTendency": {},
-        }
-    system = cfg.get("systems", {}).get(name)
-    if not isinstance(system, dict) or "tiers" not in system:
-        raise ValueError(f"unknown difficulty system: {name}")
-    return {
-        "id": name,
-        "maxLevel": int(system["maxLevel"]),
-        "order": system["order"],
-        "tiers": system["tiers"],
-        "levelEffectiveNps": system["levelEffectiveNps"],
-        "keyModeNpsFactor": {**cfg["keyModeNpsFactor"], **system.get("keyModeNpsFactor", {})},
-        "aliases": system.get("aliases", {}),
-        "padForbiddenChords": system.get("padForbiddenChords", {}),
-        "keyModeTendency": system.get("keyModeTendency", {}),
-    }
-
-
-def difficulty_systems() -> list[str]:
-    return [DEFAULT_SYSTEM, *(k for k, v in difficulty_config().get("systems", {}).items() if isinstance(v, dict) and "tiers" in v)]
-
-
-def level_table_for(system: dict[str, Any], tier: str, key_mode: str) -> tuple[list[float], float]:
-    """Level table of a tier (its own, or the system's) and the factor dividing effective NPS.
-    A table per key mode is already calibrated for that mode (factor 1); a single table is for 4K
-    and is scaled by the key mode factor."""
-    table = system["tiers"].get(tier, {}).get("levelEffectiveNps", system["levelEffectiveNps"])
-    if isinstance(table, dict):
-        return [float(v) for v in table.get(key_mode, table["4K"])], 1.0
-    return [float(v) for v in table], float(system["keyModeNpsFactor"].get(key_mode, 1.0))
+    return [float(v) for v in cfg["levelEffectiveNps"]], float(cfg["keyModeNpsFactor"].get(key_mode, 1.0))
