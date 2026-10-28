@@ -1,5 +1,8 @@
-"""Merging ML backend output into the core analysis (beats → tempo level and downbeats, notes →
-pitch and sustain, labelled segments → sections, stems → per-stem onset activity)."""
+"""Merging ML backend output into the core analysis (beats → the half-beat phase of our grid, notes →
+pitch and sustain, labelled segments → sections, stems → per-stem onset activity). Analyzers before
+1.13.0 took beat_this's tempo level and downbeats (`bpm_hint`, `meter_from_downbeats`); on BMS charts
+those made the grid worse than the core analysis (docs/PATTERN_DESIGN.md 75), and only
+scripts/measure_bms_timing.py still uses them, to compare."""
 
 from __future__ import annotations
 
@@ -43,6 +46,30 @@ def bpm_hint(beats: np.ndarray) -> float | None:
     while bpm > NORMAL_RANGE[1]:
         bpm /= 2
     return bpm
+
+
+def _to_nearest(points: np.ndarray, grid: np.ndarray) -> np.ndarray:
+    """Each point's distance to the nearest grid point (`grid` sorted, two points or more)."""
+    i = np.clip(np.searchsorted(grid, points), 1, len(grid) - 1)
+    return np.minimum(np.abs(points - grid[i - 1]), np.abs(points - grid[i]))
+
+
+def half_beat_phase(grid: np.ndarray, beats: np.ndarray) -> tuple[np.ndarray, bool]:
+    """Our beat grid moved half a beat when most of an ML tracker's beats inside it sit nearer its
+    half beats than its beats; (grid, moved). On 215 constant-tempo BMS songs this put 6 of the 8
+    songs the core analysis had half a beat off on the chart's beats and moved 1 of 200 right ones
+    off (docs/PATTERN_DESIGN.md 75). The moved grid keeps the span: it adds half a beat before the
+    first beat and after the last."""
+    if len(grid) < 4 or len(beats) < 4:
+        return grid, False
+    inside = beats[(beats > grid[0]) & (beats < grid[-1])]
+    if len(inside) < 4:
+        return grid, False
+    mids = 0.5 * (grid[:-1] + grid[1:])
+    if float(np.mean(_to_nearest(inside, mids) < _to_nearest(inside, grid))) <= 0.5:
+        return grid, False
+    first, last = grid[0] - 0.5 * (grid[1] - grid[0]), grid[-1] + 0.5 * (grid[-1] - grid[-2])
+    return np.concatenate([[first], mids, [last]]), True
 
 
 def meter_from_downbeats(grid: np.ndarray, beats: np.ndarray, downbeats: np.ndarray) -> MeterResult | None:

@@ -1,16 +1,18 @@
 """Our beat grid against the exact grid of BMS charts, on a BMS folder of the player's PC
-(docs/PAPER_SURVEY.md 11): which beat phase the core analysis finds, and whether beat_this finds
-the right one where we do not.
+(docs/PAPER_SURVEY.md 11, docs/PATTERN_DESIGN.md 75): which beat phase the core analysis finds, and
+whether beat_this finds the right one where we do not.
 
     python scripts/measure_bms_timing.py BMS_DIR [--limit N] [--jobs J] [--out rows.jsonl] [--check N]
 
 Every song folder's keysounds are mixed in memory the way the BMS caches were made
 (formats.keysounds.full_mix on the chart with the most notes); no audio is written. Variants:
   core    the analysis without ML backends (estimate_tempo and estimate_meter, as analyze() runs them)
-  ml      the analysis with beat_this as analyze() uses it today: BPM hint and downbeats, our grid
+  ml      the analysis with beat_this as analyze() uses it since analyzer 1.13.0: the core grid moved
+          half a beat when most of beat_this's beats sit on its half beats (ml.half_beat_phase), and
+          the core meter on that grid (the "cflip" of the first run, PATTERN_DESIGN 75)
+  old     the analysis with beat_this before 1.13.0: its BPM as the tempo level, its downbeats
   bt      beat_this's own beats and downbeats
-  flip    the ml grid moved half a beat when most of beat_this's beats sit on its half beats
-  cflip   the same move on the core grid
+  btdown  the ml grid with beat_this's downbeats for the meter (not used: does it help?)
 A constant-tempo song (one BPM, no stops) is right at T ms when its BPM matches the chart's (half or
 double allowed, within 1%) and the median distance from our beats to the chart's grid (its half
 beats too when we count twice as fast) is at most T ms; "half" counts songs whose beats sit on the
@@ -45,7 +47,7 @@ from rhythm_server.generator.tempo import TempoMap  # noqa: E402
 
 CHART_EXT = (".bms", ".bme", ".bml", ".pms", ".bmson")
 MAX_MIX_S = 900.0
-VARIANTS = ("core", "ml", "bt", "flip", "cflip")
+VARIANTS = ("core", "ml", "old", "bt", "btdown")
 TOLS = (10, 20, 40)
 BEATS = None  # the beat_this backend, when installed
 
@@ -78,21 +80,26 @@ def timing_inputs(mono: np.ndarray, sr: int) -> dict:
     return {"duration": duration, "od": od, "fine_rate": fine_rate, "coarse_rate": coarse_rate, "drums": drums, "chroma": chroma, "spectra": spectra}
 
 
-def grid(x: dict, ml_beats: tuple[np.ndarray, np.ndarray] | None) -> tuple[np.ndarray, np.ndarray, int]:
-    """(beats, downbeats, tempo lines) as analyze() finds them, with or without beat_this."""
+def grid(x: dict, ml_beats: tuple[np.ndarray, np.ndarray] | None, how: str = "ml") -> tuple[np.ndarray, np.ndarray, int, bool]:
+    """(beats, downbeats, tempo lines, moved half a beat) as analyze() finds them: without beat_this
+    (`ml_beats` None) or with it, `how` "ml" (analyzer 1.13.0), "old" (before it) or "btdown"."""
     od, duration = x["od"], x["duration"]
-    hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
+    hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None and how == "old" else None
     tempo = A.estimate_tempo(
         od.times, od.strength, od.bands[:, 0], od.odf, x["fine_rate"], duration, bpm_override=None, bpm_hint=hint, drums=x["drums"],
         mid_fraction=od.bands[:, 1], chroma=x["chroma"], chroma_rate=x["coarse_rate"], onset_spectra=x["spectra"],
     )
     beats = tempo.beats[(tempo.beats >= 0) & (tempo.beats <= duration)]
+    moved = False
+    if ml_beats is not None and how != "old":
+        beats, moved = ml.half_beat_phase(beats, ml_beats[0])
+        beats = beats[(beats >= 0) & (beats <= duration)]
     beat_chroma = A.beat_sync(x["chroma"], x["coarse_rate"], beats)
     unit = beat_chroma / (np.linalg.norm(beat_chroma, axis=1, keepdims=True) + 1e-9)
     novelty = np.zeros(len(beats))
     if len(beats) > 1:
         novelty[1:] = 1.0 - np.sum(unit[1:] * unit[:-1], axis=1)
-    meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None else None
+    meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None and how in ("old", "btdown") else None
     if meter is None:
         drums = x["drums"]
         accents = A.BeatAccents(
@@ -103,22 +110,7 @@ def grid(x: dict, ml_beats: tuple[np.ndarray, np.ndarray] | None) -> tuple[np.nd
         )
         meter = A.estimate_meter(A.beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma, accents)
     beat0 = meter.first_downbeat_index if len(beats) else 0
-    return beats, beats[beat0:: meter.beats_per_bar], len(A._tempo_map(beats, beat0))
-
-
-def flipped(beats: np.ndarray, ref: np.ndarray) -> tuple[np.ndarray, bool]:
-    """Our grid moved half a beat when most of ref's beats inside it sit nearer its half beats."""
-    if len(beats) < 4 or len(ref) < 4:
-        return beats, False
-    mids = 0.5 * (beats[:-1] + beats[1:])
-    inside = ref[(ref > beats[0]) & (ref < beats[-1])]
-    if len(inside) < 4:
-        return beats, False
-    to_beat = np.min(np.abs(inside[:, None] - beats[None, :]), axis=1)
-    to_mid = np.min(np.abs(inside[:, None] - mids[None, :]), axis=1)
-    if float(np.mean(to_mid < to_beat)) > 0.5:
-        return mids, True
-    return beats, False
+    return beats, beats[beat0:: meter.beats_per_bar], len(A._tempo_map(beats, beat0)), moved
 
 
 def score(beats: np.ndarray, downbeats: np.ndarray, tempo: TempoMap, chart_bpm: float | None, first: float, last: float, bars: np.ndarray) -> dict:
@@ -184,7 +176,7 @@ def one(folder: str) -> list[dict]:
             row.update(constant=constant, bpmChart=bpms[0] if bpms else None, minutes=round(len(mono) / SAMPLE_RATE / 60.0, 2))
             t0 = time.perf_counter()
             x = timing_inputs(mono, SAMPLE_RATE)
-            beats, downs, lines = grid(x, None)
+            beats, downs, lines, _ = grid(x, None)
             row["coreSeconds"] = round(time.perf_counter() - t0, 2)
             chart_bpm = bpms[0] if constant else None
             row["core"] = {**score(beats, downs, tempo, chart_bpm, first, last, bars), "lines": lines}
@@ -192,15 +184,10 @@ def one(folder: str) -> list[dict]:
                 t0 = time.perf_counter()
                 bt_beats, bt_downs = BEATS.module().track(mix, SAMPLE_RATE, BEATS.options)
                 row["btSeconds"] = round(time.perf_counter() - t0, 2)
-                mb, md, ml_lines = grid(x, (bt_beats, bt_downs))
-                row["ml"] = {**score(mb, md, tempo, chart_bpm, first, last, bars), "lines": ml_lines}
+                for how in ("ml", "old", "btdown"):
+                    vb, vd, v_lines, moved = grid(x, (bt_beats, bt_downs), how)
+                    row[how] = {**score(vb, vd, tempo, chart_bpm, first, last, bars), "lines": v_lines, "moved": moved}
                 row["bt"] = score(bt_beats, bt_downs, tempo, chart_bpm, first, last, bars)
-                fb, moved = flipped(mb, bt_beats)
-                fm = ml.meter_from_downbeats(fb, bt_beats, bt_downs)
-                fd = fb[fm.first_downbeat_index:: fm.beats_per_bar] if fm else fb[:0]
-                row["flip"] = {**score(fb, fd, tempo, chart_bpm, first, last, bars), "moved": moved}
-                cb, cmoved = flipped(beats, bt_beats)
-                row["cflip"] = {**score(cb, cb[:0], tempo, chart_bpm, first, last, bars), "moved": cmoved}
             rows.append(row)
         except Exception as e:  # noqa: BLE001
             rows.append({**row, "error": f"{type(e).__name__}: {e}"[:200]})
@@ -235,7 +222,7 @@ def summarize(rows: list[dict]) -> None:
             continue
         n = len(rs)
         right = [s for s in rs if s.get("kind")]
-        line = f"  {v:5s} n {n}: BPM {len(right) / n:.3f}"
+        line = f"  {v:6s} n {n}: BPM {len(right) / n:.3f}"
         for tol in TOLS:
             line += f" | <={tol} ms {sum(1 for s in right if s['medAbsMs'] <= tol) / n:.3f}"
         line += f" | half beat {sum(1 for s in right if s.get('half')) / n:.3f}"
@@ -244,7 +231,7 @@ def summarize(rows: list[dict]) -> None:
             line += f" | downbeats on bars {np.mean(downs):.3f} (songs >= 0.5: {np.mean([d >= 0.5 for d in downs]):.3f})"
         if "lines" in rs[0]:
             line += f" | one tempo line {np.mean([s['lines'] == 1 for s in rs]):.3f}"
-        if v in ("flip", "cflip"):
+        if v in ("ml", "btdown"):
             line += f" | moved {np.mean([s['moved'] for s in rs]):.3f}"
         print(line)
         if other:
@@ -255,7 +242,7 @@ def summarize(rows: list[dict]) -> None:
     def right(s: dict | None) -> bool:
         return bool(s and s.get("kind") and s["medAbsMs"] <= 40)
 
-    for v in ("ml", "bt", "flip", "cflip"):
+    for v in ("ml", "old", "bt", "btdown"):
         both = [r for r in const if v in r and not r[v].get("short")]
         if not both:
             continue
@@ -264,7 +251,7 @@ def summarize(rows: list[dict]) -> None:
         wrong = sum(1 for r in both if not right(r["core"]))
         half_fixed = sum(1 for r in both if r["core"].get("half") and right(r[v]))
         half = sum(1 for r in both if r["core"].get("half"))
-        print(f"  core -> {v:5s}: fixes {fixed} of the {wrong} songs core gets wrong ({half_fixed} of its {half} half-beat songs), breaks {broken} of {len(both) - wrong}")
+        print(f"  core -> {v:6s}: fixes {fixed} of the {wrong} songs core gets wrong ({half_fixed} of its {half} half-beat songs), breaks {broken} of {len(both) - wrong}")
     secs = [r["coreSeconds"] / r["minutes"] for r in ok if r.get("minutes")]
     bts = [r["btSeconds"] / r["minutes"] for r in ok if r.get("btSeconds") and r.get("minutes")]
     print(f"  seconds per minute of audio: core timing {np.median(secs):.2f}" + (f", beat_this {np.median(bts):.2f}" if bts else ", beat_this not installed"))
@@ -291,7 +278,7 @@ def check(folders: list[str], n: int) -> None:
                     continue
                 a = A.analyze(mix, SAMPLE_RATE, "sha256:check", backends=backends)
                 ref = np.array([b["t"] for b in a["beats"]]) / 1000.0
-                mine, _, _ = grid(x, bt.module().track(mix, SAMPLE_RATE, bt.options) if label == "ml" else None)
+                mine, _, _, _ = grid(x, bt.module().track(mix, SAMPLE_RATE, bt.options) if label == "ml" else None)
                 same = len(ref) == len(mine) and np.allclose(ref, mine, atol=1e-3)
                 print(f"check {label}: {'same grid' if same else 'DIFFERENT grid'} ({len(ref)} / {len(mine)} beats)")
             done += 1
