@@ -283,6 +283,30 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.05
 
 
+def test_the_top_tiers_first_round_is_made_once_per_song(analysis128: dict, monkeypatch) -> None:
+    """Every tier asks for the top tier's first round (core.lane_plan: the plan the tiers follow and
+    the song's strength). It is made once per song, options and config, and the default top-tier
+    chart leaves its own first round for the others: making the five tiers took 20-29% less time
+    on six BMS songs, with the same charts (docs/PAPER_SURVEY.md 11)."""
+    import rhythm_server.generator.core as core
+    from rhythm_server.config import load_config
+
+    core._plan_cache.clear()
+    plan = core.lane_plan(analysis128, "7K+1S", "MASTER")
+    rounds = []
+    real = core.generate_chart
+    monkeypatch.setattr(core, "generate_chart", lambda *a, **k: rounds.append(k.get("_plan_round")) or real(*a, **k))
+    assert core.lane_plan(analysis128, "7K+1S", "MASTER") is plan and rounds == []
+    core.lane_plan(analysis128, "7K+1S", "MASTER", {"style": "stream"})  # other options: another round
+    assert rounds == [True]
+    core._plan_cache.clear()
+    real(analysis128, "7K+1S", "MASTER")
+    assert core._plan_cache[core._plan_key(analysis128, "7K+1S", "MASTER", None)] == plan
+    monkeypatch.setitem(load_config("patterns")["sectioned"]["tierPlan"], "weight", 0.5)  # other config: another round
+    core.lane_plan(analysis128, "7K+1S", "MASTER")
+    assert rounds == [True, True]
+
+
 def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(analysis128: dict, monkeypatch) -> None:
     """difficulty.json songFit: a default chart aims at the part of its tier's level range the
     song's strength (the top tier's first-round rating) calls for, and a song under `from` has no
