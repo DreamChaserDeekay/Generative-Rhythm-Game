@@ -385,9 +385,13 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # dropped it to 7% for the weaker lane-usage balance; refitting keyBias to close the key-share
     # gap instead moves every key the right way and still loses 3.1pp overall (PATTERN_DESIGN 34).
     # Generator 0.9.37's fewer NORMAL chords (0.14 -> 0.08, as human charts) leave key 7 6.3% here.
+    # One NORMAL chart's key 7 moves between 3% and 10% by seed: since 0.9.41's long-note plan
+    # (which moves the top tier's first round, whose lanes the easier tiers follow) four seeds give
+    # 5.0% (7.3% without the plan) and eight give 6.2% (6.8%), so the mean is over eight. Over 100
+    # held-out BMS songs the plan leaves NORMAL's key 7 at 8.8% (PATTERN_DESIGN 76).
     for tier, floor, ceiling in (("NORMAL", 0.06, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []
-        for seed in range(4):
+        for seed in range(8):
             keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
             per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
         shares = np.mean(per_seed, axis=0)

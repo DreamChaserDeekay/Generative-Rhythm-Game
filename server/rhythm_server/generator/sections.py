@@ -450,9 +450,11 @@ def layout(
     """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
     detection missed a repeat); None trusts the consensus alone. `relax` gives up the build-up that
     costs notes (earlier repeats playing fewer where the music has no more sounds, the opening
-    cap) when the chart cannot reach its level otherwise. With the `analysis` the section plan
-    (plan.py) sets how dense each unit is and how much it is chords; `memo` keeps that plan for
-    the next rounds of the same chart."""
+    cap) when the chart cannot reach its level otherwise, and the section plan's long-note places
+    (it holds where little else is played: presses under a held note rate a chart higher, and
+    the label rule's places have more of them). With the `analysis` the section plan (plan.py)
+    sets how dense each unit is and how much it is chords; `memo` keeps that plan for the next
+    rounds of the same chart."""
     """Slots chosen per material class (module docstring, steps 1–4)."""
     if not cands:
         return Layout([], [], [], [], [])
@@ -757,7 +759,7 @@ def layout(
     _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
 
     _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale)
-    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo)
+    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo, plan_holds=not relax)
     if special_kind == "scratch":
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
     elif special_kind == "side":
@@ -859,10 +861,11 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
             slots[i].size = max(2, min(max_chord, size))
 
 
-def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, tempo: TempoMap) -> None:
+def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, tempo: TempoMap, plan_holds: bool = True) -> None:
     if params.long_note_ratio <= 0 or not slots:
         return
     target = params.long_note_ratio * len(slots)
+    power = float(section_plan.plan_config().get("holdPower", 1.0))
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
         sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
@@ -871,7 +874,7 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
         if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
             continue
         u = units[slot_unit[idxs[0]]]
-        mult = blueprint(u.label)["hold"] if u.hold is None else u.hold ** float(section_plan.plan_config().get("holdPower", 1.0))
+        mult = blueprint(u.label)["hold"] if u.hold is None or not plan_holds else u.hold ** power
         value = float(np.mean([hold_value(cands[slot_cand[i]], tempo) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))
