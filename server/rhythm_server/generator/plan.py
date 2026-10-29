@@ -11,6 +11,7 @@ BMS caches reads a new analysis the same way.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Any, Sequence
 
 import numpy as np
@@ -231,6 +232,70 @@ def predict(raw: np.ndarray, target: str, groups: Sequence[Any] | None = None) -
         return _mlp(x, model)
     coef = np.asarray(model["coef"], dtype=np.float64)
     return x @ coef + float(model.get("intercept", 0.0))
+
+
+# song-level inputs (plan.json songModels): the unit features but where a unit is, over the whole
+# song, read on the EXPERT tier's candidates whatever tier the chart is (the human charts' targets
+# were measured against those)
+SONG_INPUTS = tuple(name for name in RAW if name not in ("songPos", "first", "last", "posInSection", "occurrence", "lastInGroup", "accent"))
+SONG_TIER = "EXPERT"
+
+
+def song_raw(raw: np.ndarray, seconds: np.ndarray, analysis: dict[str, Any]) -> np.ndarray:
+    """The song's inputs for plan.json songModels from unit_raw on SONG_TIER's candidates: the
+    SONG_INPUTS features of its units averaged by unit length, then the log of the BPM (median beat)
+    and of the units' length in seconds."""
+    col = [RAW.index(name) for name in SONG_INPUTS]
+    w = np.asarray(seconds, dtype=np.float64)
+    w = w / max(1e-9, float(w.sum()))
+    beats = np.array([float(b["t"]) for b in analysis.get("beats", [])])
+    bpm = 60000.0 / float(np.median(np.diff(beats))) if len(beats) > 2 else 120.0
+    return np.concatenate([np.nansum(raw[:, col] * w[:, None], axis=0), [np.log(bpm), np.log(max(1.0, float(np.sum(seconds))))]])
+
+
+_SONG_CACHE: OrderedDict[tuple[Any, ...], np.ndarray] = OrderedDict()
+
+
+def song_inputs(units: Sequence[Any], analysis: dict[str, Any], tempo: TempoMap) -> np.ndarray:
+    """song_raw for these units on SONG_TIER's 7K+1S candidates (made here; kept per song and units,
+    since every tier of the song asks for the same)."""
+    key = (analysis.get("audioHash"), float(analysis.get("durationMs", 0.0)), len(analysis.get("onsets", [])), tuple((u.start, u.length) for u in units))
+    if key in _SONG_CACHE:
+        _SONG_CACHE.move_to_end(key)
+        return _SONG_CACHE[key]
+    from dataclasses import replace
+
+    from ..config import difficulty_config
+    from .candidates import TRIPLETS, build_candidates, swing_bars
+    from .params import resolve_params
+    from .rolls import song_rolls
+
+    params = resolve_params("7K+1S", SONG_TIER)
+    swing = swing_bars(analysis, tempo)
+    if not swing:
+        params = replace(params, subdivisions=tuple(s for s in params.subdivisions if s not in TRIPLETS))
+    tol = float(difficulty_config()["snapToleranceMs"])
+    cands = build_candidates(analysis, tempo, params, tol, swing)
+    if cands:
+        song_rolls(analysis, tempo, params, tol, cands)
+    seconds = np.array([(tempo.beat_to_ms(u.start + u.length) - tempo.beat_to_ms(u.start)) / 1000.0 for u in units])
+    x = song_raw(unit_raw(units, cands, analysis, tempo), seconds, analysis)
+    _SONG_CACHE[key] = x
+    while len(_SONG_CACHE) > 16:
+        _SONG_CACHE.popitem(last=False)
+    return x
+
+
+def predict_song(x: np.ndarray, target: str) -> float | None:
+    """The song's `target` (plan.json songModels: "jack") as a log ratio to the human charts' at the
+    same density, or None when the plan model is off or missing."""
+    cfg = plan_config()
+    model = (cfg.get("songModels") or {}).get(target)
+    if not cfg.get("enabled", True) or not model or int(model.get("inputs", len(x))) != len(x):
+        return None
+    if model.get("kind") == "trees":
+        return float(_trees(np.asarray(x, dtype=np.float64)[None, :], model)[0])
+    return float(np.asarray(x) @ np.asarray(model["coef"], dtype=np.float64) + float(model.get("intercept", 0.0)))
 
 
 def _mlp(x: np.ndarray, model: dict[str, Any]) -> np.ndarray:

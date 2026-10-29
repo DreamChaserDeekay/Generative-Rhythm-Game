@@ -58,6 +58,7 @@ class Slot:
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
     hold_count: int = 1  # long notes the slot holds: more than one over a held chord (holds.pad countMax)
     jack_scale: float = 1.0  # the section plan's scale of the same-lane cost here (plan.py)
+    jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets here (plan.py)
 
     @cached_property
     def src(self) -> int | None:

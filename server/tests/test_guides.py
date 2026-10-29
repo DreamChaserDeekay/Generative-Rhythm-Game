@@ -204,10 +204,18 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # EXPERT had is ELITE's (EXPERT is lighter and starts under the target, where the feedback has
     # few fast moves to steer): the share starts 0.013 off the target and ends 0.004 off. Since
     # 0.9.41's long-note plan it starts 0.046 off (0.269) and ends 0.014 off (0.301); one chart's
-    # share moves between 0.09 and 0.5 with its ~60 fast moves.
+    # share moves between 0.09 and 0.5 with its ~60 fast moves. Since 0.9.42 (the plan's weights of a
+    # repeat group's units taken together, and the jack feedback, which moves single notes off a key hit
+    # again soon and is left out here too) the share starts at the target: over 2 songs x 8 seeds 0.306
+    # without the feedback, 0.317 with it, target 0.315, and the 3-seed means used to move between 0.30
+    # and 0.36 on the seeds alone. So the test now puts the target far above (0.6) with the feedback 4
+    # times as strong (32): the share goes from 0.30 to 0.47 (a target of 0.1 gives 0.30: the search
+    # finds fewer ways around key 4 than through it).
     grg = load_config("patterns")["hands"]
     monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
     monkeypatch.setitem(grg, "soundMemory", 0.0)
+    monkeypatch.setitem(grg, "jackFeedback", {"7K+1S": 0.0, "*": 0.0})
+    monkeypatch.setitem(grg, "jackStreakFeedback", {"7K+1S": 0.0, "*": 0.0})
 
     def middle_share(notes: list[dict]) -> float:
         by_t: dict[float, list[int]] = {}
@@ -229,11 +237,62 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
         shares = [middle_share(generate_chart(a, "7K+1S", "ELITE", seed=seed)["notes"]) for a in songs for seed in range(3)]
         return sum(shares) / len(shares)
 
-    target = float(np.interp(resolve_params("7K+1S", "ELITE").skill, *zip(*grg["middleTarget"])))
+    target = 0.6
+    monkeypatch.setitem(grg, "middleTarget", [[0.0, target], [1.0, target]])
+    monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 32.0, "*": 0.0})
     with_feedback = mean_share()
     monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 0.0, "*": 0.0})
     without = mean_share()
-    assert abs(with_feedback - target) < 0.5 * abs(without - target), (with_feedback, without, target)
+    assert with_feedback > without + 0.1 and abs(with_feedback - target) < 0.6 * abs(without - target), (with_feedback, without, target)
+
+
+def _fast_jacks(notes: list[dict]) -> tuple[float, float]:
+    """(fast-jack share, jack streaks per 1000 key notes) the way scripts/bms_stats.py counts them:
+    a key hit again at the next time 260 ms later at most, and the third such hit in a row."""
+    keys = sorted((float(n["t"]), int(n["lane"])) for n in notes if int(n["lane"]) != 0)
+    instants: list[tuple[float, list[int]]] = []
+    for t, lane in keys:
+        if instants and abs(t - instants[-1][0]) <= 1.0:
+            instants[-1][1].append(lane)
+        else:
+            instants.append((t, [lane]))
+    jack = streaks = 0
+    streak: dict[int, int] = {}
+    prev: float | None = None
+    for t, lanes in instants:
+        close = prev is not None and t - prev <= 260.0
+        streak = {lane: (streak.get(lane, 0) + 1 if close else 1) for lane in lanes}
+        jack += sum(1 for lane in lanes if streak[lane] >= 2)
+        streaks += sum(1 for lane in lanes if streak[lane] == 3)
+        prev = t
+    return jack / len(keys), 1000.0 * streaks / len(keys)
+
+
+def test_the_jack_feedback_brings_fast_jacks_toward_the_target(monkeypatch) -> None:
+    # Our 7K charts hit a key again within 260 ms far more than human BMS charts (generator 0.9.41
+    # on the 171 held-out songs: 0.08-0.10 of the key notes at levels 6-14 against 0.06-0.07, and 1.4
+    # times the jack streaks). Since 0.9.42 the lane search counts fast jacks and jack streaks like
+    # bms_stats and steers them toward the level's human share (hands.jackTarget, jackStreakTarget;
+    # PATTERN_DESIGN 77). The test songs' EXPERT goes from 0.140 to 0.085 (target 0.05) and its streaks
+    # from 28 to 10 per 1000 key notes; ELITE from 0.231 to 0.129 and 52 to 19. Repeats copy their
+    # lanes, so the search reaches only the first round of each material and stops short of the target.
+    grg = load_config("patterns")["hands"]
+    songs = [song(124.0, 1)[1], song(140.0, 2)[1]]
+
+    def mean_shares(tier: str) -> tuple[float, float]:
+        got = [_fast_jacks(generate_chart(a, "7K+1S", tier, seed=seed)["notes"]) for a in songs for seed in range(2)]
+        return float(np.mean([g[0] for g in got])), float(np.mean([g[1] for g in got]))
+
+    for tier in ("EXPERT", "ELITE"):
+        skill = resolve_params("7K+1S", tier).skill
+        target = float(np.interp(skill, *zip(*grg["jackTarget"])))
+        with_feedback = mean_shares(tier)
+        monkeypatch.setitem(grg, "jackFeedback", {"7K+1S": 0.0, "*": 0.0})
+        monkeypatch.setitem(grg, "jackStreakFeedback", {"7K+1S": 0.0, "*": 0.0})
+        without = mean_shares(tier)
+        monkeypatch.undo()
+        assert with_feedback[0] < without[0] and abs(with_feedback[0] - target) < abs(without[0] - target), (tier, with_feedback, without, target)
+        assert with_feedback[1] < without[1], (tier, with_feedback, without)
 
 
 def _bms_stairs(notes: list[dict]) -> tuple[int, int]:
