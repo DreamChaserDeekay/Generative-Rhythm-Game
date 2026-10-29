@@ -96,10 +96,8 @@ def test_the_plan_moves_the_notes_where_it_says(monkeypatch) -> None:
 def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
     """The long-note plan weighs the long notes' places (to the power holdPower) and the jack plan
     scales the lane search's same-lane cost (2^-jackGain where a unit wants twice the song's jacks):
-    plans that want both in the second half put more of them there than flat plans (long notes 2.1
-    times as late at HARD, jacks 1.8 times at EXPERT). The long notes are looked at on HARD: this
-    song's EXPERT runs out of sounds under its level and relaxes, which gives the plan's long-note
-    places up (sections.layout)."""
+    plans that want both in the second half put more of them there than flat plans (long notes 3.5
+    times as late, jacks 1.5 times)."""
     import rhythm_server.generator.core as core
 
     analysis = structured()
@@ -126,10 +124,10 @@ def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
         again = {t: bool(by_t[t] & by_t[p]) for p, t in zip(times, times[1:])}
         return lambda _notes, i: again.get(notes[i]["t"], False)
 
-    def chart(plan_of, difficulty: str) -> dict:
+    def chart(plan_of) -> dict:
         monkeypatch.setattr(plan, "predict", plan_of)
         core._plan_cache.clear()
-        return generate_chart(analysis, "7K+1S", difficulty)
+        return generate_chart(analysis, "7K+1S", "EXPERT")
 
     def flat(raw, target, groups=None):
         return np.zeros(len(raw)) if target in ("hold", "jack") else None
@@ -139,7 +137,6 @@ def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
             return None
         return np.where(raw[:, plan.RAW.index("songPos")] >= 0.5, 1.0, -1.0)
 
-    even, late = chart(flat, "HARD"), chart(rising, "HARD")
+    even, late = chart(flat), chart(rising)
     assert later(late, is_hold) > 1.2 * later(even, is_hold), (later(even, is_hold), later(late, is_hold))
-    even, late = chart(flat, "EXPERT"), chart(rising, "EXPERT")
     assert later(late, jacks(late["notes"])) > 1.2 * later(even, jacks(even["notes"]))

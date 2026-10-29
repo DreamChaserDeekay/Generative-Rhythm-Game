@@ -387,7 +387,7 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # Generator 0.9.37's fewer NORMAL chords (0.14 -> 0.08, as human charts) leave key 7 6.3% here.
     # One NORMAL chart's key 7 moves between 3% and 10% by seed: since 0.9.41's long-note plan
     # (which moves the top tier's first round, whose lanes the easier tiers follow) four seeds give
-    # 5.0% (7.3% without the plan) and eight give 6.2% (6.8%), so the mean is over eight. Over 100
+    # 5.1% (7.3% without the plan) and eight give 6.3% (6.8%), so the mean is over eight. Over 100
     # held-out BMS songs the plan leaves NORMAL's key 7 at 8.8% (PATTERN_DESIGN 76).
     for tier, floor, ceiling in (("NORMAL", 0.06, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []

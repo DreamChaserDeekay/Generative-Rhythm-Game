@@ -446,15 +446,15 @@ def layout(
     relax: bool = False,
     analysis: dict[str, Any] | None = None,
     memo: dict[str, Any] | None = None,
+    plan_holds: bool = True,
 ) -> Layout:
     """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
     detection missed a repeat); None trusts the consensus alone. `relax` gives up the build-up that
     costs notes (earlier repeats playing fewer where the music has no more sounds, the opening
-    cap) when the chart cannot reach its level otherwise, and the section plan's long-note places
-    (it holds where little else is played: presses under a held note rate a chart higher, and
-    the label rule's places have more of them). With the `analysis` the section plan (plan.py)
-    sets how dense each unit is and how much it is chords; `memo` keeps that plan for the next
-    rounds of the same chart."""
+    cap) when the chart cannot reach its level otherwise. With the `analysis` the section plan
+    (plan.py) sets how dense each unit is, how much it is chords and where its long notes go
+    (`plan_holds` false: the label rule's places, for a chart short of its level after all else);
+    `memo` keeps that plan for the next rounds of the same chart."""
     """Slots chosen per material class (module docstring, steps 1–4)."""
     if not cands:
         return Layout([], [], [], [], [])
@@ -759,7 +759,7 @@ def layout(
     _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
 
     _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale)
-    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo, plan_holds=not relax)
+    _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo, plan_holds)
     if special_kind == "scratch":
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
     elif special_kind == "side":

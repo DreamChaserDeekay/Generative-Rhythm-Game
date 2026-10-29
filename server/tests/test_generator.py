@@ -247,7 +247,10 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     two single notes (sectioned.tierPlan), and MASTER keeps to that round harder (ownWeight):
     EXPERT goes MASTER's way more often than with the plan off (0.44 -> 0.72 on this song with the
     sections of analyzer 1.10.0, 0.46 -> 0.54 with those of 1.11.0; HARD has only 14 such pairs). MASTER starts from its own first round and builds no other, whatever its
-    options; with another seed it builds the default one for the song's strength (songFit)."""
+    options; with another seed it builds the default one for the song's strength (songFit).
+    Since generator 0.9.41 this calm song's MASTER, short of its level after all else, puts its long
+    notes by the label rule (PATTERN_DESIGN 76), away from its first round: EXPERT is measured
+    against the round itself, 0.51 -> 0.85 over 124 pairs (against the final MASTER 0.48 -> 0.52)."""
     import rhythm_server.generator.core as core
     from rhythm_server.config import load_config
 
@@ -274,13 +277,13 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     assert calls == [] and app["notes"] == master["notes"]
     generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
     assert calls == ["MASTER"]
-    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
+    first = core.generate_chart(analysis128, "7K+1S", "MASTER", _plan_round=True)
+    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), first)
     assert calls == ["MASTER", "MASTER"]
     plan = load_config("patterns")["sectioned"]["tierPlan"]
     monkeypatch.setitem(plan, "weight", 0.0)
     monkeypatch.setitem(plan, "ownWeight", 0.0)
-    master = generate_chart(analysis128, "7K+1S", "MASTER")
-    assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.05
+    assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), first) + 0.05
 
 
 def test_the_top_tiers_first_round_is_made_once_per_song(analysis128: dict, monkeypatch) -> None:

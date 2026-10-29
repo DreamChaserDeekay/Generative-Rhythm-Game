@@ -191,6 +191,7 @@ def generate_chart(
     prev_count = None
     prev_notes: int | None = None
     relax = False
+    plan_holds = True
     loud = _loudness_gate(analysis)
     # the song's plan (patterns.json sectioned.tierPlan): every tier moves the way the top tier's
     # first round does; the plan takes the chart's options (a player who turns the instrument lanes
@@ -236,7 +237,7 @@ def generate_chart(
         rounds += 1
         kept = None
         if engine == "sectioned":
-            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo)
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo, plan_holds)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan, lanes_plan, plan_weight)
@@ -292,6 +293,12 @@ def generate_chart(
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:
+                if engine == "sectioned" and plan_holds:
+                    # last of all, the section plan's long-note places: it holds where little else
+                    # is played, and presses under a held note rate a chart higher (PATTERN_DESIGN 76)
+                    plan_holds = False
+                    rounds -= 1
+                    continue
                 exhausted = True
                 break
             chord_scale = min(chord_scale * 1.4, MAX_CHORD_RATIO / params.chord_ratio)

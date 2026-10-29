@@ -203,7 +203,7 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # memory of 0.9.28, which holds each sound group on its key). Since 0.9.39 the density the old
     # EXPERT had is ELITE's (EXPERT is lighter and starts under the target, where the feedback has
     # few fast moves to steer): the share starts 0.013 off the target and ends 0.004 off. Since
-    # 0.9.41's long-note plan it starts 0.087 off (0.228) and ends 0.016 off (0.331); one chart's
+    # 0.9.41's long-note plan it starts 0.046 off (0.269) and ends 0.014 off (0.301); one chart's
     # share moves between 0.09 and 0.5 with its ~60 fast moves.
     grg = load_config("patterns")["hands"]
     monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
