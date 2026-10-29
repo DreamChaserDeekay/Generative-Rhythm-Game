@@ -91,3 +91,51 @@ def test_the_plan_moves_the_notes_where_it_says(monkeypatch) -> None:
     monkeypatch.setattr(plan, "predict", rising)
     later = halves(generate_chart(analysis, "6K", "HARD"))
     assert later > 1.15 * even, (even, later)
+
+
+def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
+    """The long-note plan weighs the long notes' places (to the power holdPower) and the jack plan
+    scales the lane search's same-lane cost (2^-jackGain where a unit wants twice the song's jacks):
+    plans that want both in the second half put more of them there than flat plans."""
+    import rhythm_server.generator.core as core
+
+    analysis = structured()
+    cfg = load_config("plan")
+    monkeypatch.setitem(cfg, "enabled", True)
+    monkeypatch.setitem(cfg, "holdPower", 3.0)
+    monkeypatch.setitem(cfg, "jackGain", 2.0)
+
+    def later(chart: dict, what) -> float:
+        beats = [n["beat"] for n in chart["notes"]]
+        mid = 0.5 * (min(beats) + max(beats))
+        late = [what(chart["notes"], i) for i, n in enumerate(chart["notes"]) if n["beat"] >= mid]
+        early = [what(chart["notes"], i) for i, n in enumerate(chart["notes"]) if n["beat"] < mid]
+        return (sum(late) + 1) / (sum(early) + 1)
+
+    def is_hold(notes: list[dict], i: int) -> bool:
+        return notes[i]["type"] == "hold"
+
+    def jacks(notes: list[dict]):
+        by_t: dict[float, set[int]] = {}
+        for n in notes:
+            by_t.setdefault(n["t"], set()).add(n["lane"])
+        times = sorted(by_t)
+        again = {t: bool(by_t[t] & by_t[p]) for p, t in zip(times, times[1:])}
+        return lambda _notes, i: again.get(notes[i]["t"], False)
+
+    def chart(plan_of) -> dict:
+        monkeypatch.setattr(plan, "predict", plan_of)
+        core._plan_cache.clear()
+        return generate_chart(analysis, "7K+1S", "EXPERT")
+
+    def flat(raw, target, groups=None):
+        return np.zeros(len(raw)) if target in ("hold", "jack") else None
+
+    def rising(raw, target, groups=None):
+        if target not in ("hold", "jack"):
+            return None
+        return np.where(raw[:, plan.RAW.index("songPos")] >= 0.5, 1.0, -1.0)
+
+    even, late = chart(flat), chart(rising)
+    assert later(late, is_hold) > 1.2 * later(even, is_hold), (later(even, is_hold), later(late, is_hold))
+    assert later(late, jacks(late["notes"])) > 1.2 * later(even, jacks(even["notes"]))

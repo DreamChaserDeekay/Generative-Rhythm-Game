@@ -57,6 +57,7 @@ class Slot:
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (roll, hit index, hits)
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
     hold_count: int = 1  # long notes the slot holds: more than one over a held chord (holds.pad countMax)
+    jack_scale: float = 1.0  # the section plan's scale of the same-lane cost here (plan.py)
 
     @cached_property
     def src(self) -> int | None:

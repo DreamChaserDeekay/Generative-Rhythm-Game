@@ -570,7 +570,7 @@ def search(
             # jack.
             same_sound = state.prev_sound == sound
             planned_repeat = repeats and same_sound
-            jack_scale = 0.1 if planned_repeat else 1.0
+            jack_scale = (0.1 if planned_repeat else 1.0) * slot.jack_scale
             if not combos:
                 combos = [()]
             elif exact and repeat_set is not None:

@@ -60,6 +60,8 @@ class Unit:
     accent: bool = False  # opens a section: its downbeat is accented
     density: float | None = None  # the section plan's density for it, against the song's (plan.py)
     chord: float | None = None  # the section plan's chord weight for it
+    hold: float | None = None  # the section plan's long-note weight for it
+    jack_scale: float = 1.0  # the section plan's scale of the same-lane cost in it
 
 
 @dataclass
@@ -376,32 +378,45 @@ def _cap_opening(units: list[Unit], weight: list[float], per_unit_n: list[float]
 
 
 def _plan_units(units: list[Unit], cands: list[Candidate], analysis: dict[str, Any] | None, tempo: TempoMap, memo: dict[str, Any] | None) -> None:
-    """Each unit's density and chord weight from the section plan (plan.py, config/plan.json),
-    blended with the label rule in log space by the config's `blend`; left None (the rule alone)
-    without an analysis or with the plan off."""
+    """Each unit's density, chord and long-note weights from the section plan (plan.py,
+    config/plan.json), blended with the label rule in log space by the config's `blend`, and its
+    scale of the same-lane cost (`jackGain`: a unit the plan wants twice as jacky as the song costs
+    2^-gain as much); left None (the rule alone) without an analysis or with the plan off."""
     if analysis is None or not units or not section_plan.plan_config().get("enabled", True):
         return
     cached = memo.get("plan") if memo is not None else None
-    if cached is None or len(cached[0]) != len(units):
+    if cached is None or cached["units"] != len(units):
         cfg = section_plan.plan_config()
         raw = section_plan.unit_raw(units, cands, analysis, tempo)
+        groups = [u.group for u in units]
         lim = float(cfg.get("clip", 1.5))
         dens = sectioned_config()["density"]
-        rules = (np.log([blueprint(u.label)["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy) for u in units]),
-                 np.log([blueprint(u.label)["chord"] for u in units]))
+        rules = {
+            "density": np.log([blueprint(u.label)["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy) for u in units]),
+            "chord": np.log([blueprint(u.label)["chord"] for u in units]),
+            "hold": np.log([blueprint(u.label)["hold"] for u in units]),
+        }
         blend = cfg.get("blend", {})
-        out: list[np.ndarray | None] = []
-        for target, rule in zip(("density", "chord"), rules):
-            pred = section_plan.predict(raw, target, [u.group for u in units])
+        cached = {"units": len(units)}
+        for target, rule in rules.items():
+            pred = section_plan.predict(raw, target, groups)
             w = float(blend.get(target, 1.0))
-            out.append(None if pred is None or w <= 0 else np.exp((1.0 - w) * (rule - rule.mean()) + w * np.clip(pred, -lim, lim)))
-        cached = (np.zeros(len(units)) if out[0] is None else out[0], out[1], out[0] is not None)
+            cached[target] = None if pred is None or w <= 0 else np.exp((1.0 - w) * (rule - rule.mean()) + w * np.clip(pred, -lim, lim))
+        pred = section_plan.predict(raw, "jack", groups)
+        gain = float(cfg.get("jackGain", 0.0))
+        if pred is not None and gain > 0:
+            pred = np.clip(pred, -lim, lim)
+            cached["jack"] = np.exp(-gain * (pred - pred.mean()))  # the song's jacks overall stay the tier's
+        else:
+            cached["jack"] = None
         if memo is not None:
             memo["plan"] = cached
-    dens_plan, chord_plan, has_density = cached
+    has_density = cached["density"] is not None
     for k, u in enumerate(units):
-        u.density = float(dens_plan[k]) if has_density else None
-        u.chord = float(chord_plan[k]) if chord_plan is not None else None
+        u.density = float(cached["density"][k]) if has_density else None
+        u.chord = float(cached["chord"][k]) if cached["chord"] is not None else None
+        u.hold = float(cached["hold"][k]) if cached["hold"] is not None else None
+        u.jack_scale = float(cached["jack"][k]) if cached["jack"] is not None else 1.0
     # repeats of the same music play its lightest unit's notes and add over it: a repeat the plan
     # wants denser adds that much (plan.json repeatExtra: at most this share). The first time of
     # music that comes back keeps the build-up's (a song that opens on its chorus still builds up)
@@ -718,7 +733,7 @@ def layout(
             c = cands[ci]
             beat = c.beat if beat is None else beat
             idx.append(len(slots))
-            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group))
+            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale))
             slot_cand.append(ci)
             slot_unit.append(u.index)
             slot_key.append(k)
@@ -855,7 +870,8 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             continue
         if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
             continue
-        mult = blueprint(units[slot_unit[idxs[0]]].label)["hold"]
+        u = units[slot_unit[idxs[0]]]
+        mult = blueprint(u.label)["hold"] if u.hold is None else u.hold ** float(section_plan.plan_config().get("holdPower", 1.0))
         value = float(np.mean([hold_value(cands[slot_cand[i]], tempo) for i in idxs])) * mult
         options.append((value, key, idxs, min(sustains)))
     options.sort(key=lambda o: (-o[0], str(o[1])))

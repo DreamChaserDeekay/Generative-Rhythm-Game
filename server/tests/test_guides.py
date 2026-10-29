@@ -202,7 +202,11 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
     # feedback of 0.9.25 is left out: it moves single notes between the hands too; so is the sound
     # memory of 0.9.28, which holds each sound group on its key). Since 0.9.39 the density the old
     # EXPERT had is ELITE's (EXPERT is lighter and starts under the target, where the feedback has
-    # few fast moves to steer): the share starts 0.013 off the target and ends 0.004 off.
+    # few fast moves to steer): the share starts 0.013 off the target and ends 0.004 off. Since
+    # 0.9.41's long-note plan the share starts on the target (0.317 against 0.315), and one chart's
+    # share moves between 0.2 and 0.5 with its ~60 fast moves, so halving the gap measured noise:
+    # the test now moves the target instead, and a target of 0.45 gives more moves through the
+    # middle key than one of 0.20 (0.408 against 0.336; 0.308 against 0.239 at holdPower 1).
     grg = load_config("patterns")["hands"]
     monkeypatch.setitem(grg, "barFeedback", {"7K+1S": 0.0, "*": 0.0})
     monkeypatch.setitem(grg, "soundMemory", 0.0)
@@ -227,11 +231,11 @@ def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkey
         shares = [middle_share(generate_chart(a, "7K+1S", "ELITE", seed=seed)["notes"]) for a in songs for seed in range(3)]
         return sum(shares) / len(shares)
 
-    target = float(np.interp(resolve_params("7K+1S", "ELITE").skill, *zip(*grg["middleTarget"])))
-    with_feedback = mean_share()
-    monkeypatch.setitem(grg, "middleFeedback", {"7K+1S": 0.0, "*": 0.0})
-    without = mean_share()
-    assert abs(with_feedback - target) < 0.5 * abs(without - target), (with_feedback, without, target)
+    monkeypatch.setitem(grg, "middleTarget", [[0.0, 0.2], [100.0, 0.2]])
+    fewer = mean_share()
+    monkeypatch.setitem(grg, "middleTarget", [[0.0, 0.45], [100.0, 0.45]])
+    more = mean_share()
+    assert more > fewer + 0.03, (fewer, more)
 
 
 def _bms_stairs(notes: list[dict]) -> tuple[int, int]:
