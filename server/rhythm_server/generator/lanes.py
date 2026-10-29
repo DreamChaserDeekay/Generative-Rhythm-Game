@@ -33,6 +33,7 @@ W_DROP = 6.0
 ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
 RUN_MS = 400.0  # single notes closer than this form a run (bms_stats.RUN_MS: the hand-shape feedback counts like it)
 MID_MS = 260.0  # moves between single notes closer than this count for the middle-key feedback
+JACK_MS = 260.0  # a key hit again at the next time at most this later is a fast jack (bms_stats FAST_MS)
 REST_MS = 1000.0  # a key note this long after the last one starts afresh (lane moves: no move into it)
 TIME_EPS = 1e-3
 # from this repeat weight on, a slot whose target lanes are a valid combo only considers that combo
@@ -113,6 +114,13 @@ class _Weights:
     # counted like bms_stats), steered the same way toward hands.stairTarget
     stair_target: float = 0.0
     stair_feedback: float = 0.0
+    # the share of key notes that hit a key again at the next time JACK_MS later at most (fast jacks)
+    # and of the third such hits in a row (jack streaks), counted like bms_stats and steered the same
+    # way toward hands.jackTarget / jackStreakTarget times the slot's own scale (Slot.jack_target)
+    jack_target: float = 0.0
+    jack_feedback: float = 0.0
+    streak_target: float = 0.0
+    streak_feedback: float = 0.0
     feedback_prior: float = 20.0
     # lane moves (hands.laneMoves, config/lane_moves.json): a single key note right after a single
     # key note pays this times -log P(key | previous key, the move into that key, beat phase, note
@@ -178,6 +186,10 @@ class _Weights:
             mid_feedback=by_key_mode(hands.get("middleFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("middleMinSkill", 0.0)) else 0.0,
             stair_target=by_skill(hands.get("stairTarget", 0.0), params.skill),
             stair_feedback=by_key_mode(hands.get("stairFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("stairMinSkill", 0.0)) else 0.0,
+            jack_target=by_skill(hands.get("jackTarget", 0.0), params.skill),
+            jack_feedback=by_key_mode(hands.get("jackFeedback", 0.0), params.key_mode),
+            streak_target=by_skill(hands.get("jackStreakTarget", 0.0), params.skill),
+            streak_feedback=by_key_mode(hands.get("jackStreakFeedback", 0.0), params.key_mode),
             feedback_prior=float(hands.get("feedbackPrior", 20.0)),
             lane_moves=by_skill(hands.get("laneMoves", 0.0), params.skill),
             lane_moves_draw=bool(hands.get("laneMovesDraw", False)),
@@ -257,6 +269,10 @@ class _State:
     fb_stair: int = 0  # notes of the one-key-at-a-time line this run note ends (1: none), like bms_stats
     fb_step: int = 0  # ...and its way (+1 / -1; 0 when it has no move yet)
     fb_stairs: int = 0  # run notes in stairs so far (lines of three notes or more)
+    fb_keys: int = 0  # key notes so far
+    fb_jacks: int = 0  # ...that hit a key again at the next time, JACK_MS later at most
+    fb_jstreaks: int = 0  # ...that are the third such hit in a row on their key
+    fb_jrun: tuple[int, ...] = ()  # per lane: hits in a row so far, each JACK_MS after the last at most
     # the latest key instant, for the lane moves: its key (1-7) when single (0: a chord), the move
     # class into it (lane_move_class) and its time
     mv_key: int = 0
@@ -445,7 +461,10 @@ def search(
         weights = dataclasses.replace(weights, repeat=repeat_weight)
     exact = repeat_weight is not None and repeat_weight >= EXACT_COPY_WEIGHT
     repeat_targets = targets_by_slot or [None] * len(slots)
-    feedback = weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0 or weights.stair_feedback > 0
+    feedback = (
+        weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0 or weights.stair_feedback > 0
+        or weights.jack_feedback > 0 or weights.streak_feedback > 0
+    )
     moves = lane_move_logp() if weights.lane_moves > 0 and len(key_lanes) == 7 else None
     key_no = {lane: n + 1 for n, lane in enumerate(key_lanes)}
     move_bands = lane_move_bands(slots, load_config("lane_moves")["densityBands"]) if moves is not None else []
@@ -570,7 +589,7 @@ def search(
             # jack.
             same_sound = state.prev_sound == sound
             planned_repeat = repeats and same_sound
-            jack_scale = 0.1 if planned_repeat else 1.0
+            jack_scale = (0.1 if planned_repeat else 1.0) * slot.jack_scale
             if not combos:
                 combos = [()]
             elif exact and repeat_set is not None:
@@ -1028,6 +1047,14 @@ def _costs(
         continues_run = state.fb_single and dt <= RUN_MS
         prior = w.feedback_prior
         run_gap = w.run_target - (state.fb_hand3 + prior * w.run_target) / (state.fb_run + prior)
+    jack_gap = streak_gap = 0.0
+    jack_on: tuple[int, ...] = ()  # the keys a fast jack would hit again
+    if (w.jack_feedback > 0 or w.streak_feedback > 0) and slot.special is None and prev and dt <= JACK_MS:
+        prior = w.feedback_prior
+        aim, aim_streak = w.jack_target * slot.jack_target, w.streak_target * slot.jack_target
+        jack_gap = aim - (state.fb_jacks + prior * aim) / (state.fb_keys + prior)
+        streak_gap = aim_streak - (state.fb_jstreaks + prior * aim_streak) / (state.fb_keys + prior)
+        jack_on = prev
     if w.bar_feedback > 0 and sides is not None:
         prior = w.feedback_prior / 2.0
         bar_gap = w.bar_target - (state.fb_off + prior * w.bar_target) / (state.fb_bars + prior)
@@ -1120,6 +1147,14 @@ def _costs(
             # one key on the same way after a one-key move (a stair goes on) while the path has too
             # few stair notes; for the notes no shape plans, like the middle-key feedback
             cost -= w.stair_feedback * stair_gap
+        if jack_on:
+            # each key hit again soon while the path has too few fast jacks (a bonus) or too many (a
+            # cost), and its third hit in a row against the jack streaks the same way
+            for i in combo:
+                if i in jack_on:
+                    cost -= w.jack_feedback * jack_gap
+                    if state.fb_jrun and state.fb_jrun[i] == 2:
+                        cost -= w.streak_feedback * streak_gap
         if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0 and len(combo) == 1:
             # toward the hand the bar already leans to (a lopsided bar) while there are too few; for
             # single notes only (a bonus per key of a chord made one-hand adjacent chords)
@@ -1156,6 +1191,14 @@ def _feedback_counts(
     a run.)"""
     run, hand3, bars, off = state.fb_run, state.fb_hand3, state.fb_bars, state.fb_off
     moves, mid = state.fb_moves, state.fb_mid
+    keys, jacks, jstreaks = state.fb_keys, state.fb_jacks, state.fb_jstreaks
+    close = bool(state.prev_lanes) and t - state.prev_t <= JACK_MS
+    jrun = [0] * len(hands)
+    for i in keys_used:
+        jrun[i] = state.fb_jrun[i] + 1 if close and state.fb_jrun and i in state.prev_lanes else 1
+        keys += 1
+        jacks += jrun[i] >= 2
+        jstreaks += jrun[i] == 3
     stair, step, stairs = 1, 0, state.fb_stairs
     if state.bar >= 0 and bar != state.bar:
         left, right = state.bar_hands
@@ -1186,6 +1229,7 @@ def _feedback_counts(
     return {
         "fb_run": run, "fb_hand3": hand3, "fb_bars": bars, "fb_off": off, "fb_single": single, "fb_in_run": in_run, "fb_side": side, "fb_len": length,
         "fb_moves": moves, "fb_mid": mid, "fb_stair": stair, "fb_step": step, "fb_stairs": stairs,
+        "fb_keys": keys, "fb_jacks": jacks, "fb_jstreaks": jstreaks, "fb_jrun": tuple(jrun),
     }
 
 

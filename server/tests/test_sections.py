@@ -16,7 +16,7 @@ from rhythm_server.synth import detection_noise, make_pop_song, make_structured_
 
 BARS = 72
 # (8K MASTER 13 repeats less on this song: loopLane 0.897, barVariety 0.764, a later chorus 0.898 the same)
-CHARTS = (("6K", "NORMAL", None), ("6K", "HARD", 9), ("8K", "EXPERT", 12))
+CHARTS = (("6K", "NORMAL", None), ("6K", "HARD", 8), ("8K", "EXPERT", 12))
 
 
 @lru_cache(maxsize=None)
@@ -73,7 +73,7 @@ def test_the_same_music_gets_the_same_notes(key_mode: str, difficulty: str, leve
 def test_a_repeated_chorus_is_the_first_one() -> None:
     _, analysis = structured(124.0, 1)
     chorus = [s for s in analysis["sections"] if s["label"] == "chorus"]
-    for key_mode, difficulty, level in CHARTS + (("6K", "MASTER", 13),):
+    for key_mode, difficulty, level in CHARTS + (("6K", "MASTER", 17),):
         notes = chart(124.0, 1, key_mode, difficulty, level)["notes"]
 
         def at(sec: dict) -> dict[float, frozenset[int]]:
@@ -113,26 +113,28 @@ def test_sectioned_charts_keep_levels_rules_and_determinism() -> None:
         i = bisect.bisect_left(times, t)
         return min(abs(times[j] - t) for j in (i - 1, i) if 0 <= j < len(times))
 
-    for key_mode, difficulty, level in CHARTS + (("4K", "NORMAL", 6), ("6K", "MASTER", 13)):
+    for key_mode, difficulty, level in CHARTS + (("4K", "NORMAL", 4), ("6K", "MASTER", 17)):
         c = chart(124.0, 1, key_mode, difficulty, level)
         if level is not None:
-            assert abs(c["meta"]["level"] - level) <= 1, (key_mode, difficulty, c["meta"]["level"])
+            # from level 9 on a level is 6% of effective NPS (11-14% on the scale before 0.9.39), and
+            # this song's sounds come in loops: 8K EXPERT 12 goes from level 9 to 14 in one step
+            assert abs(c["meta"]["level"] - level) <= (1 if level < 9 else 2), (key_mode, difficulty, c["meta"]["level"])
         for n in c["notes"]:
             # on a detected onset, or on a real sound the detector missed (consensus fill)
             assert near(detected, n["t"]) <= 40.0 or near(true_onsets, n["t"]) <= 30.0, f"{key_mode} {difficulty}: note at {n['t']}ms has no sound"
         assert c["meta"]["consistency"]["loopLane"] is not None
         assert c["sections"] and all("group" in s and "loopBars" in s for s in c["sections"])
-    again = generate_chart(analysis, "6K", "HARD", 9)
-    assert again["notes"] == chart(124.0, 1, "6K", "HARD", 9)["notes"]
+    again = generate_chart(analysis, "6K", "HARD", 8)
+    assert again["notes"] == chart(124.0, 1, "6K", "HARD", 8)["notes"]
     assert again["meta"]["generator"]["params"].get("patternEngine") is None  # the default engine
-    designer = chart(124.0, 1, "6K", "HARD", 9, "designer")
+    designer = chart(124.0, 1, "6K", "HARD", 8, "designer")
     assert designer["meta"]["generator"]["params"]["patternEngine"] == "designer"
     assert designer["meta"]["chartId"] != again["meta"]["chartId"]
 
 
 def test_sections_contrast_by_label() -> None:
     _, analysis = structured(124.0, 1)
-    notes = chart(124.0, 1, "6K", "HARD", 9)["notes"]
+    notes = chart(124.0, 1, "6K", "HARD", 8)["notes"]
 
     def per_bar(label: str) -> float:
         secs = [s for s in analysis["sections"] if s["label"] == label]
@@ -227,7 +229,7 @@ def test_a_slow_sung_pop_song_keeps_its_sections_and_long_notes() -> None:
     # stay in their verse (F 0.875). Before analyzer 1.10.0 the second came out on its 8-bar line alone
     assert acc["boundaryF"] >= 0.85 and acc["labelAccuracy"] >= 0.8, acc
     truth = [dict(s, endBeat=int(s["startBeat"]) + 4 * int(s["bars"])) for s in song.structure]
-    notes = generate_chart(analysis, "6K", "HARD", 9)["notes"]
+    notes = generate_chart(analysis, "6K", "HARD", 8)["notes"]
     cons = chart_consistency(notes, truth, "6K")
     # (0.889 on HARD 9; the 0.9 here was DJMAX HD 9's)
     assert cons["loopLane"] >= 0.88 and cons["repeatSelect"] >= 0.85, cons

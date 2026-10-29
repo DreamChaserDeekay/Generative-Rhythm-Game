@@ -37,13 +37,13 @@ def test_skill_is_the_level_on_one_scale_for_every_key_mode() -> None:
         return resolve_params(mode, tier, level).skill
 
     # the same level is the same skill on every key mode
-    assert skill("4K", "NORMAL", 5) == skill("8K", "NORMAL", 5) == skill("6K", "NORMAL", 5)
+    assert skill("4K", "NORMAL", 3) == skill("8K", "NORMAL", 3) == skill("6K", "NORMAL", 3)
     grg = [skill("4K", d) for d in ("NORMAL", "HARD", "EXPERT", "MASTER")]
     assert grg == sorted(grg) and grg[0] < 0.4 and grg[-1] > 0.9
 
 
 def test_normal_long_notes_end_on_half_beats(dense_song: dict) -> None:
-    normal = generate_chart(dense_song, "6K", "NORMAL", 5)
+    normal = generate_chart(dense_song, "6K", "NORMAL", 3)
     holds = [n for n in normal["notes"] if n["type"] == "hold"]
     assert holds and all(abs(n["endBeat"] * 2 - round(n["endBeat"] * 2)) < 1e-6 for n in holds)
 
@@ -273,7 +273,7 @@ def test_doubles_and_longer_anchors_from_normal() -> None:
     from rhythm_server.generator.planner import _fit, vocabulary
 
     grg = resolve_params("7K+1S", "NORMAL")
-    assert grg.anchor_cap == 3 and resolve_params("7K+1S", "NORMAL", 6).anchor_cap == 6
+    assert grg.anchor_cap == 3 and resolve_params("7K+1S", "NORMAL", 4).anchor_cap == 6
     for gesture in ("repeat", "rhythm"):
         p = SimpleNamespace(gesture=gesture, halves=None)
         v = vocabulary(grg)
@@ -385,9 +385,13 @@ def test_default_7k_charts_use_the_whole_keyboard(dense_song: dict) -> None:
     # dropped it to 7% for the weaker lane-usage balance; refitting keyBias to close the key-share
     # gap instead moves every key the right way and still loses 3.1pp overall (PATTERN_DESIGN 34).
     # Generator 0.9.37's fewer NORMAL chords (0.14 -> 0.08, as human charts) leave key 7 6.3% here.
+    # One NORMAL chart's key 7 moves between 3% and 10% by seed: since 0.9.41's long-note plan
+    # (which moves the top tier's first round, whose lanes the easier tiers follow) four seeds give
+    # 5.1% (7.3% without the plan) and eight give 6.3% (6.8%), so the mean is over eight. Over 100
+    # held-out BMS songs the plan leaves NORMAL's key 7 at 8.8% (PATTERN_DESIGN 76).
     for tier, floor, ceiling in (("NORMAL", 0.06, 0.3), ("HARD", 0.07, 0.3)):
         per_seed = []
-        for seed in range(4):
+        for seed in range(8):
             keys = [n["lane"] for n in generate_chart(dense_song, "7K+1S", tier, seed=seed)["notes"] if n["lane"] != 0]
             per_seed.append([keys.count(k) / len(keys) for k in range(1, 8)])
         shares = np.mean(per_seed, axis=0)
@@ -448,7 +452,7 @@ def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> 
     # seed swings by a few kinds either way, so the count is a mean over seeds (since generator
     # 0.9.3 the weak and false onsets that filled some of HD's runs come last: about 31 kinds, 34
     # before).
-    for tier, level in (("HARD", 9), ("EXPERT", 11)):
+    for tier, level in (("HARD", 8), ("EXPERT", 11)):
         profiles = [pattern_profile(generate_chart(dense_song, "6K", tier, level, seed=seed)["notes"], "6K") for seed in range(4)]
         tops, kinds = [p["topShape"] for p in profiles], [p["shapeKinds"] for p in profiles]
         assert max(tops) <= 0.25 and np.mean(kinds) >= 30, (tier, tops, kinds)
@@ -556,14 +560,14 @@ def test_hard_charts_split_rhythm_and_melody_between_the_hands() -> None:
     assert drums_a != melody_a and share_da >= 0.85 and share_ma >= 0.85, sides
     assert drums_b == drums_a
     # easy charts do not split the hands
-    assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NORMAL", 4), "6K").values() if len(h) > 8)
+    assert all(len(set(h)) == 2 for h in hand_sides(place(a, "6K", "NORMAL", 1), "6K").values() if len(h) > 8)
 
 
 # DPC (DJMAX PATTERN-DESIGN CHALLENGE) guidelines, docs/PATTERN_DESIGN.md 12
 
 
 def test_side_notes_keep_their_hand_clear(dense_song: dict) -> None:
-    for mode, tier, level in (("6K+FX", "HARD", 9), ("4K+FX", "MASTER", 13), ("6K+FX", "MASTER", 15)):
+    for mode, tier, level in (("6K+FX", "HARD", 8), ("4K+FX", "MASTER", 17), ("6K+FX", "MASTER", 20)):
         params = resolve_params(mode, tier, level)
         lanes = lane_infos(mode)
         chart = generate_chart(dense_song, mode, tier, level)
@@ -617,7 +621,7 @@ def test_chord_notes_take_the_instruments_of_the_hit(dense_song: dict) -> None:
     # one instrument only: the whole chord follows it
     assert note_sources(np.array([0.7, 0.1, 0.1, 0.1]), (1, 5), None, lanes, True, 0.2) == {1: drums, 5: drums}
 
-    chart = generate_chart(dense_song, "6K", "MASTER", 13)
+    chart = generate_chart(dense_song, "6K", "MASTER", 17)
     by_t: dict[float, set[str]] = {}
     sizes: dict[float, int] = {}
     for n in chart["notes"]:

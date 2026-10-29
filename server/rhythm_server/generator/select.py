@@ -25,10 +25,11 @@ MAX_GAP_S = 4.0  # silences longer than this do not count toward the target dens
 BUCKET_MS = 100.0
 MAX_LN_BEATS = 8.0
 MAX_CHORD_RATIO = 0.6
-# Easy charts (five-step levels 1-3) put chords on downbeats only; up to level 6 long notes end on
-# beats or half beats, harder ones on quarter beats too when nothing coarser fits the sound.
-DOWNBEAT_CHORDS_BELOW = skill_for_rating(4.0)
-HALF_BEAT_HOLDS_BELOW = skill_for_rating(7.0)
+# Easy charts (levels 1-3 of the skill scale, under NORMAL) put chords on downbeats only; up to its
+# level 6 (NORMAL) long notes end on beats or half beats, harder ones on quarter beats too when
+# nothing coarser fits the sound.
+DOWNBEAT_CHORDS_BELOW = 3.0 / 14.0
+HALF_BEAT_HOLDS_BELOW = 6.0 / 14.0
 # A long note lets go on the song's grid, not a fixed length after its head (an off-beat head
 # would end off the beat too): the last grid point (whole beats first) at or before the sound's
 # end plus HOLD_END_TOLERANCE beats (a held note fades a little before the next one starts: the
@@ -56,6 +57,8 @@ class Slot:
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (roll, hit index, hits)
     sound_group: int | None = None  # the analysis's same-sound group (onsets alike in their attack spectrum)
     hold_count: int = 1  # long notes the slot holds: more than one over a held chord (holds.pad countMax)
+    jack_scale: float = 1.0  # the section plan's scale of the same-lane cost here (plan.py)
+    jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets here (plan.py)
 
     @cached_property
     def src(self) -> int | None:

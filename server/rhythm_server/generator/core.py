@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from collections import OrderedDict
 from dataclasses import replace
 from typing import Any
 
@@ -21,7 +23,7 @@ from .lanes import Choice, LaneInfo, key_lanes_of, lane_infos, lane_search, note
 from .motifs import SlotPlan
 from .linter import lint
 from .near import merge_near
-from .params import GenParams, resolve_params
+from .params import GenParams, resolve_params, table_value
 from .planner import plan_patterns
 from . import sections as sectioned
 from .repeat import consistency, repeat_references, repeat_targets
@@ -29,12 +31,19 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.38"
+GENERATOR_VERSION = "0.9.42"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
 STALL_SHARE = 0.02  # a round within the level range, rated above its middle, that thins less than this share ends the fit
+AT_FLOOR = 1.05  # ... when its notes per second are at most this times the density floor
 SILENCE_LEVEL = 0.15  # energy curve value (0 = -60 dB) below which the song counts as silent  # share of the preset's minimum average NPS a chart keeps at least
+# lane_plan results kept in memory: every tier of a song asks for the same top-tier first round,
+# and the song select asks for every tier (29% of the five tiers' time, docs/PAPER_SURVEY.md 11)
+PLAN_CACHE_SIZE = 32
+PLAN_CONFIGS = ("difficulty", "patterns", "instruments", "pick", "lane_moves", "keymodes", "plan")
+_plan_cache: OrderedDict[str, tuple[dict[int, float] | None, float | None]] = OrderedDict()
+_plan_lock = threading.Lock()
 
 
 class GenerationError(RuntimeError):
@@ -74,18 +83,44 @@ def _plan_of(notes: list[dict[str, Any]], lanes: list[LaneInfo]) -> dict[int, fl
     return {k: v[0] for k, v in at.items() if len(v) == 1}
 
 
+def _plan_key(analysis: dict[str, Any], key_mode: str, tier: str, overrides: dict[str, Any] | None) -> str:
+    """Everything the top tier's first round depends on: the analysis (edited sections and all),
+    the options, the generator and its config (tests change config in place)."""
+    h = hashlib.sha256(json.dumps([GENERATOR_VERSION, key_mode, tier, overrides or {}], sort_keys=True, default=str).encode())
+    h.update(json.dumps(analysis, separators=(",", ":"), default=str).encode())
+    for name in PLAN_CONFIGS:
+        h.update(json.dumps(load_config(name), separators=(",", ":"), default=str).encode())
+    return h.hexdigest()
+
+
+def _remember_plan(key: str, value: tuple[dict[int, float] | None, float | None]) -> None:
+    with _plan_lock:
+        _plan_cache[key] = value
+        _plan_cache.move_to_end(key)
+        while len(_plan_cache) > PLAN_CACHE_SIZE:
+            _plan_cache.popitem(last=False)
+
+
 def lane_plan(
     analysis: dict[str, Any], key_mode: str, tier: str, overrides: dict[str, Any] | None = None
 ) -> tuple[dict[int, float] | None, float | None]:
     """The song's plan (patterns.json sectioned.tierPlan): where the top tier's first round, with
     the chart's options and its default seed, plays at each beat. The industry derives the easier
     charts from the hardest one and keeps its motion (PATTERN_DESIGN 68). With it the round's
-    rating: how hard the song is at the top tier's own density (difficulty.json songFit)."""
+    rating: how hard the song is at the top tier's own density (difficulty.json songFit). Made once
+    per song, options and config (the result is shared: read it, do not change it)."""
+    key = _plan_key(analysis, key_mode, tier, overrides)
+    with _plan_lock:
+        if key in _plan_cache:
+            _plan_cache.move_to_end(key)
+            return _plan_cache[key]
     try:
         first = generate_chart(analysis, key_mode, tier, overrides=overrides, _plan_round=True)
+        value: tuple[dict[int, float] | None, float | None] = (_plan_of(first["notes"], lane_infos(key_mode)), first["rating"])
     except GenerationError:
-        return None, None
-    return _plan_of(first["notes"], lane_infos(key_mode)), first["rating"]
+        value = (None, None)
+    _remember_plan(key, value)
+    return value
 
 
 def song_place(strength: float, fit: dict[str, Any]) -> float:
@@ -141,7 +176,7 @@ def generate_chart(
     # default chart aims where the song's strength puts it (songFit, set once that is known)
     def aim(place: float) -> tuple[float, float]:
         rating = lo + place * (hi - lo) + 0.5
-        return rating, float(np.interp(rating, np.arange(1, len(table) + 1), table)) * factor
+        return rating, table_value(rating, table) * factor
 
     target_rating, target_eff = aim(0.5)
     # Never thin a chart in its level range below the preset's density floor just because
@@ -156,6 +191,7 @@ def generate_chart(
     prev_count = None
     prev_notes: int | None = None
     relax = False
+    plan_holds = True
     loud = _loudness_gate(analysis)
     # the song's plan (patterns.json sectioned.tierPlan): every tier moves the way the top tier's
     # first round does; the plan takes the chart's options (a player who turns the instrument lanes
@@ -196,11 +232,12 @@ def generate_chart(
     # stands for, and they drifted from it (4 rounds on the test song)
     plan_weight = float(plan_cfg["ownWeight"] if own_plan else plan_cfg["weight"]) if plan_cfg else 0.0
     rounds = 0
+    plan_memo: dict[str, Any] = {}  # the section plan of this chart's units, the same every round
     while rounds < int(cfg["maxAdjustIterations"]):
         rounds += 1
         kept = None
         if engine == "sectioned":
-            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax)
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo, plan_holds)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan, lanes_plan, plan_weight)
@@ -216,8 +253,13 @@ def generate_chart(
             lanes_plan = _plan_of(notes, lanes)
         if own_strength and strength is None:
             strength = est["rating"]
+            if own_plan and lanes_plan is not None:
+                # the default top tier's first round is the plan round the other tiers ask for
+                _remember_plan(_plan_key(analysis, key_mode, params.difficulty, overrides), (lanes_plan, strength))
             target_rating, target_eff, floor_nps = place(strength)
-        rank = (_level_distance(est["level"], params.levels), abs(est["rating"] - target_rating))
+        # the level table's last level is the cap (MASTER 20): a rating past it is a level over the range
+        level = max(est["level"], int(est["rating"])) if est["rating"] >= len(table) + 1 else est["level"]
+        rank = (_level_distance(level, params.levels), abs(est["rating"] - target_rating))
         improved = best is None or rank < best[0]
         if improved:
             best = (rank, notes, est, slots, choices, plan, kept)
@@ -225,10 +267,12 @@ def generate_chart(
             break
         if (
             rank[0] == 0 and not improved and est["rating"] > target_rating and prev_notes is not None
-            and len(notes) > (1.0 - STALL_SHARE) * prev_notes
+            and len(notes) > (1.0 - STALL_SHARE) * prev_notes and est["nps"]["avg"] <= AT_FLOOR * floor_nps
         ):
             # within the level range but rated above its middle, and thinning no longer takes notes
-            # off (the density floor; long notes rate a chart a little high): more rounds only cost time
+            # off (the density floor; long notes rate a chart a little high): more rounds only cost time.
+            # A chart well over the floor goes on: units at their sounds' ceiling only give notes back
+            # once the budget falls under it (the section plan fills the busy units up to it)
             break
         prev_notes = len(notes)
         eff = max(0.3, est["effectiveNps"])
@@ -249,6 +293,12 @@ def generate_chart(
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:
+                if engine == "sectioned" and plan_holds:
+                    # last of all, the section plan's long-note places: it holds where little else
+                    # is played, and presses under a held note rate a chart higher (PATTERN_DESIGN 76)
+                    plan_holds = False
+                    rounds -= 1
+                    continue
                 exhausted = True
                 break
             chord_scale = min(chord_scale * 1.4, MAX_CHORD_RATIO / params.chord_ratio)
@@ -257,7 +307,7 @@ def generate_chart(
         avg = max(0.1, est["nps"]["avg"])
         # the level range comes first: the floor only stops thinning a chart already in its range
         # (GRG tiers stayed at their floor on real songs, 6K EXPERT around level 14 of its 10-12)
-        if new_scale < scale and est["level"] <= params.levels[1] and avg * new_scale / scale < floor_nps:
+        if new_scale < scale and level <= params.levels[1] and avg * new_scale / scale < floor_nps:
             new_scale = max(new_scale, scale * floor_nps / avg)
             if new_scale >= scale - 0.01:
                 break  # already at the density floor

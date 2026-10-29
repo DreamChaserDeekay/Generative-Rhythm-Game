@@ -104,21 +104,27 @@ def test_the_peak_density_thins_with_a_grg_chart(analysis128: dict, monkeypatch)
 
 
 def test_target_level_is_respected(analysis128: dict) -> None:
-    chart = generate_chart(analysis128, "4K", "NORMAL", target_level=8)
+    chart = generate_chart(analysis128, "4K", "NORMAL", target_level=7)
     assert chart["meta"]["difficulty"] == "HARD"
-    assert abs(chart["meta"]["level"] - 8) <= 1
+    assert abs(chart["meta"]["level"] - 7) <= 1
 
 
-def test_the_four_tiers_and_no_other() -> None:
-    """The game's own four tiers only (DJMAX, EZ2ON and EASY were taken out, 2026-10-27); a target
-    level under NORMAL's range is made at its lowest level."""
-    assert difficulty_config()["order"] == ["NORMAL", "HARD", "EXPERT", "MASTER"]
+def test_the_five_tiers_and_no_other() -> None:
+    """The game's own five tiers only (DJMAX, EZ2ON and EASY were taken out, 2026-10-27; ELITE came
+    in between EXPERT and MASTER with the 1-20 level scale, generator 0.9.39), four levels each; a
+    target level outside the scale is made at its nearest end."""
+    cfg = difficulty_config()
+    assert cfg["order"] == ["NORMAL", "HARD", "EXPERT", "ELITE", "MASTER"]
+    assert [tuple(cfg["presets"][t]["levels"]) for t in cfg["order"]] == [(1, 4), (5, 8), (9, 12), (13, 16), (17, 20)]
+    assert len(cfg["levelEffectiveNps"]) == 20
     for gone in ("EASY", "NM", "SC"):
         with pytest.raises(ValueError):
             resolve_params("4K", gone)
-    low = resolve_params("4K", "NORMAL", 2)
-    assert (low.difficulty, low.target_level) == ("NORMAL", 4)
+    low = resolve_params("4K", "NORMAL", 0)
+    assert (low.difficulty, low.target_level) == ("NORMAL", 1)
     assert resolve_params("4K", "HARD", 2).difficulty == "NORMAL"
+    top = resolve_params("4K", "ELITE", 25)
+    assert (top.difficulty, top.target_level) == ("MASTER", 20)
     # the same long notes on every key mode (no per-game key mode habits)
     assert len({resolve_params(m, "HARD").long_note_ratio for m in ("4K", "6K", "8K")}) == 1
 
@@ -126,7 +132,7 @@ def test_the_four_tiers_and_no_other() -> None:
 def test_higher_target_levels_keep_more_notes(analysis128: dict) -> None:
     """A chart above its target level thins past the density floor (generator 0.9.33), so only the
     estimator keeps the note count rising with the target level."""
-    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 16)]
+    counts = [len(generate_chart(analysis128, "6K", "NORMAL", target_level=t)["notes"]) for t in range(1, 21, 2)]
     assert counts == sorted(counts), counts
 
 
@@ -241,7 +247,10 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     two single notes (sectioned.tierPlan), and MASTER keeps to that round harder (ownWeight):
     EXPERT goes MASTER's way more often than with the plan off (0.44 -> 0.72 on this song with the
     sections of analyzer 1.10.0, 0.46 -> 0.54 with those of 1.11.0; HARD has only 14 such pairs). MASTER starts from its own first round and builds no other, whatever its
-    options; with another seed it builds the default one for the song's strength (songFit)."""
+    options; with another seed it builds the default one for the song's strength (songFit).
+    Since generator 0.9.41 this calm song's MASTER, short of its level after all else, puts its long
+    notes by the label rule (PATTERN_DESIGN 76), away from its first round: EXPERT is measured
+    against the round itself, 0.51 -> 0.85 over 124 pairs (against the final MASTER 0.48 -> 0.52)."""
     import rhythm_server.generator.core as core
     from rhythm_server.config import load_config
 
@@ -268,13 +277,37 @@ def test_tiers_follow_the_songs_motion(analysis128: dict, monkeypatch) -> None:
     assert calls == [] and app["notes"] == master["notes"]
     generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
     assert calls == ["MASTER"]
-    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master)
+    first = core.generate_chart(analysis128, "7K+1S", "MASTER", _plan_round=True)
+    with_plan = agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), first)
     assert calls == ["MASTER", "MASTER"]
     plan = load_config("patterns")["sectioned"]["tierPlan"]
     monkeypatch.setitem(plan, "weight", 0.0)
     monkeypatch.setitem(plan, "ownWeight", 0.0)
-    master = generate_chart(analysis128, "7K+1S", "MASTER")
-    assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), master) + 0.05
+    assert with_plan > agreement(generate_chart(analysis128, "7K+1S", "EXPERT"), first) + 0.05
+
+
+def test_the_top_tiers_first_round_is_made_once_per_song(analysis128: dict, monkeypatch) -> None:
+    """Every tier asks for the top tier's first round (core.lane_plan: the plan the tiers follow and
+    the song's strength). It is made once per song, options and config, and the default top-tier
+    chart leaves its own first round for the others: making the five tiers took 20-29% less time
+    on six BMS songs, with the same charts (docs/PAPER_SURVEY.md 11)."""
+    import rhythm_server.generator.core as core
+    from rhythm_server.config import load_config
+
+    core._plan_cache.clear()
+    plan = core.lane_plan(analysis128, "7K+1S", "MASTER")
+    rounds = []
+    real = core.generate_chart
+    monkeypatch.setattr(core, "generate_chart", lambda *a, **k: rounds.append(k.get("_plan_round")) or real(*a, **k))
+    assert core.lane_plan(analysis128, "7K+1S", "MASTER") is plan and rounds == []
+    core.lane_plan(analysis128, "7K+1S", "MASTER", {"style": "stream"})  # other options: another round
+    assert rounds == [True]
+    core._plan_cache.clear()
+    real(analysis128, "7K+1S", "MASTER")
+    assert core._plan_cache[core._plan_key(analysis128, "7K+1S", "MASTER", None)] == plan
+    monkeypatch.setitem(load_config("patterns")["sectioned"]["tierPlan"], "weight", 0.5)  # other config: another round
+    core.lane_plan(analysis128, "7K+1S", "MASTER")
+    assert rounds == [True, True]
 
 
 def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(analysis128: dict, monkeypatch) -> None:
@@ -293,7 +326,7 @@ def test_a_songs_strength_places_its_charts_and_a_calm_song_has_no_top_tier(anal
         generate_chart(analysis128, "7K+1S", "MASTER")
     with pytest.raises(core.TierNotMade):
         generate_chart(analysis128, "7K+1S", "MASTER", seed=99)
-    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=14)["meta"]["difficulty"] == "MASTER"
+    assert generate_chart(analysis128, "7K+1S", "MASTER", target_level=18)["meta"]["difficulty"] == "MASTER"
     bottom = generate_chart(analysis128, "7K+1S", "EXPERT")["meta"]
     monkeypatch.setitem(fit, "from", strength - 2.0)
     monkeypatch.setitem(fit, "to", strength - 1.0)

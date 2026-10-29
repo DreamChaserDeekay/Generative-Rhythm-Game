@@ -109,8 +109,8 @@ export interface DifficultyTier {
   color: string;
 }
 
-const TIER_COLORS: Record<string, string> = { NORMAL: '#4fc3ff', HARD: '#ffc94f', EXPERT: '#ff6f8a', MASTER: '#c58bff' };
-const TIER_SHORT: Record<string, string> = { NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', MASTER: 'MX' };
+const TIER_COLORS: Record<string, string> = { NORMAL: '#4fc3ff', HARD: '#ffc94f', EXPERT: '#ff6f8a', ELITE: '#ff5fd2', MASTER: '#c58bff' };
+const TIER_SHORT: Record<string, string> = { NORMAL: 'NM', HARD: 'HD', EXPERT: 'EX', ELITE: 'EL', MASTER: 'MX' };
 const presets = difficultyJson.presets as unknown as Record<string, { levels: [number, number] }>;
 
 export const difficultyTiers: DifficultyTier[] = difficultyJson.order.map((t) => ({

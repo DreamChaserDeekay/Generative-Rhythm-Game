@@ -142,7 +142,7 @@ describe('settings', () => {
   });
 
   it('drops the difficulty system of settings saved when there were three, and a tier gone with it or with EASY', () => {
-    expect(difficultyTiers.map((t) => t.id)).toEqual(['NORMAL', 'HARD', 'EXPERT', 'MASTER']);
+    expect(difficultyTiers.map((t) => t.id)).toEqual(['NORMAL', 'HARD', 'EXPERT', 'ELITE', 'MASTER']);
     const s = sanitizeSettings({ difficultySystem: 'DJMAX', lastDifficulty: 'MX' } as never);
     expect(s).not.toHaveProperty('difficultySystem');
     expect(s.lastDifficulty).toBe('NORMAL');

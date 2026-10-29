@@ -251,13 +251,13 @@ test('the song info of a song that plays: I then Enter plays it, and never press
   await page.goto('/');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
   // the song select asks for its charts by itself, one per tier (the route refuses them: no level, no message)
-  await expect.poll(() => sent.length).toBe(4);
+  await expect.poll(() => sent.length).toBe(5);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
   await page.keyboard.press('KeyI');
   await expect(page.getByTestId('song-info')).toBeVisible();
   await page.keyboard.press('Enter');
   // the play asks for its chart again (and says why it cannot be made); no song setting was sent
-  await expect.poll(() => sent.length).toBe(5);
+  await expect.poll(() => sent.length).toBe(6);
   await expect(page.getByTestId('select-error')).toContainText('e2e');
   // the first line is the tempo's ×2: ↓ goes there, and the hint says what Enter does now
   await page.keyboard.press('ArrowDown');
@@ -338,10 +338,10 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   await page.waitForTimeout(300);
   await expect(page.getByTestId('select-error')).toHaveCount(0);
   // (the song select asks for the charts of the song it rests on by itself, quietly: one per tier)
-  await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(4);
+  await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(5);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('select-error')).toContainText('e2e');
-  await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(5);
+  await expect.poll(() => posts.filter((id) => id === songs[10].id).length).toBe(6);
   const asked = posts.length;
 
   // Ctrl+F: back in the search; with nothing found nothing is selected, and Esc leaves the search keeping the words
@@ -585,9 +585,9 @@ test('a best shows on its own tier only (none of a removed EASY or DJMAX tier), 
   const plate = page.getByTestId('difficulty-row').getByRole('button', { name: /NORMAL/ });
   await expect(plate.locator('.diff-lamp')).toHaveText('91.20%');
   await expect(page.getByTestId('difficulty-row').locator('.diff-lamp')).toHaveCount(1);
-  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /MASTER/]);
+  await expect(page.getByTestId('difficulty-row').getByRole('button')).toHaveText([/NORMAL/, /HARD/, /EXPERT/, /ELITE/, /MASTER/]);
   // the range of a difficulty's levels reads as levels
-  await expect(page.getByTestId('difficulty-row').getByRole('button', { name: /HARD/ })).toContainText('Lv.7–9');
+  await expect(page.getByTestId('difficulty-row').getByRole('button', { name: /HARD/ })).toContainText('Lv.5–8');
   const summary = page.getByTestId('summary-record');
   await expect(summary).toContainText('CLEAR');
   await expect(summary).toContainText('912,000');
@@ -732,8 +732,8 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K' })));
   await page.goto('/');
   const cells = page.getByTestId('song-item').locator('.tier-level');
-  await expect(cells).toHaveText(['4', '8', '12', '–']);
-  await expect(cells).toHaveClass([/lamp-maxcombo/, /lamp-hard/, /lamp-failed/, /lamp-none/]);
+  await expect(cells).toHaveText(['4', '8', '12', '–', '–']);
+  await expect(cells).toHaveClass([/lamp-maxcombo/, /lamp-hard/, /lamp-failed/, /lamp-none/, /lamp-none/]);
   const style = (i: number, prop: string, mark = false) =>
     cells.nth(i).evaluate((el, [p, m]) => getComputedStyle((m ? el.querySelector('.lamp-mark') : el) as Element).getPropertyValue(p as string), [prop, mark] as const);
   // the level in the text colour (--text), not the difficulty's; the lamp in its mark: double for
@@ -1070,7 +1070,7 @@ test("a chart that found the server down is asked again on the next visit, its p
   await page.goto('/');
   const normal = page.getByTestId('difficulty-row').getByRole('button').filter({ hasText: 'NORMAL' });
   // the server is down: the plates say their charts could not be made, NORMAL shows its best all the same
-  await expect.poll(() => asked.length).toBe(4);
+  await expect.poll(() => asked.length).toBe(5);
   await expect(normal).toContainText('만들지 못함');
   await expect(normal).toContainText('HARD CLEAR');
   await expect(page.getByTestId('select-error')).toHaveCount(0);
@@ -1083,7 +1083,7 @@ test("a chart that found the server down is asked again on the next visit, its p
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
   await expect(normal).toContainText('300 노트');
   // (the tiers are asked for one after another: the last may come after NORMAL shows)
-  await expect.poll(() => asked.filter((a) => a.startsWith(songs[0].id)).length).toBe(8);
+  await expect.poll(() => asked.filter((a) => a.startsWith(songs[0].id)).length).toBe(10);
   // its chart was never played: no record of its own, the earlier generator's named
   await expect(normal.locator('.diff-record')).toHaveText('기록 없음');
   await expect(normal.locator('.other-best')).toContainText('이전 생성기');
@@ -1112,7 +1112,7 @@ test('the levels that came in are on the list at once after a restart, in the le
       const songId = new URL(route.request().url()).pathname.split('/')[3];
       (body.brief ? briefs : whole).push(songId);
       // each song a level lower than the one before
-      const level = ({ NORMAL: 4, HARD: 7, EXPERT: 10, MASTER: 13 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
+      const level = ({ NORMAL: 4, HARD: 8, EXPERT: 12, ELITE: 16, MASTER: 20 } as Record<string, number>)[body.difficulty] - songs.findIndex((s) => s.id === songId);
       const meta = { chartId: `c${songId.slice(-4)}${'b'.repeat(14)}${body.difficulty.slice(0, 2).toLowerCase()}`, songId, keyMode: '4K', difficulty: body.difficulty, level, noteCount: 100 * level, durationMs: 60_000, nps: { avg: 5, peak: 9, graph: [1, 2] }, rating: level, generator: { seed: 7, version: 'now' } };
       return route.fulfill({ json: body.brief ? { meta, cached: true } : { chart: { meta, timing, notes: [], sections: [] }, cached: true } });
     },
@@ -1121,14 +1121,14 @@ test('the levels that came in are on the list at once after a restart, in the le
   await page.goto('/');
   const rows = page.getByTestId('song-item');
   const cells = (i: number) => page.locator(`[data-song-id="${songs[i].id}"] .tier-level`);
-  const dashes = ['–', '–', '–', '–'];
+  const dashes = ['–', '–', '–', '–', '–'];
 
   // the cursor rests on the first song, then on the second: their levels come; the third's are not asked for
   await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
-  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
+  await expect(cells(0)).toHaveText(['4', '8', '12', '16', '20'], { timeout: 30_000 });
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 02');
-  await expect(cells(1)).toHaveText(['3', '6', '9', '12'], { timeout: 30_000 });
+  await expect(cells(1)).toHaveText(['3', '7', '11', '15', '19'], { timeout: 30_000 });
   await expect(cells(2)).toHaveText(dashes);
   const [asked, played] = [briefs.length, whole.length];
 
@@ -1136,8 +1136,8 @@ test('the levels that came in are on the list at once after a restart, in the le
   // lower first; the song under the cursor asks only for the chart Enter plays
   await page.reload();
   await expect(rows).toHaveText([/Fake Song 02/, /Fake Song 01/, /Fake Song 03/]);
-  await expect(cells(1)).toHaveText(['3', '6', '9', '12']);
-  await expect(cells(0)).toHaveText(['4', '7', '10', '13']);
+  await expect(cells(1)).toHaveText(['3', '7', '11', '15', '19']);
+  await expect(cells(0)).toHaveText(['4', '8', '12', '16', '20']);
   await expect(cells(2)).toHaveText(dashes);
   await expect.poll(() => whole.length).toBeGreaterThan(played);
   await page.waitForTimeout(500);
@@ -1151,8 +1151,8 @@ test('the levels that came in are on the list at once after a restart, in the le
   await page.reload();
   await expect(rows).toHaveText([/Fake Song 01/, /Fake Song 02/, /Fake Song 03/]);
   await expect(cells(1)).toHaveText(dashes);
-  await expect(cells(0)).toHaveText(['4', '7', '10', '13'], { timeout: 30_000 });
-  await expect.poll(() => briefs.length).toBe(asked + 3);
+  await expect(cells(0)).toHaveText(['4', '8', '12', '16', '20'], { timeout: 30_000 });
+  await expect.poll(() => briefs.length).toBe(asked + 4);
   const generator = (await (await page.request.get('/api/health')).json()).generator as string;
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('grg.briefs.v1') ?? '{}').generator)).toBe(generator);
   expect(errors).toEqual([]);

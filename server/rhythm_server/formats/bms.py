@@ -30,7 +30,7 @@ KEY_CHANNEL = {c: ch for ch, c in P1_KEYS.items()}
 LN_CHANNEL = {c: ch for ch, c in P1_LN.items()}
 # our lane index -> BMS column, for the key modes BMS players know
 LANE_COLUMNS = {"7K+1S": [0, 1, 2, 3, 4, 5, 6, 7], "5K": [1, 2, 3, 4, 5]}
-DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "MASTER": 5}
+DIFFICULTY_LEVEL = {"EASY": 1, "NORMAL": 2, "HARD": 3, "EXPERT": 4, "ELITE": 4, "MASTER": 5}
 DIFFICULTY_NAMES = {1: "BEGINNER", 2: "NORMAL", 3: "HYPER", 4: "ANOTHER", 5: "INSANE"}
 
 
