@@ -3,8 +3,9 @@
     python scripts/assets/build_p0.py
 
 Inputs are the untouched generations in assets-src/ (where each came from: assets-src/PROVENANCE.md)
-and the values in scripts/assets/p0_recipe.json. The skins/ and fx/ folders of the output and the
-"textures" part of manifest.json are rewritten from scratch, so they can always be regenerated.
+and the values in scripts/assets/p0_recipe.json. The skins/ and fx/ folders of the output and their
+entries in the "textures" part of manifest.json are rewritten from scratch, so they can always be
+regenerated; the concept sets' (styles/, scripts/assets/build_styles.py) are kept.
 Needs Pillow, numpy, scipy and ffmpeg (on PATH).
 
 Every texture is greyscale: the game multiplies it by the skin colour. Notes and long note bodies
@@ -277,7 +278,8 @@ def main() -> None:
 
     path = out / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    manifest.update({"version": 1, "textures": dict(sorted(textures.items())), "effects": look["effects"]})
+    kept = {k: t for k, t in manifest.get("textures", {}).items() if t["file"].startswith("styles/")}
+    manifest.update({"version": 1, "textures": dict(sorted({**kept, **textures}.items())), "effects": look["effects"]})
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     total = sum((out / t["file"]).stat().st_size for t in textures.values())
     print(f"{len(textures)} textures, {total / 1e6:.2f} MB -> {path.relative_to(ROOT)}")

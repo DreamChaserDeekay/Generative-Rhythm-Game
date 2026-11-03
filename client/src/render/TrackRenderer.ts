@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { KEY_PAINT, paintDeck, rowDrop, SIDE_PAINT, type DeckLane, type DeckStyle, type KeyKind } from './deckArt';
+import { rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -20,6 +20,7 @@ import {
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
+import { artPartsOf, keyPaintOf, longPaintOf, notePaintOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -30,11 +31,9 @@ import {
   judgeGlowTexture,
   lightMaterial,
   LONG_OF,
-  LONG_PAINT,
   neonBeamTexture,
   laneDepthOf,
   noteDepthOf,
-  NOTE_PAINT,
   paintTexture,
   railBevelTexture,
   railGlowTexture,
@@ -45,13 +44,14 @@ import {
   sideDotsBody,
   sideDotsEnd,
   sideDotsTap,
-  sideTap,
   stripesTexture,
   tintMaterial,
   type EffectSheet,
   type HitStyle,
   type LongPaint,
   type NoteMark,
+  type NotePaint,
+  type Paint,
   type SidePart,
 } from './tintArt';
 
@@ -184,6 +184,8 @@ interface DeckLayout {
   sideTop: number;
   sideDepth: number;
   stretch: number;
+  /** Where the scratch's light lies when the gear draws a turntable for it (plane px, see KeyPaint.scratchBox). */
+  scratch?: Box;
 }
 
 export interface FeverFrame {
@@ -526,6 +528,8 @@ function keyKind(lane: LaneGeom): KeyKind {
 /** Renders the SDVX-style track with Three.js. */
 export class TrackRenderer {
   readonly geometry: TrackGeometry;
+  /** The parts drawn from art (render/styleArt.ts), e.g. "notes long side gear:gunmetal hit"; empty when all are drawn in code. */
+  readonly artParts: string;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   /** Made afresh for each preset (setCamera): the plane one is of another kind. */
@@ -592,6 +596,17 @@ export class TrackRenderer {
   private readonly long: LongPaint;
   private readonly longBody: THREE.Texture;
   private readonly longEnd: THREE.Texture;
+  /** The long note's pictures while held, where its style has its own (drawn from art). */
+  private readonly longHeld: { body: THREE.Texture; end: THREE.Texture } | null = null;
+  /** The pictures the style's parts draw from (styleArt.ts), and the paints made with them. */
+  private readonly images: StyleImages;
+  private readonly notePaint: NotePaint;
+  private readonly keyPaint: KeyPaint;
+  private readonly platePaint: (g: CanvasRenderingContext2D, s: DeckSpec) => void;
+  /** The hit effect plays a flipbook texture (the skin's, or its style's art). */
+  private readonly flipbook: boolean;
+  /** Where the scratch's light lies over the gear's turntable (plane px), for the deck's picture. */
+  private scratchBox: Box | null = null;
   /** Side notes drawn as an LED panel's dots (SideStyle 'dots'), and their long notes' pictures in lanes of their own. */
   private readonly sideDots: boolean;
   private dotsLong: { body: THREE.Texture; end: THREE.Texture } | null = null;
@@ -658,6 +673,10 @@ export class TrackRenderer {
     this.art = { ...options.art?.slots };
     this.artEffects = options.art?.effects ?? { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
     this.prepareArt();
+    this.images = options.art?.images ?? {};
+    this.notePaint = notePaintOf(this.style.note, this.images);
+    this.keyPaint = keyPaintOf(this.style, this.images);
+    this.platePaint = platePaintOf(this.style, this.images);
     this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.palette, options.mode);
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
@@ -670,14 +689,21 @@ export class TrackRenderer {
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
     this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
-    this.long = LONG_PAINT[LONG_OF[this.style.note]];
-    this.longBody = this.own(paintTexture(64, Math.round(64 * this.long.tile), this.long.body));
-    this.longBody.wrapT = THREE.RepeatWrapping;
-    this.longEnd = this.own(paintTexture(64, Math.max(4, Math.round(64 * this.long.endDepth)), this.long.end));
+    this.long = longPaintOf(LONG_OF[this.style.note], this.images);
+    const px = this.long.px ?? 64;
+    const longPictures = (body: Paint, end: Paint) => {
+      const b = this.own(paintTexture(px, Math.round(px * this.long.tile), body));
+      b.wrapT = THREE.RepeatWrapping;
+      return { body: b, end: this.own(paintTexture(px, Math.max(4, Math.round(px * this.long.endDepth)), end)) };
+    };
+    ({ body: this.longBody, end: this.longEnd } = longPictures(this.long.body, this.long.end));
+    if (this.long.held) this.longHeld = longPictures(this.long.held.body, this.long.held.end);
     this.sideDots = this.style.side === 'dots';
     const hit = this.hit;
-    // a flipbook skin draws shards in code when its textures are missing
-    this.hitSheet = hit === 'none' || (hit === 'flipbook' && this.art.hitBurst) ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
+    // a flipbook skin draws shards in code when its textures are missing, MECHA its code stand-in
+    this.flipbook = (hit === 'flipbook' || hit === 'mecha') && Boolean(this.art.hitBurst);
+    this.artParts = [...artPartsOf(this.style, this.images), ...(this.flipbook ? ['hit'] : [])].join(' ');
+    this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
     if (this.hitSheet) this.own(this.hitSheet.texture);
     const fit = (lanes: number) => (options.hitEffectSize === 'small' ? Math.min(1, SMALL_HIT_LANES / lanes) : 1);
     const reach = this.hitSheet?.reach ?? 1;
@@ -917,7 +943,7 @@ export class TrackRenderer {
     }
     const stem = noteIndex !== undefined ? this.notes[noteIndex]?.src : undefined;
     const tint = hit === 'stemflash' && stem ? STEM_COLORS[stem] : color;
-    const burst = hit === 'flipbook' ? this.art.hitBurst : undefined;
+    const burst = this.flipbook ? this.art.hitBurst : undefined;
     let h = this.hits.find((x) => !x.mesh.visible && x.texture.image === (burst?.texture.image ?? this.hitSheet?.texture.image));
     if (!h) {
       const source = burst?.texture ?? this.hitSheet?.texture;
@@ -1182,7 +1208,7 @@ export class TrackRenderer {
       const paint = dots
         ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
         : part === 'tap'
-          ? sideTap(SIDE_EDGE / this.sideNoteDepth)
+          ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
           : SIDE_PICTURES[part];
       texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
@@ -1253,7 +1279,7 @@ export class TrackRenderer {
 
   /** While a long note is held, its lane shows the start of the hit effect (or the skin's hold sparks). */
   private drawHolds(frame: TrackFrame): void {
-    const sparks = this.hit === 'flipbook' ? this.art.hitHold : undefined;
+    const sparks = this.flipbook ? this.art.hitHold : undefined;
     this.holds.forEach((h, lane) => {
       const held = frame.heldNote(lane) !== null;
       const g = this.geometry.lanes[lane];
@@ -1283,7 +1309,7 @@ export class TrackRenderer {
         }
         const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core;
         core.mesh.scale.set(size, 1, size * this.stretch);
-        core.mesh.position.set(g.x, 0.029, this.judgeZ);
+        core.mesh.position.set(g.x, 0.029, this.judgeZ + size * this.stretch * ((this.art.hitBurst?.spec.anchorY ?? 0.5) - 0.5));
         core.material.color.setHex(this.laneColors[lane]);
         core.material.opacity = dim;
       }
@@ -1380,7 +1406,7 @@ export class TrackRenderer {
 
   /** A hit plays its frames once, lying on the track at the judge line; then its quad is free again. */
   private drawHit(h: EffectQuad, perfNow: number): void {
-    const burst = this.hit === 'flipbook' ? this.art.hitBurst : undefined;
+    const burst = this.flipbook ? this.art.hitBurst : undefined;
     const book = burst?.spec.flipbook;
     const frames = book?.frames ?? this.hitSheet?.frames ?? 16;
     const elapsed = perfNow - h.start;
@@ -1397,8 +1423,10 @@ export class TrackRenderer {
       const [u, v] = flipbookOffset(book, frame);
       h.texture.offset.set(u, v);
       const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst;
-      h.mesh.scale.set(size, 1, size * this.stretch);
-      h.mesh.position.set(g.x, 0.03, this.judgeZ);
+      const depth = size * this.stretch;
+      h.mesh.scale.set(size, 1, depth);
+      // the judge line crosses the sheet at its anchor (the middle unless it says)
+      h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * ((burst?.spec.anchorY ?? 0.5) - 0.5));
       // the sheet fades by itself; its last frames fade out too, so the effect does not cut off
       h.material.opacity = dim * Math.min(1, (1 - p) / 0.3);
       return;
@@ -1707,7 +1735,7 @@ export class TrackRenderer {
       this.laneStems.push(undefined);
       // what a held long note shows: the skin's hold sparks, or the start of its hit effect (a side
       // lane over the keys: a band across its half)
-      const hold = this.hit === 'flipbook' ? this.art.hitHold : undefined;
+      const hold = this.flipbook ? this.art.hitHold : undefined;
       const source = hold?.texture ?? this.hitSheet?.texture;
       if (source) this.holds.push(lane.over ? this.flashQuad() : this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
       const burst = this.art.hitBurst;
@@ -1765,13 +1793,24 @@ export class TrackRenderer {
     const keyTop = (KEY_TOP + drop) * PX;
     const sideTop = rows.sideTop * PX;
     const sideDepth = rows.sideDepth * PX;
+    // a gear that draws a turntable in the scratch's lane has its light over it, not in the row
+    const turntable = lanes.find((l) => l.kind === 'scratch' && !l.over);
+    const scratch =
+      turntable && this.keyPaint.scratchBox
+        ? this.keyPaint.scratchBox(room / PX, stretch, { left: (turntable.x - turntable.width / 2 + width / 2) / PX, width: turntable.width / PX })
+        : undefined;
     const painted = `${Math.round(room / PX)}|${rows.keyDepth}|${stretch}|${drop}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;
-      this.deckPending = { room, depth, keyTop, keyDepth, sideTop, sideDepth, stretch };
+      this.deckPending = { room, depth, keyTop, keyDepth, sideTop, sideDepth, stretch, scratch };
       this.deckWait = 0;
     }
     this.keys.forEach((key, i) => {
+      if (scratch && lanes[i] === turntable) {
+        key.scale.set(scratch.w * PX, 1, scratch.h * PX);
+        key.position.set(-width / 2 + (scratch.x + scratch.w / 2) * PX, KEY_Y, top + (scratch.y + scratch.h / 2) * PX);
+        return;
+      }
       const [at, deep] = lanes[i].over ? [sideTop, sideDepth] : [keyTop, keyDepth];
       key.scale.set(lanes[i].width, 1, deep);
       key.position.set(lanes[i].x, KEY_Y, top + at + deep / 2);
@@ -1843,7 +1882,7 @@ export class TrackRenderer {
     const g = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
     g.scale(scale, scale);
     const left = (l: LaneGeom) => (l.x - l.width / 2 + width / 2) / PX;
-    paintDeck(this.style.deck, g, {
+    this.platePaint(g, {
       width: width / PX,
       room: d.room / PX,
       depth: d.depth / PX,
@@ -1870,6 +1909,7 @@ export class TrackRenderer {
     this.keyDepth = d.keyDepth;
     this.sideDepth = d.sideDepth;
     this.deckStretch = d.stretch;
+    this.scratchBox = d.scratch ?? null;
     this.keyTextures.forEach((t) => t.dispose());
     this.keyTextures.clear();
     this.keyMaterials.forEach((m) => m.dispose());
@@ -1903,11 +1943,11 @@ export class TrackRenderer {
 
   private keyMaterial(lane: number, down: boolean, color: number): THREE.MeshBasicMaterial {
     const g = this.geometry.lanes[lane];
-    const paint = KEY_PAINT[this.style.deck];
+    const paint = this.keyPaint;
     const idle = (g.over ? SIDE_PAINT[this.style.deck].idleColor : undefined) ?? paint.idleColor ?? color;
     const tint = down ? (paint.neutralDown?.(keyKind(g)) ? 0xffffff : color) : idle;
     // each side bar has a picture of its own (they may point to their side)
-    const key = g.over ? `side:${down}:${tint}:${g.x}` : `${keyKind(g)}:${down}:${tint}:${g.width}`;
+    const key = g.over ? `side:${down}:${tint}:${g.x}` : `${keyKind(g)}:${noteKindOf(g)}:${down}:${tint}:${g.width}`;
     let m = this.keyMaterials.get(key);
     if (!m) {
       m = tintMaterial({ map: this.keyTexture(lane, down), color: tint, transparent: true, depthWrite: false, fog: false });
@@ -1923,18 +1963,21 @@ export class TrackRenderer {
   private keyTexture(lane: number, down: boolean): THREE.Texture {
     const g = this.geometry.lanes[lane];
     const kind = keyKind(g);
-    const key = g.over ? `side:${down}:${g.x}` : `${kind}:${down}:${g.width}`;
+    const mark = noteKindOf(g);
+    const key = g.over ? `side:${down}:${g.x}` : `${kind}:${mark}:${down}:${g.width}`;
     let texture = this.keyTextures.get(key);
     if (!texture) {
-      // square px: the picture has the light's proportions on the track
-      const k = Math.min(DECK_PICTURE, 512 / (g.width / PX));
-      const [w, h] = [Math.round((g.width / PX) * k), Math.round(((g.over ? this.sideDepth : this.keyDepth) / PX) * k)];
+      // square px: the picture has the light's proportions on the track (the scratch's over a turntable: its box's)
+      const box = kind === 'scratch' && !g.over ? this.scratchBox : null;
+      const [across, along] = box ? [box.w, box.h] : [g.width / PX, (g.over ? this.sideDepth : this.keyDepth) / PX];
+      const k = Math.min(DECK_PICTURE, 512 / across);
+      const [w, h] = [Math.max(1, Math.round(across * k)), Math.max(1, Math.round(along * k))];
       if (g.over) {
         const paint = SIDE_PAINT[this.style.deck];
         texture = paintTexture(w, h, (down ? paint.down : paint.idle)(this.deckStretch, Math.sign(g.x)));
       } else {
-        const paint = KEY_PAINT[this.style.deck];
-        texture = paintTexture(w, h, (down ? paint.down : paint.idle)(kind, this.deckStretch));
+        const paint = this.keyPaint;
+        texture = paintTexture(w, h, (down ? paint.down : paint.idle)(kind, this.deckStretch, mark));
       }
       this.keyTextures.set(key, texture);
     }
@@ -1973,7 +2016,7 @@ export class TrackRenderer {
       const lane = this.geometry.lanes.find((l) => noteKindOf(l) === kind) ?? this.geometry.lanes[0];
       const h = NOTE_PICTURE_PX;
       const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * 0.9) / this.laneDepths[lane.index])));
-      const paint = NOTE_PAINT[this.style.note];
+      const paint = this.notePaint;
       texture = this.own(paintTexture(w, h, kind === 'side' && this.sideDots ? dotsNote : (g, pw, ph) => paint(g, pw, ph, kind)));
       this.noteTextures.set(kind, texture);
     }
@@ -2021,7 +2064,7 @@ export class TrackRenderer {
       const art = dots ? undefined : this.art.longBody?.texture;
       const params: THREE.MeshBasicMaterialParameters = {
         color: art ? brightened(color, HOLD_BRIGHTNESS[state]) : color,
-        map: art ?? (dots ? this.dotsLongTextures().body : this.longBody),
+        map: art ?? (dots ? this.dotsLongTextures().body : state === 'held' && this.longHeld ? this.longHeld.body : this.longBody),
         transparent: true,
         opacity: HOLD_OPACITY[state],
         depthWrite: false,
@@ -2038,7 +2081,7 @@ export class TrackRenderer {
     const key = `${dots ? 'dots:' : ''}${color}:${state}`;
     let m = this.endMaterials.get(key);
     if (!m) {
-      const map = dots ? this.dotsLongTextures().end : this.longEnd;
+      const map = dots ? this.dotsLongTextures().end : state === 'held' && this.longHeld ? this.longHeld.end : this.longEnd;
       m = tintMaterial({ color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false }, { gain: HOLD_BRIGHTNESS[state] });
       this.endMaterials.set(key, m);
     }

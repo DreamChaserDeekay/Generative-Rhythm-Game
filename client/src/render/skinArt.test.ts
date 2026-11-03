@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
+import { disposeSkinArt, flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
+import type { ArtImage } from './styleArt';
 import { sanitizeSkin, skinById } from './skins';
 
 const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64] };
@@ -96,5 +97,44 @@ describe('loading skin textures', () => {
     expect(await loadSkinArt(skinById('flat', null), { manifest: async () => manifest, texture })).toBeNull();
     const failing = { manifest: async () => manifest, texture: () => Promise.reject(new Error('broken')) };
     expect(await loadSkinArt(glass, failing)).toBeNull();
+  });
+
+  it('loads the pictures and flipbooks of the style’s parts drawn from art, leaving out what is missing or the wrong size', async () => {
+    const entry = (file: string, size: [number, number], extra = {}) => parseMediaTexture({ file, bundle: 'notes', size, ...extra })!;
+    const mecha: MediaManifest = {
+      ...manifest,
+      textures: {
+        'mecha/notes': entry('styles/mecha/notes.png', [1024, 1024]),
+        'mecha/long': entry('styles/mecha/long.png', [512, 256]),
+        'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
+        'mecha/keys': entry('styles/mecha/keys.png', [1024, 512]),
+        'mecha/gear_red': entry('styles/mecha/gear_red.png', [1024, 1024]),
+        'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
+        'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
+      },
+    };
+    const asked: string[] = [];
+    const sources = {
+      manifest: async () => mecha,
+      texture: async () => fakeTexture(1024, 1024),
+      image: async (url: string): Promise<ArtImage> => {
+        asked.push(url.slice(url.indexOf('styles/')));
+        if (url.endsWith('long.png')) throw new Error('404');
+        // the side notes' picture comes back at the wrong size
+        const [width, height] = url.endsWith('side.png') ? [512, 512] : Object.values(mecha.textures).find((t) => url.endsWith(t.file))!.size;
+        return { width, height } as unknown as ArtImage;
+      },
+    };
+    const arcade = skinById('arcade', null);
+    const red = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'arcade' as const, deckColour: 'red', hit: 'mecha' as const } };
+    const art = await loadSkinArt(red, sources);
+    expect(asked.sort()).toEqual(['styles/mecha/gear_red.png', 'styles/mecha/keys.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/gear_red', 'mecha/keys', 'mecha/notes']);
+    expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
+    expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
+    // nothing to draw from art without a way to decode pictures, or for a skin drawn in code
+    expect(Object.keys((await loadSkinArt(red, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
+    expect(await loadSkinArt(skinById('flat', null), sources)).toBeNull();
+    disposeSkinArt(art);
   });
 });

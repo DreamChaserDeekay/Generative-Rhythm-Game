@@ -140,16 +140,18 @@ describe('skins', () => {
   it('draws the parts a player picks in place of the skin’s', () => {
     const arcade = skinById('arcade', null);
     // nothing picked: the defaults, whatever the skin
-    expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
+    expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'grand', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'shutter', side: 'dots' }).style).toMatchObject({ hit: 'shutter', side: 'dots' });
+    // the gear's colourway rides on the style (a gear without that colourway draws in its own, see styleArt)
+    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'arcade', deckColour: 'red' }).style).toMatchObject({ deck: 'arcade', deckColour: 'red' });
     // everything else stays the skin's: colours, rails, camera, type
-    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'cassette', hit: 'wave' });
+    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'cassette', deckColour: 'gunmetal', hit: 'wave' });
     expect(picked.colors).toBe(arcade.colors);
-    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', hit: 'star' }).toEqual({ ...arcade.style, side: undefined });
+    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', deckColour: undefined, hit: 'star' }).toEqual({ ...arcade.style, side: undefined, deckColour: undefined });
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
-    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'concrete', hit: 'flash' });
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'concrete', deckColour: 'gunmetal', hit: 'flash' });
   });
 
   it('shows a skin as JSON without the parts the gear tab picks, and reads it back to the same drawing', () => {
@@ -158,7 +160,7 @@ describe('skins', () => {
       const json = JSON.parse(JSON.stringify(skinJson(skin)));
       expect(json).not.toHaveProperty('noteShape');
       expect(json).not.toHaveProperty('hitEffect');
-      for (const part of ['note', 'side', 'deck', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
+      for (const part of ['note', 'side', 'deck', 'deckColour', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
       const back = sanitizeSkin(json)!;
       expect(back.colors).toEqual(skin.colors);
       expect(back.textures).toEqual(skin.textures);
@@ -172,7 +174,9 @@ describe('skins', () => {
   it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
     expect(DEFAULT_PARTS.deck).toBe('grand');
-    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' });
+    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'avionics', deckColour: 'gunmetal', hit: 'grid' });
+    expect(sanitizeParts({ deck: 'arcade', deckColour: 'red', hit: 'mecha' })).toMatchObject({ deck: 'arcade', deckColour: 'red', hit: 'mecha' });
+    for (const deckColour of ['Red', 'red-1', '', 7, 'x'.repeat(17)]) expect(sanitizeParts({ deckColour }).deckColour).toBe('gunmetal');
     // what earlier versions kept: a long note picked, the skin's own, and the skins' own styles no longer picked
     expect(sanitizeParts({ note: 'gloss', long: 'ray', side: 'skin', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'skin', deck: 'skin', hit: 'skin' })).toEqual(DEFAULT_PARTS);

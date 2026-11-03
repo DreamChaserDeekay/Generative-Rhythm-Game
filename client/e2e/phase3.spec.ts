@@ -555,3 +555,42 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar grand flash');
   expect(errors).toEqual([]);
 });
+
+test('the mecha set picked part by part: the arcade gear in a colourway, all of it drawn from art in play', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  // the default gear is drawn in code: no colourways to pick
+  await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
+  await chooseSetting(page, 'opt-note-style', 'chamfer');
+  await chooseSetting(page, 'opt-deck-style', 'arcade');
+  await chooseSetting(page, 'opt-hit-style', 'mecha');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('메카 섬광');
+  // the arcade gear's own colourway first
+  await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'gunmetal');
+  await expect(page.getByTestId('opt-deck-colour')).toContainText('건메탈');
+  await chooseSetting(page, 'opt-deck-colour', 'red');
+  expect((await stored()).parts).toMatchObject({ note: 'chamfer', deck: 'arcade', deckColour: 'red', hit: 'mecha' });
+  // another gear: no row; the pick is kept for when the arcade gear comes back
+  await chooseSetting(page, 'opt-deck-style', 'grand');
+  await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
+  await chooseSetting(page, 'opt-deck-style', 'arcade');
+  await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'red');
+  await page.getByRole('button', { name: /완료/ }).click();
+
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar arcade mecha');
+  // the notes, long notes, side notes, gear (in red) and hit effect all drawn from the mecha set's art
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear:red hit');
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: 'test-results/play-mecha-red.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
