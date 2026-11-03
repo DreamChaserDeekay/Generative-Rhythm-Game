@@ -113,12 +113,14 @@ describe('settings', () => {
   });
 
   it('keeps the parts picked apart from the skin and draws the skin with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' });
     const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' });
     expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
     // the skin keeps its colours
     expect(skinOf(s).colors).toBe(skinById('pop', null).colors);
+    // the gear's colourway picked rides on the style (the gear draws it if it has it)
+    expect(skinOf(sanitizeSettings({ parts: { deck: 'arcade', deckColour: 'white' } as never })).style).toMatchObject({ deck: 'arcade', deckColour: 'white' });
   });
 
   it('opens a skin of an earlier version as the skin that took its place', () => {

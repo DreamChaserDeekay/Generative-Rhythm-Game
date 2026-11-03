@@ -80,6 +80,8 @@ export interface SkinStyle {
   side?: SideStyle;
   /** The gear under the judge line: its plate and the lane lights that light with the keys (render/deckArt.ts). */
   deck: DeckStyle;
+  /** The gear's colourway, for a gear drawn from art that has some (render/styleArt.ts: DECK_COLOURS; default its first). */
+  deckColour?: string;
   beam: BeamStyle;
   /** 'flipbook' plays the skin's hitBurst / hitHold textures (code shards without them). */
   hit: HitStyle | 'flipbook' | 'none';
@@ -405,6 +407,8 @@ export const BUILTIN_SKINS: Skin[] = [
 ];
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
+/** A gear colourway's id. */
+const COLOUR_ID = /^[a-z]{1,16}$/;
 const SHAPES: NoteShape[] = ['box', 'flat', 'round'];
 const LAYOUTS: LaneLayout[] = ['mode', 'uniform', 'rainbow'];
 const EFFECTS: HitEffectStyle[] = ['burst', 'ring', 'sprite', 'none'];
@@ -465,6 +469,7 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
     type: sanitizeType(r.type),
   };
   if (r.noteDepth !== undefined) style.noteDepth = num(r.noteDepth, 0.3, 1.5, 1);
+  if (typeof r.deckColour === 'string' && COLOUR_ID.test(r.deckColour)) style.deckColour = r.deckColour;
   if (rails.glow !== undefined) style.rails.glow = num(rails.glow, 0, 40, 0);
   if (rails.bevel === true) style.rails.bevel = true;
   if (colour(judge.under)) style.judge.under = colour(judge.under);
@@ -542,6 +547,11 @@ export interface SkinParts {
   note: NoteStyle;
   side: SideStyle;
   deck: DeckStyle;
+  /**
+   * The gear's colourway by id, for a gear drawn from art that has some (render/styleArt.ts:
+   * DECK_COLOURS); one the gear does not have draws it in its own (deckColourOf).
+   */
+  deckColour: string;
   hit: HitStyle;
 }
 
@@ -550,7 +560,8 @@ export const PART_NOTES = NOTE_STYLES.filter((s) => s !== 'stem');
 export const PART_DECKS = DECK_STYLES.filter((s) => s !== 'line' && s !== 'stem');
 export const PART_HITS = HIT_STYLES.filter((s) => s !== 'stemflash');
 
-export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' };
+/** The arcade gear's own colourway is gunmetal; a gear without one draws in its own. */
+export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' };
 
 /** Saved parts; what is missing or no longer picked (an earlier version's 'skin' among them) is the default. */
 export function sanitizeParts(raw: unknown): SkinParts {
@@ -559,19 +570,20 @@ export function sanitizeParts(raw: unknown): SkinParts {
     note: pick(r.note, PART_NOTES, DEFAULT_PARTS.note),
     side: pick(r.side, SIDE_STYLES, DEFAULT_PARTS.side),
     deck: pick(r.deck, PART_DECKS, DEFAULT_PARTS.deck),
+    deckColour: typeof r.deckColour === 'string' && COLOUR_ID.test(r.deckColour) ? r.deckColour : DEFAULT_PARTS.deckColour,
     hit: pick(r.hit, PART_HITS, DEFAULT_PARTS.hit),
   };
 }
 
 /** The skin with the parts the player picked in place of its own. */
 export function withParts(skin: Skin, parts: SkinParts): Skin {
-  return { ...skin, style: { ...styleOf(skin), note: parts.note, side: parts.side, deck: parts.deck, hit: parts.hit } };
+  return { ...skin, style: { ...styleOf(skin), note: parts.note, side: parts.side, deck: parts.deck, deckColour: parts.deckColour, hit: parts.hit } };
 }
 
 /**
  * A skin as 현재 스킨 JSON 보기 shows it: without what the gear tab picks whatever the skin (its
- * note shape and hit effect, and its style's note, side notes, gear and hit), which a user skin
- * would only carry unused.
+ * note shape and hit effect, and its style's note, side notes, gear, gear colour and hit), which a
+ * user skin would only carry unused.
  */
 export function skinJson(skin: Skin): Record<string, unknown> {
   const json: Record<string, unknown> = { ...skin };
@@ -579,7 +591,7 @@ export function skinJson(skin: Skin): Record<string, unknown> {
   delete json.hitEffect;
   if (skin.style) {
     const style: Record<string, unknown> = { ...skin.style };
-    for (const part of ['note', 'side', 'deck', 'hit']) delete style[part];
+    for (const part of ['note', 'side', 'deck', 'deckColour', 'hit']) delete style[part];
     json.style = style;
   }
   return json;

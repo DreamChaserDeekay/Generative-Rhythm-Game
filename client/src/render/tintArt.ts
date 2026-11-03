@@ -128,7 +128,7 @@ export type NotePaint = (g: CanvasRenderingContext2D, w: number, h: number, mark
  * How much longer along the track than across it the families draw their marks, cuts and ends, so
  * they keep their shape where the camera flattens the track (about this much near the judge line).
  */
-const NOTE_STRETCH = 1.7;
+export const NOTE_STRETCH = 1.7;
 
 /**
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
@@ -480,6 +480,10 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = { flat: 'solid', stem: 'ste
 export interface LongPaint {
   body: Paint;
   end: Paint;
+  /** Its body and ends while held, where they differ (a picture drawn from art: light flows inside it). */
+  held?: { body: Paint; end: Paint };
+  /** How wide its pictures are painted (px; default 64). */
+  px?: number;
   /** Tile length per body width (the texture repeats every `tile` widths along the note). */
   tile: number;
   /** Depth of each end, per body width. */
@@ -844,8 +848,12 @@ export function sideDotsEnd(cols: number): Paint {
 
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
-export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter';
-export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter'];
+/**
+ * MECHA is drawn from art (a flipbook of the mecha set, see styleArt.ts); until it loads, or when
+ * it cannot, it is drawn here as SHARDS is.
+ */
+export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha';
+export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha'];
 
 export interface EffectSheet {
   texture: THREE.CanvasTexture;
@@ -872,6 +880,7 @@ const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number 
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   hex: { w: 160, h: 112, cy: 56, reach: 96 },
   shards: { w: 160, h: 112, cy: 56, reach: 74 },
+  mecha: { w: 160, h: 112, cy: 56, reach: 74 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
   // these four play out under the line only, toward the gear: the next notes above it stay clear
   wave: { w: 160, h: 96, cy: 10, reach: 52 },
@@ -1034,7 +1043,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       break;
     }
-    case 'shards': {
+    case 'shards':
+    case 'mecha': {
       for (let k = 0; k < 6; k++) {
         const ang = (k / 6) * Math.PI * 2;
         const d = (8 + 46 * p) * s;

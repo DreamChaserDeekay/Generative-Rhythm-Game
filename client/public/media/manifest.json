@@ -244,6 +244,102 @@
         64
       ]
     },
+    "mecha/gear_blue": {
+      "file": "styles/mecha/gear_blue.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/gear_gunmetal": {
+      "file": "styles/mecha/gear_gunmetal.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/gear_red": {
+      "file": "styles/mecha/gear_red.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/gear_white": {
+      "file": "styles/mecha/gear_white.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/hitBurst": {
+      "file": "styles/mecha/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "mecha/hitHold": {
+      "file": "styles/mecha/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.73
+    },
+    "mecha/keys": {
+      "file": "styles/mecha/keys.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "mecha/long": {
+      "file": "styles/mecha/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "mecha/notes": {
+      "file": "styles/mecha/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/side": {
+      "file": "styles/mecha/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
     "metal/floor": {
       "file": "skins/metal/floor.png",
       "bundle": "gear",

@@ -1,5 +1,5 @@
 import type { SkinColors } from './skins';
-import { ink, tone, type Paint } from './tintArt';
+import { ink, tone, type NoteMark, type Paint } from './tintArt';
 
 /**
  * The gear under the judge line, drawn in code per skin: a plate in the skin's own colours (a
@@ -173,7 +173,7 @@ const SIDE_INSET = 0.05;
 /** At rest some designs show only a side bar's two ends, this share of it each (see ends). */
 const SIDE_ENDS = 0.07;
 
-interface Box {
+export interface Box {
   x: number;
   y: number;
   w: number;
@@ -929,8 +929,9 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
  * a colour of their own (`idleColor`) and take the lane colour only when lit.
  */
 export interface KeyPaint {
-  idle: (kind: KeyKind, stretch: number) => Paint;
-  down: (kind: KeyKind, stretch: number) => Paint;
+  /** `mark`: the lane's mark, for designs whose lights carry it (the mecha set's caps). */
+  idle: (kind: KeyKind, stretch: number, mark?: NoteMark) => Paint;
+  down: (kind: KeyKind, stretch: number, mark?: NoteMark) => Paint;
   /**
    * How far a light at rest reaches from the middle of its row toward the judge line, its socket
    * on the plate and its outline included (px), in a lane `w` wide and a row `h` deep (see rowDrop).
@@ -939,6 +940,12 @@ export interface KeyPaint {
   idleColor?: number;
   /** Lit lights of this kind are white, not the lane colour. */
   neutralDown?: (kind: KeyKind) => boolean;
+  /**
+   * Where the scratch's light lies when it is not in the row: over the turntable the plate draws in
+   * its lane (plane px from the deck's top left, for `room` of it on the screen and round things
+   * drawn `stretch` times longer along the track).
+   */
+  scratchBox?: (room: number, stretch: number, lane: Pick<DeckLane, 'left' | 'width'>) => Box;
 }
 
 /** The light's centre and its radius as a share of the lane (`share`), the row's depth allowing. */

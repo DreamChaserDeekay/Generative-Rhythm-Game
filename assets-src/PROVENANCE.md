@@ -1,8 +1,10 @@
 # 에셋 출처 (PROVENANCE)
 
-게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다.
+게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 메카 세트의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)).
 
-- 만든 곳: ElevenLabs(creative 도구). flow 주소는 작업 공간 전환 코드를 뺀 주소입니다.
+아래 P0 세트(ElevenLabs)의 기록이 먼저, 그다음 컨셉 세트(Gemini)의 기록입니다.
+
+- 만든 곳(P0 세트): ElevenLabs(creative 도구). flow 주소는 작업 공간 전환 코드를 뺀 주소입니다.
 - 플랜과 이용 조건: 작업 공간 한도(370,430크레딧)와 크레딧 추가 결제(2026-10-19)로 보아 유료 플랜입니다. ElevenLabs 약관상 유료 플랜의 생성물은 상업적으로 쓸 수 있고 권리는 사용자에게 있습니다(무료 플랜은 비상업 전용). 플랜 이름은 도구로 확인하지 못했습니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았고 ElevenLabs에 올리지 않았습니다.
 - `assets-src/`에는 고른 결과를 내려받은 그대로 두고(이름만 영어로 바꿈), 게임용 파일은 `scripts/assets/build_p0.py`가 `client/public/media/`에 다시 만듭니다. 만드는 값은 `scripts/assets/p0_recipe.json`에 있습니다.
@@ -394,3 +396,163 @@
 ## 고르지 않은 후보
 
 후보는 모두 위 flow에 남아 있습니다. 탭 노트는 세트마다 4장, 롱노트 몸통은 3~4장, 판정선 · 레일 · 바닥은 세트마다 4장(메탈 레일 3장), 키 빔 4장, 이펙트 영상은 3편(고르지 않은 것 없음)을 만들었습니다. 글래스 판정선 3번과 크리스털 바닥 4번은 늦게 끝나 비교에서 뺐습니다.
+
+## 메카 세트 (`styles/mecha`, 2026-11)
+
+컨셉별 디자인 업그레이드의 첫 세트입니다. 노트 · 롱노트 · 사이드 노트 · 기어(색 4가지) · 타격 이펙트를 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
+- 순서: ① 컨셉 문서 → ② 컨셉마다 스타일 프레임(게임 한 장면) 3안 → 사용자가 메카는 A안을 고름 → ③ A안을 기준 이미지로 부위별 시트 → ④ 이 저장소의 `scripts/assets/build_styles.py` 가 시트를 잘라 `client/public/media/styles/mecha/` 의 게임 그림으로(값은 스크립트 안에)
+- 저장 형식: 생성 결과는 PNG로 받아 두었고, `assets-src/styles/mecha/` 에는 저장소 크기를 줄이려 JPEG(품질 95, 색 정보 줄이지 않음)으로 다시 저장했습니다. PNG의 sha256 앞 16자리를 함께 적습니다.
+- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.63 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
+- 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `mecha-A.png`)에는 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(아케이드 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
+
+### 스타일 프레임 `mecha-A.png` (저장소에 넣지 않음, 부위별 시트의 기준 이미지)
+
+- 기준 이미지: 이 게임의 아케이드 스킨 실제 화면(7K+1S)
+- 날짜: 2026-11-03 17:01 KST · 약 $0.064
+- 프롬프트:
+
+  > Image 1 is a screenshot of the current game in this concept's old skin. Use it ONLY for the camera (a low 3D perspective looking up a tilted track, as in SOUND VOLTEX), the track proportions, the lane layout (one wide scratch lane at the left tinted red, then seven key lanes tinted white, blue, white, gold, white, blue, white), the horizontal judge line near the bottom (77 % down the image) and the gear panel under it. Redraw everything else at a much higher level of finish.
+  >
+  > A 16:9 gameplay frame of a commercial PC keyboard rhythm game, mid-song. On the track: a three-note chord in one row, single notes, one note in the scratch lane, a long note in a blue lane that is being held (its body is cut off exactly at the judge line and looks brighter), another long note in the gold lane still coming down, and a long scratch note further up the track. Two lanes are being pressed: their key lights in the gear glow in the lane colour, and a hit effect bursts at the judge line in those lanes, spreading mostly downward over the gear and never covering the notes coming down.
+  >
+  > CONCEPT: MECHA. Keywords: precision-machined, heavy, industrial equipment.
+  > - Materials (only these three): horizontally brushed aluminium, black anodised metal, and an LED insert that glows in the lane colour.
+  > - Shape grammar: no curves at all; only 45-degree chamfers and right angles; thickness to width 1:4; key-type marks engraved into the plate (a small circle on white keys, a triangle on blue keys, a diamond on the gold key, two slashes on the scratch).
+  > - Light: one key light from the top-left: the upper chamfer faces are bright, the lower ones dark; a thin sharp specular line runs along the machined edges; ambient occlusion inside grooves and around bolts.
+  > - Tap note: a chamfered aluminium plate with a horizontal LED slit across its middle, which marks the exact moment to hit (the judge point). The plate is neutral metal; only the LED slit and a faint edge tint take the lane colour.
+  > - Long note: a machined rail: bevelled metal sides and an LED groove down its middle glowing in the lane colour; its ends are closed by 45-degree chamfered caps of the rail itself (not tap notes).
+  > - Hit effect: mechanical: a 2-frame white flash on the judge line, 6 to 8 angular metal shards and straight spark lines thrown down over the gear, a short afterglow.
+  > - Gear (below the judge line): a thick gunmetal panel, one recessed square push button per lane whose top lights up in the lane colour when pressed, hexagon bolts, bevelled panel edges; the scratch has a machined turntable disc. Rails: gunmetal beams with a bright machined edge.
+  > - Unlike other concepts: hard flat machined faces and razor-thin specular lines, never round, never glassy.
+  >
+  > Variant: balanced. Follow the concept exactly as written, with a medium amount of detail.
+  >
+  > Rules: a long note is one continuous body only, with no tap note at its start or end; its ends are closed by the body's own end shape. Every note, long note and key light uses one design in all lanes; only its tint changes with the lane colour, and the key-type mark tells the lanes apart. The track floor is the same very dark, almost black surface in every lane (under 10 % brightness, matte, like the reference), with thin dim lane dividers: never paint a lane floor in a lane colour, in metal or in white, and never let the lanes alternate light and dark like piano keys; the concept's materials belong to the notes, the gear and the rails, not to the track floor; the wide scratch lane's floor is as dark as the others, only its notes are red. Only notes, long notes and key lights carry the lane colours. The two pressed lanes show just a short faint light column rising from the judge line, fading out within a quarter of the track. Keep the track where the reference has it, in the middle of the frame, with the scratch lane as its leftmost lane; the gear panel under the judge line is exactly as wide as the track. The judge line is a crisp white line with a short soft glow, the same as in the reference.
+  >
+  > Quality bar: the finish of a commercial console or arcade rhythm game such as DJMAX RESPECT V, EZ2ON REBOOT : R or SOUND VOLTEX, used only as a quality reference: do not copy their designs. Crisp edges with painted material detail; three value steps in every element (dark rim, mid body, bright highlight); one key light from the top-left on every part; ambient occlusion in grooves. Notes must read instantly even when small and fast.
+  >
+  > No text, letters, numbers, HUD, score, combo counter, logos or watermarks anywhere. No characters. No bloom haze, no lens flares, no motion blur, no purple-blue-pink gradient wash, no glassmorphism panels. The area outside the track is plain dark.
+
+### `styles/mecha/notes.jpg`
+
+- 용도: 탭 노트 4개(흰 ○ · 파랑 △ · 금색 ◇ · 스크래치 //) → `styles/mecha/notes.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `mecha-A.png`(아래)
+- 날짜: 2026-11-03 17:09 KST · 약 $0.060
+- 생성 결과(PNG): 3,742,380바이트 · sha256 앞 16자리 `30a7382636bae349` · 저장한 JPEG: 796,112바이트
+- 후처리: 노트 4개를 각각 잘라(검은 바탕 → 알파) 1024×210 으로, 한 줄에 하나씩 1024×1024 에 · 밝기 ÷ 0.62 = 레인 색의 양(R), 0.66 넘는 밝기는 흰색 쪽으로(G, 최대 0.8) · 게임은 양 끝 캡과 가운데 표식은 화면에서 그림대로 보이게 두고 그 사이만 레인 폭에 맞게 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the tap notes, four rows stacked from top to bottom with equal black gaps; each note is about four times as wide as it is tall and fills 90 % of the image width. The note: a machined plate of brushed aluminium with 45-degree chamfered corners and bevelled edges, thickness to width 1:4, and a horizontal LED slit across its middle that marks the judge point. The four notes differ only by a small engraved mark at the centre: row 1 a small circle (white key), row 2 a small triangle (blue key), row 3 a small diamond (gold key), row 4 two short slashes (scratch).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/mecha/long.jpg`
+
+- 용도: 롱노트 레일(대기 · 누르는 중) → `styles/mecha/long.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `mecha-A.png`
+- 날짜: 2026-11-03 17:11 KST · 약 $0.063
+- 생성 결과(PNG): 3,123,083바이트 · sha256 앞 16자리 `0788044108e2a433` · 저장한 JPEG: 498,968바이트
+- 후처리: 두 레일을 같은 폭으로 잘라 몸통(가운데 부분, 위아래를 겹쳐 섞어 이음새 없이 반복) 128×256 과 끝(모서리 깎인 위쪽) 128×48 · 대기는 밝기 ÷ 0.6, 누르는 중은 ÷ 0.55 에 흰색 쪽으로 더 올림 · 레일 밖으로 번진 빛은 버림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: two long notes of this concept standing upright side by side, each about one fifth of the image wide and 90 % of its height: the left one idle, the right one held (brighter, its inner light flowing). A long note is one continuous body only, with no tap note at either end: a machined rail: bevelled brushed-metal sides and an LED groove down its middle; each end is closed by a 45-degree chamfered cap of the rail itself. Its width is the same as a tap note's.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/mecha/side.jpg`
+
+- 용도: 사이드 노트(별도 레인의 격자판 · 반쪽 덮기 막대) → `styles/mecha/side.png`
+- 크기 · 기준 이미지: 16:9 · 2K · `mecha-A.png`
+- 날짜: 2026-11-03 17:11 KST · 약 $0.062
+- 생성 결과(PNG): 3,306,816바이트 · sha256 앞 16자리 `4119f347b081ca3f` · 저장한 JPEG: 599,295바이트
+- 후처리: 막대는 1024 폭으로(양 끝 금속 블록과 빛나는 관은 불투명, 사이 격자는 알파 0.62 로 비침), 격자판은 512 폭으로 · 게임은 막대의 끝 블록과 격자판의 양 끝을 그대로 두고 막대는 가운데를 늘이고 격자판은 가운데 격자 한 칸을 되풀이
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the side note of this concept, which must not look like a key note: a wide brushed-metal grille plate with horizontal slots and chamfered corners. Top half: the side-lane note, about twice as wide as it is tall. Bottom half: the same side note as a very wide bar (about six times as wide as it is tall) that lies over half of the key lanes: its two long edges are bright and its middle is mostly see-through (drawn darker and fainter).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/mecha/fx.jpg`
+
+- 용도: 타격 이펙트 요소(섬광 · 파편 고리 · 파편과 불똥 조각 · 용접 불꽃) → `styles/mecha/hit_burst.png`, `hit_hold.png`
+- 크기 · 기준 이미지: 1:1 · 2K · 먼저 만든 이펙트 시트(판정선 막대가 그림에 들어가 있어 쓰지 않음, 저장소에 넣지 않음)
+- 날짜: 2026-11-03 17:56 KST · 약 $0.065
+- 생성 결과(PNG): 4,207,378바이트 · sha256 앞 16자리 `99bcc7141220dfbd` · 저장한 JPEG: 703,928바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 섬광(처음 두 칸이 가장 밝음) + 파편 고리가 퍼지며 느려지고 여섯째 칸부터 흐려짐 + 불똥 줄기 여섯 개가 판정선 아래로 부채꼴로 + 잔광 · 판정선 위로는 짧게만 남김(내려오는 노트를 가리지 않게) · 판정선은 칸 위에서 30 % · 누르는 동안(16칸 반복, 24fps): 용접 불꽃은 그림에서, 아래로 튀는 불똥 72개는 코드로 다시 그려 끊김 없이 반복, 판정선은 위에서 27 %
+- 프롬프트:
+
+  > Image 1 is the approved hit effect sheet of the MECHA concept for a commercial PC keyboard rhythm game (machined metal, white-hot welding light, angular metal shards). Redraw its light elements as clean production sprites for compositing, in exactly the same style and level of finish.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO plate, NO frame, NO panel and NO other object anywhere. Only light and the flying metal shards themselves, each with plenty of black around it. Nothing touches the cell edges.
+  >
+  > Top-left cell: the hit flash at its peak, centred in the cell: a small white-hot core with a soft round glow and twelve to sixteen short, sharp straight rays of different lengths around it.
+  > Top-right cell: the burst, centred in the cell: six to eight angular, faceted metal shards flying outward from the centre in a ring, each with a bright edge on its upper-left side, and thin straight spark lines between them; a faint round afterglow in the middle.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: six angular metal shards of different sizes and shapes (top three rows), and six straight horizontal spark streaks with a bright head and a soft fading tail (bottom rows).
+  > Bottom-right cell: a steady weld glow seen from straight above, centred: a flat, wide, white-hot elliptical spot about twice as wide as it is tall, with short straight sparks shooting outward and down from it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/mecha/gear_gunmetal.jpg`
+
+- 용도: 기어(건메탈, 기본) → `styles/mecha/keys.png`, `gear_gunmetal.png`
+- 크기 · 기준 이미지: 21:9 · 2K · `mecha-A.png`
+- 날짜: 2026-11-03 17:13 KST · 약 $0.067
+- 생성 결과(PNG): 3,454,648바이트 · sha256 앞 16자리 `c6faf0b4f4a6ff65` · 저장한 JPEG: 720,181바이트
+- 후처리: 건반 캡: 꺼진 □ 캡과 켜진 △ 캡에서 표식을 지워 빈 캡을 만들고 ○ △ ◇ 를 다시 그림(시트의 □ 은 게임 표식에 없어 쓰지 않음), 모서리를 둥글린 사각 알파, 꺼진 캡은 밝기 ÷ 0.7(레인 색을 어둡게), 켜진 캡은 ÷ 0.6 에 흰빛 · 판: 턴테이블 모듈(모서리 깎은 알파)과 건반 아래 띠(볼트 판 두 장과 통풍구)를 실제 색 그대로 · 판의 바탕색 · 테두리색은 시트에서 뽑아 코드가 칠함 · 시트의 빨간 원형 버튼은 레인이 아니어서 쓰지 않음
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the gear panel that sits under the judge line, seen strictly from straight above and flat. It is a wide, shallow panel about five times as wide as it is tall, centred in the image: at its left the scratch module, about 1.6 key modules wide, then seven key modules evenly spaced in one row across the whole rest of the width, each one centred under its own lane, and below the row only a narrow strip of the panel with its edges and hardware: a thick machined gunmetal panel: one recessed square push button per key lane with its engraved lane mark (circle, triangle, circle, diamond, circle, triangle, circle from left to right), a machined turntable disc for the scratch, hexagon bolts, a vent grille, bevelled panel edges. The key modules of the 2nd and 4th key lanes are lit: their light areas glow pure white (the game tints them in the lane colour); the other modules are unlit, dark and neutral. Colourway: dark gunmetal grey anodised metal with bright machined edges (the default).
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/mecha/gear_white.jpg`
+
+- 용도: 기어(화이트 세라믹) → `styles/mecha/gear_white.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
+- 날짜: 2026-11-03 17:13 KST · 약 $0.065
+- 생성 결과(PNG): 4,101,746바이트 · sha256 앞 16자리 `e3cb8ac0e14b62e4` · 저장한 JPEG: 784,590바이트
+- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: white ceramic-coated panels with black anodised trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/mecha/gear_red.jpg`
+
+- 용도: 기어(레드 아노다이징) → `styles/mecha/gear_red.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
+- 날짜: 2026-11-03 17:14 KST · 약 $0.060
+- 생성 결과(PNG): 3,917,052바이트 · sha256 앞 16자리 `88bba203c56d5292` · 저장한 JPEG: 830,186바이트
+- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep red anodised aluminium with black trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/mecha/gear_blue.jpg`
+
+- 용도: 기어(코발트 블루) → `styles/mecha/gear_blue.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
+- 날짜: 2026-11-03 17:15 KST · 약 $0.058
+- 생성 결과(PNG): 4,064,475바이트 · sha256 앞 16자리 `1396c8a43571f128` · 저장한 JPEG: 816,768바이트
+- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: cobalt blue anodised aluminium with black trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.

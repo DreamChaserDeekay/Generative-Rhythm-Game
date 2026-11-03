@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { Skin, TextureSlot } from './skins';
+import { styleOf, type Skin, type TextureSlot } from './skins';
+import { styleImageIds, styleTextures, type ArtImage, type StyleImages } from './styleArt';
 
 /** A flipbook sheet: `frames` cells of a cols × rows grid, read row by row from the top left. */
 export interface Flipbook {
@@ -48,9 +49,11 @@ export interface ArtTexture {
   spec: MediaTexture;
 }
 
-/** The loaded textures of a skin. Parts left out are drawn in code. */
+/** The loaded textures of a skin, and the pictures its style's parts draw from. Parts left out are drawn in code. */
 export interface SkinArt {
   slots: Partial<Record<TextureSlot, ArtTexture>>;
+  /** By manifest id (render/styleArt.ts). */
+  images: StyleImages;
   effects: MediaEffects;
 }
 
@@ -126,32 +129,58 @@ export function flipbookOffset(book: Flipbook, frame: number): [number, number] 
 export interface ArtSources {
   manifest(): Promise<MediaManifest | null>;
   texture(url: string): Promise<THREE.Texture>;
+  /** A picture decoded for drawing on a canvas (without it, none is loaded). */
+  image?(url: string): Promise<ArtImage>;
+}
+
+/**
+ * A picture as its file holds it: no colour management (a tint picture's channels are amounts, not
+ * colours), its alpha not multiplied in yet (the canvas it is drawn on does that).
+ */
+async function decodeImage(url: string): Promise<ArtImage> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+  const blob = await res.blob();
+  if (typeof createImageBitmap === 'function') return createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  const image = new Image();
+  image.src = URL.createObjectURL(blob);
+  try {
+    await image.decode();
+  } finally {
+    URL.revokeObjectURL(image.src);
+  }
+  return image;
 }
 
 const BROWSER: ArtSources = {
   manifest: loadManifest,
   texture: (url) => new THREE.TextureLoader().loadAsync(url),
+  image: decodeImage,
 };
 
 /**
- * Loads the textures a skin names. Never throws: a missing manifest gives null, and a part whose
- * entry is unknown or whose file is missing, broken or not the size the manifest says is left out
- * (the renderer draws it in code).
+ * Loads the textures a skin names, its style's hit flipbooks and the pictures its style's parts draw
+ * from (styleArt.ts). Never throws: a missing manifest gives null, and a part whose entry is unknown
+ * or whose file is missing, broken or not the size the manifest says is left out (the renderer draws
+ * it in code).
  */
 export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Promise<SkinArt | null> {
-  const wanted = Object.entries(skin.textures ?? {}) as [TextureSlot, string][];
-  if (wanted.length === 0) return null;
+  const style = styleOf(skin);
+  const wanted = Object.entries({ ...skin.textures, ...styleTextures(style) }) as [TextureSlot, string][];
+  const pictures = sources.image ? styleImageIds(style) : [];
+  if (wanted.length === 0 && pictures.length === 0) return null;
   const media = await sources.manifest().catch(() => null);
   if (!media) return null;
   const slots: SkinArt['slots'] = {};
-  await Promise.all(
-    wanted.map(async ([slot, id]) => {
+  const images: Record<string, ArtImage> = {};
+  const fits = (image: { width?: number; height?: number }, size: [number, number]) => image.width === size[0] && image.height === size[1];
+  await Promise.all([
+    ...wanted.map(async ([slot, id]) => {
       const spec = media.textures[id];
       if (!spec) return;
       try {
         const texture = await sources.texture(mediaUrl(spec.file));
-        const image = texture.image as { width?: number; height?: number };
-        if (image.width !== spec.size[0] || image.height !== spec.size[1]) {
+        if (!fits(texture.image as { width?: number; height?: number }, spec.size)) {
           texture.dispose();
           return;
         }
@@ -161,10 +190,26 @@ export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Pr
         // missing or broken file: this part keeps the drawn look
       }
     }),
-  );
-  return Object.keys(slots).length > 0 ? { slots, effects: media.effects } : null;
+    ...pictures.map(async (id) => {
+      const spec = media.textures[id];
+      if (!spec || !sources.image) return;
+      try {
+        const image = await sources.image(mediaUrl(spec.file));
+        if (fits(image, spec.size)) images[id] = image;
+        else closeImage(image);
+      } catch {
+        // as a texture's: drawn in code
+      }
+    }),
+  ]);
+  return Object.keys(slots).length > 0 || Object.keys(images).length > 0 ? { slots, images, effects: media.effects } : null;
+}
+
+function closeImage(image: ArtImage): void {
+  if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) image.close();
 }
 
 export function disposeSkinArt(art: SkinArt | null | undefined): void {
   for (const a of Object.values(art?.slots ?? {})) a.texture.dispose();
+  for (const image of Object.values(art?.images ?? {})) if (image) closeImage(image);
 }
