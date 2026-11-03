@@ -325,7 +325,7 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: four of the skins', async ({ page }) => {
+test('play: four of the skins, and the mecha set in a gear colour of its own', async ({ page }) => {
   // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
@@ -335,7 +335,7 @@ test('play: four of the skins', async ({ page }) => {
   for (const [skin, keyMode, name, cameraPreset, parts] of [
     ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'shards' }],
     ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'jewel', hit: 'shards' }],
-    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'star' }],
+    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }],
     ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'candy', hit: 'bubbles' }],
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF', parts });
@@ -343,6 +343,12 @@ test('play: four of the skins', async ({ page }) => {
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
+  // the mecha set with its gear in red, the turntable in the scratch lane
+  const mecha = { note: 'chamfer', side: 'bar', deck: 'arcade', deckColour: 'red', hit: 'mecha' };
+  await settings(page, { lastKeyMode: '7K+1S', skin: 'arcade', parts: mecha, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await autoplayFor(page, 14_200);
+  await shot(page, '28-mecha-red');
 });
 
 test('play: the gears for any skin, each with notes, side notes and a hit effect picked apart from the skin', async ({ page }) => {
