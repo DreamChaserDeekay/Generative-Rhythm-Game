@@ -1,5 +1,5 @@
-import { KEY_PAINT, lightBox, lowerTop, paintDeck, shade, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint } from './deckArt';
-import type { SkinStyle, SkinTextures } from './skins';
+import { codeBorderLook, KEY_PAINT, lightBox, lowerTop, paintDeck, shade, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type SideLook } from './deckArt';
+import type { SkinColors, SkinStyle, SkinTextures } from './skins';
 import {
   ink,
   LONG_OF,
@@ -404,12 +404,16 @@ const GEAR = {
 type Disc = { x: number; y: number; r: number };
 const DISC: Disc = { x: 0.5, y: 0.49, r: 0.41 };
 
-/** Each colourway's plate: its face round the keys, the darker trim of its recesses, its bright edge (sampled from the set's sheets). */
-const MECHA_COLOURS: Record<string, { face: string; trim: string; edge: string }> = {
-  gunmetal: { face: '#2b2933', trim: '#1f1e27', edge: '#f2f5fd' },
-  white: { face: '#e8e6ed', trim: '#c9c7d0', edge: '#6e6c79' },
-  red: { face: '#2e2b36', trim: '#24212c', edge: '#d37781' },
-  blue: { face: '#201e2b', trim: '#1a1825', edge: '#c3c3cf' },
+/**
+ * Each colourway's plate: its face round the keys, the darker trim of its recesses, its bright edge
+ * (sampled from the set's sheets), and the anodised metal of its frame at the gear's sides (the
+ * turntable's rim in its picture).
+ */
+const MECHA_COLOURS: Record<string, { face: string; trim: string; edge: string; frame: string }> = {
+  gunmetal: { face: '#2b2933', trim: '#1f1e27', edge: '#f2f5fd', frame: '#61606c' },
+  white: { face: '#e8e6ed', trim: '#c9c7d0', edge: '#6e6c79', frame: '#efedf4' },
+  red: { face: '#2e2b36', trim: '#24212c', edge: '#d37781', frame: '#732531' },
+  blue: { face: '#201e2b', trim: '#1a1825', edge: '#c3c3cf', frame: '#2d4176' },
 };
 
 /**
@@ -930,4 +934,51 @@ export function platePaintOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, imag
   if (set === 'crystal') return crystalPlate(gear, CRYSTAL_GEAR[colour] ?? CRYSTAL_GEAR.silver);
   if (set === 'piano') return pianoPlate(gear, PIANO_GEAR[colour] ?? PIANO_GEAR.ebony);
   return neonPlate(gear, NEON_GEAR[colour] ?? NEON_GEAR.black);
+}
+
+/**
+ * The gear's border, the two lines down the track's edges from its far end past the gear (where a
+ * skin's rails were): in the set's frame in its colourway where the gear's pictures loaded, else in
+ * the code gear's plate colours (`colours`, the skin's).
+ */
+export function borderLookOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleImages, colours: SkinColors): SideLook {
+  const art = gearArt(style, images);
+  return art ? artBorder(art.set, art.gear, art.colour) : codeBorderLook(style.deck, colours);
+}
+
+const veneerSide =
+  (gear: ArtImage) =>
+  (g: CanvasRenderingContext2D, x: number, w: number, h: number): void => {
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(gear, 0, 512, 64, 512, x, 0, w, h);
+  };
+
+/**
+ * A set's border in a colourway, in the set's frame: the arcade's anodised metal with its bright
+ * edge, the mixer's face (walnut wood on the walnut one), the crystal and neon gears' metal with a
+ * line of their glass or trim down it, the piano's lacquer (mahogany veneer) with a brass pinstripe.
+ */
+function artBorder(set: ArtSet, gear: ArtImage, colour: string): SideLook {
+  if (set === 'mecha') {
+    const c = MECHA_COLOURS[colour] ?? MECHA_COLOURS.gunmetal;
+    return { body: c.frame, edge: c.edge, brushed: true };
+  }
+  if (set === 'club') {
+    const way = CLUB_GEAR[colour] ?? CLUB_GEAR.black;
+    const bright = colour === 'white' || colour === 'silver';
+    return way.veneer ? { body: veneerSide(gear), edge: way.edge } : { body: shade(way.face, bright ? 0.9 : 0.8), edge: way.edge, brushed: true };
+  }
+  if (set === 'crystal') {
+    const way = CRYSTAL_GEAR[colour] ?? CRYSTAL_GEAR.silver;
+    const glass = shade(way.glass, 1.3, 0.8);
+    return { body: shade(way.edge, 0.42), edge: way.edge, line: [glass, glass] };
+  }
+  if (set === 'piano') {
+    const way = PIANO_GEAR[colour] ?? PIANO_GEAR.ebony;
+    const brass = shade(way.brass, 1, 0.85);
+    return { body: way.veneer ? veneerSide(gear) : way.face, edge: way.brass, line: [brass, brass] };
+  }
+  const way = NEON_GEAR[colour] ?? NEON_GEAR.black;
+  const trim = shade(way.edge, 1, 0.7);
+  return { body: shade(way.edge, 0.3), edge: way.edge, line: [trim, trim] };
 }

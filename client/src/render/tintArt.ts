@@ -1157,19 +1157,6 @@ export function judgeGlowTexture(width: number, height: number, blur: number, al
   });
 }
 
-/** A bevelled rail lit on its inner face (canvas left = the outer side). */
-export function railBevelTexture(): THREE.CanvasTexture {
-  return paintTexture(64, 4, (g, w, h) => {
-    const grad = g.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, tone(0.55));
-    grad.addColorStop(0.35, ink(1, 0.45));
-    grad.addColorStop(0.6, tone(1));
-    grad.addColorStop(1, tone(0.7));
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-  });
-}
-
 /** STREET: faint white stripes across the lanes, slanted (one tile 22 px of the sheets square). */
 export function stripesTexture(): THREE.CanvasTexture {
   return paintTexture(64, 64, (g, w, h) => {

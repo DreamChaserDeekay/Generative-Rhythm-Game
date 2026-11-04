@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint } from './deckArt';
+import { paintBorder, rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -20,7 +20,7 @@ import {
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
-import { artPartsOf, isArtHit, keyPaintOf, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, borderLookOf, isArtHit, keyPaintOf, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -34,7 +34,6 @@ import {
   laneDepthOf,
   noteDepthOf,
   paintTexture,
-  railBevelTexture,
   railGlowTexture,
   shadowReach,
   sheetOffset,
@@ -62,6 +61,25 @@ const HOLD_OPACITY = { idle: 1, held: 1, missed: 0.4 } as const;
  * far, low camera (the plane one) shows a long way down it.
  */
 const TRACK_TAIL = 16;
+/** A border's picture is a tile this many plane px long down the track, BORDER_SCALE canvas px to a plane px. */
+const BORDER_TILE = 64;
+const BORDER_SCALE = 4;
+
+/**
+ * One of the track's borders in the gear's `look`, `railPx` wide: a tile repeating down it, mirrored
+ * at every other so that wood runs on without a seam (mipmapped: far up the track it is a px or two).
+ */
+function borderTexture(look: SideLook, railPx: number, side: -1 | 1): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(2, Math.round(railPx * BORDER_SCALE));
+  canvas.height = BORDER_TILE * BORDER_SCALE;
+  paintBorder(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapT = THREE.MirroredRepeatWrapping;
+  texture.anisotropy = 8;
+  return texture;
+}
 const NOTE_HEIGHT = 0.2;
 /** Every skin's notes are this deep on the track (a thin skin's a share of it). */
 const NOTE_DEPTH = 0.7;
@@ -628,8 +646,8 @@ export class TrackRenderer {
   private readonly glowTexture = radialTexture();
   private readonly judgeGroup = new THREE.Group();
   private readonly judgeGlowMaterial: THREE.MeshBasicMaterial | null;
-  /** Every part of each rail (its glow too): FEVER tints them. */
-  private readonly rails: [THREE.MeshBasicMaterial[], THREE.MeshBasicMaterial[]] = [[], []];
+  /** What FEVER tints along the borders (their glow, and a light added over them), with each one's own colour. */
+  private readonly railTints: [THREE.MeshBasicMaterial, number][] = [];
   private readonly feverOverlay: THREE.Mesh;
   /** The FEVER colour the rails and the judge line's glow have now (null: the skin's own). */
   private feverShown: number | null = null;
@@ -909,10 +927,14 @@ export class TrackRenderer {
     return this.planeAs(camera);
   }
 
+  /** How far outside the track its borders reach (track units): the skin's rail width. */
+  private get railReach(): number {
+    return this.style.rails.width * PX;
+  }
+
   private planeAs(camera: TrackCamera): HudPlane {
     const { width, length } = this.geometry;
-    const rails = this.art.rails;
-    const railOuter = rails ? 0.08 + (rails.spec.width ?? 0.26) / 2 : this.style.rails.width * PX;
+    const railOuter = this.railReach;
     const wallOuter = this.style.frame === 'gunmetal' ? 50 * PX : this.style.frame === 'street' ? 28 * PX : 0;
     return {
       h: planeHomography(camera, this.cssWidth, this.cssHeight, this.judgeZ),
@@ -1480,8 +1502,7 @@ export class TrackRenderer {
     const shown = active ? tint : null;
     if (shown === this.feverShown) return;
     this.feverShown = shown;
-    for (const m of this.rails[0]) m.color.setHex(shown ?? hex(this.skin.colors.railLeft));
-    for (const m of this.rails[1]) m.color.setHex(shown ?? hex(this.skin.colors.railRight));
+    for (const [m, own] of this.railTints) m.color.setHex(shown ?? own);
     this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.skin.colors.judgeGlow));
   }
 
@@ -1548,45 +1569,42 @@ export class TrackRenderer {
     this.buildRails();
   }
 
+  /**
+   * The track's borders, its two edges from the far end past the gear (where a skin's rails ran):
+   * the gear's own frame (styleArt.borderLookOf), a picture repeating down them, as wide as the
+   * skin's rails, with the rails' glow (in the frame's edge colour) where the skin has one. FEVER
+   * adds its colour over them.
+   */
   private buildRails(): void {
     const { width, length } = this.geometry;
-    const rails = this.art.rails;
-    if (rails) {
-      this.rails[0].push(this.railStrip(-width / 2 - 0.08, rails, hex(this.skin.colors.railLeft), false));
-      this.rails[1].push(this.railStrip(width / 2 + 0.08, rails, hex(this.skin.colors.railRight), true));
-      return;
-    }
+    const look = borderLookOf(this.style, this.images, this.skin.colors);
     const { width: railPx, glow: blur } = this.style.rails;
     const w = railPx * PX;
-    const bevel = this.style.rails.bevel ? this.own(railBevelTexture()) : null;
     // the sheets' box-shadow: 0 0 <glow>px at 70 %
     const glow = blur ? this.own(railGlowTexture(railPx, blur, 0.7)) : null;
-    for (const [side, colour] of [
-      [-1, this.skin.colors.railLeft],
-      [1, this.skin.colors.railRight],
-    ] as [number, string][]) {
+    for (const side of [-1, 1] as const) {
       const x = side * (width / 2 + w / 2);
+      const z = (TRACK_TAIL - length) / 2;
       if (glow && blur) {
-        const g = new THREE.Mesh(this.flatGeometry, tintMaterial({ map: glow, color: hex(colour), transparent: true, depthWrite: false }));
+        const g = new THREE.Mesh(this.flatGeometry, tintMaterial({ map: glow, color: hex(look.edge), transparent: true, depthWrite: false }));
         g.scale.set((railPx + 2 * shadowReach(blur)) * PX, 1, length + TRACK_TAIL);
-        g.position.set(x, 0.0055, (TRACK_TAIL - length) / 2);
+        g.position.set(x, 0.0055, z);
         g.renderOrder = 0.95;
         this.scene.add(g);
-        this.rails[side < 0 ? 0 : 1].push(g.material as THREE.MeshBasicMaterial);
+        this.railTints.push([g.material as THREE.MeshBasicMaterial, hex(look.edge)]);
       }
-      const mesh = new THREE.Mesh(
-        this.flatGeometry,
-        bevel
-          ? tintMaterial({ map: bevel, color: hex(colour), transparent: true, depthWrite: false })
-          : new THREE.MeshBasicMaterial({ color: hex(colour), transparent: true, opacity: 0.95, depthWrite: false }),
-      );
+      const map = this.own(borderTexture(look, railPx, side));
+      map.repeat.set(1, (length + TRACK_TAIL) / (BORDER_TILE * PX));
+      const mesh = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
       mesh.scale.set(w, 1, length + TRACK_TAIL);
-      // a bevel is lit on its inner face: the right rail is the left one mirrored
-      if (side > 0 && bevel) mesh.rotation.y = Math.PI;
-      mesh.position.set(x, 0.006, (TRACK_TAIL - length) / 2);
+      mesh.position.set(x, 0.006, z);
       mesh.renderOrder = 1;
       this.scene.add(mesh);
-      this.rails[side < 0 ? 0 : 1].push(mesh.material as THREE.MeshBasicMaterial);
+      // FEVER's colour added over the border (black, nothing, until then)
+      const fever = this.flat(0x000000, 1, 1.01, { additive: true });
+      fever.scale.set(w, 1, length + TRACK_TAIL);
+      fever.position.set(x, 0.0062, z);
+      this.railTints.push([fever.material as THREE.MeshBasicMaterial, 0x000000]);
     }
   }
 
@@ -1620,21 +1638,6 @@ export class TrackRenderer {
       mesh.renderOrder = 1;
       this.scene.add(mesh);
     }
-  }
-
-  /** A rail texture repeating along the track; light on black, so it is added. The right rail is mirrored. */
-  private railStrip(x: number, art: ArtTexture, color: number, mirror: boolean): THREE.MeshBasicMaterial {
-    const { length } = this.geometry;
-    const w = art.spec.width ?? 0.26;
-    const map = mirror ? this.own(art.texture.clone()) : art.texture;
-    map.repeat.set(mirror ? -1 : 1, (length + TRACK_TAIL) / (w * (art.spec.tileAspect ?? 12)));
-    map.offset.x = mirror ? 1 : 0;
-    const mesh = this.flat(color, 1, 1, { additive: true });
-    const material = mesh.material as THREE.MeshBasicMaterial;
-    material.map = map;
-    mesh.scale.set(w, 1, length + TRACK_TAIL);
-    mesh.position.set(x, 0.006, (TRACK_TAIL - length) / 2);
-    return material;
   }
 
   private buildJudgementLine(): THREE.MeshBasicMaterial | null {

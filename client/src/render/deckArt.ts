@@ -489,6 +489,75 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
 }
 
 /**
+ * How a gear's border looks: the two lines down the track's edges, from its far end past the gear
+ * (the rails), in the gear's own frame (paintBorder), as wide as the skin's rails. The left one is
+ * lit, the right one in shade, as the plates' frames are.
+ */
+export interface SideLook {
+  /** The frame's face: a colour, or what fills the strip's box (wood). */
+  body: string | ((g: CanvasRenderingContext2D, x: number, w: number, h: number) => void);
+  /** Its bevel facing the lanes (#rrggbb); a glowing skin's rails glow in it. */
+  edge: string;
+  /** A line down its middle, the left border's and the right one's (a pinstripe, a neon tube), where it is wide enough. */
+  line?: readonly [string, string];
+  /** Faint lines across it (brushed metal). */
+  brushed?: boolean;
+}
+
+/**
+ * One border in `look` on a `w` × `h` canvas (a tile repeating down the track), `scale` canvas px to
+ * a plane px: `side` -1 the left border (its right edge faces the lanes), 1 the right one.
+ */
+export function paintBorder(g: CanvasRenderingContext2D, w: number, h: number, look: SideLook, side: -1 | 1, scale: number): void {
+  if (typeof look.body === 'string') {
+    g.fillStyle = look.body;
+    g.fillRect(0, 0, w, h);
+  } else {
+    look.body(g, 0, w, h);
+  }
+  if (look.brushed) {
+    const rand = seeded(side < 0 ? 13 : 14);
+    for (let y = 0; y < h; y += 2 * scale) {
+      g.fillStyle = white(0.015 + rand() * 0.03);
+      g.fillRect(0, y, w, scale);
+    }
+  }
+  if (side > 0) {
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.fillRect(0, 0, w, h);
+  }
+  const line = look.line?.[side < 0 ? 0 : 1];
+  if (line && w >= 4 * scale) {
+    g.fillStyle = line;
+    g.fillRect(w / 2 - 0.6 * scale, 0, 1.2 * scale, h);
+  }
+  // the bevel facing the lanes, lit (a little light over it, so a dark frame still marks the track's edge); a dark line facing out
+  const inner = side < 0 ? w - scale : 0;
+  g.fillStyle = shade(look.edge, side < 0 ? 1 : 0.72, 0.9);
+  g.fillRect(inner, 0, scale, h);
+  g.fillStyle = white(0.14);
+  g.fillRect(inner, 0, scale, h);
+  g.fillStyle = 'rgba(0,0,0,0.5)';
+  g.fillRect(side < 0 ? 0 : w - scale, 0, scale, h);
+}
+
+/** The border of a gear drawn in code, in its plate's colours (the skins' LINE and STEM, and the five while their pictures are missing). */
+export function codeBorderLook(style: DeckStyle, colours: SkinColors): SideLook {
+  return CODE_SIDES[style](colours);
+}
+
+/** The borders of the gears drawn in code, in their plates' colours. */
+const CODE_SIDES: Record<DeckStyle, (c: SkinColors) => SideLook> = {
+  line: (c) => ({ body: shade(c.trackFar, 0.7), edge: c.divider, line: [shade(c.railLeft, 1, 0.8), shade(c.railRight, 1, 0.8)] }),
+  stem: (c) => ({ body: shade(c.trackFar, 0.7), edge: c.divider }),
+  arcade: () => ({ body: '#161a22', edge: '#6b7385', brushed: true }),
+  mixer: (c) => ({ body: '#1e1e24', edge: c.divider }),
+  neon: (c) => ({ body: shade(c.trackFar, 0.8), edge: c.divider, line: [shade(c.railLeft, 1, 0.9), shade(c.railRight, 1, 0.9)] }),
+  crystal: (c) => ({ body: shade(c.trackNear, 0.55), edge: '#d6e2ff' }),
+  grand: () => ({ body: '#0d0d10', edge: '#b88c3c', line: ['rgba(184,140,60,0.55)', 'rgba(184,140,60,0.4)'] }),
+};
+
+/**
  * A lane's light at rest and lit, in a picture as large as its place in the row (lane width by
  * the row's depth, square px). Most rest dim in the lane colour mixed into black; a few rest in
  * a colour of their own (`idleColor`) and take the lane colour only when lit.
