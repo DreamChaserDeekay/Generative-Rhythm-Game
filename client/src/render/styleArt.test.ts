@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { codeBorderLook, GEAR_STYLES, keyBox, moduleBox, type DeckSpec, type GearStyle } from './deckArt';
+import { codeBorderLook, GEAR_STYLES, type DeckSpec, type GearStyle } from './deckArt';
 import { parseManifest } from './skinArt';
 import { BUILTIN_SKINS, PART_HITS, skinById, styleOf, withParts, type SkinStyle } from './skins';
 import {
@@ -35,15 +35,29 @@ const loaded = (style: SkinStyle) => Object.fromEntries(styleImageIds(style).map
 
 /**
  * A 2D context that records its drawImage calls (source x, y, width, height; destination x, y, width,
- * height; a call with a destination only records it as both) and the picture drawn.
+ * height; a call with a destination only records it as both) and the picture drawn, with the box it
+ * lands in on the canvas (x, y, w, h: through the moves, scales and quarter turns made before it).
  */
 function recorder() {
-  const draws: { id: string; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number }[] = [];
+  const draws: { id: string; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number; x: number; y: number; w: number; h: number }[] = [];
+  // the transform, as setTransform takes it, and the ones saved
+  let [a, b, c, d, e, f] = [1, 0, 0, 1, 0, 0];
+  const saved: number[][] = [];
+  const at = (x: number, y: number) => [a * x + c * y + e, b * x + d * y + f];
   const g = new Proxy(
     {
-      drawImage: (pic: { id?: string }, ...a: number[]) => {
-        const [sx, sy, sw, sh, dx, dy, dw, dh] = a.length === 8 ? a : [0, 0, 0, 0, a[0], a[1], a[2], a[3]];
-        draws.push({ id: pic?.id ?? '', sx, sy, sw, sh, dx, dy, dw, dh });
+      drawImage: (pic: { id?: string }, ...v: number[]) => {
+        const [sx, sy, sw, sh, dx, dy, dw, dh] = v.length === 8 ? v : [0, 0, 0, 0, v[0], v[1], v[2], v[3]];
+        const [[x0, y0], [x1, y1]] = [at(dx, dy), at(dx + dw, dy + dh)];
+        draws.push({ id: pic?.id ?? '', sx, sy, sw, sh, dx, dy, dw, dh, x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) });
+      },
+      save: () => saved.push([a, b, c, d, e, f]),
+      restore: () => ([a, b, c, d, e, f] = saved.pop() ?? [a, b, c, d, e, f]),
+      translate: (x: number, y: number) => ([e, f] = at(x, y)),
+      scale: (x: number, y: number) => ([a, b, c, d] = [a * x, b * x, c * y, d * y]),
+      rotate: (r: number) => {
+        const [cos, sin] = [Math.cos(r), Math.sin(r)];
+        [a, b, c, d] = [a * cos + c * sin, b * cos + d * sin, c * cos - a * sin, d * cos - b * sin];
       },
     } as Record<string | symbol, unknown>,
     // everything else a paint does (paths, fills, gradients) does nothing here
@@ -59,7 +73,7 @@ describe('the concept sets drawn from art', () => {
   });
 
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
-    const cabinet = ['cabinet/abs', 'cabinet/button', 'cabinet/turntable'];
+    const cabinet = ['cabinet/abs', 'cabinet/joystick', 'cabinet/button', 'cabinet/coin'];
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots', deck: 'line' })).toEqual(['mecha/notes', 'mecha/long']);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
@@ -97,7 +111,7 @@ describe('the concept sets drawn from art', () => {
     expect(gearArtOf('cabinet', none)).toEqual({});
     // the gear counts as drawn from art once all of its pictures are: a part without one is drawn in code
     expect(artPartsOf(arcade, { 'cabinet/button': image('cabinet/button') })).toEqual([]);
-    expect(gearArtOf('cabinet', { 'cabinet/button': image('cabinet/button') })).toEqual({ key: image('cabinet/button') });
+    expect(gearArtOf('cabinet', { 'cabinet/button': image('cabinet/button') })).toEqual({ button: image('cabinet/button') });
     expect(artPartsOf(arcade, loaded(arcade))).toEqual(['notes', 'long', 'side', 'gear']);
     // a skin's own gear has no pictures
     expect(gearArtOf('line', loaded(arcade))).toEqual({});
@@ -162,20 +176,22 @@ const SETS = [
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
 const setStyle = (c: SetCase) => styleOf(withParts(skinById('flat', null), { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }));
-const STANDARD = ['standard/graphite', 'standard/pad', 'standard/jog'];
+const STANDARD = ['standard/graphite', 'standard/jog'];
 
-/** A deck with the scratch at the left and seven keys, `room` px of it on the screen. */
-function deckSpec(room: number): DeckSpec {
+/** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
+function deckSpec(room: number, stretch = 1.3): DeckSpec {
+  const width = 8 * 73.65;
+  const lane = (width - 68.5) / 7;
   return {
-    width: 400,
+    width,
     room,
-    depth: 180,
+    depth: room + 40,
     keyTop: 8,
     keyDepth: 56,
-    stretch: 1.3,
+    stretch,
     lanes: [
-      { left: 0, width: 70, kind: 'scratch' },
-      ...Array.from({ length: 7 }, (_, i) => ({ left: 70 + i * 47, width: 47, kind: i % 2 ? ('other' as const) : ('white' as const) })),
+      { left: 0, width: 68.5, kind: 'scratch' },
+      ...Array.from({ length: 7 }, (_, i) => ({ left: 68.5 + i * lane, width: lane, kind: i % 2 ? ('other' as const) : ('white' as const) })),
     ],
     sides: [],
     colours: skinById('flat', null).colors,
@@ -306,11 +322,22 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
 
 /** Each gear's pictures by part, as the manifest lists them. */
 const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
-  standard: { frame: 'standard/graphite', key: 'standard/pad', scratch: 'standard/jog' },
-  cabinet: { plate: 'cabinet/abs', key: 'cabinet/button', scratch: 'cabinet/turntable' },
-  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', key: 'receiver/switch', scratch: 'receiver/knob' },
-  najeon: { frame: 'najeon/band', key: 'najeon/tablet', scratch: 'najeon/lid', badge: 'najeon/lock' },
+  standard: { frame: 'standard/graphite', jog: 'standard/jog' },
+  cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
+  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
+  najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
 };
+
+/** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's. */
+const THINGS: Record<GearStyle, Record<string, number>> = {
+  standard: { 'standard/jog': 1 },
+  cabinet: { 'cabinet/joystick': 1, 'cabinet/button': 6, 'cabinet/coin': 1 },
+  receiver: { 'receiver/knob': 2, 'receiver/switch': 5 },
+  najeon: { 'najeon/lid': 2, 'najeon/lock': 1 },
+};
+
+/** Whether two boxes on the canvas overlap (touching is not). */
+const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
 describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = styleOf(withParts(skinById('flat', null), { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }));
@@ -328,37 +355,43 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from 
     expect(Object.keys(gearArtOf(gear, images)).sort()).toEqual(Object.keys(GEAR_PICTURES[gear]).sort());
   });
 
-  it('draws a key body from its picture in each key lane’s place in the row, and the scratch’s module in its column', () => {
-    const spec = deckSpec(170);
-    const { g, draws } = recorder();
-    platePaintOf(style, images)(g, spec);
-    const keys = draws.filter((d) => d.id === GEAR_PICTURES[gear].key);
-    expect(keys).toHaveLength(7);
-    for (const [i, d] of keys.entries()) {
-      const lane = spec.lanes[i + 1];
-      const b = keyBox(gear, lane.width, spec.keyDepth, spec.stretch);
-      expect(d.dx).toBeCloseTo(lane.left + b.x, 9);
-      expect(d.dy).toBeCloseTo(spec.keyTop + b.y, 9);
-      expect([d.dw, d.dh].map((v) => Math.round(v * 1e6))).toEqual([b.w, b.h].map((v) => Math.round(v * 1e6)));
-      // inside the lane and the row, as long on the screen for its width as its picture is
-      expect(d.dx).toBeGreaterThanOrEqual(lane.left);
-      expect(d.dx + d.dw).toBeLessThanOrEqual(lane.left + lane.width + 1e-9);
-      expect(d.dy + d.dh).toBeLessThanOrEqual(spec.keyTop + spec.keyDepth + 1e-9);
-      const [pw, ph] = manifest.textures[GEAR_PICTURES[gear].key].size;
-      expect(d.dh / d.dw / spec.stretch).toBeCloseTo(ph / pw, 1);
+  it('draws the things on its deck from their pictures: on the deck the screen shows, apart, as their pictures are on the screen', () => {
+    // the rooms and flattening the cameras give: a small preview's, SDVX's, FLAT's, the plane camera's
+    for (const [room, stretch] of [
+      [96, 1.1],
+      [192, 1.25],
+      [320, 1.25],
+      [912, 3.25],
+    ]) {
+      const spec = deckSpec(room, stretch);
+      const { g, draws } = recorder();
+      platePaintOf(style, images)(g, spec);
+      const things = draws.filter((d) => d.id in THINGS[gear]);
+      expect(Object.fromEntries(Object.keys(THINGS[gear]).map((id) => [id, things.filter((d) => d.id === id).length]))).toEqual(THINGS[gear]);
+      for (const d of things) {
+        expect(d.x, d.id).toBeGreaterThanOrEqual(-1e-6);
+        expect(d.x + d.w, d.id).toBeLessThanOrEqual(spec.width + 1e-6);
+        expect(d.y, d.id).toBeGreaterThanOrEqual(0);
+        expect(d.y + d.h, d.id).toBeLessThanOrEqual(spec.room + 1e-6);
+        // as long on the screen for its width as its picture is: round things round
+        const [pw, ph] = manifest.textures[d.id].size;
+        expect(d.h / d.w / stretch, d.id).toBeCloseTo(ph / pw, 2);
+      }
+      for (const [i, p] of things.entries()) for (const q of things.slice(i + 1)) expect(overlap(p, q), `${p.id} and ${q.id} at ${room}`).toBe(false);
+      // NAJEON's pearl vines from its frame's picture, on the deck and clear of the lids and the lock
+      if (gear === 'najeon') {
+        const vines = draws.filter((d) => d.id === 'najeon/band');
+        expect(vines.length).toBeGreaterThanOrEqual(2);
+        for (const v of vines) {
+          expect(v.x).toBeGreaterThanOrEqual(-1e-6);
+          expect(v.x + v.w).toBeLessThanOrEqual(spec.width + 1e-6);
+          for (const t of things) expect(overlap(v, t), `vine and ${t.id}`).toBe(false);
+        }
+      }
     }
-    const scratch = draws.filter((d) => d.id === GEAR_PICTURES[gear].scratch);
-    expect(scratch).toHaveLength(1);
-    const box = moduleBox(1)(spec.room, spec.stretch, spec.lanes[0]);
-    expect([scratch[0].dx, scratch[0].dy, scratch[0].dw, scratch[0].dh]).toEqual([box.x, box.y, box.w, box.h]);
-    expect(scratch[0].dx).toBeGreaterThanOrEqual(0);
-    expect(scratch[0].dx + scratch[0].dw).toBeLessThanOrEqual(70 + 1e-9);
-    // round on the screen: as much longer along the track as the camera flattens it
-    expect(scratch[0].dh / scratch[0].dw).toBeCloseTo(spec.stretch, 9);
-    if (gear === 'najeon') expect(draws.filter((d) => d.id === 'najeon/lock')).toHaveLength(1);
     // without its pictures the same gear is drawn in code
     const code = recorder();
-    platePaintOf(style, {})(code.g, spec);
+    platePaintOf(style, {})(code.g, deckSpec(170));
     expect(code.draws).toEqual([]);
   });
 

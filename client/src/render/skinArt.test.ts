@@ -108,8 +108,9 @@ describe('loading skin textures', () => {
         'mecha/long': entry('styles/mecha/long.png', [512, 256]),
         'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
         'cabinet/abs': entry('gears/cabinet/abs.webp', [512, 512]),
+        'cabinet/joystick': entry('gears/cabinet/joystick.png', [512, 512]),
         'cabinet/button': entry('gears/cabinet/button.png', [384, 384]),
-        'cabinet/turntable': entry('gears/cabinet/turntable.png', [512, 512]),
+        'cabinet/coin': entry('gears/cabinet/coin.png', [558, 384]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -129,8 +130,8 @@ describe('loading skin textures', () => {
     const arcade = skinById('arcade', null);
     const mechaSkin = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
-    expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/turntable.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/turntable', 'mecha/notes']);
+    expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/coin.png', 'gears/cabinet/joystick.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/coin', 'cabinet/joystick', 'mecha/notes']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // nothing to draw from art without a way to decode pictures, or for a skin drawn in code

@@ -1,4 +1,4 @@
-import { codeBorderLook, gearBorderLook, isGear, paintDeck, type DeckSpec, type DeckStyle, type GearArt, type GearStyle, type SideLook } from './deckArt';
+import { codeBorderLook, gearBorderLook, isGear, paintDeck, type DeckSpec, type DeckStyle, type GearArt, type GearPart, type GearStyle, type SideLook } from './deckArt';
 import type { SkinColors, SkinStyle, SkinTextures } from './skins';
 import {
   ink,
@@ -77,15 +77,14 @@ const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', cr
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${MANIFEST_NAME[set]}/${part}`;
 
 /**
- * The four gears' pictures (manifest ids) by part: the materials of the plate and the frame, a key's
- * body seen from above, the scratch's module, NAJEON's lock plate. A part whose picture is missing is
- * drawn in code (deckArt.ts).
+ * The four gears' pictures (manifest ids) by part: the materials of the plate and the frame, and the
+ * things on the deck. A part whose picture is missing is drawn in code (deckArt.ts).
  */
-const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<keyof GearArt, string>>>> = {
-  standard: { frame: 'standard/graphite', key: 'standard/pad', scratch: 'standard/jog' },
-  cabinet: { plate: 'cabinet/abs', key: 'cabinet/button', scratch: 'cabinet/turntable' },
-  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', key: 'receiver/switch', scratch: 'receiver/knob' },
-  najeon: { frame: 'najeon/band', key: 'najeon/tablet', scratch: 'najeon/lid', badge: 'najeon/lock' },
+const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
+  standard: { frame: 'standard/graphite', jog: 'standard/jog' },
+  cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
+  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
+  najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */
@@ -360,7 +359,7 @@ export function sideTapPaintOf(style: NoteStyle, images: StyleImages, edge: numb
 export function gearArtOf(deck: DeckStyle, images: StyleImages): GearArt {
   if (!isGear(deck)) return {};
   const art: GearArt = {};
-  for (const [part, id] of Object.entries(GEAR_PICTURES[deck]) as [keyof GearArt, string][]) {
+  for (const [part, id] of Object.entries(GEAR_PICTURES[deck]) as [GearPart, string][]) {
     const picture = images[id];
     if (picture) art[part] = picture;
   }

@@ -1165,13 +1165,14 @@
 
 ## 기어 (`gears/`, 2026-11)
 
-세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어 넷입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함). 판정선 아래 받침과 건반, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림).
+세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어 넷입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
 - 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름 → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
 - 재질 넷(오락실 기체의 엠보싱 ABS, 리시버의 헤어라인 은판 · 월넛, 기본 기어의 그래파이트)은 생성하지 않고 `build_gears.py` 가 시드를 정한 잡음으로 만듭니다(돌릴 때마다 같고, 주파수 공간에서 걸러 이음새 없이 반복). 기준 이미지 없이 재질만 그려 달라는 요청은 생성 모델이 거절했습니다(IMAGE_RECITATION).
 - 저장 형식: 생성 결과는 PNG로 받아 두었고, `assets-src/gears/` 에는 저장소 크기를 줄이려 JPEG(품질 95, 색 정보 줄이지 않음)으로 다시 저장했습니다. PNG의 sha256 앞 16자리를 함께 적습니다.
-- 비용: 부위 그림 10장, 거절되거나 그림 없이 끝난 시도 3번, 기준 스타일 프레임 4장을 합해 약 $0.92 입니다(고르지 않은 세 컨셉의 스타일 프레임은 저장소에 쓰지 않아 넣지 않음).
+- 비용: 부위 그림 12장(그중 3장은 지움), 거절되거나 그림 없이 끝난 시도 3번, 기준 스타일 프레임 4장을 합해 약 $1.05 입니다(고르지 않은 세 컨셉의 스타일 프레임은 저장소에 쓰지 않아 넣지 않음).
+- 후처리 공통: 부위 그림은 마젠타 바탕을 빼고(키잉) 모양대로 자른 뒤, 생성이 사물의 테두리에 비춘 마젠타 바탕을 가장자리 12 px 안에서 걷어냅니다(despill: 빨강과 파랑을 초록이 허락하는 만큼으로, 안쪽의 빨간 공 · 분홍빛 자개는 그대로, 2026-11-05부터).
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았고, 프롬프트에 다른 게임 · 회사 · 아티스트 이름은 없습니다. 스타일 프레임의 기준 이미지는 이 게임의 실제 화면(기어를 지운 7K+1S)입니다.
 - 숫자 글꼴(DSEG7 Classic, Noto Serif KR 의 "흥" 한 글자)은 `client/src/assets/fonts/README.md` 에 적었습니다.
 
@@ -1278,9 +1279,9 @@
   >
   > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
 
-### `gears/standard/pad.jpg`
+### `gears/standard/pad.jpg` (지움, 2026-11-05)
 
-- 용도: 기본의 패드(건반 하나) → `gears/standard/pad.png` 375×384
+- 용도: 기본의 패드(건반 하나) → `gears/standard/pad.png` 375×384 · 받침에서 레인마다의 건반을 빼며 원본과 게임 그림을 함께 지움
 - 크기 · 기준 이미지: 1:1 · 2K · `standard-a1.png`
 - 날짜: 2026-11-04 23:10 KST · 약 $0.059
 - 생성 결과(PNG): 3,632,484바이트 · sha256 앞 16자리 `a540efb8ce6b675a` · 저장한 JPEG: 510,755바이트
@@ -1291,18 +1292,18 @@
 
 ### `gears/standard/jog.jpg`
 
-- 용도: 기본의 조그 원판(스크래치) → `gears/standard/jog.png` 512×512
+- 용도: 기본의 조그 원판(받침 왼쪽) → `gears/standard/jog.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `standard-a1.png`
 - 날짜: 2026-11-04 23:11 KST · 약 $0.062
 - 생성 결과(PNG): 4,550,007바이트 · sha256 앞 16자리 `800cfc3947390bb6` · 저장한 JPEG: 799,301바이트
-- 후처리: 원으로 잘라 512 · 게임은 스크래치 레인의 칸에 둥글게 보이도록(카메라가 납작하게 하는 만큼 길게) 그림
+- 후처리: 원으로 잘라 512 · 게임은 받침 왼쪽에 둥글게 보이도록(카메라가 납작하게 하는 만큼 길게) 그림
 - 프롬프트:
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a round jog disc of smoked black glass with a fine radial brushed-metal centre cap and a thin dark rim. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/turntable.jpg`
+### `gears/cabinet/turntable.jpg` (지움, 2026-11-05)
 
-- 용도: 오락실 기체의 턴테이블(스크래치) → `gears/cabinet/turntable.png` 512×512
+- 용도: 오락실 기체의 턴테이블(스크래치) → `gears/cabinet/turntable.png` 512×512 · 스크래치 모듈을 조이스틱으로 바꾸며 원본과 게임 그림을 함께 지움
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
 - 날짜: 2026-11-04 23:04 KST · 약 $0.064
 - 생성 결과(PNG): 6,980,299바이트 · sha256 앞 16자리 `d5256a671c4694f5` · 저장한 JPEG: 1,789,301바이트
@@ -1311,20 +1312,42 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the turntable of an arcade rhythm-game cabinet: a round black rubber slip mat with fine concentric grooves on a polished silver platter, a ring of small strobe dots around the platter's edge, a small silver spindle in the centre, inside a thin black outer ring. No tonearm. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
+### `gears/cabinet/joystick.jpg`
+
+- 용도: 오락실 기체 조종판의 조이스틱(받침 왼쪽) → `gears/cabinet/joystick.png` 512×512
+- 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
+- 날짜: 2026-11-05 00:58 KST · 약 $0.065
+- 생성 결과(PNG): 5,683,459바이트 · sha256 앞 16자리 `3edecac24b1bc245` · 저장한 JPEG: 1,218,106바이트
+- 후처리: 원으로 잘라 512 · 바깥 테에 비친 마젠타를 걷어냄(위 후처리 공통) · 게임은 받침 왼쪽에 둥글게 보이도록 그림
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the joystick of an arcade cabinet's control panel: a glossy red ball top on a short black shaft, seen from straight above so that the ball hides the shaft, sitting in the middle of a round black plastic dust washer, a thin polished chrome ring around the washer's edge. A perfect circle overall. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/cabinet/coin.jpg`
+
+- 용도: 오락실 기체 조종판의 동전 투입구(받침 오른쪽) → `gears/cabinet/coin.png` 558×384
+- 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
+- 날짜: 2026-11-05 00:59 KST · 약 $0.064
+- 생성 결과(PNG): 4,511,648바이트 · sha256 앞 16자리 `134cfb1e073bb2da` · 저장한 JPEG: 862,828바이트
+- 후처리: 둥근 사각형(모서리는 짧은 변의 0.06)으로 잘라 높이 384 · 게임은 받침 오른쪽에 그림의 비율대로 그림(화폐 기호 · 글자 없음)
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the coin entry of an arcade cabinet set into its control panel: a horizontal brushed stainless steel plate about 1.7 times as wide as it is tall, softly rounded corners, a small screw in each corner; on it two coin slots side by side, each a narrow vertical slot with a small square coin-return button glowing amber beside it. No currency symbols. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
 ### `gears/cabinet/button.jpg`
 
-- 용도: 오락실 기체의 아크릴 버튼(건반 하나) → `gears/cabinet/button.png` 384×384
+- 용도: 오락실 기체 조종판의 아크릴 버튼(여섯) → `gears/cabinet/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
 - 날짜: 2026-11-04 23:06 KST · 약 $0.060 (먼저 한 번 그림 없이 끝남, 약 $0.008)
 - 생성 결과(PNG): 4,214,843바이트 · sha256 앞 16자리 `c1d1b739eaf360a9` · 저장한 JPEG: 713,902바이트
-- 후처리: 원으로 잘라 384 · 게임은 돔에 레인 색을 옅게 얹고, 누르면 돔이 레인 색으로 켜짐
+- 후처리: 원으로 잘라 384 · 게임은 두 줄 여섯 개로 놓고 넷의 돔에 빨강 · 호박색을 곱해 칠함(둘은 흰 그대로)
 - 프롬프트:
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one large round convex arcade push button: a translucent milky-white acrylic dome, unlit, inside a polished chrome bezel ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
 ### `gears/receiver/knob.jpg`
 
-- 용도: 빈티지 리시버의 튜닝 노브(스크래치) → `gears/receiver/knob.png` 512×512
+- 용도: 빈티지 리시버의 튜닝 노브와 볼륨 노브 → `gears/receiver/knob.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
 - 날짜: 2026-11-04 23:07 KST · 약 $0.061
 - 생성 결과(PNG): 5,434,664바이트 · sha256 앞 16자리 `d50cac4a7d722946` · 저장한 JPEG: 1,121,792바이트
@@ -1335,29 +1358,29 @@
 
 ### `gears/receiver/switch.jpg`
 
-- 용도: 빈티지 리시버의 피아노 키 스위치(건반 하나) → `gears/receiver/switch.png` 320×368
+- 용도: 빈티지 리시버의 피아노 키 셀렉터 스위치(다섯) → `gears/receiver/switch.png` 320×368
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
 - 날짜: 2026-11-04 23:07 KST · 약 $0.062
 - 생성 결과(PNG): 4,488,980바이트 · sha256 앞 16자리 `37fc7eaf52e82811` · 저장한 JPEG: 819,221바이트
-- 후처리: 둥근 사각형(모서리 0.1)으로 잘라 높이 512, 위아래 30 % 는 그대로 두고 가운데만 줄여 폭의 1.15 배 깊이로(판정선 아래 줄이 얕음) · 은색 몸체가 마젠타 바탕을 비춰 무채색으로 · 램프 창(위에서 26 %)에 게임이 레인 색 램프를 켬
+- 후처리: 둥근 사각형(모서리 0.1)으로 잘라 높이 512, 위아래 30 % 는 그대로 두고 가운데만 줄여 폭의 1.15 배 깊이로(판정선 아래 줄이 얕음) · 은색 몸체가 마젠타 바탕을 비춰 무채색으로 · 게임은 튜닝 다이얼 아래에 다섯을 그림의 비율대로 놓고 램프는 켜지 않음
 - 프롬프트:
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one piano-key style push switch of a 1970s stereo receiver: a rectangular brushed silver aluminium key, two units wide and three units long (the long side runs up and down the image), softly rounded corners, a fine bevel along its edges; near its top end a small round lamp window of clear glass in a thin black bezel, unlit. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
 ### `gears/najeon/band.jpg`
 
-- 용도: 나전칠기의 측면 기둥의 자개 당초문 → `gears/najeon/band.png` 128×2048
+- 용도: 나전칠기의 측면 기둥과 받침의 자개 당초문 → `gears/najeon/band.png` 128×2048
 - 크기 · 기준 이미지: 9:16 · 2K · `najeon-a1.png`
 - 날짜: 2026-11-04 23:08 KST · 약 $0.058
 - 생성 결과(PNG): 5,982,567바이트 · sha256 앞 16자리 `7f66665441fc95f3` · 저장한 JPEG: 1,619,045바이트
-- 후처리: 생성한 띠 세 줄 가운데 왼쪽 좁은 줄(덩굴 한 줄기, 가로 80–258 px)만 잘라 128×2048 로(가운데 넓은 줄은 30 px 폭 기둥에서 잿빛 얼룩으로 보여 쓰지 않음) · 게임은 흑칠 기둥 가운데 금선 두 줄 사이에 넣고 트랙을 따라 거울처럼 뒤집어 이어 붙임(이음새 없음) · 피버 때 자개만 밝게 한 번 더 그림
+- 후처리: 생성한 띠 세 줄 가운데 왼쪽 좁은 줄(덩굴 한 줄기, 가로 80–258 px)만 잘라 128×2048 로(가운데 넓은 줄은 30 px 폭 기둥에서 잿빛 얼룩으로 보여 쓰지 않음) · 게임은 흑칠 기둥 가운데 금선 두 줄 사이에 넣고 트랙을 따라 거울처럼 뒤집어 이어 붙임(이음새 없음) · 피버 때 자개만 밝게 한 번 더 그림 · 받침에는 눕혀 자물쇠 판 양옆의 자개 덩굴로 그림
 - 프롬프트:
 
   > Image 1 is a play screen of a rhythm game whose gear is Korean najeon lacquerware. Paint ONLY the inlaid band of its side pillars as a flat, straight-on vertical strip that fills the whole image from the top edge to the bottom edge and from the left edge to the right edge: polished black lacquer inlaid with mother-of-pearl arabesque vine scrollwork (curling stems, small leaves and spiral tendrils) that runs continuously from top to bottom so the strip can repeat, the pearl iridescent white with soft pink, green and blue sheens, a thin gold line down the left edge and down the right edge. No perspective, no frame, no shadows, no text, no letters, no logos.
 
-### `gears/najeon/tablet.jpg`
+### `gears/najeon/tablet.jpg` (지움, 2026-11-05)
 
-- 용도: 나전칠기의 자개 판(건반 하나) → `gears/najeon/tablet.png` 341×358
+- 용도: 나전칠기의 자개 판(건반 하나) → `gears/najeon/tablet.png` 341×358 · 받침에서 레인마다의 건반을 빼며 원본과 게임 그림을 함께 지움
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
 - 날짜: 2026-11-04 23:08 KST · 약 $0.061
 - 생성 결과(PNG): 4,157,505바이트 · sha256 앞 16자리 `2e35d7ad762cab8f` · 저장한 JPEG: 707,223바이트
@@ -1368,7 +1391,7 @@
 
 ### `gears/najeon/lid.jpg`
 
-- 용도: 나전칠기의 학 문양 칠기 뚜껑(스크래치) → `gears/najeon/lid.png` 512×512
+- 용도: 나전칠기의 학 문양 칠기 뚜껑(받침 양쪽에 둘, 오른쪽은 뒤집어 학이 가운데를 향함) → `gears/najeon/lid.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
 - 날짜: 2026-11-04 23:09 KST · 약 $0.062
 - 생성 결과(PNG): 4,448,706바이트 · sha256 앞 16자리 `25fdbcaff57acdbb` · 저장한 JPEG: 788,175바이트
@@ -1379,11 +1402,11 @@
 
 ### `gears/najeon/lock.jpg`
 
-- 용도: 나전칠기의 황동 앞바탕(자물쇠 판) → `gears/najeon/lock.png` 512×512
+- 용도: 나전칠기의 황동 앞바탕(받침 가운데의 자물쇠 판) → `gears/najeon/lock.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
 - 날짜: 2026-11-04 23:09 KST · 약 $0.060
 - 생성 결과(PNG): 6,932,147바이트 · sha256 앞 16자리 `44e386ddb5e49000` · 저장한 JPEG: 1,765,073바이트
-- 후처리: 원으로 잘라 512 · 게임은 건반 아래 가운데에 그리고 양옆에 금선 두 줄
+- 후처리: 원으로 잘라 512 · 게임은 받침 가운데에 그리고 양옆에 금선 두 줄 사이의 자개 덩굴
 - 프롬프트:
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the front plate of a traditional Korean chest lock (an ornamental brass escutcheon): a round polished brass plate with an engraved floral pattern and a small vertical latch in its middle, seen straight on. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.

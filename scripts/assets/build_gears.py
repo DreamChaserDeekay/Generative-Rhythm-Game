@@ -12,11 +12,11 @@ Two kinds of picture:
   ground, where they came from: assets-src/PROVENANCE.md): each is cut to the object and masked to its
   shape (a circle or a rounded rectangle, the ground keyed out of its edge), and the najeon frame's
   pearl vine, cut from the generated band (the renderer repeats it down the track mirrored, so it runs
-  on without a seam).
+  on without a seam). The decks lay them out as each object's own panel: none is a lane's key. The
+  generation lit the objects' rims with the magenta ground: it is taken out of them (despill).
 
 The renderer draws them (client/src/render/deckArt.ts: GEAR_PLATES, GEAR_FRAMES; the parts' manifest ids in
-styleArt.ts: GEAR_PICTURES); the keys' proportions (KEY_SHAPES) and the receiver's lamp (lampSpot) are read
-from the pictures made here: change the two together.
+styleArt.ts: GEAR_PICTURES), each object at its picture's proportions.
 Needs Pillow, numpy and scipy.
 """
 
@@ -27,7 +27,7 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -250,6 +250,18 @@ def shorten(rgba: np.ndarray, aspect: float, keep: float = 0.3) -> np.ndarray:
 # ---------- the gears ----------
 
 
+def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
+    """The magenta ground's light taken out of an object's rim (`reach` px in from its edge): red and blue
+    down to where green allows, as a keyer's despill; colours further in (a red ball, pink pearl) are kept."""
+    edge = Image.fromarray(np.clip(rgba[..., 3] * 255 + 0.5, 0, 255).astype(np.uint8), "L").filter(ImageFilter.BoxBlur(reach))
+    near = np.asarray(edge, dtype=np.float32) / 255 < 0.995
+    out = rgba.copy()
+    spill = np.clip(np.minimum(out[..., 0] - out[..., 1], out[..., 2] - out[..., 1]), 0, None) * near
+    out[..., 0] -= spill
+    out[..., 2] -= spill
+    return out
+
+
 def entry(textures: dict, gear: str, part: str, file: str, size: tuple[int, int]) -> None:
     textures[f"{gear}/{part}"] = {"file": f"gears/{gear}/{file}", "bundle": "gear", "size": [int(size[0]), int(size[1])]}
 
@@ -265,32 +277,32 @@ def main() -> None:
         entry(textures, gear, part, f"{part}.png", (a.shape[1], a.shape[0]))
 
     def sprite(gear: str, part: str, a: np.ndarray) -> None:
+        a = despill(a)
         save_rgba(a, OUT / gear / f"{part}.png")
         entry(textures, gear, part, f"{part}.png", (a.shape[1], a.shape[0]))
         report[f"{gear}/{part}"] = [a.shape[1], a.shape[0]]
 
-    # STANDARD: brushed graphite down its rails; smoked glass pads and a jog disc
+    # STANDARD: brushed graphite down its rails; a smoked glass jog dial on its deck
     material("standard", "graphite", brushed(1024, 256, 31, "#2a2c31", 0.05, vertical=True))
-    sprite("standard", "pad", neutral(cut_round_rect(load(SRC / "standard" / "pad.jpg"), 384, 0.2), 1.0))
     sprite("standard", "jog", cut_disc(load(SRC / "standard" / "jog.jpg"), 512))
 
-    # CABINET: embossed ABS; the turntable and the acrylic buttons
+    # CABINET: embossed ABS; on its control panel a joystick, acrylic buttons and the coin entry
     material("cabinet", "abs", abs_plastic())
-    sprite("cabinet", "turntable", cut_disc(load(SRC / "cabinet" / "turntable.jpg"), 512))
+    sprite("cabinet", "joystick", cut_disc(load(SRC / "cabinet" / "joystick.jpg"), 512))
     sprite("cabinet", "button", cut_disc(load(SRC / "cabinet" / "button.jpg"), 384))
+    sprite("cabinet", "coin", cut_round_rect(load(SRC / "cabinet" / "coin.jpg"), 384, 0.06))
 
     # RECEIVER: walnut sides, brushed silver faceplate; the tuning knob and the piano-key switches
     material("receiver", "walnut", walnut())
     material("receiver", "silver", brushed(512, 512, 41, "#c3c7cc", 0.06, vertical=False))
     sprite("receiver", "knob", cut_disc(load(SRC / "receiver" / "knob.jpg"), 512))
-    # the switch's lamp lies in its top part, which is kept as drawn; its bevel mirrored the magenta ground, and aluminium has no colour of its own
+    # the selector switches: the lamp lies in the switch's top part, which is kept as drawn; its bevel mirrored the magenta ground, and aluminium has no colour of its own
     sprite("receiver", "switch", neutral(shorten(cut_round_rect(load(SRC / "receiver" / "switch.jpg"), 512, 0.1), 1.15), 1.0))
 
     # NAJEON: the frame's pearl vine (the generated band's narrow left column: its wide middle is too fine
-    # for a frame 30 plane px wide), the pearl tablets, the crane's lid, the lock plate
+    # for a frame 30 plane px wide; the deck lays it across too), the crane's lid, the lock plate
     band = load(SRC / "najeon" / "band.jpg")[:, 80:258]
     material("najeon", "band", resize(band, 128, 2048))
-    sprite("najeon", "tablet", shorten(cut_round_rect(load(SRC / "najeon" / "tablet.jpg"), 512, 0.3), 1.05))
     sprite("najeon", "lid", cut_disc(load(SRC / "najeon" / "lid.jpg"), 512))
     sprite("najeon", "lock", cut_disc(load(SRC / "najeon" / "lock.jpg"), 512))
 
