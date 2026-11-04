@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DECK_STYLES, KEY_PAINT, lightBox, type DeckSpec } from './deckArt';
 import { parseManifest } from './skinArt';
-import { BUILTIN_SKINS, skinById, styleOf, withParts, type SkinStyle } from './skins';
+import { BUILTIN_SKINS, PART_HITS, skinById, styleOf, withParts, type SkinStyle } from './skins';
 import {
   artPartsOf,
   DECK_COLOURS,
@@ -49,20 +49,23 @@ function recorder() {
 }
 
 describe('the concept sets drawn from art', () => {
-  it('draws a gear in a colourway it has, else its own; a gear drawn in code has none', () => {
+  it('draws a gear in a colourway it has, else its own; a skin’s own gear drawn in code has none', () => {
     expect(deckColourOf({ deck: 'arcade', deckColour: 'red' })).toBe('red');
     expect(deckColourOf({ deck: 'arcade', deckColour: 'walnut' })).toBe('gunmetal');
     expect(deckColourOf({ deck: 'arcade' })).toBe('gunmetal');
-    expect(deckColourOf({ deck: 'cassette', deckColour: 'red' })).toBeUndefined();
+    expect(deckColourOf({ deck: 'line', deckColour: 'red' })).toBeUndefined();
   });
 
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', 'mecha/keys', 'mecha/gear_gunmetal']);
-    expect(styleImageIds({ ...arcade, side: 'dots', deck: 'cassette' })).toEqual(['mecha/notes', 'mecha/long']);
+    expect(styleImageIds({ ...arcade, side: 'dots', deck: 'line' })).toEqual(['mecha/notes', 'mecha/long']);
     expect(styleImageIds({ ...arcade, note: 'flat', deckColour: 'blue' })).toEqual(['mecha/keys', 'mecha/gear_blue']);
     expect(styleImageIds(styleOf(skinById('flat', null)))).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
-    expect(styleTextures({ ...arcade, hit: 'wave' })).toEqual({});
+    // the four hits of no set have flipbooks of their own; the skins' own STEMFLASH is drawn in code
+    for (const hit of ['flash', 'flare', 'bubbles', 'grid'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
+    expect(styleTextures({ ...arcade, hit: 'crystal' })).toEqual({ hitBurst: 'gem/hitBurst', hitHold: 'gem/hitHold' });
+    for (const hit of ['stemflash', 'none', 'flipbook'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({});
   });
 
   it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
@@ -219,6 +222,25 @@ function deckSpec(room: number): DeckSpec {
     colours: skinById('flat', null).colors,
   };
 }
+
+describe('the hits drawn from art', () => {
+  it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, from the judge line down', () => {
+    expect(PART_HITS).toEqual(['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    for (const hit of PART_HITS) {
+      expect(isArtHit(hit), hit).toBe(true);
+      const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
+      for (const id of [hitBurst, hitHold]) {
+        expect(id && manifest.textures[id]?.size, `${hit} ${id}`).toEqual([1024, 1024]);
+        expect(manifest.textures[id!].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
+        expect(manifest.textures[id!].anchorY, id).toBeGreaterThan(0.5);
+      }
+      expect(manifest.textures[hitBurst!].flipbook).toMatchObject({ fps: 60, loop: false });
+      expect(manifest.textures[hitHold!].flipbook).toMatchObject({ fps: 24, loop: true });
+    }
+    // the STEM skin's own is drawn in code only
+    expect(isArtHit('stemflash')).toBe(false);
+  });
+});
 
 describe.each(SETS)('the $set set drawn from art', (c) => {
   const style = setStyle(c);

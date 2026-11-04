@@ -347,13 +347,14 @@ test('textured skins, drawn in code where their media is missing or broken', asy
     await page.screenshot({ path: `test-results/play-textured-${shot}.png` });
   };
 
-  // JEWEL plays the crystal set's flipbooks
+  // JEWEL's own flipbooks give way to the hit picked: the flash's (every hit a player picks is drawn from art)
   await inSettings(async () => {
     await settingsTab(page, 'gear');
     await chooseSetting(page, 'opt-skin', 'jewel');
   });
   await play('jewel');
-  for (const file of ['manifest.json', 'fx/hit_burst_glow.png', 'fx/hit_hold.png']) expect(loaded).toContain(`/media/${file}`);
+  for (const file of ['manifest.json', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) expect(loaded).toContain(`/media/${file}`);
+  expect(loaded).not.toContain('/media/fx/hit_burst_glow.png');
 
   // a user skin of textures
   const textured = { label: '텍스처 스킨', hitEffect: 'sprite', textures: { note: 'glass/note', floor: 'glass/floor', hitBurst: 'fx/hitBurstRing', hitHold: 'fx/hitHold' } };
@@ -366,9 +367,10 @@ test('textured skins, drawn in code where their media is missing or broken', asy
     await expect(page.getByTestId('opt-skin')).toContainText('텍스처 스킨');
   });
   await play('user');
-  for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'fx/hit_burst_ring.png', 'fx/hit_hold.png']) {
+  for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) {
     expect(loaded).toContain(`/media/${file}`);
   }
+  expect(loaded).not.toContain('/media/fx/hit_burst_ring.png');
   // a broken note texture: the notes are drawn in code, the rest stays textured
   await page.route('**/media/skins/glass/note_tap.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
   await play('broken-note');
@@ -522,15 +524,17 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
   await page.getByTestId('opt-side-style').press('ArrowRight');
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'dots');
-  await chooseSetting(page, 'opt-deck-style', 'cassette');
-  await chooseSetting(page, 'opt-hit-style', 'wave');
+  await chooseSetting(page, 'opt-deck-style', 'neon');
+  await chooseSetting(page, 'opt-hit-style', 'grid');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'cassette', hit: 'wave' } });
+  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'neon', hit: 'grid' } });
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots cassette wave');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots neon grid');
+  // the LED grid drawn from its flipbooks, the neon gear in its own colourway
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear:black hit');
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'test-results/play-parts.png' });
@@ -562,9 +566,8 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  // a gear drawn in code has no colourways to pick
-  await chooseSetting(page, 'opt-deck-style', 'cassette');
-  await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
+  // every gear a player picks has its colourways: the default gear's own first
+  await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'ebony');
   await chooseSetting(page, 'opt-note-style', 'chamfer');
   await chooseSetting(page, 'opt-deck-style', 'arcade');
   await chooseSetting(page, 'opt-hit-style', 'mecha');
@@ -574,9 +577,9 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   await expect(page.getByTestId('opt-deck-colour')).toContainText('건메탈');
   await chooseSetting(page, 'opt-deck-colour', 'red');
   expect((await stored()).parts).toMatchObject({ note: 'chamfer', deck: 'arcade', deckColour: 'red', hit: 'mecha' });
-  // a gear drawn in code: no row; the pick is kept for when the arcade gear comes back
-  await chooseSetting(page, 'opt-deck-style', 'cassette');
-  await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
+  // a gear without that colourway shows its own; the pick is kept for when the arcade gear comes back
+  await chooseSetting(page, 'opt-deck-style', 'grand');
+  await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'ebony');
   await chooseSetting(page, 'opt-deck-style', 'arcade');
   await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'red');
   await page.getByRole('button', { name: /완료/ }).click();

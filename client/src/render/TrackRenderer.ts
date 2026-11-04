@@ -46,7 +46,6 @@ import {
   stripesTexture,
   tintMaterial,
   type EffectSheet,
-  type HitStyle,
   type LongPaint,
   type NoteMark,
   type NotePaint,
@@ -699,10 +698,10 @@ export class TrackRenderer {
     if (this.long.held) this.longHeld = longPictures(this.long.held.body, this.long.held.end);
     this.sideDots = this.style.side === 'dots';
     const hit = this.hit;
-    // a flipbook skin draws shards in code when its textures are missing, a set's hit its code stand-in
+    // a flipbook skin draws a flash in code when its textures are missing, an art hit its code stand-in
     this.flipbook = (hit === 'flipbook' || isArtHit(hit)) && Boolean(this.art.hitBurst);
     this.artParts = [...artPartsOf(this.style, this.images), ...(this.flipbook ? ['hit'] : [])].join(' ');
-    this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
+    this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit === 'flipbook' ? 'flash' : hit);
     if (this.hitSheet) this.own(this.hitSheet.texture);
     const fit = (lanes: number) => (options.hitEffectSize === 'small' ? Math.min(1, SMALL_HIT_LANES / lanes) : 1);
     const reach = this.hitSheet?.reach ?? 1;

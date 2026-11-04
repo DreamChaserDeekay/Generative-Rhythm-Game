@@ -42,10 +42,28 @@ const SETS: Record<ArtSet, { note: NoteStyle; deck: DeckStyle; hit: HitStyle }> 
   piano: { note: 'piano', deck: 'grand', hit: 'piano' },
 };
 const SET_IDS = Object.keys(SETS) as ArtSet[];
-const setOf = (part: 'note' | 'deck' | 'hit', value: string): ArtSet | undefined => SET_IDS.find((s) => SETS[s][part] === value);
+const setOf = (part: 'note' | 'deck', value: string): ArtSet | undefined => SET_IDS.find((s) => SETS[s][part] === value);
 
-/** Whether a hit effect is a set's, drawn from its flipbooks (in code while they are missing). */
-export const isArtHit = (hit: string): boolean => setOf('hit', hit) !== undefined;
+/**
+ * The hits drawn from flipbooks (client/public/media/styles/<set>/ and styles/hits/), by their name in
+ * the manifest: the sets' and four of no set (FLASH, FLARE, BUBBLES, GRID). Each is drawn in code
+ * while its flipbooks are missing (tintArt.ts: effectSheet).
+ */
+const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
+  flash: 'flash',
+  flare: 'flare',
+  bubbles: 'bubbles',
+  grid: 'grid',
+  mecha: 'mecha',
+  club: 'club',
+  crystal: 'gem',
+  neon: 'neon',
+  piano: 'piano',
+};
+const hitArtOf = (hit: string): string | undefined => (Object.hasOwn(HIT_ART, hit) ? HIT_ART[hit as HitStyle] : undefined);
+
+/** Whether a hit effect is drawn from flipbooks (in code while they are missing). */
+export const isArtHit = (hit: string): boolean => hitArtOf(hit) !== undefined;
 
 /** A decoded picture of the media (an ImageBitmap in the browser). */
 export type ArtImage = CanvasImageSource & { readonly width: number; readonly height: number };
@@ -98,7 +116,7 @@ export function deckColourOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>): str
  * "crystal" already names an earlier texture set (skins/crystal/, which user skins may ask for).
  */
 const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon', piano: 'piano' };
-const artId = (set: ArtSet, part: 'notes' | 'long' | 'side' | 'keys' | 'hitBurst' | 'hitHold') => `${MANIFEST_NAME[set]}/${part}`;
+const artId = (set: ArtSet, part: 'notes' | 'long' | 'side' | 'keys') => `${MANIFEST_NAME[set]}/${part}`;
 const gearId = (set: ArtSet, colour: string) => `${MANIFEST_NAME[set]}/gear_${colour}`;
 
 /** The pictures (manifest ids) a style's parts draw from. */
@@ -114,8 +132,8 @@ export function styleImageIds(style: SkinStyle): string[] {
 
 /** The flipbook textures a style's hit effect plays. */
 export function styleTextures(style: SkinStyle): SkinTextures {
-  const set = setOf('hit', style.hit);
-  return set ? { hitBurst: artId(set, 'hitBurst'), hitHold: artId(set, 'hitHold') } : {};
+  const name = hitArtOf(style.hit);
+  return name ? { hitBurst: `${name}/hitBurst`, hitHold: `${name}/hitHold` } : {};
 }
 
 /** Draws the source columns `from` (edges, px of the picture) of a band `sy`..`sy + sh` onto the canvas columns `to`, `h` deep from `y`: each slice to whole px, so they meet. */

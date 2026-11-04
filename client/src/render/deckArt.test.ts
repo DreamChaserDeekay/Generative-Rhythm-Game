@@ -49,14 +49,12 @@ describe('the lane lights under the judge line', () => {
     }
   });
 
-  it('moves the large buttons and gems down, and leaves neon’s and the small lights where they were', () => {
+  it('moves the large buttons, knobs and keys down, and leaves neon’s hexagons where they were', () => {
     const lanes = deckLanes('7K+1S');
-    for (const style of ['neon', 'hazard', 'mono'] as const) expect(rowDrop(style, lanes, 72, 1.25)).toBe(0);
-    for (const style of ['arcade', 'candy', 'jewel', 'mixer'] as const) expect(rowDrop(style, lanes, 72, 1.25)).toBeGreaterThan(4);
+    expect(rowDrop('neon', lanes, 72, 1.25)).toBe(0);
+    for (const style of ['arcade', 'mixer', 'grand'] as const) expect(rowDrop(style, lanes, 72, 1.25)).toBeGreaterThan(4);
     // every light stays inside its row (an outline at most a px past it)
     for (const style of DECK_STYLES) for (const l of lanes) expect(KEY_PAINT[style].reach(l.kind, l.width, 72, 1.25)).toBeLessThan(36 + 1);
-    // JEWEL's band is the row: its top lies no nearer the line than neon's hexagons either
-    for (const l of lanes) expect(KEY_PAINT.jewel.reach(l.kind, l.width, 72, 1.25)).toBeGreaterThanOrEqual(36);
   });
 });
 

@@ -304,9 +304,12 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   const score = await page.getByTestId('result-score').textContent();
   const rate = await page.getByTestId('result-rate').textContent();
   await expect(page.getByTestId('result-regenerate')).toBeVisible();
-  // the replay and the chart files are in the details (Space)
-  await page.keyboard.press('Space');
-  await expect(page.getByTestId('result-export-osu')).toBeVisible();
+  // the replay and the chart files are in the details (Space, once the result takes keys: a key in its
+  // first 600 ms only shows it all, and the record can be saved sooner than that)
+  await expect(async () => {
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('result-export-osu')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
 
   await page.getByTestId('watch-replay').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();

@@ -544,7 +544,7 @@ export function SettingsScreen({
               value={deckColours.value}
               options={deckColours.options}
               onChange={(v) => setPart('deckColour', v)}
-              help="기어 판의 색입니다. 그림으로 그린 기어(아케이드·믹서·크리스털·네온·그랜드 피아노)에 4가지씩 있고, 레인 표시등은 색과 상관없이 레인 색으로 켜집니다."
+              help="기어 판의 색입니다. 기어마다 4가지씩 있고, 레인 표시등은 색과 상관없이 레인 색으로 켜집니다."
             />
           )}
           <Choice
@@ -554,7 +554,7 @@ export function SettingsScreen({
             value={settings.parts.hit}
             options={PART_CHOICES.hit}
             onChange={(v) => setPart('hit', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 임팩트 웨이브·스파크·LED 그리드·셔터는 판정선 아래(기어 쪽)에만 그려 내려오는 노트를 가리지 않습니다. 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 플래시·플레어·거품·LED 그리드와 세트마다 하나(메카 섬광·클럽 링·크리스털 파편·네온 아크·피아노 음표)가 있고, 모두 판정선 위로는 짧게만 남아 내려오는 노트를 가리지 않습니다(LED 그리드는 판정선 아래에만). 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
           />
           <Choice
             {...row}

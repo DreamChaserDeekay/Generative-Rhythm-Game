@@ -2,41 +2,26 @@ import type { SkinColors } from './skins';
 import { ink, tone, type NoteMark, type Paint } from './tintArt';
 
 /**
- * The gear under the judge line, drawn in code per skin: a plate in the skin's own colours (a
- * picture in real colours, painted again when the screen shows more or less of it) and, on it, a
- * light per lane in the lane's colour that lights while its key is down (a tint picture, see
- * tintArt). Each design follows its skin: LED bars, instrument dots, arcade buttons, a mixer's
- * knobs, road chevrons, neon hexagons, crystal diamonds, candy buttons, cut gems, outlines; and
- * four for any skin (설정 → 기어): a concrete slab with a pocket per key, a cockpit panel of
- * switches, a cassette deck's keys, a grand piano's keys.
+ * The gear under the judge line, drawn in code: a plate in the skin's own colours (a picture in real
+ * colours, painted again when the screen shows more or less of it) and, on it, a light per lane in
+ * the lane's colour that lights while its key is down (a tint picture, see tintArt). LINE (LED bars)
+ * and STEM (instrument dots) are skins' own; the five a player picks (설정 → 기어) are drawn from the
+ * concept sets' art (styleArt.ts), and here while it is missing: arcade buttons, a mixer's knobs,
+ * neon hexagons, crystal diamonds, a grand piano's keys.
  */
-export type DeckStyle =
-  | 'line'
-  | 'stem'
-  | 'arcade'
-  | 'mixer'
-  | 'hazard'
-  | 'neon'
-  | 'crystal'
-  | 'candy'
-  | 'jewel'
-  | 'mono'
-  | 'concrete'
-  | 'avionics'
-  | 'cassette'
-  | 'grand';
-export const DECK_STYLES: DeckStyle[] = ['line', 'stem', 'arcade', 'mixer', 'hazard', 'neon', 'crystal', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette', 'grand'];
+export type DeckStyle = 'line' | 'stem' | 'arcade' | 'mixer' | 'neon' | 'crystal' | 'grand';
+export const DECK_STYLES: DeckStyle[] = ['line', 'stem', 'arcade', 'mixer', 'neon', 'crystal', 'grand'];
 /** Earlier skins named the key caps that stood here; each cap is now the deck of its skin. */
 export const CAP_DECKS: Record<string, DeckStyle> = {
   flat: 'line',
   stem: 'stem',
   gloss: 'arcade',
   piano: 'mixer',
-  outline: 'hazard',
+  outline: 'arcade',
   neon: 'neon',
   glass: 'crystal',
-  pill: 'candy',
-  jewel: 'jewel',
+  pill: 'mixer',
+  jewel: 'crystal',
 };
 
 export type KeyKind = 'white' | 'other' | 'scratch';
@@ -164,9 +149,8 @@ function panel(g: CanvasRenderingContext2D, s: DeckSpec, inset: number, cut: num
   return (top + bottom) / 2;
 }
 
-/** The sockets ARCADE's buttons and JEWEL's gems sit in on the plate, this much larger than they are. */
+/** The sockets ARCADE's buttons sit in on the plate, this much larger than they are. */
 const ARCADE_SOCKET = 1.14;
-const JEWEL_SOCKET = 1.16;
 
 /** A side bar's ends lie this share of its half in from the half's ends, so the two halves' bars stay apart. */
 const SIDE_INSET = 0.05;
@@ -185,35 +169,14 @@ function barBox(x: number, y: number, w: number, h: number, share: number): Box 
   return { x: x + w * SIDE_INSET, y: y + (h * (1 - share)) / 2, w: w * (1 - 2 * SIDE_INSET), h: h * share };
 }
 
-/** How deep ARCADE's side button and JEWEL's side gem are in their row: the plate sets them in sockets that size. */
+/** How deep ARCADE's side button and GRAND's side bar are in their row: the plate sets them in sockets that size. */
 const ARCADE_BAR = 0.78;
-const JEWEL_BAR = 0.8;
-
-/** How deep the new designs' side bars are in their row (their plates set them in sockets that size). */
-const CONCRETE_BAR = 0.84;
-const AVIONICS_BAR = 0.78;
-const CASSETTE_BAR = 0.8;
 const GRAND_BAR = 0.86;
 
 /** A rectangle whose corners are round on the screen (`r` across, `st` times longer along the track). */
 function rounded(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
   g.beginPath();
   g.roundRect(b.x, b.y, b.w, b.h, [{ x: Math.min(r, b.w / 2), y: Math.min(r * st, b.h / 2) }]);
-}
-
-/** A rectangle with its corners cut at 45° on the screen, `cut` deep along the track. */
-function chamfered(g: CanvasRenderingContext2D, b: Box, cut: number, st: number): void {
-  const c = cut / st;
-  polygon(g, [
-    [b.x + c, b.y],
-    [b.x + b.w - c, b.y],
-    [b.x + b.w, b.y + cut],
-    [b.x + b.w, b.y + b.h - cut],
-    [b.x + b.w - c, b.y + b.h],
-    [b.x + c, b.y + b.h],
-    [b.x, b.y + b.h - cut],
-    [b.x, b.y + cut],
-  ]);
 }
 
 /** A bar whose ends come to a point, `reach` of its depth long (0.5: at 45° on the screen). */
@@ -239,8 +202,7 @@ function sideSockets(s: DeckSpec, share: number, pad: number, draw: (b: Box) => 
 
 /**
  * The deck's top edge, just under the judge line: a dim line this many px deep (neon's) in every
- * design but MONO's, which has none, so nothing bright under the line reads as a second one before
- * the lights.
+ * design, so nothing bright under the line reads as a second one before the lights.
  */
 const EDGE = 1.5;
 
@@ -377,39 +339,6 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
     g.fillStyle = s.colours.judgeLine;
     g.fillRect(s.width / 2 - s.width * 0.2, s.room - 7, s.width * 0.4, 2);
   },
-  // asphalt with road chevrons in the lanes, dashed lane lines and a hazard band
-  hazard: (g, s) => {
-    g.fillStyle = shade(s.colours.trackNear, 0.75);
-    g.fillRect(0, 0, s.width, s.depth);
-    const rand = seeded(11);
-    for (let i = 0; i < (s.width * s.depth) / 50; i++) {
-      g.fillStyle = white(0.03 + rand() * 0.05);
-      g.fillRect(rand() * s.width, rand() * s.depth, 1.2, 1.2);
-    }
-    g.fillStyle = s.colours.divider;
-    g.fillRect(0, 0, s.width, EDGE);
-    separators(g, s, s.keyTop, keyBottom(s), white(0.16), [8, 6]);
-    if (lowerRoom(s) < 30) return;
-    const h = Math.min(20, lowerRoom(s) - 14);
-    const y = s.room - 6 - h;
-    g.save();
-    g.beginPath();
-    g.rect(0, y, s.width, h);
-    g.clip();
-    g.fillStyle = '#111114';
-    g.fillRect(0, y, s.width, h);
-    g.fillStyle = s.colours.railLeft;
-    // stripes at about 45° on the screen
-    const lean = h / s.stretch;
-    for (let x = -lean; x < s.width + lean; x += 28) {
-      polygon(g, [[x, y + h], [x + 14, y + h], [x + 14 + lean, y], [x + lean, y]]);
-      g.fill();
-    }
-    g.restore();
-    g.fillStyle = '#0b0b0e';
-    g.fillRect(0, y - 2, s.width, 2);
-    g.fillRect(0, y + h, s.width, 2);
-  },
   // a circuit traced in the rails' neon, meeting under the middle
   neon: (g, s) => {
     g.fillStyle = shade(s.colours.trackFar, 0.8);
@@ -470,248 +399,6 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
       g.fill();
     }
   },
-  // candy: soft polka dots, a wave under the buttons
-  candy: (g, s) => {
-    g.fillStyle = shade(s.colours.trackNear, 0.8);
-    g.fillRect(0, 0, s.width, s.depth);
-    g.fillStyle = shade(s.colours.railLeft, 1, 0.07);
-    for (let row = 0, y = 10; y < s.depth; row++, y += 16 * s.stretch) {
-      for (let x = 9 + (row % 2) * 9; x < s.width; x += 18) {
-        disc(g, x, y, 2.6, s.stretch);
-        g.fill();
-      }
-    }
-    g.fillStyle = s.colours.divider;
-    g.fillRect(0, 0, s.width, EDGE);
-    if (lowerRoom(s) < 26) return;
-    const y = s.room - 13;
-    const amp = 3.5 * s.stretch;
-    g.lineWidth = 3;
-    g.lineCap = 'round';
-    g.strokeStyle = shade(s.colours.railRight, 1, 0.7);
-    g.beginPath();
-    for (let x = 8; x <= s.width - 8; x += 2) {
-      const v = y + amp * Math.sin((x / 36) * Math.PI * 2);
-      if (x === 8) g.moveTo(x, v);
-      else g.lineTo(x, v);
-    }
-    g.stroke();
-  },
-  // a metal band holding a gem per lane, a row of filigree arcs below
-  jewel: (g, s) => {
-    g.fillStyle = shade(s.colours.trackNear, 0.75);
-    g.fillRect(0, 0, s.width, s.depth);
-    // the band is the row, the gems in its middle; no line along its top, which would read as a
-    // second judge line (it lies no nearer the line than neon's hexagons: see its reach)
-    const top = s.keyTop;
-    const bottom = keyBottom(s);
-    g.fillStyle = shade(s.colours.trackNear, 1.35);
-    g.fillRect(0, top, s.width, bottom - top);
-    g.fillStyle = shade(s.colours.railLeft, 1, 0.35);
-    g.fillRect(0, bottom - 1, s.width, 1);
-    const cy = s.keyTop + s.keyDepth / 2;
-    g.lineWidth = 2;
-    g.strokeStyle = 'rgba(176,166,232,0.55)';
-    for (const l of s.lanes) {
-      regular(g, centre(l), cy, radius(s, l, 0.34) * JEWEL_SOCKET, s.stretch, 8, Math.PI / 8);
-      g.fillStyle = shade(s.colours.trackFar, 1);
-      g.fill();
-      g.stroke();
-    }
-    // a long setting under the band for each side bar's gem
-    sideSockets(s, JEWEL_BAR, 2, (b) => {
-      chamfered(g, b, b.h * 0.3, s.stretch);
-      g.fillStyle = shade(s.colours.trackFar, 1);
-      g.fill();
-      g.stroke();
-    });
-    if (lowerRoom(s) < 28) return;
-    const y = s.room - 16;
-    g.lineWidth = 1.5;
-    g.strokeStyle = shade(s.colours.railRight, 1, 0.42);
-    g.fillStyle = shade(s.colours.railLeft, 1, 0.5);
-    for (let x = 12; x + 24 <= s.width - 8; x += 24) {
-      g.beginPath();
-      g.ellipse(x + 12, y, 12, 7 * s.stretch, 0, 0, Math.PI);
-      g.stroke();
-      disc(g, x, y, 1.6, s.stretch);
-      g.fill();
-    }
-  },
-  // black, white lines: nothing that could be mistaken
-  mono: (g, s) => {
-    g.fillStyle = '#000000';
-    g.fillRect(0, 0, s.width, s.depth);
-    // no edge: with no halo to join it to the line, even a dim one reads as a second judge line
-    separators(g, s, s.keyTop, keyBottom(s), s.colours.divider);
-    if (lowerRoom(s) < 20) return;
-    g.fillRect(12, s.room - 10, s.width - 24, 2);
-  },
-  // raw concrete cast in boards: a pocket sunk in it per key, form-tie holes in rows below
-  concrete: (g, s) => {
-    const grad = g.createLinearGradient(0, 0, 0, s.room);
-    grad.addColorStop(0, '#2b2c2f');
-    grad.addColorStop(1, '#222326');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, s.width, s.depth);
-    // the board marks of the formwork and the grain of the cast
-    const rand = seeded(23);
-    for (let i = 0; i < (s.width * s.depth) / 22; i++) {
-      g.fillStyle = rand() < 0.5 ? `rgba(0,0,0,${0.06 + rand() * 0.08})` : white(0.02 + rand() * 0.04);
-      g.fillRect(rand() * s.width, rand() * s.depth, 1.4, 1.4 * s.stretch);
-    }
-    for (let y = lowerTop(s) + 14 * s.stretch; y < s.depth; y += 30 * s.stretch) {
-      g.fillStyle = 'rgba(0,0,0,0.22)';
-      g.fillRect(0, y, s.width, 1);
-      g.fillStyle = white(0.035);
-      g.fillRect(0, y + 1, s.width, 1);
-    }
-    g.fillStyle = white(0.08);
-    g.fillRect(0, 0, s.width, EDGE);
-    for (const l of s.lanes) pocket(g, lightBox('concrete', l.left, s.keyTop, l.width, s.keyDepth), s.stretch);
-    sideSockets(s, CONCRETE_BAR, 0, (b) => pocket(g, b, s.stretch));
-    if (lowerRoom(s) < 34) return;
-    // the tie holes: a row of them between the lights and the screen's bottom
-    const y = (lowerTop(s) + s.room) / 2;
-    for (let x = 22; x <= s.width - 22; x += Math.max(44, s.width / 12)) {
-      disc(g, x, y, 4.2, s.stretch);
-      g.fillStyle = '#121315';
-      g.fill();
-      disc(g, x + 0.8, y + 0.8 * s.stretch, 3.2, s.stretch);
-      g.fillStyle = '#08090a';
-      g.fill();
-    }
-  },
-  // a cockpit panel: a well per switch, amber brackets framing a panel below, a striped strip over it
-  avionics: (g, s) => {
-    const grad = g.createLinearGradient(0, 0, 0, s.room);
-    grad.addColorStop(0, '#181a1e');
-    grad.addColorStop(1, '#121417');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, s.width, s.depth);
-    g.fillStyle = white(0.07);
-    g.fillRect(0, 0, s.width, EDGE);
-    const well = (b: Box) => {
-      const pad = 2.5;
-      g.beginPath();
-      g.roundRect(b.x - pad, b.y - pad * s.stretch, b.w + 2 * pad, b.h + 2 * pad * s.stretch, [{ x: 5, y: 5 * s.stretch }]);
-      g.fillStyle = '#0a0b0e';
-      g.fill();
-      g.lineWidth = 1;
-      g.strokeStyle = '#2c3038';
-      g.stroke();
-    };
-    for (const l of s.lanes) well(lightBox('avionics', l.left, s.keyTop, l.width, s.keyDepth));
-    sideSockets(s, AVIONICS_BAR, 0, well);
-    const room = lowerRoom(s);
-    if (room < 34) return;
-    // the strip: amber and white dashes, dim, under the row
-    const top = lowerTop(s) + 6;
-    const strip = Math.min(4, room * 0.08);
-    for (let x = 12, i = 0; x < s.width - 12; x += 16, i++) {
-      g.fillStyle = i % 2 ? 'rgba(236,238,242,0.42)' : 'rgba(255,150,40,0.6)';
-      g.fillRect(x, top, 10, strip);
-    }
-    const mid = panel(g, { ...s, sides: [] }, 16, 12);
-    if (mid === null) return;
-    g.fillStyle = '#111317';
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = '#2b3038';
-    g.stroke();
-    g.fillStyle = white(0.12);
-    g.fillRect(s.width / 2 - 30, mid - 1, 60, 2);
-    // amber brackets at the panel's corners
-    const p0 = lowerTop(s) + 10;
-    const p1 = s.room - 10;
-    if (p1 - p0 < 24) return;
-    const arm = 9;
-    g.fillStyle = 'rgba(255,178,30,0.85)';
-    for (const [x, dx] of [
-      [6, 1],
-      [s.width - 6, -1],
-    ] as [number, number][]) {
-      for (const [y, dy] of [
-        [p0 + 8, 1],
-        [p1, -1],
-      ] as [number, number][]) {
-        g.fillRect(dx > 0 ? x : x - 2, dy > 0 ? y : y - arm * s.stretch, 2, arm * s.stretch);
-        g.fillRect(dx > 0 ? x : x - arm, dy > 0 ? y : y - 2 * s.stretch, arm, 2 * s.stretch);
-      }
-    }
-  },
-  // a cassette deck: brushed black metal, a slot per key, a cassette's window with its reels below
-  cassette: (g, s) => {
-    g.fillStyle = '#131315';
-    g.fillRect(0, 0, s.width, s.depth);
-    const rand = seeded(31);
-    for (let y = 2; y < s.depth; y += 2) {
-      g.fillStyle = white(0.008 + rand() * 0.022);
-      g.fillRect(0, y, s.width, 1);
-    }
-    g.fillStyle = white(0.07);
-    g.fillRect(0, 0, s.width, EDGE);
-    const slot = (b: Box, bottom: number) => {
-      g.fillStyle = '#050506';
-      g.fillRect(b.x - 2, b.y - 2 * s.stretch, b.w + 4, bottom - b.y + 2 * s.stretch);
-      g.fillStyle = '#2a2a2e';
-      g.fillRect(b.x - 2, bottom, b.w + 4, 1);
-    };
-    for (const l of s.lanes) slot(lightBox('cassette', l.left, s.keyTop, l.width, s.keyDepth), s.keyTop + s.keyDepth * 0.97);
-    sideSockets(s, CASSETTE_BAR, 0, (b) => slot(b, b.y + b.h));
-    const room = lowerRoom(s);
-    if (room < 40) return;
-    const top = lowerTop(s) + 8;
-    // a dim chrome trim over the cassette's door
-    g.fillStyle = '#3a3c42';
-    g.fillRect(14, top, s.width - 28, 1.5);
-    const bottom = s.room - 10;
-    const h = bottom - top - 8;
-    if (h < 24) return;
-    const w = Math.min(s.width * 0.5, 280);
-    const x = s.width / 2 - w / 2;
-    const y = top + 8;
-    g.beginPath();
-    g.roundRect(x, y, w, h, [{ x: 6, y: 6 * s.stretch }]);
-    g.fillStyle = '#0c0c0e';
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = '#34353a';
-    g.stroke();
-    // the window and the cassette behind it: the tape between the reels, the reels
-    const wx = x + 10;
-    const ww = w - 20;
-    const wy = y + 5 * s.stretch;
-    const wh = h - 10 * s.stretch;
-    g.fillStyle = '#070708';
-    g.fillRect(wx, wy, ww, wh);
-    const r = Math.min(ww * 0.17, (wh / 2 / s.stretch) * 0.8);
-    const cy = wy + wh / 2;
-    g.fillStyle = '#2e2119';
-    g.fillRect(wx + ww * 0.28, cy + r * s.stretch * 0.55, ww * 0.44, r * s.stretch * 0.3);
-    for (const cx of [wx + ww * 0.28, wx + ww * 0.72]) {
-      disc(g, cx, cy, r * 0.92, s.stretch);
-      g.fillStyle = '#3a2a1f';
-      g.fill();
-      disc(g, cx, cy, r * 0.5, s.stretch);
-      g.fillStyle = '#18181b';
-      g.fill();
-      g.lineWidth = 1.2;
-      g.strokeStyle = '#4a4b52';
-      g.stroke();
-      regular(g, cx, cy, r * 0.24, s.stretch, 6);
-      g.fillStyle = '#5a5b62';
-      g.fill();
-    }
-    g.fillStyle = white(0.03);
-    polygon(g, [
-      [wx + ww * 0.1, wy],
-      [wx + ww * 0.24, wy],
-      [wx + ww * 0.12, wy + wh],
-      [wx - ww * 0.02, wy + wh],
-    ]);
-    g.fill();
-  },
   // a grand piano's keys in black lacquer: a felt strip under them, a gold line on the fallboard
   grand: (g, s) => {
     const grad = g.createLinearGradient(0, 0, 0, s.room);
@@ -744,142 +431,20 @@ const PLATES: Record<DeckStyle, (g: CanvasRenderingContext2D, s: DeckSpec) => vo
   },
 };
 
-// ---------- the gears for any skin: concrete, avionics, cassette, grand ----------
+// ---------- the grand piano's keys ----------
 
 /**
- * Where these designs' lights lie in a lane's place in the row (`w` × `h`, `x`, `y` its corner): a
- * share of it in from its sides and from the row's top and bottom. The plate draws the socket round
- * it (the pocket's walls, the switch's well, the key's slot); the light picture draws what is in it.
+ * Where GRAND's keys lie in a lane's place in the row (`w` × `h`, `x`, `y` its corner): a share of
+ * it in from its sides and from the row's top and bottom. The plate draws the slot round it; the
+ * light picture draws the key in it.
  */
-const LIGHT_BOX: Record<'concrete' | 'avionics' | 'cassette' | 'grand', { side: number; top: number; bottom: number }> = {
-  concrete: { side: 0.09, top: 0.07, bottom: 0.07 },
-  avionics: { side: 0.11, top: 0.13, bottom: 0.13 },
-  cassette: { side: 0.08, top: 0.06, bottom: 0.14 },
+const LIGHT_BOX: Record<'grand', { side: number; top: number; bottom: number }> = {
   grand: { side: 0.05, top: 0.04, bottom: 0.06 },
 };
 
 export function lightBox(style: keyof typeof LIGHT_BOX, x: number, y: number, w: number, h: number): Box {
   const b = LIGHT_BOX[style];
   return { x: x + w * b.side, y: y + h * b.top, w: w * (1 - 2 * b.side), h: h * (1 - b.top - b.bottom) };
-}
-
-/** CONCRETE's pocket walls round `b`: `wall` across, `st` times that along (a pocket's floor is `b` less its walls). */
-function pocketWall(b: Box, st: number): number {
-  return Math.min(b.w * 0.17, (b.h * 0.24) / st);
-}
-
-function pocketFloor(b: Box, st: number): Box {
-  const t = pocketWall(b, st);
-  return { x: b.x + t, y: b.y + t * st, w: b.w - 2 * t, h: b.h - 2 * t * st };
-}
-
-/** The four walls of a pocket sunk in a slab, lit from the far left: the far and left walls in shade, the near and right ones lit. */
-function pocket(g: CanvasRenderingContext2D, b: Box, st: number): void {
-  const f = pocketFloor(b, st);
-  const [x0, y0, x1, y1] = [b.x, b.y, b.x + b.w, b.y + b.h];
-  const [fx0, fy0, fx1, fy1] = [f.x, f.y, f.x + f.w, f.y + f.h];
-  for (const [points, fill] of [
-    [[[x0, y0], [x1, y0], [fx1, fy0], [fx0, fy0]], '#0f1012'],
-    [[[x0, y0], [fx0, fy0], [fx0, fy1], [x0, y1]], '#18191c'],
-    [[[x1, y0], [x1, y1], [fx1, fy1], [fx1, fy0]], '#3a3b3f'],
-    [[[x0, y1], [x1, y1], [fx1, fy1], [fx0, fy1]], '#46474c'],
-  ] as [[number, number][], string][]) {
-    polygon(g, points);
-    g.fillStyle = fill;
-    g.fill();
-  }
-  g.fillStyle = '#08080a';
-  g.fillRect(f.x, f.y, f.w, f.h);
-}
-
-/** A switch's cap in the cockpit panel: a rounded box narrowing to its far edge. */
-function capPath(g: CanvasRenderingContext2D, b: Box, st: number): void {
-  const taper = b.w * 0.07;
-  const r = Math.min(b.w * 0.14, (b.h * 0.2) / st);
-  g.beginPath();
-  g.moveTo(b.x + taper + r, b.y);
-  g.lineTo(b.x + b.w - taper - r, b.y);
-  g.quadraticCurveTo(b.x + b.w - taper, b.y, b.x + b.w - taper * 0.8, b.y + r * st);
-  g.lineTo(b.x + b.w, b.y + b.h - r * st);
-  g.quadraticCurveTo(b.x + b.w, b.y + b.h, b.x + b.w - r, b.y + b.h);
-  g.lineTo(b.x + r, b.y + b.h);
-  g.quadraticCurveTo(b.x, b.y + b.h, b.x, b.y + b.h - r * st);
-  g.lineTo(b.x + taper * 0.8, b.y + r * st);
-  g.quadraticCurveTo(b.x + taper, b.y, b.x + taper + r, b.y);
-  g.closePath();
-}
-
-/**
- * AVIONICS's switch, at rest (in its amber, see idleColor) a dark cap with a lit tick and a mark
- * under it, lit the cap's face in the lane's colour.
- */
-function switchCap(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
-  capPath(g, b, st);
-  g.fillStyle = lit ? ink(0.3) : ink(0.09);
-  g.fill();
-  const t = Math.min(b.w * 0.1, (b.h * 0.12) / st);
-  const face: Box = { x: b.x + t, y: b.y + t * st, w: b.w - 2 * t, h: b.h - 2 * t * st };
-  capPath(g, face, st);
-  if (lit) {
-    g.fillStyle = tone(1.08);
-    g.fill();
-    g.save();
-    g.clip();
-    g.fillStyle = ink(1, 0.65, 0.7);
-    g.fillRect(face.x, face.y, face.w, face.h * 0.22);
-    g.restore();
-    return;
-  }
-  g.fillStyle = ink(0.14);
-  g.fill();
-  g.lineWidth = Math.max(1, t * 0.35);
-  g.strokeStyle = ink(0.26);
-  g.stroke();
-  // the tick and the mark under it
-  const tw = Math.max(1.5, face.w * 0.06);
-  g.fillStyle = ink(1, 0.05, 0.9);
-  g.fillRect(face.x + face.w / 2 - tw / 2, face.y + face.h * 0.16, tw, face.h * 0.26);
-  g.fillStyle = ink(0.55);
-  g.fillRect(face.x + face.w * 0.32, face.y + face.h * 0.74, face.w * 0.36, Math.max(1.5, face.h * 0.06));
-}
-
-/**
- * CASSETTE's key: a grey key with ridges to grip, lit pressed down a little with light showing
- * out of the slot under it in the lane's colour.
- */
-function deckKey(g: CanvasRenderingContext2D, b: Box, slotBottom: number, st: number, lit: boolean): void {
-  const press = lit ? b.h * 0.05 : 0;
-  const k: Box = { x: b.x, y: b.y + press, w: b.w, h: b.h - press };
-  if (lit) {
-    // the light out of the slot under the key
-    const slot = { y: k.y + k.h, h: Math.max(2, slotBottom - (k.y + k.h)) };
-    g.fillStyle = tone(1.25);
-    g.fillRect(k.x, slot.y, k.w, slot.h);
-    g.fillStyle = ink(1, 0.85);
-    g.fillRect(k.x + k.w * 0.12, slot.y + slot.h * 0.3, k.w * 0.76, slot.h * 0.4);
-  }
-  const r = Math.min(k.w * 0.08, (k.h * 0.1) / st);
-  g.beginPath();
-  g.roundRect(k.x, k.y, k.w, k.h, [{ x: r, y: r * st }]);
-  const grad = g.createLinearGradient(0, k.y, 0, k.y + k.h);
-  grad.addColorStop(0, lit ? ink(0.3) : ink(0.4));
-  grad.addColorStop(1, lit ? ink(0.18) : ink(0.24));
-  g.fillStyle = grad;
-  g.fill();
-  // its edges: lit on the left and at the far end, in shade on the right
-  const e = Math.max(1, k.w * 0.03);
-  g.fillStyle = ink(lit ? 0.4 : 0.52);
-  g.fillRect(k.x + r, k.y, k.w - 2 * r, e * st);
-  g.fillRect(k.x, k.y + r * st, e, k.h - 2 * r * st);
-  g.fillStyle = ink(0.12);
-  g.fillRect(k.x + k.w - e, k.y + r * st, e, k.h - 2 * r * st);
-  // the ridges on its near half
-  g.fillStyle = ink(lit ? 0.1 : 0.15);
-  const ridges = 4;
-  for (let i = 0; i < ridges; i++) {
-    const y = k.y + k.h * (0.5 + (0.38 * i) / (ridges - 1));
-    g.fillRect(k.x + k.w * 0.18, y, k.w * 0.64, Math.max(1, k.h * 0.035));
-  }
 }
 
 /**
@@ -1085,15 +650,6 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       return (r * 0.92 + Math.max(1.2, r * 0.07)) * st;
     },
   },
-  hazard: {
-    // a road chevron pointing at the judge line
-    idle: (_, st) => (g, w, h) => chevron(g, w, h, st, ink(1, 0, 0.6), false),
-    down: (_, st) => (g, w, h) => {
-      wash(g, w, h, 0.3);
-      chevron(g, w, h, st, tone(1.2), true);
-    },
-    reach: (_, w, h, st) => fit(w, h, st, 0.3).r * st * 0.55,
-  },
   neon: {
     idle: (_, st) => (g, w, h) => {
       const { x, y, r } = fit(w, h, st, 0.3);
@@ -1149,67 +705,6 @@ export const KEY_PAINT: Record<DeckStyle, KeyPaint> = {
       return r * st + Math.max(1.2, r * 0.08) / 2;
     },
   },
-  candy: {
-    // a round jelly button with a shine
-    idle: (_, st) => (g, w, h) => jelly(g, w, h, st, false),
-    down: (_, st) => (g, w, h) => jelly(g, w, h, st, true),
-    reach: (_, w, h, st) => {
-      const { r } = fit(w, h, st, 0.36);
-      return r * st + Math.max(2, r * 0.12) / 2;
-    },
-  },
-  jewel: {
-    // a round-cut gem: a table, facets to the girdle
-    idle: (_, st) => (g, w, h) => gem(g, w, h, st, false),
-    down: (_, st) => (g, w, h) => gem(g, w, h, st, true),
-    // the band the plate draws along the row, or the socket round the gem (JEWEL_SOCKET) where it reaches farther
-    reach: (_, w, h, st) => Math.max(h / 2, fit(w, h, st, 0.34).r * JEWEL_SOCKET * st * Math.cos(Math.PI / 8) + 1),
-  },
-  mono: {
-    idle: (_, st) => (g, w, h) => triangle(g, w, h, st, false),
-    down: (_, st) => (g, w, h) => triangle(g, w, h, st, true),
-    idleColor: 0xffffff,
-    neutralDown: () => true,
-    // its tip, the outline's mitre past it
-    reach: (_, w, h, st) => {
-      const { r } = fit(w, h, st, 0.26);
-      return r * st * 0.8 + Math.max(2, r * 0.1);
-    },
-  },
-  concrete: {
-    // the pocket's floor: dark at rest, lit, the light spilling onto its walls
-    idle: (_, st) => (g, w, h) => {
-      const f = pocketFloor(lightBox('concrete', 0, 0, w, h), st);
-      g.fillStyle = ink(0.12);
-      g.fillRect(f.x, f.y, f.w, f.h);
-    },
-    down: (_, st) => (g, w, h) => {
-      const b = lightBox('concrete', 0, 0, w, h);
-      const f = pocketFloor(b, st);
-      g.fillStyle = ink(1, 0.1, 0.32);
-      g.fillRect(b.x, b.y, b.w, b.h);
-      g.fillStyle = tone(1.12);
-      g.fillRect(f.x, f.y, f.w, f.h);
-      g.fillStyle = ink(1, 0.8);
-      g.fillRect(f.x + f.w * 0.18, f.y + f.h * 0.2, f.w * 0.64, f.h * 0.6);
-    },
-    // the pocket the plate sinks round it
-    reach: (_, _w, h) => h / 2 - h * LIGHT_BOX.concrete.top,
-  },
-  avionics: {
-    idle: (_, st) => (g, w, h) => switchCap(g, lightBox('avionics', 0, 0, w, h), st, false),
-    down: (_, st) => (g, w, h) => switchCap(g, lightBox('avionics', 0, 0, w, h), st, true),
-    idleColor: 0xffb21e,
-    // the well round the cap
-    reach: (_, _w, h, st) => h / 2 - h * LIGHT_BOX.avionics.top + 2.5 * st + 0.5,
-  },
-  cassette: {
-    idle: (_, st) => (g, w, h) => deckKey(g, lightBox('cassette', 0, 0, w, h), h * 0.97, st, false),
-    down: (_, st) => (g, w, h) => deckKey(g, lightBox('cassette', 0, 0, w, h), h * 0.97, st, true),
-    idleColor: 0xffffff,
-    // the slot round the key
-    reach: (_, _w, h, st) => h / 2 - h * LIGHT_BOX.cassette.top + 2 * st,
-  },
   grand: {
     idle: (kind, st) => (g, w, h) => pianoKey(g, lightBox('grand', 0, 0, w, h), st, kind, false),
     down: (kind, st) => (g, w, h) => pianoKey(g, lightBox('grand', 0, 0, w, h), st, kind, true),
@@ -1244,7 +739,7 @@ export interface SidePaint {
 
 /**
  * The glow of the next fill: a lit light's halo, painted once with the picture (the canvas's
- * shadow follows a bar's shape, its pointed or chevroned ends, as KEY_PAINT's round halo cannot).
+ * shadow follows a bar's shape, its pointed ends, as KEY_PAINT's round halo cannot).
  */
 function glow(g: CanvasRenderingContext2D, alpha: number, blur: number): void {
   g.shadowColor = ink(1, 0.15, alpha);
@@ -1263,32 +758,6 @@ function ends(g: CanvasRenderingContext2D, w: number, h: number, b: Box, draw: (
   g.restore();
 }
 
-/** A row of chevrons pointing out to the half's own side, as a road's bend is signed. */
-function chevrons(g: CanvasRenderingContext2D, b: Box, st: number, side: number): void {
-  const cw = (b.h * 0.55) / st;
-  const t = cw * 0.45;
-  const step = cw * 3;
-  const count = Math.max(1, Math.floor((b.w - cw - t) / step) + 1);
-  const start = b.x + (b.w - (count - 1) * step - cw - t) / 2;
-  const cy = b.y + b.h / 2;
-  g.beginPath();
-  for (let i = 0; i < count; i++) {
-    const x = start + i * step;
-    // drawn pointing left, then turned for the right half
-    const p = (dx: number): number => (side < 0 ? x + dx : 2 * b.x + b.w - x - dx);
-    const points: [number, number][] = [
-      [p(0), cy],
-      [p(cw), b.y],
-      [p(cw + t), b.y],
-      [p(t), cy],
-      [p(cw + t), b.y + b.h],
-      [p(cw), b.y + b.h],
-    ];
-    points.forEach(([px, py], k) => (k === 0 ? g.moveTo(px, py) : g.lineTo(px, py)));
-    g.closePath();
-  }
-}
-
 /** The dots of an LED meter along a bar (MIXER's lights in a row rather than a ring). */
 function meter(g: CanvasRenderingContext2D, b: Box, st: number, fill: (i: number, n: number) => string): void {
   const r = Math.max(1.2, (b.h / 2 / st) * 0.8);
@@ -1300,33 +769,6 @@ function meter(g: CanvasRenderingContext2D, b: Box, st: number, fill: (i: number
     g.fillStyle = fill(i, n);
     g.fill();
   }
-}
-
-/** JEWEL's side gem: a baguette cut, its table in the middle and facets to its corners. */
-function sideGem(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
-  const cut = b.h * 0.3;
-  chamfered(g, b, cut, st);
-  g.fillStyle = lit ? tone(1.05) : ink(0.42);
-  g.fill();
-  // a lit gem's glow is its outline's (see glow)
-  g.shadowBlur = 0;
-  const inset = b.h * 0.3;
-  const table: Box = { x: b.x + inset / st, y: b.y + inset, w: b.w - (2 * inset) / st, h: b.h - 2 * inset };
-  g.lineWidth = Math.max(1, b.h * 0.05);
-  g.strokeStyle = lit ? ink(1, 0.9, 0.7) : ink(1, 0.35, 0.4);
-  g.beginPath();
-  for (const [ox, oy, tx, ty] of [
-    [b.x, b.y, table.x, table.y],
-    [b.x + b.w, b.y, table.x + table.w, table.y],
-    [b.x, b.y + b.h, table.x, table.y + table.h],
-    [b.x + b.w, b.y + b.h, table.x + table.w, table.y + table.h],
-  ]) {
-    g.moveTo(ox, oy);
-    g.lineTo(tx, ty);
-  }
-  g.stroke();
-  g.fillStyle = lit ? ink(1, 0.75) : ink(0.7);
-  g.fillRect(table.x, table.y, table.w, table.h);
 }
 
 export const SIDE_PAINT: Record<DeckStyle, SidePaint> = {
@@ -1386,24 +828,6 @@ export const SIDE_PAINT: Record<DeckStyle, SidePaint> = {
       meter(g, barBox(0, 0, w, h, 0.5), st, (i, n) => (i === 0 || i === n - 1 ? ink(1, 0.6) : tone(1)));
     },
   },
-  hazard: {
-    // chevrons pointing out to its side, as a bend is signed
-    idle: (st, side) => (g, w, h) => {
-      chevrons(g, barBox(0, 0, w, h, 0.62), st, side);
-      g.fillStyle = ink(1, 0, 0.6);
-      g.fill();
-    },
-    down: (st, side) => (g, w, h) => {
-      glow(g, 0.5, h * 0.4);
-      chevrons(g, barBox(0, 0, w, h, 0.62), st, side);
-      g.fillStyle = tone(1.2);
-      g.fill();
-      g.shadowBlur = 0;
-      g.lineWidth = 1.5;
-      g.strokeStyle = ink(1, 0.7);
-      g.stroke();
-    },
-  },
   neon: {
     // a tube with the hexagons' pointed ends: at rest only its ends
     idle: (st) => (g, w, h) => {
@@ -1454,72 +878,6 @@ export const SIDE_PAINT: Record<DeckStyle, SidePaint> = {
       g.fill();
     },
   },
-  candy: {
-    // a long jelly button with a shine, grey until lit
-    idle: (st) => (g, w, h) => candyBar(g, barBox(0, 0, w, h, 0.74), st, false),
-    down: (st) => (g, w, h) => candyBar(g, barBox(0, 0, w, h, 0.74), st, true),
-    idleColor: 0xffffff,
-  },
-  jewel: {
-    // a baguette in a setting on the plate, grey until lit
-    idle: (st) => (g, w, h) => sideGem(g, barBox(0, 0, w, h, JEWEL_BAR), st, false),
-    down: (st) => (g, w, h) => {
-      glow(g, 0.55, h * 0.45);
-      sideGem(g, barBox(0, 0, w, h, JEWEL_BAR), st, true);
-    },
-    idleColor: 0xffffff,
-  },
-  mono: {
-    // an outline, filled white when lit: at rest only its ends
-    idle: () => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.5);
-      const lw = Math.max(2, b.h * 0.12);
-      ends(g, w, h, b, () => {
-        g.lineWidth = lw;
-        g.strokeStyle = ink(1, 1);
-        g.strokeRect(b.x + lw / 2, b.y + lw / 2, b.w - lw, b.h - lw);
-      });
-    },
-    down: () => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.5);
-      g.fillStyle = ink(1, 1);
-      g.fillRect(b.x, b.y, b.w, b.h);
-    },
-  },
-  concrete: {
-    // a long pocket (the plate sinks it): its floor dark at rest, lit in the lane's colour
-    idle: (st) => (g, w, h) => {
-      const f = pocketFloor(barBox(0, 0, w, h, CONCRETE_BAR), st);
-      g.fillStyle = ink(0.12);
-      g.fillRect(f.x, f.y, f.w, f.h);
-    },
-    down: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, CONCRETE_BAR);
-      const f = pocketFloor(b, st);
-      g.fillStyle = ink(1, 0.1, 0.32);
-      g.fillRect(b.x, b.y, b.w, b.h);
-      g.fillStyle = tone(1.12);
-      g.fillRect(f.x, f.y, f.w, f.h);
-    },
-    idleColor: 0xffffff,
-  },
-  avionics: {
-    // a long switch: at rest dark with its ticks, lit its face
-    idle: (st) => (g, w, h) => switchCap(g, barBox(0, 0, w, h, AVIONICS_BAR), st, false),
-    down: (st) => (g, w, h) => switchCap(g, barBox(0, 0, w, h, AVIONICS_BAR), st, true),
-    idleColor: 0xffb21e,
-  },
-  cassette: {
-    idle: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, CASSETTE_BAR);
-      deckKey(g, b, b.y + b.h, st, false);
-    },
-    down: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, CASSETTE_BAR);
-      deckKey(g, { ...b, h: b.h * 0.86 }, b.y + b.h, st, true);
-    },
-    idleColor: 0xffffff,
-  },
   grand: {
     // a long key, grey until lit
     idle: (st) => (g, w, h) => pianoKey(g, barBox(0, 0, w, h, GRAND_BAR), st, 'other', false),
@@ -1540,21 +898,6 @@ function arcadeBar(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean
   g.shadowBlur = 0;
   rounded(g, { x: b.x + r, y: b.y + b.h * 0.14, w: b.w - 2 * r, h: b.h * 0.26 }, (b.h * 0.13) / st, st);
   g.fillStyle = lit ? ink(1, 1, 0.55) : ink(1, 0.7, 0.3);
-  g.fill();
-}
-
-function candyBar(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
-  if (lit) glow(g, 0.5, b.h * 0.6);
-  rounded(g, b, b.h / 2 / st, st);
-  g.fillStyle = lit ? tone(1.1) : ink(0.55);
-  g.fill();
-  g.shadowBlur = 0;
-  g.lineWidth = Math.max(2, b.h * 0.12);
-  g.strokeStyle = lit ? ink(1, 0.85) : ink(1, 0.6, 0.55);
-  g.stroke();
-  g.beginPath();
-  g.ellipse(b.x + b.w * 0.16, b.y + b.h * 0.34, b.w * 0.07, b.h * 0.16, 0, 0, Math.PI * 2);
-  g.fillStyle = ink(1, 1, lit ? 0.85 : 0.5);
   g.fill();
 }
 
@@ -1582,81 +925,6 @@ function knob(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit
   g.lineTo(x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85 * st);
   g.lineWidth = Math.max(1.5, r * 0.14);
   g.lineCap = 'round';
-  g.strokeStyle = ink(1, 1);
-  g.stroke();
-}
-
-function chevron(g: CanvasRenderingContext2D, w: number, h: number, st: number, fill: string, lit: boolean): void {
-  const { x, y, r } = fit(w, h, st, 0.3);
-  const t = r * 0.42;
-  const tip = y - r * st * 0.55;
-  const foot = y + r * st * 0.55;
-  polygon(g, [
-    [x, tip],
-    [x + r, foot],
-    [x + r - t, foot],
-    [x, tip + t * st * 1.25],
-    [x - r + t, foot],
-    [x - r, foot],
-  ]);
-  g.fillStyle = fill;
-  g.fill();
-  if (lit) {
-    g.lineWidth = 1.5;
-    g.strokeStyle = ink(1, 0.7);
-    g.stroke();
-  }
-}
-
-function jelly(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit: boolean): void {
-  const { x, y, r } = fit(w, h, st, 0.36);
-  if (lit) halo(g, x, y, r, st, 0.5);
-  disc(g, x, y, r, st);
-  g.fillStyle = lit ? tone(1.1) : ink(0.55);
-  g.fill();
-  g.lineWidth = Math.max(2, r * 0.12);
-  g.strokeStyle = lit ? ink(1, 0.85) : ink(1, 0.6, 0.55);
-  g.stroke();
-  g.beginPath();
-  g.ellipse(x - r * 0.28, y - r * st * 0.36, r * 0.34, r * st * 0.2, -0.5, 0, Math.PI * 2);
-  g.fillStyle = ink(1, 1, lit ? 0.85 : 0.5);
-  g.fill();
-}
-
-function gem(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit: boolean): void {
-  const { x, y, r } = fit(w, h, st, 0.34);
-  if (lit) halo(g, x, y, r, st, 0.55);
-  regular(g, x, y, r, st, 8, Math.PI / 8);
-  g.fillStyle = lit ? tone(1.05) : ink(0.42);
-  g.fill();
-  // facets from the table's corners to the girdle's
-  g.lineWidth = Math.max(1, r * 0.05);
-  g.strokeStyle = lit ? ink(1, 0.9, 0.7) : ink(1, 0.35, 0.4);
-  g.beginPath();
-  for (let i = 0; i < 8; i++) {
-    const a = Math.PI / 8 + (i * Math.PI) / 4;
-    g.moveTo(x + r * 0.5 * Math.sin(a), y - r * 0.5 * st * Math.cos(a));
-    g.lineTo(x + r * Math.sin(a), y - r * st * Math.cos(a));
-  }
-  g.stroke();
-  regular(g, x, y, r * 0.5, st, 8, Math.PI / 8);
-  g.fillStyle = lit ? ink(1, 0.75) : ink(0.7);
-  g.fill();
-}
-
-function triangle(g: CanvasRenderingContext2D, w: number, h: number, st: number, lit: boolean): void {
-  const { x, y, r } = fit(w, h, st, 0.26);
-  polygon(g, [
-    [x, y - r * st * 0.8],
-    [x + r, y + r * st * 0.6],
-    [x - r, y + r * st * 0.6],
-  ]);
-  if (lit) {
-    g.fillStyle = ink(1, 1);
-    g.fill();
-    return;
-  }
-  g.lineWidth = Math.max(2, r * 0.1);
   g.strokeStyle = ink(1, 1);
   g.stroke();
 }
