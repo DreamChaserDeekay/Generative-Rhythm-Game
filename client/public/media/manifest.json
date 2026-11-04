@@ -33,32 +33,8 @@
       },
       "anchorY": 0.7
     },
-    "club/gear_black": {
-      "file": "styles/club/gear_black.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "club/gear_silver": {
-      "file": "styles/club/gear_silver.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "club/gear_walnut": {
-      "file": "styles/club/gear_walnut.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "club/gear_white": {
-      "file": "styles/club/gear_white.png",
+    "club/gear": {
+      "file": "styles/club/gear.png",
       "bundle": "gear",
       "size": [
         1024,
@@ -374,32 +350,8 @@
         64
       ]
     },
-    "gem/gear_gold": {
-      "file": "styles/crystal/gear_gold.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "gem/gear_rosegold": {
-      "file": "styles/crystal/gear_rosegold.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "gem/gear_silver": {
-      "file": "styles/crystal/gear_silver.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "gem/gear_smoke": {
-      "file": "styles/crystal/gear_smoke.png",
+    "gem/gear": {
+      "file": "styles/crystal/gear.png",
       "bundle": "gear",
       "size": [
         1024,
@@ -564,32 +516,8 @@
       },
       "anchorY": 0.7
     },
-    "mecha/gear_blue": {
-      "file": "styles/mecha/gear_blue.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "mecha/gear_gunmetal": {
-      "file": "styles/mecha/gear_gunmetal.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "mecha/gear_red": {
-      "file": "styles/mecha/gear_red.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "mecha/gear_white": {
-      "file": "styles/mecha/gear_white.png",
+    "mecha/gear": {
+      "file": "styles/mecha/gear.png",
       "bundle": "gear",
       "size": [
         1024,
@@ -722,32 +650,8 @@
         64
       ]
     },
-    "neon/gear_black": {
-      "file": "styles/neon/gear_black.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "neon/gear_burgundy": {
-      "file": "styles/neon/gear_burgundy.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "neon/gear_carbon": {
-      "file": "styles/neon/gear_carbon.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "neon/gear_navy": {
-      "file": "styles/neon/gear_navy.png",
+    "neon/gear": {
+      "file": "styles/neon/gear.png",
       "bundle": "gear",
       "size": [
         1024,
@@ -818,32 +722,8 @@
         512
       ]
     },
-    "piano/gear_ebony": {
-      "file": "styles/piano/gear_ebony.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "piano/gear_emerald": {
-      "file": "styles/piano/gear_emerald.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "piano/gear_mahogany": {
-      "file": "styles/piano/gear_mahogany.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "piano/gear_white": {
-      "file": "styles/piano/gear_white.png",
+    "piano/gear": {
+      "file": "styles/piano/gear.png",
       "bundle": "gear",
       "size": [
         1024,

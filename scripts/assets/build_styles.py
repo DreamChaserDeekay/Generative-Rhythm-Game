@@ -9,9 +9,9 @@ The sources are the picked generations, stored as JPEG (quality 95, no chroma su
 repository small; where each came from: assets-src/PROVENANCE.md. Notes, long notes, side notes and the gear's
 key caps become tint pictures (client/src/render/tintArt.ts): red is how much of the lane colour shows, green
 how far it is then lifted toward white, alpha the shape; the art is drawn for a neutral white lane, so its value
-says how much colour shows. Hit effects become flipbooks of light on black. The gear's plates keep their own
-colours, one picture per colourway. The layouts written here are read by client/src/render/styleArt.ts: change
-the two together.
+says how much colour shows. Hit effects become flipbooks of light on black. The gear's plate keeps its own
+colours, one look a gear (gear.png, from the sheet named in SET_ART's "way"; MECHA's gunmetal). The layouts
+written here are read by client/src/render/styleArt.ts: change the two together.
 Needs Pillow, numpy and scipy.
 """
 
@@ -139,10 +139,9 @@ SIDE_BAR_W, SIDE_PLATE_W, SIDE_PLATE_Y = 1024, 512, 240
 # a blank cap (a side lane)
 KEY_CELL = 256
 
-# gear_<colourway>.png: the turntable's module at (0, 0) within TT × TT, the strip under the keys at (0, STRIP_Y),
-# STRIP_W wide and as deep as it is for that width in the default gear's sheet
+# gear.png: the turntable's module at (0, 0) within TT × TT, the strip under the keys at (0, STRIP_Y), STRIP_W wide
+# and as deep as it is for that width in the gear's sheet (gear_gunmetal.jpg)
 TT, STRIP_Y, STRIP_W = 512, 512, 1024
-COLOURWAYS = ("gunmetal", "white", "red", "blue")
 
 
 def mecha_notes(textures: dict) -> None:
@@ -326,40 +325,37 @@ def socket_alpha(size: int) -> np.ndarray:
 
 
 def mecha_gear(textures: dict) -> dict:
-    """Per colourway: the turntable's module and the strip of plates and grille under the keys, in their own colours."""
-    colours = {}
-    ref = load(MECHA / "gear_gunmetal.jpg")
-    y0, y1, x0, x1 = gear_parts(ref)["panel"]
+    """The turntable's module and the strip of plates and grille under the keys, in the gear's own gunmetal."""
+    a = load(MECHA / "gear_gunmetal.jpg")
+    y0, y1, x0, x1 = gear_parts(a)["panel"]
     t, b, l, r = MECHA_STRIP_BOX
     strip_h = round(STRIP_W * (y1 - y0) * (b - t) / ((x1 - x0) * (r - l)))
-    for cw in COLOURWAYS:
-        a = load(MECHA / f"gear_{cw}.jpg")
-        py0, py1, px0, px1 = gear_parts(a)["panel"]
-        # the same layout in every colourway (redrawn from the default): parts as shares of the panel
-        def box(t: float, b: float, l: float, r: float) -> np.ndarray:
-            return a[py0 + int((py1 - py0) * t):py0 + int((py1 - py0) * b), px0 + int((px1 - px0) * l):px0 + int((px1 - px0) * r)]
 
-        tt = box(*MECHA_TT_BOX)
-        strip = box(*MECHA_STRIP_BOX)
-        atlas = np.zeros((1024, 1024, 4), np.float32)
-        th, tw = tt.shape[:2]
-        side = max(th, tw)
-        tt_rgba = np.concatenate([tt, chamfer_alpha(th, tw, MECHA_TT_CUT)[..., None]], axis=2)
-        paste(atlas, resize_premultiplied(tt_rgba, round(TT * tw / side), round(TT * th / side)), 0, 0)
-        strip_rgba = np.concatenate([strip, np.ones(strip.shape[:2] + (1,), np.float32)], axis=2)
-        paste(atlas, resize_premultiplied(strip_rgba, STRIP_W, strip_h), 0, STRIP_Y)
-        save_rgba(atlas, MECHA_OUT / f"gear_{cw}.png")
-        textures[f"mecha/gear_{cw}"] = {"file": f"styles/mecha/gear_{cw}.png", "bundle": "gear", "size": [1024, 1024]}
-        # the plate's own colours: its face between the keys, the face's darker trim, the bright edge
-        face = box(0.06, 0.1, 0.4, 0.95).reshape(-1, 3)
-        low = box(0.905, 0.925, 0.4, 0.95).reshape(-1, 3)
-        edge = box(0.0, 0.015, 0.3, 0.9).reshape(-1, 3)
-        colours[cw] = {
-            "face": hex_of(np.median(face, 0)),
-            "trim": hex_of(np.median(low, 0)),
-            "edge": hex_of(np.percentile(edge, 90, axis=0)),
-            "tt": [round(tw / side * TT), round(th / side * TT)],
-        }
+    # parts as shares of the panel
+    def box(t: float, b: float, l: float, r: float) -> np.ndarray:
+        return a[y0 + int((y1 - y0) * t):y0 + int((y1 - y0) * b), x0 + int((x1 - x0) * l):x0 + int((x1 - x0) * r)]
+
+    tt = box(*MECHA_TT_BOX)
+    strip = box(*MECHA_STRIP_BOX)
+    atlas = np.zeros((1024, 1024, 4), np.float32)
+    th, tw = tt.shape[:2]
+    side = max(th, tw)
+    tt_rgba = np.concatenate([tt, chamfer_alpha(th, tw, MECHA_TT_CUT)[..., None]], axis=2)
+    paste(atlas, resize_premultiplied(tt_rgba, round(TT * tw / side), round(TT * th / side)), 0, 0)
+    strip_rgba = np.concatenate([strip, np.ones(strip.shape[:2] + (1,), np.float32)], axis=2)
+    paste(atlas, resize_premultiplied(strip_rgba, STRIP_W, strip_h), 0, STRIP_Y)
+    save_rgba(atlas, MECHA_OUT / "gear.png")
+    textures["mecha/gear"] = {"file": "styles/mecha/gear.png", "bundle": "gear", "size": [1024, 1024]}
+    # the plate's own colours: its face between the keys, the face's darker trim, the bright edge
+    face = box(0.06, 0.1, 0.4, 0.95).reshape(-1, 3)
+    low = box(0.905, 0.925, 0.4, 0.95).reshape(-1, 3)
+    edge = box(0.0, 0.015, 0.3, 0.9).reshape(-1, 3)
+    colours = {
+        "face": hex_of(np.median(face, 0)),
+        "trim": hex_of(np.median(low, 0)),
+        "edge": hex_of(np.percentile(edge, 90, axis=0)),
+        "tt": [round(tw / side * TT), round(th / side * TT)],
+    }
     return {"strip_h": strip_h, "colours": colours}
 
 
@@ -556,8 +552,8 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
 #   long.png 512 × 256: body idle | body held | end idle | end held, 128 wide (ends `end` px deep)
 #   side.png 1024 × 512: the bar over the keys at (0, 0); the side lane's own note at (0, 256)
 #   keys.png 512 × 256: the light at rest | lit, fitted in 256 about the cell's middle
-#   gear_<colourway>.png 1024 × 1024: the scratch's module fitted in 512 at (0, 0); the gear's strip under the row
-#     at (0, 512), 1024 wide; club's fader at (512, 0), fitted in 256 × 512
+#   gear.png 1024 × 1024 (from gear_<way>.jpg): the scratch's module fitted in 512 at (0, 0); the gear's strip under
+#     the row at (0, 512), 1024 wide; club's fader at (512, 0), fitted in 256 × 512
 
 SET_ART = {
     "club": {
@@ -565,12 +561,10 @@ SET_ART = {
         "long": {"cap": 140, "idle": (1 / 0.8, 0.74, 0.7), "held": (1 / 0.62, 0.6, 0.9), "see": None},
         "side": {"cut": 0.105, "plate_cut": 0.21, "tint": (1 / 0.62, 0.68, 0.85), "bright": 0.62},
         "keys": {"way": "black", "idle": (0.532, 0.502), "lit": (0.4326, 0.502), "box": (0.055, None), "mask": "circle", "fit": 0.62},
-        "ways": ("black", "white", "silver", "walnut"),
+        "way": "black",
         "module": {"centre": (0.147, 0.51), "r": 0.112, "mask": "circle"},
         "strip": None,
         "fader": {"centre": 0.531, "w": 0.05, "y": (0.6, 0.9)},
-        # the walnut one's channel strips are walnut veneer (grain running down the strips)
-        "veneer_ways": {"walnut": "walnut_veneer.jpg"},
         "colours": {"face": (0.27, 0.28, 0.06, 0.94), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
     "crystal": {
@@ -578,7 +572,7 @@ SET_ART = {
         "long": {"cap": 150, "idle": (1 / 0.7, 0.72, 0.8), "held": (1 / 0.6, 0.6, 0.9), "see": None},
         "side": {"cut": 0.04, "plate_cut": 0.07, "tint": (1 / 0.65, 0.7, 0.9), "bright": 0.6},
         "keys": {"way": "silver", "idle": (0.4588, 0.474), "lit": (0.3471, 0.474), "box": (0.0896, 0.56), "mask": "diamond", "fit": 0.768},
-        "ways": ("silver", "rosegold", "gold", "smoke"),
+        "way": "silver",
         "module": {"centre": (0.108, 0.46), "r": 0.071, "mask": "circle"},
         "strip": {"x": (0.3, 0.93), "y": (0.66, 0.92)},
         "fader": None,
@@ -590,16 +584,9 @@ SET_ART = {
         "long": {"cap": 184, "idle": (1 / 0.72, 0.7, 0.85), "held": (1 / 0.62, 0.6, 0.9), "see": 0.55},
         "side": {"cut": 0.04, "plate_cut": 0.16, "tint": (1 / 0.7, 0.7, 0.9), "bright": 0.62},
         "keys": {"way": "black", "idle": (0.5125, 0.498), "lit": (0.4126, 0.498), "box": (0.12, 0.48), "mask": "plate", "fit": 0.74},
-        "ways": ("black", "carbon", "navy", "burgundy"),
-        # the module's plate, measured per colourway (carbon's lies further right in its wider frame)
+        "way": "black",
+        # the module's plate
         "module": {"box": (0.0422, 0.2375, 0.1247, 0.8614), "mask": "plate"},
-        "module_ways": {
-            "carbon": {"box": (0.0374, 0.281, 0.133, 0.8478)},
-            "navy": {"box": (0.0422, 0.2379, 0.1234, 0.8616)},
-            "burgundy": {"box": (0.0416, 0.2365, 0.1233, 0.8606)},
-        },
-        # carbon's panel is taller for its margins, not drawn taller
-        "stretch_ways": {"carbon": 1.0},
         "strip": {"x": (0.25, 0.98), "y": (0.7, 0.95)},
         "fader": None,
         # its circuit board above the lights, its frame
@@ -616,13 +603,11 @@ SET_ART = {
                  "fit": (0.875, 0.9125), "lit_grow": 1.03, "squash": 1.16, "lit_tint": (1 / 0.7, 0.9, 0.8, 1.2),
                  # at rest its ivory keeps its shading (the game draws it in ivory, not the lane colour)
                  "idle_tint": (1 / 0.95, 0.97, 0.3)},
-        "ways": ("ebony", "white", "mahogany", "emerald"),
+        "way": "ebony",
         # the brass dial, drawn a little taller than wide: cut as drawn, then round again
         "module": {"centre": (0.1277, 0.527), "r": 0.0665, "ry": 0.219, "mask": "circle"},
         "strip": None,
         "fader": None,
-        # the mahogany one's case is mahogany veneer (grain running across)
-        "veneer_ways": {"mahogany": "mahogany_veneer.jpg"},
         # its lacquer beside the dial, its brass pinstripe, the felt under the keys
         "colours": {"face": (0.03, 0.06, 0.2, 0.3), "brass": (0.2, 0.8, 0.026, 0.036), "felt": (0.3, 0.9, 0.905, 0.925)},
     },
@@ -811,7 +796,7 @@ def squash_middle(rgba: np.ndarray, aspect: float) -> np.ndarray:
 
 
 def set_keys(cid: str, textures: dict) -> None:
-    """A set's lane light at rest and lit (from its own colourway's sheet), each cut about its middle (where the
+    """A set's lane light at rest and lit (from the gear's sheet), each cut about its middle (where the
     light is mirror-symmetric) in the light's shape."""
     c = SET_ART[cid]["keys"]
     a = load(SRC / cid / f"gear_{c['way']}.jpg")
@@ -845,75 +830,56 @@ def set_keys(cid: str, textures: dict) -> None:
 
 
 def set_gear(cid: str, textures: dict) -> dict:
-    """Per colourway: the scratch's module, the strip under the row (or club's fader), and the plate's colours.
-
-    Some recolours drew the whole panel taller than the set's own colourway did (club's white and silver, neon's
-    carbon): their parts are cut as they lie and then brought back to the own colourway's proportions (a round
-    platter round again)."""
+    """The scratch's module, the strip under the row (or club's fader), and the plate's colours, from the gear's sheet."""
     c = SET_ART[cid]
-    out = {}
-    ry0, ry1, rx0, rx1 = panel_of(load(SRC / cid / f"gear_{c['ways'][0]}.jpg"))
-    ref = (ry1 - ry0) / (rx1 - rx0)
-    for way in c["ways"]:
-        a = load(SRC / cid / f"gear_{way}.jpg")
-        y0, y1, x0, x1 = panel_of(a)
-        W, H = x1 - x0, y1 - y0
-        k = c.get("stretch_ways", {}).get(way, (H / W) / ref)
+    a = load(SRC / cid / f"gear_{c['way']}.jpg")
+    y0, y1, x0, x1 = panel_of(a)
+    W, H = x1 - x0, y1 - y0
 
-        def box(t: float, b: float, l: float, r: float) -> np.ndarray:
-            return a[y0 + int(H * t):y0 + int(H * b), x0 + int(W * l):x0 + int(W * r)]
+    def box(t: float, b: float, l: float, r: float) -> np.ndarray:
+        return a[y0 + int(H * t):y0 + int(H * b), x0 + int(W * l):x0 + int(W * r)]
 
-        def unstretch(rgba: np.ndarray) -> np.ndarray:
-            return rgba if abs(k - 1) < 0.02 else resize_premultiplied(rgba, rgba.shape[1], max(1, round(rgba.shape[0] / k)))
+    def opaque(rgb: np.ndarray) -> np.ndarray:
+        return np.concatenate([rgb, np.ones(rgb.shape[:2] + (1,), np.float32)], axis=2)
 
-        atlas = np.zeros((1024, 1024, 4), np.float32)
-        m = {**c["module"], **c.get("module_ways", {}).get(way, {})}
-        if "centre" in m:
-            sx, sy = m["centre"]
-            r = int(W * m["r"])
-            # a dial drawn a little taller than wide (its own `ry`) is cut as drawn and made round
-            rh = int(H * m["ry"]) if "ry" in m else int(r * k)
-            cx, cy = x0 + int(W * sx), y0 + int(H * sy)
-            mod = np.concatenate([a[cy - rh:cy + rh, cx - r:cx + r], np.ones((2 * rh, 2 * r, 1), np.float32)], axis=2)
-            mod = resize_premultiplied(mod, 2 * r, 2 * r) if "ry" in m else unstretch(mod)
-            mod[..., 3] = shape_mask("circle", mod.shape[0], mod.shape[1], 1.0)
-        else:
-            l, rr, t, b = m["box"]
-            raw = box(t, b, l, rr)
-            mod = unstretch(np.concatenate([raw, np.ones(raw.shape[:2] + (1,), np.float32)], axis=2))
-            mod[..., 3] = shape_mask(m["mask"], mod.shape[0], mod.shape[1], 1.0)
-        paste(atlas, fit_into(mod, 512, 512), 0, 0)
-        info = {"module": [int(mod.shape[1]), int(mod.shape[0])]}
-        if c["strip"]:
-            l, rr = c["strip"]["x"]
-            t, b = c["strip"]["y"]
-            strip = unstretch(np.concatenate([box(t, b, l, rr), np.ones(box(t, b, l, rr).shape[:2] + (1,), np.float32)], axis=2))
-            sh = round(1024 * strip.shape[0] / strip.shape[1])
-            paste(atlas, resize_premultiplied(strip, 1024, sh), 0, 512)
-            info["strip_h"] = sh
-        if way in c.get("veneer_ways", {}):
-            # the colourway's wood, painted over its plate: its middle, 1024 × 512 under the module
-            ven = load(SRC / cid / c["veneer_ways"][way])
-            vh = round(ven.shape[0] * 1024 / ven.shape[1])
-            ven = resize_premultiplied(np.concatenate([ven, np.ones(ven.shape[:2] + (1,), np.float32)], axis=2), 1024, vh)
-            paste(atlas, ven[(vh - 512) // 2:(vh - 512) // 2 + 512], 0, 512)
-            info["veneer"] = True
-        if c["fader"]:
-            f = c["fader"]
-            fd = box(f["y"][0], f["y"][1], f["centre"] - f["w"] / 2, f["centre"] + f["w"] / 2)
-            fd = unstretch(np.concatenate([fd, np.ones(fd.shape[:2] + (1,), np.float32)], axis=2))
-            paste(atlas, fit_into(fd, 256, 512), 512, 0)
-            info["fader"] = [int(fd.shape[1]), int(fd.shape[0])]
-        save_rgba(atlas, OUT / cid / f"gear_{way}.png")
-        textures[f"{NAME.get(cid, cid)}/gear_{way}"] = {"file": f"styles/{cid}/gear_{way}.png", "bundle": "gear", "size": [1024, 1024]}
-        cols = {}
-        for key, (l, rr, t, b) in c["colours"].items():
-            px = box(t, b, l, rr).reshape(-1, 3)
-            cols[key] = hex_of(np.percentile(px, 90, axis=0) if key in ("edge", "brass") else np.median(px, 0))
-        info["colours"] = cols
-        info["stretch"] = round(k, 3)
-        out[way] = info
-    return out
+    atlas = np.zeros((1024, 1024, 4), np.float32)
+    m = c["module"]
+    if "centre" in m:
+        sx, sy = m["centre"]
+        r = int(W * m["r"])
+        # a dial drawn a little taller than wide (its own `ry`) is cut as drawn and made round
+        rh = int(H * m["ry"]) if "ry" in m else r
+        cx, cy = x0 + int(W * sx), y0 + int(H * sy)
+        mod = opaque(a[cy - rh:cy + rh, cx - r:cx + r])
+        if "ry" in m:
+            mod = resize_premultiplied(mod, 2 * r, 2 * r)
+        mod[..., 3] = shape_mask("circle", mod.shape[0], mod.shape[1], 1.0)
+    else:
+        l, rr, t, b = m["box"]
+        mod = opaque(box(t, b, l, rr))
+        mod[..., 3] = shape_mask(m["mask"], mod.shape[0], mod.shape[1], 1.0)
+    paste(atlas, fit_into(mod, 512, 512), 0, 0)
+    info = {"module": [int(mod.shape[1]), int(mod.shape[0])]}
+    if c["strip"]:
+        l, rr = c["strip"]["x"]
+        t, b = c["strip"]["y"]
+        strip = opaque(box(t, b, l, rr))
+        sh = round(1024 * strip.shape[0] / strip.shape[1])
+        paste(atlas, resize_premultiplied(strip, 1024, sh), 0, 512)
+        info["strip_h"] = sh
+    if c["fader"]:
+        f = c["fader"]
+        fd = opaque(box(f["y"][0], f["y"][1], f["centre"] - f["w"] / 2, f["centre"] + f["w"] / 2))
+        paste(atlas, fit_into(fd, 256, 512), 512, 0)
+        info["fader"] = [int(fd.shape[1]), int(fd.shape[0])]
+    save_rgba(atlas, OUT / cid / "gear.png")
+    textures[f"{NAME.get(cid, cid)}/gear"] = {"file": f"styles/{cid}/gear.png", "bundle": "gear", "size": [1024, 1024]}
+    cols = {}
+    for key, (l, rr, t, b) in c["colours"].items():
+        px = box(t, b, l, rr).reshape(-1, 3)
+        cols[key] = hex_of(np.percentile(px, 90, axis=0) if key in ("edge", "brass") else np.median(px, 0))
+    info["colours"] = cols
+    return info
 
 
 def fx_cells(cid: str) -> dict[str, np.ndarray]:

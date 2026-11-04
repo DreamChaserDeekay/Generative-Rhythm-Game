@@ -399,12 +399,12 @@
 
 ## 메카 세트 (`styles/mecha`, 2026-11)
 
-컨셉별 디자인 업그레이드의 첫 세트입니다. 노트 · 롱노트 · 사이드 노트 · 기어(색 4가지) · 타격 이펙트를 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+컨셉별 디자인 업그레이드의 첫 세트입니다. 노트 · 롱노트 · 사이드 노트 · 기어 · 타격 이펙트를 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
 - 순서: ① 컨셉 문서 → ② 컨셉마다 스타일 프레임(게임 한 장면) 3안 → 사용자가 메카는 A안을 고름 → ③ A안을 기준 이미지로 부위별 시트 → ④ 이 저장소의 `scripts/assets/build_styles.py` 가 시트를 잘라 `client/public/media/styles/mecha/` 의 게임 그림으로(값은 스크립트 안에)
 - 저장 형식: 생성 결과는 PNG로 받아 두었고, `assets-src/styles/mecha/` 에는 저장소 크기를 줄이려 JPEG(품질 95, 색 정보 줄이지 않음)으로 다시 저장했습니다. PNG의 sha256 앞 16자리를 함께 적습니다.
-- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.63 입니다.
+- 비용: 만든 시트 8장(저장소에 남은 5장과 기어 색을 없애며 지운 3장)과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.63 입니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
 - 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `mecha-A.png`)에는 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(아케이드 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
 
@@ -511,7 +511,7 @@
 
 ### `styles/mecha/gear_gunmetal.jpg`
 
-- 용도: 기어(건메탈, 기본) → `styles/mecha/keys.png`, `gear_gunmetal.png`
+- 용도: 기어 → `styles/mecha/keys.png`, `gear.png`
 - 크기 · 기준 이미지: 21:9 · 2K · `mecha-A.png`
 - 날짜: 2026-11-03 17:13 KST · 약 $0.067
 - 생성 결과(PNG): 3,454,648바이트 · sha256 앞 16자리 `c6faf0b4f4a6ff65` · 저장한 JPEG: 720,181바이트
@@ -524,45 +524,12 @@
   >
   > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
 
-### `styles/mecha/gear_white.jpg`
-
-- 용도: 기어(화이트 세라믹) → `styles/mecha/gear_white.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
-- 날짜: 2026-11-03 17:13 KST · 약 $0.065
-- 생성 결과(PNG): 4,101,746바이트 · sha256 앞 16자리 `e3cb8ac0e14b62e4` · 저장한 JPEG: 784,590바이트
-- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: white ceramic-coated panels with black anodised trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/mecha/gear_red.jpg`
-
-- 용도: 기어(레드 아노다이징) → `styles/mecha/gear_red.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
-- 날짜: 2026-11-03 17:14 KST · 약 $0.060
-- 생성 결과(PNG): 3,917,052바이트 · sha256 앞 16자리 `88bba203c56d5292` · 저장한 JPEG: 830,186바이트
-- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep red anodised aluminium with black trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/mecha/gear_blue.jpg`
-
-- 용도: 기어(코발트 블루) → `styles/mecha/gear_blue.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 건메탈 기어 시트
-- 날짜: 2026-11-03 17:15 KST · 약 $0.058
-- 생성 결과(PNG): 4,064,475바이트 · sha256 앞 16자리 `1396c8a43571f128` · 저장한 JPEG: 816,768바이트
-- 후처리: 건메탈과 같은 자리에서 턴테이블 모듈과 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: cobalt blue anodised aluminium with black trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
 ## 클럽 세트 (`styles/club`, 2026-11)
 
-메카 세트와 같은 방법으로 만든 세트입니다. 레코드 노트 · 아크릴 캡슐 롱노트 · 사이드 노트 · DJ 믹서 기어(색 4가지) · 링 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+메카 세트와 같은 방법으로 만든 세트입니다. 레코드 노트 · 아크릴 캡슐 롱노트 · 사이드 노트 · DJ 믹서 기어 · 링 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
 
 - 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 클럽은 C안을 고름).
-- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
+- 비용: 만든 시트 8장(저장소에 남은 5장과 기어 색을 없애며 지운 3장)과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
 - 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `club-C.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 club 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
 
@@ -669,7 +636,7 @@
 
 ### `styles/club/gear_black.jpg`
 
-- 용도: 기어(매트 블랙, 기본) → `styles/club/keys.png`, `gear_black.png`
+- 용도: 기어 → `styles/club/keys.png`, `gear.png`
 - 크기 · 기준 이미지: 21:9 · 2K · `club-C.png`
 - 날짜: 2026-11-03 17:19 KST · 약 $0.057
 - 생성 결과(PNG): 4,297,947바이트 · sha256 앞 16자리 `f98c25db39a81c6c` · 저장한 JPEG: 776,832바이트
@@ -682,56 +649,12 @@
   >
   > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
 
-### `styles/club/gear_white.jpg`
-
-- 용도: 기어(화이트) → `styles/club/gear_white.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
-- 날짜: 2026-11-03 17:20 KST · 약 $0.059
-- 생성 결과(PNG): 4,684,383바이트 · sha256 앞 16자리 `fefdc3edd5cfab99` · 저장한 JPEG: 880,001바이트
-- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄 · 판이 블랙보다 위아래로 길게 그려져 잘라낸 뒤 블랙의 비율로 되돌림
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: glossy white panels with light grey rubber and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/club/gear_silver.jpg`
-
-- 용도: 기어(실버 브러시드) → `styles/club/gear_silver.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
-- 날짜: 2026-11-03 17:21 KST · 약 $0.064
-- 생성 결과(PNG): 5,211,569바이트 · sha256 앞 16자리 `81390b9bd145e08d` · 저장한 JPEG: 1,141,427바이트
-- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄 · 판이 블랙보다 위아래로 길게 그려져 잘라낸 뒤 블랙의 비율로 되돌림
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: brushed silver aluminium panels with black rubber and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/club/gear_walnut.jpg`
-
-- 용도: 기어(월넛 우드) → `styles/club/gear_walnut.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
-- 날짜: 2026-11-03 17:22 KST · 약 $0.061
-- 생성 결과(PNG): 4,712,004바이트 · sha256 앞 16자리 `fbb972c2dac8a062` · 저장한 JPEG: 952,208바이트
-- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: dark walnut wood side panels with a black brushed-metal face and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/club/walnut_veneer.jpg`
-
-- 용도: 월넛 기어의 채널 띠(세로 결) → `styles/club/gear_walnut.png` 의 (0, 512)
-- 크기 · 기준 이미지: 16:9 · 2K · 없음
-- 날짜: 2026-11-04 11:42 KST · 약 $0.056
-- 생성 결과(PNG): 6,567,327바이트 · sha256 앞 16자리 `b04db82d957a6ec6` · 저장한 JPEG: 460,161바이트 (저장소 크기를 줄이려 가로세로 절반 1376×768 로)
-- 후처리: 가운데 1024×512 를 실제 색 그대로 · 게임은 한 장을 판 전체에 대고 채널 띠마다 제 자리만 보이게(띠 사이 홈은 짙은 나무색) · 첫 시도(월넛 기어 시트를 기준 이미지로)는 생성 모델이 기존 이미지와 너무 닮았다며(IMAGE_RECITATION) 그림을 주지 않아 기준 이미지 없이 다시 만듦(첫 시도 약 $0.006)
-- 프롬프트:
-
-  > A flat, evenly lit texture of American black walnut wood veneer, as used on a luxury audio console: deep chocolate brown with warm amber streaks, fine straight grain running vertically from the top edge to the bottom edge with a gentle wavy figure in places, a satin lacquer finish without reflections. It fills the whole frame edge to edge. Straight top-down, no perspective, no objects, no vignette, no text, letters, numbers, logos or watermarks.
-
 ## 크리스털 세트 (`styles/crystal`, 매니페스트 이름 `gem`, 2026-11)
 
-메카 세트와 같은 방법으로 만든 세트입니다. 길쭉한 보석 노트 · 프리즘 롱노트 · 사이드 노트 · 크리스털 기어(색 4가지) · 파편 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+메카 세트와 같은 방법으로 만든 세트입니다. 길쭉한 보석 노트 · 프리즘 롱노트 · 사이드 노트 · 크리스털 기어 · 파편 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
 
 - 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 크리스털은 C안을 고름).
-- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.60 입니다.
+- 비용: 만든 시트 8장(저장소에 남은 5장과 기어 색을 없애며 지운 3장)과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.60 입니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
 - 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `crystal-C.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 crystal 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
 
@@ -838,7 +761,7 @@
 
 ### `styles/crystal/gear_silver.jpg`
 
-- 용도: 기어(실버, 기본) → `styles/crystal/keys.png`, `gear_silver.png`
+- 용도: 기어 → `styles/crystal/keys.png`, `gear.png`
 - 크기 · 기준 이미지: 21:9 · 2K · `crystal-C.png`
 - 날짜: 2026-11-03 17:27 KST · 약 $0.057
 - 생성 결과(PNG): 3,495,531바이트 · sha256 앞 16자리 `229097b6215fe7f3` · 저장한 JPEG: 759,841바이트
@@ -851,45 +774,12 @@
   >
   > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
 
-### `styles/crystal/gear_rosegold.jpg`
-
-- 용도: 기어(로즈 골드) → `styles/crystal/gear_rosegold.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
-- 날짜: 2026-11-03 17:28 KST · 약 $0.058
-- 생성 결과(PNG): 3,509,036바이트 · sha256 앞 16자리 `783e4a73fb76cbca` · 저장한 JPEG: 850,415바이트
-- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: clear glass over rose-gold circuitry with warm rose-gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/crystal/gear_gold.jpg`
-
-- 용도: 기어(골드) → `styles/crystal/gear_gold.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
-- 날짜: 2026-11-03 17:28 KST · 약 $0.059
-- 생성 결과(PNG): 4,163,764바이트 · sha256 앞 16자리 `cbd0446a08e83f67` · 저장한 JPEG: 933,065바이트
-- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: clear glass over gold circuitry with polished gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/crystal/gear_smoke.jpg`
-
-- 용도: 기어(스모크 블랙) → `styles/crystal/gear_smoke.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
-- 날짜: 2026-11-03 17:29 KST · 약 $0.061
-- 생성 결과(PNG): 3,449,188바이트 · sha256 앞 16자리 `fb7dfcf817ab1ec5` · 저장한 JPEG: 724,165바이트
-- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: smoked black glass over gunmetal circuitry with dark chrome frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
 ## 네온 세트 (`styles/neon`, 2026-11)
 
-메카 세트와 같은 방법으로 만든 세트입니다. 네온관 별 노트 · 네온관 롱노트 · 사이드 노트 · 네온 기어(색 4가지) · 전기 아크 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+메카 세트와 같은 방법으로 만든 세트입니다. 네온관 별 노트 · 네온관 롱노트 · 사이드 노트 · 네온 기어 · 전기 아크 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
 
 - 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 네온은 A안을 고름).
-- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
+- 비용: 만든 시트 8장(저장소에 남은 5장과 기어 색을 없애며 지운 3장)과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
 - 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `neon-A.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 neon 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
 
@@ -996,11 +886,11 @@
 
 ### `styles/neon/gear_black.jpg`
 
-- 용도: 기어(블랙 글라스, 기본) → `styles/neon/keys.png`, `gear_black.png`
+- 용도: 기어 → `styles/neon/keys.png`, `gear.png`
 - 크기 · 기준 이미지: 21:9 · 2K · `neon-A.png`
 - 날짜: 2026-11-03 17:33 KST · 약 $0.065
 - 생성 결과(PNG): 3,960,488바이트 · sha256 앞 16자리 `2a017d72fd539e24` · 저장한 JPEG: 830,680바이트
-- 후처리: 키 조명: 꺼진 육각과 켜진 육각을 각각 대칭이 되는 중심에서 꼭짓점이 위아래인 육각 알파로 잘라 · 판: 링 모듈(판 윤곽대로 깎은 육각 알파, 색마다 판의 자리를 재어 자름)과 아래쪽 회로 띠를 실제 색 그대로 · 회로판 · 테두리 색은 시트에서 뽑아 코드가 칠함
+- 후처리: 키 조명: 꺼진 육각과 켜진 육각을 각각 대칭이 되는 중심에서 꼭짓점이 위아래인 육각 알파로 잘라 · 판: 링 모듈(판 윤곽대로 깎은 육각 알파, 판의 자리를 재어 자름)과 아래쪽 회로 띠를 실제 색 그대로 · 회로판 · 테두리 색은 시트에서 뽑아 코드가 칠함
 - 프롬프트:
 
   > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
@@ -1009,45 +899,12 @@
   >
   > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
 
-### `styles/neon/gear_carbon.jpg`
-
-- 용도: 기어(카본) → `styles/neon/gear_carbon.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
-- 날짜: 2026-11-03 17:34 KST · 약 $0.063
-- 생성 결과(PNG): 4,782,171바이트 · sha256 앞 16자리 `4c883986256294f2` · 저장한 JPEG: 1,061,285바이트
-- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄 · 판이 더 넓게 그려져 모듈의 자리를 따로 잼
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: carbon-fibre weave panels under black glass with gunmetal frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/neon/gear_navy.jpg`
-
-- 용도: 기어(딥 네이비) → `styles/neon/gear_navy.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
-- 날짜: 2026-11-03 17:35 KST · 약 $0.061
-- 생성 결과(PNG): 4,532,664바이트 · sha256 앞 16자리 `5fdc3b525a364a69` · 저장한 JPEG: 935,729바이트
-- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep navy blue glass over a navy circuit board with silver frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/neon/gear_burgundy.jpg`
-
-- 용도: 기어(버건디 골드) → `styles/neon/gear_burgundy.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
-- 날짜: 2026-11-03 17:36 KST · 약 $0.057
-- 생성 결과(PNG): 4,596,519바이트 · sha256 앞 16자리 `aef0bd34983c86ea` · 저장한 JPEG: 1,069,392바이트
-- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep burgundy red glass over a dark circuit board with gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
-
 ## 피아노 세트 (`styles/piano`, 2026-11)
 
 그랜드 피아노 기어를 그림으로 다시 그리고, 피아노 노트 계열(건반 앞판 노트 · 래커 건반 롱노트 · 사이드 노트)과 음표가 터지는 타격 효과를 더한 세트입니다. 노트 피아노 · 기어 그랜드 피아노 · 타격 효과 피아노 음표를 고르면 한 벌로 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
 
 - 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다. 다만 ②의 스타일 프레임 3안(정석 · 화려하게 · 날렵하게) 중 A안(정석)은 사용자가 아니라 작업자가 골랐습니다(노트의 황동 상감선과 표식이 가장 또렷해서).
-- 비용: 저장소에 넣은 9장(시트 8장과 마호가니 결)과 기준 스타일 프레임을 합해 약 $0.62, 고르지 않은 스타일 프레임 2장이 약 $0.13 입니다.
+- 비용: 만든 9장(저장소에 남은 시트 5장과 기어 색을 없애며 지운 시트 3장 · 마호가니 결)과 기준 스타일 프레임을 합해 약 $0.62, 고르지 않은 스타일 프레임 2장이 약 $0.13 입니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
 - 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `piano-A.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(코드로 그린 그랜드 피아노 기어)입니다. ③의 시트와 나무결 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
 
@@ -1154,7 +1011,7 @@
 
 ### `styles/piano/gear_ebony.jpg`
 
-- 용도: 기어(블랙 래커, 기본) → `styles/piano/keys.png`, `gear_ebony.png`
+- 용도: 기어 → `styles/piano/keys.png`, `gear.png`
 - 크기 · 기준 이미지: 21:9 · 2K · `piano-A.png`
 - 날짜: 2026-11-04 11:43 KST · 약 $0.067
 - 생성 결과(PNG): 3,967,346바이트 · sha256 앞 16자리 `b84e4c88540f8706` · 저장한 JPEG: 778,466바이트
@@ -1167,49 +1024,29 @@
   >
   > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
 
-### `styles/piano/gear_white.jpg`
+## 없앤 기어 색 (2026-11-04)
 
-- 용도: 기어(화이트 래커) → `styles/piano/gear_white.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
-- 날짜: 2026-11-04 11:44 KST · 약 $0.063
-- 생성 결과(PNG): 4,246,436바이트 · sha256 앞 16자리 `2fb077cfd5da7a4c` · 저장한 JPEG: 790,377바이트
-- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄 · 황동 핀스트라이프가 표본 폭보다 가늘어 블랙 래커의 황동 색을 씀
-- 프롬프트:
+기어 색 설정을 없애며(기어마다 한 가지 모습, 기본 색) 기본 색이 아닌 기어 시트와 나무결을 `assets-src/` 에서 지웠습니다. 기록만 남깁니다(만든 곳 · 방법은 각 세트와 같음, 모두 기본 색 시트를 기준 이미지로 색만 바꾸게 한 생성이고 나무결 둘은 기준 이미지 없음). 지운 17장은 합해 약 $1.01 이고, 이 비용은 위 세트별 합계에 들어 있습니다.
 
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: mirror-polished white piano lacquer with ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/piano/gear_mahogany.jpg`
-
-- 용도: 기어(마호가니) → `styles/piano/gear_mahogany.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
-- 날짜: 2026-11-04 11:44 KST · 약 $0.057
-- 생성 결과(PNG): 5,039,047바이트 · sha256 앞 16자리 `38ecbe15a27626d6` · 저장한 JPEG: 1,120,167바이트
-- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄 · 판은 아래 마호가니 결로 칠함
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: polished mahogany wood with a warm red-brown grain under clear lacquer, ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/piano/gear_emerald.jpg`
-
-- 용도: 기어(에메랄드 그린) → `styles/piano/gear_emerald.png`
-- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
-- 날짜: 2026-11-04 11:45 KST · 약 $0.060
-- 생성 결과(PNG): 4,155,706바이트 · sha256 앞 16자리 `65dbe80ce9536e97` · 저장한 JPEG: 793,808바이트
-- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄
-- 프롬프트:
-
-  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep emerald green piano lacquer with ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
-
-### `styles/piano/mahogany_veneer.jpg`
-
-- 용도: 마호가니 기어의 판(가로 결) → `styles/piano/gear_mahogany.png` 의 (0, 512)
-- 크기 · 기준 이미지: 16:9 · 2K · 없음
-- 날짜: 2026-11-04 11:47 KST · 약 $0.052
-- 생성 결과(PNG): 8,332,052바이트 · sha256 앞 16자리 `4f42c4dd26d057a6` · 저장한 JPEG: 597,459바이트 (저장소 크기를 줄이려 가로세로 절반 1376×768 로)
-- 후처리: 가운데 1024×512 를 실제 색 그대로 · 게임은 판 전체에 깔고 그 위에 반사와 황동 줄을 그림
-- 프롬프트:
-
-  > A flat, evenly lit texture of polished mahogany wood as on the case of a concert grand piano: warm red-brown with deeper reddish streaks and a soft ribbon figure, fine straight grain running horizontally from the left edge to the right edge, under a clear high-gloss lacquer but without any reflections or highlights. It fills the whole frame edge to edge. Straight top-down, no perspective, no objects, no vignette, no text, letters, numbers, logos or watermarks.
+| 지운 파일 | 색 | 날짜 | 비용 | 생성 PNG sha256 앞 16자리 |
+|---|---|---|---|---|
+| `styles/mecha/gear_white.jpg` | 화이트 세라믹 | 2026-11-03 17:13 KST | 약 $0.065 | `e3cb8ac0e14b62e4` |
+| `styles/mecha/gear_red.jpg` | 레드 아노다이징 | 2026-11-03 17:14 KST | 약 $0.060 | `88bba203c56d5292` |
+| `styles/mecha/gear_blue.jpg` | 코발트 블루 | 2026-11-03 17:15 KST | 약 $0.058 | `1396c8a43571f128` |
+| `styles/club/gear_white.jpg` | 화이트 | 2026-11-03 17:20 KST | 약 $0.059 | `fefdc3edd5cfab99` |
+| `styles/club/gear_silver.jpg` | 실버 브러시드 | 2026-11-03 17:21 KST | 약 $0.064 | `81390b9bd145e08d` |
+| `styles/club/gear_walnut.jpg` | 월넛 우드 | 2026-11-03 17:22 KST | 약 $0.061 | `fbb972c2dac8a062` |
+| `styles/club/walnut_veneer.jpg` | 월넛 결 | 2026-11-04 11:42 KST | 약 $0.056 | `b04db82d957a6ec6` |
+| `styles/crystal/gear_rosegold.jpg` | 로즈 골드 | 2026-11-03 17:28 KST | 약 $0.058 | `783e4a73fb76cbca` |
+| `styles/crystal/gear_gold.jpg` | 골드 | 2026-11-03 17:28 KST | 약 $0.059 | `cbd0446a08e83f67` |
+| `styles/crystal/gear_smoke.jpg` | 스모크 블랙 | 2026-11-03 17:29 KST | 약 $0.061 | `fb7dfcf817ab1ec5` |
+| `styles/neon/gear_carbon.jpg` | 카본 | 2026-11-03 17:34 KST | 약 $0.063 | `4c883986256294f2` |
+| `styles/neon/gear_navy.jpg` | 딥 네이비 | 2026-11-03 17:35 KST | 약 $0.061 | `5fdc3b525a364a69` |
+| `styles/neon/gear_burgundy.jpg` | 버건디 골드 | 2026-11-03 17:36 KST | 약 $0.057 | `aef0bd34983c86ea` |
+| `styles/piano/gear_white.jpg` | 화이트 래커 | 2026-11-04 11:44 KST | 약 $0.063 | `2fb077cfd5da7a4c` |
+| `styles/piano/gear_mahogany.jpg` | 마호가니 | 2026-11-04 11:44 KST | 약 $0.057 | `38ecbe15a27626d6` |
+| `styles/piano/gear_emerald.jpg` | 에메랄드 그린 | 2026-11-04 11:45 KST | 약 $0.060 | `65dbe80ce9536e97` |
+| `styles/piano/mahogany_veneer.jpg` | 마호가니 결 | 2026-11-04 11:47 KST | 약 $0.052 | `4f42c4dd26d057a6` |
 
 ## 타격 효과 (`styles/hits`, 2026-11)
 

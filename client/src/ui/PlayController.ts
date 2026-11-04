@@ -266,7 +266,7 @@ export class PlayController {
     // what the gear is drawn with, the skin's own or the parts picked apart from it (data-style; not shown)
     const style = styleOf(skin);
     setup.canvas.dataset.style = [style.note, LONG_OF[style.note], style.side ?? 'bar', style.deck, style.hit].join(' ');
-    // and which of them are drawn from art, the gear in which colourway (data-art; not shown)
+    // and which of them are drawn from art (data-art; not shown)
     setup.canvas.dataset.art = this.renderer.artParts;
     // and in which colours, lane by lane (data-lane-colors; not shown)
     setup.canvas.dataset.laneColors = laneColors.map(hexString).join(' ');

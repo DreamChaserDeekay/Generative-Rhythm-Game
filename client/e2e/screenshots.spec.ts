@@ -314,7 +314,7 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: four of the skins, and the five sets each in a gear colour of its own', async ({ page }) => {
+test('play: four of the skins, and the five sets', async ({ page }) => {
   // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
@@ -323,23 +323,22 @@ test('play: four of the skins, and the five sets each in a gear colour of its ow
   // and type only); FEVER off: its tint would cover the skins' rail colours
   for (const [skin, keyMode, name, cameraPreset, parts] of [
     ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'crystal' }],
-    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'crystal', deckColour: 'smoke', hit: 'flare' }],
+    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'crystal', hit: 'flare' }],
     ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }],
-    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'white', hit: 'bubbles' }],
+    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'mixer', hit: 'bubbles' }],
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF', parts });
     await selectShowcase(page, keyMode, 'EXPERT');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
-  // each set with its gear in a colourway other than its own, its module in the scratch lane
+  // each set whole, its gear's module in the scratch lane
   for (const [skin, parts, name] of [
-    ['arcade', { note: 'chamfer', side: 'bar', deck: 'arcade', deckColour: 'red', hit: 'mecha' }, '28-mecha-red'],
-    ['club', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'silver', hit: 'club' }, '29-club-silver'],
-    ['glass', { note: 'star4', side: 'bar', deck: 'crystal', deckColour: 'rosegold', hit: 'crystal' }, '30-crystal-rosegold'],
-    ['neon', { note: 'star5', side: 'bar', deck: 'neon', deckColour: 'burgundy', hit: 'neon' }, '31-neon-burgundy'],
-    ['flat', { note: 'piano', side: 'bar', deck: 'grand', deckColour: 'mahogany', hit: 'piano' }, '32-piano-mahogany'],
-    ['club', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'walnut', hit: 'club' }, '33-club-walnut'],
+    ['arcade', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }, '28-set-mecha'],
+    ['club', { note: 'round', side: 'bar', deck: 'mixer', hit: 'club' }, '29-set-club'],
+    ['glass', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'crystal' }, '30-set-crystal'],
+    ['neon', { note: 'star5', side: 'bar', deck: 'neon', hit: 'neon' }, '31-set-neon'],
+    ['flat', { note: 'piano', side: 'bar', deck: 'grand', hit: 'piano' }, '32-set-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', skin, parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'EXPERT');
@@ -354,10 +353,10 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [parts, keyMode, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'arcade', deckColour: 'white', hit: 'flash' }, '7K+1S', '22-hit-flash'],
-    [{ note: 'round', side: 'bar', deck: 'mixer', deckColour: 'black', hit: 'flare' }, '8K', '23-hit-flare'],
-    [{ note: 'star4', side: 'dots', deck: 'crystal', deckColour: 'gold', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
-    [{ note: 'star5', side: 'dots', deck: 'grand', deckColour: 'ebony', hit: 'grid' }, '6K+FX', '25-hit-grid'],
+    [{ note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'round', side: 'bar', deck: 'mixer', hit: 'flare' }, '8K', '23-hit-flare'],
+    [{ note: 'star4', side: 'dots', deck: 'crystal', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
+    [{ note: 'star5', side: 'dots', deck: 'grand', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
     await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, hiSpeed: 3, fever: 'OFF' });

@@ -144,18 +144,18 @@ describe('skins', () => {
   it('draws the parts a player picks in place of the skin’s', () => {
     const arcade = skinById('arcade', null);
     // nothing picked: the defaults, whatever the skin
-    expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' });
+    expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'grand', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'bubbles', side: 'dots' }).style).toMatchObject({ hit: 'bubbles', side: 'dots' });
-    // the gear's colourway rides on the style (a gear without that colourway draws in its own, see styleArt)
-    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'arcade', deckColour: 'red' }).style).toMatchObject({ deck: 'arcade', deckColour: 'red' });
+    // a gear has one look: no colourway rides on the style
+    expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'arcade' }).style).not.toHaveProperty('deckColour');
     // everything else stays the skin's: colours, rails, camera, type
-    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'neon', deckColour: 'gunmetal', hit: 'grid' });
+    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'neon', hit: 'grid' });
     expect(picked.colors).toBe(arcade.colors);
-    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', deckColour: undefined, hit: 'mecha' }).toEqual({ ...arcade.style, side: undefined, deckColour: undefined });
+    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', hit: 'mecha' }).toEqual({ ...arcade.style, side: undefined });
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
-    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'crystal' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'crystal', deckColour: 'gunmetal', hit: 'flash' });
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'crystal' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'crystal', hit: 'flash' });
   });
 
   it('shows a skin as JSON without the parts the gear tab picks, and reads it back to the same drawing', () => {
@@ -164,7 +164,7 @@ describe('skins', () => {
       const json = JSON.parse(JSON.stringify(skinJson(skin)));
       expect(json).not.toHaveProperty('noteShape');
       expect(json).not.toHaveProperty('hitEffect');
-      for (const part of ['note', 'side', 'deck', 'deckColour', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
+      for (const part of ['note', 'side', 'deck', 'hit']) expect(json.style ?? {}).not.toHaveProperty(part);
       const back = sanitizeSkin(json)!;
       expect(back.colors).toEqual(skin.colors);
       expect(back.textures).toEqual(skin.textures);
@@ -178,16 +178,16 @@ describe('skins', () => {
   it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
     expect(DEFAULT_PARTS.deck).toBe('grand');
-    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'neon', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'neon', deckColour: 'gunmetal', hit: 'grid' });
-    expect(sanitizeParts({ deck: 'arcade', deckColour: 'red', hit: 'mecha' })).toMatchObject({ deck: 'arcade', deckColour: 'red', hit: 'mecha' });
-    for (const deckColour of ['Red', 'red-1', '', 7, 'x'.repeat(17)]) expect(sanitizeParts({ deckColour }).deckColour).toBe('gunmetal');
+    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'neon', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'neon', hit: 'grid' });
+    // an earlier version's gear colour is dropped: each gear has one look
+    expect(sanitizeParts({ deck: 'arcade', deckColour: 'red', hit: 'mecha' })).toEqual({ ...DEFAULT_PARTS, deck: 'arcade', hit: 'mecha' });
     // what earlier versions kept: a long note picked, the skin's own, and the skins' own styles no longer picked
     expect(sanitizeParts({ note: 'gloss', long: 'ray', side: 'skin', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'skin', deck: 'skin', hit: 'skin' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'stem', deck: 'line', hit: 'stemflash' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ deck: 'stem' }).deck).toBe('grand');
     // the gears and hits taken out: the defaults
-    for (const deck of ['hazard', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette']) expect(sanitizeParts({ deck, deckColour: 'red' })).toMatchObject({ deck: 'grand', deckColour: 'red' });
+    for (const deck of ['hazard', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette']) expect(sanitizeParts({ deck }).deck).toBe('grand');
     for (const hit of ['star', 'bomb', 'hex', 'shards', 'wave', 'spark', 'shutter']) expect(sanitizeParts({ hit }).hit).toBe('flash');
   });
 
