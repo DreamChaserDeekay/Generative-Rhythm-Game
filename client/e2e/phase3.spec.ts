@@ -562,7 +562,8 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  // the default gear is drawn in code: no colourways to pick
+  // a gear drawn in code has no colourways to pick
+  await chooseSetting(page, 'opt-deck-style', 'cassette');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await chooseSetting(page, 'opt-note-style', 'chamfer');
   await chooseSetting(page, 'opt-deck-style', 'arcade');
@@ -573,8 +574,8 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   await expect(page.getByTestId('opt-deck-colour')).toContainText('건메탈');
   await chooseSetting(page, 'opt-deck-colour', 'red');
   expect((await stored()).parts).toMatchObject({ note: 'chamfer', deck: 'arcade', deckColour: 'red', hit: 'mecha' });
-  // another gear: no row; the pick is kept for when the arcade gear comes back
-  await chooseSetting(page, 'opt-deck-style', 'grand');
+  // a gear drawn in code: no row; the pick is kept for when the arcade gear comes back
+  await chooseSetting(page, 'opt-deck-style', 'cassette');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await chooseSetting(page, 'opt-deck-style', 'arcade');
   await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', 'red');
@@ -595,13 +596,14 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   expect(errors).toEqual([]);
 });
 
-test('the club, crystal and neon sets picked part by part: each gear in a colourway of its own, all of it drawn from art in play', async ({ page }) => {
+test('the club, crystal, neon and piano sets picked part by part: each gear in a colourway of its own, all of it drawn from art in play', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [note, deck, own, way, wayName, hit, hitName, style] of [
     ['round', 'mixer', 'black', 'walnut', '월넛 우드', 'club', '클럽 링', 'round capsule bar mixer club'],
     ['star4', 'crystal', 'silver', 'rosegold', '로즈 골드', 'crystal', '크리스털 파편', 'star4 ray bar crystal crystal'],
     ['star5', 'neon', 'black', 'burgundy', '버건디 골드', 'neon', '네온 아크', 'star5 ray bar neon neon'],
+    ['piano', 'grand', 'ebony', 'mahogany', '마호가니', 'piano', '피아노 음표', 'piano key bar grand piano'],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();

@@ -18,7 +18,7 @@ export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, st
 }
 
 /** The parts of the gear by name (설정 → 기어). */
-export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
+export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)', piano: '피아노' };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<DeckStyle, string> = {
   line: '라인',
@@ -53,6 +53,7 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   club: '클럽 링',
   crystal: '크리스털 파편',
   neon: '네온 아크',
+  piano: '피아노 음표',
   flipbook: '보석 섬광',
   none: '없음',
 };

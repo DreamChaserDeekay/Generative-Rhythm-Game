@@ -110,10 +110,11 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 /**
  * FLAT and STEM are plain bars. The others are families, each with its own long note (LONG_OF):
  * CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along the
- * judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
+ * judge line, STAR5 a five-pointed star, PIANO the front of a piano key; each as wide as its lane
+ * lets a note be.
  */
-export type NoteStyle = 'flat' | 'stem' | 'chamfer' | 'round' | 'star4' | 'star5';
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'chamfer', 'round', 'star4', 'star5'];
+export type NoteStyle = 'flat' | 'stem' | 'chamfer' | 'round' | 'star4' | 'star5' | 'piano';
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'chamfer', 'round', 'star4', 'star5', 'piano'];
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -431,6 +432,43 @@ function star5Note(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
   g.restore();
 }
 
+/**
+ * PIANO: the front of a piano key lying across the lane: a glossy enamel slab with softly rounded
+ * corners (round on the screen), a dark rim, a crisp reflection along its far half, a bright inlay
+ * line across its middle (its time), broken round its lane's mark, which is inlaid at its centre.
+ */
+function pianoNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const st = NOTE_STRETCH;
+  const r = Math.min(w * 0.06, (h * 0.3) / st);
+  const rim = Math.max(1.2, Math.min(w * 0.02, h * 0.035));
+  const slab = (inset: number) => {
+    g.beginPath();
+    g.roundRect(inset, inset * st, w - 2 * inset, h - 2 * inset * st, [{ x: Math.max(0.1, r - inset), y: Math.max(0.1, (r - inset) * st) }]);
+  };
+  slab(0);
+  g.fillStyle = tone(0.3);
+  g.fill();
+  slab(rim);
+  g.fillStyle = tone(1.05);
+  g.fill();
+  g.save();
+  slab(rim);
+  g.clip();
+  g.fillStyle = ink(1, 0.55, 0.45);
+  g.fillRect(0, h * 0.14, w, h * 0.1);
+  const m = Math.min(w * 0.055, h * 0.085);
+  const line = Math.max(1.4, h * 0.06);
+  g.fillStyle = ink(1, 0.8);
+  for (const [x0, x1] of [
+    [rim * 2, w / 2 - m * 1.9],
+    [w / 2 + m * 1.9, w - rim * 2],
+  ]) {
+    if (x1 > x0) g.fillRect(x0, h / 2 - line / 2, x1 - x0, line);
+  }
+  g.restore();
+  noteMark(g, mark, w / 2, h / 2, m, ink(1, 0.8), false);
+}
+
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   flat: (g, w, h) => {
     const u = unit(h);
@@ -461,15 +499,16 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   round: roundNote,
   star4: star4Note,
   star5: star5Note,
+  piano: pianoNote,
 };
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'solid' | 'stem' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'rail', 'capsule', 'ray'];
+export type LongStyle = 'solid' | 'stem' | 'rail' | 'capsule' | 'ray' | 'key';
+export const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'rail', 'capsule', 'ray', 'key'];
 
 /** The long note of each note style's family. */
-export const LONG_OF: Record<NoteStyle, LongStyle> = { flat: 'solid', stem: 'stem', chamfer: 'rail', round: 'capsule', star4: 'ray', star5: 'ray' };
+export const LONG_OF: Record<NoteStyle, LongStyle> = { flat: 'solid', stem: 'stem', chamfer: 'rail', round: 'capsule', star4: 'ray', star5: 'ray', piano: 'key' };
 
 /**
  * A long note is its body alone (a head or tail drawn like a tap note reads as one more note):
@@ -549,6 +588,14 @@ const RAY: [number, number, string][] = [
   [0, 54, tone(0.3)],
   [2.5, 27, tone(1.12)],
   [27, 51.5, tone(0.72)],
+];
+
+/** KEY (PIANO's): a lacquered key body, a bright rim inside a dark one, a bright inlay line down its middle. */
+const KEY: [number, number, string][] = [
+  [0, 54, tone(0.3)],
+  [2.5, 51.5, tone(1.25)],
+  [5, 49, tone(0.98)],
+  [25.5, 28.5, ink(1, 0.8)],
 ];
 
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
@@ -681,6 +728,32 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     },
     tile: 3,
     endDepth: 0.5 * NOTE_STRETCH,
+    width: 0.9,
+  },
+  key: {
+    body: (g, w, h) => stripes(g, w, h, KEY),
+    // the key's own front: its corners softly rounded (round on the screen), its rim round them
+    end: (g, w, h) => {
+      const a = across(w);
+      const r = a(11);
+      const front = (t: number) => {
+        g.beginPath();
+        g.roundRect(t, t * NOTE_STRETCH, w - 2 * t, h * 2, [{ x: Math.max(0.1, r - t), y: Math.max(0.1, (r - t) * NOTE_STRETCH) }]);
+      };
+      front(0);
+      g.fillStyle = tone(0.3);
+      g.fill();
+      front(a(2.5));
+      g.fillStyle = tone(1.25);
+      g.fill();
+      g.save();
+      front(a(5));
+      g.clip();
+      stripes(g, w, h, KEY);
+      g.restore();
+    },
+    tile: 1,
+    endDepth: (11 * NOTE_STRETCH + 4) / 54,
     width: 0.9,
   },
 };
@@ -849,12 +922,12 @@ export function sideDotsEnd(cols: number): Paint {
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
 /**
- * MECHA, CLUB, CRYSTAL and NEON are drawn from art (the flipbooks of their sets, see styleArt.ts);
- * until they load, or when they cannot, they are drawn here: MECHA and CRYSTAL as SHARDS is, CLUB
- * as WAVE, NEON as HEX.
+ * MECHA, CLUB, CRYSTAL, NEON and PIANO are drawn from art (the flipbooks of their sets, see
+ * styleArt.ts); until they load, or when they cannot, they are drawn here: MECHA and CRYSTAL as
+ * SHARDS is, CLUB as WAVE, NEON as HEX, PIANO as STAR.
  */
-export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha' | 'club' | 'crystal' | 'neon';
-export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha', 'club', 'crystal', 'neon'];
+export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 
 export interface EffectSheet {
   texture: THREE.CanvasTexture;
@@ -877,6 +950,7 @@ const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number 
   flash: { w: 128, h: 192, cy: 104, reach: 84 },
   stemflash: { w: 128, h: 192, cy: 104, reach: 84 },
   star: { w: 192, h: 128, cy: 64, reach: 104 },
+  piano: { w: 192, h: 128, cy: 64, reach: 104 },
   bomb: { w: 160, h: 160, cy: 80, reach: 83 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   hex: { w: 160, h: 112, cy: 56, reach: 96 },
@@ -894,7 +968,7 @@ const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number 
 };
 
 /** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
-const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex', 'neon'];
+const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex', 'neon', 'piano'];
 /** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
 const ABOVE_REACH = 28;
 
@@ -984,7 +1058,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
       break;
     }
-    case 'star': {
+    case 'star':
+    case 'piano': {
       for (let k = 0; k < 8; k++) {
         const ang = (k / 8) * Math.PI * 2 + Math.PI / 8;
         const r1 = (10 + 26 * p) * s;

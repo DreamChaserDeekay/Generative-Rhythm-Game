@@ -568,6 +568,8 @@ SET_ART = {
         "module": {"centre": (0.147, 0.51), "r": 0.112, "mask": "circle"},
         "strip": None,
         "fader": {"centre": 0.531, "w": 0.05, "y": (0.6, 0.9)},
+        # the walnut one's channel strips are walnut veneer (grain running down the strips)
+        "veneer_ways": {"walnut": "walnut_veneer.jpg"},
         "colours": {"face": (0.27, 0.28, 0.06, 0.94), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
     "crystal": {
@@ -602,12 +604,45 @@ SET_ART = {
         # its circuit board above the lights, its frame
         "colours": {"face": (0.3, 0.95, 0.08, 0.24), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
+    "piano": {
+        # ivory slabs: the enamel in the lane colour, its brass inlay and mark lifted toward white (found by their warmth)
+        "notes": {"rows": True, "gain": 1 / 0.72, "lift": 0.86, "white": 0.85, "brass": 0.8},
+        "long": {"cap": 120, "idle": (1 / 0.75, 0.86, 0.8), "held": (1 / 0.62, 0.72, 0.9), "see": None, "brass": 0.8},
+        "side": {"cut": 0.058, "plate_cut": 0.117, "tint": (1 / 0.62, 0.7, 0.85), "bright": 0.6},
+        # an ivory key front: a rounded rectangle, its long middle shortened to the row's proportions; lit, the lane
+        # colour with only its brightest heart lifted toward white
+        "keys": {"way": "ebony", "idle": (0.2644, 0.525), "lit": (0.3319, 0.5316), "box": (0.072, 0.80), "mask": "roundrect",
+                 "fit": (0.875, 0.9125), "lit_grow": 1.03, "squash": 1.16, "lit_tint": (1 / 0.7, 0.9, 0.8, 1.2),
+                 # at rest its ivory keeps its shading (the game draws it in ivory, not the lane colour)
+                 "idle_tint": (1 / 0.95, 0.97, 0.3)},
+        "ways": ("ebony", "white", "mahogany", "emerald"),
+        # the brass dial, drawn a little taller than wide: cut as drawn, then round again
+        "module": {"centre": (0.1277, 0.527), "r": 0.0665, "ry": 0.219, "mask": "circle"},
+        "strip": None,
+        "fader": None,
+        # the mahogany one's case is mahogany veneer (grain running across)
+        "veneer_ways": {"mahogany": "mahogany_veneer.jpg"},
+        # its lacquer beside the dial, its brass pinstripe, the felt under the keys
+        "colours": {"face": (0.03, 0.06, 0.2, 0.3), "brass": (0.2, 0.8, 0.026, 0.036), "felt": (0.3, 0.9, 0.905, 0.925)},
+    },
 }
 
 
 # The sets' names in the manifest: "crystal" already names an earlier texture set (skins/crystal/, which user
 # skins may ask for by name), so the crystal set's pictures are listed as "gem/<name>".
 NAME = {"crystal": "gem"}
+
+
+def brass_of(a: np.ndarray) -> np.ndarray:
+    """How much each pixel of neutral art is the brass inlay drawn in it (the only warm colour): 0 … 1."""
+    return np.clip((a[..., 0] - a[..., 2] - 0.08) / 0.12, 0, 1)
+
+
+def lift_brass(rgba: np.ndarray, brass: np.ndarray, white: float) -> None:
+    """The brass of a tint picture in full lane colour lifted toward white (a bright inlay on the enamel)."""
+    inside = rgba[..., 3] > 0
+    rgba[..., 0] = np.where(inside, np.maximum(rgba[..., 0], brass), rgba[..., 0])
+    rgba[..., 1] = np.where(inside, np.maximum(rgba[..., 1], brass * white), rgba[..., 1])
 
 
 def fit_into(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -636,7 +671,9 @@ def disc_of(v: np.ndarray, ys: slice, xs: slice) -> tuple[float, float, float]:
 
 def set_notes(cid: str, textures: dict) -> None:
     c = SET_ART[cid]["notes"]
-    v = value(load(SRC / cid / "notes.jpg"))
+    a = load(SRC / cid / "notes.jpg")
+    v = value(a)
+    warm = brass_of(a)
     boxes = blobs(v, 0.05, 4)
     if c["rows"]:
         boxes = sorted(boxes, key=lambda b: b[0].start)
@@ -650,11 +687,14 @@ def set_notes(cid: str, textures: dict) -> None:
             dy, dx, r = disc_of(v, ys, xs)
             cy, cx, h = round(dy), round(dx), 2 * int(r - 1)
             w = h
-        crop = np.pad(v, ((h, h), (w, w)))[cy - h // 2 + h:cy - h // 2 + 2 * h, cx - w // 2 + w:cx - w // 2 + 2 * w]
+        cut = (slice(cy - h // 2 + h, cy - h // 2 + 2 * h), slice(cx - w // 2 + w, cx - w // 2 + 2 * w))
+        crop = np.pad(v, ((h, h), (w, w)))[cut]
         alpha = shape_alpha(crop)
         if c.get("disc"):
             alpha = alpha * shape_mask("circle", h, w, 1.0)
         rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
+        if c.get("brass"):
+            lift_brass(rgba, np.pad(warm, ((h, h), (w, w)))[cut], c["brass"])
         if c["rows"]:
             paste(atlas, fit_into(rgba, 1024, 256), 0, i * 256)
         else:
@@ -666,7 +706,9 @@ def set_notes(cid: str, textures: dict) -> None:
 
 def set_long(cid: str, textures: dict) -> dict:
     c = SET_ART[cid]["long"]
-    v = value(load(SRC / cid / "long.jpg"))
+    a = load(SRC / cid / "long.jpg")
+    v = value(a)
+    warm = brass_of(a)
     idle, held = sorted(blobs(v, 0.06, 2), key=lambda b: b[1].start)
     iy, ix = idle
     rail_w = ix.stop - ix.start
@@ -683,6 +725,8 @@ def set_long(cid: str, textures: dict) -> dict:
             alpha = np.where((alpha > 0.99) & (own < 0.2), c["see"], alpha)
         gain, lift, white = params
         rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
+        if c.get("brass"):
+            lift_brass(rgba, warm[:, xs], c["brass"])
         length = round(rail_w * LONG_TILE / LONG_W)
         y0 = (iy.start + iy.stop) // 2 - length // 2
         body = seamless_rows(rgba[y0:y0 + length + length // 4], length, length // 4)
@@ -726,19 +770,23 @@ def panel_of(a: np.ndarray) -> tuple[int, int, int, int]:
     return gear_parts(a)["panel"]
 
 
-def shape_mask(kind: str, h: int, w: int, fit: float, soft: float = 0.0) -> np.ndarray:
+def shape_mask(kind: str, h: int, w: int, fit: float | tuple[float, float], soft: float = 0.0) -> np.ndarray:
     """A circle, a diamond, a hexagon (flat top and bottom) or neon's module plate filling `fit` of h × w about its
     middle, its edge softened over `soft` of its size (lit lights keep their glow)."""
     s = 4
     im = Image.new("L", (w * s, h * s), 0)
     d = ImageDraw.Draw(im)
     cx, cy = w * s / 2, h * s / 2
-    rx, ry = w * s * fit / 2, h * s * fit / 2
+    fx, fy = fit if isinstance(fit, tuple) else (fit, fit)
+    rx, ry = w * s * fx / 2, h * s * fy / 2
     if kind == "circle":
         r = min(rx, ry)
         d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
     elif kind == "diamond":
         d.polygon([(cx, cy - ry), (cx + rx, cy), (cx, cy + ry), (cx - rx, cy)], fill=255)
+    elif kind == "roundrect":
+        # a piano key's front: its corners rounded by a seventh of its width
+        d.rounded_rectangle((cx - rx, cy - ry, cx + rx, cy + ry), radius=rx * 2 / 7, fill=255)
     elif kind == "plate":
         # neon's module: a hexagon standing on a point, its sides upright, its corners worn round
         q = ry / 2
@@ -749,6 +797,16 @@ def shape_mask(kind: str, h: int, w: int, fit: float, soft: float = 0.0) -> np.n
     if soft > 0:
         im = im.filter(ImageFilter.GaussianBlur(min(w, h) * s * soft))
     return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
+
+
+def squash_middle(rgba: np.ndarray, aspect: float) -> np.ndarray:
+    """A tall light (a piano key) shortened to `aspect` of its width: its two ends (and their rounded corners) as
+    they are, its plain middle squeezed."""
+    h, w = rgba.shape[:2]
+    end = int(w * 0.3)
+    target = max(2 * end + 2, round(w * aspect))
+    middle = resize_premultiplied(rgba[end:h - end], w, target - 2 * end)
+    return np.concatenate([rgba[:end], middle, rgba[h - end:]], axis=0)
 
 
 def set_keys(cid: str, textures: dict) -> None:
@@ -767,13 +825,19 @@ def set_keys(cid: str, textures: dict) -> None:
         cx, cy = x0 + int(W * sx), y0 + int(H * sy)
         crop = v[cy - bh // 2:cy - bh // 2 + bh, cx - bw // 2:cx - bw // 2 + bw]
         lit = key == "lit"
-        alpha = shape_mask(c["mask"], bh, bw, c["fit"] * (1.18 if lit else 1.0), soft=0.05 if lit else 0.0)
+        grow = c.get("lit_grow", 1.18) if lit else 1.0
+        fit = tuple(f * grow for f in c["fit"]) if isinstance(c["fit"], tuple) else c["fit"] * grow
+        alpha = shape_mask(c["mask"], bh, bw, fit, soft=0.05 if lit else 0.0)
         if lit:
             # the glow past the light's edge is light, not plate: as bright as it is, fading out
-            rgba = tint(crop, alpha * np.clip(crop / 0.5, 0, 1), gain=1 / 0.62, lift=0.66, white=0.92, power=1.1)
+            gain, lift, white, power = c.get("lit_tint", (1 / 0.62, 0.66, 0.92, 1.1))
+            rgba = tint(crop, alpha * np.clip(crop / 0.5, 0, 1), gain=gain, lift=lift, white=white, power=power)
             rgba[..., 3] = np.maximum(shape_mask(c["mask"], bh, bw, c["fit"]), rgba[..., 3])
         else:
-            rgba = tint(crop, alpha, gain=1 / 0.75, lift=0.8, white=0.7)
+            gain, lift, white = c.get("idle_tint", (1 / 0.75, 0.8, 0.7))
+            rgba = tint(crop, alpha, gain=gain, lift=lift, white=white)
+        if c.get("squash"):
+            rgba = squash_middle(rgba, c["squash"])
         paste(atlas, fit_into(rgba, 256, 256), i * 256, 0)
     save_rgba(atlas, OUT / cid / "keys.png")
     textures[f"{NAME.get(cid, cid)}/keys"] = {"file": f"styles/{cid}/keys.png", "bundle": "gear", "size": [512, 256]}
@@ -806,9 +870,11 @@ def set_gear(cid: str, textures: dict) -> dict:
         if "centre" in m:
             sx, sy = m["centre"]
             r = int(W * m["r"])
-            rh = int(r * k)
+            # a dial drawn a little taller than wide (its own `ry`) is cut as drawn and made round
+            rh = int(H * m["ry"]) if "ry" in m else int(r * k)
             cx, cy = x0 + int(W * sx), y0 + int(H * sy)
-            mod = unstretch(np.concatenate([a[cy - rh:cy + rh, cx - r:cx + r], np.ones((2 * rh, 2 * r, 1), np.float32)], axis=2))
+            mod = np.concatenate([a[cy - rh:cy + rh, cx - r:cx + r], np.ones((2 * rh, 2 * r, 1), np.float32)], axis=2)
+            mod = resize_premultiplied(mod, 2 * r, 2 * r) if "ry" in m else unstretch(mod)
             mod[..., 3] = shape_mask("circle", mod.shape[0], mod.shape[1], 1.0)
         else:
             l, rr, t, b = m["box"]
@@ -824,6 +890,13 @@ def set_gear(cid: str, textures: dict) -> dict:
             sh = round(1024 * strip.shape[0] / strip.shape[1])
             paste(atlas, resize_premultiplied(strip, 1024, sh), 0, 512)
             info["strip_h"] = sh
+        if way in c.get("veneer_ways", {}):
+            # the colourway's wood, painted over its plate: its middle, 1024 × 512 under the module
+            ven = load(SRC / cid / c["veneer_ways"][way])
+            vh = round(ven.shape[0] * 1024 / ven.shape[1])
+            ven = resize_premultiplied(np.concatenate([ven, np.ones(ven.shape[:2] + (1,), np.float32)], axis=2), 1024, vh)
+            paste(atlas, ven[(vh - 512) // 2:(vh - 512) // 2 + 512], 0, 512)
+            info["veneer"] = True
         if c["fader"]:
             f = c["fader"]
             fd = box(f["y"][0], f["y"][1], f["centre"] - f["w"] / 2, f["centre"] + f["w"] / 2)
@@ -835,7 +908,7 @@ def set_gear(cid: str, textures: dict) -> dict:
         cols = {}
         for key, (l, rr, t, b) in c["colours"].items():
             px = box(t, b, l, rr).reshape(-1, 3)
-            cols[key] = hex_of(np.percentile(px, 90, axis=0) if key == "edge" else np.median(px, 0))
+            cols[key] = hex_of(np.percentile(px, 90, axis=0) if key in ("edge", "brass") else np.median(px, 0))
         info["colours"] = cols
         info["stretch"] = round(k, 3)
         out[way] = info
@@ -896,19 +969,24 @@ def set_hits(cid: str, textures: dict) -> None:
         "club": {"flash": (513, 511), "ring": (522, 511), "hold": (499, 510)},
         "crystal": {"flash": (514, 515), "ring": (502, 521), "hold": (463, 504)},
         "neon": {"flash": (425, 522), "ring": (442, 513), "hold": (381, 518)},
+        "piano": {"flash": (511, 511), "ring": (510, 511), "hold": (508, 512)},
     }[cid]
     flash = crop_around(cells["flash"], *centres["flash"], n // 2 - 8)
     ring = crop_around(cells["ring"], *centres["ring"], n // 2 - 8)
     hold = crop_around(cells["hold"], *centres["hold"], n // 2 - 8)
     sprites = sprites_of(cells["sprites"])
-    rng = np.random.default_rng({"club": 3, "crystal": 5, "neon": 9}[cid])
+    if cid == "piano":
+        # its pieces are musical notes (the glints are smaller): they fly out upright
+        sprites = [sp for sp in sprites if sp.shape[0] >= 100]
+    rng = np.random.default_rng({"club": 3, "crystal": 5, "neon": 9, "piano": 11}[cid])
     keep_flash = above_line(cell, line, 14, 46)
     keep_ring = above_line(cell, line, 5, 26)
     if cid == "crystal":
         # its shards were drawn flying up: turned over, they fly down over the gear
         ring = ring[::-1]
     flicker = [1.0, 0.72, 1.0, 0.86, 0.95, 0.62, 1.0, 0.8, 0.9, 0.7, 1.0, 0.75, 0.9, 0.8, 1.0, 0.85] if cid == "neon" else [1.0] * 16
-    throws = [(math.radians(rng.uniform(25, 155)), rng.uniform(0.55, 1.0), rng.integers(0, max(1, len(sprites))), rng.uniform(-90, 90)) for _ in range(8)]
+    spin = 18 if cid == "piano" else 90
+    throws = [(math.radians(rng.uniform(25, 155)), rng.uniform(0.55, 1.0), rng.integers(0, max(1, len(sprites))), rng.uniform(-spin, spin)) for _ in range(8)]
 
     def draw_burst(f: int, frame: np.ndarray) -> None:
         g = flicker[f]
@@ -930,7 +1008,8 @@ def set_hits(cid: str, textures: dict) -> None:
                 reach = cell * 0.46 * speed * (1 - (1 - t) ** 2)
                 x, y = cx + reach * math.cos(a), line + reach * math.sin(a) + cell * 0.08 * t * t
                 sp = sprites[int(k) % len(sprites)]
-                size = cell * min(0.16, 0.04 + sp.shape[0] / n * 0.5)
+                # a musical note large enough to read as one
+                size = cell * (0.17 + 0.05 * sp.shape[0] / 190) if cid == "piano" else cell * min(0.16, 0.04 + sp.shape[0] / n * 0.5)
                 place(frame, sp, x, y, size, spin * t, (1 - t) ** 1.2 * g)
         if f >= 1:
             afterglow(frame, line, 0.5 * (1 - f / 16) ** 1.2 * g)
@@ -953,6 +1032,9 @@ def set_hits(cid: str, textures: dict) -> None:
         if cid == "club":
             # the glowing ring breathes a little
             place(frame, hold, cx, hold_line, cell * (0.72 + 0.03 * math.sin(phase * 2)), 0, 0.92 + 0.08 * math.sin(phase * 2))
+        elif cid == "piano":
+            # the glow and the notes round it breathe a little
+            place(frame, hold, cx, hold_line, cell * (0.86 + 0.03 * math.sin(phase * 2)), 0, 0.9 + 0.1 * math.sin(phase * 2))
         elif cid == "crystal":
             place(frame, hold, cx, hold_line, cell * 0.9, 0, 0.9)
         else:
@@ -966,7 +1048,8 @@ def set_hits(cid: str, textures: dict) -> None:
                 b = max(0.0, math.sin(phase + 2 * math.pi * ph))
                 if b > 0.05:
                     sp = sprites[int(k) % len(sprites)]
-                    place(frame, sp, cell * x, hold_line + cell * (y - 0.3) * 0.9, cell * 0.08 * (0.6 + 0.4 * b), 0, b)
+                    size = cell * (0.15 if cid == "piano" else 0.08) * (0.6 + 0.4 * b)
+                    place(frame, sp, cell * x, hold_line + cell * (y - 0.3) * 0.9, size, 0, b)
 
     sheet = burst_sheet(draw_hold)
     save_grey(sheet, OUT / cid / "hit_hold.png")
