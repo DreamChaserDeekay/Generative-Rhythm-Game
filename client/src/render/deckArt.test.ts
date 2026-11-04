@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { codeBorderLook, DECK_STYLES, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, keyBox, lowerTop, paintBorder, paintDeck, referenceReach, rowDrop, type DeckSpec, type KeyKind } from './deckArt';
+import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, referenceReach, rowDrop, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BUILTIN_SKINS } from './skins';
 import { deckRows, type DeckRows } from './TrackRenderer';
@@ -16,6 +16,9 @@ function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: num
       width: l.width * 73.65,
     }));
 }
+
+/** The skins' own gears: a light per lane on their plates. */
+const LIGHTS = DECK_STYLES.filter((s): s is LightStyle => !isGear(s));
 
 /** A 2D context that records the boxes filled and their fill (everything else does nothing). */
 function fillRecorder() {
@@ -32,6 +35,26 @@ function fillRecorder() {
   return { g, fills };
 }
 
+/** A 2D context that records every call made on it and every value set, in order (numbers rounded to a millionth). */
+function callRecorder() {
+  const calls: unknown[][] = [];
+  const round = (v: unknown) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+  const call =
+    (name: string) =>
+    (...a: unknown[]) => {
+      calls.push([name, ...a.map(round)]);
+      return { addColorStop: (...b: unknown[]) => calls.push(['addColorStop', ...b.map(round)]) };
+    };
+  const g = new Proxy({} as Record<string | symbol, unknown>, {
+    get: (_, k) => call(String(k)),
+    set: (_, k, v) => {
+      calls.push(['=', String(k), round(typeof v === 'object' ? 'gradient' : v)]);
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { g, calls };
+}
+
 describe('the lane lights under the judge line', () => {
   // rows as the cameras give them: SDVX's (72 px, drawn 1.25 times longer) and the plane camera's (deeper, flatter)
   const rows = [
@@ -42,7 +65,7 @@ describe('the lane lights under the judge line', () => {
   const modes: KeyModeId[] = ['4K', '7K+1S', '8K', '6K+FX'];
 
   it('lies no nearer the line than the reference hexagons in any lane: larger lights keep their size and lie lower', () => {
-    for (const style of DECK_STYLES) {
+    for (const style of LIGHTS) {
       for (const mode of modes) {
         for (const [depth, stretch] of rows) {
           const lanes = deckLanes(mode);
@@ -64,12 +87,16 @@ describe('the lane lights under the judge line', () => {
     }
   });
 
-  it('moves the gears’ pads, buttons, switches and tablets down, and leaves the small dots where they were', () => {
+  it('lights the lanes on the skins’ own gears only: the four a player picks have no lane’s key on them, their row not moved down', () => {
     const lanes = deckLanes('7K+1S');
+    for (const style of LIGHTS) expect(lightsOf(style), style).toBe(KEY_PAINT[style]);
+    for (const style of GEAR_STYLES) {
+      expect(lightsOf(style), style).toBeNull();
+      expect(deckRows(style, lanes, 320, () => 1.25).drop, style).toBe(0);
+    }
+    // STEM's small dots lie where they were, and every light stays inside its row (an outline at most a px past it)
     expect(rowDrop('stem', lanes, 72, 1.25)).toBeLessThan(2);
-    for (const style of GEAR_STYLES) expect(rowDrop(style, lanes, 72, 1.25)).toBeGreaterThan(4);
-    // every light stays inside its row (an outline at most a px past it)
-    for (const style of DECK_STYLES) for (const l of lanes) expect(KEY_PAINT[style].reach(l.kind, l.width, 72, 1.25)).toBeLessThan(36 + 1);
+    for (const style of LIGHTS) for (const l of lanes) expect(KEY_PAINT[style].reach(l.kind, l.width, 72, 1.25)).toBeLessThan(36 + 1);
   });
 });
 
@@ -86,8 +113,9 @@ describe('the side bars under the lane lights (side lanes laid over the keys)', 
     [1808, 3.25],
   ];
 
+  // only the skins' own gears have them: the four a player picks have no lane lights (lightsOf)
   it('lie under the row of lane lights and inside the room the screen shows, the plates’ lower parts under them', () => {
-    for (const style of DECK_STYLES) {
+    for (const style of LIGHTS) {
       for (const mode of ['4K+FX', '6K+FX'] as const) {
         const lanes = deckLanes(mode, 'half');
         const halves = computeTrackGeometry(keyModes[mode], 8, 40, 'half').lanes.filter((l) => l.over);
@@ -179,52 +207,60 @@ describe('the track’s borders in a gear’s frame', () => {
   });
 });
 
-describe('the four gears’ plates', () => {
-  const spec = (room: number): DeckSpec => ({
-    width: 400,
+describe('the four gears’ decks', () => {
+  /** A deck as the renderer paints it: the whole track's width, the lanes of a key mode. */
+  const spec = (room: number, stretch: number, mode: KeyModeId = '7K+1S'): DeckSpec => ({
+    width: 8 * 73.65,
     room,
-    depth: room + 20,
+    depth: room + 40,
     keyTop: 8,
     keyDepth: 56,
-    stretch: 1.3,
-    lanes: [
-      { left: 0, width: 70, kind: 'scratch' },
-      ...Array.from({ length: 7 }, (_, i) => ({ left: 70 + i * 47, width: 47, kind: i % 2 ? ('other' as const) : ('white' as const) })),
-    ],
+    stretch,
+    lanes: deckLanes(mode),
     sides: [],
     colours: BUILTIN_SKINS[0].colors,
   });
 
-  it('lays each key’s body in its lane’s place in the row, no wider than the lane nor deeper than the row', () => {
+  it('is the same object whatever the key mode: nothing on it stands for a lane', () => {
     for (const gear of GEAR_STYLES) {
-      for (const [w, h, st] of [
-        [68.5, 72, 1.25],
-        [147, 72, 1.25],
-        [47, 56, 1.3],
-        [98, 180, 3.25],
+      for (const [room, stretch] of [
+        [96, 1.1],
+        [320, 1.25],
+        [912, 3.25],
       ]) {
-        const b = keyBox(gear, w, h, st);
-        expect(b.x, gear).toBeGreaterThanOrEqual(0);
-        expect(b.x + b.w, gear).toBeLessThanOrEqual(w + 1e-9);
-        expect(b.y, gear).toBeGreaterThanOrEqual(0);
-        expect(b.y + b.h, gear).toBeLessThanOrEqual(h + 1e-9);
-        // in the middle of its place
-        expect(b.x + b.w / 2).toBeCloseTo(w / 2, 9);
-        expect(b.y + b.h / 2).toBeCloseTo(h / 2, 9);
+        const [first, ...rest] = (['4K', '7K+1S', '8K', '6K+FX'] as KeyModeId[]).map((mode) => {
+          const { g, calls } = callRecorder();
+          paintDeck(gear, g, spec(room, stretch, mode));
+          return calls;
+        });
+        expect(first.length, gear).toBeGreaterThan(50);
+        for (const calls of rest) expect(calls, gear).toEqual(first);
       }
     }
-    expect(isGear('line')).toBe(false);
-    expect(GEAR_STYLES.every(isGear)).toBe(true);
   });
 
   it('paints in code what it has no picture for, on any screen, without drawing pictures', () => {
     for (const gear of GEAR_STYLES) {
       for (const room of [40, 170, 320]) {
         const { g, fills } = fillRecorder();
-        expect(() => paintDeck(gear, g, spec(room))).not.toThrow();
+        expect(() => paintDeck(gear, g, spec(room, 1.3))).not.toThrow();
         // the plate's ground first, across the whole deck
-        expect(fills[0], gear).toMatchObject({ x: 0, y: 0, w: 400 });
+        expect(fills[0], gear).toMatchObject({ x: 0, y: 0, w: 8 * 73.65 });
       }
+      const { g, calls } = callRecorder();
+      paintDeck(gear, g, spec(320, 1.3));
+      expect(calls.some((c) => c[0] === 'drawImage')).toBe(false);
     }
+    expect(isGear('line')).toBe(false);
+    expect(GEAR_STYLES.every(isGear)).toBe(true);
+  });
+
+  it('has a judge line of its own, thick and red, a little above the deck', () => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(GEAR_JUDGE.line.slice(i, i + 2), 16));
+    expect(r).toBeGreaterThan(200);
+    expect(Math.max(g, b)).toBeLessThan(80);
+    expect(GEAR_JUDGE.height).toBeGreaterThanOrEqual(8);
+    // the lanes run on between the line and the deck, a strip several times the line's depth
+    expect(GEAR_JUDGE.gap).toBeGreaterThan(2 * GEAR_JUDGE.height);
   });
 });

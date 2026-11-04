@@ -49,8 +49,16 @@
         384
       ]
     },
-    "cabinet/turntable": {
-      "file": "gears/cabinet/turntable.png",
+    "cabinet/coin": {
+      "file": "gears/cabinet/coin.png",
+      "bundle": "gear",
+      "size": [
+        558,
+        384
+      ]
+    },
+    "cabinet/joystick": {
+      "file": "gears/cabinet/joystick.png",
       "bundle": "gear",
       "size": [
         512,
@@ -650,14 +658,6 @@
         512
       ]
     },
-    "najeon/tablet": {
-      "file": "gears/najeon/tablet.png",
-      "bundle": "gear",
-      "size": [
-        341,
-        358
-      ]
-    },
     "neon/hitBurst": {
       "file": "styles/neon/hit_burst.png",
       "bundle": "effects",
@@ -816,14 +816,6 @@
       "size": [
         512,
         512
-      ]
-    },
-    "standard/pad": {
-      "file": "gears/standard/pad.png",
-      "bundle": "gear",
-      "size": [
-        375,
-        384
       ]
     }
   },

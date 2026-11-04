@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { KEY_PAINT, paintBorder, rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type SideLook } from './deckArt';
+import { GEAR_JUDGE, isGear, lightsOf, paintBorder, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -201,8 +201,6 @@ interface DeckLayout {
   sideTop: number;
   sideDepth: number;
   stretch: number;
-  /** Where the scratch's light lies when the gear draws a turntable for it (plane px, see KeyPaint.scratchBox). */
-  scratch?: Box;
 }
 
 export interface FeverFrame {
@@ -531,8 +529,9 @@ export function deckRows(style: DeckStyle, lanes: readonly Pick<DeckLane, 'kind'
   // round lights look round: drawn longer along the track where the camera flattens it
   const along = flatten(row);
   const { depth, stretch } = keyRow(row, along);
-  // lights larger than neon's hexagons lie lower, so the first comes no nearer the line (within the room)
-  const drop = Math.min(rowDrop(style, lanes, depth, stretch), Math.max(0, room - KEY_TOP - depth));
+  // lights larger than neon's hexagons lie lower, so the first comes no nearer the line (within the room);
+  // a picked gear has no lights (lightsOf): its row is only where round things on it take their stretch
+  const drop = isGear(style) ? 0 : Math.min(rowDrop(style, lanes, depth, stretch), Math.max(0, room - KEY_TOP - depth));
   const side = keyRow(SIDE_ROW, along).depth;
   return { keyTop: KEY_TOP + drop, keyDepth: depth, stretch, drop, sideTop: KEY_TOP + drop + depth + Math.round((SIDE_GAP * side) / SIDE_ROW), sideDepth: side };
 }
@@ -618,14 +617,13 @@ export class TrackRenderer {
   /** The pictures the style's parts draw from (styleArt.ts), and the paints made with them. */
   private readonly images: StyleImages;
   private readonly notePaint: NotePaint;
-  private readonly keyPaint: KeyPaint;
+  /** The lights per lane on the deck: the skins' gears have them, the four a player picks none (null). */
+  private readonly keyPaint: KeyPaint | null;
   private readonly platePaint: (g: CanvasRenderingContext2D, s: DeckSpec) => void;
   /** The track's borders: the gear's frame (a picked gear's own, as wide as it is) or the skin's rails in its plate's colours. */
   private readonly borderLook: SideLook;
   /** The hit effect plays a flipbook texture (the skin's, or its style's art). */
   private readonly flipbook: boolean;
-  /** Where the scratch's light lies over the gear's turntable (plane px), for the deck's picture. */
-  private scratchBox: Box | null = null;
   /** Side notes drawn as an LED panel's dots (SideStyle 'dots'), and their long notes' pictures in lanes of their own. */
   private readonly sideDots: boolean;
   private dotsLong: { body: THREE.Texture; end: THREE.Texture } | null = null;
@@ -648,6 +646,14 @@ export class TrackRenderer {
   private readonly ownedTextures: THREE.Texture[] = [];
   private readonly glowTexture = radialTexture();
   private readonly judgeGroup = new THREE.Group();
+  /**
+   * How many times longer along the track a picked gear's judge line and the lanes between it and the
+   * gear are drawn, so they look as deep in every camera (the plane camera flattens the track: see
+   * layoutDeck); 1 for a skin's own gear.
+   */
+  private judgeFit = 1;
+  /** Where HIDDEN+ cuts the notes off (z), or null while it is off: the deck does (see setCovers). */
+  private hiddenCut: number | null = null;
   private readonly judgeGlowMaterial: THREE.MeshBasicMaterial | null;
   /** What FEVER tints along the borders (their glow, and a light added over them), with each one's own colour. */
   private readonly railTints: [THREE.MeshBasicMaterial, number][] = [];
@@ -696,7 +702,7 @@ export class TrackRenderer {
     this.prepareArt();
     this.images = options.art?.images ?? {};
     this.notePaint = notePaintOf(this.style.note, this.images);
-    this.keyPaint = KEY_PAINT[this.style.deck];
+    this.keyPaint = lightsOf(this.style.deck);
     this.platePaint = platePaintOf(this.style, this.images);
     this.borderLook = borderLookOf(this.style, this.images, this.skin.colors);
     this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.palette, options.mode);
@@ -861,7 +867,8 @@ export class TrackRenderer {
     this.farClip.constant = c.sudden > 0 ? -suddenZ : L;
     // Missed notes run on past the judgement line (under LIFT, under its cover) as far as the deck,
     // which hides them: cut where it starts, so a user skin's tall note never shows through it.
-    this.nearClip.constant = c.hidden > 0 ? hiddenZ : this.judgeZ + deckTop(this.style.judge) * PX;
+    this.hiddenCut = c.hidden > 0 ? hiddenZ : null;
+    this.nearClip.constant = this.hiddenCut ?? this.judgeZ + this.deckOffset * PX;
 
     this.span(this.suddenCover, -L - 0.5, suddenZ, c.sudden > 0);
     this.span(this.suddenEdge, suddenZ - 0.06, suddenZ + 0.06, c.sudden > 0);
@@ -1515,7 +1522,7 @@ export class TrackRenderer {
     this.feverShown = shown;
     for (const [m, own] of this.railTints) m.color.setHex(shown ?? own);
     for (const [m, idle, lit] of this.borderMaps) m.map = shown === null ? idle : lit;
-    this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.skin.colors.judgeGlow));
+    this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.judgeLook.glow));
   }
 
   private buildTrack(): void {
@@ -1666,26 +1673,50 @@ export class TrackRenderer {
     }
   }
 
+  /**
+   * The judge line's look: a picked gear's, thick and red with a light core (GEAR_JUDGE), or the
+   * skin's for its own gear (its colours, thickness, second line and halo).
+   */
+  private get judgeLook(): { line: string; glow: string; core: string | null; blur: number; judge: SkinStyle['judge'] } {
+    return isGear(this.style.deck)
+      ? { line: GEAR_JUDGE.line, glow: GEAR_JUDGE.glow, core: GEAR_JUDGE.core, blur: GEAR_JUDGE.blur, judge: { height: GEAR_JUDGE.height, glow: true } }
+      : { line: this.skin.colors.judgeLine, glow: this.skin.colors.judgeGlow, core: null, blur: 16, judge: this.style.judge };
+  }
+
+  /** How far under the judge line the deck starts (plane px): a picked gear's a little lower, the lanes running on between them. */
+  private get deckOffset(): number {
+    return (deckTop(this.judgeLook.judge) + (isGear(this.style.deck) ? GEAR_JUDGE.gap : 0)) * this.judgeFit;
+  }
+
   private buildJudgementLine(): THREE.MeshBasicMaterial | null {
     const { width } = this.geometry;
+    const look = this.judgeLook;
     // Transparent so it sorts after the covers (renderOrder) and stays on top of them. A texture is light on
-    // black with its own glow, so it is added.
-    const art = this.art.judgeLine;
+    // black with its own glow, so it is added. A picked gear's line is its own, whatever the skin's picture.
+    const art = look.core ? undefined : this.art.judgeLine;
     const line = new THREE.Mesh(
       this.flatGeometry,
       new THREE.MeshBasicMaterial({
-        color: hex(this.skin.colors.judgeLine),
+        color: hex(look.line),
         transparent: true,
         depthWrite: false,
         ...(art && { map: art.texture, blending: THREE.AdditiveBlending }),
       }),
     );
-    const j = this.style.judge;
+    const j = look.judge;
     // between the rails: it never runs over the gear's edges
     line.scale.set(width, 1, art ? (art.spec.depth ?? 0.5) : j.height * PX);
     line.position.set(0, LINE_Y, 0);
     line.renderOrder = 9.5;
     this.judgeGroup.add(line);
+    if (look.core) {
+      // a light core down the line's middle: it reads as lit, not painted
+      const core = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: hex(look.core), transparent: true, depthWrite: false }));
+      core.scale.set(width, 1, j.height * 0.28 * PX);
+      core.position.set(0, LINE_Y, 0);
+      core.renderOrder = 9.52;
+      this.judgeGroup.add(core);
+    }
     // a second line flush under it (toward the camera) or over it: the line keeps its middle, and the deck starts under it (deckTop)
     const flush = j.height / 2 + EXTRA_LINE / 2;
     for (const [colour, dz] of [
@@ -1702,20 +1733,21 @@ export class TrackRenderer {
     this.scene.add(this.judgeGroup);
     if (!art) {
       if (!j.glow) return null;
-      // the sheets' box-shadow: 0 0 16px at 80 %, under the line; the deck hides its lower half
+      // the sheets' box-shadow: 0 0 16px at 80 %, under the line (a picked gear's wider); the deck hides
+      // its lower half unless it starts a gap below the line (a picked gear's)
       const lineWidth = width / PX;
       const glow = new THREE.Mesh(
         this.flatGeometry,
         tintMaterial({
-          map: this.own(judgeGlowTexture(lineWidth, j.height, 16, 0.8, false)),
-          color: hex(this.skin.colors.judgeGlow),
+          map: this.own(judgeGlowTexture(lineWidth, j.height, look.blur, 0.8, false)),
+          color: hex(look.glow),
           transparent: true,
           opacity: this.reducedFlash ? 0.6 : 1,
           depthWrite: false,
           fog: false,
         }),
       );
-      glow.scale.set(width, 1, (j.height + 2 * shadowReach(16)) * PX);
+      glow.scale.set(width, 1, (j.height + 2 * shadowReach(look.blur)) * PX);
       glow.position.set(0, LINE_Y, 0);
       glow.renderOrder = 9.45;
       this.judgeGroup.add(glow);
@@ -1723,7 +1755,7 @@ export class TrackRenderer {
     }
     const glowMaterial = new THREE.MeshBasicMaterial({
       map: this.glowTexture,
-      color: hex(this.skin.colors.judgeGlow),
+      color: hex(look.glow),
       transparent: true,
       opacity: this.reducedFlash ? 0.35 : 0.55,
       blending: THREE.AdditiveBlending,
@@ -1782,7 +1814,8 @@ export class TrackRenderer {
     const deck = new THREE.Mesh(this.flatGeometry, material);
     deck.renderOrder = 9.05;
     this.scene.add(deck);
-    for (let i = 0; i < this.geometry.lanes.length; i++) {
+    // the lights per lane: only a skin's own gear has them
+    for (let i = 0; this.keyPaint && i < this.geometry.lanes.length; i++) {
       const key = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial());
       key.renderOrder = 9.1;
       this.scene.add(key);
@@ -1800,7 +1833,14 @@ export class TrackRenderer {
     if (!this.deck) return;
     this.fitNoteDepth();
     const { width, lanes } = this.geometry;
-    const top = this.judgeZ + deckTop(this.style.judge) * PX;
+    // a picked gear's judge line and the gap under it as deep on the screen in every camera: drawn
+    // longer along the track where the camera flattens it, as the deck's rows are (keyRow)
+    if (isGear(this.style.deck)) {
+      this.judgeFit = Math.max(1, Math.round((0.85 / this.trackAspect(this.judgeZ) / KEY_ROW_STRETCH) * 20) / 20);
+      this.judgeGroup.scale.z = this.judgeFit;
+      this.nearClip.constant = this.hiddenCut ?? this.judgeZ + this.deckOffset * PX;
+    }
+    const top = this.judgeZ + this.deckOffset * PX;
     const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
     const room = Math.max(DECK_STEP, Math.floor(shown / PX / DECK_STEP) * DECK_STEP) * PX;
     const depth = room + 2 + DECK_STEP * PX;
@@ -1820,24 +1860,13 @@ export class TrackRenderer {
     const keyTop = (KEY_TOP + drop) * PX;
     const sideTop = rows.sideTop * PX;
     const sideDepth = rows.sideDepth * PX;
-    // a gear that draws a turntable in the scratch's lane has its light over it, not in the row
-    const turntable = lanes.find((l) => l.kind === 'scratch' && !l.over);
-    const scratch =
-      turntable && this.keyPaint.scratchBox
-        ? this.keyPaint.scratchBox(room / PX, stretch, { left: (turntable.x - turntable.width / 2 + width / 2) / PX, width: turntable.width / PX })
-        : undefined;
     const painted = `${Math.round(room / PX)}|${rows.keyDepth}|${stretch}|${drop}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;
-      this.deckPending = { room, depth, keyTop, keyDepth, sideTop, sideDepth, stretch, scratch };
+      this.deckPending = { room, depth, keyTop, keyDepth, sideTop, sideDepth, stretch };
       this.deckWait = 0;
     }
     this.keys.forEach((key, i) => {
-      if (scratch && lanes[i] === turntable) {
-        key.scale.set(scratch.w * PX, 1, scratch.h * PX);
-        key.position.set(-width / 2 + (scratch.x + scratch.w / 2) * PX, KEY_Y, top + (scratch.y + scratch.h / 2) * PX);
-        return;
-      }
       const [at, deep] = lanes[i].over ? [sideTop, sideDepth] : [keyTop, keyDepth];
       key.scale.set(lanes[i].width, 1, deep);
       key.position.set(lanes[i].x, KEY_Y, top + at + deep / 2);
@@ -1936,15 +1965,16 @@ export class TrackRenderer {
     this.keyDepth = d.keyDepth;
     this.sideDepth = d.sideDepth;
     this.deckStretch = d.stretch;
-    this.scratchBox = d.scratch ?? null;
     this.keyTextures.forEach((t) => t.dispose());
     this.keyTextures.clear();
     this.keyMaterials.forEach((m) => m.dispose());
     this.keyMaterials.clear();
-    lanes.forEach((_, lane) => {
-      this.keyTexture(lane, false);
-      this.keyTexture(lane, true);
-    });
+    if (this.keyPaint) {
+      lanes.forEach((_, lane) => {
+        this.keyTexture(lane, false);
+        this.keyTexture(lane, true);
+      });
+    }
   }
 
   /** How tall a small square lying on the track at `z` looks for its width on the screen. */
@@ -1970,8 +2000,9 @@ export class TrackRenderer {
 
   private keyMaterial(lane: number, down: boolean, color: number): THREE.MeshBasicMaterial {
     const g = this.geometry.lanes[lane];
-    const paint = this.keyPaint;
-    const idle = (g.over ? SIDE_PAINT[this.style.deck].idleColor : undefined) ?? paint.idleColor ?? color;
+    // only a skin's own gear has lights (see buildDeck)
+    const [paint, sides] = [this.keyPaint!, SIDE_PAINT[this.style.deck as LightStyle]];
+    const idle = (g.over ? sides.idleColor : undefined) ?? paint.idleColor ?? color;
     const tint = down ? (paint.neutralDown?.(keyKind(g)) ? 0xffffff : color) : idle;
     // each side bar has a picture of its own (they may point to their side)
     const key = g.over ? `side:${down}:${tint}:${g.x}` : `${keyKind(g)}:${noteKindOf(g)}:${down}:${tint}:${g.width}`;
@@ -1994,16 +2025,15 @@ export class TrackRenderer {
     const key = g.over ? `side:${down}:${g.x}` : `${kind}:${mark}:${down}:${g.width}`;
     let texture = this.keyTextures.get(key);
     if (!texture) {
-      // square px: the picture has the light's proportions on the track (the scratch's over a turntable: its box's)
-      const box = kind === 'scratch' && !g.over ? this.scratchBox : null;
-      const [across, along] = box ? [box.w, box.h] : [g.width / PX, (g.over ? this.sideDepth : this.keyDepth) / PX];
+      // square px: the picture has the light's proportions on the track
+      const [across, along] = [g.width / PX, (g.over ? this.sideDepth : this.keyDepth) / PX];
       const k = Math.min(DECK_PICTURE, 512 / across);
       const [w, h] = [Math.max(1, Math.round(across * k)), Math.max(1, Math.round(along * k))];
       if (g.over) {
-        const paint = SIDE_PAINT[this.style.deck];
+        const paint = SIDE_PAINT[this.style.deck as LightStyle];
         texture = paintTexture(w, h, (down ? paint.down : paint.idle)(this.deckStretch, Math.sign(g.x)));
       } else {
-        const paint = this.keyPaint;
+        const paint = this.keyPaint!;
         texture = paintTexture(w, h, (down ? paint.down : paint.idle)(kind, this.deckStretch, mark));
       }
       this.keyTextures.set(key, texture);
