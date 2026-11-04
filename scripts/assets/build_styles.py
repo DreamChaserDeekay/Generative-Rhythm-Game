@@ -1,5 +1,6 @@
 """Builds the concept sets' game pictures from assets-src/styles/<set>/ into client/public/media/styles/<set>/
-and lists them in client/public/media/manifest.json as "<set>/<name>" (the manifest's other entries are kept).
+and lists them in client/public/media/manifest.json as "<set>/<name>" (the crystal set as "gem/<name>": see NAME;
+the manifest's other entries are kept).
 
     python scripts/assets/build_styles.py
 
@@ -545,6 +546,439 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
     }
 
 
+# ---------- CLUB, CRYSTAL, NEON: one builder, each set's own numbers ----------
+#
+# Shares are of the gear sheet's panel (x across its width, y down its height); px of a source sheet otherwise.
+# The atlases (styleArt.ts: SETS):
+#   notes.png 1024 × 1024: a 2 × 2 grid of 512 cells (white, blue, gold, scratch), the note fitted in 500 px about
+#     the cell's middle; or, `rows`, a row of 256 per note, the note 1024 wide about the row's middle
+#   long.png 512 × 256: body idle | body held | end idle | end held, 128 wide (ends `end` px deep)
+#   side.png 1024 × 512: the bar over the keys at (0, 0); the side lane's own note at (0, 256)
+#   keys.png 512 × 256: the light at rest | lit, fitted in 256 about the cell's middle
+#   gear_<colourway>.png 1024 × 1024: the scratch's module fitted in 512 at (0, 0); the gear's strip under the row
+#     at (0, 512), 1024 wide; club's fader at (512, 0), fitted in 256 × 512
+
+SET_ART = {
+    "club": {
+        "notes": {"rows": False, "gain": 1 / 0.6, "lift": 0.7, "white": 0.8, "disc": True},
+        "long": {"cap": 140, "idle": (1 / 0.8, 0.74, 0.7), "held": (1 / 0.62, 0.6, 0.9), "see": None},
+        "side": {"cut": 0.105, "plate_cut": 0.21, "tint": (1 / 0.62, 0.68, 0.85), "bright": 0.62},
+        "keys": {"way": "black", "idle": (0.532, 0.502), "lit": (0.4326, 0.502), "box": (0.055, None), "mask": "circle", "fit": 0.62},
+        "ways": ("black", "white", "silver", "walnut"),
+        "module": {"centre": (0.147, 0.51), "r": 0.112, "mask": "circle"},
+        "strip": None,
+        "fader": {"centre": 0.531, "w": 0.05, "y": (0.6, 0.9)},
+        "colours": {"face": (0.27, 0.28, 0.06, 0.94), "edge": (0.0, 0.012, 0.3, 0.9)},
+    },
+    "crystal": {
+        "notes": {"rows": True, "gain": 1 / 0.7, "lift": 0.74, "white": 0.85},
+        "long": {"cap": 150, "idle": (1 / 0.7, 0.72, 0.8), "held": (1 / 0.6, 0.6, 0.9), "see": None},
+        "side": {"cut": 0.04, "plate_cut": 0.07, "tint": (1 / 0.65, 0.7, 0.9), "bright": 0.6},
+        "keys": {"way": "silver", "idle": (0.4588, 0.474), "lit": (0.3471, 0.474), "box": (0.0896, 0.56), "mask": "diamond", "fit": 0.768},
+        "ways": ("silver", "rosegold", "gold", "smoke"),
+        "module": {"centre": (0.108, 0.46), "r": 0.071, "mask": "circle"},
+        "strip": {"x": (0.3, 0.93), "y": (0.66, 0.92)},
+        "fader": None,
+        # its glass panes, the dark board under them, its frame
+        "colours": {"glass": (0.25, 0.4, 0.1, 0.25), "panel": (0.45, 0.55, 0.08, 0.2), "edge": (0.0, 0.012, 0.3, 0.9)},
+    },
+    "neon": {
+        "notes": {"rows": False, "gain": 1 / 0.7, "lift": 0.72, "white": 0.85},
+        "long": {"cap": 184, "idle": (1 / 0.72, 0.7, 0.85), "held": (1 / 0.62, 0.6, 0.9), "see": 0.55},
+        "side": {"cut": 0.04, "plate_cut": 0.16, "tint": (1 / 0.7, 0.7, 0.9), "bright": 0.62},
+        "keys": {"way": "black", "idle": (0.5125, 0.498), "lit": (0.4126, 0.498), "box": (0.12, 0.48), "mask": "plate", "fit": 0.74},
+        "ways": ("black", "carbon", "navy", "burgundy"),
+        # the module's plate, measured per colourway (carbon's lies further right in its wider frame)
+        "module": {"box": (0.0422, 0.2375, 0.1247, 0.8614), "mask": "plate"},
+        "module_ways": {
+            "carbon": {"box": (0.0374, 0.281, 0.133, 0.8478)},
+            "navy": {"box": (0.0422, 0.2379, 0.1234, 0.8616)},
+            "burgundy": {"box": (0.0416, 0.2365, 0.1233, 0.8606)},
+        },
+        # carbon's panel is taller for its margins, not drawn taller
+        "stretch_ways": {"carbon": 1.0},
+        "strip": {"x": (0.25, 0.98), "y": (0.7, 0.95)},
+        "fader": None,
+        # its circuit board above the lights, its frame
+        "colours": {"face": (0.3, 0.95, 0.08, 0.24), "edge": (0.0, 0.012, 0.3, 0.9)},
+    },
+}
+
+
+# The sets' names in the manifest: "crystal" already names an earlier texture set (skins/crystal/, which user
+# skins may ask for by name), so the crystal set's pictures are listed as "gem/<name>".
+NAME = {"crystal": "gem"}
+
+
+def fit_into(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
+    """`rgba` scaled to fit w × h, keeping its proportions, about the middle of a transparent w × h."""
+    sh, sw = rgba.shape[:2]
+    k = min(w / sw, h / sh)
+    tw, th = max(1, round(sw * k)), max(1, round(sh * k))
+    out = np.zeros((h, w, 4), np.float32)
+    paste(out, resize_premultiplied(rgba, tw, th), (w - tw) // 2, (h - th) // 2)
+    return out
+
+
+def disc_of(v: np.ndarray, ys: slice, xs: slice) -> tuple[float, float, float]:
+    """The round note in a blob (centre y, x and radius in `v`), its glint's glow past the rim left out: a circle
+    fitted to the lower right half of its outline, where the glow is not."""
+    m = ndimage.binary_fill_holes(v[ys, xs] > 0.05)
+    edge = m & ~ndimage.binary_erosion(m)
+    py, px = np.nonzero(edge)
+    keep = (px - m.shape[1] / 2) + (py - m.shape[0] / 2) > 0
+    py, px = py[keep].astype(np.float64), px[keep].astype(np.float64)
+    # a least-squares circle: x² + y² = 2ax + 2by + c
+    sol = np.linalg.lstsq(np.stack([2 * px, 2 * py, np.ones_like(px)], axis=1), px ** 2 + py ** 2, rcond=None)[0]
+    a, b = sol[0], sol[1]
+    return ys.start + b, xs.start + a, float(np.sqrt(sol[2] + a * a + b * b))
+
+
+def set_notes(cid: str, textures: dict) -> None:
+    c = SET_ART[cid]["notes"]
+    v = value(load(SRC / cid / "notes.jpg"))
+    boxes = blobs(v, 0.05, 4)
+    if c["rows"]:
+        boxes = sorted(boxes, key=lambda b: b[0].start)
+    h = max(b[0].stop - b[0].start for b in boxes)
+    w = max(b[1].stop - b[1].start for b in boxes)
+    atlas = np.zeros((1024, 1024, 4), np.float32)
+    for i, (ys, xs) in enumerate(boxes):
+        cy, cx = (ys.start + ys.stop) // 2, (xs.start + xs.stop) // 2
+        if c.get("disc"):
+            # the coin alone, cut round about its own middle
+            dy, dx, r = disc_of(v, ys, xs)
+            cy, cx, h = round(dy), round(dx), 2 * int(r - 1)
+            w = h
+        crop = np.pad(v, ((h, h), (w, w)))[cy - h // 2 + h:cy - h // 2 + 2 * h, cx - w // 2 + w:cx - w // 2 + 2 * w]
+        alpha = shape_alpha(crop)
+        if c.get("disc"):
+            alpha = alpha * shape_mask("circle", h, w, 1.0)
+        rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
+        if c["rows"]:
+            paste(atlas, fit_into(rgba, 1024, 256), 0, i * 256)
+        else:
+            r, col = divmod(i, 2)
+            paste(atlas, fit_into(rgba, 500, 500), col * 512 + 6, r * 512 + 6)
+    save_rgba(atlas, OUT / cid / "notes.png")
+    textures[f"{NAME.get(cid, cid)}/notes"] = {"file": f"styles/{cid}/notes.png", "bundle": "notes", "size": [1024, 1024]}
+
+
+def set_long(cid: str, textures: dict) -> dict:
+    c = SET_ART[cid]["long"]
+    v = value(load(SRC / cid / "long.jpg"))
+    idle, held = sorted(blobs(v, 0.06, 2), key=lambda b: b[1].start)
+    iy, ix = idle
+    rail_w = ix.stop - ix.start
+    mid = (held[1].start + held[1].stop) // 2
+    hx = slice(mid - rail_w // 2, mid - rail_w // 2 + rail_w)
+    end = round(c["cap"] * LONG_W / rail_w)
+    atlas = np.zeros((256, 512, 4), np.float32)
+    for i, (xs, params) in enumerate([(ix, c["idle"]), (hx, c["held"])]):
+        rail = v[:, xs]
+        alpha = shape_alpha(rail)
+        own = unpremultiply(rail, alpha)
+        if c["see"] is not None:
+            # between its tubes the body is dark glass: half see-through
+            alpha = np.where((alpha > 0.99) & (own < 0.2), c["see"], alpha)
+        gain, lift, white = params
+        rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
+        length = round(rail_w * LONG_TILE / LONG_W)
+        y0 = (iy.start + iy.stop) // 2 - length // 2
+        body = seamless_rows(rgba[y0:y0 + length + length // 4], length, length // 4)
+        paste(atlas, resize_premultiplied(body, LONG_W, LONG_TILE), i * LONG_W, 0)
+        paste(atlas, resize_premultiplied(rgba[iy.start:iy.start + c["cap"]], LONG_W, end), 256 + i * LONG_W, 0)
+    save_rgba(atlas, OUT / cid / "long.png")
+    textures[f"{NAME.get(cid, cid)}/long"] = {"file": f"styles/{cid}/long.png", "bundle": "notes", "size": [512, 256]}
+    return {"end": end}
+
+
+def set_side(cid: str, textures: dict) -> dict:
+    c = SET_ART[cid]["side"]
+    v = value(load(SRC / cid / "side.jpg"))
+    plate, bar = sorted(blobs(v, 0.06, 2), key=lambda b: b[0].start)
+    atlas = np.zeros((512, 1024, 4), np.float32)
+    layout = {}
+    gain, lift, white = c["tint"]
+    for key, (ys, xs), width, y, cut in [("bar", bar, 1024, 0, c["cut"]), ("plate", plate, 512, 256, c["plate_cut"])]:
+        crop = v[ys, xs]
+        alpha = shape_alpha(crop, threshold=0.04, rim=0.3)
+        own = unpremultiply(crop, alpha)
+        h, w = crop.shape
+        if key == "bar":
+            # its ends and bright edges are solid; the rest of it lets the lanes show through
+            ends = np.zeros_like(crop, bool)
+            e = int(w * cut)
+            ends[:, :e] = True
+            ends[:, w - e:] = True
+            see = (~ends) & (own < c["bright"]) & (alpha > 0.99)
+            alpha = np.where(see, 0.62, alpha)
+        rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
+        th = min(round(width * h / w), 256)
+        paste(atlas, resize_premultiplied(rgba, width, th), 0, y)
+        layout[key] = {"h": th, "cut": round(cut * width)}
+    save_rgba(atlas, OUT / cid / "side.png")
+    textures[f"{NAME.get(cid, cid)}/side"] = {"file": f"styles/{cid}/side.png", "bundle": "notes", "size": [1024, 512]}
+    return layout
+
+
+def panel_of(a: np.ndarray) -> tuple[int, int, int, int]:
+    return gear_parts(a)["panel"]
+
+
+def shape_mask(kind: str, h: int, w: int, fit: float, soft: float = 0.0) -> np.ndarray:
+    """A circle, a diamond, a hexagon (flat top and bottom) or neon's module plate filling `fit` of h × w about its
+    middle, its edge softened over `soft` of its size (lit lights keep their glow)."""
+    s = 4
+    im = Image.new("L", (w * s, h * s), 0)
+    d = ImageDraw.Draw(im)
+    cx, cy = w * s / 2, h * s / 2
+    rx, ry = w * s * fit / 2, h * s * fit / 2
+    if kind == "circle":
+        r = min(rx, ry)
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
+    elif kind == "diamond":
+        d.polygon([(cx, cy - ry), (cx + rx, cy), (cx, cy + ry), (cx - rx, cy)], fill=255)
+    elif kind == "plate":
+        # neon's module: a hexagon standing on a point, its sides upright, its corners worn round
+        q = ry / 2
+        d.polygon([(cx, cy - ry), (cx + rx, cy - ry + q), (cx + rx, cy + ry - q), (cx, cy + ry), (cx - rx, cy + ry - q), (cx - rx, cy - ry + q)], fill=255)
+        im = im.filter(ImageFilter.GaussianBlur(min(w, h) * s * 0.03)).point(lambda p: 255 if p >= 128 else 0)
+    else:
+        d.polygon([(cx - rx, cy), (cx - rx / 2, cy - ry), (cx + rx / 2, cy - ry), (cx + rx, cy), (cx + rx / 2, cy + ry), (cx - rx / 2, cy + ry)], fill=255)
+    if soft > 0:
+        im = im.filter(ImageFilter.GaussianBlur(min(w, h) * s * soft))
+    return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
+
+
+def set_keys(cid: str, textures: dict) -> None:
+    """A set's lane light at rest and lit (from its own colourway's sheet), each cut about its middle (where the
+    light is mirror-symmetric) in the light's shape."""
+    c = SET_ART[cid]["keys"]
+    a = load(SRC / cid / f"gear_{c['way']}.jpg")
+    v = value(a)
+    y0, y1, x0, x1 = panel_of(a)
+    W, H = x1 - x0, y1 - y0
+    bw = int(W * c["box"][0])
+    bh = int(H * c["box"][1]) if c["box"][1] else bw
+    atlas = np.zeros((256, 512, 4), np.float32)
+    for i, key in enumerate(("idle", "lit")):
+        sx, sy = c[key]
+        cx, cy = x0 + int(W * sx), y0 + int(H * sy)
+        crop = v[cy - bh // 2:cy - bh // 2 + bh, cx - bw // 2:cx - bw // 2 + bw]
+        lit = key == "lit"
+        alpha = shape_mask(c["mask"], bh, bw, c["fit"] * (1.18 if lit else 1.0), soft=0.05 if lit else 0.0)
+        if lit:
+            # the glow past the light's edge is light, not plate: as bright as it is, fading out
+            rgba = tint(crop, alpha * np.clip(crop / 0.5, 0, 1), gain=1 / 0.62, lift=0.66, white=0.92, power=1.1)
+            rgba[..., 3] = np.maximum(shape_mask(c["mask"], bh, bw, c["fit"]), rgba[..., 3])
+        else:
+            rgba = tint(crop, alpha, gain=1 / 0.75, lift=0.8, white=0.7)
+        paste(atlas, fit_into(rgba, 256, 256), i * 256, 0)
+    save_rgba(atlas, OUT / cid / "keys.png")
+    textures[f"{NAME.get(cid, cid)}/keys"] = {"file": f"styles/{cid}/keys.png", "bundle": "gear", "size": [512, 256]}
+
+
+def set_gear(cid: str, textures: dict) -> dict:
+    """Per colourway: the scratch's module, the strip under the row (or club's fader), and the plate's colours.
+
+    Some recolours drew the whole panel taller than the set's own colourway did (club's white and silver, neon's
+    carbon): their parts are cut as they lie and then brought back to the own colourway's proportions (a round
+    platter round again)."""
+    c = SET_ART[cid]
+    out = {}
+    ry0, ry1, rx0, rx1 = panel_of(load(SRC / cid / f"gear_{c['ways'][0]}.jpg"))
+    ref = (ry1 - ry0) / (rx1 - rx0)
+    for way in c["ways"]:
+        a = load(SRC / cid / f"gear_{way}.jpg")
+        y0, y1, x0, x1 = panel_of(a)
+        W, H = x1 - x0, y1 - y0
+        k = c.get("stretch_ways", {}).get(way, (H / W) / ref)
+
+        def box(t: float, b: float, l: float, r: float) -> np.ndarray:
+            return a[y0 + int(H * t):y0 + int(H * b), x0 + int(W * l):x0 + int(W * r)]
+
+        def unstretch(rgba: np.ndarray) -> np.ndarray:
+            return rgba if abs(k - 1) < 0.02 else resize_premultiplied(rgba, rgba.shape[1], max(1, round(rgba.shape[0] / k)))
+
+        atlas = np.zeros((1024, 1024, 4), np.float32)
+        m = {**c["module"], **c.get("module_ways", {}).get(way, {})}
+        if "centre" in m:
+            sx, sy = m["centre"]
+            r = int(W * m["r"])
+            rh = int(r * k)
+            cx, cy = x0 + int(W * sx), y0 + int(H * sy)
+            mod = unstretch(np.concatenate([a[cy - rh:cy + rh, cx - r:cx + r], np.ones((2 * rh, 2 * r, 1), np.float32)], axis=2))
+            mod[..., 3] = shape_mask("circle", mod.shape[0], mod.shape[1], 1.0)
+        else:
+            l, rr, t, b = m["box"]
+            raw = box(t, b, l, rr)
+            mod = unstretch(np.concatenate([raw, np.ones(raw.shape[:2] + (1,), np.float32)], axis=2))
+            mod[..., 3] = shape_mask(m["mask"], mod.shape[0], mod.shape[1], 1.0)
+        paste(atlas, fit_into(mod, 512, 512), 0, 0)
+        info = {"module": [int(mod.shape[1]), int(mod.shape[0])]}
+        if c["strip"]:
+            l, rr = c["strip"]["x"]
+            t, b = c["strip"]["y"]
+            strip = unstretch(np.concatenate([box(t, b, l, rr), np.ones(box(t, b, l, rr).shape[:2] + (1,), np.float32)], axis=2))
+            sh = round(1024 * strip.shape[0] / strip.shape[1])
+            paste(atlas, resize_premultiplied(strip, 1024, sh), 0, 512)
+            info["strip_h"] = sh
+        if c["fader"]:
+            f = c["fader"]
+            fd = box(f["y"][0], f["y"][1], f["centre"] - f["w"] / 2, f["centre"] + f["w"] / 2)
+            fd = unstretch(np.concatenate([fd, np.ones(fd.shape[:2] + (1,), np.float32)], axis=2))
+            paste(atlas, fit_into(fd, 256, 512), 512, 0)
+            info["fader"] = [int(fd.shape[1]), int(fd.shape[0])]
+        save_rgba(atlas, OUT / cid / f"gear_{way}.png")
+        textures[f"{NAME.get(cid, cid)}/gear_{way}"] = {"file": f"styles/{cid}/gear_{way}.png", "bundle": "gear", "size": [1024, 1024]}
+        cols = {}
+        for key, (l, rr, t, b) in c["colours"].items():
+            px = box(t, b, l, rr).reshape(-1, 3)
+            cols[key] = hex_of(np.percentile(px, 90, axis=0) if key == "edge" else np.median(px, 0))
+        info["colours"] = cols
+        info["stretch"] = round(k, 3)
+        out[way] = info
+    return out
+
+
+def fx_cells(cid: str) -> dict[str, np.ndarray]:
+    """A set's effect sheet in four cells (light on black), the faint lines between them and the JPEG's noise cleared."""
+    v = np.asarray(Image.open(SRC / cid / "fx.jpg").convert("L"), dtype=np.float32) / 255
+    n = v.shape[0] // 2
+    out = {}
+    for key, c in {"flash": v[:n, :n], "ring": v[:n, n:], "sprites": v[n:, :n], "hold": v[n:, n:]}.items():
+        c = c.copy()
+        c[:8], c[-8:], c[:, :8], c[:, -8:] = 0, 0, 0, 0
+        out[key] = np.clip((c - 0.03) / 0.97, 0, 1)
+    return out
+
+
+def sprites_of(cell: np.ndarray, min_size: int = 20) -> list[np.ndarray]:
+    """The separate sprites of a cell, each on a square of black about its middle, largest first."""
+    labels, _ = ndimage.label(ndimage.binary_dilation(cell > 0.1, iterations=4))
+    found = []
+    for ys, xs in ndimage.find_objects(labels):
+        h, w = ys.stop - ys.start, xs.stop - xs.start
+        if max(h, w) < min_size:
+            continue
+        side = max(h, w) + 8
+        sq = np.zeros((side, side), np.float32)
+        sq[(side - h) // 2:(side - h) // 2 + h, (side - w) // 2:(side - w) // 2 + w] = cell[ys, xs]
+        found.append(sq)
+    return sorted(found, key=lambda a: -a.shape[0])
+
+
+def burst_sheet(draw) -> np.ndarray:
+    """A 4 × 4 sheet of HIT_CELL frames, each drawn by `draw(frame index, frame)` (light added on black)."""
+    cell = HIT_CELL
+    sheet = np.zeros((cell * 4, cell * 4), np.float32)
+    for f in range(16):
+        frame = np.zeros((cell, cell), np.float32)
+        draw(f, frame)
+        r, c = divmod(f, 4)
+        sheet[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = np.clip(frame, 0, 1)
+    return sheet
+
+
+def afterglow(frame: np.ndarray, line: float, gain: float, wx: float = 34, wy: float = 15) -> None:
+    yy, xx = np.mgrid[0:frame.shape[0], 0:frame.shape[1]].astype(np.float32)
+    frame += gain * np.exp(-(((xx - frame.shape[1] / 2) / wx) ** 2 + ((yy - line) / wy) ** 2))
+
+
+def set_hits(cid: str, textures: dict) -> None:
+    """The set's hit (16 frames, once) and hold (16 frames, a loop), spreading from the judge line down over the gear."""
+    cells = fx_cells(cid)
+    n = cells["flash"].shape[0]
+    cell, line, hold_line = HIT_CELL, HIT_LINE * HIT_CELL, HIT_LINE * HIT_CELL
+    cx = cell / 2
+    centres = {
+        "club": {"flash": (513, 511), "ring": (522, 511), "hold": (499, 510)},
+        "crystal": {"flash": (514, 515), "ring": (502, 521), "hold": (463, 504)},
+        "neon": {"flash": (425, 522), "ring": (442, 513), "hold": (381, 518)},
+    }[cid]
+    flash = crop_around(cells["flash"], *centres["flash"], n // 2 - 8)
+    ring = crop_around(cells["ring"], *centres["ring"], n // 2 - 8)
+    hold = crop_around(cells["hold"], *centres["hold"], n // 2 - 8)
+    sprites = sprites_of(cells["sprites"])
+    rng = np.random.default_rng({"club": 3, "crystal": 5, "neon": 9}[cid])
+    keep_flash = above_line(cell, line, 14, 46)
+    keep_ring = above_line(cell, line, 5, 26)
+    if cid == "crystal":
+        # its shards were drawn flying up: turned over, they fly down over the gear
+        ring = ring[::-1]
+    flicker = [1.0, 0.72, 1.0, 0.86, 0.95, 0.62, 1.0, 0.8, 0.9, 0.7, 1.0, 0.75, 0.9, 0.8, 1.0, 0.85] if cid == "neon" else [1.0] * 16
+    throws = [(math.radians(rng.uniform(25, 155)), rng.uniform(0.55, 1.0), rng.integers(0, max(1, len(sprites))), rng.uniform(-90, 90)) for _ in range(8)]
+
+    def draw_burst(f: int, frame: np.ndarray) -> None:
+        g = flicker[f]
+        if f < 6:
+            fl = np.zeros_like(frame)
+            place(fl, flash, cx, line, cell * [0.5, 0.72, 0.82, 0.88, 0.92, 0.94][f], f * 2.0, [1.0, 1.0, 0.72, 0.45, 0.24, 0.1][f] * g)
+            frame += fl * keep_flash
+        if f >= 1:
+            t = min(1, (f - 1) / 12)
+            grow = 0.3 + 0.85 * (1 - (1 - t) ** 2)
+            fade = max(0.0, 1 - max(0, f - 5) / 10) ** 1.3
+            rg = np.zeros_like(frame)
+            place(rg, ring, cx, line + 4 * t, cell * grow, 0, fade * g)
+            frame += rg * keep_ring
+        # pieces thrown out and down from the hit, slowing, falling a little, gone by the twelfth frame
+        if f < 12 and sprites:
+            t = f / 12
+            for a, speed, k, spin in throws:
+                reach = cell * 0.46 * speed * (1 - (1 - t) ** 2)
+                x, y = cx + reach * math.cos(a), line + reach * math.sin(a) + cell * 0.08 * t * t
+                sp = sprites[int(k) % len(sprites)]
+                size = cell * min(0.16, 0.04 + sp.shape[0] / n * 0.5)
+                place(frame, sp, x, y, size, spin * t, (1 - t) ** 1.2 * g)
+        if f >= 1:
+            afterglow(frame, line, 0.5 * (1 - f / 16) ** 1.2 * g)
+
+    sheet = burst_sheet(draw_burst)
+    save_grey(sheet, OUT / cid / "hit_burst.png")
+    textures[f"{NAME.get(cid, cid)}/hitBurst"] = {
+        "file": f"styles/{cid}/hit_burst.png",
+        "bundle": "effects",
+        "size": [cell * 4, cell * 4],
+        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 60, "loop": False},
+        "anchorY": round(1 - HIT_LINE, 3),
+    }
+
+    keep_hold = above_line(cell, hold_line, 8, 34)
+    twinkles = [(rng.uniform(0.15, 0.85), rng.uniform(0.32, 0.8), rng.uniform(0, 1), rng.integers(0, max(1, len(sprites)))) for _ in range(9)]
+
+    def draw_hold(f: int, frame: np.ndarray) -> None:
+        phase = 2 * math.pi * f / 16
+        if cid == "club":
+            # the glowing ring breathes a little
+            place(frame, hold, cx, hold_line, cell * (0.72 + 0.03 * math.sin(phase * 2)), 0, 0.92 + 0.08 * math.sin(phase * 2))
+        elif cid == "crystal":
+            place(frame, hold, cx, hold_line, cell * 0.9, 0, 0.9)
+        else:
+            # the arcs crackle: turned over every other frame, a little shifted, flickering
+            arc = hold[:, ::-1] if f % 2 else hold
+            place(frame, arc, cx + rng.uniform(-6, 6), hold_line, cell * 0.98, 0, flicker[(f * 5) % 16])
+        frame *= keep_hold
+        # sparkles twinkling over it, each at its own beat (a seamless loop)
+        if sprites and cid != "neon":
+            for x, y, ph, k in twinkles:
+                b = max(0.0, math.sin(phase + 2 * math.pi * ph))
+                if b > 0.05:
+                    sp = sprites[int(k) % len(sprites)]
+                    place(frame, sp, cell * x, hold_line + cell * (y - 0.3) * 0.9, cell * 0.08 * (0.6 + 0.4 * b), 0, b)
+
+    sheet = burst_sheet(draw_hold)
+    save_grey(sheet, OUT / cid / "hit_hold.png")
+    textures[f"{NAME.get(cid, cid)}/hitHold"] = {
+        "file": f"styles/{cid}/hit_hold.png",
+        "bundle": "effects",
+        "size": [cell * 4, cell * 4],
+        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 24, "loop": True},
+        "anchorY": round(1 - HIT_LINE, 3),
+    }
+
+
 def main() -> None:
     textures: dict = {}
     if MECHA_OUT.exists():
@@ -555,7 +989,16 @@ def main() -> None:
     keys = mecha_keys(textures)
     gear = mecha_gear(textures)
     mecha_hits(textures)
-    print(json.dumps({"side": side, "keys": keys, "gear": gear}, indent=1))
+    report = {"mecha": {"side": side, "keys": keys, "gear": gear}}
+    for cid in SET_ART:
+        if (OUT / cid).exists():
+            shutil.rmtree(OUT / cid)
+        set_notes(cid, textures)
+        report[cid] = {"long": set_long(cid, textures), "side": set_side(cid, textures)}
+        set_keys(cid, textures)
+        report[cid]["gear"] = set_gear(cid, textures)
+        set_hits(cid, textures)
+    print(json.dumps(report, indent=1))
     path = MEDIA / "manifest.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
     kept = {k: t for k, t in manifest["textures"].items() if not t["file"].startswith("styles/")}

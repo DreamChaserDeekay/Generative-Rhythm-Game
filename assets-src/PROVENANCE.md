@@ -1,6 +1,6 @@
 # 에셋 출처 (PROVENANCE)
 
-게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 메카 세트의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)).
+게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 컨셉 세트(메카 · 클럽 · 크리스털 · 네온)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터).
 
 아래 P0 세트(ElevenLabs)의 기록이 먼저, 그다음 컨셉 세트(Gemini)의 기록입니다.
 
@@ -556,3 +556,477 @@
 - 프롬프트:
 
   > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: cobalt blue anodised aluminium with black trim and silver machined edges. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+## 클럽 세트 (`styles/club`, 2026-11)
+
+메카 세트와 같은 방법으로 만든 세트입니다. 레코드 노트 · 아크릴 캡슐 롱노트 · 사이드 노트 · DJ 믹서 기어(색 4가지) · 링 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+
+- 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 클럽은 C안을 고름).
+- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
+- 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `club-C.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 club 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
+
+### 스타일 프레임 `club-C.png` (저장소에 넣지 않음, 부위별 시트의 기준 이미지)
+
+- 기준 이미지: 이 게임의 옛 스킨 실제 화면(7K+1S)
+- 날짜: 2026-11-03 16:51 KST · 약 $0.066
+- 프롬프트:
+
+  > Image 1 is a screenshot of the current game in this concept's old skin. Use it ONLY for the camera (a low 3D perspective looking up a tilted track, as in SOUND VOLTEX), the track proportions, the lane layout (one wide scratch lane at the left tinted red, then seven key lanes tinted white, blue, white, gold, white, blue, white), the horizontal judge line near the bottom (77 % down the image) and the gear panel under it. Redraw everything else at a much higher level of finish.
+  >
+  > A 16:9 gameplay frame of a commercial PC keyboard rhythm game, mid-song. On the track: a three-note chord in one row, single notes, one note in the scratch lane, a long note in a blue lane that is being held (its body is cut off exactly at the judge line and looks brighter), another long note in the gold lane still coming down, and a long scratch note further up the track. Two lanes are being pressed: their key lights in the gear glow in the lane colour, and a hit effect bursts at the judge line in those lanes, spreading mostly downward over the gear and never covering the notes coming down.
+  >
+  > CONCEPT: CLUB. Keywords: analogue DJ gear, chrome and rubber, stage lights.
+  > - Materials (only these three): matte black rubber, polished chrome, translucent acrylic that glows in the lane colour.
+  > - Shape grammar: perfect circles and concentric grooves like a vinyl record; thick chrome rims (12 % of the diameter); everything round, no sharp corners.
+  > - Light: one key light from the top-left: a wide soft highlight arc on the upper chrome rim, light diffusing inside the acrylic, no shine on rubber.
+  > - Tap note: a translucent acrylic disc in the lane colour inside a chrome rim, with fine concentric grooves and a horizontal reflection band across its middle that marks the judge point.
+  > - Long note: an acrylic tube (capsule) in the lane colour with a band of light flowing inside it; its ends are closed by chrome ring ends of the tube itself (not tap notes).
+  > - Hit effect: a round shockwave of two or three concentric rings like record grooves spreading over the gear and fading softly.
+  > - Gear (below the judge line): a DJ mixer: rubber pads, chrome knobs, fader slots, one round acrylic button per lane lighting up in the lane colour when pressed; the scratch is a vinyl platter with a chrome spindle. Rails: black rubber with a thin chrome strip.
+  > - Unlike other concepts: everything is round and concentric, reflections are wide and soft, never faceted, never sharp-edged.
+  >
+  > Variant: sleek. Slimmer notes, cleaner surfaces with fewer details, sharper value contrast and a minimal gear panel; premium and fast-looking.
+  >
+  > Rules: a long note is one continuous body only, with no tap note at its start or end; its ends are closed by the body's own end shape. Every note, long note and key light uses one design in all lanes; only its tint changes with the lane colour, and the key-type mark tells the lanes apart. The track floor is the same very dark, almost black surface in every lane (under 10 % brightness, matte, like the reference), with thin dim lane dividers: never paint a lane floor in a lane colour, in metal or in white, and never let the lanes alternate light and dark like piano keys; the concept's materials belong to the notes, the gear and the rails, not to the track floor; the wide scratch lane's floor is as dark as the others, only its notes are red. Only notes, long notes and key lights carry the lane colours. The two pressed lanes show just a short faint light column rising from the judge line, fading out within a quarter of the track. Keep the track where the reference has it, in the middle of the frame, with the scratch lane as its leftmost lane; the gear panel under the judge line is exactly as wide as the track. The judge line is a crisp white line with a short soft glow, the same as in the reference.
+  >
+  > Quality bar: the finish of a commercial console or arcade rhythm game such as DJMAX RESPECT V, EZ2ON REBOOT : R or SOUND VOLTEX, used only as a quality reference: do not copy their designs. Crisp edges with painted material detail; three value steps in every element (dark rim, mid body, bright highlight); one key light from the top-left on every part; ambient occlusion in grooves. Notes must read instantly even when small and fast.
+  >
+  > No text, letters, numbers, HUD, score, combo counter, logos or watermarks anywhere. No characters. No bloom haze, no lens flares, no motion blur, no purple-blue-pink gradient wash, no glassmorphism panels. The area outside the track is plain dark.
+
+### `styles/club/notes.jpg`
+
+- 용도: 탭 노트 4개(레이블에 흰 ○ · 파랑 △ · 금색 ◇ · 스크래치 // 가 찍힌 레코드) → `styles/club/notes.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `club-C.png`
+- 날짜: 2026-11-03 17:15 KST · 약 $0.056
+- 생성 결과(PNG): 5,397,181바이트 · sha256 앞 16자리 `6079ac82b7e44a5d` · 저장한 JPEG: 1,170,570바이트
+- 후처리: 레코드 4장을 각각 잘라(검은 바탕 → 알파) 왼쪽 위 테두리에 번진 빛은 빼고(오른쪽 아래 절반의 윤곽으로 원을 맞춰 원 밖은 버림) 500×500 으로, 2×2 칸에 · 밝기 ÷ 0.6 = 레인 색의 양(R), 0.7 넘는 밝기는 흰색 쪽으로(G, 최대 0.8) · 게임은 레코드를 판정선에서 둥글게 보이는 깊이로 그림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the tap notes, a 2 x 2 grid of round notes with equal black gaps, each a perfect circle filling 80 % of its cell. The note: a translucent acrylic disc inside a thick polished chrome rim (12 % of the diameter), with fine concentric grooves like a vinyl record and a horizontal reflection band across its middle that marks the judge point. The four notes differ only by a small engraved mark at the centre: top-left a small circle (white key), top-right a small triangle (blue key), bottom-left a small diamond (gold key), bottom-right two short slashes (scratch).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/club/long.jpg`
+
+- 용도: 롱노트 캡슐(대기 · 누르는 중) → `styles/club/long.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `club-C.png`
+- 날짜: 2026-11-03 17:16 KST · 약 $0.059
+- 생성 결과(PNG): 3,241,066바이트 · sha256 앞 16자리 `a4d72a8a2a9fc847` · 저장한 JPEG: 476,988바이트
+- 후처리: 두 캡슐을 같은 폭으로 잘라 몸통(가운데 부분, 위아래를 겹쳐 섞어 이음새 없이 반복) 128×256 과 끝(둥근 위쪽) 128×78 · 대기는 밝기 ÷ 0.8, 누르는 중은 ÷ 0.62 에 흰색 쪽으로 더 올림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: two long notes of this concept standing upright side by side, each about one fifth of the image wide and 90 % of its height: the left one idle, the right one held (brighter, its inner light flowing). A long note is one continuous body only, with no tap note at either end: an acrylic tube (capsule) with a band of light flowing inside it; each end is closed by a rounded chrome ring end of the tube itself. Its width is the same as a tap note's.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/club/side.jpg`
+
+- 용도: 사이드 노트(별도 레인의 짧은 캡슐 · 반쪽 덮기 막대) → `styles/club/side.png`
+- 크기 · 기준 이미지: 16:9 · 2K · `club-C.png`
+- 날짜: 2026-11-03 17:18 KST · 약 $0.064
+- 생성 결과(PNG): 3,051,912바이트 · sha256 앞 16자리 `bcc13d6bcc7428db` · 저장한 JPEG: 561,311바이트
+- 후처리: 막대는 1024 폭으로(둥근 양 끝은 불투명, 그 사이 어두운 곳은 알파 0.62 로 비침), 별도 레인 노트는 512 폭으로 · 게임은 둥근 양 끝을 그대로 두고 가운데만 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the side note of this concept, which must not look like a key note: a wide translucent acrylic bar with rounded ends and a thin chrome edge. Top half: the side-lane note, about twice as wide as it is tall. Bottom half: the same side note as a very wide bar (about six times as wide as it is tall) that lies over half of the key lanes: its two long edges are bright and its middle is mostly see-through (drawn darker and fainter).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/club/fx.jpg`
+
+- 용도: 타격 이펙트 요소(섬광 · 동심 고리 · 빛 조각 · 빛나는 고리) → `styles/club/hit_burst.png`, `hit_hold.png`
+- 크기 · 기준 이미지: 1:1 · 2K · 먼저 만든 이펙트 시트(판정선 막대가 그림에 들어가 있어 쓰지 않음, 저장소에 넣지 않음)
+- 날짜: 2026-11-04 08:41 KST · 약 $0.066
+- 생성 결과(PNG): 4,188,753바이트 · sha256 앞 16자리 `ba8b08f6c290e635` · 저장한 JPEG: 707,400바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 섬광 + 고리가 퍼지며 느려지고 흐려짐 + 조각 여덟 개가 판정선 아래로 + 잔광 · 판정선 위로는 짧게만 남김 · 판정선은 칸 위에서 30 % · 누르는 동안(16칸 반복, 24fps): 빛나는 고리가 숨 쉬듯 조금씩 커졌다 작아지고 반짝이 조각이 제 박자로 반짝임
+- 프롬프트:
+
+  > Image 1 is the approved hit effect sheet of the CLUB concept for a commercial PC keyboard rhythm game (polished chrome, clear acrylic, vinyl record grooves, soft round light). Redraw its light elements as clean production sprites for compositing, in exactly the same style and level of finish.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO horizontal line across a cell, NO plate, NO frame, NO panel and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > Top-left cell: the hit flash at its peak, centred: a soft round white glow with a small bright core and a few soft, short rays.
+  > Top-right cell: three or four thin concentric rings of light like the grooves of a record, complete circles centred in the cell, the outer ones fainter.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: small round light droplets with a glossy highlight, soft glowing dots of a few sizes, and tiny four-ray glints.
+  > Bottom-right cell: a steady soft glowing ring seen from straight above, centred, a little thicker than the top-right rings, with a faint glow inside and outside it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/club/gear_black.jpg`
+
+- 용도: 기어(매트 블랙, 기본) → `styles/club/keys.png`, `gear_black.png`
+- 크기 · 기준 이미지: 21:9 · 2K · `club-C.png`
+- 날짜: 2026-11-03 17:19 KST · 약 $0.057
+- 생성 결과(PNG): 4,297,947바이트 · sha256 앞 16자리 `f98c25db39a81c6c` · 저장한 JPEG: 776,832바이트
+- 후처리: 키 조명: 꺼진 버튼과 켜진 버튼을 각각 좌우 · 위아래가 대칭이 되는 중심에서 원 알파로 잘라 · 판: 턴테이블(원 알파)과 채널 페이더 하나를 실제 색 그대로 · 판의 면 · 테두리 색은 시트에서 뽑아 코드가 칠함(레인마다 채널 띠와 그 사이 홈, 줄 아래에 페이더)
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the gear panel that sits under the judge line, seen strictly from straight above and flat. It is a wide, shallow panel about five times as wide as it is tall, centred in the image: at its left the scratch module, about 1.6 key modules wide, then seven key modules evenly spaced in one row across the whole rest of the width, each one centred under its own lane, and below the row only a narrow strip of the panel with its edges and hardware: a DJ mixer panel of matte black rubber and brushed metal: one round acrylic button per key lane with a small chrome knob above it and a fader slot below it, a vinyl turntable platter with a chrome spindle for the scratch, rubber pads. The key modules of the 2nd and 4th key lanes are lit: their light areas glow pure white (the game tints them in the lane colour); the other modules are unlit, dark and neutral. Colourway: matte black rubber and dark brushed metal with chrome details (the default).
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/club/gear_white.jpg`
+
+- 용도: 기어(화이트) → `styles/club/gear_white.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
+- 날짜: 2026-11-03 17:20 KST · 약 $0.059
+- 생성 결과(PNG): 4,684,383바이트 · sha256 앞 16자리 `fefdc3edd5cfab99` · 저장한 JPEG: 880,001바이트
+- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄 · 판이 블랙보다 위아래로 길게 그려져 잘라낸 뒤 블랙의 비율로 되돌림
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: glossy white panels with light grey rubber and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/club/gear_silver.jpg`
+
+- 용도: 기어(실버 브러시드) → `styles/club/gear_silver.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
+- 날짜: 2026-11-03 17:21 KST · 약 $0.064
+- 생성 결과(PNG): 5,211,569바이트 · sha256 앞 16자리 `81390b9bd145e08d` · 저장한 JPEG: 1,141,427바이트
+- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄 · 판이 블랙보다 위아래로 길게 그려져 잘라낸 뒤 블랙의 비율로 되돌림
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: brushed silver aluminium panels with black rubber and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/club/gear_walnut.jpg`
+
+- 용도: 기어(월넛 우드) → `styles/club/gear_walnut.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 매트 블랙 기어 시트
+- 날짜: 2026-11-03 17:22 KST · 약 $0.061
+- 생성 결과(PNG): 4,712,004바이트 · sha256 앞 16자리 `fbb972c2dac8a062` · 저장한 JPEG: 952,208바이트
+- 후처리: 블랙과 같은 자리에서 턴테이블과 페이더를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: dark walnut wood side panels with a black brushed-metal face and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+## 크리스털 세트 (`styles/crystal`, 매니페스트 이름 `gem`, 2026-11)
+
+메카 세트와 같은 방법으로 만든 세트입니다. 길쭉한 보석 노트 · 프리즘 롱노트 · 사이드 노트 · 크리스털 기어(색 4가지) · 파편 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+
+- 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 크리스털은 C안을 고름).
+- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.60 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
+- 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `crystal-C.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 crystal 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
+
+### 스타일 프레임 `crystal-C.png` (저장소에 넣지 않음, 부위별 시트의 기준 이미지)
+
+- 기준 이미지: 이 게임의 옛 스킨 실제 화면(7K+1S)
+- 날짜: 2026-11-03 16:53 KST · 약 $0.065
+- 프롬프트:
+
+  > Image 1 is a screenshot of the current game in this concept's old skin. Use it ONLY for the camera (a low 3D perspective looking up a tilted track, as in SOUND VOLTEX), the track proportions, the lane layout (one wide scratch lane at the left tinted red, then seven key lanes tinted white, blue, white, gold, white, blue, white), the horizontal judge line near the bottom (77 % down the image) and the gear panel under it. Redraw everything else at a much higher level of finish.
+  >
+  > A 16:9 gameplay frame of a commercial PC keyboard rhythm game, mid-song. On the track: a three-note chord in one row, single notes, one note in the scratch lane, a long note in a blue lane that is being held (its body is cut off exactly at the judge line and looks brighter), another long note in the gold lane still coming down, and a long scratch note further up the track. Two lanes are being pressed: their key lights in the gear glow in the lane colour, and a hit effect bursts at the judge line in those lanes, spreading mostly downward over the gear and never covering the notes coming down.
+  >
+  > CONCEPT: CRYSTAL. Keywords: jewellery cut, refraction, cold light.
+  > - Materials (only these three): clear cut crystal tinted in the lane colour, a thin silver setting, fine refraction lines inside the crystal.
+  > - Shape grammar: symmetrical brilliant cuts; the tap note is a wide four-pointed star (long points to left and right, short points up and down) cut into sharp facets, in a thin silver setting.
+  > - Light: one key light from the top-left: neighbouring facets alternate between bright and dark values; refraction glints along the edges; one or two tiny star-shaped sparkles per note, no more.
+  > - Tap note: the faceted four-pointed crystal; its central horizontal table facet is the brightest face and marks the judge point.
+  > - Long note: a long crystal prism with facets running along it and a beam of light inside; its ends narrow to sharp crystal tips of the prism itself (not tap notes).
+  > - Hit effect: the crystal shatters: small facet shards fly down over the gear with four-pointed sparkles and a cold afterglow.
+  > - Gear (below the judge line): a sheet of glass over fine silver circuitry, one diamond-shaped crystal light per lane glowing in the lane colour when pressed, frosted glass edges; the scratch is a cut crystal disc. Rails: clear glass edges with a silver line.
+  > - Unlike other concepts: transparency and refraction: strong value contrast between facets and pin-point sparkles, never metal-heavy, never neon-glowing.
+  >
+  > Variant: sleek. Slimmer notes, cleaner surfaces with fewer details, sharper value contrast and a minimal gear panel; premium and fast-looking.
+  >
+  > Rules: a long note is one continuous body only, with no tap note at its start or end; its ends are closed by the body's own end shape. Every note, long note and key light uses one design in all lanes; only its tint changes with the lane colour, and the key-type mark tells the lanes apart. The track floor is the same very dark, almost black surface in every lane (under 10 % brightness, matte, like the reference), with thin dim lane dividers: never paint a lane floor in a lane colour, in metal or in white, and never let the lanes alternate light and dark like piano keys; the concept's materials belong to the notes, the gear and the rails, not to the track floor; the wide scratch lane's floor is as dark as the others, only its notes are red. Only notes, long notes and key lights carry the lane colours. The two pressed lanes show just a short faint light column rising from the judge line, fading out within a quarter of the track. Keep the track where the reference has it, in the middle of the frame, with the scratch lane as its leftmost lane; the gear panel under the judge line is exactly as wide as the track. The judge line is a crisp white line with a short soft glow, the same as in the reference.
+  >
+  > Quality bar: the finish of a commercial console or arcade rhythm game such as DJMAX RESPECT V, EZ2ON REBOOT : R or SOUND VOLTEX, used only as a quality reference: do not copy their designs. Crisp edges with painted material detail; three value steps in every element (dark rim, mid body, bright highlight); one key light from the top-left on every part; ambient occlusion in grooves. Notes must read instantly even when small and fast.
+  >
+  > No text, letters, numbers, HUD, score, combo counter, logos or watermarks anywhere. No characters. No bloom haze, no lens flares, no motion blur, no purple-blue-pink gradient wash, no glassmorphism panels. The area outside the track is plain dark.
+
+### `styles/crystal/notes.jpg`
+
+- 용도: 탭 노트 4개(길쭉하게 깎은 보석, 시트에는 표식이 없어 게임이 가운데에 ○ △ ◇ // 를 새김) → `styles/crystal/notes.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `crystal-C.png`
+- 날짜: 2026-11-03 17:23 KST · 약 $0.062
+- 생성 결과(PNG): 3,713,700바이트 · sha256 앞 16자리 `bd418905a3f0c048` · 저장한 JPEG: 774,103바이트
+- 후처리: 보석 4개를 각각 잘라(검은 바탕 → 알파) 1024×253 으로, 한 줄에 하나씩 · 밝기 ÷ 0.7 = 레인 색의 양(R), 0.74 넘는 밝기는 흰색 쪽으로(G, 최대 0.85) · 게임은 보석을 막대 노트 깊이 안에 그림보다 1.75배 두툼하게 그림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the tap notes, four rows stacked from top to bottom with equal black gaps; each note is about three times as wide as it is tall and fills 80 % of the image width. The note: a clear cut crystal shaped as a wide four-pointed star (long points to the left and right, short points up and down), cut into sharp facets that alternate bright and dark, in a thin silver setting; its central horizontal table facet is the brightest face and marks the judge point; one or two tiny star sparkles. All four are the same note (the game tells the lanes apart by colour and extra points); draw it four times identically.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/crystal/long.jpg`
+
+- 용도: 롱노트 프리즘(대기 · 누르는 중) → `styles/crystal/long.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `crystal-C.png`
+- 날짜: 2026-11-03 17:24 KST · 약 $0.056
+- 생성 결과(PNG): 3,010,587바이트 · sha256 앞 16자리 `89a2478ab80170a0` · 저장한 JPEG: 437,997바이트
+- 후처리: 두 프리즘을 같은 폭으로 잘라 몸통 128×256(이음새 없이 반복)과 끝(뾰족한 위쪽) 128×70 · 대기는 밝기 ÷ 0.7, 누르는 중은 ÷ 0.6 에 흰색 쪽으로 더 올림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: two long notes of this concept standing upright side by side, each about one fifth of the image wide and 90 % of its height: the left one idle, the right one held (brighter, its inner light flowing). A long note is one continuous body only, with no tap note at either end: a long faceted crystal prism with a beam of light inside; each end narrows to a sharp crystal tip of the prism itself. Its width is the same as a tap note's.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/crystal/side.jpg`
+
+- 용도: 사이드 노트(별도 레인의 짧은 크리스털 판 · 반쪽 덮기 막대) → `styles/crystal/side.png`
+- 크기 · 기준 이미지: 16:9 · 2K · `crystal-C.png`
+- 날짜: 2026-11-03 17:24 KST · 약 $0.058
+- 생성 결과(PNG): 3,449,642바이트 · sha256 앞 16자리 `53184ab6c7848399` · 저장한 JPEG: 621,981바이트
+- 후처리: 막대는 1024 폭으로(양 끝은 불투명, 그 사이 어두운 곳은 알파 0.62 로 비침), 별도 레인 노트는 512 폭으로 · 게임은 양 끝을 그대로 두고 가운데만 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the side note of this concept, which must not look like a key note: a thin pane of cut glass whose facet edges alone are bright. Top half: the side-lane note, about twice as wide as it is tall. Bottom half: the same side note as a very wide bar (about six times as wide as it is tall) that lies over half of the key lanes: its two long edges are bright and its middle is mostly see-through (drawn darker and fainter).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/crystal/fx.jpg`
+
+- 용도: 타격 이펙트 요소(섬광 · 파편 고리 · 파편과 반짝이 조각 · 반짝이는 빛) → `styles/crystal/hit_burst.png`, `hit_hold.png`
+- 크기 · 기준 이미지: 1:1 · 2K · 먼저 만든 이펙트 시트(판정선 막대가 그림에 들어가 있어 쓰지 않음, 저장소에 넣지 않음)
+- 날짜: 2026-11-04 08:42 KST · 약 $0.057
+- 생성 결과(PNG): 5,015,814바이트 · sha256 앞 16자리 `aabb32bbb5897116` · 저장한 JPEG: 974,316바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 섬광 + 위로 날아가게 그려진 파편 고리를 뒤집어 기어 쪽으로 + 조각 여덟 개가 판정선 아래로 + 잔광 · 판정선 위로는 짧게만 남김 · 판정선은 칸 위에서 30 % · 누르는 동안(16칸 반복, 24fps): 반짝이는 빛 위에 반짝이 조각이 제 박자로 반짝임
+- 프롬프트:
+
+  > Image 1 is the approved hit effect sheet of the CRYSTAL concept for a commercial PC keyboard rhythm game (clear cut crystal, sharp facets, silver, cold sparkling light). Redraw its light elements as clean production sprites for compositing, in exactly the same style and level of finish.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO horizontal line across a cell, NO plate, NO frame, NO panel and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > Top-left cell: the hit flash at its peak, centred: a cold white starburst with a sharp four-pointed star at its core and a few short rays.
+  > Top-right cell: the crystal shattering, centred: small faceted crystal shards flying outward in all directions from the centre, with tiny four-pointed sparkles between them and a faint cold glow in the middle.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: faceted crystal shards of different sizes and shapes, and four-pointed sparkles of several sizes.
+  > Bottom-right cell: a steady cold shimmer seen from straight above, centred: a soft round glow with many tiny sparkles and twinkling four-pointed stars scattered around it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/crystal/gear_silver.jpg`
+
+- 용도: 기어(실버, 기본) → `styles/crystal/keys.png`, `gear_silver.png`
+- 크기 · 기준 이미지: 21:9 · 2K · `crystal-C.png`
+- 날짜: 2026-11-03 17:27 KST · 약 $0.057
+- 생성 결과(PNG): 3,495,531바이트 · sha256 앞 16자리 `229097b6215fe7f3` · 저장한 JPEG: 759,841바이트
+- 후처리: 키 조명: 꺼진 마름모와 켜진 마름모를 각각 대칭이 되는 중심에서 마름모 알파로 잘라(켜진 빛 번짐이 잘리지 않게 칸을 넉넉히) · 판: 보석 원판(원 알파)과 아래쪽 회로 띠를 실제 색 그대로 · 유리 · 바탕 · 테두리 색은 시트에서 뽑아 코드가 칠함(줄 뒤 유리에 빛 줄기, 그 아래 회로 띠)
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the gear panel that sits under the judge line, seen strictly from straight above and flat. It is a wide, shallow panel about five times as wide as it is tall, centred in the image: at its left the scratch module, about 1.6 key modules wide, then seven key modules evenly spaced in one row across the whole rest of the width, each one centred under its own lane, and below the row only a narrow strip of the panel with its edges and hardware: a sheet of thick glass over fine silver circuitry, one diamond-shaped crystal light per key lane, a cut crystal disc for the scratch, frosted glass edges and thin silver frames. The key modules of the 2nd and 4th key lanes are lit: their light areas glow pure white (the game tints them in the lane colour); the other modules are unlit, dark and neutral. Colourway: clear glass over silver circuitry with frosted silver edges (the default).
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/crystal/gear_rosegold.jpg`
+
+- 용도: 기어(로즈 골드) → `styles/crystal/gear_rosegold.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
+- 날짜: 2026-11-03 17:28 KST · 약 $0.058
+- 생성 결과(PNG): 3,509,036바이트 · sha256 앞 16자리 `783e4a73fb76cbca` · 저장한 JPEG: 850,415바이트
+- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: clear glass over rose-gold circuitry with warm rose-gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/crystal/gear_gold.jpg`
+
+- 용도: 기어(골드) → `styles/crystal/gear_gold.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
+- 날짜: 2026-11-03 17:28 KST · 약 $0.059
+- 생성 결과(PNG): 4,163,764바이트 · sha256 앞 16자리 `cbd0446a08e83f67` · 저장한 JPEG: 933,065바이트
+- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: clear glass over gold circuitry with polished gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/crystal/gear_smoke.jpg`
+
+- 용도: 기어(스모크 블랙) → `styles/crystal/gear_smoke.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 실버 기어 시트
+- 날짜: 2026-11-03 17:29 KST · 약 $0.061
+- 생성 결과(PNG): 3,449,188바이트 · sha256 앞 16자리 `fb7dfcf817ab1ec5` · 저장한 JPEG: 724,165바이트
+- 후처리: 실버와 같은 자리에서 보석 원판과 회로 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: smoked black glass over gunmetal circuitry with dark chrome frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+## 네온 세트 (`styles/neon`, 2026-11)
+
+메카 세트와 같은 방법으로 만든 세트입니다. 네온관 별 노트 · 네온관 롱노트 · 사이드 노트 · 네온 기어(색 4가지) · 전기 아크 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+
+- 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다(②에서 사용자가 네온은 A안을 고름).
+- 비용: 저장소에 넣은 8장과 기준 스타일 프레임, 쓰지 않은 첫 이펙트 시트를 합해 약 $0.62 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
+- 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `neon-A.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(옛 neon 스킨)입니다. ③의 부위별 시트 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
+
+### 스타일 프레임 `neon-A.png` (저장소에 넣지 않음, 부위별 시트의 기준 이미지)
+
+- 기준 이미지: 이 게임의 옛 스킨 실제 화면(7K+1S)
+- 날짜: 2026-11-03 16:54 KST · 약 $0.073
+- 프롬프트:
+
+  > Image 1 is a screenshot of the current game in this concept's old skin. Use it ONLY for the camera (a low 3D perspective looking up a tilted track, as in SOUND VOLTEX), the track proportions, the lane layout (one wide scratch lane at the left tinted red, then seven key lanes tinted white, blue, white, gold, white, blue, white), the horizontal judge line near the bottom (77 % down the image) and the gear panel under it. Redraw everything else at a much higher level of finish.
+  >
+  > A 16:9 gameplay frame of a commercial PC keyboard rhythm game, mid-song. On the track: a three-note chord in one row, single notes, one note in the scratch lane, a long note in a blue lane that is being held (its body is cut off exactly at the judge line and looks brighter), another long note in the gold lane still coming down, and a long scratch note further up the track. Two lanes are being pressed: their key lights in the gear glow in the lane colour, and a hit effect bursts at the judge line in those lanes, spreading mostly downward over the gear and never covering the notes coming down.
+  >
+  > CONCEPT: NEON. Keywords: cyber neon, glowing tubes, city at night.
+  > - Materials (only these three): bent neon glass tubes glowing in the lane colour, black glass, printed circuit patterns.
+  > - Shape grammar: outlines made of tubes of one constant thickness with rounded ends; the tap note is a five-pointed star drawn as a neon tube outline with a horizontal tube bar across its middle; hexagon patterns.
+  > - Light: the core of each tube is the brightest (near white), its sides in the lane colour, with a short glow just outside the tube; the inside of the outline is dark glass.
+  > - Tap note: the neon star outline; its horizontal tube bar marks the judge point.
+  > - Long note: two parallel neon tubes with a dotted pulse of light running between them; its ends are closed by the rounded tube ends themselves (not tap notes).
+  > - Hit effect: an electric arc and a hexagonal pulse expanding over the gear, flickering twice.
+  > - Gear (below the judge line): a black glass panel over a hexagonal circuit board, one hexagon tube light per lane glowing in the lane colour when pressed; the scratch is a ring of neon tube. Rails: neon tubes along the track edges.
+  > - Unlike other concepts: self-lit lines and hollow outlines (the others are solid objects), dark glass between the lines.
+  >
+  > Variant: balanced. Follow the concept exactly as written, with a medium amount of detail.
+  >
+  > Rules: a long note is one continuous body only, with no tap note at its start or end; its ends are closed by the body's own end shape. Every note, long note and key light uses one design in all lanes; only its tint changes with the lane colour, and the key-type mark tells the lanes apart. The track floor is the same very dark, almost black surface in every lane (under 10 % brightness, matte, like the reference), with thin dim lane dividers: never paint a lane floor in a lane colour, in metal or in white, and never let the lanes alternate light and dark like piano keys; the concept's materials belong to the notes, the gear and the rails, not to the track floor; the wide scratch lane's floor is as dark as the others, only its notes are red. Only notes, long notes and key lights carry the lane colours. The two pressed lanes show just a short faint light column rising from the judge line, fading out within a quarter of the track. Keep the track where the reference has it, in the middle of the frame, with the scratch lane as its leftmost lane; the gear panel under the judge line is exactly as wide as the track. The judge line is a crisp white line with a short soft glow, the same as in the reference.
+  >
+  > Quality bar: the finish of a commercial console or arcade rhythm game such as DJMAX RESPECT V, EZ2ON REBOOT : R or SOUND VOLTEX, used only as a quality reference: do not copy their designs. Crisp edges with painted material detail; three value steps in every element (dark rim, mid body, bright highlight); one key light from the top-left on every part; ambient occlusion in grooves. Notes must read instantly even when small and fast.
+  >
+  > No text, letters, numbers, HUD, score, combo counter, logos or watermarks anywhere. No characters. No bloom haze, no lens flares, no motion blur, no purple-blue-pink gradient wash, no glassmorphism panels. The area outside the track is plain dark.
+
+### `styles/neon/notes.jpg`
+
+- 용도: 탭 노트 4개(가운데를 관이 가로지르는 네온관 별, 시트에는 표식이 없어 게임이 관 아래에 빛나는 ○ △ ◇ // 를 그림) → `styles/neon/notes.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `neon-A.png`
+- 날짜: 2026-11-03 17:31 KST · 약 $0.064
+- 생성 결과(PNG): 4,167,051바이트 · sha256 앞 16자리 `fb8926b5bbda40c6` · 저장한 JPEG: 828,429바이트
+- 후처리: 별 4개를 각각 잘라(검은 바탕 → 알파) 500×488 로, 2×2 칸에 · 밝기 ÷ 0.7 = 레인 색의 양(R), 0.72 넘는 밝기는 흰색 쪽으로(G, 최대 0.85) · 게임은 별을 판정선에서 그림 비율대로 보이는 깊이로 그림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the tap notes, a 2 x 2 grid of notes with equal black gaps, each filling 80 % of its cell. The note: a five-pointed star drawn as a bent neon glass tube outline of one constant thickness with rounded ends, dark glass inside the outline, and a horizontal tube bar across its middle that marks the judge point; the tube core is near white with a short glow just outside it. All four are the same note (the game tells the lanes apart by colour and extra points); draw it four times identically.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/neon/long.jpg`
+
+- 용도: 롱노트 네온관(대기 · 누르는 중) → `styles/neon/long.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `neon-A.png`
+- 날짜: 2026-11-03 17:32 KST · 약 $0.057
+- 생성 결과(PNG): 3,311,546바이트 · sha256 앞 16자리 `7206b538946264a2` · 저장한 JPEG: 553,508바이트
+- 후처리: 두 관을 같은 폭으로 잘라 몸통 128×256(이음새 없이 반복)과 끝(둥근 위쪽) 128×59 · 관 사이 어두운 유리는 알파 0.55 로 비침 · 대기는 밝기 ÷ 0.72, 누르는 중은 ÷ 0.62 에 흰색 쪽으로 더 올림
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: two long notes of this concept standing upright side by side, each about one fifth of the image wide and 90 % of its height: the left one idle, the right one held (brighter, its inner light flowing). A long note is one continuous body only, with no tap note at either end: two parallel neon tubes with a dotted pulse of light running between them; each end is closed by the rounded tube ends themselves. Its width is the same as a tap note's.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/neon/side.jpg`
+
+- 용도: 사이드 노트(별도 레인의 짧은 네온관 · 반쪽 덮기 막대) → `styles/neon/side.png`
+- 크기 · 기준 이미지: 16:9 · 2K · `neon-A.png`
+- 날짜: 2026-11-03 17:32 KST · 약 $0.062
+- 생성 결과(PNG): 3,264,946바이트 · sha256 앞 16자리 `b71fbc4e05870f67` · 저장한 JPEG: 608,611바이트
+- 후처리: 막대는 1024 폭으로(양 끝은 불투명, 그 사이 어두운 곳은 알파 0.62 로 비침), 별도 레인 노트는 512 폭으로 · 게임은 양 끝을 그대로 두고 가운데만 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the side note of this concept, which must not look like a key note: two parallel neon tubes forming a wide bar. Top half: the side-lane note, about twice as wide as it is tall. Bottom half: the same side note as a very wide bar (about six times as wide as it is tall) that lies over half of the key lanes: its two long edges are bright and its middle is mostly see-through (drawn darker and fainter).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/neon/fx.jpg`
+
+- 용도: 타격 이펙트 요소(섬광 · 육각 고리 · 불꽃 조각 · 전기 아크) → `styles/neon/hit_burst.png`, `hit_hold.png`
+- 크기 · 기준 이미지: 1:1 · 2K · 먼저 만든 이펙트 시트(판정선 막대가 그림에 들어가 있어 쓰지 않음, 저장소에 넣지 않음)
+- 날짜: 2026-11-04 08:42 KST · 약 $0.055
+- 생성 결과(PNG): 4,332,614바이트 · sha256 앞 16자리 `03d2eba5b3b0f56a` · 저장한 JPEG: 746,393바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 섬광 + 고리가 퍼지며 흐려짐 + 조각 여덟 개가 판정선 아래로 + 잔광, 네온처럼 깜빡임 · 판정선 위로는 짧게만 남김 · 판정선은 칸 위에서 30 % · 누르는 동안(16칸 반복, 24fps): 전기 아크를 칸마다 좌우로 뒤집고 조금씩 옮기며 깜빡이게
+- 프롬프트:
+
+  > Image 1 is the approved hit effect sheet of the NEON concept for a commercial PC keyboard rhythm game (bent neon glass tubes, electric arcs, hexagons, dark glass). Redraw its light elements as clean production sprites for compositing, in exactly the same style and level of finish.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO horizontal line across a cell, NO plate, NO frame, NO panel and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > Top-left cell: the hit flash at its peak, centred: a bright white core with a small hexagon outline of neon light around it and short sparks.
+  > Top-right cell: an expanding hexagonal pulse, centred: one large hexagon outline drawn as a neon tube of light of one constant thickness, complete on all six sides, with short jagged electric arcs crackling along it.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: short jagged electric arc segments of a few lengths, small hexagon sparks, and small bright dots.
+  > Bottom-right cell: a steady crackling electric glow seen from straight above, centred: a short horizontal band of jagged electric arcs, about three times as wide as it is tall, with a bright core in its middle.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/neon/gear_black.jpg`
+
+- 용도: 기어(블랙 글라스, 기본) → `styles/neon/keys.png`, `gear_black.png`
+- 크기 · 기준 이미지: 21:9 · 2K · `neon-A.png`
+- 날짜: 2026-11-03 17:33 KST · 약 $0.065
+- 생성 결과(PNG): 3,960,488바이트 · sha256 앞 16자리 `2a017d72fd539e24` · 저장한 JPEG: 830,680바이트
+- 후처리: 키 조명: 꺼진 육각과 켜진 육각을 각각 대칭이 되는 중심에서 꼭짓점이 위아래인 육각 알파로 잘라 · 판: 링 모듈(판 윤곽대로 깎은 육각 알파, 색마다 판의 자리를 재어 자름)과 아래쪽 회로 띠를 실제 색 그대로 · 회로판 · 테두리 색은 시트에서 뽑아 코드가 칠함
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the gear panel that sits under the judge line, seen strictly from straight above and flat. It is a wide, shallow panel about five times as wide as it is tall, centred in the image: at its left the scratch module, about 1.6 key modules wide, then seven key modules evenly spaced in one row across the whole rest of the width, each one centred under its own lane, and below the row only a narrow strip of the panel with its edges and hardware: a black glass panel over a hexagonal printed circuit board, one hexagon-shaped neon tube light per key lane, a ring of neon tube for the scratch, thin metal frames. The key modules of the 2nd and 4th key lanes are lit: their light areas glow pure white (the game tints them in the lane colour); the other modules are unlit, dark and neutral. Colourway: black glass over a dark circuit board with dark chrome frames (the default).
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/neon/gear_carbon.jpg`
+
+- 용도: 기어(카본) → `styles/neon/gear_carbon.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
+- 날짜: 2026-11-03 17:34 KST · 약 $0.063
+- 생성 결과(PNG): 4,782,171바이트 · sha256 앞 16자리 `4c883986256294f2` · 저장한 JPEG: 1,061,285바이트
+- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄 · 판이 더 넓게 그려져 모듈의 자리를 따로 잼
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: carbon-fibre weave panels under black glass with gunmetal frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/neon/gear_navy.jpg`
+
+- 용도: 기어(딥 네이비) → `styles/neon/gear_navy.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
+- 날짜: 2026-11-03 17:35 KST · 약 $0.061
+- 생성 결과(PNG): 4,532,664바이트 · sha256 앞 16자리 `5fdc3b525a364a69` · 저장한 JPEG: 935,729바이트
+- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep navy blue glass over a navy circuit board with silver frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/neon/gear_burgundy.jpg`
+
+- 용도: 기어(버건디 골드) → `styles/neon/gear_burgundy.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 글라스 기어 시트
+- 날짜: 2026-11-03 17:36 KST · 약 $0.057
+- 생성 결과(PNG): 4,596,519바이트 · sha256 앞 16자리 `aef0bd34983c86ea` · 저장한 JPEG: 1,069,392바이트
+- 후처리: 블랙과 같은 판에서 링 모듈과 회로 띠를 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep burgundy red glass over a dark circuit board with gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.

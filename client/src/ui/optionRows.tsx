@@ -50,6 +50,9 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   grid: 'LED 그리드',
   shutter: '셔터',
   mecha: '메카 섬광',
+  club: '클럽 링',
+  crystal: '크리스털 파편',
+  neon: '네온 아크',
   flipbook: '보석 섬광',
   none: '없음',
 };

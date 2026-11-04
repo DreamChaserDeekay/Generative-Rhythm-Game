@@ -20,7 +20,7 @@ import {
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
-import { artPartsOf, keyPaintOf, longPaintOf, notePaintOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, isArtHit, keyPaintOf, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -30,7 +30,6 @@ import {
   gradientTexture,
   judgeGlowTexture,
   lightMaterial,
-  LONG_OF,
   neonBeamTexture,
   laneDepthOf,
   noteDepthOf,
@@ -689,7 +688,7 @@ export class TrackRenderer {
     this.barLines = options.barLines ?? true;
     this.fitWidth = options.fitWidth ?? null;
     this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
-    this.long = longPaintOf(LONG_OF[this.style.note], this.images);
+    this.long = longPaintOf(this.style.note, this.images);
     const px = this.long.px ?? 64;
     const longPictures = (body: Paint, end: Paint) => {
       const b = this.own(paintTexture(px, Math.round(px * this.long.tile), body));
@@ -700,8 +699,8 @@ export class TrackRenderer {
     if (this.long.held) this.longHeld = longPictures(this.long.held.body, this.long.held.end);
     this.sideDots = this.style.side === 'dots';
     const hit = this.hit;
-    // a flipbook skin draws shards in code when its textures are missing, MECHA its code stand-in
-    this.flipbook = (hit === 'flipbook' || hit === 'mecha') && Boolean(this.art.hitBurst);
+    // a flipbook skin draws shards in code when its textures are missing, a set's hit its code stand-in
+    this.flipbook = (hit === 'flipbook' || isArtHit(hit)) && Boolean(this.art.hitBurst);
     this.artParts = [...artPartsOf(this.style, this.images), ...(this.flipbook ? ['hit'] : [])].join(' ');
     this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit === 'flipbook' ? 'shards' : (hit as HitStyle));
     if (this.hitSheet) this.own(this.hitSheet.texture);
@@ -1825,7 +1824,7 @@ export class TrackRenderer {
    * then: a new depth drops the pictures made for the old one.
    */
   private fitNoteDepth(): void {
-    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * 0.9, 1 / this.trackAspect(this.judgeZ));
+    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * 0.9, 1 / this.trackAspect(this.judgeZ), noteShapeOf(this.style.note, this.images));
     const stepped = Math.round(depth / NOTE_DEPTH_STEP) * NOTE_DEPTH_STEP;
     if (Math.abs(stepped - this.noteDepth) < 1e-9) return;
     this.noteDepth = stepped;

@@ -9,17 +9,19 @@ import {
   artPartsOf,
   DECK_COLOURS,
   deckColourOf,
+  isArtHit,
   keyPaintOf,
   longPaintOf,
   mechaTurntable,
   notePaintOf,
+  noteShapeOf,
   platePaintOf,
   sideTapPaintOf,
   styleImageIds,
   styleTextures,
   type ArtImage,
 } from './styleArt';
-import { LONG_PAINT, NOTE_PAINT, NOTE_STRETCH } from './tintArt';
+import { LONG_OF, LONG_PAINT, NOTE_PAINT, NOTE_STRETCH, noteDepthOf } from './tintArt';
 
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const manifest = parseManifest(JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')))!;
@@ -57,7 +59,7 @@ describe('the concept sets drawn from art', () => {
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', 'mecha/keys', 'mecha/gear_gunmetal']);
     expect(styleImageIds({ ...arcade, side: 'dots', deck: 'grand' })).toEqual(['mecha/notes', 'mecha/long']);
-    expect(styleImageIds({ ...arcade, note: 'round', deckColour: 'blue' })).toEqual(['mecha/keys', 'mecha/gear_blue']);
+    expect(styleImageIds({ ...arcade, note: 'flat', deckColour: 'blue' })).toEqual(['mecha/keys', 'mecha/gear_blue']);
     expect(styleImageIds(styleOf(skinById('flat', null)))).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     expect(styleTextures({ ...arcade, hit: 'wave' })).toEqual({});
@@ -86,7 +88,7 @@ describe('the concept sets drawn from art', () => {
   it('keeps every part in code while its pictures are missing', () => {
     const none = {};
     expect(notePaintOf('chamfer', none)).toBe(NOTE_PAINT.chamfer);
-    expect(longPaintOf('rail', none)).toBe(LONG_PAINT.rail);
+    expect(longPaintOf('chamfer', none)).toBe(LONG_PAINT.rail);
     expect(keyPaintOf(arcade, none)).toBe(KEY_PAINT.arcade);
     expect(artPartsOf(arcade, none)).toEqual([]);
     // the gear goes to art whole: its caps without its plate's colourway stay in code
@@ -124,7 +126,7 @@ describe('the concept sets drawn from art', () => {
   });
 
   it('draws the rail and its held light from art, as long on the screen as in the picture', () => {
-    const long = longPaintOf('rail', loaded(arcade));
+    const long = longPaintOf('chamfer', loaded(arcade));
     expect(long.held).toBeDefined();
     expect(long.px).toBe(128);
     expect(long.tile).toBeCloseTo(2 * NOTE_STRETCH, 9);
@@ -185,5 +187,196 @@ describe('the concept sets drawn from art', () => {
     expect(draws[1].dx).toBeGreaterThanOrEqual(70);
     const last = draws[draws.length - 1];
     expect(last.dx + last.dw).toBeLessThanOrEqual(400);
+  });
+});
+
+/** CLUB, CRYSTAL and NEON: their note family, gear and hit, and the gear's colourways (its own first). */
+const SETS = [
+  { set: 'club', id: 'club', note: 'round', deck: 'mixer', hit: 'club', ways: ['black', 'white', 'silver', 'walnut'], end: 78, bar: 211 },
+  // listed as "gem": "crystal" names an earlier texture set
+  { set: 'crystal', id: 'gem', note: 'star4', deck: 'crystal', hit: 'crystal', ways: ['silver', 'rosegold', 'gold', 'smoke'], end: 70, bar: 206 },
+  { set: 'neon', id: 'neon', note: 'star5', deck: 'neon', hit: 'neon', ways: ['black', 'carbon', 'navy', 'burgundy'], end: 59, bar: 248 },
+] as const;
+type SetCase = (typeof SETS)[number];
+/** The set's parts as the gear tab picks them, its gear in `way`. */
+const setStyle = (c: SetCase, way: string = c.ways[1]) => styleOf(withParts(skinById('flat', null), { note: c.note, side: 'bar', deck: c.deck, deckColour: way, hit: c.hit }));
+
+/** A deck with the scratch at the left and seven keys, `room` px of it on the screen. */
+function deckSpec(room: number): DeckSpec {
+  return {
+    width: 400,
+    room,
+    depth: 180,
+    keyTop: 8,
+    keyDepth: 56,
+    stretch: 1.3,
+    lanes: [
+      { left: 0, width: 70, kind: 'scratch' },
+      ...Array.from({ length: 7 }, (_, i) => ({ left: 70 + i * 47, width: 47, kind: i % 2 ? ('other' as const) : ('white' as const) })),
+    ],
+    sides: [],
+    colours: skinById('flat', null).colors,
+  };
+}
+
+describe.each(SETS)('the $set set drawn from art', (c) => {
+  const style = setStyle(c);
+  const images = loaded(style);
+
+  it('loads its pictures in the colourway picked, and its hit as flipbooks', () => {
+    expect(styleImageIds(style)).toEqual([`${c.id}/notes`, `${c.id}/long`, `${c.id}/side`, `${c.id}/keys`, `${c.id}/gear_${c.ways[1]}`]);
+    expect(styleImageIds({ ...style, side: 'dots' })).not.toContain(`${c.id}/side`);
+    expect(styleTextures(style)).toEqual({ hitBurst: `${c.id}/hitBurst`, hitHold: `${c.id}/hitHold` });
+    expect(isArtHit(c.hit)).toBe(true);
+    expect((DECK_COLOURS[c.deck] ?? []).map((w) => w.id)).toEqual([...c.ways]);
+    // a colourway another gear has: the gear's own
+    expect(deckColourOf({ deck: c.deck, deckColour: 'gunmetal' })).toBe(c.ways[0]);
+    expect(artPartsOf(style, images)).toEqual(['notes', 'long', 'side', `gear:${c.ways[1]}`]);
+  });
+
+  it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
+    const sizes: Record<string, [number, number]> = {
+      [`${c.id}/notes`]: [1024, 1024],
+      [`${c.id}/long`]: [512, 256],
+      [`${c.id}/side`]: [1024, 512],
+      [`${c.id}/keys`]: [512, 256],
+      ...Object.fromEntries(c.ways.map((w) => [`${c.id}/gear_${w}`, [1024, 1024] as [number, number]])),
+    };
+    for (const [id, size] of Object.entries(sizes)) expect(manifest.textures[id]?.size, id).toEqual(size);
+    for (const id of [`${c.id}/hitBurst`, `${c.id}/hitHold`]) {
+      expect(manifest.textures[id].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
+      expect(manifest.textures[id].anchorY, id).toBeGreaterThan(0.5);
+    }
+    expect(manifest.textures[`${c.id}/hitHold`].flipbook?.loop).toBe(true);
+  });
+
+  it('keeps every part in code while its pictures are missing', () => {
+    expect(notePaintOf(c.note, {})).toBe(NOTE_PAINT[c.note]);
+    expect(longPaintOf(c.note, {})).toBe(LONG_PAINT[LONG_OF[c.note]]);
+    expect(keyPaintOf(style, {})).toBe(KEY_PAINT[c.deck]);
+    expect(noteShapeOf(c.note, {})).toBeUndefined();
+    expect(artPartsOf(style, {})).toEqual([]);
+    // the gear goes to art whole: its lights without its plate's colourway stay in code
+    expect(keyPaintOf(style, { [`${c.id}/keys`]: image(`${c.id}/keys`) })).toBe(KEY_PAINT[c.deck]);
+  });
+
+  it('draws each key’s note from its own picture, filling the note, and a side lane’s as the side plate', () => {
+    const paint = notePaintOf(c.note, images);
+    const marks = ['white', 'blue', 'gold', 'scratch'] as const;
+    marks.forEach((mark, i) => {
+      const { g, draws } = recorder();
+      paint(g, 120, 96, mark);
+      const d = draws[0];
+      // all of the lane's width; the gem in a row of its own, the record and the star in a cell
+      expect([d.dx, d.dw]).toEqual([0, 120]);
+      if (c.set === 'crystal') {
+        expect([d.sx, d.sy, d.sw, d.sh]).toEqual([0, i * 256 + 1, 1024, 253]);
+        // a long flat gem across a bar's depth, about its middle, fuller than drawn but not twice
+        expect(d.dh).toBeLessThanOrEqual(96);
+        expect(d.dy).toBeCloseTo((96 - d.dh) / 2, 9);
+        expect(d.dh / d.dw).toBeLessThan((2 * 253 * NOTE_STRETCH) / 1024);
+      } else {
+        expect([d.sx, d.sy]).toEqual([(i % 2) * 512 + 6, Math.floor(i / 2) * 512 + (c.set === 'club' ? 6 : 12)]);
+        expect([d.dy, d.dh]).toEqual([0, 96]);
+      }
+    });
+    const { g, draws } = recorder();
+    paint(g, 60, 40, 'side');
+    expect(draws).toHaveLength(3);
+    for (const d of draws) expect(d.sy).toBe(256);
+    expect(draws[2].dx + draws[2].dw).toBe(60);
+    expect(draws[0].dy).toBeCloseTo((40 - draws[0].dh) / 2, 9);
+  });
+
+  it('keeps the record round and the star as drawn at the judge line; the gem lies in a bar’s depth', () => {
+    const shape = noteShapeOf(c.note, images);
+    expect(shape).toBe({ club: 1, crystal: null, neon: 488 / 500 }[c.set]);
+    const depth = noteDepthOf(c.note, 0.7, 1.2, 1.7, shape);
+    if (shape === null) expect(depth).toBe(0.7);
+    else expect(depth).toBeCloseTo(1.2 * shape! * 1.7, 9);
+  });
+
+  it('draws its long note from art, its end as deep as the picture’s, its body and end lit while held', () => {
+    const long = longPaintOf(c.note, images);
+    expect(long.held).toBeDefined();
+    expect(long.px).toBe(128);
+    expect(long.width).toBe(LONG_PAINT[LONG_OF[c.note]].width);
+    expect(long.endDepth).toBeCloseTo((c.end / 128) * NOTE_STRETCH, 9);
+    const { g, draws } = recorder();
+    long.end(g, 128, 100);
+    long.held!.end(g, 128, 100);
+    expect(draws.map((d) => [d.sx, d.sh])).toEqual([
+      [256, c.end],
+      [384, c.end],
+    ]);
+  });
+
+  it('lays its bar over the keys with its ends whole and its middle stretched', () => {
+    const { g, draws } = recorder();
+    sideTapPaintOf(c.note, images, 0.3)(g, 512, 90);
+    expect(draws).toHaveLength(3);
+    for (const d of draws) expect([d.sy, d.sh]).toEqual([0, c.bar]);
+    expect(draws[0].dw).toBe(draws[2].dw);
+    expect(draws[2].dx + draws[2].dw).toBe(512);
+  });
+
+  it('lights its keys as far as the code gear’s do, from the light’s own picture; the scratch over its module', () => {
+    const keys = keyPaintOf(style, images);
+    expect(keys).not.toBe(KEY_PAINT[c.deck]);
+    // the row is laid out as for the code gear
+    expect(keys.reach).toBe(KEY_PAINT[c.deck].reach);
+    for (const lit of [false, true]) {
+      const { g, draws } = recorder();
+      (lit ? keys.down : keys.idle)('white', 1.3)(g, 60, 56);
+      expect(draws).toHaveLength(1);
+      const d = draws[0];
+      expect([d.sx, d.sy, d.sw, d.sh]).toEqual([lit ? 256 : 0, 0, 256, 256]);
+      // in the middle of its place in the row, drawn as much longer along the track as round things are
+      expect(d.dx + d.dw / 2).toBeCloseTo(30, 9);
+      expect(d.dy + d.dh / 2).toBeCloseTo(28, 9);
+      expect(d.dh / d.dw).toBeCloseTo(1.3, 9);
+      // no wider than its picture's light lets it be in the lane, nor longer than the code light reaches
+      expect(d.dh / 2).toBeLessThanOrEqual(KEY_PAINT[c.deck].reach('white', 60, 56, 1.3) * (256 / 140) + 1e-9);
+    }
+    // the scratch's light at rest is the plate's module; it lies over it, shaped as the colourway's module is
+    const { g, draws } = recorder();
+    keys.idle('scratch', 1.3)(g, 70, 70);
+    expect(draws).toHaveLength(0);
+    const lane = { left: 10, width: 60 };
+    for (const way of c.ways) {
+      const box = keyPaintOf(setStyle(c, way), loaded(setStyle(c, way))).scratchBox!(300, 1.3, lane);
+      expect(box.x).toBeGreaterThanOrEqual(lane.left);
+      expect(box.x + box.w).toBeLessThanOrEqual(lane.left + lane.width + 1e-9);
+      expect(box.y + box.h).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it('paints its plate in the colourway from art: the module in the scratch’s column, its own parts under the row', () => {
+    for (const way of c.ways) {
+      const st = setStyle(c, way);
+      const { g, draws } = recorder();
+      platePaintOf(st, loaded(st))(g, deckSpec(170));
+      // the module from its place in the picture's first square, in the scratch's column
+      expect(draws[0].sx + draws[0].sw).toBeLessThanOrEqual(512);
+      expect(draws[0].sy + draws[0].sh).toBeLessThanOrEqual(512);
+      expect(draws[0].dx).toBeGreaterThanOrEqual(0);
+      expect(draws[0].dx + draws[0].dw).toBeLessThanOrEqual(70 + 1e-9);
+      const under = draws.slice(1);
+      if (c.set === 'club') {
+        // a fader in each key lane
+        expect(under).toHaveLength(7);
+        for (const d of under) expect(d.sx).toBeGreaterThanOrEqual(512);
+      } else {
+        // the board's strip, from the scratch's column to the frame
+        expect(under).toHaveLength(1);
+        expect(under[0].sy).toBe(512);
+        expect(under[0].dx).toBeGreaterThanOrEqual(70);
+        expect(under[0].dx + under[0].dw).toBeLessThanOrEqual(400);
+      }
+      // a screen that shows little of the gear: the module alone
+      const small = recorder();
+      platePaintOf(st, loaded(st))(small.g, deckSpec(70));
+      expect(small.draws).toHaveLength(1);
+    }
   });
 });
