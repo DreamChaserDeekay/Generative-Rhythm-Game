@@ -83,7 +83,7 @@ export interface SkinStyle {
   /** The gear's colourway, for a gear drawn from art that has some (render/styleArt.ts: DECK_COLOURS; default its first). */
   deckColour?: string;
   beam: BeamStyle;
-  /** 'flipbook' plays the skin's hitBurst / hitHold textures (code shards without them). */
+  /** 'flipbook' plays the skin's hitBurst / hitHold textures (a code flash without them). */
   hit: HitStyle | 'flipbook' | 'none';
   /** Note depth as a share of the usual one (a thin note is shallower). */
   noteDepth?: number;
@@ -248,7 +248,7 @@ export const BUILTIN_SKINS: Skin[] = [
       note: 'chamfer',
       deck: 'arcade',
       beam: 'white',
-      hit: 'star',
+      hit: 'mecha',
       rails: { width: 5 },
       judge: { height: 6, glow: true },
       track: { tint: 0.06 },
@@ -269,7 +269,7 @@ export const BUILTIN_SKINS: Skin[] = [
       note: 'round',
       deck: 'mixer',
       beam: 'fade',
-      hit: 'bomb',
+      hit: 'club',
       rails: { width: 3 },
       judge: { height: 6, glow: true },
       track: { tint: 0, scratchTint: 0.1 },
@@ -288,7 +288,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#ffd23f',
     style: {
       note: 'chamfer',
-      deck: 'hazard',
+      deck: 'arcade',
       beam: 'fade',
       hit: 'flare',
       rails: { width: 6 },
@@ -312,7 +312,7 @@ export const BUILTIN_SKINS: Skin[] = [
       note: 'star5',
       deck: 'neon',
       beam: 'neon',
-      hit: 'hex',
+      hit: 'neon',
       rails: { width: 6, glow: 14 },
       judge: { height: 6, glow: true },
       track: { tint: 0.08 },
@@ -333,7 +333,7 @@ export const BUILTIN_SKINS: Skin[] = [
       note: 'star4',
       deck: 'crystal',
       beam: 'white',
-      hit: 'shards',
+      hit: 'crystal',
       rails: { width: 5, glow: 8 },
       judge: { height: 6, glow: true },
       track: { tint: 0.06, edges: true },
@@ -351,7 +351,7 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#fff1d6',
     style: {
       note: 'round',
-      deck: 'candy',
+      deck: 'mixer',
       beam: 'fade',
       hit: 'bubbles',
       rails: { width: 8 },
@@ -372,7 +372,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#bfe9ff',
     style: {
       note: 'chamfer',
-      deck: 'jewel',
+      deck: 'crystal',
       beam: 'white',
       hit: 'flipbook',
       rails: { width: 10, bevel: true },
@@ -393,7 +393,7 @@ export const BUILTIN_SKINS: Skin[] = [
     laneLayout: 'uniform',
     style: {
       note: 'flat',
-      deck: 'mono',
+      deck: 'line',
       beam: 'white',
       hit: 'none',
       rails: { width: 6 },
@@ -525,7 +525,7 @@ export function sanitizeSkin(raw: unknown): Skin | null {
 /** The drawing style of a skin; a user skin of an earlier version gets one from its shape and effect. */
 export function styleOf(skin: Skin): SkinStyle {
   if (skin.style) return skin.style;
-  const hit = skin.hitEffect === 'none' ? 'none' : skin.hitEffect === 'sprite' ? 'flipbook' : skin.hitEffect === 'ring' ? 'hex' : 'flash';
+  const hit = skin.hitEffect === 'none' ? 'none' : skin.hitEffect === 'sprite' ? 'flipbook' : 'flash';
   return {
     note: skin.noteShape === 'round' ? 'round' : 'flat',
     deck: 'line',

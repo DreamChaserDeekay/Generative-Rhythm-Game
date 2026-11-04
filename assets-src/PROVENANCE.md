@@ -2,7 +2,7 @@
 
 게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 컨셉 세트(메카 · 클럽 · 크리스털 · 네온 · 피아노)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터).
 
-아래 P0 세트(ElevenLabs)의 기록이 먼저, 그다음 컨셉 세트(Gemini)의 기록입니다.
+아래 P0 세트(ElevenLabs)의 기록이 먼저, 그다음 컨셉 세트와 세트에 속하지 않는 타격 효과(Gemini)의 기록입니다.
 
 - 만든 곳(P0 세트): ElevenLabs(creative 도구). flow 주소는 작업 공간 전환 코드를 뺀 주소입니다.
 - 플랜과 이용 조건: 작업 공간 한도(370,430크레딧)와 크레딧 추가 결제(2026-10-19)로 보아 유료 플랜입니다. ElevenLabs 약관상 유료 플랜의 생성물은 상업적으로 쓸 수 있고 권리는 사용자에게 있습니다(무료 플랜은 비상업 전용). 플랜 이름은 도구로 확인하지 못했습니다.
@@ -1210,3 +1210,108 @@
 - 프롬프트:
 
   > A flat, evenly lit texture of polished mahogany wood as on the case of a concert grand piano: warm red-brown with deeper reddish streaks and a soft ribbon figure, fine straight grain running horizontally from the left edge to the right edge, under a clear high-gloss lacquer but without any reflections or highlights. It fills the whole frame edge to edge. Straight top-down, no perspective, no objects, no vignette, no text, letters, numbers, logos or watermarks.
+
+## 타격 효과 (`styles/hits`, 2026-11)
+
+어느 세트에도 속하지 않는 타격 효과 넷(플래시 · 플레어 · 거품 · LED 그리드)을 코드 그림 대신 그림으로 그린 것입니다. 세트의 효과처럼 시트 한 장(섬광 | 고리 | 조각 | 누르는 동안의 빛)을 `scripts/assets/build_styles.py` 가 플립북 두 장(치는 순간 · 누르는 동안)으로 만듭니다(`client/public/media/styles/hits/`, 그림이 없으면 코드 그림).
+
+- 만든 곳: Google Cloud Vertex AI의 Gemini 이미지 모델(메카 세트와 같음) · 1:1 · 2K · 기준 이미지 없이.
+- 순서: 효과마다 두 장을 만들어 작업자가 하나씩 골랐습니다(플래시는 1안 — 2안은 섬광 둘레에 딱딱한 원판이 보여서, 플레어는 2안 — 별빛과 누르는 동안의 빛이 더 고르게 빛나서, 거품은 1안 — 2안은 터지는 고리가 점선처럼 보여서, LED 그리드는 1안 — LED 낱알이 서로 떨어져 있어 격자로 놓기 좋아서).
+- 비용: 저장소에 넣은 4장이 약 $0.25, 고르지 않은 4장이 약 $0.24 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 회사 · 아티스트 이름은 없습니다.
+
+### `styles/hits/flash.jpg`
+
+- 용도: 타격 효과 플래시 → `styles/hits/flash_burst.png`(치는 순간), `flash_hold.png`(롱노트를 누르는 동안)
+- 크기 · 기준 이미지: 1:1 · 2K · 없음 (1안)
+- 날짜: 2026-11-04 14:02 KST · 약 $0.062
+- 생성 결과(PNG): 3,483,877바이트 · sha256 앞 16자리 `7777995129c2edb6` · 저장한 JPEG: 497,971바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 빛줄기 섬광이 판정선에서 퍼지며 흐려짐 + 충격파 고리가 기어 위로 퍼짐 + 반짝임 여덟 개가 판정선 아래로 튐 + 잔광 · 판정선 위로는 짧게만 남김 · 누르는 동안(16칸 반복, 24fps): 타원 빛이 숨 쉬듯, 그 위에 반짝임이 제 박자로
+- 프롬프트:
+
+  > A hit effect for a commercial PC keyboard rhythm game: the track is seen from above, and when a note reaches the judge line and is hit, this effect plays at that spot, lying flat on the track. Draw the light elements of the effect as clean production sprites for compositing, at the finish level of the effects of a top commercial rhythm game: crisp, refined and luminous, never cartoonish or blurry.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, with no colour at all, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO plate, NO frame, NO panel, NO cell borders or dividing lines and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > THE EFFECT: FLASH, a clean and punchy burst of pure light.
+  >
+  > Top-left cell: the flash at its peak, centred: a hot white core inside a soft round bloom a little wider than it is tall, with many short, fine, soft rays radiating evenly all around it like a starburst glow, fading smoothly into black. Its glow fills about half of the cell.
+  > Top-right cell: a shockwave: one thin, crisp, bright ring of light, a complete circle centred in the cell with a diameter of about 70 % of the cell, sharp on its outer edge and fading softly toward its inside; the middle of the ring is black.
+  > Bottom-left cell: separate small sprites in a loose grid with black gaps between them: tiny sparkling glints (four-ray stars with long, thin, sharp rays), small soft round dots of light and a few short tapered streaks of light like sparks, in a few sizes.
+  > Bottom-right cell: a steady glow seen from straight above, centred: a soft bright oval of light a little wider than it is tall, with a hot core and a gentle bloom, no rays.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/hits/flare.jpg`
+
+- 용도: 타격 효과 플레어 → `styles/hits/flare_burst.png`(치는 순간), `flare_hold.png`(롱노트를 누르는 동안)
+- 크기 · 기준 이미지: 1:1 · 2K · 없음 (2안)
+- 날짜: 2026-11-04 14:04 KST · 약 $0.061
+- 생성 결과(PNG): 3,069,478바이트 · sha256 앞 16자리 `127dd566ba23d0c0` · 저장한 JPEG: 399,675바이트
+- 후처리: 타격: 4방향 별빛이 판정선에서 번쩍 + 가로 렌즈 줄기가 레인을 가로질러 늘어나며 흐려짐 + 별빛 조각이 줄기를 따라 양옆 아래로 튐 + 잔광 · 시트의 렌즈 고스트(고리 · 원판)는 기어 위에 엉뚱한 원으로 보여 쓰지 않음 · 누르는 동안: 별빛이 옅은 줄기 위에서 반짝이며 조금씩 흔들림
+- 프롬프트:
+
+  > A hit effect for a commercial PC keyboard rhythm game: the track is seen from above, and when a note reaches the judge line and is hit, this effect plays at that spot, lying flat on the track. Draw the light elements of the effect as clean production sprites for compositing, at the finish level of the effects of a top commercial rhythm game: crisp, refined and luminous, never cartoonish or blurry.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, with no colour at all, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO plate, NO frame, NO panel, NO cell borders or dividing lines and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > THE EFFECT: FLARE, an anamorphic lens flare struck by the hit.
+  >
+  > Top-left cell: the flare at its peak, centred: a brilliant four-point star with thin, sharp rays (the horizontal pair much longer than the vertical pair) around a hot white core, and through its centre a long, very thin horizontal lens streak that reaches almost to the left and right edges of the cell without touching them, brightest in the middle and fading toward its ends.
+  > Top-right cell: a long horizontal lens streak alone, through the centre of the cell: a thin bright line of light, brightest in the middle, tapering and fading smoothly toward both ends, with a faint soft haze just above and below it; it reaches almost to the left and right edges without touching them.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: small four-point and six-point star glints with fine sharp rays, and a few soft lens ghosts (small round discs, hollow rings and hexagons of faint light), in a few sizes.
+  > Bottom-right cell: a steady small four-point star seen from straight above, centred, with a short horizontal streak through it and a soft round glow around it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/hits/bubbles.jpg`
+
+- 용도: 타격 효과 거품 → `styles/hits/bubbles_burst.png`(치는 순간), `bubbles_hold.png`(롱노트를 누르는 동안)
+- 크기 · 기준 이미지: 1:1 · 2K · 없음 (1안)
+- 날짜: 2026-11-04 14:02 KST · 약 $0.060
+- 생성 결과(PNG): 4,078,978바이트 · sha256 앞 16자리 `6188ca2f12d15f56` · 저장한 JPEG: 734,707바이트
+- 후처리: 타격: 물보라 고리가 판정선에서 퍼짐 + 거품 여덟 개가 기어 위로 튀어 부풀었다가 하나씩 물보라를 남기고 터짐 + 물방울 + 잔광 · 누르는 동안: 거품이 든 빛 위로 거품이 기어 쪽에서 판정선 쪽으로 떠오르며 사라짐
+- 프롬프트:
+
+  > A hit effect for a commercial PC keyboard rhythm game: the track is seen from above, and when a note reaches the judge line and is hit, this effect plays at that spot, lying flat on the track. Draw the light elements of the effect as clean production sprites for compositing, at the finish level of the effects of a top commercial rhythm game: crisp, refined and luminous, never cartoonish or blurry.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, with no colour at all, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO plate, NO frame, NO panel, NO cell borders or dividing lines and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > THE EFFECT: BUBBLES, glossy soap bubbles bursting out of the hit.
+  >
+  > Top-left cell: a bubble popping, centred: a ring of tiny droplets and fine spray flying outward from the pop, with a faint broken film of the bubble, all light.
+  > Top-right cell: one large perfect soap bubble, centred, its diameter about 60 % of the cell: a transparent sphere drawn only as light: a thin bright rim, brighter at its edges, a faint inner glow, a bright curved highlight near its upper left and a smaller one at its lower right; its inside is almost black.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: many transparent bubbles in a few sizes, each drawn like the large one (bright thin rim, curved highlight, dark inside), plus a few tiny droplets and small round glints.
+  > Bottom-right cell: a steady soft glow seen from straight above, centred, a little wider than it is tall, with a cluster of small bubbles floating around it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.
+
+### `styles/hits/grid.jpg`
+
+- 용도: 타격 효과 LED 그리드 → `styles/hits/grid_burst.png`(치는 순간), `grid_hold.png`(롱노트를 누르는 동안)
+- 크기 · 기준 이미지: 1:1 · 2K · 없음 (1안)
+- 날짜: 2026-11-04 14:03 KST · 약 $0.065
+- 생성 결과(PNG): 3,515,203바이트 · sha256 앞 16자리 `3fd4d33c76837180` · 저장한 JPEG: 572,344바이트
+- 후처리: 시트의 LED 낱알 중 가장 크고 밝은 하나를 판정선 아래 격자(11 × 8, 한 레인에 약 5칸)에 놓음 · 타격: 친 자리의 LED가 켜지고 사각 물결이 기어 위로 퍼지며 뒤에 LED가 드문드문 깜빡임 · 판정선 위에는 그리지 않음 · 누르는 동안: 건반 밑 5 × 4 LED가 레벨 미터처럼 오르내림(맨 위 칸은 흰빛)
+- 프롬프트:
+
+  > A hit effect for a commercial PC keyboard rhythm game: the track is seen from above, and when a note reaches the judge line and is hit, this effect plays at that spot, lying flat on the track. Draw the light elements of the effect as clean production sprites for compositing, at the finish level of the effects of a top commercial rhythm game: crisp, refined and luminous, never cartoonish or blurry.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, with no colour at all, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO plate, NO frame, NO panel, NO cell borders or dividing lines and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > THE EFFECT: LED GRID, the pixels of an LED dot-matrix panel lighting up where the note was hit.
+  >
+  > Top-left cell: a square block of 7 x 7 LED pixels, centred, seen from straight above: every LED a small rounded square of light with a hot white centre and a soft glow, with even black gaps between them, all of them lit, the middle ones the brightest and the ones at the block's edges a little dimmer.
+  > Top-right cell: a hollow square ring made of a single row of lit LED pixels, centred, about 70 % of the cell across, every pixel like those of the block, with even black gaps between them; the middle of the ring is black.
+  > Bottom-left cell: separate single LED pixels in a loose grid with black gaps between them: each a small rounded square of light with a hot white centre and a soft glow, in three sizes and three brightnesses, plus a few tiny plus-shaped sparks of light.
+  > Bottom-right cell: a steady soft glow seen from straight above, centred, a little wider than it is tall, with a few single LED pixels lit around it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks.

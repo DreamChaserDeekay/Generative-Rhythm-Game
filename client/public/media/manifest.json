@@ -1,6 +1,38 @@
 {
   "version": 1,
   "textures": {
+    "bubbles/hitBurst": {
+      "file": "styles/hits/bubbles_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "bubbles/hitHold": {
+      "file": "styles/hits/bubbles_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
     "club/gear_black": {
       "file": "styles/club/gear_black.png",
       "bundle": "gear",
@@ -158,6 +190,70 @@
         128,
         64
       ]
+    },
+    "flare/hitBurst": {
+      "file": "styles/hits/flare_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "flare/hitHold": {
+      "file": "styles/hits/flare_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
+    "flash/hitBurst": {
+      "file": "styles/hits/flash_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "flash/hitHold": {
+      "file": "styles/hits/flash_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
     },
     "fx/hitBurstGlow": {
       "file": "fx/hit_burst_glow.png",
@@ -435,6 +531,38 @@
         128,
         64
       ]
+    },
+    "grid/hitBurst": {
+      "file": "styles/hits/grid_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "grid/hitHold": {
+      "file": "styles/hits/grid_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
     },
     "mecha/gear_blue": {
       "file": "styles/mecha/gear_blue.png",

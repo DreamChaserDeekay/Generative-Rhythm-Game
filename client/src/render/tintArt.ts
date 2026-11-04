@@ -922,12 +922,27 @@ export function sideDotsEnd(cols: number): Paint {
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
 /**
- * MECHA, CLUB, CRYSTAL, NEON and PIANO are drawn from art (the flipbooks of their sets, see
- * styleArt.ts); until they load, or when they cannot, they are drawn here: MECHA and CRYSTAL as
- * SHARDS is, CLUB as WAVE, NEON as HEX, PIANO as STAR.
+ * Every hit a player picks is drawn from art (flipbooks, see styleArt.ts): FLASH, FLARE, BUBBLES and
+ * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
+ * they are drawn here: the four as themselves, a set's as FLASH. STEMFLASH (the STEM skin's) is
+ * drawn here only.
  */
-export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'flash' | 'stemflash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+/** The hits drawn in code. */
+type DrawnHit = 'flash' | 'stemflash' | 'flare' | 'bubbles' | 'grid';
+const DRAWN_AS: Record<HitStyle, DrawnHit> = {
+  flash: 'flash',
+  stemflash: 'stemflash',
+  flare: 'flare',
+  bubbles: 'bubbles',
+  grid: 'grid',
+  mecha: 'flash',
+  club: 'flash',
+  crystal: 'flash',
+  neon: 'flash',
+  piano: 'flash',
+};
 
 export interface EffectSheet {
   texture: THREE.CanvasTexture;
@@ -946,31 +961,14 @@ export interface EffectSheet {
  * One frame cell's size in px (a lane is 64 px wide in it), its centre, and how wide the effect
  * drawn in it gets halfway through (in px, see drawEffect), per style.
  */
-const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number }> = {
+const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   flash: { w: 128, h: 192, cy: 104, reach: 84 },
   stemflash: { w: 128, h: 192, cy: 104, reach: 84 },
-  star: { w: 192, h: 128, cy: 64, reach: 104 },
-  piano: { w: 192, h: 128, cy: 64, reach: 104 },
-  bomb: { w: 160, h: 160, cy: 80, reach: 83 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
-  hex: { w: 160, h: 112, cy: 56, reach: 96 },
-  neon: { w: 160, h: 112, cy: 56, reach: 96 },
-  shards: { w: 160, h: 112, cy: 56, reach: 74 },
-  mecha: { w: 160, h: 112, cy: 56, reach: 74 },
-  crystal: { w: 160, h: 112, cy: 56, reach: 74 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
-  // these four play out under the line only, toward the gear: the next notes above it stay clear
-  wave: { w: 160, h: 96, cy: 10, reach: 52 },
-  club: { w: 160, h: 96, cy: 10, reach: 52 },
-  spark: { w: 176, h: 136, cy: 12, reach: 52 },
+  // played out under the line only, toward the gear: the next notes above it stay clear
   grid: { w: 96, h: 64, cy: 6, reach: 32 },
-  shutter: { w: 128, h: 112, cy: 10, reach: 42 },
 };
-
-/** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
-const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex', 'neon', 'piano'];
-/** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
-const ABOVE_REACH = 28;
 
 export const EFFECT_FRAMES = 16;
 
@@ -978,7 +976,8 @@ export const EFFECT_FRAMES = 16;
  * The effect `style` as a 4×4 flipbook: frame f shows it at progress f/16 (the mockups' SVG
  * drawn on a canvas; the lane colour is the material's, white is lifted toward white).
  */
-export function effectSheet(style: HitStyle): EffectSheet {
+export function effectSheet(hit: HitStyle): EffectSheet {
+  const style = DRAWN_AS[hit];
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
@@ -990,31 +989,10 @@ export function effectSheet(style: HitStyle): EffectSheet {
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
       drawEffect(g, style, f / EFFECT_FRAMES);
-      if (FADES_ABOVE.includes(style)) fadeAbove(g, cell, f / EFFECT_FRAMES);
       g.restore();
     }
   });
   return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64 };
-}
-
-/**
- * Above the judge line (up the cell from its centre) the part a player reads the next notes in:
- * there an effect keeps to about a lane around the hit and fades out sooner than below the line.
- */
-function fadeAbove(g: CanvasRenderingContext2D, cell: { w: number; cy: number }, p: number): void {
-  g.save();
-  g.beginPath();
-  g.rect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
-  g.clip();
-  g.globalCompositeOperation = 'destination-in';
-  // what stays: all of it near the hit at first, less and less of it as the effect goes on
-  const grad = g.createRadialGradient(0, 0, 0, 0, 0, ABOVE_REACH);
-  grad.addColorStop(0, 'rgba(0,0,0,1)');
-  grad.addColorStop(Math.max(0.05, 0.6 * (1 - p)), 'rgba(0,0,0,1)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = grad;
-  g.fillRect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
-  g.restore();
 }
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
@@ -1023,7 +1001,7 @@ export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: nu
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: DrawnHit, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);
@@ -1058,36 +1036,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
       break;
     }
-    case 'star':
-    case 'piano': {
-      for (let k = 0; k < 8; k++) {
-        const ang = (k / 8) * Math.PI * 2 + Math.PI / 8;
-        const r1 = (10 + 26 * p) * s;
-        const r2 = (22 + 52 * p) * s;
-        line(Math.cos(ang) * r1, Math.sin(ang) * r1 * 0.6, Math.cos(ang) * r2, Math.sin(ang) * r2 * 0.6, k % 2 ? colour(a) : white(a), 4 * s);
-      }
-      g.fillStyle = white(a);
-      g.beginPath();
-      g.ellipse(0, 0, Math.max(0.1, (30 - 18 * p) * s), Math.max(0.1, (12 - 6 * p) * s), 0, 0, Math.PI * 2);
-      g.fill();
-      break;
-    }
-    case 'bomb': {
-      const sz = (18 + 54 * p) * s;
-      g.strokeStyle = colour(a);
-      g.lineWidth = 4 * s;
-      g.strokeRect(-sz / 2, -sz / 2, sz, sz);
-      const sz2 = (8 + 30 * p) * s;
-      g.fillStyle = white(a * 0.9);
-      g.fillRect(-sz2 / 2, -sz2 / 2, sz2, sz2);
-      g.fillStyle = colour(a);
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        const d = (16 + 40 * p) * s;
-        const q = 6 * s;
-        g.fillRect(dx * d - q / 2, dy * d - q / 2, q, q);
-      }
-      break;
-    }
     case 'flare': {
       // a streak across the lane with a four-point star in the middle
       const hw = (46 + 110 * p) * s;
@@ -1100,83 +1048,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       polygon(g, [[-r * 0.7, 0], [0, -k], [r * 0.7, 0], [0, k]]);
       g.fill();
-      break;
-    }
-    case 'hex':
-    case 'neon': {
-      const hexagon = (r: number): [number, number][] =>
-        Array.from({ length: 6 }, (_, k) => {
-          const ang = (k / 6) * Math.PI * 2 + Math.PI / 6;
-          return [Math.cos(ang) * r, Math.sin(ang) * r * 0.62];
-        });
-      g.lineWidth = 4 * s;
-      g.strokeStyle = colour(a);
-      polygon(g, hexagon((20 + 46 * p) * s));
-      g.stroke();
-      g.lineWidth = 3 * s;
-      g.strokeStyle = white(a);
-      polygon(g, hexagon((10 + 24 * p) * s));
-      g.stroke();
-      g.fillStyle = white(a);
-      g.beginPath();
-      g.ellipse(0, 0, Math.max(0.1, (22 - 14 * p) * s), Math.max(0.1, (8 - 5 * p) * s), 0, 0, Math.PI * 2);
-      g.fill();
-      break;
-    }
-    case 'shards':
-    case 'mecha':
-    case 'crystal': {
-      for (let k = 0; k < 6; k++) {
-        const ang = (k / 6) * Math.PI * 2;
-        const d = (8 + 46 * p) * s;
-        const q = (8 - 3 * p) * s;
-        g.save();
-        g.translate(Math.cos(ang) * d, Math.sin(ang) * d * 0.6);
-        g.rotate(Math.PI / 4);
-        g.fillStyle = k % 2 ? colour(a) : white(a);
-        g.fillRect(-q / 2, -q / 2, q, q);
-        g.restore();
-      }
-      g.strokeStyle = white(a * 0.8);
-      g.lineWidth = 2 * s;
-      g.beginPath();
-      g.ellipse(0, 0, (16 + 30 * p) * s, (8 + 14 * p) * s, 0, 0, Math.PI * 2);
-      g.stroke();
-      break;
-    }
-    case 'wave':
-    case 'club': {
-      // rings spreading from the hit under the line, toward the gear, their far edges on the line
-      for (let k = 0; k < 3; k++) {
-        const q = p - k * 0.12;
-        if (q < 0) continue;
-        const rx = (12 + 70 * q) * s;
-        const ry = rx * 0.42;
-        const alpha = Math.max(0, 1 - q * 1.25) * (k === 0 ? 1 : 0.75);
-        g.lineWidth = (k === 0 ? 4 : 2.6) * s * (1 - q * 0.5);
-        g.strokeStyle = k === 0 ? white(alpha) : colour(alpha);
-        g.beginPath();
-        g.ellipse(0, ry + 2 * s, rx, ry, 0, 0, Math.PI * 2);
-        g.stroke();
-      }
-      break;
-    }
-    case 'spark': {
-      // a flash on the line, and sparks thrown down from it toward the gear in a fan
-      const flash = Math.max(0, 1 - p * 3);
-      if (flash > 0) {
-        g.fillStyle = white(flash);
-        roundRect(g, -30 * s, -3 * s, 60 * s, 7 * s, 3 * s);
-        g.fill();
-      }
-      for (let k = 0; k < 14; k++) {
-        // the same fan every frame: each spark's angle and speed fixed by its number
-        const ang = (((k * 0.618) % 1) - 0.5) * 1.8;
-        const speed = 0.55 + 0.45 * ((k * 0.382 + 0.17) % 1);
-        const head = (4 + 100 * p * speed) * s;
-        const tail = Math.max(0, head - (16 + 30 * (1 - p)) * s * speed);
-        line(Math.sin(ang) * tail, Math.cos(ang) * tail, Math.sin(ang) * head, Math.cos(ang) * head, k % 3 === 0 ? white(a) : colour(a), (3 - 1.6 * p) * s);
-      }
       break;
     }
     case 'grid': {
@@ -1197,37 +1068,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
           roundRect(g, x + cell * 0.3, y + cell * 0.3, cell * 0.4, cell * 0.4, s);
           g.fill();
         }
-      }
-      break;
-    }
-    case 'shutter': {
-      // slats slide in from the lane's sides under the line, meet in a white flash, then drop away
-      const close = Math.min(1, p / 0.2);
-      const drop = Math.max(0, p - 0.25) * 60 * s;
-      const fade = p < 0.25 ? 1 : Math.max(0, 1 - (p - 0.25) / 0.6);
-      const half = 32 * s;
-      for (let k = 0; k < 3; k++) {
-        const y = 3 * s + k * 8 * s + drop * (0.6 + 0.2 * k);
-        const reach = half * close;
-        g.fillStyle = k === 1 ? white(fade) : colour(fade);
-        roundRect(g, -half - 6 * s, y, reach + 5 * s, 5 * s, 1.5 * s);
-        g.fill();
-        roundRect(g, half - reach + s, y, reach + 5 * s, 5 * s, 1.5 * s);
-        g.fill();
-      }
-      if (p > 0.12 && p < 0.45) {
-        const f = Math.max(0, 1 - Math.abs(p - 0.22) / 0.23);
-        const r = (8 + 22 * f) * s;
-        g.fillStyle = white(f);
-        polygon(
-          g,
-          Array.from({ length: 16 }, (_, i) => {
-            const ang = (i / 16) * Math.PI * 2;
-            const rr = i % 2 ? r * 0.4 : r;
-            return [Math.cos(ang) * rr, 14 * s + Math.sin(ang) * rr * 0.45] as [number, number];
-          }),
-        );
-        g.fill();
       }
       break;
     }

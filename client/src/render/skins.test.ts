@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
+import { DECK_STYLES } from './deckArt';
 import { LANE_PALETTES } from './palette';
 import { BUILTIN_SKINS, deckTop, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, sanitizeSkin, skinById, skinJson, styleOf, withParts } from './skins';
 import { LONG_OF } from './tintArt';
@@ -77,8 +78,8 @@ describe('skins', () => {
     expect(skinById('neon', null).style?.camera).toBe('LOW');
     expect(skinById('jewel', null).textures).toEqual({ hitBurst: 'fx/hitBurstGlow', hitHold: 'fx/hitHold' });
     expect(BUILTIN_SKINS.filter((s) => s.textures).map((s) => s.id)).toEqual(['jewel']);
-    // each its own gear under the judge line, and the combo over the judgement
-    expect(new Set(BUILTIN_SKINS.map((s) => s.style?.deck)).size).toBe(BUILTIN_SKINS.length);
+    // a gear there is under the judge line (the player's pick is drawn in its place), and the combo over the judgement
+    for (const skin of BUILTIN_SKINS) expect(DECK_STYLES).toContain(skin.style?.deck);
     for (const skin of BUILTIN_SKINS) expect(skin.style?.type.inline).toBeUndefined();
   });
 
@@ -113,7 +114,10 @@ describe('skins', () => {
   it('reads the key cap a skin of an earlier version names as the gear it became', () => {
     expect(sanitizeSkin({ style: { cap: 'gloss' } })?.style?.deck).toBe('arcade');
     expect(sanitizeSkin({ style: { cap: 'piano' } })?.style?.deck).toBe('mixer');
-    expect(sanitizeSkin({ style: { deck: 'jewel', cap: 'gloss' } })?.style?.deck).toBe('jewel');
+    expect(sanitizeSkin({ style: { deck: 'crystal', cap: 'gloss' } })?.style?.deck).toBe('crystal');
+    // a gear taken out: its cap's, or the line
+    expect(sanitizeSkin({ style: { deck: 'jewel', cap: 'jewel' } })?.style?.deck).toBe('crystal');
+    expect(sanitizeSkin({ style: { deck: 'cassette' } })?.style?.deck).toBe('line');
     expect(sanitizeSkin({ style: { cap: 'toString' } })?.style?.deck).toBe('line');
     expect(sanitizeSkin({ style: { deck: 'keys' } })?.style?.deck).toBe('line');
   });
@@ -142,16 +146,16 @@ describe('skins', () => {
     // nothing picked: the defaults, whatever the skin
     expect(withParts(arcade, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'grand', deckColour: 'gunmetal', hit: 'flash' });
     expect(withParts(arcade, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'grand', hit: 'flash' });
-    expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'shutter', side: 'dots' }).style).toMatchObject({ hit: 'shutter', side: 'dots' });
+    expect(withParts(arcade, { ...DEFAULT_PARTS, hit: 'bubbles', side: 'dots' }).style).toMatchObject({ hit: 'bubbles', side: 'dots' });
     // the gear's colourway rides on the style (a gear without that colourway draws in its own, see styleArt)
     expect(withParts(arcade, { ...DEFAULT_PARTS, deck: 'arcade', deckColour: 'red' }).style).toMatchObject({ deck: 'arcade', deckColour: 'red' });
     // everything else stays the skin's: colours, rails, camera, type
-    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'cassette', deckColour: 'gunmetal', hit: 'wave' });
+    const picked = withParts(arcade, { note: 'star4', side: 'dots', deck: 'neon', deckColour: 'gunmetal', hit: 'grid' });
     expect(picked.colors).toBe(arcade.colors);
-    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', deckColour: undefined, hit: 'star' }).toEqual({ ...arcade.style, side: undefined, deckColour: undefined });
+    expect({ ...picked.style, note: 'chamfer', side: undefined, deck: 'arcade', deckColour: undefined, hit: 'mecha' }).toEqual({ ...arcade.style, side: undefined, deckColour: undefined });
     // a user skin of an earlier version (no style) gets one to put the parts in
     const old = sanitizeSkin({ noteShape: 'round' })!;
-    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'concrete' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'concrete', deckColour: 'gunmetal', hit: 'flash' });
+    expect(withParts(old, { ...DEFAULT_PARTS, deck: 'crystal' }).style).toEqual({ ...styleOf(old), note: 'flat', side: 'bar', deck: 'crystal', deckColour: 'gunmetal', hit: 'flash' });
   });
 
   it('shows a skin as JSON without the parts the gear tab picks, and reads it back to the same drawing', () => {
@@ -174,7 +178,7 @@ describe('skins', () => {
   it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
     expect(DEFAULT_PARTS.deck).toBe('grand');
-    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'avionics', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'avionics', deckColour: 'gunmetal', hit: 'grid' });
+    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'neon', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'neon', deckColour: 'gunmetal', hit: 'grid' });
     expect(sanitizeParts({ deck: 'arcade', deckColour: 'red', hit: 'mecha' })).toMatchObject({ deck: 'arcade', deckColour: 'red', hit: 'mecha' });
     for (const deckColour of ['Red', 'red-1', '', 7, 'x'.repeat(17)]) expect(sanitizeParts({ deckColour }).deckColour).toBe('gunmetal');
     // what earlier versions kept: a long note picked, the skin's own, and the skins' own styles no longer picked
@@ -182,6 +186,9 @@ describe('skins', () => {
     expect(sanitizeParts({ note: 'skin', deck: 'skin', hit: 'skin' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'stem', deck: 'line', hit: 'stemflash' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ deck: 'stem' }).deck).toBe('grand');
+    // the gears and hits taken out: the defaults
+    for (const deck of ['hazard', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette']) expect(sanitizeParts({ deck, deckColour: 'red' })).toMatchObject({ deck: 'grand', deckColour: 'red' });
+    for (const hit of ['star', 'bomb', 'hex', 'shards', 'wave', 'spark', 'shutter']) expect(sanitizeParts({ hit }).hit).toBe('flash');
   });
 
   it('lets the colour-blind palette win over skin lane colours', () => {
