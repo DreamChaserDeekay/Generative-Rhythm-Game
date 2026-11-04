@@ -594,3 +594,41 @@ test('the mecha set picked part by part: the arcade gear in a colourway, all of 
   await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('the club, crystal and neon sets picked part by part: each gear in a colourway of its own, all of it drawn from art in play', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
+  for (const [note, deck, own, way, wayName, hit, hitName, style] of [
+    ['round', 'mixer', 'black', 'walnut', '월넛 우드', 'club', '클럽 링', 'round capsule bar mixer club'],
+    ['star4', 'crystal', 'silver', 'rosegold', '로즈 골드', 'crystal', '크리스털 파편', 'star4 ray bar crystal crystal'],
+    ['star5', 'neon', 'black', 'burgundy', '버건디 골드', 'neon', '네온 아크', 'star5 ray bar neon neon'],
+  ] as const) {
+    await page.goto('/');
+    await page.getByTestId('open-settings').click();
+    await settingsTab(page, 'gear');
+    await chooseSetting(page, 'opt-note-style', note);
+    await chooseSetting(page, 'opt-deck-style', deck);
+    await chooseSetting(page, 'opt-hit-style', hit);
+    await expect(page.getByTestId('opt-hit-style')).toContainText(hitName);
+    // the gear's own colourway first (the one picked for another gear is not one of its)
+    await expect(page.getByTestId('opt-deck-colour')).toHaveAttribute('data-value', own);
+    await chooseSetting(page, 'opt-deck-colour', way);
+    await expect(page.getByTestId('opt-deck-colour')).toContainText(wayName);
+    expect((await stored()).parts).toMatchObject({ note, deck, deckColour: way, hit });
+    await page.getByRole('button', { name: /완료/ }).click();
+
+    await tool(page, 'sync-auto');
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', style);
+    // the notes, long notes, side notes, gear (in the colourway) and hit effect all drawn from the set's art
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', `notes long side gear:${way} hit`);
+    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `test-results/play-${hit}-${way}.png` });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('pause-menu')).toBeVisible();
+    await page.keyboard.press('KeyQ');
+    await expect(page.getByTestId('song-list')).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});

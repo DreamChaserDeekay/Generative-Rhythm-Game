@@ -314,7 +314,7 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: four of the skins, and the mecha set in a gear colour of its own', async ({ page }) => {
+test('play: four of the skins, and the four sets each in a gear colour of its own', async ({ page }) => {
   // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
@@ -322,7 +322,7 @@ test('play: four of the skins, and the mecha set in a gear colour of its own', a
   // each with the camera it was drawn for and the parts that suit it (the skin draws colours, track
   // and type only); FEVER off: its tint would cover the skins' rail colours
   for (const [skin, keyMode, name, cameraPreset, parts] of [
-    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'shards' }],
+    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'crystal' }],
     ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'jewel', hit: 'shards' }],
     ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }],
     ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'candy', hit: 'bubbles' }],
@@ -332,12 +332,18 @@ test('play: four of the skins, and the mecha set in a gear colour of its own', a
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
-  // the mecha set with its gear in red, the turntable in the scratch lane
-  const mecha = { note: 'chamfer', side: 'bar', deck: 'arcade', deckColour: 'red', hit: 'mecha' };
-  await settings(page, { lastKeyMode: '7K+1S', skin: 'arcade', parts: mecha, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
-  await autoplayFor(page, 14_200);
-  await shot(page, '28-mecha-red');
+  // each set with its gear in a colourway other than its own, its module in the scratch lane
+  for (const [skin, parts, name] of [
+    ['arcade', { note: 'chamfer', side: 'bar', deck: 'arcade', deckColour: 'red', hit: 'mecha' }, '28-mecha-red'],
+    ['club', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'silver', hit: 'club' }, '29-club-silver'],
+    ['glass', { note: 'star4', side: 'bar', deck: 'crystal', deckColour: 'rosegold', hit: 'crystal' }, '30-crystal-rosegold'],
+    ['neon', { note: 'star5', side: 'bar', deck: 'neon', deckColour: 'burgundy', hit: 'neon' }, '31-neon-burgundy'],
+  ] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', skin, parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await autoplayFor(page, 14_200);
+    await shot(page, name);
+  }
 });
 
 test('play: the gears for any skin, each with notes, side notes and a hit effect picked apart from the skin', async ({ page }) => {

@@ -140,11 +140,11 @@ const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 0.62, 
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
  * as keeps their shape at the judge line for a note `width` wide, where the camera shows the track
  * `flatten` times shorter along than across (no shallower than a bar, nor over three times as deep:
- * the plane camera and very wide lanes flatten them a little).
+ * the plane camera and very wide lanes flatten them a little). `shape`: a note drawn from art
+ * looks this tall for its width (null: it lies in a bar's depth; see styleArt's noteShapeOf).
  */
-export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number): number {
-  const shape = NOTE_SHAPE[style];
-  return shape === undefined ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
+export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number, shape: number | null = NOTE_SHAPE[style] ?? null): number {
+  return shape === null ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
 }
 
 /**
@@ -197,7 +197,7 @@ function chamferOutline(x: number, y: number, w: number, h: number, c: number, t
  * pointing up the track on a blue key's, a diamond on a gold key's, two slashes on the scratch's,
  * none on a side lane's. Filled, or drawn as an outline.
  */
-function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number, cy: number, r: number, colour: string, filled: boolean): void {
+export function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number, cy: number, r: number, colour: string, filled: boolean): void {
   if (mark === 'side') return;
   g.save();
   g.translate(cx, cy);
@@ -849,11 +849,12 @@ export function sideDotsEnd(cols: number): Paint {
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
 /**
- * MECHA is drawn from art (a flipbook of the mecha set, see styleArt.ts); until it loads, or when
- * it cannot, it is drawn here as SHARDS is.
+ * MECHA, CLUB, CRYSTAL and NEON are drawn from art (the flipbooks of their sets, see styleArt.ts);
+ * until they load, or when they cannot, they are drawn here: MECHA and CRYSTAL as SHARDS is, CLUB
+ * as WAVE, NEON as HEX.
  */
-export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha';
-export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha'];
+export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter' | 'mecha' | 'club' | 'crystal' | 'neon';
+export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter', 'mecha', 'club', 'crystal', 'neon'];
 
 export interface EffectSheet {
   texture: THREE.CanvasTexture;
@@ -879,18 +880,21 @@ const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number 
   bomb: { w: 160, h: 160, cy: 80, reach: 83 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   hex: { w: 160, h: 112, cy: 56, reach: 96 },
+  neon: { w: 160, h: 112, cy: 56, reach: 96 },
   shards: { w: 160, h: 112, cy: 56, reach: 74 },
   mecha: { w: 160, h: 112, cy: 56, reach: 74 },
+  crystal: { w: 160, h: 112, cy: 56, reach: 74 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
   // these four play out under the line only, toward the gear: the next notes above it stay clear
   wave: { w: 160, h: 96, cy: 10, reach: 52 },
+  club: { w: 160, h: 96, cy: 10, reach: 52 },
   spark: { w: 176, h: 136, cy: 12, reach: 52 },
   grid: { w: 96, h: 64, cy: 6, reach: 32 },
   shutter: { w: 128, h: 112, cy: 10, reach: 42 },
 };
 
 /** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
-const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex'];
+const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex', 'neon'];
 /** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
 const ABOVE_REACH = 28;
 
@@ -1023,7 +1027,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       break;
     }
-    case 'hex': {
+    case 'hex':
+    case 'neon': {
       const hexagon = (r: number): [number, number][] =>
         Array.from({ length: 6 }, (_, k) => {
           const ang = (k / 6) * Math.PI * 2 + Math.PI / 6;
@@ -1044,7 +1049,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       break;
     }
     case 'shards':
-    case 'mecha': {
+    case 'mecha':
+    case 'crystal': {
       for (let k = 0; k < 6; k++) {
         const ang = (k / 6) * Math.PI * 2;
         const d = (8 + 46 * p) * s;
@@ -1063,7 +1069,8 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.stroke();
       break;
     }
-    case 'wave': {
+    case 'wave':
+    case 'club': {
       // rings spreading from the hit under the line, toward the gear, their far edges on the line
       for (let k = 0; k < 3; k++) {
         const q = p - k * 0.12;

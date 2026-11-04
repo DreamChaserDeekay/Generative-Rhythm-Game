@@ -1,6 +1,102 @@
 {
   "version": 1,
   "textures": {
+    "club/gear_black": {
+      "file": "styles/club/gear_black.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "club/gear_silver": {
+      "file": "styles/club/gear_silver.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "club/gear_walnut": {
+      "file": "styles/club/gear_walnut.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "club/gear_white": {
+      "file": "styles/club/gear_white.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "club/hitBurst": {
+      "file": "styles/club/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "club/hitHold": {
+      "file": "styles/club/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
+    "club/keys": {
+      "file": "styles/club/keys.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "club/long": {
+      "file": "styles/club/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "club/notes": {
+      "file": "styles/club/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "club/side": {
+      "file": "styles/club/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
     "crystal/floor": {
       "file": "skins/crystal/floor.png",
       "bundle": "gear",
@@ -180,6 +276,102 @@
       "size": [
         128,
         64
+      ]
+    },
+    "gem/gear_gold": {
+      "file": "styles/crystal/gear_gold.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "gem/gear_rosegold": {
+      "file": "styles/crystal/gear_rosegold.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "gem/gear_silver": {
+      "file": "styles/crystal/gear_silver.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "gem/gear_smoke": {
+      "file": "styles/crystal/gear_smoke.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "gem/hitBurst": {
+      "file": "styles/crystal/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "gem/hitHold": {
+      "file": "styles/crystal/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
+    "gem/keys": {
+      "file": "styles/crystal/keys.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "gem/long": {
+      "file": "styles/crystal/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "gem/notes": {
+      "file": "styles/crystal/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "gem/side": {
+      "file": "styles/crystal/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
       ]
     },
     "glass/floor": {
@@ -400,6 +592,102 @@
       "size": [
         128,
         64
+      ]
+    },
+    "neon/gear_black": {
+      "file": "styles/neon/gear_black.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/gear_burgundy": {
+      "file": "styles/neon/gear_burgundy.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/gear_carbon": {
+      "file": "styles/neon/gear_carbon.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/gear_navy": {
+      "file": "styles/neon/gear_navy.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/hitBurst": {
+      "file": "styles/neon/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "neon/hitHold": {
+      "file": "styles/neon/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
+    "neon/keys": {
+      "file": "styles/neon/keys.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "neon/long": {
+      "file": "styles/neon/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "neon/notes": {
+      "file": "styles/neon/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/side": {
+      "file": "styles/neon/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
       ]
     }
   },
