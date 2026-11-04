@@ -509,7 +509,7 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
     ['opt-side-style', 'bar', '기본'],
-    ['opt-deck-style', 'grand', '그랜드 피아노'],
+    ['opt-deck-style', 'standard', '기본'],
     ['opt-hit-style', 'flash', '플래시'],
   ]) {
     await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
@@ -524,16 +524,16 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
   await page.getByTestId('opt-side-style').press('ArrowRight');
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'dots');
-  await chooseSetting(page, 'opt-deck-style', 'neon');
+  await chooseSetting(page, 'opt-deck-style', 'receiver');
   await chooseSetting(page, 'opt-hit-style', 'grid');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'neon', hit: 'grid' } });
+  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'receiver', hit: 'grid' } });
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots neon grid');
-  // the LED grid drawn from its flipbooks, the neon gear from its art
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots receiver grid');
+  // the LED grid drawn from its flipbooks, the receiver from its pictures
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(2500);
@@ -549,60 +549,80 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   for (const [id, value] of [
     ['opt-note-style', 'flat'],
     ['opt-side-style', 'bar'],
-    ['opt-deck-style', 'grand'],
+    ['opt-deck-style', 'standard'],
     ['opt-hit-style', 'flash'],
   ]) {
     await chooseSetting(page, id, value);
   }
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar grand flash');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
   expect(errors).toEqual([]);
 });
 
-test('the mecha set picked part by part: the arcade gear in its one look, all of it drawn from art in play', async ({ page }) => {
+test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the standard one, the cabinet drawn from its pictures, its HUD in its type or the skin’s', async ({ page }) => {
   const errors = trackErrors(page);
-  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
-  // a gear colour an earlier version saved is dropped
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown>; hudType?: string });
+  // a gear colour an earlier version saved is dropped, and its gear, taken out, opens as the standard one
   await page.addInitScript(() => {
-    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { deck: 'arcade', deckColour: 'red' } }));
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ skin: 'arcade', parts: { deck: 'arcade', deckColour: 'red' } }));
   });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   // no gear colour to pick: each gear has one look
-  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'arcade');
+  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'standard');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await expect(page.getByText('기어 색', { exact: true })).toHaveCount(0);
   await chooseSetting(page, 'opt-note-style', 'chamfer');
+  await chooseSetting(page, 'opt-deck-style', 'cabinet');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('오락실 기체');
   await chooseSetting(page, 'opt-hit-style', 'mecha');
   await expect(page.getByTestId('opt-hit-style')).toContainText('메카 섬광');
-  expect((await stored()).parts).toEqual({ note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' });
+  // the judgement and combo follow the gear unless the skin's are kept
+  await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
+  expect((await stored()).parts).toEqual({ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' });
   await page.getByRole('button', { name: /완료/ }).click();
 
-  await tool(page, 'sync-auto');
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar arcade mecha');
-  // the notes, long notes, side notes, gear and hit effect all drawn from the mecha set's art
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
-  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
-  await page.waitForTimeout(2500);
-  await page.screenshot({ path: 'test-results/play-mecha.png' });
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('pause-menu')).toBeVisible();
-  await page.keyboard.press('KeyQ');
-  await expect(page.getByTestId('song-list')).toBeVisible();
+  const play = async (comboFont: RegExp) => {
+    await tool(page, 'sync-auto');
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar cabinet mecha');
+    // the notes, long notes, side notes and hit drawn from the mecha set's art, the cabinet from its pictures
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
+    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    // the HUD beside the track is the cabinet's: its gauge named GROOVE, its readouts in seven segments
+    await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'cabinet');
+    await expect(page.locator('.hud-gauge-name')).toHaveText('GROOVE');
+    await expect(page.locator('.hud-panel-plate')).toBeVisible();
+    expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/DSEG7 Classic/);
+    expect(await page.locator('.hud-combo-num').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(comboFont);
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: 'test-results/play-mecha.png' });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('pause-menu')).toBeVisible();
+    await page.keyboard.press('KeyQ');
+    await expect(page.getByTestId('song-list')).toBeVisible();
+  };
+  await play(/DSEG7 Classic/);
+  // the skin's type for the judgement and combo: arcade's, the gear's HUD otherwise as it was
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-hud-type', 'skin');
+  expect((await stored()).hudType).toBe('skin');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await play(/Bebas Neue/);
   expect(errors).toEqual([]);
 });
 
-test('the club, crystal, neon and piano sets picked part by part: each gear in its one look, all of it drawn from art in play', async ({ page }) => {
+test('the club, crystal, neon and piano sets picked part by part, each on one of the four gears: all of it drawn from art in play, the HUD the gear’s', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [note, deck, hit, hitName, style] of [
-    ['round', 'mixer', 'club', '클럽 링', 'round capsule bar mixer club'],
-    ['star4', 'crystal', 'crystal', '크리스털 파편', 'star4 ray bar crystal crystal'],
-    ['star5', 'neon', 'neon', '네온 아크', 'star5 ray bar neon neon'],
-    ['piano', 'grand', 'piano', '피아노 음표', 'piano key bar grand piano'],
+    ['round', 'receiver', 'club', '클럽 링', 'round capsule bar receiver club'],
+    ['star4', 'standard', 'crystal', '크리스털 파편', 'star4 ray bar standard crystal'],
+    ['star5', 'najeon', 'neon', '네온 아크', 'star5 ray bar najeon neon'],
+    ['piano', 'cabinet', 'piano', '피아노 음표', 'piano key bar cabinet piano'],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();
@@ -618,9 +638,14 @@ test('the club, crystal, neon and piano sets picked part by part: each gear in i
     await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', style);
-    // the notes, long notes, side notes, gear and hit effect all drawn from the set's art
+    // the notes, long notes, side notes and hit effect drawn from the set's art, the gear from its pictures
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
+    // the receiver's gauge is a needle meter; the others' a column of cells, named but for the standard gear's
+    await expect(page.getByTestId('hud-meter')).toHaveCount(deck === 'receiver' ? 1 : 0);
+    await expect(page.locator('.hud-gauge')).toHaveCount(deck === 'receiver' ? 0 : 1);
+    await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'cabinet' || deck === 'najeon' ? 1 : 0);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `test-results/play-${hit}.png` });
     await page.keyboard.press('Escape');

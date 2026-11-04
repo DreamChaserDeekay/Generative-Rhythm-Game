@@ -6,12 +6,12 @@ assets-src/styles/hits/ into client/public/media/styles/hits/ as "<hit>/hitBurst
     python scripts/assets/build_styles.py
 
 The sources are the picked generations, stored as JPEG (quality 95, no chroma subsampling) to keep the
-repository small; where each came from: assets-src/PROVENANCE.md. Notes, long notes, side notes and the gear's
-key caps become tint pictures (client/src/render/tintArt.ts): red is how much of the lane colour shows, green
-how far it is then lifted toward white, alpha the shape; the art is drawn for a neutral white lane, so its value
-says how much colour shows. Hit effects become flipbooks of light on black. The gear's plate keeps its own
-colours, one look a gear (gear.png, from the sheet named in SET_ART's "way"; MECHA's gunmetal). The layouts
-written here are read by client/src/render/styleArt.ts: change the two together.
+repository small; where each came from: assets-src/PROVENANCE.md. Notes, long notes and side notes become tint
+pictures (client/src/render/tintArt.ts): red is how much of the lane colour shows, green how far it is then
+lifted toward white, alpha the shape; the art is drawn for a neutral white lane, so its value says how much
+colour shows. Hit effects become flipbooks of light on black. The sets have no gear: the four gears are built by
+scripts/assets/build_gears.py. The layouts written here are read by client/src/render/styleArt.ts: change the
+two together.
 Needs Pillow, numpy and scipy.
 """
 
@@ -23,7 +23,7 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,10 +114,6 @@ def seamless_rows(a: np.ndarray, length: int, overlap: int) -> np.ndarray:
     return body[:length]
 
 
-def hex_of(rgb: np.ndarray) -> str:
-    return "#" + "".join(f"{int(round(c * 255)):02x}" for c in rgb)
-
-
 # ---------- MECHA ----------
 
 MECHA = SRC / "mecha"
@@ -134,14 +130,6 @@ LONG_W, LONG_TILE, LONG_END = 128, 256, 48
 
 # side.png: the bar laid over half the keys at (0, 0), the side lane's own note at (0, SIDE_PLATE_Y)
 SIDE_BAR_W, SIDE_PLATE_W, SIDE_PLATE_Y = 1024, 512, 240
-
-# keys.png: a key cap per cell (KEY_CELL square), at rest in the first row and lit in the second: ○ △ ◇ and
-# a blank cap (a side lane)
-KEY_CELL = 256
-
-# gear.png: the turntable's module at (0, 0) within TT × TT, the strip under the keys at (0, STRIP_Y), STRIP_W wide
-# and as deep as it is for that width in the gear's sheet (gear_gunmetal.jpg)
-TT, STRIP_Y, STRIP_W = 512, 512, 1024
 
 
 def mecha_notes(textures: dict) -> None:
@@ -231,144 +219,6 @@ def mecha_side(textures: dict) -> dict:
     save_rgba(atlas, MECHA_OUT / "side.png")
     textures["mecha/side"] = {"file": "styles/mecha/side.png", "bundle": "notes", "size": [1024, 512]}
     return layout
-
-
-def gear_parts(a: np.ndarray) -> dict:
-    """Where the gear sheet's parts lie (px of the sheet): the panel, its key caps, the turntable and the strip under the keys."""
-    v = value(a)
-    rows = np.where((v > 0.06).mean(1) > 0.5)[0]
-    cols = np.where((v > 0.06).mean(0) > 0.3)[0]
-    panel = (rows.min(), rows.max() + 1, cols.min(), cols.max() + 1)
-    return {"panel": panel}
-
-
-def erase_mark(cap: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:
-    """The cap with what lies in `box` (y0, y1, x0, x1) painted over from the face around it (each row blended across)."""
-    out = cap.copy()
-    y0, y1, x0, x1 = box
-    for y in range(y0, y1):
-        left, right = out[y, x0 - 3:x0].mean(0), out[y, x1:x1 + 3].mean(0)
-        t = np.linspace(0, 1, x1 - x0, dtype=np.float32)[:, None] if out.ndim == 3 else np.linspace(0, 1, x1 - x0, dtype=np.float32)
-        out[y, x0:x1] = left * (1 - t) + right * t
-    return out
-
-
-def draw_mark(size: int, mark: str, lit: bool) -> np.ndarray:
-    """A key cap's mark as coverage (size × size, 4× supersampled): a ring, a triangle or a diamond."""
-    s = size * 4
-    im = Image.new("L", (s, s), 0)
-    d = ImageDraw.Draw(im)
-    c = s / 2
-    if mark == "white":
-        r, t = s * 0.36, s * 0.085
-        d.ellipse((c - r, c - r, c + r, c + r), fill=255)
-        d.ellipse((c - r + t, c - r + t, c + r - t, c + r - t), fill=0)
-    elif mark == "blue":
-        r = s * 0.42
-        d.polygon([(c, c - r * 0.95), (c + r, c + r * 0.72), (c - r, c + r * 0.72)], fill=255)
-    elif mark == "gold":
-        r = s * 0.44
-        d.polygon([(c, c - r), (c + r, c), (c, c + r), (c - r, c)], fill=255)
-    return np.asarray(im.resize((size, size), Image.LANCZOS), dtype=np.float32) / 255
-
-
-def mecha_keys(textures: dict) -> dict:
-    """Key caps at rest and lit, as tint pictures, from the default gear's sheet (2nd and 4th caps lit)."""
-    a = load(MECHA / "gear_gunmetal.jpg")
-    v = value(a)
-    y0, y1, x0, x1 = gear_parts(a)["panel"]
-    height = y1 - y0
-    # the caps' middles along the row and their size with the socket's rim (shares of the panel's width)
-    side = int((x1 - x0) * MECHA_KEY_SIZE)
-    my = y0 + int(height * MECHA_KEY_ROW)
-
-    def cut(i: int) -> np.ndarray:
-        cx = x0 + int((x1 - x0) * MECHA_KEYS[i])
-        return v[my - side // 2:my - side // 2 + side, cx - side // 2:cx - side // 2 + side]
-
-    unlit_round, lit_tri, unlit_square, lit_diamond = (cut(i) for i in (0, 1, 2, 3))
-    # the mark lies within the cap's middle third: erase it to get the blank caps, then draw each mark
-    m = side // 3
-    box = (side // 2 - m // 2 - 6, side // 2 + m // 2 + 6, side // 2 - m // 2 - 6, side // 2 + m // 2 + 6)
-    blank_idle = erase_mark(unlit_square, box)
-    blank_lit = erase_mark(lit_tri, box)
-    # the marks' ink: the engraving at rest (a little darker than the face), the dark print on a lit cap
-    idle_face = np.median(blank_idle[box[0]:box[1], box[2]:box[3]])
-    lit_ink = float(np.percentile(lit_tri[box[0]:box[1], box[2]:box[3]], 3))
-    atlas = np.zeros((512, 1024, 4), np.float32)
-    marks = ["white", "blue", "gold", "side"]
-    for col, mark in enumerate(marks):
-        for row, (blank, lit) in enumerate([(blank_idle, False), (blank_lit, True)]):
-            cap = blank.copy()
-            if mark != "side":
-                cov = draw_mark(m, mark, lit)
-                y, x = box[0] + 6, box[2] + 6
-                patch = cap[y:y + m, x:x + m]
-                ink = lit_ink * 0.55 if lit else idle_face * 0.55
-                cap[y:y + m, x:x + m] = patch * (1 - cov) + ink * cov
-            # at rest dim (the lane colour mixed into black), lit the colour with a white-hot face; the
-            # square's corners rounded off in alpha, so no plate shows as a square round the socket
-            alpha = socket_alpha(side)
-            rgba = tint(cap, alpha, gain=1 / 0.7, lift=0.8, white=0.7) if not lit else tint(cap, alpha, gain=1 / 0.6, lift=0.66, white=0.92, power=1.1)
-            paste(atlas, resize_premultiplied(rgba, KEY_CELL, KEY_CELL), col * KEY_CELL, row * KEY_CELL)
-    save_rgba(atlas, MECHA_OUT / "keys.png")
-    textures["mecha/keys"] = {"file": "styles/mecha/keys.png", "bundle": "gear", "size": [1024, 512]}
-    return {"side": side}
-
-
-def socket_alpha(size: int) -> np.ndarray:
-    """A rounded square's coverage (size × size): a key cap with its socket's rim."""
-    s = size * 4
-    im = Image.new("L", (s, s), 0)
-    ImageDraw.Draw(im).rounded_rectangle((s * 0.02, s * 0.02, s * 0.98, s * 0.98), radius=s * 0.14, fill=255)
-    return np.asarray(im.resize((size, size), Image.LANCZOS), dtype=np.float32) / 255
-
-
-def mecha_gear(textures: dict) -> dict:
-    """The turntable's module and the strip of plates and grille under the keys, in the gear's own gunmetal."""
-    a = load(MECHA / "gear_gunmetal.jpg")
-    y0, y1, x0, x1 = gear_parts(a)["panel"]
-    t, b, l, r = MECHA_STRIP_BOX
-    strip_h = round(STRIP_W * (y1 - y0) * (b - t) / ((x1 - x0) * (r - l)))
-
-    # parts as shares of the panel
-    def box(t: float, b: float, l: float, r: float) -> np.ndarray:
-        return a[y0 + int((y1 - y0) * t):y0 + int((y1 - y0) * b), x0 + int((x1 - x0) * l):x0 + int((x1 - x0) * r)]
-
-    tt = box(*MECHA_TT_BOX)
-    strip = box(*MECHA_STRIP_BOX)
-    atlas = np.zeros((1024, 1024, 4), np.float32)
-    th, tw = tt.shape[:2]
-    side = max(th, tw)
-    tt_rgba = np.concatenate([tt, chamfer_alpha(th, tw, MECHA_TT_CUT)[..., None]], axis=2)
-    paste(atlas, resize_premultiplied(tt_rgba, round(TT * tw / side), round(TT * th / side)), 0, 0)
-    strip_rgba = np.concatenate([strip, np.ones(strip.shape[:2] + (1,), np.float32)], axis=2)
-    paste(atlas, resize_premultiplied(strip_rgba, STRIP_W, strip_h), 0, STRIP_Y)
-    save_rgba(atlas, MECHA_OUT / "gear.png")
-    textures["mecha/gear"] = {"file": "styles/mecha/gear.png", "bundle": "gear", "size": [1024, 1024]}
-    # the plate's own colours: its face between the keys, the face's darker trim, the bright edge
-    face = box(0.06, 0.1, 0.4, 0.95).reshape(-1, 3)
-    low = box(0.905, 0.925, 0.4, 0.95).reshape(-1, 3)
-    edge = box(0.0, 0.015, 0.3, 0.9).reshape(-1, 3)
-    colours = {
-        "face": hex_of(np.median(face, 0)),
-        "trim": hex_of(np.median(low, 0)),
-        "edge": hex_of(np.percentile(edge, 90, axis=0)),
-        "tt": [round(tw / side * TT), round(th / side * TT)],
-    }
-    return {"strip_h": strip_h, "colours": colours}
-
-
-# the turntable's module (top, bottom, left, right as shares of the panel) and its corners' cut (share of its side)
-MECHA_TT_BOX = (0.028, 0.9, 0.028, 0.264)
-MECHA_TT_CUT = 0.13
-# the key row's middle (share of the panel's height), its caps' middles and their size with the socket's rim
-# (shares of the panel's width)
-MECHA_KEY_ROW = 0.266
-MECHA_KEYS = (0.430, 0.508, 0.589, 0.671, 0.755, 0.839, 0.923)
-MECHA_KEY_SIZE = 0.068
-# the strip under the keys: the two bolted plates and the grille between them
-MECHA_STRIP_BOX = (0.452, 0.9, 0.266, 0.969)
 
 
 def chamfer_alpha(h: int, w: int, cut: float) -> np.ndarray:
@@ -545,71 +395,33 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
 
 # ---------- CLUB, CRYSTAL, NEON: one builder, each set's own numbers ----------
 #
-# Shares are of the gear sheet's panel (x across its width, y down its height); px of a source sheet otherwise.
-# The atlases (styleArt.ts: SETS):
+# Px of a source sheet. The atlases (styleArt.ts):
 #   notes.png 1024 × 1024: a 2 × 2 grid of 512 cells (white, blue, gold, scratch), the note fitted in 500 px about
 #     the cell's middle; or, `rows`, a row of 256 per note, the note 1024 wide about the row's middle
 #   long.png 512 × 256: body idle | body held | end idle | end held, 128 wide (ends `end` px deep)
 #   side.png 1024 × 512: the bar over the keys at (0, 0); the side lane's own note at (0, 256)
-#   keys.png 512 × 256: the light at rest | lit, fitted in 256 about the cell's middle
-#   gear.png 1024 × 1024 (from gear_<way>.jpg): the scratch's module fitted in 512 at (0, 0); the gear's strip under
-#     the row at (0, 512), 1024 wide; club's fader at (512, 0), fitted in 256 × 512
 
 SET_ART = {
     "club": {
         "notes": {"rows": False, "gain": 1 / 0.6, "lift": 0.7, "white": 0.8, "disc": True},
         "long": {"cap": 140, "idle": (1 / 0.8, 0.74, 0.7), "held": (1 / 0.62, 0.6, 0.9), "see": None},
         "side": {"cut": 0.105, "plate_cut": 0.21, "tint": (1 / 0.62, 0.68, 0.85), "bright": 0.62},
-        "keys": {"way": "black", "idle": (0.532, 0.502), "lit": (0.4326, 0.502), "box": (0.055, None), "mask": "circle", "fit": 0.62},
-        "way": "black",
-        "module": {"centre": (0.147, 0.51), "r": 0.112, "mask": "circle"},
-        "strip": None,
-        "fader": {"centre": 0.531, "w": 0.05, "y": (0.6, 0.9)},
-        "colours": {"face": (0.27, 0.28, 0.06, 0.94), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
     "crystal": {
         "notes": {"rows": True, "gain": 1 / 0.7, "lift": 0.74, "white": 0.85},
         "long": {"cap": 150, "idle": (1 / 0.7, 0.72, 0.8), "held": (1 / 0.6, 0.6, 0.9), "see": None},
         "side": {"cut": 0.04, "plate_cut": 0.07, "tint": (1 / 0.65, 0.7, 0.9), "bright": 0.6},
-        "keys": {"way": "silver", "idle": (0.4588, 0.474), "lit": (0.3471, 0.474), "box": (0.0896, 0.56), "mask": "diamond", "fit": 0.768},
-        "way": "silver",
-        "module": {"centre": (0.108, 0.46), "r": 0.071, "mask": "circle"},
-        "strip": {"x": (0.3, 0.93), "y": (0.66, 0.92)},
-        "fader": None,
-        # its glass panes, the dark board under them, its frame
-        "colours": {"glass": (0.25, 0.4, 0.1, 0.25), "panel": (0.45, 0.55, 0.08, 0.2), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
     "neon": {
         "notes": {"rows": False, "gain": 1 / 0.7, "lift": 0.72, "white": 0.85},
         "long": {"cap": 184, "idle": (1 / 0.72, 0.7, 0.85), "held": (1 / 0.62, 0.6, 0.9), "see": 0.55},
         "side": {"cut": 0.04, "plate_cut": 0.16, "tint": (1 / 0.7, 0.7, 0.9), "bright": 0.62},
-        "keys": {"way": "black", "idle": (0.5125, 0.498), "lit": (0.4126, 0.498), "box": (0.12, 0.48), "mask": "plate", "fit": 0.74},
-        "way": "black",
-        # the module's plate
-        "module": {"box": (0.0422, 0.2375, 0.1247, 0.8614), "mask": "plate"},
-        "strip": {"x": (0.25, 0.98), "y": (0.7, 0.95)},
-        "fader": None,
-        # its circuit board above the lights, its frame
-        "colours": {"face": (0.3, 0.95, 0.08, 0.24), "edge": (0.0, 0.012, 0.3, 0.9)},
     },
     "piano": {
         # ivory slabs: the enamel in the lane colour, its brass inlay and mark lifted toward white (found by their warmth)
         "notes": {"rows": True, "gain": 1 / 0.72, "lift": 0.86, "white": 0.85, "brass": 0.8},
         "long": {"cap": 120, "idle": (1 / 0.75, 0.86, 0.8), "held": (1 / 0.62, 0.72, 0.9), "see": None, "brass": 0.8},
         "side": {"cut": 0.058, "plate_cut": 0.117, "tint": (1 / 0.62, 0.7, 0.85), "bright": 0.6},
-        # an ivory key front: a rounded rectangle, its long middle shortened to the row's proportions; lit, the lane
-        # colour with only its brightest heart lifted toward white
-        "keys": {"way": "ebony", "idle": (0.2644, 0.525), "lit": (0.3319, 0.5316), "box": (0.072, 0.80), "mask": "roundrect",
-                 "fit": (0.875, 0.9125), "lit_grow": 1.03, "squash": 1.16, "lit_tint": (1 / 0.7, 0.9, 0.8, 1.2),
-                 # at rest its ivory keeps its shading (the game draws it in ivory, not the lane colour)
-                 "idle_tint": (1 / 0.95, 0.97, 0.3)},
-        "way": "ebony",
-        # the brass dial, drawn a little taller than wide: cut as drawn, then round again
-        "module": {"centre": (0.1277, 0.527), "r": 0.0665, "ry": 0.219, "mask": "circle"},
-        "strip": None,
-        "fader": None,
-        # its lacquer beside the dial, its brass pinstripe, the felt under the keys
-        "colours": {"face": (0.03, 0.06, 0.2, 0.3), "brass": (0.2, 0.8, 0.026, 0.036), "felt": (0.3, 0.9, 0.905, 0.925)},
     },
 }
 
@@ -677,7 +489,7 @@ def set_notes(cid: str, textures: dict) -> None:
         crop = np.pad(v, ((h, h), (w, w)))[cut]
         alpha = shape_alpha(crop)
         if c.get("disc"):
-            alpha = alpha * shape_mask("circle", h, w, 1.0)
+            alpha = alpha * circle_mask(h, w)
         rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
         if c.get("brass"):
             lift_brass(rgba, np.pad(warm, ((h, h), (w, w)))[cut], c["brass"])
@@ -752,134 +564,14 @@ def set_side(cid: str, textures: dict) -> dict:
     return layout
 
 
-def panel_of(a: np.ndarray) -> tuple[int, int, int, int]:
-    return gear_parts(a)["panel"]
-
-
-def shape_mask(kind: str, h: int, w: int, fit: float | tuple[float, float], soft: float = 0.0) -> np.ndarray:
-    """A circle, a diamond, a hexagon (flat top and bottom) or neon's module plate filling `fit` of h × w about its
-    middle, its edge softened over `soft` of its size (lit lights keep their glow)."""
+def circle_mask(h: int, w: int) -> np.ndarray:
+    """A circle as wide as the smaller side of h × w, about its middle, antialiased (4 × 4 samples a px)."""
     s = 4
     im = Image.new("L", (w * s, h * s), 0)
-    d = ImageDraw.Draw(im)
+    r = min(w, h) * s / 2
     cx, cy = w * s / 2, h * s / 2
-    fx, fy = fit if isinstance(fit, tuple) else (fit, fit)
-    rx, ry = w * s * fx / 2, h * s * fy / 2
-    if kind == "circle":
-        r = min(rx, ry)
-        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
-    elif kind == "diamond":
-        d.polygon([(cx, cy - ry), (cx + rx, cy), (cx, cy + ry), (cx - rx, cy)], fill=255)
-    elif kind == "roundrect":
-        # a piano key's front: its corners rounded by a seventh of its width
-        d.rounded_rectangle((cx - rx, cy - ry, cx + rx, cy + ry), radius=rx * 2 / 7, fill=255)
-    elif kind == "plate":
-        # neon's module: a hexagon standing on a point, its sides upright, its corners worn round
-        q = ry / 2
-        d.polygon([(cx, cy - ry), (cx + rx, cy - ry + q), (cx + rx, cy + ry - q), (cx, cy + ry), (cx - rx, cy + ry - q), (cx - rx, cy - ry + q)], fill=255)
-        im = im.filter(ImageFilter.GaussianBlur(min(w, h) * s * 0.03)).point(lambda p: 255 if p >= 128 else 0)
-    else:
-        d.polygon([(cx - rx, cy), (cx - rx / 2, cy - ry), (cx + rx / 2, cy - ry), (cx + rx, cy), (cx + rx / 2, cy + ry), (cx - rx / 2, cy + ry)], fill=255)
-    if soft > 0:
-        im = im.filter(ImageFilter.GaussianBlur(min(w, h) * s * soft))
+    ImageDraw.Draw(im).ellipse((cx - r, cy - r, cx + r, cy + r), fill=255)
     return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
-
-
-def squash_middle(rgba: np.ndarray, aspect: float) -> np.ndarray:
-    """A tall light (a piano key) shortened to `aspect` of its width: its two ends (and their rounded corners) as
-    they are, its plain middle squeezed."""
-    h, w = rgba.shape[:2]
-    end = int(w * 0.3)
-    target = max(2 * end + 2, round(w * aspect))
-    middle = resize_premultiplied(rgba[end:h - end], w, target - 2 * end)
-    return np.concatenate([rgba[:end], middle, rgba[h - end:]], axis=0)
-
-
-def set_keys(cid: str, textures: dict) -> None:
-    """A set's lane light at rest and lit (from the gear's sheet), each cut about its middle (where the
-    light is mirror-symmetric) in the light's shape."""
-    c = SET_ART[cid]["keys"]
-    a = load(SRC / cid / f"gear_{c['way']}.jpg")
-    v = value(a)
-    y0, y1, x0, x1 = panel_of(a)
-    W, H = x1 - x0, y1 - y0
-    bw = int(W * c["box"][0])
-    bh = int(H * c["box"][1]) if c["box"][1] else bw
-    atlas = np.zeros((256, 512, 4), np.float32)
-    for i, key in enumerate(("idle", "lit")):
-        sx, sy = c[key]
-        cx, cy = x0 + int(W * sx), y0 + int(H * sy)
-        crop = v[cy - bh // 2:cy - bh // 2 + bh, cx - bw // 2:cx - bw // 2 + bw]
-        lit = key == "lit"
-        grow = c.get("lit_grow", 1.18) if lit else 1.0
-        fit = tuple(f * grow for f in c["fit"]) if isinstance(c["fit"], tuple) else c["fit"] * grow
-        alpha = shape_mask(c["mask"], bh, bw, fit, soft=0.05 if lit else 0.0)
-        if lit:
-            # the glow past the light's edge is light, not plate: as bright as it is, fading out
-            gain, lift, white, power = c.get("lit_tint", (1 / 0.62, 0.66, 0.92, 1.1))
-            rgba = tint(crop, alpha * np.clip(crop / 0.5, 0, 1), gain=gain, lift=lift, white=white, power=power)
-            rgba[..., 3] = np.maximum(shape_mask(c["mask"], bh, bw, c["fit"]), rgba[..., 3])
-        else:
-            gain, lift, white = c.get("idle_tint", (1 / 0.75, 0.8, 0.7))
-            rgba = tint(crop, alpha, gain=gain, lift=lift, white=white)
-        if c.get("squash"):
-            rgba = squash_middle(rgba, c["squash"])
-        paste(atlas, fit_into(rgba, 256, 256), i * 256, 0)
-    save_rgba(atlas, OUT / cid / "keys.png")
-    textures[f"{NAME.get(cid, cid)}/keys"] = {"file": f"styles/{cid}/keys.png", "bundle": "gear", "size": [512, 256]}
-
-
-def set_gear(cid: str, textures: dict) -> dict:
-    """The scratch's module, the strip under the row (or club's fader), and the plate's colours, from the gear's sheet."""
-    c = SET_ART[cid]
-    a = load(SRC / cid / f"gear_{c['way']}.jpg")
-    y0, y1, x0, x1 = panel_of(a)
-    W, H = x1 - x0, y1 - y0
-
-    def box(t: float, b: float, l: float, r: float) -> np.ndarray:
-        return a[y0 + int(H * t):y0 + int(H * b), x0 + int(W * l):x0 + int(W * r)]
-
-    def opaque(rgb: np.ndarray) -> np.ndarray:
-        return np.concatenate([rgb, np.ones(rgb.shape[:2] + (1,), np.float32)], axis=2)
-
-    atlas = np.zeros((1024, 1024, 4), np.float32)
-    m = c["module"]
-    if "centre" in m:
-        sx, sy = m["centre"]
-        r = int(W * m["r"])
-        # a dial drawn a little taller than wide (its own `ry`) is cut as drawn and made round
-        rh = int(H * m["ry"]) if "ry" in m else r
-        cx, cy = x0 + int(W * sx), y0 + int(H * sy)
-        mod = opaque(a[cy - rh:cy + rh, cx - r:cx + r])
-        if "ry" in m:
-            mod = resize_premultiplied(mod, 2 * r, 2 * r)
-        mod[..., 3] = shape_mask("circle", mod.shape[0], mod.shape[1], 1.0)
-    else:
-        l, rr, t, b = m["box"]
-        mod = opaque(box(t, b, l, rr))
-        mod[..., 3] = shape_mask(m["mask"], mod.shape[0], mod.shape[1], 1.0)
-    paste(atlas, fit_into(mod, 512, 512), 0, 0)
-    info = {"module": [int(mod.shape[1]), int(mod.shape[0])]}
-    if c["strip"]:
-        l, rr = c["strip"]["x"]
-        t, b = c["strip"]["y"]
-        strip = opaque(box(t, b, l, rr))
-        sh = round(1024 * strip.shape[0] / strip.shape[1])
-        paste(atlas, resize_premultiplied(strip, 1024, sh), 0, 512)
-        info["strip_h"] = sh
-    if c["fader"]:
-        f = c["fader"]
-        fd = opaque(box(f["y"][0], f["y"][1], f["centre"] - f["w"] / 2, f["centre"] + f["w"] / 2))
-        paste(atlas, fit_into(fd, 256, 512), 512, 0)
-        info["fader"] = [int(fd.shape[1]), int(fd.shape[0])]
-    save_rgba(atlas, OUT / cid / "gear.png")
-    textures[f"{NAME.get(cid, cid)}/gear"] = {"file": f"styles/{cid}/gear.png", "bundle": "gear", "size": [1024, 1024]}
-    cols = {}
-    for key, (l, rr, t, b) in c["colours"].items():
-        px = box(t, b, l, rr).reshape(-1, 3)
-        cols[key] = hex_of(np.percentile(px, 90, axis=0) if key in ("edge", "brass") else np.median(px, 0))
-    info["colours"] = cols
-    return info
 
 
 def fx_cells(cid: str) -> dict[str, np.ndarray]:
@@ -1287,17 +979,13 @@ def main() -> None:
     mecha_notes(textures)
     mecha_long(textures)
     side = mecha_side(textures)
-    keys = mecha_keys(textures)
-    gear = mecha_gear(textures)
     mecha_hits(textures)
-    report = {"mecha": {"side": side, "keys": keys, "gear": gear}}
+    report = {"mecha": {"side": side}}
     for cid in SET_ART:
         if (OUT / cid).exists():
             shutil.rmtree(OUT / cid)
         set_notes(cid, textures)
         report[cid] = {"long": set_long(cid, textures), "side": set_side(cid, textures)}
-        set_keys(cid, textures)
-        report[cid]["gear"] = set_gear(cid, textures)
         set_hits(cid, textures)
     if HITS_OUT.exists():
         shutil.rmtree(HITS_OUT)

@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+import { GEAR_STYLES } from './deckArt';
+import { GAUGE_NAMES, GEAR_TYPES, HUD_TYPE_SOURCES, hudGearOf, hudTypeFor } from './gearHud';
+import { HUD_FONTS, skinById, styleOf } from './skins';
+
+describe('the HUD a gear brings', () => {
+  it('writes the judgement and combo in the gear’s type unless the player keeps the skin’s', () => {
+    const skin = styleOf(skinById('neon', null));
+    expect(HUD_TYPE_SOURCES).toEqual(['gear', 'skin']);
+    for (const gear of GEAR_STYLES) {
+      expect(hudGearOf({ deck: gear })).toBe(gear);
+      expect(hudTypeFor({ ...skin, deck: gear }, 'gear')).toBe(GEAR_TYPES[gear]);
+      expect(hudTypeFor({ ...skin, deck: gear }, 'skin')).toBe(skin.type);
+    }
+    // a skin's own gear has no HUD of its own
+    for (const deck of ['line', 'stem'] as const) {
+      expect(hudGearOf({ deck })).toBeNull();
+      expect(hudTypeFor({ ...skin, deck }, 'gear')).toBe(skin.type);
+    }
+  });
+
+  it('writes in the fonts bundled, in plain colours, and names each gauge but the standard one', () => {
+    for (const gear of GEAR_STYLES) {
+      const t = GEAR_TYPES[gear];
+      expect(HUD_FONTS[t.font], gear).toBeDefined();
+      if (t.comboFont) expect(HUD_FONTS[t.comboFont], gear).toBeDefined();
+      for (const colour of [t.max, t.outline, t.comboColor, t.comboOutline]) if (colour !== undefined) expect(colour, gear).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    // the cabinet's and the receiver's readouts in seven segments, the najeon's in gold serif
+    expect([GEAR_TYPES.cabinet.comboFont, GEAR_TYPES.receiver.comboFont]).toEqual(['DSEG7 Classic', 'DSEG7 Classic']);
+    expect(GEAR_TYPES.najeon.font).toBe('Cinzel');
+    // "MAX" in white, its percent in the standard gear's cyan
+    expect(GEAR_TYPES.standard.split).toBe(true);
+    expect(GAUGE_NAMES).toEqual({ standard: null, cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥' });
+  });
+});

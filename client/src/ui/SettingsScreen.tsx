@@ -46,7 +46,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -501,7 +501,7 @@ export function SettingsScreen({
             value={settings.skin}
             options={skinChoices(settings)}
             onChange={(id) => set('skin', id)}
-            help="키 빔·레일·판정선·트랙의 색과 모양, 판정·콤보 글꼴입니다. 노트·사이드 노트·기어·타격 효과는 아래에서 따로 고르고, 카메라는 바뀌지 않습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
+            help="키 빔·판정선·트랙의 색과 모양입니다. 노트·사이드 노트·기어·타격 효과는 아래에서 따로 고르고, 카메라는 바뀌지 않습니다. 판정·콤보 글꼴은 기어를 따르며, 아래 판정·콤보 글꼴에서 스킨의 것으로 바꿀 수 있습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
           />
           <Choice
             {...row}
@@ -510,7 +510,7 @@ export function SettingsScreen({
             value={settings.parts.note}
             options={PART_CHOICES.note}
             onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관, 피아노는 래커 건반)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별·피아노는 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 기어·타격 효과와 고르면 한 벌로 맞습니다: 메카(메카 챔퍼·아케이드·메카 섬광), 클럽(원형·믹서·클럽 링), 크리스털(별 (4각)·크리스털·크리스털 파편), 네온(별 (5각)·네온·네온 아크), 피아노(피아노·그랜드 피아노·피아노 음표)."
+            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관, 피아노는 래커 건반)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별·피아노는 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크), 피아노(피아노·피아노 음표)."
           />
           <Choice
             {...row}
@@ -532,7 +532,16 @@ export function SettingsScreen({
             value={settings.parts.deck}
             options={PART_CHOICES.deck}
             onChange={(v) => setPart('deck', v)}
-            help="판정선 아래 기어(키를 누르면 켜지는 레인 표시등과 그 아래 판)의 모양입니다. 판정선의 위치와 모양은 어느 기어에서나 같습니다."
+            help="트랙을 담는 기어입니다. 판정선 아래 받침과 건반(누르면 레인 색으로 켜짐), 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다. 기본은 그래파이트 테에 스모크 유리 패드, 오락실 기체는 검은 플라스틱·크롬·아크릴 버튼·턴테이블, 빈티지 리시버는 월넛과 은색 앞판·피아노 키 스위치·바늘 미터, 나전칠기는 흑칠·자개·황동입니다. 피버 때는 테두리의 불빛이 켜집니다. 판정선의 위치와 모양은 어느 기어에서나 같습니다."
+          />
+          <Choice
+            {...row}
+            label="판정·콤보 글꼴"
+            testId="opt-hud-type"
+            value={settings.hudType}
+            options={HUD_TYPE_CHOICES}
+            onChange={(v) => set('hudType', v)}
+            help="판정과 콤보를 쓰는 글꼴과 색입니다. 기어를 따르면 기본은 흰 장체(MAX는 흰색, 퍼센트는 하늘색), 오락실 기체는 빨간 7세그 콤보와 굵은 이탤릭 판정, 빈티지 리시버는 호박색 7세그 콤보와 가는 장체 판정, 나전칠기는 금색 세리프로 씁니다. 트랙 스킨을 따르면 스킨의 글꼴로 씁니다."
           />
           <Choice
             {...row}
