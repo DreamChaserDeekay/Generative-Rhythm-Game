@@ -1,6 +1,6 @@
 # 에셋 출처 (PROVENANCE)
 
-게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 컨셉 세트(메카 · 클럽 · 크리스털 · 네온)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터).
+게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 컨셉 세트(메카 · 클럽 · 크리스털 · 네온 · 피아노)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터).
 
 아래 P0 세트(ElevenLabs)의 기록이 먼저, 그다음 컨셉 세트(Gemini)의 기록입니다.
 
@@ -715,6 +715,17 @@
 
   > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: dark walnut wood side panels with a black brushed-metal face and chrome details. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
 
+### `styles/club/walnut_veneer.jpg`
+
+- 용도: 월넛 기어의 채널 띠(세로 결) → `styles/club/gear_walnut.png` 의 (0, 512)
+- 크기 · 기준 이미지: 16:9 · 2K · 없음
+- 날짜: 2026-11-04 11:42 KST · 약 $0.056
+- 생성 결과(PNG): 6,567,327바이트 · sha256 앞 16자리 `b04db82d957a6ec6` · 저장한 JPEG: 460,161바이트 (저장소 크기를 줄이려 가로세로 절반 1376×768 로)
+- 후처리: 가운데 1024×512 를 실제 색 그대로 · 게임은 한 장을 판 전체에 대고 채널 띠마다 제 자리만 보이게(띠 사이 홈은 짙은 나무색) · 첫 시도(월넛 기어 시트를 기준 이미지로)는 생성 모델이 기존 이미지와 너무 닮았다며(IMAGE_RECITATION) 그림을 주지 않아 기준 이미지 없이 다시 만듦(첫 시도 약 $0.006)
+- 프롬프트:
+
+  > A flat, evenly lit texture of American black walnut wood veneer, as used on a luxury audio console: deep chocolate brown with warm amber streaks, fine straight grain running vertically from the top edge to the bottom edge with a gentle wavy figure in places, a satin lacquer finish without reflections. It fills the whole frame edge to edge. Straight top-down, no perspective, no objects, no vignette, no text, letters, numbers, logos or watermarks.
+
 ## 크리스털 세트 (`styles/crystal`, 매니페스트 이름 `gem`, 2026-11)
 
 메카 세트와 같은 방법으로 만든 세트입니다. 길쭉한 보석 노트 · 프리즘 롱노트 · 사이드 노트 · 크리스털 기어(색 4가지) · 파편 타격 이펙트을 그림에서 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
@@ -1030,3 +1041,172 @@
 - 프롬프트:
 
   > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep burgundy red glass over a dark circuit board with gold frames. Keep the lit key areas glowing pure white. No text, letters, numbers, logos or watermarks.
+
+## 피아노 세트 (`styles/piano`, 2026-11)
+
+그랜드 피아노 기어를 그림으로 다시 그리고, 피아노 노트 계열(건반 앞판 노트 · 래커 건반 롱노트 · 사이드 노트)과 음표가 터지는 타격 효과를 더한 세트입니다. 노트 피아노 · 기어 그랜드 피아노 · 타격 효과 피아노 음표를 고르면 한 벌로 그립니다(`client/src/render/styleArt.ts`, 그림이 없으면 코드 그림).
+
+- 만든 곳 · 순서 · 저장 형식: 메카 세트와 같습니다. 다만 ②의 스타일 프레임 3안(정석 · 화려하게 · 날렵하게) 중 A안(정석)은 사용자가 아니라 작업자가 골랐습니다(노트의 황동 상감선과 표식이 가장 또렷해서).
+- 비용: 저장소에 넣은 9장(시트 8장과 마호가니 결)과 기준 스타일 프레임을 합해 약 $0.62, 고르지 않은 스타일 프레임 2장이 약 $0.13 입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았습니다.
+- 프롬프트에 든 다른 게임 이름: ②의 스타일 프레임 프롬프트(아래 `piano-A.png`)에만 메카와 같이 카메라 설명으로 SOUND VOLTEX, 완성도 기준으로 DJMAX RESPECT V · EZ2ON REBOOT : R · SOUND VOLTEX 를 적었습니다("디자인을 베끼지 말 것"이라고 함께 적음). 그 프레임의 기준 이미지는 이 게임의 실제 화면(코드로 그린 그랜드 피아노 기어)입니다. ③의 시트와 나무결 프롬프트에는 게임 · 회사 · 아티스트 이름이 없습니다.
+
+### 스타일 프레임 `piano-A.png` (저장소에 넣지 않음, 부위별 시트의 기준 이미지)
+
+- 기준 이미지: 이 게임의 기본 스킨에 코드로 그린 그랜드 피아노 기어 화면(7K+1S)
+- 날짜: 2026-11-04 11:39 KST · 약 $0.071
+- 프롬프트:
+
+  > Image 1 is a screenshot of the current game in this concept's old skin. Use it ONLY for the camera (a low 3D perspective looking up a tilted track, as in SOUND VOLTEX), the track proportions, the lane layout (one wide scratch lane at the left tinted red, then seven key lanes tinted white, blue, white, gold, white, blue, white), the horizontal judge line near the bottom (77 % down the image) and the gear panel under it. Redraw everything else at a much higher level of finish.
+  >
+  > A 16:9 gameplay frame of a commercial PC keyboard rhythm game, mid-song. On the track: a three-note chord in one row, single notes, one note in the scratch lane, a long note in a blue lane that is being held (its body is cut off exactly at the judge line and looks brighter), another long note in the gold lane still coming down, and a long scratch note further up the track. Two lanes are being pressed: their key lights in the gear glow in the lane colour, and a hit effect bursts at the judge line in those lanes, spreading mostly downward over the gear and never covering the notes coming down.
+  >
+  > CONCEPT: PIANO. Keywords: concert grand piano, mirror-polished lacquer, ivory and brass, elegant and warm.
+  > - Materials (only these three): mirror-polished black piano lacquer, warm ivory enamel and polished brass; a thin strip of deep red felt is the only accent, in the gear only.
+  > - Shape grammar: the proportions of piano keys: long flat slabs with softly rounded front edges (corner radius about 10 % of their height) and a fine bevel; thin brass inlay lines and pinstripes; long clean horizontal lines; no chamfers and no circles, except brass knobs and the scratch dial.
+  > - Light: one key light from the top-left: a long crisp mirror reflection band across the lacquer, a soft satin sheen on the ivory, small bright glints on the brass.
+  > - Tap note: a wide slab like the front of a piano key: enamel in the lane colour with a softly rounded front edge and a fine bevel, a thin brass inlay line across its middle that marks the judge point, and the key-type mark inlaid in brass at its centre (a small circle on white keys, a triangle on blue keys, a diamond on the gold key, two slashes on the scratch).
+  > - Long note: a long lacquered key body in the lane colour with a brass inlay line down its middle; its ends are closed by rounded key-front caps of the body itself (not tap notes); while held, light runs along the inlay.
+  > - Hit effect: a short soft white flash on the judge line and a few glints, like light catching a lacquered lid.
+  > - Gear (below the judge line): a concert grand keybed: a mirror-polished black lacquer key slip with a thin brass pinstripe along its top edge, one large ivory key front per lane set into the lacquer, which lights up in the lane colour when pressed; a thin strip of deep red felt under the row of keys; the scratch is a polished brass rotary dial with fine knurling in a round lacquered housing. Rails: polished black lacquer with a thin brass edge.
+  > - Unlike other concepts: warm and classical: deep mirror lacquer reflections, ivory and fine brass inlay, softly rounded key edges (not machined, not round discs, not faceted crystal, not neon tubes).
+  >
+  > Variant: balanced. Follow the concept exactly as written, with a medium amount of detail.
+  >
+  > Rules: a long note is one continuous body only, with no tap note at its start or end; its ends are closed by the body's own end shape. Every note, long note and key light uses one design in all lanes; only its tint changes with the lane colour, and the key-type mark tells the lanes apart. The track floor is the same very dark, almost black surface in every lane (under 10 % brightness, matte, like the reference), with thin dim lane dividers: never paint a lane floor in a lane colour, in metal or in white, and never let the lanes alternate light and dark like piano keys; the concept's materials belong to the notes, the gear and the rails, not to the track floor; the wide scratch lane's floor is as dark as the others, only its notes are red. Only notes, long notes and key lights carry the lane colours. The two pressed lanes show just a short faint light column rising from the judge line, fading out within a quarter of the track. Keep the track where the reference has it, in the middle of the frame, with the scratch lane as its leftmost lane; the gear panel under the judge line is exactly as wide as the track. The judge line is a crisp white line with a short soft glow, the same as in the reference.
+  >
+  > Quality bar: the finish of a commercial console or arcade rhythm game such as DJMAX RESPECT V, EZ2ON REBOOT : R or SOUND VOLTEX, used only as a quality reference: do not copy their designs. Crisp edges with painted material detail; three value steps in every element (dark rim, mid body, bright highlight); one key light from the top-left on every part; ambient occlusion in grooves. Notes must read instantly even when small and fast.
+  >
+  > No text, letters, numbers, HUD, score, combo counter, logos or watermarks anywhere. No characters. No bloom haze, no lens flares, no motion blur, no purple-blue-pink gradient wash, no glassmorphism panels. The area outside the track is plain dark.
+
+### `styles/piano/notes.jpg`
+
+- 용도: 탭 노트 4개(건반 앞판에 황동 상감선, 가운데 황동 표식 ○ △ ◇ //) → `styles/piano/notes.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `piano-A.png`
+- 날짜: 2026-11-04 11:42 KST · 약 $0.065
+- 생성 결과(PNG): 3,539,302바이트 · sha256 앞 16자리 `226601dfb4b982be` · 저장한 JPEG: 625,247바이트
+- 후처리: 앞판 4개를 각각 잘라(검은 바탕 → 알파) 1024×200 으로, 한 줄에 하나씩 · 밝기 ÷ 0.72 = 레인 색의 양(R), 0.86 넘는 밝기는 흰색 쪽으로(G, 최대 0.85) · 황동(그림에서 유일하게 따뜻한 색: 빨강 − 파랑으로 찾음)은 레인 색에서 흰색 쪽으로 0.8 올려 밝은 상감으로 · 게임은 둥근 양 끝과 가운데 표식을 그대로 두고 그 사이 상감선만 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the tap notes, four rows stacked from top to bottom with equal black gaps; each note is about four times as wide as it is tall and fills 90 % of the image width. The note: a wide slab like the front of a piano key: smooth glossy enamel with softly rounded corners and a fine bevel, a thin polished brass inlay line running across its whole width through its middle, which marks the judge point, and the key-type mark inlaid in brass at its centre. The four notes differ only by a small engraved mark at the centre: row 1 a small circle (white key), row 2 a small triangle (blue key), row 3 a small diamond (gold key), row 4 two short slashes (scratch).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/piano/long.jpg`
+
+- 용도: 롱노트(대기 · 누르는 중) → `styles/piano/long.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `piano-A.png`
+- 날짜: 2026-11-04 11:42 KST · 약 $0.061
+- 생성 결과(PNG): 2,950,718바이트 · sha256 앞 16자리 `c9743495010a13b1` · 저장한 JPEG: 458,254바이트
+- 후처리: 두 몸통을 같은 폭으로 잘라 몸통 128×256(이음새 없이 반복)과 끝(둥근 위쪽) 128×57 · 대기는 밝기 ÷ 0.75, 누르는 중은 ÷ 0.62 · 황동 상감선은 노트처럼 밝게
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: two long notes of this concept standing upright side by side, each about one fifth of the image wide and 90 % of its height: the left one idle, the right one held (brighter, light running along its inlay). A long note is one continuous body only, with no tap note at either end: a long lacquered key body with softly rounded edges and a thin polished brass inlay line down its middle; each end is closed by a softly rounded key-front cap of the body itself. Its width is the same as a tap note's.
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/piano/side.jpg`
+
+- 용도: 사이드 노트(별도 레인의 짧은 금속 막대 · 반쪽 덮기 막대) → `styles/piano/side.png`
+- 크기 · 기준 이미지: 16:9 · 2K · `piano-A.png`
+- 날짜: 2026-11-04 11:43 KST · 약 $0.063
+- 생성 결과(PNG): 2,951,920바이트 · sha256 앞 16자리 `63ce32776cc54583` · 저장한 JPEG: 470,868바이트
+- 후처리: 막대는 1024 폭으로(둥근 양 끝은 불투명, 그 사이 어두운 곳은 알파 0.62 로 비침), 별도 레인 노트는 512 폭으로 · 게임은 양 끝을 그대로 두고 가운데만 늘임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the side note of this concept, which must not look like a key note: a polished brass pedal bar with softly rounded ends, a fine bevel and a thin engraved line along its length. Top half: the side-lane note, about twice as wide as it is tall. Bottom half: the same side note as a very wide bar (about six times as wide as it is tall) that lies over half of the key lanes: its two long edges are bright and its middle is mostly see-through (drawn darker and fainter).
+  >
+  > Colour: draw it for a lane whose colour is neutral white. Every surface that would take a lane colour is drawn in neutral greys and white instead, with no hue at all, so the game can tint it with any lane colour later; glowing parts are near white.
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/piano/fx.jpg`
+
+- 용도: 타격 이펙트 요소(섬광 · 음파 고리 · 음표 조각 · 음표가 떠 있는 빛) → `styles/piano/hit_burst.png`, `hit_hold.png`
+- 크기 · 기준 이미지: 1:1 · 2K · `piano-A.png`
+- 날짜: 2026-11-04 11:45 KST · 약 $0.060
+- 생성 결과(PNG): 3,595,807바이트 · sha256 앞 16자리 `d40be8edafe45de3` · 저장한 JPEG: 562,820바이트
+- 후처리: 칸 사이 옅은 선과 JPEG 잡음 지움 · 타격(16칸, 60fps): 섬광 + 음파 고리가 퍼지며 흐려짐 + 음표 여덟 개가 바로 선 채로 판정선 아래로 튀어 나감 + 잔광 · 판정선 위로는 짧게만 남김 · 판정선은 칸 위에서 30 % · 누르는 동안(16칸 반복, 24fps): 빛과 그 둘레의 음표가 숨 쉬듯, 음표 조각이 제 박자로 반짝임
+- 프롬프트:
+
+  > Image 1 is the approved style frame of the PIANO concept for a commercial PC keyboard rhythm game (mirror-polished black lacquer, ivory and polished brass, warm and elegant). Draw the light elements of its hit effect as clean production sprites for compositing, in the same level of finish: when a note is hit, glowing musical notes burst out of the hit.
+  >
+  > ASSET: a 2 x 2 grid of four equal square cells on pure black (#000000), every element white and grey light only, because the game adds them onto the screen and colours them itself.
+  >
+  > Very important: draw NO judge line, NO bar, NO horizontal line across a cell, NO staff lines, NO plate, NO frame, NO panel and NO other object anywhere. Only light and the elements themselves, each with plenty of black around it. Nothing touches the cell edges, and nothing is cut off by a straight line.
+  >
+  > Top-left cell: the hit flash at its peak, centred: a soft round white glow with a small bright core and a few fine sparkling rays.
+  > Top-right cell: a soft round sound-wave ring of light, a complete circle centred in the cell, with two fainter echo rings just outside it.
+  > Bottom-left cell: separate sprites in a loose grid with black gaps between them: glowing musical note symbols drawn as bright filled silhouettes with a soft glow (single eighth notes, beamed pairs of eighth notes, quarter notes and a few sixteenth notes), in a few sizes, all upright, plus a few tiny four-ray glints.
+  > Bottom-right cell: a steady soft glow seen from straight above, centred, a little wider than it is tall, with a few small glowing musical note symbols floating around it.
+  >
+  > View: strictly top-down and flat, no perspective. Crisp, high-resolution light; no text, letters, numbers, labels, logos or watermarks (musical note symbols are fine).
+
+### `styles/piano/gear_ebony.jpg`
+
+- 용도: 기어(블랙 래커, 기본) → `styles/piano/keys.png`, `gear_ebony.png`
+- 크기 · 기준 이미지: 21:9 · 2K · `piano-A.png`
+- 날짜: 2026-11-04 11:43 KST · 약 $0.067
+- 생성 결과(PNG): 3,967,346바이트 · sha256 앞 16자리 `b84e4c88540f8706` · 저장한 JPEG: 778,466바이트
+- 후처리: 건반: 쉬는 건반과 켜진 건반을 각각 잘라 모서리를 둥글린 사각 알파로, 길쭉한 가운데만 줄여 게임의 건반 칸 비율로(둥근 위아래 끝은 그대로) · 쉬는 건반은 아이보리 음영 그대로(게임이 아이보리색으로 칠함), 켜진 건반은 레인 색에 가장 밝은 가운데만 흰빛 · 판: 황동 다이얼(조금 세로로 길게 그려져 잘라낸 뒤 원으로)을 실제 색 그대로 · 래커 · 황동 핀스트라이프 · 펠트 색은 시트에서 뽑아 코드가 칠함(래커의 반사, 판정선 아래와 건반 위 황동 줄, 건반 밑 어두운 바닥과 앞쪽 펠트) · 시트의 건반은 10개라 하나씩만 씀
+- 프롬프트:
+
+  > Image 1 is the approved style frame of this concept for a commercial PC keyboard rhythm game. Match its design language exactly: the same shapes, materials, bevels, light and level of finish. Now draw production art of one part of it, as a game asset sheet.
+  >
+  > ASSET: the gear panel that sits under the judge line, seen strictly from straight above and flat. It is a wide, shallow panel about five times as wide as it is tall, centred in the image: at its left the scratch module, about 1.6 key modules wide, then seven key modules evenly spaced in one row across the whole rest of the width, each one centred under its own lane, and below the row only a narrow strip of the panel with its edges and hardware: a concert grand piano keybed: a mirror-polished lacquer panel with thin brass pinstripes along its top and bottom edges; one large ivory key front per key lane set into the lacquer, each with softly rounded corners and a fine bevel, neighbouring key fronts separated by a thin dark gap; for the scratch a polished brass rotary dial with fine knurling in a round lacquered housing; a thin strip of deep red felt under the row of keys. The key modules of the 2nd and 4th key lanes are lit: their key fronts glow pure white (the game tints them in the lane colour); the other keys are unlit ivory. Colourway: mirror-polished black piano lacquer (ebony) with ivory keys and polished brass (the default).
+  >
+  > View and output: strictly orthographic and straight top-down, with no perspective at all, every object flat and facing the viewer. Pure black background (#000000), no shadow cast onto it. Objects centred with even margins. Crisp clean edges with painted material detail at high resolution; one key light from the top-left on every object; three value steps in every element (dark rim, mid body, bright highlight). No text, letters, numbers, labels, logos or watermarks.
+
+### `styles/piano/gear_white.jpg`
+
+- 용도: 기어(화이트 래커) → `styles/piano/gear_white.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
+- 날짜: 2026-11-04 11:44 KST · 약 $0.063
+- 생성 결과(PNG): 4,246,436바이트 · sha256 앞 16자리 `2fb077cfd5da7a4c` · 저장한 JPEG: 790,377바이트
+- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄 · 황동 핀스트라이프가 표본 폭보다 가늘어 블랙 래커의 황동 색을 씀
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: mirror-polished white piano lacquer with ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/piano/gear_mahogany.jpg`
+
+- 용도: 기어(마호가니) → `styles/piano/gear_mahogany.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
+- 날짜: 2026-11-04 11:44 KST · 약 $0.057
+- 생성 결과(PNG): 5,039,047바이트 · sha256 앞 16자리 `38ecbe15a27626d6` · 저장한 JPEG: 1,120,167바이트
+- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄 · 판은 아래 마호가니 결로 칠함
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: polished mahogany wood with a warm red-brown grain under clear lacquer, ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/piano/gear_emerald.jpg`
+
+- 용도: 기어(에메랄드 그린) → `styles/piano/gear_emerald.png`
+- 크기 · 기준 이미지: 21:9 · 2K · 블랙 래커 기어 시트
+- 날짜: 2026-11-04 11:45 KST · 약 $0.060
+- 생성 결과(PNG): 4,155,706바이트 · sha256 앞 16자리 `65dbe80ce9536e97` · 저장한 JPEG: 793,808바이트
+- 후처리: 블랙 래커와 같은 자리에서 다이얼을 잘라냄
+- 프롬프트:
+
+  > Image 1 is the gear panel of a rhythm game, seen from straight above. Redraw exactly the same panel: the same layout, shapes, modules, details, lighting, lit keys and black background, in the same flat top-down view. Change only its colourway to: deep emerald green piano lacquer with ivory keys and polished brass. Keep the lit key fronts glowing pure white. No text, letters, numbers, logos or watermarks.
+
+### `styles/piano/mahogany_veneer.jpg`
+
+- 용도: 마호가니 기어의 판(가로 결) → `styles/piano/gear_mahogany.png` 의 (0, 512)
+- 크기 · 기준 이미지: 16:9 · 2K · 없음
+- 날짜: 2026-11-04 11:47 KST · 약 $0.052
+- 생성 결과(PNG): 8,332,052바이트 · sha256 앞 16자리 `4f42c4dd26d057a6` · 저장한 JPEG: 597,459바이트 (저장소 크기를 줄이려 가로세로 절반 1376×768 로)
+- 후처리: 가운데 1024×512 를 실제 색 그대로 · 게임은 판 전체에 깔고 그 위에 반사와 황동 줄을 그림
+- 프롬프트:
+
+  > A flat, evenly lit texture of polished mahogany wood as on the case of a concert grand piano: warm red-brown with deeper reddish streaks and a soft ribbon figure, fine straight grain running horizontally from the left edge to the right edge, under a clear high-gloss lacquer but without any reflections or highlights. It fills the whole frame edge to edge. Straight top-down, no perspective, no objects, no vignette, no text, letters, numbers, logos or watermarks.

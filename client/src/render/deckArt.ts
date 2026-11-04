@@ -758,7 +758,7 @@ const LIGHT_BOX: Record<'concrete' | 'avionics' | 'cassette' | 'grand', { side: 
   grand: { side: 0.05, top: 0.04, bottom: 0.06 },
 };
 
-function lightBox(style: keyof typeof LIGHT_BOX, x: number, y: number, w: number, h: number): Box {
+export function lightBox(style: keyof typeof LIGHT_BOX, x: number, y: number, w: number, h: number): Box {
   const b = LIGHT_BOX[style];
   return { x: x + w * b.side, y: y + h * b.top, w: w * (1 - 2 * b.side), h: h * (1 - b.top - b.bottom) };
 }

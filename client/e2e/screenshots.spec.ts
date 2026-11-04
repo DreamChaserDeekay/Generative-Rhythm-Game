@@ -314,7 +314,7 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: four of the skins, and the four sets each in a gear colour of its own', async ({ page }) => {
+test('play: four of the skins, and the five sets each in a gear colour of its own', async ({ page }) => {
   // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
@@ -338,6 +338,8 @@ test('play: four of the skins, and the four sets each in a gear colour of its ow
     ['club', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'silver', hit: 'club' }, '29-club-silver'],
     ['glass', { note: 'star4', side: 'bar', deck: 'crystal', deckColour: 'rosegold', hit: 'crystal' }, '30-crystal-rosegold'],
     ['neon', { note: 'star5', side: 'bar', deck: 'neon', deckColour: 'burgundy', hit: 'neon' }, '31-neon-burgundy'],
+    ['flat', { note: 'piano', side: 'bar', deck: 'grand', deckColour: 'mahogany', hit: 'piano' }, '32-piano-mahogany'],
+    ['club', { note: 'round', side: 'bar', deck: 'mixer', deckColour: 'walnut', hit: 'club' }, '33-club-walnut'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', skin, parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'MAXIMUM');

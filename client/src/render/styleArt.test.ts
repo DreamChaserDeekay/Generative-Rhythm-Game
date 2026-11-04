@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DECK_STYLES, KEY_PAINT, type DeckSpec } from './deckArt';
+import { DECK_STYLES, KEY_PAINT, lightBox, type DeckSpec } from './deckArt';
 import { parseManifest } from './skinArt';
 import { BUILTIN_SKINS, skinById, styleOf, withParts, type SkinStyle } from './skins';
 import {
@@ -53,12 +53,12 @@ describe('the concept sets drawn from art', () => {
     expect(deckColourOf({ deck: 'arcade', deckColour: 'red' })).toBe('red');
     expect(deckColourOf({ deck: 'arcade', deckColour: 'walnut' })).toBe('gunmetal');
     expect(deckColourOf({ deck: 'arcade' })).toBe('gunmetal');
-    expect(deckColourOf({ deck: 'grand', deckColour: 'red' })).toBeUndefined();
+    expect(deckColourOf({ deck: 'cassette', deckColour: 'red' })).toBeUndefined();
   });
 
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', 'mecha/keys', 'mecha/gear_gunmetal']);
-    expect(styleImageIds({ ...arcade, side: 'dots', deck: 'grand' })).toEqual(['mecha/notes', 'mecha/long']);
+    expect(styleImageIds({ ...arcade, side: 'dots', deck: 'cassette' })).toEqual(['mecha/notes', 'mecha/long']);
     expect(styleImageIds({ ...arcade, note: 'flat', deckColour: 'blue' })).toEqual(['mecha/keys', 'mecha/gear_blue']);
     expect(styleImageIds(styleOf(skinById('flat', null)))).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
@@ -196,6 +196,7 @@ const SETS = [
   // listed as "gem": "crystal" names an earlier texture set
   { set: 'crystal', id: 'gem', note: 'star4', deck: 'crystal', hit: 'crystal', ways: ['silver', 'rosegold', 'gold', 'smoke'], end: 70, bar: 206 },
   { set: 'neon', id: 'neon', note: 'star5', deck: 'neon', hit: 'neon', ways: ['black', 'carbon', 'navy', 'burgundy'], end: 59, bar: 248 },
+  { set: 'piano', id: 'piano', note: 'piano', deck: 'grand', hit: 'piano', ways: ['ebony', 'white', 'mahogany', 'emerald'], end: 57, bar: 175 },
 ] as const;
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, its gear in `way`. */
@@ -267,6 +268,15 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       const { g, draws } = recorder();
       paint(g, 120, 96, mark);
       const d = draws[0];
+      if (c.set === 'piano') {
+        // its rounded ends and its inlaid mark whole, the inlay between stretched, slices meeting at whole px
+        expect(draws).toHaveLength(5);
+        for (const e of draws) expect([e.sy, e.sh, e.dy, e.dh]).toEqual([i * 256 + 28, 200, 0, 96]);
+        expect(draws[0].dx).toBe(0);
+        for (let k = 1; k < 5; k++) expect(draws[k].dx).toBe(draws[k - 1].dx + draws[k - 1].dw);
+        expect(draws[4].dx + draws[4].dw).toBe(120);
+        return;
+      }
       // all of the lane's width; the gem in a row of its own, the record and the star in a cell
       expect([d.dx, d.dw]).toEqual([0, 120]);
       if (c.set === 'crystal') {
@@ -290,7 +300,7 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
 
   it('keeps the record round and the star as drawn at the judge line; the gem lies in a bar’s depth', () => {
     const shape = noteShapeOf(c.note, images);
-    expect(shape).toBe({ club: 1, crystal: null, neon: 488 / 500 }[c.set]);
+    expect(shape).toBe({ club: 1, crystal: null, neon: 488 / 500, piano: null }[c.set]);
     const depth = noteDepthOf(c.note, 0.7, 1.2, 1.7, shape);
     if (shape === null) expect(depth).toBe(0.7);
     else expect(depth).toBeCloseTo(1.2 * shape! * 1.7, 9);
@@ -325,7 +335,20 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     expect(keys).not.toBe(KEY_PAINT[c.deck]);
     // the row is laid out as for the code gear
     expect(keys.reach).toBe(KEY_PAINT[c.deck].reach);
+    if (c.set === 'piano') {
+      // a key front on the code grand piano's key, resting in ivory
+      expect(keys.idleColor).toBe(0xf4ead8);
+      const { g, draws } = recorder();
+      keys.idle('white', 1.3)(g, 60, 56);
+      const [d, b] = [draws[0], lightBox('grand', 0, 0, 60, 56)];
+      // the key at rest (31, 37, 194 × 182 in its cell) lies on the box
+      expect(d.dx + (31 * d.dw) / 256).toBeCloseTo(b.x, 9);
+      expect(d.dy + (37 * d.dh) / 256).toBeCloseTo(b.y, 9);
+      expect((194 * d.dw) / 256).toBeCloseTo(b.w, 9);
+      expect((182 * d.dh) / 256).toBeCloseTo(b.h, 9);
+    } else expect(keys.idleColor).toBeUndefined();
     for (const lit of [false, true]) {
+      if (c.set === 'piano') break;
       const { g, draws } = recorder();
       (lit ? keys.down : keys.idle)('white', 1.3)(g, 60, 56);
       expect(draws).toHaveLength(1);
@@ -357,15 +380,23 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       const { g, draws } = recorder();
       platePaintOf(st, loaded(st))(g, deckSpec(170));
       // the module from its place in the picture's first square, in the scratch's column
-      expect(draws[0].sx + draws[0].sw).toBeLessThanOrEqual(512);
-      expect(draws[0].sy + draws[0].sh).toBeLessThanOrEqual(512);
-      expect(draws[0].dx).toBeGreaterThanOrEqual(0);
-      expect(draws[0].dx + draws[0].dw).toBeLessThanOrEqual(70 + 1e-9);
-      const under = draws.slice(1);
+      const modules = draws.filter((d) => d.sx + d.sw <= 512 && d.sy + d.sh <= 512);
+      expect(modules).toHaveLength(1);
+      const [m] = modules;
+      expect(m.dx).toBeGreaterThanOrEqual(0);
+      expect(m.dx + m.dw).toBeLessThanOrEqual(70 + 1e-9);
+      const under = draws.filter((d) => d !== m);
+      // the wood of a colourway in veneer: its sheet (at (0, 512)) across the whole plate
+      const veneer = under.filter((d) => d.sy === 512 && d.sh === 512);
+      for (const d of veneer) expect([d.sx, d.sw, d.dx, d.dy, d.dw, d.dh]).toEqual([0, 1024, 0, 0, 400, 180]);
       if (c.set === 'club') {
-        // a fader in each key lane
-        expect(under).toHaveLength(7);
-        for (const d of under) expect(d.sx).toBeGreaterThanOrEqual(512);
+        // a fader in each key lane; the walnut one's strips in veneer, one a lane
+        expect(under.filter((d) => d.sx >= 512)).toHaveLength(7);
+        expect(veneer).toHaveLength(way === 'walnut' ? 8 : 0);
+      } else if (c.set === 'piano') {
+        // the case: lacquer painted in code, or the mahogany one's veneer
+        expect(under).toEqual(way === 'mahogany' ? veneer : []);
+        expect(veneer).toHaveLength(way === 'mahogany' ? 1 : 0);
       } else {
         // the board's strip, from the scratch's column to the frame
         expect(under).toHaveLength(1);
@@ -373,10 +404,10 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
         expect(under[0].dx).toBeGreaterThanOrEqual(70);
         expect(under[0].dx + under[0].dw).toBeLessThanOrEqual(400);
       }
-      // a screen that shows little of the gear: the module alone
+      // a screen that shows little of the gear: the module alone (and the wood, where there is some)
       const small = recorder();
       platePaintOf(st, loaded(st))(small.g, deckSpec(70));
-      expect(small.draws).toHaveLength(1);
+      expect(small.draws.filter((d) => d.sy < 512)).toHaveLength(1);
     }
   });
 });

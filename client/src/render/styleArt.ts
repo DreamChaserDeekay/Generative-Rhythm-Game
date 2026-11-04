@@ -1,4 +1,4 @@
-import { KEY_PAINT, lowerTop, paintDeck, shade, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint } from './deckArt';
+import { KEY_PAINT, lightBox, lowerTop, paintDeck, shade, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint } from './deckArt';
 import type { SkinStyle, SkinTextures } from './skins';
 import {
   ink,
@@ -28,15 +28,18 @@ import {
  * - MECHA: the CHAMFER notes (machined plates) and their rail, the ARCADE gear, the MECHA hit;
  * - CLUB: the ROUND notes (records) and their capsule, the MIXER gear, the CLUB hit (rings);
  * - CRYSTAL: the STAR4 notes (cut gems) and their prism, the CRYSTAL gear, the CRYSTAL hit (shards);
- * - NEON: the STAR5 notes (neon stars) and their tube, the NEON gear, the NEON hit (arcs).
+ * - NEON: the STAR5 notes (neon stars) and their tube, the NEON gear, the NEON hit (arcs);
+ * - PIANO: the PIANO notes (key fronts) and their lacquered key, the GRAND gear, the PIANO hit
+ *   (musical notes bursting out).
  */
-export type ArtSet = 'mecha' | 'club' | 'crystal' | 'neon';
+export type ArtSet = 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
 
 const SETS: Record<ArtSet, { note: NoteStyle; deck: DeckStyle; hit: HitStyle }> = {
   mecha: { note: 'chamfer', deck: 'arcade', hit: 'mecha' },
   club: { note: 'round', deck: 'mixer', hit: 'club' },
   crystal: { note: 'star4', deck: 'crystal', hit: 'crystal' },
   neon: { note: 'star5', deck: 'neon', hit: 'neon' },
+  piano: { note: 'piano', deck: 'grand', hit: 'piano' },
 };
 const SET_IDS = Object.keys(SETS) as ArtSet[];
 const setOf = (part: 'note' | 'deck' | 'hit', value: string): ArtSet | undefined => SET_IDS.find((s) => SETS[s][part] === value);
@@ -75,6 +78,12 @@ export const DECK_COLOURS: Partial<Record<DeckStyle, readonly { id: string; labe
     { id: 'navy', label: '딥 네이비' },
     { id: 'burgundy', label: '버건디 골드' },
   ],
+  grand: [
+    { id: 'ebony', label: '블랙 래커' },
+    { id: 'white', label: '화이트 래커' },
+    { id: 'mahogany', label: '마호가니' },
+    { id: 'emerald', label: '에메랄드 그린' },
+  ],
 };
 
 /** The colourway a style's gear is drawn in: the one picked when the gear has it, else the gear's own (none for a gear drawn in code). */
@@ -88,7 +97,7 @@ export function deckColourOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>): str
  * A set's name in the manifest, its pictures listed as "<name>/<part>": CRYSTAL's is "gem", as
  * "crystal" already names an earlier texture set (skins/crystal/, which user skins may ask for).
  */
-const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon' };
+const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon', piano: 'piano' };
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side' | 'keys' | 'hitBurst' | 'hitHold') => `${MANIFEST_NAME[set]}/${part}`;
 const gearId = (set: ArtSet, colour: string) => `${MANIFEST_NAME[set]}/gear_${colour}`;
 
@@ -126,7 +135,10 @@ const MARK_CELL: Record<Exclude<NoteMark, 'side'>, number> = { white: 0, blue: 1
  * MECHA's notes.png: a row per mark (white ○, blue △, gold ◇, scratch //), each note `w` × `h` at
  * y = row × `row` + `top`; `cuts`: where its end caps and its mark start and end (x).
  */
-const NOTES = { row: 256, top: 23, w: 1024, h: 210, cuts: [156, 451, 573, 868] } as const;
+type SlabLayout = { row: number; top: number; w: number; h: number; cuts: readonly [number, number, number, number] };
+const NOTES: SlabLayout = { row: 256, top: 23, w: 1024, h: 210, cuts: [156, 451, 573, 868] };
+/** PIANO's notes.png: as MECHA's, a key front per row; `cuts`: its rounded ends and the mark with the inlay's break round it. */
+const PIANO_NOTES: SlabLayout = { row: 256, top: 28, w: 1024, h: 200, cuts: [24, 440, 584, 1000] };
 /** MECHA's side.png: the bar over the keys at (0, 0), its end blocks `cut` wide; the side lane's own note (a grille plate) at (0, y), its middle `tile` repeated across. */
 const SIDE_BAR = { w: 1024, h: 219, cut: 80 } as const;
 const SIDE_PLATE = { y: 240, w: 512, h: 265, tile: [196, 316] } as const;
@@ -137,6 +149,7 @@ const SIDE_PLATE = { y: 240, w: 512, h: 265, tile: [196, 316] } as const;
  * `plate.cut` wide.
  */
 const SET_SIDE: Record<Exclude<ArtSet, 'mecha'>, { h: number; cut: number; plate: { h: number; cut: number } }> = {
+  piano: { h: 175, cut: 59, plate: { h: 175, cut: 60 } },
   club: { h: 211, cut: 108, plate: { h: 210, cut: 108 } },
   crystal: { h: 206, cut: 41, plate: { h: 203, cut: 36 } },
   neon: { h: 248, cut: 41, plate: { h: 146, cut: 82 } },
@@ -144,10 +157,25 @@ const SET_SIDE: Record<Exclude<ArtSet, 'mecha'>, { h: number; cut: number; plate
 const PLATE_Y = 256;
 
 /**
- * A machined plate (the CHAMFER family): its end caps and its mark keep the look they have in the
- * picture on the screen (the camera flattens the track NOTE_STRETCH times near the line), the
- * brushed metal and the LED slits between them stretch to the lane. A side lane's note is the set's
- * grille plate, its slots repeated across.
+ * A slab across the lane, cut in five: its ends and its mark keep the look they have in the picture
+ * on the screen (the camera flattens the track NOTE_STRETCH times near the line), what lies between
+ * them stretches to the lane (slices meet at whole px).
+ */
+function slab(g: CanvasRenderingContext2D, notes: ArtImage, layout: SlabLayout, mark: Exclude<NoteMark, 'side'>, w: number, h: number): void {
+  const [c0, c1, c2, c3] = layout.cuts;
+  const k = h / layout.h / NOTE_STRETCH;
+  // a narrow lane: ends and mark narrower, so what lies between keeps some length
+  const fit = Math.min(1, (w * 0.7) / ((c0 + c2 - c1 + layout.w - c3) * k));
+  const [cap, mid] = [c0 * k * fit, (c2 - c1) * k * fit];
+  const half = (w - 2 * cap - mid) / 2;
+  g.imageSmoothingQuality = 'high';
+  slices(g, notes, MARK_CELL[mark] * layout.row + layout.top, layout.h, [0, c0, c1, c2, c3, layout.w], [0, cap, cap + half, cap + half + mid, w - cap, w], h);
+}
+
+/**
+ * A machined plate (the CHAMFER family): its end caps and its mark keep their look, the brushed
+ * metal and the LED slits between them stretch to the lane. A side lane's note is the set's grille
+ * plate, its slots repeated across.
  */
 function mechaNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
   return (g, w, h, mark) => {
@@ -156,14 +184,19 @@ function mechaNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       else NOTE_PAINT.chamfer(g, w, h, mark);
       return;
     }
-    const [c0, c1, c2, c3] = NOTES.cuts;
-    const k = h / NOTES.h / NOTE_STRETCH;
-    // a narrow lane: caps and mark narrower, so the slits keep some length
-    const fit = Math.min(1, (w * 0.7) / ((c0 + c2 - c1 + NOTES.w - c3) * k));
-    const [cap, mid] = [c0 * k * fit, (c2 - c1) * k * fit];
-    const half = (w - 2 * cap - mid) / 2;
-    g.imageSmoothingQuality = 'high';
-    slices(g, notes, MARK_CELL[mark] * NOTES.row + NOTES.top, NOTES.h, [0, c0, c1, c2, c3, NOTES.w], [0, cap, cap + half, cap + half + mid, w - cap, w], h);
+    slab(g, notes, NOTES, mark, w, h);
+  };
+}
+
+/** PIANO: the front of a piano key across the lane, its rounded ends and its inlaid mark keeping their look, its inlay line stretched between. */
+function pianoNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
+  return (g, w, h, mark) => {
+    if (mark === 'side') {
+      if (side) sidePlate(g, side, 'piano', w, h);
+      else NOTE_PAINT.piano(g, w, h, mark);
+      return;
+    }
+    slab(g, notes, PIANO_NOTES, mark, w, h);
   };
 }
 
@@ -269,7 +302,7 @@ export function notePaintOf(style: NoteStyle, images: StyleImages): NotePaint {
   const notes = set && images[artId(set, 'notes')];
   if (!set || !notes) return NOTE_PAINT[style];
   const side = images[artId(set, 'side')];
-  return { mecha: mechaNote, club: clubNote, crystal: crystalNote, neon: neonNote }[set](notes, side);
+  return { mecha: mechaNote, club: clubNote, crystal: crystalNote, neon: neonNote, piano: pianoNote }[set](notes, side);
 }
 
 /**
@@ -280,7 +313,7 @@ export function notePaintOf(style: NoteStyle, images: StyleImages): NotePaint {
 export function noteShapeOf(style: NoteStyle, images: StyleImages): number | null | undefined {
   const set = setOf('note', style);
   if (!set || !images[artId(set, 'notes')]) return undefined;
-  return { mecha: null, club: 1, crystal: null, neon: NOTE_CELL.neon.h / 500 }[set];
+  return { mecha: null, club: 1, crystal: null, neon: NOTE_CELL.neon.h / 500, piano: null }[set];
 }
 
 // ---------- long notes ----------
@@ -291,7 +324,7 @@ export function noteShapeOf(style: NoteStyle, images: StyleImages): number | nul
  * point, NEON's capped tube).
  */
 const LONG = { w: 128, tile: 256 } as const;
-const LONG_END: Record<ArtSet, number> = { mecha: 48, club: 78, crystal: 70, neon: 59 };
+const LONG_END: Record<ArtSet, number> = { mecha: 48, club: 78, crystal: 70, neon: 59, piano: 57 };
 
 function artLong(image: ArtImage, end: number, width: number): LongPaint {
   const part =
@@ -445,13 +478,15 @@ function mechaKeys(keys: ArtImage): KeyPaint {
 }
 
 /**
- * The other sets' lights (keys.png: at rest, then lit): `light`, the size of the light at rest in
- * its cell (px); `disc`, where the scratch's module lights.
+ * The other sets' lights (keys.png: at rest, then lit): `light`, where the light at rest lies in its
+ * cell (px: its left and top, its width and height); `disc`, where the scratch's module lights.
+ * PIANO's keys fill the code grand piano's key (lightBox) and rest in ivory, lit in the lane colour.
  */
-const SET_KEYS: Record<Exclude<ArtSet, 'mecha'>, { light: readonly [number, number]; disc: Disc }> = {
-  club: { light: [160, 160], disc: { x: 0.5, y: 0.5, r: 0.47 } },
-  crystal: { light: [135, 196], disc: { x: 0.5, y: 0.5, r: 0.44 } },
-  neon: { light: [163, 184], disc: { x: 0.5, y: 0.5, r: 0.34 } },
+const SET_KEYS: Record<Exclude<ArtSet, 'mecha'>, { light: readonly [number, number, number, number]; disc: Disc; fill?: true }> = {
+  club: { light: [48, 48, 160, 160], disc: { x: 0.5, y: 0.5, r: 0.47 } },
+  crystal: { light: [60, 30, 135, 196], disc: { x: 0.5, y: 0.5, r: 0.44 } },
+  neon: { light: [46, 36, 163, 184], disc: { x: 0.5, y: 0.5, r: 0.34 } },
+  piano: { light: [31, 37, 194, 182], disc: { x: 0.5, y: 0.5, r: 0.45 }, fill: true },
 };
 
 /**
@@ -460,14 +495,22 @@ const SET_KEYS: Record<Exclude<ArtSet, 'mecha'>, { light: readonly [number, numb
  * lane; lit, the same picture's lit light, its glow round it. The scratch is the plate's module.
  */
 function setKeys(set: Exclude<ArtSet, 'mecha'>, deck: DeckStyle, keys: ArtImage, aspect: number): KeyPaint {
-  const { light, disc } = SET_KEYS[set];
+  const { light, disc, fill } = SET_KEYS[set];
+  const [lx, ly, lw, lh] = light;
   const reach = KEY_PAINT[deck].reach;
   const lamp =
     (lit: boolean, kind: KeyKind, st: number): Paint =>
     (g, w, h) => {
-      const s = Math.min((2 * reach(kind, w, h, st)) / (light[1] * st), (0.94 * w) / light[0]);
-      const [cw, ch] = [KEY_CELL * s, KEY_CELL * s * st];
       g.imageSmoothingQuality = 'high';
+      if (fill) {
+        // the light at rest on the code key's box, the cell (and a lit key's glow) round it in step
+        const b = lightBox('grand', 0, 0, w, h);
+        const [sx, sy] = [b.w / lw, b.h / lh];
+        g.drawImage(keys, lit ? KEY_CELL : 0, 0, KEY_CELL, KEY_CELL, b.x - lx * sx, b.y - ly * sy, KEY_CELL * sx, KEY_CELL * sy);
+        return;
+      }
+      const s = Math.min((2 * reach(kind, w, h, st)) / (lh * st), (0.94 * w) / lw);
+      const [cw, ch] = [KEY_CELL * s, KEY_CELL * s * st];
       g.drawImage(keys, lit ? KEY_CELL : 0, 0, KEY_CELL, KEY_CELL, (w - cw) / 2, (h - ch) / 2, cw, ch);
     };
   const module = discLight(aspect, disc);
@@ -476,6 +519,8 @@ function setKeys(set: Exclude<ArtSet, 'mecha'>, deck: DeckStyle, keys: ArtImage,
     down: (kind, st) => (kind === 'scratch' ? module : lamp(true, kind, st)),
     reach,
     scratchBox: moduleBox(aspect),
+    // the piano's keys rest in ivory
+    ...(fill && { idleColor: 0xf4ead8 }),
   };
 }
 
@@ -485,20 +530,30 @@ function setKeys(set: Exclude<ArtSet, 'mecha'>, deck: DeckStyle, keys: ArtImage,
  * and NEON's strip under the row at (0, 512), 1024 wide and `strip` deep; and the colours its plate is
  * painted in (sampled from the set's sheets).
  */
-type ClubWay = { module: readonly [number, number]; fader: readonly [number, number]; face: string; edge: string };
+type ClubWay = { module: readonly [number, number]; fader: readonly [number, number]; face: string; edge: string; veneer?: true };
 type CrystalWay = { module: readonly [number, number]; strip: number; glass: string; panel: string; edge: string };
 type NeonWay = { module: readonly [number, number]; strip: number; face: string; edge: string };
+type PianoWay = { module: readonly [number, number]; face: string; brass: string; felt: string; veneer?: true };
 const CLUB_GEAR: Record<string, ClubWay> = {
   black: { module: [674, 674], fader: [150, 311], face: '#333136', edge: '#3f3e43' },
   white: { module: [678, 676], fader: [151, 313], face: '#e1dfe7', edge: '#eeebf6' },
   silver: { module: [696, 695], fader: [155, 321], face: '#afacb5', edge: '#d2d0d8' },
-  walnut: { module: [674, 674], fader: [150, 312], face: '#262429', edge: '#7d5b54' },
+  // its strips walnut veneer (gear_walnut.png at (0, 512), 1024 × 512, the grain running down them)
+  walnut: { module: [674, 674], fader: [150, 312], face: '#262429', edge: '#7d5b54', veneer: true },
 };
 const CRYSTAL_GEAR: Record<string, CrystalWay> = {
   silver: { module: [430, 430], strip: 99, glass: '#656873', panel: '#14131e', edge: '#aab3bf' },
   rosegold: { module: [430, 430], strip: 99, glass: '#967472', panel: '#2f1b1f', edge: '#f4b8a9' },
   gold: { module: [430, 430], strip: 99, glass: '#9f815c', panel: '#221911', edge: '#efce87' },
   smoke: { module: [430, 430], strip: 99, glass: '#37363d', panel: '#0e0c14', edge: '#565867' },
+};
+/** PIANO's: the dial fitted into (0, 0, 512, 512); its case's lacquer (the mahogany one's veneer at (0, 512), 1024 × 512, the grain running across), brass pinstripes and the felt under the keys. */
+const PIANO_GEAR: Record<string, PianoWay> = {
+  ebony: { module: [408, 408], face: '#0d0d0d', brass: '#e2c9a1', felt: '#510c19' },
+  // its pinstripes are as thin as the sample is wide: the ebony one's brass
+  white: { module: [410, 410], face: '#f2f1f2', brass: '#e2c9a1', felt: '#5b1122' },
+  mahogany: { module: [408, 408], face: '#6c2616', brass: '#b39770', felt: '#580f22', veneer: true },
+  emerald: { module: [410, 410], face: '#123f2b', brass: '#efd8ae', felt: '#581122' },
 };
 const NEON_GEAR: Record<string, NeonWay> = {
   black: { module: [578, 638], strip: 102, face: '#0a0a0b', edge: '#979da9' },
@@ -526,7 +581,7 @@ function gearArt(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleIma
 
 /** How deep a set's module is for its width, in a colourway. */
 function moduleAspect(set: Exclude<ArtSet, 'mecha'>, colour: string): number {
-  const ways: Record<string, { module: readonly [number, number] }> = { club: CLUB_GEAR, crystal: CRYSTAL_GEAR, neon: NEON_GEAR }[set];
+  const ways: Record<string, { module: readonly [number, number] }> = { club: CLUB_GEAR, crystal: CRYSTAL_GEAR, neon: NEON_GEAR, piano: PIANO_GEAR }[set];
   const [w, h] = (ways[colour] ?? Object.values(ways)[0]).module;
   return h / w;
 }
@@ -667,23 +722,38 @@ function clubPlate(gear: ArtImage, way: ClubWay, colour: string): (g: CanvasRend
     g.fillRect(0, 0, s.width, s.depth);
     const rand = seeded(5);
     const grain = bright ? 'rgba(0,0,0,' : 'rgba(255,255,255,';
+    if (way.veneer) {
+      // the grooves between walnut strips: the wood's own dark
+      g.fillStyle = shade(way.edge, 0.32);
+      g.fillRect(0, 0, s.width, s.depth);
+    }
     for (const l of s.lanes) {
       const [x, w] = [l.left + 1.25, l.width - 2.5];
       g.fillStyle = way.face;
       g.beginPath();
       g.roundRect(x, 3, w, s.depth, [{ x: 2.5, y: 2.5 * s.stretch }, { x: 2.5, y: 2.5 * s.stretch }, 0, 0]);
       g.fill();
-      // brushed down the strip, a lit edge along its top and down its left side
-      for (let gx = x + 2; gx < x + w - 1; gx += 2) {
-        g.fillStyle = `${grain}${(0.012 + rand() * 0.03).toFixed(3)})`;
-        g.fillRect(gx, 4, 1, s.depth);
+      if (way.veneer) {
+        // one sheet of veneer across the plate, each strip showing its own part of it
+        g.save();
+        g.clip();
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(gear, 0, 512, 1024, 512, 0, 0, s.width, s.depth);
+        g.restore();
+      } else {
+        // brushed down the strip
+        for (let gx = x + 2; gx < x + w - 1; gx += 2) {
+          g.fillStyle = `${grain}${(0.012 + rand() * 0.03).toFixed(3)})`;
+          g.fillRect(gx, 4, 1, s.depth);
+        }
       }
+      // a lit edge along its top and down its left side
       g.fillStyle = bright ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.09)';
       g.fillRect(x + 2, 3, w - 4, 1);
       g.fillRect(x, 3 + 2.5 * s.stretch, 1, s.depth);
     }
     frame(g, s, way.edge, colour === 'walnut' ? 8 : 3, colour === 'walnut');
-    g.fillStyle = shade(way.face, bright ? 0.82 : 0.6);
+    g.fillStyle = way.veneer ? shade(way.edge, 0.3) : shade(way.face, bright ? 0.82 : 0.6);
     sideRecesses(g, s);
     const scratch = drawModule(g, gear, s, way.module);
     // a fader in each key lane under the row, as long on the screen as in the picture (shorter where the room is)
@@ -776,6 +846,48 @@ function neonPlate(gear: ArtImage, way: NeonWay): (g: CanvasRenderingContext2D, 
   };
 }
 
+/**
+ * PIANO's plate, a concert grand's keybed in its colourway: the case in mirror lacquer (or mahogany
+ * veneer) with a crisp reflection across it, brass pinstripes under the judge line and over the
+ * keys, a dark key bed under them and the red felt along their fronts with a pinstripe under it,
+ * the brass dial in the scratch lane.
+ */
+function pianoPlate(gear: ArtImage, way: PianoWay): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+  return (g, s) => {
+    if (way.veneer) {
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(gear, 0, 512, 1024, 512, 0, 0, s.width, s.depth);
+    } else {
+      g.fillStyle = way.face;
+      g.fillRect(0, 0, s.width, s.depth);
+    }
+    // the lacquer's mirror: a soft band across the case under the keys, a crisp line along its top
+    const under = lowerTop(s);
+    const band = under + (s.room - under) * 0.4;
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    g.fillRect(0, band, s.width, Math.max(4, (s.room - under) * 0.18));
+    g.fillStyle = 'rgba(255,255,255,0.12)';
+    g.fillRect(0, band, s.width, 1);
+    const scratch = s.lanes.find((l) => l.kind === 'scratch');
+    const bed = scratch ? scratch.left + scratch.width : 0;
+    g.fillStyle = shade(way.brass, 1, 0.85);
+    g.fillRect(0, 0, s.width, 1.5);
+    if (s.keyTop > 5) g.fillRect(bed, s.keyTop - 3, s.width - bed, 1);
+    // the keys lie on a dark bed (the gaps between them), the felt along their fronts
+    g.fillStyle = shade(way.felt, 0.25);
+    g.fillRect(bed, s.keyTop, s.width - bed, s.keyDepth);
+    const felt = Math.min(3 * s.stretch, Math.max(0, s.room - under));
+    g.fillStyle = way.felt;
+    g.fillRect(bed, under, s.width - bed, felt);
+    g.fillStyle = shade(way.brass, 1, 0.7);
+    if (s.room - under > felt + 4) g.fillRect(0, under + felt + 2, s.width, 1);
+    frame(g, s, way.brass, 2);
+    g.fillStyle = shade(way.felt, 0.25);
+    sideRecesses(g, s);
+    drawModule(g, gear, s, way.module);
+  };
+}
+
 /** Which of a style's parts its loaded pictures draw: "notes", "long", "side", "gear:<colourway>". */
 export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
   const parts: string[] = [];
@@ -798,5 +910,6 @@ export function platePaintOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, imag
   if (set === 'mecha') return mechaPlate(gear, colour);
   if (set === 'club') return clubPlate(gear, CLUB_GEAR[colour] ?? CLUB_GEAR.black, colour);
   if (set === 'crystal') return crystalPlate(gear, CRYSTAL_GEAR[colour] ?? CRYSTAL_GEAR.silver);
+  if (set === 'piano') return pianoPlate(gear, PIANO_GEAR[colour] ?? PIANO_GEAR.ebony);
   return neonPlate(gear, NEON_GEAR[colour] ?? NEON_GEAR.black);
 }

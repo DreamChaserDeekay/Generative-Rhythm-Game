@@ -689,6 +689,102 @@
         1024,
         512
       ]
+    },
+    "piano/gear_ebony": {
+      "file": "styles/piano/gear_ebony.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "piano/gear_emerald": {
+      "file": "styles/piano/gear_emerald.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "piano/gear_mahogany": {
+      "file": "styles/piano/gear_mahogany.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "piano/gear_white": {
+      "file": "styles/piano/gear_white.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "piano/hitBurst": {
+      "file": "styles/piano/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.7
+    },
+    "piano/hitHold": {
+      "file": "styles/piano/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.7
+    },
+    "piano/keys": {
+      "file": "styles/piano/keys.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "piano/long": {
+      "file": "styles/piano/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "piano/notes": {
+      "file": "styles/piano/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "piano/side": {
+      "file": "styles/piano/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
     }
   },
   "effects": {
