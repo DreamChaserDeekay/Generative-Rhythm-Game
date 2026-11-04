@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { paintBorder, rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type SideLook } from './deckArt';
+import { KEY_PAINT, paintBorder, rowDrop, SIDE_PAINT, type Box, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -20,7 +20,7 @@ import {
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
-import { artPartsOf, borderLookOf, isArtHit, keyPaintOf, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, borderLookOf, isArtHit, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -61,19 +61,20 @@ const HOLD_OPACITY = { idle: 1, held: 1, missed: 0.4 } as const;
  * far, low camera (the plane one) shows a long way down it.
  */
 const TRACK_TAIL = 16;
-/** A border's picture is a tile this many plane px long down the track, BORDER_SCALE canvas px to a plane px. */
+/** A border's picture is a tile this many plane px long down the track (a gear's frame: its own), BORDER_SCALE canvas px to a plane px. */
 const BORDER_TILE = 64;
 const BORDER_SCALE = 4;
 
 /**
- * One of the track's borders in the gear's `look`, `railPx` wide: a tile repeating down it, mirrored
- * at every other so that a grain runs on without a seam (mipmapped: far up the track it is a px or two).
+ * One of the track's borders in the gear's `look`, `railPx` wide: a tile `tilePx` long repeating down
+ * it, mirrored at every other so that a grain runs on without a seam (mipmapped: far up the track it
+ * is a px or two); `lit`, as it looks in FEVER.
  */
-function borderTexture(look: SideLook, railPx: number, side: -1 | 1): THREE.CanvasTexture {
+function borderTexture(look: SideLook, railPx: number, tilePx: number, side: -1 | 1, lit = false): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(2, Math.round(railPx * BORDER_SCALE));
-  canvas.height = BORDER_TILE * BORDER_SCALE;
-  paintBorder(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE);
+  canvas.height = Math.max(2, Math.round(tilePx * BORDER_SCALE));
+  paintBorder(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapT = THREE.MirroredRepeatWrapping;
@@ -619,6 +620,8 @@ export class TrackRenderer {
   private readonly notePaint: NotePaint;
   private readonly keyPaint: KeyPaint;
   private readonly platePaint: (g: CanvasRenderingContext2D, s: DeckSpec) => void;
+  /** The track's borders: the gear's frame (a picked gear's own, as wide as it is) or the skin's rails in its plate's colours. */
+  private readonly borderLook: SideLook;
   /** The hit effect plays a flipbook texture (the skin's, or its style's art). */
   private readonly flipbook: boolean;
   /** Where the scratch's light lies over the gear's turntable (plane px), for the deck's picture. */
@@ -648,6 +651,8 @@ export class TrackRenderer {
   private readonly judgeGlowMaterial: THREE.MeshBasicMaterial | null;
   /** What FEVER tints along the borders (their glow, and a light added over them), with each one's own colour. */
   private readonly railTints: [THREE.MeshBasicMaterial, number][] = [];
+  /** A gear's frame looks otherwise in FEVER: each border's material with its picture at rest and lit. */
+  private readonly borderMaps: [THREE.MeshBasicMaterial, THREE.Texture, THREE.Texture][] = [];
   private readonly feverOverlay: THREE.Mesh;
   /** The FEVER colour the rails and the judge line's glow have now (null: the skin's own). */
   private feverShown: number | null = null;
@@ -691,8 +696,9 @@ export class TrackRenderer {
     this.prepareArt();
     this.images = options.art?.images ?? {};
     this.notePaint = notePaintOf(this.style.note, this.images);
-    this.keyPaint = keyPaintOf(this.style, this.images);
+    this.keyPaint = KEY_PAINT[this.style.deck];
     this.platePaint = platePaintOf(this.style, this.images);
+    this.borderLook = borderLookOf(this.style, this.images, this.skin.colors);
     this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.palette, options.mode);
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
@@ -927,15 +933,20 @@ export class TrackRenderer {
     return this.planeAs(camera);
   }
 
-  /** How far outside the track its borders reach (track units): the skin's rail width. */
-  private get railReach(): number {
-    return this.style.rails.width * PX;
+  /** How wide the track's borders are (plane px): a gear's frame as wide as it is, else the skin's rails. */
+  private get railPx(): number {
+    return this.borderLook.width ?? this.style.rails.width;
+  }
+
+  /** The skin's walls outside its rails (ARCADE's gunmetal, STREET's), which a gear's own frame takes the place of. */
+  private get walls(): SkinStyle['frame'] {
+    return this.borderLook.paint ? undefined : this.style.frame;
   }
 
   private planeAs(camera: TrackCamera): HudPlane {
     const { width, length } = this.geometry;
-    const railOuter = this.railReach;
-    const wallOuter = this.style.frame === 'gunmetal' ? 50 * PX : this.style.frame === 'street' ? 28 * PX : 0;
+    const railOuter = this.railPx * PX;
+    const wallOuter = this.walls === 'gunmetal' ? 50 * PX : this.walls === 'street' ? 28 * PX : 0;
     return {
       h: planeHomography(camera, this.cssWidth, this.cssHeight, this.judgeZ),
       halfWidth: width / 2 / PX,
@@ -1503,6 +1514,7 @@ export class TrackRenderer {
     if (shown === this.feverShown) return;
     this.feverShown = shown;
     for (const [m, own] of this.railTints) m.color.setHex(shown ?? own);
+    for (const [m, idle, lit] of this.borderMaps) m.map = shown === null ? idle : lit;
     this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.skin.colors.judgeGlow));
   }
 
@@ -1571,14 +1583,18 @@ export class TrackRenderer {
 
   /**
    * The track's borders, its two edges from the far end past the gear (where a skin's rails ran):
-   * the gear's own frame (styleArt.borderLookOf), a picture repeating down them, as wide as the
-   * skin's rails, with the rails' glow (in the frame's edge colour) where the skin has one. FEVER
-   * adds its colour over them.
+   * the gear's frame (styleArt.borderLookOf), a picture repeating down them. A picked gear's own
+   * frame is as wide as it is and changes its picture in FEVER (its lights lit); a skin's rails are as
+   * wide as the skin has them, with their glow (in the frame's edge colour) where the skin has one,
+   * and FEVER adds its colour over them.
    */
   private buildRails(): void {
     const { width, length } = this.geometry;
-    const look = borderLookOf(this.style, this.images, this.skin.colors);
-    const { width: railPx, glow: blur } = this.style.rails;
+    const look = this.borderLook;
+    const own = Boolean(look.paint);
+    const railPx = this.railPx;
+    const blur = own ? 0 : this.style.rails.glow;
+    const tile = look.tile ?? BORDER_TILE;
     const w = railPx * PX;
     // the sheets' box-shadow: 0 0 <glow>px at 70 %
     const glow = blur ? this.own(railGlowTexture(railPx, blur, 0.7)) : null;
@@ -1593,13 +1609,23 @@ export class TrackRenderer {
         this.scene.add(g);
         this.railTints.push([g.material as THREE.MeshBasicMaterial, hex(look.edge)]);
       }
-      const map = this.own(borderTexture(look, railPx, side));
-      map.repeat.set(1, (length + TRACK_TAIL) / (BORDER_TILE * PX));
-      const mesh = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
+      const repeat = (length + TRACK_TAIL) / (tile * PX);
+      const map = this.own(borderTexture(look, railPx, tile, side));
+      map.repeat.set(1, repeat);
+      const material = new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false });
+      const mesh = new THREE.Mesh(this.flatGeometry, material);
       mesh.scale.set(w, 1, length + TRACK_TAIL);
       mesh.position.set(x, 0.006, z);
       mesh.renderOrder = 1;
       this.scene.add(mesh);
+      if (own) {
+        if (look.lit) {
+          const lit = this.own(borderTexture(look, railPx, tile, side, true));
+          lit.repeat.set(1, repeat);
+          this.borderMaps.push([material, map, lit]);
+        }
+        continue;
+      }
       // FEVER's colour added over the border (black, nothing, until then)
       const fever = this.flat(0x000000, 1, 1.01, { additive: true });
       fever.scale.set(w, 1, length + TRACK_TAIL);
@@ -1608,9 +1634,9 @@ export class TrackRenderer {
     }
   }
 
-  /** Walls outside the rails (ARCADE's gunmetal frame, STREET's dark walls with a yellow edge). */
+  /** Walls outside the rails (ARCADE's gunmetal frame, STREET's dark walls with a yellow edge), unless the gear has its own frame. */
   private buildWalls(): void {
-    const frame = this.style.frame;
+    const frame = this.walls;
     if (!frame) return;
     const { width, length } = this.geometry;
     const [from, to] = frame === 'gunmetal' ? [6, 50] : [6, 28];

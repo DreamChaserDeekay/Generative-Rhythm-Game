@@ -33,12 +33,28 @@
       },
       "anchorY": 0.7
     },
-    "club/gear": {
-      "file": "styles/club/gear.png",
+    "cabinet/abs": {
+      "file": "gears/cabinet/abs.png",
       "bundle": "gear",
       "size": [
-        1024,
-        1024
+        512,
+        512
+      ]
+    },
+    "cabinet/button": {
+      "file": "gears/cabinet/button.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "cabinet/turntable": {
+      "file": "gears/cabinet/turntable.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
       ]
     },
     "club/hitBurst": {
@@ -72,14 +88,6 @@
         "loop": true
       },
       "anchorY": 0.7
-    },
-    "club/keys": {
-      "file": "styles/club/keys.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        256
-      ]
     },
     "club/long": {
       "file": "styles/club/long.png",
@@ -350,14 +358,6 @@
         64
       ]
     },
-    "gem/gear": {
-      "file": "styles/crystal/gear.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
     "gem/hitBurst": {
       "file": "styles/crystal/hit_burst.png",
       "bundle": "effects",
@@ -389,14 +389,6 @@
         "loop": true
       },
       "anchorY": 0.7
-    },
-    "gem/keys": {
-      "file": "styles/crystal/keys.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        256
-      ]
     },
     "gem/long": {
       "file": "styles/crystal/long.png",
@@ -516,14 +508,6 @@
       },
       "anchorY": 0.7
     },
-    "mecha/gear": {
-      "file": "styles/mecha/gear.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
-      ]
-    },
     "mecha/hitBurst": {
       "file": "styles/mecha/hit_burst.png",
       "bundle": "effects",
@@ -555,14 +539,6 @@
         "loop": true
       },
       "anchorY": 0.73
-    },
-    "mecha/keys": {
-      "file": "styles/mecha/keys.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        512
-      ]
     },
     "mecha/long": {
       "file": "styles/mecha/long.png",
@@ -650,12 +626,36 @@
         64
       ]
     },
-    "neon/gear": {
-      "file": "styles/neon/gear.png",
+    "najeon/band": {
+      "file": "gears/najeon/band.png",
       "bundle": "gear",
       "size": [
-        1024,
-        1024
+        128,
+        2048
+      ]
+    },
+    "najeon/lid": {
+      "file": "gears/najeon/lid.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "najeon/lock": {
+      "file": "gears/najeon/lock.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "najeon/tablet": {
+      "file": "gears/najeon/tablet.png",
+      "bundle": "gear",
+      "size": [
+        341,
+        358
       ]
     },
     "neon/hitBurst": {
@@ -690,14 +690,6 @@
       },
       "anchorY": 0.7
     },
-    "neon/keys": {
-      "file": "styles/neon/keys.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        256
-      ]
-    },
     "neon/long": {
       "file": "styles/neon/long.png",
       "bundle": "notes",
@@ -720,14 +712,6 @@
       "size": [
         1024,
         512
-      ]
-    },
-    "piano/gear": {
-      "file": "styles/piano/gear.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        1024
       ]
     },
     "piano/hitBurst": {
@@ -762,14 +746,6 @@
       },
       "anchorY": 0.7
     },
-    "piano/keys": {
-      "file": "styles/piano/keys.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        256
-      ]
-    },
     "piano/long": {
       "file": "styles/piano/long.png",
       "bundle": "notes",
@@ -792,6 +768,62 @@
       "size": [
         1024,
         512
+      ]
+    },
+    "receiver/knob": {
+      "file": "gears/receiver/knob.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "receiver/silver": {
+      "file": "gears/receiver/silver.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "receiver/switch": {
+      "file": "gears/receiver/switch.png",
+      "bundle": "gear",
+      "size": [
+        320,
+        368
+      ]
+    },
+    "receiver/walnut": {
+      "file": "gears/receiver/walnut.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        1024
+      ]
+    },
+    "standard/graphite": {
+      "file": "gears/standard/graphite.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        1024
+      ]
+    },
+    "standard/jog": {
+      "file": "gears/standard/jog.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "standard/pad": {
+      "file": "gears/standard/pad.png",
+      "bundle": "gear",
+      "size": [
+        375,
+        384
       ]
     }
   },

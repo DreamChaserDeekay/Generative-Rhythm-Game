@@ -20,6 +20,7 @@ import { CameraFx } from '../render/cameraFx';
 import { hexString } from '../render/noteColors';
 import { GRADE_PALETTES } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
+import { hudGearOf, hudTypeFor } from '../render/gearHud';
 import { styleOf } from '../render/skins';
 import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
 import { LONG_OF } from '../render/tintArt';
@@ -338,7 +339,8 @@ export class PlayController {
         feverManualKey: settings.fever === 'MANUAL' ? this.triggerLabel('fever') : null,
         // a pacer with nothing to follow still shows its row (a dash), so a chosen BEST never just vanishes
         pacemakerLabel: this.practice || settings.pacemaker === 'OFF' ? null : pacemakerLabel(settings.pacemaker),
-        type: styleOf(skin).type,
+        type: hudTypeFor(styleOf(skin), settings.hudType),
+        gear: hudGearOf(styleOf(skin)),
         judgementOpacity: settings.judgementOpacity,
         counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
         // in real ms as the errors are (the table's windows are song ms: a practice's rate stretches them)

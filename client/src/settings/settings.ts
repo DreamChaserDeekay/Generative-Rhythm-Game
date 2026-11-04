@@ -19,6 +19,7 @@ import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { SideNotes } from '../render/layout';
 import { noteColorsFor, presetById, sanitizePresets, SKIN_COLORS, type ColorPreset } from '../render/noteColors';
+import { HUD_TYPE_SOURCES, type HudTypeSource } from '../render/gearHud';
 import type { Palette } from '../render/palette';
 import { BUILTIN_SKINS, DEFAULT_PARTS, sanitizeParts, sanitizeSkin, SKIN_RENAMES, skinById, withParts, type Skin, type SkinParts } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
@@ -182,6 +183,8 @@ export interface Settings {
   customSkin: unknown;
   /** Notes, side notes, gear and hit effect picked apart from the skin (each the skin's by default). */
   parts: SkinParts;
+  /** The judgement and combo in the picked gear's type, or the skin's (render/gearHud.ts). */
+  hudType: HudTypeSource;
   /** The note colours by lane: a preset's id, or SKIN_COLORS (기본: the palette's and the skin's). */
   noteColors: string;
   /** The player's own note colour presets. */
@@ -269,6 +272,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skin: 'flat',
   customSkin: null,
   parts: DEFAULT_PARTS,
+  hudType: 'gear',
   noteColors: SKIN_COLORS,
   colorPresets: [],
   bgBrightness: 0.35,
@@ -383,6 +387,7 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.customSkin = sanitizeSkin(s.customSkin);
   if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
   s.parts = sanitizeParts(s.parts);
+  s.hudType = pick(s.hudType, HUD_TYPE_SOURCES, d.hudType);
   s.colorPresets = sanitizePresets(raw.colorPresets);
   s.noteColors = typeof s.noteColors === 'string' && presetById(s.noteColors, s.colorPresets) ? s.noteColors : SKIN_COLORS;
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);

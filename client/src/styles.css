@@ -82,6 +82,25 @@
   font-display: block;
 }
 
+/* seven-segment digits: the arcade cabinet's and the receiver's readouts */
+@font-face {
+  font-family: 'DSEG7 Classic';
+  src: url('./assets/fonts/DSEG7Classic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* one syllable, 흥 (NAJEON's gauge), cut from Noto Serif KR Bold */
+@font-face {
+  font-family: 'Noto Serif KR';
+  src: url('./assets/fonts/NotoSerifKR-Bold-subset.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  unicode-range: U+D765;
+}
+
 :root {
   /* colour: five base tokens */
   --bg: #0b0c10;
@@ -1170,6 +1189,11 @@ p.hint {
   paint-order: stroke fill;
 }
 
+/* a gear's combo digits keep an outline of their own (Hud.ts: --combo-outline) */
+.hud-combo-num {
+  -webkit-text-stroke-color: var(--combo-outline, var(--hud-outline));
+}
+
 .hud-judge {
   opacity: 0;
   transition: opacity 0.15s;
@@ -1305,7 +1329,11 @@ p.hint {
 }
 
 .hud-combo-num {
-  color: var(--text);
+  /* a gear's combo in its readout's digits (Hud.ts: --combo-font) */
+  font-family: var(--combo-font), var(--font-display);
+  font-weight: var(--combo-weight);
+  font-style: var(--combo-style);
+  color: var(--combo-color);
   /* the per-hit bump (Hud.ts) grows it upward from its baseline */
   transform-origin: 50% 100%;
 }
@@ -1372,22 +1400,22 @@ p.hint {
   background: var(--fever);
 }
 
-/* labels and numbers on the plane: sizes from Hud.ts (--label, --num) */
+/* labels and numbers on the plane: sizes from Hud.ts (--label, --num), a gear's digits and colours (.hud[data-gear]) */
 .hud-label {
   display: block;
   font-size: var(--label);
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--text-dim);
+  color: var(--hud-label-colour, var(--text-dim));
 }
 
 .hud-num {
   display: block;
-  font-family: var(--font-display);
+  font-family: var(--hud-num-font, var(--font-display));
   font-size: var(--num);
   font-weight: 700;
   line-height: 1.1;
-  color: var(--text);
+  color: var(--hud-num-colour, var(--text));
 }
 
 .hud-speed {
@@ -1433,9 +1461,10 @@ p.hint {
   transform-origin: 0 50%;
 }
 
-/* the gauge: cells up the track, lit from the bottom (a clip, no layout while playing) */
+/* the gauge: cells up the track, lit from the bottom (a clip, no layout while playing); a gear
+   colours them (--gauge-off, --gauge-low, --gauge-high) or draws cells of its own */
 .hud-gauge {
-  background: repeating-linear-gradient(to top, var(--line) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+  background: repeating-linear-gradient(to top, var(--gauge-off, var(--line)) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
 }
 
 .hud-gauge-fill {
@@ -1444,8 +1473,8 @@ p.hint {
   /* the cells over the clear line in another colour: lit there, the play clears (the clear line
      lies on a cell's edge, so both patterns start on one) */
   background:
-    repeating-linear-gradient(to top, var(--g-max) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) top / 100% calc(100% - var(--clear-at)) no-repeat,
-    repeating-linear-gradient(to top, var(--g-high) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) bottom / 100% var(--clear-at) no-repeat;
+    repeating-linear-gradient(to top, var(--gauge-high, var(--g-max)) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    repeating-linear-gradient(to top, var(--gauge-low, var(--g-high)) 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell)) bottom / 100% var(--clear-at) no-repeat;
   clip-path: inset(100% 0 0 0);
 }
 
@@ -1525,6 +1554,173 @@ p.hint {
 
 .hud-pace.ahead { color: var(--g-high); }
 .hud-pace.behind { color: var(--g-break); }
+
+/* ---------- the HUD beside the track as the picked gear prints it (Hud.ts: data-gear) ----------
+   the gauge's cells, the score panel's housing (.hud-panel-plate, lying on the track under its
+   lines; the panel's own plate where it stands on the screen), the readouts' digits and the
+   labels' colour, the gauge's name. Flat fills and lines only: nothing redrawn while playing. */
+.hud-panel-plate,
+.hud-gauge-name {
+  display: none;
+}
+
+.hud[data-gear] .hud-panel-plate {
+  display: block;
+  box-sizing: border-box;
+  background: var(--plate-bg);
+  border: var(--plate-border);
+}
+
+.hud[data-gear] .hud-panel.upright {
+  background: var(--plate-bg);
+  border: var(--plate-border);
+}
+
+.hud[data-gear] .hud-gauge-name {
+  display: block;
+  transform-origin: 50% 100%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: var(--gauge-name-colour);
+}
+
+/* STANDARD: smoked glass on graphite, white condensed digits, cyan labels and cells */
+.hud[data-gear='standard'] {
+  --hud-label-colour: #37e2ff;
+  --hud-num-colour: #f3f5f9;
+  --plate-bg: rgba(12, 14, 18, 0.6);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.12);
+  --gauge-off: rgba(55, 226, 255, 0.13);
+  --gauge-low: #1aa6c4;
+  --gauge-high: #8ff6ff;
+}
+
+.hud[data-gear='standard'] .hud-gauge {
+  outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;
+   the gauge a slot of LED cells, green to yellow to red up it, named GROOVE */
+.hud[data-gear='cabinet'] {
+  --hud-label-colour: #e8e9ec;
+  --hud-num-font: 'DSEG7 Classic', var(--font-display);
+  --hud-num-colour: #ff2a2a;
+  --plate-bg:
+    radial-gradient(circle at 7px 7px, #9a9ea6 0 2px, #2b2d32 2.5px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 7px) 7px, #9a9ea6 0 2px, #2b2d32 2.5px, transparent 3.5px),
+    radial-gradient(circle at 7px calc(100% - 7px), #9a9ea6 0 2px, #2b2d32 2.5px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 7px) calc(100% - 7px), #9a9ea6 0 2px, #2b2d32 2.5px, transparent 3.5px),
+    rgba(26, 8, 8, 0.72);
+  --plate-border: 1px solid #5c6067;
+  --gauge-off: #1c1f1d;
+  --gauge-name-colour: #e8e9ec;
+}
+
+.hud[data-gear='cabinet'] .hud-gauge {
+  outline: 1.5px solid #8d9198;
+  background-color: #0a0b0c;
+}
+
+.hud[data-gear='cabinet'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #2bd45a 0 58%, #ffd42a 76%, #ff2a2a 94%);
+  -webkit-mask: repeating-linear-gradient(to top, #000 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+  mask: repeating-linear-gradient(to top, #000 0 calc(var(--cell) - var(--gap)), transparent calc(var(--cell) - var(--gap)) var(--cell));
+}
+
+/* RECEIVER: a black glass window in a silver bezel, amber seven-segment digits, engraved labels;
+   the gauge a needle meter (Hud.ts) in a walnut and silver housing, named SIGNAL on its face */
+.hud[data-gear='receiver'] {
+  --hud-label-colour: #b9bdc3;
+  --hud-num-font: 'DSEG7 Classic', var(--font-display);
+  --hud-num-colour: #ffb547;
+  --plate-bg: #0b0a08;
+  --plate-border: 2px solid #c3c7cc;
+}
+
+.hud-meter {
+  box-sizing: border-box;
+  padding: 5%;
+  background: #4f2f1c;
+  border: 1px solid #c3c7cc;
+  transform-origin: 0 100%;
+}
+
+.hud-meter svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud-meter-scale {
+  fill: none;
+  stroke: #2a1a0c;
+  stroke-width: 1.2;
+}
+
+.hud-meter-zone {
+  fill: none;
+  stroke: #c0281c;
+  stroke-width: 3;
+}
+
+.hud-meter-name {
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-anchor: middle;
+  fill: #3a240f;
+}
+
+.hud-meter-needle {
+  stroke: #1d140c;
+  stroke-width: 1.4;
+}
+
+.hud-meter-base {
+  fill: #2a1a0c;
+}
+
+/* NAJEON: a black lacquer plaque edged in gold, gold serif digits; the gauge a column of pearl
+   plum blossoms in a brass frame, lit warm white from the bottom, named 흥 */
+.hud[data-gear='najeon'] {
+  --hud-label-colour: #b8893b;
+  --hud-num-font: 'Cinzel', var(--font-display);
+  --hud-num-colour: #e2c27a;
+  --plate-bg: rgba(11, 10, 9, 0.86);
+  --plate-border: 1px solid #b8893b;
+  --gauge-name-colour: #e2c27a;
+  --blossom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='%23000'%3E%3Ccircle cx='10' cy='5.4' r='3.5'/%3E%3Ccircle cx='14.4' cy='8.6' r='3.5'/%3E%3Ccircle cx='12.7' cy='13.8' r='3.5'/%3E%3Ccircle cx='7.3' cy='13.8' r='3.5'/%3E%3Ccircle cx='5.6' cy='8.6' r='3.5'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.hud[data-gear='najeon'] .hud-gauge {
+  outline: 1px solid #b8893b;
+  background: #070605;
+}
+
+.hud[data-gear='najeon'] .hud-gauge::before,
+.hud[data-gear='najeon'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  -webkit-mask: var(--blossom) bottom / 100% var(--cell) repeat-y;
+  mask: var(--blossom) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='najeon'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(233, 228, 239, 0.16);
+}
+
+.hud[data-gear='najeon'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #f6e7ff, #fff3dc 40%, #e3f4ef 70%, #fff3dc);
+}
+
+.hud[data-gear='najeon'] .hud-gauge-name {
+  font-family: 'Noto Serif KR', var(--font-display);
+  letter-spacing: 0;
+}
 
 .hud-toast {
   position: absolute;

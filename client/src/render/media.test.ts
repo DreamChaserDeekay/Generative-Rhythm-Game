@@ -28,11 +28,13 @@ describe('game media', () => {
     expect(Object.keys(manifest.textures).length).toBeGreaterThan(0);
   });
 
-  it('has every file at the size the manifest gives, in powers of two up to 2048', () => {
+  it('has every file at the size the manifest gives, in powers of two up to 2048 (a gear’s pictures any size up to it)', () => {
     for (const [id, t] of Object.entries(manifest.textures)) {
       const [w, h] = pngSize(join(MEDIA, t.file));
       expect([w, h], id).toEqual(t.size);
-      expect(isPowerOfTwo(w) && isPowerOfTwo(h) && w <= 2048 && h <= 2048, `${id} ${w}×${h}`).toBe(true);
+      // a texture the GPU samples; a gear's picture is only drawn on the deck's canvas, at its own proportions
+      const canvasOnly = t.file.startsWith('gears/');
+      expect((canvasOnly || (isPowerOfTwo(w) && isPowerOfTwo(h))) && w <= 2048 && h <= 2048, `${id} ${w}×${h}`).toBe(true);
       if (t.flipbook) expect(w % t.flipbook.cols === 0 && h % t.flipbook.rows === 0, `${id} cells`).toBe(true);
     }
   });

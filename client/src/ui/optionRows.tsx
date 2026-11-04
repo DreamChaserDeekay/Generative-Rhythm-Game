@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { DeckStyle } from '../render/deckArt';
+import type { HudTypeSource } from '../render/gearHud';
 import { BUILTIN_SKINS, PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
 import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 import type { Settings } from '../settings/settings';
@@ -22,11 +23,10 @@ export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도
 export const DECK_NAMES: Record<DeckStyle, string> = {
   line: '라인',
   stem: '악기색',
-  arcade: '아케이드',
-  mixer: '믹서',
-  neon: '네온',
-  crystal: '크리스털',
-  grand: '그랜드 피아노',
+  standard: '기본',
+  cabinet: '오락실 기체',
+  receiver: '빈티지 리시버',
+  najeon: '나전칠기',
 };
 export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   flash: '플래시',
@@ -42,6 +42,12 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   flipbook: '보석 섬광',
   none: '없음',
 };
+
+/** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴). */
+export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [
+  ['gear', '기어'],
+  ['skin', '트랙 스킨'],
+];
 
 /** Each part's choices, by name. */
 export const PART_CHOICES: { [K in keyof SkinParts]: [SkinParts[K], string][] } = {

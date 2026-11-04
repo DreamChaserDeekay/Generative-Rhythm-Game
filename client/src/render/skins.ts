@@ -1,6 +1,6 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import { LANE_PALETTES, type Palette } from './palette';
-import { CAP_DECKS, DECK_STYLES, type DeckStyle } from './deckArt';
+import { CAP_DECKS, DECK_STYLES, GEAR_STYLES, type DeckStyle } from './deckArt';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from './tintArt';
 
 export type NoteShape = 'box' | 'flat' | 'round';
@@ -32,7 +32,7 @@ export interface SkinColors {
   lanes?: Partial<Record<LaneColor, string>>;
 }
 
-/** The fonts bundled for a skin's judgement and combo, each in the one weight and style shipped. */
+/** The fonts bundled for a skin's (or a gear's) judgement and combo, each in the one weight and style shipped. */
 export const HUD_FONTS = {
   'Barlow Condensed': { weight: 700, italic: false },
   'Bebas Neue': { weight: 400, italic: false },
@@ -42,6 +42,8 @@ export const HUD_FONTS = {
   'Exo 2': { weight: 700, italic: true },
   'Baloo 2': { weight: 800, italic: false },
   Cinzel: { weight: 700, italic: false },
+  // seven-segment digits (the arcade cabinet's and the receiver's readouts)
+  'DSEG7 Classic': { weight: 700, italic: false },
 } as const;
 export type HudFont = keyof typeof HUD_FONTS;
 
@@ -67,6 +69,10 @@ export interface HudType {
   /** The judgement slanted (deg), with a bar of this colour under it. */
   skew?: number;
   bar?: string;
+  /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
+  comboFont?: HudFont;
+  comboColor?: string;
+  comboOutline?: string;
 }
 
 /**
@@ -244,7 +250,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#ff9f43',
     style: {
       note: 'chamfer',
-      deck: 'arcade',
+      deck: 'cabinet',
       beam: 'white',
       hit: 'mecha',
       rails: { width: 5 },
@@ -265,7 +271,7 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#ff3b3b',
     style: {
       note: 'round',
-      deck: 'mixer',
+      deck: 'receiver',
       beam: 'fade',
       hit: 'club',
       rails: { width: 3 },
@@ -286,7 +292,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#ffd23f',
     style: {
       note: 'chamfer',
-      deck: 'arcade',
+      deck: 'cabinet',
       beam: 'fade',
       hit: 'flare',
       rails: { width: 6 },
@@ -308,7 +314,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#5fe7ff',
     style: {
       note: 'star5',
-      deck: 'neon',
+      deck: 'standard',
       beam: 'neon',
       hit: 'neon',
       rails: { width: 6, glow: 14 },
@@ -329,7 +335,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#bfe9ff',
     style: {
       note: 'star4',
-      deck: 'crystal',
+      deck: 'standard',
       beam: 'white',
       hit: 'crystal',
       rails: { width: 5, glow: 8 },
@@ -349,7 +355,7 @@ export const BUILTIN_SKINS: Skin[] = [
     judge: '#fff1d6',
     style: {
       note: 'round',
-      deck: 'mixer',
+      deck: 'standard',
       beam: 'fade',
       hit: 'bubbles',
       rails: { width: 8 },
@@ -370,7 +376,7 @@ export const BUILTIN_SKINS: Skin[] = [
     glow: '#bfe9ff',
     style: {
       note: 'chamfer',
-      deck: 'crystal',
+      deck: 'najeon',
       beam: 'white',
       hit: 'flipbook',
       rails: { width: 10, bevel: true },
@@ -411,6 +417,8 @@ const EFFECTS: HitEffectStyle[] = ['burst', 'ring', 'sprite', 'none'];
 const LANE_KEYS: LaneColor[] = ['white', 'blue', 'gold', 'scratch', 'sideL', 'sideR'];
 /** Note styles of earlier versions, by the family that took their place in their skins. */
 const NOTE_RENAMES: Record<string, NoteStyle> = { gloss: 'chamfer', thin: 'round', outline: 'chamfer', chip: 'star5', gem: 'star4', pill: 'round', jewel: 'chamfer' };
+/** Gears of an earlier version, gone: a skin that names one gets the standard gear. */
+const DECK_RENAMES: Record<string, DeckStyle> = { arcade: 'standard', mixer: 'standard', crystal: 'standard', neon: 'standard', grand: 'standard' };
 const BEAM_STYLES: BeamStyle[] = ['fade', 'white', 'stem', 'neon'];
 const HIT_CHOICES: SkinStyle['hit'][] = [...HIT_STYLES, 'flipbook', 'none'];
 const CAMERAS: CameraId[] = ['SDVX', 'FLAT', 'LOW', 'PLANE'];
@@ -440,6 +448,9 @@ function sanitizeType(raw: unknown): HudType {
   if (r.inline === true) type.inline = true;
   if (r.skew !== undefined) type.skew = num(r.skew, -20, 20, 0);
   if (colour(r.bar)) type.bar = colour(r.bar);
+  if (FONTS.includes(r.comboFont as HudFont)) type.comboFont = r.comboFont as HudFont;
+  if (colour(r.comboColor)) type.comboColor = colour(r.comboColor);
+  if (colour(r.comboOutline)) type.comboOutline = colour(r.comboOutline);
   return type;
 }
 
@@ -455,7 +466,7 @@ function sanitizeStyle(raw: unknown): SkinStyle | undefined {
   const style: SkinStyle = {
     note: pick(r.note, NOTE_STYLES, renamed(r.note, NOTE_RENAMES) ?? d.note),
     // a skin of an earlier version names the key cap that stood under the judge line
-    deck: pick(r.deck, DECK_STYLES, typeof r.cap === 'string' && Object.hasOwn(CAP_DECKS, r.cap) ? CAP_DECKS[r.cap] : d.deck),
+    deck: pick(r.deck, DECK_STYLES, renamed(r.deck, DECK_RENAMES) ?? (typeof r.cap === 'string' && Object.hasOwn(CAP_DECKS, r.cap) ? CAP_DECKS[r.cap] : d.deck)),
     beam: pick(r.beam, BEAM_STYLES, d.beam),
     hit: pick(r.hit, HIT_CHOICES, d.hit),
     rails: { width: num(rails.width, 1, 20, d.rails.width) },
@@ -547,15 +558,16 @@ export interface SkinParts {
 
 /** What a player can pick: the instrument-colour note, gear and effect and the plain line gear are the skins' own only. */
 export const PART_NOTES = NOTE_STYLES.filter((s) => s !== 'stem');
-export const PART_DECKS = DECK_STYLES.filter((s) => s !== 'line' && s !== 'stem');
+export const PART_DECKS: DeckStyle[] = GEAR_STYLES;
 export const PART_HITS = HIT_STYLES.filter((s) => s !== 'stemflash');
 
-/** What a player starts with: the flat notes, the side notes as bars, the grand piano gear and the flash. */
-export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' };
+/** What a player starts with: the flat notes, the side notes as bars, the standard gear and the flash. */
+export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' };
 
 /**
- * Saved parts; what is missing or no longer picked (an earlier version's 'skin' among them) is the
- * default, and an earlier version's gear colour (deckColour) is dropped: each gear has one look.
+ * Saved parts; what is missing or no longer picked (an earlier version's 'skin', and its gears that
+ * are gone, among them) is the default, and an earlier version's gear colour (deckColour) is dropped:
+ * each gear has one look.
  */
 export function sanitizeParts(raw: unknown): SkinParts {
   const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;

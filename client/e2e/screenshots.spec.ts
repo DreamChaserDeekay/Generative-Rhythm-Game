@@ -301,7 +301,7 @@ test('play: background video, camera effects and a skin', async ({ page }) => {
 async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
   await watchSources(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'mixer', hit: 'club' } });
+  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
   const notes = await showcaseChart(page, '6K+FX', 'MX');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
@@ -330,26 +330,26 @@ test('play: four of the skins, and the five sets', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // each with the camera it was drawn for and the parts that suit it (the skin draws colours, track
-  // and type only); FEVER off: its tint would cover the skins' rail colours
+  // each with the camera it was drawn for and parts that suit it (the skin draws colours and the
+  // track only); FEVER off: its tint would cover the skins' colours
   for (const [skin, keyMode, name, cameraPreset, parts] of [
-    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'crystal' }],
-    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'crystal', hit: 'flare' }],
-    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }],
-    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'mixer', hit: 'bubbles' }],
+    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }],
+    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'najeon', hit: 'flare' }],
+    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }],
+    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'receiver', hit: 'bubbles' }],
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF', parts });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
-  // each set whole, its gear's module in the scratch lane
+  // each set's notes and hit, on a gear that suits them
   for (const [skin, parts, name] of [
-    ['arcade', { note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'mecha' }, '28-set-mecha'],
-    ['club', { note: 'round', side: 'bar', deck: 'mixer', hit: 'club' }, '29-set-club'],
-    ['glass', { note: 'star4', side: 'bar', deck: 'crystal', hit: 'crystal' }, '30-set-crystal'],
-    ['neon', { note: 'star5', side: 'bar', deck: 'neon', hit: 'neon' }, '31-set-neon'],
-    ['flat', { note: 'piano', side: 'bar', deck: 'grand', hit: 'piano' }, '32-set-piano'],
+    ['arcade', { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }, '28-set-mecha'],
+    ['club', { note: 'round', side: 'bar', deck: 'receiver', hit: 'club' }, '29-set-club'],
+    ['glass', { note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
+    ['neon', { note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
+    ['flat', { note: 'piano', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-set-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', skin, parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'MAXIMUM');
@@ -364,10 +364,10 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [parts, keyMode, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'arcade', hit: 'flash' }, '7K+1S', '22-hit-flash'],
-    [{ note: 'round', side: 'bar', deck: 'mixer', hit: 'flare' }, '8K', '23-hit-flare'],
-    [{ note: 'star4', side: 'dots', deck: 'crystal', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
-    [{ note: 'star5', side: 'dots', deck: 'grand', hit: 'grid' }, '6K+FX', '25-hit-grid'],
+    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'flare' }, '8K', '23-hit-flare'],
+    [{ note: 'star4', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
+    [{ note: 'star5', side: 'dots', deck: 'najeon', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
     await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, hiSpeed: 3, fever: 'OFF' });
@@ -377,6 +377,25 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
     const held = notes.find((n) => n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 600)!;
     const tap = notes.find((n) => n.type === 'tap' && n.lane !== held.lane && n.t > held.t + 150 && n.t < (held.endT ?? 0) - 150);
     await autoplayAt(page, (tap?.t ?? held.t + 250) + 40);
+    await shot(page, name);
+  }
+});
+
+test('play: the four gears, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
+  // also runs on its own (-g "four gears"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  for (const [deck, name] of [
+    ['standard', '33-gear-standard'],
+    ['cabinet', '34-gear-cabinet'],
+    ['receiver', '35-gear-receiver'],
+    ['najeon', '36-gear-najeon'],
+  ] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', skin: 'flat', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
+    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await autoplayFor(page, 15_500);
+    await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
     await shot(page, name);
   }
 });
@@ -449,7 +468,7 @@ test('settings and calibration', async ({ page }) => {
   // the parts picked for the gear, drawn whatever the skin
   await chooseSetting(page, 'opt-skin', 'arcade');
   await chooseSetting(page, 'opt-note-style', 'round');
-  await chooseSetting(page, 'opt-deck-style', 'neon');
+  await chooseSetting(page, 'opt-deck-style', 'najeon');
   await page.getByTestId('opt-note-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '26-settings-parts');

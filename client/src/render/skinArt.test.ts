@@ -107,8 +107,9 @@ describe('loading skin textures', () => {
         'mecha/notes': entry('styles/mecha/notes.png', [1024, 1024]),
         'mecha/long': entry('styles/mecha/long.png', [512, 256]),
         'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
-        'mecha/keys': entry('styles/mecha/keys.png', [1024, 512]),
-        'mecha/gear': entry('styles/mecha/gear.png', [1024, 1024]),
+        'cabinet/abs': entry('gears/cabinet/abs.webp', [512, 512]),
+        'cabinet/button': entry('gears/cabinet/button.png', [384, 384]),
+        'cabinet/turntable': entry('gears/cabinet/turntable.png', [512, 512]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -118,7 +119,7 @@ describe('loading skin textures', () => {
       manifest: async () => mecha,
       texture: async () => fakeTexture(1024, 1024),
       image: async (url: string): Promise<ArtImage> => {
-        asked.push(url.slice(url.indexOf('styles/')));
+        asked.push(url.slice(url.search(/(styles|gears)\//)));
         if (url.endsWith('long.png')) throw new Error('404');
         // the side notes' picture comes back at the wrong size
         const [width, height] = url.endsWith('side.png') ? [512, 512] : Object.values(mecha.textures).find((t) => url.endsWith(t.file))!.size;
@@ -126,10 +127,10 @@ describe('loading skin textures', () => {
       },
     };
     const arcade = skinById('arcade', null);
-    const mechaSkin = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'arcade' as const, hit: 'mecha' as const } };
+    const mechaSkin = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
-    expect(asked.sort()).toEqual(['styles/mecha/gear.png', 'styles/mecha/keys.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/gear', 'mecha/keys', 'mecha/notes']);
+    expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/turntable.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/turntable', 'mecha/notes']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // nothing to draw from art without a way to decode pictures, or for a skin drawn in code
