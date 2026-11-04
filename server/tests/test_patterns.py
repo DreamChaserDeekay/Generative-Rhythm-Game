@@ -362,6 +362,13 @@ def test_default_rolls_draw_their_shapes_per_roll() -> None:
     into = [{"startBeat": b + 0.5} for b in lasts.values()]
     trills = sum(name == "trill" for name, _ in roll_shapes(song(40), into, expert, 11).values())
     assert trills > sum(name == "trill" for name, _ in shapes.values())
+    # 7K+1S has its own shapes from generator 0.9.43 (rolls.byKeyMode): from EXPERT on fewer trills,
+    # fans and inward rolls, which put two keys in turn (human BMS charts trill 18% of the single
+    # notes we take for rolls, 0.9.42 38-49%, PATTERN_DESIGN 78), and a build-up draws like any roll
+    seven = resolve_params("7K+1S", "EXPERT")
+    drawn = roll_shapes(song(40), [], seven, 11)
+    assert sum(name in ("trill", "fan", "inward") for name, _ in drawn.values()) < sum(name in ("trill", "fan", "inward") for name, _ in shapes.values())
+    assert roll_shapes(song(40), into, seven, 11) == drawn
 
 
 def test_lane_use_is_balanced_over_many_notes() -> None:

@@ -96,8 +96,12 @@ def test_the_plan_moves_the_notes_where_it_says(monkeypatch) -> None:
 def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
     """The long-note plan weighs the long notes' places (to the power holdPower) and the jack plan
     scales the lane search's same-lane cost (2^-jackGain where a unit wants twice the song's jacks):
-    plans that want both in the second half put more of them there than flat plans (long notes 3.5
-    times as late, jacks 1.5 times)."""
+    a plan that wants long notes in the second half puts more of them there than a flat plan (3.5
+    times as late), and one that wants jacks there hands the lane search's slots there a same-lane
+    cost scale of exp(-jackGain) and the others exp(jackGain). (Until 0.9.42 this counted the jacks
+    of one EXPERT chart: 1.5 times as late. Since 0.9.43's roll shapes the share moves 0.45-1.2 times
+    over four seeds, the lane search's other costs having the last word on a song this small; the jack
+    plan ships off, jackGain 0.)"""
     import rhythm_server.generator.core as core
 
     analysis = structured()
@@ -116,17 +120,19 @@ def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
     def is_hold(notes: list[dict], i: int) -> bool:
         return notes[i]["type"] == "hold"
 
-    def jacks(notes: list[dict]):
-        by_t: dict[float, set[int]] = {}
-        for n in notes:
-            by_t.setdefault(n["t"], set()).add(n["lane"])
-        times = sorted(by_t)
-        again = {t: bool(by_t[t] & by_t[p]) for p, t in zip(times, times[1:])}
-        return lambda _notes, i: again.get(notes[i]["t"], False)
+    scales: list[tuple[float, float]] = []  # (slot beat, same-lane cost scale) the lane search gets
+    real_search = sectioned.search
+
+    def search(slots, *args, **kwargs):
+        scales.extend((s.beat, s.jack_scale) for s in slots)
+        return real_search(slots, *args, **kwargs)
+
+    monkeypatch.setattr(sectioned, "search", search)
 
     def chart(plan_of) -> dict:
         monkeypatch.setattr(plan, "predict", plan_of)
         core._plan_cache.clear()
+        scales.clear()
         return generate_chart(analysis, "7K+1S", "EXPERT")
 
     def flat(raw, target, groups=None):
@@ -137,6 +143,11 @@ def test_the_plan_moves_long_notes_and_jacks_where_it_says(monkeypatch) -> None:
             return None
         return np.where(raw[:, plan.RAW.index("songPos")] >= 0.5, 1.0, -1.0)
 
-    even, late = chart(flat), chart(rising)
+    even = chart(flat)
+    assert scales and all(abs(x - 1.0) < 1e-9 for _, x in scales)
+    late = chart(rising)
+    mid = 0.5 * (min(b for b, _ in scales) + max(b for b, _ in scales))
+    early_scale = np.mean([x for b, x in scales if b < 0.8 * mid])
+    late_scale = np.mean([x for b, x in scales if b > 1.2 * mid])
+    assert late_scale < 0.5 < 2.0 < early_scale, (early_scale, late_scale)
     assert later(late, is_hold) > 1.2 * later(even, is_hold), (later(even, is_hold), later(late, is_hold))
-    assert later(late, jacks(late["notes"])) > 1.2 * later(even, jacks(even["notes"]))

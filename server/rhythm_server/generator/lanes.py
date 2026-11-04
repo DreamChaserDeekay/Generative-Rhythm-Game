@@ -121,6 +121,12 @@ class _Weights:
     jack_feedback: float = 0.0
     streak_target: float = 0.0
     streak_feedback: float = 0.0
+    # anchors per key note (a key on every other run note, four hits or more, the notes between it
+    # changing: 1-2-1-3-1-4-1), counted like bms_stats and steered toward hands.anchorTarget (per
+    # 1000 key notes) by the gap relative to the target, its prior in key notes
+    anchor_target: float = 0.0
+    anchor_feedback: float = 0.0
+    anchor_prior: float = 400.0
     feedback_prior: float = 20.0
     # lane moves (hands.laneMoves, config/lane_moves.json): a single key note right after a single
     # key note pays this times -log P(key | previous key, the move into that key, beat phase, note
@@ -190,6 +196,9 @@ class _Weights:
             jack_feedback=by_key_mode(hands.get("jackFeedback", 0.0), params.key_mode),
             streak_target=by_skill(hands.get("jackStreakTarget", 0.0), params.skill),
             streak_feedback=by_key_mode(hands.get("jackStreakFeedback", 0.0), params.key_mode),
+            anchor_target=by_skill(hands.get("anchorTarget", 0.0), params.skill) / 1000.0,
+            anchor_feedback=by_key_mode(hands.get("anchorFeedback", 0.0), params.key_mode) if params.skill >= float(hands.get("anchorMinSkill", 0.0)) else 0.0,
+            anchor_prior=float(hands.get("anchorPrior", 400.0)),
             feedback_prior=float(hands.get("feedbackPrior", 20.0)),
             lane_moves=by_skill(hands.get("laneMoves", 0.0), params.skill),
             lane_moves_draw=bool(hands.get("laneMovesDraw", False)),
@@ -273,6 +282,11 @@ class _State:
     fb_jacks: int = 0  # ...that hit a key again at the next time, JACK_MS later at most
     fb_jstreaks: int = 0  # ...that are the third such hit in a row on their key
     fb_jrun: tuple[int, ...] = ()  # per lane: hits in a row so far, each JACK_MS after the last at most
+    fb_prev2: int = -1  # the run's single note before the previous one (-1: none)
+    fb_anc_key: int = -1  # the key an anchor in the making comes back to (-1: none)
+    fb_anc_hits: int = 0  # ...its hits so far, every other run note
+    fb_anc_mid: int = -1  # ...and the note between its last two hits
+    fb_anchors: int = 0  # anchors so far (four hits or more), like bms_stats
     # the latest key instant, for the lane moves: its key (1-7) when single (0: a chord), the move
     # class into it (lane_move_class) and its time
     mv_key: int = 0
@@ -463,7 +477,7 @@ def search(
     repeat_targets = targets_by_slot or [None] * len(slots)
     feedback = (
         weights.run_feedback > 0 or weights.bar_feedback > 0 or weights.mid_feedback > 0 or weights.stair_feedback > 0
-        or weights.jack_feedback > 0 or weights.streak_feedback > 0
+        or weights.jack_feedback > 0 or weights.streak_feedback > 0 or weights.anchor_feedback > 0
     )
     moves = lane_move_logp() if weights.lane_moves > 0 and len(key_lanes) == 7 else None
     key_no = {lane: n + 1 for n, lane in enumerate(key_lanes)}
@@ -1055,6 +1069,16 @@ def _costs(
         jack_gap = aim - (state.fb_jacks + prior * aim) / (state.fb_keys + prior)
         streak_gap = aim_streak - (state.fb_jstreaks + prior * aim_streak) / (state.fb_keys + prior)
         jack_on = prev
+    anchor_gap = 0.0
+    anchor_back = anchor_mid = -1  # the anchor's key to come back to / the note between to change from
+    if w.anchor_feedback > 0 and w.anchor_target > 0 and slot.special is None and state.fb_single and dt <= RUN_MS and state.fb_anc_hits >= 2:
+        prior = w.anchor_prior
+        share = (state.fb_anchors + prior * w.anchor_target) / (state.fb_keys + prior)
+        anchor_gap = (w.anchor_target - share) / w.anchor_target
+        if prev[0] == state.fb_anc_key:
+            anchor_mid = state.fb_anc_mid  # the note between hits: a new key keeps it an anchor
+        elif prev[0] != state.fb_anc_mid:
+            anchor_back = state.fb_anc_key  # the next hit (a trill would come back after the same note)
     if w.bar_feedback > 0 and sides is not None:
         prior = w.feedback_prior / 2.0
         bar_gap = w.bar_target - (state.fb_off + prior * w.bar_target) / (state.fb_bars + prior)
@@ -1155,6 +1179,13 @@ def _costs(
                     cost -= w.jack_feedback * jack_gap
                     if state.fb_jrun and state.fb_jrun[i] == 2:
                         cost -= w.streak_feedback * streak_gap
+        if anchor_gap and len(combo) == 1 and pull_rule:
+            # an anchor goes on (1-2-1-3-1): back to its key after a note that changed, or a new key
+            # between its hits, while the path has too few anchors (a cost while it has too many)
+            if combo[0] == anchor_back:
+                cost -= w.anchor_feedback * anchor_gap
+            elif anchor_mid >= 0 and combo[0] not in (anchor_mid, state.fb_anc_key):
+                cost -= 0.5 * w.anchor_feedback * anchor_gap
         if bar_gap and sides is not None and balance_rule and bar_left + bar_right >= 2.0 and len(combo) == 1:
             # toward the hand the bar already leans to (a lopsided bar) while there are too few; for
             # single notes only (a bonus per key of a chord made one-hand adjacent chords)
@@ -1200,6 +1231,7 @@ def _feedback_counts(
         jacks += jrun[i] >= 2
         jstreaks += jrun[i] == 3
     stair, step, stairs = 1, 0, state.fb_stairs
+    prev2, anc_key, anc_hits, anc_mid, anchors = -1, -1, 0, -1, state.fb_anchors
     if state.bar >= 0 and bar != state.bar:
         left, right = state.bar_hands
         if left + right >= w.balance_min:
@@ -1222,6 +1254,16 @@ def _feedback_counts(
             if abs(move) == 1:
                 stair, step = (state.fb_stair + 1, move) if move == state.fb_step else (2, move)
                 stairs += 3 if stair == 3 else 1 if stair > 3 else 0
+            # an anchor: a key on every other run note, the notes between it changing; its fourth hit
+            # counts it (bms_stats), a note between the same as the last one between makes it a trill
+            k, s1 = keys_used[0], state.prev_lanes[0]
+            if k == state.fb_prev2 and s1 != k:
+                continues = state.fb_anc_key == k and state.fb_anc_hits >= 2 and s1 != state.fb_anc_mid
+                anc_key, anc_hits, anc_mid = k, state.fb_anc_hits + 1 if continues else 2, s1
+                anchors += anc_hits == 4
+            elif s1 == state.fb_anc_key and k != s1:
+                anc_key, anc_hits, anc_mid = state.fb_anc_key, state.fb_anc_hits, state.fb_anc_mid
+            prev2 = s1
             length = 0 if side == "T" else state.fb_len + 1 if side == state.fb_side else 1
             hand3 += length >= 3
         else:
@@ -1230,6 +1272,7 @@ def _feedback_counts(
         "fb_run": run, "fb_hand3": hand3, "fb_bars": bars, "fb_off": off, "fb_single": single, "fb_in_run": in_run, "fb_side": side, "fb_len": length,
         "fb_moves": moves, "fb_mid": mid, "fb_stair": stair, "fb_step": step, "fb_stairs": stairs,
         "fb_keys": keys, "fb_jacks": jacks, "fb_jstreaks": jstreaks, "fb_jrun": tuple(jrun),
+        "fb_prev2": prev2, "fb_anc_key": anc_key, "fb_anc_hits": anc_hits, "fb_anc_mid": anc_mid, "fb_anchors": anchors,
     }
 
 
