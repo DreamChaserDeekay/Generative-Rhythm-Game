@@ -192,6 +192,30 @@ def test_the_hand_run_feedback_counts_like_the_bms_measure() -> None:
     assert (state.fb_moves, state.fb_mid) == (9, 2)
 
 
+def test_the_anchor_feedback_counts_anchors_like_the_bms_measure() -> None:
+    # Since generator 0.9.43 the lane search counts anchors (a key on every other note of a fast run,
+    # four hits or more, the notes between it changing) like the guide measure (bms_stats): 1-2-1-3-1-4-1
+    # and 5-1-5-2-5-3-5-4-5 are anchors, the trill 2-3-2-3-2-3-2 is not, and 1-2-1-3-1-3-1 stops at its
+    # third hit (the notes between repeat).
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "HARD"))
+    n = len(lanes)
+    state = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    notes, t = [], 0.0
+    for run in ([0, 1, 0, 2, 0, 3, 0], [1, 2, 1, 2, 1, 2, 1], [4, 0, 4, 1, 4, 2, 4, 3, 4], [0, 1, 0, 2, 0, 2, 0]):
+        for k in run:
+            lane = keys[k]
+            fb = _feedback_counts(state, (lane,), (lane,), t, int(t // 2000), hand_of, w)
+            state = dataclasses.replace(state, prev_t=t, prev_lanes=(lane,), bar=int(t // 2000), **fb)
+            notes.append({"t": t, "beat": t / 500.0, "lane": lane, "type": "tap"})
+            t += 150.0
+        t += 1000.0
+    assert state.fb_anchors == 2
+    assert round(1000.0 * state.fb_anchors / state.fb_keys, 2) == hands(notes, "7K+1S")["anchors"]
+
+
 def test_the_middle_key_feedback_brings_back_moves_through_the_middle_key(monkeypatch) -> None:
     # The hand-run feedback counts the middle key as ending a run, so since generator 0.9.21 our 7K
     # charts moved through it less than human charts at levels 6-10 (PATTERN_DESIGN 45-3). Since
@@ -381,6 +405,43 @@ def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
 
     on, off = costs(w), costs(dataclasses.replace(w, stair_feedback=0.0))
     assert on[0] < off[0] - 1.0 and on[1] == off[1] and on[2] == off[2], (on, off)
+
+
+def test_the_anchor_feedback_pulls_an_anchor_on() -> None:
+    # Human 7-key BMS charts play 1.8 anchors per 1000 key notes at level 6 and 0.5 at level 10 (a key
+    # on every other note of a fast run, four hits or more, the notes between it changing); 0.9.42
+    # played 38-57% of that (levels 6-14, PATTERN_DESIGN 78). Since 0.9.43, while the path has too few,
+    # going back to an anchor's key after a new note between costs anchorFeedback x the gap relative
+    # to the target less (a trill's way back, after the same note between, does not), and a new key
+    # between its hits half that; other keys and chords cost the same.
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    n = len(lanes)
+    pos = [l.pos for l in lanes]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "EXPERT"))
+    assert w.anchor_feedback > 0 and w.anchor_target > 0
+    start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    slot = Slot(beat=2.3, t=1150.0, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
+                bands=np.array([0.2, 0.3, 0.5]), score=1.0, subdivision=4, strength=1.0)
+    combos = [(keys[0],), (keys[2],), (keys[4],), (keys[0], keys[4])]
+
+    def costs(state: _State, weights: _Weights) -> list[float]:
+        return _costs(state, combos, pos, hand_of, slot, None, 1150.0, weights, 0.0)
+
+    # 1-2-1-3 so far (an anchor on key 1 with two hits, key 3 between them now, key 2 before): back to
+    # key 1 goes on; 600 key notes so far and no anchor
+    after_mid = dataclasses.replace(start, prev_t=1000.0, prev_lanes=(keys[2],), fb_single=True, fb_in_run=True, fb_keys=600,
+                                    fb_anc_key=keys[0], fb_anc_hits=2, fb_anc_mid=keys[1], fb_prev2=keys[0])
+    on, off = costs(after_mid, w), costs(after_mid, dataclasses.replace(w, anchor_feedback=0.0))
+    assert on[0] < off[0] - 1.0 and on[1:] == off[1:], (on, off)
+    # 1-2-1-2: key 1 again would be a trill, not an anchor
+    trill = dataclasses.replace(after_mid, prev_lanes=(keys[1],))
+    assert costs(trill, w) == costs(trill, dataclasses.replace(w, anchor_feedback=0.0))
+    # 1-2-1 (on the anchor's key): a new key between (5) costs less, key 2 again (a trill) does not
+    on_key = dataclasses.replace(after_mid, prev_lanes=(keys[0],))
+    on, off = costs(on_key, w), costs(on_key, dataclasses.replace(w, anchor_feedback=0.0))
+    assert on[2] < off[2] - 0.5 and on[1] < off[1] - 0.5 and on[3] == off[3], (on, off)
 
 
 def test_the_sound_memory_keeps_each_sound_group_on_its_lane(monkeypatch) -> None:

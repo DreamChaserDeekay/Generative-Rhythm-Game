@@ -577,11 +577,13 @@ CHORD_JACK_MAX_HITS = 8  # a chord-jack roll is a short fill (rolls.shapes "chor
 
 def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenParams, seed: int, beats_per_bar: float = 4.0) -> dict[int, tuple[str, int]]:
     """Each roll's shape and key number (motifs.alternate_key) from rolls.shapes: drawn
-    by the shapes' weights at the chart's skill, the trill's times rolls.buildUpTrill for a roll
+    by the shapes' weights at the chart's skill (rolls.byKeyMode's for the key mode when it has them), the
+    trill's times rolls.buildUpTrill (also by skill) for a roll
     that leads into a new section (a build-up). The draw goes by the chart's seed, the roll's
     length and where in the bar it starts, so a fill played again is played the same way while the
     song's other rolls take other shapes."""
     cfg = pattern_config()["rolls"]
+    cfg = {**cfg, **(cfg.get("byKeyMode") or {}).get(params.key_mode, {})}
     table = cfg.get("shapes")
     if not table:
         return {}
@@ -604,7 +606,7 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
         )
         weights = [
             0.0 if name == "chordJack" and not jackable
-            else by_skill(table[name], params.skill) * (float(cfg.get("buildUpTrill", 1.0)) if into and name == "trill" else 1.0)
+            else by_skill(table[name], params.skill) * (by_skill(cfg.get("buildUpTrill", 1.0), params.skill) if into and name == "trill" else 1.0)
             for name in names
         ]
         total = sum(weights)
