@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { DECK_STYLES, KEY_PAINT, lowerTop, rowDrop, type DeckSpec, type KeyKind } from './deckArt';
+import { codeBorderLook, DECK_STYLES, KEY_PAINT, lowerTop, paintBorder, rowDrop, type DeckSpec, type KeyKind } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BUILTIN_SKINS } from './skins';
 import { deckRows, type DeckRows } from './TrackRenderer';
@@ -116,5 +116,44 @@ describe('the side bars under the lane lights (side lanes laid over the keys)', 
       expect(Math.abs(d.sideDepth / k - flat.sideDepth)).toBeLessThan(1);
       expect(Math.abs(gap(d) / k - gap(flat))).toBeLessThan(1);
     }
+  });
+});
+
+describe('the track’s borders in a gear’s frame', () => {
+  /** A 2D context that records the boxes filled and their fill (everything else does nothing). */
+  function fillRecorder() {
+    const fills: { x: number; y: number; w: number; h: number; style: unknown }[] = [];
+    const state: Record<string | symbol, unknown> = {};
+    const own: Record<string | symbol, unknown> = { fillRect: (x: number, y: number, w: number, h: number) => fills.push({ x, y, w, h, style: state.fillStyle }) };
+    const g = new Proxy(own, {
+      get: (t, k) => (k in t ? t[k] : k in state ? state[k] : () => ({ addColorStop: () => undefined })),
+      set: (_, k, v) => {
+        state[k] = v;
+        return true;
+      },
+    }) as unknown as CanvasRenderingContext2D;
+    return { g, fills };
+  }
+
+  it('paints a border tile whole: a bevel on the edge facing the lanes, a dark line on the outer one, a line down its middle where it is wide enough', () => {
+    const look = { body: '#202020', edge: '#c0c0c0', line: ['#ff0000', '#00ff00'] as const, brushed: true };
+    for (const side of [-1, 1] as const) {
+      const { g, fills } = fillRecorder();
+      paintBorder(g, 24, 256, look, side, 4);
+      expect(fills[0]).toEqual({ x: 0, y: 0, w: 24, h: 256, style: '#202020' });
+      const [inner, outer] = side < 0 ? [20, 0] : [0, 20];
+      expect(fills.some((f) => f.x === inner && f.w === 4 && f.h === 256 && /^rgba\(\d+,\d+,\d+,0\.9\)$/.test(String(f.style)))).toBe(true);
+      expect(fills.some((f) => f.x === outer && f.w === 4 && f.h === 256 && f.style === 'rgba(0,0,0,0.5)')).toBe(true);
+      expect(fills.some((f) => f.style === (side < 0 ? '#ff0000' : '#00ff00'))).toBe(true);
+      for (const f of fills) expect(f.x >= 0 && f.x + f.w <= 24 + 1e-9 && f.y >= 0 && f.y + f.h <= 256 + 1e-9).toBe(true);
+    }
+    // three plane px wide: no line down its middle
+    const narrow = fillRecorder();
+    paintBorder(narrow.g, 12, 256, look, -1, 4);
+    expect(narrow.fills.some((f) => f.style === '#ff0000')).toBe(false);
+  });
+
+  it('gives every gear drawn in code a border in its plate’s colours', () => {
+    for (const style of DECK_STYLES) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).edge, style).toMatch(/^#[0-9a-f]{6}$/i);
   });
 });

@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DECK_STYLES, KEY_PAINT, lightBox, type DeckSpec } from './deckArt';
+import { codeBorderLook, DECK_STYLES, KEY_PAINT, lightBox, type DeckSpec, type SideLook } from './deckArt';
 import { parseManifest } from './skinArt';
 import { BUILTIN_SKINS, PART_HITS, skinById, styleOf, withParts, type SkinStyle } from './skins';
 import {
   artPartsOf,
+  borderLookOf,
   DECK_COLOURS,
   deckColourOf,
   isArtHit,
@@ -163,6 +164,14 @@ describe('the concept sets drawn from art', () => {
     }
     expect(KEY_PAINT.arcade.scratchBox).toBeUndefined();
     expect(keyPaintOf(arcade, loaded(arcade)).scratchBox).toBe(mechaTurntable);
+  });
+
+  it('gives the track’s borders the arcade gear’s anodised frame in each colourway, and the code gear’s while its pictures are missing', () => {
+    const colours = skinById('flat', null).colors;
+    const looks = ['gunmetal', 'white', 'red', 'blue'].map((way) => borderLookOf({ ...arcade, deckColour: way }, loaded({ ...arcade, deckColour: way }), colours));
+    expect(new Set(looks.map((l) => l.body)).size).toBe(4);
+    for (const l of looks) expect(l.edge).toMatch(/^#[0-9a-f]{6}$/);
+    expect(borderLookOf(arcade, {}, colours)).toEqual(codeBorderLook('arcade', colours));
   });
 
   it('paints the plate in its colourway from art, and the turntable where the scratch is', () => {
@@ -394,6 +403,25 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       expect(box.x + box.w).toBeLessThanOrEqual(lane.left + lane.width + 1e-9);
       expect(box.y + box.h).toBeLessThanOrEqual(300);
     }
+  });
+
+  it('gives the track’s borders its frame in each colourway (its wood where it is veneer), the code gear’s without its pictures', () => {
+    const colours = skinById('flat', null).colors;
+    const looks = c.ways.map((way) => borderLookOf(setStyle(c, way), loaded(setStyle(c, way)), colours));
+    const key = (l: SideLook) => JSON.stringify({ ...l, body: typeof l.body === 'string' ? l.body : 'wood' });
+    expect(new Set(looks.map(key)).size).toBe(c.ways.length);
+    c.ways.forEach((way, i) => {
+      const look = looks[i];
+      expect(look.edge, way).toMatch(/^#[0-9a-f]{6}$/);
+      expect(typeof look.body === 'function', way).toBe(way === 'walnut' || way === 'mahogany');
+      if (typeof look.body === 'function') {
+        // the veneer's grain from the sheet's edge, down the whole tile
+        const { g, draws } = recorder();
+        look.body(g, 0, 24, 256);
+        expect(draws).toEqual([{ sx: 0, sy: 512, sw: 64, sh: 512, dx: 0, dy: 0, dw: 24, dh: 256 }]);
+      }
+    });
+    expect(borderLookOf(style, {}, colours)).toEqual(codeBorderLook(c.deck, colours));
   });
 
   it('paints its plate in the colourway from art: the module in the scratch’s column, its own parts under the row', () => {
