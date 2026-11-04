@@ -494,7 +494,7 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
  * lit, the right one in shade, as the plates' frames are.
  */
 export interface SideLook {
-  /** The frame's face: a colour, or what fills the strip's box (wood). */
+  /** The frame's face: a colour, or a paint that fills the strip's box (a picture). */
   body: string | ((g: CanvasRenderingContext2D, x: number, w: number, h: number) => void);
   /** Its bevel facing the lanes (#rrggbb); a glowing skin's rails glow in it. */
   edge: string;

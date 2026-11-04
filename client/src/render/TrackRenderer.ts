@@ -67,7 +67,7 @@ const BORDER_SCALE = 4;
 
 /**
  * One of the track's borders in the gear's `look`, `railPx` wide: a tile repeating down it, mirrored
- * at every other so that wood runs on without a seam (mipmapped: far up the track it is a px or two).
+ * at every other so that a grain runs on without a seam (mipmapped: far up the track it is a px or two).
  */
 function borderTexture(look: SideLook, railPx: number, side: -1 | 1): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');

@@ -47,7 +47,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, deckColourChoices, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -199,8 +199,6 @@ export function SettingsScreen({
 }: Props) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const setPart = <K extends keyof SkinParts>(key: K, value: SkinParts[K]) => onSettingsChange({ ...settings, parts: { ...settings.parts, [key]: value } });
-  // the picked gear's colourways (none for a gear drawn in code), and the one the pick draws it in
-  const deckColours = deckColourChoices(settings.parts);
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [help, setHelp] = useState('');
   /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
@@ -552,17 +550,6 @@ export function SettingsScreen({
             onChange={(v) => setPart('deck', v)}
             help="판정선 아래 기어(키를 누르면 켜지는 레인 표시등과 그 아래 판)의 모양입니다. 판정선의 위치와 모양은 어느 기어에서나 같습니다."
           />
-          {deckColours.options.length > 0 && (
-            <Choice
-              {...row}
-              label="기어 색"
-              testId="opt-deck-colour"
-              value={deckColours.value}
-              options={deckColours.options}
-              onChange={(v) => setPart('deckColour', v)}
-              help="기어 판의 색입니다. 기어마다 4가지씩 있고, 레인 표시등은 색과 상관없이 레인 색으로 켜집니다."
-            />
-          )}
           <Choice
             {...row}
             label="타격 효과"

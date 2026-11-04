@@ -108,7 +108,7 @@ describe('loading skin textures', () => {
         'mecha/long': entry('styles/mecha/long.png', [512, 256]),
         'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
         'mecha/keys': entry('styles/mecha/keys.png', [1024, 512]),
-        'mecha/gear_red': entry('styles/mecha/gear_red.png', [1024, 1024]),
+        'mecha/gear': entry('styles/mecha/gear.png', [1024, 1024]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -126,14 +126,14 @@ describe('loading skin textures', () => {
       },
     };
     const arcade = skinById('arcade', null);
-    const red = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'arcade' as const, deckColour: 'red', hit: 'mecha' as const } };
-    const art = await loadSkinArt(red, sources);
-    expect(asked.sort()).toEqual(['styles/mecha/gear_red.png', 'styles/mecha/keys.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/gear_red', 'mecha/keys', 'mecha/notes']);
+    const mechaSkin = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'arcade' as const, hit: 'mecha' as const } };
+    const art = await loadSkinArt(mechaSkin, sources);
+    expect(asked.sort()).toEqual(['styles/mecha/gear.png', 'styles/mecha/keys.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/gear', 'mecha/keys', 'mecha/notes']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // nothing to draw from art without a way to decode pictures, or for a skin drawn in code
-    expect(Object.keys((await loadSkinArt(red, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
+    expect(Object.keys((await loadSkinArt(mechaSkin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
     expect(await loadSkinArt(skinById('flat', null), sources)).toBeNull();
     disposeSkinArt(art);
   });

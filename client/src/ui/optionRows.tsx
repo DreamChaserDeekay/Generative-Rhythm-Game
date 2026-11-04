@@ -1,7 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { DeckStyle } from '../render/deckArt';
 import { BUILTIN_SKINS, PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
-import { DECK_COLOURS, deckColourOf } from '../render/styleArt';
 import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 import type { Settings } from '../settings/settings';
 
@@ -44,19 +43,13 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   none: '없음',
 };
 
-/** Each part's choices, by name (the gear's colourways: deckColourChoices, for the gear picked). */
-export const PART_CHOICES: { [K in Exclude<keyof SkinParts, 'deckColour'>]: [SkinParts[K], string][] } = {
+/** Each part's choices, by name. */
+export const PART_CHOICES: { [K in keyof SkinParts]: [SkinParts[K], string][] } = {
   note: PART_NOTES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
   side: SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]]),
   deck: PART_DECKS.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]]),
   hit: PART_HITS.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
 };
-
-/** The colourways of a gear drawn from art, by name (none for a gear drawn in code), and the one a pick draws it in. */
-export function deckColourChoices(parts: Pick<SkinParts, 'deck' | 'deckColour'>): { options: [string, string][]; value: string } {
-  const options = (DECK_COLOURS[parts.deck] ?? []).map((c): [string, string] => [c.id, c.label]);
-  return { options, value: deckColourOf(parts) ?? '' };
-}
 
 export interface RowProps {
   label: string;

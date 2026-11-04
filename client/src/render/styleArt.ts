@@ -23,7 +23,7 @@ import {
  * note, side note and gear paints draw in place of their code drawings, and the flipbooks of the
  * set's hit effect. They load with the skin's textures (loadSkinArt); a part whose pictures are
  * missing keeps its code drawing. A set is a note family with its long note and side notes, a gear
- * in four colourways and a hit, each picked on its own (설정 → 기어):
+ * (in one look of its own) and a hit, each picked on its own (설정 → 기어):
  *
  * - MECHA: the CHAMFER notes (machined plates) and their rail, the ARCADE gear, the MECHA hit;
  * - CLUB: the ROUND notes (records) and their capsule, the MIXER gear, the CLUB hit (rings);
@@ -70,54 +70,13 @@ export type ArtImage = CanvasImageSource & { readonly width: number; readonly he
 /** Loaded pictures by manifest id. */
 export type StyleImages = Readonly<Partial<Record<string, ArtImage>>>;
 
-/** The colourways of the gears drawn from art, the gear's own first, with their names (설정 → 기어 → 기어 색). */
-export const DECK_COLOURS: Partial<Record<DeckStyle, readonly { id: string; label: string }[]>> = {
-  arcade: [
-    { id: 'gunmetal', label: '건메탈' },
-    { id: 'white', label: '화이트 세라믹' },
-    { id: 'red', label: '레드 아노다이징' },
-    { id: 'blue', label: '코발트 블루' },
-  ],
-  mixer: [
-    { id: 'black', label: '매트 블랙' },
-    { id: 'white', label: '화이트' },
-    { id: 'silver', label: '실버 브러시드' },
-    { id: 'walnut', label: '월넛 우드' },
-  ],
-  crystal: [
-    { id: 'silver', label: '실버' },
-    { id: 'rosegold', label: '로즈 골드' },
-    { id: 'gold', label: '골드' },
-    { id: 'smoke', label: '스모크 블랙' },
-  ],
-  neon: [
-    { id: 'black', label: '블랙 글라스' },
-    { id: 'carbon', label: '카본' },
-    { id: 'navy', label: '딥 네이비' },
-    { id: 'burgundy', label: '버건디 골드' },
-  ],
-  grand: [
-    { id: 'ebony', label: '블랙 래커' },
-    { id: 'white', label: '화이트 래커' },
-    { id: 'mahogany', label: '마호가니' },
-    { id: 'emerald', label: '에메랄드 그린' },
-  ],
-};
-
-/** The colourway a style's gear is drawn in: the one picked when the gear has it, else the gear's own (none for a gear drawn in code). */
-export function deckColourOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>): string | undefined {
-  const ways = DECK_COLOURS[style.deck];
-  if (!ways) return undefined;
-  return ways.some((w) => w.id === style.deckColour) ? style.deckColour : ways[0].id;
-}
-
 /**
  * A set's name in the manifest, its pictures listed as "<name>/<part>": CRYSTAL's is "gem", as
  * "crystal" already names an earlier texture set (skins/crystal/, which user skins may ask for).
  */
 const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon', piano: 'piano' };
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side' | 'keys') => `${MANIFEST_NAME[set]}/${part}`;
-const gearId = (set: ArtSet, colour: string) => `${MANIFEST_NAME[set]}/gear_${colour}`;
+const gearId = (set: ArtSet) => `${MANIFEST_NAME[set]}/gear`;
 
 /** The pictures (manifest ids) a style's parts draw from. */
 export function styleImageIds(style: SkinStyle): string[] {
@@ -125,8 +84,7 @@ export function styleImageIds(style: SkinStyle): string[] {
   const notes = setOf('note', style.note);
   if (notes) ids.push(artId(notes, 'notes'), artId(notes, 'long'), ...(style.side === 'dots' ? [] : [artId(notes, 'side')]));
   const gear = setOf('deck', style.deck);
-  const colour = deckColourOf(style);
-  if (gear && colour) ids.push(artId(gear, 'keys'), gearId(gear, colour));
+  if (gear) ids.push(artId(gear, 'keys'), gearId(gear));
   return ids;
 }
 
@@ -393,7 +351,7 @@ export function sideTapPaintOf(style: NoteStyle, images: StyleImages, edge: numb
 const KEY_CELL = 256;
 const KEY_COLS: Record<NoteMark, number> = { white: 0, blue: 1, gold: 2, scratch: 3, side: 3 };
 /**
- * MECHA's gear_<colourway>.png: the turntable's module at (0, 0), `tt` px; the strip under the keys
+ * MECHA's gear.png: the turntable's module at (0, 0), `tt` px; the strip under the keys
  * at (0, strip.y), its two bolted plates and the grille between them (x), their ends `bolts` px wide.
  */
 const GEAR = {
@@ -405,16 +363,11 @@ type Disc = { x: number; y: number; r: number };
 const DISC: Disc = { x: 0.5, y: 0.49, r: 0.41 };
 
 /**
- * Each colourway's plate: its face round the keys, the darker trim of its recesses, its bright edge
+ * MECHA's plate, gunmetal: its face round the keys, the darker trim of its recesses, its bright edge
  * (sampled from the set's sheets), and the anodised metal of its frame at the gear's sides (the
  * turntable's rim in its picture).
  */
-const MECHA_COLOURS: Record<string, { face: string; trim: string; edge: string; frame: string }> = {
-  gunmetal: { face: '#2b2933', trim: '#1f1e27', edge: '#f2f5fd', frame: '#61606c' },
-  white: { face: '#e8e6ed', trim: '#c9c7d0', edge: '#6e6c79', frame: '#efedf4' },
-  red: { face: '#2e2b36', trim: '#24212c', edge: '#d37781', frame: '#732531' },
-  blue: { face: '#201e2b', trim: '#1a1825', edge: '#c3c3cf', frame: '#2d4176' },
-};
+const MECHA_LOOK = { face: '#2b2933', trim: '#1f1e27', edge: '#f2f5fd', frame: '#61606c' } as const;
 
 /**
  * A module in the scratch lane's column (plane px), `aspect` deep for its width in its picture: as
@@ -547,42 +500,20 @@ function setKeys(set: Exclude<ArtSet, 'mecha'>, deck: DeckStyle, keys: ArtImage,
 }
 
 /**
- * The other sets' gear_<colourway>.png: the scratch's module fitted into (0, 0, 512, 512) at its
- * proportions (`module`: its size as cut), CLUB's fader fitted into (512, 0, 256, 512), CRYSTAL's
- * and NEON's strip under the row at (0, 512), 1024 wide and `strip` deep; and the colours its plate is
- * painted in (sampled from the set's sheets).
+ * The other sets' gear.png: the scratch's module fitted into (0, 0, 512, 512) at its proportions
+ * (`module`: its size as cut), CLUB's fader fitted into (512, 0, 256, 512), CRYSTAL's and NEON's strip
+ * under the row at (0, 512), 1024 wide and `strip` deep; and the colours its plate is painted in
+ * (sampled from the set's sheets): the mixer in matt black, the crystal gear in silver, the neon gear
+ * in black glass, the piano's case in black lacquer with brass pinstripes and the felt under the keys.
  */
-type ClubWay = { module: readonly [number, number]; fader: readonly [number, number]; face: string; edge: string; veneer?: true };
-type CrystalWay = { module: readonly [number, number]; strip: number; glass: string; panel: string; edge: string };
-type NeonWay = { module: readonly [number, number]; strip: number; face: string; edge: string };
-type PianoWay = { module: readonly [number, number]; face: string; brass: string; felt: string; veneer?: true };
-const CLUB_GEAR: Record<string, ClubWay> = {
-  black: { module: [674, 674], fader: [150, 311], face: '#333136', edge: '#3f3e43' },
-  white: { module: [678, 676], fader: [151, 313], face: '#e1dfe7', edge: '#eeebf6' },
-  silver: { module: [696, 695], fader: [155, 321], face: '#afacb5', edge: '#d2d0d8' },
-  // its strips walnut veneer (gear_walnut.png at (0, 512), 1024 × 512, the grain running down them)
-  walnut: { module: [674, 674], fader: [150, 312], face: '#262429', edge: '#7d5b54', veneer: true },
-};
-const CRYSTAL_GEAR: Record<string, CrystalWay> = {
-  silver: { module: [430, 430], strip: 99, glass: '#656873', panel: '#14131e', edge: '#aab3bf' },
-  rosegold: { module: [430, 430], strip: 99, glass: '#967472', panel: '#2f1b1f', edge: '#f4b8a9' },
-  gold: { module: [430, 430], strip: 99, glass: '#9f815c', panel: '#221911', edge: '#efce87' },
-  smoke: { module: [430, 430], strip: 99, glass: '#37363d', panel: '#0e0c14', edge: '#565867' },
-};
-/** PIANO's: the dial fitted into (0, 0, 512, 512); its case's lacquer (the mahogany one's veneer at (0, 512), 1024 × 512, the grain running across), brass pinstripes and the felt under the keys. */
-const PIANO_GEAR: Record<string, PianoWay> = {
-  ebony: { module: [408, 408], face: '#0d0d0d', brass: '#e2c9a1', felt: '#510c19' },
-  // its pinstripes are as thin as the sample is wide: the ebony one's brass
-  white: { module: [410, 410], face: '#f2f1f2', brass: '#e2c9a1', felt: '#5b1122' },
-  mahogany: { module: [408, 408], face: '#6c2616', brass: '#b39770', felt: '#580f22', veneer: true },
-  emerald: { module: [410, 410], face: '#123f2b', brass: '#efd8ae', felt: '#581122' },
-};
-const NEON_GEAR: Record<string, NeonWay> = {
-  black: { module: [578, 638], strip: 102, face: '#0a0a0b', edge: '#979da9' },
-  carbon: { module: [729, 822], strip: 134, face: '#212123', edge: '#a0a1ad' },
-  navy: { module: [580, 641], strip: 103, face: '#0b1129', edge: '#d1d1dc' },
-  burgundy: { module: [577, 640], strip: 103, face: '#280b11', edge: '#e2c68b' },
-};
+type ClubLook = { module: readonly [number, number]; fader: readonly [number, number]; face: string; edge: string };
+type CrystalLook = { module: readonly [number, number]; strip: number; glass: string; panel: string; edge: string };
+type NeonLook = { module: readonly [number, number]; strip: number; face: string; edge: string };
+type PianoLook = { module: readonly [number, number]; face: string; brass: string; felt: string };
+const CLUB_LOOK: ClubLook = { module: [674, 674], fader: [150, 311], face: '#333136', edge: '#3f3e43' };
+const CRYSTAL_LOOK: CrystalLook = { module: [430, 430], strip: 99, glass: '#656873', panel: '#14131e', edge: '#aab3bf' };
+const NEON_LOOK: NeonLook = { module: [578, 638], strip: 102, face: '#0a0a0b', edge: '#979da9' };
+const PIANO_LOOK: PianoLook = { module: [408, 408], face: '#0d0d0d', brass: '#e2c9a1', felt: '#510c19' };
 
 /** Where a picture `size` fitted into a box `w` × `h` at (x, y) lies, at its proportions, in the box's middle (as build_styles.py fits it). */
 function fitted(size: readonly [number, number], x: number, y: number, w: number, h: number): Box {
@@ -591,28 +522,26 @@ function fitted(size: readonly [number, number], x: number, y: number, w: number
   return { x: x + Math.floor((w - fw) / 2), y: y + Math.floor((h - fh) / 2), w: fw, h: fh };
 }
 
-/** A set's gear pictures for a style: its lights and its colourway's plate, when both loaded (the gear is drawn from art whole, or in code). */
-function gearArt(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleImages): { set: ArtSet; keys: ArtImage; gear: ArtImage; colour: string } | null {
+/** A set's gear pictures for a style: its lights and its plate, when both loaded (the gear is drawn from art whole, or in code). */
+function gearArt(style: Pick<SkinStyle, 'deck'>, images: StyleImages): { set: ArtSet; keys: ArtImage; gear: ArtImage } | null {
   const set = setOf('deck', style.deck);
-  const colour = deckColourOf(style);
-  if (!set || !colour) return null;
+  if (!set) return null;
   const keys = images[artId(set, 'keys')];
-  const gear = images[gearId(set, colour)];
-  return keys && gear ? { set, keys, gear, colour } : null;
+  const gear = images[gearId(set)];
+  return keys && gear ? { set, keys, gear } : null;
 }
 
-/** How deep a set's module is for its width, in a colourway. */
-function moduleAspect(set: Exclude<ArtSet, 'mecha'>, colour: string): number {
-  const ways: Record<string, { module: readonly [number, number] }> = { club: CLUB_GEAR, crystal: CRYSTAL_GEAR, neon: NEON_GEAR, piano: PIANO_GEAR }[set];
-  const [w, h] = (ways[colour] ?? Object.values(ways)[0]).module;
+/** How deep a set's module is for its width. */
+function moduleAspect(set: Exclude<ArtSet, 'mecha'>): number {
+  const [w, h] = { club: CLUB_LOOK, crystal: CRYSTAL_LOOK, neon: NEON_LOOK, piano: PIANO_LOOK }[set].module;
   return h / w;
 }
 
 /** The gear's lane lights: drawn from art where its pictures loaded. */
-export function keyPaintOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleImages): KeyPaint {
+export function keyPaintOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages): KeyPaint {
   const art = gearArt(style, images);
   if (!art) return KEY_PAINT[style.deck];
-  return art.set === 'mecha' ? mechaKeys(art.keys) : setKeys(art.set, style.deck, art.keys, moduleAspect(art.set, art.colour));
+  return art.set === 'mecha' ? mechaKeys(art.keys) : setKeys(art.set, style.deck, art.keys, moduleAspect(art.set));
 }
 
 /** The same stream of numbers for every paint: a plate never shimmers when it is painted again. */
@@ -633,19 +562,18 @@ function threeSlice(g: CanvasRenderingContext2D, image: ArtImage, sy: number, sh
 }
 
 /**
- * MECHA's plate in its colourway: a brushed face, a bright edge just under the judge line, a dark
- * recess round each cap, the turntable's module in the scratch lane, and under the row, room
- * allowing, the strip of the sheet: two bolted plates and a grille between them.
+ * MECHA's plate: a brushed face, a bright edge just under the judge line, a dark recess round each
+ * cap, the turntable's module in the scratch lane, and under the row, room allowing, the strip of
+ * the sheet: two bolted plates and a grille between them.
  */
-function mechaPlate(gear: ArtImage, colour: string): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
-  const c = MECHA_COLOURS[colour] ?? MECHA_COLOURS.gunmetal;
+function mechaPlate(gear: ArtImage): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+  const c = MECHA_LOOK;
   return (g, s) => {
     g.fillStyle = c.face;
     g.fillRect(0, 0, s.width, s.depth);
     const rand = seeded(7);
-    const light = colour === 'white' ? 'rgba(0,0,0,' : 'rgba(255,255,255,';
     for (let y = 4; y < s.depth; y += 2) {
-      g.fillStyle = `${light}${(0.01 + rand() * 0.025).toFixed(3)})`;
+      g.fillStyle = `rgba(255,255,255,${(0.01 + rand() * 0.025).toFixed(3)})`;
       g.fillRect(0, y, s.width, 1);
     }
     // the bright edge under the line, a shadow under it; the frame's bevelled ends at the sides
@@ -662,7 +590,7 @@ function mechaPlate(gear: ArtImage, colour: string): (g: CanvasRenderingContext2
     }
     // a recess round each cap (the cap's own picture draws its socket's rim)
     const cy = s.keyTop + s.keyDepth / 2;
-    g.fillStyle = shade(c.trim, colour === 'white' ? 0.9 : 0.7);
+    g.fillStyle = shade(c.trim, 0.7);
     for (const l of s.lanes) {
       if (l.kind === 'scratch') continue;
       const half = capHalf(l.width, s.keyDepth, s.stretch) * 1.08;
@@ -704,7 +632,7 @@ function sideRecesses(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
 }
 
-/** The set's module in the scratch lane's column (see moduleBox), from its place in the colourway's picture. */
+/** The set's module in the scratch lane's column (see moduleBox), from its place in the set's picture. */
 function drawModule(g: CanvasRenderingContext2D, gear: ArtImage, s: DeckSpec, size: readonly [number, number]): DeckLane | undefined {
   const scratch = s.lanes.find((l) => l.kind === 'scratch');
   if (scratch) {
@@ -716,8 +644,8 @@ function drawModule(g: CanvasRenderingContext2D, gear: ArtImage, s: DeckSpec, si
   return scratch;
 }
 
-/** The frame round the plate: a fine line in its colour just under the judge line, its two ends `side` wide at the sides (with the grain of wood when `wood`). */
-function frame(g: CanvasRenderingContext2D, s: DeckSpec, edge: string, side = 3, wood = false): void {
+/** The frame round the plate: a fine line in its colour just under the judge line, its two ends `side` wide at the sides. */
+function frame(g: CanvasRenderingContext2D, s: DeckSpec, edge: string, side = 3): void {
   g.fillStyle = shade(edge, 1, 0.7);
   g.fillRect(0, 0, s.width, 1.5);
   for (const [x, k] of [
@@ -726,56 +654,37 @@ function frame(g: CanvasRenderingContext2D, s: DeckSpec, edge: string, side = 3,
   ] as [number, number][]) {
     g.fillStyle = shade(edge, k, 0.85);
     g.fillRect(x, 0, side, s.depth);
-    if (!wood) continue;
-    g.fillStyle = shade(edge, k * 0.62, 0.85);
-    for (const at of [0.22, 0.5, 0.78]) g.fillRect(x + side * at, 0, 0.8, s.depth);
   }
 }
 
 /**
- * CLUB's plate, a DJ mixer in its colourway: a channel strip down each lane, grooves between them,
- * the turntable on its own panel in the scratch lane, under the row a fader in each key lane, the
- * frame at its sides (walnut wood on the walnut one).
+ * CLUB's plate, a DJ mixer in matt black: a brushed channel strip down each lane, grooves between
+ * them, the turntable on its own panel in the scratch lane, under the row a fader in each key lane,
+ * the frame at its sides.
  */
-function clubPlate(gear: ArtImage, way: ClubWay, colour: string): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
-  const bright = colour === 'white' || colour === 'silver';
+function clubPlate(gear: ArtImage, way: ClubLook): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   return (g, s) => {
-    g.fillStyle = shade(way.face, bright ? 0.8 : 0.45);
+    g.fillStyle = shade(way.face, 0.45);
     g.fillRect(0, 0, s.width, s.depth);
     const rand = seeded(5);
-    const grain = bright ? 'rgba(0,0,0,' : 'rgba(255,255,255,';
-    if (way.veneer) {
-      // the grooves between walnut strips: the wood's own dark
-      g.fillStyle = shade(way.edge, 0.32);
-      g.fillRect(0, 0, s.width, s.depth);
-    }
     for (const l of s.lanes) {
       const [x, w] = [l.left + 1.25, l.width - 2.5];
       g.fillStyle = way.face;
       g.beginPath();
       g.roundRect(x, 3, w, s.depth, [{ x: 2.5, y: 2.5 * s.stretch }, { x: 2.5, y: 2.5 * s.stretch }, 0, 0]);
       g.fill();
-      if (way.veneer) {
-        // one sheet of veneer across the plate, each strip showing its own part of it
-        g.save();
-        g.clip();
-        g.imageSmoothingQuality = 'high';
-        g.drawImage(gear, 0, 512, 1024, 512, 0, 0, s.width, s.depth);
-        g.restore();
-      } else {
-        // brushed down the strip
-        for (let gx = x + 2; gx < x + w - 1; gx += 2) {
-          g.fillStyle = `${grain}${(0.012 + rand() * 0.03).toFixed(3)})`;
-          g.fillRect(gx, 4, 1, s.depth);
-        }
+      // brushed down the strip
+      for (let gx = x + 2; gx < x + w - 1; gx += 2) {
+        g.fillStyle = `rgba(255,255,255,${(0.012 + rand() * 0.03).toFixed(3)})`;
+        g.fillRect(gx, 4, 1, s.depth);
       }
       // a lit edge along its top and down its left side
-      g.fillStyle = bright ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.09)';
+      g.fillStyle = 'rgba(255,255,255,0.09)';
       g.fillRect(x + 2, 3, w - 4, 1);
       g.fillRect(x, 3 + 2.5 * s.stretch, 1, s.depth);
     }
-    frame(g, s, way.edge, colour === 'walnut' ? 8 : 3, colour === 'walnut');
-    g.fillStyle = way.veneer ? shade(way.edge, 0.3) : shade(way.face, bright ? 0.82 : 0.6);
+    frame(g, s, way.edge);
+    g.fillStyle = shade(way.face, 0.6);
     sideRecesses(g, s);
     const scratch = drawModule(g, gear, s, way.module);
     // a fader in each key lane under the row, as long on the screen as in the picture (shorter where the room is)
@@ -805,11 +714,11 @@ const SHEENS: readonly [number, number, number][] = [
 ];
 
 /**
- * CRYSTAL's plate in its colourway: tinted glass behind the row with light sheens across it, the
+ * CRYSTAL's plate: tinted glass behind the row with light sheens across it, the
  * dark board under it with the sheet's circuit traced across, the metal frame, the gem in its
  * ring in the scratch lane.
  */
-function crystalPlate(gear: ArtImage, way: CrystalWay): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+function crystalPlate(gear: ArtImage, way: CrystalLook): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   return (g, s) => {
     g.fillStyle = way.panel;
     g.fillRect(0, 0, s.width, s.depth);
@@ -842,7 +751,7 @@ function crystalPlate(gear: ArtImage, way: CrystalWay): (g: CanvasRenderingConte
   };
 }
 
-/** The set's circuit strip (gear_<colourway>.png at (0, 512), `strip` deep) across the plate under the row, room allowing, from the scratch's column (or the frame) to the frame. */
+/** The set's circuit strip (gear.png at (0, 512), `strip` deep) across the plate under the row, room allowing, from the scratch's column (or the frame) to the frame. */
 function board(g: CanvasRenderingContext2D, gear: ArtImage, s: DeckSpec, scratch: DeckLane | undefined, strip: number, top: number): void {
   const bottom = s.room - 4;
   if (bottom - top < 14) return;
@@ -852,11 +761,10 @@ function board(g: CanvasRenderingContext2D, gear: ArtImage, s: DeckSpec, scratch
 }
 
 /**
- * NEON's plate in its colourway: the dark circuit board (carbon on the carbon one), the sheet's
- * traces across it under the row, the metal frame (gold on the burgundy one), the module of rings
- * in the scratch lane.
+ * NEON's plate: the dark circuit board, the sheet's traces across it under the row, the metal frame,
+ * the module of rings in the scratch lane.
  */
-function neonPlate(gear: ArtImage, way: NeonWay): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+function neonPlate(gear: ArtImage, way: NeonLook): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   return (g, s) => {
     g.fillStyle = way.face;
     g.fillRect(0, 0, s.width, s.depth);
@@ -869,20 +777,14 @@ function neonPlate(gear: ArtImage, way: NeonWay): (g: CanvasRenderingContext2D, 
 }
 
 /**
- * PIANO's plate, a concert grand's keybed in its colourway: the case in mirror lacquer (or mahogany
- * veneer) with a crisp reflection across it, brass pinstripes under the judge line and over the
- * keys, a dark key bed under them and the red felt along their fronts with a pinstripe under it,
- * the brass dial in the scratch lane.
+ * PIANO's plate, a concert grand's keybed: the case in black mirror lacquer with a crisp reflection
+ * across it, brass pinstripes under the judge line and over the keys, a dark key bed under them and
+ * the red felt along their fronts with a pinstripe under it, the brass dial in the scratch lane.
  */
-function pianoPlate(gear: ArtImage, way: PianoWay): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+function pianoPlate(gear: ArtImage, way: PianoLook): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   return (g, s) => {
-    if (way.veneer) {
-      g.imageSmoothingQuality = 'high';
-      g.drawImage(gear, 0, 512, 1024, 512, 0, 0, s.width, s.depth);
-    } else {
-      g.fillStyle = way.face;
-      g.fillRect(0, 0, s.width, s.depth);
-    }
+    g.fillStyle = way.face;
+    g.fillRect(0, 0, s.width, s.depth);
     // the lacquer's mirror: a soft band across the case under the keys, a crisp line along its top
     const under = lowerTop(s);
     const band = under + (s.room - under) * 0.4;
@@ -910,7 +812,7 @@ function pianoPlate(gear: ArtImage, way: PianoWay): (g: CanvasRenderingContext2D
   };
 }
 
-/** Which of a style's parts its loaded pictures draw: "notes", "long", "side", "gear:<colourway>". */
+/** Which of a style's parts its loaded pictures draw: "notes", "long", "side", "gear". */
 export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
   const parts: string[] = [];
   const set = setOf('note', style.note);
@@ -919,66 +821,48 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
     if (images[artId(set, 'long')]) parts.push('long');
     if (images[artId(set, 'side')] && style.side !== 'dots') parts.push('side');
   }
-  const gear = gearArt(style, images);
-  if (gear) parts.push(`gear:${gear.colour}`);
+  if (gearArt(style, images)) parts.push('gear');
   return parts;
 }
 
-/** The gear's plate: drawn from art in its colourway where its pictures loaded. */
-export function platePaintOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleImages): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
+/** The gear's plate: drawn from art where its pictures loaded. */
+export function platePaintOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages): (g: CanvasRenderingContext2D, s: DeckSpec) => void {
   const art = gearArt(style, images);
   if (!art) return (g, s) => paintDeck(style.deck, g, s);
-  const { set, gear, colour } = art;
-  if (set === 'mecha') return mechaPlate(gear, colour);
-  if (set === 'club') return clubPlate(gear, CLUB_GEAR[colour] ?? CLUB_GEAR.black, colour);
-  if (set === 'crystal') return crystalPlate(gear, CRYSTAL_GEAR[colour] ?? CRYSTAL_GEAR.silver);
-  if (set === 'piano') return pianoPlate(gear, PIANO_GEAR[colour] ?? PIANO_GEAR.ebony);
-  return neonPlate(gear, NEON_GEAR[colour] ?? NEON_GEAR.black);
+  const { set, gear } = art;
+  if (set === 'mecha') return mechaPlate(gear);
+  if (set === 'club') return clubPlate(gear, CLUB_LOOK);
+  if (set === 'crystal') return crystalPlate(gear, CRYSTAL_LOOK);
+  if (set === 'piano') return pianoPlate(gear, PIANO_LOOK);
+  return neonPlate(gear, NEON_LOOK);
 }
 
 /**
  * The gear's border, the two lines down the track's edges from its far end past the gear (where a
- * skin's rails were): in the set's frame in its colourway where the gear's pictures loaded, else in
- * the code gear's plate colours (`colours`, the skin's).
+ * skin's rails were): in the set's frame where the gear's pictures loaded, else in the code gear's
+ * plate colours (`colours`, the skin's).
  */
-export function borderLookOf(style: Pick<SkinStyle, 'deck' | 'deckColour'>, images: StyleImages, colours: SkinColors): SideLook {
+export function borderLookOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages, colours: SkinColors): SideLook {
   const art = gearArt(style, images);
-  return art ? artBorder(art.set, art.gear, art.colour) : codeBorderLook(style.deck, colours);
+  return art ? artBorder(art.set) : codeBorderLook(style.deck, colours);
 }
 
-const veneerSide =
-  (gear: ArtImage) =>
-  (g: CanvasRenderingContext2D, x: number, w: number, h: number): void => {
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(gear, 0, 512, 64, 512, x, 0, w, h);
-  };
-
 /**
- * A set's border in a colourway, in the set's frame: the arcade's anodised metal with its bright
- * edge, the mixer's face (walnut wood on the walnut one), the crystal and neon gears' metal with a
- * line of their glass or trim down it, the piano's lacquer (mahogany veneer) with a brass pinstripe.
+ * A set's border, in the set's frame: the arcade's anodised metal with its bright edge, the mixer's
+ * brushed face, the crystal and neon gears' metal with a line of their glass or trim down it, the
+ * piano's black lacquer with a brass pinstripe.
  */
-function artBorder(set: ArtSet, gear: ArtImage, colour: string): SideLook {
-  if (set === 'mecha') {
-    const c = MECHA_COLOURS[colour] ?? MECHA_COLOURS.gunmetal;
-    return { body: c.frame, edge: c.edge, brushed: true };
-  }
-  if (set === 'club') {
-    const way = CLUB_GEAR[colour] ?? CLUB_GEAR.black;
-    const bright = colour === 'white' || colour === 'silver';
-    return way.veneer ? { body: veneerSide(gear), edge: way.edge } : { body: shade(way.face, bright ? 0.9 : 0.8), edge: way.edge, brushed: true };
-  }
+function artBorder(set: ArtSet): SideLook {
+  if (set === 'mecha') return { body: MECHA_LOOK.frame, edge: MECHA_LOOK.edge, brushed: true };
+  if (set === 'club') return { body: shade(CLUB_LOOK.face, 0.8), edge: CLUB_LOOK.edge, brushed: true };
   if (set === 'crystal') {
-    const way = CRYSTAL_GEAR[colour] ?? CRYSTAL_GEAR.silver;
-    const glass = shade(way.glass, 1.3, 0.8);
-    return { body: shade(way.edge, 0.42), edge: way.edge, line: [glass, glass] };
+    const glass = shade(CRYSTAL_LOOK.glass, 1.3, 0.8);
+    return { body: shade(CRYSTAL_LOOK.edge, 0.42), edge: CRYSTAL_LOOK.edge, line: [glass, glass] };
   }
   if (set === 'piano') {
-    const way = PIANO_GEAR[colour] ?? PIANO_GEAR.ebony;
-    const brass = shade(way.brass, 1, 0.85);
-    return { body: way.veneer ? veneerSide(gear) : way.face, edge: way.brass, line: [brass, brass] };
+    const brass = shade(PIANO_LOOK.brass, 1, 0.85);
+    return { body: PIANO_LOOK.face, edge: PIANO_LOOK.brass, line: [brass, brass] };
   }
-  const way = NEON_GEAR[colour] ?? NEON_GEAR.black;
-  const trim = shade(way.edge, 1, 0.7);
-  return { body: shade(way.edge, 0.3), edge: way.edge, line: [trim, trim] };
+  const trim = shade(NEON_LOOK.edge, 1, 0.7);
+  return { body: shade(NEON_LOOK.edge, 0.3), edge: NEON_LOOK.edge, line: [trim, trim] };
 }
