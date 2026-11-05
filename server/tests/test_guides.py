@@ -300,6 +300,8 @@ def test_the_jack_feedback_brings_fast_jacks_toward_the_target(monkeypatch) -> N
     # PATTERN_DESIGN 77). The test songs' EXPERT goes from 0.140 to 0.085 (target 0.05) and its streaks
     # from 28 to 10 per 1000 key notes; ELITE from 0.231 to 0.129 and 52 to 19. Repeats copy their
     # lanes, so the search reaches only the first round of each material and stops short of the target.
+    # Since 0.9.45 the streak targets are about 1.5 times the human means (PATTERN_DESIGN 80): EXPERT
+    # 0.134 -> 0.075 and 24.5 -> 12.4, ELITE 0.227 -> 0.118 and 49.9 -> 20.8.
     grg = load_config("patterns")["hands"]
     songs = [song(124.0, 1)[1], song(140.0, 2)[1]]
 
