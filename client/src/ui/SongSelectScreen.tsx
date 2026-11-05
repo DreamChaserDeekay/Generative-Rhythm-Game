@@ -1530,7 +1530,7 @@ export function SongSelectScreen(props: Props) {
                 {ready ? (
                   <button className="option-chips" data-testid="play-options-button" aria-label="플레이 옵션" aria-expanded={panel === 'options'} onClick={() => (panel === 'options' ? setPanel('none') : openOptions())}>
                     <span className="chip">
-                      SPEED <b>{speedText(settings.hiSpeed)}</b>
+                      노트 속도 <b>{speedText(settings.hiSpeed)}</b>
                     </span>
                     <span className="chip">
                       게이지 <b>{gaugeRules[settings.gaugeType].label}</b>

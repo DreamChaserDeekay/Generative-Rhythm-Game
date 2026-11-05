@@ -42,10 +42,10 @@ export const PLAY_ACTIONS: readonly PlayAction[] = [
 ];
 
 export const PLAY_ACTION_LABELS: Readonly<Record<PlayAction, string>> = {
-  speedDown: 'SPEED −0.1',
-  speedUp: 'SPEED +0.1',
-  speedDownBig: 'SPEED −0.5',
-  speedUpBig: 'SPEED +0.5',
+  speedDown: '노트 속도 −0.1',
+  speedUp: '노트 속도 +0.1',
+  speedDownBig: '노트 속도 −0.5',
+  speedUpBig: '노트 속도 +0.5',
   suddenDown: '노트 등장 위치 −',
   suddenUp: '노트 등장 위치 +',
   liftDown: '판정선 위치 −',

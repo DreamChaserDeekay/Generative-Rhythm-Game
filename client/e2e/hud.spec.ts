@@ -47,7 +47,7 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
 
   // SPEED once, two decimals; a cover one decimal; both under the judge line, off the notes and the combo
   await page.keyboard.press('ArrowUp');
-  await expect(page.getByTestId('hud-toast')).toHaveText('SPEED 4.10');
+  await expect(page.getByTestId('hud-toast')).toHaveText('노트 속도 4.10');
   expect((await stored(page)).hiSpeed).toBe(4.1);
   const [toast, combo] = [await page.getByTestId('hud-toast').boundingBox(), await page.locator('.hud-combo').boundingBox()];
   expect(toast && toast.y > 720 * 0.78).toBe(true);

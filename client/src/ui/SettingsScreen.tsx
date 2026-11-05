@@ -409,7 +409,7 @@ export function SettingsScreen({
         <>
           <NumberOption
             {...row}
-            label="배속 (SPEED)"
+            label="노트 속도"
             testId="opt-hi-speed"
             value={settings.hiSpeed}
             min={HI_SPEED_MIN}
@@ -418,7 +418,7 @@ export function SettingsScreen({
             bigStep={0.5}
             format={speedText}
             onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
-            help={`노트가 내려오는 빠르기입니다. 미리보기의 '보이는 시간'(녹색 숫자)은 노트가 나타나서 판정선에 닿기까지의 시간으로, 이 값이 같으면 배속과 커버를 바꿔도 같은 속도로 느껴집니다. 플레이 중 ${keyPair('speedDown', 'speedUp')}, 0.5씩은 ${keyPair('speedDownBig', 'speedUpBig')}.`}
+            help={`노트가 내려오는 빠르기입니다(SPEED, 배속). 미리보기의 '보이는 시간'(녹색 숫자)은 노트가 나타나서 판정선에 닿기까지의 시간으로, 이 값이 같으면 노트 속도와 커버를 바꿔도 같은 빠르기로 느껴집니다. 플레이 중 ${keyPair('speedDown', 'speedUp')}, 0.5씩은 ${keyPair('speedDownBig', 'speedUpBig')}.`}
           />
           <NumberOption
             {...row}
@@ -435,7 +435,7 @@ export function SettingsScreen({
           />
           <NumberOption
             {...row}
-            label="HIDDEN+ (아래 커버)"
+            label="노트 사라짐 위치"
             testId="opt-hidden"
             value={settings.hidden}
             min={0}
@@ -444,7 +444,7 @@ export function SettingsScreen({
             bigStep={0.05}
             format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { hidden: v }))}
-            help="판정선 바로 위를 가립니다. 보이는 시간은 바뀌지 않습니다."
+            help="판정선 바로 위를 가려 노트가 사라지는 곳을 올립니다(HIDDEN+). 0%면 노트가 판정선까지 보입니다. 보이는 시간은 바뀌지 않습니다."
           />
           <NumberOption
             {...row}
@@ -465,7 +465,7 @@ export function SettingsScreen({
             testId="opt-covers-on"
             value={settings.coversOn}
             onChange={(v) => onSettingsChange(withCovers(settings, { coversOn: v }))}
-            help={`노트 등장 위치와 HIDDEN+의 커버를 씁니다(판정선 위치는 그대로). 플레이 중 켜고 끄는 키: ${bindingLabel(playKeys.covers)}.`}
+            help={`노트 등장 위치와 노트 사라짐 위치의 커버를 씁니다(판정선 위치는 그대로). 플레이 중 켜고 끄는 키: ${bindingLabel(playKeys.covers)}.`}
           />
           <Toggle
             {...row}
@@ -473,7 +473,7 @@ export function SettingsScreen({
             testId="opt-keep-green"
             value={settings.keepVisibleTime}
             onChange={(v) => set('keepVisibleTime', v)}
-            help="노트 등장 위치나 판정선 위치를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (배속이 함께 바뀝니다)."
+            help="노트 등장 위치나 판정선 위치를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (노트 속도가 함께 바뀝니다)."
           />
           <Choice
             {...row}
@@ -1101,7 +1101,7 @@ function KeysPanel({
 type PadCapture = { kind: 'lane'; mode: KeyModeId; lane: number; run: boolean } | { kind: 'play'; button: PadPlayButton } | { kind: 'menu'; button: MenuButton };
 
 const PAD_PLAY_LABELS: Record<PadPlayButton, [string, string]> = {
-  start: ['Start', '짧게 누르면 일시정지 · 누른 채 레인 1·2로 SPEED −/+, 3·4로 노트 등장 위치 −/+'],
+  start: ['Start', '짧게 누르면 일시정지 · 누른 채 레인 1·2로 노트 속도 −/+, 3·4로 노트 등장 위치 −/+'],
   select: ['Select', `Start와 함께 ${RETRY_HOLD_MS / 1000}초 누르면 다시 하기`],
   fever: ['FEVER', '수동 FEVER, 첫 노트가 멀면 인트로 건너뛰기'],
 };
