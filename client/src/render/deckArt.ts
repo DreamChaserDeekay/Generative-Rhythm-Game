@@ -236,7 +236,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
+export type GearPart = 'deck' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -1332,10 +1332,31 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
 export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
-  if (isGear(style)) {
+  if (!isGear(style)) PLATES[style](g, spec);
+  else if (art.deck && spec.stretch <= DECK_PICTURE_FLATTEST) deckPicture(g, spec, art.deck);
+  else {
     GEAR_PLATES[style](g, spec, art);
     wallShade(g, spec, GEAR_FRAMES[style](art).height ?? 0);
-  } else PLATES[style](g, spec);
+  }
+}
+
+/**
+ * How much longer along the track the deck pictures were drawn than they look (DeckSpec.stretch of
+ * the camera they were painted from: SDVX's on a 16:9 screen). Each is the gear's whole deck painted
+ * in that camera's perspective, its things standing up out of it, and laid flat on the deck
+ * (scripts/assets/build_gears.py): a camera that flattens the deck more or less shows it as much
+ * longer or shorter along the track, so it looks as it was painted from any camera near that one.
+ */
+const DECK_PICTURE_STRETCH = 1.2;
+/** A camera flattening the deck more than this (the plane one) sees it from too far off the pictures' angle: its deck is drawn in code. */
+const DECK_PICTURE_FLATTEST = 2;
+
+/** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
+function deckPicture(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
+  const depth = ((pic.height / pic.width) * s.width * s.stretch) / DECK_PICTURE_STRETCH;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, 0, s.width, depth);
+  if (depth < s.depth) g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, depth, s.width, s.depth - depth);
 }
 
 /**

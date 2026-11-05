@@ -1165,7 +1165,7 @@
 
 ## 기어 (`gears/`, 2026-11)
 
-세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김).
+세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
 - 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름(나머지 셋은 2026-11-05에 더함) → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
@@ -1595,6 +1595,129 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials of its gear. Paint ONLY a flat, evenly lit, seamless tileable texture, seen exactly straight on with no perspective, filling the whole image from edge to edge: crinkled gold thermal-blanket foil of a spacecraft (multi-layer insulation): a warm gold metallic film full of small creases and facets catching the light, bright highlights and darker brown-gold folds, evenly spread over the whole image. It must tile without a visible seam. No objects, no text, no letters, no logos, no vignette, no frame or border.
 
+### 받침 그림: 게임 카메라로 그린 받침 일곱 (2026-11-05)
+
+부위 그림(위에서 본 사물 하나씩)을 받침에 눕혀 그리면 노브 · 스위치 · 조이스틱처럼 서 있는 부품도 납작해 보여서, 기어마다 받침 전체를 게임 카메라의 원근으로 다시 그렸습니다. 기준 이미지는 그 기어를 얹은 이 게임의 실제 화면(7K+1S, SDVX 카메라, 1920×1080, 지금의 코드 받침과 부위 그림, 노트는 판정선에서 멀리, 타격 효과 없음)의 아래쪽(x 320–1600, y 360–1080 → 1280×720)이고, 생성은 그 화면에서 받침 자리만 다시 칠합니다. 그래서 부품이 받침에서 서 있고 그 그림자가 게임과 같은 원근으로 떨어집니다.
+
+- 만든 곳 · 저장 형식: 위와 같습니다(`gemini-nano-banana-2.1`, 16:9 · 2K → 2752×1536 PNG, `assets-src/gears/<기어>/deck.jpg` 는 JPEG 품질 95, 색 정보 줄이지 않음).
+- 맞추기: 생성은 화면의 틀을 거의 지키지만 조금 커지거나 옮겨지므로, 받침 위쪽(레인 · 판정선 · 벽)을 기준 화면에 맞춰(OpenCV ECC, 아핀, 아래 "맞춤 상관") 받침 평면(트랙 가운데에서 가로, 판정선에서 아래로, 트랙 한 칸 73.65 px) → 생성 그림 px의 사영 변환을 구해 `assets-src/gears/<기어>/deck.json` 에 적었습니다(이 변환을 구한 OpenCV는 저장소의 의존성이 아닙니다; 빌드는 적어 둔 변환만 씀). 맞춘 결과는 받침의 가장자리 · 벽 발치에 격자를 그려 일곱 장 모두 눈으로 확인했습니다.
+- 눕히기: `scripts/assets/build_gears.py` 가 `deck.json` 대로 받침 평면의 텍셀마다 생성 그림을 읽어(쌍선형) 받침을 위에서 본 판으로 폅니다: 가로는 받침 폭 589.2 px(양 벽 발치에서 1.5 px 안쪽)를 2048 텍셀, 세로는 받침 위 끝(판정선 아래 51 px)부터 SDVX 16:9 화면의 아래 끝까지 155.55 px를 541 텍셀 → `client/public/media/gears/<기어>/deck.webp`(WebP 품질 90). 서 있는 부품은 펴진 판에서 트랙 방향으로 길쭉하지만, 게임이 같은 카메라로 다시 눕히면 그린 대로 섭니다.
+- 게임에서: 받침을 트랙 방향으로 2배까지 납작하게 보는 카메라(SDVX · LOW · FLAT, 미리보기)는 이 그림을 받침에 깔고(그린 카메라보다 납작하게 보는 만큼 트랙 방향으로 늘여), 화면이 받침을 더 보여 주는 곳(4:3 화면 등)은 그림의 마지막 줄을 늘여 잇습니다. 평면 카메라(PLANE)는 그린 각도와 너무 달라 받침을 코드와 부위 그림으로 그립니다(그림을 읽지 못했을 때도). FEVER에서도 받침 그림은 그대로입니다.
+- 비용: 쓴 7장 약 $0.40, 다시 그린 것과 쓰지 않은 시도(아래 "쓰지 않은 시도": 첫 배치 7장, 기본 1장, 오락실 기체 4장, 리시버 시안 2장) 약 $0.84, 합해 약 $1.25
+- 프롬프트(일곱 장이 같은 틀, `{deck}` 과 `{parts}` 만 기어마다 아래와 같음):
+
+  > Image 1 is the lower part of a frame of this rhythm game's play screen. Keep its framing exactly: the same camera, the same zoom, the same crop, every line where it is (the lanes, the red judge line, the side walls, the deck's edges); do not zoom in, crop, widen or recompose. Repaint ONLY the gear's deck: the area under the red judge line and its narrow dark gap, between the inner edges of the two side walls, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the red judge line, the side walls, the dark background.
+  >
+  > The deck is {deck}, lying flat like a console between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges, its top edge a bevelled lip toward the judge line catching the light. Keep every part where image 1 has it and give each one its real depth: {parts} Each raised part throws a soft shadow down and to the right; windows and dials are sunk into the plate with inner shadows under their top edges; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game.
+  >
+  > No other text, letters or logos than the ones already on image 1's deck. Do not draw any key or button per lane, and nothing over the lanes.
+
+### `gears/standard/deck.jpg`
+
+- 용도: 기본 기어의 받침 전체 → `gears/standard/deck.webp` 2048×541(40,596바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 기본 기어를 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:51 KST · 약 $0.055 (두 번째 생성 `standard-c1`: 첫 생성은 'GENERATIVE RHYTHM' 글자에 그림자를 겹쳐 그려 게임에서 두 겹으로 흐려 보여 다시 그림, 아래 "쓰지 않은 시도")
+- 생성 결과(PNG): 4,330,774바이트 · sha256 앞 16자리 `88dbe52b27c24043` · 저장한 JPEG: 712,523바이트
+- 맞춤 상관(ECC): 0.948
+- `{deck}`:
+
+  > the game's own controller: a smoked black glass panel in a slim matte graphite frame with one thin cyan light line along its top
+
+- `{parts}`:
+
+  > the round smoked-glass jog disc at the left stands a little proud of the glass inside its thin cyan light ring, its rim and edge visible from this angle; the 'GENERATIVE RHYTHM' lettering is printed flat on the glass in one single line of thin light-grey letters, with no shadow, no outline, no second copy and no raised edge, so it reads cleanly; the cyan light strip under it is set into the glass; the speaker grille at the right is sunk into the panel, its holes showing depth.
+
+### `gears/cabinet/deck.jpg`
+
+- 용도: 오락실 기체의 받침 전체 → `gears/cabinet/deck.webp` 2048×541(115,892바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 오락실 기체를 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:51 KST · 약 $0.060 (두 번째 생성 `cabinet-c1`)
+- 생성 결과(PNG): 4,829,239바이트 · sha256 앞 16자리 `74933f15702f38f2` · 손본 그림(PNG): 4,923,103바이트 · sha256 앞 16자리 `348b886c0cafd3b8` · 저장한 JPEG(손본 그림): 855,044바이트
+- 맞춤 상관(ECC): 0.925
+- 후처리(이 그림만): 조이스틱의 빨간 공이 받침 위 끝(크롬 몰딩)을 넘어 그려져 받침을 펴면 공 윗부분이 잘려서, 공을 색(채도 높은 빨강)으로 오려 내고 그 자리를 같은 줄 200 px 오른쪽의 판으로 채운 뒤(둘레의 밝기에 맞춤) 공을 0.92배로 46 px 아래(제 손잡이 위)에 다시 얹음. 네 번 생성하고 한 번 고쳐 달라고 해도 공이 늘 위 끝을 넘어서(아래 "쓰지 않은 시도") 손으로 고침
+- `{deck}`:
+
+  > the control panel of an arcade rhythm cabinet (model GRG-2000): embossed black ABS plastic under a chrome moulding along its top
+
+- `{parts}`:
+
+  > the joystick at the left stands up from the middle of the round mark image 1 has there, on a short black shaft with its dust washer; it is short enough that its whole red ball top stays inside the deck, below the chrome moulding, with dark panel showing between the ball and the deck's top edge; the six convex acrylic push buttons (red, amber and milky white) stand up from the panel in chrome bezels; the two amber start buttons stand up a little; the two small smoked credit windows with dim red seven-segment digits are sunk into the panel; the silk-screened 'GRG-2000' stays flat; the metal coin entry plate at the right is fixed on the panel with its two coin slots sunk into it.
+
+### `gears/receiver/deck.jpg`
+
+- 용도: 빈티지 리시버의 받침 전체 → `gears/receiver/deck.webp` 2048×541(66,180바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 빈티지 리시버를 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:39 KST · 약 $0.057
+- 생성 결과(PNG): 4,453,062바이트 · sha256 앞 16자리 `76a736bba62299b3` · 저장한 JPEG: 800,781바이트
+- 맞춤 상관(ECC): 0.965
+- `{deck}`:
+
+  > the front panel of a 1970s stereo receiver: a thick brushed silver aluminium faceplate with fine hairlines running across the track
+
+- `{parts}`:
+
+  > the large knurled aluminium tuning knob at the left stands up out of the plate, its top face and the knurled side that faces the camera both visible; the long black-glass tuning dial window with its warm amber backlight, fine tick marks and thin red pointer is sunk into the plate; the five silver piano-key selector switches under it stand up from the plate, their tops and the faces toward the camera visible; the two small VU meters with amber faces are sunk behind glass; the small aluminium volume knob near the right end stands up; the engraved label 'STEREO RECEIVER SR-7' stays flat.
+
+### `gears/najeon/deck.jpg`
+
+- 용도: 나전칠기의 받침 전체 → `gears/najeon/deck.webp` 2048×541(68,698바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 나전칠기를 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:40 KST · 약 $0.056 (한 번 요청 한도(429)에 걸려 다시 보냄)
+- 생성 결과(PNG): 4,892,150바이트 · sha256 앞 16자리 `e86e7d82964cc6c6` · 저장한 JPEG: 907,134바이트
+- 맞춤 상관(ECC): 0.932
+- `{deck}`:
+
+  > the front of a Korean najeon lacquerware chest: deep black polished lacquer with a thin gold line along its top
+
+- `{parts}`:
+
+  > the brass corner fittings at the top corners stand slightly proud with their pins; the two round lacquer lids with the mother-of-pearl crane are slightly domed and stand a little out of the lacquer, their brass rims catching the light; the round brass lock plate in the middle stands out with its small vertical latch; the iridescent mother-of-pearl vines between thin gold lines stay inlaid flush in the lacquer.
+
+### `gears/keyboard/deck.jpg`
+
+- 용도: 커스텀 키보드의 받침 전체 → `gears/keyboard/deck.webp` 2048×541(235,678바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 커스텀 키보드를 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:41 KST · 약 $0.058 (한 번 요청 한도(429)에 걸려 다시 보냄)
+- 생성 결과(PNG): 5,224,828바이트 · sha256 앞 16자리 `a4b04e825c9f12a5` · 저장한 JPEG: 990,685바이트
+- 맞춤 상관(ECC): 0.813
+- `{deck}`:
+
+  > the top case of a premium custom mechanical keyboard (TKL-08): bead-blasted charcoal aluminium with a black gasket line and a polished chamfer along its top edge
+
+- `{parts}`:
+
+  > the knurled volume knob at the left stands up inside its orange light ring, its knurled side visible from this angle; the black OLED window with its white bar graph is sunk into the case; the small brass name plate 'TKL-08' is fixed on the case, standing a hair proud; the three tiny lock lights are set into the case; the four arrow-key keycaps (an inverted T, the up key orange, the others ivory) stand tall with their sculpted sides and the small arrow legends on their tops.
+
+### `gears/racing/deck.jpg`
+
+- 용도: 레이싱 휠의 받침 전체 → `gears/racing/deck.webp` 2048×541(89,808바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 레이싱 휠을 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:42 KST · 약 $0.061 (한 번 요청 한도(429)에 걸려 다시 보냄)
+- 생성 결과(PNG): 4,817,499바이트 · sha256 앞 16자리 `621a1700fc1225be` · 저장한 JPEG: 915,465바이트
+- 맞춤 상관(ECC): 0.895
+- `{deck}`:
+
+  > the button box of a sim-racing wheel: twill carbon fibre under a glossy clear coat with a thin red line along its top
+
+- `{parts}`:
+
+  > the row of small round shift lights across the top (the five green ones lit, then red, then blue) sits in small bezels; the big rotary switch at the left and the small one at the right stand up, their knurled sides and tick rings visible; the four rubber push buttons with yellow, blue, white and green rings stand up from the carbon; the black dash LCD in the middle, showing an idle lap timer, is sunk into the panel.
+
+### `gears/orbital/deck.jpg`
+
+- 용도: 우주선 계기판의 받침 전체 → `gears/orbital/deck.webp` 2048×541(87,992바이트)
+- 크기 · 기준 이미지: 16:9 · 2K · 우주선 계기판을 얹은 실제 화면의 아래쪽(위)
+- 날짜: 2026-11-05 17:43 KST · 약 $0.057
+- 생성 결과(PNG): 5,236,262바이트 · sha256 앞 16자리 `aef74abaee1c919f` · 저장한 JPEG: 1,031,887바이트
+- 맞춤 상관(ECC): 0.912
+- `{deck}`:
+
+  > a spacecraft instrument panel: light grey painted metal with black silk-screened labels and small screws
+
+- `{parts}`:
+
+  > the guarded rotary selector at the left: its black fluted knob and its two polished steel guard bars stand up from a round base; the three guarded toggle switches (PWR, COMM, NAV) have chrome bat levers standing up between steel guard rails; the amber MASTER ALARM lamp (unlit) sits in a black bezel; the yellow and black CAUTION stripe is painted flat; the ARM (lit green) and ABORT square push buttons stand up in their bezels.
+
 ### 쓰지 않은 시도
 
 - `cabinet-abs`(오락실 기체의 엠보싱 ABS 재질, 기준 이미지 없음): 2번 모두 그림 없이 끝남(IMAGE_RECITATION), 약 $0.011 · 재질은 코드로 만듦(위). 프롬프트:
@@ -1602,3 +1725,32 @@
   > A flat, evenly lit, seamless tileable texture, seen exactly straight on with no perspective, filling the whole image from edge to edge: black textured ABS plastic of an arcade cabinet, a fine leather-grain emboss, matte, very dark charcoal (about #17181b), with a faint even sheen. It must tile without a visible seam. No objects, no text, no letters, no logos, no vignette, no shadows, no frame or border.
 
 - `keyboard-a1`, `keyboard-a3`(커스텀 키보드의 스타일 프레임, 2026-11-04, `keyboard-a2.png` 와 같은 프롬프트): 첫 시도는 그림 없이 끝남(MAX_TOKENS), 약 $0.042 · 세 번째는 고르지 않음, 약 $0.054
+- `receiver-panel-a1`(빈티지 리시버의 받침 시안 1, 2026-11-05 17:23 KST, 21:9 · 2K, 기준 이미지 `receiver-a1.png`, 약 $0.065): 리시버 앞판을 앞에서 조금 위로 본 그림 한 장(PNG 4,529,622바이트) · 받침에 세워 붙이면 판의 기울기가 기어의 원근과 맞지 않아(사용자 의견) 받침 그림을 게임 카메라로 그리기로 함. 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials, colours and finish of its gear (a 1970s stereo receiver). Draw ONE object: the long front control panel of that stereo receiver, as the console the player sits in front of, seen from the front and a little above (about 25 degrees down onto it, no strong perspective, both ends the same size). It is about five times as wide as it is tall and fills the width of the image, centred, on a flat, pure magenta (#FF00FF) background that has nothing else on it.
+  >
+  > The panel: a brushed silver aluminium faceplate with fine horizontal hairlines, between two solid walnut end cheeks with a satin finish and visible grain, one at each end. On the faceplate, from left to right: a large knurled aluminium tuning knob with a flywheel ring; a long black-glass tuning dial window with a warm amber backlight, a fine scale of tick marks (no numbers) and a thin red pointer; under the dial window a row of five small silver piano-key selector switches; two small rectangular analogue VU meters with amber-backlit faces and black needles resting low; a small aluminium volume knob near the right end; the small engraved label "STEREO RECEIVER SR-7" under the meters.
+  >
+  > Real depth everywhere: the faceplate is a thick plate with a bevelled top edge that catches the light and a darker lip along its bottom; the knobs stand out, their tops and knurled sides visible, each throwing a soft shadow down and to the right; the dial window and the meters are recessed behind glass, with inner shadows under their top edges and a faint reflection on the glass; the selector switches are raised keys whose top and front faces both show. One soft key light from the top-left; crisp edges; fine material detail; three value steps on every part.
+  >
+  > No other text, letters or numbers, no logos, no people, no lanes, notes or judge line, no shadow cast on the background, no glow spilling onto the background.
+
+- `receiver-inscene-a1`(빈티지 리시버의 받침 시안 2, 17:28 KST, 16:9 · 2K, 기준 이미지: 리시버를 얹은 실제 화면 전체(HUD 포함), 약 $0.056, PNG 4,398,720바이트): 화면의 받침 자리만 다시 칠한 첫 시도 · 이 방식으로 일곱 기어를 그리기로 함(그림은 쓰지 않음). 프롬프트:
+
+  > Image 1 is a frame of this rhythm game's play screen. Repaint ONLY the gear's deck: the area under the red judge line and its narrow dark gap, between the inner edges of the two walnut side walls, down to the bottom edge of the image. Keep every other pixel as it is: the lanes, the notes, the red judge line, the walnut walls, the HUD.
+  >
+  > The deck becomes the front panel of a 1970s stereo receiver built into the gear, lying flat like a console between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges. A thick brushed silver aluminium faceplate with fine hairlines running across the track, a bevelled lip along its top edge (the edge toward the judge line) catching the light. On it, from left to right: a large knurled aluminium tuning knob standing up out of the plate, its top face and the knurled side that faces the camera both visible in this perspective; a long black-glass tuning dial window sunk into the plate, with a warm amber backlight, fine tick marks and a thin red pointer; under the dial, five silver piano-key selector switches standing up from the plate, their tops and the faces toward the camera visible; two small VU meters with amber faces sunk behind glass; a small aluminium volume knob standing up near the right end; the small engraved label "STEREO RECEIVER SR-7". Each raised part throws a soft shadow down and to the right; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game.
+  >
+  > No other text or logos. Do not draw any key or button per lane.
+
+- 받침 그림 첫 배치 `<기어>-a1`(일곱 장, 17:34–17:37 KST, 기준 이미지: 기어를 얹은 실제 화면 전체 1920×1080, 합해 약 $0.423, 레이싱 휠은 한 번 요청 한도(429)에 걸려 다시 보냄): 생성이 화면의 틀을 다시 잡아(확대 · 이동) 받침을 맞추기 어려워, 화면 아래쪽만 자른 기준 이미지와 틀을 그대로 두라는 문장을 더해 다시 그림(위). 프롬프트는 위의 틀에서 첫 두 문장 대신 "Image 1 is a frame of this rhythm game's play screen."이고 `{deck}` · `{parts}` 는 기어마다 그다음 생성(`<기어>-b1`: 위에 적은 다섯 장, 아래의 `standard-b1` · `cabinet-b1`)과 같음(PNG: 기본 4,211,133 · 오락실 기체 5,159,277 · 리시버 4,616,269 · 나전칠기 4,444,946 · 키보드 4,366,560 · 레이싱 휠 4,461,621 · 계기판 4,935,802바이트).
+- `standard-b1`(기본의 받침 첫 생성, 17:38 KST, 약 $0.061, PNG 4,278,731바이트 · `459322b82953799d`): 'GENERATIVE RHYTHM' 글자를 그림자와 함께 두 겹으로 새겨 게임에서 흐려 보임 · `{parts}` 의 글자 부분이 "the engraved 'GENERATIVE RHYTHM' and the cyan light strip under it are set into the glass;"
+- 오락실 기체의 받침에서 조이스틱의 빨간 공이 받침 위 끝을 넘은 시도 넷(모두 `{parts}` 의 조이스틱 부분만 다름):
+  - `cabinet-b1`(17:39 KST, 약 $0.059, PNG 4,814,222바이트 · `0f29c4ea383db3e1`): "the joystick at the left stands tall, its red ball top, its black shaft and its dust washer visible from this angle;"
+  - `cabinet-c2`(17:52 KST, 약 $0.061, PNG 5,274,546바이트): "the joystick at the left is a low arcade stick standing up from the middle of the round mark image 1 has there: a stubby black shaft and a red ball top that, seen from this camera, covers the upper part of its round dust washer; the top of the ball is about level with the tops of the upper row of push buttons, far below the chrome moulding, with plenty of dark panel between the ball and the deck's top edge;"
+  - `cabinet-c3`(17:53 KST, 약 $0.063, PNG 5,428,247바이트): "the joystick at the left: its round black dust washer sits low on the panel, lower than the round mark image 1 has there, its bottom edge close to the bottom of the image; from its middle a short black shaft rises to a red ball top; seen from this camera the whole ball stays well below the chrome moulding along the deck's top edge, with dark panel between the ball and the moulding;"
+  - `cabinet-e1`(17:55 KST, 기준 이미지 `cabinet-c1`, 약 $0.054, PNG 4,866,802바이트): 조이스틱만 짧게 고쳐 달라는 요청 · 공이 오히려 조금 올라감. 프롬프트:
+
+    > Image 1 is a frame of a rhythm game's play screen. Edit only the joystick at the left of the arcade control panel at the bottom: make it shorter, so that its red ball top sits lower and stays completely below the thin chrome moulding along the panel's top edge, with dark panel visible between the top of the ball and the moulding. Keep its round chrome-ringed dust washer where it is, its black shaft rising from the washer's middle, and its soft shadow down and to the right.
+    >
+    > Keep every other pixel exactly as it is: the same framing, camera, zoom and crop; the lanes, the red judge line, the side walls, the chrome moulding, the push buttons, the start buttons, the credit windows, 'GRG-2000' and the coin plate. Do not add anything.

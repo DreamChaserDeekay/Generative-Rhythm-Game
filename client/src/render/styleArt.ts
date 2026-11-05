@@ -77,17 +77,19 @@ const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', cr
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${MANIFEST_NAME[set]}/${part}`;
 
 /**
- * The gears' pictures (manifest ids) by part: the materials of the plate and the frame, and the
- * things on the deck. A part whose picture is missing is drawn in code (deckArt.ts).
+ * The gears' pictures (manifest ids) by part: the whole deck painted in the camera's perspective (on
+ * the perspective cameras), the materials of the plate and the frame, and the things on the deck
+ * (the deck drawn in code: the plane camera's, or where the deck's picture is missing). A part whose
+ * picture is missing is drawn in code (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
-  standard: { frame: 'standard/graphite', jog: 'standard/jog' },
-  cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
-  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
-  najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
-  keyboard: { plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
-  racing: { plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
-  orbital: { plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
+  standard: { deck: 'standard/deck', frame: 'standard/graphite', jog: 'standard/jog' },
+  cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
+  receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
+  najeon: { deck: 'najeon/deck', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
+  keyboard: { deck: 'keyboard/deck', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
+  racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
+  orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */
