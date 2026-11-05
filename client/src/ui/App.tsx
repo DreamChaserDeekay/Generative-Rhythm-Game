@@ -142,9 +142,8 @@ export function App() {
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle('palette-cb', settings.palette === 'colorblind');
     document.documentElement.classList.toggle('reduced-flash', settings.reducedFlash);
-  }, [settings.palette, settings.reducedFlash]);
+  }, [settings.reducedFlash]);
 
   const play = useCallback((request: PlayRequest) => setScreen({ name: 'play', request, runId: Date.now() }), []);
   const toSelect = useCallback(() => setScreen({ name: 'select' }), []);

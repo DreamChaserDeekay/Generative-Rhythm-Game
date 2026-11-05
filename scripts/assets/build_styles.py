@@ -417,30 +417,15 @@ SET_ART = {
         "long": {"cap": 184, "idle": (1 / 0.72, 0.7, 0.85), "held": (1 / 0.62, 0.6, 0.9), "see": 0.55},
         "side": {"cut": 0.04, "plate_cut": 0.16, "tint": (1 / 0.7, 0.7, 0.9), "bright": 0.62},
     },
-    "piano": {
-        # ivory slabs: the enamel in the lane colour, its brass inlay and mark lifted toward white (found by their warmth)
-        "notes": {"rows": True, "gain": 1 / 0.72, "lift": 0.86, "white": 0.85, "brass": 0.8},
-        "long": {"cap": 120, "idle": (1 / 0.75, 0.86, 0.8), "held": (1 / 0.62, 0.72, 0.9), "see": None, "brass": 0.8},
-        "side": {"cut": 0.058, "plate_cut": 0.117, "tint": (1 / 0.62, 0.7, 0.85), "bright": 0.6},
-    },
 }
+
+# Sets whose notes were taken out of the game: their hit alone is built (PIANO's musical notes).
+HIT_ONLY = ["piano"]
 
 
 # The sets' names in the manifest: "crystal" already names an earlier texture set (skins/crystal/, which user
 # skins may ask for by name), so the crystal set's pictures are listed as "gem/<name>".
 NAME = {"crystal": "gem"}
-
-
-def brass_of(a: np.ndarray) -> np.ndarray:
-    """How much each pixel of neutral art is the brass inlay drawn in it (the only warm colour): 0 … 1."""
-    return np.clip((a[..., 0] - a[..., 2] - 0.08) / 0.12, 0, 1)
-
-
-def lift_brass(rgba: np.ndarray, brass: np.ndarray, white: float) -> None:
-    """The brass of a tint picture in full lane colour lifted toward white (a bright inlay on the enamel)."""
-    inside = rgba[..., 3] > 0
-    rgba[..., 0] = np.where(inside, np.maximum(rgba[..., 0], brass), rgba[..., 0])
-    rgba[..., 1] = np.where(inside, np.maximum(rgba[..., 1], brass * white), rgba[..., 1])
 
 
 def fit_into(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -471,7 +456,6 @@ def set_notes(cid: str, textures: dict) -> None:
     c = SET_ART[cid]["notes"]
     a = load(SRC / cid / "notes.jpg")
     v = value(a)
-    warm = brass_of(a)
     boxes = blobs(v, 0.05, 4)
     if c["rows"]:
         boxes = sorted(boxes, key=lambda b: b[0].start)
@@ -491,8 +475,6 @@ def set_notes(cid: str, textures: dict) -> None:
         if c.get("disc"):
             alpha = alpha * circle_mask(h, w)
         rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
-        if c.get("brass"):
-            lift_brass(rgba, np.pad(warm, ((h, h), (w, w)))[cut], c["brass"])
         if c["rows"]:
             paste(atlas, fit_into(rgba, 1024, 256), 0, i * 256)
         else:
@@ -506,7 +488,6 @@ def set_long(cid: str, textures: dict) -> dict:
     c = SET_ART[cid]["long"]
     a = load(SRC / cid / "long.jpg")
     v = value(a)
-    warm = brass_of(a)
     idle, held = sorted(blobs(v, 0.06, 2), key=lambda b: b[1].start)
     iy, ix = idle
     rail_w = ix.stop - ix.start
@@ -523,8 +504,6 @@ def set_long(cid: str, textures: dict) -> dict:
             alpha = np.where((alpha > 0.99) & (own < 0.2), c["see"], alpha)
         gain, lift, white = params
         rgba = tint(own, alpha, gain=gain, lift=lift, white=white)
-        if c.get("brass"):
-            lift_brass(rgba, warm[:, xs], c["brass"])
         length = round(rail_w * LONG_TILE / LONG_W)
         y0 = (iy.start + iy.stop) // 2 - length // 2
         body = seamless_rows(rgba[y0:y0 + length + length // 4], length, length // 4)
@@ -986,6 +965,10 @@ def main() -> None:
             shutil.rmtree(OUT / cid)
         set_notes(cid, textures)
         report[cid] = {"long": set_long(cid, textures), "side": set_side(cid, textures)}
+        set_hits(cid, textures)
+    for cid in HIT_ONLY:
+        if (OUT / cid).exists():
+            shutil.rmtree(OUT / cid)
         set_hits(cid, textures)
     if HITS_OUT.exists():
         shutil.rmtree(HITS_OUT)

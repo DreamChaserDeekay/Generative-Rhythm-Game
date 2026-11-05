@@ -142,7 +142,7 @@
   /* a control that cannot be pressed now */
   --disabled-opacity: 0.45;
 
-  /* judgement (the colour-blind palette below swaps them) */
+  /* judgement */
   --g-max: #7cf7ff;
   --g-high: #8bff9c;
   --g-mid: #ffe26b;
@@ -232,35 +232,6 @@
   color: var(--text);
   background: var(--bg);
   color-scheme: dark;
-}
-
-:root.palette-cb {
-  --g-max: #56b4e9;
-  --g-high: #f0e442;
-  --g-mid: #e69f00;
-  --g-low: #cc79a7;
-  --g-break: #d55e00;
-  /* FAST / SLOW: a deeper blue and the bluish green, apart from the five above and from each
-     other with red or green weakness too */
-  --g-fast: #3b6cff;
-  --g-slow: #00b386;
-  --lane-white: #f0f0f0;
-  --lane-blue: #56b4e9;
-  --lane-gold: #e69f00;
-  --lane-scratch: #d55e00;
-  --lane-sideL: #cc79a7;
-  --lane-sideR: #009e73;
-  /* lamps on the same scheme, apart within each shape of mark with red or green weakness too, and
-     as far from the difficulty colours as the usual ones (CLEAR a cyan, the sky blue being
-     NORMAL's) */
-  --lamp-perfect: #e8f4ff;
-  --lamp-maxcombo: #e69f00;
-  --lamp-exhard: #f0e442;
-  --lamp-hard: #ffffff;
-  --lamp-clear: #5ac6d2;
-  --lamp-easy: #009e73;
-  --lamp-assist: #cc79a7;
-  --lamp-failed: #d55e00;
 }
 
 /* ---------- base ---------- */
@@ -1240,8 +1211,8 @@ p.hint {
   animation: none;
 }
 
-/* the skin's colour for the best judgement (the colour-blind palette keeps its own) */
-:root:not(.palette-cb) .hud-plane .g-max {
+/* the type's colour for the best judgement (the gear's, or the track's own) */
+.hud-plane .g-max {
   color: var(--judge-max);
 }
 

@@ -275,12 +275,12 @@ test('play: 7K+1S', async ({ page }) => {
   await shot(page, '03-play-7k');
 });
 
-test('play: background video, camera effects and a skin', async ({ page }) => {
+test('play: background video and camera effects', async ({ page }) => {
   mkdirSync('test-results', { recursive: true });
   const video = 'test-results/showcase-bga.webm';
   if (!existsSync(video)) execFileSync(python, ['-c', MAKE_VIDEO, video]);
   // visualizer: true as an earlier version saved it; the background draws no visualizer now
-  await settings(page, { lastKeyMode: '5K', skin: 'pop', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
+  await settings(page, { lastKeyMode: '5K', cameraFx: 1, bgBrightness: 0.6, visualizer: true, keysound: true });
   await selectShowcase(page, '5K', 'HARD');
   await songInfo(page);
   await page.getByTestId('bga-input').setInputFiles(video);
@@ -301,7 +301,7 @@ test('play: background video, camera effects and a skin', async ({ page }) => {
 async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
   await watchSources(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
-  await settings(page, { lastKeyMode: '6K+FX', skin: 'club', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
+  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
   await selectShowcase(page, '6K+FX', 'MAXIMUM');
   const notes = await showcaseChart(page, '6K+FX', 'MX');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
@@ -325,40 +325,28 @@ test('play: the flat PLANE camera, with the judge counter and a pacemaker', asyn
   await shot(page, '20-play-plane');
 });
 
-test('play: four of the skins, and the five sets', async ({ page }) => {
-  // also runs on its own (-g "four of the skins"): makes the showcase song when it is missing
+test('play: the four sets, and the piano hit', async ({ page }) => {
+  // also runs on its own (-g "the four sets"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // each with the camera it was drawn for and parts that suit it (the skin draws colours and the
-  // track only); FEVER off: its tint would cover the skins' colours
-  for (const [skin, keyMode, name, cameraPreset, parts] of [
-    ['glass', '7K+1S', '15-skin-crystal', 'SDVX', { note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }],
-    ['jewel', '6K+FX', '16-skin-jewel', 'SDVX', { note: 'chamfer', side: 'bar', deck: 'najeon', hit: 'flare' }],
-    ['arcade', '8K', '17-skin-arcade', 'FLAT', { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }],
-    ['pop', '4K', '18-skin-pop', 'SDVX', { note: 'round', side: 'bar', deck: 'receiver', hit: 'bubbles' }],
+  // each set's notes and hit, on a gear that suits them (FEVER off: its tint would cover the lanes' colours)
+  for (const [parts, name] of [
+    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }, '28-set-mecha'],
+    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'club' }, '29-set-club'],
+    [{ note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
+    [{ note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
+    // the piano set's notes are gone: its hit with the plain notes
+    [{ note: 'flat', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
-    await settings(page, { lastKeyMode: keyMode, skin, cameraPreset, hiSpeed: 3, fever: 'OFF', parts });
-    await selectShowcase(page, keyMode, 'MAXIMUM');
-    await autoplayFor(page, 14_200);
-    await shot(page, name);
-  }
-  // each set's notes and hit, on a gear that suits them
-  for (const [skin, parts, name] of [
-    ['arcade', { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }, '28-set-mecha'],
-    ['club', { note: 'round', side: 'bar', deck: 'receiver', hit: 'club' }, '29-set-club'],
-    ['glass', { note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
-    ['neon', { note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
-    ['flat', { note: 'piano', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-set-piano'],
-  ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', skin, parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'MAXIMUM');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
 });
 
-test('play: the four hits of no set, each with notes, side notes and a gear picked apart from the skin', async ({ page }) => {
+test('play: the four hits of no set, each with notes, side notes and a gear picked', async ({ page }) => {
   // also runs on its own (-g "four hits of no set"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
@@ -370,7 +358,7 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
     [{ note: 'star5', side: 'dots', deck: 'najeon', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
-    await settings(page, { lastKeyMode: keyMode, skin: 'flat', parts, hiSpeed: 3, fever: 'OFF' });
+    await settings(page, { lastKeyMode: keyMode, parts, hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, keyMode, 'MAXIMUM');
     // just after a note is hit while a long note is held in another lane: the hit and the hold both show
     const notes = await showcaseChart(page, keyMode, 'MX');
@@ -396,7 +384,7 @@ test('play: the gears a player picks, each with its HUD (gauge, score panel, dig
     ['racing', '38-gear-racing'],
     ['orbital', '39-gear-orbital'],
   ] as const) {
-    await settings(page, { lastKeyMode: '7K+1S', skin: 'flat', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
+    await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'MAXIMUM');
     await autoplayFor(page, 15_500);
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
@@ -464,20 +452,19 @@ test('settings and calibration', async ({ page }) => {
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await page.waitForTimeout(1000);
   await shot(page, '10-settings');
-  // another skin in the preview
+  // the 기어 tab: a gear in the preview
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-skin', 'jewel');
-  await page.waitForTimeout(1500);
-  await shot(page, '11-settings-skins');
-  // the parts picked for the gear, drawn whatever the skin
-  await chooseSetting(page, 'opt-skin', 'arcade');
-  await chooseSetting(page, 'opt-note-style', 'round');
   await chooseSetting(page, 'opt-deck-style', 'najeon');
+  await page.getByTestId('opt-deck-style').focus();
+  await page.waitForTimeout(1500);
+  await shot(page, '11-settings-gear');
+  // the 노트 tab: the note and side note rows over the note colours
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-note-style', 'round');
   await page.getByTestId('opt-note-style').focus();
   await page.waitForTimeout(1500);
-  await shot(page, '26-settings-parts');
+  await shot(page, '26-settings-notes');
   // the note colours: a preset, one lane chosen and its colour on the box, the hue bar and the rows
-  await settingsTab(page, 'colors');
   await chooseSetting(page, 'opt-color-preset', 'hands');
   await page.getByTestId('color-lane-2').focus();
   await page.waitForTimeout(1500);

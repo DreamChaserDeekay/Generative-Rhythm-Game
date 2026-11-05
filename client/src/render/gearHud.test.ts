@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES } from './deckArt';
 import { GAUGE_NAMES, GEAR_TYPES, HUD_TYPE_SOURCES, hudGearOf, hudTypeFor } from './gearHud';
-import { HUD_FONTS, skinById, styleOf } from './skins';
+import { BASE_SKIN, HUD_FONTS, styleOf } from './skins';
 
 describe('the HUD a gear brings', () => {
-  it('writes the judgement and combo in the gear’s type unless the player keeps the skin’s', () => {
-    const skin = styleOf(skinById('neon', null));
+  it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {
+    const skin = styleOf(BASE_SKIN);
     expect(HUD_TYPE_SOURCES).toEqual(['gear', 'skin']);
     for (const gear of GEAR_STYLES) {
       expect(hudGearOf({ deck: gear })).toBe(gear);

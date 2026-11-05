@@ -41,7 +41,7 @@ function laneName(lanes: LaneConfig[], i: number): string {
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /**
- * The note colours (설정 → 노트 색): a preset for every lane of every key mode, and each lane's
+ * The note colours (설정 → 노트): a preset for every lane of every key mode, and each lane's
  * colour in the key mode shown, picked by hue, saturation and value (the rows; ←→, a pad's d-pad),
  * on the colour box and the hue bar (a pointer) or as #rrggbb. A colour changed on 기본 or a built-in
  * preset goes to a copy of it, a preset of the player's own (내 색 N), which can be named and deleted.
@@ -107,7 +107,7 @@ export function NoteColorsPanel({
         onHelp(`내 프리셋은 ${MAX_USER_PRESETS}개까지입니다. 쓰지 않는 프리셋을 지운 뒤 바꾸세요.`);
         return;
       }
-      target = newPreset(own, lanesOf(skinOf(settings), settings.palette, settings.noteColors, own));
+      target = newPreset(own, lanesOf(skinOf(settings), settings.noteColors, own));
       presets = [...own, target];
       onHelp(`'${chosen?.name ?? '기본'}' 색은 그대로 두고, 바꾼 색은 새 프리셋 '${target.name}'에 저장합니다.`);
     }
@@ -167,7 +167,7 @@ export function NoteColorsPanel({
       onHelp(`내 프리셋은 ${MAX_USER_PRESETS}개까지입니다. 쓰지 않는 프리셋을 지운 뒤 저장하세요.`);
       return;
     }
-    const made = newPreset(own, lanesOf(skinOf(settings), settings.palette, settings.noteColors, own));
+    const made = newPreset(own, lanesOf(skinOf(settings), settings.noteColors, own));
     onSettingsChange({ ...settings, noteColors: made.id, colorPresets: [...own, made] });
     onHelp(`지금 색을 새 프리셋 '${made.name}'으로 저장했습니다. 아래에서 이름을 바꿀 수 있습니다.`);
   };
@@ -202,7 +202,7 @@ export function NoteColorsPanel({
         value={settings.noteColors}
         options={presetChoices}
         onChange={(id) => onSettingsChange({ ...settings, noteColors: id })}
-        help="레인마다 노트 색을 정한 묶음입니다. 기본은 스킨의 색(색상이 색각 보정이면 그 색)이고, 나머지는 게임에 든 프리셋과 내 프리셋입니다. 기본이나 게임에 든 프리셋의 색을 바꾸면 그 색을 복사한 내 프리셋에 저장합니다."
+        help="레인마다 노트 색을 정한 묶음입니다. 기본은 트랙의 기본 색이고, 나머지는 게임에 든 프리셋과 내 프리셋입니다. 기본이나 게임에 든 프리셋의 색을 바꾸면 그 색을 복사한 내 프리셋에 저장합니다."
       />
       <Choice
         onHelp={onHelp}

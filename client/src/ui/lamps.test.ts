@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { difficultySystems } from '../engine/config';
 import { LAMP_CLASS } from './lamps';
 
-// The lamp colours of styles.css (the usual palette and the colour-blind one) against the
-// difficulty colours they are shown beside: a lamp is never read as a difficulty.
+// The lamp colours of styles.css against the difficulty colours they are shown beside: a lamp is
+// never read as a difficulty.
 const css = readFileSync(fileURLToPath(new URL('../styles.css', import.meta.url)), 'utf-8');
 
 /** The custom properties of the first rule with this selector, `var(--x)` read from the same rule. */
@@ -35,17 +35,12 @@ describe('lamp colours', () => {
   const tiers = Object.values(difficultySystems).flatMap((s) => s.tiers.map((t) => [`${s.id} ${t.id}`, t.color] as const));
   const lamps = Object.values(LAMP_CLASS);
 
-  for (const [palette, selector] of [
-    ['usual', ':root'],
-    ['colour-blind', ':root.palette-cb'],
-  ] as const) {
-    it(`keep off every difficulty colour (${palette} palette)`, () => {
-      const t = tokens(selector);
-      for (const lamp of lamps) {
-        const colour = t[`--lamp-${lamp}`];
-        expect(colour, lamp).toMatch(/^#[0-9a-f]{6}$/i);
-        for (const [tier, tierColour] of tiers) expect(deltaE(colour, tierColour), `${lamp} ${colour} beside ${tier} ${tierColour}`).toBeGreaterThanOrEqual(17);
-      }
-    });
-  }
+  it('keep off every difficulty colour', () => {
+    const t = tokens(':root');
+    for (const lamp of lamps) {
+      const colour = t[`--lamp-${lamp}`];
+      expect(colour, lamp).toMatch(/^#[0-9a-f]{6}$/i);
+      for (const [tier, tierColour] of tiers) expect(deltaE(colour, tierColour), `${lamp} ${colour} beside ${tier} ${tierColour}`).toBeGreaterThanOrEqual(17);
+    }
+  });
 });

@@ -3,7 +3,7 @@ import { api, EXPORT_LABELS, exportFormats, type SavedChart, type ScoreRecord, t
 import { keysoundStems } from '../audio/stemKeysounds';
 import { rulesetConfigs, type RulesetId } from '../engine/ruleset';
 import type { PatternSummary, StemName } from '../engine/types';
-import type { Palette, Pattern } from '../settings/settings';
+import type { Pattern } from '../settings/settings';
 import { failureReason } from './analysisError';
 import type { PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
@@ -49,7 +49,6 @@ interface Props {
   chart: ServerChart | null;
   /** The chart could not be made (it is being made otherwise, when the song is analysed). */
   chartFailed: boolean;
-  palette: Palette;
   /** Keysounds of generated charts are on (the keysounded stems are marked). */
   keysound: boolean;
   practice: PracticeOptions | null;
@@ -119,7 +118,6 @@ export function SongInfoPanel(props: Props) {
         {song && chart && (
           <ChartPreview
             chart={chart}
-            palette={props.palette}
             keysound={props.keysound}
             practice={props.practice}
             onSelectRange={props.onSelectRange}
@@ -397,7 +395,6 @@ function BpmInput({ onApply, disabled }: { onApply: (bpm: number) => void; disab
 
 function ChartPreview(props: {
   chart: ServerChart;
-  palette: Palette;
   keysound: boolean;
   practice: PracticeOptions | null;
   onSelectRange: (startMs: number, endMs: number) => void;
@@ -502,7 +499,6 @@ function ChartPreview(props: {
       {m.densityLimited && <p className="hint">곡의 소리 밀도가 낮아 목표 레벨까지 올리지 못했습니다. 없는 소리에 노트를 만들지 않기 때문입니다.</p>}
       <ChartMinimap
         chart={chart}
-        palette={props.palette}
         selection={props.practice ? [props.practice.startMs, props.practice.endMs] : null}
         onSelect={props.practice ? props.onSelectRange : undefined}
       />

@@ -1347,7 +1347,6 @@ export function SongSelectScreen(props: Props) {
                 song={selected}
                 chart={chart}
                 chartFailed={entryChartKey !== null && chartStore.hasFailed(entryChartKey)}
-                palette={settings.palette}
                 keysound={settings.keysound}
                 practice={practice}
                 onSelectRange={(startMs, endMs) => setPractice({ rate: 1, loop: true, ...practice, startMs, endMs })}

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { disposeSkinArt, flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
 import type { ArtImage } from './styleArt';
-import { sanitizeSkin, skinById } from './skins';
+import { BASE_SKIN } from './skins';
 
 const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64] };
 const BOOK = { cols: 4, rows: 4, frames: 16, fps: 60, loop: false };
@@ -60,8 +60,8 @@ describe('media manifest', () => {
 });
 
 describe('loading skin textures', () => {
-  // a user skin on the glass set's textures (the built-in skins are drawn in code)
-  const glass = sanitizeSkin({ textures: { note: 'glass/note', floor: 'glass/floor', rails: 'glass/rails', judgeLine: 'glass/judgeLine' } })!;
+  // a skin on the glass set's textures, slot by slot (the track's own is drawn in code)
+  const glass = { ...BASE_SKIN, textures: { note: 'glass/note', floor: 'glass/floor', rails: 'glass/rails', judgeLine: 'glass/judgeLine' } };
   const manifest: MediaManifest = {
     version: 1,
     textures: {
@@ -94,7 +94,7 @@ describe('loading skin textures', () => {
     const texture = async () => fakeTexture(256, 64);
     expect(await loadSkinArt(glass, { manifest: async () => null, texture })).toBeNull();
     expect(await loadSkinArt(glass, { manifest: () => Promise.reject(new Error('offline')), texture })).toBeNull();
-    expect(await loadSkinArt(skinById('flat', null), { manifest: async () => manifest, texture })).toBeNull();
+    expect(await loadSkinArt(BASE_SKIN, { manifest: async () => manifest, texture })).toBeNull();
     const failing = { manifest: async () => manifest, texture: () => Promise.reject(new Error('broken')) };
     expect(await loadSkinArt(glass, failing)).toBeNull();
   });
@@ -127,8 +127,7 @@ describe('loading skin textures', () => {
         return { width, height } as unknown as ArtImage;
       },
     };
-    const arcade = skinById('arcade', null);
-    const mechaSkin = { ...arcade, style: { ...arcade.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
+    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
     expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/coin.png', 'gears/cabinet/joystick.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
     expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/coin', 'cabinet/joystick', 'mecha/notes']);
@@ -136,7 +135,7 @@ describe('loading skin textures', () => {
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // nothing to draw from art without a way to decode pictures, or for a skin drawn in code
     expect(Object.keys((await loadSkinArt(mechaSkin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
-    expect(await loadSkinArt(skinById('flat', null), sources)).toBeNull();
+    expect(await loadSkinArt(BASE_SKIN, sources)).toBeNull();
     disposeSkinArt(art);
   });
 });

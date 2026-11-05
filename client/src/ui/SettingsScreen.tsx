@@ -5,8 +5,7 @@ import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
-import type { Palette } from '../render/palette';
-import { sanitizeSkin, skinById, skinJson, type SkinParts } from '../render/skins';
+import type { SkinParts } from '../render/skins';
 import {
   bindingLabel,
   bindingsFor,
@@ -48,7 +47,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
+import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -70,7 +69,7 @@ interface Props {
   onUndoReset: () => void;
 }
 
-export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'colors' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
+export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
 
 /** The tabs in order: name and the line under it. */
 const TABS: [SettingsTab, string, string][] = [
@@ -78,12 +77,12 @@ const TABS: [SettingsTab, string, string][] = [
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
   ['speed', '속도·커버', '움직이는 미리보기에 바로 보입니다'],
   ['gear', '기어', '움직이는 미리보기에 바로 보입니다'],
-  ['colors', '노트 색', '레인마다 노트 색을 고릅니다 · 미리보기에 바로 보입니다'],
+  ['notes', '노트', '모양과 레인마다의 색 · 미리보기에 바로 보입니다'],
   ['fx', '연출·배경', '카메라 연출, 타격 효과와 플레이 배경'],
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '레인의 키와 플레이 중 키'],
   ['pad', '게임패드', '레인, 플레이 중 버튼, 전용 컨트롤러의 메뉴 버튼'],
-  ['advanced', '고급', '화면 모드, 사용자 스킨, 분석 백엔드와 초기화'],
+  ['advanced', '고급', '화면 모드, 분석 백엔드와 초기화'],
 ];
 
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
@@ -204,7 +203,7 @@ export function SettingsScreen({
   const [help, setHelp] = useState('');
   /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
   const [sideRow, setSideRow] = useState(false);
-  /** The key mode whose note colours the 노트 색 tab shows, and colours being picked there, not kept yet. */
+  /** The key mode whose note colours the 노트 tab shows, and colours being picked there, not kept yet. */
   const [colorMode, setColorMode] = useState<KeyModeId>(settings.lastKeyMode);
   const [colorDraft, setColorDraft] = useState<number[] | null>(null);
   const rows = useRef<HTMLDivElement>(null);
@@ -285,15 +284,10 @@ export function SettingsScreen({
       setSideRow(false);
     },
   };
-  // the side notes' row shows them on 4K+FX or 6K+FX when the last key mode has no side lanes
-  const previewMode: KeyModeId =
-    tab === 'colors'
-      ? colorMode
-      : sideRow && !keyModes[settings.lastKeyMode].lanes.some((l) => l.kind === 'side')
-        ? settings.lastKeyMode === '4K'
-          ? '4K+FX'
-          : '6K+FX'
-        : settings.lastKeyMode;
+  // the 노트 tab shows the key mode whose colours it shows; the side notes' row shows them on 4K+FX or
+  // 6K+FX when that key mode has no side lanes
+  const shownMode = tab === 'notes' ? colorMode : settings.lastKeyMode;
+  const previewMode: KeyModeId = sideRow && !keyModes[shownMode].lanes.some((l) => l.kind === 'side') ? (shownMode === '4K' ? '4K+FX' : '6K+FX') : shownMode;
   const playKeys = playKeysOf(settings);
   const keyPair = (down: PlayAction, up: PlayAction) => `${bindingLabel(playKeys[down])} / ${bindingLabel(playKeys[up])}`;
   const [, heading] = TABS.find(([id]) => id === tab) ?? TABS[0];
@@ -513,37 +507,6 @@ export function SettingsScreen({
         <>
           <Choice
             {...row}
-            label="트랙 스킨"
-            testId="opt-skin"
-            value={settings.skin}
-            options={skinChoices(settings)}
-            onChange={(id) => set('skin', id)}
-            help="키 빔·판정선·트랙의 색과 모양입니다. 노트·사이드 노트·기어·타격 효과는 아래에서 따로 고르고, 카메라는 바뀌지 않습니다. 판정·콤보 글꼴은 기어를 따르며, 아래 판정·콤보 글꼴에서 스킨의 것으로 바꿀 수 있습니다. 사용자 스킨은 고급 탭에서 JSON으로 만듭니다."
-          />
-          <Choice
-            {...row}
-            label="노트"
-            testId="opt-note-style"
-            value={settings.parts.note}
-            options={PART_CHOICES.note}
-            onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관, 피아노는 래커 건반)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별·피아노는 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크), 피아노(피아노·피아노 음표)."
-          />
-          <Choice
-            {...row}
-            onHelp={(text) => {
-              setHelp(text);
-              setSideRow(true);
-            }}
-            label="사이드 노트"
-            testId="opt-side-style"
-            value={settings.parts.side}
-            options={PART_CHOICES.side}
-            onChange={(v) => setPart('side', v)}
-            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮습니다. 기본은 비치는 막대로, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다."
-          />
-          <Choice
-            {...row}
             label="기어"
             testId="opt-deck-style"
             value={settings.parts.deck}
@@ -558,7 +521,7 @@ export function SettingsScreen({
             value={settings.hudType}
             options={HUD_TYPE_CHOICES}
             onChange={(v) => set('hudType', v)}
-            help="판정과 콤보를 쓰는 글꼴과 색입니다. 기어를 따르면 기본은 흰 장체(MAX는 흰색, 퍼센트는 하늘색), 오락실 기체는 빨간 7세그 콤보와 굵은 이탤릭 판정, 빈티지 리시버는 호박색 7세그 콤보와 가는 장체 판정, 나전칠기는 금색 세리프, 커스텀 키보드는 픽셀 글꼴과 주황 밑줄, 레이싱 휠은 기울어진 흰 숫자와 빨간 밑줄, 우주선 계기판은 스텐실 판정과 초록 7세그 콤보로 씁니다. 트랙 스킨을 따르면 스킨의 글꼴로 씁니다."
+            help="판정과 콤보를 쓰는 글꼴과 색입니다. 기어를 따르면 기본은 흰 장체(MAX는 흰색, 퍼센트는 하늘색), 오락실 기체는 빨간 7세그 콤보와 굵은 이탤릭 판정, 빈티지 리시버는 호박색 7세그 콤보와 가는 장체 판정, 나전칠기는 금색 세리프, 커스텀 키보드는 픽셀 글꼴과 주황 밑줄, 레이싱 휠은 기울어진 흰 숫자와 빨간 밑줄, 우주선 계기판은 스텐실 판정과 초록 7세그 콤보로 씁니다. 기본은 기어와 상관없이 흰 장체에 MAX를 하늘색으로 씁니다."
           />
           <Choice
             {...row}
@@ -636,25 +599,37 @@ export function SettingsScreen({
             onChange={(v) => set('barLines', v)}
             help="마디마다 트랙을 가로지르는 선을 긋습니다."
           />
-          <Choice
-            {...row}
-            label="색상"
-            testId="opt-palette"
-            value={settings.palette}
-            options={
-              [
-                ['default', '기본'],
-                ['colorblind', '색각 보정'],
-              ] as [Palette, string][]
-            }
-            onChange={(p) => set('palette', p)}
-            help="색각 보정은 판정과 레인을 색각 이상이 있어도 구분되는 색으로 칠합니다. 레인 색은 노트 색 탭의 프리셋이 기본일 때 바뀝니다."
-          />
         </>
       );
       break;
-    case 'colors':
-      content = <NoteColorsPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} mode={colorMode} onMode={setColorMode} onDraft={setColorDraft} />;
+    case 'notes':
+      content = (
+        <>
+          <Choice
+            {...row}
+            label="노트"
+            testId="opt-note-style"
+            value={settings.parts.note}
+            options={PART_CHOICES.note}
+            onChange={(v) => setPart('note', v)}
+            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크)."
+          />
+          <Choice
+            {...row}
+            onHelp={(text) => {
+              setHelp(text);
+              setSideRow(true);
+            }}
+            label="사이드 노트"
+            testId="opt-side-style"
+            value={settings.parts.side}
+            options={PART_CHOICES.side}
+            onChange={(v) => setPart('side', v)}
+            help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮습니다. 기본은 비치는 막대로, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다."
+          />
+          <NoteColorsPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={row.onHelp} mode={colorMode} onMode={setColorMode} onDraft={setColorDraft} />
+        </>
+      );
       break;
     case 'fx':
       content = (
@@ -679,13 +654,14 @@ export function SettingsScreen({
             value={settings.hitEffectSize}
             options={
               [
+                ['large', '크게'],
                 ['normal', '보통'],
                 ['small', '작게'],
                 ['off', '끄기'],
               ] as [HitEffectSize, string][]
             }
             onChange={(v) => set('hitEffectSize', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 작게는 한 레인 남짓으로 줄이고(반쪽 덮기의 사이드 노트는 절반 폭 그대로 낮게), 끄기는 그리지 않습니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때 판정선에 번지는 빛입니다. 크게는 보통의 1.4배로 그리고(레일 밖으로는 나가지 않음, 반쪽 덮기의 사이드 노트는 절반 폭 그대로 더 높게), 작게는 한 레인 남짓으로 줄이고(사이드 노트는 절반 폭 그대로 낮게), 끄기는 그리지 않습니다."
           />
           <Toggle
             {...row}
@@ -799,13 +775,13 @@ export function SettingsScreen({
         </section>
         <aside className="settings-side">
           {/* the gear as it will be played, where a row changes how it looks (the hit effects too) */}
-          {tab === 'speed' || tab === 'gear' || tab === 'colors' || tab === 'fx' ? (
+          {tab === 'speed' || tab === 'gear' || tab === 'notes' || tab === 'fx' ? (
             <>
               <span className="settings-side-head">
                 <span>미리보기</span>
                 <span>{previewMode}</span>
               </span>
-              <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'colors' ? colorDraft ?? undefined : undefined} />
+              <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'notes' ? colorDraft ?? undefined : undefined} />
               <p className="settings-help" data-testid="settings-help">
                 {sideHelp}
               </p>
@@ -1454,8 +1430,6 @@ function AdvancedPanel({
   onReset: () => void;
   onUndo: () => void;
 }) {
-  const [skinText, setSkinText] = useState('');
-  const [skinError, setSkinError] = useState<string | null>(null);
   const [backends, setBackends] = useState<BackendStatus[] | null>(null);
   const reset = useTwoPress(onReset);
   // the undo gone (pressed, or its time up) with the focus on it: the focus goes back to the reset
@@ -1471,17 +1445,6 @@ function AdvancedPanel({
       .then((h) => setBackends(h.backends ?? []))
       .catch(() => setBackends(null));
   }, []);
-  const applySkinText = () => {
-    try {
-      const skin = sanitizeSkin(JSON.parse(skinText));
-      if (!skin) throw new Error('스킨 JSON 객체가 아닙니다');
-      setSkinError(null);
-      onSettingsChange({ ...settings, skin: 'custom', customSkin: skin });
-    } catch (e) {
-      setSkinError(e instanceof Error ? e.message : String(e));
-    }
-  };
-  const custom = settings.customSkin as { label?: string } | null;
   const desktop = desktopShell() !== null;
   return (
     <>
@@ -1503,32 +1466,6 @@ function AdvancedPanel({
             : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
         }
       />
-      <div className="settings-group" data-testid="skin-settings">
-        <h3>사용자 스킨</h3>
-        <p className="settings-note">
-          트랙·레일·판정선의 색과 키 빔, 판정·콤보 글꼴, 레인 색 배치(mode·uniform·rainbow), 텍스처(textures)를 JSON으로 바꿀 수 있습니다. 노트·사이드 노트·기어·타격 효과는 기어 탭에서 고릅니다.
-          {custom ? ` 지금 사용자 스킨: ${custom.label ?? '사용자 스킨'}${settings.skin === 'custom' ? ' (사용 중)' : ''}` : ''}
-        </p>
-        <textarea
-          className="skin-json"
-          rows={6}
-          spellCheck={false}
-          placeholder='{"label": "내 스킨", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff3b3b"}}'
-          value={skinText}
-          onFocus={() => onHelp('JSON을 붙여 넣고 적용하면 기어 탭의 트랙 스킨(선곡에서는 Space → 속도·기어)에 사용자 스킨으로 들어갑니다.')}
-          onChange={(e) => setSkinText(e.target.value)}
-        />
-        <div className="row">
-          <button className="small" onClick={applySkinText} disabled={!skinText.trim()}>
-            사용자 스킨 적용
-          </button>
-          <button className="small" onClick={() => setSkinText(JSON.stringify(skinJson(skinById(settings.skin, settings.customSkin)), null, 2))}>
-            현재 스킨 JSON 보기
-          </button>
-          {skinError && <span className="error">{skinError}</span>}
-        </div>
-      </div>
-
       <div className="settings-group" data-testid="backend-status">
         <h3>분석 백엔드</h3>
         <p className="settings-note">

@@ -98,10 +98,10 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await press(PAD.A);
   await expect(bars).toHaveAttribute('aria-checked', String(!checked));
   expect((await stored(page)).barLines).toBe(!checked);
-  // on (노트 색), the d-pad goes along the lanes' swatches and down to the hue, whose ←→ change
+  // on (노트: its note colours), the d-pad goes along the lanes' swatches and down to the hue, whose ←→ change
   // the lane's colour (a copy of the preset takes it)
   await press(PAD.RB);
-  await expect(page.getByTestId('settings-tab-colors')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-notes')).toHaveAttribute('aria-selected', 'true');
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await page.getByTestId('color-lane-0').focus();
   await press(PAD.RIGHT);
@@ -122,7 +122,7 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
   expect((await stored(page)).cameraFx).toBeLessThan(before);
   await press(PAD.LB);
-  await expect(page.getByTestId('settings-tab-colors')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-notes')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('settings-tab-pad').click();
   await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
 

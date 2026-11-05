@@ -1,11 +1,11 @@
 import { keyModes, type LaneColor, type LaneConfig } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { LANE_PALETTES, type Palette } from './palette';
+import { LANE_COLORS } from './palette';
 import { laneColorsFor, type Skin } from './skins';
 
 /**
- * Note colours by lane (설정 → 노트 색). A preset gives every lane of every key mode its colour;
- * 기본 (SKIN_COLORS) leaves them to the palette and the skin (laneColorsFor). The built-in presets
+ * Note colours by lane (설정 → 노트). A preset gives every lane of every key mode its colour;
+ * 기본 (SKIN_COLORS) leaves them to the track's own (laneColorsFor). The built-in presets
  * stay as they are: a colour changed on one goes to a copy of it, a preset of the player's own.
  */
 export interface ColorPreset {
@@ -15,7 +15,7 @@ export interface ColorPreset {
   lanes: Record<KeyModeId, string[]>;
 }
 
-/** The palette's and the skin's colours (기본). */
+/** The track's own colours (기본). */
 export const SKIN_COLORS = 'skin';
 /** So many presets of the player's own are kept. */
 export const MAX_USER_PRESETS = 20;
@@ -39,12 +39,12 @@ const byRole = (colours: Record<LaneColor, string>) => (lane: LaneConfig) => col
 const HANDS = { L: ['#cfe2ff', '#4f8dff'], R: ['#ffe0c4', '#ff9a3c'] } as const;
 const byHand = (lane: LaneConfig): string => (lane.hand === 'T' ? '#f4f4f4' : HANDS[lane.hand][lane.kind === 'key' && lane.color === 'white' ? 0 : 1]);
 
-/** The presets that come with the game, after 기본. None repeats the palettes' or the skins' lane colours. */
+/** The presets that come with the game, after 기본. None repeats 기본's lane colours. */
 export const BUILTIN_PRESETS: ColorPreset[] = [
   // K/DA's music videos by lane role: POP/STARS violet, gold, neon magenta and cyan; FIRESTARTER scarlet, ivory, amber, hot pink and orchid
   preset('kda-popstars', 'K/DA (POP/STARS)', byRole({ white: '#efe8ff', blue: '#9a6cff', gold: '#f5c56a', scratch: '#ff3fae', sideL: '#2ee8ff', sideR: '#ff3fae' })),
   preset('kda-firestarter', 'K/DA (FIRESTARTER)', byRole({ white: '#ffeade', blue: '#ff2b3b', gold: '#ffb45e', scratch: '#ff2f7e', sideL: '#e48cff', sideR: '#ff2f7e' })),
-  // greens, teal and violet: no palette nor skin has greens
+  // greens, teal and violet: 기본 has no greens
   preset('aurora', '오로라', byRole({ white: '#d4fff0', blue: '#2ee0a0', gold: '#c7a2ff', scratch: '#27d4e8', sideL: '#27d4e8', sideR: '#c7a2ff' })),
   // warm colours alone, no blue light: for play in a dark room
   preset('amber', '앰버', byRole({ white: '#fff0d8', blue: '#ff7a29', gold: '#ffcd45', scratch: '#ff4f3a', sideL: '#ffb347', sideR: '#ff4f3a' })),
@@ -60,15 +60,15 @@ export function presetById(id: string, own: readonly ColorPreset[]): ColorPreset
 
 export const isUserPreset = (id: string): boolean => USER_ID.test(id);
 
-/** Every lane's colour in a key mode: the preset's, or for 기본 the palette's and the skin's. */
-export function noteColorsFor(skin: Skin, palette: Palette, mode: KeyModeId, id: string, own: readonly ColorPreset[]): number[] {
+/** Every lane's colour in a key mode: the preset's, or for 기본 the track's own. */
+export function noteColorsFor(skin: Skin, mode: KeyModeId, id: string, own: readonly ColorPreset[]): number[] {
   const chosen = presetById(id, own);
-  return chosen ? chosen.lanes[mode].map(hexValue) : laneColorsFor(skin, palette, keyModes[mode]);
+  return chosen ? chosen.lanes[mode].map(hexValue) : laneColorsFor(skin, keyModes[mode]);
 }
 
-/** The colours of every key mode as a preset keeps them (기본's from the palette and the skin): what a new preset starts from. */
-export function lanesOf(skin: Skin, palette: Palette, id: string, own: readonly ColorPreset[]): Record<KeyModeId, string[]> {
-  return Object.fromEntries(KEY_MODE_IDS.map((m) => [m, noteColorsFor(skin, palette, m, id, own).map(hexString)])) as Record<KeyModeId, string[]>;
+/** The colours of every key mode as a preset keeps them (기본's the track's own): what a new preset starts from. */
+export function lanesOf(skin: Skin, id: string, own: readonly ColorPreset[]): Record<KeyModeId, string[]> {
+  return Object.fromEntries(KEY_MODE_IDS.map((m) => [m, noteColorsFor(skin, m, id, own).map(hexString)])) as Record<KeyModeId, string[]>;
 }
 
 /** A preset of the player's own with these colours, on the next free number ("내 색 3"). */
@@ -90,7 +90,7 @@ export function parseColour(text: string): string | null {
   return null;
 }
 
-/** The player's presets as saved: malformed ones are left out, a lane without a colour takes the default palette's. */
+/** The player's presets as saved: malformed ones are left out, a lane without a colour takes 기본's. */
 export function sanitizePresets(raw: unknown): ColorPreset[] {
   if (!Array.isArray(raw)) return [];
   const out: ColorPreset[] = [];
@@ -104,7 +104,7 @@ export function sanitizePresets(raw: unknown): ColorPreset[] {
       const list = Array.isArray(saved[m]) ? (saved[m] as unknown[]) : [];
       return keyModes[m].lanes.map((lane, i) => {
         const c = list[i];
-        return typeof c === 'string' && HEX.test(c) ? c : hexString(LANE_PALETTES.default[lane.color]);
+        return typeof c === 'string' && HEX.test(c) ? c : hexString(LANE_COLORS[lane.color]);
       });
     };
     out.push({

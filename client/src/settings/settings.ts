@@ -20,17 +20,15 @@ import type { KeyModeId } from '../engine/types';
 import type { SideNotes } from '../render/layout';
 import { noteColorsFor, presetById, sanitizePresets, SKIN_COLORS, type ColorPreset } from '../render/noteColors';
 import { HUD_TYPE_SOURCES, type HudTypeSource } from '../render/gearHud';
-import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, DEFAULT_PARTS, sanitizeParts, sanitizeSkin, SKIN_RENAMES, skinById, withParts, type Skin, type SkinParts } from '../render/skins';
+import { BASE_SKIN, DEFAULT_PARTS, sanitizeParts, withParts, type Skin, type SkinParts } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
 import { DEFAULT_TURNTABLE, isPadCode, MENU_BUTTON_KEYS, MENU_BUTTONS, MENU_PAD_CODE, type MenuButton } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, type PadPlayButton } from '../input/padPlay';
 import { cleanPlayKey, DEFAULT_PLAY_KEYS, parseKey, PLAY_ACTIONS, type PlayAction } from '../input/playKeys';
 
 export type { ScrollMode } from '../engine/scroll';
-export type { Palette } from '../render/palette';
 export type { HitEffectSize } from '../render/TrackRenderer';
-export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
+export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['large', 'normal', 'small', 'off'];
 export type { SideNotes } from '../render/layout';
 export const SIDE_NOTES: readonly SideNotes[] = ['lanes', 'half'];
 export type JudgePosition = 'low' | 'mid' | 'high';
@@ -171,25 +169,21 @@ export interface Settings {
   /** A line across the track at every bar. */
   barLines: boolean;
   reducedFlash: boolean;
-  palette: Palette;
   pacemaker: Pacemaker;
   generation: GenerationPrefs;
   /** Keysounds on generated charts: a hit plays its slice of the stem it follows, a miss leaves it out. */
   keysound: boolean;
   /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
   cameraFx: number;
-  /** Hit and hold effects at the skin's size, about a lane wide, or none. */
+  /** Hit and hold effects larger than the usual size, at it, about a lane wide, or none. */
   hitEffectSize: HitEffectSize;
   /** 4K+FX and 6K+FX: side notes in lanes of their own at the edges, or as bars over half the key lanes (DJMAX's side tracks). */
   sideNotes: SideNotes;
-  skin: string;
-  /** User skin (JSON object), used when `skin` is "custom". */
-  customSkin: unknown;
-  /** Notes, side notes, gear and hit effect picked apart from the skin (each the skin's by default). */
+  /** Notes, side notes, gear and hit effect picked over the track (render/skins.ts: BASE_SKIN). */
   parts: SkinParts;
-  /** The judgement and combo in the picked gear's type, or the skin's (render/gearHud.ts). */
+  /** The judgement and combo in the picked gear's type, or the track's own (render/gearHud.ts). */
   hudType: HudTypeSource;
-  /** The note colours by lane: a preset's id, or SKIN_COLORS (기본: the palette's and the skin's). */
+  /** The note colours by lane: a preset's id, or SKIN_COLORS (기본: the track's own). */
   noteColors: string;
   /** The player's own note colour presets. */
   colorPresets: ColorPreset[];
@@ -274,15 +268,12 @@ export const DEFAULT_SETTINGS: Settings = {
   errorBar: false,
   barLines: true,
   reducedFlash: false,
-  palette: 'default',
   pacemaker: 'OFF',
   generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
   hitEffectSize: 'normal',
   sideNotes: 'half',
-  skin: 'flat',
-  customSkin: null,
   parts: DEFAULT_PARTS,
   hudType: 'gear',
   noteColors: SKIN_COLORS,
@@ -390,7 +381,6 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.judgementOpacity = pick(s.judgementOpacity, JUDGEMENT_OPACITIES, d.judgementOpacity);
   s.judgeCounter = s.judgeCounter === true;
   s.errorBar = s.errorBar === true;
-  s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
@@ -398,10 +388,8 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);
   // side notes are always laid over half the keys (DJMAX's side tracks); lanes of their own are no longer offered
   s.sideNotes = 'half';
-  // skins of earlier versions open as the skin that took their place
-  s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
-  s.customSkin = sanitizeSkin(s.customSkin);
-  if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
+  // the track skin, a user skin and the colour palette of earlier versions are gone: the track has one look and one set of colours
+  for (const gone of ['skin', 'customSkin', 'palette']) delete (s as Record<string, unknown>)[gone];
   s.parts = sanitizeParts(s.parts);
   s.hudType = pick(s.hudType, HUD_TYPE_SOURCES, d.hudType);
   s.colorPresets = sanitizePresets(raw.colorPresets);
@@ -666,17 +654,17 @@ export function clampHiSpeed(hiSpeed: number): number {
   return Math.round(Math.min(HI_SPEED_MAX, Math.max(HI_SPEED_MIN, hiSpeed)) * 100) / 100;
 }
 
+/** The track the gear is drawn with: its one look, with the parts picked. */
+export function skinOf(settings: Pick<Settings, 'parts'>): Skin {
+  return withParts(BASE_SKIN, settings.parts);
+}
+
+/** Every lane's colour in a key mode: the note colours picked, or the track's own. */
+export function laneColorsOf(settings: Pick<Settings, 'parts' | 'noteColors' | 'colorPresets'>, mode: KeyModeId): number[] {
+  return noteColorsFor(skinOf(settings), mode, settings.noteColors, settings.colorPresets);
+}
+
 /** Time a note takes over the whole (unlifted) track length. */
-/** The skin the gear is drawn with: the chosen one, with the parts picked apart from it. */
-export function skinOf(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts'>): Skin {
-  return withParts(skinById(settings.skin, settings.customSkin), settings.parts);
-}
-
-/** Every lane's colour in a key mode: the note colours picked, or the palette's and the skin's. */
-export function laneColorsOf(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts' | 'palette' | 'noteColors' | 'colorPresets'>, mode: KeyModeId): number[] {
-  return noteColorsFor(skinOf(settings), settings.palette, mode, settings.noteColors, settings.colorPresets);
-}
-
 export function visibleTimeMs(hiSpeed: number): number {
   return BASE_VISIBLE_MS / clampHiSpeed(hiSpeed);
 }

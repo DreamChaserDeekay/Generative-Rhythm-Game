@@ -154,8 +154,8 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-display-mode')).toBeFocused();
   await expect(help).toContainText('전체 화면');
-  await page.locator('textarea.skin-json').focus();
-  await expect(help).toContainText('기어 탭');
+  // the user skins are gone with the track skins: no section of theirs
+  await expect(page.getByTestId('skin-settings')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

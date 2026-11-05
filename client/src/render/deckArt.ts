@@ -34,19 +34,6 @@ export type GearStyle = Exclude<DeckStyle, 'line' | 'stem'>;
 export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital'];
 export const DECK_STYLES: DeckStyle[] = ['line', 'stem', ...GEAR_STYLES];
 export const isGear = (style: DeckStyle): style is GearStyle => style !== 'line' && style !== 'stem';
-/** Earlier skins named the key caps that stood here: the plain ones are LINE and STEM, the rest the standard gear. */
-export const CAP_DECKS: Record<string, DeckStyle> = {
-  flat: 'line',
-  stem: 'stem',
-  gloss: 'standard',
-  piano: 'standard',
-  outline: 'standard',
-  neon: 'standard',
-  glass: 'standard',
-  pill: 'standard',
-  jewel: 'standard',
-};
-
 export type KeyKind = 'white' | 'other' | 'scratch';
 
 export interface DeckLane {

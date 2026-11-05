@@ -1,44 +1,23 @@
 import type { LaneColor } from '../engine/config';
 import type { StemName } from '../engine/types';
 
-export type Palette = 'default' | 'colorblind';
-
-/** Lane colours; the colour-blind set follows the Okabe–Ito palette. */
-export const LANE_PALETTES: Record<Palette, Record<LaneColor, number>> = {
-  default: {
-    white: 0xeaf6ff,
-    blue: 0x4fc3ff,
-    gold: 0xffc94f,
-    scratch: 0xff5c8a,
-    sideL: 0xb07bff,
-    sideR: 0xff8f4f,
-  },
-  colorblind: {
-    white: 0xf0f0f0,
-    blue: 0x56b4e9,
-    gold: 0xe69f00,
-    scratch: 0xd55e00,
-    sideL: 0xcc79a7,
-    sideR: 0x009e73,
-  },
+/** Lane colours by the lane's colour in its key mode's layout (기본 of 설정 → 노트). */
+export const LANE_COLORS: Record<LaneColor, number> = {
+  white: 0xeaf6ff,
+  blue: 0x4fc3ff,
+  gold: 0xffc94f,
+  scratch: 0xff5c8a,
+  sideL: 0xb07bff,
+  sideR: 0xff8f4f,
 };
 
-/** Hit-effect colour per grade class (matches the CSS variables of each palette). */
-export const GRADE_PALETTES: Record<Palette, Record<string, number>> = {
-  default: {
-    'g-max': 0x7cf7ff,
-    'g-high': 0x8bff9c,
-    'g-mid': 0xffe26b,
-    'g-low': 0xffb15c,
-    'g-break': 0xff4d6a,
-  },
-  colorblind: {
-    'g-max': 0x56b4e9,
-    'g-high': 0xf0e442,
-    'g-mid': 0xe69f00,
-    'g-low': 0xcc79a7,
-    'g-break': 0xd55e00,
-  },
+/** Hit-effect colour per grade class (matches the grades' CSS variables). */
+export const GRADE_COLORS: Record<string, number> = {
+  'g-max': 0x7cf7ff,
+  'g-high': 0x8bff9c,
+  'g-mid': 0xffe26b,
+  'g-low': 0xffb15c,
+  'g-break': 0xff4d6a,
 };
 
 /** FEVER tint per multiplier (x2..x5): the --fever-2..5 tokens, kept off the accent and the brand colour. */
