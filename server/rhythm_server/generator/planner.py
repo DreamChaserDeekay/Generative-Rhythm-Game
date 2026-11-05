@@ -579,7 +579,8 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
     """Each roll's shape and key number (motifs.alternate_key) from rolls.shapes: drawn
     by the shapes' weights at the chart's skill (rolls.byKeyMode's for the key mode when it has them), the
     trill's times rolls.buildUpTrill (also by skill) for a roll
-    that leads into a new section (a build-up). The draw goes by the chart's seed, the roll's
+    that leads into a new section (a build-up); with rolls.bySound the roll's sound picks it instead
+    (sound_shape). The draw goes by the chart's seed, the roll's
     length and where in the bar it starts, so a fill played again is played the same way while the
     song's other rolls take other shapes."""
     cfg = pattern_config()["rolls"]
@@ -593,6 +594,7 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
             runs.setdefault(s.roll[0], []).append(s)
     starts = [float(s["startBeat"]) for s in sections if s.get("startBeat") is not None]
     names = sorted(table)
+    by_sound = cfg.get("bySound")
     out: dict[int, tuple[str, int]] = {}
     for run, hits in runs.items():
         first, last = hits[0].beat, hits[-1].beat
@@ -604,6 +606,20 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
             and min(b.beat - a.beat for a, b in zip(hits, hits[1:])) >= 0.5 - 1e-6
             and min(b.t - a.t for a, b in zip(hits, hits[1:])) >= params.min_jack_ms
         )
+        phase = int(round((first % beats_per_bar) * 12))
+        h = (seed * 1000003 + len(hits) * 7919 + phase * 104729) % 2147483647
+        h = (h * 48271) % 2147483647
+        number = (h // 10000) % 1000
+        if by_sound:
+            # the roll's sound decides its shape: a drum hit again and again is a two-hand trill,
+            # hits whose pitch climbs or falls walk that way (a tom fill); a short slow fill may
+            # still be a chord jack, by its weight against the trill's
+            own = sound_shape(hits, by_sound)
+            jack_w = by_skill(table["chordJack"], params.skill) if jackable and "chordJack" in table else 0.0
+            own_w = by_skill(table.get("trill", 1.0), params.skill)
+            x = (h % 10000) / 10000.0 * (jack_w + own_w)
+            out[run] = ("chordJack" if x < jack_w else own, number)
+            continue
         weights = [
             0.0 if name == "chordJack" and not jackable
             else by_skill(table[name], params.skill) * (by_skill(cfg.get("buildUpTrill", 1.0), params.skill) if into and name == "trill" else 1.0)
@@ -612,16 +628,28 @@ def roll_shapes(slots: list[Slot], sections: list[dict[str, Any]], params: GenPa
         total = sum(weights)
         if total <= 0:
             continue
-        phase = int(round((first % beats_per_bar) * 12))
-        h = (seed * 1000003 + len(hits) * 7919 + phase * 104729) % 2147483647
-        h = (h * 48271) % 2147483647
         x = (h % 10000) / 10000.0 * total
         for name, w in zip(names, weights):
             if x < w:
                 break
             x -= w
-        out[run] = (name, (h // 10000) % 1000)
+        out[run] = (name, number)
     return out
+
+
+def sound_shape(hits: list[Slot], cfg: dict[str, Any]) -> str:
+    """A roll's shape from its sound (rolls.bySound): `rising` / `falling` when the hits' pitch
+    goes one way through the roll (rank correlation with the hit order at least `rho`, a fitted
+    change of `semitones` or more over at least `minHits` pitched hits), else `steady`."""
+    pitches = [float(s.pitch) for s in hits if s.pitch is not None]
+    if len(pitches) >= int(cfg["minHits"]):
+        order = np.arange(len(pitches), dtype=float)
+        ranks = np.argsort(np.argsort(pitches)).astype(float)
+        rho = float(np.corrcoef(order, ranks)[0, 1]) if np.std(ranks) > 0 else 0.0
+        change = float(np.polyfit(order, pitches, 1)[0]) * (len(pitches) - 1)
+        if abs(rho) >= float(cfg["rho"]) and abs(change) >= float(cfg["semitones"]) and (rho > 0) == (change > 0):
+            return str(cfg["rising"] if rho > 0 else cfg["falling"])
+    return str(cfg["steady"])
 
 
 def plan_patterns(
@@ -657,6 +685,8 @@ def plan_patterns(
     textures = [chord_texture(p, params) for p in phrases]
     regions = role_regions(slots, phrases, params, hands)
     homes = sound_homes(slots, phrases, regions, params, n_keys, seed) if params.instrument_mapping > 0 else [None] * len(slots)
+    # a repeat that follows the melody (Slot.tune) leaves its drums free of their home keys
+    homes = [None if slots[i].tune else h for i, h in enumerate(homes)]
     plan: list[SlotPlan] = [None] * len(slots)  # type: ignore[list-item]  # every slot is in a phrase
     # rolls too fast for one key every other note (the jack spacing) use two keys per hand
     roll_gap: dict[int, float] = {}

@@ -63,6 +63,7 @@ class Unit:
     hold: float | None = None  # the section plan's long-note weight for it
     jack_scale: float = 1.0  # the section plan's scale of the same-lane cost in it
     jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets in it
+    focus: int | None = None  # the stem this repeat of its music follows first (sectioned.repeatFocus)
 
 
 @dataclass
@@ -76,6 +77,7 @@ class Layout:
     slot_unit: list[int]
     phrases: list[list[int]] = field(default_factory=list)  # planner phrases (slot indices)
     phrase_keys: list[tuple[int, int]] = field(default_factory=list)  # (class, part) per phrase
+    chords_capped: bool = False  # the stretch cap on chords (sectioned.chordWindow) refused a chord
 
 
 def edited_analysis(analysis: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
@@ -235,7 +237,7 @@ def classify(units: list[Unit], per_unit: list[dict[int, int]], cands: list[Cand
         best, best_sim = None, threshold
         for c, members in enumerate(classes):
             first = units[members[0]]
-            if first.group != u.group or abs(first.length - u.length) > 1e-6:
+            if first.group != u.group or abs(first.length - u.length) > 1e-6 or first.focus != u.focus:
                 continue
             sim = max(_similarity(per_unit[m], per_unit[u.index], cands) for m in members[:3])
             if sim >= best_sim:
@@ -316,6 +318,53 @@ def follow_weights(sections: list[dict[str, Any]], params: GenParams) -> dict[st
         for st in LAYERS[main]:
             w[STEM_NAMES.index(st)] = 1.0
         out[g] = w
+    return out
+
+
+def _mark_focus(units: list[Unit], sections: list[dict[str, Any]], params: GenParams) -> None:
+    """`focus` of the units of music that comes back (sectioned.repeatFocus): a group of the
+    `labels` heard twice or more follows the drums first (its first, third ... time) and the melody
+    the other times (the louder of vocals and other in that section's mix), each when the stem is
+    `minShare` of the mix at least, so the second verse or chorus is not the first one's notes again
+    (6K ELITE play: "the first part on the drums, the second on the solo or another instrument",
+    docs/PATTERN_DESIGN.md 81). Sections carry their stem mix (analysis `stems`); a unit of a
+    section without one keeps no focus."""
+    rule = sectioned_config().get("repeatFocus")
+    # a rhythm source the player picked (drums, melody, vocals) leads every repeat
+    if not rule or not params.repeat_focus or params.rhythm_source != "auto" or params.skill < float(rule.get("minSkill", 0.0)):
+        return
+    if params.key_mode in rule.get("offKeyModes", ()):
+        return
+    labels = set(rule["labels"])
+    least = float(rule["minShare"])
+    rows = sorted(sections, key=lambda s: float(s["startBeat"]))
+    times: dict[str, int] = {}
+    for u in units:
+        times[u.group] = max(times.get(u.group, 0), u.occurrence + 1)
+    drums = STEM_NAMES.index("drums")
+    tunes = [STEM_NAMES.index(n) for n in ("vocals", "other")]
+    for u in units:
+        if times[u.group] < 2 or u.label not in labels:
+            continue
+        sec = next((s for s in rows if str(s.get("group")) == u.group and float(s["startBeat"]) <= u.start + 1e-6 < float(s.get("endBeat", math.inf))), None)
+        mix = sec.get("stems") if sec else None
+        if not mix or len(mix) != len(STEM_NAMES):
+            continue
+        if u.occurrence % 2 == 0:
+            u.focus = drums if float(mix[drums]) >= least else None
+        else:
+            tune = max(tunes, key=lambda k: float(mix[k]))
+            u.focus = tune if float(mix[tune]) >= least else None
+
+
+def _focus_weights(units: list[Unit]) -> dict[int, np.ndarray]:
+    """Per focus stem the stem weights of the scores (sectioned.repeatFocus otherWeight)."""
+    rule = sectioned_config().get("repeatFocus") or {}
+    out = {}
+    for f in {u.focus for u in units if u.focus is not None}:
+        w = np.full(len(STEM_NAMES), float(rule.get("otherWeight", 1.0)))
+        w[f] = 1.0
+        out[f] = w
     return out
 
 
@@ -463,6 +512,7 @@ def layout(
     analysis: dict[str, Any] | None = None,
     memo: dict[str, Any] | None = None,
     plan_holds: bool = True,
+    chord_cap: float | None = 1.0,
 ) -> Layout:
     """`loud(t_ms)` says whether the song is audible at a time (for notes the consensus puts where
     detection missed a repeat); None trusts the consensus alone. `relax` gives up the build-up that
@@ -470,6 +520,8 @@ def layout(
     cap) when the chart cannot reach its level otherwise. With the `analysis` the section plan
     (plan.py) sets how dense each unit is, how much it is chords and where its long notes go
     (`plan_holds` false: the label rule's places, for a chart short of its level after all else);
+    `chord_cap` scales the cap on a stretch's chords (sectioned.chordWindow; None: no cap, for a
+    chart short of its level with it);
     `memo` keeps that plan for the next rounds of the same chart."""
     """Slots chosen per material class (module docstring, steps 1–4)."""
     if not cands:
@@ -477,17 +529,19 @@ def layout(
     bpb = tempo.beats_per_bar
     units = make_units(sections, cands[0].beat, cands[-1].beat, bpb)
     per_unit = _unit_cands(units, cands)
+    _mark_focus(units, sections, params)
     n_classes = classify(units, per_unit, cands)
     _mark_variation(units, params)
     _plan_units(units, cands, analysis, tempo, memo)
     follow = follow_weights(sections, params)
+    focus_w = _focus_weights(units)
     members: list[list[int]] = [[] for _ in range(n_classes)]
     for u in units:
         members[u.cls].append(u.index)
 
     def score(ci: int, u: Unit) -> float:
         c = cands[ci]
-        w = follow.get(u.group)
+        w = focus_w.get(u.focus) if u.focus is not None else follow.get(u.group)
         if w is not None and c.sources is not None and not c.downbeat:
             return c.score * float(np.dot(c.sources, w))
         return c.score
@@ -587,6 +641,7 @@ def layout(
             level = coarser(level)
         return set()
 
+    groove = _groove_classes(units, members, per_unit, cands)
     for cls in range(n_classes):
         ms = members[cls]
         # The class plays what its lightest unit wants; the others add notes over it (build-up).
@@ -609,7 +664,7 @@ def layout(
         # units of the class (a build-up section) is the class's; a roll in only some of them (the
         # fill closing a verse that otherwise loops) is added to those units alone.
         flagged = {k: [m for m in ms if k in per_unit[m] and cands[per_unit[m][k]].roll is not None] for k in consensus}
-        roll = {k: cands[per_unit[us[0]][k]].subdivision for k, us in flagged.items() if len(us) > 0.5 * len(ms) and k in order}
+        roll = {} if cls in groove else {k: cands[per_unit[us[0]][k]].subdivision for k, us in flagged.items() if len(us) > 0.5 * len(ms) and k in order}
         kept = roll_picks(roll, ms)
         if kept:
             for k in sorted(kept):
@@ -658,7 +713,8 @@ def layout(
         # each repeat, so the fill is what most of the units with a roll share, and a unit whose roll
         # was missed (one softer hit) plays it too where its sounds there are the roll's kind.
         holders = {m: {k for k, us in flagged.items() if m in us and k not in roll} for m in ms}
-        holders = {m: ks for m, ks in holders.items() if len(ks) >= 2}
+        # a class whose roll would be a groove plays a fill only in the unit that closes its section
+        holders = {m: ks for m, ks in holders.items() if len(ks) >= 2 and (cls not in groove or _closes_section(units, m))}
         tally: dict[int, int] = {}
         for ks in holders.values():
             for k in ks:
@@ -667,9 +723,17 @@ def layout(
         for m in ms:
             if len(fill) < 2:
                 break
+            if cls in groove and not _closes_section(units, m):
+                continue
             if m in holders:
                 keys_m = {k for k in fill if k in per_unit[m]}
             else:
+                # a repeat whose roll detection missed plays the fill where a unit with it stands in
+                # its section (as many units from the section's end) and never right after or
+                # before a fill: every bar of a one-bar loop took a fill heard once, eight bars of
+                # hand-over-hand sixteenths (docs/PATTERN_DESIGN.md 81)
+                if _from_end(units, m) not in {_from_end(units, h) for h in holders} or unit_rolls.get(m - 1) or (m + 1 in holders):
+                    continue
                 keys_m = {k for k in fill if k in per_unit[m] and rollish(cands[per_unit[m][k]])}
                 if len(keys_m) < float(rolls_cfg["adoptShare"]) * len(fill):
                     continue
@@ -751,14 +815,14 @@ def layout(
             c = cands[ci]
             beat = c.beat if beat is None else beat
             idx.append(len(slots))
-            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target))
+            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target, tune=u.focus is not None and STEM_NAMES[u.focus] != "drums"))
             slot_cand.append(ci)
             slot_unit.append(u.index)
             slot_key.append(k)
         unit_slots.append(idx)
 
     in_roll = [slot_key[i] in roll_keys.get(units[slot_unit[i]].cls, ()) or slot_key[i] in unit_rolls.get(slot_unit[i], ()) for i in range(len(slots))]
-    mark_rolls(slots, in_roll)
+    mark_rolls(slots, in_roll, rolls_cfg.get("maxRunBeatsAtEnd"))
 
     # class positions: (class, key, roll note) -> slots realizing it; the first one is the reference
     # (a note a repeat adds is copied by the later repeats that add it too; a fill's roll notes
@@ -774,7 +838,7 @@ def layout(
             ref[i] = idxs[0]
     _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
 
-    _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale)
+    chords_capped = _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale, bpb, chord_cap)
     _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo, plan_holds)
     if special_kind == "scratch":
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
@@ -786,7 +850,77 @@ def layout(
     _accents(slots, units, unit_slots, params, key_count)
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
-    return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys)
+    return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys, chords_capped=chords_capped)
+
+
+def _class_roll_keys(ms: list[int], per_unit: list[dict[int, int]], cands: list[Candidate]) -> set[int]:
+    """Offset keys a class plays as its roll (layout's rule): positions in at least half of its
+    units whose candidates are a roll's hits in more than half of them."""
+    presence: dict[int, int] = {}
+    for m in ms:
+        for k in per_unit[m]:
+            presence[k] = presence.get(k, 0) + 1
+    out = set()
+    for k, n in presence.items():
+        if n < 0.5 * len(ms) and len(ms) > 1:
+            continue
+        if sum(1 for m in ms if k in per_unit[m] and cands[per_unit[m][k]].roll is not None) > 0.5 * len(ms):
+            out.add(k)
+    return out
+
+
+def _from_end(units: list[Unit], m: int) -> int:
+    """How many units of unit `m`'s section come after it."""
+    k = m
+    while k + 1 < len(units) and units[k + 1].section == units[m].section:
+        k += 1
+    return k - m
+
+
+def _closes_section(units: list[Unit], m: int) -> bool:
+    """Whether unit `m` is the last of its section (where a fill closes it)."""
+    return m + 1 >= len(units) or units[m + 1].section != units[m].section
+
+
+def _groove_classes(units: list[Unit], members: list[list[int]], per_unit: list[dict[int, int]], cands: list[Candidate]) -> set[int]:
+    """Classes whose roll would make a groove: every unit of a class plays the class's roll, so a
+    one-bar loop with a roll in most of its bars plays it bar after bar, a run of hand-over-hand
+    notes the length of the section (244 notes over 28 s on a 6K ELITE chart, docs/PATTERN_DESIGN.md
+    81). Where the class rolls of units in a row (hits at most a beat apart) run longer than
+    rolls.maxRunBeats (maxRunBeatsAtEnd when the run leads into a new section, as a build-up does),
+    those classes play no roll: their hits go by the budget like any note. A unit's own roll hits
+    (a fill) count in the run too."""
+    cfg = rolls_config()
+    most, at_end = float(cfg.get("maxRunBeats", math.inf)), float(cfg.get("maxRunBeatsAtEnd", math.inf))
+    if math.isinf(most) and math.isinf(at_end):
+        return set()
+    keys = [_class_roll_keys(ms, per_unit, cands) for ms in members]
+    hits = []
+    for u in units:
+        ks = {k for k in keys[u.cls] if k in per_unit[u.index]}
+        # a fill: the unit's own roll hits outside its class's roll (bar after bar they chain too)
+        own = {k for k, ci in per_unit[u.index].items() if cands[ci].roll is not None} - ks
+        hits += [(u.start + k / GRID, u.cls) for k in (ks | own if len(own) >= 2 else ks)]
+    hits.sort()
+    starts = [u.start for u in units if u.pos == 0]
+    out: set[int] = set()
+    chain: list[tuple[float, int]] = []
+
+    def close() -> None:
+        if len(chain) < 2:
+            return
+        first, last = chain[0][0], chain[-1][0]
+        into = any(0.0 < s - last <= 1.0 + 1e-6 for s in starts)
+        if last - first > (at_end if into else most):
+            out.update(c for _, c in chain)
+
+    for b, c in hits:
+        if chain and b - chain[-1][0] > 1.0 + 1e-6:
+            close()
+            chain = []
+        chain.append((b, c))
+    close()
+    return out
 
 
 def _runs(keys: list[int], gap: int) -> list[tuple[int, int]]:
@@ -853,14 +987,16 @@ def _plan_weight(units_of: list[Unit], what: str, power: float | None = 1.0) -> 
     return float(np.exp(power * np.mean(np.log(plan))))
 
 
-def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float) -> None:
+def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float, beats_per_bar: float = 4.0, cap_scale: float | None = 1.0) -> bool:
+    """Chord sizes of the slots; True when the stretch cap (sectioned.chordWindow) refused a chord
+    or made one smaller."""
     max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
     if max_chord < 2 or not slots:
-        return
+        return False
     ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
     target = ratio * len(slots)
     if target < 0.5:
-        return
+        return False
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
         if any(slots[i].roll is not None for i in idxs):
@@ -870,19 +1006,68 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
         if worth > 0:
             options.append((worth, key, idxs))
     options.sort(key=lambda o: (-o[0], str(o[1])))
+    extra = max_chord - 2
+
+    def size_at(top: float) -> int:
+        return 2 + (int(round(extra * (1.0 - top) ** params.chord_size_power)) if extra > 0 else 0)
+
+    # a stretch of `bars` bars holds at most `cap` times the notes of the chart's median stretch
+    # (its slots, with the chart's chords spread evenly: sectioned.chordWindow): the plan's chord
+    # weight and the sounds' accents put every chord, and the biggest first, in the same few bars (a
+    # 6K ELITE chorus of 3-note chords at 3x the chart's notes per second, docs/PATTERN_DESIGN.md
+    # 81); a stretch the slots alone fill past it gets none. A chart short of its level with the cap
+    # widens it (core: chordWindow.loosen times a round, then none)
+    rule = sectioned_config().get("chordWindow") if cap_scale is not None else None
+    if rule and params.key_mode in rule.get("offKeyModes", ()):
+        rule = None
+    room: dict[int, float] | None = None
+    win_of = [0] * len(slots)
+    if rule:
+        span = float(rule["bars"]) * beats_per_bar
+        win_of = [int(math.floor(s.beat / span)) for s in slots]
+        count: dict[int, int] = {}
+        for w in win_of:
+            count[w] = count.get(w, 0) + 1
+        n_chords = int(round(target))
+        mean_size = float(np.mean([size_at(r / max(1, n_chords)) for r in range(max(1, n_chords))]))
+        mean_notes = float(np.median(list(count.values()))) * (1.0 + target * (mean_size - 1.0) / len(slots))
+        room = {w: float(rule["cap"]) * float(cap_scale) * mean_notes - n for w, n in count.items()}
+
+    def fits(idxs: list[int], notes: int) -> bool:
+        if room is None:
+            return True
+        need: dict[int, int] = {}
+        for i in idxs:
+            need[win_of[i]] = need.get(win_of[i], 0) + notes
+        return all(room[w] >= n for w, n in need.items())
+
+    def use(idxs: list[int], notes: int) -> None:
+        if room is not None:
+            for i in idxs:
+                room[win_of[i]] -= notes
+
     placed = 0
-    picked = []
+    picked: list[list[int]] = []
+    capped = False
     for worth, key, idxs in options:
         if placed >= target - 0.5 * len(idxs):
             break
+        if not fits(idxs, 1):
+            capped = True
+            continue
+        use(idxs, 1)
         picked.append(idxs)
         placed += len(idxs)
-    extra = max_chord - 2
     for rank, idxs in enumerate(picked):
-        top = rank / max(1, len(picked))
-        size = 2 + (int(round(extra * (1.0 - top) ** params.chord_size_power)) if extra > 0 else 0)
+        size = max(2, min(max_chord, size_at(rank / max(1, len(picked)))))
+        # a bigger chord takes its added notes from the stretch's room too
+        while size > 2 and not fits(idxs, size - 2):
+            size -= 1
+            capped = True
+        use(idxs, size - 2)
         for i in idxs:
-            slots[i].size = max(2, min(max_chord, size))
+            slots[i].size = size
+    return capped
 
 
 def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, tempo: TempoMap, plan_holds: bool = True) -> None:

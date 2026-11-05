@@ -41,6 +41,8 @@ class GenParams:
     rhythm_source: str = "auto"
     instrument_mapping: float = 0.6  # 0 = off, 1 = strong pull of drums/bass toward their lane regions
     repeat_consistency: float = 1.0  # 0 = off, 1 = reuse the first occurrence's lanes in repeated sections
+    # music heard again follows the drums and the melody in turn (patterns.json sectioned.repeatFocus)
+    repeat_focus: bool = True
     # effective NPS at levels 1..N, and what divides a chart's effective NPS before the lookup
     # (the key mode factor of the 4K table)
     level_table: tuple[float, ...] = ()
@@ -77,6 +79,7 @@ class GenParams:
             "rhythmSource": self.rhythm_source,
             "instrumentMapping": round(self.instrument_mapping, 3),
             "repeatConsistency": round(self.repeat_consistency, 3),
+            "repeatFocus": self.repeat_focus,
         }
 
     def peak_at(self, density_scale: float) -> float:
@@ -212,6 +215,8 @@ def resolve_params(
             params.instrument_mapping = max(0.0, min(1.0, float(value)))
         elif key == "repeatConsistency":
             params.repeat_consistency = max(0.0, min(1.0, float(value)))
+        elif key == "repeatFocus":
+            params.repeat_focus = bool(value)
         elif key == "patternEngine" and value in PATTERN_ENGINES:
             params.pattern_engine = value
     if params.pattern_engine != "classic":

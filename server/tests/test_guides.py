@@ -39,8 +39,9 @@ def song(bpm: float, seed: int, chorus_first: bool = False):
 
 
 @lru_cache(maxsize=None)
-def chart(bpm: float, seed: int, chorus_first: bool, key_mode: str, difficulty: str, level: int | None) -> dict:
-    return generate_chart(song(bpm, seed, chorus_first)[1], key_mode, difficulty, level)
+def chart(bpm: float, seed: int, chorus_first: bool, key_mode: str, difficulty: str, level: int | None, focus: bool = True) -> dict:
+    """`focus` false: every repeat of the music follows the same sounds (no sectioned.repeatFocus)."""
+    return generate_chart(song(bpm, seed, chorus_first)[1], key_mode, difficulty, level, overrides=None if focus else {"repeatFocus": False})
 
 
 def truth(s) -> list[dict]:
@@ -67,9 +68,11 @@ def test_repeats_build_up_on_the_same_notes() -> None:
     choruses = [x for x in truth(s) if x["label"] == "chorus"]
     verses = [x for x in truth(s) if x["label"] == "verse"]
     # the level comes first: a chart that needs every sound of the song (HD 9 on this sparse song)
-    # gives up the build-up that costs notes, so its repeats only keep and add, they do not grow much
+    # gives up the build-up that costs notes, so its repeats only keep and add, they do not grow much.
+    # Since generator 0.9.46 the second and fourth time follow the melody (sectioned.repeatFocus): the
+    # build-up is that of repeats that follow the same sounds, as every repeat does with it off
     for difficulty, level, growth in (("NORMAL", None, 1.05), ("HARD", 8, 1.0)):
-        notes = chart(124.0, 1, False, "6K", difficulty, level)["notes"]
+        notes = chart(124.0, 1, False, "6K", difficulty, level, focus=False)["notes"]
         first, last = offsets(notes, choruses[0]), offsets(notes, choruses[-1])
         assert len(last) >= growth * len(first), (difficulty, len(first), len(last))
         assert len(first & last) >= 0.95 * len(first)  # the last chorus plays what the first did, and more

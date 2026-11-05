@@ -31,7 +31,7 @@ from .rolls import song_rolls
 from .select import MAX_CHORD_RATIO, Slot, select_slots
 from .tempo import TempoMap
 
-GENERATOR_VERSION = "0.9.45"
+GENERATOR_VERSION = "0.9.46"
 MAX_SCALE = 4.0
 MIN_SCALE = 0.15
 DENSITY_FLOOR = 0.8
@@ -192,6 +192,10 @@ def generate_chart(
     prev_notes: int | None = None
     relax = False
     plan_holds = True
+    chord_cap: float | None = 1.0  # the scale of the cap on a stretch's chords (sectioned.chordWindow)
+    window_cfg = sectioned.sectioned_config().get("chordWindow") or {}
+    if key_mode in window_cfg.get("offKeyModes", ()):
+        window_cfg = {}
     loud = _loudness_gate(analysis)
     # the song's plan (patterns.json sectioned.tierPlan): every tier moves the way the top tier's
     # first round does; the plan takes the chart's options (a player who turns the instrument lanes
@@ -237,7 +241,7 @@ def generate_chart(
         rounds += 1
         kept = None
         if engine == "sectioned":
-            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo, plan_holds)
+            lay = sectioned.layout(candidates, sections, params, tempo, scale, special_kind, key_count, chord_scale, loud, relax, analysis, plan_memo, plan_holds, chord_cap)
             slots = lay.slots
             plan = plan_patterns(slots, sections, params, key_hands, tempo, lay.phrases, lay.phrase_keys, seed)
             choices, kept = sectioned.place(lay, lanes, params, tempo, np.random.default_rng(seed), plan, lanes_plan, plan_weight)
@@ -293,6 +297,17 @@ def generate_chart(
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:
+                if engine == "sectioned" and chord_cap is not None and window_cfg and level < params.levels[0] and lay.chords_capped:
+                    # the cap on a stretch's chords widens a step at a time before the chart falls
+                    # short of its level range: a sparse song's busiest part plays what the level
+                    # needs (docs/PATTERN_DESIGN.md 81). A chart in its range keeps the cap, and a
+                    # cap that refused no chord this round has nothing to give (each step is one more
+                    # round: 4K MASTER on the 4-minute test song took 1.9 -> 5.8 s)
+                    chord_cap *= float(window_cfg.get("loosen", 1.3))
+                    if chord_cap > float(window_cfg.get("maxLoosen", 4.0)):
+                        chord_cap = None
+                    rounds -= 1
+                    continue
                 if engine == "sectioned" and plan_holds:
                     # last of all, the section plan's long-note places: it holds where little else
                     # is played, and presses under a held note rate a chart higher (PATTERN_DESIGN 76)
