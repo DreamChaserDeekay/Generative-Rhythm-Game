@@ -291,10 +291,73 @@ function picture(g: CanvasRenderingContext2D, pic: Picture, b: Box): void {
   g.drawImage(pic, b.x, b.y, b.w, b.h);
 }
 
-/** A thing on the deck: its picture in its box, or `code` drawing it there. */
-function thing(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, code: (b: Box) => void): void {
+/**
+ * A thing on the deck: its picture in its box, or `code` drawing it there; standing `lift` high
+ * (a share of its width; none for a thing set flush in the plate), it throws its shadow on the
+ * plate first (`round` or square, see dropShadow).
+ */
+function thing(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, code: (b: Box) => void, lift = 0, round = true): void {
+  if (lift > 0) dropShadow(g, b, lift, round);
   if (pic) picture(g, pic, b);
   else code(b);
+}
+
+/**
+ * Where a thing's shadow falls on the canvas, for a thing in box `b` standing `lift` high and the
+ * canvas's transform `m` (canvas px to a plane px, as getTransform gives it): down and to the
+ * right of it on the screen, the light coming from the top-left, whichever way the thing is
+ * drawn (mirrored too). Its shape is drawn `far` plane px to its left, off the canvas, so only the
+ * shadow, offset back by as much, falls on the plate. Null for a transform it cannot read.
+ */
+export function shadowOf(m: { a: number; b: number; c: number; d: number }, b: Box, lift: number): { far: number; blur: number; x: number; y: number } | null {
+  const kx = Math.hypot(m.a, m.b);
+  const ky = Math.hypot(m.c, m.d);
+  if (!(kx > 0 && ky > 0)) return null;
+  const far = 8192;
+  return { far, blur: b.w * 0.12 * lift * kx, x: far * m.a + b.w * 0.07 * lift * kx, y: far * m.b + b.h * 0.1 * lift * ky };
+}
+
+/** The soft shadow of a thing in box `b` standing `lift` high, `round` or square (see shadowOf). */
+function dropShadow(g: CanvasRenderingContext2D, b: Box, lift: number, round: boolean): void {
+  const at = shadowOf(g.getTransform(), b, lift);
+  if (!at) return;
+  g.save();
+  g.shadowColor = black(0.5);
+  g.shadowBlur = at.blur;
+  g.shadowOffsetX = at.x;
+  g.shadowOffsetY = at.y;
+  g.beginPath();
+  if (round) g.ellipse(b.x - at.far + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
+  else g.roundRect(b.x - at.far, b.y, b.w, b.h, [{ x: b.w * 0.12, y: b.h * 0.12 }]);
+  g.fillStyle = '#000';
+  g.fill();
+  g.restore();
+}
+
+/**
+ * Box `b` sunk into the plate (a window, a socket), its corners `r` round on the screen: its top
+ * and left inner walls in shade and a lit lip under its bottom edge, the light coming from the
+ * top-left. Drawn over its ground, under what lights up in it.
+ */
+function recess(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
+  g.save();
+  rounded(g, b, r, st);
+  g.clip();
+  const down = Math.min(b.h * 0.4, 5 * st);
+  const top = g.createLinearGradient(0, b.y, 0, b.y + down);
+  top.addColorStop(0, black(0.6));
+  top.addColorStop(1, black(0));
+  g.fillStyle = top;
+  g.fillRect(b.x, b.y, b.w, down);
+  const across = Math.min(b.w * 0.3, 4);
+  const left = g.createLinearGradient(b.x, 0, b.x + across, 0);
+  left.addColorStop(0, black(0.45));
+  left.addColorStop(1, black(0));
+  g.fillStyle = left;
+  g.fillRect(b.x, b.y, across, b.h);
+  g.restore();
+  g.fillStyle = white(0.22);
+  g.fillRect(b.x + r, b.y + b.h, Math.max(0, b.w - 2 * r), 0.9);
 }
 
 /** Text across the plate at (x, y), `size` px tall on the screen (drawn `st` times longer along the track). */
@@ -349,12 +412,15 @@ const PLATE_SCALE = 0.5;
 
 /** A panel of small holes (a speaker's grille) filling box `b`, the holes `pitch` px apart across. */
 function grille(g: CanvasRenderingContext2D, b: Box, st: number, pitch: number): void {
-  rounded(g, b, Math.min(b.w, b.h / st) * 0.18, st);
+  const corner = Math.min(b.w, b.h / st) * 0.18;
+  rounded(g, b, corner, st);
   g.fillStyle = '#0d0e12';
   g.fill();
   g.lineWidth = 1;
   g.strokeStyle = white(0.1);
   g.stroke();
+  recess(g, b, corner, st);
+  rounded(g, b, corner, st);
   g.save();
   g.clip();
   g.fillStyle = black(0.75);
@@ -385,6 +451,9 @@ function meter(g: CanvasRenderingContext2D, b: Box, st: number): void {
   face.addColorStop(1, '#e59a3a');
   g.fillStyle = face;
   g.fill();
+  recess(g, { x: 0, y: 0, w, h }, 2, 1);
+  g.beginPath();
+  g.roundRect(0, 0, w, h, 2);
   g.lineWidth = 1.5;
   g.strokeStyle = '#c3c7cc';
   g.stroke();
@@ -515,11 +584,16 @@ function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   if (!band) return;
   const { y, h, u, mid } = band;
   const jog = boxAt(s.width * 0.13, mid, u * 0.84, st);
-  thing(g, art.jog, jog, (b) =>
-    shadedDisc(g, b, [
-      [0, '#3a3d45'],
-      [1, '#101116'],
-    ]),
+  thing(
+    g,
+    art.jog,
+    jog,
+    (b) =>
+      shadedDisc(g, b, [
+        [0, '#3a3d45'],
+        [1, '#101116'],
+      ]),
+    0.45,
   );
   g.beginPath();
   g.ellipse(jog.x + jog.w / 2, jog.y + jog.h / 2, jog.w / 2 + 2, jog.h / 2 + 2 * st, 0, 0, Math.PI * 2);
@@ -535,17 +609,23 @@ function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
 
 /** One of the cabinet's acrylic buttons in box `b`: its picture, its dome tinted `tint` (the milky white is left as it is). */
 function arcadeButton(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, tint: string | null): void {
-  thing(g, pic, b, (bb) => {
-    shadedDisc(g, bb, [
-      [0, '#d9dce1'],
-      [0.5, '#7d828a'],
-      [1, '#2d3036'],
-    ]);
-    shadedDisc(g, { x: bb.x + bb.w * 0.13, y: bb.y + bb.h * 0.13, w: bb.w * 0.74, h: bb.h * 0.74 }, [
-      [0, '#f4f5f8'],
-      [1, '#b9bcc4'],
-    ]);
-  });
+  thing(
+    g,
+    pic,
+    b,
+    (bb) => {
+      shadedDisc(g, bb, [
+        [0, '#d9dce1'],
+        [0.5, '#7d828a'],
+        [1, '#2d3036'],
+      ]);
+      shadedDisc(g, { x: bb.x + bb.w * 0.13, y: bb.y + bb.h * 0.13, w: bb.w * 0.74, h: bb.h * 0.74 }, [
+        [0, '#f4f5f8'],
+        [1, '#b9bcc4'],
+      ]);
+    },
+    0.45,
+  );
   if (!tint) return;
   g.save();
   g.beginPath();
@@ -573,16 +653,22 @@ function cabinetPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   const band = bandOf(s, trim + 1.5);
   if (!band) return;
   const { y, h, u, mid } = band;
-  thing(g, art.joystick, boxAt(s.width * 0.12, mid, u * 0.82, st), (b) => {
-    shadedDisc(g, b, [
-      [0, '#3a3c40'],
-      [1, '#0b0b0c'],
-    ]);
-    shadedDisc(g, { x: b.x + b.w * 0.3, y: b.y + b.h * 0.3, w: b.w * 0.4, h: b.h * 0.4 }, [
-      [0, '#ff8a80'],
-      [1, '#8e0f0f'],
-    ]);
-  });
+  thing(
+    g,
+    art.joystick,
+    boxAt(s.width * 0.12, mid, u * 0.82, st),
+    (b) => {
+      shadedDisc(g, b, [
+        [0, '#3a3c40'],
+        [1, '#0b0b0c'],
+      ]);
+      shadedDisc(g, { x: b.x + b.w * 0.3, y: b.y + b.h * 0.3, w: b.w * 0.4, h: b.h * 0.4 }, [
+        [0, '#ff8a80'],
+        [1, '#8e0f0f'],
+      ]);
+    },
+    0.9,
+  );
   // two rows of three, the lower one a little to the right, as fingers lie
   const tints: (string | null)[][] = [
     [LED_RED, AMBER, null],
@@ -594,6 +680,7 @@ function cabinetPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   // the start buttons, lit amber
   for (const cx of [0.555, 0.61]) {
     const b = boxAt(s.width * cx, y + h * 0.3, u * 0.26, st, 0.55);
+    dropShadow(g, b, 0.35, false);
     rounded(g, b, b.w * 0.18, st);
     g.fillStyle = '#0b0b0c';
     g.fill();
@@ -611,21 +698,29 @@ function cabinetPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
     g.roundRect(wx, wy, ww, wh, 2);
     g.fillStyle = '#0b0606';
     g.fill();
+    recess(g, { x: wx, y: wy, w: ww, h: wh }, 2, st);
     g.fillStyle = 'rgba(255,42,42,0.16)';
     const dw = (wh / st) * 0.5;
     for (let i = 0; i < 2; i++) eight(g, wx + 3 + i * dw * 1.24, wy + wh * 0.16, dw, wh * 0.68);
   }
   text(g, 'GRG-2000', s.width * 0.5825, y + h * 0.9, Math.max(9, u * 0.12), st, white(0.6), { tracking: 1.5 });
   const coinAspect = art.coin ? art.coin.height / art.coin.width : 0.69;
-  thing(g, art.coin, boxAt(s.width * 0.84, mid, Math.min(s.width * 0.24, (u * 0.84) / coinAspect), st, coinAspect), (b) => {
-    rounded(g, b, b.w * 0.06, st);
-    g.fillStyle = '#9da2a9';
-    g.fill();
-    for (const sx of [0.33, 0.67]) {
-      g.fillStyle = '#16171a';
-      g.fillRect(b.x + b.w * sx - b.w * 0.03, b.y + b.h * 0.25, b.w * 0.06, b.h * 0.5);
-    }
-  });
+  thing(
+    g,
+    art.coin,
+    boxAt(s.width * 0.84, mid, Math.min(s.width * 0.24, (u * 0.84) / coinAspect), st, coinAspect),
+    (b) => {
+      rounded(g, b, b.w * 0.06, st);
+      g.fillStyle = '#9da2a9';
+      g.fill();
+      for (const sx of [0.33, 0.67]) {
+        g.fillStyle = '#16171a';
+        g.fillRect(b.x + b.w * sx - b.w * 0.03, b.y + b.h * 0.25, b.w * 0.06, b.h * 0.5);
+      }
+    },
+    0.12,
+    false,
+  );
 }
 
 /** The receiver's tuning dial: black glass with an amber backlight, its scale and the red pointer, from x0 to x1. */
@@ -639,6 +734,9 @@ function tuningDial(g: CanvasRenderingContext2D, x0: number, x1: number, top: nu
   light.addColorStop(1, shade(AMBER, 1, 0.16));
   g.fillStyle = light;
   g.fill();
+  recess(g, { x: x0, y: top, w: x1 - x0, h }, 3, 1);
+  g.beginPath();
+  g.roundRect(x0, top, x1 - x0, h, 3);
   g.fillStyle = shade('#ffe2b0', 1, 0.85);
   const base = top + h * 0.62;
   for (let x = x0 + 10, i = 0; x < x1 - 8; x += 6, i++) {
@@ -677,7 +775,7 @@ function receiverPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
       [0, '#f1f3f5'],
       [1, '#8d939a'],
     ]);
-  thing(g, art.knob, boxAt(s.width * 0.11, mid, u * 0.86, st), knob);
+  thing(g, art.knob, boxAt(s.width * 0.11, mid, u * 0.86, st), knob, 0.7);
   tuningDial(g, s.width * 0.22, s.width * 0.62, y + h * 0.06, h * 0.38);
   // the selector switches, their lamps dark, at their picture's proportions
   const switchAspect = art.switch ? art.switch.height / art.switch.width : 1.15;
@@ -693,7 +791,7 @@ function receiverPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
     });
   }
   for (const x of [0.66, 0.775]) meter(g, { x: s.width * x, y: y + h * 0.06, w: s.width * 0.1, h: h * 0.58 }, st);
-  thing(g, art.knob, boxAt(s.width * 0.935, y + h * 0.34, u * 0.42, st), knob);
+  thing(g, art.knob, boxAt(s.width * 0.935, y + h * 0.34, u * 0.42, st), knob, 0.6);
   text(g, 'STEREO RECEIVER   SR-7', s.width * 0.8, y + h * 0.86, Math.max(8, u * 0.11), st, '#4b4f56', { tracking: 2.5, engraved: true });
 }
 
@@ -731,19 +829,24 @@ function najeonPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
     g.stroke();
   };
   const lidSize = u * 0.8;
-  thing(g, art.lid, boxAt(s.width * 0.18, mid, lidSize, st), lid);
+  thing(g, art.lid, boxAt(s.width * 0.18, mid, lidSize, st), lid, 0.25);
   // the right one the left mirrored: the crane flies toward the middle on both
   g.save();
   g.translate(s.width * 0.82, 0);
   g.scale(-1, 1);
-  thing(g, art.lid, boxAt(0, mid, lidSize, st), lid);
+  thing(g, art.lid, boxAt(0, mid, lidSize, st), lid, 0.25);
   g.restore();
   const lock = boxAt(s.width / 2, mid, u * 0.92, st);
-  thing(g, art.lock, lock, (b) =>
-    shadedDisc(g, b, [
-      [0, '#e2c27a'],
-      [1, '#6d4f1f'],
-    ]),
+  thing(
+    g,
+    art.lock,
+    lock,
+    (b) =>
+      shadedDisc(g, b, [
+        [0, '#e2c27a'],
+        [1, '#6d4f1f'],
+      ]),
+    0.2,
   );
   // a pearl vine on each side of the lock, between gold double lines
   const thick = u * 0.22 * st;
@@ -879,14 +982,21 @@ function plateGrain(g: CanvasRenderingContext2D, pic: Picture | undefined, w: nu
 /** One of the arrow keys' caps in box `b`: its picture in `colour`, its arrow (`turn` quarter turns from up) in `legend`. */
 function keycap(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, st: number, colour: string, turn: number, legend: string): void {
   const r = b.w * 0.16;
-  thing(g, pic, b, (bb) => {
-    rounded(g, bb, r, st);
-    g.fillStyle = '#c4c6cb';
-    g.fill();
-    rounded(g, { x: bb.x + bb.w * 0.15, y: bb.y + bb.h * 0.12, w: bb.w * 0.68, h: bb.h * 0.7 }, r * 0.7, st);
-    g.fillStyle = '#eceef1';
-    g.fill();
-  });
+  thing(
+    g,
+    pic,
+    b,
+    (bb) => {
+      rounded(g, bb, r, st);
+      g.fillStyle = '#c4c6cb';
+      g.fill();
+      rounded(g, { x: bb.x + bb.w * 0.15, y: bb.y + bb.h * 0.12, w: bb.w * 0.68, h: bb.h * 0.7 }, r * 0.7, st);
+      g.fillStyle = '#eceef1';
+      g.fill();
+    },
+    0.55,
+    false,
+  );
   dye(g, b, colour, () => rounded(g, b, r, st));
   // the arrow on the dish, which lies a little up and left of the cap's middle
   g.save();
@@ -946,6 +1056,7 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   g.lineWidth = 1;
   g.strokeStyle = white(0.14);
   g.stroke();
+  recess(g, oled, 3, st);
   const bars = 22;
   const pitch = (oled.w - 14) / bars;
   const cell = (oled.h - 8 * st) / 8;
@@ -957,11 +1068,18 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   // the brass name plate under it, its name engraved
   const brassAspect = art.brass ? art.brass.height / art.brass.width : 0.21;
   const brass = boxAt(oled.x + oled.w / 2, y + h * 0.78, Math.min(s.width * 0.17, (u * 0.3) / brassAspect), st, brassAspect);
-  thing(g, art.brass, brass, (b) => {
-    rounded(g, b, 2, st);
-    g.fillStyle = '#c9a45c';
-    g.fill();
-  });
+  thing(
+    g,
+    art.brass,
+    brass,
+    (b) => {
+      rounded(g, b, 2, st);
+      g.fillStyle = '#c9a45c';
+      g.fill();
+    },
+    0.12,
+    false,
+  );
   text(g, 'TKL-08', brass.x + brass.w / 2, brass.y + brass.h / 2, Math.max(7, (brass.h / st) * 0.5), st, '#4a3311', { tracking: 1.5, engraved: true });
   // the lock lights: caps and scroll dark, num lit
   [false, false, true].forEach((on, i) => lamp(g, s.width * (0.57 + i * 0.035), y + h * 0.3, Math.max(1.6, u * 0.028), st, ORANGE, on));
@@ -979,17 +1097,23 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
 
 /** One of the button box's rubber buttons in box `b`: its picture, its ring in `ring`. */
 function rubberButton(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, ring: string): void {
-  thing(g, pic, b, (bb) => {
-    shadedDisc(g, bb, [
-      [0, '#3a3c40'],
-      [1, '#050506'],
-    ]);
-    g.beginPath();
-    g.ellipse(bb.x + bb.w / 2, bb.y + bb.h / 2, bb.w * 0.34, bb.h * 0.34, 0, 0, Math.PI * 2);
-    g.lineWidth = Math.max(1, bb.w * 0.05);
-    g.strokeStyle = '#f2f2f2';
-    g.stroke();
-  });
+  thing(
+    g,
+    pic,
+    b,
+    (bb) => {
+      shadedDisc(g, bb, [
+        [0, '#3a3c40'],
+        [1, '#050506'],
+      ]);
+      g.beginPath();
+      g.ellipse(bb.x + bb.w / 2, bb.y + bb.h / 2, bb.w * 0.34, bb.h * 0.34, 0, 0, Math.PI * 2);
+      g.lineWidth = Math.max(1, bb.w * 0.05);
+      g.strokeStyle = '#f2f2f2';
+      g.stroke();
+    },
+    0.4,
+  );
   dye(g, b, ring, () => {
     g.beginPath();
     g.ellipse(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
@@ -1005,12 +1129,12 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
   coat.addColorStop(1, black(0.25));
   g.fillStyle = coat;
   g.fillRect(0, 0, s.width, s.depth);
-  const recess = 2.4 * st;
+  const groove = 2.4 * st;
   g.fillStyle = '#050506';
-  g.fillRect(0, 0, s.width, recess);
+  g.fillRect(0, 0, s.width, groove);
   g.fillStyle = RACE_RED;
-  g.fillRect(0, recess, s.width, 1.2);
-  const band = bandOf(s, recess + 1.2);
+  g.fillRect(0, groove, s.width, 1.2);
+  const band = bandOf(s, groove + 1.2);
   if (!band) return;
   const { y, h, u, mid } = band;
   // the shift lights: five green (lit), five red, five blue
@@ -1023,8 +1147,8 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
       [0, '#4a4d53'],
       [1, '#08090a'],
     ]);
-  thing(g, art.rotary, boxAt(s.width * 0.11, mid, u * 0.84, st), rotary);
-  thing(g, art.rotary, boxAt(s.width * 0.89, mid + h * 0.06, u * 0.56, st), rotary);
+  thing(g, art.rotary, boxAt(s.width * 0.11, mid, u * 0.84, st), rotary, 0.6);
+  thing(g, art.rotary, boxAt(s.width * 0.89, mid + h * 0.06, u * 0.56, st), rotary, 0.5);
   // the rubber buttons, ringed yellow, blue, white and green
   for (const [x, ring] of [
     [0.27, '#ffd23f'],
@@ -1042,6 +1166,7 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
   g.lineWidth = 1.2;
   g.strokeStyle = '#2b2d31';
   g.stroke();
+  recess(g, dash, 3, st);
   const label = '-:--.---';
   const digit = Math.min((dash.h * 0.6) / st / 2, (dash.w * 0.86) / readoutWidth(label, 1));
   segReadout(g, label, dash.x + dash.w / 2, dash.y + dash.h / 2, digit, st, '#f2f5f8', white(0.07));
@@ -1050,17 +1175,24 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
 /** One of the panel's square push buttons in box `b`: its picture, its lens lit in `light` or dark. */
 function pushButton(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, st: number, light: string | null): void {
   const lens: Box = { x: b.x + b.w * 0.2, y: b.y + b.h * 0.2, w: b.w * 0.6, h: b.h * 0.6 };
-  thing(g, pic, b, (bb) => {
-    rounded(g, bb, bb.w * 0.1, st);
-    g.fillStyle = '#9ea2a8';
-    g.fill();
-    rounded(g, { x: bb.x + bb.w * 0.1, y: bb.y + bb.h * 0.1, w: bb.w * 0.8, h: bb.h * 0.8 }, bb.w * 0.08, st);
-    g.fillStyle = '#141517';
-    g.fill();
-    rounded(g, lens, bb.w * 0.05, st);
-    g.fillStyle = '#e9ebee';
-    g.fill();
-  });
+  thing(
+    g,
+    pic,
+    b,
+    (bb) => {
+      rounded(g, bb, bb.w * 0.1, st);
+      g.fillStyle = '#9ea2a8';
+      g.fill();
+      rounded(g, { x: bb.x + bb.w * 0.1, y: bb.y + bb.h * 0.1, w: bb.w * 0.8, h: bb.h * 0.8 }, bb.w * 0.08, st);
+      g.fillStyle = '#141517';
+      g.fill();
+      rounded(g, lens, bb.w * 0.05, st);
+      g.fillStyle = '#e9ebee';
+      g.fill();
+    },
+    0.3,
+    false,
+  );
   if (!light) return;
   dye(g, lens, light, () => rounded(g, lens, b.w * 0.05, st));
   g.save();
@@ -1118,31 +1250,45 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   const size = Math.max(8, u * 0.11);
   const label = (name: string, x: number, at: number) => text(g, name, x, at, size, st, ink, { tracking: 1.2 });
   for (const x of [7, s.width - 7]) for (const at of [0.2, 0.8]) hexScrew(g, x, y + h * at, 2.6, st);
-  thing(g, art.selector, boxAt(s.width * 0.1, mid, u * 0.8, st), (b) => {
-    shadedDisc(g, b, [
-      [0, '#e3e5e8'],
-      [1, '#8d9196'],
-    ]);
-    shadedDisc(g, { x: b.x + b.w * 0.3, y: b.y + b.h * 0.3, w: b.w * 0.4, h: b.h * 0.4 }, [
-      [0, '#4a4c50'],
-      [1, '#0b0b0c'],
-    ]);
-  });
+  thing(
+    g,
+    art.selector,
+    boxAt(s.width * 0.1, mid, u * 0.8, st),
+    (b) => {
+      shadedDisc(g, b, [
+        [0, '#e3e5e8'],
+        [1, '#8d9196'],
+      ]);
+      shadedDisc(g, { x: b.x + b.w * 0.3, y: b.y + b.h * 0.3, w: b.w * 0.4, h: b.h * 0.4 }, [
+        [0, '#4a4c50'],
+        [1, '#0b0b0c'],
+      ]);
+    },
+    0.45,
+  );
   const toggleAspect = art.toggle ? art.toggle.height / art.toggle.width : 1;
   ['PWR', 'COMM', 'NAV'].forEach((name, i) => {
     const x = s.width * (0.24 + i * 0.075);
-    thing(g, art.toggle, boxAt(x, y + h * 0.4, u * 0.42, st, toggleAspect), (b) => {
-      rounded(g, b, b.w * 0.06, st);
-      g.fillStyle = '#b9bdc2';
-      g.fill();
-      disc(g, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.14, st);
-      g.fillStyle = '#5c6066';
-      g.fill();
-    });
+    thing(
+      g,
+      art.toggle,
+      boxAt(x, y + h * 0.4, u * 0.42, st, toggleAspect),
+      (b) => {
+        rounded(g, b, b.w * 0.06, st);
+        g.fillStyle = '#b9bdc2';
+        g.fill();
+        disc(g, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.14, st);
+        g.fillStyle = '#5c6066';
+        g.fill();
+      },
+      0.35,
+      false,
+    );
     label(name, x, y + h * 0.86);
   });
   // the master alarm lamp, dark: an amber lens in a black bezel, its legend on it
   const alarm: Box = { x: s.width * 0.48, y: y + h * 0.1, w: s.width * 0.14, h: h * 0.36 };
+  dropShadow(g, alarm, 0.12, false);
   rounded(g, alarm, 3, st);
   g.fillStyle = '#1a1b1e';
   g.fill();
@@ -1153,6 +1299,7 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   amber.addColorStop(1, '#3a2707');
   g.fillStyle = amber;
   g.fill();
+  recess(g, lens, 2, st);
   g.fillStyle = white(0.1);
   g.fillRect(lens.x + 1, lens.y + 1, lens.w - 2, lens.h * 0.3);
   const legend = Math.min(size, (lens.h / st) * 0.32);
@@ -1185,8 +1332,30 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
 export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
-  if (isGear(style)) GEAR_PLATES[style](g, spec, art);
-  else PLATES[style](g, spec);
+  if (isGear(style)) {
+    GEAR_PLATES[style](g, spec, art);
+    wallShade(g, spec, GEAR_FRAMES[style](art).height ?? 0);
+  } else PLATES[style](g, spec);
+}
+
+/**
+ * The shade a picked gear's walls (`height` plane px high) throw on its deck, the light coming from
+ * the top-left: the left wall's across its left edge, a dark line at the right wall's foot.
+ */
+function wallShade(g: CanvasRenderingContext2D, s: DeckSpec, height: number): void {
+  if (height <= 0) return;
+  const reach = height * 1.4;
+  const left = g.createLinearGradient(0, 0, reach, 0);
+  left.addColorStop(0, black(0.42));
+  left.addColorStop(1, black(0));
+  g.fillStyle = left;
+  g.fillRect(0, 0, reach, s.depth);
+  const foot = height * 0.35;
+  const right = g.createLinearGradient(s.width - foot, 0, s.width, 0);
+  right.addColorStop(0, black(0));
+  right.addColorStop(1, black(0.3));
+  g.fillStyle = right;
+  g.fillRect(s.width - foot, 0, foot, s.depth);
 }
 
 /**
@@ -1210,6 +1379,13 @@ export interface SideLook {
   paint?: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
   /** It looks otherwise in FEVER (paint's `lit`): the renderer keeps both pictures. */
   lit?: boolean;
+  /**
+   * A picked gear's frame stands this high beside the lanes (plane px): the renderer raises its top
+   * so high and stands its inner face (paintFace) down to the track at the lanes' edge.
+   */
+  height?: number;
+  /** What that inner face is made of: a tile `w` along the track by `h` high, its top edge at the top (paintFace shades it). */
+  face?: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
 }
 
 /**
@@ -1264,6 +1440,39 @@ export function paintBorder(g: CanvasRenderingContext2D, w: number, h: number, l
   g.fillRect(side < 0 ? 0 : w - scale, 0, scale, h);
 }
 
+/**
+ * A wall's inner face in `look` on a `w` × `h` canvas (a tile repeating along the track, its top
+ * edge at the canvas's top), `scale` canvas px to a plane px: the gear's own face (look.face) in the
+ * light from the top-left, its top edge lit, its foot in shade where it meets the track, the left
+ * wall's face (`side` -1, turned from the light) darker than the right one's.
+ */
+export function paintFace(g: CanvasRenderingContext2D, w: number, h: number, look: SideLook, side: -1 | 1, scale: number, lit = false): void {
+  g.fillStyle = typeof look.body === 'string' ? look.body : '#1c1e22';
+  g.fillRect(0, 0, w, h);
+  look.face?.(g, w, h, scale, lit);
+  const fall = g.createLinearGradient(0, 0, 0, h);
+  fall.addColorStop(0, white(0.06));
+  fall.addColorStop(0.4, white(0));
+  fall.addColorStop(1, black(0.5));
+  g.fillStyle = fall;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = side < 0 ? black(0.3) : white(0.03);
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = white(0.3);
+  g.fillRect(0, 0, w, Math.max(1, 0.7 * scale));
+}
+
+/** `pic` on a wall's face with its long side along the track (as it runs down the frame's top), `d` picture px to a canvas px. */
+function grainAlong(g: CanvasRenderingContext2D, pic: Picture | undefined, w: number, h: number, d: number): void {
+  if (!pic) return;
+  g.save();
+  g.translate(0, h);
+  g.rotate(-Math.PI / 2);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, 0, Math.min(pic.width, h * d), Math.min(pic.height, w * d), 0, 0, h, w);
+  g.restore();
+}
+
 /** A trim down the frame's inner edge, `px` plane px wide: `stops` across it from outside in. */
 function trim(g: CanvasRenderingContext2D, w: number, h: number, px: number, scale: number, stops: [number, string][]): void {
   const x = w - px * scale;
@@ -1296,6 +1505,17 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 14,
     tile: 56,
     lit: true,
+    height: 16,
+    // brushed graphite along the track, the cyan light just under its top edge
+    face: (g, w, h, k, lit) => {
+      const rand = seeded(17);
+      for (let y = 0; y < h; y += k) {
+        g.fillStyle = white(0.012 + rand() * 0.025);
+        g.fillRect(0, y, w, 0.6 * k);
+      }
+      g.fillStyle = shade(CYAN, lit ? 1.15 : 1, lit ? 0.95 : 0.55);
+      g.fillRect(0, 2 * k, w, 1.1 * k);
+    },
     paint: (g, w, h, k, lit) => {
       fill(g, art.frame, w, h, '#2a2c31');
       g.fillStyle = black(0.55);
@@ -1315,6 +1535,16 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 28,
     tile: 30,
     lit: true,
+    height: 30,
+    // the side panel's ABS under its chrome trim
+    face: (g, w, h, k) => {
+      plateGrain(g, art.plate, w, h, k);
+      const chrome = g.createLinearGradient(0, 0, 0, 3 * k);
+      chrome.addColorStop(0, '#9a9ea6');
+      chrome.addColorStop(1, '#3a3d43');
+      g.fillStyle = chrome;
+      g.fillRect(0, 0, w, 3 * k);
+    },
     paint: (g, w, h, k, lit) => {
       g.fillStyle = '#17181b';
       g.fillRect(0, 0, w, h);
@@ -1356,6 +1586,17 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 30,
     tile: 60,
     lit: true,
+    height: 30,
+    // the cabinet's walnut, its grain along the track, under the aluminium trim (warm in FEVER)
+    face: (g, w, h, k, lit) => {
+      if (art.frame) grainAlong(g, art.frame, w, h, art.frame.width / (30 * k));
+      const alu = g.createLinearGradient(0, 0, 0, 3.5 * k);
+      alu.addColorStop(0, lit ? '#ffd59a' : '#e6e9ed');
+      alu.addColorStop(0.6, lit ? '#d9902e' : '#a2a7ae');
+      alu.addColorStop(1, '#2a2b2e');
+      g.fillStyle = alu;
+      g.fillRect(0, 0, w, 3.5 * k);
+    },
     paint: (g, w, h, k, lit) => {
       fill(g, art.frame, w, h, '#4f2f1c');
       g.fillStyle = black(0.55);
@@ -1375,6 +1616,17 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 30,
     tile: art.frame ? Math.round((NAJEON_VINE * art.frame.height) / art.frame.width) : 48,
     lit: true,
+    height: 30,
+    // black lacquer, a gold line under its top edge (brighter in FEVER)
+    face: (g, w, h, k, lit) => {
+      const lacquer = g.createLinearGradient(0, 0, 0, h);
+      lacquer.addColorStop(0, '#17140f');
+      lacquer.addColorStop(1, '#050404');
+      g.fillStyle = lacquer;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = shade(BRASS, lit ? 1.25 : 1, 0.9);
+      g.fillRect(0, 2 * k, w, 0.8 * k);
+    },
     paint: (g, w, h, k, lit) => {
       const lacquer = g.createLinearGradient(0, 0, w, 0);
       lacquer.addColorStop(0, '#050404');
@@ -1412,6 +1664,20 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 26,
     tile: 64,
     lit: true,
+    height: 22,
+    // the case's side wall under its polished chamfer, an orange glow under it in FEVER
+    face: (g, w, h, k, lit) => {
+      plateGrain(g, art.plate, w, h, k);
+      const chamfer = g.createLinearGradient(0, 0, 0, 2.4 * k);
+      chamfer.addColorStop(0, '#e6e9ed');
+      chamfer.addColorStop(1, '#5c6168');
+      g.fillStyle = chamfer;
+      g.fillRect(0, 0, w, 2.4 * k);
+      if (lit) {
+        g.fillStyle = shade(ORANGE, 1, 0.35);
+        g.fillRect(0, 2.4 * k, w, 4 * k);
+      }
+    },
     paint: (g, w, h, k, lit) => {
       g.fillStyle = '#2b2d32';
       g.fillRect(0, 0, w, h);
@@ -1441,6 +1707,23 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 30,
     tile: 40,
     lit: true,
+    height: 30,
+    // a suede bolster with a seam of red stitches along it (bright in FEVER)
+    face: (g, w, h, k, lit) => {
+      g.fillStyle = '#19191b';
+      g.fillRect(0, 0, w, h);
+      const rand = seeded(31);
+      for (let i = 0; i < 200; i++) {
+        g.fillStyle = rand() < 0.5 ? white(0.035) : black(0.2);
+        g.fillRect(rand() * (w - 0.6 * k), rand() * (h - 0.6 * k), 0.6 * k, 0.6 * k);
+      }
+      g.fillStyle = lit ? '#ff4b52' : '#b81c22';
+      for (let x = k; x + 3 * k <= w; x += 5 * k) g.fillRect(x, h * 0.32, 3 * k, 0.8 * k);
+      if (lit) {
+        g.fillStyle = shade(RACE_RED, 1, 0.3);
+        g.fillRect(0, 0, w, 3 * k);
+      }
+    },
     paint: (g, w, h, k, lit) => {
       g.fillStyle = '#141517';
       g.fillRect(0, 0, w, h);
@@ -1480,6 +1763,15 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     width: 30,
     tile: ORBITAL_TILE,
     lit: true,
+    height: 32,
+    // the strut's gold foil under the grey rail's edge (amber in FEVER)
+    face: (g, w, h, k, lit) => {
+      if (art.frame) grainAlong(g, art.frame, w, h, art.frame.width / (20 * k));
+      g.fillStyle = lit ? '#d8c39a' : '#c3c6cb';
+      g.fillRect(0, 0, w, 3 * k);
+      g.fillStyle = lit ? AMBER : black(0.4);
+      g.fillRect(0, 3 * k, w, 0.8 * k);
+    },
     paint: (g, w, h, k, lit) => {
       const [f0, f1] = [5 * k, w - 5 * k];
       g.fillStyle = '#b8902c';

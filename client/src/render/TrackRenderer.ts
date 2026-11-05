@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { GEAR_JUDGE, isGear, lightsOf, paintBorder, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
+import { GEAR_JUDGE, isGear, lightsOf, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -974,10 +974,15 @@ export class TrackRenderer {
     const { width, length } = this.geometry;
     const railOuter = this.railPx * PX;
     const wallOuter = this.walls === 'gunmetal' ? 50 * PX : this.walls === 'street' ? 28 * PX : 0;
+    // a picked gear's frame stands up: seen from the camera its top reaches further out over the
+    // plane than its foot (a camera from far straight on, the plane one, sees no more of it)
+    const lift = this.wallLift;
+    const eye = camera instanceof THREE.PerspectiveCamera ? camera.position.y : 0;
+    const lean = lift > 0 && eye > lift ? ((width / 2 + railOuter) * lift) / (eye - lift) : 0;
     return {
       h: planeHomography(camera, this.cssWidth, this.cssHeight, this.judgeZ),
       halfWidth: width / 2 / PX,
-      sideOut: Math.max(railOuter, wallOuter) / PX,
+      sideOut: Math.max(railOuter + lean, wallOuter) / PX,
       far: (-length - this.judgeZ) / PX,
     };
   }
@@ -1623,6 +1628,8 @@ export class TrackRenderer {
     const blur = own ? 0 : this.style.rails.glow;
     const tile = look.tile ?? BORDER_TILE;
     const w = railPx * PX;
+    // a picked gear's frame stands as a wall beside the lanes, its top this high
+    const lift = own ? this.wallLift : 0;
     // the sheets' box-shadow: 0 0 <glow>px at 70 %
     const glow = blur ? this.own(railGlowTexture(railPx, blur, 0.7)) : null;
     for (const side of [-1, 1] as const) {
@@ -1642,7 +1649,7 @@ export class TrackRenderer {
       const material = new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false });
       const mesh = new THREE.Mesh(this.flatGeometry, material);
       mesh.scale.set(w, 1, length + TRACK_TAIL);
-      mesh.position.set(x, 0.006, z);
+      mesh.position.set(x, 0.006 + lift, z);
       mesh.renderOrder = 1;
       this.scene.add(mesh);
       if (own) {
@@ -1651,6 +1658,7 @@ export class TrackRenderer {
           lit.repeat.set(1, repeat);
           this.borderMaps.push([material, map, lit]);
         }
+        if (lift > 0) this.buildWall(look, side, lift, tile, z);
         continue;
       }
       // FEVER's colour added over the border (black, nothing, until then)
@@ -1659,6 +1667,52 @@ export class TrackRenderer {
       fever.position.set(x, 0.0062, z);
       this.railTints.push([fever.material as THREE.MeshBasicMaterial, 0x000000]);
     }
+  }
+
+  /** How high a picked gear's frame stands beside the lanes (world units; none for a skin's rails). */
+  private get wallLift(): number {
+    return this.borderLook.paint ? (this.borderLook.height ?? 0) * PX : 0;
+  }
+
+  /**
+   * A picked gear's frame on `side` standing `lift` high: its inner face down to the track at the
+   * lanes' edge (paintFace: the left one turned from the light, the right one toward it), with a
+   * look of its own in FEVER, and the shade the wall throws on the lanes, the light coming from the
+   * top-left: the left one's across them, a dark line at the right one's foot. All of it drawn
+   * under the notes and bar lines (renderOrder), the deck painting its own shade (deckArt.wallShade).
+   */
+  private buildWall(look: SideLook, side: -1 | 1, lift: number, tile: number, z: number): void {
+    const { width, length } = this.geometry;
+    const along = length + TRACK_TAIL;
+    const faceTexture = (lit: boolean): THREE.CanvasTexture => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(2, Math.round(tile * BORDER_SCALE));
+      canvas.height = Math.max(2, Math.round((lift / PX) * BORDER_SCALE));
+      paintFace(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = THREE.MirroredRepeatWrapping;
+      texture.anisotropy = 8;
+      texture.repeat.set(along / (tile * PX), 1);
+      return this.own(texture);
+    };
+    const map = faceTexture(false);
+    const material = new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false });
+    // a plane turned to face the lanes: its width runs along the track, its height up the wall
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    face.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    face.scale.set(along, lift, 1);
+    face.position.set((side * width) / 2, lift / 2, z);
+    face.renderOrder = 0.98;
+    this.scene.add(face);
+    if (look.lit) this.borderMaps.push([material, map, faceTexture(true)]);
+    const reach = side < 0 ? lift * 1.4 : lift * 0.35;
+    const shade = this.own(gradientTexture(side < 0 ? [[0, 'rgba(0,0,0,0.42)'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.3)']]));
+    const strip = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map: shade, transparent: true, depthWrite: false }));
+    strip.scale.set(reach, 1, along);
+    strip.position.set(side * (width / 2 - reach / 2), 0.0062, z);
+    strip.renderOrder = 1.25;
+    this.scene.add(strip);
   }
 
   /** Walls outside the rails (ARCADE's gunmetal frame, STREET's dark walls with a yellow edge), unless the gear has its own frame. */
