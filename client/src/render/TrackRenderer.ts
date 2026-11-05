@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { GEAR_JUDGE, isGear, lightsOf, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
+import { DECK_PICTURE_FLATTEST, DECK_PICTURE_STRETCH, GEAR_JUDGE, isGear, lightsOf, type DeckMark, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -20,7 +20,8 @@ import {
 import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
-import { artPartsOf, borderLookOf, isArtHit, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
+import { artPartsOf, borderLookOf, gearArtOf, isArtHit, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -102,6 +103,11 @@ export const LINE_Y = NOTE_Y + 0.001;
 const COVER_Y = 0.016;
 const DECK_Y = 0.022;
 const KEY_Y = 0.027;
+/** How long the band of light running down a picked gear's frames is, a share of the frame (sweepBorders). */
+const SWEEP_SHARE = 0.16;
+/** How long the hot spot running along a picked gear's judge line is (world units), and how many seconds it takes to cross (shimmerJudge). */
+const SHINE_LENGTH = 1.8;
+const SHINE_PERIOD = 2.6;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
 /**
@@ -678,6 +684,18 @@ export class TrackRenderer {
   private readonly railTints: [THREE.MeshBasicMaterial, number][] = [];
   /** A gear's frame looks otherwise in FEVER: each border's material with its picture at rest and lit. */
   private readonly borderMaps: [THREE.MeshBasicMaterial, THREE.Texture, THREE.Texture][] = [];
+  /**
+   * A picked gear's frame lit as it is in FEVER over a band that runs down the track from its far
+   * end to the gear on every bar: the band's texture (an alpha map) and the axis it runs along on
+   * its face (v: the frame's top, far end at 1; u: a wall's inner face, the far end at 1 or, flip, at 0).
+   */
+  private readonly sweeps: { band: THREE.Texture; axis: 'u' | 'v'; flip: boolean }[] = [];
+  /** A picked gear's lights over its deck (gearLights.ts), and where its deck's top is (z). */
+  private readonly gearLights: GearLightLayer | null;
+  private deckTopZ = 0;
+  /** A hot spot running along a picked gear's judge line, and its glow's own opacity (the shimmer is about it). */
+  private judgeShine: THREE.Mesh | null = null;
+  private judgeGlowBase = 1;
   private readonly feverOverlay: THREE.Mesh;
   /** The FEVER colour the rails and the judge line's glow have now (null: the skin's own). */
   private feverShown: number | null = null;
@@ -785,6 +803,10 @@ export class TrackRenderer {
     this.hiddenEdge = this.flat(edgeColor, 0.9, 9.2, { fog: false });
     for (const m of [this.suddenCover, this.hiddenCover, this.liftCover, this.suddenEdge, this.hiddenEdge]) m.scale.x = coverWidth;
     this.deck = this.buildDeck();
+    const lights = isGear(this.style.deck) ? GEAR_LIGHTS[this.style.deck] : undefined;
+    this.gearLights = lights ? new GearLightLayer(lights(), this.flatGeometry, this.reducedFlash, gearArtOf(this.style.deck, this.images).glow) : null;
+    if (this.gearLights) this.scene.add(this.gearLights.group);
+    this.buildJudgeShine();
     this.setCovers(options.covers);
 
     this.notePool = new MeshPool(this.scene, () => {
@@ -1033,6 +1055,10 @@ export class TrackRenderer {
     this.drawHolds(frame);
     this.drawHits(perfNow);
     this.drawFever(frame);
+    const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active);
+    this.gearLights?.update(clock);
+    this.sweepBorders(clock);
+    this.shimmerJudge(clock);
     this.applyCameraFx(frame.camera);
     this.renderer.render(this.scene, this.camera);
     if (this.staleMaterials.length > 0) {
@@ -1070,6 +1096,7 @@ export class TrackRenderer {
   }
 
   dispose(): void {
+    this.gearLights?.dispose();
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Sprite) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -1550,6 +1577,67 @@ export class TrackRenderer {
     this.judgeGlowMaterial?.color.setHex(shown ?? hex(this.judgeLook.glow));
   }
 
+  /** A frame's look in FEVER (`lit`) shown through a band along `axis` that sweepBorders moves (SWEEP_SHARE of the frame long). */
+  private sweepMaterial(lit: THREE.Texture, axis: 'u' | 'v', flip: boolean): THREE.MeshBasicMaterial {
+    const band = this.own(bandTexture(axis));
+    if (axis === 'v') band.repeat.set(1, 1 / SWEEP_SHARE);
+    else band.repeat.set(1 / SWEEP_SHARE, 1);
+    this.sweeps.push({ band, axis, flip });
+    return new THREE.MeshBasicMaterial({ map: lit, alphaMap: band, transparent: true, opacity: this.reducedFlash ? 0.45 : 0.9, depthWrite: false });
+  }
+
+  /**
+   * The frames' sweep: once a bar (every other bar under 번쩍임 줄이기, and dimmer: sweepMaterial)
+   * the band runs from the track's far end down to the gear, starting and ending past them.
+   */
+  private sweepBorders(c: BeatClock): void {
+    if (this.sweeps.length === 0) return;
+    const p = this.reducedFlash ? (c.bar / 2) - Math.floor(c.bar / 2) : c.bar - Math.floor(c.bar);
+    // the band's middle, 1 at the far end: from a band past it to a band past the near end
+    const at = 1 + SWEEP_SHARE - p * (1 + 2 * SWEEP_SHARE);
+    for (const s of this.sweeps) {
+      const c0 = s.flip ? 1 - at : at;
+      if (s.axis === 'v') s.band.offset.set(0, 0.5 - c0 * s.band.repeat.y);
+      else s.band.offset.set(0.5 - c0 * s.band.repeat.x, 0);
+    }
+  }
+
+  /** A picked gear's judge line's hot spot: a glow running along it (shimmerJudge). */
+  private buildJudgeShine(): void {
+    if (!isGear(this.style.deck) || !this.judgeGlowMaterial) return;
+    this.judgeGlowBase = this.judgeGlowMaterial.opacity;
+    const shine = new THREE.Mesh(
+      this.flatGeometry,
+      new THREE.MeshBasicMaterial({ map: this.glowTexture, color: this.judgeGlowMaterial.color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
+    );
+    shine.scale.set(SHINE_LENGTH, 1, (GEAR_JUDGE.height + 2 * shadowReach(GEAR_JUDGE.blur)) * PX * 0.7);
+    shine.position.set(0, LINE_Y + 0.0002, 0);
+    shine.renderOrder = 9.53;
+    this.judgeGroup.add(shine);
+    this.judgeShine = shine;
+  }
+
+  /**
+   * A picked gear's judge line as a laser: its glow flickering a little (slowly and less under
+   * 번쩍임 줄이기) and a hot spot running along it; its line and thickness as they are.
+   */
+  private shimmerJudge(c: BeatClock): void {
+    const glow = this.judgeGlowMaterial;
+    const shine = this.judgeShine;
+    if (!glow || !shine) return;
+    const t = c.seconds;
+    const flicker = this.reducedFlash
+      ? 0.04 * Math.sin(2 * Math.PI * 0.5 * t)
+      : 0.08 * Math.sin(2 * Math.PI * 7.3 * t) + 0.05 * Math.sin(2 * Math.PI * 11.9 * t + 1.3) + 0.05 * Math.sin(2 * Math.PI * 2.7 * t + 0.4);
+    glow.opacity = this.judgeGlowBase * (0.9 + flicker);
+    const run = t / SHINE_PERIOD - Math.floor(t / SHINE_PERIOD);
+    // within the line: its glow never spills past the line's ends
+    shine.position.x = (run - 0.5) * (this.geometry.width - SHINE_LENGTH * 0.7);
+    const material = shine.material as THREE.MeshBasicMaterial;
+    material.color.copy(glow.color);
+    material.opacity = (this.reducedFlash ? 0.15 : 0.45) * Math.sin(Math.PI * run);
+  }
+
   private buildTrack(): void {
     const { width, length, lanes } = this.geometry;
     const base = new THREE.PlaneGeometry(width + 0.3, length + TRACK_TAIL, 1, 24).rotateX(-Math.PI / 2);
@@ -1657,6 +1745,11 @@ export class TrackRenderer {
           const lit = this.own(borderTexture(look, railPx, tile, side, true));
           lit.repeat.set(1, repeat);
           this.borderMaps.push([material, map, lit]);
+          const sweep = new THREE.Mesh(this.flatGeometry, this.sweepMaterial(lit, 'v', false));
+          sweep.scale.copy(mesh.scale);
+          sweep.position.set(x, mesh.position.y + 0.0003, z);
+          sweep.renderOrder = 1.01;
+          this.scene.add(sweep);
         }
         if (lift > 0) this.buildWall(look, side, lift, tile, z);
         continue;
@@ -1705,7 +1798,17 @@ export class TrackRenderer {
     face.position.set((side * width) / 2, lift / 2, z);
     face.renderOrder = 0.98;
     this.scene.add(face);
-    if (look.lit) this.borderMaps.push([material, map, faceTexture(true)]);
+    if (look.lit) {
+      const lit = faceTexture(true);
+      this.borderMaps.push([material, map, lit]);
+      // the face's u runs to the far end on the left wall, to the near end on the right one
+      const sweep = new THREE.Mesh(face.geometry, this.sweepMaterial(lit, 'u', side > 0));
+      sweep.rotation.copy(face.rotation);
+      sweep.scale.copy(face.scale);
+      sweep.position.set(face.position.x - side * 0.0003, face.position.y, face.position.z);
+      sweep.renderOrder = 0.985;
+      this.scene.add(sweep);
+    }
     const reach = side < 0 ? lift * 1.4 : lift * 0.35;
     const shade = this.own(gradientTexture(side < 0 ? [[0, 'rgba(0,0,0,0.42)'], [1, 'rgba(0,0,0,0)']] : [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.3)']]));
     const strip = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map: shade, transparent: true, depthWrite: false }));
@@ -1926,6 +2029,7 @@ export class TrackRenderer {
     const depth = room + 2 + DECK_STEP * PX;
     this.deck.scale.set(width, 1, depth);
     this.deck.position.set(0, DECK_Y, top + depth / 2);
+    this.deckTopZ = top;
     this.planeVersion++;
     // the row of lane lights (a side lane laid over the keys has its bar under it): round lights
     // look round, drawn longer along the track where the camera flattens it
@@ -2018,6 +2122,8 @@ export class TrackRenderer {
     const g = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
     g.scale(scale, scale);
     const left = (l: LaneGeom) => (l.x - l.width / 2 + width / 2) / PX;
+    // where a gear's plate drawn in code puts the parts its lights shine on
+    const marks: DeckMark[] = [];
     this.platePaint(g, {
       width: width / PX,
       room: d.room / PX,
@@ -2028,6 +2134,7 @@ export class TrackRenderer {
       lanes: lanes.filter((l) => !l.over).map((l) => ({ left: left(l), width: l.width / PX, kind: keyKind(l) })),
       sides: lanes.filter((l) => l.over).map((l) => ({ left: left(l), width: l.width / PX, top: d.sideTop / PX, depth: d.sideDepth / PX })),
       colours: this.skin.colors,
+      marks,
     });
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -2045,6 +2152,14 @@ export class TrackRenderer {
     this.keyDepth = d.keyDepth;
     this.sideDepth = d.sideDepth;
     this.deckStretch = d.stretch;
+    if (this.gearLights) {
+      // over the deck's picture, as it is laid on the deck (deckArt.deckPicture), or on the parts its
+      // plate drawn in code marked (plane px)
+      const pictured = Boolean(gearArtOf(this.style.deck, this.images).deck) && d.stretch <= DECK_PICTURE_FLATTEST;
+      const across = width / DECK_PICTURE_PX;
+      if (pictured) this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across, along: (across * d.stretch) / DECK_PICTURE_STRETCH, y: DECK_Y }, null);
+      else this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across: PX, along: PX, y: DECK_Y }, marks);
+    }
     this.keyTextures.forEach((t) => t.dispose());
     this.keyTextures.clear();
     this.keyMaterials.forEach((m) => m.dispose());
@@ -2297,6 +2412,26 @@ function createNoteGeometry(shape: Skin['noteShape'] | 'picture'): THREE.BufferG
   }
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return geometry;
+}
+
+/**
+ * A soft band of light across a gear frame's sweep: grey levels (an alpha map reads the green), dark
+ * at both ends so the texture's clamped edge shows nothing, along v (a frame's top) or u (a wall's face).
+ */
+function bandTexture(axis: 'u' | 'v'): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = axis === 'u' ? 256 : 4;
+  canvas.height = axis === 'u' ? 4 : 256;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = axis === 'u' ? ctx.createLinearGradient(0, 0, 256, 0) : ctx.createLinearGradient(0, 0, 0, 256);
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16;
+    const v = Math.round(255 * Math.exp(-(((t - 0.5) / 0.2) ** 2)) * Math.min(1, Math.min(t, 1 - t) * 12));
+    g.addColorStop(t, `rgb(${v},${v},${v})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  return new THREE.CanvasTexture(canvas);
 }
 
 function radialTexture(): THREE.Texture {

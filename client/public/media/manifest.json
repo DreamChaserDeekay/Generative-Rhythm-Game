@@ -548,6 +548,14 @@
         541
       ]
     },
+    "keyboard/glow": {
+      "file": "gears/keyboard/glow.png",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "keyboard/keycap": {
       "file": "gears/keyboard/keycap.png",
       "bundle": "gear",
@@ -692,6 +700,14 @@
     },
     "najeon/deck": {
       "file": "gears/najeon/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "najeon/glow": {
+      "file": "gears/najeon/glow.png",
       "bundle": "gear",
       "size": [
         2048,
@@ -948,6 +964,14 @@
     },
     "standard/deck": {
       "file": "gears/standard/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "standard/glow": {
+      "file": "gears/standard/glow.png",
       "bundle": "gear",
       "size": [
         2048,

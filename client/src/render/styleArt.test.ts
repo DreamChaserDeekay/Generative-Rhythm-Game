@@ -176,7 +176,7 @@ const SETS = [
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
 const setStyle = (c: SetCase) => styleOf(withParts(skinById('flat', null), { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }));
-const STANDARD = ['standard/deck', 'standard/graphite', 'standard/jog'];
+const STANDARD = ['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog'];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
 function deckSpec(room: number, stretch = 1.3): DeckSpec {
@@ -320,13 +320,13 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
   });
 });
 
-/** Each gear's pictures by part, as the manifest lists them: its whole deck first. */
+/** Each gear's pictures by part, as the manifest lists them: its whole deck first, then where its lights shine from inside a part. */
 const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
-  standard: { deck: 'standard/deck', frame: 'standard/graphite', jog: 'standard/jog' },
+  standard: { deck: 'standard/deck', glow: 'standard/glow', frame: 'standard/graphite', jog: 'standard/jog' },
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
-  najeon: { deck: 'najeon/deck', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
-  keyboard: { deck: 'keyboard/deck', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
+  najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
+  keyboard: { deck: 'keyboard/deck', glow: 'keyboard/glow', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
   racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
 };
