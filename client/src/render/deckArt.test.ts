@@ -87,7 +87,7 @@ describe('the lane lights under the judge line', () => {
     }
   });
 
-  it('lights the lanes on the skins’ own gears only: the four a player picks have no lane’s key on them, their row not moved down', () => {
+  it('lights the lanes on the skins’ own gears only: the ones a player picks have no lane’s key on them, their row not moved down', () => {
     const lanes = deckLanes('7K+1S');
     for (const style of LIGHTS) expect(lightsOf(style), style).toBe(KEY_PAINT[style]);
     for (const style of GEAR_STYLES) {
@@ -113,7 +113,7 @@ describe('the side bars under the lane lights (side lanes laid over the keys)', 
     [1808, 3.25],
   ];
 
-  // only the skins' own gears have them: the four a player picks have no lane lights (lightsOf)
+  // only the skins' own gears have them: the ones a player picks have no lane lights (lightsOf)
   it('lie under the row of lane lights and inside the room the screen shows, the plates’ lower parts under them', () => {
     for (const style of LIGHTS) {
       for (const mode of ['4K+FX', '6K+FX'] as const) {
@@ -185,7 +185,7 @@ describe('the track’s borders in a gear’s frame', () => {
     for (const style of DECK_STYLES) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).edge, style).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it('gives each of the four gears its own frame, wider than a skin’s rails, painted whole, lit in FEVER', () => {
+  it('gives each gear a player picks its own frame, wider than a skin’s rails, painted whole, lit in FEVER', () => {
     const widths = GEAR_STYLES.map((style) => {
       const look = gearBorderLook(style, {});
       expect(look.paint, style).toBeTypeOf('function');
@@ -207,7 +207,7 @@ describe('the track’s borders in a gear’s frame', () => {
   });
 });
 
-describe('the four gears’ decks', () => {
+describe('the decks of the gears a player picks', () => {
   /** A deck as the renderer paints it: the whole track's width, the lanes of a key mode. */
   const spec = (room: number, stretch: number, mode: KeyModeId = '7K+1S'): DeckSpec => ({
     width: 8 * 73.65,

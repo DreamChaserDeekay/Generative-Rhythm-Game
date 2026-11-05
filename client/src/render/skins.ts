@@ -42,8 +42,11 @@ export const HUD_FONTS = {
   'Exo 2': { weight: 700, italic: true },
   'Baloo 2': { weight: 800, italic: false },
   Cinzel: { weight: 700, italic: false },
-  // seven-segment digits (the arcade cabinet's and the receiver's readouts)
+  // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
   'DSEG7 Classic': { weight: 700, italic: false },
+  // the custom keyboard's OLED pixels, the orbital panel's stencil
+  Silkscreen: { weight: 400, italic: false },
+  'Saira Stencil One': { weight: 400, italic: false },
 } as const;
 export type HudFont = keyof typeof HUD_FONTS;
 

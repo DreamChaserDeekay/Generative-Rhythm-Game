@@ -381,8 +381,9 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   }
 });
 
-test('play: the four gears, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
-  // also runs on its own (-g "four gears"): makes the showcase song when it is missing
+test('play: the gears a player picks, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
+  // also runs on its own (-g "gears a player picks"): makes the showcase song when it is missing
+  test.setTimeout(300_000);
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
@@ -391,6 +392,9 @@ test('play: the four gears, each with its HUD (gauge, score panel, digits)', asy
     ['cabinet', '34-gear-cabinet'],
     ['receiver', '35-gear-receiver'],
     ['najeon', '36-gear-najeon'],
+    ['keyboard', '37-gear-keyboard'],
+    ['racing', '38-gear-racing'],
+    ['orbital', '39-gear-orbital'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', skin: 'flat', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'MAXIMUM');

@@ -129,7 +129,7 @@ describe('settings', () => {
     expect(skinOf(old).style).toMatchObject({ deck: 'standard' });
     expect(skinOf(old).style).not.toHaveProperty('deckColour');
     for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
-    for (const deck of ['standard', 'cabinet', 'receiver', 'najeon'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+    for (const deck of ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
   });
 
   it('writes the judgement and combo in the gear’s type unless the player keeps the skin’s', () => {

@@ -181,7 +181,7 @@ describe('skins', () => {
   it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
     expect(DEFAULT_PARTS.deck).toBe('standard');
-    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon']);
+    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital']);
     expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'najeon', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'najeon', hit: 'grid' });
     // an earlier version's gear colour is dropped: each gear has one look
     expect(sanitizeParts({ deck: 'receiver', deckColour: 'red', hit: 'mecha' })).toEqual({ ...DEFAULT_PARTS, deck: 'receiver', hit: 'mecha' });

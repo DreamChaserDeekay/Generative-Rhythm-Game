@@ -4,7 +4,7 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
 /**
  * The gear: the track's frame down its edges and, under the judge line, a plate. The skins' own
  * gears, LINE (LED bars) and STEM (instrument dots), have a light per lane on it in the lane's colour
- * that lights while its key is down (a tint picture, see tintArt). The four a player picks (설정 →
+ * that lights while its key is down (a tint picture, see tintArt). The ones a player picks (설정 →
  * 기어, GEAR_STYLES) are each one object with no lane's key on it (the lanes and the key beams show
  * the keys): a red judge line a little above them (GEAR_JUDGE) and the object's own panel under
  * it, drawn from its pictures where they loaded (render/styleArt.ts) and in code where not:
@@ -17,12 +17,21 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  * - RECEIVER (빈티지 리시버): a 1970s stereo receiver, walnut sides, a brushed silver faceplate with
  *   a tuning knob, an amber tuning dial, selector switches, two meters and a volume knob;
  * - NAJEON (나전칠기): a black lacquer chest front, brass corner fittings, two lids with a
- *   mother-of-pearl crane, pearl vines and a brass lock plate.
+ *   mother-of-pearl crane, pearl vines and a brass lock plate;
+ * - KEYBOARD (커스텀 키보드): a custom keyboard's case of bead-blasted charcoal aluminium, a
+ *   volume knob in an orange light ring, an OLED window, the brass name plate, lock lights and the
+ *   arrow keys' inverted T (one orange cap);
+ * - RACING (레이싱 휠): a sim-racing button box of twill carbon, shift lights across it, a big
+ *   rotary and a small one, rubber buttons with coloured rings, the dash's lap timer (idle); its
+ *   frame carbon with a red-stitched suede strip;
+ * - ORBITAL (우주선 계기판): a spacecraft's instrument panel in light grey paint, a guarded selector,
+ *   guarded toggles, the master alarm lamp, a caution stripe and square push buttons, labels
+ *   silk-screened in black; its frame gold foil (an insulation blanket) under a yellow handrail.
  */
-export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon';
+export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital';
 /** The gears a player picks. */
 export type GearStyle = Exclude<DeckStyle, 'line' | 'stem'>;
-export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital'];
 export const DECK_STYLES: DeckStyle[] = ['line', 'stem', ...GEAR_STYLES];
 export const isGear = (style: DeckStyle): style is GearStyle => style !== 'line' && style !== 'stem';
 /** Earlier skins named the key caps that stood here: the plain ones are LINE and STEM, the rest the standard gear. */
@@ -218,7 +227,7 @@ const PLATES: Record<'line' | 'stem', (g: CanvasRenderingContext2D, s: DeckSpec)
   },
 };
 
-// ---------- the four gears ----------
+// ---------- the gears a player picks ----------
 
 /** A picture a gear is drawn from (an ImageBitmap in the browser). */
 export type Picture = CanvasImageSource & { readonly width: number; readonly height: number };
@@ -227,11 +236,11 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock';
+export type GearPart = 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
- * The judge line of the four gears, as DJMAX draws its own: a thick red line (`height` plane px) with
+ * The judge line of the gears a player picks, as DJMAX draws its own: a thick red line (`height` plane px) with
  * a light core and a red glow both ways (`blur`), a little above the gear: `gap` plane px of the lanes
  * lie between them, where a note let through runs on until the gear covers it. (The skins' lines stay
  * with their own gears.)
@@ -753,11 +762,425 @@ function najeonPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
   }
 }
 
+const ORANGE = '#ff8a1e';
+/** The racing wheel's red and the orbital panel's lamp green. */
+const RACE_RED = '#e3242b';
+const SIGNAL_GREEN = '#3dff6e';
+
+/** Which segments of a seven-segment digit light: a top, b top right, c bottom right, d bottom, e bottom left, f top left, g middle. */
+const SEGMENTS: Readonly<Record<string, string>> = {
+  '0': 'abcdef',
+  '1': 'bc',
+  '2': 'abged',
+  '3': 'abgcd',
+  '4': 'fgbc',
+  '5': 'afgcd',
+  '6': 'afgedc',
+  '7': 'abc',
+  '8': 'abcdefg',
+  '9': 'abcdfg',
+  '-': 'g',
+};
+
+/** A seven-segment digit `ch` in box `b` (`st` times longer along the track than it looks): its segments in `lit`, the others (their ghost) in `ghost`. */
+function segDigit(g: CanvasRenderingContext2D, ch: string, b: Box, st: number, lit: string, ghost: string): void {
+  const tx = b.w * 0.2;
+  const ty = tx * st;
+  const half = (b.h - 3 * ty) / 2;
+  const segs: Record<string, [number, number, number, number]> = {
+    a: [b.x + tx, b.y, b.w - 2 * tx, ty],
+    b: [b.x + b.w - tx, b.y + ty, tx, half],
+    c: [b.x + b.w - tx, b.y + 2 * ty + half, tx, half],
+    d: [b.x + tx, b.y + b.h - ty, b.w - 2 * tx, ty],
+    e: [b.x, b.y + 2 * ty + half, tx, half],
+    f: [b.x, b.y + ty, tx, half],
+    g: [b.x + tx, b.y + ty + half, b.w - 2 * tx, ty],
+  };
+  const on = SEGMENTS[ch] ?? '';
+  for (const [k, [x, y, w, h]] of Object.entries(segs)) {
+    g.fillStyle = on.includes(k) ? lit : ghost;
+    g.fillRect(x, y, w, h);
+  }
+}
+
+/** How wide a seven-segment readout of `label` (digits, '-', ':' and '.') is, its digits `w` wide. */
+const readoutWidth = (label: string, w: number) => [...label].reduce((sum, ch) => sum + (ch === ':' || ch === '.' ? w * 0.6 : w * 1.3), 0) - w * 0.3;
+
+/** A seven-segment readout of `label` about (cx, cy), its digits `w` wide and twice as deep on the screen: lit segments in `lit`, their ghosts in `ghost`. */
+function segReadout(g: CanvasRenderingContext2D, label: string, cx: number, cy: number, w: number, st: number, lit: string, ghost: string): void {
+  const h = 2 * w * st;
+  const y = cy - h / 2;
+  let x = cx - readoutWidth(label, w) / 2;
+  for (const ch of label) {
+    if (ch === ':' || ch === '.') {
+      const d = w * 0.22;
+      g.fillStyle = lit;
+      if (ch === ':') g.fillRect(x + w * 0.04, y + h * 0.3 - (d * st) / 2, d, d * st);
+      g.fillRect(x + w * 0.04, ch === ':' ? y + h * 0.7 - (d * st) / 2 : y + h - d * st, d, d * st);
+      x += w * 0.6;
+    } else {
+      segDigit(g, ch, { x, y, w, h }, st, lit, ghost);
+      x += w * 1.3;
+    }
+  }
+}
+
+/** A hex-socket screw head at (x, y), `r` across: a steel disc lit from the top-left, its socket in it. */
+function hexScrew(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number): void {
+  shadedDisc(g, { x: x - r, y: y - r * st, w: 2 * r, h: 2 * r * st }, [
+    [0, '#c9cdd3'],
+    [1, '#3b3e44'],
+  ]);
+  polygon(
+    g,
+    Array.from({ length: 6 }, (_, i): [number, number] => [x + r * 0.5 * Math.cos((i * Math.PI) / 3), y + r * 0.5 * st * Math.sin((i * Math.PI) / 3)]),
+  );
+  g.fillStyle = '#121315';
+  g.fill();
+}
+
+/** A small round lamp at (x, y), `r` across, in its black bezel: lit in `colour` with a little light round it, or dark. */
+function lamp(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number, colour: string, lit: boolean): void {
+  if (lit) {
+    disc(g, x, y, r * 2.1, st);
+    g.fillStyle = shade(colour, 1, 0.16);
+    g.fill();
+  }
+  disc(g, x, y, r * 1.3, st);
+  g.fillStyle = '#08080a';
+  g.fill();
+  disc(g, x, y, r, st);
+  g.fillStyle = lit ? colour : shade(colour, 0.3);
+  g.fill();
+  disc(g, x - r * 0.3, y - r * 0.3 * st, r * 0.32, st);
+  g.fillStyle = white(lit ? 0.75 : 0.22);
+  g.fill();
+}
+
+/** `colour` laid over what is drawn inside the path `path` makes (multiplied: white turns to it, black stays black). */
+function dye(g: CanvasRenderingContext2D, b: Box, colour: string, path: () => void): void {
+  g.save();
+  path();
+  g.clip();
+  g.globalCompositeOperation = 'multiply';
+  g.fillStyle = colour;
+  g.fillRect(b.x, b.y, b.w, b.h);
+  g.restore();
+}
+
+/** The plate's material over a frame's tile at the plate's grain (PLATE_SCALE plane px to a picture px), `k` canvas px to a plane px. */
+function plateGrain(g: CanvasRenderingContext2D, pic: Picture | undefined, w: number, h: number, k: number): void {
+  if (!pic) return;
+  const px = PLATE_SCALE * k;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, 0, Math.min(pic.width, w / px), Math.min(pic.height, h / px), 0, 0, w, h);
+}
+
+/** One of the arrow keys' caps in box `b`: its picture in `colour`, its arrow (`turn` quarter turns from up) in `legend`. */
+function keycap(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, st: number, colour: string, turn: number, legend: string): void {
+  const r = b.w * 0.16;
+  thing(g, pic, b, (bb) => {
+    rounded(g, bb, r, st);
+    g.fillStyle = '#c4c6cb';
+    g.fill();
+    rounded(g, { x: bb.x + bb.w * 0.15, y: bb.y + bb.h * 0.12, w: bb.w * 0.68, h: bb.h * 0.7 }, r * 0.7, st);
+    g.fillStyle = '#eceef1';
+    g.fill();
+  });
+  dye(g, b, colour, () => rounded(g, b, r, st));
+  // the arrow on the dish, which lies a little up and left of the cap's middle
+  g.save();
+  g.translate(b.x + b.w * 0.485, b.y + b.h * 0.465);
+  g.scale(1, st);
+  g.rotate((turn * Math.PI) / 2);
+  const a = b.w * 0.1;
+  polygon(g, [
+    [0, -a],
+    [a * 0.9, a * 0.6],
+    [-a * 0.9, a * 0.6],
+  ]);
+  g.fillStyle = legend;
+  g.fill();
+  g.restore();
+}
+
+/** KEYBOARD: a custom keyboard's case, bead-blasted charcoal aluminium under its gasket and polished chamfer; the volume knob sunk in its orange light ring, the OLED window with a bar graph, the brass name plate, the lock lights and the arrow keys' inverted T, its up key orange. */
+function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+  const st = s.stretch;
+  material(g, art.plate, { x: 0, y: 0, w: s.width, h: s.depth }, PLATE_SCALE, st, '#2b2d32');
+  const gasket = 2.4 * st;
+  g.fillStyle = '#0b0b0c';
+  g.fillRect(0, 0, s.width, gasket);
+  g.fillStyle = '#b4b9c0';
+  g.fillRect(0, gasket, s.width, 1.1);
+  g.fillStyle = white(0.06);
+  g.fillRect(0, gasket + 1.1, s.width, 1.8 * st);
+  const band = bandOf(s, gasket + 1.1 + 1.8 * st);
+  if (!band) return;
+  const { y, h, u, mid } = band;
+  // the knob sunk in the case, its light ring round it
+  const knob = boxAt(s.width * 0.11, mid, u * 0.72, st);
+  const [kx, ky, kr] = [knob.x + knob.w / 2, knob.y + knob.h / 2, knob.w / 2];
+  disc(g, kx, ky, kr + 5, st);
+  g.fillStyle = '#0c0c0e';
+  g.fill();
+  disc(g, kx, ky, kr + 4, st);
+  g.lineWidth = 1.2;
+  g.strokeStyle = shade(ORANGE, 1, 0.3);
+  g.stroke();
+  disc(g, kx, ky, kr + 2.4, st);
+  g.lineWidth = 2;
+  g.strokeStyle = ORANGE;
+  g.stroke();
+  thing(g, art.knob, knob, (b) =>
+    shadedDisc(g, b, [
+      [0, '#7a7f87'],
+      [1, '#16171a'],
+    ]),
+  );
+  // the OLED window: black glass, a bar graph in white px, one bar orange
+  const oled: Box = { x: s.width * 0.21, y: y + h * 0.1, w: s.width * 0.29, h: h * 0.44 };
+  rounded(g, oled, 3, st);
+  g.fillStyle = '#040405';
+  g.fill();
+  g.lineWidth = 1;
+  g.strokeStyle = white(0.14);
+  g.stroke();
+  const bars = 22;
+  const pitch = (oled.w - 14) / bars;
+  const cell = (oled.h - 8 * st) / 8;
+  for (let i = 0; i < bars; i++) {
+    const n = 1 + Math.round(6 * Math.abs(Math.sin(i * 0.7 + 0.5)) * (0.55 + 0.45 * Math.abs(Math.cos(i * 0.31))));
+    g.fillStyle = i === 13 ? ORANGE : white(0.86);
+    for (let j = 0; j < n; j++) g.fillRect(oled.x + 7 + i * pitch, oled.y + oled.h - 4 * st - (j + 1) * cell, pitch * 0.66, cell * 0.72);
+  }
+  // the brass name plate under it, its name engraved
+  const brassAspect = art.brass ? art.brass.height / art.brass.width : 0.21;
+  const brass = boxAt(oled.x + oled.w / 2, y + h * 0.78, Math.min(s.width * 0.17, (u * 0.3) / brassAspect), st, brassAspect);
+  thing(g, art.brass, brass, (b) => {
+    rounded(g, b, 2, st);
+    g.fillStyle = '#c9a45c';
+    g.fill();
+  });
+  text(g, 'TKL-08', brass.x + brass.w / 2, brass.y + brass.h / 2, Math.max(7, (brass.h / st) * 0.5), st, '#4a3311', { tracking: 1.5, engraved: true });
+  // the lock lights: caps and scroll dark, num lit
+  [false, false, true].forEach((on, i) => lamp(g, s.width * (0.57 + i * 0.035), y + h * 0.3, Math.max(1.6, u * 0.028), st, ORANGE, on));
+  // the arrow keys' inverted T, the up key orange
+  const cap = u * 0.36;
+  const capAspect = art.keycap ? art.keycap.height / art.keycap.width : 1;
+  const [ax, step, dy] = [s.width * 0.8, cap * 1.12, ((cap * capAspect + u * 0.08) * st) / 2];
+  const cream = '#f3ece2';
+  const ink = '#3a3c42';
+  keycap(g, art.keycap, boxAt(ax, mid - dy, cap, st, capAspect), st, ORANGE, 0, '#fff4e8');
+  keycap(g, art.keycap, boxAt(ax - step, mid + dy, cap, st, capAspect), st, cream, 3, ink);
+  keycap(g, art.keycap, boxAt(ax, mid + dy, cap, st, capAspect), st, cream, 2, ink);
+  keycap(g, art.keycap, boxAt(ax + step, mid + dy, cap, st, capAspect), st, cream, 1, ink);
+}
+
+/** One of the button box's rubber buttons in box `b`: its picture, its ring in `ring`. */
+function rubberButton(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, ring: string): void {
+  thing(g, pic, b, (bb) => {
+    shadedDisc(g, bb, [
+      [0, '#3a3c40'],
+      [1, '#050506'],
+    ]);
+    g.beginPath();
+    g.ellipse(bb.x + bb.w / 2, bb.y + bb.h / 2, bb.w * 0.34, bb.h * 0.34, 0, 0, Math.PI * 2);
+    g.lineWidth = Math.max(1, bb.w * 0.05);
+    g.strokeStyle = '#f2f2f2';
+    g.stroke();
+  });
+  dye(g, b, ring, () => {
+    g.beginPath();
+    g.ellipse(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
+  });
+}
+
+/** RACING: a sim-racing button box of twill carbon under a clear coat, a red line along its top; the shift lights across it (the greens lit), the big rotary and a small one, rubber buttons ringed in their colours, the dash's lap timer idle. */
+function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+  const st = s.stretch;
+  material(g, art.plate, { x: 0, y: 0, w: s.width, h: s.depth }, PLATE_SCALE, st, '#141517');
+  const coat = g.createLinearGradient(0, 0, 0, s.room);
+  coat.addColorStop(0, white(0.05));
+  coat.addColorStop(1, black(0.25));
+  g.fillStyle = coat;
+  g.fillRect(0, 0, s.width, s.depth);
+  const recess = 2.4 * st;
+  g.fillStyle = '#050506';
+  g.fillRect(0, 0, s.width, recess);
+  g.fillStyle = RACE_RED;
+  g.fillRect(0, recess, s.width, 1.2);
+  const band = bandOf(s, recess + 1.2);
+  if (!band) return;
+  const { y, h, u, mid } = band;
+  // the shift lights: five green (lit), five red, five blue
+  for (let i = 0; i < 15; i++) {
+    const colour = i < 5 ? '#36e05a' : i < 10 ? '#ff2d2d' : '#3d7bff';
+    lamp(g, s.width * (0.27 + (0.46 * i) / 14), y + h * 0.14, Math.max(1.6, u * 0.032), st, colour, i < 5);
+  }
+  const rotary = (b: Box) =>
+    shadedDisc(g, b, [
+      [0, '#4a4d53'],
+      [1, '#08090a'],
+    ]);
+  thing(g, art.rotary, boxAt(s.width * 0.11, mid, u * 0.84, st), rotary);
+  thing(g, art.rotary, boxAt(s.width * 0.89, mid + h * 0.06, u * 0.56, st), rotary);
+  // the rubber buttons, ringed yellow, blue, white and green
+  for (const [x, ring] of [
+    [0.27, '#ffd23f'],
+    [0.355, '#3d7bff'],
+    [0.645, '#ffffff'],
+    [0.73, '#36e05a'],
+  ] as [number, string][]) {
+    rubberButton(g, art.button, boxAt(s.width * x, y + h * 0.6, u * 0.34, st), ring);
+  }
+  // the dash: a black LCD, its lap timer idle (dashes) over its digits' ghosts
+  const dash: Box = { x: s.width * 0.41, y: y + h * 0.36, w: s.width * 0.18, h: h * 0.5 };
+  rounded(g, dash, 3, st);
+  g.fillStyle = '#030304';
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = '#2b2d31';
+  g.stroke();
+  const label = '-:--.---';
+  const digit = Math.min((dash.h * 0.6) / st / 2, (dash.w * 0.86) / readoutWidth(label, 1));
+  segReadout(g, label, dash.x + dash.w / 2, dash.y + dash.h / 2, digit, st, '#f2f5f8', white(0.07));
+}
+
+/** One of the panel's square push buttons in box `b`: its picture, its lens lit in `light` or dark. */
+function pushButton(g: CanvasRenderingContext2D, pic: Picture | undefined, b: Box, st: number, light: string | null): void {
+  const lens: Box = { x: b.x + b.w * 0.2, y: b.y + b.h * 0.2, w: b.w * 0.6, h: b.h * 0.6 };
+  thing(g, pic, b, (bb) => {
+    rounded(g, bb, bb.w * 0.1, st);
+    g.fillStyle = '#9ea2a8';
+    g.fill();
+    rounded(g, { x: bb.x + bb.w * 0.1, y: bb.y + bb.h * 0.1, w: bb.w * 0.8, h: bb.h * 0.8 }, bb.w * 0.08, st);
+    g.fillStyle = '#141517';
+    g.fill();
+    rounded(g, lens, bb.w * 0.05, st);
+    g.fillStyle = '#e9ebee';
+    g.fill();
+  });
+  if (!light) return;
+  dye(g, lens, light, () => rounded(g, lens, b.w * 0.05, st));
+  g.save();
+  rounded(g, lens, b.w * 0.05, st);
+  g.globalCompositeOperation = 'lighter';
+  g.fillStyle = shade(light, 1, 0.3);
+  g.fill();
+  g.restore();
+}
+
+/** A caution stripe in box `b`: yellow and black bands slanting as on the screen, CAUTION on a yellow plate in its middle (`size` px type). */
+function cautionStripe(g: CanvasRenderingContext2D, b: Box, st: number, size: number): void {
+  g.save();
+  g.beginPath();
+  g.rect(b.x, b.y, b.w, b.h);
+  g.clip();
+  g.fillStyle = '#f2c230';
+  g.fillRect(b.x, b.y, b.w, b.h);
+  g.fillStyle = '#141414';
+  const [band, lean] = [(b.h / st) * 0.8, b.h / st];
+  for (let x = b.x - lean; x < b.x + b.w; x += band * 2) {
+    polygon(g, [
+      [x, b.y + b.h],
+      [x + band, b.y + b.h],
+      [x + band + lean, b.y],
+      [x + lean, b.y],
+    ]);
+    g.fill();
+  }
+  g.restore();
+  const plate: Box = { x: b.x + b.w * 0.3, y: b.y + b.h * 0.12, w: b.w * 0.4, h: b.h * 0.76 };
+  g.fillStyle = '#f2c230';
+  g.fillRect(plate.x, plate.y, plate.w, plate.h);
+  text(g, 'CAUTION', plate.x + plate.w / 2, plate.y + plate.h / 2, size, st, '#141414', { tracking: 1.5 });
+}
+
+/** ORBITAL: a spacecraft's instrument panel in light grey paint, a dark seam along its top; its screws, the guarded selector, three guarded toggles, the master alarm lamp (dark) over a caution stripe, the arm and abort buttons (arm lit), labels silk-screened in black. */
+function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+  const st = s.stretch;
+  material(g, art.plate, { x: 0, y: 0, w: s.width, h: s.depth }, PLATE_SCALE, st, '#c3c6cb');
+  const fall = g.createLinearGradient(0, 0, 0, s.room);
+  fall.addColorStop(0, white(0.05));
+  fall.addColorStop(1, black(0.14));
+  g.fillStyle = fall;
+  g.fillRect(0, 0, s.width, s.depth);
+  const seam = 2.2 * st;
+  g.fillStyle = '#25272b';
+  g.fillRect(0, 0, s.width, seam);
+  g.fillStyle = white(0.6);
+  g.fillRect(0, seam, s.width, 0.9);
+  const band = bandOf(s, seam + 0.9);
+  if (!band) return;
+  const { y, h, u, mid } = band;
+  const ink = '#15171a';
+  const size = Math.max(8, u * 0.11);
+  const label = (name: string, x: number, at: number) => text(g, name, x, at, size, st, ink, { tracking: 1.2 });
+  for (const x of [7, s.width - 7]) for (const at of [0.2, 0.8]) hexScrew(g, x, y + h * at, 2.6, st);
+  thing(g, art.selector, boxAt(s.width * 0.1, mid, u * 0.8, st), (b) => {
+    shadedDisc(g, b, [
+      [0, '#e3e5e8'],
+      [1, '#8d9196'],
+    ]);
+    shadedDisc(g, { x: b.x + b.w * 0.3, y: b.y + b.h * 0.3, w: b.w * 0.4, h: b.h * 0.4 }, [
+      [0, '#4a4c50'],
+      [1, '#0b0b0c'],
+    ]);
+  });
+  const toggleAspect = art.toggle ? art.toggle.height / art.toggle.width : 1;
+  ['PWR', 'COMM', 'NAV'].forEach((name, i) => {
+    const x = s.width * (0.24 + i * 0.075);
+    thing(g, art.toggle, boxAt(x, y + h * 0.4, u * 0.42, st, toggleAspect), (b) => {
+      rounded(g, b, b.w * 0.06, st);
+      g.fillStyle = '#b9bdc2';
+      g.fill();
+      disc(g, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.14, st);
+      g.fillStyle = '#5c6066';
+      g.fill();
+    });
+    label(name, x, y + h * 0.86);
+  });
+  // the master alarm lamp, dark: an amber lens in a black bezel, its legend on it
+  const alarm: Box = { x: s.width * 0.48, y: y + h * 0.1, w: s.width * 0.14, h: h * 0.36 };
+  rounded(g, alarm, 3, st);
+  g.fillStyle = '#1a1b1e';
+  g.fill();
+  const lens: Box = { x: alarm.x + 2.5, y: alarm.y + 2.5 * st, w: alarm.w - 5, h: alarm.h - 5 * st };
+  rounded(g, lens, 2, st);
+  const amber = g.createLinearGradient(0, lens.y, 0, lens.y + lens.h);
+  amber.addColorStop(0, '#6e4c14');
+  amber.addColorStop(1, '#3a2707');
+  g.fillStyle = amber;
+  g.fill();
+  g.fillStyle = white(0.1);
+  g.fillRect(lens.x + 1, lens.y + 1, lens.w - 2, lens.h * 0.3);
+  const legend = Math.min(size, (lens.h / st) * 0.32);
+  for (const [word, at] of [
+    ['MASTER', 0.3],
+    ['ALARM', 0.72],
+  ] as [string, number][]) {
+    text(g, word, lens.x + lens.w / 2, lens.y + lens.h * at, legend, st, shade(AMBER, 0.95, 0.8), { tracking: 1 });
+  }
+  cautionStripe(g, { x: s.width * 0.46, y: y + h * 0.62, w: s.width * 0.26, h: h * 0.22 }, st, size);
+  const buttonAspect = art.button ? art.button.height / art.button.width : 1;
+  for (const [x, name, light] of [
+    [0.8, 'ARM', SIGNAL_GREEN],
+    [0.89, 'ABORT', null],
+  ] as [number, string, string | null][]) {
+    pushButton(g, art.button, boxAt(s.width * x, y + h * 0.4, u * 0.36, st, buttonAspect), st, light);
+    label(name, s.width * x, y + h * 0.86);
+  }
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
   najeon: najeonPlate,
+  keyboard: keyboardPlate,
+  racing: racingPlate,
+  orbital: orbitalPlate,
 };
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
@@ -861,6 +1284,8 @@ function fill(g: CanvasRenderingContext2D, pic: Picture | undefined, w: number, 
 
 /** How wide NAJEON's pearl vine is down its frame (plane px), between its gold lines. */
 const NAJEON_VINE = 21;
+/** How long a tile of ORBITAL's frame is (plane px): its foil 20 px wide is a strip of the picture as long for its width (1:6), so it is not stretched. */
+const ORBITAL_TILE = 120;
 
 /** Each gear's frame, from its pictures (in code where one is missing). */
 const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
@@ -893,12 +1318,7 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     paint: (g, w, h, k, lit) => {
       g.fillStyle = '#17181b';
       g.fillRect(0, 0, w, h);
-      if (art.plate) {
-        // the plate's ABS at the plate's grain (PLATE_SCALE plane px to a picture px)
-        const px = PLATE_SCALE * k;
-        g.imageSmoothingQuality = 'high';
-        g.drawImage(art.plate, 0, 0, Math.min(art.plate.width, w / px), Math.min(art.plate.height, h / px), 0, 0, w, h);
-      }
+      plateGrain(g, art.plate, w, h, k);
       g.fillStyle = black(0.6);
       g.fillRect(0, 0, 1.5 * k, h);
       trim(g, w, h, 4, k, [
@@ -983,6 +1403,125 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillRect(x + vw + k, 0, 0.8 * k, h);
       g.fillStyle = black(0.6);
       g.fillRect(0, 0, k, h);
+    },
+  }),
+  // the case's side in its bead-blasted charcoal: the polished chamfer along the lanes with an orange line under it (bright in FEVER), a hex screw in each tile
+  keyboard: (art) => ({
+    body: '#2b2d32',
+    edge: '#d7dade',
+    width: 26,
+    tile: 64,
+    lit: true,
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#2b2d32';
+      g.fillRect(0, 0, w, h);
+      plateGrain(g, art.plate, w, h, k);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 1.2 * k, h);
+      trim(g, w, h, 3.4, k, [
+        [0, '#26282c'],
+        [0.3, '#e6e9ed'],
+        [0.65, '#9fa4ac'],
+        [1, '#2f3237'],
+      ]);
+      if (lit) {
+        // its light over the chamfer
+        g.fillStyle = shade(ORANGE, 1, 0.3);
+        g.fillRect(w - 7 * k, 0, 5 * k, h);
+      }
+      g.fillStyle = shade(ORANGE, lit ? 1.15 : 1, lit ? 1 : 0.6);
+      g.fillRect(w - 5.2 * k, 0, 1.3 * k, h);
+      hexScrew(g, (w - 6 * k) / 2, h / 2, 2.6 * k, 1);
+    },
+  }),
+  // carbon, a strip of black suede along the lanes stitched in red, a red line at its edge (stitches and line bright in FEVER)
+  racing: (art) => ({
+    body: '#141517',
+    edge: RACE_RED,
+    width: 30,
+    tile: 40,
+    lit: true,
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#141517';
+      g.fillRect(0, 0, w, h);
+      plateGrain(g, art.plate, w, h, k);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 1.2 * k, h);
+      // the suede, dull black with a fine nap
+      const [x0, x1] = [w - 15 * k, w - 3 * k];
+      g.fillStyle = '#19191b';
+      g.fillRect(x0, 0, x1 - x0, h);
+      const rand = seeded(29);
+      for (let i = 0; i < 240; i++) {
+        g.fillStyle = rand() < 0.5 ? white(0.035) : black(0.2);
+        g.fillRect(x0 + rand() * (x1 - x0), rand() * h, 0.6 * k, 0.6 * k);
+      }
+      g.fillStyle = black(0.5);
+      g.fillRect(x0, 0, 0.8 * k, h);
+      g.fillRect(x1 - 0.8 * k, 0, 0.8 * k, h);
+      // the stitches down both its sides
+      g.fillStyle = lit ? '#ff4b52' : '#b81c22';
+      for (const sx of [x0 + 2 * k, x1 - 2.8 * k]) for (let sy = k; sy < h; sy += 5 * k) g.fillRect(sx, sy, 0.8 * k, 3 * k);
+      if (lit) {
+        // the red line's light over the suede
+        g.fillStyle = shade(RACE_RED, 1, 0.3);
+        g.fillRect(w - 5 * k, 0, 5 * k, h);
+      }
+      g.fillStyle = shade(RACE_RED, lit ? 1.15 : 0.85, lit ? 1 : 0.75);
+      g.fillRect(w - 1.6 * k, 0, 1.2 * k, h);
+    },
+  }),
+  // gold foil (an insulation blanket, stitched at each tile's ends) between a yellow handrail on the
+  // outer edge and a grey painted rail along the lanes, an amber lamp on the rail in each tile (in FEVER
+  // the lamps lit, the rail's edge an amber light and the rail in its glow)
+  orbital: (art) => ({
+    body: '#b8902c',
+    edge: '#d4d7db',
+    width: 30,
+    tile: ORBITAL_TILE,
+    lit: true,
+    paint: (g, w, h, k, lit) => {
+      const [f0, f1] = [5 * k, w - 5 * k];
+      g.fillStyle = '#b8902c';
+      g.fillRect(0, 0, w, h);
+      if (art.frame) {
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(art.frame, f0, 0, f1 - f0, h);
+      } else {
+        const foil = g.createLinearGradient(f0, 0, f1, 0);
+        foil.addColorStop(0, '#7a5a14');
+        foil.addColorStop(0.45, '#e8c35a');
+        foil.addColorStop(1, '#8a6418');
+        g.fillStyle = foil;
+        g.fillRect(f0, 0, f1 - f0, h);
+      }
+      g.fillStyle = black(0.45);
+      g.fillRect(f0, 0, f1 - f0, 1.2 * k);
+      g.fillRect(f0, h - 1.2 * k, f1 - f0, 1.2 * k);
+      // the handrail: its shadow on the foil, the yellow tube, a grey bracket in the tile's middle
+      g.fillStyle = black(0.35);
+      g.fillRect(4.6 * k, 0, 1.8 * k, h);
+      const rail = g.createLinearGradient(0.6 * k, 0, 4.6 * k, 0);
+      rail.addColorStop(0, '#7a5c0c');
+      rail.addColorStop(0.35, '#ffe066');
+      rail.addColorStop(0.6, '#f2c230');
+      rail.addColorStop(1, '#6e530a');
+      g.fillStyle = rail;
+      g.fillRect(0.6 * k, 0, 4 * k, h);
+      g.fillStyle = '#5c6066';
+      g.fillRect(0, h / 2 - 2.5 * k, 6.5 * k, 5 * k);
+      g.fillStyle = white(0.25);
+      g.fillRect(0, h / 2 - 2.5 * k, 6.5 * k, 0.8 * k);
+      // the rail along the lanes: grey paint, its seam, its lit edge, the lamp
+      g.fillStyle = lit ? '#d8c39a' : '#c3c6cb';
+      g.fillRect(f1, 0, w - f1, h);
+      g.fillStyle = black(0.5);
+      g.fillRect(f1, 0, 0.8 * k, h);
+      g.fillStyle = lit ? AMBER : white(0.45);
+      g.fillRect(w - 1.2 * k, 0, 0.8 * k, h);
+      lamp(g, f1 + 2.4 * k, h / 2, 1.7 * k, 1, AMBER, lit);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 0.6 * k, h);
     },
   }),
 };
@@ -1096,7 +1635,7 @@ export const KEY_PAINT: Record<LightStyle, KeyPaint> = {
   },
 };
 
-/** A gear's lights per lane: the skins' gears have them, the four a player picks none. */
+/** A gear's lights per lane: the skins' gears have them, the ones a player picks none. */
 export const lightsOf = (style: DeckStyle): KeyPaint | null => (isGear(style) ? null : KEY_PAINT[style]);
 
 /** How far a hexagon light (the reference for every row) reaches from its row's middle toward the judge line. */

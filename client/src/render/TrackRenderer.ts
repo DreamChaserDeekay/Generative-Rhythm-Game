@@ -635,7 +635,7 @@ export class TrackRenderer {
   /** The pictures the style's parts draw from (styleArt.ts), and the paints made with them. */
   private readonly images: StyleImages;
   private readonly notePaint: NotePaint;
-  /** The lights per lane on the deck: the skins' gears have them, the four a player picks none (null). */
+  /** The lights per lane on the deck: the skins' gears have them, the ones a player picks none (null). */
   private readonly keyPaint: KeyPaint | null;
   private readonly platePaint: (g: CanvasRenderingContext2D, s: DeckSpec) => void;
   /** The track's borders: the gear's frame (a picked gear's own, as wide as it is) or the skin's rails in its plate's colours. */

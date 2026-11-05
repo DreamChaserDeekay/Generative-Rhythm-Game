@@ -615,7 +615,7 @@ test('the mecha set on the arcade cabinet picked part by part: a gear taken out 
   expect(errors).toEqual([]);
 });
 
-test('the club, crystal, neon and piano sets picked part by part, each on one of the four gears: all of it drawn from art in play, the HUD the gear’s', async ({ page }) => {
+test('the club, crystal, neon and piano sets picked part by part, each on one of the gears: all of it drawn from art in play, the HUD the gear’s', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [note, deck, hit, hitName, style] of [
@@ -648,6 +648,44 @@ test('the club, crystal, neon and piano sets picked part by part, each on one of
     await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'cabinet' || deck === 'najeon' ? 1 : 0);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `test-results/play-${hit}.png` });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('pause-menu')).toBeVisible();
+    await page.keyboard.press('KeyQ');
+    await expect(page.getByTestId('song-list')).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
+test('the custom keyboard, the racing wheel and the orbital panel picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
+  for (const [deck, name, gauge, judgeFont, numFont] of [
+    ['keyboard', '커스텀 키보드', 'CHARGE', /Silkscreen/, /Silkscreen/],
+    ['racing', '레이싱 휠', 'FUEL', /Chakra Petch/, /Chakra Petch/],
+    ['orbital', '우주선 계기판', 'O2', /Saira Stencil One/, /DSEG7 Classic/],
+  ] as const) {
+    await page.goto('/');
+    await page.getByTestId('open-settings').click();
+    await settingsTab(page, 'gear');
+    await chooseSetting(page, 'opt-deck-style', deck);
+    await expect(page.getByTestId('opt-deck-style')).toContainText(name);
+    expect((await stored()).parts).toMatchObject({ deck });
+    await page.getByRole('button', { name: /완료/ }).click();
+
+    await tool(page, 'sync-auto');
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    // the gear drawn from its pictures (with the default notes, drawn in code, and the flash hit's flipbooks)
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', /\bgear\b/);
+    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+    // the HUD beside the track is the gear's: its gauge named, its panel's housing, its digits and type
+    await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
+    await expect(page.locator('.hud-gauge')).toHaveCount(1);
+    await expect(page.locator('.hud-gauge-name')).toHaveText(gauge);
+    await expect(page.locator('.hud-panel-plate')).toBeVisible();
+    expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(numFont);
+    expect(await page.locator('.hud').evaluate((el) => getComputedStyle(el).getPropertyValue('--hud-font'))).toMatch(judgeFont);
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `test-results/play-gear-${deck}.png` });
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('pause-menu')).toBeVisible();
     await page.keyboard.press('KeyQ');

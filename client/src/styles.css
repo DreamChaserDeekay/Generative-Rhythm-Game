@@ -82,11 +82,29 @@
   font-display: block;
 }
 
-/* seven-segment digits: the arcade cabinet's and the receiver's readouts */
+/* seven-segment digits: the arcade cabinet's, the receiver's and the orbital panel's readouts */
 @font-face {
   font-family: 'DSEG7 Classic';
   src: url('./assets/fonts/DSEG7Classic-Bold.woff2') format('woff2');
   font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* a pixel font: the custom keyboard's OLED */
+@font-face {
+  font-family: 'Silkscreen';
+  src: url('./assets/fonts/Silkscreen-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/* stencil capitals: the orbital panel's judgement */
+@font-face {
+  font-family: 'Saira Stencil One';
+  src: url('./assets/fonts/SairaStencilOne-Regular.woff2') format('woff2');
+  font-weight: 400;
   font-style: normal;
   font-display: block;
 }
@@ -1720,6 +1738,72 @@ p.hint {
 .hud[data-gear='najeon'] .hud-gauge-name {
   font-family: 'Noto Serif KR', var(--font-display);
   letter-spacing: 0;
+}
+
+/* KEYBOARD: an OLED in the case (black glass in a charcoal border), white pixel digits, light grey
+   labels; the gauge white cells, orange over the clear line, named CHARGE */
+.hud[data-gear='keyboard'] {
+  --hud-label-colour: #c4c8ce;
+  --hud-num-font: 'Silkscreen', var(--font-display);
+  --hud-num-colour: #f4f4f4;
+  --plate-bg: #050506;
+  --plate-border: 2px solid #3b3e44;
+  --gauge-off: rgba(255, 255, 255, 0.08);
+  --gauge-low: #f4f4f4;
+  --gauge-high: #ff8a1e;
+  --gauge-name-colour: #c4c8ce;
+}
+
+.hud[data-gear='keyboard'] .hud-gauge {
+  outline: 2px solid #3b3e44;
+  background-color: #050506;
+}
+
+.hud[data-gear='keyboard'] .hud-gauge-name {
+  font-family: 'Silkscreen', var(--font-display);
+  font-weight: 400;
+}
+
+/* RACING: a dash display in a carbon bezel, slanted white digits, red labels; the gauge a column of
+   cells, amber under the clear line (the fuel running low) and white over it, named FUEL */
+.hud[data-gear='racing'] {
+  --hud-label-colour: #ff4b52;
+  --hud-num-font: 'Chakra Petch', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: #070708;
+  --plate-border: 2px solid #2b2d31;
+  --gauge-off: rgba(255, 255, 255, 0.08);
+  --gauge-low: #ffb547;
+  --gauge-high: #f4f6f8;
+  --gauge-name-colour: #ff4b52;
+}
+
+.hud[data-gear='racing'] .hud-num {
+  font-style: italic;
+}
+
+.hud[data-gear='racing'] .hud-gauge {
+  outline: 2px solid #2b2d31;
+  background-color: #070708;
+}
+
+/* ORBITAL: a readout window in a grey bezel, green seven-segment digits, light labels; the gauge
+   green cells in the same bezel, named O2 */
+.hud[data-gear='orbital'] {
+  --hud-label-colour: #e7eaed;
+  --hud-num-font: 'DSEG7 Classic', var(--font-display);
+  --hud-num-colour: #3dff6e;
+  --plate-bg: #070b08;
+  --plate-border: 3px solid #b9bdc2;
+  --gauge-off: rgba(61, 255, 110, 0.1);
+  --gauge-low: #2bd45a;
+  --gauge-high: #8dffb0;
+  --gauge-name-colour: #e7eaed;
+}
+
+.hud[data-gear='orbital'] .hud-gauge {
+  outline: 2px solid #b9bdc2;
+  background-color: #070b08;
 }
 
 .hud-toast {
