@@ -11,7 +11,11 @@ Three kinds of picture:
   as far as the generation shows it) sampled where the generation shows it, through the mapping in
   deck.json (deck plane px to the generation's px: the camera's homography of the template frame the
   generation was asked to repaint, times the alignment of the generation onto that frame). The renderer
-  draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture);
+  draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture). Where a gear's
+  lights shine from inside a part (the keyboard's arrow keys from their well, the standard gear's
+  speaker through its holes, the najeon chest's pearl), a mask of where they may show is made from the
+  laid-flat deck too (glow.png: the dark of the well round the keys, not the keys themselves, the
+  holes, the pearl; softened, never past the part; gearLights.ts);
 
 - materials, made here from seeded noise (so they come out the same on every run, and tile without a
   seam: the noise is filtered in frequency space, which wraps): the arcade cabinet's embossed ABS, the
@@ -38,8 +42,9 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 from scipy import ndimage
+from scipy.spatial import ConvexHull
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "gears"
@@ -334,6 +339,63 @@ def deck_flat(src: Path, meta: dict, width_px: int = 2048, inset: float = 1.5) -
     return out.reshape(rows, width_px, 3)
 
 
+# Where a deck's lights may shine from inside a part (deck picture px): each part as boxes (x0, y0, x1,
+# y1) or ellipses (cx, cy, rx, ry), and what of it shines: its dark (a well's gaps, a speaker's holes; a box round each thing
+# sitting in the well, whose outline, found by its light plastic, is left out so its own creases and
+# legend never light) or its pale bright (pearl inlay: bright, little colour). The keyboard's arrow
+# keys (the up key's well over the bottom row's), the standard gear's speaker, the najeon chest's
+# cranes and vines.
+GLOW_WELLS = {
+    "keyboard": {
+        "boxes": [(1581, 89, 1723, 262), (1447, 258, 1856, 421)],
+        "dark": 0.2,
+        "things": [(1581, 60, 1723, 258), (1447, 258, 1583, 425), (1583, 258, 1719, 425), (1719, 258, 1856, 425)],
+    },
+    "standard": {"boxes": [(1605, 135, 1940, 382)], "dark": 0.08, "things": []},
+    "najeon": {
+        "boxes": [(552, 196, 840, 308), (1216, 196, 1504, 308)],
+        # the lids' cranes and clouds, inside their rims and clear of the lacquer's gloss
+        "ellipses": [(365, 245, 95, 105), (1685, 245, 95, 105)],
+        "bright": 0.52,
+        "pale": 0.38,
+        "things": [],
+    },
+}
+
+
+def glow_mask(deck: np.ndarray, wells: dict) -> np.ndarray:
+    """Where a deck's lights shine from inside its parts (0..1, the deck picture's size): the dark of
+    each well round what sits in it (the gaps, the well's floor; not the things' own outlines, each
+    one's light plastic's convex hull, so its creases and legend stay dark) or the pale bright of
+    pearl, widened and softened a little, and more faintly the things' edges next to a well (lit from
+    under them); never past the part's boxes."""
+    lum = deck @ np.array([0.299, 0.587, 0.114])
+    sat = (deck.max(-1) - deck.min(-1)) / (deck.max(-1) + 1e-6)
+    h, w = lum.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    well = np.zeros(lum.shape, bool)
+    for x0, y0, x1, y1 in wells["boxes"]:
+        well |= (xx >= x0) & (xx <= x1) & (yy >= y0) & (yy <= y1)
+    for cx, cy, rx, ry in wells.get("ellipses", []):
+        well |= ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
+    plastic = ((lum > 0.42) | ((sat > 0.45) & (deck[..., 0] > 0.45))) & well
+    outlines = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(outlines)
+    for x0, y0, x1, y1 in wells["things"]:
+        ys, xs = np.nonzero(plastic[y0:y1, x0:x1])
+        points = np.stack([xs + x0, ys + y0], 1)
+        draw.polygon([tuple(int(v) for v in p) for p in points[ConvexHull(points).vertices]], fill=255)
+    inside = np.asarray(outlines) > 0
+    if "bright" in wells:
+        gaps = (lum > wells["bright"]) & (sat < wells["pale"]) & well
+    else:
+        gaps = (lum < wells["dark"]) & well & ~inside
+    edges = inside & well & ndimage.binary_dilation(gaps, iterations=14)
+    soft = ndimage.gaussian_filter(ndimage.binary_dilation(gaps, iterations=2).astype(np.float64), 3) * 1.6
+    soft = np.clip(soft + 0.55 * ndimage.gaussian_filter(edges.astype(np.float64), 5), 0, 1)
+    return soft * ndimage.gaussian_filter(ndimage.binary_erosion(well, iterations=1).astype(np.float64), 1.0)
+
+
 def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
     """The magenta ground's light taken out of an object's rim (`reach` px in from its edge): red and blue
     down to where green allows, as a keyer's despill; colours further in (a red ball, pink pearl) are kept."""
@@ -387,6 +449,11 @@ def main() -> None:
         save_webp(a, OUT / gear / "deck.webp")
         entry(textures, gear, "deck", "deck.webp", (a.shape[1], a.shape[0]))
         report[f"{gear}/deck"] = [a.shape[1], a.shape[0]]
+        if gear in GLOW_WELLS:
+            m = glow_mask(a, GLOW_WELLS[gear])
+            Image.fromarray(np.clip(m * 255 + 0.5, 0, 255).astype(np.uint8), "L").save(OUT / gear / "glow.png", optimize=True)
+            entry(textures, gear, "glow", "glow.png", (m.shape[1], m.shape[0]))
+            report[f"{gear}/glow"] = [m.shape[1], m.shape[0]]
 
     for gear in ("standard", "cabinet", "receiver", "najeon", "keyboard", "racing", "orbital"):
         deck(gear)

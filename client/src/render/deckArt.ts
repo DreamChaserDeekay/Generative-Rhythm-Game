@@ -83,7 +83,26 @@ export interface DeckSpec {
   /** The side bars under the row (none unless side lanes are laid over the keys). */
   sides: DeckSide[];
   colours: SkinColors;
+  /** Where a gear's plate drawn in code puts the parts its lights shine on (filled when given: gearLights.ts). */
+  marks?: DeckMark[];
 }
+
+/** A part of a gear's deck drawn in code that its lights shine on: its name and its box (plane px). */
+export interface DeckMark {
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Notes where the plate put a lit part (see DeckSpec.marks). */
+function mark(s: DeckSpec, name: string, b: Box): void {
+  s.marks?.push({ name, x: b.x, y: b.y, w: b.w, h: b.h });
+}
+
+/** A lamp's box (see lamp). */
+const lampBox = (x: number, y: number, r: number, st: number): Box => ({ x: x - r, y: y - r * st, w: 2 * r, h: 2 * r * st });
 
 /** `hex` with its sRGB channels times `k` (as CSS mixes), or at `alpha`. */
 export function shade(hex: string, k: number, alpha = 1): string {
@@ -236,7 +255,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
+export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -595,16 +614,21 @@ function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
       ]),
     0.45,
   );
+  mark(s, 'jog', { x: jog.x - 2, y: jog.y - 2 * st, w: jog.w + 4, h: jog.h + 4 * st });
   g.beginPath();
   g.ellipse(jog.x + jog.w / 2, jog.y + jog.h / 2, jog.w / 2 + 2, jog.h / 2 + 2 * st, 0, 0, Math.PI * 2);
   g.lineWidth = 1.2;
   g.strokeStyle = shade(CYAN, 1, 0.45);
   g.stroke();
   text(g, 'GENERATIVE RHYTHM', s.width / 2, y + h * 0.4, Math.max(9, u * 0.15), st, white(0.32), { tracking: 4 });
-  rounded(g, { x: s.width * 0.37, y: y + h * 0.62, w: s.width * 0.26, h: 2.4 * st }, 1.2, st);
+  const strip: Box = { x: s.width * 0.37, y: y + h * 0.62, w: s.width * 0.26, h: 2.4 * st };
+  rounded(g, strip, 1.2, st);
   g.fillStyle = shade(CYAN, 1, 0.6);
   g.fill();
-  grille(g, boxAt(s.width * 0.86, mid, s.width * 0.17, st, (u * 0.62) / (s.width * 0.17)), st, Math.max(5, u * 0.075));
+  mark(s, 'strip', strip);
+  const speaker = boxAt(s.width * 0.86, mid, s.width * 0.17, st, (u * 0.62) / (s.width * 0.17));
+  grille(g, speaker, st, Math.max(5, u * 0.075));
+  mark(s, 'grille', speaker);
 }
 
 /** One of the cabinet's acrylic buttons in box `b`: its picture, its dome tinted `tint` (the milky white is left as it is). */
@@ -675,11 +699,16 @@ function cabinetPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
     [null, LED_RED, AMBER],
   ];
   tints.forEach((row, r) =>
-    row.forEach((tint, c) => arcadeButton(g, art.button, boxAt(s.width * (0.27 + c * 0.075 + r * 0.025), y + h * (r ? 0.73 : 0.29), u * 0.36, st), tint)),
+    row.forEach((tint, c) => {
+      const b = boxAt(s.width * (0.27 + c * 0.075 + r * 0.025), y + h * (r ? 0.73 : 0.29), u * 0.36, st);
+      arcadeButton(g, art.button, b, tint);
+      mark(s, `button.${r * 3 + c}`, b);
+    }),
   );
   // the start buttons, lit amber
-  for (const cx of [0.555, 0.61]) {
+  for (const [i, cx] of [0.555, 0.61].entries()) {
     const b = boxAt(s.width * cx, y + h * 0.3, u * 0.26, st, 0.55);
+    mark(s, `start.${i}`, b);
     dropShadow(g, b, 0.35, false);
     rounded(g, b, b.w * 0.18, st);
     g.fillStyle = '#0b0b0c';
@@ -705,10 +734,13 @@ function cabinetPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   }
   text(g, 'GRG-2000', s.width * 0.5825, y + h * 0.9, Math.max(9, u * 0.12), st, white(0.6), { tracking: 1.5 });
   const coinAspect = art.coin ? art.coin.height / art.coin.width : 0.69;
+  const coin = boxAt(s.width * 0.84, mid, Math.min(s.width * 0.24, (u * 0.84) / coinAspect), st, coinAspect);
+  // its two lights, at the coin plate's picture's lamps
+  for (const [i, lx] of [0.47, 0.84].entries()) mark(s, `coin.${i}`, boxAt(coin.x + coin.w * lx, coin.y + coin.h * 0.5, coin.w * 0.09, st));
   thing(
     g,
     art.coin,
-    boxAt(s.width * 0.84, mid, Math.min(s.width * 0.24, (u * 0.84) / coinAspect), st, coinAspect),
+    coin,
     (b) => {
       rounded(g, b, b.w * 0.06, st);
       g.fillStyle = '#9da2a9';
@@ -777,6 +809,7 @@ function receiverPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
     ]);
   thing(g, art.knob, boxAt(s.width * 0.11, mid, u * 0.86, st), knob, 0.7);
   tuningDial(g, s.width * 0.22, s.width * 0.62, y + h * 0.06, h * 0.38);
+  mark(s, 'dial', { x: s.width * 0.22, y: y + h * 0.06, w: s.width * 0.4, h: h * 0.38 });
   // the selector switches, their lamps dark, at their picture's proportions
   const switchAspect = art.switch ? art.switch.height / art.switch.width : 1.15;
   for (let i = 0; i < 5; i++) {
@@ -790,7 +823,11 @@ function receiverPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
       g.fill();
     });
   }
-  for (const x of [0.66, 0.775]) meter(g, { x: s.width * x, y: y + h * 0.06, w: s.width * 0.1, h: h * 0.58 }, st);
+  [0.66, 0.775].forEach((x, i) => {
+    const b: Box = { x: s.width * x, y: y + h * 0.06, w: s.width * 0.1, h: h * 0.58 };
+    meter(g, b, st);
+    mark(s, `meter.${i}`, b);
+  });
   thing(g, art.knob, boxAt(s.width * 0.935, y + h * 0.34, u * 0.42, st), knob, 0.6);
   text(g, 'STEREO RECEIVER   SR-7', s.width * 0.8, y + h * 0.86, Math.max(8, u * 0.11), st, '#4b4f56', { tracking: 2.5, engraved: true });
 }
@@ -829,7 +866,10 @@ function najeonPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
     g.stroke();
   };
   const lidSize = u * 0.8;
-  thing(g, art.lid, boxAt(s.width * 0.18, mid, lidSize, st), lid, 0.25);
+  const leftLid = boxAt(s.width * 0.18, mid, lidSize, st);
+  thing(g, art.lid, leftLid, lid, 0.25);
+  mark(s, 'lid.0', leftLid);
+  mark(s, 'lid.1', { ...leftLid, x: s.width - leftLid.x - leftLid.w });
   // the right one the left mirrored: the crane flies toward the middle on both
   g.save();
   g.translate(s.width * 0.82, 0);
@@ -848,6 +888,7 @@ function najeonPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
       ]),
     0.2,
   );
+  mark(s, 'lock', lock);
   // a pearl vine on each side of the lock, between gold double lines
   const thick = u * 0.22 * st;
   for (const [x0, x1] of [
@@ -855,6 +896,7 @@ function najeonPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
     [lock.x + lock.w + 10, s.width * 0.73],
   ] as [number, number][]) {
     if (x1 - x0 < 12) continue;
+    mark(s, `vine.${x0 < s.width / 2 ? 0 : 1}`, { x: x0, y: mid - thick / 2, w: x1 - x0, h: thick });
     if (art.frame) vineAcross(g, art.frame, x0, x1, mid, thick, st);
     else {
       g.fillStyle = 'rgba(232,226,240,0.45)';
@@ -1042,6 +1084,7 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   g.lineWidth = 2;
   g.strokeStyle = ORANGE;
   g.stroke();
+  mark(s, 'knob', { x: kx - kr - 2.4, y: ky - (kr + 2.4) * st, w: 2 * (kr + 2.4), h: 2 * (kr + 2.4) * st });
   thing(g, art.knob, knob, (b) =>
     shadedDisc(g, b, [
       [0, '#7a7f87'],
@@ -1057,6 +1100,7 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   g.strokeStyle = white(0.14);
   g.stroke();
   recess(g, oled, 3, st);
+  mark(s, 'screen', oled);
   const bars = 22;
   const pitch = (oled.w - 14) / bars;
   const cell = (oled.h - 8 * st) / 8;
@@ -1082,17 +1126,45 @@ function keyboardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): 
   );
   text(g, 'TKL-08', brass.x + brass.w / 2, brass.y + brass.h / 2, Math.max(7, (brass.h / st) * 0.5), st, '#4a3311', { tracking: 1.5, engraved: true });
   // the lock lights: caps and scroll dark, num lit
-  [false, false, true].forEach((on, i) => lamp(g, s.width * (0.57 + i * 0.035), y + h * 0.3, Math.max(1.6, u * 0.028), st, ORANGE, on));
+  [false, false, true].forEach((on, i) => {
+    const [lx, ly, lr] = [s.width * (0.57 + i * 0.035), y + h * 0.3, Math.max(1.6, u * 0.028)];
+    lamp(g, lx, ly, lr, st, ORANGE, on);
+    mark(s, `lock.${i}`, lampBox(lx, ly, lr, st));
+  });
   // the arrow keys' inverted T, the up key orange
   const cap = u * 0.36;
   const capAspect = art.keycap ? art.keycap.height / art.keycap.width : 1;
   const [ax, step, dy] = [s.width * 0.8, cap * 1.12, ((cap * capAspect + u * 0.08) * st) / 2];
   const cream = '#f3ece2';
   const ink = '#3a3c42';
-  keycap(g, art.keycap, boxAt(ax, mid - dy, cap, st, capAspect), st, ORANGE, 0, '#fff4e8');
-  keycap(g, art.keycap, boxAt(ax - step, mid + dy, cap, st, capAspect), st, cream, 3, ink);
-  keycap(g, art.keycap, boxAt(ax, mid + dy, cap, st, capAspect), st, cream, 2, ink);
-  keycap(g, art.keycap, boxAt(ax + step, mid + dy, cap, st, capAspect), st, cream, 1, ink);
+  const up = boxAt(ax, mid - dy, cap, st, capAspect);
+  const left = boxAt(ax - step, mid + dy, cap, st, capAspect);
+  const down = boxAt(ax, mid + dy, cap, st, capAspect);
+  const right = boxAt(ax + step, mid + dy, cap, st, capAspect);
+  // their well: the case cut out round the up key and round the row under it, dark, the keys sitting in it
+  const pad = cap * 0.07;
+  const wells: Box[] = [
+    { x: up.x - pad, y: up.y - pad * st, w: up.w + 2 * pad, h: up.h + 2 * pad * st },
+    { x: left.x - pad, y: left.y - pad * st, w: right.x + right.w - left.x + 2 * pad, h: left.h + 2 * pad * st },
+  ];
+  wells.forEach((b, i) => {
+    rounded(g, b, pad, st);
+    g.fillStyle = '#0a0a0c';
+    g.fill();
+    mark(s, `well.${i}`, b);
+  });
+  for (const b of wells) recess(g, b, pad, st);
+  keycap(g, art.keycap, up, st, ORANGE, 0, '#fff4e8');
+  keycap(g, art.keycap, left, st, cream, 3, ink);
+  keycap(g, art.keycap, down, st, cream, 2, ink);
+  keycap(g, art.keycap, right, st, cream, 1, ink);
+  for (const [name, b] of [
+    ['key.up', up],
+    ['key.right', right],
+    ['key.down', down],
+    ['key.left', left],
+  ] as [string, Box][])
+    mark(s, name, b);
 }
 
 /** One of the button box's rubber buttons in box `b`: its picture, its ring in `ring`. */
@@ -1140,7 +1212,9 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
   // the shift lights: five green (lit), five red, five blue
   for (let i = 0; i < 15; i++) {
     const colour = i < 5 ? '#36e05a' : i < 10 ? '#ff2d2d' : '#3d7bff';
-    lamp(g, s.width * (0.27 + (0.46 * i) / 14), y + h * 0.14, Math.max(1.6, u * 0.032), st, colour, i < 5);
+    const [lx, ly, lr] = [s.width * (0.27 + (0.46 * i) / 14), y + h * 0.14, Math.max(1.6, u * 0.032)];
+    lamp(g, lx, ly, lr, st, colour, i < 5);
+    mark(s, `led.${i}`, lampBox(lx, ly, lr, st));
   }
   const rotary = (b: Box) =>
     shadedDisc(g, b, [
@@ -1150,13 +1224,15 @@ function racingPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): vo
   thing(g, art.rotary, boxAt(s.width * 0.11, mid, u * 0.84, st), rotary, 0.6);
   thing(g, art.rotary, boxAt(s.width * 0.89, mid + h * 0.06, u * 0.56, st), rotary, 0.5);
   // the rubber buttons, ringed yellow, blue, white and green
-  for (const [x, ring] of [
+  for (const [i, [x, ring]] of ([
     [0.27, '#ffd23f'],
     [0.355, '#3d7bff'],
     [0.645, '#ffffff'],
     [0.73, '#36e05a'],
-  ] as [number, string][]) {
-    rubberButton(g, art.button, boxAt(s.width * x, y + h * 0.6, u * 0.34, st), ring);
+  ] as [number, string][]).entries()) {
+    const b = boxAt(s.width * x, y + h * 0.6, u * 0.34, st);
+    rubberButton(g, art.button, b, ring);
+    mark(s, `button.${i}`, b);
   }
   // the dash: a black LCD, its lap timer idle (dashes) over its digits' ghosts
   const dash: Box = { x: s.width * 0.41, y: y + h * 0.36, w: s.width * 0.18, h: h * 0.5 };
@@ -1269,10 +1345,12 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   const toggleAspect = art.toggle ? art.toggle.height / art.toggle.width : 1;
   ['PWR', 'COMM', 'NAV'].forEach((name, i) => {
     const x = s.width * (0.24 + i * 0.075);
+    const box = boxAt(x, y + h * 0.4, u * 0.42, st, toggleAspect);
+    mark(s, `toggle.${i}`, box);
     thing(
       g,
       art.toggle,
-      boxAt(x, y + h * 0.4, u * 0.42, st, toggleAspect),
+      box,
       (b) => {
         rounded(g, b, b.w * 0.06, st);
         g.fillStyle = '#b9bdc2';
@@ -1293,6 +1371,7 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   g.fillStyle = '#1a1b1e';
   g.fill();
   const lens: Box = { x: alarm.x + 2.5, y: alarm.y + 2.5 * st, w: alarm.w - 5, h: alarm.h - 5 * st };
+  mark(s, 'alarm', lens);
   rounded(g, lens, 2, st);
   const amber = g.createLinearGradient(0, lens.y, 0, lens.y + lens.h);
   amber.addColorStop(0, '#6e4c14');
@@ -1315,7 +1394,9 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
     [0.8, 'ARM', SIGNAL_GREEN],
     [0.89, 'ABORT', null],
   ] as [number, string, string | null][]) {
-    pushButton(g, art.button, boxAt(s.width * x, y + h * 0.4, u * 0.36, st, buttonAspect), st, light);
+    const box = boxAt(s.width * x, y + h * 0.4, u * 0.36, st, buttonAspect);
+    pushButton(g, art.button, box, st, light);
+    mark(s, name.toLowerCase(), box);
     label(name, s.width * x, y + h * 0.86);
   }
 }
@@ -1347,9 +1428,9 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
  * (scripts/assets/build_gears.py): a camera that flattens the deck more or less shows it as much
  * longer or shorter along the track, so it looks as it was painted from any camera near that one.
  */
-const DECK_PICTURE_STRETCH = 1.2;
+export const DECK_PICTURE_STRETCH = 1.2;
 /** A camera flattening the deck more than this (the plane one) sees it from too far off the pictures' angle: its deck is drawn in code. */
-const DECK_PICTURE_FLATTEST = 2;
+export const DECK_PICTURE_FLATTEST = 2;
 
 /** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
 function deckPicture(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
