@@ -73,7 +73,7 @@ describe('the concept sets drawn from art', () => {
   });
 
   it('loads the pictures and flipbooks of the parts a style has, and only those', () => {
-    const cabinet = ['cabinet/abs', 'cabinet/joystick', 'cabinet/button', 'cabinet/coin'];
+    const cabinet = ['cabinet/deck', 'cabinet/abs', 'cabinet/joystick', 'cabinet/button', 'cabinet/coin'];
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots', deck: 'line' })).toEqual(['mecha/notes', 'mecha/long']);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
@@ -176,7 +176,7 @@ const SETS = [
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
 const setStyle = (c: SetCase) => styleOf(withParts(skinById('flat', null), { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }));
-const STANDARD = ['standard/graphite', 'standard/jog'];
+const STANDARD = ['standard/deck', 'standard/graphite', 'standard/jog'];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
 function deckSpec(room: number, stretch = 1.3): DeckSpec {
@@ -320,15 +320,15 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
   });
 });
 
-/** Each gear's pictures by part, as the manifest lists them. */
+/** Each gear's pictures by part, as the manifest lists them: its whole deck first. */
 const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
-  standard: { frame: 'standard/graphite', jog: 'standard/jog' },
-  cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
-  receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
-  najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
-  keyboard: { plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
-  racing: { plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
-  orbital: { plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
+  standard: { deck: 'standard/deck', frame: 'standard/graphite', jog: 'standard/jog' },
+  cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
+  receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
+  najeon: { deck: 'najeon/deck', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
+  keyboard: { deck: 'keyboard/deck', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
+  racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
+  orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's. */
@@ -352,6 +352,9 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from 
   const style = styleOf(withParts(skinById('flat', null), { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }));
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);
+  const deck = GEAR_PICTURES[gear].deck;
+  // its pictures but the whole deck's: the deck drawn in code, as where that picture is missing
+  const parts = Object.fromEntries(Object.entries(images).filter(([id]) => id !== deck));
 
   it('loads its pictures, every one in the media under gears/, no larger than a texture may be', () => {
     expect(styleImageIds(style)).toEqual(ids);
@@ -364,17 +367,51 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from 
     expect(Object.keys(gearArtOf(gear, images)).sort()).toEqual(Object.keys(GEAR_PICTURES[gear]).sort());
   });
 
-  it('draws the things on its deck from their pictures: on the deck the screen shows, apart, as their pictures are on the screen', () => {
-    // the rooms and flattening the cameras give: a small preview's, SDVX's, FLAT's, the plane camera's
+  it('lays its whole deck from its picture on the perspective cameras, as long along the track as they flatten it', () => {
+    const [pw, ph] = manifest.textures[deck].size;
+    // a small preview's, SDVX's, FLAT's, the flattest camera it is drawn on
     for (const [room, stretch] of [
       [96, 1.1],
       [192, 1.25],
       [320, 1.25],
-      [912, 3.25],
+      [140, 2],
     ]) {
       const spec = deckSpec(room, stretch);
       const { g, draws } = recorder();
       platePaintOf(style, images)(g, spec);
+      // the picture alone: its things stand in it, none drawn over it
+      expect(draws.map((d) => d.id).every((id) => id === deck), `${room}`).toBe(true);
+      const [whole, ...rest] = draws;
+      expect([whole.x, whole.y, whole.w]).toEqual([0, 0, spec.width]);
+      // painted from SDVX's camera on a 16:9 screen (a 1.2 stretch): longer on a camera flattening it more
+      expect(whole.h / whole.w).toBeCloseTo(((ph / pw) * stretch) / 1.2, 9);
+      // the plate runs on in the picture's last row where the screen shows more of it
+      if (whole.h < spec.depth) {
+        expect(rest).toHaveLength(1);
+        expect([rest[0].sy, rest[0].sh, rest[0].x, rest[0].w]).toEqual([ph - 1, 1, 0, spec.width]);
+        expect(rest[0].y).toBeCloseTo(whole.h, 9);
+        expect(rest[0].y + rest[0].h).toBeCloseTo(spec.depth, 9);
+      } else expect(rest).toEqual([]);
+    }
+    // the plane camera sees the deck from too far off the angle it was painted from: there it is drawn in code, its things on it
+    const plane = recorder();
+    platePaintOf(style, images)(plane.g, deckSpec(912, 3.25));
+    expect(plane.draws.some((d) => d.id === deck)).toBe(false);
+    expect(plane.draws.filter((d) => d.id in THINGS[gear])).toHaveLength(Object.values(THINGS[gear]).reduce((a, b) => a + b, 0));
+  });
+
+  it('draws the things on its deck from their pictures where the deck is drawn in code: on the deck the screen shows, apart, as their pictures are on the screen', () => {
+    // the rooms and flattening the cameras give: a small preview's, SDVX's, FLAT's (without the deck's
+    // picture), the plane camera's (with it)
+    for (const [room, stretch, pictures] of [
+      [96, 1.1, parts],
+      [192, 1.25, parts],
+      [320, 1.25, parts],
+      [912, 3.25, images],
+    ] as const) {
+      const spec = deckSpec(room, stretch);
+      const { g, draws } = recorder();
+      platePaintOf(style, pictures)(g, spec);
       const things = draws.filter((d) => d.id in THINGS[gear]);
       expect(Object.fromEntries(Object.keys(THINGS[gear]).map((id) => [id, things.filter((d) => d.id === id).length]))).toEqual(THINGS[gear]);
       for (const d of things) {

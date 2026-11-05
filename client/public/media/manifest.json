@@ -57,6 +57,14 @@
         384
       ]
     },
+    "cabinet/deck": {
+      "file": "gears/cabinet/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "cabinet/joystick": {
       "file": "gears/cabinet/joystick.png",
       "bundle": "gear",
@@ -532,6 +540,14 @@
         192
       ]
     },
+    "keyboard/deck": {
+      "file": "gears/keyboard/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "keyboard/keycap": {
       "file": "gears/keyboard/keycap.png",
       "bundle": "gear",
@@ -674,6 +690,14 @@
         2048
       ]
     },
+    "najeon/deck": {
+      "file": "gears/najeon/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "najeon/lid": {
       "file": "gears/najeon/lid.png",
       "bundle": "gear",
@@ -752,6 +776,14 @@
       "size": [
         384,
         384
+      ]
+    },
+    "orbital/deck": {
+      "file": "gears/orbital/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
       ]
     },
     "orbital/foil": {
@@ -858,12 +890,28 @@
         256
       ]
     },
+    "racing/deck": {
+      "file": "gears/racing/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "racing/rotary": {
       "file": "gears/racing/rotary.png",
       "bundle": "gear",
       "size": [
         512,
         512
+      ]
+    },
+    "receiver/deck": {
+      "file": "gears/receiver/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
       ]
     },
     "receiver/knob": {
@@ -896,6 +944,14 @@
       "size": [
         512,
         1024
+      ]
+    },
+    "standard/deck": {
+      "file": "gears/standard/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
       ]
     },
     "standard/graphite": {

@@ -3,7 +3,15 @@ client/public/media/manifest.json as "<gear>/<part>" (the manifest's other entri
 
     python scripts/assets/build_gears.py
 
-Two kinds of picture:
+Three kinds of picture:
+
+- each gear's deck, painted whole in the game camera's perspective (the generation in
+  assets-src/gears/<gear>/deck.jpg, the deck's things standing up out of it) and laid flat on the deck
+  here: each texel of the deck plane (plane px across the track, along it from the deck's top edge down
+  as far as the generation shows it) sampled where the generation shows it, through the mapping in
+  deck.json (deck plane px to the generation's px: the camera's homography of the template frame the
+  generation was asked to repaint, times the alignment of the generation onto that frame). The renderer
+  draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture);
 
 - materials, made here from seeded noise (so they come out the same on every run, and tile without a
   seam: the noise is filtered in frequency space, which wraps): the arcade cabinet's embossed ABS, the
@@ -54,6 +62,12 @@ def hexrgb(h: str) -> np.ndarray:
 def save_rgb(a: np.ndarray, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8), "RGB").save(path, optimize=True)
+
+
+def save_webp(a: np.ndarray, path: Path, quality: int = 90) -> None:
+    """A photo-like picture (a deck) as lossy WebP, a fraction of its PNG."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8), "RGB").save(path, "WEBP", quality=quality, method=6)
 
 
 def save_rgba(a: np.ndarray, path: Path) -> None:
@@ -299,6 +313,27 @@ def shorten(rgba: np.ndarray, aspect: float, keep: float = 0.3) -> np.ndarray:
 # ---------- the gears ----------
 
 
+def deck_flat(src: Path, meta: dict, width_px: int = 2048, inset: float = 1.5) -> np.ndarray:
+    """A gear's deck laid flat from its generation (see the module's doc): `width_px` texels across the
+    deck (`meta["width"]` plane px, sampled `inset` plane px clear of the walls' foot), as many along it
+    as `meta["room"]` plane px down from the deck's top edge (`meta["top"]` under the judge line) take;
+    `meta["h"]`: row-major 3×3 homography from deck plane px (across from the track's middle, toward
+    the camera from the judge line) to the generation's px."""
+    img = load(src)
+    h = np.array(meta["h"], dtype=np.float64).reshape(3, 3)
+    width, top, room = meta["width"], meta["top"], meta["room"]
+    k = width_px / width
+    rows = int(round(room * k))
+    u = (np.arange(width_px) + 0.5) / k
+    v = (np.arange(rows) + 0.5) / k
+    x = inset + u * (width - 2 * inset) / width - width / 2
+    xx, yy = np.meshgrid(x, top + v)
+    p = h @ np.stack([xx.ravel(), yy.ravel(), np.ones(xx.size)])
+    sx, sy = p[0] / p[2] - 0.5, p[1] / p[2] - 0.5
+    out = np.stack([ndimage.map_coordinates(img[..., c], [sy, sx], order=1, mode="nearest") for c in range(3)], axis=-1)
+    return out.reshape(rows, width_px, 3)
+
+
 def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
     """The magenta ground's light taken out of an object's rim (`reach` px in from its edge): red and blue
     down to where green allows, as a keyer's despill; colours further in (a red ball, pink pearl) are kept."""
@@ -343,6 +378,18 @@ def main() -> None:
     def material(gear: str, part: str, a: np.ndarray) -> None:
         save_rgb(a, OUT / gear / f"{part}.png")
         entry(textures, gear, part, f"{part}.png", (a.shape[1], a.shape[0]))
+
+    def deck(gear: str) -> None:
+        src = SRC / gear / "deck.jpg"
+        if not src.exists():
+            return
+        a = deck_flat(src, json.loads((SRC / gear / "deck.json").read_text(encoding="utf-8")))
+        save_webp(a, OUT / gear / "deck.webp")
+        entry(textures, gear, "deck", "deck.webp", (a.shape[1], a.shape[0]))
+        report[f"{gear}/deck"] = [a.shape[1], a.shape[0]]
+
+    for gear in ("standard", "cabinet", "receiver", "najeon", "keyboard", "racing", "orbital"):
+        deck(gear)
 
     def sprite(gear: str, part: str, a: np.ndarray) -> None:
         a = despill(a)
