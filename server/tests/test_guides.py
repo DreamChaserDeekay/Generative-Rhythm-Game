@@ -407,6 +407,35 @@ def test_the_stair_feedback_rewards_going_on_one_key_the_same_way() -> None:
     assert on[0] < off[0] - 1.0 and on[1] == off[1] and on[2] == off[2], (on, off)
 
 
+def test_the_hand_run_feedback_pulls_a_third_note_onto_the_hand() -> None:
+    # Human 7-key BMS charts play the third and later note of a fast run on one hand for 9-14% of the
+    # run notes (levels 2-14, the middle key ending the count); 0.9.43 played 55-70% of that at levels
+    # 6-14. While the path has too few, a third note on the hand that played the last two costs
+    # runFeedback x (target - share) less, a note on the other hand the same. Since 0.9.44 the feedback
+    # is 32 and the targets 1.5-2.2 times the human shares (PATTERN_DESIGN 79): the lane search reaches
+    # only the notes no repeat copies and no roll alternates.
+    lanes = lane_infos("7K+1S")
+    keys = [l.index for l in lanes if l.kind == "key"]
+    n = len(lanes)
+    pos = [l.pos for l in lanes]
+    hand_of = [l.hand for l in lanes]
+    w = _Weights.of(resolve_params("7K+1S", "EXPERT"))
+    assert w.run_feedback == 32.0 and w.run_target > 0.2
+    start = _State(0.0, (-1e9,) * n, (-1e9,) * n, (0.0,) * n, (), None, -1e9, None, None)
+    # keys 1 then 2 (two notes on the left hand) 150 ms apart; 40 run notes so far, none a third
+    state = dataclasses.replace(start, prev_t=1000.0, prev_lanes=(keys[1],), fb_single=True, fb_in_run=True, fb_run=40, fb_hand3=0,
+                                fb_side="L", fb_len=2)
+    slot = Slot(beat=2.3, t=1150.0, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=None,
+                bands=np.array([0.2, 0.3, 0.5]), score=1.0, subdivision=4, strength=1.0)
+    combos = [(keys[2],), (keys[5],), (keys[2], keys[5])]
+
+    def costs(weights: _Weights) -> list[float]:
+        return _costs(state, combos, pos, hand_of, slot, None, 1150.0, weights, 0.0)
+
+    on, off = costs(w), costs(dataclasses.replace(w, run_feedback=0.0))
+    assert on[0] < off[0] - 2.0 and on[1] == off[1] and on[2] == off[2], (on, off)
+
+
 def test_the_anchor_feedback_pulls_an_anchor_on() -> None:
     # Human 7-key BMS charts play 1.8 anchors per 1000 key notes at level 6 and 0.5 at level 10 (a key
     # on every other note of a fast run, four hits or more, the notes between it changing); 0.9.42
