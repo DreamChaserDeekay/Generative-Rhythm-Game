@@ -526,6 +526,15 @@ export function deckTopZ(gear: boolean, judgeZ: number, offset: number): number 
 }
 
 /**
+ * Where notes let through the judge line are cut (z): `offset` under the line, where the deck or
+ * LIFT's cover starts; a picked gear's line lowered toward it (판정선 위치 under 0) cuts them at the
+ * gear, which stays where it is.
+ */
+export function notesEndZ(gear: boolean, judgeZ: number, offset: number): number {
+  return (gear ? Math.min(judgeZ, 0) : judgeZ) + offset;
+}
+
+/**
  * The deck's lights for `room` plane px of it on the screen: the row of lane lights KEY_TOP under
  * its top, as deep as the room allows and drawn `flatten(row)` times longer along the track (the
  * camera's flattening at the middle of a row `row` deep), lower where its lights are larger than
@@ -656,9 +665,10 @@ export class TrackRenderer {
   private readonly glowTexture = radialTexture();
   private readonly judgeGroup = new THREE.Group();
   /**
-   * How many times longer along the track a picked gear's judge line and the lanes between it and the
-   * gear are drawn, so they look as deep in every camera (the plane camera flattens the track: see
-   * layoutDeck); 1 for a skin's own gear.
+   * How many times longer along the track a picked gear's judge line and its glow are drawn, so they
+   * look as thick in every camera (the plane camera flattens the track: see layoutDeck); 1 for a
+   * skin's own gear. The lanes between the line and the gear are a stretch of the track like any
+   * other, so 판정선 위치 −20 % (GEAR_JUDGE.gap) puts the line on the gear in every camera.
    */
   private judgeFit = 1;
   /** Where HIDDEN+ cuts the notes off (z), or null while it is off: the deck does (see setCovers). */
@@ -1695,7 +1705,7 @@ export class TrackRenderer {
 
   /** How far under the judge line the deck starts (plane px): a picked gear's a little lower, the lanes running on between them. */
   private get deckOffset(): number {
-    return (deckTop(this.judgeLook.judge) + (isGear(this.style.deck) ? GEAR_JUDGE.gap : 0)) * this.judgeFit;
+    return deckTop(this.judgeLook.judge) * this.judgeFit + (isGear(this.style.deck) ? GEAR_JUDGE.gap : 0);
   }
 
   private buildJudgementLine(): THREE.MeshBasicMaterial | null {
@@ -1849,12 +1859,14 @@ export class TrackRenderer {
     if (gear) {
       this.judgeFit = Math.max(1, Math.round((0.85 / this.trackAspect(this.judgeZ) / KEY_ROW_STRETCH) * 20) / 20);
       this.judgeGroup.scale.z = this.judgeFit;
-      this.nearClip.constant = this.hiddenCut ?? this.judgeZ + this.deckOffset * PX;
     }
     const top = deckTopZ(gear, this.judgeZ, this.deckOffset * PX);
-    // LIFT's cover over the lanes from the gap under the raised line down to a picked gear (a skin's
-    // own gear covers them itself, following the line)
-    if (gear) this.span(this.liftCover, this.judgeZ + this.deckOffset * PX, top, this.judgeZ < 0);
+    if (gear) {
+      this.nearClip.constant = this.hiddenCut ?? notesEndZ(gear, this.judgeZ, this.deckOffset * PX);
+      // LIFT's cover over the lanes from the gap under the raised line down to a picked gear (a skin's
+      // own gear covers them itself, following the line)
+      this.span(this.liftCover, this.judgeZ + this.deckOffset * PX, top, this.judgeZ < 0);
+    }
     const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
     const room = Math.max(DECK_STEP, Math.floor(shown / PX / DECK_STEP) * DECK_STEP) * PX;
     const depth = room + 2 + DECK_STEP * PX;

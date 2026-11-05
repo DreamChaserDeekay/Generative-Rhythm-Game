@@ -18,7 +18,8 @@ import {
   keyLabel,
   laneKeysFor,
   MAX_COVER,
-  MAX_LIFT,
+  MAX_JUDGE_LINE,
+  MIN_JUDGE_LINE,
   OFFSET_MAX,
   padBindingsFor,
   padMenuFor,
@@ -45,7 +46,7 @@ import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
-import { coverText, speedText } from './format';
+import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
@@ -437,7 +438,7 @@ export function SettingsScreen({
           />
           <NumberOption
             {...row}
-            label="SUDDEN+ (위 커버)"
+            label="노트 등장 위치"
             testId="opt-sudden"
             value={settings.sudden}
             min={0}
@@ -446,7 +447,7 @@ export function SettingsScreen({
             bigStep={0.05}
             format={coverText}
             onChange={(v) => onSettingsChange(withCovers(settings, { sudden: v }))}
-            help={`트랙 위쪽을 가려 노트가 나타나는 곳을 내립니다. 플레이 중 ${keyPair('suddenDown', 'suddenUp')}.`}
+            help={`트랙 위쪽을 가려 노트가 나타나는 곳을 내립니다(SUDDEN+). 0%면 노트가 트랙 끝에서 나옵니다. 플레이 중 ${keyPair('suddenDown', 'suddenUp')}.`}
           />
           <NumberOption
             {...row}
@@ -463,16 +464,16 @@ export function SettingsScreen({
           />
           <NumberOption
             {...row}
-            label="LIFT (판정선 올리기)"
+            label="판정선 위치"
             testId="opt-lift"
-            value={settings.lift}
-            min={0}
-            max={MAX_LIFT}
+            value={settings.judgeLinePosition}
+            min={MIN_JUDGE_LINE}
+            max={MAX_JUDGE_LINE}
             step={0.01}
             bigStep={0.05}
-            format={coverText}
-            onChange={(v) => onSettingsChange(withCovers(settings, { lift: v }))}
-            help={`판정선을 트랙 위로 올립니다. 플레이 중 ${keyPair('liftDown', 'liftUp')}.`}
+            format={judgeLineText}
+            onChange={(v) => onSettingsChange(withCovers(settings, { judgeLinePosition: v }))}
+            help={`판정선을 올리거나(+) 내립니다(−, LIFT). −20%면 판정선이 기어에 붙고, 올리면 기어는 제자리에 있고 그 사이를 커버가 덮습니다. 플레이 중 ${keyPair('liftDown', 'liftUp')}.`}
           />
           <Toggle
             {...row}
@@ -480,7 +481,7 @@ export function SettingsScreen({
             testId="opt-covers-on"
             value={settings.coversOn}
             onChange={(v) => onSettingsChange(withCovers(settings, { coversOn: v }))}
-            help={`SUDDEN+와 HIDDEN+를 씁니다. 플레이 중 켜고 끄는 키: ${bindingLabel(playKeys.covers)}.`}
+            help={`노트 등장 위치와 HIDDEN+의 커버를 씁니다(판정선 위치는 그대로). 플레이 중 켜고 끄는 키: ${bindingLabel(playKeys.covers)}.`}
           />
           <Toggle
             {...row}
@@ -488,7 +489,7 @@ export function SettingsScreen({
             testId="opt-keep-green"
             value={settings.keepVisibleTime}
             onChange={(v) => set('keepVisibleTime', v)}
-            help="커버·LIFT를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (배속이 함께 바뀝니다)."
+            help="노트 등장 위치나 판정선 위치를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (배속이 함께 바뀝니다)."
           />
           <Choice
             {...row}
@@ -1116,7 +1117,7 @@ function KeysPanel({
 type PadCapture = { kind: 'lane'; mode: KeyModeId; lane: number; run: boolean } | { kind: 'play'; button: PadPlayButton } | { kind: 'menu'; button: MenuButton };
 
 const PAD_PLAY_LABELS: Record<PadPlayButton, [string, string]> = {
-  start: ['Start', '짧게 누르면 일시정지 · 누른 채 레인 1·2로 SPEED −/+, 3·4로 SUDDEN+ −/+'],
+  start: ['Start', '짧게 누르면 일시정지 · 누른 채 레인 1·2로 SPEED −/+, 3·4로 노트 등장 위치 −/+'],
   select: ['Select', `Start와 함께 ${RETRY_HOLD_MS / 1000}초 누르면 다시 하기`],
   fever: ['FEVER', '수동 FEVER, 첫 노트가 멀면 인트로 건너뛰기'],
 };

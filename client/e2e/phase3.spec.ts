@@ -265,7 +265,7 @@ test('the plane camera and smaller or no hit effects, in the settings and in a p
   // no hit effects, the camera's zoom and tilt at full strength on a lifted judge line
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>;
-    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...s, hitEffectSize: 'off', cameraFx: 1, lift: 0.1 }));
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ ...s, hitEffectSize: 'off', cameraFx: 1, judgeLinePosition: 0.5 }));
   });
   await page.goto('/');
   await play('no-hits-lift');

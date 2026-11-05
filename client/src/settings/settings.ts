@@ -145,15 +145,19 @@ export interface Settings {
   gaugeType: GaugeTypeId;
   fever: FeverMode;
   placement: PlacementId;
-  /** SUDDEN+: share of the travel distance hidden at the far end (0..MAX_COVER). */
+  /** 노트 등장 위치 (SUDDEN+): share of the travel distance hidden at the far end (0..MAX_COVER). */
   sudden: number;
   /** HIDDEN+: share of the travel distance hidden just before the judgement line. */
   hidden: number;
-  /** LIFT: share of the track the judgement line is raised by. */
-  lift: number;
+  /**
+   * 판정선 위치 (LIFT): how far the judgement line is raised (+) or lowered (−), in shares of
+   * JUDGE_LINE_SPAN_PX (MIN_JUDGE_LINE..MAX_JUDGE_LINE); the renderer and the scroll model take it as
+   * a share of the track (liftShare).
+   */
+  judgeLinePosition: number;
   /** Home toggles the covers without losing their positions. */
   coversOn: boolean;
-  /** Keep the visible time ("green number") when covers or LIFT move, like floating hi-speed. */
+  /** Keep the visible time ("green number") when the covers or the judgement line move, like floating hi-speed. */
   keepVisibleTime: boolean;
   /** time: fixed speed; beat: speed follows the chart BPM (BMS/DJMAX style soflan). */
   scrollMode: ScrollMode;
@@ -203,7 +207,15 @@ export const BASE_VISIBLE_MS = 5000;
 export const HI_SPEED_MIN = 0.5;
 export const HI_SPEED_MAX = 10;
 export const MAX_COVER = 0.85;
-export const MAX_LIFT = 0.5;
+/**
+ * 판정선 위치 moves the judgement line JUDGE_LINE_SPAN_PX px of the sheets' track (73.65 to a track
+ * unit) for 100 %: −20 % lowers it by the gap a picked gear leaves under it (GEAR_JUDGE.gap, 40 px),
+ * onto the gear; +50 % raises it 100 px.
+ */
+export const JUDGE_LINE_SPAN_PX = 200;
+export const MIN_JUDGE_LINE = -0.2;
+export const MAX_JUDGE_LINE = 0.5;
+const SHEET_PX_PER_UNIT = 73.65;
 export const KEY_BEAM_MAX = 2;
 export const TURNTABLE_STEPS_MAX = 4;
 export const TURNTABLE_RELEASE_MIN = 40;
@@ -252,7 +264,7 @@ export const DEFAULT_SETTINGS: Settings = {
   placement: 'OFF',
   sudden: 0,
   hidden: 0,
-  lift: 0,
+  judgeLinePosition: 0,
   coversOn: true,
   keepVisibleTime: false,
   scrollMode: 'time',
@@ -367,7 +379,11 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.placement = pick(s.placement, placementIds, d.placement);
   s.sudden = num(s.sudden, 0, MAX_COVER, 0);
   s.hidden = num(s.hidden, 0, MAX_COVER, 0);
-  s.lift = num(s.lift, 0, MAX_LIFT, 0);
+  // LIFT was a share of the track's length: kept where it put the line, as far as the range goes
+  const lift = (raw as { lift?: unknown }).lift;
+  const position = raw.judgeLinePosition ?? (typeof lift === 'number' && Number.isFinite(lift) ? (lift * SHEET_PX_PER_UNIT * cameraConfig.trackLength) / JUDGE_LINE_SPAN_PX : 0);
+  s.judgeLinePosition = Math.round(num(position, MIN_JUDGE_LINE, MAX_JUDGE_LINE, 0) * 100) / 100;
+  delete (s as { lift?: unknown }).lift;
   s.keyBeamLength = num(s.keyBeamLength, 0, KEY_BEAM_MAX, d.keyBeamLength);
   s.scrollMode = pick(s.scrollMode, ['time', 'beat'] as ScrollMode[], d.scrollMode);
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
@@ -668,17 +684,23 @@ export function visibleTimeMs(hiSpeed: number): number {
 export interface CoverState {
   sudden: number;
   hidden: number;
+  /** The share of the track's length the judgement line is raised by (below 0: lowered), from 판정선 위치. */
   lift: number;
 }
 
-/** Covers in effect (Home turns SUDDEN+/HIDDEN+ off; LIFT stays). */
-export function activeCovers(s: Pick<Settings, 'sudden' | 'hidden' | 'lift' | 'coversOn'>): CoverState {
+/** 판정선 위치 as the share of the track's length the judgement line is raised by (CoverState.lift). */
+export function liftShare(position: number): number {
+  return (position * JUDGE_LINE_SPAN_PX) / SHEET_PX_PER_UNIT / cameraConfig.trackLength;
+}
+
+/** Covers in effect (Home turns 노트 등장 위치 and HIDDEN+ off; the judgement line stays where it is). */
+export function activeCovers(s: Pick<Settings, 'sudden' | 'hidden' | 'judgeLinePosition' | 'coversOn'>): CoverState {
   const sudden = s.coversOn ? s.sudden : 0;
   const hidden = s.coversOn ? s.hidden : 0;
   const over = sudden + hidden - (1 - MIN_VISIBLE_SHARE);
   // Never let the two covers meet: trim HIDDEN+ first, it is the one added on top.
   const h = over > 0 ? Math.max(0, hidden - over) : hidden;
-  return { sudden: Math.min(sudden, 1 - MIN_VISIBLE_SHARE), hidden: h, lift: s.lift };
+  return { sudden: Math.min(sudden, 1 - MIN_VISIBLE_SHARE), hidden: h, lift: liftShare(s.judgeLinePosition) };
 }
 
 /** Share of the whole track length from the SUDDEN+ edge down to the judgement line. */
@@ -695,10 +717,10 @@ export function greenNumber(hiSpeed: number, c: CoverState): number {
 }
 
 /**
- * Applies a cover/LIFT change; with `keepVisibleTime` the hi-speed is rescaled so the green number
+ * Applies a cover or judgement line change; with `keepVisibleTime` the hi-speed is rescaled so the green number
  * stays the same (as long as the hi-speed range allows it).
  */
-export function withCovers(s: Settings, patch: Partial<Pick<Settings, 'sudden' | 'hidden' | 'lift' | 'coversOn'>>): Settings {
+export function withCovers(s: Settings, patch: Partial<Pick<Settings, 'sudden' | 'hidden' | 'judgeLinePosition' | 'coversOn'>>): Settings {
   const next = sanitizeSettings({ ...s, ...patch });
   if (!s.keepVisibleTime) return next;
   const before = visibleShare(activeCovers(s));

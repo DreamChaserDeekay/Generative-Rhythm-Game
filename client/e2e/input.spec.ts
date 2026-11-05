@@ -77,7 +77,7 @@ async function plugPad(page: Page, mapping: string, axes = [0, 0, 0, 0]) {
 
 const PAD = { B0: 0, B1: 1, B2: 2, B3: 3, SELECT: 8, START: 9 };
 
-test('in play: LIFT on Alt+PageUp/Down, the song offset on - and =, held keys act once, and leaving the window pauses', async ({ page }) => {
+test('in play: the judge line’s position (LIFT) on Alt+PageUp/Down, the song offset on - and =, held keys act once, and leaving the window pauses', async ({ page }) => {
   const errors = trackErrors(page);
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
   const id = await demoSong(page);
@@ -85,12 +85,13 @@ test('in play: LIFT on Alt+PageUp/Down, the song offset on - and =, held keys ac
   const toast = page.getByTestId('hud-toast');
   const menu = page.getByTestId('pause-menu');
 
-  // LIFT left Shift (a scratch and the FX modes' side lanes): Shift+PageDown is SUDDEN+ now
+  // 판정선 위치 (LIFT) left Shift (a scratch and the FX modes' side lanes): Shift+PageDown is
+  // 노트 등장 위치 (SUDDEN+) now; the line moves by 5 %, the cover by 2.5 %
   await page.keyboard.press('Alt+PageDown');
-  await expect(toast).toHaveText('LIFT 2.5%');
+  await expect(toast).toHaveText('판정선 위치 +5%');
   await page.keyboard.press('Shift+PageDown');
-  await expect(toast).toHaveText('SUDDEN+ 2.5%');
-  expect(await stored(page)).toMatchObject({ lift: 0.025, sudden: 0.025 });
+  await expect(toast).toHaveText('노트 등장 위치 2.5%');
+  expect(await stored(page)).toMatchObject({ judgeLinePosition: 0.05, sudden: 0.025 });
 
   // the song's own offset: 1 ms, 5 with Shift (its own function), kept for the song
   await page.keyboard.press('Equal');
@@ -287,13 +288,13 @@ test('a pad in play: Start tapped pauses, Start + lane buttons step SPEED and SU
   const toast = page.getByTestId('hud-toast');
   const menu = page.getByTestId('pause-menu');
 
-  // Start held: lane button 2 is SPEED +, 4 SUDDEN+ +; no pause on the release
+  // Start held: lane button 2 is SPEED +, 4 노트 등장 위치 (SUDDEN+) +; no pause on the release
   await pad.button(PAD.START, true);
   await pad.button(PAD.B1, true);
   await expect(toast).toHaveText('SPEED 4.10');
   await pad.button(PAD.B1, false);
   await pad.button(PAD.B3, true);
-  await expect(toast).toHaveText('SUDDEN+ 2.5%');
+  await expect(toast).toHaveText('노트 등장 위치 2.5%');
   await pad.button(PAD.B3, false);
   await pad.button(PAD.START, false);
   await page.waitForTimeout(300);
