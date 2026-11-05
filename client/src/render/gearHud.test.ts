@@ -31,6 +31,10 @@ describe('the HUD a gear brings', () => {
     expect(GEAR_TYPES.najeon.font).toBe('Cinzel');
     // "MAX" in white, its percent in the standard gear's cyan
     expect(GEAR_TYPES.standard.split).toBe(true);
-    expect(GAUGE_NAMES).toEqual({ standard: null, cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥' });
+    // the keyboard's OLED pixels and the orbital panel's stencil over its green seven segments; the
+    // keyboard's and the racing wheel's judgements over a bar in their accent
+    expect([GEAR_TYPES.keyboard.font, GEAR_TYPES.orbital.font, GEAR_TYPES.orbital.comboFont]).toEqual(['Silkscreen', 'Saira Stencil One', 'DSEG7 Classic']);
+    expect([GEAR_TYPES.keyboard.bar, GEAR_TYPES.racing.bar]).toEqual(['#ff8a1e', '#e3242b']);
+    expect(GAUGE_NAMES).toEqual({ standard: null, cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2' });
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, referenceReach, rowDrop, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
+import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, referenceReach, rowDrop, shadowOf, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BUILTIN_SKINS } from './skins';
 import { deckRows, deckTopZ, notesEndZ, type DeckRows } from './TrackRenderer';
@@ -87,7 +87,7 @@ describe('the lane lights under the judge line', () => {
     }
   });
 
-  it('lights the lanes on the skins’ own gears only: the four a player picks have no lane’s key on them, their row not moved down', () => {
+  it('lights the lanes on the skins’ own gears only: the ones a player picks have no lane’s key on them, their row not moved down', () => {
     const lanes = deckLanes('7K+1S');
     for (const style of LIGHTS) expect(lightsOf(style), style).toBe(KEY_PAINT[style]);
     for (const style of GEAR_STYLES) {
@@ -113,7 +113,7 @@ describe('the side bars under the lane lights (side lanes laid over the keys)', 
     [1808, 3.25],
   ];
 
-  // only the skins' own gears have them: the four a player picks have no lane lights (lightsOf)
+  // only the skins' own gears have them: the ones a player picks have no lane lights (lightsOf)
   it('lie under the row of lane lights and inside the room the screen shows, the plates’ lower parts under them', () => {
     for (const style of LIGHTS) {
       for (const mode of ['4K+FX', '6K+FX'] as const) {
@@ -185,7 +185,7 @@ describe('the track’s borders in a gear’s frame', () => {
     for (const style of DECK_STYLES) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).edge, style).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it('gives each of the four gears its own frame, wider than a skin’s rails, painted whole, lit in FEVER', () => {
+  it('gives each gear a player picks its own frame, wider than a skin’s rails, painted whole, lit in FEVER', () => {
     const widths = GEAR_STYLES.map((style) => {
       const look = gearBorderLook(style, {});
       expect(look.paint, style).toBeTypeOf('function');
@@ -205,9 +205,51 @@ describe('the track’s borders in a gear’s frame', () => {
     expect(Math.min(...widths)).toBeGreaterThanOrEqual(14);
     expect(codeBorderLook('line', BUILTIN_SKINS[0].colors).paint).toBeUndefined();
   });
+
+  it('stands each gear a player picks as a wall, its inner face painted whole, lit in FEVER; a skin’s rails lie flat', () => {
+    for (const style of GEAR_STYLES) {
+      const look = gearBorderLook(style, {});
+      // as high as a short wall: more than a thin rail's lip, less than a lane
+      expect(look.height, style).toBeGreaterThanOrEqual(12);
+      expect(look.height, style).toBeLessThanOrEqual(40);
+      expect(look.face, style).toBeTypeOf('function');
+      const [w, h] = [look.tile! * 4, look.height! * 4];
+      const shades: unknown[] = [];
+      for (const side of [-1, 1] as const) {
+        for (const lit of [false, true]) {
+          const { g, fills } = fillRecorder();
+          paintFace(g, w, h, look, side, 4, lit);
+          // the whole tile filled first, nothing outside it
+          expect(fills[0], style).toMatchObject({ x: 0, y: 0, w, h });
+          for (const f of fills) expect(f.x >= -1e-9 && f.x + f.w <= w + 1e-9 && f.y >= -1e-9 && f.y + f.h <= h + 1e-9, `${style} ${JSON.stringify(f)}`).toBe(true);
+          if (!lit) shades.push(fills.find((f) => f.w === w && f.h === h && f !== fills[0] && typeof f.style === 'string' && /^rgba\((0|255),/.test(f.style as string))?.style);
+        }
+      }
+      // the left wall's face, turned from the light, in more shade than the right one's
+      expect(shades[0], style).not.toEqual(shades[1]);
+    }
+    for (const style of ['line', 'stem'] as const) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).height).toBeUndefined();
+  });
+
+  it('throws a thing’s shadow down and to the right of it on the screen, however the canvas is drawn', () => {
+    const box = { x: 100, y: 40, w: 60, h: 75 };
+    // a canvas 2 px to a plane px: the shape far to the left, its shadow offset back by as much and a little more
+    const plain = shadowOf({ a: 2, b: 0, c: 0, d: 2 }, box, 1)!;
+    expect(plain.x - plain.far * 2).toBeGreaterThan(0);
+    expect(plain.y).toBeGreaterThan(0);
+    expect(plain.blur).toBeGreaterThan(0);
+    // drawn mirrored (the najeon's right lid): still down and to the right on the screen, as far
+    const mirrored = shadowOf({ a: -2, b: 0, c: 0, d: 2 }, box, 1)!;
+    expect(mirrored.x + mirrored.far * 2).toBeCloseTo(plain.x - plain.far * 2, 9);
+    expect(mirrored.y).toBeCloseTo(plain.y, 9);
+    // a thing standing higher throws it further
+    expect(shadowOf({ a: 2, b: 0, c: 0, d: 2 }, box, 2)!.y).toBeGreaterThan(plain.y);
+    // a transform it cannot read (a recorder's): no shadow
+    expect(shadowOf({} as never, box, 1)).toBeNull();
+  });
 });
 
-describe('the four gears’ decks', () => {
+describe('the decks of the gears a player picks', () => {
   /** A deck as the renderer paints it: the whole track's width, the lanes of a key mode. */
   const spec = (room: number, stretch: number, mode: KeyModeId = '7K+1S'): DeckSpec => ({
     width: 8 * 73.65,

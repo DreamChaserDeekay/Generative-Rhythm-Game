@@ -516,6 +516,38 @@
       },
       "anchorY": 0.7
     },
+    "keyboard/alu": {
+      "file": "gears/keyboard/alu.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "keyboard/brass": {
+      "file": "gears/keyboard/brass.png",
+      "bundle": "gear",
+      "size": [
+        912,
+        192
+      ]
+    },
+    "keyboard/keycap": {
+      "file": "gears/keyboard/keycap.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "keyboard/knob": {
+      "file": "gears/keyboard/knob.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
     "mecha/hitBurst": {
       "file": "styles/mecha/hit_burst.png",
       "bundle": "effects",
@@ -714,6 +746,46 @@
         512
       ]
     },
+    "orbital/button": {
+      "file": "gears/orbital/button.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "orbital/foil": {
+      "file": "gears/orbital/foil.png",
+      "bundle": "gear",
+      "size": [
+        128,
+        768
+      ]
+    },
+    "orbital/paint": {
+      "file": "gears/orbital/paint.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "orbital/selector": {
+      "file": "gears/orbital/selector.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "orbital/toggle": {
+      "file": "gears/orbital/toggle.png",
+      "bundle": "gear",
+      "size": [
+        495,
+        512
+      ]
+    },
     "piano/hitBurst": {
       "file": "styles/piano/hit_burst.png",
       "bundle": "effects",
@@ -767,6 +839,30 @@
       "bundle": "notes",
       "size": [
         1024,
+        512
+      ]
+    },
+    "racing/button": {
+      "file": "gears/racing/button.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "racing/carbon": {
+      "file": "gears/racing/carbon.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        256
+      ]
+    },
+    "racing/rotary": {
+      "file": "gears/racing/rotary.png",
+      "bundle": "gear",
+      "size": [
+        512,
         512
       ]
     },

@@ -1165,16 +1165,16 @@
 
 ## 기어 (`gears/`, 2026-11)
 
-세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어 넷입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김).
+세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
-- 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름 → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
-- 재질 넷(오락실 기체의 엠보싱 ABS, 리시버의 헤어라인 은판 · 월넛, 기본 기어의 그래파이트)은 생성하지 않고 `build_gears.py` 가 시드를 정한 잡음으로 만듭니다(돌릴 때마다 같고, 주파수 공간에서 걸러 이음새 없이 반복). 기준 이미지 없이 재질만 그려 달라는 요청은 생성 모델이 거절했습니다(IMAGE_RECITATION).
+- 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름(나머지 셋은 2026-11-05에 더함) → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
+- 재질(오락실 기체의 엠보싱 ABS, 리시버의 헤어라인 은판 · 월넛, 기본 기어의 그래파이트, 커스텀 키보드의 비드 블라스트 알루미늄, 레이싱 휠의 트윌 카본, 우주선 계기판의 회색 도장)은 생성하지 않고 `build_gears.py` 가 시드를 정한 잡음으로 만듭니다(돌릴 때마다 같고, 주파수 공간에서 걸러 이음새 없이 반복). 기준 이미지 없이 재질만 그려 달라는 요청은 생성 모델이 거절했습니다(IMAGE_RECITATION).
 - 저장 형식: 생성 결과는 PNG로 받아 두었고, `assets-src/gears/` 에는 저장소 크기를 줄이려 JPEG(품질 95, 색 정보 줄이지 않음)으로 다시 저장했습니다. PNG의 sha256 앞 16자리를 함께 적습니다.
-- 비용: 부위 그림 12장(그중 3장은 지움), 거절되거나 그림 없이 끝난 시도 3번, 기준 스타일 프레임 4장을 합해 약 $1.05 입니다(고르지 않은 세 컨셉의 스타일 프레임은 저장소에 쓰지 않아 넣지 않음).
+- 비용: 부위 그림 12장(그중 3장은 지움), 거절되거나 그림 없이 끝난 시도 3번, 기준 스타일 프레임 4장을 합해 약 $1.05 입니다(그때 고르지 않은 세 컨셉의 스타일 프레임은 2026-11-05에 쓰면서 아래 "기어 셋 더"에 적음).
 - 후처리 공통: 부위 그림은 마젠타 바탕을 빼고(키잉) 모양대로 자른 뒤, 생성이 사물의 테두리에 비춘 마젠타 바탕을 가장자리 12 px 안에서 걷어냅니다(despill: 빨강과 파랑을 초록이 허락하는 만큼으로, 안쪽의 빨간 공 · 분홍빛 자개는 그대로, 2026-11-05부터).
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 그림에 다른 게임의 에셋 · 로고 · 폰트 · UI는 들어가지 않았고, 프롬프트에 다른 게임 · 회사 · 아티스트 이름은 없습니다. 스타일 프레임의 기준 이미지는 이 게임의 실제 화면(기어를 지운 7K+1S)입니다.
-- 숫자 글꼴(DSEG7 Classic, Noto Serif KR 의 "흥" 한 글자)은 `client/src/assets/fonts/README.md` 에 적었습니다.
+- 숫자 · 판정 글꼴(DSEG7 Classic, Noto Serif KR 의 "흥" 한 글자, Silkscreen, Saira Stencil One)은 `client/src/assets/fonts/README.md` 에 적었습니다.
 
 ### 스타일 프레임 `standard-a1.png` (기본, 저장소에 넣지 않음, 부위 그림의 기준 이미지)
 
@@ -1411,8 +1411,194 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the front plate of a traditional Korean chest lock (an ornamental brass escutcheon): a round polished brass plate with an engraved floral pattern and a small vertical latch in its middle, seen straight on. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
+### 기어 셋 더: 커스텀 키보드 · 레이싱 휠 · 우주선 계기판 (2026-11-05)
+
+처음에 고르지 않은 컨셉 셋을 레인마다의 버튼 없이 그 사물의 꾸밈으로 더했습니다. 스타일 프레임(2026-11-04, 아래)은 처음 컨셉대로 레인마다 키캡 · 버튼을 그렸지만, 부위 그림은 꾸밈에 쓸 사물만(노브, 키캡 하나, 황동 명판, 로터리, 고무 버튼, 셀렉터, 토글, 사각 버튼, 금박 텍스처) 따로 만들었습니다. 키캡 · 고무 버튼 · 사각 버튼은 무채색 그림 하나를 게임이 곱하기로 칠해 여러 색으로 씁니다. 재질 셋(키보드의 비드 블라스트 차콜 알루미늄, 레이싱 휠의 2×2 트윌 카본, 계기판의 밝은 회색 도장)은 `build_gears.py` 가 잡음으로 만들고, 계기판 테두리의 금박만 생성한 텍스처에서 잘라 씁니다. 판정 · 점수판 글꼴(Silkscreen, Saira Stencil One)은 `client/src/assets/fonts/README.md` 에 적었습니다.
+
+- 비용: 부위 그림 9장 약 $0.56, 기준 스타일 프레임 3장 약 $0.23, 키보드 스타일 프레임의 다른 시도 2번(하나는 그림 없이 끝남, 하나는 고르지 않음) 약 $0.10, 합해 약 $0.88
+- 만든 곳 · 저장 형식 · 후처리 공통은 위와 같습니다(마젠타 바탕을 빼고 모양대로 잘라 가장자리의 마젠타를 걷어냄).
+
+### 스타일 프레임 `keyboard-a2.png` (커스텀 키보드, 저장소에 넣지 않음, 부위 그림의 기준 이미지)
+
+- 기준 이미지: 이 게임의 7K+1S 화면에서 기어를 지운 것(레인 · 판정선 · HUD 자리)
+- 날짜: 2026-11-04 22:39 KST · 약 $0.062 · PNG 4,346,628바이트 · sha256 앞 16자리 `7886febfbbb57e89`
+- 프롬프트:
+
+  > Image 1 is a screenshot of this game's play screen with its gear removed (the deck under the judge line is a flat grey placeholder and the two track edges are plain grey lines). Use it ONLY for: the camera (a low perspective looking up a long tilted track), the track's position and proportions in the middle of the frame, the lane layout (one wide scratch lane at the far left, then seven key lanes), the horizontal white judge line about 77 % down the image, the deck area under it, and where the HUD sits: the combo counter near the top of the track, the judgement text in the middle of the track, the score panel to the left of the track (SCORE, RATE, MAX COMBO, SPEED stacked), the clear gauge running up beside the right edge of the track with its percentage at its foot. Redraw the whole gear at the finish of a commercial console rhythm game.
+  >
+  > A 16:9 gameplay frame of a PC keyboard rhythm game, mid-song. The gear (everything that is not the lanes) is designed as ONE physical object, described below. The object decides the side frames' silhouette, the deck under the judge line, the key caps, the scratch housing, the gauge housing, the score panel's housing and the typography of every number.
+  >
+  > CONCEPT: CUSTOM KEYBOARD. A premium custom mechanical keyboard: the game is played on a keyboard, so the gear is one, a CNC-machined aluminium case with sculpted keycaps.
+  >
+  > - Side frames: the case's machined aluminium side walls, anodised dark charcoal, each about a third of a lane wide, running the whole length of the track, with a bright polished chamfer along the inner edge and small hex screws at even intervals.
+  > - Deck under the judge line: the keyboard's top case in anodised charcoal aluminium with a thin black rubber gasket line. At the far left, in the scratch lane's column, a large knurled aluminium rotary knob with a thin light ring. Then a single row of exactly seven sculpted thick PBT keycaps, one under each key lane and as wide as its lane (one row only, never two rows, no extra keys): off-white in white lanes, light grey in blue lanes, a single orange keycap in the gold lane, each with a small engraved legend (a circle, triangle or diamond). The two pressed keycaps sit lower and their lane-coloured light spills from under them onto the aluminium.
+  > - Under the keys: a small brass weight plate engraved "TKL-08" and a narrow black glass OLED window.
+  > - Gauge: a slim vertical OLED bar (white pixels on black glass) set into the right side wall, labelled "CHARGE" in tiny pixel type; its percentage in the pixel font.
+  > - Score panel: a black glass OLED panel fixed to the left side wall; all its numbers in a crisp monochrome white pixel font.
+  > - Combo: large white pixel-font digits. Judgement "MAX 100%" in the same pixel font, white with a thin orange underline.
+  > - Mood: precise, modern, quiet. Materials only: charcoal anodised aluminium, off-white and grey PBT keycaps, black glass, one orange accent, a little brass.
+  >
+  > Reading zone (the same in every gear, do not theme it): the lanes are near-black and matte (under 8 % brightness) with thin dim dividers; notes are simple crisp bars in the lane colours (white lanes white, blue lanes blue, the middle lane gold, the scratch lane red), a few single notes, one two-note chord and one long note being held in a blue lane; the judge line is a crisp white line across the track with a short soft glow. Two lanes are being pressed: their keys light up in the lane colour and a short faint light column rises from the judge line, fading within a fifth of the track. Nothing glows or moves inside the lanes except notes and those two columns.
+  >
+  > HUD text, exactly and cleanly legible, set in the gear's own type: the combo reads "128" with the small word "COMBO"; the judgement reads "MAX 100%"; the score panel reads "SCORE 812,345", "RATE 99.87%", "MAX COMBO 128", "SPEED 3.60"; the gauge reads "72%" with its label given above. No other text anywhere except the gear's few micro-labels given above. No logos of real brands, no characters, no watermarks.
+  >
+  > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
+
+### 스타일 프레임 `racing-a1.png` (레이싱 휠, 저장소에 넣지 않음, 부위 그림의 기준 이미지)
+
+- 기준 이미지: 이 게임의 7K+1S 화면에서 기어를 지운 것(레인 · 판정선 · HUD 자리)
+- 날짜: 2026-11-04 22:39 KST · 약 $0.085 · PNG 5,830,910바이트 · sha256 앞 16자리 `f4330178dc0476c3`
+- 프롬프트:
+
+  > Image 1 is a screenshot of this game's play screen with its gear removed (the deck under the judge line is a flat grey placeholder and the two track edges are plain grey lines). Use it ONLY for: the camera (a low perspective looking up a long tilted track), the track's position and proportions in the middle of the frame, the lane layout (one wide scratch lane at the far left, then seven key lanes), the horizontal white judge line about 77 % down the image, the deck area under it, and where the HUD sits: the combo counter near the top of the track, the judgement text in the middle of the track, the score panel to the left of the track (SCORE, RATE, MAX COMBO, SPEED stacked), the clear gauge running up beside the right edge of the track with its percentage at its foot. Redraw the whole gear at the finish of a commercial console rhythm game.
+  >
+  > A 16:9 gameplay frame of a PC keyboard rhythm game, mid-song. The gear (everything that is not the lanes) is designed as ONE physical object, described below. The object decides the side frames' silhouette, the deck under the judge line, the key caps, the scratch housing, the gauge housing, the score panel's housing and the typography of every number.
+  >
+  > CONCEPT: RACING WHEEL. A race car's steering wheel and dash: carbon fibre, suede grips, shift lights and rotary switches.
+  >
+  > - Side frames: carbon-fibre side pods, each about a third of a lane wide, running the whole length of the track, with a black suede strip and red stitching along the inner edge.
+  > - Deck under the judge line: a carbon-fibre steering-wheel centre plate with a flat bottom. Along its top edge, separated from the judge line by a dark gap, a row of small round shift-light LEDs (green, then red, then blue at the ends) with the first third of them lit. At the far left, in the scratch lane's column, a large knurled rotary switch with numbered positions. Then one round rubber push button per key lane with a coloured ring (white, blue or gold, matching its lane); the two pressed buttons light up in their lane colour.
+  > - Under the buttons: a small dash LCD reading "1:23.456" in white digits, and small white printed micro-labels "TC", "BB" and "PIT" beside the switches.
+  > - Gauge: a vertical segmented bar in a carbon housing on the right side pod, its segments white with the lowest ones amber, labelled "FUEL"; its percentage in italic white digits.
+  > - Score panel: a black dash display on the left side pod with italic white motorsport digits and small red labels.
+  > - Combo: large italic white digits like a dashboard gear readout. Judgement "MAX 100%" in bold italic white with a red underline.
+  > - Mood: fast and aggressive. Materials only: carbon fibre, black suede, red stitching, white markings, the shift lights.
+  >
+  > Reading zone (the same in every gear, do not theme it): the lanes are near-black and matte (under 8 % brightness) with thin dim dividers; notes are simple crisp bars in the lane colours (white lanes white, blue lanes blue, the middle lane gold, the scratch lane red), a few single notes, one two-note chord and one long note being held in a blue lane; the judge line is a crisp white line across the track with a short soft glow. Two lanes are being pressed: their keys light up in the lane colour and a short faint light column rises from the judge line, fading within a fifth of the track. Nothing glows or moves inside the lanes except notes and those two columns.
+  >
+  > HUD text, exactly and cleanly legible, set in the gear's own type: the combo reads "128" with the small word "COMBO"; the judgement reads "MAX 100%"; the score panel reads "SCORE 812,345", "RATE 99.87%", "MAX COMBO 128", "SPEED 3.60"; the gauge reads "72%" with its label given above. No other text anywhere except the gear's few micro-labels given above. No logos of real brands, no characters, no watermarks.
+  >
+  > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
+
+### 스타일 프레임 `orbital-a1.png` (우주선 계기판, 저장소에 넣지 않음, 부위 그림의 기준 이미지)
+
+- 기준 이미지: 이 게임의 7K+1S 화면에서 기어를 지운 것(레인 · 판정선 · HUD 자리)
+- 날짜: 2026-11-04 22:39 KST · 약 $0.085 · PNG 5,453,810바이트 · sha256 앞 16자리 `c88ef29374e85aff`
+- 프롬프트:
+
+  > Image 1 is a screenshot of this game's play screen with its gear removed (the deck under the judge line is a flat grey placeholder and the two track edges are plain grey lines). Use it ONLY for: the camera (a low perspective looking up a long tilted track), the track's position and proportions in the middle of the frame, the lane layout (one wide scratch lane at the far left, then seven key lanes), the horizontal white judge line about 77 % down the image, the deck area under it, and where the HUD sits: the combo counter near the top of the track, the judgement text in the middle of the track, the score panel to the left of the track (SCORE, RATE, MAX COMBO, SPEED stacked), the clear gauge running up beside the right edge of the track with its percentage at its foot. Redraw the whole gear at the finish of a commercial console rhythm game.
+  >
+  > A 16:9 gameplay frame of a PC keyboard rhythm game, mid-song. The gear (everything that is not the lanes) is designed as ONE physical object, described below. The object decides the side frames' silhouette, the deck under the judge line, the key caps, the scratch housing, the gauge housing, the score panel's housing and the typography of every number.
+  >
+  > CONCEPT: SPACECRAFT PANEL. A spacecraft cockpit's instrument panel: light-grey painted panels, square lighted pushbuttons, guarded switches and gold thermal blankets.
+  >
+  > - Side frames: struts wrapped in crinkled gold thermal-blanket foil, each about a third of a lane wide, running the whole length of the track, with a yellow handrail along their outer edge.
+  > - Deck under the judge line: a slanted light-grey matte instrument panel with black silk-screened labels and screws at its corners. At the far left, in the scratch lane's column, a guarded rotary selector (a black knob with a pointer inside a metal guard). Then one square lighted pushbutton per key lane with a white translucent face; the two pressed buttons light up in their lane colour.
+  > - Under the buttons: a narrow strip with a yellow-and-black caution stripe, an amber "MASTER ALARM" lamp (unlit) and black silk-screened micro-labels "CAUTION" and "O2 FLOW".
+  > - Gauge: a vertical tape instrument in a grey bezel on the right strut (a scale with tick marks behind a fixed index line), labelled "O2"; its percentage in green seven-segment digits.
+  > - Score panel: a grey bezel on the left strut with green seven-segment numerals and black silk-screened labels.
+  > - Combo: green seven-segment digits. Judgement "MAX 100%" in white stencil capitals.
+  > - Mood: cool, technical, credible. Materials only: light-grey painted metal, gold foil, safety yellow, black labels, green numerals.
+  >
+  > Reading zone (the same in every gear, do not theme it): the lanes are near-black and matte (under 8 % brightness) with thin dim dividers; notes are simple crisp bars in the lane colours (white lanes white, blue lanes blue, the middle lane gold, the scratch lane red), a few single notes, one two-note chord and one long note being held in a blue lane; the judge line is a crisp white line across the track with a short soft glow. Two lanes are being pressed: their keys light up in the lane colour and a short faint light column rises from the judge line, fading within a fifth of the track. Nothing glows or moves inside the lanes except notes and those two columns.
+  >
+  > HUD text, exactly and cleanly legible, set in the gear's own type: the combo reads "128" with the small word "COMBO"; the judgement reads "MAX 100%"; the score panel reads "SCORE 812,345", "RATE 99.87%", "MAX COMBO 128", "SPEED 3.60"; the gauge reads "72%" with its label given above. No other text anywhere except the gear's few micro-labels given above. No logos of real brands, no characters, no watermarks.
+  >
+  > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
+
+### `gears/keyboard/knob.jpg`
+
+- 용도: 커스텀 키보드의 볼륨 노브(받침 왼쪽) → `gears/keyboard/knob.png` 512×512
+- 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
+- 날짜: 2026-11-05 14:59 KST · 약 $0.065
+- 생성 결과(PNG): 5,541,399바이트 · sha256 앞 16자리 `5c4bd42061d13043` · 저장한 JPEG: 1,175,784바이트
+- 후처리: 원으로 잘라(노브 둘레의 빛 링은 빼고 금속 노브만, 반지름의 0.895) 512 · 마젠타를 비춘 금속의 색을 뺌(무채색) · 게임은 받침에 둥글게 묻고 둘레의 주황 빛 링을 코드로 그림
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the volume knob of a premium custom mechanical keyboard: a knurled, bead-blasted dark charcoal aluminium rotary knob whose polished top face shows fine concentric machining rings, set in a thin ring of soft warm orange light around its base. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/keyboard/keycap.jpg`
+
+- 용도: 커스텀 키보드의 방향키 캡(역T자로 넷) → `gears/keyboard/keycap.png` 384×384
+- 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
+- 날짜: 2026-11-05 15:00 KST · 약 $0.058
+- 생성 결과(PNG): 4,733,766바이트 · sha256 앞 16자리 `1f1da6f3bb74289c` · 저장한 JPEG: 822,921바이트
+- 후처리: 둥근 사각형(모서리는 짧은 변의 0.16)으로 잘라 높이 384 · 무채색으로 · 게임은 캡마다 곱하기로 색을 입히고(크림색 셋, 위 키만 주황) 화살표를 코드로 그림
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one sculpted thick PBT keycap of a custom mechanical keyboard, warm off-white ivory, square, with a gently concave dished top, softly rounded corners, crisp edges and a fine matte texture; blank, with no legend. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/keyboard/brass.jpg`
+
+- 용도: 커스텀 키보드의 황동 명판(OLED 창 아래, 'TKL-08'은 코드로 새김) → `gears/keyboard/brass.png` 912×192
+- 크기 · 기준 이미지: 16:9 · 2K · `keyboard-a2.png`
+- 날짜: 2026-11-05 15:00 KST · 약 $0.062
+- 생성 결과(PNG): 4,416,486바이트 · sha256 앞 16자리 `3c29f9a567726d59` · 저장한 JPEG: 762,335바이트
+- 후처리: 바탕이 분홍으로 비친 옆면과 그림자를 빼고 황동 앞면만(초록이 파랑보다 낮지 않은 픽셀) 둥근 사각형(0.06)으로 잘라 높이 192 · 가장자리 10 px를 판 가운데의 황동 색으로(밝기는 그대로)
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a small rectangular weight plate of a custom keyboard case: brushed polished brass, about four and a half times as wide as it is tall, with a fine bevel along its edges and one tiny hex screw near each end; blank, with no engraving. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/racing/rotary.jpg`
+
+- 용도: 레이싱 휠의 로터리(받침 왼쪽의 큰 것과 오른쪽의 작은 것) → `gears/racing/rotary.png` 512×512
+- 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
+- 날짜: 2026-11-05 15:01 KST · 약 $0.065
+- 생성 결과(PNG): 7,090,698바이트 · sha256 앞 16자리 `eee2aad53d77eb4f` · 저장한 JPEG: 1,601,752바이트
+- 후처리: 원으로 잘라 512 · 무채색으로
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the big rotary selector of a racing car's steering wheel: a knurled black anodised aluminium knob with one white pointer line on its top face, inside a ring of evenly spaced small white tick marks on a black carbon-fibre disc. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/racing/button.jpg`
+
+- 용도: 레이싱 휠의 고무 버튼(넷) → `gears/racing/button.png` 384×384
+- 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
+- 날짜: 2026-11-05 15:01 KST · 약 $0.066
+- 생성 결과(PNG): 7,544,469바이트 · sha256 앞 16자리 `318de6abbc290f01` · 저장한 JPEG: 1,724,619바이트
+- 후처리: 원으로 잘라 384 · 무채색으로 · 게임은 곱하기로 흰 링에 노랑 · 파랑 · 흰색 · 초록을 입힘
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one round push button of a racing car's steering wheel: a matte black soft-touch rubber cap, slightly domed, inside a thin glossy white plastic ring, in a black bezel. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/orbital/selector.jpg`
+
+- 용도: 우주선 계기판의 보호 덮개 셀렉터(받침 왼쪽) → `gears/orbital/selector.png` 512×512
+- 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
+- 날짜: 2026-11-05 15:02 KST · 약 $0.063
+- 생성 결과(PNG): 4,855,930바이트 · sha256 앞 16자리 `6e66393d2e754526` · 저장한 JPEG: 895,085바이트
+- 후처리: 원으로 잘라 512 · 크롬 손잡이에 비친 마젠타를 없애려 전체를 무채색으로
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded rotary selector switch of a spacecraft instrument panel: a black fluted knob with a white pointer line, between two short U-shaped polished steel guard bars that stand on its left and right, on a small round light-grey base plate with four tiny screws. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/orbital/toggle.jpg`
+
+- 용도: 우주선 계기판의 보호 덮개 토글(PWR · COMM · NAV 셋) → `gears/orbital/toggle.png` 495×512
+- 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
+- 날짜: 2026-11-05 15:02 KST · 약 $0.059
+- 생성 결과(PNG): 5,231,547바이트 · sha256 앞 16자리 `a49e978ff7acec5f` · 저장한 JPEG: 1,081,623바이트
+- 후처리: 둥근 사각형(0.05)으로 잘라 높이 512 · 무채색으로
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded toggle switch of a spacecraft instrument panel: a short chrome bat-handle toggle lever on a round black base, between two polished steel guard rails on its left and right, the rails joined by a small bar at the bottom. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/orbital/button.jpg`
+
+- 용도: 우주선 계기판의 사각 버튼(ARM · ABORT) → `gears/orbital/button.png` 384×384
+- 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
+- 날짜: 2026-11-05 15:03 KST · 약 $0.061
+- 생성 결과(PNG): 4,857,574바이트 · sha256 앞 16자리 `c759745a58a2e9cc` · 저장한 JPEG: 856,703바이트
+- 후처리: 둥근 사각형(0.1)으로 잘라 높이 384 · 무채색으로 · 게임은 ARM의 렌즈에 곱하기로 초록을 입히고 빛을 더함
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one square lighted pushbutton of a spacecraft instrument panel: a white translucent square face, unlit, inside a black square bezel with slightly rounded corners and a thin metal edge. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
+
+### `gears/orbital/foil.jpg`
+
+- 용도: 우주선 계기판 테두리의 금박 단열재 → `gears/orbital/foil.png` 128×768
+- 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
+- 날짜: 2026-11-05 15:03 KST · 약 $0.057
+- 생성 결과(PNG): 9,538,794바이트 · sha256 앞 16자리 `cd7214f23f855bbb` · 저장한 JPEG: 3,690,518바이트
+- 후처리: 왼쪽에서 높이의 1/6 폭 띠(1:6, 테두리의 금박 20 px × 타일 120 px와 같은 비율이라 늘이지 않음)를 잘라 128×768 · 게임은 타일마다 거울 반복이라 이음매가 없음
+- 프롬프트:
+
+  > Image 1 is a play screen of a rhythm game, given only for the materials of its gear. Paint ONLY a flat, evenly lit, seamless tileable texture, seen exactly straight on with no perspective, filling the whole image from edge to edge: crinkled gold thermal-blanket foil of a spacecraft (multi-layer insulation): a warm gold metallic film full of small creases and facets catching the light, bright highlights and darker brown-gold folds, evenly spread over the whole image. It must tile without a visible seam. No objects, no text, no letters, no logos, no vignette, no frame or border.
+
 ### 쓰지 않은 시도
 
 - `cabinet-abs`(오락실 기체의 엠보싱 ABS 재질, 기준 이미지 없음): 2번 모두 그림 없이 끝남(IMAGE_RECITATION), 약 $0.011 · 재질은 코드로 만듦(위). 프롬프트:
 
   > A flat, evenly lit, seamless tileable texture, seen exactly straight on with no perspective, filling the whole image from edge to edge: black textured ABS plastic of an arcade cabinet, a fine leather-grain emboss, matte, very dark charcoal (about #17181b), with a faint even sheen. It must tile without a visible seam. No objects, no text, no letters, no logos, no vignette, no shadows, no frame or border.
+
+- `keyboard-a1`, `keyboard-a3`(커스텀 키보드의 스타일 프레임, 2026-11-04, `keyboard-a2.png` 와 같은 프롬프트): 첫 시도는 그림 없이 끝남(MAX_TOKENS), 약 $0.042 · 세 번째는 고르지 않음, 약 $0.054

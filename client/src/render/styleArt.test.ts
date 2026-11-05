@@ -67,7 +67,7 @@ function recorder() {
 }
 
 describe('the concept sets drawn from art', () => {
-  it('keeps no gear of the sets in the media: the gears are the four of their own', () => {
+  it('keeps no gear of the sets in the media: the gears are ones of their own', () => {
     expect(Object.keys(manifest.textures).filter((id) => /\/(gear|keys)$/.test(id))).toEqual([]);
     expect(Object.values(manifest.textures).filter((t) => t.file.startsWith('styles/') && /\/(gear|keys)\.png$/.test(t.file))).toEqual([]);
   });
@@ -326,6 +326,9 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
   najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
+  keyboard: { plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
+  racing: { plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
+  orbital: { plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's. */
@@ -334,6 +337,12 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   cabinet: { 'cabinet/joystick': 1, 'cabinet/button': 6, 'cabinet/coin': 1 },
   receiver: { 'receiver/knob': 2, 'receiver/switch': 5 },
   najeon: { 'najeon/lid': 2, 'najeon/lock': 1 },
+  // the knob, the arrow keys' inverted T, the name plate
+  keyboard: { 'keyboard/knob': 1, 'keyboard/keycap': 4, 'keyboard/brass': 1 },
+  // the big rotary and the small one, four buttons
+  racing: { 'racing/rotary': 2, 'racing/button': 4 },
+  // the selector, three toggles, the arm and abort buttons
+  orbital: { 'orbital/selector': 1, 'orbital/toggle': 3, 'orbital/button': 2 },
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */

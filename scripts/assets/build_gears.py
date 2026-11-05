@@ -7,13 +7,16 @@ Two kinds of picture:
 
 - materials, made here from seeded noise (so they come out the same on every run, and tile without a
   seam: the noise is filtered in frequency space, which wraps): the arcade cabinet's embossed ABS, the
-  receiver's brushed silver and walnut, the standard gear's brushed graphite;
+  receiver's brushed silver and walnut, the standard gear's brushed graphite, the keyboard's
+  bead-blasted aluminium, the racing wheel's twill carbon, the orbital panel's grey paint; and the
+  orbital frame's gold foil, cut from a generated texture (the renderer repeats it mirrored);
 - objects, from the picked generations in assets-src/gears/<gear>/ (drawn top-down on a flat magenta
   ground, where they came from: assets-src/PROVENANCE.md): each is cut to the object and masked to its
   shape (a circle or a rounded rectangle, the ground keyed out of its edge), and the najeon frame's
   pearl vine, cut from the generated band (the renderer repeats it down the track mirrored, so it runs
   on without a seam). The decks lay them out as each object's own panel: none is a lane's key. The
-  generation lit the objects' rims with the magenta ground: it is taken out of them (despill).
+  generation lit the objects' rims with the magenta ground: it is taken out of them (despill), and out
+  of the orbital panel's colourless parts whole (their chrome mirrored it).
 
 The renderer draws them (client/src/render/deckArt.ts: GEAR_PLATES, GEAR_FRAMES; the parts' manifest ids in
 styleArt.ts: GEAR_PICTURES), each object at its picture's proportions.
@@ -104,6 +107,44 @@ def brushed(h: int, w: int, seed: int, base: str, depth: float, vertical: bool) 
     return np.clip(c[None, None, :] * (1 + depth * v[..., None]), 0, 1)
 
 
+def bead_blast(seed: int, base: str) -> np.ndarray:
+    """Bead-blasted anodised aluminium (the keyboard's case): a fine even grain over a faint slow cloud."""
+    h = w = 512
+    v = 0.75 * noise(h, w, seed, 0.45, 0.45) + 0.25 * noise(h, w, seed + 1, 0.01, 0.01)
+    return np.clip(hexrgb(base)[None, None, :] * (1 + 0.07 * v[..., None]), 0, 1)
+
+
+def carbon() -> np.ndarray:
+    """2×2 twill carbon fibre (the racing wheel's): tows 16 px wide, each over two and under two, a step
+    on at every row (the twill's diagonal); each lit across its round and dark where it dives under,
+    fine fibres along it, the tows down the track catching more of the light than those across;
+    16 tows a side, so it tiles."""
+    cell, n = 16, 16
+    size = cell * n
+    y, x = np.mgrid[0:size, 0:size].astype(np.float32)
+    i, j = (y // cell).astype(int), (x // cell).astype(int)
+    phase = (i + j) % 4
+    down = phase < 2
+    u = (x % cell + 0.5) / cell
+    v = (y % cell + 0.5) / cell
+    round_ = np.sin(np.pi * np.where(down, u, v)) ** 0.6
+    # where a float starts and ends, the tow dives under its neighbour
+    along = np.where(down, np.where(phase == 0, v, 1 - v), np.where(phase == 2, u, 1 - u))
+    dive = smoothstep(0.0, 0.3, along)
+    fibres = np.where(down, noise(size, size, 71, 0.03, 0.7), noise(size, size, 72, 0.7, 0.03))
+    k = np.where(down, 1.0, 0.6) * (0.35 + 0.65 * round_) * (0.55 + 0.45 * dive) + 0.05 * fibres
+    dark, light = hexrgb("#0c0d0f"), hexrgb("#3b3e44")
+    k = np.clip(k, 0, 1)[..., None]
+    return np.clip(dark * (1 - k) + light * k + 0.012, 0, 1)
+
+
+def grey_paint() -> np.ndarray:
+    """The orbital panel's light grey paint: a fine orange peel and a faint slow mottle."""
+    h = w = 512
+    v = 0.5 * noise(h, w, 81, 0.25, 0.25) + 0.5 * noise(h, w, 82, 0.008, 0.008)
+    return np.clip(hexrgb("#c3c6cb")[None, None, :] * (1 + 0.025 * v[..., None]), 0, 1)
+
+
 def walnut() -> np.ndarray:
     """Walnut with its grain running down (the receiver's cabinet sides): growth bands warped by slow noise, pores, an amber figure."""
     h, w = 1024, 512
@@ -136,9 +177,13 @@ def ground_mask(a: np.ndarray) -> np.ndarray:
     return np.linalg.norm(a - MAGENTA, axis=2) > 0.42
 
 
-def object_box(a: np.ndarray) -> tuple[int, int, int, int]:
-    """The object's box (top, bottom, left, right): the largest part off the ground."""
-    fg = ndimage.binary_opening(ground_mask(a), iterations=3)
+def object_box(a: np.ndarray, warm: bool = False) -> tuple[int, int, int, int]:
+    """The object's box (top, bottom, left, right): the largest part off the ground (`warm`: of its px
+    with no more blue than green, a brass face without the side face and shadow the ground turned pink)."""
+    fg = ground_mask(a)
+    if warm:
+        fg &= a[..., 1] >= a[..., 2]
+    fg = ndimage.binary_opening(fg, iterations=3)
     labels, n = ndimage.label(fg)
     if n == 0:
         raise SystemExit("no object found")
@@ -188,21 +233,25 @@ def shrink(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
     return out
 
 
-def cut_disc(a: np.ndarray, size: int) -> np.ndarray:
-    """A round object: keyed off its ground and trimmed to the circle of its box."""
+def cut_disc(a: np.ndarray, size: int, keep: float = 1.0) -> np.ndarray:
+    """A round object: keyed off its ground and trimmed to the circle of its box (`keep` of its radius: a
+    light ring round it left for the renderer to draw)."""
     t, b, l, r = object_box(a)
     cy, cx = (t + b) / 2, (l + r) / 2
-    rad = min(b - t, r - l) / 2 + 2
+    rad = (min(b - t, r - l) / 2 + 2) * keep
     crop = a[max(0, int(cy - rad)):int(cy + rad), max(0, int(cx - rad)):int(cx + rad)]
     out = shrink(keyed(crop), size, size)
     out[..., 3] = np.minimum(out[..., 3], disc_alpha(size, 0.004))
     return out
 
 
-def cut_round_rect(a: np.ndarray, height: int, corner: float) -> np.ndarray:
-    """An object with round corners: keyed off its ground at its box's proportions, `height` px tall, trimmed to a rectangle with corners `corner` of its shorter side."""
-    t, b, l, r = object_box(a)
-    pad = 2
+def cut_round_rect(a: np.ndarray, height: int, corner: float, inset: float = 0.0, warm: bool = False) -> np.ndarray:
+    """An object with round corners: keyed off its ground at its box's proportions, `height` px tall, trimmed to a rectangle with corners `corner` of its shorter side
+    (`inset` of that side cut off all round: an outer rim the ground coloured; `warm`: see object_box)."""
+    t, b, l, r = object_box(a, warm)
+    d = round(inset * min(b - t, r - l))
+    t, b, l, r = t + d, b - d, l + d, r - d
+    pad = 2 if d == 0 else 0
     crop = a[max(0, t - pad):b + pad, max(0, l - pad):r + pad]
     w = round(height * crop.shape[1] / crop.shape[0])
     out = shrink(keyed(crop), w, height)
@@ -262,6 +311,25 @@ def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
     return out
 
 
+def own_hue_rim(rgba: np.ndarray, reach: int = 10) -> np.ndarray:
+    """An object's rim (`reach` px in from its edge) in the colour of its middle, at the rim's own
+    brightness: a bevel that mirrored the ground pink where despill cannot tell it from the object's warm
+    colour (brass)."""
+    h, w = rgba.shape[:2]
+    middle = rgba[h // 4:3 * h // 4, w // 4:3 * w // 4, :3].reshape(-1, 3)
+    hue = np.median(middle, axis=0)
+    weights = np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    hue = hue / float(hue @ weights)
+    # the alpha with clear px round it, so the picture's own edge counts as the object's
+    alpha = np.pad(np.clip(rgba[..., 3] * 255 + 0.5, 0, 255).astype(np.uint8), reach + 1)
+    edge = np.asarray(Image.fromarray(alpha, "L").filter(ImageFilter.MinFilter(2 * reach + 1)), dtype=np.float32)[reach + 1:-reach - 1, reach + 1:-reach - 1]
+    rim = (edge / 255 < 0.5)[..., None]
+    out = rgba.copy()
+    lum = (rgba[..., :3] @ weights)[..., None]
+    out[..., :3] = np.where(rim, np.clip(lum * hue, 0, 1), rgba[..., :3])
+    return out
+
+
 def entry(textures: dict, gear: str, part: str, file: str, size: tuple[int, int]) -> None:
     textures[f"{gear}/{part}"] = {"file": f"gears/{gear}/{file}", "bundle": "gear", "size": [int(size[0]), int(size[1])]}
 
@@ -305,6 +373,28 @@ def main() -> None:
     material("najeon", "band", resize(band, 128, 2048))
     sprite("najeon", "lid", cut_disc(load(SRC / "najeon" / "lid.jpg"), 512))
     sprite("najeon", "lock", cut_disc(load(SRC / "najeon" / "lock.jpg"), 512))
+
+    # KEYBOARD: bead-blasted charcoal aluminium; the volume knob in its light ring, the arrow keys' caps, the brass name plate
+    material("keyboard", "alu", bead_blast(51, "#2b2d32"))
+    # the knob without its light ring (the deck draws it in code); knob and caps colourless (the
+    # deck tints the caps); the plate without its side face and shadow, which the ground turned pink
+    sprite("keyboard", "knob", neutral(cut_disc(load(SRC / "keyboard" / "knob.jpg"), 512, keep=0.895), 1.0))
+    sprite("keyboard", "keycap", neutral(cut_round_rect(load(SRC / "keyboard" / "keycap.jpg"), 384, 0.16), 1.0))
+    sprite("keyboard", "brass", own_hue_rim(cut_round_rect(load(SRC / "keyboard" / "brass.jpg"), 192, 0.06, inset=0.01, warm=True)))
+
+    # RACING: twill carbon (its frame too); the big rotary and the small one, the rubber buttons (the deck tints their rings)
+    material("racing", "carbon", carbon())
+    sprite("racing", "rotary", neutral(cut_disc(load(SRC / "racing" / "rotary.jpg"), 512), 1.0))
+    sprite("racing", "button", neutral(cut_disc(load(SRC / "racing" / "button.jpg"), 384), 1.0))
+
+    # ORBITAL: grey paint; the gold foil down its frame (a strip of the generated texture, 1:6 as the frame
+    # lays it, so it is not stretched); the guarded selector, the guarded toggles, the square push buttons
+    material("orbital", "paint", grey_paint())
+    foil = load(SRC / "orbital" / "foil.jpg")
+    material("orbital", "foil", resize(foil[:, : foil.shape[0] // 6], 128, 768))
+    sprite("orbital", "selector", neutral(cut_disc(load(SRC / "orbital" / "selector.jpg"), 512), 1.0))
+    sprite("orbital", "toggle", neutral(cut_round_rect(load(SRC / "orbital" / "toggle.jpg"), 512, 0.05), 1.0))
+    sprite("orbital", "button", neutral(cut_round_rect(load(SRC / "orbital" / "button.jpg"), 384, 0.1), 1.0))
 
     print(json.dumps(report, indent=1))
     path = MEDIA / "manifest.json"

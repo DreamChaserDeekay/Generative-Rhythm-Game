@@ -33,7 +33,7 @@ import {
  * - PIANO: the PIANO notes (key fronts) and their lacquered key, the PIANO hit (musical notes
  *   bursting out).
  *
- * The four gears (media/gears/<gear>/, made by scripts/assets/build_gears.py) are drawn by
+ * The gears a player picks (media/gears/<gear>/, made by scripts/assets/build_gears.py) are drawn by
  * deckArt.ts from their pictures by part (GEAR_PICTURES).
  */
 export type ArtSet = 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
@@ -77,7 +77,7 @@ const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', cr
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${MANIFEST_NAME[set]}/${part}`;
 
 /**
- * The four gears' pictures (manifest ids) by part: the materials of the plate and the frame, and the
+ * The gears' pictures (manifest ids) by part: the materials of the plate and the frame, and the
  * things on the deck. A part whose picture is missing is drawn in code (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
@@ -85,6 +85,9 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   cabinet: { plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
   najeon: { frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
+  keyboard: { plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
+  racing: { plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
+  orbital: { plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */
