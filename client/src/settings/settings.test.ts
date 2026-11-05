@@ -31,7 +31,7 @@ import {
   withSongOffset,
 } from './settings';
 import { GEAR_JUDGE } from '../render/deckArt';
-import { skinById, laneColorsFor } from '../render/skins';
+import { BASE_SKIN, laneColorsFor } from '../render/skins';
 import { cameraConfig, difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
@@ -54,6 +54,7 @@ describe('settings', () => {
 
   it('keeps the hit effect size and the plane camera (settings saved before them: the usual effects, SDVX)', () => {
     expect(sanitizeSettings({})).toMatchObject({ hitEffectSize: 'normal', cameraPreset: 'SDVX' });
+    expect(sanitizeSettings({ hitEffectSize: 'large' }).hitEffectSize).toBe('large');
     expect(sanitizeSettings({ hitEffectSize: 'small' }).hitEffectSize).toBe('small');
     expect(sanitizeSettings({ hitEffectSize: 'off' }).hitEffectSize).toBe('off');
     expect(sanitizeSettings({ hitEffectSize: 'huge' as never }).hitEffectSize).toBe('normal');
@@ -89,22 +90,21 @@ describe('settings', () => {
     expect(sanitizeSettings({ barLines: 'x' as never }).barLines).toBe(true);
   });
 
-  it('opens settings saved before the textured skins, and keeps a picked one', () => {
-    expect(DEFAULT_SETTINGS.skin).toBe('flat');
-    expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
-    expect(sanitizeSettings({ skin: 'jewel' }).skin).toBe('jewel');
-    expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
-    const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
-    expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  it('drops the track skin, the user skin and the colour palette earlier versions saved: the track has one look and one set of colours', () => {
+    const old = sanitizeSettings({ skin: 'neon', customSkin: { label: '내 스킨' }, palette: 'colorblind', parts: { note: 'round' } } as never);
+    for (const gone of ['skin', 'customSkin', 'palette']) expect(old).not.toHaveProperty(gone);
+    expect(old.parts.note).toBe('round');
+    expect(skinOf(old).colors).toBe(BASE_SKIN.colors);
+    expect(laneColorsOf(old, '4K')).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
   });
 
   it('keeps the note colours picked, the player’s own presets, and draws the lanes in them', () => {
     expect([DEFAULT_SETTINGS.noteColors, DEFAULT_SETTINGS.colorPresets]).toEqual(['skin', []]);
     const own = { id: 'user-1', name: '밤', lanes: { '4K': ['#111111', '#222222', '#333333', '#444444'] } };
-    const s = sanitizeSettings({ skin: 'club', noteColors: 'user-1', colorPresets: [own] as never });
+    const s = sanitizeSettings({ noteColors: 'user-1', colorPresets: [own] as never });
     expect(s.noteColors).toBe('user-1');
     expect(laneColorsOf(s, '4K')).toEqual([0x111111, 0x222222, 0x333333, 0x444444]);
-    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(skinById('club', null), 'default', keyModes['4K']));
+    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
     // a preset gone, or one no version had: 기본
     expect(sanitizeSettings({ noteColors: 'user-2', colorPresets: [own] as never }).noteColors).toBe('skin');
     expect(sanitizeSettings({ noteColors: 'neon' }).noteColors).toBe('skin');
@@ -114,13 +114,15 @@ describe('settings', () => {
     expect([reset.noteColors, reset.colorPresets]).toEqual(['skin', s.colorPresets]);
   });
 
-  it('keeps the parts picked apart from the skin and draws the skin with them', () => {
+  it('keeps the parts picked and draws the track with them', () => {
     expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
-    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
+    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
     expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
     expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
-    // the skin keeps its colours
-    expect(skinOf(s).colors).toBe(skinById('pop', null).colors);
+    // the track keeps its colours
+    expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
+    // the piano note taken out: the flat notes, the piano hit kept
+    expect(sanitizeSettings({ parts: { note: 'piano', hit: 'piano' } as never }).parts).toMatchObject({ note: 'flat', hit: 'piano' });
     // a gear colour an earlier version saved is dropped, and its gear, taken out, is the standard one
     const old = sanitizeSettings({ parts: { deck: 'arcade', deckColour: 'white' } as never });
     expect(old.parts).not.toHaveProperty('deckColour');
@@ -130,15 +132,10 @@ describe('settings', () => {
     for (const deck of ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
   });
 
-  it('writes the judgement and combo in the gear’s type unless the player keeps the skin’s', () => {
+  it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {
     expect(DEFAULT_SETTINGS.hudType).toBe('gear');
     expect(sanitizeSettings({ hudType: 'skin' }).hudType).toBe('skin');
     expect(sanitizeSettings({ hudType: 'nope' as never }).hudType).toBe('gear');
-  });
-
-  it('opens a skin of an earlier version as the skin that took its place', () => {
-    const renamed = Object.fromEntries(['classic', 'metal', 'glass', 'crystal', 'gel', 'sunset', 'neon', 'mono'].map((id) => [id, sanitizeSettings({ skin: id }).skin]));
-    expect(renamed).toEqual({ classic: 'club', metal: 'arcade', glass: 'glass', crystal: 'jewel', gel: 'pop', sunset: 'pop', neon: 'neon', mono: 'mono' });
   });
 
   it('keeps the song select favourites, folder and order, dropping unknown ones', () => {

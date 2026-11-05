@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { codeBorderLook, GEAR_STYLES, type DeckSpec, type GearStyle } from './deckArt';
 import { parseManifest } from './skinArt';
-import { BUILTIN_SKINS, PART_HITS, skinById, styleOf, withParts, type SkinStyle } from './skins';
+import { BASE_SKIN, PART_HITS, styleOf, withParts, type SkinStyle } from './skins';
 import {
   artPartsOf,
   borderLookOf,
@@ -24,7 +24,7 @@ import { LONG_OF, LONG_PAINT, NOTE_PAINT, NOTE_STRETCH, noteDepthOf } from './ti
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const manifest = parseManifest(JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')))!;
 // the mecha set's notes and hit on the arcade cabinet, as the gear tab picks them
-const arcade = styleOf(withParts(skinById('arcade', null), { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }));
+const arcade = styleOf(withParts(BASE_SKIN, { note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }));
 
 /** A picture of the size the manifest gives (drawing on a recording canvas needs nothing more), its id kept to tell it by. */
 const image = (id: string): ArtImage => {
@@ -36,10 +36,12 @@ const loaded = (style: SkinStyle) => Object.fromEntries(styleImageIds(style).map
 /**
  * A 2D context that records its drawImage calls (source x, y, width, height; destination x, y, width,
  * height; a call with a destination only records it as both) and the picture drawn, with the box it
- * lands in on the canvas (x, y, w, h: through the moves, scales and quarter turns made before it).
+ * lands in on the canvas (x, y, w, h: through the moves, scales and quarter turns made before it), and
+ * its fillRect calls (as given).
  */
 function recorder() {
   const draws: { id: string; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number; x: number; y: number; w: number; h: number }[] = [];
+  const fills: { x: number; y: number; w: number; h: number }[] = [];
   // the transform, as setTransform takes it, and the ones saved
   let [a, b, c, d, e, f] = [1, 0, 0, 1, 0, 0];
   const saved: number[][] = [];
@@ -51,6 +53,7 @@ function recorder() {
         const [[x0, y0], [x1, y1]] = [at(dx, dy), at(dx + dw, dy + dh)];
         draws.push({ id: pic?.id ?? '', sx, sy, sw, sh, dx, dy, dw, dh, x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) });
       },
+      fillRect: (x: number, y: number, w: number, h: number) => fills.push({ x, y, w, h }),
       save: () => saved.push([a, b, c, d, e, f]),
       restore: () => ([a, b, c, d, e, f] = saved.pop() ?? [a, b, c, d, e, f]),
       translate: (x: number, y: number) => ([e, f] = at(x, y)),
@@ -63,7 +66,7 @@ function recorder() {
     // everything else a paint does (paths, fills, gradients) does nothing here
     { get: (t, k) => (k in t ? t[k] : () => ({ addColorStop: () => undefined })), set: () => true },
   ) as unknown as CanvasRenderingContext2D;
-  return { g, draws };
+  return { g, draws, fills };
 }
 
 describe('the concept sets drawn from art', () => {
@@ -77,7 +80,7 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots', deck: 'line' })).toEqual(['mecha/notes', 'mecha/long']);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
-    expect(styleImageIds(styleOf(skinById('flat', null)))).toEqual([]);
+    expect(styleImageIds(styleOf(BASE_SKIN))).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // the four hits of no set have flipbooks of their own; the skins' own STEMFLASH is drawn in code
     for (const hit of ['flash', 'flare', 'bubbles', 'grid'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
@@ -92,7 +95,7 @@ describe('the concept sets drawn from art', () => {
       'mecha/side': [1024, 512],
     };
     for (const [id, size] of Object.entries(sizes)) expect(manifest.textures[id]?.size, id).toEqual(size);
-    for (const style of [...BUILTIN_SKINS.map((s) => styleOf(s)), arcade]) {
+    for (const style of [styleOf(BASE_SKIN), arcade]) {
       for (const id of [...styleImageIds(style), ...Object.values(styleTextures(style))]) expect(manifest.textures[id], id).toBeDefined();
     }
     // the flipbooks spread from the judge line down over the gear
@@ -165,17 +168,16 @@ describe('the concept sets drawn from art', () => {
   });
 });
 
-/** CLUB, CRYSTAL, NEON and PIANO: their note family and hit. */
+/** CLUB, CRYSTAL and NEON: their note family and hit (PIANO's notes are gone, its hit is the hits' above). */
 const SETS = [
   { set: 'club', id: 'club', note: 'round', hit: 'club', end: 78, bar: 211 },
   // listed as "gem": "crystal" names an earlier texture set
   { set: 'crystal', id: 'gem', note: 'star4', hit: 'crystal', end: 70, bar: 206 },
   { set: 'neon', id: 'neon', note: 'star5', hit: 'neon', end: 59, bar: 248 },
-  { set: 'piano', id: 'piano', note: 'piano', hit: 'piano', end: 57, bar: 175 },
 ] as const;
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
-const setStyle = (c: SetCase) => styleOf(withParts(skinById('flat', null), { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }));
+const setStyle = (c: SetCase) => styleOf(withParts(BASE_SKIN, { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }));
 const STANDARD = ['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog'];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
@@ -194,7 +196,7 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
       ...Array.from({ length: 7 }, (_, i) => ({ left: 68.5 + i * lane, width: lane, kind: i % 2 ? ('other' as const) : ('white' as const) })),
     ],
     sides: [],
-    colours: skinById('flat', null).colors,
+    colours: BASE_SKIN.colors,
   };
 }
 
@@ -257,23 +259,13 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       const { g, draws } = recorder();
       paint(g, 120, 96, mark);
       const d = draws[0];
-      if (c.set === 'piano') {
-        // its rounded ends and its inlaid mark whole, the inlay between stretched, slices meeting at whole px
-        expect(draws).toHaveLength(5);
-        for (const e of draws) expect([e.sy, e.sh, e.dy, e.dh]).toEqual([i * 256 + 28, 200, 0, 96]);
-        expect(draws[0].dx).toBe(0);
-        for (let k = 1; k < 5; k++) expect(draws[k].dx).toBe(draws[k - 1].dx + draws[k - 1].dw);
-        expect(draws[4].dx + draws[4].dw).toBe(120);
-        return;
-      }
       // all of the lane's width; the gem in a row of its own, the record and the star in a cell
       expect([d.dx, d.dw]).toEqual([0, 120]);
       if (c.set === 'crystal') {
         expect([d.sx, d.sy, d.sw, d.sh]).toEqual([0, i * 256 + 1, 1024, 253]);
-        // a long flat gem across a bar's depth, about its middle, fuller than drawn but not twice
+        // a cut gem about the note's middle, no deeper than the note
         expect(d.dh).toBeLessThanOrEqual(96);
         expect(d.dy).toBeCloseTo((96 - d.dh) / 2, 9);
-        expect(d.dh / d.dw).toBeLessThan((2 * 253 * NOTE_STRETCH) / 1024);
       } else {
         expect([d.sx, d.sy]).toEqual([(i % 2) * 512 + 6, Math.floor(i / 2) * 512 + (c.set === 'club' ? 6 : 12)]);
         expect([d.dy, d.dh]).toEqual([0, 96]);
@@ -287,13 +279,28 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     expect(draws[0].dy).toBeCloseTo((40 - draws[0].dh) / 2, 9);
   });
 
-  it('keeps the record round and the star as drawn at the judge line; the gem lies in a bar’s depth', () => {
+  it('keeps the record round and the star as drawn at the judge line, the gem a little deeper than a bar', () => {
     const shape = noteShapeOf(c.note, images);
-    expect(shape).toBe({ club: 1, crystal: null, neon: 488 / 500, piano: null }[c.set]);
+    expect(shape).toBe({ club: 1, crystal: 0.8, neon: 488 / 500 }[c.set]);
     const depth = noteDepthOf(c.note, 0.7, 1.2, 1.7, shape);
-    if (shape === null) expect(depth).toBe(0.7);
-    else expect(depth).toBeCloseTo(1.2 * shape! * 1.7, 9);
+    expect(depth).toBeCloseTo(1.2 * shape! * 1.7, 9);
   });
+
+  if (c.set === 'crystal')
+    it('draws the gem fuller than its picture, on a band of light across the whole lane under it (the gem’s points are thin)', () => {
+      const { g, draws, fills } = recorder();
+      // a note deep enough for the gem to keep its own proportions
+      notePaintOf(c.note, images)(g, 120, 200, 'white');
+      const gem = draws[0];
+      // more than twice as deep for its width as the picture is, on the screen
+      expect(gem.dh / gem.dw).toBeGreaterThan((2 * 253 * NOTE_STRETCH) / 1024);
+      expect(gem.dh).toBeLessThan(200);
+      expect(fills).toHaveLength(1);
+      const band = fills[0];
+      expect([band.x, band.w]).toEqual([0, 120]);
+      expect(band.y + band.h / 2).toBeCloseTo(100, 9);
+      expect(band.h).toBeLessThan(gem.dh);
+    });
 
   it('draws its long note from art, its end as deep as the picture’s, its body and end lit while held', () => {
     const long = longPaintOf(c.note, images);
@@ -349,7 +356,7 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
 describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
-  const style = styleOf(withParts(skinById('flat', null), { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }));
+  const style = styleOf(withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }));
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);
   const deck = GEAR_PICTURES[gear].deck;
@@ -442,7 +449,7 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from 
   });
 
   it('frames the track in its own frame, as wide as it is, with a look of its own in FEVER', () => {
-    const colours = skinById('flat', null).colors;
+    const colours = BASE_SKIN.colors;
     const look = borderLookOf(style, images, colours);
     const code = codeBorderLook(gear, colours);
     expect(look.paint).toBeTypeOf('function');

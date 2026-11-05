@@ -61,7 +61,7 @@ async function sideBar(page: Page): Promise<{ width: number; middle: number }> {
   }, `data:image/png;base64,${png.toString('base64')}`);
 }
 
-test('stem keysound, background video, camera effects and a skin on a generated chart', async ({ page }) => {
+test('stem keysound, background video and camera effects on a generated chart', async ({ page }) => {
   const errors = trackErrors(page);
   mkdirSync('test-results', { recursive: true });
   const wav = 'test-results/e2e-phase3.wav';
@@ -71,7 +71,7 @@ test('stem keysound, background video, camera effects and a skin on a generated 
   });
   execFileSync(python, ['-c', MAKE_VIDEO, video], { env: { ...process.env, PYTHONPATH: '../server' } });
   await page.addInitScript(() => {
-    localStorage.setItem('grg.settings.v1', JSON.stringify({ keysound: true, skin: 'sunset', cameraFx: 1, bgBrightness: 0.6, visualizer: true }));
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ keysound: true, cameraFx: 1, bgBrightness: 0.6, visualizer: true }));
   });
 
   await page.goto('/');
@@ -205,32 +205,15 @@ test('a YouTube link as the background video', async ({ page }) => {
   for (const s of songs) await page.request.delete(`/api/songs/${s.id}/bga`);
 });
 
-test('custom skin from JSON in the settings', async ({ page }) => {
+test('the advanced tab: no user skins (the track has one look), the install hint with its Windows path', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-skin', 'club');
+  await expect(page.getByTestId('opt-skin')).toHaveCount(0);
   await settingsTab(page, 'advanced');
-  await expect(page.getByTestId('skin-settings')).toBeVisible();
-  // the skin is colours, track and type: the notes and the gear are the gear tab's
-  await expect(page.getByTestId('skin-settings')).toContainText('노트·사이드 노트·기어·타격 효과는 기어 탭에서 고릅니다');
-  await page.getByRole('button', { name: '현재 스킨 JSON 보기' }).click();
-  await expect(page.locator('.skin-json')).toHaveValue(/"judgeLine"/);
-  await expect(page.locator('.skin-json')).not.toHaveValue(/noteShape|hitEffect|"note"|"deck"/);
-  // the install hint has the Windows path too
+  await expect(page.getByTestId('skin-settings')).toHaveCount(0);
   await expect(page.locator('.install-hint')).toContainText('.venv\\Scripts\\pip');
-  await page.locator('.skin-json').fill('{"label": "테스트 스킨", "laneLayout": "rainbow", "colors": {"judgeLine": "#ff00aa"}}');
-  await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-  // the user skin is now the track's skin
-  await settingsTab(page, 'gear');
-  await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
-  await expect(page.getByTestId('opt-skin')).toContainText('테스트 스킨');
-  await page.getByRole('button', { name: /완료/ }).click();
-  await tool(page, 'sync-auto');
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await page.waitForTimeout(5000);
-  await page.screenshot({ path: 'test-results/play-custom-skin.png' });
   expect(errors).toEqual([]);
 });
 
@@ -284,6 +267,9 @@ test('side notes always over half the keys (반쪽 덮기): no row to lay them i
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await expect(page.getByTestId('opt-side-notes')).toHaveCount(0);
+  // the side notes' look is picked in the 노트 tab, with the notes
+  await settingsTab(page, 'notes');
+  await expect(page.getByTestId('opt-side-notes')).toHaveCount(0);
   const row = page.getByTestId('opt-side-style');
   const head = page.locator('.settings-side-head');
   // on the side notes' row the preview has side lanes, though the last key mode has none; on another row it has that mode again
@@ -323,7 +309,7 @@ test('side notes always over half the keys (반쪽 덮기): no row to lay them i
   expect(errors).toEqual([]);
 });
 
-test('textured skins, drawn in code where their media is missing or broken', async ({ page }) => {
+test('the parts drawn from their pictures, in code where their media is missing or broken', async ({ page }) => {
   const errors = trackErrors(page);
   const loaded: string[] = [];
   page.on('response', (r) => {
@@ -331,12 +317,8 @@ test('textured skins, drawn in code where their media is missing or broken', asy
   });
   // routed requests skip the browser's caches, so a picture an earlier play loaded is seen again
   await page.route('**/media/**', (r) => r.fallback());
-  const inSettings = async (step: () => Promise<void>) => {
-    await page.goto('/');
-    await page.getByTestId('open-settings').click();
-    await step();
-    await page.getByRole('button', { name: /완료/ }).click();
-  };
+  // the mecha notes and the flash, as the 노트 and 기어 tabs pick them
+  await page.addInitScript(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'chamfer', side: 'bar', deck: 'standard', hit: 'flash' } })));
   const play = async (shot: string) => {
     loaded.length = 0;
     await page.goto('/');
@@ -344,41 +326,21 @@ test('textured skins, drawn in code where their media is missing or broken', asy
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await page.waitForTimeout(3000);
-    await page.screenshot({ path: `test-results/play-textured-${shot}.png` });
+    await page.screenshot({ path: `test-results/play-parts-${shot}.png` });
   };
 
-  // JEWEL's own flipbooks give way to the hit picked: the flash's (every hit a player picks is drawn from art)
-  await inSettings(async () => {
-    await settingsTab(page, 'gear');
-    await chooseSetting(page, 'opt-skin', 'jewel');
-  });
-  await play('jewel');
-  for (const file of ['manifest.json', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) expect(loaded).toContain(`/media/${file}`);
-  expect(loaded).not.toContain('/media/fx/hit_burst_glow.png');
-
-  // a user skin of textures
-  const textured = { label: '텍스처 스킨', hitEffect: 'sprite', textures: { note: 'glass/note', floor: 'glass/floor', hitBurst: 'fx/hitBurstRing', hitHold: 'fx/hitHold' } };
-  await inSettings(async () => {
-    await settingsTab(page, 'advanced');
-    await page.locator('.skin-json').fill(JSON.stringify(textured));
-    await page.getByRole('button', { name: '사용자 스킨 적용' }).click();
-    await settingsTab(page, 'gear');
-    await expect(page.getByTestId('opt-skin')).toHaveAttribute('data-value', 'custom');
-    await expect(page.getByTestId('opt-skin')).toContainText('텍스처 스킨');
-  });
-  await play('user');
-  for (const file of ['manifest.json', 'skins/glass/note_tap.png', 'skins/glass/floor.png', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) {
-    expect(loaded).toContain(`/media/${file}`);
-  }
-  expect(loaded).not.toContain('/media/fx/hit_burst_ring.png');
-  // a broken note texture: the notes are drawn in code, the rest stays textured
-  await page.route('**/media/skins/glass/note_tap.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
+  await play('art');
+  for (const file of ['manifest.json', 'styles/mecha/notes.png', 'styles/mecha/long.png', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) expect(loaded).toContain(`/media/${file}`);
+  // the old texture sets are asked for by nothing
+  expect(loaded.filter((f) => f.startsWith('/media/skins/') || f.startsWith('/media/fx/'))).toEqual([]);
+  // a broken note picture: the notes are drawn in code, the rest from its pictures
+  await page.route('**/media/styles/mecha/notes.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
   await play('broken-note');
-  expect(loaded).toContain('/media/skins/glass/floor.png');
+  expect(loaded).toContain('/media/styles/mecha/long.png');
   // no manifest at all: everything is drawn in code
   await page.route('**/media/manifest.json', (r) => r.fulfill({ status: 404, body: '' }));
   await play('no-media');
-  expect(loaded.filter((f) => f.endsWith('.png'))).toEqual([]);
+  expect(loaded.filter((f) => f.endsWith('.png') || f.endsWith('.webp'))).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -389,7 +351,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   await page.evaluate(() => localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '7K+1S' })));
   await page.reload();
   await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'colors');
+  await settingsTab(page, 'notes');
   const preview = page.getByTestId('gear-preview');
   const shown = async () => (await preview.getAttribute('data-lane-colors'))!.split(' ');
   await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
@@ -470,7 +432,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
 
   // a new preset from a built-in one; a reset keeps the player's presets; one deleted on a second press
   await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'colors');
+  await settingsTab(page, 'notes');
   await chooseSetting(page, 'opt-color-preset', 'hands');
   await page.getByTestId('color-preset-new').click();
   await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'user-2');
@@ -484,7 +446,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   await page.getByTestId('reset-all').click();
   await page.getByTestId('reset-all').click();
   await expect(page.getByTestId('reset-done')).toBeVisible();
-  await settingsTab(page, 'colors');
+  await settingsTab(page, 'notes');
   await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
   expect((await stored()).colorPresets).toHaveLength(2);
   await chooseSetting(page, 'opt-color-preset', 'user-1');
@@ -498,23 +460,32 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   expect(errors).toEqual([]);
 });
 
-test('notes, side notes, gear and hit effect picked whatever the skin: plain names, the same defaults on any skin, kept, and played; long notes go with the note', async ({ page }) => {
+test('notes and side notes picked in the 노트 tab, gear and hit effect in the 기어 tab: plain names, kept, and played; long notes go with the note', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-skin', 'arcade');
-  // each part is named as picked, the defaults on this skin too: there is no skin's own to follow
+  // the 노트 tab: the note and side note rows first, then the note colours
+  await settingsTab(page, 'notes');
+  await expect(page.getByTestId('settings-tab-notes')).toHaveText('노트');
+  await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('노트');
+  await expect(page.getByTestId('opt-color-preset')).toBeVisible();
+  // the notes to pick, the piano note gone (its hit is the 기어 tab's still)
+  const notes = page.getByTestId('opt-note-style');
+  await notes.focus();
+  const seen = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    seen.add((await notes.getAttribute('data-value')) ?? '');
+    await page.keyboard.press('ArrowRight');
+  }
+  expect([...seen].sort()).toEqual(['chamfer', 'flat', 'round', 'star4', 'star5']);
+  await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
     ['opt-side-style', 'bar', '기본'],
-    ['opt-deck-style', 'standard', '기본'],
-    ['opt-hit-style', 'flash', '플래시'],
   ]) {
     await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
     await expect(page.getByTestId(id)).toContainText(name);
-    await expect(page.getByTestId(id)).not.toContainText('스킨');
   }
   // no row of its own for the long notes: they are of the note's family
   await expect(page.getByTestId('opt-long-style')).toHaveCount(0);
@@ -524,10 +495,23 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'bar');
   await page.getByTestId('opt-side-style').press('ArrowRight');
   await expect(page.getByTestId('opt-side-style')).toHaveAttribute('data-value', 'dots');
+  await expect(page.getByTestId('gear-preview')).toBeVisible();
+  // the 기어 tab: the gear and the hit, no track skin, no colour palette, no note rows
+  await settingsTab(page, 'gear');
+  for (const gone of ['opt-skin', 'opt-palette', 'opt-note-style', 'opt-side-style']) await expect(page.getByTestId(gone)).toHaveCount(0);
+  for (const [id, value, name] of [
+    ['opt-deck-style', 'standard', '기본'],
+    ['opt-hit-style', 'flash', '플래시'],
+  ]) {
+    await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
+    await expect(page.getByTestId(id)).toContainText(name);
+  }
   await chooseSetting(page, 'opt-deck-style', 'receiver');
   await chooseSetting(page, 'opt-hit-style', 'grid');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
-  expect(await stored()).toMatchObject({ skin: 'arcade', parts: { note: 'round', side: 'dots', deck: 'receiver', hit: 'grid' } });
+  const kept = await stored();
+  expect(kept).toMatchObject({ parts: { note: 'round', side: 'dots', deck: 'receiver', hit: 'grid' } });
+  expect(kept).not.toHaveProperty('skin');
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
@@ -543,43 +527,41 @@ test('notes, side notes, gear and hit effect picked whatever the skin: plain nam
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('song-list')).toBeVisible();
 
-  // back to the defaults: drawn as on any skin, not as arcade's own (chamfer rail bar arcade star)
+  // back to the defaults
   await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-note-style', 'flat');
+  await chooseSetting(page, 'opt-side-style', 'bar');
   await settingsTab(page, 'gear');
-  for (const [id, value] of [
-    ['opt-note-style', 'flat'],
-    ['opt-side-style', 'bar'],
-    ['opt-deck-style', 'standard'],
-    ['opt-hit-style', 'flash'],
-  ]) {
-    await chooseSetting(page, id, value);
-  }
+  await chooseSetting(page, 'opt-deck-style', 'standard');
+  await chooseSetting(page, 'opt-hit-style', 'flash');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
   expect(errors).toEqual([]);
 });
 
-test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the standard one, the cabinet drawn from its pictures, its HUD in its type or the skin’s', async ({ page }) => {
+test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the standard one, the cabinet drawn from its pictures, its HUD in its type or the track’s own', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown>; hudType?: string });
-  // a gear colour an earlier version saved is dropped, and its gear, taken out, opens as the standard one
+  // a track skin and a gear colour an earlier version saved are dropped, and its gear, taken out, opens as the standard one
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ skin: 'arcade', parts: { deck: 'arcade', deckColour: 'red' } }));
   });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-note-style', 'chamfer');
   await settingsTab(page, 'gear');
   // no gear colour to pick: each gear has one look
   await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'standard');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await expect(page.getByText('기어 색', { exact: true })).toHaveCount(0);
-  await chooseSetting(page, 'opt-note-style', 'chamfer');
   await chooseSetting(page, 'opt-deck-style', 'cabinet');
   await expect(page.getByTestId('opt-deck-style')).toContainText('오락실 기체');
   await chooseSetting(page, 'opt-hit-style', 'mecha');
   await expect(page.getByTestId('opt-hit-style')).toContainText('메카 섬광');
-  // the judgement and combo follow the gear unless the skin's are kept
+  // the judgement and combo follow the gear unless the track's own (기본) are kept
   await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
   expect((await stored()).parts).toEqual({ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' });
   await page.getByRole('button', { name: /완료/ }).click();
@@ -605,29 +587,31 @@ test('the mecha set on the arcade cabinet picked part by part: a gear taken out 
     await expect(page.getByTestId('song-list')).toBeVisible();
   };
   await play(/DSEG7 Classic/);
-  // the skin's type for the judgement and combo: arcade's, the gear's HUD otherwise as it was
+  // the track's own type for the judgement and combo (기본), the gear's HUD otherwise as it was
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-hud-type', 'skin');
+  await expect(page.getByTestId('opt-hud-type')).toContainText('기본');
   expect((await stored()).hudType).toBe('skin');
   await page.getByRole('button', { name: /완료/ }).click();
-  await play(/Bebas Neue/);
+  await play(/Barlow Condensed/);
   expect(errors).toEqual([]);
 });
 
-test('the club, crystal, neon and piano sets picked part by part, each on one of the gears: all of it drawn from art in play, the HUD the gear’s', async ({ page }) => {
+test('the club, crystal and neon sets and the piano hit picked part by part, each on one of the gears: all of it drawn from art in play, the HUD the gear’s', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [note, deck, hit, hitName, style] of [
     ['round', 'receiver', 'club', '클럽 링', 'round capsule bar receiver club'],
     ['star4', 'standard', 'crystal', '크리스털 파편', 'star4 ray bar standard crystal'],
     ['star5', 'najeon', 'neon', '네온 아크', 'star5 ray bar najeon neon'],
-    ['piano', 'cabinet', 'piano', '피아노 음표', 'piano key bar cabinet piano'],
+    ['chamfer', 'cabinet', 'piano', '피아노 음표', 'chamfer rail bar cabinet piano'],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();
-    await settingsTab(page, 'gear');
+    await settingsTab(page, 'notes');
     await chooseSetting(page, 'opt-note-style', note);
+    await settingsTab(page, 'gear');
     await chooseSetting(page, 'opt-deck-style', deck);
     await chooseSetting(page, 'opt-hit-style', hit);
     await expect(page.getByTestId('opt-hit-style')).toContainText(hitName);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { keyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
-import { LANE_PALETTES, type Palette } from '../render/palette';
+import { LANE_COLORS } from '../render/palette';
 import { pointText } from './format';
 import { rangePoints, sectionRange, stepRange } from './practiceRange';
 import { groupColor, sectionLabel } from './sections';
@@ -13,7 +13,6 @@ const SECTION_BAND = 20;
 
 interface Props {
   chart: Chart;
-  palette: Palette;
   /** Practice segment to highlight (ms); dragging selects a new one when `onSelect` is set. */
   selection?: [number, number] | null;
   onSelect?: (startMs: number, endMs: number) => void;
@@ -27,7 +26,7 @@ interface Props {
  * segment (`onSelect`) it takes the focus: ←→ move the segment a bar, Shift+←→ make it a bar
  * longer or shorter; the sections' buttons under it each pick their section.
  */
-export function ChartMinimap({ chart, palette, selection, onSelect, onHelp }: Props) {
+export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(600);
   const [drag, setDrag] = useState<[number, number] | null>(null);
@@ -69,7 +68,7 @@ export function ChartMinimap({ chart, palette, selection, onSelect, onHelp }: Pr
     const x = (t: number) => (t / duration) * width;
     const lanes = keyModes[chart.meta.keyMode].lanes;
     const rowH = (HEIGHT - SECTION_BAND - 4) / lanes.length;
-    const colors = LANE_PALETTES[palette];
+    const colors = LANE_COLORS;
     const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
     const tempo = new TempoMap(chart.timing);
@@ -122,7 +121,7 @@ export function ChartMinimap({ chart, palette, selection, onSelect, onHelp }: Pr
       ctx.lineWidth = 2;
       ctx.strokeRect(x(a) + 1, 1, Math.max(2, x(b) - x(a) - 2), HEIGHT - 2);
     }
-  }, [chart, palette, width, duration, bars, shown?.[0], shown?.[1]]);
+  }, [chart, width, duration, bars, shown?.[0], shown?.[1]]);
 
   const timeAt = (e: PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();

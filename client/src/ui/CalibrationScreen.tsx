@@ -5,11 +5,10 @@ import { cameraConfig, judgementConfig, keyModes } from '../engine/config';
 import { JudgementTable } from '../engine/judgement';
 import { ScrollModel } from '../engine/scroll';
 import { GamepadMenuBridge, GamepadPoller, padMenuKey, SHOULDER_KEYS } from '../input/gamepad';
-import { GRADE_PALETTES } from '../render/palette';
+import { GRADE_COLORS } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
-import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { laneColorsOf, liftShare, visibleTimeMs, type Settings } from '../settings/settings';
+import { laneColorsOf, liftShare, skinOf, visibleTimeMs, type Settings } from '../settings/settings';
 import { countedBeat } from './inputSync';
 import { offsetText } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
@@ -423,7 +422,7 @@ function VisualStep({
 function ClickGear({ settings, offset }: { settings: Settings; offset: { readonly current: number } }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { lastKeyMode: keyMode, skin: skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, judgeLinePosition, musicVolume } = settings;
+  const { lastKeyMode: keyMode, parts, cameraPreset, laneWidthScale, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, judgeLinePosition, musicVolume } = settings;
   // where the play has the judge line (판정선 위치), as the share of the track the renderer takes
   const lift = liftShare(judgeLinePosition);
   const { noteColors, colorPresets } = settings;
@@ -437,7 +436,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
     let watch: ResizeObserver | null = null;
     let raf = 0;
     const engine = getAudioEngine();
-    const skin = withParts(skinById(skinId, customSkin), parts);
+    const skin = skinOf({ parts });
     void Promise.all([loadSkinArt(skin).catch(() => null), engine.unlock()]).then(([art]) => {
       if (!alive) {
         disposeSkinArt(art);
@@ -449,7 +448,6 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         camera: cameraConfig.presets[cameraPreset] ?? cameraConfig.presets[cameraConfig.default],
         trackWidth: cameraConfig.trackWidth * laneWidthScale,
         trackLength: cameraConfig.trackLength,
-        palette,
         reducedFlash,
         // no cover over the notes coming down (the judge line stays where the play has it)
         covers: { sudden: 0, hidden: 0, lift },
@@ -459,7 +457,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         keyBeamLength,
         hitEffectSize,
         sideNotes,
-        laneColors: laneColorsOf({ skin: skinId, customSkin, parts, palette, noteColors, colorPresets }, keyMode),
+        laneColors: laneColorsOf({ parts, noteColors, colorPresets }, keyMode),
         fitWidth: 0.84,
       });
       renderer = r;
@@ -474,7 +472,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
       const scroll = new ScrollModel({ trackLength: r.geometry.length, visibleMs: visibleTimeMs(hiSpeed), lift, mode: 'time', timing, rate: 1, durationMs: end });
       const bars = beats.filter((_, i) => i % LOOP.beatsPerMeasure === 0);
       const notes = clickChords(mode, beats);
-      const hitColor = GRADE_PALETTES[palette]['g-max'] ?? 0xffffff;
+      const hitColor = GRADE_COLORS['g-max'] ?? 0xffffff;
       const pressedUntil = new Array<number>(mode.lanes.length).fill(-Infinity);
       let next = 0;
       engine.setBuffer(clickTrackBuffer(engine.ctx, LOOP));
@@ -525,7 +523,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
       renderer?.dispose();
       engine.stop();
     };
-  }, [keyMode, skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, noteColors, colorPresets, hiSpeed, lift, musicVolume, offset]);
+  }, [keyMode, parts, cameraPreset, laneWidthScale, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, noteColors, colorPresets, hiSpeed, lift, musicVolume, offset]);
 
   return (
     <div className="calib-gear" ref={box} data-testid="calib-gear">

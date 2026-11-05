@@ -1,24 +1,15 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { DeckStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
-import { BUILTIN_SKINS, PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
+import { PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
 import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
-import type { Settings } from '../settings/settings';
 
 /** The option rows of the settings and the song select's play options. */
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/** The track skins to choose from: the built-in ones, and the user's when there is one. */
-export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, string][] {
-  return [
-    ...BUILTIN_SKINS.map((k): [string, string] => [k.id, k.label]),
-    ...(settings.customSkin !== null ? [['custom', (settings.customSkin as { label?: string }).label ?? '사용자 스킨'] as [string, string]] : []),
-  ];
-}
-
-/** The parts of the gear by name (설정 → 기어). */
-export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)', piano: '피아노' };
+/** The parts by name (설정 → 노트 and 기어). */
+export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<DeckStyle, string> = {
   line: '라인',
@@ -46,10 +37,10 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   none: '없음',
 };
 
-/** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴). */
+/** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
 export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [
   ['gear', '기어'],
-  ['skin', '트랙 스킨'],
+  ['skin', '기본'],
 ];
 
 /** Each part's choices, by name. */

@@ -18,7 +18,7 @@ import { PadPlayControls, type PadPlayAction } from '../input/padPlay';
 import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
 import { CameraFx } from '../render/cameraFx';
 import { hexString } from '../render/noteColors';
-import { GRADE_PALETTES } from '../render/palette';
+import { GRADE_COLORS } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
 import { hudGearOf, hudTypeFor } from '../render/gearHud';
 import { styleOf } from '../render/skins';
@@ -254,7 +254,6 @@ export class PlayController {
       camera,
       trackWidth: cameraConfig.trackWidth * settings.laneWidthScale,
       trackLength: cameraConfig.trackLength,
-      palette: settings.palette,
       reducedFlash: settings.reducedFlash,
       covers: activeCovers(settings),
       skin,
@@ -879,7 +878,7 @@ export class PlayController {
     if (e.type === 'judge') {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
-      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_PALETTES[this.settings.palette][e.cls] ?? 0xffffff, now, e.noteIndex);
+      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_COLORS[e.cls] ?? 0xffffff, now, e.noteIndex);
       if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
         // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
         // judged BREAK sounds like an empty press (the start of its slice over the song)

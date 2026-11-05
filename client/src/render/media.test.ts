@@ -3,7 +3,8 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseManifest } from './skinArt';
-import { BUILTIN_SKINS } from './skins';
+import { BASE_SKIN, PART_HITS, styleOf } from './skins';
+import { styleTextures } from './styleArt';
 
 // The built game media (scripts/assets/build_p0.py → client/public/media) against its manifest.
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
@@ -56,10 +57,11 @@ describe('game media', () => {
     expect(bytes).toBeLessThan(30 * 1024 * 1024);
   });
 
-  it('has every texture the built-in skins use', () => {
-    for (const skin of BUILTIN_SKINS) {
-      for (const [slot, id] of Object.entries(skin.textures ?? {})) expect(manifest.textures[id], `${skin.id}.${slot} = ${id}`).toBeDefined();
+  it('has the flipbooks of every hit effect a player picks', () => {
+    for (const hit of PART_HITS) {
+      const ids = Object.entries(styleTextures({ ...styleOf(BASE_SKIN), hit }));
+      expect(ids.map(([slot]) => slot), hit).toEqual(['hitBurst', 'hitHold']);
+      for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook, `${hit}.${slot} = ${id}`).toBeDefined();
     }
-    for (const id of ['fx/hitBurstRing', 'fx/hitBurstGlow', 'fx/hitHold']) expect(manifest.textures[id].flipbook, id).toBeDefined();
   });
 });

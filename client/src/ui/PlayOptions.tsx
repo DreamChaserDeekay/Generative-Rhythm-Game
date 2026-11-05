@@ -29,7 +29,7 @@ import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
 import { coverText, judgeLineText, pointText, speedText } from './format';
-import { Choice, NumberOption, OptionalNumberOption, pct, skinChoices, Toggle, type RowProps } from './optionRows';
+import { Choice, NumberOption, OptionalNumberOption, pct, Toggle, type RowProps } from './optionRows';
 import { pacemakerChoices } from './playRules';
 import { focusFirstStop } from './selectNav';
 
@@ -459,7 +459,6 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
           onChange={(v) => onSettingsChange(withCovers(settings, { judgeLinePosition: v }))}
           help="판정선을 올리거나(+) 내림(−), −20%면 기어에 붙음 (LIFT)"
         />
-        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="트랙·레일·판정선의 색과 글꼴 (노트·기어는 설정 → 기어)" />
         <Choice
           {...row}
           label="카메라"
@@ -575,7 +574,6 @@ export function PlayOptionsPanel(props: SettingsProps & {
             <PracticePanel practice={practice} onChange={props.onPracticeChange} onHelp={setHelp} />
             <ChartMinimap
               chart={chart}
-              palette={settings.palette}
               selection={[practice.startMs, practice.endMs]}
               onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
               onHelp={setHelp}

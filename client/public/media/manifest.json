@@ -866,30 +866,6 @@
       },
       "anchorY": 0.7
     },
-    "piano/long": {
-      "file": "styles/piano/long.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "piano/notes": {
-      "file": "styles/piano/notes.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "piano/side": {
-      "file": "styles/piano/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
     "racing/button": {
       "file": "gears/racing/button.png",
       "bundle": "gear",

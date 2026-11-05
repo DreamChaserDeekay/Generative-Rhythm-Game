@@ -3,7 +3,7 @@ import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, referenceReach, rowDrop, shadowOf, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
-import { BUILTIN_SKINS } from './skins';
+import { BASE_SKIN } from './skins';
 import { deckRows, deckTopZ, notesEndZ, type DeckRows } from './TrackRenderer';
 
 /** A key mode's lanes as the deck has them (px of the sheets, 73.65 to a track unit); side lanes laid over the keys are none of them. */
@@ -136,7 +136,7 @@ describe('the side bars under the lane lights (side lanes laid over the keys)', 
             stretch: d.stretch,
             lanes,
             sides: halves.map((l) => ({ left: (l.x - l.width / 2 + 4) * 73.65, width: l.width * 73.65, top: d.sideTop, depth: d.sideDepth })),
-            colours: BUILTIN_SKINS[0].colors,
+            colours: BASE_SKIN.colors,
           };
           // panels, grilles and bands start under the bars; without them, under the lights as before
           expect(lowerTop(spec)).toBe(d.sideTop + d.sideDepth);
@@ -182,7 +182,7 @@ describe('the track’s borders in a gear’s frame', () => {
   });
 
   it('gives every gear drawn in code a border in its plate’s colours', () => {
-    for (const style of DECK_STYLES) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).edge, style).toMatch(/^#[0-9a-f]{6}$/i);
+    for (const style of DECK_STYLES) expect(codeBorderLook(style, BASE_SKIN.colors).edge, style).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
   it('gives each gear a player picks its own frame, wider than a skin’s rails, painted whole, lit in FEVER', () => {
@@ -203,7 +203,7 @@ describe('the track’s borders in a gear’s frame', () => {
       return look.width!;
     });
     expect(Math.min(...widths)).toBeGreaterThanOrEqual(14);
-    expect(codeBorderLook('line', BUILTIN_SKINS[0].colors).paint).toBeUndefined();
+    expect(codeBorderLook('line', BASE_SKIN.colors).paint).toBeUndefined();
   });
 
   it('stands each gear a player picks as a wall, its inner face painted whole, lit in FEVER; a skin’s rails lie flat', () => {
@@ -228,7 +228,7 @@ describe('the track’s borders in a gear’s frame', () => {
       // the left wall's face, turned from the light, in more shade than the right one's
       expect(shades[0], style).not.toEqual(shades[1]);
     }
-    for (const style of ['line', 'stem'] as const) expect(codeBorderLook(style, BUILTIN_SKINS[0].colors).height).toBeUndefined();
+    for (const style of ['line', 'stem'] as const) expect(codeBorderLook(style, BASE_SKIN.colors).height).toBeUndefined();
   });
 
   it('throws a thing’s shadow down and to the right of it on the screen, however the canvas is drawn', () => {
@@ -260,7 +260,7 @@ describe('the decks of the gears a player picks', () => {
     stretch,
     lanes: deckLanes(mode),
     sides: [],
-    colours: BUILTIN_SKINS[0].colors,
+    colours: BASE_SKIN.colors,
   });
 
   it('is the same object whatever the key mode: nothing on it stands for a lane', () => {

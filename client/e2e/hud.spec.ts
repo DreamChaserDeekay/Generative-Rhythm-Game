@@ -132,7 +132,7 @@ test('the score panel reads at 12 px or more on the default camera, its farthest
 
 test('a narrow screen: the score panel stays on the screen and readable, each label over its number', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await readablePanel(page, { lastKeyMode: '8K', cameraPreset: 'LOW', skin: 'neon', pacemaker: '98' }, /stacked/);
+  await readablePanel(page, { lastKeyMode: '8K', cameraPreset: 'LOW', pacemaker: '98' }, /stacked/);
 });
 
 test('a very wide gear on a narrow window: no room beside it, so the score panel stands upright at the lower left, clear of the time left', async ({ page }) => {

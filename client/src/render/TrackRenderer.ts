@@ -17,7 +17,7 @@ import {
   type SideNotes,
   type TrackGeometry,
 } from './layout';
-import { FEVER_COLORS, STEM_COLORS, type Palette } from './palette';
+import { FEVER_COLORS, STEM_COLORS } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
@@ -139,8 +139,10 @@ const HOLD_SIZE = 1.1 * FX_SCALE;
 const BURST_SIZE = 2.1;
 const CORE_SIZE = 1.6;
 const SPARKS_SIZE = 2.4;
-/** Small hit effects (설정 → 타격 효과 → 작게) keep within about this many lanes across. */
+/** Small hit effects (설정 → 타격 효과 크기 → 작게) keep within about this many lanes across. */
 const SMALL_HIT_LANES = 1.2;
+/** Large ones (크게) are drawn this many times the usual size, still cut at the rails. */
+const LARGE_HIT = 1.4;
 /** The FEVER tint over the track: steady, faint enough to keep the lane colours. */
 const FEVER_TINT = 0.09;
 /** An effect lying on the track is drawn longer along it until it looks at least this tall for its width. */
@@ -187,7 +189,7 @@ const SIDE_BEAM = 0.25;
 /**
  * Their hits and holds: a flash across the half on the judge line, with light rising a short way
  * up it, this deep (track units, before the effects' stretch); 작게 makes it this much shallower
- * (as wide as the half still: that is the side lane).
+ * and 크게 LARGE_HIT times deeper (as wide as the half still: that is the side lane).
  */
 const SIDE_FLASH = 2.0;
 const SMALL_SIDE_FLASH = 0.6;
@@ -272,14 +274,13 @@ export interface CoverLayout {
 }
 
 /** How large hit and hold effects are drawn: the skin's own, small (about a lane), or none. */
-export type HitEffectSize = 'normal' | 'small' | 'off';
+export type HitEffectSize = 'large' | 'normal' | 'small' | 'off';
 
 export interface TrackRendererOptions {
   mode: KeyModeConfig;
   camera: CameraPreset;
   trackWidth: number;
   trackLength: number;
-  palette: Palette;
   reducedFlash: boolean;
   covers: CoverLayout;
   skin: Skin;
@@ -289,11 +290,11 @@ export interface TrackRendererOptions {
   barLines?: boolean;
   /** Key beams' length as a share of BEAM_LENGTH (default 1, 0 = none). */
   keyBeamLength?: number;
-  /** Hit and hold effects at the skin's size (default), about a lane wide, or none. */
+  /** Hit and hold effects larger than the usual size, at it (default), about a lane wide, or none. */
   hitEffectSize?: HitEffectSize;
   /** Side notes in lanes of their own at the edges (default), or as bars over half the key lanes (DJMAX's side tracks). */
   sideNotes?: SideNotes;
-  /** Every lane's colour (the settings' note colours); without it, the palette's and the skin's (laneColorsFor). */
+  /** Every lane's colour (the settings' note colours); without it, the skin's (laneColorsFor). */
   laneColors?: readonly number[];
   /**
    * A preview's framing: the field of view is set so the judge line spans this share of the
@@ -577,7 +578,7 @@ export class TrackRenderer {
   private pose!: CameraPose;
   /** The screen's width over its height (16:9 until the first resize). */
   private aspect = 16 / 9;
-  /** Colour of each lane: the note colours picked, or the palette's with the skin's overrides and lane layout. */
+  /** Colour of each lane: the note colours picked, or the skin's (laneColorsFor). */
   private laneColors: number[];
   /** Under the coloured lanes, their colour on the floor: recoloured with the lanes (setLaneColors). */
   private readonly floorTints: { lane: number; material: THREE.MeshBasicMaterial }[] = [];
@@ -587,7 +588,7 @@ export class TrackRenderer {
   private readonly style: SkinStyle;
   /** The skin's hit effect, or none when the settings turn them off. */
   private readonly hit: SkinStyle['hit'];
-  /** How much each effect is drawn: 1, or less to keep a small one within SMALL_HIT_LANES. */
+  /** How much each effect is drawn: 1, LARGE_HIT for large ones, or less to keep a small one within SMALL_HIT_LANES. */
   private readonly fxFit: { hit: number; hold: number; burst: number; core: number; sparks: number };
   private readonly reducedFlash: boolean;
   private readonly barLines: boolean;
@@ -742,7 +743,7 @@ export class TrackRenderer {
     this.keyPaint = lightsOf(this.style.deck);
     this.platePaint = platePaintOf(this.style, this.images);
     this.borderLook = borderLookOf(this.style, this.images, this.skin.colors);
-    this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.palette, options.mode);
+    this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.mode);
     // a skin drawn in code lays its note pictures on the track, as the sheets do
     this.noteGeometry = createNoteGeometry(options.skin.style ? 'picture' : options.skin.noteShape);
     this.barDepth = NOTE_DEPTH * (this.style.noteDepth ?? 1);
@@ -770,7 +771,7 @@ export class TrackRenderer {
     this.artParts = [...artPartsOf(this.style, this.images), ...(this.flipbook ? ['hit'] : [])].join(' ');
     this.hitSheet = hit === 'none' || this.flipbook ? null : effectSheet(hit === 'flipbook' ? 'flash' : hit);
     if (this.hitSheet) this.own(this.hitSheet.texture);
-    const fit = (lanes: number) => (options.hitEffectSize === 'small' ? Math.min(1, SMALL_HIT_LANES / lanes) : 1);
+    const fit = (lanes: number) => (options.hitEffectSize === 'small' ? Math.min(1, SMALL_HIT_LANES / lanes) : options.hitEffectSize === 'large' ? LARGE_HIT : 1);
     const reach = this.hitSheet?.reach ?? 1;
     this.fxFit = {
       hit: fit(reach * HIT_SIZE),
@@ -779,7 +780,7 @@ export class TrackRenderer {
       core: fit(CORE_SIZE * FX_SCALE),
       sparks: fit(SPARKS_SIZE * FX_SCALE),
     };
-    this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : 1);
+    this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : options.hitEffectSize === 'large' ? LARGE_HIT : 1);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;

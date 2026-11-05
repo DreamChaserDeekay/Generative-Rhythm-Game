@@ -24,22 +24,21 @@ import {
  *
  * The concept sets (media/styles/<set>/, made by scripts/assets/build_styles.py, whose layouts these
  * constants follow) are a note family with its long note and side notes, and a hit, each picked on
- * its own (설정 → 기어):
+ * its own (설정 → 노트 and 기어):
  *
  * - MECHA: the CHAMFER notes (machined plates) and their rail, the MECHA hit;
  * - CLUB: the ROUND notes (records) and their capsule, the CLUB hit (rings);
  * - CRYSTAL: the STAR4 notes (cut gems) and their prism, the CRYSTAL hit (shards);
  * - NEON: the STAR5 notes (neon stars) and their tube, the NEON hit (arcs);
- * - PIANO: the PIANO notes (key fronts) and their lacquered key, the PIANO hit (musical notes
- *   bursting out).
+ * - PIANO: the PIANO hit alone (musical notes bursting out; its notes are gone).
  *
  * The gears a player picks (media/gears/<gear>/, made by scripts/assets/build_gears.py) are drawn by
  * deckArt.ts from their pictures by part (GEAR_PICTURES).
  */
-export type ArtSet = 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export type ArtSet = 'mecha' | 'club' | 'crystal' | 'neon';
 
 /** Each set's note family. */
-const SET_NOTES: Record<ArtSet, NoteStyle> = { mecha: 'chamfer', club: 'round', crystal: 'star4', neon: 'star5', piano: 'piano' };
+const SET_NOTES: Record<ArtSet, NoteStyle> = { mecha: 'chamfer', club: 'round', crystal: 'star4', neon: 'star5' };
 const SET_IDS = Object.keys(SET_NOTES) as ArtSet[];
 const setOf = (note: string): ArtSet | undefined => SET_IDS.find((s) => SET_NOTES[s] === note);
 
@@ -73,7 +72,7 @@ export type StyleImages = Readonly<Partial<Record<string, ArtImage>>>;
  * A set's name in the manifest, its pictures listed as "<name>/<part>": CRYSTAL's is "gem", as
  * "crystal" already names an earlier texture set (skins/crystal/, which user skins may ask for).
  */
-const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon', piano: 'piano' };
+const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon' };
 const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${MANIFEST_NAME[set]}/${part}`;
 
 /**
@@ -127,8 +126,6 @@ const MARK_CELL: Record<Exclude<NoteMark, 'side'>, number> = { white: 0, blue: 1
  */
 type SlabLayout = { row: number; top: number; w: number; h: number; cuts: readonly [number, number, number, number] };
 const NOTES: SlabLayout = { row: 256, top: 23, w: 1024, h: 210, cuts: [156, 451, 573, 868] };
-/** PIANO's notes.png: as MECHA's, a key front per row; `cuts`: its rounded ends and the mark with the inlay's break round it. */
-const PIANO_NOTES: SlabLayout = { row: 256, top: 28, w: 1024, h: 200, cuts: [24, 440, 584, 1000] };
 /** MECHA's side.png: the bar over the keys at (0, 0), its end blocks `cut` wide; the side lane's own note (a grille plate) at (0, y), its middle `tile` repeated across. */
 const SIDE_BAR = { w: 1024, h: 219, cut: 80 } as const;
 const SIDE_PLATE = { y: 240, w: 512, h: 265, tile: [196, 316] } as const;
@@ -139,7 +136,6 @@ const SIDE_PLATE = { y: 240, w: 512, h: 265, tile: [196, 316] } as const;
  * `plate.cut` wide.
  */
 const SET_SIDE: Record<Exclude<ArtSet, 'mecha'>, { h: number; cut: number; plate: { h: number; cut: number } }> = {
-  piano: { h: 175, cut: 59, plate: { h: 175, cut: 60 } },
   club: { h: 211, cut: 108, plate: { h: 210, cut: 108 } },
   crystal: { h: 206, cut: 41, plate: { h: 203, cut: 36 } },
   neon: { h: 248, cut: 41, plate: { h: 146, cut: 82 } },
@@ -175,18 +171,6 @@ function mechaNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       return;
     }
     slab(g, notes, NOTES, mark, w, h);
-  };
-}
-
-/** PIANO: the front of a piano key across the lane, its rounded ends and its inlaid mark keeping their look, its inlay line stretched between. */
-function pianoNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
-  return (g, w, h, mark) => {
-    if (mark === 'side') {
-      if (side) sidePlate(g, side, 'piano', w, h);
-      else NOTE_PAINT.piano(g, w, h, mark);
-      return;
-    }
-    slab(g, notes, PIANO_NOTES, mark, w, h);
   };
 }
 
@@ -266,12 +250,22 @@ function neonNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
 /** CRYSTAL's notes.png: a gem per mark, a row of 256 each, 1024 × 253 from y = row × 256 + 1. */
 const GEM = { w: 1024, h: 253, top: 1 } as const;
 /**
- * How much deeper on the screen than the picture CRYSTAL draws its gem across a note (it lies in a
- * bar's depth, a long flat gem: a little fuller than drawn, it reads at speed), at most the note's depth.
+ * How much deeper on the screen than the picture CRYSTAL draws its gem across a note (a long cut gem,
+ * drawn fuller so it reads at speed as a four-pointed star), at most the note's depth; how tall the note is for its
+ * width at the judge line (GEM_SHAPE: deeper than a bar, see noteShapeOf); and how much brighter its
+ * facets are drawn than the picture (its darker facets lifted toward the lane's colour).
  */
-const GEM_FULL = 1.75;
+const GEM_FULL = 3;
+const GEM_SHAPE = 0.8;
+const GEM_BRIGHT = 1.25;
+/**
+ * The band of light under CRYSTAL's gem, across the whole lane: as deep as this share of the gem, at
+ * this strength in the middle. The gem's points are thin; the band carries the note's line from edge
+ * to edge, as a bar's does.
+ */
+const GEM_BAND = { depth: 0.42, alpha: 1 } as const;
 
-/** CRYSTAL: a long cut gem across the lane, its points at the lane's edges, its lane's mark cut in its heart. */
+/** CRYSTAL: a long cut gem across the lane, its points at the lane's edges, on a band of light across it, its lane's mark cut in its heart. */
 function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
   return (g, w, h, mark) => {
     if (mark === 'side') {
@@ -280,8 +274,19 @@ function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       return;
     }
     const gh = Math.min(h, (w * GEM.h * NOTE_STRETCH * GEM_FULL) / GEM.w);
+    const band = gh * GEM_BAND.depth;
+    const light = g.createLinearGradient(0, (h - band) / 2, 0, (h + band) / 2);
+    light.addColorStop(0, ink(1, 0, 0));
+    light.addColorStop(0.35, ink(1, 0.25, GEM_BAND.alpha));
+    light.addColorStop(0.65, ink(1, 0.25, GEM_BAND.alpha));
+    light.addColorStop(1, ink(1, 0, 0));
+    g.fillStyle = light;
+    g.fillRect(0, (h - band) / 2, w, band);
     g.imageSmoothingQuality = 'high';
+    // drawn once into the note's picture (a canvas filter where the browser has one; as drawn where not)
+    g.filter = `brightness(${GEM_BRIGHT})`;
     g.drawImage(notes, 0, MARK_CELL[mark] * 256 + GEM.top, GEM.w, GEM.h, 0, (h - gh) / 2, w, gh);
+    g.filter = 'none';
     noteMark(g, mark, w / 2, h / 2, Math.min(w * 0.042, (gh * 0.2) / NOTE_STRETCH), tone(0.34), false);
   };
 }
@@ -292,18 +297,18 @@ export function notePaintOf(style: NoteStyle, images: StyleImages): NotePaint {
   const notes = set && images[artId(set, 'notes')];
   if (!set || !notes) return NOTE_PAINT[style];
   const side = images[artId(set, 'side')];
-  return { mecha: mechaNote, club: clubNote, crystal: crystalNote, neon: neonNote, piano: pianoNote }[set](notes, side);
+  return { mecha: mechaNote, club: clubNote, crystal: crystalNote, neon: neonNote }[set](notes, side);
 }
 
 /**
  * How tall a note drawn from art looks for its width at the judge line (see noteDepthOf): CLUB's
- * record round, NEON's star as drawn; null where it lies in a bar's depth (CRYSTAL's long gem, as
- * MECHA's plate does); undefined while the style is drawn in code.
+ * record round, NEON's star as drawn, CRYSTAL's gem a little deeper than a bar (GEM_SHAPE); null where
+ * it lies in a bar's depth (MECHA's plate); undefined while the style is drawn in code.
  */
 export function noteShapeOf(style: NoteStyle, images: StyleImages): number | null | undefined {
   const set = setOf(style);
   if (!set || !images[artId(set, 'notes')]) return undefined;
-  return { mecha: null, club: 1, crystal: null, neon: NOTE_CELL.neon.h / 500, piano: null }[set];
+  return { mecha: null, club: 1, crystal: GEM_SHAPE, neon: NOTE_CELL.neon.h / 500 }[set];
 }
 
 // ---------- long notes ----------
@@ -314,7 +319,7 @@ export function noteShapeOf(style: NoteStyle, images: StyleImages): number | nul
  * point, NEON's capped tube).
  */
 const LONG = { w: 128, tile: 256 } as const;
-const LONG_END: Record<ArtSet, number> = { mecha: 48, club: 78, crystal: 70, neon: 59, piano: 57 };
+const LONG_END: Record<ArtSet, number> = { mecha: 48, club: 78, crystal: 70, neon: 59 };
 
 function artLong(image: ArtImage, end: number, width: number): LongPaint {
   const part =
