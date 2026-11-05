@@ -297,10 +297,12 @@ def generate_chart(
             # Every usable sound is already a note. Do not invent sounds; strong hits may still
             # become (more) chords, which is how dense charts thicken on sparse songs.
             if params.max_chord < 2 or chord_scale * params.chord_ratio >= MAX_CHORD_RATIO:
-                if engine == "sectioned" and chord_cap is not None and window_cfg:
+                if engine == "sectioned" and chord_cap is not None and window_cfg and level < params.levels[0] and lay.chords_capped:
                     # the cap on a stretch's chords widens a step at a time before the chart falls
-                    # short of its level: a sparse song's busiest part plays what the level needs
-                    # (docs/PATTERN_DESIGN.md 81)
+                    # short of its level range: a sparse song's busiest part plays what the level
+                    # needs (docs/PATTERN_DESIGN.md 81). A chart in its range keeps the cap, and a
+                    # cap that refused no chord this round has nothing to give (each step is one more
+                    # round: 4K MASTER on the 4-minute test song took 1.9 -> 5.8 s)
                     chord_cap *= float(window_cfg.get("loosen", 1.3))
                     if chord_cap > float(window_cfg.get("maxLoosen", 4.0)):
                         chord_cap = None

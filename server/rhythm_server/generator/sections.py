@@ -77,6 +77,7 @@ class Layout:
     slot_unit: list[int]
     phrases: list[list[int]] = field(default_factory=list)  # planner phrases (slot indices)
     phrase_keys: list[tuple[int, int]] = field(default_factory=list)  # (class, part) per phrase
+    chords_capped: bool = False  # the stretch cap on chords (sectioned.chordWindow) refused a chord
 
 
 def edited_analysis(analysis: dict[str, Any], edits: list[dict[str, Any]]) -> dict[str, Any]:
@@ -837,7 +838,7 @@ def layout(
             ref[i] = idxs[0]
     _bar_refs(units, members, per_unit, unit_slots, slot_key, ref, cands, bpb)
 
-    _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale, bpb, chord_cap)
+    chords_capped = _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params, key_count, chord_scale, bpb, chord_cap)
     _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params, tempo, plan_holds)
     if special_kind == "scratch":
         _assign_special(slots, slot_cand, positions, cands, params, "scratch", tempo)
@@ -849,7 +850,7 @@ def layout(
     _accents(slots, units, unit_slots, params, key_count)
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
-    return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys)
+    return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys, chords_capped=chords_capped)
 
 
 def _class_roll_keys(ms: list[int], per_unit: list[dict[int, int]], cands: list[Candidate]) -> set[int]:
@@ -986,14 +987,16 @@ def _plan_weight(units_of: list[Unit], what: str, power: float | None = 1.0) -> 
     return float(np.exp(power * np.mean(np.log(plan))))
 
 
-def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float, beats_per_bar: float = 4.0, cap_scale: float | None = 1.0) -> None:
+def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float, beats_per_bar: float = 4.0, cap_scale: float | None = 1.0) -> bool:
+    """Chord sizes of the slots; True when the stretch cap (sectioned.chordWindow) refused a chord
+    or made one smaller."""
     max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
     if max_chord < 2 or not slots:
-        return
+        return False
     ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
     target = ratio * len(slots)
     if target < 0.5:
-        return
+        return False
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
         if any(slots[i].roll is not None for i in idxs):
@@ -1045,10 +1048,12 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
 
     placed = 0
     picked: list[list[int]] = []
+    capped = False
     for worth, key, idxs in options:
         if placed >= target - 0.5 * len(idxs):
             break
         if not fits(idxs, 1):
+            capped = True
             continue
         use(idxs, 1)
         picked.append(idxs)
@@ -1058,9 +1063,11 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
         # a bigger chord takes its added notes from the stretch's room too
         while size > 2 and not fits(idxs, size - 2):
             size -= 1
+            capped = True
         use(idxs, size - 2)
         for i in idxs:
             slots[i].size = size
+    return capped
 
 
 def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, tempo: TempoMap, plan_holds: bool = True) -> None:
