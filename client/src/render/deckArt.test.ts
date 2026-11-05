@@ -4,7 +4,7 @@ import type { KeyModeId } from '../engine/types';
 import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, referenceReach, rowDrop, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BUILTIN_SKINS } from './skins';
-import { deckRows, type DeckRows } from './TrackRenderer';
+import { deckRows, deckTopZ, type DeckRows } from './TrackRenderer';
 
 /** A key mode's lanes as the deck has them (px of the sheets, 73.65 to a track unit); side lanes laid over the keys are none of them. */
 function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: number; kind: KeyKind; width: number }[] {
@@ -253,6 +253,13 @@ describe('the four gears’ decks', () => {
     }
     expect(isGear('line')).toBe(false);
     expect(GEAR_STYLES.every(isGear)).toBe(true);
+  });
+
+  it('stays where it is under LIFT, the raised line and LIFT’s cover above it; a skin’s own gear follows the line', () => {
+    // LIFT raises the judge line toward the track's far end (z under 0); the deck starts 0.6 under the line
+    for (const judgeZ of [0, -4, -20]) expect(deckTopZ(true, judgeZ, 0.6)).toBe(0.6);
+    expect(deckTopZ(false, -4, 0.6)).toBeCloseTo(-3.4, 9);
+    expect(deckTopZ(false, 0, 0.6)).toBe(0.6);
   });
 
   it('has a judge line of its own, thick and red, a little above the deck', () => {

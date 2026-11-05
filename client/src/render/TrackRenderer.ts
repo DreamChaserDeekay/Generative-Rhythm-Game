@@ -517,6 +517,15 @@ export interface DeckRows {
 }
 
 /**
+ * Where the deck starts along the track (z), `offset` under the judge line: a picked gear stays where
+ * it is without LIFT (the unlifted line is at z 0), so LIFT raises the line away from it and covers
+ * the lanes between them, as SUDDEN+ covers the far end; a skin's own gear follows the line.
+ */
+export function deckTopZ(gear: boolean, judgeZ: number, offset: number): number {
+  return (gear ? 0 : judgeZ) + offset;
+}
+
+/**
  * The deck's lights for `room` plane px of it on the screen: the row of lane lights KEY_TOP under
  * its top, as deep as the room allows and drawn `flatten(row)` times longer along the track (the
  * camera's flattening at the middle of a row `row` deep), lower where its lights are larger than
@@ -866,7 +875,8 @@ export class TrackRenderer {
     // notes come into view at the track's far end (they take no fog), cut there rather than popping up
     this.farClip.constant = c.sudden > 0 ? -suddenZ : L;
     // Missed notes run on past the judgement line (under LIFT, under its cover) as far as the deck,
-    // which hides them: cut where it starts, so a user skin's tall note never shows through it.
+    // which hides them: cut where it starts (a picked gear's under LIFT: where LIFT's cover starts,
+    // see layoutDeck), so a user skin's tall note never shows through it.
     this.hiddenCut = c.hidden > 0 ? hiddenZ : null;
     this.nearClip.constant = this.hiddenCut ?? this.judgeZ + this.deckOffset * PX;
 
@@ -1835,12 +1845,16 @@ export class TrackRenderer {
     const { width, lanes } = this.geometry;
     // a picked gear's judge line and the gap under it as deep on the screen in every camera: drawn
     // longer along the track where the camera flattens it, as the deck's rows are (keyRow)
-    if (isGear(this.style.deck)) {
+    const gear = isGear(this.style.deck);
+    if (gear) {
       this.judgeFit = Math.max(1, Math.round((0.85 / this.trackAspect(this.judgeZ) / KEY_ROW_STRETCH) * 20) / 20);
       this.judgeGroup.scale.z = this.judgeFit;
       this.nearClip.constant = this.hiddenCut ?? this.judgeZ + this.deckOffset * PX;
     }
-    const top = this.judgeZ + this.deckOffset * PX;
+    const top = deckTopZ(gear, this.judgeZ, this.deckOffset * PX);
+    // LIFT's cover over the lanes from the gap under the raised line down to a picked gear (a skin's
+    // own gear covers them itself, following the line)
+    if (gear) this.span(this.liftCover, this.judgeZ + this.deckOffset * PX, top, this.judgeZ < 0);
     const shown = Math.max(this.screenBottomZ(), top + 0.4) - top;
     const room = Math.max(DECK_STEP, Math.floor(shown / PX / DECK_STEP) * DECK_STEP) * PX;
     const depth = room + 2 + DECK_STEP * PX;
