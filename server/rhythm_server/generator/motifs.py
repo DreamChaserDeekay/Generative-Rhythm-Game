@@ -211,7 +211,8 @@ def alternate_key(
     - "fan": from the middle keys outward as the roll goes on (3-4, 2-5, 1-6 on 6K)
     - "inward": from the outer keys in (1-6, 2-5, 3-4)
     - "wave": one key further out every turn and back in (3-5-2-6-1-7-2-6-3-5)
-    - "shift": both hands walk the same way (1-4-2-5-3-6), back again when they reach the end
+    - "shift": both hands walk the same way (1-4-2-5-3-6), back again when they reach the end;
+      "shiftDown" walks the other way (6-3-5-2-4-1), for hits whose pitch falls
     - "trill": a trill on one key of each hand (2-5-2-5...), its keys from the shape's number; a
       long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half, a build-up
       twice that long or longer every TRILL_STEP_HITS notes
@@ -230,11 +231,15 @@ def alternate_key(
         return None
     width = 2 if spread and levels >= 2 else 1
     reach = 1 + int(round((levels - width) * min(1.0, ctx.skill / ctx.fan_skill)))
+    name, number = shape if shape is not None and width == 1 else ("fan", 0)
+    # a shape walking down is the mirror of the one walking up: the keys are worked out unmirrored
+    mirrored = name == "shiftDown"
+    if mirrored:
+        name = "shift"
     if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
-        on_left = ctx.hand[prev] == "R"
+        on_left = (ctx.hand[prev] == "R") != mirrored
     else:
         on_left = pos % 2 == 0
-    name, number = shape if shape is not None and width == 1 else ("fan", 0)
     turn = pos // 2
     if name == "trill":
         # every TRILL_STEP_HITS notes the trill moves a key (out, then back in at the edge)
@@ -263,7 +268,8 @@ def alternate_key(
     else:
         level = min(reach - 1, pos * reach // max(1, hits)) + turn % width
     level = min(level, levels - 1)
-    return left[level] if on_left else right[level]
+    key = left[level] if on_left else right[level]
+    return ctx.mirror[key] if mirrored else key
 
 
 def chord_jack_keys(ctx: MotifContext, number: int) -> tuple[int, ...] | None:

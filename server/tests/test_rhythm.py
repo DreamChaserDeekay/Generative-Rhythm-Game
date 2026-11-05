@@ -34,8 +34,10 @@ def song(kind: str):
 
 
 @lru_cache(maxsize=None)
-def chart(kind: str, key_mode: str, difficulty: str, level: int | None, source: str | None = None, style: str | None = None) -> dict:
+def chart(kind: str, key_mode: str, difficulty: str, level: int | None, source: str | None = None, style: str | None = None, focus: bool = True) -> dict:
     overrides = {k: v for k, v in (("rhythmSource", source), ("style", style)) if v}
+    if not focus:
+        overrides["repeatFocus"] = False  # every repeat follows the same sounds (no sectioned.repeatFocus)
     return generate_chart(song(kind)[1], key_mode, difficulty, level, overrides=overrides or None)
 
 
@@ -102,7 +104,9 @@ def test_build_up_rolls_go_hand_over_hand() -> None:
 
 def test_a_fill_rolls_only_in_its_own_bar() -> None:
     s, _ = song("structured")
-    notes = chart("structured", "6K", "HARD", 8)["notes"]
+    # (the second verse follows the melody since generator 0.9.46, sectioned.repeatFocus: the loops
+    # compared below follow the same sounds with it off)
+    notes = chart("structured", "6K", "HARD", 8, focus=False)["notes"]
     lanes = lane_infos("6K")
     verses = [x for x in s.structure if x["label"] == "verse"]
     for v in verses:

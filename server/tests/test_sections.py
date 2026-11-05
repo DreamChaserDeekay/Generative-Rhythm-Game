@@ -26,11 +26,12 @@ def structured(bpm: float, seed: int, humanize: bool = False):
 
 
 @lru_cache(maxsize=None)
-def chart(bpm: float, seed: int, key_mode: str, difficulty: str, level: int | None, engine: str = "sectioned", noise: bool = False) -> dict:
+def chart(bpm: float, seed: int, key_mode: str, difficulty: str, level: int | None, engine: str = "sectioned", noise: bool = False, focus: bool = True) -> dict:
+    """`focus` false: every repeat of the music follows the same sounds (no sectioned.repeatFocus)."""
     _, analysis = structured(bpm, seed)
     if noise:
         analysis = detection_noise(analysis, seed)
-    return generate_chart(analysis, key_mode, difficulty, level, overrides={"patternEngine": engine})
+    return generate_chart(analysis, key_mode, difficulty, level, overrides={"patternEngine": engine, **({} if focus else {"repeatFocus": False})})
 
 
 @pytest.mark.parametrize("bpm,seed,humanize", [(124.0, 1, False), (150.0, 2, True)])
@@ -52,7 +53,11 @@ def test_structure_finds_the_sections_of_the_song(bpm: float, seed: int, humaniz
 def test_the_same_music_gets_the_same_notes(key_mode: str, difficulty: str, level: int | None) -> None:
     song, _ = structured(124.0, 1)
     truth = [dict(s, endBeat=int(s["startBeat"]) + 4 * int(s["bars"])) for s in song.structure]
-    new = chart_consistency(chart(124.0, 1, key_mode, difficulty, level)["notes"], truth, key_mode)
+    # since generator 0.9.46 music heard again follows the drums and the melody in turn
+    # (sectioned.repeatFocus): its loops still repeat, and without the turns its repeats too
+    turns = chart_consistency(chart(124.0, 1, key_mode, difficulty, level)["notes"], truth, key_mode)
+    assert turns["loopLane"] >= 0.9 and turns["loopRhythm"] >= 0.85, turns
+    new = chart_consistency(chart(124.0, 1, key_mode, difficulty, level, focus=False)["notes"], truth, key_mode)
     old = chart_consistency(chart(124.0, 1, key_mode, difficulty, level, "designer")["notes"], truth, key_mode)
     assert new["loopLane"] >= 0.9 and new["loopRhythm"] >= 0.85, new
     assert new["repeatLaneMirror"] >= 0.9, new
@@ -60,7 +65,7 @@ def test_the_same_music_gets_the_same_notes(key_mode: str, difficulty: str, leve
     # and 0.95 on the 140 BPM one since generator 0.9.4, 0.96 and 0.93 before), so two songs decide
     song2, _ = structured(140.0, 1)
     truth2 = [dict(s, endBeat=int(s["startBeat"]) + 4 * int(s["bars"])) for s in song2.structure]
-    other = chart_consistency(chart(140.0, 1, key_mode, difficulty, level)["notes"], truth2, key_mode)
+    other = chart_consistency(chart(140.0, 1, key_mode, difficulty, level, focus=False)["notes"], truth2, key_mode)
     assert (new["repeatSelect"] + other["repeatSelect"]) / 2 >= 0.9, (new, other)
     assert new["barVariety"] <= 0.75, new
     # since generator 0.9.28 the sound memory brings the designer engine's repeated sound groups
@@ -70,33 +75,45 @@ def test_the_same_music_gets_the_same_notes(key_mode: str, difficulty: str, leve
     assert new["loopLane"] >= old["loopLane"] + 0.05, (new, old)
 
 
-def test_a_repeated_chorus_is_the_first_one() -> None:
+def test_a_repeated_chorus_is_the_first_one_on_the_same_instrument() -> None:
     _, analysis = structured(124.0, 1)
     chorus = [s for s in analysis["sections"] if s["label"] == "chorus"]
+    assert len(chorus) == 4
     for key_mode, difficulty, level in CHARTS + (("6K", "MASTER", 17),):
         notes = chart(124.0, 1, key_mode, difficulty, level)["notes"]
+        fixed = chart(124.0, 1, key_mode, difficulty, level, focus=False)["notes"]
 
-        def at(sec: dict) -> dict[float, frozenset[int]]:
+        def at(sec: dict, notes: list[dict] = notes) -> dict[float, frozenset[int]]:
             out: dict[float, set[int]] = {}
             for n in notes:
                 if sec["startBeat"] <= n["beat"] < sec["endBeat"] - 4:  # the last bar may end in a fill
                     out.setdefault(round(n["beat"] - sec["startBeat"], 3), set()).add(n["lane"])
             return {k: frozenset(v) for k, v in out.items()}
 
-        first = at(chorus[0])
+        def alike(a: dict, b: dict) -> tuple[float, float]:
+            shared = a.keys() & b.keys()
+            return len(shared) / max(1, len(a)), sum(1 for k in shared if a[k] == b[k]) / max(1, len(shared))
+
+        # the third chorus is the first one again (both on the drums), the fourth the second (on
+        # the melody; 6K MASTER keeps 0.88 of its lanes); without the turns every chorus is the first
+        for a, b, lanes in ((0, 2, 0.9), (1, 3, 0.85)):
+            notes_at, lanes_at = alike(at(chorus[a]), at(chorus[b]))
+            assert notes_at >= 0.9 and lanes_at >= lanes, (key_mode, a, b, notes_at, lanes_at)
         for later in chorus[1:]:
-            other = at(later)
-            shared = first.keys() & other.keys()
-            assert len(shared) >= 0.9 * len(first), (key_mode, later["startBeat"])
-            same = sum(1 for k in shared if first[k] == other[k])
-            assert same >= 0.9 * len(shared), (key_mode, later["startBeat"], same, len(shared))
+            notes_at, lanes_at = alike(at(chorus[0], fixed), at(later, fixed))
+            assert notes_at >= 0.9 and lanes_at >= 0.9, (key_mode, later["startBeat"], notes_at, lanes_at)
+        # the second chorus is not the first one again: other notes (NORMAL picks the vocal's) or
+        # other lanes (the drums leave their home keys)
+        notes_at, lanes_at = alike(at(chorus[0]), at(chorus[1]))
+        assert notes_at < 0.9 or lanes_at < 0.9, (key_mode, notes_at, lanes_at)
 
 
 @pytest.mark.parametrize("key_mode,difficulty,level", CHARTS)
 def test_consistency_survives_onset_detection_noise(key_mode: str, difficulty: str, level: int | None) -> None:
     song, _ = structured(124.0, 1)
     truth = [dict(s, endBeat=int(s["startBeat"]) + 4 * int(s["bars"])) for s in song.structure]
-    new = chart_consistency(chart(124.0, 1, key_mode, difficulty, level, noise=True)["notes"], truth, key_mode)
+    # (repeats that follow the same sounds: the second chorus follows the melody since 0.9.46)
+    new = chart_consistency(chart(124.0, 1, key_mode, difficulty, level, noise=True, focus=False)["notes"], truth, key_mode)
     old = chart_consistency(chart(124.0, 1, key_mode, difficulty, level, "designer", noise=True)["notes"], truth, key_mode)
     assert new["loopLane"] >= 0.8 and new["repeatLaneMirror"] >= 0.85, new
     # the loops' shared sounds bring back notes the detector lost in one repeat

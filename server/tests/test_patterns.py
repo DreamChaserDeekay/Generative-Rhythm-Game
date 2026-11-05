@@ -333,11 +333,14 @@ def test_roll_shapes_go_hand_over_hand_in_many_ways() -> None:
     assert roll(seven, 10, ("wave", 0)) == [3, 5, 2, 6, 1, 7, 2, 6, 3, 5]
 
 
-def test_default_rolls_draw_their_shapes_per_roll() -> None:
+def test_default_rolls_draw_their_shapes_per_roll(monkeypatch) -> None:
     """The planner draws each roll's shape by the chart's seed, the roll's length and its place in the
     bar (a fill played again keeps its shape); a roll leading into a new section (a build-up) is a
-    trill more often (rolls.buildUpTrill)."""
+    trill more often (rolls.buildUpTrill). Since generator 0.9.46 the key modes but 7K+1S take a roll's
+    shape from its sound instead (rolls.bySound, test_elite_feedback); here they draw it."""
     from collections import Counter
+
+    monkeypatch.setitem(load_config("patterns")["rolls"], "bySound", None)
 
     from rhythm_server.generator.planner import roll_shapes
     from rhythm_server.generator.select import Slot

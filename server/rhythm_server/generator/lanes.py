@@ -143,6 +143,10 @@ class _Weights:
     fast_ms: float = 0.0
     drum_alternate: float = 0.0
     fast_contour: float = 1.0
+    # the contour between two tune notes (not drums) times this (hands.contourScale, by key mode and
+    # skill): 6K ELITE play asks the lanes to go the way the melody goes, human 7-key BMS charts follow
+    # it less and easy charts leap less (docs/PATTERN_DESIGN.md 81); a drum's estimated pitch is noise
+    tune_contour: float = 1.0
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -153,6 +157,7 @@ class _Weights:
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
+            tune_contour=_tune_contour(hands.get("contourScale", 1.0), params),
             alternate=W_ALTERNATE * params.weight("alternateWeight") * by_key_mode(hands["alternateScale"], params.key_mode),
             jack=W_JACK * params.weight("jackWeight") * by_skill(hands["jackScale"], params.skill),
             # a repeat of the same sound keeps its lane: the jack style's bonus, or the hands' own
@@ -300,6 +305,14 @@ def _remember(memory: tuple[tuple[Any, int], ...], sound: Any, keys_used: tuple[
         return memory
     kept = tuple(m for m in memory if m[0] != sound)
     return (kept + ((sound, keys_used[0]),))[-size:]
+
+
+def _tune_contour(value: Any, params: GenParams) -> float:
+    """hands.contourScale: a number, or {key mode: number or [skill, scale] pairs} with "*" for the
+    key modes it leaves out."""
+    if isinstance(value, dict):
+        value = value.get(params.key_mode, value.get("*", 1.0))
+    return by_skill(value, params.skill)
 
 
 def _pitch_targets(slots: list[Slot]) -> list[float | None]:
@@ -541,7 +554,8 @@ def search(
         # per-slot terms of the instrument-region cost: (drum share, drum position, bass share)
         src_terms = None
         sp = plan[si] if plan else None
-        if weights.source > 0 and slot.sources is not None and not (sp is not None and sp.motif == "alternate"):
+        # (a repeat that follows the melody, Slot.tune, leaves the drums no region either)
+        if weights.source > 0 and slot.sources is not None and not slot.tune and not (sp is not None and sp.motif == "alternate"):
             # Only clear drum or bass hits are pulled (a slot shared with the melody keeps its
             # pitch placement); shares are taken relative to the dominant stem.
             top = float(np.max(slot.sources)) + 1e-9
@@ -1023,6 +1037,8 @@ def _costs(
     fast_line = fast and not fast_drum and state.prev_sound is not None and slot.src is not None and state.prev_sound[0] == slot.src
     bonus = (w.slow_bonus if slow else w.jack_bonus) if dt < w.bonus_ms and same_sound and slot.roll is None and not fast_drum else 0.0
     contour = w.contour * (w.fast_contour if fast_line else 1.0)
+    if w.tune_contour != 1.0 and slot.src is not None and slot.src != DRUMS and state.prev_sound is not None and state.prev_sound[0] not in (None, DRUMS):
+        contour *= w.tune_contour
     jack = 0.0
     if not keep_pitch and not bonus:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))

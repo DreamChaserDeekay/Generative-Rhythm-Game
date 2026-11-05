@@ -277,10 +277,10 @@ def roll_level(subs: list[int], params: GenParams) -> int:
     return level
 
 
-def mark_rolls(slots: list[Any], flags: list[bool]) -> None:
+def mark_rolls(slots: list[Any], flags: list[bool], max_beats: float | None = None) -> None:
     """`roll` (run, hit index, hits) of the slots that play a roll: flagged slots in a row
-    (time order, at most a beat apart) are one run; runs of fewer than MIN_RUN notes are no roll.
-    `mirrored` marks the slots of repeats played mirrored (the sectioned engine)."""
+    (time order, at most a beat apart) are one run; runs of fewer than MIN_RUN notes are no roll,
+    nor runs over `max_beats` beats (a groove, not a passage)."""
     runs: list[list[int]] = []
     for i, (s, flag) in enumerate(zip(slots, flags)):
         s.roll = None
@@ -292,7 +292,7 @@ def mark_rolls(slots: list[Any], flags: list[bool]) -> None:
             runs.append([i])
     n = 0
     for run in runs:
-        if len(run) < MIN_RUN:
+        if len(run) < MIN_RUN or (max_beats is not None and slots[run[-1]].beat - slots[run[0]].beat > max_beats + 1e-6):
             continue
         for k, i in enumerate(run):
             slots[i].roll = (n, k, len(run))
