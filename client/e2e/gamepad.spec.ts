@@ -254,6 +254,9 @@ test('a pad works the song select: LB / RB a page, X the play options on their f
   await press(PAD.RB);
   await expect(page.getByTestId('toggle-gear')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('quick-speed')).toBeFocused();
+  // the tab's gear preview starts a renderer: a tap made and let go while that keeps the page busy
+  // is never seen by the pad's polling (on a loaded machine), so wait for two frames first
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await press(PAD.B);
   await expect(page.getByTestId('play-options')).toHaveCount(0);
   expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.songId)).toBe(songs[1].id);
