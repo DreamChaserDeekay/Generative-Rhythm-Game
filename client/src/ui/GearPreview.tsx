@@ -33,7 +33,7 @@ type PreviewSettings = Pick<
   | 'hiSpeed'
   | 'sudden'
   | 'hidden'
-  | 'lift'
+  | 'judgeLinePosition'
   | 'coversOn'
   | 'keyBeamLength'
   | 'hitEffectSize'
@@ -205,7 +205,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
   return (
     <div className="gear-preview" ref={box} data-testid="gear-preview" data-lane-colors={colours.map(hexString).join(' ')}>
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
-      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {coverText(settings.sudden)}</span>}
+      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">노트 등장 위치 {coverText(settings.sudden)}</span>}
       <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
         <span className="label">보이는 시간</span>
         <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>

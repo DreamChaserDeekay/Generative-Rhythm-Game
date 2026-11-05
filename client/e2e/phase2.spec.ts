@@ -17,7 +17,7 @@ test('side tracks, EX-SCORE, HARD gauge, MIRROR and covers on the sync test', as
   await page.addInitScript(() => {
     localStorage.setItem(
       'grg.settings.v1',
-      JSON.stringify({ lastKeyMode: '6K+FX', ruleset: 'EXSCORE', gaugeType: 'HARD', placement: 'MIRROR', sudden: 0.2, lift: 0.1, fever: 'AUTO' }),
+      JSON.stringify({ lastKeyMode: '6K+FX', ruleset: 'EXSCORE', gaugeType: 'HARD', placement: 'MIRROR', sudden: 0.2, judgeLinePosition: 0.5, fever: 'AUTO' }),
     );
   });
   await page.goto('/');

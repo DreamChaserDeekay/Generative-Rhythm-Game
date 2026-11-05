@@ -7,6 +7,9 @@ import {
   chartPickOf,
   DEFAULT_SETTINGS,
   greenNumber,
+  liftShare,
+  MAX_JUDGE_LINE,
+  MIN_JUDGE_LINE,
   laneColorsOf,
   laneKeysFor,
   padMenuFor,
@@ -27,8 +30,9 @@ import {
   withPattern,
   withSongOffset,
 } from './settings';
+import { GEAR_JUDGE } from '../render/deckArt';
 import { skinById, laneColorsFor } from '../render/skins';
-import { difficultyTiers, keyModes } from '../engine/config';
+import { cameraConfig, difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -163,13 +167,31 @@ describe('settings', () => {
     expect(sanitizeSettings({ difficultySystem: 'GRG', lastDifficulty: 'EXPERT' } as never).lastDifficulty).toBe('EXPERT');
   });
 
-  it('computes the green number from SUDDEN+ and LIFT (not HIDDEN+)', () => {
+  it('computes the green number from 노트 등장 위치 (SUDDEN+) and 판정선 위치 (not HIDDEN+)', () => {
     const base = { ...DEFAULT_SETTINGS, hiSpeed: 4 };
     expect(greenNumber(4, activeCovers(base))).toBeCloseTo(1250, 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.2 }))).toBeCloseTo(1000, 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.2, hidden: 0.3 }))).toBeCloseTo(1000, 9);
-    expect(greenNumber(4, activeCovers({ ...base, lift: 0.2 }))).toBeCloseTo(1000, 9);
+    // the line raised 100 px of the track's 2946 (40 units of 73.65 px) reaches the notes that much sooner, lowered later
+    const track = cameraConfig.trackLength * 73.65;
+    expect(greenNumber(4, activeCovers({ ...base, judgeLinePosition: 0.5 }))).toBeCloseTo(1250 * (1 - 100 / track), 9);
+    expect(greenNumber(4, activeCovers({ ...base, judgeLinePosition: -0.2 }))).toBeCloseTo(1250 * (1 + 40 / track), 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.5, coversOn: false }))).toBeCloseTo(1250, 9);
+  });
+
+  it('moves the judge line −20 % to +50 %, −20 % onto a picked gear; a LIFT saved before stays where it put the line', () => {
+    expect(sanitizeSettings({}).judgeLinePosition).toBe(0);
+    expect(sanitizeSettings({ judgeLinePosition: -1 }).judgeLinePosition).toBe(MIN_JUDGE_LINE);
+    expect(sanitizeSettings({ judgeLinePosition: 2 }).judgeLinePosition).toBe(MAX_JUDGE_LINE);
+    expect([MIN_JUDGE_LINE, MAX_JUDGE_LINE]).toEqual([-0.2, 0.5]);
+    // −20 % lowers it by the gap a picked gear leaves under the line (px of the sheets' track, 73.65 to a unit)
+    expect(liftShare(MIN_JUDGE_LINE) * cameraConfig.trackLength * 73.65).toBeCloseTo(-GEAR_JUDGE.gap, 9);
+    // LIFT was a share of the track's length: 1 % of it was 29.46 px, now +15 %; a high one is the top
+    const old = sanitizeSettings({ lift: 0.01 } as never);
+    expect(old.judgeLinePosition).toBe(0.15);
+    expect('lift' in old).toBe(false);
+    expect(sanitizeSettings({ lift: 0.3 } as never).judgeLinePosition).toBe(MAX_JUDGE_LINE);
+    expect(sanitizeSettings({ lift: 0.3, judgeLinePosition: -0.1 } as never).judgeLinePosition).toBe(-0.1);
   });
 
   it('keeps the green number when covers move and visible time is locked', () => {
@@ -345,7 +367,7 @@ describe('settings', () => {
   });
 
   it('never lets the covers close the lane', () => {
-    const c = activeCovers({ sudden: 0.85, hidden: 0.85, lift: 0, coversOn: true });
+    const c = activeCovers({ sudden: 0.85, hidden: 0.85, judgeLinePosition: 0, coversOn: true });
     expect(c.sudden + c.hidden).toBeLessThanOrEqual(0.9 + 1e-9);
   });
 });

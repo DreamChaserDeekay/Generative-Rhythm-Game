@@ -35,7 +35,8 @@ import {
   padPlayOf,
   playKeysOf,
   MAX_COVER,
-  MAX_LIFT,
+  MAX_JUDGE_LINE,
+  MIN_JUDGE_LINE,
   secondBindingsFor,
   skinOf,
   songOffsetOf,
@@ -46,7 +47,7 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
-import { coverText, speedText } from './format';
+import { coverText, judgeLineText, speedText } from './format';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
@@ -142,6 +143,8 @@ const STEPS: Partial<Record<PlayAction, number>> = {
   offsetUpBig: 5,
 };
 const COVER_STEP = 0.025;
+/** 판정선 위치 moves by this in play (10 px of the sheets' track). */
+const JUDGE_LINE_STEP = 0.05;
 /** Autoplay keysounds are scheduled this far ahead so they land exactly on the notes. */
 const KEYSOUND_LOOKAHEAD_MS = 120;
 /** An empty press plays the lane's next note if it is at most this far ahead (BMS). */
@@ -1004,15 +1007,16 @@ export class PlayController {
         if (!running) return false;
         const sudden = Math.min(MAX_COVER, Math.max(0, s.sudden + (action === 'suddenUp' ? COVER_STEP : -COVER_STEP)));
         const next = withCovers(s, { sudden, coversOn: true });
-        this.updateSettings(next, this.coverToast(`SUDDEN+ ${coverText(next.sudden)}`, next));
+        this.updateSettings(next, this.coverToast(`노트 등장 위치 ${coverText(next.sudden)}`, next));
         return true;
       }
       case 'liftDown':
       case 'liftUp': {
         if (!running) return false;
-        const lift = Math.min(MAX_LIFT, Math.max(0, s.lift + (action === 'liftUp' ? COVER_STEP : -COVER_STEP)));
-        const next = withCovers(s, { lift });
-        this.updateSettings(next, this.coverToast(`LIFT ${coverText(next.lift)}`, next));
+        const step = action === 'liftUp' ? JUDGE_LINE_STEP : -JUDGE_LINE_STEP;
+        const judgeLinePosition = Math.round(Math.min(MAX_JUDGE_LINE, Math.max(MIN_JUDGE_LINE, s.judgeLinePosition + step)) * 100) / 100;
+        const next = withCovers(s, { judgeLinePosition });
+        this.updateSettings(next, this.coverToast(`판정선 위치 ${judgeLineText(next.judgeLinePosition)}`, next));
         return true;
       }
       case 'offsetDown':

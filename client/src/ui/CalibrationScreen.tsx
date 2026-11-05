@@ -9,7 +9,7 @@ import { GRADE_PALETTES } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { laneColorsOf, visibleTimeMs, type Settings } from '../settings/settings';
+import { laneColorsOf, liftShare, visibleTimeMs, type Settings } from '../settings/settings';
 import { countedBeat } from './inputSync';
 import { offsetText } from './resultBreakdown';
 import { HintBar, TopBar, type KeyHint } from './shell';
@@ -423,7 +423,9 @@ function VisualStep({
 function ClickGear({ settings, offset }: { settings: Settings; offset: { readonly current: number } }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { lastKeyMode: keyMode, skin: skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, lift, musicVolume } = settings;
+  const { lastKeyMode: keyMode, skin: skinId, customSkin, parts, cameraPreset, laneWidthScale, palette, reducedFlash, barLines, keyBeamLength, hitEffectSize, sideNotes, hiSpeed, judgeLinePosition, musicVolume } = settings;
+  // where the play has the judge line (판정선 위치), as the share of the track the renderer takes
+  const lift = liftShare(judgeLinePosition);
   const { noteColors, colorPresets } = settings;
 
   useEffect(() => {
@@ -449,7 +451,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         trackLength: cameraConfig.trackLength,
         palette,
         reducedFlash,
-        // no cover over the notes coming down (LIFT keeps the judge line where the play has it)
+        // no cover over the notes coming down (the judge line stays where the play has it)
         covers: { sudden: 0, hidden: 0, lift },
         skin,
         art,

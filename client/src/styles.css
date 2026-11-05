@@ -1524,7 +1524,7 @@ p.hint {
   padding-top: var(--label-gap);
 }
 
-/* no room beside the gear at all (a very wide gear, a high LIFT): upright at the screen's lower
+/* no room beside the gear at all (a very wide gear on a narrow window): upright at the screen's lower
    left, on a plate like the song's */
 .hud-panel.upright {
   position: absolute;
