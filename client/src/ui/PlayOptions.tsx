@@ -433,7 +433,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
       <div className="panel-rows">
         <NumberOption
           {...row}
-          label="SPEED"
+          label="노트 속도"
           testId="quick-speed"
           value={settings.hiSpeed}
           min={HI_SPEED_MIN}
@@ -445,7 +445,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
           help="노트가 내려오는 빠르기"
         />
         {cover('sudden', '노트 등장 위치', MAX_COVER, '트랙 위쪽을 가려 노트가 나타나는 곳을 내림 (SUDDEN+)')}
-        {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
+        {cover('hidden', '노트 사라짐 위치', MAX_COVER, '판정선 바로 위를 가려 노트가 사라지는 곳을 올림 (HIDDEN+)')}
         <NumberOption
           {...row}
           label="판정선 위치"

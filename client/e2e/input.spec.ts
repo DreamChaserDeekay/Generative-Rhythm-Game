@@ -291,7 +291,7 @@ test('a pad in play: Start tapped pauses, Start + lane buttons step SPEED and SU
   // Start held: lane button 2 is SPEED +, 4 노트 등장 위치 (SUDDEN+) +; no pause on the release
   await pad.button(PAD.START, true);
   await pad.button(PAD.B1, true);
-  await expect(toast).toHaveText('SPEED 4.10');
+  await expect(toast).toHaveText('노트 속도 4.10');
   await pad.button(PAD.B1, false);
   await pad.button(PAD.B3, true);
   await expect(toast).toHaveText('노트 등장 위치 2.5%');
@@ -428,9 +428,9 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await expect(page.getByTestId('play-key-clash-fever')).toContainText('4K');
   await expect(page.getByTestId('keys-note-7K+1S')).toContainText('고정 키');
   // the bigger SPEED and offset steps are on Shift: the 7K+1S scratch on L-Shift and both FX side lanes take them
-  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift SPEED −0.5·SPEED +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
+  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift 노트 속도 −0.5·노트 속도 +0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
   await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('R-Shift');
-  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift SPEED −0.5');
+  await expect(page.getByTestId('keys-clash-6K+FX')).toContainText('L-Shift R-Shift 노트 속도 −0.5');
   await expect(page.getByTestId('play-key-speedUpBig')).toHaveClass(/clash/);
   await expect(page.getByTestId('play-key-clash-speedUpBig')).toContainText('7K+1S');
   // moved off Shift, the scratch takes them no more (a binding may have Shift too)
@@ -441,7 +441,7 @@ test('key settings: lanes bound in a run, a second key and its clearing, the rol
   await page.keyboard.press('Control+Shift+ArrowDown');
   await expect(page.getByTestId('play-key-speedDownBig')).toHaveText('Ctrl+Shift+↓');
   await expect(page.getByTestId('play-key-speedUpBig')).not.toHaveClass(/clash/);
-  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift SPEED −0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
+  await expect(page.getByTestId('keys-clash-7K+1S')).toContainText('L-Shift 노트 속도 −0.5·곡 오프셋 −5ms·곡 오프셋 +5ms');
 
   // in-play keys: with Alt, a modifier alone; two on one key are marked; 기본값 brings them back
   await page.getByTestId('play-key-retry').click();

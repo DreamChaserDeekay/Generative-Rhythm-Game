@@ -928,7 +928,7 @@ export class PlayController {
 
   /** A cover's toast; one moved with the visible time kept moves SPEED too, and names it as well. */
   private coverToast(text: string, next: Settings): string {
-    return next.hiSpeed !== this.settings.hiSpeed ? `${text} · SPEED ${speedText(next.hiSpeed)}` : text;
+    return next.hiSpeed !== this.settings.hiSpeed ? `${text} · 노트 속도 ${speedText(next.hiSpeed)}` : text;
   }
 
   /**
@@ -999,7 +999,7 @@ export class PlayController {
         // d-pad does, whose keys the menu bridge sends)
         if (!trusted || !running) return false;
         const hiSpeed = clampHiSpeed(s.hiSpeed + (STEPS[action] ?? 0));
-        this.updateSettings({ ...s, hiSpeed }, `SPEED ${speedText(hiSpeed)}`);
+        this.updateSettings({ ...s, hiSpeed }, `노트 속도 ${speedText(hiSpeed)}`);
         return true;
       }
       case 'suddenDown':
