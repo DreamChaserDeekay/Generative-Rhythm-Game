@@ -40,19 +40,21 @@ async function plugPad(page: Page, mapping = 'standard') {
       },
       [index, value],
     );
-  // held long enough for the 16 ms menu polling to see it; with `busyMs` the page is kept busy that
-  // long (no polling, no frames) before the button is let go. `set` holds or lets go of a button,
-  // `axis` moves an axis.
+  // held 80 ms by the page's own clock, so its 16 ms menu polling sees it: a poll held up by a busy
+  // page (a renderer starting) runs before a timer due later; with `busyMs` the page is kept busy
+  // that long (no polling, no frames) before the button is let go. `set` holds or lets go of a
+  // button, `axis` moves an axis.
+  const pageWait = (ms: number) => page.evaluate((t) => new Promise((r) => setTimeout(r, t)), ms);
   const press = async (button: number, busyMs = 0) => {
     await set(button, true);
-    await page.waitForTimeout(80);
+    await pageWait(80);
     if (busyMs > 0)
       await page.evaluate((ms) => {
         const end = performance.now() + ms;
         while (performance.now() < end);
       }, busyMs);
     await set(button, false);
-    await page.waitForTimeout(80);
+    await pageWait(80);
   };
   return Object.assign(press, { set, axis });
 }
