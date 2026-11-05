@@ -13,6 +13,7 @@ import numpy as np
 from ..config import difficulty_config
 from .lanes import ln_gap_ms
 from .params import GenParams
+from .candidates import final_tail, in_tail
 from .select import hold_cap
 from .tempo import TempoMap
 
@@ -45,11 +46,13 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
     last = [n for n in notes if n["t"] == last_t and lanes[n["lane"]].kind == "key"]
     if not last or any(n["type"] == "hold" for n in last) or any(n.get("endT", 0) > last_t for n in notes):
         return False
-    # a clear sound after the last note is the music going on, not its reverb
+    # a clear sound after the last note is the music going on, not its reverb (the final hit's own
+    # reverb, final_tail, is no music)
     strengths = [float(o["strength"]) for o in analysis.get("onsets", [])]
     if strengths:
         clear = float(cfg["clearStrength"]) * float(np.median(strengths))
-        if any(o["t"] > last_t + 50 and float(o["strength"]) >= clear for o in analysis["onsets"]):
+        tail = final_tail(analysis)
+        if any(o["t"] > last_t + 50 and float(o["strength"]) >= clear and not in_tail(float(o["t"]), float(o["strength"]), tail) for o in analysis["onsets"]):
             return False
     end_t = _tail_end(analysis, last_t, float(cfg["dropLevel"]), silence)
     if end_t is None:

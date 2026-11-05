@@ -181,6 +181,38 @@ def _section_leader(sections: list[dict[str, Any]], t: float) -> int | None:
     return None
 
 
+def final_tail(analysis: dict[str, Any]) -> tuple[float, float] | None:
+    """(time, strength) of the song's final hit and the strength under which a later sound is its
+    reverb (ending.tail): the last onset at least `finalStrength` times the song's median onset
+    strength, when it comes in the song's last `withinMs`; a later onset under `share` times its
+    strength is the hit ringing out. None when the song has no such ending.
+
+    Measured on 80 BMS songs (docs/PATTERN_DESIGN.md 82): 6K charts put notes after the song's last
+    keysound in 105 of 160 charts (3 notes on the median chart, up to 36), at half the strength of
+    the notes on keysounds; past the final hit, sounds under 0.7 times it were 88% notes on no
+    keysound."""
+    rule = (difficulty_config().get("ending") or {}).get("tail")
+    onsets = analysis.get("onsets") or []
+    if not rule or not onsets:
+        return None
+    median = float(np.median([float(o["strength"]) for o in onsets]))
+    strong = [o for o in onsets if float(o["strength"]) >= float(rule["finalStrength"]) * median]
+    if not strong:
+        return None
+    last = strong[-1]
+    if float(analysis["durationMs"]) - float(last["t"]) > float(rule["withinMs"]):
+        return None
+    return float(last["t"]), float(rule["share"]) * float(last["strength"])
+
+
+def in_tail(t: float, strength: float, tail: tuple[float, float] | None) -> bool:
+    """Whether a sound at `t` of `strength` is the final hit ringing out (final_tail)."""
+    return tail is not None and t > tail[0] + TAIL_GAP_MS and strength < tail[1]
+
+
+TAIL_GAP_MS = 60.0  # a sound this close after the final hit is part of it (a flam, a doubled chord)
+
+
 def build_candidates(
     analysis: dict[str, Any], tempo: TempoMap, params: GenParams, tolerance_ms: float, swing: set[int] | None = None
 ) -> list[Candidate]:
@@ -254,6 +286,11 @@ def build_candidates(
                 c.melody = max(c.melody or 0.0, melody)
             c.attack = max(c.attack, attack)
     cands = sorted(merged.values(), key=lambda c: c.beat)
+    # the song's final hit ringing out is no note (ending.tail): the chart ends on the hit, which
+    # ending.finish holds over the reverb
+    tail = final_tail(analysis)
+    if tail is not None:
+        cands = [c for c in cands if not in_tail(c.t, c.strength, tail)]
     _mark_quiet(cands, sections, melody_cfg)
     split = _melody_splits(cands, melody_cfg, params.skill)
     echoes = _echoes(cands, melody_cfg)
