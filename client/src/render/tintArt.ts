@@ -433,14 +433,33 @@ function star5Note(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   flat: (g, w, h) => {
     const u = unit(h);
-    g.fillStyle = tone(1);
     roundRect(g, 0, 0, w, h, u(5));
+    // the top of a slab (the renderer draws its walls): a little deeper toward its near edge, where it
+    // rounds over into its wall
+    const face = g.createLinearGradient(0, 0, 0, h);
+    face.addColorStop(0, tone(1));
+    face.addColorStop(0.62, tone(0.96));
+    face.addColorStop(1, tone(0.8));
+    g.fillStyle = face;
     g.fill();
-    // light along the far edge
     g.save();
     g.clip();
-    g.fillStyle = ink(1, 0.4);
-    g.fillRect(0, 0, w, u(4));
+    // a gloss over its far half, brightest at the lip of its far edge, where the light catches it
+    const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
+    gloss.addColorStop(0, ink(1, 0.62));
+    gloss.addColorStop(0.12, ink(1, 0.36));
+    gloss.addColorStop(1, ink(1, 0.36, 0));
+    g.fillStyle = gloss;
+    g.fillRect(0, 0, w, h * 0.55);
+    // lit along its left edge, the side the light comes from, and shaded along its right
+    const edge = Math.min(0.2, u(7) / w);
+    const across = g.createLinearGradient(0, 0, w, 0);
+    across.addColorStop(0, ink(1, 0.3, 0.9));
+    across.addColorStop(edge, ink(1, 0.3, 0));
+    across.addColorStop(1 - edge, tone(0.7, 0));
+    across.addColorStop(1, tone(0.7, 0.7));
+    g.fillStyle = across;
+    g.fillRect(0, 0, w, h);
     g.restore();
   },
   stem: (g, w, h) => {
@@ -553,7 +572,13 @@ const RAY: [number, number, string][] = [
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   solid: {
     body: (g, w, h) => {
-      g.fillStyle = tone(1, 0.88);
+      // a rounded bar lit from the left: a gloss down its left third, deeper toward its right
+      const shade = g.createLinearGradient(0, 0, w, 0);
+      shade.addColorStop(0, tone(1.12, 0.92));
+      shade.addColorStop(0.3, tone(1.06, 0.9));
+      shade.addColorStop(0.55, tone(1, 0.88));
+      shade.addColorStop(1, tone(0.78, 0.9));
+      g.fillStyle = shade;
       g.fillRect(0, 0, w, h);
       sides(g, w, h, 4, ink(1, 0.97));
     },
@@ -737,22 +762,36 @@ export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
     g.fillStyle = ink(1, 0.3);
     g.fillRect(0, 0, w, h);
   },
-  // light across the half: a bright bar on the judge line (SIDE_FLASH_LINE down), whitest in its
-  // middle, and light rising from it a short way up the track, fading out as it rises (under the
-  // line, over the gear, only the bar's own edge); the half's ends fade
+  // light across the half: a white-hot core on the judge line (SIDE_FLASH_LINE down) in a bright bar,
+  // and rays of light rising from it a short way up the track, brighter and longer in some places
+  // than others, fading out as they rise; under the line, over the gear, a short glow; the half's
+  // ends fade
   flash: (g, w, h) => {
     const image = g.createImageData(w, h);
     const fade = w * 0.04;
+    // the rays across the half (shares of its width) and how bright each is: the same every time
+    const peaks = [0.05, 0.13, 0.22, 0.31, 0.4, 0.49, 0.57, 0.66, 0.74, 0.83, 0.9, 0.96];
+    const heights = [0.7, 1, 0.55, 0.9, 0.6, 1, 0.75, 0.95, 0.5, 0.85, 1, 0.6];
+    const rays = new Float32Array(w);
+    for (let x = 0; x < w; x++) {
+      const u = (x + 0.5) / w;
+      let r = 0;
+      peaks.forEach((p, i) => (r = Math.max(r, heights[i] * Math.exp(-(((u - p) / 0.024) ** 2)))));
+      rays[x] = 0.35 + 0.65 * r;
+    }
     for (let y = 0; y < h; y++) {
       // from the line, in shares of the depth (up the track is negative)
       const d = (y + 0.5) / h - SIDE_FLASH_LINE;
       const bar = Math.exp(-d * d * 120);
-      const rise = d < 0 ? 0.55 * Math.exp(d * 4) : 0;
+      const core = Math.exp(-d * d * 1400);
+      const below = d > 0 ? 0.3 * Math.exp(-d * 18) : 0;
       for (let x = 0; x < w; x++) {
+        // a brighter ray reaches further up
+        const rise = d < 0 ? 0.62 * rays[x] * Math.exp(d * (2.6 + 2.4 * (1 - rays[x]))) : 0;
         const i = (y * w + x) * 4;
         image.data[i] = 255;
-        image.data[i + 1] = Math.round(255 * 0.7 * bar);
-        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
+        image.data[i + 1] = Math.round(255 * Math.min(1, 0.55 * bar + 0.45 * core + 0.3 * rise));
+        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise + below) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
       }
     }
     g.putImageData(image, 0, 0);

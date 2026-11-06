@@ -17,7 +17,7 @@ function fakeTexture(width: number, height: number): THREE.Texture & { disposed:
 describe('media manifest', () => {
   it('keeps well-formed texture entries', () => {
     expect(parseMediaTexture(NOTE)).toEqual(NOTE);
-    const burst = { file: 'fx/hit_burst_ring.png', bundle: 'effects', size: [1024, 1024], flipbook: BOOK, scale: 1.7 };
+    const burst = { file: 'fx/hit_burst_ring.png', bundle: 'effects', size: [1024, 1024], flipbook: BOOK, scale: 1.7, anchorY: 0.5, span: 1.375 };
     expect(parseMediaTexture(burst)).toEqual(burst);
     expect(parseMediaTexture({ ...burst, flipbook: { ...BOOK, loop: 'yes' } })?.flipbook?.loop).toBe(false);
   });
@@ -30,6 +30,7 @@ describe('media manifest', () => {
     expect(parseMediaTexture({ ...NOTE, tileAspect: -1 })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, gain: Number.NaN })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, anchorY: 1.5 })).toBeNull();
+    expect(parseMediaTexture({ ...NOTE, span: 0 })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, flipbook: { ...BOOK, frames: 17 } })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, flipbook: { ...BOOK, fps: 0 } })).toBeNull();
     expect(parseMediaTexture(null)).toBeNull();

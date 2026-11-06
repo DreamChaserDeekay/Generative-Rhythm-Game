@@ -230,9 +230,25 @@ def chamfer_alpha(h: int, w: int, cut: float) -> np.ndarray:
     return np.asarray(im.resize((w, h), Image.LANCZOS), dtype=np.float32) / 255
 
 
-# hit_burst.png: 16 frames (4 × 4 of HIT_CELL) of a hit, the judge line HIT_LINE of a frame down from its top;
-# hit_hold.png: 16 frames of the sparks while a long note is held, looping, the line HOLD_LINE down
-HIT_CELL, HIT_LINE, HOLD_LINE = 256, 0.3, 0.27
+# hit_burst.png: 16 frames (4 × 4 of HIT_CELL px) of a hit, played once; hit_hold.png: 16 frames of the light while a
+# long note is held, looping. The judge line runs through the middle of a frame and the effect spreads from it every
+# way, whole: its numbers are in HIT_SIZE px (the effect's own size), each frame is drawn HIT_ROOM px square (room all
+# round it, its edges faded) and sampled down to HIT_CELL. The manifest's "span" (HIT_SPAN) tells the renderer how
+# much larger than the effect a frame is.
+HIT_CELL, HIT_SIZE, HIT_ROOM = 256, 256, 352
+HIT_SPAN = HIT_ROOM / HIT_SIZE
+
+
+def hit_entry(file: str, kind: str) -> dict:
+    """A hit flipbook's manifest entry: `kind` "burst" (once, fast) or "hold" (a loop)."""
+    return {
+        "file": file,
+        "bundle": "effects",
+        "size": [HIT_CELL * 4, HIT_CELL * 4],
+        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 60 if kind == "burst" else 24, "loop": kind == "hold"},
+        "anchorY": 0.5,
+        "span": round(HIT_SPAN, 4),
+    }
 
 
 def light_cells() -> dict[str, np.ndarray]:
@@ -267,15 +283,6 @@ def place(frame: np.ndarray, sprite: np.ndarray, cx: float, cy: float, size: flo
     frame[fy0:fy1, fx0:fx1] += s[fy0 - y0:fy1 - y0, fx0 - x0:fx1 - x0]
 
 
-def above_line(cell: int, line: float, keep: float, gone: float) -> np.ndarray:
-    """How much of an effect stays above the judge line (rows of a frame): all of it within `keep` px of the line,
-    none past `gone` (the next notes come down there); all of it below the line."""
-    y = np.arange(cell, dtype=np.float32)[:, None]
-    d = line - y
-    t = np.clip((d - keep) / (gone - keep), 0, 1)
-    return np.where(d > 0, 1 - t * t * (3 - 2 * t), 1).astype(np.float32)
-
-
 def crop_around(c: np.ndarray, cy: int, cx: int, r: int) -> np.ndarray:
     pad = np.pad(c, r)
     return pad[cy:cy + 2 * r, cx:cx + 2 * r]
@@ -301,53 +308,39 @@ def mecha_hits(textures: dict) -> None:
         sq = np.zeros((w, w), np.float32)
         sq[w // 2 - piece.shape[0] // 2:w // 2 - piece.shape[0] // 2 + piece.shape[0]] = piece
         streaks.append(sq)
-    cell, line = HIT_CELL, HIT_LINE * HIT_CELL
-    cx = cell / 2
-    keep_flash = above_line(cell, line, 14, 46)
-    keep_ring = above_line(cell, line, 6, 34)
-    sheet = np.zeros((cell * 4, cell * 4), np.float32)
-    yy, xx = np.mgrid[0:cell, 0:cell].astype(np.float32)
-    for f in range(16):
-        frame = np.zeros((cell, cell), np.float32)
+    cell, cx = HIT_SIZE, HIT_ROOM / 2
+    line = cx
+
+    def draw(f: int, frame: np.ndarray) -> None:
         # the white-hot flash: two frames at its peak, then gone by the sixth
         flash_gain = [1.0, 1.0, 0.72, 0.45, 0.24, 0.1][f] if f < 6 else 0
         place(frame, flash, cx, line, cell * [0.62, 0.86, 0.94, 0.98, 1.0, 1.0][min(f, 5)], f * 2.5, flash_gain)
-        frame *= keep_flash
         # the shards fly out in a ring, slowing, and fade from the sixth frame
         if f >= 1:
             t = min(1, (f - 1) / 12)
             grow = 0.34 + 0.78 * (1 - (1 - t) ** 2)
             fade = max(0.0, 1 - max(0, f - 5) / 10) ** 1.3
-            shards = np.zeros_like(frame)
-            place(shards, ring, cx, line + 6 * t, cell * grow, f * 0.8, fade)
-            frame += shards * keep_ring
-        # sparks shoot out in a fan down from the line, fast, and are gone by the tenth frame
+            place(frame, ring, cx, line, cell * grow, f * 0.8, fade)
+        # sparks shoot out all round the hit, fast, and are gone by the tenth frame
         if f < 10:
             t = f / 10
-            for i, angle in enumerate((22, 50, 76, 104, 130, 158)):
+            for i in range(10):
+                angle = i * 36 + 14
                 st = streaks[i % len(streaks)]
                 reach = cell * (0.08 + 0.42 * (1 - (1 - t) ** 2)) * (0.85 + 0.1 * (i % 3))
                 a = math.radians(angle)
                 place(frame, st, cx + reach * math.cos(a), line + reach * math.sin(a), cell * 0.3, -angle, (1 - t) ** 1.4)
         # an afterglow on the line, fading
         if f >= 1:
-            glow = 0.55 * (1 - f / 16) ** 1.2
-            frame += glow * np.exp(-(((xx - cx) / 34) ** 2 + ((yy - line) / 15) ** 2))
-        r, c = divmod(f, 4)
-        sheet[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = np.clip(frame, 0, 1)
-    save_grey(sheet, MECHA_OUT / "hit_burst.png")
-    textures["mecha/hitBurst"] = {
-        "file": "styles/mecha/hit_burst.png",
-        "bundle": "effects",
-        "size": [cell * 4, cell * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 60, "loop": False},
-        "anchorY": round(1 - HIT_LINE, 3),
-    }
+            afterglow(frame, line, 0.55 * (1 - f / 16) ** 1.2)
+
+    save_grey(burst_sheet(draw), MECHA_OUT / "hit_burst.png")
+    textures["mecha/hitBurst"] = hit_entry("styles/mecha/hit_burst.png", "burst")
     mecha_hold(cells["weld"], textures)
 
 
 def mecha_hold(weld: np.ndarray, textures: dict) -> None:
-    """The weld glow on the line, flickering a little, and sparks raining down from it, as a seamless loop."""
+    """The weld glow on the line, flickering a little, and sparks flying out all round it, as a seamless loop."""
     n = weld.shape[0]
     # the glow: the band of rows where the white-hot spot is wide (the spark shower under it is narrow)
     width = (weld > 0.9).sum(1)
@@ -360,37 +353,29 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
     under = band[-1] + 16
     glow = weld * np.clip(1 - (y - under) / 40, 0, 1)
     glow = crop_around(glow, cy, cx, n // 2 - 8)
-    cell, line = HIT_CELL, HOLD_LINE * HIT_CELL
-    sheet = np.zeros((cell * 4, cell * 4), np.float32)
+    cell, mid = HIT_SIZE, HIT_ROOM / 2
     rng = np.random.default_rng(7)
-    sparks = [(rng.uniform(0, 1), math.radians(rng.uniform(52, 128)), rng.uniform(0.4, 1.0), rng.uniform(0.6, 1.0)) for _ in range(72)]
-    for f in range(16):
-        frame = np.zeros((cell, cell), np.float32)
+    sparks = [(rng.uniform(0, 1), math.radians(rng.uniform(0, 360)), rng.uniform(0.4, 1.0), rng.uniform(0.6, 1.0)) for _ in range(72)]
+
+    def draw(f: int, frame: np.ndarray) -> None:
         flicker = 0.93 + 0.07 * math.sin(2 * math.pi * f * 3 / 16)
-        place(frame, glow, cell / 2, line, cell * 0.98, 0, flicker)
-        # each spark flies out and down from the glow over a sixteenth of its own period, then starts again
-        hi = Image.new("L", (cell * 4, cell * 4), 0)
+        place(frame, glow, mid, mid, cell * 0.98, 0, flicker)
+        # each spark flies out from the glow, its own way, over a sixteenth of its own period, then starts again
+        hi = Image.new("L", (HIT_ROOM * 4, HIT_ROOM * 4), 0)
         d = ImageDraw.Draw(hi)
         for phase, a, speed, bright in sparks:
             t = (f / 16 + phase) % 1
-            r = cell * (0.05 + 0.5 * speed * t)
-            x, y0 = cell / 2 + r * math.cos(a), line + r * math.sin(a) + cell * 0.25 * t * t
+            r = cell * (0.05 + 0.42 * speed * t)
+            x, y0 = mid + r * math.cos(a), mid + r * math.sin(a)
             tail = cell * 0.035 * speed
             x1, y1 = x - tail * math.cos(a), y0 - tail * math.sin(a)
             level = int(255 * bright * (1 - t))
             if level > 4:
                 d.line([(x1 * 4, y1 * 4), (x * 4, y0 * 4)], fill=level, width=6)
-        frame += np.asarray(hi.resize((cell, cell), Image.LANCZOS), dtype=np.float32) / 255
-        r, c = divmod(f, 4)
-        sheet[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = np.clip(frame, 0, 1)
-    save_grey(sheet, MECHA_OUT / "hit_hold.png")
-    textures["mecha/hitHold"] = {
-        "file": "styles/mecha/hit_hold.png",
-        "bundle": "effects",
-        "size": [cell * 4, cell * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 24, "loop": True},
-        "anchorY": round(1 - HOLD_LINE, 3),
-    }
+        frame += np.asarray(hi.resize((HIT_ROOM, HIT_ROOM), Image.LANCZOS), dtype=np.float32) / 255
+
+    save_grey(burst_sheet(draw), MECHA_OUT / "hit_hold.png")
+    textures["mecha/hitHold"] = hit_entry("styles/mecha/hit_hold.png", "hold")
 
 
 # ---------- CLUB, CRYSTAL, NEON: one builder, each set's own numbers ----------
@@ -586,14 +571,17 @@ def sprites_of(cell: np.ndarray, min_size: int = 20) -> list[np.ndarray]:
 
 
 def burst_sheet(draw) -> np.ndarray:
-    """A 4 × 4 sheet of HIT_CELL frames, each drawn by `draw(frame index, frame)` (light added on black)."""
-    cell = HIT_CELL
-    sheet = np.zeros((cell * 4, cell * 4), np.float32)
+    """A 4 × 4 sheet of HIT_CELL frames, each drawn HIT_ROOM px square by `draw(frame index, frame)` (light added on
+    black, the judge line through its middle), its edges faded so nothing ends in a straight cut, then sampled down."""
+    edges = cell_edges(HIT_ROOM)
+    sheet = np.zeros((HIT_CELL * 4, HIT_CELL * 4), np.float32)
     for f in range(16):
-        frame = np.zeros((cell, cell), np.float32)
+        frame = np.zeros((HIT_ROOM, HIT_ROOM), np.float32)
         draw(f, frame)
+        frame = np.clip(frame, 0, 1) * edges
+        small = np.asarray(Image.fromarray(frame, "F").resize((HIT_CELL, HIT_CELL), Image.LANCZOS), dtype=np.float32)
         r, c = divmod(f, 4)
-        sheet[r * cell:(r + 1) * cell, c * cell:(c + 1) * cell] = np.clip(frame, 0, 1)
+        sheet[r * HIT_CELL:(r + 1) * HIT_CELL, c * HIT_CELL:(c + 1) * HIT_CELL] = np.clip(small, 0, 1)
     return sheet
 
 
@@ -603,11 +591,11 @@ def afterglow(frame: np.ndarray, line: float, gain: float, wx: float = 34, wy: f
 
 
 def set_hits(cid: str, textures: dict) -> None:
-    """The set's hit (16 frames, once) and hold (16 frames, a loop), spreading from the judge line down over the gear."""
+    """The set's hit (16 frames, once) and hold (16 frames, a loop), spreading every way from the judge line."""
     cells = fx_cells(cid)
     n = cells["flash"].shape[0]
-    cell, line, hold_line = HIT_CELL, HIT_LINE * HIT_CELL, HIT_LINE * HIT_CELL
-    cx = cell / 2
+    cell, cx = HIT_SIZE, HIT_ROOM / 2
+    line = hold_line = cx
     centres = {
         "club": {"flash": (513, 511), "ring": (522, 511), "hold": (499, 510)},
         "crystal": {"flash": (514, 515), "ring": (502, 521), "hold": (463, 504)},
@@ -622,34 +610,29 @@ def set_hits(cid: str, textures: dict) -> None:
         # its pieces are musical notes (the glints are smaller): they fly out upright
         sprites = [sp for sp in sprites if sp.shape[0] >= 100]
     rng = np.random.default_rng({"club": 3, "crystal": 5, "neon": 9, "piano": 11}[cid])
-    keep_flash = above_line(cell, line, 14, 46)
-    keep_ring = above_line(cell, line, 5, 26)
     if cid == "crystal":
-        # its shards were drawn flying up: turned over, they fly down over the gear
+        # its shards were drawn flying up: turned over, the most of them fly toward the player
         ring = ring[::-1]
     flicker = [1.0, 0.72, 1.0, 0.86, 0.95, 0.62, 1.0, 0.8, 0.9, 0.7, 1.0, 0.75, 0.9, 0.8, 1.0, 0.85] if cid == "neon" else [1.0] * 16
     spin = 18 if cid == "piano" else 90
-    throws = [(math.radians(rng.uniform(25, 155)), rng.uniform(0.55, 1.0), rng.integers(0, max(1, len(sprites))), rng.uniform(-spin, spin)) for _ in range(8)]
+    # one piece every eighth of the way round, each a little off its place
+    throws = [(math.radians(i * 45 + rng.uniform(-18, 18)), rng.uniform(0.55, 1.0), rng.integers(0, max(1, len(sprites))), rng.uniform(-spin, spin)) for i in range(8)]
 
     def draw_burst(f: int, frame: np.ndarray) -> None:
         g = flicker[f]
         if f < 6:
-            fl = np.zeros_like(frame)
-            place(fl, flash, cx, line, cell * [0.5, 0.72, 0.82, 0.88, 0.92, 0.94][f], f * 2.0, [1.0, 1.0, 0.72, 0.45, 0.24, 0.1][f] * g)
-            frame += fl * keep_flash
+            place(frame, flash, cx, line, cell * [0.5, 0.72, 0.82, 0.88, 0.92, 0.94][f], f * 2.0, [1.0, 1.0, 0.72, 0.45, 0.24, 0.1][f] * g)
         if f >= 1:
             t = min(1, (f - 1) / 12)
             grow = 0.3 + 0.85 * (1 - (1 - t) ** 2)
             fade = max(0.0, 1 - max(0, f - 5) / 10) ** 1.3
-            rg = np.zeros_like(frame)
-            place(rg, ring, cx, line + 4 * t, cell * grow, 0, fade * g)
-            frame += rg * keep_ring
-        # pieces thrown out and down from the hit, slowing, falling a little, gone by the twelfth frame
+            place(frame, ring, cx, line, cell * grow, 0, fade * g)
+        # pieces thrown out all round the hit, slowing, gone by the twelfth frame
         if f < 12 and sprites:
             t = f / 12
             for a, speed, k, spin in throws:
                 reach = cell * 0.46 * speed * (1 - (1 - t) ** 2)
-                x, y = cx + reach * math.cos(a), line + reach * math.sin(a) + cell * 0.08 * t * t
+                x, y = cx + reach * math.cos(a), line + reach * math.sin(a)
                 sp = sprites[int(k) % len(sprites)]
                 # a musical note large enough to read as one
                 size = cell * (0.17 + 0.05 * sp.shape[0] / 190) if cid == "piano" else cell * min(0.16, 0.04 + sp.shape[0] / n * 0.5)
@@ -657,18 +640,11 @@ def set_hits(cid: str, textures: dict) -> None:
         if f >= 1:
             afterglow(frame, line, 0.5 * (1 - f / 16) ** 1.2 * g)
 
-    sheet = burst_sheet(draw_burst)
-    save_grey(sheet, OUT / cid / "hit_burst.png")
-    textures[f"{NAME.get(cid, cid)}/hitBurst"] = {
-        "file": f"styles/{cid}/hit_burst.png",
-        "bundle": "effects",
-        "size": [cell * 4, cell * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 60, "loop": False},
-        "anchorY": round(1 - HIT_LINE, 3),
-    }
+    save_grey(burst_sheet(draw_burst), OUT / cid / "hit_burst.png")
+    textures[f"{NAME.get(cid, cid)}/hitBurst"] = hit_entry(f"styles/{cid}/hit_burst.png", "burst")
 
-    keep_hold = above_line(cell, hold_line, 8, 34)
-    twinkles = [(rng.uniform(0.15, 0.85), rng.uniform(0.32, 0.8), rng.uniform(0, 1), rng.integers(0, max(1, len(sprites)))) for _ in range(9)]
+    # where each sparkle twinkles round the glow (across, along; a share of the effect's size from its middle)
+    twinkles = [(rng.uniform(-0.35, 0.35), rng.uniform(-0.3, 0.3), rng.uniform(0, 1), rng.integers(0, max(1, len(sprites)))) for _ in range(9)]
 
     def draw_hold(f: int, frame: np.ndarray) -> None:
         phase = 2 * math.pi * f / 16
@@ -684,7 +660,6 @@ def set_hits(cid: str, textures: dict) -> None:
             # the arcs crackle: turned over every other frame, a little shifted, flickering
             arc = hold[:, ::-1] if f % 2 else hold
             place(frame, arc, cx + rng.uniform(-6, 6), hold_line, cell * 0.98, 0, flicker[(f * 5) % 16])
-        frame *= keep_hold
         # sparkles twinkling over it, each at its own beat (a seamless loop)
         if sprites and cid != "neon":
             for x, y, ph, k in twinkles:
@@ -692,17 +667,10 @@ def set_hits(cid: str, textures: dict) -> None:
                 if b > 0.05:
                     sp = sprites[int(k) % len(sprites)]
                     size = cell * (0.15 if cid == "piano" else 0.08) * (0.6 + 0.4 * b)
-                    place(frame, sp, cell * x, hold_line + cell * (y - 0.3) * 0.9, size, 0, b)
+                    place(frame, sp, cx + cell * x, hold_line + cell * y, size, 0, b)
 
-    sheet = burst_sheet(draw_hold)
-    save_grey(sheet, OUT / cid / "hit_hold.png")
-    textures[f"{NAME.get(cid, cid)}/hitHold"] = {
-        "file": f"styles/{cid}/hit_hold.png",
-        "bundle": "effects",
-        "size": [cell * 4, cell * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 24, "loop": True},
-        "anchorY": round(1 - HIT_LINE, 3),
-    }
+    save_grey(burst_sheet(draw_hold), OUT / cid / "hit_hold.png")
+    textures[f"{NAME.get(cid, cid)}/hitHold"] = hit_entry(f"styles/{cid}/hit_hold.png", "hold")
 
 
 # ---------- the hits of no set: FLASH, FLARE, BUBBLES, GRID ----------
@@ -740,25 +708,13 @@ def bbox_centre(c: np.ndarray) -> tuple[int, int]:
 
 def save_hit(name: str, kind: str, sheet: np.ndarray, textures: dict) -> None:
     save_grey(sheet, HITS_OUT / f"{name}_{kind}.png")
-    textures[f"{name}/hit{'Burst' if kind == 'burst' else 'Hold'}"] = {
-        "file": f"styles/hits/{name}_{kind}.png",
-        "bundle": "effects",
-        "size": [HIT_CELL * 4, HIT_CELL * 4],
-        "flipbook": {"cols": 4, "rows": 4, "frames": 16, "fps": 60 if kind == "burst" else 24, "loop": kind == "hold"},
-        "anchorY": round(1 - HIT_LINE, 3),
-    }
+    textures[f"{name}/hit{'Burst' if kind == 'burst' else 'Hold'}"] = hit_entry(f"styles/hits/{name}_{kind}.png", kind)
 
 
 def any_hits(textures: dict) -> None:
     """FLASH, FLARE, BUBBLES and GRID: a hit (16 frames, once) and a hold (16 frames, a loop) each, as the sets'."""
-    cell, line = HIT_CELL, HIT_LINE * HIT_CELL
-    cx = cell / 2
-    edges = cell_edges(cell)
-    keep_flash = above_line(cell, line, 14, 46)
-    keep_ring = above_line(cell, line, 5, 26)
-    keep_hold = above_line(cell, line, 8, 34)
-    # GRID plays out under the line only, toward the gear: the next notes above it stay clear
-    keep_under = above_line(cell, line, 0, 6)
+    cell, cx = HIT_SIZE, HIT_ROOM / 2
+    line = cx
     for name in ANY_HITS:
         cells = sheet_cells(SRC / "hits" / f"{name}.jpg")
         n = cells["flash"].shape[0]
@@ -769,36 +725,23 @@ def any_hits(textures: dict) -> None:
         sprites = sprites_of(cells["sprites"])
         rng = np.random.default_rng({"flash": 21, "flare": 23, "bubbles": 25, "grid": 27}[name])
         burst, loop = HIT_DRAW[name](flash, ring, hold, sprites, rng, cell, line, cx)
-
-        def draw_burst(f: int, frame: np.ndarray) -> None:
-            burst(f, frame, keep_flash, keep_ring, keep_under)
-            frame *= edges
-
-        def draw_hold(f: int, frame: np.ndarray) -> None:
-            loop(f, frame, keep_hold, keep_under)
-            frame *= edges
-
-        save_hit(name, "burst", burst_sheet(draw_burst), textures)
-        save_hit(name, "hold", burst_sheet(draw_hold), textures)
+        save_hit(name, "burst", burst_sheet(burst), textures)
+        save_hit(name, "hold", burst_sheet(loop), textures)
 
 
 def flash_draw(flash, ring, hold, sprites, rng, cell, line, cx):
-    """A starburst on the hit, a shockwave ring spreading over the gear, glints thrown down; held, a glow breathing
-    with glints twinkling over it."""
+    """A starburst on the hit, a shockwave ring spreading round it, glints thrown out all round; held, a glow
+    breathing with glints twinkling round it."""
     glints = [sp for sp in sprites if sp.shape[0] >= 40]
-    throws = [(math.radians(rng.uniform(22, 158)), rng.uniform(0.5, 1.0), rng.integers(0, len(glints)), rng.uniform(-30, 30)) for _ in range(8)]
-    twinkles = [(rng.uniform(0.18, 0.82), rng.uniform(0.34, 0.78), rng.uniform(0, 1), rng.integers(0, len(glints))) for _ in range(7)]
+    throws = [(math.radians(i * 45 + rng.uniform(-20, 20)), rng.uniform(0.5, 1.0), rng.integers(0, len(glints)), rng.uniform(-30, 30)) for i in range(8)]
+    twinkles = [(rng.uniform(-0.32, 0.32), rng.uniform(-0.26, 0.26), rng.uniform(0, 1), rng.integers(0, len(glints))) for _ in range(7)]
 
-    def burst(f, frame, keep_flash, keep_ring, keep_under):
+    def burst(f, frame):
         if f < 7:
-            fl = np.zeros_like(frame)
-            place(fl, flash, cx, line, cell * [0.56, 0.76, 0.86, 0.92, 0.95, 0.97, 0.98][f], f * 2.0, [0.95, 0.92, 0.82, 0.64, 0.44, 0.25, 0.1][f])
-            frame += fl * keep_flash
+            place(frame, flash, cx, line, cell * [0.56, 0.76, 0.86, 0.92, 0.95, 0.97, 0.98][f], f * 2.0, [0.95, 0.92, 0.82, 0.64, 0.44, 0.25, 0.1][f])
         if 1 <= f <= 13:
             t = (f - 1) / 12
-            rg = np.zeros_like(frame)
-            place(rg, ring, cx, line, cell * (0.22 + 0.86 * (1 - (1 - t) ** 2)), 0, (1 - t) ** 1.3)
-            frame += rg * keep_ring
+            place(frame, ring, cx, line, cell * (0.22 + 0.86 * (1 - (1 - t) ** 2)), 0, (1 - t) ** 1.3)
         if f < 11:
             t = f / 11
             for a, speed, k, spin in throws:
@@ -807,14 +750,13 @@ def flash_draw(flash, ring, hold, sprites, rng, cell, line, cx):
                 place(frame, sp, cx + reach * math.cos(a), line + reach * math.sin(a), cell * (0.05 + 0.08 * sp.shape[0] / 204), spin * t, (1 - t) ** 1.2)
         afterglow(frame, line, 0.42 * (1 - f / 16) ** 1.3)
 
-    def loop(f, frame, keep_hold, keep_under):
+    def loop(f, frame):
         phase = 2 * math.pi * f / 16
         place(frame, hold, cx, line, cell * (0.74 + 0.03 * math.sin(phase * 2)), 0, 0.86 + 0.1 * math.sin(phase * 2))
-        frame *= keep_hold
         for x, y, ph, k in twinkles:
             b = max(0.0, math.sin(phase + 2 * math.pi * ph))
             if b > 0.05:
-                place(frame, glints[int(k) % len(glints)], cell * x, line + cell * (y - 0.3) * 0.9, cell * 0.08 * (0.6 + 0.4 * b), 0, b)
+                place(frame, glints[int(k) % len(glints)], cx + cell * x, line + cell * y, cell * 0.08 * (0.6 + 0.4 * b), 0, b)
 
     return burst, loop
 
@@ -824,18 +766,14 @@ def flare_draw(flash, ring, hold, sprites, rng, cell, line, cx):
     along it; held, a star shimmering on a faint streak."""
     # the star glints (the sheet's lens ghosts, rings and discs, read as stray circles on the gear: left out)
     stars = [sp for sp in sprites if sp.max() > 0.9]
-    throws = [((1 if i % 2 else -1), math.radians(rng.uniform(4, 28)), rng.uniform(0.55, 1.0), rng.integers(0, len(stars))) for i in range(6)]
+    throws = [((1 if i % 2 else -1), math.radians(rng.uniform(-24, 24)), rng.uniform(0.55, 1.0), rng.integers(0, len(stars))) for i in range(6)]
 
-    def burst(f, frame, keep_flash, keep_ring, keep_under):
+    def burst(f, frame):
         if f < 9:
-            fl = np.zeros_like(frame)
-            place(fl, flash, cx, line, cell * [0.86, 1.0, 1.04, 1.06, 1.07, 1.08, 1.08, 1.08, 1.08][f], 0, [1.0, 1.0, 0.86, 0.68, 0.5, 0.34, 0.2, 0.1, 0.04][f])
-            frame += fl * keep_flash
+            place(frame, flash, cx, line, cell * [0.86, 1.0, 1.04, 1.06, 1.07, 1.08, 1.08, 1.08, 1.08][f], 0, [1.0, 1.0, 0.86, 0.68, 0.5, 0.34, 0.2, 0.1, 0.04][f])
         if f < 11:
             t = f / 10
-            st = np.zeros_like(frame)
-            place_xy(st, ring, cx, line, cell * (0.62 + 0.38 * (1 - (1 - t) ** 2)), cell * 0.5, [1.0, 0.95, 0.85, 0.72, 0.58, 0.45, 0.33, 0.22, 0.13, 0.06, 0.02][f])
-            frame += st * keep_ring
+            place_xy(frame, ring, cx, line, cell * (0.62 + 0.38 * (1 - (1 - t) ** 2)), cell * 0.5, [1.0, 0.95, 0.85, 0.72, 0.58, 0.45, 0.33, 0.22, 0.13, 0.06, 0.02][f])
         if f < 12:
             t = f / 12
             for side, a, speed, k in throws:
@@ -843,29 +781,26 @@ def flare_draw(flash, ring, hold, sprites, rng, cell, line, cx):
                 place(frame, stars[int(k) % len(stars)], cx + side * reach * math.cos(a), line + reach * math.sin(a), cell * 0.1 * (1 - 0.3 * t), 0, (1 - t) ** 1.1)
         afterglow(frame, line, 0.38 * (1 - f / 16) ** 1.3, wx=44, wy=12)
 
-    def loop(f, frame, keep_hold, keep_under):
+    def loop(f, frame):
         phase = 2 * math.pi * f / 16
         place_xy(frame, ring, cx, line, cell * (0.84 + 0.05 * math.sin(phase * 2)), cell * 0.42, 0.5 + 0.12 * math.sin(phase * 2 + 1))
         place(frame, hold, cx, line, cell * (0.86 + 0.04 * math.sin(phase * 2)), 2.5 * math.sin(phase), 0.9 + 0.1 * math.sin(phase * 2 + 0.5))
-        frame *= keep_hold
 
     return burst, loop
 
 
 def bubbles_draw(flash, ring, hold, sprites, rng, cell, line, cx):
-    """A bubble popping on the hit in a ring of spray, bubbles thrown out over the gear, swelling and popping one by
-    one; held, a glow with bubbles rising through it toward the line."""
+    """A bubble popping on the hit in a ring of spray, bubbles thrown out all round, swelling and popping one by one;
+    held, a glow with bubbles rising through it."""
     big = [sp for sp in sprites if sp.shape[0] >= 90]
     drops = [sp for sp in sprites if sp.shape[0] < 60] or big
-    throws = [(math.radians(rng.uniform(16, 164)), rng.uniform(0.45, 1.0), rng.integers(0, len(big)), rng.uniform(0.09, 0.17), int(rng.integers(9, 16)), rng.uniform(0, 6.3)) for _ in range(8)]
-    spray = [(math.radians(rng.uniform(10, 170)), rng.uniform(0.6, 1.0), rng.integers(0, len(drops))) for _ in range(7)]
+    throws = [(math.radians(i * 45 + rng.uniform(-18, 18)), rng.uniform(0.45, 1.0), rng.integers(0, len(big)), rng.uniform(0.09, 0.17), int(rng.integers(9, 16)), rng.uniform(0, 6.3)) for i in range(8)]
+    spray = [(math.radians(i * 360 / 7 + rng.uniform(-20, 20)), rng.uniform(0.6, 1.0), rng.integers(0, len(drops))) for i in range(7)]
     rising = [(rng.uniform(-0.3, 0.3), rng.uniform(0, 1), rng.integers(0, len(big)), rng.uniform(0.05, 0.09)) for _ in range(6)]
 
-    def burst(f, frame, keep_flash, keep_ring, keep_under):
+    def burst(f, frame):
         if f < 8:
-            fl = np.zeros_like(frame)
-            place(fl, flash, cx, line, cell * [0.42, 0.62, 0.76, 0.86, 0.93, 0.98, 1.02, 1.05][f], 0, [1.0, 1.0, 0.82, 0.62, 0.44, 0.28, 0.15, 0.06][f])
-            frame += fl * keep_flash
+            place(frame, flash, cx, line, cell * [0.42, 0.62, 0.76, 0.86, 0.93, 0.98, 1.02, 1.05][f], 0, [1.0, 1.0, 0.82, 0.62, 0.44, 0.28, 0.15, 0.06][f])
         for a, speed, k, size, pop, wob in throws:
             if f > pop or (f == pop and pop == 15):
                 continue
@@ -886,39 +821,39 @@ def bubbles_draw(flash, ring, hold, sprites, rng, cell, line, cx):
                 place(frame, drops[int(k) % len(drops)], cx + reach * math.cos(a), line + reach * math.sin(a), cell * 0.035, 0, (1 - t) ** 1.3)
         afterglow(frame, line, 0.34 * (1 - f / 16) ** 1.3)
 
-    def loop(f, frame, keep_hold, keep_under):
+    def loop(f, frame):
         phase = 2 * math.pi * f / 16
         place(frame, hold, cx, line, cell * (0.84 + 0.03 * math.sin(phase * 2)), 0, 0.8 + 0.1 * math.sin(phase * 2))
-        frame *= keep_hold
-        # each bubble rises from over the gear to the line and fades, at its own place in the loop
+        # each bubble rises through the glow, from below the line to above it, and fades, at its own place in the loop
         for dx, ph, k, size in rising:
             u = (f / 16 + ph) % 1
-            place(frame, big[int(k) % len(big)], cx + cell * dx + 3 * math.sin(2 * math.pi * u * 2), line + cell * (0.5 - 0.42 * u), cell * size, 0, 0.9 * math.sin(math.pi * u))
+            place(frame, big[int(k) % len(big)], cx + cell * dx + 3 * math.sin(2 * math.pi * u * 2), line + cell * (0.34 - 0.68 * u), cell * size, 0, 0.9 * math.sin(math.pi * u))
 
     return burst, loop
 
 
 def grid_draw(flash, ring, hold, sprites, rng, cell, line, cx):
-    """LED pixels under the line, as a dot-matrix panel: lit at the hit, a square wave of them running out over the
-    gear with stray pixels blinking behind it; held, the pixels under the key rising and falling like a level meter."""
+    """LED pixels about the line, as a dot-matrix panel: lit at the hit, a square wave of them running out all round
+    with stray pixels blinking behind it; held, the pixels about the key rising and falling like a level meter, mirrored
+    about the line."""
     leds = [sp for sp in sprites if sp.shape[0] >= 70]
     # the brightest of the largest: one LED drawn everywhere, so the panel is even
     led = max(leds, key=lambda sp: float(sp.max()) * 10 + float(sp.mean()))
     pitch = cell * 0.078
     size = pitch * 1.18
-    cols, rows = range(-5, 6), range(8)
+    cols, rows = range(-5, 6), range(-6, 7)
 
     def at(c: int, r: int) -> tuple[float, float]:
-        return cx + c * pitch, line + pitch * 0.55 + r * pitch
+        return cx + c * pitch, line + r * pitch
 
     blink = rng.uniform(0, 1, (16, len(rows), len(cols)))
 
-    def burst(f, frame, keep_flash, keep_ring, keep_under):
+    def burst(f, frame):
         front = 0.4 + f * 0.62
         fade = (1 - f / 16) ** 0.5
         for ri, r in enumerate(rows):
             for ci, c in enumerate(cols):
-                d = max(abs(c), r * 1.1)
+                d = max(abs(c), abs(r) * 1.1)
                 b = math.exp(-(((d - front) / 0.55) ** 2))
                 if d < front:
                     b = max(b, 0.7 * math.exp(-(front - d) / 0.8))
@@ -929,12 +864,11 @@ def grid_draw(flash, ring, hold, sprites, rng, cell, line, cx):
                 b *= fade
                 if b > 0.04:
                     place(frame, led, *at(c, r), size, 0, min(1.0, b))
-        afterglow(frame, line + pitch, 0.22 * (1 - f / 16) ** 1.5, wx=40, wy=10)
-        frame *= keep_under
+        afterglow(frame, line, 0.22 * (1 - f / 16) ** 1.5, wx=40, wy=10)
 
     levels = [(int(rng.integers(1, 3)), rng.uniform(0, 2 * math.pi)) for _ in range(5)]
 
-    def loop(f, frame, keep_hold, keep_under):
+    def loop(f, frame):
         phase = 2 * math.pi * f / 16
         for ci, c in enumerate(range(-2, 3)):
             k, ph = levels[ci]
@@ -942,8 +876,9 @@ def grid_draw(flash, ring, hold, sprites, rng, cell, line, cx):
             for r in range(4):
                 lit = r < level
                 b = (1.0 if r + 1 >= level else 0.82) if lit else 0.1
-                place(frame, led, *at(c, r), size, 0, b)
-        frame *= keep_under
+                # the meter runs out from the line both ways (its middle row once)
+                for rr in {r, -r}:
+                    place(frame, led, *at(c, rr), size, 0, b)
 
     return burst, loop
 

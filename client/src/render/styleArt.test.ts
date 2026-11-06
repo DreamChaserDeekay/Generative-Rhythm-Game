@@ -98,10 +98,11 @@ describe('the concept sets drawn from art', () => {
     for (const style of [styleOf(BASE_SKIN), arcade]) {
       for (const id of [...styleImageIds(style), ...Object.values(styleTextures(style))]) expect(manifest.textures[id], id).toBeDefined();
     }
-    // the flipbooks spread from the judge line down over the gear
+    // the flipbooks spread every way from the judge line, whole, with room round them in their frames
     for (const id of ['mecha/hitBurst', 'mecha/hitHold']) {
       expect(manifest.textures[id].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
-      expect(manifest.textures[id].anchorY, id).toBeGreaterThan(0.5);
+      expect(manifest.textures[id].anchorY, id).toBe(0.5);
+      expect(manifest.textures[id].span, id).toBeGreaterThan(1);
     }
     expect(manifest.textures['mecha/hitHold'].flipbook?.loop).toBe(true);
   });
@@ -201,7 +202,7 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 }
 
 describe('the hits drawn from art', () => {
-  it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, from the judge line down', () => {
+  it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
     expect(PART_HITS).toEqual(['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
     for (const hit of PART_HITS) {
       expect(isArtHit(hit), hit).toBe(true);
@@ -209,7 +210,8 @@ describe('the hits drawn from art', () => {
       for (const id of [hitBurst, hitHold]) {
         expect(id && manifest.textures[id]?.size, `${hit} ${id}`).toEqual([1024, 1024]);
         expect(manifest.textures[id!].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
-        expect(manifest.textures[id!].anchorY, id).toBeGreaterThan(0.5);
+        expect(manifest.textures[id!].anchorY, id).toBe(0.5);
+        expect(manifest.textures[id!].span, id).toBeGreaterThan(1);
       }
       expect(manifest.textures[hitBurst!].flipbook).toMatchObject({ fps: 60, loop: false });
       expect(manifest.textures[hitHold!].flipbook).toMatchObject({ fps: 24, loop: true });
@@ -240,7 +242,8 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     for (const [id, size] of Object.entries(sizes)) expect(manifest.textures[id]?.size, id).toEqual(size);
     for (const id of [`${c.id}/hitBurst`, `${c.id}/hitHold`]) {
       expect(manifest.textures[id].flipbook, id).toMatchObject({ cols: 4, rows: 4, frames: 16 });
-      expect(manifest.textures[id].anchorY, id).toBeGreaterThan(0.5);
+      expect(manifest.textures[id].anchorY, id).toBe(0.5);
+      expect(manifest.textures[id].span, id).toBeGreaterThan(1);
     }
     expect(manifest.textures[`${c.id}/hitHold`].flipbook?.loop).toBe(true);
   });

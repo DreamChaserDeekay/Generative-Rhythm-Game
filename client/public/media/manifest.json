@@ -15,7 +15,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "bubbles/hitHold": {
       "file": "styles/hits/bubbles_hold.png",
@@ -31,7 +32,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "cabinet/abs": {
       "file": "gears/cabinet/abs.png",
@@ -87,7 +89,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "club/hitHold": {
       "file": "styles/club/hit_hold.png",
@@ -103,7 +106,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "club/long": {
       "file": "styles/club/long.png",
@@ -205,7 +209,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "flare/hitHold": {
       "file": "styles/hits/flare_hold.png",
@@ -221,7 +226,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "flash/hitBurst": {
       "file": "styles/hits/flash_burst.png",
@@ -237,7 +243,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "flash/hitHold": {
       "file": "styles/hits/flash_hold.png",
@@ -253,7 +260,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "fx/hitBurstGlow": {
       "file": "fx/hit_burst_glow.png",
@@ -388,7 +396,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "gem/hitHold": {
       "file": "styles/crystal/hit_hold.png",
@@ -404,7 +413,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "gem/long": {
       "file": "styles/crystal/long.png",
@@ -506,7 +516,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "grid/hitHold": {
       "file": "styles/hits/grid_hold.png",
@@ -522,7 +533,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "keyboard/alu": {
       "file": "gears/keyboard/alu.png",
@@ -586,7 +598,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "mecha/hitHold": {
       "file": "styles/mecha/hit_hold.png",
@@ -602,7 +615,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.73
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "mecha/long": {
       "file": "styles/mecha/long.png",
@@ -744,7 +758,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "neon/hitHold": {
       "file": "styles/neon/hit_hold.png",
@@ -760,7 +775,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "neon/long": {
       "file": "styles/neon/long.png",
@@ -848,7 +864,8 @@
         "fps": 60,
         "loop": false
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "piano/hitHold": {
       "file": "styles/piano/hit_hold.png",
@@ -864,7 +881,8 @@
         "fps": 24,
         "loop": true
       },
-      "anchorY": 0.7
+      "anchorY": 0.5,
+      "span": 1.375
     },
     "racing/button": {
       "file": "gears/racing/button.png",
