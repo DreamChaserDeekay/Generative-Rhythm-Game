@@ -470,15 +470,16 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await expect(page.getByTestId('settings-tab-notes')).toHaveText('노트');
   await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('노트');
   await expect(page.getByTestId('opt-color-preset')).toBeVisible();
-  // the notes to pick, the piano note gone (its hit is the 기어 tab's still)
+  // the notes to pick: the plain bar, the bar in its six finishes and the four shapes, the piano note
+  // gone (its hit is the 기어 tab's still)
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 13; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['chamfer', 'flat', 'round', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'flat', 'glass', 'hairline', 'pearl', 'round', 'star4', 'star5']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -640,7 +641,40 @@ test('the club, crystal and neon sets and the piano hit picked part by part, eac
   expect(errors).toEqual([]);
 });
 
-test('the custom keyboard, the racing wheel, the orbital panel and the piano picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
+test('the bar in six finishes picked by name in the notes tab, each with a long note of its own, drawn in code in play', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  for (const [note, name] of [
+    ['chrome', '크롬 베벨'],
+    ['hairline', '헤어라인'],
+    ['glass', '유리'],
+    ['enamel', '에나멜'],
+    ['pearl', '펄'],
+    ['carbon', '카본'],
+  ] as const) {
+    await chooseSetting(page, 'opt-note-style', note);
+    await expect(page.getByTestId('opt-note-style')).toContainText(name);
+    expect((await stored()).parts).toMatchObject({ note });
+  }
+  await page.getByRole('button', { name: /완료/ }).click();
+
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  // the last one picked, with its own long note; drawn in code (no notes from art)
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', /^carbon carbon bar /);
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator('.play-canvas')).not.toHaveAttribute('data-art', /\bnotes\b/);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('the custom keyboard, the racing wheel, the orbital panel, the piano and the moon picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [deck, name, gauge, judgeFont, numFont] of [
@@ -648,6 +682,7 @@ test('the custom keyboard, the racing wheel, the orbital panel and the piano pic
     ['racing', '레이싱 휠', 'FUEL', /Chakra Petch/, /Chakra Petch/],
     ['orbital', '우주선 계기판', 'O2', /Saira Stencil One/, /DSEG7 Classic/],
     ['piano', '피아노', 'FORTE', /Bodoni Moda/, /Bodoni Moda/],
+    ['rawglass', '달', 'CLARITY', /Orbitron/, /Orbitron/],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();

@@ -9,7 +9,20 @@ import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../r
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** The parts by name (설정 → 노트 and 기어). */
-export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
+export const NOTE_NAMES: Record<NoteStyle, string> = {
+  flat: '기본',
+  stem: '악기색',
+  chrome: '크롬 베벨',
+  hairline: '헤어라인',
+  glass: '유리',
+  enamel: '에나멜',
+  pearl: '펄',
+  carbon: '카본',
+  chamfer: '메카 챔퍼',
+  round: '원형',
+  star4: '별 (4각)',
+  star5: '별 (5각)',
+};
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<DeckStyle, string> = {
   line: '라인',
@@ -22,6 +35,7 @@ export const DECK_NAMES: Record<DeckStyle, string> = {
   racing: '레이싱 휠',
   orbital: '우주선 계기판',
   piano: '피아노',
+  rawglass: '달',
 };
 export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   flash: '플래시',

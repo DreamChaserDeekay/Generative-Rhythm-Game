@@ -1166,7 +1166,7 @@
 
 ## 기어 (`gears/`, 2026-11)
 
-세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더")과 2026-11-06에 더한 피아노(아래 "피아노 기어"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
+세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더")과 2026-11-06에 더한 피아노(아래 "피아노 기어") · 달(아래 "달 기어"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
 - 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름(나머지 셋은 2026-11-05에 더함) → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
@@ -1824,3 +1824,65 @@
 - `piano-d1`, `piano-d2`(13:40 KST, 각각 약 $0.062 · $0.060, PNG 4,422,839 · 4,362,261바이트): 판정선을 위로 올리고 건반을 크게 그려 화면의 틀을 다시 잡음(맞출 수 없음) · 프롬프트는 위의 것에서 틀을 지키라는 둘째 문단이 없던 것
 - `piano-e1`(13:42 KST, 약 $0.064, PNG 4,405,872바이트): 위 프롬프트 그대로 · 역시 틀을 다시 잡음
 - 비용: 쓴 1장 약 $0.066, 시안 2장 약 $0.130, 쓰지 않은 시도 3장 약 $0.186, 합해 약 $0.382
+
+## 달 기어 (`gears/rawglass`, 2026-11-06)
+
+사용자가 참고로 준 다른 게임 노트의 컨셉(사방을 비스듬히 깎은 은빛 거울 유리)에서 시작해, 사용자와 시안을 주고받으며 새로 디자인한 아홉째 기어입니다(그 게임의 그림이나 이름은 쓰지 않음). 크롬 판에 검은 거울 셋을 박은 첫 시안(`mirror-*`)에는 "SG-701 이랑 너무 다른데, 유리질감의 은색 기어 컨셉으로 만들어줘", 은색 판에 은도금 유리 막대 셋을 박은 둘째 시안(`silver-a*`)에는 "기어 하단에 네모 들은 넣지 마. 기어 디자인을 처음부터 하고, 첨부 이미지처럼 유리 '결정' 질감이 느껴지도록"(청록색 유리 덩어리 사진을 함께 줌), 그 사진처럼 청록색으로 칠한 셋째 시안(`rawglass-*`)에는 "SG-701 색깔로 바꿔줘", 은빛으로 칠한 넷째 시안(`silver-s3a`)에는 "이 시안을 기반으로 유리 결정 질감을 리얼하게 표현해줘"라고 했고, 그렇게 다시 칠한 그림(`flat-r*`)을 보고는 넷째 시안의 후보 넷 가운데 마지막(`silver-s2b`)을 골라 "곡선들만 안보이도록 처리하고 입체감만 좀더", 이어서 "곡선만 지워주고 선명하게 하는건 빼줘"라고 해, `silver-s2b`에서 곡선만 지운 그림을 실었습니다. 이름은 사용자가 "기어 명칭은 '달'로 해주고"라고 해 달로 정했습니다(코드의 id는 재료를 따라 `rawglass`).
+
+받침에는 아무것도 박지 않은, 깨뜨린 은빛 크리스털 유리 덩어리 한 장입니다(곧은 결정 면 사이로 유리 속의 결과 기포가 비침). 테두리 · HUD는 코드이고, 글꼴은 이미 넣은 Orbitron입니다. 평면 카메라의 받침은 같은 결정 면을 코드로 그립니다(`deckArt.ts`의 `rawGlassPlate`). 같은 날 더한 질감 노트 여섯(크롬 베벨 · 헤어라인 · 유리 · 에나멜 · 펄 · 카본)은 생성한 그림 없이 코드로 그립니다(`tintArt.ts`).
+
+### `gears/rawglass/deck.jpg`
+
+- 용도: 달의 받침 전체 → `gears/rawglass/deck.webp` 2048×541(93,160바이트)
+- 만든 방법: 아래 `silver-s2b`를 받침 평면으로 펼친 그림(2048×541)에서 곡선이 있던 자리(그 그림이 다시 칠한 코드 받침의 조개껍데기 모양 단면 셋, 테두리와 그 안의 물결선: 같은 코드로 다시 그린 마스크를 7px 굵게)만, 곡선을 빼고 다시 칠한 `edit-2`를 펼친 그림 위에 되맞춘 것(ECC, 아핀, 상관 0.74)의 같은 자리로 바꿔 경계에서 색을 맞춰 이음(OpenCV `seamlessClone`, Poisson). 기준 화면에서 누르고 있던 롱노트의 빛이 위 끝(x 600–900, 위에서 12px까지)에 남긴 하늘색 번짐은 줄마다 양옆 색을 곧게 이어 지움. 나머지 픽셀은 `silver-s2b` 그대로이고, 선명하게 하거나 대비를 바꾸지 않음
+- 저장: 펼친 2048×541 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 305,224바이트. `deck.json`은 받침 평면을 이 그림에 그대로 대는 매핑이라 `build_gears.py`가 다른 기어와 같은 방법으로 폄
+
+### 쓴 생성 `silver-s2b`
+
+- 기준 이미지: ① 달(은색으로 칠한 코드 받침, 조개껍데기 모양 단면 셋이 있던 때)을 얹은 실제 화면(7K+1S, SDVX, 1920×1080, 타격 효과 없음)의 아래쪽(x 320–1600, y 360–1080 → 1280×720) ② 재질 견본: 사용자가 보낸 청록색 유리 덩어리 사진의 유리 부분을 512×512로 잘라 SG-701의 흰색~은회색으로 다시 칠한 것(사진과 견본은 저장소에 넣지 않음)
+- 날짜: 2026-11-06 17:02 KST · 약 $0.065 (두 장 중 둘째 `silver-s2b`), 16:9 · 2K → 2752×1536 PNG 4,687,224바이트 · sha256 앞 16자리 `d0d5ec190c882f66`
+- 맞추기: 두 벽 사이 레인 바닥(판정선 위)으로 맞춤(OpenCV ECC, 아핀) · 맞춤 상관 0.9984
+- 프롬프트:
+
+  > Image 1 is the lower part of a frame of this rhythm game's play screen. Keep its framing exactly: the same camera, the same zoom, the same crop, every line where it is (the lanes, the red judge line, the side walls, the deck's edges); do not zoom in, crop, widen or recompose. Repaint ONLY the gear's deck: the area under the red judge line and its narrow dark gap, between the inner edges of the two side walls, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the red judge line, the side walls, the dark background.
+  >
+  > The framing stays exactly as image 1 has it: the red judge line crosses the image at 64% of its height and stays exactly there, the lanes above it keep their length and every note stays where it is, and the deck fills only the band from just under the judge line to the image's bottom edge (about the bottom third of the image). Do not move the camera closer and do not enlarge anything on the deck.
+  >
+  > Image 2 is only a small swatch of the material, a close-up of raw glass shown in silver tones: use nothing from it but the look of its glass (its sharp conchoidal fractures with curved ripple marks, its depth, the light caught inside it, its knife-sharp glinting edges). It says nothing about the framing, the scale or the composition: those come from image 1 alone.
+  >
+  > The deck is one thick slab of raw, colourless crystal glass in the silvers of a bevelled mirror, like a huge chunk of rough glass rock, lying flat between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges.
+  > - Its colours are only white, bright silver and cool silver grey, as polished silver and clear glass are: brilliant white where the light catches it, light silver where the light passes through it, cool grey where it is thick; no green, no aqua, no blue, no tint at all.
+  > - Its top is not polished: it is broken into sharp crystalline planes and conchoidal, shell-shaped fractures with fine curved ripple lines, as freshly broken glass is, roughly where image 1 has its breaks; each facet catches the light from the top-left differently, knife-sharp ridges glinting white with a few tiny sparkles, the light caught inside the glass in bright refractions.
+  > - Its top edge, right under the judge line's gap, is a straight ground edge of the same glass, a thin pale silver line, never a bright band.
+  > - Nothing is set into the slab and nothing lies on it: no panels, no rectangles, no frames, no buttons, no metal plates, no objects. The glass itself is the whole design.
+  >
+  > The whole deck reads as a crystal of silver-white glass: transparent, faceted, glinting. One soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game. No text, letters, numbers or logos anywhere. Nothing over the lanes.
+  >
+  > Again: image 1 is the canvas. Outside the deck the result lines up with image 1 pixel for pixel (the judge line at 64% of the height, the walls, the lanes and the notes where they are), and the deck keeps exactly its place and size in image 1.
+
+### 쓴 생성 `edit-2` (곡선 자리만)
+
+- 기준 이미지: 위 `silver-s2b`를 펼친 그림을 2048×878 캔버스 가운데(168–709행)에 둔 것, 21:9 · 2K → 3168×1344 PNG
+- 날짜: 2026-11-06 17:38 KST · 약 $0.057 (세 장 중 둘째 `edit-2`), PNG 5,565,962바이트 · `de7f65e426ba280c`
+- 곡선을 지우면서 면의 대비도 키웠으나, 사용자가 "선명하게 하는건 빼줘"라고 해 곡선이 있던 자리만 가져다 씀
+- 프롬프트:
+
+  > Image 1 is a flat texture: the top of a slab of silver crystal glass, seen straight from above, lying across the middle of the image between two dark margins. Edit it, changing only these two things:
+  >
+  > 1. Remove every curved line: the curved, shell-shaped breaks and the concentric ripple arcs inside them must disappear completely. Fill each of them in with the glass around it (its facets, its silver and grey, its texture), so that no curve, arc or ring remains anywhere. Keep the straight lines where facets meet.
+  >
+  > 2. Give the slab more three-dimensional depth: make each flat facet read clearly as a tilted plane of a cut crystal, in relief: brighter where it faces the light from the top-left, a deeper cool grey where it turns away from it, a crisp bright highlight along each ridge where two facets meet and a soft shadow in each valley, so the broken surface looks carved and faceted in 3D, like a real crystal.
+  >
+  > Keep everything else exactly as image 1 has it: the band's place, size and edges in the image, the dark margins above and below it, the straight facet edges where they are, the white, silver and cool grey colours, the glassy texture inside the facets, the thin pale line along the band's top edge. Photographic, crisp and sharp. No colour tint (no green, aqua, blue or rainbow). No text, letters, numbers or logos.
+
+### 쓰지 않은 시도
+
+- `edit-1`(17:37 KST, 약 $0.055, PNG 4,866,936바이트 · `bab9aecef9f2ddfe`): `edit-2`와 같은 프롬프트 · 곡선은 지웠지만 면의 모서리마다 깎은 각을 넣어 선명해짐(잠시 받침으로 깔았다가 사용자의 말에 따라 뺌); `edit-3`(17:38, 약 $0.058, 4,723,224바이트 · `ec6252ff681e7720`): 결정 면을 통째로 새로 깎아 무늬가 바뀜
+- `flat-r1`(17:27, 약 $0.059, 5,509,745바이트 · `9b7c1b70a3c04a7a`) · `flat-r2`(17:27, 약 $0.054, 5,955,310바이트 · `4f3209effdbb6790`) · `flat-r3`(17:28, 약 $0.061, 6,360,959바이트 · `41901dfc1d76f481`): 넷째 시안(`silver-s3a`)을 펼친 그림을 위에서 본 평면 그대로 사진처럼 다시 칠한 것 · 배치는 지켰고 r1을 잠시 받침으로 깔았지만, 사용자가 `silver-s2b`를 골라 쓰지 않음
+- `real-a1`(17:23, 약 $0.061, 5,069,459바이트 · `812c643f4634f662`) · `real-a2`(17:23, 약 $0.066, 4,688,326바이트 · `5fc3395b69a52f22`) · `real-b1`(17:24, 약 $0.066, 5,063,951바이트 · `ef2d4d76904c1ffd`) · `real-b2`(17:25, 약 $0.060, 4,668,726바이트 · `b534c3aeadd4e855`): 넷째 시안을 깐 실제 화면을 원근 그대로 사실적으로 다시 칠하라는 프롬프트(b는 은색 견본을 더함) · a1 · a2 · b1은 카메라를 당기거나 받침을 겹쳐 그려 틀이 맞지 않고, b2는 견본의 흐릿한 무늬가 면 안에 덧붙어 탁해짐
+- `silver-s3a`(17:04, 약 $0.056, 4,482,196바이트 · `f4455edd2a55c53c`): 넷째 시안으로 보여 드리고 잠시 받침으로 깔았던 그림(`silver-s2b`와 같은 기준 화면, 견본 없이 은빛 결정 유리를 칠하라는 프롬프트에 틀을 지키라는 문단을 더함) · 사용자가 다른 후보를 골라 쓰지 않음; `silver-s3b`(17:05, 약 $0.062, 4,679,291바이트 · `4a0760ebb65807ff`): 먼지 같은 반짝이는 점이 많음; `silver-s3c`(17:05, 약 $0.062, 4,596,359바이트 · `95204f767df3bdc4`): 틀이 맞지 않음
+- `silver-s1a`(17:01, 약 $0.059, 5,206,047바이트 · `d6af03fb1c462bb8`) · `silver-s1b`(17:02, 약 $0.058, 4,984,028바이트 · `e9365a33609d258e`): 견본 없이 은빛 결정 유리를 칠하라는 프롬프트 · 둘 다 카메라를 당겨 틀이 맞지 않음; `silver-s2a`(17:02, 약 $0.058, 4,748,630바이트 · `cf23e5a21a91f641`): `silver-s2b`와 같은 프롬프트 · 틀이 맞지 않음
+- `rawglass-a1`(16:47, 약 $0.062, 4,586,763바이트 · `e541226affdeae19`) · `rawglass-a2`(16:47, 약 $0.062, 4,555,670바이트 · `c3aa8b1e1b186511`) · `rawglass-b1`(16:49, 약 $0.059, 5,502,489바이트 · `21a4223764bb360e`) · `rawglass-b2`(16:50, 약 $0.064, 5,065,964바이트 · `073cb396aeadffcf`) · `rawglass-c1`(16:52, 약 $0.063, 4,729,078바이트 · `774485428a19c9e2`) · `rawglass-c2`(16:52, 약 $0.063, 5,168,877바이트 · `1375496b57ca7e7b`): 청록색 유리 덩어리로 칠한 셋째 시안(b는 사용자의 사진, c는 그 유리 부분만 자른 견본을 재질 참고로 더함) · 사용자가 SG-701 색으로 바꾸라 해 쓰지 않음(b1 · b2 · c2는 틀도 맞지 않음, a1은 받침이 유리 상자처럼 네모로 보임)
+- `silver-a1`(16:31, 약 $0.059, 4,319,618바이트 · `3eb339183d1db7a5`) · `silver-a2`(16:31, 약 $0.067, 4,384,502바이트 · `72e0cba1b75d351f`): 둘째 시안 실버 글라스(은색 위 두꺼운 유리판에 베벨로 깎은 은도금 유리 막대 셋) · 받침의 네모를 빼고 처음부터 다시 디자인하라 해서 쓰지 않음(a2는 틀도 맞지 않음)
+- `mirror-a1`(16:05, 약 $0.058, 4,297,684바이트 · `d96b073f85483e86`) · `mirror-a2`(16:06, 약 $0.057, 4,344,918바이트 · `39018505bff38b41`): 첫 시안 베벨 미러(크롬 판에 베벨로 깎은 검은 거울 셋) · SG-701과 너무 다르다 해서 쓰지 않음(a2는 그 전에도 판정선 바로 아래 밝은 크롬 띠가 두 번째 판정선처럼 보여 빼 둠)
+- 비용: 쓴 2장 약 $0.122, 쓰지 않은 25장 약 $1.510, 합해 약 $1.632

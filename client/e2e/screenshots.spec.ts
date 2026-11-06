@@ -335,6 +335,23 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   }
 });
 
+test('play: the bar in its finishes', async ({ page }) => {
+  // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // a finish on a gear of the same make: chrome bevels on the raw glass in its silvers, carbon on the racing wheel
+  for (const [parts, name] of [
+    [{ note: 'chrome', side: 'bar', deck: 'rawglass', hit: 'flash' }, '42-note-chrome'],
+    [{ note: 'carbon', side: 'bar', deck: 'racing', hit: 'flash' }, '43-note-carbon'],
+  ] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await autoplayFor(page, 14_200);
+    await shot(page, name);
+  }
+});
+
 test('play: the four hits of no set, each with notes, side notes and a gear picked', async ({ page }) => {
   // also runs on its own (-g "four hits of no set"): makes the showcase song when it is missing
   await page.goto('/');
@@ -373,6 +390,7 @@ test('play: the gears a player picks, each with its HUD (gauge, score panel, dig
     ['racing', '38-gear-racing'],
     ['orbital', '39-gear-orbital'],
     ['piano', '40-gear-piano'],
+    ['rawglass', '41-gear-rawglass'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'EXPERT');
