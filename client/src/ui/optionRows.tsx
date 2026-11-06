@@ -1,8 +1,8 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import type { DeckStyle } from '../render/deckArt';
+import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
-import { PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
-import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
+import type { SkinParts } from '../render/skins';
+import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 
 /** The option rows of the settings and the song select's play options. */
 
@@ -11,7 +11,6 @@ export const pct = (v: number) => `${Math.round(v * 100)}%`;
 /** The parts by name (설정 → 노트 and 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = {
   flat: '기본',
-  stem: '악기색',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
   glass: '유리',
@@ -24,9 +23,7 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
   star5: '별 (5각)',
 };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
-export const DECK_NAMES: Record<DeckStyle, string> = {
-  line: '라인',
-  stem: '악기색',
+export const DECK_NAMES: Record<GearStyle, string> = {
   standard: '기본',
   cabinet: '오락실 기체',
   receiver: '빈티지 리시버',
@@ -37,9 +34,8 @@ export const DECK_NAMES: Record<DeckStyle, string> = {
   piano: '피아노',
   rawglass: '달',
 };
-export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
+export const HIT_NAMES: Record<HitStyle, string> = {
   flash: '플래시',
-  stemflash: '악기색 플래시',
   flare: '플레어',
   bubbles: '거품',
   grid: 'LED 그리드',
@@ -48,8 +44,6 @@ export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   crystal: '크리스털 파편',
   neon: '네온 아크',
   piano: '피아노 음표',
-  flipbook: '보석 섬광',
-  none: '없음',
 };
 
 /** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
@@ -60,10 +54,10 @@ export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [
 
 /** Each part's choices, by name. */
 export const PART_CHOICES: { [K in keyof SkinParts]: [SkinParts[K], string][] } = {
-  note: PART_NOTES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
+  note: NOTE_STYLES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
   side: SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]]),
-  deck: PART_DECKS.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]]),
-  hit: PART_HITS.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
+  deck: GEAR_STYLES.map((v): [GearStyle, string] => [v, DECK_NAMES[v]]),
+  hit: HIT_STYLES.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
 };
 
 export interface RowProps {

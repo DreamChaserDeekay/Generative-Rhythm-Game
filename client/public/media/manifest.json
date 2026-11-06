@@ -133,66 +133,62 @@
         512
       ]
     },
-    "crystal/floor": {
-      "file": "skins/crystal/floor.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ],
-      "gain": 2.001,
-      "tile": 2.4
-    },
-    "crystal/judgeLine": {
-      "file": "skins/crystal/judge_line.png",
-      "bundle": "gear",
+    "crystal/hitBurst": {
+      "file": "styles/crystal/hit_burst.png",
+      "bundle": "effects",
       "size": [
         1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "crystal/longBody": {
-      "file": "skins/crystal/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 5.4
-    },
-    "crystal/note": {
-      "file": "skins/crystal/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "crystal/rails": {
-      "file": "skins/crystal/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
         1024
       ],
-      "tileAspect": 18.67,
-      "width": 0.26
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
     },
-    "crystal/scratch": {
-      "file": "skins/crystal/note_scratch.png",
+    "crystal/hitHold": {
+      "file": "styles/crystal/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "crystal/long": {
+      "file": "styles/crystal/long.png",
       "bundle": "notes",
       "size": [
-        256,
-        64
+        512,
+        256
+      ]
+    },
+    "crystal/notes": {
+      "file": "styles/crystal/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
       ]
     },
     "crystal/side": {
-      "file": "skins/crystal/note_side.png",
+      "file": "styles/crystal/side.png",
       "bundle": "notes",
       "size": [
-        128,
-        64
+        1024,
+        512
       ]
     },
     "flare/hitBurst": {
@@ -262,245 +258,6 @@
       },
       "anchorY": 0.5,
       "span": 1.375
-    },
-    "fx/hitBurstGlow": {
-      "file": "fx/hit_burst_glow.png",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 60,
-        "loop": false
-      },
-      "scale": 1.35
-    },
-    "fx/hitBurstRing": {
-      "file": "fx/hit_burst_ring.png",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 60,
-        "loop": false
-      },
-      "scale": 1.7
-    },
-    "fx/hitHold": {
-      "file": "fx/hit_hold.png",
-      "bundle": "effects",
-      "size": [
-        512,
-        512
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 24,
-        "loop": true
-      },
-      "scale": 1.5,
-      "anchorY": 0.15
-    },
-    "fx/keyBeam": {
-      "file": "fx/key_beam.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        512
-      ]
-    },
-    "gel/floor": {
-      "file": "skins/gel/floor.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ],
-      "gain": 2.0,
-      "tile": 2.4
-    },
-    "gel/judgeLine": {
-      "file": "skins/gel/judge_line.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "gel/longBody": {
-      "file": "skins/gel/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.37
-    },
-    "gel/note": {
-      "file": "skins/gel/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "gel/rails": {
-      "file": "skins/gel/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        1024
-      ],
-      "tileAspect": 12.33,
-      "width": 0.26
-    },
-    "gel/scratch": {
-      "file": "skins/gel/note_scratch.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "gel/side": {
-      "file": "skins/gel/note_side.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        64
-      ]
-    },
-    "gem/hitBurst": {
-      "file": "styles/crystal/hit_burst.png",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 60,
-        "loop": false
-      },
-      "anchorY": 0.5,
-      "span": 1.375
-    },
-    "gem/hitHold": {
-      "file": "styles/crystal/hit_hold.png",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 24,
-        "loop": true
-      },
-      "anchorY": 0.5,
-      "span": 1.375
-    },
-    "gem/long": {
-      "file": "styles/crystal/long.png",
-      "bundle": "notes",
-      "size": [
-        512,
-        256
-      ]
-    },
-    "gem/notes": {
-      "file": "styles/crystal/notes.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        1024
-      ]
-    },
-    "gem/side": {
-      "file": "styles/crystal/side.png",
-      "bundle": "notes",
-      "size": [
-        1024,
-        512
-      ]
-    },
-    "glass/floor": {
-      "file": "skins/glass/floor.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ],
-      "gain": 2.002,
-      "tile": 2.4
-    },
-    "glass/judgeLine": {
-      "file": "skins/glass/judge_line.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "glass/longBody": {
-      "file": "skins/glass/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.07
-    },
-    "glass/note": {
-      "file": "skins/glass/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "glass/rails": {
-      "file": "skins/glass/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        1024
-      ],
-      "tileAspect": 12.44,
-      "width": 0.26
-    },
-    "glass/scratch": {
-      "file": "skins/glass/note_scratch.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "glass/side": {
-      "file": "skins/glass/note_side.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        64
-      ]
     },
     "grid/hitBurst": {
       "file": "styles/hits/grid_burst.png",
@@ -640,68 +397,6 @@
       "size": [
         1024,
         512
-      ]
-    },
-    "metal/floor": {
-      "file": "skins/metal/floor.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ],
-      "gain": 1.999,
-      "tile": 2.4
-    },
-    "metal/judgeLine": {
-      "file": "skins/metal/judge_line.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "metal/longBody": {
-      "file": "skins/metal/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.46
-    },
-    "metal/note": {
-      "file": "skins/metal/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "metal/rails": {
-      "file": "skins/metal/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        1024
-      ],
-      "tileAspect": 11.2,
-      "width": 0.26
-    },
-    "metal/scratch": {
-      "file": "skins/metal/note_scratch.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "metal/side": {
-      "file": "skins/metal/note_side.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        64
       ]
     },
     "najeon/band": {

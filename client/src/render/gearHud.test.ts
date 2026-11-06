@@ -1,21 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES } from './deckArt';
-import { GAUGE_NAMES, GEAR_TYPES, HUD_TYPE_SOURCES, hudGearOf, hudTypeFor } from './gearHud';
-import { BASE_SKIN, HUD_FONTS, styleOf } from './skins';
+import { GAUGE_NAMES, GEAR_TYPES, HUD_TYPE_SOURCES, hudTypeFor } from './gearHud';
+import { DEFAULT_HUD_TYPE, HUD_FONTS } from './skins';
 
 describe('the HUD a gear brings', () => {
   it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {
-    const skin = styleOf(BASE_SKIN);
     expect(HUD_TYPE_SOURCES).toEqual(['gear', 'skin']);
     for (const gear of GEAR_STYLES) {
-      expect(hudGearOf({ deck: gear })).toBe(gear);
-      expect(hudTypeFor({ ...skin, deck: gear }, 'gear')).toBe(GEAR_TYPES[gear]);
-      expect(hudTypeFor({ ...skin, deck: gear }, 'skin')).toBe(skin.type);
-    }
-    // a skin's own gear has no HUD of its own
-    for (const deck of ['line', 'stem'] as const) {
-      expect(hudGearOf({ deck })).toBeNull();
-      expect(hudTypeFor({ ...skin, deck }, 'gear')).toBe(skin.type);
+      expect(hudTypeFor({ deck: gear }, 'gear')).toBe(GEAR_TYPES[gear]);
+      expect(hudTypeFor({ deck: gear }, 'skin')).toBe(DEFAULT_HUD_TYPE);
     }
   });
 

@@ -331,8 +331,6 @@ test('the parts drawn from their pictures, in code where their media is missing 
 
   await play('art');
   for (const file of ['manifest.json', 'styles/mecha/notes.png', 'styles/mecha/long.png', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) expect(loaded).toContain(`/media/${file}`);
-  // the old texture sets are asked for by nothing
-  expect(loaded.filter((f) => f.startsWith('/media/skins/') || f.startsWith('/media/fx/'))).toEqual([]);
   // a broken note picture: the notes are drawn in code, the rest from its pictures
   await page.route('**/media/styles/mecha/notes.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
   await play('broken-note');
@@ -356,7 +354,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
   const shown = async () => (await preview.getAttribute('data-lane-colors'))!.split(' ');
   await expect(page.getByTestId('opt-color-preset')).toHaveAttribute('data-value', 'skin');
   await expect(page.getByTestId('opt-color-preset')).toContainText('기본');
-  // the skin's colours: the scratch and the white keys of 7K+1S
+  // the track's colours: the scratch and the white keys of 7K+1S
   expect((await shown()).slice(0, 2)).toEqual(['#ff5c8a', '#eaf6ff']);
 
   // a preset: its colours on the gear at once, the lanes of the key mode shown

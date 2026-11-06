@@ -1,22 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import { LANE_COLORS } from './palette';
-import { BASE_SKIN, deckTop, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, PART_DECKS, PART_HITS, PART_NOTES, sanitizeParts, styleOf, withParts } from './skins';
-import { LONG_OF } from './tintArt';
+import { GEAR_STYLES } from './deckArt';
+import { BASE_SKIN, DEFAULT_HUD_TYPE, DEFAULT_PARTS, hex, HUD_FONTS, laneColorsFor, sanitizeParts, withParts } from './skins';
+import { HIT_STYLES, LONG_OF, NOTE_STYLES } from './tintArt';
 
 describe('the track', () => {
-  it('has one look (기본): drawn in code for the SDVX camera, a 6 px judge line with a halo, its type in a bundled font', () => {
-    expect([BASE_SKIN.id, BASE_SKIN.label]).toEqual(['flat', '기본']);
-    expect(BASE_SKIN.textures).toBeUndefined();
-    const style = styleOf(BASE_SKIN);
-    expect(style.camera).toBe('SDVX');
-    expect(style.judge).toEqual({ height: 6, glow: true });
-    expect(Object.keys(HUD_FONTS)).toContain(style.type.font);
-    // so the gear starts as far under the line as ever
-    expect(deckTop(style.judge)).toBe(6);
+  it('has one look (기본): its colours, the parts a player starts with, its type in a bundled font', () => {
+    expect(Object.keys(BASE_SKIN).sort()).toEqual(['colors', 'style']);
+    expect(BASE_SKIN.style).toEqual(DEFAULT_PARTS);
+    expect(Object.keys(HUD_FONTS)).toContain(DEFAULT_HUD_TYPE.font);
+    for (const colour of Object.values(BASE_SKIN.colors).filter((c) => typeof c === 'string')) expect(colour).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  it('colours the lanes by their colour in the key mode, then by the layout', () => {
+  it('colours the lanes by their colour in the key mode', () => {
     const mode = keyModes['7K+1S'];
     const lanes = laneColorsFor(BASE_SKIN, mode);
     expect(lanes[0]).toBe(hex('#ff5c8a'));
@@ -24,20 +21,10 @@ describe('the track', () => {
     expect(lanes[2]).toBe(hex('#4fc3ff'));
     // a lane colour the track does not set is LANE_COLORS'
     expect(laneColorsFor(BASE_SKIN, keyModes['4K+FX'])[0]).toBe(LANE_COLORS.sideL);
-    const uniform = laneColorsFor({ ...BASE_SKIN, laneLayout: 'uniform' }, mode);
-    expect(new Set(uniform.slice(1)).size).toBe(1);
-    const rainbow = laneColorsFor({ ...BASE_SKIN, laneLayout: 'rainbow' }, mode);
-    expect(new Set(rainbow.slice(1)).size).toBe(7);
-    expect(rainbow[0]).toBe(lanes[0]);
-  });
-
-  it('starts the gear 3 px under the judge line, never nearer than under a 6 px one, or under its second line', () => {
-    expect(deckTop({ height: 2 })).toBe(6);
-    expect(deckTop({ height: 6 })).toBe(6);
-    expect(deckTop({ height: 12 })).toBe(9);
-    // a second line under it lies flush with it (5 px) and the gear starts 3 px under that
-    expect(deckTop({ height: 4, under: '#ff9f43' })).toBe(10);
-    expect(deckTop({ height: 4, over: '#ff9f43' })).toBe(6);
+    // the white keys alike, the blue ones alike, the middle one gold
+    expect(lanes[3]).toBe(lanes[1]);
+    expect(lanes[6]).toBe(lanes[2]);
+    expect(lanes[4]).toBe(hex('#ffc94f'));
   });
 
   it('draws the parts a player picks over it, everything else the track’s', () => {
@@ -47,18 +34,18 @@ describe('the track', () => {
     expect(withParts(BASE_SKIN, { ...DEFAULT_PARTS, deck: 'cabinet' }).style).not.toHaveProperty('deckColour');
     const picked = withParts(BASE_SKIN, { note: 'star4', side: 'dots', deck: 'receiver', hit: 'grid' });
     expect(picked.colors).toBe(BASE_SKIN.colors);
-    expect({ ...picked.style, note: 'flat', side: undefined, deck: 'line', hit: 'flash' }).toEqual({ ...BASE_SKIN.style, side: undefined });
+    expect(picked.style).toEqual({ note: 'star4', side: 'dots', deck: 'receiver', hit: 'grid' });
     // the track itself is left as it was
-    expect(BASE_SKIN.style?.note).toBe('flat');
+    expect(BASE_SKIN.style.note).toBe('flat');
   });
 
   it('offers the note families with their long notes, the gears and the hits, the piano note no longer', () => {
     // the bar in six finishes after the plain one, then the shapes
-    expect(PART_NOTES).toEqual(['flat', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
-    for (const note of PART_NOTES) expect(LONG_OF[note]).toBeDefined();
-    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
+    expect(NOTE_STYLES).toEqual(['flat', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
+    for (const note of NOTE_STYLES) expect(LONG_OF[note]).toBeDefined();
+    expect(GEAR_STYLES).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
     // the piano set's hit stays
-    expect(PART_HITS).toContain('piano');
+    expect(HIT_STYLES).toContain('piano');
   });
 
   it('keeps the picked parts it knows and the defaults for the rest', () => {
@@ -69,7 +56,7 @@ describe('the track', () => {
     expect(sanitizeParts({ deck: 'receiver', deckColour: 'red', hit: 'mecha' })).toEqual({ ...DEFAULT_PARTS, deck: 'receiver', hit: 'mecha' });
     // the piano note taken out: the flat notes, its hit kept
     expect(sanitizeParts({ note: 'piano', hit: 'piano' })).toEqual({ ...DEFAULT_PARTS, hit: 'piano' });
-    // what earlier versions kept: a long note picked, the skin's own, and the skins' own styles no longer picked
+    // what earlier versions kept: a long note picked, the skin's own, and the old skins' own styles (gone)
     expect(sanitizeParts({ note: 'gloss', long: 'ray', side: 'skin', deck: 7, hit: 'flipbook' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'skin', deck: 'skin', hit: 'skin' })).toEqual(DEFAULT_PARTS);
     expect(sanitizeParts({ note: 'stem', deck: 'line', hit: 'stemflash' })).toEqual(DEFAULT_PARTS);

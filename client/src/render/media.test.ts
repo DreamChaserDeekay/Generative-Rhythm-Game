@@ -3,10 +3,11 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseManifest } from './skinArt';
-import { BASE_SKIN, PART_HITS, styleOf } from './skins';
+import { BASE_SKIN } from './skins';
 import { styleTextures } from './styleArt';
+import { HIT_STYLES } from './tintArt';
 
-// The built game media (scripts/assets/build_p0.py → client/public/media) against its manifest.
+// The built game media (scripts/assets/build_styles.py and build_gears.py → client/public/media) against its manifest.
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const raw = JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')) as { textures: Record<string, unknown> };
 const manifest = parseManifest(raw)!;
@@ -58,8 +59,8 @@ describe('game media', () => {
   });
 
   it('has the flipbooks of every hit effect a player picks', () => {
-    for (const hit of PART_HITS) {
-      const ids = Object.entries(styleTextures({ ...styleOf(BASE_SKIN), hit }));
+    for (const hit of HIT_STYLES) {
+      const ids = Object.entries(styleTextures({ ...BASE_SKIN.style, hit }));
       expect(ids.map(([slot]) => slot), hit).toEqual(['hitBurst', 'hitHold']);
       for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook, `${hit}.${slot} = ${id}`).toBeDefined();
     }

@@ -1,15 +1,10 @@
-import type { SkinColors } from './skins';
-import { ink, tone, type NoteMark, type Paint } from './tintArt';
 
 /**
- * The gear: the track's frame down its edges and, under the judge line, a plate. The skins' own
- * gears, LINE (LED bars) and STEM (instrument dots), have a light per lane on it in the lane's colour
- * that lights while its key is down (a tint picture, see tintArt). The ones a player picks (설정 →
- * 기어, GEAR_STYLES) are each one object, none of them lit per lane (the lanes and the key beams show
- * the keys; only PIANO's keys follow the lanes, going down with them: deckKeys): a red judge line a
- * little above them (GEAR_JUDGE)
- * and the object's own panel under it, drawn from its pictures where they loaded
- * (render/styleArt.ts) and in code where not:
+ * The gear: the track's frame down its edges and, under the judge line, a plate. The gears a player
+ * picks (설정 → 기어, GEAR_STYLES) are each one object, none of them lit per lane (the lanes and the
+ * key beams show the keys; only PIANO's keys follow the lanes, going down with them: deckKeys): a red
+ * judge line a little above them (GEAR_JUDGE) and the object's own panel under it, drawn from its
+ * pictures where they loaded (render/styleArt.ts) and in code where not:
  *
  * - STANDARD (기본): the game's own controller, graphite rails with a cyan line, smoked glass with a
  *   glass jog dial, the game's name over a cyan light strip and a speaker grille;
@@ -39,12 +34,10 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+export type GearStyle = 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks. */
-export type GearStyle = Exclude<DeckStyle, 'line' | 'stem'>;
 export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
-export const DECK_STYLES: DeckStyle[] = ['line', 'stem', ...GEAR_STYLES];
-export const isGear = (style: DeckStyle): style is GearStyle => style !== 'line' && style !== 'stem';
+/** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
 export interface DeckLane {
@@ -52,19 +45,14 @@ export interface DeckLane {
   left: number;
   width: number;
   kind: KeyKind;
-  /** A side lane (FX) with its own place in the row (not one laid over the keys: DeckSide). */
+  /** A side lane (FX) of its own beside the keys (not one laid over them: DeckSide). */
   side?: boolean;
 }
 
-/**
- * The light of a side lane laid over half the keys (반쪽 덮기): a bar across its half under the row
- * of lane lights, which it has no place in. Plane px from the deck's left edge and top.
- */
+/** A side lane laid over half the keys (반쪽 덮기), none of the deck's lanes: its half, plane px from the deck's left edge. */
 export interface DeckSide {
   left: number;
   width: number;
-  top: number;
-  depth: number;
 }
 
 /** The deck in plane px (the sheets' px, 73.65 to a track unit): y runs from just under the judge line toward the camera. */
@@ -73,16 +61,12 @@ export interface DeckSpec {
   /** How much of it the screen shows, and all of it (a tilted camera can show more). */
   room: number;
   depth: number;
-  /** Where the lane lights lie. */
-  keyTop: number;
-  keyDepth: number;
   /** How much longer along the track round things are drawn, so they look round where the camera flattens it. */
   stretch: number;
-  /** The lanes of the row (a side lane laid over the keys is none of them). */
+  /** The lanes over the deck (a side lane laid over the keys is none of them). */
   lanes: DeckLane[];
-  /** The side bars under the row (none unless side lanes are laid over the keys). */
+  /** The side lanes laid over the keys (none unless they are). */
   sides: DeckSide[];
-  colours: SkinColors;
   /** Where a gear's plate drawn in code puts the parts its lights shine on (filled when given: gearLights.ts). */
   marks?: DeckMark[];
 }
@@ -135,55 +119,11 @@ function disc(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: 
   g.ellipse(x, y, r, r * st, 0, 0, Math.PI * 2);
 }
 
-const keyBottom = (s: DeckSpec) => s.keyTop + s.keyDepth;
-
-/** Lines between the lanes, from `y0` to `y1`. */
-function separators(g: CanvasRenderingContext2D, s: DeckSpec, y0: number, y1: number, colour: string): void {
-  g.fillStyle = colour;
-  for (const l of s.lanes.slice(1)) g.fillRect(l.left - 0.5, y0, 1, y1 - y0);
-}
-
-/** Where the lower part of a design may start: under the lights, and under the side bars when there are some. */
-export const lowerTop = (s: DeckSpec) => Math.max(keyBottom(s), ...s.sides.map((b) => b.top + b.depth));
-
-/**
- * A panel with cut corners across the deck under the lights, `inset` from its sides, down to just
- * above the screen's bottom edge; the path is left for a fill or stroke. Its middle (y), or null
- * when the screen shows too little for one.
- */
-function panel(g: CanvasRenderingContext2D, s: DeckSpec, inset: number, cut: number): number | null {
-  const top = lowerTop(s) + 10;
-  const bottom = s.room - 10;
-  if (bottom - top < 18) return null;
-  const cy = Math.min(cut * s.stretch, (bottom - top) / 2);
-  polygon(g, [
-    [inset + cut, top],
-    [s.width - inset - cut, top],
-    [s.width - inset, top + cy],
-    [s.width - inset, bottom - cy],
-    [s.width - inset - cut, bottom],
-    [inset + cut, bottom],
-    [inset, bottom - cy],
-    [inset, top + cy],
-  ]);
-  return (top + bottom) / 2;
-}
-
-/** A side bar's ends lie this share of its half in from the half's ends, so the two halves' bars stay apart. */
-const SIDE_INSET = 0.05;
-/** At rest some designs show only a side bar's two ends, this share of it each (see ends). */
-const SIDE_ENDS = 0.07;
-
 export interface Box {
   x: number;
   y: number;
   w: number;
   h: number;
-}
-
-/** Where a design draws a side bar in its box (`w`×`h` at x, y: its half by the side row): `share` of the row deep, in its middle. */
-function barBox(x: number, y: number, w: number, h: number, share: number): Box {
-  return { x: x + w * SIDE_INSET, y: y + (h * (1 - share)) / 2, w: w * (1 - 2 * SIDE_INSET), h: h * share };
 }
 
 /** A rectangle whose corners are round on the screen (`r` across, `st` times longer along the track). */
@@ -192,61 +132,7 @@ function rounded(g: CanvasRenderingContext2D, b: Box, r: number, st: number): vo
   g.roundRect(b.x, b.y, b.w, b.h, [{ x: Math.min(r, b.w / 2), y: Math.min(r * st, b.h / 2) }]);
 }
 
-/**
- * The deck's top edge, just under the judge line: a dim line this many px deep in every design, so
- * nothing bright under the line reads as a second one before the lights.
- */
-const EDGE = 1.5;
-
-const PLATES: Record<'line' | 'stem', (g: CanvasRenderingContext2D, s: DeckSpec) => void> = {
-  // LED bars under the line, the lanes' lines carried down, a panel outlined in the rails' colours
-  line: (g, s) => {
-    g.fillStyle = shade(s.colours.trackFar, 0.7);
-    g.fillRect(0, 0, s.width, s.depth);
-    g.fillStyle = white(0.1);
-    g.fillRect(0, 0, s.width, EDGE);
-    separators(g, s, s.keyTop, keyBottom(s), white(0.06));
-    const mid = panel(g, s, 12, 12);
-    if (mid === null) return;
-    g.fillStyle = white(0.025);
-    g.fill();
-    g.lineWidth = 1.5;
-    for (const [x, colour] of [
-      [0, s.colours.railLeft],
-      [s.width / 2, s.colours.railRight],
-    ] as [number, string][]) {
-      g.save();
-      g.beginPath();
-      g.rect(x, 0, s.width / 2, s.depth);
-      g.clip();
-      panel(g, s, 12, 12);
-      g.strokeStyle = shade(colour, 1, 0.55);
-      g.stroke();
-      g.restore();
-    }
-    g.fillStyle = white(0.16);
-    g.fillRect(s.width / 2 - 40, mid - 1.5, 80, 3);
-  },
-  // a dot per lane in the instrument of its next note, over a plain panel
-  stem: (g, s) => {
-    g.fillStyle = shade(s.colours.trackFar, 0.7);
-    g.fillRect(0, 0, s.width, s.depth);
-    g.fillStyle = white(0.08);
-    g.fillRect(0, 0, s.width, EDGE);
-    separators(g, s, s.keyTop, keyBottom(s), white(0.05));
-    const mid = panel(g, s, 12, 12);
-    if (mid === null) return;
-    g.fillStyle = white(0.02);
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = white(0.12);
-    g.stroke();
-    g.fillStyle = white(0.14);
-    g.fillRect(s.width / 2 - 40, mid - 1.5, 80, 3);
-  },
-};
-
-// ---------- the gears a player picks ----------
+// ---------- the gears ----------
 
 /** A picture a gear is drawn from (an ImageBitmap in the browser). */
 export type Picture = CanvasImageSource & { readonly width: number; readonly height: number };
@@ -261,8 +147,7 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
 /**
  * The judge line of the gears a player picks, as DJMAX draws its own: a thick red line (`height` plane px) with
  * a light core and a red glow both ways (`blur`), a little above the gear: `gap` plane px of the lanes
- * lie between them, where a note let through runs on until the gear covers it. (The skins' lines stay
- * with their own gears.)
+ * lie between them, where a note let through runs on until the gear covers it.
  */
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
 
@@ -1575,7 +1460,7 @@ const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
  * deck shows them: as its picture drew them (`pictured`, laid as deckPicture lays it) or as its
  * plate draws them in code.
  */
-export function deckKeys(style: DeckStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
+export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
   // plane px down the deck for a px of the picture
@@ -1802,12 +1687,11 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
 };
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
-export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
-  if (!isGear(style)) PLATES[style](g, spec);
-  else if (art.deck && deckFromPicture(style, spec, art)) deckPicture(g, spec, art.deck);
+export function paintDeck(style: GearStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
+  if (art.deck && deckFromPicture(style, spec, art)) deckPicture(g, spec, art.deck);
   else {
     GEAR_PLATES[style](g, spec, art);
-    wallShade(g, spec, GEAR_FRAMES[style](art).height ?? 0);
+    wallShade(g, spec, GEAR_FRAMES[style](art).height);
   }
 }
 
@@ -1832,8 +1716,8 @@ const PICTURE_ROWS: Partial<Record<GearStyle, (s: Pick<DeckSpec, 'lanes' | 'side
 };
 
 /** Whether a gear's deck is laid from its picture: one loaded, a camera near the picture's angle, and a row of lanes it was painted for. */
-export function deckFromPicture(style: DeckStyle, spec: Pick<DeckSpec, 'stretch' | 'lanes' | 'sides'>, art: GearArt): boolean {
-  return isGear(style) && Boolean(art.deck) && spec.stretch <= DECK_PICTURE_FLATTEST && (PICTURE_ROWS[style]?.(spec) ?? true);
+export function deckFromPicture(style: GearStyle, spec: Pick<DeckSpec, 'stretch' | 'lanes' | 'sides'>, art: GearArt): boolean {
+  return Boolean(art.deck) && spec.stretch <= DECK_PICTURE_FLATTEST && (PICTURE_ROWS[style]?.(spec) ?? true);
 }
 
 /** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
@@ -1866,32 +1750,24 @@ function wallShade(g: CanvasRenderingContext2D, s: DeckSpec, height: number): vo
 
 /**
  * How a gear's border looks: the two lines down the track's edges, from its far end past the gear
- * (the rails), in the gear's own frame (paintBorder). A skin's gear is as wide as the skin's rails, the
- * left one lit and the right one in shade; a picked gear paints its own frame (`paint`), as wide as
- * it is (`width`), one picture `tile` px long down the track, with a look of its own in FEVER (`lit`).
+ * (the rails), in the gear's own frame (paintBorder): as wide as it is (`width`), one picture `tile`
+ * px long down the track, with a look of its own in FEVER (paint's `lit`: the renderer keeps both
+ * pictures), standing `height` px high beside the lanes.
  */
 export interface SideLook {
-  /** The frame's face: a colour, or a paint that fills the strip's box (a picture). */
-  body: string | ((g: CanvasRenderingContext2D, x: number, w: number, h: number) => void);
-  /** Its bevel facing the lanes (#rrggbb); a glowing skin's rails glow in it. */
-  edge: string;
-  /** A line down its middle, the left border's and the right one's (a pinstripe, a neon tube), where it is wide enough. */
-  line?: readonly [string, string];
-  /** Faint lines across it (brushed metal). */
-  brushed?: boolean;
-  /** A gear's own frame: its width (plane px), one picture's length down the track, and its paint (the left frame; the right is it mirrored). */
-  width?: number;
-  tile?: number;
-  paint?: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
-  /** It looks otherwise in FEVER (paint's `lit`): the renderer keeps both pictures. */
-  lit?: boolean;
+  /** The colour of the frame's inner face, under what it is made of (face). */
+  body: string;
+  /** Its width (plane px), one picture's length down the track, and its paint (the left frame; the right is it mirrored). */
+  width: number;
+  tile: number;
+  paint: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
   /**
-   * A picked gear's frame stands this high beside the lanes (plane px): the renderer raises its top
-   * so high and stands its inner face (paintFace) down to the track at the lanes' edge.
+   * It stands this high beside the lanes (plane px): the renderer raises its top so high and stands
+   * its inner face (paintFace) down to the track at the lanes' edge.
    */
-  height?: number;
+  height: number;
   /** What that inner face is made of: a tile `w` along the track by `h` high, its top edge at the top (paintFace shades it). */
-  face?: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
+  face: (g: CanvasRenderingContext2D, w: number, h: number, scale: number, lit: boolean) => void;
 }
 
 /**
@@ -1899,51 +1775,18 @@ export interface SideLook {
  * a plane px: `side` -1 the left border (its right edge faces the lanes), 1 the right one.
  */
 export function paintBorder(g: CanvasRenderingContext2D, w: number, h: number, look: SideLook, side: -1 | 1, scale: number, lit = false): void {
-  if (look.paint) {
-    g.save();
-    if (side > 0) {
-      g.translate(w, 0);
-      g.scale(-1, 1);
-    }
-    look.paint(g, w, h, scale, lit);
-    g.restore();
-    // the right one a little in shade, the light coming from the left
-    if (side > 0) {
-      g.fillStyle = black(0.12);
-      g.fillRect(0, 0, w, h);
-    }
-    return;
-  }
-  if (typeof look.body === 'string') {
-    g.fillStyle = look.body;
-    g.fillRect(0, 0, w, h);
-  } else {
-    look.body(g, 0, w, h);
-  }
-  if (look.brushed) {
-    const rand = seeded(side < 0 ? 13 : 14);
-    for (let y = 0; y < h; y += 2 * scale) {
-      g.fillStyle = white(0.015 + rand() * 0.03);
-      g.fillRect(0, y, w, scale);
-    }
-  }
+  g.save();
   if (side > 0) {
-    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.translate(w, 0);
+    g.scale(-1, 1);
+  }
+  look.paint(g, w, h, scale, lit);
+  g.restore();
+  // the right one a little in shade, the light coming from the left
+  if (side > 0) {
+    g.fillStyle = black(0.12);
     g.fillRect(0, 0, w, h);
   }
-  const line = look.line?.[side < 0 ? 0 : 1];
-  if (line && w >= 4 * scale) {
-    g.fillStyle = line;
-    g.fillRect(w / 2 - 0.6 * scale, 0, 1.2 * scale, h);
-  }
-  // the bevel facing the lanes, lit (a little light over it, so a dark frame still marks the track's edge); a dark line facing out
-  const inner = side < 0 ? w - scale : 0;
-  g.fillStyle = shade(look.edge, side < 0 ? 1 : 0.72, 0.9);
-  g.fillRect(inner, 0, scale, h);
-  g.fillStyle = white(0.14);
-  g.fillRect(inner, 0, scale, h);
-  g.fillStyle = 'rgba(0,0,0,0.5)';
-  g.fillRect(side < 0 ? 0 : w - scale, 0, scale, h);
 }
 
 /**
@@ -1953,9 +1796,9 @@ export function paintBorder(g: CanvasRenderingContext2D, w: number, h: number, l
  * wall's face (`side` -1, turned from the light) darker than the right one's.
  */
 export function paintFace(g: CanvasRenderingContext2D, w: number, h: number, look: SideLook, side: -1 | 1, scale: number, lit = false): void {
-  g.fillStyle = typeof look.body === 'string' ? look.body : '#1c1e22';
+  g.fillStyle = look.body;
   g.fillRect(0, 0, w, h);
-  look.face?.(g, w, h, scale, lit);
+  look.face(g, w, h, scale, lit);
   const fall = g.createLinearGradient(0, 0, 0, h);
   fall.addColorStop(0, white(0.06));
   fall.addColorStop(0.4, white(0));
@@ -2007,10 +1850,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // brushed graphite with the cyan line down its inner edge
   standard: (art) => ({
     body: '#2a2c31',
-    edge: CYAN,
     width: 14,
     tile: 56,
-    lit: true,
     height: 16,
     // brushed graphite along the track, the cyan light just under its top edge
     face: (g, w, h, k, lit) => {
@@ -2037,10 +1878,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // the cabinet's ABS side panel, a chrome trim along the lanes, an amber LED in its middle (lit in FEVER)
   cabinet: (art) => ({
     body: '#17181b',
-    edge: '#8d9198',
     width: 28,
     tile: 30,
-    lit: true,
     height: 30,
     // the side panel's ABS under its chrome trim
     face: (g, w, h, k) => {
@@ -2088,10 +1927,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // walnut, a brushed aluminium trim along the lanes (warm amber in FEVER, as the dial's light)
   receiver: (art) => ({
     body: '#4f2f1c',
-    edge: '#c3c7cc',
     width: 30,
     tile: 60,
-    lit: true,
     height: 30,
     // the cabinet's walnut, its grain along the track, under the aluminium trim (warm in FEVER)
     face: (g, w, h, k, lit) => {
@@ -2118,10 +1955,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // black lacquer, a pearl vine inlaid down its middle between two gold lines (the pearl brighter in FEVER)
   najeon: (art) => ({
     body: '#0b0a09',
-    edge: BRASS,
     width: 30,
     tile: art.frame ? Math.round((NAJEON_VINE * art.frame.height) / art.frame.width) : 48,
-    lit: true,
     height: 30,
     // black lacquer, a gold line under its top edge (brighter in FEVER)
     face: (g, w, h, k, lit) => {
@@ -2166,10 +2001,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // the case's side in its bead-blasted charcoal: the polished chamfer along the lanes with an orange line under it (bright in FEVER), a hex screw in each tile
   keyboard: (art) => ({
     body: '#2b2d32',
-    edge: '#d7dade',
     width: 26,
     tile: 64,
-    lit: true,
     height: 22,
     // the case's side wall under its polished chamfer, an orange glow under it in FEVER
     face: (g, w, h, k, lit) => {
@@ -2209,10 +2042,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // carbon, a strip of black suede along the lanes stitched in red, a red line at its edge (stitches and line bright in FEVER)
   racing: (art) => ({
     body: '#141517',
-    edge: RACE_RED,
     width: 30,
     tile: 40,
-    lit: true,
     height: 30,
     // a suede bolster with a seam of red stitches along it (bright in FEVER)
     face: (g, w, h, k, lit) => {
@@ -2265,10 +2096,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // the lamps lit, the rail's edge an amber light and the rail in its glow)
   orbital: (art) => ({
     body: '#b8902c',
-    edge: '#d4d7db',
     width: 30,
     tile: ORBITAL_TILE,
-    lit: true,
     height: 32,
     // the strut's gold foil under the grey rail's edge (amber in FEVER)
     face: (g, w, h, k, lit) => {
@@ -2326,10 +2155,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // lanes (brighter, its warm light on the lacquer, in FEVER)
   piano: () => ({
     body: '#0b0a0b',
-    edge: BRASS,
     width: 24,
     tile: 64,
-    lit: true,
     height: 26,
     // the rim's side: lacquer catching the light under its rounded top edge, the brass line just under it
     face: (g, w, h, k, lit) => {
@@ -2368,10 +2195,8 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
   // catching the light (the ridges whiter and a cool light in the glass in FEVER)
   rawglass: () => ({
     body: '#b9c0c8',
-    edge: GLASS_PALE,
     width: 22,
     tile: 96,
-    lit: true,
     height: 24,
     // the rail's side: thick glass seen through its cut edge, white under its ridge, grey below
     face: (g, w, h, k, lit) => {
@@ -2436,207 +2261,3 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
 export function gearBorderLook(style: GearStyle, art: GearArt): SideLook {
   return GEAR_FRAMES[style](art);
 }
-
-/** The border of a gear drawn in code (the skins' LINE and STEM in their plates' colours, a picked gear without its pictures). */
-export function codeBorderLook(style: DeckStyle, colours: SkinColors): SideLook {
-  return isGear(style) ? GEAR_FRAMES[style]({}) : CODE_SIDES[style](colours);
-}
-
-/** The borders of the skins' gears, in their plates' colours. */
-const CODE_SIDES: Record<'line' | 'stem', (c: SkinColors) => SideLook> = {
-  line: (c) => ({ body: shade(c.trackFar, 0.7), edge: c.divider, line: [shade(c.railLeft, 1, 0.8), shade(c.railRight, 1, 0.8)] }),
-  stem: (c) => ({ body: shade(c.trackFar, 0.7), edge: c.divider }),
-};
-
-/**
- * A lane's light at rest and lit, in a picture as large as its place in the row (lane width by
- * the row's depth, square px). Most rest dim in the lane colour mixed into black; a few rest in
- * a colour of their own (`idleColor`) and take the lane colour only when lit.
- */
-export interface KeyPaint {
-  /** `mark`: the lane's mark, for designs whose lights carry it. */
-  idle: (kind: KeyKind, stretch: number, mark?: NoteMark) => Paint;
-  down: (kind: KeyKind, stretch: number, mark?: NoteMark) => Paint;
-  /**
-   * How far a light at rest reaches from the middle of its row toward the judge line, its socket
-   * on the plate and its outline included (px), in a lane `w` wide and a row `h` deep (see rowDrop).
-   */
-  reach: (kind: KeyKind, w: number, h: number, st: number) => number;
-  idleColor?: number;
-  /** Lit lights of this kind are white, not the lane colour. */
-  neutralDown?: (kind: KeyKind) => boolean;
-}
-
-/** The light's centre and its radius as a share of the lane (`share`), the row's depth allowing. */
-function fit(w: number, h: number, st: number, share: number): { x: number; y: number; r: number } {
-  return { x: w / 2, y: h / 2, r: Math.min(w * share, (h / 2 / st) * 0.86) };
-}
-
-/** Light falling from the judge line down the lane, fading out. */
-function wash(g: CanvasRenderingContext2D, w: number, h: number, alpha: number): void {
-  const grad = g.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, ink(1, 0, alpha));
-  grad.addColorStop(1, ink(1, 0, 0));
-  g.fillStyle = grad;
-  g.fillRect(w * 0.04, 0, w * 0.92, h);
-}
-
-/** A soft round glow around a lit light. */
-function halo(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number, alpha: number): void {
-  g.save();
-  g.translate(x, y);
-  g.scale(1, st);
-  const grad = g.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 1.7);
-  grad.addColorStop(0, ink(1, 0.15, alpha));
-  grad.addColorStop(1, ink(1, 0, 0));
-  g.fillStyle = grad;
-  g.fillRect(-r * 1.7, -r * 1.7, r * 3.4, r * 3.4);
-  g.restore();
-}
-
-/** The gears with a light per lane: the skins' own. */
-export type LightStyle = Exclude<DeckStyle, GearStyle>;
-
-export const KEY_PAINT: Record<LightStyle, KeyPaint> = {
-  line: {
-    // at rest a short dim tick down the lane: a bar across it would read as a note under the line
-    idle: () => (g, w, h) => {
-      const tw = Math.max(2, w * 0.05);
-      g.fillStyle = ink(0.3);
-      g.beginPath();
-      g.roundRect((w - tw) / 2, h * 0.12, tw, Math.max(6, h * 0.22), tw / 2);
-      g.fill();
-    },
-    down: () => (g, w, h) => {
-      wash(g, w, h, 0.42);
-      g.fillStyle = tone(1.3);
-      g.beginPath();
-      g.roundRect(w * 0.22, h * 0.16, w * 0.56, Math.max(4, h * 0.1), h * 0.05);
-      g.fill();
-    },
-    reach: (_kind, _w, h) => h / 2 - h * 0.12,
-  },
-  stem: {
-    idle: (_, st) => (g, w, h) => {
-      const { x, y, r } = fit(w, h, st, 0.2);
-      disc(g, x, y, r, st);
-      g.lineWidth = Math.max(1.5, r * 0.16);
-      g.strokeStyle = ink(0.9);
-      g.stroke();
-      disc(g, x, y, r * 0.55, st);
-      g.fillStyle = ink(0.5);
-      g.fill();
-    },
-    down: (_, st) => (g, w, h) => {
-      const { x, y, r } = fit(w, h, st, 0.2);
-      halo(g, x, y, r * 1.3, st, 0.55);
-      disc(g, x, y, r, st);
-      g.fillStyle = tone(1.25);
-      g.fill();
-    },
-    reach: (_, w, h, st) => {
-      const { r } = fit(w, h, st, 0.2);
-      return r * st + Math.max(1.5, r * 0.16) / 2;
-    },
-  },
-};
-
-/** A gear's lights per lane: the skins' gears have them, the ones a player picks none. */
-export const lightsOf = (style: DeckStyle): KeyPaint | null => (isGear(style) ? null : KEY_PAINT[style]);
-
-/** How far a hexagon light (the reference for every row) reaches from its row's middle toward the judge line. */
-export function referenceReach(w: number, h: number, st: number): number {
-  const { r } = fit(w, h, st, 0.3);
-  return r * st * Math.cos(Math.PI / 6) + Math.max(1.5, r * 0.1) / 2;
-}
-
-/**
- * How much lower than usual a row of `style`'s lights lies (px, a row `depth` deep stretched
- * `stretch`), so that no light comes nearer the judge line than a reference hexagon in its lane:
- * larger lights keep their size and lie lower; those no larger, where they were.
- */
-export function rowDrop(style: LightStyle, lanes: readonly Pick<DeckLane, 'kind' | 'width'>[], depth: number, stretch: number): number {
-  const paint = KEY_PAINT[style];
-  return Math.max(0, ...lanes.map((l) => paint.reach(l.kind, l.width, depth, stretch) - referenceReach(l.width, depth, stretch)));
-}
-
-/**
- * The light of a side lane laid over the keys, at rest and lit, in a picture as large as its box
- * (its half by the side row, square px): a bar drawn as the design draws its lane lights (a tint
- * picture; KEY_PAINT's neutralDown holds for it, and its idleColor unless the bar has its own). Lit,
- * it is the whole bar in the lane's colour; at rest no lane-coloured bar across the half, which would
- * read as a side note just under the line: the bar's ends, marks along it, or a grey button.
- * `side`: -1 the left half, 1 the right.
- */
-export interface SidePaint {
-  idle: (stretch: number, side: number) => Paint;
-  down: (stretch: number, side: number) => Paint;
-  /** At rest in this colour, not the lane's. */
-  idleColor?: number;
-}
-
-/**
- * The glow of the next fill: a lit light's halo, painted once with the picture (the canvas's
- * shadow follows a bar's shape, as KEY_PAINT's round halo cannot).
- */
-function glow(g: CanvasRenderingContext2D, alpha: number, blur: number): void {
-  g.shadowColor = ink(1, 0.15, alpha);
-  g.shadowBlur = blur;
-}
-
-/** Only the two ends of the bar `draw` draws in box `b` (SIDE_ENDS of it each), in a `w`×`h` picture. */
-function ends(g: CanvasRenderingContext2D, w: number, h: number, b: Box, draw: () => void): void {
-  const reach = b.w * SIDE_ENDS;
-  g.save();
-  g.beginPath();
-  g.rect(0, 0, b.x + reach, h);
-  g.rect(b.x + b.w - reach, 0, w - (b.x + b.w - reach), h);
-  g.clip();
-  draw();
-  g.restore();
-}
-
-export const SIDE_PAINT: Record<LightStyle, SidePaint> = {
-  line: {
-    // at rest only its ends, dim as the lanes' ticks are; lit a bright LED bar
-    idle: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.3);
-      ends(g, w, h, b, () => {
-        rounded(g, b, b.h / 2 / st, st);
-        g.fillStyle = ink(0.3);
-        g.fill();
-      });
-    },
-    down: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.42);
-      glow(g, 0.7, h * 0.5);
-      rounded(g, b, b.h / 2 / st, st);
-      g.fillStyle = tone(1.3);
-      g.fill();
-    },
-  },
-  stem: {
-    // the dot's ring and core drawn long: at rest only their ends
-    idle: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.6);
-      const lw = Math.max(1.5, b.h * 0.16);
-      ends(g, w, h, b, () => {
-        rounded(g, b, b.h / 2 / st, st);
-        g.lineWidth = lw;
-        g.strokeStyle = ink(0.9);
-        g.stroke();
-        const core = barBox(0, 0, w, h, 0.26);
-        rounded(g, { ...core, x: b.x + lw * 2, w: b.w - lw * 4 }, core.h / 2 / st, st);
-        g.fillStyle = ink(0.5);
-        g.fill();
-      });
-    },
-    down: (st) => (g, w, h) => {
-      const b = barBox(0, 0, w, h, 0.6);
-      glow(g, 0.55, h * 0.5);
-      rounded(g, b, b.h / 2 / st, st);
-      g.fillStyle = tone(1.25);
-      g.fill();
-    },
-  },
-};

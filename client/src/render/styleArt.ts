@@ -1,5 +1,5 @@
-import { codeBorderLook, gearBorderLook, isGear, paintDeck, type DeckSpec, type DeckStyle, type GearArt, type GearPart, type GearStyle, type SideLook } from './deckArt';
-import type { SkinColors, SkinStyle, SkinTextures } from './skins';
+import { gearBorderLook, paintDeck, type DeckSpec, type GearArt, type GearPart, type GearStyle, type SideLook } from './deckArt';
+import type { SkinStyle } from './skins';
 import {
   ink,
   LONG_OF,
@@ -20,7 +20,7 @@ import {
 /**
  * What the styles draw from art (client/public/media/): pictures the note, long note, side note and
  * gear paints draw in place of their code drawings, and the flipbooks of the hit effects. They load
- * with the skin's textures (loadSkinArt); a part whose pictures are missing keeps its code drawing.
+ * with loadSkinArt (render/skinArt.ts); a part whose pictures are missing keeps its code drawing.
  *
  * The concept sets (media/styles/<set>/, made by scripts/assets/build_styles.py, whose layouts these
  * constants follow) are a note family with its long note and side notes, and a hit, each picked on
@@ -54,7 +54,7 @@ const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
   grid: 'grid',
   mecha: 'mecha',
   club: 'club',
-  crystal: 'gem',
+  crystal: 'crystal',
   neon: 'neon',
   piano: 'piano',
 };
@@ -68,12 +68,8 @@ export type ArtImage = CanvasImageSource & { readonly width: number; readonly he
 /** Loaded pictures by manifest id. */
 export type StyleImages = Readonly<Partial<Record<string, ArtImage>>>;
 
-/**
- * A set's name in the manifest, its pictures listed as "<name>/<part>": CRYSTAL's is "gem", as
- * "crystal" already names an earlier texture set (skins/crystal/, which user skins may ask for).
- */
-const MANIFEST_NAME: Record<ArtSet, string> = { mecha: 'mecha', club: 'club', crystal: 'gem', neon: 'neon' };
-const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${MANIFEST_NAME[set]}/${part}`;
+/** A set's pictures in the manifest, listed as "<set>/<part>". */
+const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`;
 
 /**
  * The gears' pictures (manifest ids) by part: the whole deck painted in the camera's perspective (on
@@ -99,12 +95,18 @@ export function styleImageIds(style: SkinStyle): string[] {
   const ids: string[] = [];
   const notes = setOf(style.note);
   if (notes) ids.push(artId(notes, 'notes'), artId(notes, 'long'), ...(style.side === 'dots' ? [] : [artId(notes, 'side')]));
-  if (isGear(style.deck)) ids.push(...Object.values(GEAR_PICTURES[style.deck]));
+  ids.push(...Object.values(GEAR_PICTURES[style.deck]));
   return ids;
 }
 
+/** The two flipbooks of a hit drawn from art: the burst a hit plays once, and the light a held long note plays over and over. */
+export type HitSlot = 'hitBurst' | 'hitHold';
+export const HIT_SLOTS: readonly HitSlot[] = ['hitBurst', 'hitHold'];
+/** Manifest texture id per flipbook. */
+export type HitTextures = Partial<Record<HitSlot, string>>;
+
 /** The flipbook textures a style's hit effect plays. */
-export function styleTextures(style: SkinStyle): SkinTextures {
+export function styleTextures(style: SkinStyle): HitTextures {
   const name = hitArtOf(style.hit);
   return name ? { hitBurst: `${name}/hitBurst`, hitHold: `${name}/hitHold` } : {};
 }
@@ -371,9 +373,8 @@ export function sideTapPaintOf(style: NoteStyle, images: StyleImages, edge: numb
 
 // ---------- the gears ----------
 
-/** The pictures of a gear that loaded, by part (none for a skin's LINE or STEM). */
-export function gearArtOf(deck: DeckStyle, images: StyleImages): GearArt {
-  if (!isGear(deck)) return {};
+/** The pictures of a gear that loaded, by part. */
+export function gearArtOf(deck: GearStyle, images: StyleImages): GearArt {
   const art: GearArt = {};
   for (const [part, id] of Object.entries(GEAR_PICTURES[deck]) as [GearPart, string][]) {
     const picture = images[id];
@@ -391,7 +392,7 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
     if (images[artId(set, 'long')]) parts.push('long');
     if (images[artId(set, 'side')] && style.side !== 'dots') parts.push('side');
   }
-  if (isGear(style.deck) && Object.keys(gearArtOf(style.deck, images)).length === Object.keys(GEAR_PICTURES[style.deck]).length) parts.push('gear');
+  if (Object.keys(gearArtOf(style.deck, images)).length === Object.keys(GEAR_PICTURES[style.deck]).length) parts.push('gear');
   return parts;
 }
 
@@ -401,11 +402,7 @@ export function platePaintOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages
   return (g, s) => paintDeck(style.deck, g, s, art);
 }
 
-/**
- * The gear's border, the two lines down the track's edges from its far end past the gear (where a
- * skin's rails were): a picked gear's own frame, from its pictures where they loaded; a skin's LINE or
- * STEM in the skin's plate colours (`colours`).
- */
-export function borderLookOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages, colours: SkinColors): SideLook {
-  return isGear(style.deck) ? gearBorderLook(style.deck, gearArtOf(style.deck, images)) : codeBorderLook(style.deck, colours);
+/** The gear's border, the two lines down the track's edges from its far end past the gear: its frame, from its pictures where they loaded. */
+export function borderLookOf(style: Pick<SkinStyle, 'deck'>, images: StyleImages): SideLook {
+  return gearBorderLook(style.deck, gearArtOf(style.deck, images));
 }

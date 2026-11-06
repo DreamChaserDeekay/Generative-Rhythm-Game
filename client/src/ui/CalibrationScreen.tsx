@@ -316,7 +316,7 @@ type VisualFocus = 'save' | 'back' | 'step';
 
 /**
  * 표시 오프셋 맞추기: the metronome plays on and on, a chord of notes comes down to the judge line
- * on every click (the gear as the play draws it: skin, camera, SPEED, LIFT), drawn with the
+ * on every click (the gear as the play draws it: its parts, camera, SPEED, LIFT), drawn with the
  * display offset being set. ←→ (a pad's d-pad) move it 1 ms at once, Shift 5 ms; Enter (A) on
  * 저장 keeps it, Esc leaves without keeping it (the hints say so while it is not kept). The value
  * being set is the screen's, so a look at the other step keeps it.
@@ -498,7 +498,7 @@ function ClickGear({ settings, offset }: { settings: Settings; offset: { readonl
         for (; next < notes.length && notes[next].t <= now; next++) {
           const n = notes[next];
           n.headDone = n.tailDone = true;
-          r.hitEffect(n.lane, hitColor, perfNow, n.index);
+          r.hitEffect(n.lane, hitColor, perfNow);
           pressedUntil[n.lane] = n.t + PRESS_MS;
         }
         r.render(

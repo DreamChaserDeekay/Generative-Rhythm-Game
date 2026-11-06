@@ -68,7 +68,7 @@ export interface NoteSpan {
  * Where a note lies on the track, `depth` deep. One reference point for every note kind: a tap is
  * centred on its time's z, and a long note runs from the near edge of a tap at its start to the
  * far edge of a tap at its end (`endZ`), so a chord of taps and long-note heads lines up whatever
- * the speed or the skin's note depth. A held long note starts at the judge line (`heldAt`). The
+ * the speed or the notes' depth. A held long note starts at the judge line (`heldAt`). The
  * renderer passes `out` to spare an object per note and frame.
  */
 export function noteSpan(z: number, depth: number, endZ = z, heldAt: number | null = null, out: NoteSpan = { near: 0, far: 0 }): NoteSpan {

@@ -25,28 +25,12 @@
   font-display: swap;
 }
 
-/* the play skins' judgement and combo type (Latin only; Hangul falls back to Pretendard) */
-@font-face {
-  font-family: 'Bebas Neue';
-  src: url('./assets/fonts/BebasNeue-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
+/* the gears' judgement and combo type (Latin only; Hangul falls back to Pretendard) */
 @font-face {
   font-family: 'Chakra Petch';
   src: url('./assets/fonts/ChakraPetch-BoldItalic.woff2') format('woff2');
   font-weight: 700;
   font-style: italic;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Russo One';
-  src: url('./assets/fonts/RussoOne-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
   font-display: block;
 }
 
@@ -63,14 +47,6 @@
   src: url('./assets/fonts/Exo2-BoldItalic.woff2') format('woff2');
   font-weight: 700;
   font-style: italic;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('./assets/fonts/Baloo2-ExtraBold.woff2') format('woff2');
-  font-weight: 800;
-  font-style: normal;
   font-display: block;
 }
 
@@ -1169,7 +1145,7 @@ p.hint {
   white-space: nowrap;
 }
 
-/* the judgement, the combo and FEVER in the skin's type, outlined (half the outline shows) */
+/* the judgement, the combo and FEVER in the type (the gear's or the track's own), outlined (half the outline shows) */
 .hud-judge,
 .hud-combo,
 .hud-fever {
@@ -1225,17 +1201,8 @@ p.hint {
   color: var(--judge-max);
 }
 
-.hud-split,
-.hud-judge-combo {
+.hud-split {
   color: var(--text);
-}
-
-.hud-judge-combo {
-  margin-left: 0.5em;
-}
-
-.hud-judge-combo:empty {
-  display: none;
 }
 
 .hud-judge-bar {
@@ -1256,7 +1223,7 @@ p.hint {
   font-style: normal;
   font-weight: 700;
   letter-spacing: 0.04em;
-  /* a fixed dark outline: the skins' outline colours (pink, navy) blur the small blue and red */
+  /* a fixed dark outline: a type's own outline colour would blur the small blue and red */
   -webkit-text-stroke: var(--sub-stroke) var(--bg);
   paint-order: stroke fill;
 }
@@ -1905,7 +1872,7 @@ p.hint {
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.8);
-  /* the skin's type and outline, as the judgement: it reads over a video or the visualizer */
+  /* the type and its outline, as the judgement's: it reads over a video or the visualizer */
   font-family: var(--hud-font), var(--font-display);
   font-size: calc(var(--fs-hero) * var(--hud-scale));
   font-weight: var(--hud-weight);

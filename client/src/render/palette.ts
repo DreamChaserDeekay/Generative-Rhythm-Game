@@ -1,5 +1,4 @@
 import type { LaneColor } from '../engine/config';
-import type { StemName } from '../engine/types';
 
 /** Lane colours by the lane's colour in its key mode's layout (기본 of 설정 → 노트). */
 export const LANE_COLORS: Record<LaneColor, number> = {
@@ -26,12 +25,4 @@ export const FEVER_COLORS: Record<number, number> = {
   3: 0xffd84f,
   4: 0xff8f4f,
   5: 0xff6b6b,
-};
-
-/** Colour of each stem (the --stem-* tokens): the STEM skin paints notes with the instrument they follow. */
-export const STEM_COLORS: Record<StemName, number> = {
-  drums: 0x8fa3c8,
-  bass: 0xff9a6b,
-  vocals: 0xffb3c7,
-  other: 0xc58bff,
 };
