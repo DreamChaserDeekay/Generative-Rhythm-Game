@@ -449,11 +449,15 @@ def test_default_7k_phrases_keep_to_a_few_keys_and_normal_chords_use_one_hand(de
 
 
 def test_easy_charts_read_without_leaps_and_hard_ones_vary(dense_song: dict) -> None:
-    for mode, limit in (("6K", 0.12), ("8K", 0.15)):
+    for mode in ("6K", "8K"):
         # the share of stairs swings a lot from one seed to the next (8K NORMAL: 0.03-0.25, a mean
-        # of 0.09-0.11 over 24 seeds)
+        # of 0.09-0.11 over 24 seeds), and so does the share of leaps: most seeds have none and one in
+        # ten has 0.15-0.21 (8K NORMAL, seeds 16-55: a mean of 0.034 with generator 0.9.46, 0.039
+        # with 0.9.47, whose song-end rule drops one faint onset of this song and so redraws every
+        # seed). The mean is what holds still.
         profiles = [pattern_profile(generate_chart(dense_song, mode, "NORMAL", seed=seed)["notes"], mode) for seed in range(8)]
-        assert max(p["leaps"] for p in profiles) <= limit, (mode, [p["leaps"] for p in profiles])
+        leaps = [p["leaps"] for p in profiles]
+        assert np.mean(leaps) <= 0.08 and max(leaps) <= 0.25, (mode, leaps)
         assert np.mean([p["stairs"] for p in profiles]) >= 0.08, (mode, [p["stairs"] for p in profiles])
     # Hard charts vary. The shape count only sees single-note runs: since chords follow the music in
     # every section like human charts (generator 0.9.2) instead of gathering in the choruses, this
