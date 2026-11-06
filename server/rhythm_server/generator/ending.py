@@ -78,7 +78,9 @@ def finish(notes: list[dict[str, Any]], analysis: dict[str, Any], tempo: TempoMa
     held: list[dict[str, Any]] = []
 
     def can_hold(hand: str) -> bool:
-        return holding.get(hand, 0) < (1 if hand == "T" else min(params.hand_chord_limit, params.max_holds_per_hand))
+        # nothing follows the closing chord: a hand holds as many keys as it may press (the linter
+        # lets the chart's last chord past the tier's long notes per hand)
+        return holding.get(hand, 0) < (1 if hand == "T" else params.hand_chord_limit)
 
     def can_press(hand: str) -> bool:
         return pressed.get(hand, 0) < (1 if hand == "T" else params.hand_chord_limit)

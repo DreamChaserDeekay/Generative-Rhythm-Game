@@ -306,6 +306,7 @@ def build_candidates(
         echoes = [c for c in echoes if id(c) not in quiet]
     _mark_solos(cands, analysis, sections, melody_cfg)
     _end_melody_notes(cands, float(melody_cfg["note"]))
+    _end_at_retrigger(cands, difficulty_config()["holds"].get("retrigger"))
     _score(cands, params)
     if split:
         scale = float(melody_cfg["split"]["scale"])
@@ -464,6 +465,45 @@ def _end_melody_notes(cands: list[Candidate], presence: float) -> None:
             if nxt is not None:
                 c.sustain_beats = min(c.sustain_beats, nxt - c.beat)
             nxt = c.beat
+
+
+def _end_at_retrigger(cands: list[Candidate], rule: dict[str, Any] | None) -> None:
+    """A sound sounds until it is struck again at the latest (one voice, holds.retrigger): the
+    same sound group (the analysis's onsets alike in their attack spectrum), the same stem at the
+    same pitch (within `pitchSemis`), or a strike that is mostly the same stem (`stemShareAtLeast`
+    of it; the sound groups and pitches alone found 5% of the strikes the keysounds show), coming
+    `minBeats` or more later with an attack of `attackAtLeast`, ends its sustain there. A long note no longer lies over a bass or a synth
+    that plays on in eighths under it (on BMS songs 60% of the 6K ELITE long notes had their
+    instrument struck again inside them; human charts 24%, docs/PATTERN_DESIGN.md 87)."""
+    if not rule:
+        return
+    least, min_beats, semis = float(rule["attackAtLeast"]), float(rule["minBeats"]), float(rule["pitchSemis"])
+    stem_share = float(rule["stemShareAtLeast"]) if rule.get("stemShareAtLeast") is not None else None
+    drums = STEM_NAMES.index("drums")
+    by_group: dict[int, float] = {}  # sound group -> beat of its next strike (walking backwards)
+    by_pitch: dict[tuple[int, int], float] = {}  # (stem, semitone) -> beat of its next strike
+    by_stem: dict[int, float] = {}  # stem -> beat of its next strike that is mostly that stem
+    for c in reversed(cands):
+        src = int(np.argmax(c.sources)) if c.sources is not None else None
+        if src is None or src == drums:
+            continue
+        nexts = []
+        if c.sound_group is not None and c.sound_group in by_group:
+            nexts.append(by_group[c.sound_group])
+        if c.pitch is not None:
+            nexts += [by_pitch[k] for k in ((src, int(round(c.pitch / semis)) + d) for d in (-1, 0, 1)) if k in by_pitch]
+        if src in by_stem:
+            nexts.append(by_stem[src])
+        nxt = min(nexts, default=None)
+        if nxt is not None and nxt - c.beat >= min_beats - 1e-9:
+            c.sustain_beats = min(c.sustain_beats, nxt - c.beat)
+        if c.attack >= least:
+            if c.sound_group is not None:
+                by_group[c.sound_group] = c.beat
+            if c.pitch is not None:
+                by_pitch[(src, int(round(c.pitch / semis)))] = c.beat
+            if stem_share is not None and float(c.sources[src]) >= stem_share:
+                by_stem[src] = c.beat
 
 
 def pad_like(c: Candidate) -> bool:

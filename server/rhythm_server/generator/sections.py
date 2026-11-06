@@ -64,6 +64,7 @@ class Unit:
     jack_scale: float = 1.0  # the section plan's scale of the same-lane cost in it
     jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets in it
     focus: int | None = None  # the stem this repeat of its music follows first (sectioned.repeatFocus)
+    voice: tuple[int, ...] | None = None  # the stems this unit's notes keep to (sectioned.voices)
 
 
 @dataclass
@@ -237,7 +238,7 @@ def classify(units: list[Unit], per_unit: list[dict[int, int]], cands: list[Cand
         best, best_sim = None, threshold
         for c, members in enumerate(classes):
             first = units[members[0]]
-            if first.group != u.group or abs(first.length - u.length) > 1e-6 or first.focus != u.focus:
+            if first.group != u.group or abs(first.length - u.length) > 1e-6 or first.focus != u.focus or first.voice != u.voice:
                 continue
             sim = max(_similarity(per_unit[m], per_unit[u.index], cands) for m in members[:3])
             if sim >= best_sim:
@@ -355,6 +356,133 @@ def _mark_focus(units: list[Unit], sections: list[dict[str, Any]], params: GenPa
         else:
             tune = max(tunes, key=lambda k: float(mix[k]))
             u.focus = tune if float(mix[tune]) >= least else None
+
+
+def _section_of(rows: list[dict[str, Any]], u: Unit) -> dict[str, Any] | None:
+    return next((s for s in rows if str(s.get("group")) == u.group and float(s["startBeat"]) <= u.start + 1e-6 < float(s.get("endBeat", math.inf))), None)
+
+
+def _mark_voices(units: list[Unit], sections: list[dict[str, Any]], params: GenParams, per_unit: list[dict[int, int]] | None = None, cands: list[Candidate] | None = None) -> bool:
+    """`voice` of every unit (sectioned.voices, docs/PATTERN_DESIGN.md 87): the stems its notes
+    keep to for at least its section, so a player follows one instrument over four bars and more.
+    The drums, the bass or the tune (vocals and other), each when its stem is `minShare` of the
+    section's mix at least: a guitar or piano lead section (6-stem analysis) is the tune; music
+    that comes back follows the drums the first, third ... time and the tune the second, fourth ...
+    (the repeat rule of sectioned.repeatFocus; with `repeatFocus` off every time follows the
+    louder); music heard once takes the other stem than the unit
+    before it when both sound, else the louder; a section led by the bass with little else takes
+    the bass. A voice with too little to play (its sounds in the section under `materialRatio`
+    of the other voice's, by the candidates `per_unit` of `cands`) gives way to the other when
+    that one sounds: a thin tune under a full beat would leave the section near empty (the
+    chart's busiest four bars rose to 2.5 times its median; human charts 2.0). Whether the rule
+    is on for this chart."""
+    rule = sectioned_config().get("voices")
+    if not rule or params.rhythm_source != "auto" or params.skill < float(rule.get("minSkill", 0.0)) or params.key_mode in rule.get("offKeyModes", ()):
+        return False
+    least = float(rule["minShare"])
+    solo = load_config("instruments")["rhythmSource"]["melody"].get("solo", {})
+    leads, lead_share = set(solo.get("instrumentLeads", ())), float(solo.get("minLeadShare", 1.0))
+    rows = sorted(sections, key=lambda s: float(s["startBeat"]))
+    drums, bass = STEM_NAMES.index("drums"), STEM_NAMES.index("bass")
+    tune = tuple(STEM_NAMES.index(n) for n in ("vocals", "other"))
+    times: dict[str, int] = {}
+    for u in units:
+        times[u.group] = max(times.get(u.group, 0), u.occurrence + 1)
+    # what each section has to play per voice: its candidates that are mostly the drums or the tune
+    material: dict[int, dict[str, int]] = {}
+    ratio = float(rule.get("materialRatio", 0.0))
+    if per_unit is not None and cands is not None and ratio > 0:
+        for u in units:
+            counts = material.setdefault(u.section, {"drums": 0, "tune": 0})
+            for ci in per_unit[u.index].values():
+                src = cands[ci].sources
+                if src is None:
+                    continue
+                if float(src[drums]) >= 0.5:
+                    counts["drums"] += 1
+                elif float(src[tune[0]]) + float(src[tune[1]]) >= 0.5:
+                    counts["tune"] += 1
+    prev: tuple[int, ...] | None = None
+    prev_section = -1
+    for u in units:
+        sec = _section_of(rows, u)
+        mix = sec.get("stems") if sec else None
+        if not mix or len(mix) != len(STEM_NAMES):
+            u.voice = None
+            continue
+        d, b, t = float(mix[drums]), float(mix[bass]), float(mix[tune[0]]) + float(mix[tune[1]])
+        shares = sec.get("leadShares") or {}
+        if sec.get("lead") in leads and float(shares.get(sec["lead"], 0.0)) >= lead_share:
+            voice: tuple[int, ...] | None = tune
+        elif b >= least and b > max(d, t):
+            voice = (bass,)
+        else:
+            by_turn = False
+            if u.section == prev_section and prev is not None:
+                want_drums = prev == (drums,)  # one voice through the section
+            elif times[u.group] >= 2 and params.repeat_focus:
+                want_drums = u.occurrence % 2 == 0  # the turns of music that comes back
+                by_turn = True
+            elif times[u.group] >= 2:
+                want_drums = d >= t  # repeats follow the same sounds (repeatFocus off)
+            elif prev is not None and d >= least and t >= least:
+                want_drums = prev != (drums,)
+            else:
+                want_drums = d >= t
+            have = material.get(u.section)
+            if have is not None and u.section != prev_section and not by_turn:
+                # too little of the wanted voice to play: the other voice, when it sounds (a repeat's
+                # turn keeps its voice: the second chorus on the melody is the point of the turns)
+                if want_drums and t >= least and have["drums"] < ratio * have["tune"]:
+                    want_drums = False
+                elif not want_drums and d >= least and have["tune"] < ratio * have["drums"]:
+                    want_drums = True
+            if want_drums and d >= least:
+                voice = (drums,)
+            elif t >= least:
+                voice = tune
+            elif d >= least:
+                voice = (drums,)
+            else:
+                voice = None
+        u.voice = voice
+        if voice is not None:
+            prev, prev_section = voice, u.section
+    return True
+
+
+def _by_skill(value: Any, skill: float) -> float:
+    """A number, or a [[skill, value], ...] table read at `skill` (linear between the points)."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    points = sorted((float(a), float(b)) for a, b in value)
+    return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
+
+
+def _voice_weights(units: list[Unit]) -> dict[tuple[int, ...], np.ndarray]:
+    """Per voice the stem weights of the scores (sectioned.voices gate off the voice)."""
+    rule = sectioned_config().get("voices") or {}
+    out = {}
+    for v in {u.voice for u in units if u.voice is not None}:
+        w = np.full(len(STEM_NAMES), float(rule.get("gate", 1.0)))
+        for st in v:
+            w[st] = 1.0
+        out[v] = w
+    return out
+
+
+def _companion(c: Candidate, u: Unit, bpb: int, drums_at_least: float, median_strength: float = 0.0) -> bool:
+    """A note of the companion voice (sectioned.voices): under a tune or a bass voice the drums on
+    the third beat of a 4/4 bar, and on the other beats when the hit is a strong one (the song's
+    median strength or more: the kick that keeps the player's time, not a hi-hat; with the third
+    beat alone the notes on the beats fell to 0.75 of the beats the music hits, human charts 0.85);
+    a tune note on the downbeat under a drums voice is the downbeat's own exemption."""
+    if u.voice is None or STEM_NAMES.index("drums") in u.voice or c.sources is None or c.subdivision != 1:
+        return False
+    if float(c.sources[STEM_NAMES.index("drums")]) < drums_at_least:
+        return False
+    beat_in_bar = (c.beat - u.start) % bpb
+    return (bpb % 2 == 0 and abs(beat_in_bar - bpb // 2) < 1e-6) or c.strength >= median_strength
 
 
 def _focus_weights(units: list[Unit]) -> dict[int, np.ndarray]:
@@ -529,22 +657,45 @@ def layout(
     bpb = tempo.beats_per_bar
     units = make_units(sections, cands[0].beat, cands[-1].beat, bpb)
     per_unit = _unit_cands(units, cands)
-    _mark_focus(units, sections, params)
+    voices_on = _mark_voices(units, sections, params, per_unit, cands)
+    if not voices_on:
+        _mark_focus(units, sections, params)
     n_classes = classify(units, per_unit, cands)
     _mark_variation(units, params)
     _plan_units(units, cands, analysis, tempo, memo)
     follow = follow_weights(sections, params)
     focus_w = _focus_weights(units)
+    voice_w = _voice_weights(units)
+    median_strength = float(np.median([c.strength for c in cands]))
+    voices_cfg = sectioned_config().get("voices") or {}
+    companion_drums = float(voices_cfg.get("companionDrumsAtLeast", 1.0))
     members: list[list[int]] = [[] for _ in range(n_classes)]
     for u in units:
         members[u.cls].append(u.index)
 
+    def own_voice(c: Candidate, u: Unit) -> bool:
+        """Whether a sound is the unit's voice's own: its downbeat, its companion, or mostly its stems."""
+        return c.sources is None or c.downbeat or _companion(c, u, bpb, companion_drums, median_strength) or float(np.dot(c.sources, voice_w[u.voice])) >= 0.5
+
     def score(ci: int, u: Unit) -> float:
         c = cands[ci]
+        if u.voice is not None:
+            if c.sources is None or c.downbeat or _companion(c, u, bpb, companion_drums, median_strength):
+                return c.score
+            return c.score * float(np.dot(c.sources, voice_w[u.voice]))
         w = focus_w.get(u.focus) if u.focus is not None else follow.get(u.group)
         if w is not None and c.sources is not None and not c.downbeat:
             return c.score * float(np.dot(c.sources, w))
         return c.score
+
+    # a unit plays what its voice (and companion) can supply, sectioned.voices `supply` times at
+    # most: the budget beyond it is not made up elsewhere
+    supply = [math.inf] * len(units)
+    supply_scale = _by_skill(voices_cfg.get("supply", 0.0), params.skill)
+    if voices_on and supply_scale > 0:
+        for u in units:
+            if u.voice is not None:
+                supply[u.index] = supply_scale * sum(1 for ci in per_unit[u.index].values() if own_voice(cands[ci], u))
 
     # budget: the preset's note count spread over the units by their blueprint density
     expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
@@ -621,7 +772,7 @@ def layout(
     carry = 0.0
 
     rolls_cfg = rolls_config()
-    median_strength = float(np.median([c.strength for c in cands]))
+    anchors_cfg = sectioned_config().get("anchors")
 
     def rollish(c: Candidate) -> bool:
         """A sound that can be a roll's hit where another repeat of the music has the roll."""
@@ -648,7 +799,7 @@ def layout(
         # When the music has no more sounds to add, the earlier repeats play fewer instead: the base
         # leaves every unit room for its extra share.
         ceiling = min(len(per_unit[m]) / (1 + (0.0 if relax else units[m].extra)) for m in ms)
-        unit_n = {m: min(per_unit_n[m], ceiling) for m in ms}
+        unit_n = {m: min(per_unit_n[m], ceiling, supply[m] / (1 + (0.0 if relax else units[m].extra))) for m in ms}
         base = float(min(unit_n.values())) + carry
         want = int(math.floor(base + 0.5))
         carry = base - want
@@ -681,6 +832,21 @@ def layout(
         def inside(k: int) -> bool:
             return k not in kept and any(a <= k <= b for a, b in spans)
 
+        # the anchors next: the downbeats (and the third beats the tier reads where the drums hit)
+        # that the music hits play before any other note (sectioned.anchors; a player keeps time by
+        # the notes on the beat, docs/PATTERN_DESIGN.md 87-3)
+        if anchors_cfg is not None and params.skill >= float(anchors_cfg["from"]):
+            for k in _anchor_keys(order, ms, per_unit, cands, consensus, bpb, params.skill, anchors_cfg, median_strength):
+                if len(picks) >= want:
+                    break
+                if k in picks or inside(k):
+                    continue
+                times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
+                if partial_ok(1, len(times)) and window_ok(times):
+                    picks.append(k)
+                    take(times)
+                    sub_counts[1] = sub_counts.get(1, 0) + len(times)
+                    picked_total += len(times)
         for k in order:
             if k in picks or inside(k):
                 continue
@@ -701,7 +867,9 @@ def layout(
             for bar, keys in sorted(bar_keys.items()):
                 if any(k // (GRID * bpb) == bar for k in picks) or all(inside(k) for k in keys):
                     continue
-                k = next(k for k in keys if not inside(k))
+                # a note on the beat where the bar has one (the player's time), else its best sound
+                on_beat = next((k for k in keys if not inside(k) and k % GRID == 0), None)
+                k = next(k for k in keys if not inside(k)) if on_beat is None else on_beat
                 times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
                 if window_ok(times):
                     picks.append(k)
@@ -815,7 +983,11 @@ def layout(
             c = cands[ci]
             beat = c.beat if beat is None else beat
             idx.append(len(slots))
-            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target, tune=u.focus is not None and STEM_NAMES[u.focus] != "drums"))
+            drums_voice = u.voice is not None and STEM_NAMES.index("drums") in u.voice
+            tune_unit = (u.voice is not None and not drums_voice) if voices_on else (u.focus is not None and STEM_NAMES[u.focus] != "drums")
+            # a chord on the voice's own moments keeps to its stems; a downbeat or a companion note takes every instrument sounding
+            voice = u.voice if (u.voice is not None and not c.downbeat and not _companion(c, u, bpb, companion_drums, median_strength)) else None
+            slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target, tune=tune_unit, voice=voice))
             slot_cand.append(ci)
             slot_unit.append(u.index)
             slot_key.append(k)
@@ -851,6 +1023,33 @@ def layout(
 
     phrases, phrase_keys = _phrases(slots, units, unit_slots, slot_key, bpb)
     return Layout(slots=slots, units=units, unit_slots=unit_slots, ref=ref, slot_unit=slot_unit, phrases=phrases, phrase_keys=phrase_keys, chords_capped=chords_capped)
+
+
+def _anchor_keys(order, ms, per_unit, cands, consensus, bpb: int, skill: float, cfg: dict[str, Any], median_strength: float) -> list[int]:
+    """The class's keys on the first beat of a bar, and from `beat3From` on the third beat of a
+    4/4 bar where the drums hit (`drumsAtLeast` of the sound), where the music hits: a clear
+    attack (`attackAtLeast`) of `strength` times the song's median strength or more, in the units
+    that have it. Strongest first."""
+    bar = GRID * bpb
+    third = GRID * (bpb // 2) if bpb % 2 == 0 and skill >= float(cfg["beat3From"]) else None
+    drums = STEM_NAMES.index("drums")
+    out = []
+    for k in order:
+        if k % bar == 0:
+            on_third = False
+        elif third is not None and k % bar == third:
+            on_third = True
+        else:
+            continue
+        cs = [cands[per_unit[m][k]] for m in ms if k in per_unit[m]]
+        if float(np.mean([c.strength for c in cs])) < float(cfg["strength"]) * median_strength:
+            continue
+        if float(np.mean([c.attack for c in cs])) < float(cfg["attackAtLeast"]):
+            continue
+        if on_third and (any(c.sources is None for c in cs) or float(np.mean([float(c.sources[drums]) for c in cs])) < float(cfg["drumsAtLeast"])):
+            continue
+        out.append(k)
+    return sorted(out, key=lambda k: (-consensus[k], k))
 
 
 def _class_roll_keys(ms: list[int], per_unit: list[dict[int, int]], cands: list[Candidate]) -> set[int]:
@@ -1077,7 +1276,12 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
     power = float(section_plan.plan_config().get("holdPower", 1.0))
     options = []
     for key, idxs in _realized(positions, _outside(slots, positions)):
-        sustains = [cands[slot_cand[i]].sustain_beats for i in idxs]
+        # a voice change (sections.voices) wants both hands free: no long note heads in the half
+        # beat before a unit whose next unit follows another voice, and a long note lets go there
+        bounds = [_voice_bound(units, slot_unit[i]) for i in idxs]
+        if any(b is not None and slots[i].beat > b - 0.5 + 1e-9 for i, b in zip(idxs, bounds)):
+            continue
+        sustains = [min(cands[slot_cand[i]].sustain_beats, math.inf if b is None else b - slots[i].beat) for i, b in zip(idxs, bounds)]
         if min(sustains) < params.min_ln_beats or any(slots[i].roll is not None for i in idxs):
             continue
         if not all(holdable(cands[slot_cand[i]], tempo) for i in idxs):
@@ -1100,6 +1304,14 @@ def _assign_long_notes(slots, slot_cand, positions, units, slot_unit, cands, par
             slots[i].hold_end_beat = slots[i].beat + (end - first.beat)
             mark_hold_count(slots[i], cands[slot_cand[i]], params)
         placed += len(idxs)
+
+
+def _voice_bound(units: list[Unit], m: int) -> float | None:
+    """The beat where unit `m` ends when the unit after it follows another voice (sections.voices), else None."""
+    u = units[m]
+    if u.voice is None or m + 1 >= len(units) or units[m + 1].voice == u.voice:
+        return None
+    return u.start + u.length
 
 
 def _same_holds(slots: list[Slot], positions: dict, before: list[float | None]) -> None:
