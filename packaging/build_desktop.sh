@@ -4,16 +4,27 @@
 #   packaging/build_desktop.sh          installer / image in desktop/dist
 #   packaging/build_desktop.sh --dir    unpacked app folder only (quicker, for testing)
 # GRG_PYTHON selects the Python with the server installed (default: server/.venv).
+# GRG_EDITION=ml builds the ML edition (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; about
+# 1.3 GB unpacked) as GenerativeRhythm-ML-Setup-<version>.exe; the default edition has the core
+# analysis only.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ -x "$ROOT/server/.venv/bin/python" ]]; then DEFAULT_PY="$ROOT/server/.venv/bin/python"; else DEFAULT_PY="$ROOT/server/.venv/Scripts/python.exe"; fi
 PY="${GRG_PYTHON:-$DEFAULT_PY}"
+EDITION="${GRG_EDITION:-core}"
+BUILDER_EXTRA=()
 
 echo "== client"
 (cd "$ROOT/client" && npm ci && npm run build)
 echo "== analysis server (PyInstaller)"
-"$PY" -m pip install -q -e "$ROOT/server[build]"
-(cd "$ROOT/server" && "$PY" -m PyInstaller ../packaging/rhythm-server.spec --noconfirm --distpath dist --workpath build)
+if [[ "$EDITION" == ml ]]; then
+  "$PY" -m pip install -q -r "$ROOT/packaging/ml_torch.txt" --index-url https://download.pytorch.org/whl/cpu
+  "$PY" -m pip install -q -e "$ROOT/server[build,ml]"
+  BUILDER_EXTRA=(-c.nsis.artifactName='GenerativeRhythm-ML-Setup-${version}.${ext}')
+else
+  "$PY" -m pip install -q -e "$ROOT/server[build]"
+fi
+(cd "$ROOT/server" && GRG_EDITION="$EDITION" "$PY" -m PyInstaller ../packaging/rhythm-server.spec --noconfirm --distpath dist --workpath build)
 echo "== desktop app (Electron)"
-(cd "$ROOT/desktop" && npm ci && npx electron-builder "$@")
+(cd "$ROOT/desktop" && npm ci && npx electron-builder "${BUILDER_EXTRA[@]}" "$@")
 echo "done: $ROOT/desktop/dist"

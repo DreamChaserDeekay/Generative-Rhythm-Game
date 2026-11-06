@@ -95,7 +95,7 @@ cd server
 |---|---|---|---|
 | Demucs (htdemucs_6s) | 드럼·베이스·보컬·그 외 4스템 분리, 기타·피아노가 이끄는 구간과 온셋마다 기타·피아노 몫(분석기 1.15.0부터) | HPSS + 배음 마스크 분리(기타·피아노 구간 없음) | 코드 MIT, 가중치는 라이선스 명시 없음 |
 | beat_this | 박 → 우리 박 격자가 반 박 어긋났는지 확인(분석기 1.13.0부터, 템포·박자는 기본 분석) | 온셋 자기상관·다운비트 단서 | 코드·가중치 MIT |
-| basic-pitch | 멜로디 음높이 | 온셋 배음 분석 | Apache-2.0. TensorFlow 2.15가 필요해 **Python 3.11에서만** 설치됩니다(3.12 이상에서는 자동으로 빠짐) |
+| basic-pitch | 멜로디 음높이 | 온셋 배음 분석 | Apache-2.0. Python 3.11에서는 TensorFlow 2.15로, 3.12 이상에서는 들어 있는 ONNX 모델을 onnxruntime으로 돌립니다 |
 | allin1 | 곡 구조 라벨(절·후렴) | 자기유사 행렬 구조 분석 | 코드 MIT, 의존성 madmom의 모델이 비상업 라이선스라 `[ml]`에 넣지 않았습니다. 직접 설치하면 씁니다. 사람이 구간을 표시한 29곡에서 보컬 곡은 기본 분석보다 정확했지만(이름표 0.618 대 0.424) 연주곡 · 클래식은 더 틀렸습니다(PATTERN_DESIGN 69-9) |
 
 - 모델 가중치는 처음 쓸 때 한 번 내려받습니다(Demucs 6스템 약 55MB, beat_this 약 81MB). 4스템 `htdemucs`를 쓰려면 `config/analysis.json`의 `ml.stems.model`을 바꾸세요(기타·피아노 구간은 나오지 않습니다). 음원은 PC 밖으로 나가지 않습니다.
@@ -106,7 +106,7 @@ cd server
 
 ### 데스크톱 앱 (선택)
 
-Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)가 코드를 올릴 때마다 Windows 머신에서 만들고, 묶은 서버를 따로 띄워 데모 곡 분석·MP3 업로드·채보 생성을 확인한 뒤, 무인 설치한 앱을 Playwright로 실행해 곡 분석부터 오토 플레이까지 돌려 봅니다. 만들어진 설치 파일과 그때 찍은 화면은 실행 결과의 Artifacts에 30일간 남습니다. 받아서 설치하고 확인하는 순서는 [docs/TESTING.md](docs/TESTING.md)에 있습니다.
+Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)가 코드를 올릴 때마다 Windows 머신에서 만들고, 묶은 서버를 따로 띄워 데모 곡 분석·MP3 업로드·채보 생성을 확인한 뒤, 무인 설치한 앱을 Playwright로 실행해 곡 분석부터 오토 플레이까지 돌려 봅니다. 만들어진 설치 파일과 그때 찍은 화면은 실행 결과의 Artifacts에 30일간 남습니다. 설치 파일은 두 가지입니다. **기본판**(`GenerativeRhythm-Windows-Setup`)은 기본 분석만 쓰고, **ML판**(`GenerativeRhythm-Windows-ML-Setup`)에는 CPU용 PyTorch · Demucs 6스템 · beat_this · basic-pitch(ONNX)가 들어 있어 위 표의 ML 분석을 씁니다. 둘은 같은 앱이라 하나를 설치하면 다른 하나를 덮어씁니다. 받아서 설치하고 확인하는 순서는 [docs/TESTING.md](docs/TESTING.md)에 있습니다.
 
 브라우저 대신 창 하나로 실행하는 앱을 직접 만들 수도 있습니다. 분석 서버를 PyInstaller로 묶어 Electron 앱에 넣고, 앱이 켜질 때 로컬 포트에 서버를 띄웁니다. 라이브러리는 사용자 앱 데이터 폴더(`Generative Rhythm/library`)에 저장됩니다.
 
@@ -116,13 +116,15 @@ Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)
 ```bash
 packaging/build_desktop.sh          # → desktop/dist (Windows: NSIS 설치 파일, macOS: dmg, Linux: AppImage)
 packaging/build_desktop.sh --dir    # 설치 파일 없이 실행 폴더만 (desktop/dist/<OS>-unpacked)
+GRG_EDITION=ml packaging/build_desktop.sh   # ML판 (CPU PyTorch를 받아 묶음, GenerativeRhythm-ML-Setup-<버전>.exe)
 cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버로 실행 (client/dist 빌드 필요)
 ```
 
 - 빌드하는 OS용 앱만 만들어집니다(Windows 앱은 Windows에서). Windows 설치 파일은 위 워크플로로, Linux는 실행 폴더 빌드와 실행까지 확인했습니다. macOS dmg는 만들어 보지 못했습니다. Windows에서 직접 빌드하려면 워크플로와 같은 순서(클라이언트 빌드 → PyInstaller → `npx electron-builder --win nsis`)를 따르세요. `build_desktop.sh`는 Git Bash용으로 만들었지만 Windows에서 그대로 돌려 보지는 않았습니다.
 - 설치 파일은 코드 서명이 없어 처음 실행할 때 SmartScreen 경고가 뜹니다(**추가 정보 → 실행**).
 - GPU 드라이버가 없는 PC(가상 머신, 원격 데스크톱)에서도 Chromium의 소프트웨어 렌더러로 화면이 나오게 했습니다(느릴 수 있음).
-- 데스크톱 앱에는 기본 분석만 들어갑니다(ML 백엔드는 용량 문제로 빼었습니다). 크기는 압축 전 약 570MB입니다.
+- 기본판에는 기본 분석만 들어갑니다. 크기는 압축 전 약 570MB입니다.
+- ML판은 압축 전 약 1.3GB입니다(Linux에서 묶어 잰 값). 모델 가중치(Demucs 6스템 약 55MB, beat_this 약 81MB)는 처음 분석할 때 한 번 내려받습니다(인터넷 필요, 사용자 폴더의 `.cache`). 분석은 CPU에서 돌아 기본판보다 느립니다(BMS 곡 2–3분 길이에 약 50초, 4코어). GPU는 쓰지 않습니다. 끄려면 앱 폴더 `resources/server/_internal/config/analysis.json`의 `ml.enabled`를 `false`로.
 
 ### 플레이
 

@@ -1,5 +1,8 @@
 # Smoke test of the bundled analysis server on Windows (used by the desktop workflow):
 # starts it, analyzes a demo song, generates a chart and decodes an uploaded MP3 file.
+# -ExpectML (the ML edition): the server must report Demucs, beat_this and basic-pitch as active, and
+# the demo song must be analyzed with them (their weights are downloaded on the first analysis).
+param([switch]$ExpectML)
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = Split-Path -Parent $PSScriptRoot
@@ -12,8 +15,9 @@ $library = Join-Path $work 'library'
 $proc = Start-Process -FilePath $exe -ArgumentList "--port 8795 --data `"$library`"" `
   -RedirectStandardOutput (Join-Path $work 'server.log') -RedirectStandardError (Join-Path $work 'server.err.log') -PassThru -NoNewWindow
 
+$waitSteps = if ($ExpectML) { 1200 } else { 240 }
 function Wait-Ready($id) {
-  for ($i = 0; $i -lt 240; $i++) {
+  for ($i = 0; $i -lt $waitSteps; $i++) {
     $s = (Invoke-RestMethod "$base/api/songs/$id").song
     if ($s.status -eq 'ready' -or $s.status -eq 'error') { return $s }
     Start-Sleep -Milliseconds 500
@@ -28,11 +32,24 @@ try {
   }
   $health = Invoke-RestMethod "$base/api/health"
   Write-Host "server $($health.version) | analyzer $($health.analyzer) | generator $($health.generator)"
+  $active = @($health.backends | Where-Object { $_.active } | ForEach-Object { "$($_.name)-$($_.version)" })
+  Write-Host "ML backends: $(if ($active) { $active -join ', ' } else { 'none' })"
+  if ($ExpectML) {
+    foreach ($name in 'demucs', 'beat_this', 'basic_pitch') {
+      if (-not ($health.backends | Where-Object { $_.name -eq $name -and $_.active })) { throw "the ML edition has no active $name" }
+    }
+  }
 
   $demo = (Invoke-RestMethod -Method Post "$base/api/songs/demo" -ContentType 'application/json' -Body '{"bpm":128,"bars":12,"seed":2}').song
   $s = Wait-Ready $demo.id
   if ($s.status -ne 'ready') { throw "demo analysis failed: $($s.error)" }
-  Write-Host "demo song analyzed: BPM $($s.bpm)"
+  Write-Host "demo song analyzed: BPM $($s.bpm) | backends $($s.analyzer.backends | ConvertTo-Json -Compress)"
+  if ($ExpectML) {
+    $used = $s.analyzer.backends
+    if ($used.stems -notmatch '^demucs' -or $used.beats -notmatch '^beat_this' -or $used.pitch -notmatch '^basic_pitch') {
+      throw "the demo song was not analyzed with the ML backends: $($used | ConvertTo-Json -Compress) $($s.analyzer.errors | ConvertTo-Json -Compress)"
+    }
+  }
   $chart = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"7K+1S","difficulty":"HARD"}').chart
   Write-Host "chart: $($chart.meta.keyMode) $($chart.meta.difficulty) Lv.$($chart.meta.level) | $($chart.meta.noteCount) notes"
 
