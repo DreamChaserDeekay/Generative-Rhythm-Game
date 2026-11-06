@@ -51,6 +51,31 @@ BOUNDARY_RULES = frozenset({"oneoff_twins"})
 HALF_MARGIN = 0.15  # a group always right before the chorus, this near the threshold to it and as intense, is its first half
 TWIN_MARGIN = 0.1  # two neighbouring one-off sections this near the repeat threshold are one section
 HIT_CAP_PERCENTILE = 75  # a beat's onset strength counts up to this percentile of the song's beats (a roll is no louder)
+# What a bar line looks like (line_features): novelty (kernels of 4 and 2 bars), path cue, similarity
+# to the bar before it and the one before that, loudness change over one and two bars, the hit on its
+# first beat.
+LINE_FEATURES = ("nov", "nov2", "cue", "simPrev", "simPrev2", "loudRise", "loudRise2", "hit")
+# Boundary refinement node (docs/PATTERN_DESIGN.md 84): each found section start may move one bar
+# to either side, to the bar line a choice model (softmax over the three lines) likes best: the line
+# features, staying put, and whether the sections on both sides come out a multiple of 4 or 8 bars.
+# Fitted on the 30 marked songs; None = no refinement (analyzer 1.13.0).
+REFINE_WEIGHTS: dict[str, float] | None = {
+    "stay": 0.849, "nov": 1.12, "nov2": 1.42, "cue": 0.717, "simPrev": -1.844, "simPrev2": -0.911, "loudRise": 0.57,
+    "loudRise2": 0.618, "hit": 0.041, "prev4": 0.927, "next4": 0.409, "prev8": -0.216, "next8": 0.124,
+}
+REFINE_FEATURES = ("stay", "nov", "nov2", "cue", "simPrev", "simPrev2", "loudRise", "loudRise2", "hit", "prev4", "next4", "prev8", "next8")
+REFINE_MIN_BARS = 2  # a move keeps every section at least this long
+# Chorus node (docs/PATTERN_DESIGN.md 84): a logistic model on each repeated (or long) group's
+# intensity, repetition, place and melody pitch / loudness against the song (section_cues), fitted
+# on the marked songs. The rule's chorus groups stay unless the model gives them under CHORUS_KEEP;
+# groups it gives CHORUS_ADD or more join them. None = the rule alone.
+CHORUS_WEIGHTS: dict[str, float] | None = {
+    "bias": -2.439, "energy": 0.691, "gap": 0.738, "count": 0.423, "rep": 0.359, "cover": 0.415, "leadsIn": -0.543,
+    "ledInto": 0.012, "first": -0.038, "opens": -0.083, "closes": 0.893, "length": 0.332, "pitch": 0.212, "loud": 0.257,
+}
+CHORUS_ADD = 0.6
+CHORUS_KEEP = 0.15
+CHORUS_FEATURES = ("bias", "energy", "gap", "count", "rep", "cover", "leadsIn", "ledInto", "first", "opens", "closes", "length", "pitch", "loud")
 
 
 @dataclass
@@ -199,6 +224,66 @@ def boundary_scores(ssm: np.ndarray, threshold: float, phase: int = 0) -> np.nda
     # loud song (USAO - RUNAWAY) came out in 30 sections, most of them 4 bars and none repeated.
     # Its lines without a change had evidence 0.41 at most; the synthetic songs' pre-choruses 0.46 and up
     return np.array([evidence[k] + _grid(k - phase) if evidence[k] >= BOUNDARY_EVIDENCE else -1.0 for k in range(len(ssm))])
+
+
+def line_features(ssm: np.ndarray, threshold: float, starts: list[int], beat_energy: np.ndarray, beat_strength: np.ndarray | None) -> np.ndarray:
+    """Per bar line (row k = the line before bar k; row 0 unused) its LINE_FEATURES, from the bars'
+    self-similarity, their start beats, the beat loudness (dB) and the onset strength per beat."""
+    n = len(ssm)
+    out = np.zeros((n, len(LINE_FEATURES)))
+    if n < 2:
+        return out
+    col = {f: i for i, f in enumerate(LINE_FEATURES)}
+    nov = novelty_curve(ssm)
+    nov2 = novelty_curve(ssm, 2)
+    cues = path_cues(ssm, threshold)
+    n_beats = len(beat_energy)
+    edges = list(starts) + [n_beats]
+    loud = np.array([float(np.median(beat_energy[edges[u] : max(edges[u + 1], edges[u] + 1)])) for u in range(n)])
+    strength = beat_strength if beat_strength is not None and len(beat_strength) == n_beats else np.zeros(n_beats)
+    pos = strength[strength > 0]
+    ref = float(np.percentile(pos, 95)) if len(pos) else 1.0
+    out[:, col["nov"]] = nov / max(float(np.max(nov)), 1e-9)
+    out[:, col["nov2"]] = nov2 / max(float(np.max(nov2)), 1e-9)
+    out[:, col["cue"]] = cues / max(float(np.max(cues)), 1e-9)
+    for k in range(1, n):
+        out[k, col["simPrev"]] = ssm[k, k - 1]
+        out[k, col["simPrev2"]] = ssm[k, k - 2] if k >= 2 else ssm[k, k - 1]
+        out[k, col["loudRise"]] = (loud[k] - loud[k - 1]) / 6.0
+        out[k, col["loudRise2"]] = (float(np.mean(loud[k : k + 2])) - float(np.mean(loud[max(k - 2, 0) : k]))) / 6.0
+        out[k, col["hit"]] = min(float(strength[min(starts[k], n_beats - 1)]) / max(ref, 1e-9), 3.0)
+    return out
+
+
+def boundary_choices(bounds: list[int], j: int, n_bars: int, base: np.ndarray) -> tuple[list[int], np.ndarray]:
+    """The bar lines section start bounds[j] (j >= 1) may move to (itself, one bar earlier or later,
+    keeping REFINE_MIN_BARS) and their REFINE_FEATURES rows; `base` is line_features."""
+    col = {f: i for i, f in enumerate(LINE_FEATURES)}
+    prev = bounds[j - 1]
+    nxt = bounds[j + 1] if j + 1 < len(bounds) else n_bars
+    a = bounds[j]
+    cands = [c for c in (a, a - 1, a + 1) if 0 < c < n_bars and c - prev >= REFINE_MIN_BARS and nxt - c >= REFINE_MIN_BARS]
+    rows = []
+    for c in cands:
+        lp, ln = c - prev, nxt - c
+        v = {f: float(base[c, col[f]]) for f in REFINE_FEATURES if f in col}
+        v.update(stay=float(c == a), prev4=float(lp % 4 == 0), next4=float(ln % 4 == 0), prev8=float(lp % 8 == 0), next8=float(ln % 8 == 0))
+        rows.append([v[f] for f in REFINE_FEATURES])
+    return cands, np.array(rows).reshape(len(cands), len(REFINE_FEATURES))
+
+
+def refine_bounds(bounds: list[int], n_bars: int, base: np.ndarray, weights: dict[str, float] | None = None) -> list[int]:
+    """Section start bars after moving each (left to right) to its best line (boundary_choices)."""
+    w = REFINE_WEIGHTS if weights is None else weights
+    if not w:
+        return list(bounds)
+    vec = np.array([w.get(f, 0.0) for f in REFINE_FEATURES])
+    out = list(bounds)
+    for j in range(1, len(out)):
+        cands, x = boundary_choices(out, j, n_bars, base)
+        if len(cands) > 1:
+            out[j] = cands[int(np.argmax(x @ vec))]
+    return out
 
 
 def segment_bars(scores: np.ndarray, n: int, min_len: int = MIN_SECTION_BARS, max_len: int = MAX_SECTION_BARS) -> list[int]:
@@ -383,6 +468,79 @@ def section_intensity(beat_energy: np.ndarray, beat_strength: np.ndarray | None,
     return _scale((loud + _scale(hits)) / 2 + INTENSITY_TIE_BREAK * loud)
 
 
+SECTION_CUES = ("pitch", "loud")  # what the chorus node reads (vocal and vibrato cues did not help, 84-2)
+
+
+def section_cues(beat_cues: dict[str, np.ndarray], ranges: list[tuple[int, int]]) -> list[dict[str, float]]:
+    """Per beat range: each cue of SECTION_CUES (beat_cues) averaged over the range against its song
+    average (pitch in semitones, loudness in dB), with the range's start and end time."""
+    out = []
+    time = beat_cues.get("time")
+    song = {c: float(np.nanmean(beat_cues[c])) for c in SECTION_CUES if c in beat_cues and np.isfinite(beat_cues[c]).any()}
+    for a, b in ranges:
+        b = max(b, a + 1)
+        row: dict[str, float] = {}
+        for c in SECTION_CUES:
+            if c not in song:
+                continue
+            seg = beat_cues[c][a:b]
+            v = float(np.nanmean(seg)) if np.isfinite(seg).any() else song[c]
+            row[c] = v - song[c]
+        if time is not None and len(time):
+            row["t0"] = float(time[min(a, len(time) - 1)])
+            row["t1"] = float(time[b]) if b < len(time) else float(time[-1])
+        out.append(row)
+    return out
+
+
+def chorus_group_features(
+    spans: list[tuple[int, int]], groups: list[int], energy: np.ndarray, cues: list[dict[str, float]]
+) -> dict[int, dict[str, float]]:
+    """CHORUS_FEATURES of each group heard at least twice, or once but in sections of 8 bars and more."""
+    k = len(spans)
+    total = max(spans[-1][1] - spans[0][0], 1)
+    count = {g: groups.count(g) for g in set(groups)}
+    top = max(float(np.mean([energy[i] for i in range(k) if groups[i] == g])) for g in count)
+    out: dict[int, dict[str, float]] = {}
+    for g in sorted(count):
+        idx = [i for i in range(k) if groups[i] == g]
+        if count[g] < 2 and not all(spans[i][1] - spans[i][0] >= 8 for i in idx):
+            continue
+        nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
+        prv = {groups[i - 1] if i > 0 else None for i in idx}
+        e = float(np.mean([energy[i] for i in idx]))
+        out[g] = {
+            "bias": 1.0,
+            "energy": e,
+            "gap": e - top,
+            "count": min(count[g], 6) / 3,
+            "rep": float(count[g] >= 2),
+            "cover": sum(spans[i][1] - spans[i][0] for i in idx) / total,
+            "leadsIn": float(len(nxt) == 1 and None not in nxt and g not in nxt),
+            "ledInto": float(len(prv) == 1 and None not in prv and g not in prv),
+            "first": spans[idx[0]][0] / total,
+            "opens": float(idx[0] == 0),
+            "closes": float(idx[-1] == k - 1),
+            "length": float(np.mean([spans[i][1] - spans[i][0] for i in idx])) / 8,
+            "pitch": float(np.mean([cues[i].get("pitch", 0.0) for i in idx])),
+            "loud": float(np.mean([cues[i].get("loud", 0.0) for i in idx])),
+        }
+    return out
+
+
+def chorus_node(hot: set[int], spans: list[tuple[int, int]], groups: list[int], energy: np.ndarray, cues: list[dict[str, float]]) -> set[int]:
+    """The rule's chorus sections `hot`, as whole groups, after the chorus node (CHORUS_WEIGHTS)."""
+    rows = chorus_group_features(spans, groups, energy, cues)
+    if not rows or not CHORUS_WEIGHTS:
+        return hot
+    w = np.array([CHORUS_WEIGHTS.get(f, 0.0) for f in CHORUS_FEATURES])
+    p = {g: float(1.0 / (1.0 + np.exp(-np.dot(w, [v[f] for f in CHORUS_FEATURES])))) for g, v in rows.items()}
+    rule = {groups[i] for i in hot}
+    keep = {g for g in rule if p.get(g, 1.0) >= CHORUS_KEEP} or rule
+    picked = keep | {g for g in p if p[g] >= CHORUS_ADD}
+    return {i for i in range(len(groups)) if groups[i] in picked}
+
+
 def label_sections(
     spans: list[tuple[int, int]],
     groups: list[int],
@@ -390,6 +548,7 @@ def label_sections(
     sim: np.ndarray | None = None,
     threshold: float | None = None,
     rules: frozenset[str] | None = None,
+    group_cues: list[dict[str, float]] | None = None,
 ) -> list[str]:
     """intro / verse / pre-chorus / chorus / bridge / outro from position, intensity and repetition.
 
@@ -435,6 +594,8 @@ def label_sections(
             hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
             hot_groups = {groups[i] for i in hot}
             hot |= {i for i in free if groups[i] in hot_groups and energy[i] >= peak - HIGHLIGHT_MATE_MARGIN}
+    if CHORUS_WEIGHTS and group_cues is not None:
+        hot = chorus_node(hot, spans, groups, energy, group_cues)
     if hot and sim is not None and threshold is not None:
         hot_energy = float(np.mean([energy[i] for i in hot]))
         if "drop_halves" in rules:
@@ -489,6 +650,21 @@ def label_sections(
     return labels
 
 
+def structure_units(
+    feat: np.ndarray, first_downbeat: int, bpb: int, beat_s: float, starts: list[int], vecs: np.ndarray
+) -> tuple[list[int], np.ndarray, float]:
+    """(unit start beats, unit self-similarity, its repeat threshold): boundaries are found on units
+    of 1, 2 or 4 bars (UNIT_MIN_S); sections are compared bar by bar (on units fewer of them repeat)."""
+    unit = 1
+    while beat_s > 0 and unit < 4 and unit * bpb * beat_s < UNIT_MIN_S:
+        unit *= 2
+    u_starts, u_vecs = bar_vectors(feat, first_downbeat, bpb * unit) if unit > 1 else (starts, vecs)
+    if len(u_starts) < 2:
+        u_starts, u_vecs = starts, vecs
+    u_ssm = u_vecs @ u_vecs.T
+    return u_starts, u_ssm, repeat_threshold(u_ssm)
+
+
 def find_sections(
     feat: np.ndarray,
     beat_energy: np.ndarray,
@@ -496,9 +672,11 @@ def find_sections(
     beats_per_bar: int,
     beat_strength: np.ndarray | None = None,
     beat_s: float = 0.0,
+    beat_cues: dict[str, np.ndarray] | None = None,
 ) -> list[Section]:
     """Sections of the song; a section's energy is its intensity (section_intensity, with the
-    onset strength per beat when given). `beat_s` (seconds per beat) sets the structure unit."""
+    onset strength per beat when given). `beat_s` (seconds per beat) sets the structure unit;
+    `beat_cues` (per-beat arrays named as SECTION_CUES, and "time") feed the chorus node."""
     n_beats = len(feat)
     if n_beats == 0:
         return []
@@ -509,20 +687,14 @@ def find_sections(
     ssm = vecs @ vecs.T
     threshold = repeat_threshold(ssm)
     n_bars = len(starts)
-    # boundaries on units of bars; sections are compared bar by bar (on units fewer of them repeat)
-    unit = 1
-    while beat_s > 0 and unit < 4 and unit * bpb * beat_s < UNIT_MIN_S:
-        unit *= 2
-    u_starts, u_vecs = bar_vectors(feat, first_downbeat, bpb * unit) if unit > 1 else (starts, vecs)
-    if len(u_starts) < 2:
-        u_starts, u_vecs = starts, vecs
-    u_ssm = u_vecs @ u_vecs.T
-    u_threshold = repeat_threshold(u_ssm)
+    u_starts, u_ssm, u_threshold = structure_units(feat, first_downbeat, bpb, beat_s, starts, vecs)
     # the grid phase whose segmentation scores best (phase 0 on a tie): marked songs start their
     # 4-bar phrases on any bar line, after an intro of 10 bars or a pickup bar
     runs = [(*_segmentation(scores, len(u_starts)), scores) for scores in (boundary_scores(u_ssm, u_threshold, p) for p in range(GRID_PHASES))]
     u_bounds, _, u_scores = max(runs, key=lambda r: r[1])
-    edges = {(u_starts[u] - starts[0]) // bpb: float(u_scores[u]) for u in u_bounds if u > 0}
+    top = max(float(np.max(u_scores)), 1e-9)
+    # a line's confidence: its score against the song's best line
+    edges = {(u_starts[u] - starts[0]) // bpb: float(np.clip(u_scores[u] / top, 0.0, 1.0)) for u in u_bounds if u > 0}
     bounds = [0] + sorted(edges)
     spans = [(b, bounds[i + 1] if i + 1 < len(bounds) else n_bars) for i, b in enumerate(bounds)]
     groups, firm = _group_some(ssm, spans, threshold)
@@ -534,13 +706,22 @@ def find_sections(
             break
         spans = regrouped
         groups, firm = _group_some(ssm, spans, threshold)
+    if REFINE_WEIGHTS:
+        bounds = [a for a, _ in spans]
+        bar_base = line_features(ssm, threshold, starts, beat_energy, beat_strength)
+        moved = refine_bounds(bounds, n_bars, bar_base)
+        if moved != bounds:
+            edges = {m: edges.get(a, 0.0) for a, m in zip(bounds, moved)}
+            spans = [(b, moved[i + 1] if i + 1 < len(moved) else n_bars) for i, b in enumerate(moved)]
+            groups, firm = _group_some(ssm, spans, threshold)
     beat_of = lambda bar: starts[bar] if bar < n_bars else n_beats  # noqa: E731
-    energy = section_intensity(beat_energy, beat_strength, [(beat_of(a), beat_of(b)) for a, b in spans])
-    labels = label_sections(spans, groups, energy, section_similarity(ssm, spans), threshold)
-    top = max(float(np.max(u_scores)), 1e-9)
+    ranges = [(beat_of(a), beat_of(b)) for a, b in spans]
+    energy = section_intensity(beat_energy, beat_strength, ranges)
+    cues = section_cues(beat_cues, ranges) if beat_cues else None
+    labels = label_sections(spans, groups, energy, section_similarity(ssm, spans), threshold, group_cues=cues)
     out = []
     for i, (a, b) in enumerate(spans):
-        edge = 1.0 if a == 0 else float(np.clip(edges.get(a, 0.0) / top, 0.0, 1.0))
+        edge = 1.0 if a == 0 else edges.get(a, 0.0)
         out.append(
             Section(
                 start_beat=0 if i == 0 else starts[a],
