@@ -48,6 +48,8 @@ from rhythm_server.analysis import structure as S  # noqa: E402
 from rhythm_server.config import SAMPLE_RATE  # noqa: E402
 
 FRAME_S = 0.5
+# StructureInputs fields a cache has only from analyzer 1.14.0 on (older caches replay without them)
+EXTRA = ("stem_energy", "stem_rise", "melody_hz", "onset_sources", "onset_melody", "onset_pitch")
 CHORUS = {"chorus", "drop"}
 LABELS = ("intro", "verse", "pre-chorus", "chorus", "bridge", "outro")
 
@@ -113,6 +115,8 @@ def capture(truth: dict, cache: Path, roots: list[str], force: bool) -> None:
             cache / f"{key}.npz", log_mel=x.log_mel.astype(np.float32), chroma=x.chroma.astype(np.float32), frame_rate=x.frame_rate,
             rms_db=x.rms_db.astype(np.float32), beats=x.beats, beat0=x.beat0, beats_per_bar=x.beats_per_bar, times=x.times,
             strength=x.strength, bands=x.bands, duration=len(pcm) / SAMPLE_RATE,
+            # instrument tagging (analyzer 1.14.0 and later): stems per coarse frame and per onset
+            **{k: np.asarray(getattr(x, k), dtype=np.float32) for k in EXTRA if getattr(x, k) is not None},
         )
         print(f"{key} {len(pcm) / SAMPLE_RATE:6.1f}s {len(x.beats)} beats", flush=True)
 
@@ -122,6 +126,7 @@ def replay(z) -> tuple[list[float], list[str], list[str], float]:
     x = A.StructureInputs(
         z["log_mel"].astype(np.float64), z["chroma"].astype(np.float64), float(z["frame_rate"]), z["rms_db"].astype(np.float64),
         z["beats"], int(z["beat0"]), int(z["beats_per_bar"]), z["times"], z["strength"], z["bands"],
+        **{k: z[k].astype(np.float64) for k in EXTRA if k in z.files},
     )
     secs = A.song_sections(x)
     beats = x.beats

@@ -91,6 +91,14 @@ class StructureInputs:
     times: np.ndarray  # onsets (seconds), their strength and band shares
     strength: np.ndarray
     bands: np.ndarray
+    # what the instrument tagging found (coarse frames x 4 stems, and per onset); the structure
+    # nodes that need vocals or a leading instrument read these, older caches have none
+    stem_energy: np.ndarray | None = None
+    stem_rise: np.ndarray | None = None
+    melody_hz: np.ndarray | None = None
+    onset_sources: np.ndarray | None = None
+    onset_melody: np.ndarray | None = None
+    onset_pitch: np.ndarray | None = None
 
 
 def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -> list[Section]:
@@ -257,7 +265,14 @@ def analyze(
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
     log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
-    sections = song_sections(StructureInputs(log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands), ml_struct)
+    sections = song_sections(
+        StructureInputs(
+            log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands,
+            stem_energy=stem_act.energy, stem_rise=stem_act.rise, melody_hz=stem_act.melody_hz,
+            onset_sources=shares, onset_melody=melody, onset_pitch=pitch_arr,
+        ),
+        ml_struct,
+    )
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
