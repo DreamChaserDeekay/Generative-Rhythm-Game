@@ -6,7 +6,8 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  * gears, LINE (LED bars) and STEM (instrument dots), have a light per lane on it in the lane's colour
  * that lights while its key is down (a tint picture, see tintArt). The ones a player picks (설정 →
  * 기어, GEAR_STYLES) are each one object, none of them lit per lane (the lanes and the key beams show
- * the keys; only PIANO's keys follow the lanes): a red judge line a little above them (GEAR_JUDGE)
+ * the keys; only PIANO's keys follow the lanes, going down with them: deckKeys): a red judge line a
+ * little above them (GEAR_JUDGE)
  * and the object's own panel under it, drawn from its pictures where they loaded
  * (render/styleArt.ts) and in code where not:
  *
@@ -31,8 +32,9 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  * - PIANO (피아노): the keyboard end of a concert grand in polished ebony lacquer, the one gear with a
  *   key per lane: an ivory white key under each key lane from just under the lacquer lip with its
  *   brass inlay, the black keys of an octave between them, and a cheek block with a brass treble
- *   clef medallion under the scratch lane (a plain one under a side lane); its frame the piano's
- *   rim, black lacquer with a brass line along the lanes.
+ *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
+ *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
+ *   the lanes.
  */
 export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano';
 /** The gears a player picks. */
@@ -1411,6 +1413,37 @@ export function blackKeyAfter(i: number): boolean {
 const BLACK_KEY_REACH = 0.58;
 /** PIANO's lacquer lip toward the judge line, as deep as it looks across (plane px). */
 const PIANO_LIP = 3.2;
+/** The plane px between PIANO's white keys, where the lacquer shows. */
+const PIANO_KEY_GAP = 1.1;
+
+/** PIANO's keyboard on a deck (plane px): where its keys start under the lip, its white keys (each a lane's: its index in DeckSpec.lanes) and the black keys standing between them (each after white key `after`). */
+interface PianoKeyboard {
+  top: number;
+  whites: { lane: number; box: Box }[];
+  blacks: { after: number; box: Box }[];
+}
+
+/** PIANO's keyboard as its plate draws it: a white key per key lane (not the scratch's, not a side lane's), an octave's black keys between neighbours. */
+function pianoKeyboard(s: DeckSpec): PianoKeyboard {
+  const top = PIANO_LIP * s.stretch + 1.2;
+  const reach = Math.max(0, s.room - top);
+  const whites = s.lanes.flatMap((l, lane) => (l.kind !== 'scratch' && !l.side ? [{ lane, box: { x: l.left + PIANO_KEY_GAP / 2, y: top, w: l.width - PIANO_KEY_GAP, h: s.depth - top } }] : []));
+  const blacks: PianoKeyboard['blacks'] = [];
+  let n = 0;
+  for (let i = 0; i + 1 < whites.length; i++, n++) {
+    const [a, b] = [s.lanes[whites[i].lane], s.lanes[whites[i + 1].lane]];
+    // only between neighbours (a side lane between them breaks the keyboard), and a C again after one
+    if (Math.abs(a.left + a.width - b.left) > 0.5) {
+      n = -1;
+      continue;
+    }
+    if (!blackKeyAfter(n)) continue;
+    const w = Math.min(a.width, b.width) * 0.56;
+    const box: Box = { x: b.left - w / 2, y: top - 0.6, w, h: reach * BLACK_KEY_REACH };
+    if (box.h >= 6) blacks.push({ after: i, box });
+  }
+  return { top, whites, blacks };
+}
 
 /**
  * PIANO: polished ebony lacquer under a bevelled lip with a brass inlay; an ivory white key under
@@ -1438,13 +1471,10 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
   g.fillStyle = shade(BRASS, 1.15, 0.95);
   g.fillRect(inlay.x, inlay.y, inlay.w, inlay.h);
   mark(s, 'inlay', inlay);
-  const top = lip + inlay.h;
+  const { top, whites, blacks } = pianoKeyboard(s);
   const reach = Math.max(0, s.room - top);
   // the white keys, the lacquer showing in the gaps between them; their far ends in the lip's shadow
-  const whites = s.lanes.filter((l) => l.kind !== 'scratch' && !l.side);
-  const gap = 1.1;
-  for (const l of whites) {
-    const b: Box = { x: l.left + gap / 2, y: top, w: l.width - gap, h: s.depth - top };
+  for (const { box: b } of whites) {
     const face = g.createLinearGradient(b.x, 0, b.x + b.w, 0);
     face.addColorStop(0, '#f6f1e6');
     face.addColorStop(0.2, IVORY);
@@ -1460,18 +1490,8 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
     g.fillRect(b.x, b.y, b.w, b.h);
   }
   // the black keys standing on them, throwing their shadows down and to the right
-  let n = 0;
-  for (let i = 0; i + 1 < whites.length; i++, n++) {
-    const [a, b] = [whites[i], whites[i + 1]];
-    // only between neighbours (a side lane between them breaks the keyboard), and a C again after one
-    if (Math.abs(a.left + a.width - b.left) > 0.5) {
-      n = -1;
-      continue;
-    }
-    if (!blackKeyAfter(n)) continue;
-    const w = Math.min(a.width, b.width) * 0.56;
-    const key: Box = { x: b.left - w / 2, y: top - 0.6, w, h: reach * BLACK_KEY_REACH };
-    if (key.h < 6) continue;
+  for (const { box: key } of blacks) {
+    const w = key.w;
     dropShadow(g, key, 0.32, false);
     rounded(g, key, w * 0.08, st);
     const body = g.createLinearGradient(key.x, 0, key.x + key.w, 0);
@@ -1530,6 +1550,107 @@ function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): voi
     );
     mark(s, 'medallion', medallion);
   }
+}
+
+/**
+ * A key on a gear's deck that goes down while its lane's key is held (PIANO's white keys): its
+ * lane (its index in DeckSpec.lanes), its box from where the key starts under the lip (plane px),
+ * and the black keys standing over its far corners (`notch`: how far into it from its left and
+ * right edges, and how far down from its top; 0 where it has none).
+ */
+export interface DeckKey {
+  lane: number;
+  box: Box;
+  notch: { left: number; right: number; depth: number };
+}
+
+/** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
+const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
+
+/**
+ * The keys of `style`'s deck that go down with their lanes (none but PIANO's white keys), where the
+ * deck shows them: as its picture drew them (`pictured`, laid as deckPicture lays it) or as its
+ * plate draws them in code.
+ */
+export function deckKeys(style: DeckStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
+  if (style !== 'piano') return [];
+  const { top: plateTop, whites, blacks } = pianoKeyboard(s);
+  // plane px down the deck for a px of the picture
+  const k = ((s.width / PIANO_PICTURE_KEYS.width) * s.stretch) / DECK_PICTURE_STRETCH;
+  const top = pictured ? PIANO_PICTURE_KEYS.top * k : plateTop;
+  return whites.map(({ lane, box: white }, i) => {
+    const box: Box = { x: white.x, y: top, w: white.w, h: s.depth - top };
+    const left = blacks.find((b) => b.after === i - 1)?.box;
+    const right = blacks.find((b) => b.after === i)?.box;
+    const end = (b: Box) => (pictured ? PIANO_PICTURE_KEYS.blackEnd * k : b.y + b.h);
+    const depth = Math.max(0, ...[left, right].map((b) => (b ? end(b) - top : 0)));
+    return {
+      lane,
+      box,
+      notch: {
+        left: left ? Math.max(0, left.x + left.w - box.x) : 0,
+        right: right ? Math.max(0, box.x + box.w - right.x) : 0,
+        depth: Math.min(depth, box.h),
+      },
+    };
+  });
+}
+
+/**
+ * PIANO's white key held down, painted over the key as the deck shows it (a `w` × `h` canvas over its
+ * box, its far end at the top): the key's outline, narrowed at its far end between the black keys
+ * standing over its corners (`notch`, shares of its box), in shade, deeper toward its near end where
+ * it sinks the most; the light coming from the top-left, its left neighbour, now higher, throws a
+ * shadow along its left edge, a dark gap opens along its right edge, and its far end slips into the
+ * lip's shadow. Drawn once; the renderer shows it while the lane's key is held.
+ */
+export function paintPressedKey(g: CanvasRenderingContext2D, w: number, h: number, notch: DeckKey['notch']): void {
+  const [l, r, d] = [notch.left * w, w - notch.right * w, notch.depth * h];
+  g.save();
+  polygon(g, [
+    [l, 0],
+    [r, 0],
+    [r, d],
+    [w, d],
+    [w, h],
+    [0, h],
+    [0, d],
+    [l, d],
+  ]);
+  g.clip();
+  const sink = g.createLinearGradient(0, 0, 0, h);
+  sink.addColorStop(0, black(0.1));
+  sink.addColorStop(1, black(0.3));
+  g.fillStyle = sink;
+  g.fillRect(0, 0, w, h);
+  // along an edge at x, into the key (dir): w0 wide at y0 to w1 at y1, `alpha` at the edge
+  const edge = (x: number, y0: number, y1: number, w0: number, w1: number, dir: 1 | -1, alpha: number) => {
+    polygon(g, [
+      [x, y0],
+      [x + dir * w0, y0],
+      [x + dir * w1, y1],
+      [x, y1],
+    ]);
+    const grad = g.createLinearGradient(x, 0, x + dir * Math.max(w0, w1), 0);
+    grad.addColorStop(0, black(alpha));
+    grad.addColorStop(1, black(0));
+    g.fillStyle = grad;
+    g.fill();
+  };
+  // the left neighbour's shadow, wider toward the near end; the gap on the right, narrow
+  const shadow = (y: number) => w * (0.04 + (0.12 * y) / h);
+  const gap = (y: number) => w * (0.015 + (0.035 * y) / h);
+  edge(l, 0, d, shadow(0), shadow(d), 1, 0.5);
+  edge(0, d, h, shadow(d), shadow(h), 1, 0.5);
+  edge(r, 0, d, gap(0), gap(d), -1, 0.6);
+  edge(w, d, h, gap(d), gap(h), -1, 0.6);
+  // its far end under the lip's shadow
+  const lip = g.createLinearGradient(0, 0, 0, h * 0.08);
+  lip.addColorStop(0, black(0.35));
+  lip.addColorStop(1, black(0));
+  g.fillStyle = lip;
+  g.fillRect(0, 0, w, h * 0.08);
+  g.restore();
 }
 
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
