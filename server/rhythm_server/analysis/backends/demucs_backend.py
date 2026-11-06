@@ -2,7 +2,9 @@
 
 Uses `demucs.api.Separator` when available (Demucs 4.1+) and the `get_model` + `apply_model`
 pair otherwise (4.0.x). Extra stems of 6-stem models (guitar, piano) are folded into "other",
-and "other" also takes the small residual so the stems always add up to the input.
+and "other" also takes the small residual so the four stems always add up to the input. The
+6-stem model's guitar and piano are also returned on their own (INSTRUMENT_STEMS, a part of
+"other"): the analyzer reads from them which instrument leads a section (docs/PATTERN_DESIGN.md 86).
 """
 
 from __future__ import annotations
@@ -13,12 +15,13 @@ import numpy as np
 from scipy.signal import resample_poly
 
 STEMS = ("drums", "bass", "vocals", "other")
+INSTRUMENT_STEMS = ("guitar", "piano")
 
 
 def separate(pcm: np.ndarray, sr: int, options: dict[str, Any]) -> dict[str, np.ndarray]:
     import torch
 
-    model_name = str(options.get("model", "htdemucs"))
+    model_name = str(options.get("model", "htdemucs_6s"))
     device = str(options.get("device", "cpu"))
     shifts = int(options.get("shifts", 1))
     overlap = float(options.get("overlap", 0.25))
@@ -52,6 +55,7 @@ def separate(pcm: np.ndarray, sr: int, options: dict[str, Any]) -> dict[str, np.
 def _normalise(raw: dict[str, np.ndarray], mix: np.ndarray, model_sr: int, sr: int) -> dict[str, np.ndarray]:
     n = len(mix)
     out = {name: np.zeros((n, 2), dtype=np.float64) for name in STEMS}
+    extra: dict[str, np.ndarray] = {}
     for name, y in raw.items():
         y = np.asarray(y, dtype=np.float64)
         if y.ndim == 1:
@@ -62,5 +66,7 @@ def _normalise(raw: dict[str, np.ndarray], mix: np.ndarray, model_sr: int, sr: i
         if len(y) < n:
             y = np.pad(y, ((0, n - len(y)), (0, 0)))
         out[name if name in out else "other"] += y[:, :2]
+        if name in INSTRUMENT_STEMS:
+            extra[name] = y[:, :2]
     out["other"] += mix.astype(np.float64) - sum(out.values())
-    return {name: y.astype(np.float32) for name, y in out.items()}
+    return {name: y.astype(np.float32) for name, y in (out | extra).items()}

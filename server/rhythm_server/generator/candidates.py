@@ -41,6 +41,8 @@ class Candidate:
     grid: int | None = None  # the straight subdivision a triplet in a swinging bar is scored and capped as
     sound_group: int | None = None  # the analysis's same-sound group of the (strongest) onset
     solo: bool = False  # in a section a melody instrument leads (melody.solo)
+    instruments: dict[str, float] | None = None  # guitar / piano share of its onset's strength (6-stem analysis)
+    lead_note: bool | None = None  # in a guitar- or piano-led section: one of that instrument's notes
     quiet: bool = False  # no clear drum hit near it: the drums are out here (melody.quiet)
 
 
@@ -266,6 +268,7 @@ def build_candidates(
                 attack=attack,
                 grid=roles.get(sub),
                 sound_group=o.get("soundGroup"),
+                instruments=dict(o["instruments"]) if o.get("instruments") else None,
             )
         else:
             stronger = o["strength"] > c.strength
@@ -284,6 +287,8 @@ def build_candidates(
             c.sustain_beats = max(c.sustain_beats, sustain_beats)
             if melody is not None:
                 c.melody = max(c.melody or 0.0, melody)
+            if o.get("instruments"):
+                c.instruments = {k: max(float(v), (c.instruments or {}).get(k, 0.0)) for k, v in o["instruments"].items()}
             c.attack = max(c.attack, attack)
     cands = sorted(merged.values(), key=lambda c: c.beat)
     # the song's final hit ringing out is no note (ending.tail): the chart ends on the hit, which
@@ -414,14 +419,28 @@ def _melody_splits(cands: list[Candidate], cfg: dict[str, Any], skill: float = 1
 def _mark_solos(cands: list[Candidate], analysis: dict[str, Any], sections: list[dict[str, Any]], cfg: dict[str, Any]) -> None:
     """`solo` of the candidates in sections a melody instrument leads (melody.solo):
     the section's leader is one of `leaders` and at least `minMelodyShare` of its onsets are notes
-    of the melody (a guitar or piano solo, a lead line over the beat)."""
+    of the melody (a guitar or piano solo, a lead line over the beat). With a 6-stem analysis a
+    section whose lead (analysis `lead`) is one of `instrumentLeads` with at least `minLeadShare` of
+    its tune stems' loudness is one too; there the candidates whose share of that instrument is at
+    least the section's `leadQuantile` are its notes (`lead_note`, scored up by `leadBoost`;
+    docs/PATTERN_DESIGN.md 86)."""
     rule = cfg.get("solo")
     if not rule:
         return
     presence = float(cfg["note"])
     onsets = analysis.get("onsets", [])
     spans = []
+    leads = set(rule.get("instrumentLeads", ()))
     for s in sections:
+        lead = s.get("lead")
+        if lead in leads and float((s.get("leadShares") or {}).get(lead, 0.0)) >= float(rule.get("minLeadShare", 0.0)):
+            inside = [c for c in cands if s["t"] <= c.t < s["endT"] and c.instruments is not None]
+            if len(inside) >= 8:
+                cut = float(np.quantile([c.instruments.get(lead, 0.0) for c in inside], float(rule["leadQuantile"])))
+                for c in inside:
+                    c.solo = True
+                    c.lead_note = c.instruments.get(lead, 0.0) >= cut
+                continue
         if s.get("leader") not in rule["leaders"]:
             continue
         inside = [o for o in onsets if s["t"] <= o["t"] < s["endT"]]
@@ -431,7 +450,8 @@ def _mark_solos(cands: list[Candidate], analysis: dict[str, Any], sections: list
         if share >= float(rule["minMelodyShare"]):
             spans.append((float(s["t"]), float(s["endT"])))
     for c in cands:
-        c.solo = any(a <= c.t < b for a, b in spans)
+        if c.lead_note is None:
+            c.solo = any(a <= c.t < b for a, b in spans)
 
 
 def _end_melody_notes(cands: list[Candidate], presence: float) -> None:
@@ -517,7 +537,12 @@ def _score(cands: list[Candidate], params: GenParams) -> None:
         for c in cands:
             if not c.solo:
                 continue
-            if (c.melody or 0.0) >= presence:
+            if c.lead_note is not None:  # a guitar- or piano-led section of a 6-stem analysis
+                if c.lead_note:
+                    c.score *= float(solo.get("leadBoost", solo["melodyBoost"]))
+                elif c.subdivision > 1:
+                    c.score *= float(solo["offBeatScale"])
+            elif (c.melody or 0.0) >= presence:
                 c.score *= float(solo["melodyBoost"])
             elif c.subdivision > 1:
                 c.score *= float(solo["offBeatScale"])

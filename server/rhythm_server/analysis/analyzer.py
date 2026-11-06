@@ -28,7 +28,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.14.0"
+ANALYZER_VERSION = "1.15.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -272,8 +272,10 @@ def analyze(
     notes = analyze_notes(od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
 
     report(0.75, "악기 구분")
+    instruments = None
     if ml_stems is not None:
         stem_act = ml.activity_from_stems(ml_stems, COARSE_NFFT, COARSE_HOP, float(np.max(mag)))
+        instruments = ml.instrument_activity(ml_stems, sr)
     else:
         stem_act = stem_activity(mag, harmonic, percussive, freqs, coarse_rate)
     sources, shares = tag_onsets(od.times, stem_act, coarse_rate)
@@ -321,6 +323,9 @@ def analyze(
     energy_db = _frame_rms_db(mono, energy_hop, energy_hop * 2)
     energy = np.clip((energy_db + 60.0) / 60.0, 0.0, 1.0)
 
+    inst_flux = inst_loud = None
+    if instruments is not None:
+        inst_flux, inst_loud = ml.instrument_shares(instruments, sr, times)
     onsets = []
     for i, t in enumerate(times):
         p = pitch_arr[i]
@@ -341,6 +346,8 @@ def analyze(
                 "soundGroup": int(groups[i]),
             }
         )
+        if inst_flux is not None:
+            onsets[-1]["instruments"] = {k: round(float(inst_flux[i, ml.SIX_STEMS.index(k)]), 3) for k in ml.INSTRUMENT_STEMS}
     sustains = [
         {"t": o["t"], "endT": o["sustainEnd"], "pitch": o["pitch"], "strength": o["strength"]}
         for o in onsets
@@ -362,6 +369,8 @@ def analyze(
         for s in sections
     ]
     ml.section_stems(section_rows, times * 1000.0, strength, shares)
+    if inst_loud is not None:
+        ml.section_leads(section_rows, times * 1000.0, inst_loud)
     stem_energy = stem_act.energy.sum(axis=0)
     analyzer_info: dict[str, Any] = {"name": ANALYZER_NAME, "version": ANALYZER_VERSION, "backends": used}
     if errors:
