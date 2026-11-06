@@ -489,6 +489,65 @@ function orbitalLights(): GearLightSet {
   return { lights };
 }
 
+/**
+ * PIANO: a glint running along the brass inlay once a bar, the inlay glowing warm in FEVER, the
+ * treble clef medallion catching the light on the bar's first beat; nothing on the keys, which lie
+ * under the lanes (the key beams show the keys).
+ */
+function pianoLights(): GearLightSet {
+  // the inlay along the deck's top edge (the glint runs between the walls, its quad clear of them)
+  const inlay = { y: 12, h: 24 };
+  const run = { x0: 75, x1: 2048 - 75 };
+  const medallion = { x: 184, y: 248, w: 224, h: 278 };
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: inlay.y,
+        w: 2048,
+        h: inlay.h,
+        colour: 0xffc46a,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.45 : 0.35 + 0.45 * fade(frac(c.beat), 3)),
+        mark: 'inlay',
+        grow: [1, 6],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: inlay.y,
+        w: 150,
+        h: inlay.h,
+        colour: 0xfff0cc,
+        level: (c, calm) => (calm ? 0 : 0.85 * Math.sin(Math.PI * frac(c.bar)) ** 2),
+        at: (c) => [run.x0 + (run.x1 - run.x0) * frac(c.bar), inlay.y],
+      },
+      {
+        shape: 'glow',
+        x: medallion.x,
+        y: medallion.y,
+        w: medallion.w * 1.3,
+        h: medallion.h * 1.3,
+        colour: 0xffd27a,
+        level: (c, calm) => (calm ? 0.1 + 0.12 * swell(c.beat, 4) : 0.06 + 0.3 * fade(frac(c.beat), 3)),
+        mark: 'medallion',
+        grow: 1.3,
+      },
+      {
+        shape: 'glint',
+        x: medallion.x - medallion.w * 0.18,
+        y: medallion.y - medallion.h * 0.2,
+        w: 120,
+        h: 120,
+        colour: 0xfff4d6,
+        level: (c, calm) => (calm || frac(c.bar) >= 0.25 ? 0 : Math.sin(Math.PI * frac(c.bar) * 4) ** 2),
+        mark: 'medallion',
+        grow: 0.55,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   standard: standardLights,
@@ -498,6 +557,7 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   keyboard: keyboardLights,
   racing: racingLights,
   orbital: orbitalLights,
+  piano: pianoLights,
 };
 
 /** How strongly a light's shape shows at (x, y), -1..1 across its quad (y toward the camera); `arc` the ring's that shows (null: all of it). */

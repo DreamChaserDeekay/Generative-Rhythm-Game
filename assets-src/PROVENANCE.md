@@ -1166,7 +1166,7 @@
 
 ## 기어 (`gears/`, 2026-11)
 
-세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
+세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더")과 2026-11-06에 더한 피아노(아래 "피아노 기어"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
 - 순서: ① 상용 리듬게임 기어 조사 → 원칙(기어는 사물 하나, 측면 · 받침 · 건반 · 스크래치 · 게이지 · 점수 창 · 숫자 글꼴을 함께 정함, 노트를 읽는 자리는 모든 기어에서 같음) → ② 컨셉 여섯 + 기본 기어의 스타일 프레임(게임 한 장면) → 사용자가 기본 · 오락실 기체 · 빈티지 리시버 · 나전칠기를 고름(나머지 셋은 2026-11-05에 더함) → ③ 고른 프레임을 기준 이미지로 부위 그림(마젠타 바탕에 위에서 본 사물 하나씩) → ④ 이 저장소의 `scripts/assets/build_gears.py` 가 잘라 `client/public/media/gears/<기어>/` 의 게임 그림으로(값은 스크립트 안에)
@@ -1770,3 +1770,57 @@
 
 사용자 피드백("사각별은 가로 길이를 레인에 맞추고, 세로 뾰족한 부분을 늘리는 방향으로 가시성을 키워줘")으로 크리스털 세트의 `notes.png`를 같은 원본(`assets-src/styles/crystal/notes.jpg`)에서 다시 만들었습니다(새로 생성한 그림은 없음). 길게 깎은 보석 넷(건반마다)을 각각 화면 비율의 네 갈래 별로 폈습니다(`build_styles.py`의 `gem_star`): 보석의 열마다 가운데에 가까울수록 더 깊게 늘려, 팔은 보석 깊이의 2.6배, 가운데 열은 칸 전체 깊이까지(늘림이 반폭 u에 대해 (1 − u/0.2)^3으로 줄어듦), 3차 보간에 알파 가중으로 거른 뒤 435 × 500 칸에 담아 2 × 2 칸(512)으로 배치합니다(원형·별 5각과 같은 배치, 예전의 1024 × 256 줄 배치는 없앰). 가로 꼭짓점은 칸의 양 끝, 세로 꼭짓점은 칸의 위아래 끝에 닿습니다.
 
+
+## 피아노 기어 (`gears/piano`, 2026-11-06)
+
+사용자가 고른 시안(아래 "시안": 건반 위에 'GENERATIVE RHYTHM' 이름판이 있던 그림)에서 이름판을 뺀 여덟째 기어입니다. 받침의 코드 그림(`deckArt.ts`의 `pianoPlate`: 래커 턱과 황동 상감선, 레인마다 흰 건반, 옥타브의 검은 건반, 스크래치 레인의 치크 블록과 메달)을 얹은 실제 화면을 기준 이미지로, 다른 기어의 받침 그림과 같은 방법(위 "받침 그림")으로 받침 자리만 다시 칠했습니다. 생성 모델 · 저장 형식 · 눕히기도 위와 같습니다(`gemini-nano-banana-2.1`, 16:9 · 2K → 2752×1536 PNG, JPEG 품질 95, 색 정보 줄이지 않음; `build_gears.py`가 `deck.json`대로 2048×541 판으로 폄). 래커 · 상아 · 테두리는 코드로 칠하고, 판정 · 콤보 · 점수판 글꼴은 OFL 글꼴 Bodoni Moda입니다(`client/src/assets/fonts/README.md`).
+
+### `gears/piano/deck.jpg`
+
+- 용도: 피아노의 받침 전체 → `gears/piano/deck.webp` 2048×541(40,282바이트). 건반이 레인을 따르므로 게임은 이 그림을 7K+1S 줄(스크래치 + 흰 건반 일곱)에서만 깔고, 다른 키 모드와 반쪽 덮기에서는 코드로 레인 수만큼 건반을 그립니다(`deckFromPicture`).
+- 크기 · 기준 이미지: 16:9 · 2K · 피아노 기어(코드 받침)를 얹은 실제 화면(7K+1S, SDVX, 1920×1080, 타격 효과 없음)의 아래쪽(x 320–1600, y 360–1080 → 1280×720)
+- 날짜: 2026-11-06 13:42 KST · 약 $0.066 (네 번째 생성 `piano-e2`: 앞의 셋은 화면의 틀을 다시 잡아 아래 "쓰지 않은 시도")
+- 생성 결과(PNG): 4,431,387바이트 · sha256 앞 16자리 `70f7c9e31551e33b` · 저장한 JPEG: 818,920바이트
+- 맞추기: 생성이 양옆 벽을 금색으로 다시 칠해서(게임은 벽을 코드로 그리므로 쓰지 않음), 벽을 빼고 두 벽 사이 레인 바닥(판정선 위)만으로 맞춤(OpenCV ECC, 아핀) · 맞춤 상관(ECC): 0.995 · 펴진 판에서 흰 건반 사이 틈은 레인 경계와 4 px(2048 기준) 안, 검은 건반은 레인 경계 위
+- 프롬프트:
+
+  > Image 1 is the lower part of a frame of this rhythm game's play screen. Keep its framing exactly: the same camera, the same zoom, the same crop, every line where it is (the lanes, the red judge line, the side walls, the deck's edges); do not zoom in, crop, widen or recompose. Repaint ONLY the gear's deck: the area under the red judge line and its narrow dark gap, between the inner edges of the two side walls, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the red judge line, the side walls, the dark background.
+  >
+  > The framing stays exactly as image 1 has it: the red judge line crosses the image at 64% of its height and stays exactly there, the lanes above it keep their length and every note stays where it is, and the deck fills only the band from just under the judge line to the image's bottom edge (about the bottom third of the image). The keyboard is seen from exactly as far as image 1 shows it: each white key exactly as wide as the lane above it, every key as large as image 1 draws it. Do not move the camera closer, do not enlarge the keyboard, do not show the keys' front ends.
+  >
+  > The deck is the keyboard end of a concert grand piano in high-gloss polished ebony lacquer, lying flat like a console between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges. Keep every part where image 1 has it and give each one its real depth:
+  > - its top edge, right under the judge line's gap, is a narrow bevelled lip of polished black lacquer catching the light, with a thin brass inlay line along its foot; the keys start right under it. There is no fallboard and no name board: nothing between the lip and the keys;
+  > - the keyboard: one white key under each of the seven narrow lanes, real piano keys of warm ivory with a satin finish, separated by fine dark gaps, running toward the viewer exactly as image 1 draws them, cut by the image's bottom edge;
+  > - the five black keys between the white keys in an octave's pattern, exactly where image 1 has them: raised glossy ebony keys with tapered sides and a sloped front end catching the light, clearly standing above the white keys and throwing soft shadows on them;
+  > - the block under the wide left lane is the piano's cheek block: polished black lacquer standing slightly proud of the keys, a round brass medallion engraved with a treble clef in its middle, standing a hair proud.
+  >
+  > Each raised part throws a soft shadow down and to the right; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game. No text, letters, numbers or logos anywhere. Nothing over the lanes.
+
+### `gears/piano/medallion.png` (생성하지 않음)
+
+- 용도: 코드로 그리는 받침(평면 카메라, 7K+1S가 아닌 줄은 메달이 없음)의 스크래치 레인 치크 블록에 세우는 높은음자리표 황동 메달 → 256×265(112,981바이트)
+- 만든 곳: `build_gears.py`가 펴진 피아노 받침에서 메달의 상자(x 72–296, y 109–387, 받침 그림 px)를 잘라 받침 그림의 트랙 방향 늘임(1.2)만큼 세로를 줄이고, 상자에 맞는 타원으로 오림(`cut_flat`)
+
+### 시안 (저장소에 넣지 않음)
+
+- `piano-a1`, `piano-a2`(2026-11-06 09:29 KST, 16:9 · 2K, 기준 이미지: 기본 기어를 얹은 실제 화면 전체 1920×1080 위에 피아노 배치(이름판 띠 · 흰 건반 · 검은 건반 · 치크 블록과 메달)를 원근대로 그린 것, 각각 약 $0.066 · $0.065, PNG 4,342,608 · 4,087,516바이트): 받침 · 벽을 모두 다시 칠한 시안 · 사용자가 `piano-a2`를 고르고 건반 위의 이름판('GENERATIVE RHYTHM')을 빼 달라고 함. 프롬프트:
+
+  > Image 1 is a frame of this rhythm game's play screen with a rough layout drawn on its gear. Keep its framing exactly: the same camera, the same zoom, the same crop, every line where it is (the lanes, the notes, the red judge line, the side walls, the deck's edges); do not zoom in, crop, widen or recompose. Repaint ONLY the gear: the deck under the red judge line and its narrow dark gap, between the inner edges of the two side walls, down to the bottom edge of the image, and the two side walls themselves along their whole length. Keep every other pixel exactly as it is: the lanes, the notes, the red judge line, the dark background.
+  >
+  > The gear is a concert grand piano. Its chassis is high-gloss polished ebony lacquer: deep black with mirror-like reflections, long soft highlights and a fine polished brass trim.
+  >
+  > The deck is the keyboard end of the piano, lying flat like a console between the walls and seen exactly from this camera: the same perspective and the same vanishing lines as the track, the camera looking down at it from above and behind at about 50 degrees, its left and right edges running along the walls' inner edges, its top edge a bevelled lacquer lip toward the judge line catching the light. Keep every part where image 1 has it and give each one its real depth:
+  > - the band under the judge line is the piano's fallboard: polished black lacquer with a thin brass inlay line along its lower edge, the words GENERATIVE RHYTHM in small gold serif capitals in its middle;
+  > - the keyboard: one white key under each of the seven narrow lanes, real piano keys of warm ivory with a satin finish, separated by fine dark gaps, running toward the viewer exactly as image 1 draws them, cut by the image's bottom edge;
+  > - the five black keys sit between the white keys in an octave's pattern exactly where image 1 has them: raised glossy ebony keys with tapered sides catching the light, clearly standing above the white keys and throwing soft shadows on them;
+  > - the block under the wide left lane is the piano's cheek block: polished black lacquer with a round brass medallion engraved with a treble clef, standing slightly proud.
+  >
+  > The two side walls are the piano's rim: polished black lacquer with a thin bright brass line along their inner top edge, the reflections running along them toward the far end of the track.
+  >
+  > Each raised part throws a soft shadow down and to the right; one soft key light from the top-left; crisp edges and fine material detail, the finish of a commercial console game. No other text, letters or logos than the words above. Nothing over the lanes.
+
+### 쓰지 않은 시도
+
+- `piano-d1`, `piano-d2`(13:40 KST, 각각 약 $0.062 · $0.060, PNG 4,422,839 · 4,362,261바이트): 판정선을 위로 올리고 건반을 크게 그려 화면의 틀을 다시 잡음(맞출 수 없음) · 프롬프트는 위의 것에서 틀을 지키라는 둘째 문단이 없던 것
+- `piano-e1`(13:42 KST, 약 $0.064, PNG 4,405,872바이트): 위 프롬프트 그대로 · 역시 틀을 다시 잡음
+- 비용: 쓴 1장 약 $0.066, 시안 2장 약 $0.130, 쓰지 않은 시도 3장 약 $0.186, 합해 약 $0.382

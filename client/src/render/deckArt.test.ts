@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { codeBorderLook, DECK_STYLES, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, referenceReach, rowDrop, shadowOf, type DeckSpec, type KeyKind, type LightStyle } from './deckArt';
+import { blackKeyAfter, codeBorderLook, DECK_PICTURE_FLATTEST, DECK_STYLES, deckFromPicture, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, referenceReach, rowDrop, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type LightStyle, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BASE_SKIN } from './skins';
 import { deckRows, deckTopZ, notesEndZ, type DeckRows } from './TrackRenderer';
 
 /** A key mode's lanes as the deck has them (px of the sheets, 73.65 to a track unit); side lanes laid over the keys are none of them. */
-function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: number; kind: KeyKind; width: number }[] {
+function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: number; kind: KeyKind; width: number; side?: boolean }[] {
   return computeTrackGeometry(keyModes[mode], 8, 40, sideNotes)
     .lanes.filter((l) => !l.over)
     .map((l) => ({
       left: (l.x - l.width / 2 + 4) * 73.65,
       kind: l.kind === 'scratch' ? 'scratch' : l.color === 'white' ? 'white' : 'other',
       width: l.width * 73.65,
+      ...(l.kind === 'side' ? { side: true } : {}),
     }));
 }
 
@@ -263,8 +264,8 @@ describe('the decks of the gears a player picks', () => {
     colours: BASE_SKIN.colors,
   });
 
-  it('is the same object whatever the key mode: nothing on it stands for a lane', () => {
-    for (const gear of GEAR_STYLES) {
+  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys)', () => {
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) {
       for (const [room, stretch] of [
         [96, 1.1],
         [320, 1.25],
@@ -279,6 +280,59 @@ describe('the decks of the gears a player picks', () => {
         for (const calls of rest) expect(calls, gear).toEqual(first);
       }
     }
+  });
+
+  it('PIANO: a white key under each key lane, the black keys of an octave between them from a C, a cheek block under the scratch and the side lanes', () => {
+    const blackAfter = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter(blackKeyAfter);
+    // after C, D, F, G and A of each octave
+    expect(blackAfter).toEqual([0, 1, 3, 4, 5, 7, 8, 10, 11, 12]);
+    for (const [mode, sideNotes, blacks] of [
+      ['4K', 'lanes', 2],
+      ['5K', 'lanes', 3],
+      ['6K', 'lanes', 4],
+      ['7K+1S', 'lanes', 5],
+      ['8K', 'lanes', 5],
+      ['4K+FX', 'lanes', 2],
+      ['6K+FX', 'lanes', 4],
+      ['6K+FX', 'half', 4],
+    ] as [KeyModeId, SideNotes, number][]) {
+      for (const [room, stretch] of [
+        [155.55, 1.2],
+        [912, 3.25],
+      ]) {
+        const s: DeckSpec = { ...spec(room, stretch, mode), lanes: deckLanes(mode, sideNotes), marks: [] };
+        const { g, calls } = callRecorder();
+        paintDeck('piano', g, s);
+        const keys = s.lanes.filter((l) => l.kind !== 'scratch' && !l.side);
+        // a white key filled under each key lane, a little narrower (the gaps between them)
+        const rects = calls.filter((c) => c[0] === 'fillRect') as [string, number, number, number, number][];
+        for (const l of keys) expect(rects.some(([, x, , w]) => Math.abs(x - l.left - 0.55) < 1e-3 && Math.abs(w - l.width + 1.1) < 1e-3), `${mode} key at ${l.left}`).toBe(true);
+        // the black keys (the plate's only rounded boxes), each on the edge between two keys
+        const black = calls.filter((c) => c[0] === 'roundRect') as [string, number, number, number, number][];
+        expect(black.length, `${mode} ${sideNotes}`).toBe(blacks);
+        for (const [, x, , w] of black) expect(keys.some((l) => Math.abs(l.left - (x + w / 2)) < 1e-6), `${mode} black key at ${x}`).toBe(true);
+        // the medallion only on the scratch lane's cheek block; the brass inlay always
+        const names = (s.marks as DeckMark[]).map((m) => m.name);
+        expect(names, mode).toEqual(mode === '7K+1S' ? ['inlay', 'medallion'] : ['inlay']);
+        const medallion = s.marks?.find((m) => m.name === 'medallion');
+        if (medallion) expect(medallion.x + medallion.w).toBeLessThanOrEqual(s.lanes[0].width);
+      }
+    }
+  });
+
+  it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s only on the 7K+1S row', () => {
+    const deck = { width: 2048, height: 541 } as Picture;
+    for (const gear of GEAR_STYLES) {
+      for (const mode of ['4K', '7K+1S', '8K', '6K+FX'] as KeyModeId[]) {
+        const s = spec(155.55, 1.2, mode);
+        expect(deckFromPicture(gear, s, { deck }), `${gear} ${mode}`).toBe(gear !== 'piano' || mode === '7K+1S');
+        expect(deckFromPicture(gear, s, {}), `${gear} ${mode} without its picture`).toBe(false);
+        expect(deckFromPicture(gear, spec(912, DECK_PICTURE_FLATTEST + 0.1, mode), { deck }), `${gear} ${mode} on the plane camera`).toBe(false);
+      }
+      // side lanes laid over the keys: the six key lanes share the deck, not the picture's row
+      expect(deckFromPicture(gear, { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, { deck })).toBe(gear !== 'piano');
+    }
+    expect(deckFromPicture('line', spec(155.55, 1.2), { deck })).toBe(false);
   });
 
   it('paints in code what it has no picture for, on any screen, without drawing pictures', () => {

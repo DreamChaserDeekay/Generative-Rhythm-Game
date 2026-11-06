@@ -285,15 +285,11 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
   });
 
   if (c.set === 'crystal')
-    it('draws the four-pointed star over the whole note, on a band of light across the whole lane under it (its horizontal points are thin)', () => {
+    it('draws the four-pointed star over the whole note and nothing under it (no band across the lane to read as a bar note)', () => {
       const { g, draws, fills } = recorder();
       notePaintOf(c.note, images)(g, 120, 200, 'white');
       expect([draws[0].dx, draws[0].dy, draws[0].dw, draws[0].dh]).toEqual([0, 0, 120, 200]);
-      expect(fills).toHaveLength(1);
-      const band = fills[0];
-      expect([band.x, band.w]).toEqual([0, 120]);
-      expect(band.y + band.h / 2).toBeCloseTo(100, 9);
-      expect(band.h).toBeLessThan(200 * 0.3);
+      expect(fills).toHaveLength(0);
       // it reaches the lane's edges; every other note leaves a gap between lanes
       expect(noteWidthOf('star4')).toBeGreaterThan(0.95);
       for (const note of ['flat', 'chamfer', 'round', 'star5'] as const) expect(noteWidthOf(note)).toBe(0.9);
@@ -333,9 +329,10 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   keyboard: { deck: 'keyboard/deck', glow: 'keyboard/glow', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
   racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
+  piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
 };
 
-/** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's. */
+/** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
 const THINGS: Record<GearStyle, Record<string, number>> = {
   standard: { 'standard/jog': 1 },
   cabinet: { 'cabinet/joystick': 1, 'cabinet/button': 6, 'cabinet/coin': 1 },
@@ -347,6 +344,8 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   racing: { 'racing/rotary': 2, 'racing/button': 4 },
   // the selector, three toggles, the arm and abort buttons
   orbital: { 'orbital/selector': 1, 'orbital/toggle': 3, 'orbital/button': 2 },
+  // the treble clef medallion on the scratch lane's cheek block
+  piano: { 'piano/medallion': 1 },
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */

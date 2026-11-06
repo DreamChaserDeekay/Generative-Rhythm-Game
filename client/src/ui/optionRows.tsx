@@ -21,6 +21,7 @@ export const DECK_NAMES: Record<DeckStyle, string> = {
   keyboard: '커스텀 키보드',
   racing: '레이싱 휠',
   orbital: '우주선 계기판',
+  piano: '피아노',
 };
 export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
   flash: '플래시',

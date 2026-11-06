@@ -55,7 +55,7 @@ describe('the track', () => {
   it('offers the note families with their long notes, the gears and the hits, the piano note no longer', () => {
     expect(PART_NOTES).toEqual(['flat', 'chamfer', 'round', 'star4', 'star5']);
     for (const note of PART_NOTES) expect(LONG_OF[note]).toBeDefined();
-    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital']);
+    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano']);
     // the piano set's hit stays
     expect(PART_HITS).toContain('piano');
   });

@@ -850,6 +850,14 @@
         512
       ]
     },
+    "piano/deck": {
+      "file": "gears/piano/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "piano/hitBurst": {
       "file": "styles/piano/hit_burst.png",
       "bundle": "effects",
@@ -883,6 +891,14 @@
       },
       "anchorY": 0.5,
       "span": 1.375
+    },
+    "piano/medallion": {
+      "file": "gears/piano/medallion.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        265
+      ]
     },
     "racing/button": {
       "file": "gears/racing/button.png",

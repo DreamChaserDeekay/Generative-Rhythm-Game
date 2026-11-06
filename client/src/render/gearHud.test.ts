@@ -35,6 +35,8 @@ describe('the HUD a gear brings', () => {
     // keyboard's and the racing wheel's judgements over a bar in their accent
     expect([GEAR_TYPES.keyboard.font, GEAR_TYPES.orbital.font, GEAR_TYPES.orbital.comboFont]).toEqual(['Silkscreen', 'Saira Stencil One', 'DSEG7 Classic']);
     expect([GEAR_TYPES.keyboard.bar, GEAR_TYPES.racing.bar]).toEqual(['#ff8a1e', '#e3242b']);
-    expect(GAUGE_NAMES).toEqual({ standard: null, cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2' });
+    // the piano's a Didone's bold italic, as a score prints its dynamics, over a brass bar
+    expect([GEAR_TYPES.piano.font, HUD_FONTS['Bodoni Moda'].italic, GEAR_TYPES.piano.bar]).toEqual(['Bodoni Moda', true, '#c9a45c']);
+    expect(GAUGE_NAMES).toEqual({ standard: null, cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE' });
   });
 });

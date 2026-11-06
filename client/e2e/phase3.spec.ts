@@ -640,13 +640,14 @@ test('the club, crystal and neon sets and the piano hit picked part by part, eac
   expect(errors).toEqual([]);
 });
 
-test('the custom keyboard, the racing wheel and the orbital panel picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
+test('the custom keyboard, the racing wheel, the orbital panel and the piano picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [deck, name, gauge, judgeFont, numFont] of [
     ['keyboard', '커스텀 키보드', 'CHARGE', /Silkscreen/, /Silkscreen/],
     ['racing', '레이싱 휠', 'FUEL', /Chakra Petch/, /Chakra Petch/],
     ['orbital', '우주선 계기판', 'O2', /Saira Stencil One/, /DSEG7 Classic/],
+    ['piano', '피아노', 'FORTE', /Bodoni Moda/, /Bodoni Moda/],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();

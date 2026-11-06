@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { DECK_PICTURE_FLATTEST, DECK_PICTURE_STRETCH, GEAR_JUDGE, isGear, lightsOf, type DeckMark, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
+import { DECK_PICTURE_STRETCH, deckFromPicture, GEAR_JUDGE, isGear, lightsOf, type DeckMark, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -2278,18 +2278,19 @@ export class TrackRenderer {
     const left = (l: LaneGeom) => (l.x - l.width / 2 + width / 2) / PX;
     // where a gear's plate drawn in code puts the parts its lights shine on
     const marks: DeckMark[] = [];
-    this.platePaint(g, {
+    const spec: DeckSpec = {
       width: width / PX,
       room: d.room / PX,
       depth: d.depth / PX,
       keyTop: d.keyTop / PX,
       keyDepth: d.keyDepth / PX,
       stretch: d.stretch,
-      lanes: lanes.filter((l) => !l.over).map((l) => ({ left: left(l), width: l.width / PX, kind: keyKind(l) })),
+      lanes: lanes.filter((l) => !l.over).map((l) => ({ left: left(l), width: l.width / PX, kind: keyKind(l), ...(l.kind === 'side' ? { side: true } : {}) })),
       sides: lanes.filter((l) => l.over).map((l) => ({ left: left(l), width: l.width / PX, top: d.sideTop / PX, depth: d.sideDepth / PX })),
       colours: this.skin.colors,
       marks,
-    });
+    };
+    this.platePaint(g, spec);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     // seen from close by, never much smaller than painted: no mipmaps to make on every upload; but
@@ -2309,7 +2310,7 @@ export class TrackRenderer {
     if (this.gearLights) {
       // over the deck's picture, as it is laid on the deck (deckArt.deckPicture), or on the parts its
       // plate drawn in code marked (plane px)
-      const pictured = Boolean(gearArtOf(this.style.deck, this.images).deck) && d.stretch <= DECK_PICTURE_FLATTEST;
+      const pictured = deckFromPicture(this.style.deck, spec, gearArtOf(this.style.deck, this.images));
       const across = width / DECK_PICTURE_PX;
       if (pictured) this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across, along: (across * d.stretch) / DECK_PICTURE_STRETCH, y: DECK_Y }, null);
       else this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across: PX, along: PX, y: DECK_Y }, marks);

@@ -47,6 +47,8 @@ export const HUD_FONTS = {
   // the custom keyboard's OLED pixels, the orbital panel's stencil
   Silkscreen: { weight: 400, italic: false },
   'Saira Stencil One': { weight: 400, italic: false },
+  // the piano's: a score's dynamics, a Didone in bold italic
+  'Bodoni Moda': { weight: 700, italic: true },
 } as const;
 export type HudFont = keyof typeof HUD_FONTS;
 
