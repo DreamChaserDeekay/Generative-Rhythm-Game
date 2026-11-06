@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import dataclasses
 import itertools
 import math
@@ -147,6 +148,19 @@ class _Weights:
     # skill): 6K ELITE play asks the lanes to go the way the melody goes, human 7-key BMS charts follow
     # it less and easy charts leap less (docs/PATTERN_DESIGN.md 81); a drum's estimated pitch is noise
     tune_contour: float = 1.0
+    # a key note played by a hand that holds a long note on another of its keys (hands.underHold,
+    # docs/PATTERN_DESIGN.md 83): human BMS charts keep these rare below the densest charts. The
+    # finger next to a held one moves with it (finger enslaving, Häger-Ross & Schieber 2000), the
+    # ring finger most of all, and a second quick tap under the hold is harder still
+    under_hold: float = 0.0
+    under_adjacent: float = 0.0
+    under_ring: float = 1.0
+    under_fast: float = 0.0
+    under_fast_ms: float = 0.0
+    # a long note with notes under it leaves one hand free for them (hands.underHold.freeHandBelow):
+    # no hold on one hand while the other holds through notes, and a held chord's other long notes
+    # stay on its hand
+    free_hand: bool = False
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -154,6 +168,7 @@ class _Weights:
         mapping = cfg["laneMapping"]
         drums = mapping["drums"]
         hands = load_config("patterns")["hands"]
+        under = hands.get("underHold") or {}
         return _Weights(
             pitch=W_PITCH * params.weight("pitchWeight"),
             contour=W_CONTOUR * params.weight("contourWeight"),
@@ -211,6 +226,12 @@ class _Weights:
             fast_ms=float(hands.get("fastRepeatMs", 0.0)) if params.skill >= float(hands.get("fastMinSkill", 0.0)) else 0.0,
             drum_alternate=by_skill(hands.get("fastDrumAlternate", 0.0), params.skill),
             fast_contour=float(hands.get("fastContourScale", 1.0)),
+            under_hold=by_skill(under.get("cost", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
+            under_adjacent=by_skill(under.get("adjacent", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
+            under_ring=float(under.get("ringScale", 1.0)),
+            under_fast=by_skill(under.get("fast", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
+            under_fast_ms=float(under.get("fastMs", 0.0)),
+            free_hand=params.skill < float(under.get("freeHandBelow", 0.0)),
         )
 
 
@@ -497,6 +518,8 @@ def search(
     move_bands = lane_move_bands(slots, load_config("lane_moves")["densityBands"]) if moves is not None else []
     pos = [l.pos for l in lanes]
     hands = [l.hand for l in lanes]
+    hand_keys = {h: [i for i in key_lanes if hands[i] == h] for h in ("L", "R")}
+    slot_ts = [s.t for s in slots]
     # each key's part of the left / right count of a bar (a shared middle key: half to each hand)
     sides = [
         ((1.0 if l.hand == "L" else 0.5 if l.hand == "T" else 0.0), (1.0 if l.hand == "R" else 0.5 if l.hand == "T" else 0.0))
@@ -656,6 +679,10 @@ def search(
             if reserved[si]:
                 pen = RESERVE_SHARE * weights.repeat
                 costs = [c + pen * sum(1 for i in combo if i in reserved[si]) for c, combo in zip(costs, combos)]
+            if weights.under_hold > 0 and holding_hands:
+                held = [j for j in key_lanes if state.hold_end[j] > t and hands[j] != "T"]
+                if held:
+                    costs = [c + _under_hold_cost(state, combo, held, lanes, hand_keys, t, weights) for c, combo in zip(costs, combos)]
             if weights.memory > 0 and home_sound is not None and not same_sound and slot.roll is None and state.memory:
                 home = next((lane for s, lane in reversed(state.memory) if s == home_sound), None)
                 if home is not None:
@@ -697,6 +724,9 @@ def search(
                     # is taken leaves taps: its keys gave their long note to the side, and
                     # select.clear_holds never shortened it for a key)
                     options = [i for i in combo if holding_hands.get(lanes[i].hand, 0) < params.max_holds_per_hand]
+                    if weights.free_hand and options and holding_hands:
+                        # no hold on one hand while the other holds through notes
+                        options = [i for i in options if not _both_hands_held(state, {lanes[i].hand}, hand_keys, t, hold_end_t, slot_ts)]
                     if options and sp is not None and sp.motif == "holdTap":
                         # the hold goes to the outside, leaving the other lanes to the melody
                         ln_lane = max(options, key=lambda i: abs(lanes[i].pos - 0.5))
@@ -714,6 +744,8 @@ def search(
                         if len(picked) >= slot.hold_count:
                             break
                         hand = lanes[i].hand
+                        if weights.free_hand and _both_hands_held(state, {lanes[j].hand for j in picked} | {hand}, hand_keys, t, hold_end_t, slot_ts):
+                            continue  # the chord's other long notes stay on its hand when notes come under it
                         if held.get(hand, 0) < (1 if hand == "T" else params.max_holds_per_hand):
                             picked.append(i)
                             held[hand] = held.get(hand, 0) + 1
@@ -883,6 +915,69 @@ def _rhythm_left(sp: SlotPlan | None, n_keys: int) -> bool:
         return True
     left = (lo + hi) / 2 < mid
     return left if sp.layer == "rhythm" else not left
+
+
+def _notes_between(slot_ts: list[float], t0: float, t1: float) -> bool:
+    """Whether a slot starts after `t0` and before `t1` (the slots' times, sorted)."""
+    k = bisect.bisect_right(slot_ts, t0 + TIME_EPS)
+    return k < len(slot_ts) and slot_ts[k] < t1 - TIME_EPS
+
+
+def _both_hands_held(
+    state: "_State",
+    new: set[str],
+    hand_keys: dict[str, list[int]],
+    t: float,
+    end: float,
+    slot_ts: list[float],
+) -> bool:
+    """Whether long notes starting at `t` on the hands in `new` (until `end`) leave both hands holding
+    through a note: each of the left and right hands is in `new` or holds a key already, until past
+    a note that starts while all of them are down."""
+    until = end
+    for hand in ("L", "R"):
+        if hand in new:
+            continue
+        ends = [state.hold_end[j] for j in hand_keys[hand] if state.hold_end[j] > t]
+        if not ends:
+            return False
+        until = min(until, max(ends))
+    return _notes_between(slot_ts, t, until)
+
+
+def _under_hold_cost(
+    state: "_State",
+    combo: tuple[int, ...],
+    held: list[int],
+    lanes: list[LaneInfo],
+    hand_keys: dict[str, list[int]],
+    t: float,
+    w: _Weights,
+) -> float:
+    """What the keys of `combo` pay for being played by a hand that holds a long note on another of
+    its keys (`held`: the key lanes held down now, the middle key's thumb left out): `under_hold`
+    each, `under_adjacent` more when the finger is next to a held one (`under_ring` times that when
+    the pair has a ring or little finger) and `under_fast` more when the hand tapped under the hold
+    less than `under_fast_ms` ago."""
+    cost = 0.0
+    for i in combo:
+        lane = lanes[i]
+        if lane.kind != "key" or lane.hand == "T":
+            continue
+        mine = [j for j in held if lanes[j].hand == lane.hand and j != i]
+        if not mine:
+            continue
+        cost += w.under_hold
+        near = [j for j in mine if abs(lanes[j].finger - lane.finger) == 1]
+        if near:
+            ring = max(lane.finger, max(lanes[j].finger for j in near)) >= 3
+            cost += w.under_adjacent * (w.under_ring if ring else 1.0)
+        if w.under_fast > 0:
+            since = max(state.head[j] for j in mine)
+            tapped = max((state.last[k] for k in hand_keys[lane.hand] if k not in mine), default=-1e9)
+            if tapped > since + TIME_EPS and t - tapped < w.under_fast_ms:
+                cost += w.under_fast
+    return cost
 
 
 def _special_lane(
