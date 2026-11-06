@@ -125,7 +125,7 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 - 설치 파일은 코드 서명이 없어 처음 실행할 때 SmartScreen 경고가 뜹니다(**추가 정보 → 실행**).
 - GPU 드라이버가 없는 PC(가상 머신, 원격 데스크톱)에서도 Chromium의 소프트웨어 렌더러로 화면이 나오게 했습니다(느릴 수 있음).
 - 기본판에는 기본 분석만 들어갑니다. 크기는 압축 전 약 570MB입니다.
-- ML판은 압축 전 약 1.3GB입니다(Linux에서 묶어 잰 값). 모델 가중치(Demucs 6스템 약 55MB, beat_this 약 81MB)는 처음 분석할 때 한 번 내려받습니다(인터넷 필요, 사용자 폴더의 `.cache`). 분석은 CPU에서 돌아 기본판보다 느립니다(BMS 곡 2–3분 길이에 약 50초, 4코어). GPU는 쓰지 않습니다. 끄려면 앱 폴더 `resources/server/_internal/config/analysis.json`의 `ml.enabled`를 `false`로.
+- ML판은 설치 파일 약 347MB, 압축 전 약 0.8GB(묶은 서버 784MB)입니다. 모델 가중치(Demucs 6스템 약 55MB, beat_this 약 81MB)는 처음 분석할 때 한 번 내려받습니다(인터넷 필요, 사용자 폴더의 `.cache`). 분석은 CPU에서 돌아 기본판보다 느립니다(BMS 곡 2–3분 길이에 약 50초, 4코어). GPU는 쓰지 않습니다. 끄려면 앱 폴더 `resources/server/_internal/config/analysis.json`의 `ml.enabled`를 `false`로.
 
 ### 플레이
 

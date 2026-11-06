@@ -4,8 +4,8 @@
 #   packaging/build_desktop.sh          installer / image in desktop/dist
 #   packaging/build_desktop.sh --dir    unpacked app folder only (quicker, for testing)
 # GRG_PYTHON selects the Python with the server installed (default: server/.venv).
-# GRG_EDITION=ml builds the ML edition (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; about
-# 1.3 GB unpacked) as GenerativeRhythm-ML-Setup-<version>.exe; the default edition has the core
+# GRG_EDITION=ml builds the ML edition (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; on Windows
+# the bundled server is 784 MB, the installer 347 MB) as GenerativeRhythm-ML-Setup-<version>.exe; the default edition has the core
 # analysis only.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
