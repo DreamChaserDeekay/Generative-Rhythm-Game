@@ -1756,3 +1756,13 @@
     > Image 1 is a frame of a rhythm game's play screen. Edit only the joystick at the left of the arcade control panel at the bottom: make it shorter, so that its red ball top sits lower and stays completely below the thin chrome moulding along the panel's top edge, with dark panel visible between the top of the ball and the moulding. Keep its round chrome-ringed dust washer where it is, its black shaft rising from the washer's middle, and its soft shadow down and to the right.
     >
     > Keep every other pixel exactly as it is: the same framing, camera, zoom and crop; the lanes, the red judge line, the side walls, the chrome moulding, the push buttons, the start buttons, the credit windows, 'GRG-2000' and the coin plate. Do not add anything.
+
+## 타격 효과를 판정선 중심으로 온전히 (2026-11-06)
+
+사용자 피드백("이펙트가 위쪽으로 잘리지 않고 온전히 모두 보여야 함")으로 타격 효과 18장(세트 다섯과 플래시 · 플레어 · 거품 · LED 그리드의 `hit_burst` · `hit_hold`)을 같은 원본에서 다시 만들었습니다(새로 생성한 그림은 없음, `scripts/assets/build_styles.py`). 위 항목들의 "판정선 위로는 짧게만 남김 · 판정선은 칸 위에서 30 %(27 %)"는 이제 아래와 같습니다.
+
+- 판정선 위를 지우던 마스크(`above_line`)를 없앴고, 판정선이 칸 가운데를 지납니다(매니페스트 `anchorY` 0.5).
+- 효과의 크기는 그대로 두고 칸을 넉넉하게: 효과를 256 px 기준의 숫자로 352 px 칸에 그려(가장자리 12 px는 흐리게) 256 px로 줄입니다. 매니페스트의 `span` 1.375가 렌더러에 칸이 효과보다 그만큼 크다고 알려 화면의 크기는 전과 같습니다.
+- 아래로만 던지던 것을 사방으로: 메카 섬광의 불똥 줄기 열 개, 세트와 플래시 · 거품의 조각 여덟 개(45°마다 조금씩 어긋나게), 거품의 물보라 일곱, 플레어의 별빛은 줄기를 따라 위아래로 조금씩. 메카의 용접 불꽃 72개도 사방으로(떨어지는 휨 없이), 크리스털 파편 고리는 그대로 뒤집어 주로 기어 쪽으로.
+- 누르는 동안의 반짝임은 빛의 둘레 위아래에, 거품은 판정선 아래에서 위로 지나 올라가고, LED 그리드는 판정선을 가운데로 위아래 13줄의 물결과 위아래로 대칭인 레벨 미터.
+

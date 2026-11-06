@@ -888,6 +888,7 @@ export class PlayController {
       }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
+      this.renderer.holdTick(e.lane, now);
     } else if (e.type === 'key' && e.down && this.settings.hitSound && !this.voices && !this.stemVoices) {
       this.engine.playHitSound();
     } else if (e.type === 'fail') {

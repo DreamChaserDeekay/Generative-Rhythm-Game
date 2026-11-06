@@ -91,6 +91,23 @@ const MISSED_VISIBLE_MS = 400;
 const EFFECT_MS = 240;
 /** A note drawn as a picture (createNoteGeometry) lays it this share of the note's height over the track. */
 const PICTURE_LIFT = 0.05;
+/**
+ * A note drawn as a picture is a solid slab (slabGeometry): this share of its height thick under its
+ * picture (a long note's body and ends, scaled 1 high, SLAB_LONG thick), its walls drawn by
+ * SLAB_SLICES copies of the picture.
+ */
+const SLAB_DEPTH = 0.45;
+const SLAB_LONG = 0.09;
+const SLAB_SLICES = 7;
+/**
+ * A slab's walls: how bright just under its top edge (catching the light) and at its foot, how much
+ * lighter on the side the light comes from (the left) and darker on the other, and the share of a
+ * tap's picture, from its near edge, they take (from in front their far part never shows).
+ */
+const WALL_TOP = 0.74;
+const WALL_FOOT = 0.3;
+const WALL_LIT = 0.16;
+const WALL_CROP = 0.55;
 /** Where a key note's picture lies over the track. */
 export const NOTE_Y = NOTE_HEIGHT * PICTURE_LIFT;
 /**
@@ -105,9 +122,15 @@ const DECK_Y = 0.022;
 const KEY_Y = 0.027;
 /** How long the band of light running down a picked gear's frames is, a share of the frame (sweepBorders). */
 const SWEEP_SHARE = 0.16;
-/** How long the hot spot running along a picked gear's judge line is (world units), and how many seconds it takes to cross (shimmerJudge). */
-const SHINE_LENGTH = 1.8;
-const SHINE_PERIOD = 2.6;
+/**
+ * The hot spots running along a picked gear's judge line (shimmerJudge): how long each is (world
+ * units), how many seconds it takes to cross, which way it runs, how bright its middle gets and
+ * where in its run it starts.
+ */
+const SHINES = [
+  { length: 2.4, period: 2.6, dir: 1, peak: 0.75, phase: 0 },
+  { length: 1.6, period: 3.7, dir: -1, peak: 0.5, phase: 0.45 },
+] as const;
 /** Textured note walls take the texture this far inside its edge (its very edge is the transparent outline). */
 const WALL_INSET = 0.3;
 /**
@@ -151,6 +174,30 @@ const EFFECT_ASPECT = 0.7;
 const HOLD_FRAME = 2;
 /** The frame of a flipbook burst that glows under a held long note's sparks (its late, small part). */
 const HOLD_BURST_FRAME = 13;
+/**
+ * While a long note is held its glow breathes (BREATHE larger and smaller, BREATHE_HZ times a second)
+ * and kicks up at each tick of its combo (holdTick: TICK_KICK larger at once, gone over about
+ * TICK_FADE_MS), and at most every TICK_GAP_MS a small burst (TICK_SIZE of a hit's, TICK_GAIN as
+ * bright) plays on it.
+ */
+const BREATHE = 0.05;
+const BREATHE_HZ = 5;
+const TICK_KICK = 0.25;
+const TICK_FADE_MS = 90;
+const TICK_GAP_MS = 180;
+const TICK_SIZE = 0.72;
+const TICK_GAIN = 0.55;
+/**
+ * The light flowing down a held long note into the judge line (drawFlows): how far up the note it
+ * reaches, how fast it runs (track units a second), how long one run of its picture is, and its
+ * share of the note's width.
+ */
+const FLOW_REACH = 7;
+const FLOW_SPEED = 12;
+const FLOW_TILE = 3.2;
+const FLOW_WIDTH = 0.8;
+/** Rows of a flow's quad along the note: its light fades out toward its far end (vertex alpha). */
+const FLOW_ROWS = 8;
 /** Note pictures are drawn this many px deep. */
 const NOTE_PICTURE_PX = 96;
 /** The coin's and the stars' depth moves in steps this deep (track units), see fitNoteDepth. */
@@ -318,6 +365,9 @@ interface EffectQuad {
   material: THREE.MeshBasicMaterial;
   start: number;
   lane: number;
+  /** A burst's size and brightness, shares of a hit's (a held note's tick plays a smaller, fainter one). */
+  size: number;
+  gain: number;
 }
 
 const barNear = new THREE.Vector3();
@@ -610,12 +660,12 @@ export class TrackRenderer {
   /** The view's framing before the chart's zoom and roll (see baseFrame): made again when the camera, the screen or LIFT changes. */
   private frame: CameraFrame | null = null;
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top). */
+  private readonly longSlab = slabGeometry(0, SLAB_LONG, 0);
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
   private readonly clipPlanes = [this.farClip, this.nearClip];
-  /** Effects stay between the rails (set for the track's width in the constructor). */
-  private readonly sideClips = [new THREE.Plane(new THREE.Vector3(1, 0, 0), FAR_AWAY), new THREE.Plane(new THREE.Vector3(-1, 0, 0), FAR_AWAY)];
   private readonly noteTextures = new Map<NoteMark, THREE.Texture>();
   private readonly noteMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly bodyMaterials = new Map<string, THREE.MeshBasicMaterial>();
@@ -662,6 +712,15 @@ export class TrackRenderer {
   /** Per lane, what shows while a long note is held there (with sparks, a late frame of the burst under them). */
   private readonly holds: EffectQuad[] = [];
   private readonly holdCores: EffectQuad[] = [];
+  /** A side lane laid over the keys: the band of light across its half while one of its long notes is held. */
+  private readonly bands: (EffectQuad | null)[] = [];
+  /** When each lane's held long note last ticked, and last played a tick's burst (holdTick). */
+  private readonly tickAt: number[] = [];
+  private readonly tickBurstAt: number[] = [];
+  /** The light flowing down each lane's held long note (drawFlows), and where that note's body ends up the track. */
+  private readonly flows: THREE.Mesh[] = [];
+  private readonly heldFar: (number | null)[] = [];
+  private flowTexture: THREE.Texture | null = null;
   private readonly hitSheet: EffectSheet | null;
   /** Textures of the skin by part; empty when everything is drawn in code. */
   private readonly art: SkinArt['slots'];
@@ -695,8 +754,11 @@ export class TrackRenderer {
   private readonly gearLights: GearLightLayer | null;
   private deckTopZ = 0;
   /** A hot spot running along a picked gear's judge line, and its glow's own opacity (the shimmer is about it). */
-  private judgeShine: THREE.Mesh | null = null;
+  private readonly judgeShines: THREE.Mesh[] = [];
   private judgeGlowBase = 1;
+  /** A picked gear's judge line glow and its depth on the track, which wavers (shimmerJudge). */
+  private judgeGlowMesh: THREE.Mesh | null = null;
+  private judgeGlowDepth = 0;
   private readonly feverOverlay: THREE.Mesh;
   /** The FEVER colour the rails and the judge line's glow have now (null: the skin's own). */
   private feverShown: number | null = null;
@@ -733,7 +795,6 @@ export class TrackRenderer {
     this.skin = options.skin;
     this.style = styleOf(options.skin);
     this.hit = options.hitEffectSize === 'off' ? 'none' : this.style.hit;
-    for (const clip of this.sideClips) clip.constant = this.geometry.width / 2;
     this.artSource = options.art ?? null;
     this.art = { ...options.art?.slots };
     this.artEffects = options.art?.effects ?? { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
@@ -817,12 +878,12 @@ export class TrackRenderer {
     });
     this.bodyPool = new MeshPool(this.scene, () => {
       // each body has its own UVs: the picture repeats along the note
-      const mesh = new THREE.Mesh(this.flatGeometry.clone(), this.bodyMaterial(this.laneColors[0], 'idle'));
+      const mesh = new THREE.Mesh(this.longSlab.clone(), this.bodyMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3;
       return mesh;
     });
     this.endPool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.flatGeometry, this.endMaterial(this.laneColors[0], 'idle'));
+      const mesh = new THREE.Mesh(this.longSlab, this.endMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3.1;
       return mesh;
     });
@@ -1024,11 +1085,30 @@ export class TrackRenderer {
     if (hit === 'none') return;
     if (this.geometry.lanes[lane].over) {
       // STEM paints a hit in its note's colour: a side lane laid over the keys has its own (see noteColor)
-      this.sideFlash(lane, hit === 'stemflash' ? this.laneColors[lane] : color, perfNow);
+      const own = hit === 'stemflash' ? this.laneColors[lane] : color;
+      // the band of light across its half, and a burst as wide as the half in the middle of it
+      this.sideFlash(lane, own, perfNow);
+      this.burst(lane, own, perfNow);
       return;
     }
     const stem = noteIndex !== undefined ? this.notes[noteIndex]?.src : undefined;
-    const tint = hit === 'stemflash' && stem ? STEM_COLORS[stem] : color;
+    this.burst(lane, hit === 'stemflash' && stem ? STEM_COLORS[stem] : color, perfNow);
+  }
+
+  /**
+   * A tick of a held long note's combo: its glow kicks up (drawHolds) and, no more often than
+   * TICK_GAP_MS, a smaller, fainter burst plays on it (none under 번쩍임 줄이기).
+   */
+  holdTick(lane: number, perfNow: number): void {
+    if (this.hit === 'none' || lane < 0 || lane >= this.tickAt.length) return;
+    this.tickAt[lane] = perfNow;
+    if (this.reducedFlash || perfNow - this.tickBurstAt[lane] < TICK_GAP_MS) return;
+    this.tickBurstAt[lane] = perfNow;
+    this.burst(lane, this.laneColors[lane], perfNow, TICK_SIZE, TICK_GAIN);
+  }
+
+  /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
+  private burst(lane: number, color: number, perfNow: number, size = 1, gain = 1): void {
     const burst = this.flipbook ? this.art.hitBurst : undefined;
     let h = this.hits.find((x) => !x.mesh.visible && x.texture.image === (burst?.texture.image ?? this.hitSheet?.texture.image));
     if (!h) {
@@ -1037,9 +1117,11 @@ export class TrackRenderer {
       h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8);
       this.hits.push(h);
     }
-    h.material.color.setHex(tint);
+    h.material.color.setHex(color);
     h.start = perfNow;
     h.lane = lane;
+    h.size = size;
+    h.gain = gain;
     h.mesh.visible = true;
     this.drawHit(h, perfNow);
   }
@@ -1050,10 +1132,11 @@ export class TrackRenderer {
     this.notes = frame.notes;
     if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
     this.drawNotes(frame);
+    this.drawFlows(frame);
     this.drawBars(frame);
     this.drawBeams(frame, dt);
     this.drawKeys(frame);
-    this.drawHolds(frame);
+    this.drawHolds(frame, perfNow);
     this.drawHits(perfNow);
     this.drawFever(frame);
     const clock = beatClock(frame.timeMs, frame.barTimes, frame.fever.active);
@@ -1128,6 +1211,7 @@ export class TrackRenderer {
     this.endPool.begin();
     this.sidePool.begin();
     this.sideBodyPool.begin();
+    this.heldFar.fill(null);
     for (let i = this.firstLive; i < notes.length; i++) {
       const n = notes[i];
       // in view once its near edge passes the far end (the far clip cuts the rest)
@@ -1194,6 +1278,7 @@ export class TrackRenderer {
    * there: the far clip cuts it, as no outline must show an end that is not there.
    */
   private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
+    if (state === 'held') this.heldFar[lane.index] = tailZ;
     // a side lane's long note of dots (SideStyle 'dots') is the side style's, not the note style's
     const dots = this.sideDots && lane.kind === 'side';
     const paint = dots ? DOTS_LONG : this.long;
@@ -1317,11 +1402,13 @@ export class TrackRenderer {
     const vNear = (nearZ - tailZ) / tile;
     const vFar = (farZ - tailZ) / tile;
     const uv = mesh.geometry.getAttribute('uv') as THREE.BufferAttribute;
-    // PlaneGeometry(1, 1) laid flat: vertices 0 and 1 are its far edge, 2 and 3 its near edge
-    uv.setXY(0, 0, vFar);
-    uv.setXY(1, 1, vFar);
-    uv.setXY(2, 0, vNear);
-    uv.setXY(3, 1, vNear);
+    // PlaneGeometry(1, 1) laid flat, and each layer of a slab: vertices 0 and 1 are its far edge, 2 and 3 its near edge
+    for (let q = 0; q < uv.count; q += 4) {
+      uv.setXY(q, 0, vFar);
+      uv.setXY(q + 1, 1, vFar);
+      uv.setXY(q + 2, 0, vNear);
+      uv.setXY(q + 3, 1, vNear);
+    }
     uv.needsUpdate = true;
   }
 
@@ -1368,29 +1455,35 @@ export class TrackRenderer {
     });
   }
 
-  /** While a long note is held, its lane shows the start of the hit effect (or the skin's hold sparks). */
-  private drawHolds(frame: TrackFrame): void {
+  /**
+   * While a long note is held, its lane shows the skin's hold sparks over a glow (or the start of its
+   * hit effect), breathing and kicking up at each tick of its combo (holdTick); a side lane laid over
+   * the keys shows them as large as its half, over a band of light across it.
+   */
+  private drawHolds(frame: TrackFrame, perfNow: number): void {
     const sparks = this.flipbook ? this.art.hitHold : undefined;
     this.holds.forEach((h, lane) => {
       const held = frame.heldNote(lane) !== null;
       const g = this.geometry.lanes[lane];
-      h.mesh.visible = held;
+      const band = this.bands[lane];
       const core = this.holdCores[lane];
-      if (core) core.mesh.visible = held && !g.over;
+      h.mesh.visible = held;
+      if (band) band.mesh.visible = held;
+      if (core) core.mesh.visible = held;
       if (!held) return;
       const w = Math.min(g.width, 1.6);
       const dim = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
       const flash = this.reducedFlash ? this.artEffects.reducedFlashScale : 1;
-      if (g.over) {
-        // a side lane over the keys: its hit's flash across the half, shallower and steady (see
-        // sideFlash), in its own colour
+      const kick = this.reducedFlash ? 0 : Math.exp(-(perfNow - this.tickAt[lane]) / TICK_FADE_MS);
+      const swell = (this.reducedFlash ? 1 : 1 + BREATHE * Math.sin(2 * Math.PI * BREATHE_HZ * (frame.timeMs / 1000) + lane)) * (1 + TICK_KICK * kick);
+      if (band) {
+        // its hit's flash across the half, shallower and steady (see sideFlash), in its own colour
         const pulse = this.reducedFlash ? 1 : 1 + 0.06 * Math.sin(frame.timeMs / 45);
-        const depth = this.flashDepth * 0.7 * pulse * this.stretch;
-        h.mesh.scale.set(g.width * SIDE_SPAN, 1, depth);
-        h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - SIDE_FLASH_LINE));
-        h.material.color.setHex(this.laneColors[lane]);
-        h.material.opacity = 0.4 * dim;
-        return;
+        const depth = this.flashDepth * 0.7 * pulse * (1 + 0.2 * kick) * this.stretch;
+        band.mesh.scale.set(g.width * SIDE_SPAN, 1, depth);
+        band.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - SIDE_FLASH_LINE));
+        band.material.color.setHex(this.laneColors[lane]);
+        band.material.opacity = (0.4 + 0.3 * kick) * dim;
       }
       if (core) {
         const book = this.art.hitBurst?.spec.flipbook;
@@ -1398,11 +1491,11 @@ export class TrackRenderer {
           const [u, v] = flipbookOffset(book, HOLD_BURST_FRAME);
           core.texture.offset.set(u, v);
         }
-        const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core;
+        const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core * (this.art.hitBurst?.spec.span ?? 1) * swell;
         core.mesh.scale.set(size, 1, size * this.stretch);
         core.mesh.position.set(g.x, 0.029, this.judgeZ + size * this.stretch * ((this.art.hitBurst?.spec.anchorY ?? 0.5) - 0.5));
         core.material.color.setHex(this.laneColors[lane]);
-        core.material.opacity = dim;
+        core.material.opacity = dim * (0.85 + 0.15 * kick);
       }
       if (sparks?.spec.flipbook) {
         const book = sparks.spec.flipbook;
@@ -1410,8 +1503,8 @@ export class TrackRenderer {
         const n = Math.floor((frame.timeMs / 1000) * book.fps) + lane * 5;
         const [u, v] = flipbookOffset(book, ((n % book.frames) + book.frames) % book.frames);
         h.texture.offset.set(u, v);
-        // the sparks rise up the track from the judge line
-        const size = w * SPARKS_SIZE * FX_SCALE * flash * this.fxFit.sparks;
+        // the sparks play about the judge line (where the sheet says it crosses them)
+        const size = w * SPARKS_SIZE * FX_SCALE * flash * this.fxFit.sparks * (sparks.spec.span ?? 1) * (1 + 0.5 * TICK_KICK * kick);
         const depth = size * this.stretch;
         const anchor = sparks.spec.anchorY ?? 0.15;
         h.mesh.scale.set(size, 1, depth);
@@ -1436,6 +1529,53 @@ export class TrackRenderer {
       h.material.color.setHex(this.hit === 'stemflash' && stem ? STEM_COLORS[stem] : this.laneColors[lane]);
       h.material.opacity = 0.75 * dim;
     });
+  }
+
+  /**
+   * The light flowing down each held long note into the judge line: from the line up the note's body
+   * (FLOW_REACH at most, fading out up it), running toward the line faster than the notes scroll.
+   */
+  private drawFlows(frame: TrackFrame): void {
+    this.flows.forEach((mesh, lane) => {
+      const far = this.heldFar[lane];
+      const g = this.geometry.lanes[lane];
+      const near = this.judgeZ;
+      const top = far === null ? near : Math.max(far, near - FLOW_REACH);
+      mesh.visible = near - top > 0.05;
+      if (!mesh.visible) return;
+      mesh.scale.set(g.width * (this.art.longBody ? 0.8 : this.long.width) * FLOW_WIDTH, 1, near - top);
+      mesh.position.set(g.x, 0.023, (near + top) / 2);
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.setHex(this.laneColors[lane]);
+      material.opacity = this.reducedFlash ? this.artEffects.reducedFlashOpacity : 1;
+      // the picture runs along the track toward the line: v follows the world's z, shifted with time
+      const run = (FLOW_SPEED * frame.timeMs) / 1000;
+      const pos = mesh.geometry.getAttribute('position');
+      const uv = mesh.geometry.getAttribute('uv') as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setY(i, (top + (pos.getZ(i) + 0.5) * (near - top) - run) / FLOW_TILE);
+      uv.needsUpdate = true;
+    });
+  }
+
+  /** A held long note's flowing light (drawFlows): light on black, fading out toward its far end. */
+  private flowQuad(): THREE.Mesh {
+    this.flowTexture ??= this.own(flowTexture());
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, FLOW_ROWS).rotateX(-Math.PI / 2);
+    const pos = geometry.getAttribute('position');
+    const colors = new Float32Array(pos.count * 4);
+    for (let i = 0; i < pos.count; i++) {
+      // 1 at the line, none at the far end
+      const near = pos.getZ(i) + 0.5;
+      colors.set([1, 1, 1, near * near * (3 - 2 * near)], i * 4);
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+    const material = lightMaterial({ map: this.flowTexture, transparent: true, depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false }, 0.9);
+    const mesh = new THREE.Mesh(geometry, material);
+    // over the long notes and their ends, under the taps
+    mesh.renderOrder = 3.2;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   private drawHits(perfNow: number): void {
@@ -1486,13 +1626,12 @@ export class TrackRenderer {
       depthTest: false,
       blending: THREE.AdditiveBlending,
       fog: false,
-      clippingPlanes: this.sideClips,
     });
     const mesh = new THREE.Mesh(this.flatGeometry, material);
     mesh.renderOrder = 9.9;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0 };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1 };
   }
 
   /** A hit plays its frames once, lying on the track at the judge line; then its quad is free again. */
@@ -1513,29 +1652,30 @@ export class TrackRenderer {
     if (book) {
       const [u, v] = flipbookOffset(book, frame);
       h.texture.offset.set(u, v);
-      const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst;
+      // a frame has room round the effect (its span): the effect itself is BURST_SIZE lanes
+      const size = w * BURST_SIZE * FX_SCALE * (this.reducedFlash ? this.artEffects.reducedFlashScale : 1) * this.fxFit.burst * (burst?.spec.span ?? 1) * h.size;
       const depth = size * this.stretch;
       h.mesh.scale.set(size, 1, depth);
       // the judge line crosses the sheet at its anchor (the middle unless it says)
       h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * ((burst?.spec.anchorY ?? 0.5) - 0.5));
       // the sheet fades by itself; its last frames fade out too, so the effect does not cut off
-      h.material.opacity = dim * Math.min(1, (1 - p) / 0.3);
+      h.material.opacity = dim * h.gain * Math.min(1, (1 - p) / 0.3);
       return;
     }
     const sheet = this.hitSheet as EffectSheet;
     const [u, v] = sheetOffset(sheet, frame);
     h.texture.offset.set(u, v);
-    const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit;
+    const scale = (this.reducedFlash ? 0.8 : 1) * this.fxFit.hit * h.size;
     const across = sheet.size[0] * w * HIT_SIZE * scale;
     const depth = sheet.size[1] * w * HIT_SIZE * scale * this.stretch;
     h.mesh.scale.set(across, 1, depth);
     h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - sheet.centre));
-    h.material.opacity = dim;
+    h.material.opacity = dim * h.gain;
   }
 
   /**
-   * A quad lying on the track that shows one frame of a sheet (its own copy of the texture), cut
-   * at the rails: a wide effect on an outer lane never spills over the gear's edge.
+   * A quad lying on the track that shows one frame of a sheet (its own copy of the texture). Nothing
+   * cuts it: a wide effect on an outer lane reaches past the rails, and the whole of it shows.
    * `core`: how bright a flipbook's light must be to stay white (see lightMaterial).
    */
   private effectQuad(source: THREE.Texture, book: { cols: number; rows: number } | null, core: number): EffectQuad {
@@ -1549,14 +1689,13 @@ export class TrackRenderer {
       depthTest: false,
       blending: THREE.AdditiveBlending,
       fog: false,
-      clippingPlanes: this.sideClips,
     };
     const material = source === this.hitSheet?.texture ? tintMaterial(params) : lightMaterial(params, core);
     const mesh = new THREE.Mesh(this.flatGeometry, material);
     mesh.renderOrder = 10;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, texture, material, start: 0, lane: 0 };
+    return { mesh, texture, material, start: 0, lane: 0, size: 1, gain: 1 };
   }
 
   private drawFever(frame: TrackFrame): void {
@@ -1603,40 +1742,47 @@ export class TrackRenderer {
     }
   }
 
-  /** A picked gear's judge line's hot spot: a glow running along it (shimmerJudge). */
+  /** A picked gear's judge line's hot spots: glows running along it, each its own way (shimmerJudge). */
   private buildJudgeShine(): void {
     if (!isGear(this.style.deck) || !this.judgeGlowMaterial) return;
     this.judgeGlowBase = this.judgeGlowMaterial.opacity;
-    const shine = new THREE.Mesh(
-      this.flatGeometry,
-      new THREE.MeshBasicMaterial({ map: this.glowTexture, color: this.judgeGlowMaterial.color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
-    );
-    shine.scale.set(SHINE_LENGTH, 1, (GEAR_JUDGE.height + 2 * shadowReach(GEAR_JUDGE.blur)) * PX * 0.7);
-    shine.position.set(0, LINE_Y + 0.0002, 0);
-    shine.renderOrder = 9.53;
-    this.judgeGroup.add(shine);
-    this.judgeShine = shine;
+    this.judgeGlowDepth = this.judgeGlowMesh?.scale.z ?? 0;
+    for (const s of SHINES) {
+      const shine = new THREE.Mesh(
+        this.flatGeometry,
+        new THREE.MeshBasicMaterial({ map: this.glowTexture, color: this.judgeGlowMaterial.color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
+      );
+      shine.scale.set(s.length, 1, (GEAR_JUDGE.height + 2 * shadowReach(GEAR_JUDGE.blur)) * PX * 0.85);
+      shine.position.set(0, LINE_Y + 0.0002, 0);
+      shine.renderOrder = 9.53;
+      this.judgeGroup.add(shine);
+      this.judgeShines.push(shine);
+    }
   }
 
   /**
-   * A picked gear's judge line as a laser: its glow flickering a little (slowly and less under
-   * 번쩍임 줄이기) and a hot spot running along it; its line and thickness as they are.
+   * A picked gear's judge line as a laser: its glow flickering and its breadth wavering (slowly and
+   * less under 번쩍임 줄이기), and hot spots running along it both ways; its line as it is.
    */
   private shimmerJudge(c: BeatClock): void {
     const glow = this.judgeGlowMaterial;
-    const shine = this.judgeShine;
-    if (!glow || !shine) return;
+    if (!glow || this.judgeShines.length === 0) return;
     const t = c.seconds;
-    const flicker = this.reducedFlash
-      ? 0.04 * Math.sin(2 * Math.PI * 0.5 * t)
-      : 0.08 * Math.sin(2 * Math.PI * 7.3 * t) + 0.05 * Math.sin(2 * Math.PI * 11.9 * t + 1.3) + 0.05 * Math.sin(2 * Math.PI * 2.7 * t + 0.4);
-    glow.opacity = this.judgeGlowBase * (0.9 + flicker);
-    const run = t / SHINE_PERIOD - Math.floor(t / SHINE_PERIOD);
-    // within the line: its glow never spills past the line's ends
-    shine.position.x = (run - 0.5) * (this.geometry.width - SHINE_LENGTH * 0.7);
-    const material = shine.material as THREE.MeshBasicMaterial;
-    material.color.copy(glow.color);
-    material.opacity = (this.reducedFlash ? 0.15 : 0.45) * Math.sin(Math.PI * run);
+    const calm = this.reducedFlash;
+    const wave = (hz: number, phase = 0) => Math.sin(2 * Math.PI * hz * t + phase);
+    const flicker = calm ? 0.05 * wave(0.5) : 0.13 * wave(7.3) + 0.09 * wave(11.9, 1.3) + 0.08 * wave(2.7, 0.4);
+    glow.opacity = this.judgeGlowBase * (0.86 + flicker);
+    if (this.judgeGlowMesh) this.judgeGlowMesh.scale.z = this.judgeGlowDepth * (1 + (calm ? 0.03 * wave(0.5) : 0.1 * wave(1.9) + 0.05 * wave(5.3, 0.7)));
+    SHINES.forEach((s, i) => {
+      const shine = this.judgeShines[i];
+      const at = t / s.period + s.phase;
+      const run = at - Math.floor(at);
+      // within the line: its glow never spills past the line's ends
+      shine.position.x = s.dir * (run - 0.5) * (this.geometry.width - s.length * 0.7);
+      const material = shine.material as THREE.MeshBasicMaterial;
+      material.color.copy(glow.color);
+      material.opacity = (calm ? 0.2 * s.peak : s.peak) * Math.sin(Math.PI * run);
+    });
   }
 
   private buildTrack(): void {
@@ -1929,6 +2075,7 @@ export class TrackRenderer {
       glow.position.set(0, LINE_Y, 0);
       glow.renderOrder = 9.45;
       this.judgeGroup.add(glow);
+      this.judgeGlowMesh = glow;
       return glow.material as THREE.MeshBasicMaterial;
     }
     const glowMaterial = new THREE.MeshBasicMaterial({
@@ -1970,13 +2117,19 @@ export class TrackRenderer {
       this.beams.push(beam);
       this.beamLevels.push(0);
       this.laneStems.push(undefined);
-      // what a held long note shows: the skin's hold sparks, or the start of its hit effect (a side
-      // lane over the keys: a band across its half)
+      // what a held long note shows: the skin's hold sparks over a glow, or the start of its hit
+      // effect (a side lane over the keys: as large as its half, over a band across it), and the
+      // light flowing down the note into the line
       const hold = this.flipbook ? this.art.hitHold : undefined;
       const source = hold?.texture ?? this.hitSheet?.texture;
-      if (source) this.holds.push(lane.over ? this.flashQuad() : this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
+      if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
+      this.bands.push(source && lane.over ? this.flashQuad() : null);
       const burst = this.art.hitBurst;
       if (hold?.spec.flipbook && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
+      this.tickAt.push(-Infinity);
+      this.tickBurstAt.push(-Infinity);
+      this.heldFar.push(null);
+      if (source && !lane.over) this.flows[lane.index] = this.flowQuad();
     });
   }
 
@@ -2283,7 +2436,8 @@ export class TrackRenderer {
       const art = this.noteArt(kind);
       // a texture's alpha is the note's outline; a drawn picture's too
       // no fog: a note reads at full strength from the moment it comes into view (the floor keeps it)
-      const params: THREE.MeshBasicMaterialParameters = { color, vertexColors: true, clippingPlanes: this.clipPlanes, transparent: true, fog: false };
+      // a slab's walls reach under the track (slabGeometry): nothing that lies on it hides them
+      const params: THREE.MeshBasicMaterialParameters = { color, vertexColors: true, clippingPlanes: this.clipPlanes, transparent: true, depthTest: false, fog: false };
       m = art ? new THREE.MeshBasicMaterial({ ...params, map: art.texture, alphaTest: 0.05 }) : tintMaterial({ ...params, map: this.noteTexture(kind), alphaTest: 0.02 });
       this.noteMaterials.set(key, m);
     }
@@ -2321,6 +2475,9 @@ export class TrackRenderer {
         transparent: true,
         opacity: HOLD_OPACITY[state],
         depthWrite: false,
+        // its walls reach under the track (slabGeometry): nothing that lies on it hides them
+        depthTest: false,
+        vertexColors: true,
         clippingPlanes: this.clipPlanes,
         fog: false,
       };
@@ -2335,7 +2492,10 @@ export class TrackRenderer {
     let m = this.endMaterials.get(key);
     if (!m) {
       const map = dots ? this.dotsLongTextures().end : state === 'held' && this.longHeld ? this.longHeld.end : this.longEnd;
-      m = tintMaterial({ color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, clippingPlanes: this.clipPlanes, fog: false }, { gain: HOLD_BRIGHTNESS[state] });
+      m = tintMaterial(
+        { color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false },
+        { gain: HOLD_BRIGHTNESS[state] },
+      );
       this.endMaterials.set(key, m);
     }
     return m;
@@ -2371,12 +2531,8 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
  * take it a little inside its edge.
  */
 function createNoteGeometry(shape: Skin['noteShape'] | 'picture'): THREE.BufferGeometry {
-  if (shape === 'picture') {
-    // just above the track (the mesh is lifted half its height)
-    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, PICTURE_LIFT - 0.5, 0);
-    plane.setAttribute('color', new THREE.BufferAttribute(new Float32Array(plane.getAttribute('position').count * 3).fill(1), 3));
-    return plane;
-  }
+  // its top just above the track (the mesh is lifted half its height)
+  if (shape === 'picture') return slabGeometry(PICTURE_LIFT - 0.5, SLAB_DEPTH, WALL_CROP);
   let geometry: THREE.BufferGeometry;
   if (shape === 'round') {
     // capsule lying across the lane, normalised to a 1×1×1 box
@@ -2416,6 +2572,53 @@ function createNoteGeometry(shape: Skin['noteShape'] | 'picture'): THREE.BufferG
 }
 
 /**
+ * A note's picture as a solid slab, `depth` thick under its top at `top` (a 1 × 1 picture laid flat,
+ * as flatGeometry): the picture on top and SLAB_SLICES copies of it under it, each lower and darker
+ * (vertex colours), down to its foot. From above and in front the copies show past the top's near
+ * edge and sides as the slab's walls, shaded as they turn from the light (lighter on the left, the
+ * side the light comes from), and the top hides the rest. The layers are drawn foot first (index
+ * order) with no depth test: a slab reaches under the track, whose floor must not hide its walls, and
+ * the notes are see-through, so they are drawn far to near and a nearer slab covers a farther one.
+ * `crop`: the share of the picture, from its near edge, a wall layer takes (0: all of it); the rest
+ * of a layer would only ever lie under the top.
+ */
+export function slabGeometry(top: number, depth: number, crop: number): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const colors: number[] = [];
+  const index: number[] = [];
+  const layer = (y: number, share: number, shade: number, lit: number) => {
+    const first = positions.length / 3;
+    const zFar = 0.5 - share;
+    // as PlaneGeometry(1, 1) laid flat: far left, far right, near left, near right
+    for (const [x, z, u, v] of [
+      [-0.5, zFar, 0, share],
+      [0.5, zFar, 1, share],
+      [-0.5, 0.5, 0, 0],
+      [0.5, 0.5, 1, 0],
+    ]) {
+      positions.push(x, y, z);
+      uvs.push(u, v);
+      const c = Math.min(1, shade * (1 - 2 * x * lit));
+      colors.push(c, c, c);
+    }
+    index.push(first, first + 2, first + 1, first + 2, first + 3, first + 1);
+  };
+  for (let i = SLAB_SLICES; i >= 1; i--) {
+    const shade = WALL_TOP + ((WALL_FOOT - WALL_TOP) * (i - 1)) / Math.max(1, SLAB_SLICES - 1);
+    layer(top - (depth * i) / SLAB_SLICES, crop > 0 ? crop : 1, shade, WALL_LIT);
+  }
+  layer(top, 1, 1, 0);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(index);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
  * A soft band of light across a gear frame's sweep: grey levels (an alpha map reads the green), dark
  * at both ends so the texture's clamped edge shows nothing, along v (a frame's top) or u (a wall's face).
  */
@@ -2433,6 +2636,51 @@ function bandTexture(axis: 'u' | 'v'): THREE.CanvasTexture {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   return new THREE.CanvasTexture(canvas);
+}
+
+/**
+ * The light flowing down a held long note (drawFlows): streaks running toward the judge line, each
+ * brightest at its head (toward the line) with a long tail fading behind it, bright down the middle
+ * of the note and soft to its sides, repeating along it (light on black, white: the material
+ * colours it). Canvas top is v = 1, the far end of a run: a streak's head lies below its tail.
+ */
+function flowTexture(): THREE.Texture {
+  const [w, h] = [32, 256];
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const image = ctx.createImageData(w, h);
+  // each streak's head (share of a run, from its near end), its tail's length and its brightness
+  const streaks = [
+    [0.12, 0.3, 0.75],
+    [0.45, 0.2, 0.5],
+    [0.74, 0.34, 0.65],
+  ];
+  for (let y = 0; y < h; y++) {
+    // v from the near end of a run (the bottom of the canvas)
+    const v = 1 - (y + 0.5) / h;
+    let along = 0.1;
+    for (const [head, tail, bright] of streaks) {
+      // ahead of the head (toward the line) it ends quickly; behind it, it fades out slowly
+      let d = v - head;
+      d -= Math.round(d);
+      along += bright * (d >= 0 ? Math.exp(-((d / 0.04) ** 2)) : Math.exp(d / tail));
+    }
+    for (let x = 0; x < w; x++) {
+      const u = (x + 0.5) / w - 0.5;
+      const across = Math.exp(-((u / 0.15) ** 2)) + 0.25 * Math.exp(-((u / 0.32) ** 2));
+      const level = Math.round(255 * Math.min(1, across * Math.min(1, along)));
+      const i = (y * w + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = level;
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 function radialTexture(): THREE.Texture {

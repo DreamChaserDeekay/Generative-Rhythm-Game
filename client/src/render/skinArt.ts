@@ -30,6 +30,8 @@ export interface MediaTexture {
   /** Hit effects: sprite size per lane width; hold sparks: height of the judgement line on the sprite (0 = bottom). */
   scale?: number;
   anchorY?: number;
+  /** Hit flipbooks: how much larger a frame is than the effect drawn in it (room all round the whole effect). */
+  span?: number;
 }
 
 /** "Reduce flashing" for the textured hit effects. */
@@ -58,7 +60,7 @@ export interface SkinArt {
 }
 
 const DEFAULT_EFFECTS: MediaEffects = { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
-const POSITIVE = ['tileAspect', 'depth', 'width', 'tile', 'gain', 'scale'] as const;
+const POSITIVE = ['tileAspect', 'depth', 'width', 'tile', 'gain', 'scale', 'span'] as const;
 
 export function mediaUrl(file: string): string {
   return `${import.meta.env.BASE_URL}media/${file}`;
