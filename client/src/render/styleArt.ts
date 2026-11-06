@@ -210,10 +210,19 @@ function sidePlate(g: CanvasRenderingContext2D, side: ArtImage, set: Exclude<Art
 }
 
 /** CLUB's and NEON's notes.png: a cell of 512 per mark, two to a row, the note at (6, `top`) in it, 500 × `h` (its own proportions). */
-const NOTE_CELL: Record<'club' | 'neon', { top: number; h: number }> = {
-  club: { top: 6, h: 500 },
-  neon: { top: 12, h: 488 },
+const NOTE_CELL: Record<'club' | 'neon' | 'crystal', { left: number; top: number; w: number; h: number }> = {
+  club: { left: 6, top: 6, w: 500, h: 500 },
+  neon: { left: 6, top: 12, w: 500, h: 488 },
+  // the four-pointed star, deeper than it is wide (build_styles.py: gem_star)
+  crystal: { left: 38, top: 6, w: 435, h: 500 },
 };
+
+/** A cell of a set's notes.png (CLUB, NEON, CRYSTAL), the mark's, drawn over the whole note. */
+function drawCell(g: CanvasRenderingContext2D, notes: ArtImage, set: 'club' | 'neon' | 'crystal', mark: Exclude<NoteMark, 'side'>, w: number, h: number): void {
+  const i = MARK_CELL[mark];
+  const cell = NOTE_CELL[set];
+  g.drawImage(notes, (i % 2) * 512 + cell.left, Math.floor(i / 2) * 512 + cell.top, cell.w, cell.h, 0, 0, w, h);
+}
 
 /** CLUB: a record, as round as the coin it stands for, its lane's mark printed on its label. */
 function clubNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
@@ -223,9 +232,8 @@ function clubNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       else NOTE_PAINT.round(g, w, h, mark);
       return;
     }
-    const i = MARK_CELL[mark];
     g.imageSmoothingQuality = 'high';
-    g.drawImage(notes, (i % 2) * 512 + 6, Math.floor(i / 2) * 512 + NOTE_CELL.club.top, 500, NOTE_CELL.club.h, 0, 0, w, h);
+    drawCell(g, notes, 'club', mark, w, h);
   };
 }
 
@@ -240,32 +248,33 @@ function neonNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       else NOTE_PAINT.star5(g, w, h, mark);
       return;
     }
-    const i = MARK_CELL[mark];
     g.imageSmoothingQuality = 'high';
-    g.drawImage(notes, (i % 2) * 512 + 6, Math.floor(i / 2) * 512 + NOTE_CELL.neon.top, 500, NOTE_CELL.neon.h, 0, 0, w, h);
+    drawCell(g, notes, 'neon', mark, w, h);
     noteMark(g, mark, w / 2, h * NEON_MARK.y, Math.min(w * NEON_MARK.r, (h * NEON_MARK.r) / NOTE_STRETCH), ink(1, 0.78), false);
   };
 }
 
-/** CRYSTAL's notes.png: a gem per mark, a row of 256 each, 1024 × 253 from y = row × 256 + 1. */
-const GEM = { w: 1024, h: 253, top: 1 } as const;
+/** How much of its lane a note spans (all but the four-pointed star: see noteWidthOf). */
+const NOTE_WIDTH = 0.9;
 /**
- * How much deeper on the screen than the picture CRYSTAL draws its gem across a note (a long cut gem,
- * drawn fuller so it reads at speed as a four-pointed star), at most the note's depth; how tall the note is for its
- * width at the judge line (GEM_SHAPE: deeper than a bar, see noteShapeOf); and how much brighter its
- * facets are drawn than the picture (its darker facets lifted toward the lane's colour).
+ * CRYSTAL's notes.png: its long cut gem drawn as a four-pointed star (✦) per mark, in a cell as
+ * CLUB's and NEON's (NOTE_CELL.crystal; build_styles.py's gem_star stretches each column of the gem
+ * deeper the nearer the middle, so its short vertical points grow into long ones). The note spans
+ * GEM_WIDTH of its lane, its horizontal points at the lane's edges (see noteWidthOf), and is as deep
+ * as the star for its width at the judge line (GEM_SHAPE, see noteShapeOf); the star's facets are
+ * drawn GEM_BRIGHT brighter than the picture (its darker facets lifted toward the lane's colour).
  */
-const GEM_FULL = 3;
-const GEM_SHAPE = 0.8;
+const GEM_WIDTH = 0.98;
+const GEM_SHAPE = NOTE_CELL.crystal.h / NOTE_CELL.crystal.w;
 const GEM_BRIGHT = 1.25;
 /**
- * The band of light under CRYSTAL's gem, across the whole lane: as deep as this share of the gem, at
- * this strength in the middle. The gem's points are thin; the band carries the note's line from edge
- * to edge, as a bar's does.
+ * The band of light under CRYSTAL's star, across the whole lane: as deep as this share of the note,
+ * at this strength in the middle. The star's horizontal points are thin; the band carries the note's
+ * line from edge to edge, as a bar's does.
  */
-const GEM_BAND = { depth: 0.42, alpha: 1 } as const;
+const GEM_BAND = { depth: 0.22, alpha: 1 } as const;
 
-/** CRYSTAL: a long cut gem across the lane, its points at the lane's edges, on a band of light across it, its lane's mark cut in its heart. */
+/** CRYSTAL: a cut gem drawn as a four-pointed star across the lane, its long points at the lane's edges and the note's ends, on a band of light across it, its lane's mark cut in its heart. */
 function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
   return (g, w, h, mark) => {
     if (mark === 'side') {
@@ -273,8 +282,7 @@ function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       else NOTE_PAINT.star4(g, w, h, mark);
       return;
     }
-    const gh = Math.min(h, (w * GEM.h * NOTE_STRETCH * GEM_FULL) / GEM.w);
-    const band = gh * GEM_BAND.depth;
+    const band = h * GEM_BAND.depth;
     const light = g.createLinearGradient(0, (h - band) / 2, 0, (h + band) / 2);
     light.addColorStop(0, ink(1, 0, 0));
     light.addColorStop(0.35, ink(1, 0.25, GEM_BAND.alpha));
@@ -285,10 +293,15 @@ function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
     g.imageSmoothingQuality = 'high';
     // drawn once into the note's picture (a canvas filter where the browser has one; as drawn where not)
     g.filter = `brightness(${GEM_BRIGHT})`;
-    g.drawImage(notes, 0, MARK_CELL[mark] * 256 + GEM.top, GEM.w, GEM.h, 0, (h - gh) / 2, w, gh);
+    drawCell(g, notes, 'crystal', mark, w, h);
     g.filter = 'none';
-    noteMark(g, mark, w / 2, h / 2, Math.min(w * 0.042, (gh * 0.2) / NOTE_STRETCH), tone(0.34), false);
+    noteMark(g, mark, w / 2, h / 2, Math.min(w * 0.042, (h * 0.04) / NOTE_STRETCH), tone(0.34), false);
   };
+}
+
+/** How much of its lane a note of the style spans: the four-pointed star reaches the lane's edges (GEM_WIDTH), the others 0.9. */
+export function noteWidthOf(style: NoteStyle): number {
+  return style === 'star4' ? GEM_WIDTH : NOTE_WIDTH;
 }
 
 /** The note style's paint: drawn from art where its pictures loaded. */
@@ -302,13 +315,13 @@ export function notePaintOf(style: NoteStyle, images: StyleImages): NotePaint {
 
 /**
  * How tall a note drawn from art looks for its width at the judge line (see noteDepthOf): CLUB's
- * record round, NEON's star as drawn, CRYSTAL's gem a little deeper than a bar (GEM_SHAPE); null where
+ * record round, NEON's star and CRYSTAL's four-pointed star as drawn (GEM_SHAPE); null where
  * it lies in a bar's depth (MECHA's plate); undefined while the style is drawn in code.
  */
 export function noteShapeOf(style: NoteStyle, images: StyleImages): number | null | undefined {
   const set = setOf(style);
   if (!set || !images[artId(set, 'notes')]) return undefined;
-  return { mecha: null, club: 1, crystal: GEM_SHAPE, neon: NOTE_CELL.neon.h / 500 }[set];
+  return { mecha: null, club: 1, crystal: GEM_SHAPE, neon: NOTE_CELL.neon.h / NOTE_CELL.neon.w }[set];
 }
 
 // ---------- long notes ----------

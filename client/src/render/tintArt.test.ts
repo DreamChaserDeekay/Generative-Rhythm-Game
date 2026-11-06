@@ -7,10 +7,11 @@ describe('the note families’ depth along the track', () => {
   it('keeps the bars and the plate a bar deep, and makes the coin and the stars as deep as keeps their shape at the judge line', () => {
     // SDVX shows the track about 1.54 times shorter along than across at the judge line
     for (const style of ['flat', 'stem', 'chamfer'] as const) expect(noteDepthOf(style, bar, 0.84, 1.54)).toBe(bar);
-    // a coin as deep on the screen as it is wide; the five-pointed star a little less; the compass star wide
+    // a coin as deep on the screen as it is wide; the five-pointed star a little less; the four-pointed
+    // star (drawn in code) as deep as it is wide, its vertical points as long as its horizontal ones
     expect(noteDepthOf('round', bar, 0.84, 1.54)).toBeCloseTo(0.84 * 1.54, 9);
     expect(noteDepthOf('star5', bar, 0.84, 1.54)).toBeCloseTo(0.84 * 0.95 * 1.54, 9);
-    expect(noteDepthOf('star4', bar, 0.84, 1.54)).toBeCloseTo(0.84 * 0.62 * 1.54, 9);
+    expect(noteDepthOf('star4', bar, 0.84, 1.54)).toBeCloseTo(0.84 * 1.54, 9);
   });
 
   it('never makes them shallower than a bar nor deeper than three: the plane camera and very wide lanes flatten them a little', () => {
@@ -18,8 +19,8 @@ describe('the note families’ depth along the track', () => {
     expect(noteDepthOf('round', bar, 0.84, 3.81)).toBe(bar * 3);
     // 4K's lanes are over twice as wide
     expect(noteDepthOf('round', bar, 1.8, 1.54)).toBe(bar * 3);
-    // a camera that hardly flattens it
-    expect(noteDepthOf('star4', bar, 0.84, 1)).toBe(bar);
+    // a camera that hardly flattens a narrow lane's star
+    expect(noteDepthOf('star4', bar, 0.6, 1)).toBe(bar);
   });
 
   it('keeps the families’ shape in the wider scratch lane and the narrower side lanes; the plain bars stay as deep', () => {

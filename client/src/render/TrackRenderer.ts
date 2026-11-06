@@ -21,7 +21,7 @@ import { FEVER_COLORS, STEM_COLORS } from './palette';
 import { disposeSkinArt, flipbookOffset, type ArtTexture, type MediaEffects, type SkinArt } from './skinArt';
 import { deckTop, EXTRA_LINE, hex, laneColorsFor, styleOf, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
-import { artPartsOf, borderLookOf, gearArtOf, isArtHit, longPaintOf, notePaintOf, noteShapeOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
+import { artPartsOf, borderLookOf, gearArtOf, isArtHit, longPaintOf, notePaintOf, noteShapeOf, noteWidthOf, platePaintOf, sideTapPaintOf, type StyleImages } from './styleArt';
 import {
   DOTS_ACROSS,
   DOTS_LONG,
@@ -1267,7 +1267,7 @@ export class TrackRenderer {
     const mesh = this.notePool.next();
     mesh.material = this.noteMaterial(color, kind);
     const { near, far } = noteSpan(z, depth, z, null, this.extent);
-    mesh.scale.set(laneWidth * 0.9, height, near - far);
+    mesh.scale.set(laneWidth * noteWidthOf(this.style.note), height, near - far);
     mesh.position.set(x, height / 2, (near + far) / 2);
   }
 
@@ -2219,7 +2219,7 @@ export class TrackRenderer {
    * then: a new depth drops the pictures made for the old one.
    */
   private fitNoteDepth(): void {
-    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * 0.9, 1 / this.trackAspect(this.judgeZ), noteShapeOf(this.style.note, this.images));
+    const depth = noteDepthOf(this.style.note, this.barDepth, this.keyLane.width * noteWidthOf(this.style.note), 1 / this.trackAspect(this.judgeZ), noteShapeOf(this.style.note, this.images));
     const stepped = Math.round(depth / NOTE_DEPTH_STEP) * NOTE_DEPTH_STEP;
     if (Math.abs(stepped - this.noteDepth) < 1e-9) return;
     this.noteDepth = stepped;
@@ -2421,7 +2421,7 @@ export class TrackRenderer {
     if (!texture) {
       const lane = this.geometry.lanes.find((l) => noteKindOf(l) === kind) ?? this.geometry.lanes[0];
       const h = NOTE_PICTURE_PX;
-      const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * 0.9) / this.laneDepths[lane.index])));
+      const w = Math.round(Math.min(512, Math.max(32, (h * lane.width * noteWidthOf(this.style.note)) / this.laneDepths[lane.index])));
       const paint = this.notePaint;
       texture = this.own(paintTexture(w, h, kind === 'side' && this.sideDots ? dotsNote : (g, pw, ph) => paint(g, pw, ph, kind)));
       this.noteTextures.set(kind, texture);
