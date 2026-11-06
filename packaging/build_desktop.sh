@@ -20,6 +20,9 @@ echo "== analysis server (PyInstaller)"
 if [[ "$EDITION" == ml ]]; then
   "$PY" -m pip install -q -r "$ROOT/packaging/ml_torch.txt" --index-url https://download.pytorch.org/whl/cpu
   "$PY" -m pip install -q -e "$ROOT/server[build,ml]"
+  if "$PY" -c 'import sys; sys.exit(sys.version_info < (3, 12))'; then
+    "$PY" -m pip install -q --no-deps "basic-pitch>=0.4"  # its ONNX model; see server/pyproject.toml
+  fi
   BUILDER_EXTRA=(-c.nsis.artifactName='GenerativeRhythm-ML-Setup-${version}.${ext}')
 else
   "$PY" -m pip install -q -e "$ROOT/server[build]"

@@ -88,7 +88,8 @@ cd ../server
 ```bash
 cd server
 .venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu   # CPU용 PyTorch
-.venv/bin/pip install -e ".[ml]"                                                        # demucs · beat-this (+ basic-pitch)
+.venv/bin/pip install -e ".[ml]"                                                        # demucs · beat-this (+ basic-pitch, Python 3.11)
+.venv/bin/pip install --no-deps "basic-pitch>=0.4"                                       # Python 3.12 이상: basic-pitch를 ONNX로 (TensorFlow 없이)
 ```
 
 | 백엔드 | 하는 일 | 없을 때(기본 분석) | 라이선스 |
