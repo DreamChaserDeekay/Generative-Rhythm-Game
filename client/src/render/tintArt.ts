@@ -133,7 +133,7 @@ export const NOTE_STRETCH = 1.7;
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
  * depth): the coin round, the five-pointed star as drawn, the compass star wide.
  */
-const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 0.62, star5: 0.95 };
+const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95 };
 
 /**
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
@@ -383,7 +383,8 @@ function star4Note(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
     [-X, 0],
     [0, -Y],
   ];
-  const waists = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [X * 0.2, Y * 0.44]);
+  // thin between its points: its vertical points as long as the note is deep, its arms as thick as a bar
+  const waists = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [X * 0.2, Y * 0.27]);
   facetedStar(g, tips, waists, outline);
   // the heart
   const [kx, ky] = [X * 0.1, Y * 0.2];

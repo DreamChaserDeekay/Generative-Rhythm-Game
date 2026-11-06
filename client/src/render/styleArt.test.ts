@@ -13,6 +13,7 @@ import {
   longPaintOf,
   notePaintOf,
   noteShapeOf,
+  noteWidthOf,
   platePaintOf,
   sideTapPaintOf,
   styleImageIds,
@@ -262,17 +263,11 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       const { g, draws } = recorder();
       paint(g, 120, 96, mark);
       const d = draws[0];
-      // all of the lane's width; the gem in a row of its own, the record and the star in a cell
-      expect([d.dx, d.dw]).toEqual([0, 120]);
-      if (c.set === 'crystal') {
-        expect([d.sx, d.sy, d.sw, d.sh]).toEqual([0, i * 256 + 1, 1024, 253]);
-        // a cut gem about the note's middle, no deeper than the note
-        expect(d.dh).toBeLessThanOrEqual(96);
-        expect(d.dy).toBeCloseTo((96 - d.dh) / 2, 9);
-      } else {
-        expect([d.sx, d.sy]).toEqual([(i % 2) * 512 + 6, Math.floor(i / 2) * 512 + (c.set === 'club' ? 6 : 12)]);
-        expect([d.dy, d.dh]).toEqual([0, 96]);
-      }
+      // all of the note, from the mark's cell: the record and the five-pointed star 500 wide, the
+      // four-pointed star narrower than it is deep, in the middle of its cell
+      expect([d.dx, d.dw, d.dy, d.dh]).toEqual([0, 120, 0, 96]);
+      const cell = { club: [6, 6, 500, 500], neon: [6, 12, 500, 488], crystal: [38, 6, 435, 500] }[c.set]!;
+      expect([d.sx, d.sy, d.sw, d.sh]).toEqual([(i % 2) * 512 + cell[0], Math.floor(i / 2) * 512 + cell[1], cell[2], cell[3]]);
     });
     const { g, draws } = recorder();
     paint(g, 60, 40, 'side');
@@ -282,27 +277,26 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     expect(draws[0].dy).toBeCloseTo((40 - draws[0].dh) / 2, 9);
   });
 
-  it('keeps the record round and the star as drawn at the judge line, the gem a little deeper than a bar', () => {
+  it('keeps the record round and the stars as drawn at the judge line', () => {
     const shape = noteShapeOf(c.note, images);
-    expect(shape).toBe({ club: 1, crystal: 0.8, neon: 488 / 500 }[c.set]);
-    const depth = noteDepthOf(c.note, 0.7, 1.2, 1.7, shape);
-    expect(depth).toBeCloseTo(1.2 * shape! * 1.7, 9);
+    expect(shape).toBe({ club: 1, crystal: 500 / 435, neon: 488 / 500 }[c.set]);
+    const depth = noteDepthOf(c.note, 0.7, 0.9, 1.7, shape);
+    expect(depth).toBeCloseTo(0.9 * shape! * 1.7, 9);
   });
 
   if (c.set === 'crystal')
-    it('draws the gem fuller than its picture, on a band of light across the whole lane under it (the gem’s points are thin)', () => {
+    it('draws the four-pointed star over the whole note, on a band of light across the whole lane under it (its horizontal points are thin)', () => {
       const { g, draws, fills } = recorder();
-      // a note deep enough for the gem to keep its own proportions
       notePaintOf(c.note, images)(g, 120, 200, 'white');
-      const gem = draws[0];
-      // more than twice as deep for its width as the picture is, on the screen
-      expect(gem.dh / gem.dw).toBeGreaterThan((2 * 253 * NOTE_STRETCH) / 1024);
-      expect(gem.dh).toBeLessThan(200);
+      expect([draws[0].dx, draws[0].dy, draws[0].dw, draws[0].dh]).toEqual([0, 0, 120, 200]);
       expect(fills).toHaveLength(1);
       const band = fills[0];
       expect([band.x, band.w]).toEqual([0, 120]);
       expect(band.y + band.h / 2).toBeCloseTo(100, 9);
-      expect(band.h).toBeLessThan(gem.dh);
+      expect(band.h).toBeLessThan(200 * 0.3);
+      // it reaches the lane's edges; every other note leaves a gap between lanes
+      expect(noteWidthOf('star4')).toBeGreaterThan(0.95);
+      for (const note of ['flat', 'chamfer', 'round', 'star5'] as const) expect(noteWidthOf(note)).toBe(0.9);
     });
 
   it('draws its long note from art, its end as deep as the picture’s, its body and end lit while held', () => {

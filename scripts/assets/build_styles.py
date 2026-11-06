@@ -382,7 +382,9 @@ def mecha_hold(weld: np.ndarray, textures: dict) -> None:
 #
 # Px of a source sheet. The atlases (styleArt.ts):
 #   notes.png 1024 × 1024: a 2 × 2 grid of 512 cells (white, blue, gold, scratch), the note fitted in 500 px about
-#     the cell's middle; or, `rows`, a row of 256 per note, the note 1024 wide about the row's middle
+#     the cell's middle (CRYSTAL's four-pointed star STAR_CELL deep and as wide as its shape makes it, see gem_star;
+#     `rows`: the source sheet's notes lie one under another; without `star` they would go a row of 256 each, 1024
+#     wide about the row's middle)
 #   long.png 512 × 256: body idle | body held | end idle | end held, 128 wide (ends `end` px deep)
 #   side.png 1024 × 512: the bar over the keys at (0, 0); the side lane's own note at (0, 256)
 
@@ -393,7 +395,8 @@ SET_ART = {
         "side": {"cut": 0.105, "plate_cut": 0.21, "tint": (1 / 0.62, 0.68, 0.85), "bright": 0.62},
     },
     "crystal": {
-        "notes": {"rows": True, "gain": 1 / 0.7, "lift": 0.74, "white": 0.85},
+        # its long cut gem drawn as a four-pointed star (gem_star), in a cell as the others'
+        "notes": {"rows": True, "gain": 1 / 0.7, "lift": 0.74, "white": 0.85, "star": {"shape": 1.15, "arm": 2.6, "reach": 0.2, "power": 3}},
         "long": {"cap": 150, "idle": (1 / 0.7, 0.72, 0.8), "held": (1 / 0.6, 0.6, 0.9), "see": None},
         "side": {"cut": 0.04, "plate_cut": 0.07, "tint": (1 / 0.65, 0.7, 0.9), "bright": 0.6},
     },
@@ -437,6 +440,34 @@ def disc_of(v: np.ndarray, ys: slice, xs: slice) -> tuple[float, float, float]:
     return ys.start + b, xs.start + a, float(np.sqrt(sol[2] + a * a + b * b))
 
 
+# A four-pointed star's cell (CRYSTAL's notes): as deep as this, as wide as its shape makes it, in the middle of a
+# 512 cell's 500 (styleArt.ts: NOTE_CELL.crystal).
+STAR_CELL = 500
+
+
+def gem_star(rgba: np.ndarray, w: int, h: int, arm: float, reach: float, power: float) -> np.ndarray:
+    """CRYSTAL's long cut gem (`rgba`, fitted across a row about its middle) drawn as a four-pointed star w × h, in
+    proportions as on the screen: each column of the gem stretched deeper the nearer the middle, `arm` times the gem's
+    own depth (drawn w wide) out along its arms and rising to all of h in its middle column, the stretch falling off as
+    (1 − u / reach) ** power of the half width u, so its short vertical points grow into long ones and its horizontal
+    points stay at the edges. Filtered with the colours weighted by their alpha (no dark fringes)."""
+    sh, sw = rgba.shape[:2]
+    a = rgba[..., 3]
+    rows = np.where(a.max(axis=1) > 0.05)[0]
+    own = (rows[-1] - rows[0] + 1) * w / sw
+    cy = (rows[0] + rows[-1] + 1) / 2
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    u = np.abs((xx + 0.5) / w - 0.5) * 2
+    stretch = arm + (h / own - arm) * np.clip(1 - u / reach, 0, 1) ** power
+    sx = (xx + 0.5) * sw / w - 0.5
+    sy = cy + (yy + 0.5 - h / 2) / (stretch * w / sw) - 0.5
+    pre = [rgba[..., 0] * a, rgba[..., 1] * a, a]
+    out = [ndimage.map_coordinates(c, [sy, sx], order=3, mode="constant", cval=0.0) for c in pre]
+    oa = np.clip(out[2], 0, 1)
+    colour = [np.where(oa > 1e-3, np.clip(c / np.maximum(oa, 1e-3), 0, 1), 0) for c in out[:2]]
+    return np.stack([colour[0], colour[1], np.zeros_like(oa), oa], axis=2).astype(np.float32)
+
+
 def set_notes(cid: str, textures: dict) -> None:
     c = SET_ART[cid]["notes"]
     a = load(SRC / cid / "notes.jpg")
@@ -460,7 +491,13 @@ def set_notes(cid: str, textures: dict) -> None:
         if c.get("disc"):
             alpha = alpha * circle_mask(h, w)
         rgba = tint(unpremultiply(crop, alpha), alpha, gain=c["gain"], lift=c["lift"], white=c["white"])
-        if c["rows"]:
+        if c.get("star"):
+            st = c["star"]
+            r, col = divmod(i, 2)
+            sw = round(STAR_CELL / st["shape"])
+            star = gem_star(fit_into(rgba, 1024, 256), sw, STAR_CELL, st["arm"], st["reach"], st["power"])
+            paste(atlas, star, col * 512 + 6 + (500 - sw) // 2, r * 512 + 6)
+        elif c["rows"]:
             paste(atlas, fit_into(rgba, 1024, 256), 0, i * 256)
         else:
             r, col = divmod(i, 2)
