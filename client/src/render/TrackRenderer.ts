@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { StemName } from '../engine/types';
 import type { CameraPoseFx } from './cameraFx';
-import { DECK_PICTURE_STRETCH, deckFromPicture, GEAR_JUDGE, isGear, lightsOf, type DeckMark, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, type SideLook } from './deckArt';
+import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, GEAR_JUDGE, isGear, lightsOf, type DeckMark, paintBorder, paintFace, rowDrop, SIDE_PAINT, type DeckLane, type DeckSpec, type DeckStyle, type KeyKind, type KeyPaint, type LightStyle, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -119,6 +119,15 @@ export const NOTE_Y = NOTE_HEIGHT * PICTURE_LIFT;
 export const LINE_Y = NOTE_Y + 0.001;
 const COVER_Y = 0.016;
 const DECK_Y = 0.022;
+/** The px of a deck key's shade when held down (deckArt.paintPressedKey), across and along. */
+const PRESS_KEY_PX = [64, 256] as const;
+/** How fast a deck key held down comes back up once its lane's key is let go (ms to fall to 1/e). */
+export const KEY_RISE_MS = 40;
+
+/** How far down a deck key is (1 all the way, 0 up): all the way at once while `held`, coming back up over KEY_RISE_MS once let go. */
+export function pressLevel(level: number, held: boolean, dt: number): number {
+  return held ? 1 : level * Math.exp(-dt / KEY_RISE_MS);
+}
 const KEY_Y = 0.027;
 /** How long the band of light running down a picked gear's frames is, a share of the frame (sweepBorders). */
 const SWEEP_SHARE = 0.16;
@@ -752,6 +761,8 @@ export class TrackRenderer {
   private readonly sweeps: { band: THREE.Texture; axis: 'u' | 'v'; flip: boolean }[] = [];
   /** A picked gear's lights over its deck (gearLights.ts), and where its deck's top is (z). */
   private readonly gearLights: GearLightLayer | null;
+  /** The gear's keys that go down with their lanes (PIANO's): a shade over each, shown while its lane's key is held. */
+  private pressKeys: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; texture: THREE.CanvasTexture; lane: number; level: number }[] = [];
   private deckTopZ = 0;
   /** A hot spot running along a picked gear's judge line, and its glow's own opacity (the shimmer is about it). */
   private readonly judgeShines: THREE.Mesh[] = [];
@@ -1136,6 +1147,7 @@ export class TrackRenderer {
     this.drawBars(frame);
     this.drawBeams(frame, dt);
     this.drawKeys(frame);
+    this.drawPressKeys(frame, dt);
     this.drawHolds(frame, perfNow);
     this.drawHits(perfNow);
     this.drawFever(frame);
@@ -1181,6 +1193,7 @@ export class TrackRenderer {
 
   dispose(): void {
     this.gearLights?.dispose();
+    this.layPressKeys([], [], 0);
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Sprite) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -1453,6 +1466,46 @@ export class TrackRenderer {
       const color = this.style.deck === 'stem' && stem ? STEM_COLORS[stem] : this.laneColors[lane];
       key.material = this.keyMaterial(lane, down, color);
     });
+  }
+
+  /**
+   * Lays a shade over each of the deck's keys that go down with their lanes (`keys`, plane px; `laneOf`
+   * the track's lane of each of the deck's lanes), painted once (deckArt.paintPressedKey); none clears
+   * them.
+   */
+  private layPressKeys(keys: readonly DeckKey[], laneOf: readonly number[], width: number): void {
+    for (const k of this.pressKeys) {
+      k.mesh.removeFromParent();
+      k.material.dispose();
+      k.texture.dispose();
+    }
+    this.pressKeys = keys.map((key) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = PRESS_KEY_PX[0];
+      canvas.height = PRESS_KEY_PX[1];
+      const share = { left: key.notch.left / key.box.w, right: key.notch.right / key.box.w, depth: key.notch.depth / key.box.h };
+      paintPressedKey(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, share);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false });
+      const mesh = new THREE.Mesh(this.flatGeometry, material);
+      // over the deck, under its lights
+      mesh.renderOrder = 9.055;
+      mesh.visible = false;
+      mesh.scale.set(key.box.w * PX, 1, key.box.h * PX);
+      mesh.position.set(-width / 2 + (key.box.x + key.box.w / 2) * PX, DECK_Y + 0.0004, this.deckTopZ + (key.box.y + key.box.h / 2) * PX);
+      this.scene.add(mesh);
+      return { mesh, material, texture, lane: laneOf[key.lane], level: 0 };
+    });
+  }
+
+  /** The deck's keys go down at once while their lane's key is held and come back up over a few frames (pressLevel). */
+  private drawPressKeys(frame: TrackFrame, dt: number): void {
+    for (const k of this.pressKeys) {
+      k.level = pressLevel(k.level, frame.keyDown(k.lane), dt);
+      k.material.opacity = k.level;
+      k.mesh.visible = k.level > 0.01;
+    }
   }
 
   /**
@@ -2307,10 +2360,15 @@ export class TrackRenderer {
     this.keyDepth = d.keyDepth;
     this.sideDepth = d.sideDepth;
     this.deckStretch = d.stretch;
+    // over the deck's picture, as it is laid on the deck (deckArt.deckPicture), or over what its plate drew in code
+    const pictured = deckFromPicture(this.style.deck, spec, gearArtOf(this.style.deck, this.images));
+    this.layPressKeys(
+      deckKeys(this.style.deck, spec, pictured),
+      lanes.filter((l) => !l.over).map((l) => l.index),
+      width,
+    );
     if (this.gearLights) {
-      // over the deck's picture, as it is laid on the deck (deckArt.deckPicture), or on the parts its
-      // plate drawn in code marked (plane px)
-      const pictured = deckFromPicture(this.style.deck, spec, gearArtOf(this.style.deck, this.images));
+      // where its picture shows the parts, or on the parts its plate drawn in code marked (plane px)
       const across = width / DECK_PICTURE_PX;
       if (pictured) this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across, along: (across * d.stretch) / DECK_PICTURE_STRETCH, y: DECK_Y }, null);
       else this.gearLights.place({ left: -width / 2, top: this.deckTopZ, across: PX, along: PX, y: DECK_Y }, marks);

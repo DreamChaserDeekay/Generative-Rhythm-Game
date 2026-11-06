@@ -491,8 +491,8 @@ function orbitalLights(): GearLightSet {
 
 /**
  * PIANO: a glint running along the brass inlay once a bar, the inlay glowing warm in FEVER, the
- * treble clef medallion catching the light on the bar's first beat; nothing on the keys, which lie
- * under the lanes (the key beams show the keys).
+ * treble clef medallion catching the light on the bar's first beat; no light on the keys, which lie
+ * under the lanes and go down while their lane's key is held instead (deckArt.deckKeys).
  */
 function pianoLights(): GearLightSet {
   // the inlay along the deck's top edge (the glint runs between the walls, its quad clear of them)

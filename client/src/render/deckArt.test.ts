@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { blackKeyAfter, codeBorderLook, DECK_PICTURE_FLATTEST, DECK_STYLES, deckFromPicture, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, referenceReach, rowDrop, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type LightStyle, type Picture } from './deckArt';
+import { blackKeyAfter, codeBorderLook, DECK_PICTURE_FLATTEST, DECK_STYLES, deckFromPicture, deckKeys, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, isGear, KEY_PAINT, lightsOf, lowerTop, paintBorder, paintDeck, paintFace, paintPressedKey, referenceReach, rowDrop, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type LightStyle, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { BASE_SKIN } from './skins';
-import { deckRows, deckTopZ, notesEndZ, type DeckRows } from './TrackRenderer';
+import { deckRows, deckTopZ, KEY_RISE_MS, notesEndZ, pressLevel, type DeckRows } from './TrackRenderer';
 
 /** A key mode's lanes as the deck has them (px of the sheets, 73.65 to a track unit); side lanes laid over the keys are none of them. */
 function deckLanes(mode: KeyModeId, sideNotes: SideNotes = 'lanes'): { left: number; kind: KeyKind; width: number; side?: boolean }[] {
@@ -318,6 +318,79 @@ describe('the decks of the gears a player picks', () => {
         if (medallion) expect(medallion.x + medallion.w).toBeLessThanOrEqual(s.lanes[0].width);
       }
     }
+  });
+
+  it('PIANO’s white keys go down with their lanes: one over each, narrowed between the black keys over its far corners, where the picture or the plate draws them', () => {
+    // C D E F G A B: the black keys after C, D, F, G and A
+    const notched = [
+      [false, true],
+      [true, true],
+      [true, false],
+      [false, true],
+      [true, true],
+      [true, true],
+      [true, false],
+    ];
+    for (const [room, stretch] of [
+      [155.55, 1.2],
+      [912, 3.25],
+    ]) {
+      const s = spec(room, stretch);
+      for (const pictured of [false, true]) {
+        const keys = deckKeys('piano', s, pictured);
+        expect(keys.map((k) => k.lane)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+        // where the keys start: under the plate's lip, or as the picture drew them (26 of its 2048 px, laid as long as the camera flattens it)
+        const top = pictured ? ((26 * s.width) / 2048) * (stretch / 1.2) : 3.2 * stretch + 1.2;
+        const blackEnd = pictured ? ((299 * s.width) / 2048) * (stretch / 1.2) : top - 0.6 + (room - top) * 0.58;
+        keys.forEach((k, i) => {
+          const lane = s.lanes[k.lane];
+          expect(k.box.x).toBeCloseTo(lane.left + 0.55, 9);
+          expect(k.box.w).toBeCloseTo(lane.width - 1.1, 9);
+          expect(k.box.y).toBeCloseTo(top, 9);
+          expect(k.box.y + k.box.h).toBeCloseTo(s.depth, 9);
+          expect([k.notch.left > 0, k.notch.right > 0], `key ${i}`).toEqual(notched[i]);
+          // half a black key (0.56 of a lane) into it, from its edge
+          for (const n of [k.notch.left, k.notch.right]) if (n > 0) expect(n).toBeCloseTo(lane.width * 0.28 - 0.55, 6);
+          expect(k.notch.depth).toBeCloseTo(blackEnd - top, 6);
+        });
+      }
+    }
+    // none under the side lanes with a place of their own, the key lanes' only; side lanes over the keys leave every key lane its key
+    expect(deckKeys('piano', { ...spec(155.55, 1.2, '4K+FX'), lanes: deckLanes('4K+FX') }, false).map((k) => k.lane)).toEqual([1, 2, 3, 4]);
+    expect(deckKeys('piano', { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, false).map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5]);
+    // the other gears have no keys
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+  });
+
+  it('PIANO’s key held down is shaded only inside its outline, round the black keys over its corners', () => {
+    const { g, calls } = callRecorder();
+    paintPressedKey(g, 64, 256, { left: 0.25, right: 0.3, depth: 0.5 });
+    // its outline first, kept as the clip for everything after it
+    const path = calls.slice(calls.findIndex((c) => c[0] === 'moveTo')).slice(0, 8);
+    expect(path).toEqual([
+      ['moveTo', 16, 0],
+      ['lineTo', 44.8, 0],
+      ['lineTo', 44.8, 128],
+      ['lineTo', 64, 128],
+      ['lineTo', 64, 256],
+      ['lineTo', 0, 256],
+      ['lineTo', 0, 128],
+      ['lineTo', 16, 128],
+    ]);
+    const clip = calls.findIndex((c) => c[0] === 'clip');
+    expect(clip).toBeGreaterThan(calls.findIndex((c) => c[0] === 'moveTo'));
+    expect(calls.findIndex((c) => c[0] === 'fillRect' || c[0] === 'fill')).toBeGreaterThan(clip);
+    expect(calls[0][0]).toBe('save');
+    expect(calls[calls.length - 1][0]).toBe('restore');
+  });
+
+  it('a key held down goes down at once and comes back up over a few frames once let go', () => {
+    expect(pressLevel(0, true, 16)).toBe(1);
+    expect(pressLevel(0.3, true, 16)).toBe(1);
+    expect(pressLevel(1, false, KEY_RISE_MS)).toBeCloseTo(Math.exp(-1), 9);
+    let level = 1;
+    for (let t = 0; t < 200; t += 16) level = pressLevel(level, false, 16);
+    expect(level).toBeLessThan(0.01);
   });
 
   it('lays a deck picture only where it was painted for: a camera near its angle, and PIANO’s only on the 7K+1S row', () => {
