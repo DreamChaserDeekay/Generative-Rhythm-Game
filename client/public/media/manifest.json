@@ -932,6 +932,14 @@
         512
       ]
     },
+    "rawglass/deck": {
+      "file": "gears/rawglass/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
     "receiver/deck": {
       "file": "gears/receiver/deck.webp",
       "bundle": "gear",

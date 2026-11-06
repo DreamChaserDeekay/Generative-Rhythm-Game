@@ -53,9 +53,10 @@ describe('the track', () => {
   });
 
   it('offers the note families with their long notes, the gears and the hits, the piano note no longer', () => {
-    expect(PART_NOTES).toEqual(['flat', 'chamfer', 'round', 'star4', 'star5']);
+    // the bar in six finishes after the plain one, then the shapes
+    expect(PART_NOTES).toEqual(['flat', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
     for (const note of PART_NOTES) expect(LONG_OF[note]).toBeDefined();
-    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano']);
+    expect(PART_DECKS).toEqual(['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
     // the piano set's hit stays
     expect(PART_HITS).toContain('piano');
   });

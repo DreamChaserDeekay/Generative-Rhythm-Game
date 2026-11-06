@@ -35,11 +35,14 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
  *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
  *   the lanes.
+ * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
+ *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
+ *   white where the light comes through; its frame rails of the same glass.
  */
-export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano';
+export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks. */
 export type GearStyle = Exclude<DeckStyle, 'line' | 'stem'>;
-export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 export const DECK_STYLES: DeckStyle[] = ['line', 'stem', ...GEAR_STYLES];
 export const isGear = (style: DeckStyle): style is GearStyle => style !== 'line' && style !== 'stem';
 export type KeyKind = 'white' | 'other' | 'scratch';
@@ -1653,6 +1656,139 @@ export function paintPressedKey(g: CanvasRenderingContext2D, w: number, h: numbe
   g.restore();
 }
 
+/** RAWGLASS's glass, in the silvers of a mirror's bevels: white where it is thin, silver where the light comes through it, grey where it is thick. */
+const GLASS_PALE = '#f6f8fa';
+const GLASS_DEEP = '#2e3238';
+
+/** A spark of light where a ridge of the glass catches it: a soft glow and four thin rays (`st` times longer along the track). */
+function spark(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number): void {
+  const glow = g.createRadialGradient(x, y, 0, x, y, r);
+  glow.addColorStop(0, white(0.9));
+  glow.addColorStop(0.25, 'rgba(232,238,246,0.45)');
+  glow.addColorStop(1, 'rgba(232,238,246,0)');
+  g.fillStyle = glow;
+  g.beginPath();
+  g.ellipse(x, y, r, r * st, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = white(0.85);
+  polygon(g, [
+    [x - r * 1.6, y],
+    [x, y - 0.35 * st],
+    [x + r * 1.6, y],
+    [x, y + 0.35 * st],
+  ]);
+  g.fill();
+  polygon(g, [
+    [x, y - r * 1.6 * st],
+    [x + 0.35, y],
+    [x, y + r * 1.6 * st],
+    [x - 0.35, y],
+  ]);
+  g.fill();
+}
+
+/**
+ * RAWGLASS: a slab of raw glass in the silvers of a mirror's bevels with nothing set in it: grey where
+ * it is thick, the light coming through it in soft pools, its top broken into flat facets, each
+ * catching the light from the top-left as it faces it, with bright ridges where some of them meet, and
+ * sparks where ridges catch the light (spark); its front edge under the judge line a ground edge of
+ * the same glass.
+ */
+function rawGlassPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const glass = g.createLinearGradient(0, 0, 0, s.room);
+  glass.addColorStop(0, '#8f969f');
+  glass.addColorStop(0.35, '#c9ced5');
+  glass.addColorStop(0.7, '#8a9199');
+  glass.addColorStop(1, '#6f767f');
+  g.fillStyle = glass;
+  g.fillRect(0, 0, s.width, s.depth);
+  // thick at its sides, where the walls stand on it
+  const sides = g.createLinearGradient(0, 0, s.width, 0);
+  sides.addColorStop(0, shade(GLASS_DEEP, 1, 0.55));
+  sides.addColorStop(0.18, shade(GLASS_DEEP, 1, 0));
+  sides.addColorStop(0.82, shade(GLASS_DEEP, 1, 0));
+  sides.addColorStop(1, shade(GLASS_DEEP, 1, 0.55));
+  g.fillStyle = sides;
+  g.fillRect(0, 0, s.width, s.depth);
+  const lip = 3 * st;
+  const top = lip + 0.8;
+  const band = bandOf(s, top);
+  const u = band ? band.u : 40;
+  const rand = seeded(53);
+  // the light coming through it in soft pools
+  for (let i = 0; i < 6; i++) {
+    const x = s.width * (0.08 + 0.84 * rand());
+    const y = top + (s.room - top) * (0.15 + 0.7 * rand());
+    const r = u * (0.6 + 0.6 * rand());
+    const pool = g.createRadialGradient(x, y, 0, x, y, r);
+    pool.addColorStop(0, 'rgba(255,255,255,0.3)');
+    pool.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = pool;
+    g.beginPath();
+    g.ellipse(x, y, r, r * st, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  // the top broken into flat planes: a jittered grid, each cell cut in two along one diagonal
+  const cols = Math.max(4, Math.round(s.width / (u * 0.95)));
+  const cw = s.width / cols;
+  const rows = Math.max(2, Math.round((s.room - top) / (cw * 0.85 * st)));
+  const rh = (s.room - top) / rows;
+  const at: [number, number][][] = [];
+  for (let r = 0; r <= rows; r++) {
+    const row: [number, number][] = [];
+    for (let c = 0; c <= cols; c++) {
+      const jx = c === 0 || c === cols ? 0 : (rand() - 0.5) * cw * 0.7;
+      const jy = r === 0 || r === rows ? 0 : (rand() - 0.5) * rh * 0.7;
+      row.push([c * cw + jx, top + r * rh + jy]);
+    }
+    at.push(row);
+  }
+  const ridges: [number, number, number, number][] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const [a, b, d, e] = [at[r][c], at[r][c + 1], at[r + 1][c + 1], at[r + 1][c]];
+      const halves = rand() < 0.5 ? [[a, b, d], [a, d, e]] : [[a, b, e], [b, d, e]];
+      for (const tri of halves) {
+        const light = rand() * 2 - 1;
+        polygon(g, tri as [number, number][]);
+        g.fillStyle = light > 0 ? `rgba(255,255,255,${(0.04 + 0.22 * light).toFixed(3)})` : `rgba(22,25,30,${(0.08 + 0.3 * -light).toFixed(3)})`;
+        g.fill();
+        g.strokeStyle = 'rgba(255,255,255,0.18)';
+        g.lineWidth = 0.5;
+        g.stroke();
+      }
+      if (rand() < 0.4) ridges.push([a[0], a[1], d[0], d[1]]);
+      if (rand() < 0.25) ridges.push([b[0], b[1], e[0], e[1]]);
+    }
+  }
+  g.strokeStyle = 'rgba(255,255,255,0.65)';
+  g.lineWidth = 0.7;
+  for (const [x0, y0, x1, y1] of ridges) {
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x1, y1);
+    g.stroke();
+  }
+  // sparks where ridges catch the light
+  const sparks = ridges.filter((_, i) => i % Math.max(1, Math.floor(ridges.length / 6)) === 0).slice(0, 6);
+  sparks.forEach(([x0, y0], i) => {
+    spark(g, x0, y0, u * 0.07, st);
+    mark(s, `spark.${i}`, { x: x0 - u * 0.2, y: y0 - u * 0.2 * st, w: u * 0.4, h: u * 0.4 * st });
+  });
+  mark(s, 'slab', { x: 0, y: top, w: s.width, h: s.room - top });
+  // its front edge: ground glass catching the light, the grey of the edge under it, a dark seam
+  const edge = g.createLinearGradient(0, 0, 0, lip);
+  edge.addColorStop(0, '#2a2e34');
+  edge.addColorStop(0.45, GLASS_PALE);
+  edge.addColorStop(1, '#9aa1ab');
+  g.fillStyle = edge;
+  g.fillRect(0, 0, s.width, lip);
+  g.fillStyle = black(0.45);
+  g.fillRect(0, lip, s.width, 0.8);
+  mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
   standard: standardPlate,
   cabinet: cabinetPlate,
@@ -1662,6 +1798,7 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   racing: racingPlate,
   orbital: orbitalPlate,
   piano: pianoPlate,
+  rawglass: rawGlassPlate,
 };
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
@@ -2224,6 +2361,73 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       }
       g.fillStyle = shade(BRASS, lit ? 1.35 : 1.1, lit ? 1 : 0.9);
       g.fillRect(w - 3.4 * k, 0, 1.1 * k, h);
+    },
+  }),
+  // rails of the same raw glass along the lanes: a dark seam outside, a broken outer face in shade,
+  // a white ridge, the top broken into flat planes slanting across it, the ground inner edge
+  // catching the light (the ridges whiter and a cool light in the glass in FEVER)
+  rawglass: () => ({
+    body: '#b9c0c8',
+    edge: GLASS_PALE,
+    width: 22,
+    tile: 96,
+    lit: true,
+    height: 24,
+    // the rail's side: thick glass seen through its cut edge, white under its ridge, grey below
+    face: (g, w, h, k, lit) => {
+      const edge = g.createLinearGradient(0, 0, 0, h);
+      edge.addColorStop(0, GLASS_PALE);
+      edge.addColorStop(0.12, '#c4cad2');
+      edge.addColorStop(0.45, '#7d848e');
+      edge.addColorStop(0.8, '#3c4148');
+      edge.addColorStop(1, '#16191d');
+      g.fillStyle = edge;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = white(0.3);
+      g.fillRect(0, h * 0.38, w, 0.9 * k);
+      if (lit) {
+        g.fillStyle = 'rgba(214,232,255,0.22)';
+        g.fillRect(0, 0, w, h);
+      }
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#202328');
+      across.addColorStop(0.08, '#5c636c');
+      across.addColorStop(0.26, '#a3aab4');
+      across.addColorStop(0.3, lit ? '#ffffff' : GLASS_PALE);
+      across.addColorStop(0.34, '#d3d9df');
+      across.addColorStop(0.62, '#b9c0c8');
+      across.addColorStop(0.78, '#8e959f');
+      across.addColorStop(0.84, lit ? '#ffffff' : '#eef1f4');
+      across.addColorStop(1, '#c9ced5');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      // flat breaks slanting across its top, each catching the light or not
+      const rand = seeded(61);
+      for (let y = 0; y < h; y += h / 4) {
+        const y1 = y + h * (0.12 + 0.1 * rand());
+        polygon(g, [
+          [w * 0.3, y],
+          [w * 0.84, y1],
+          [w * 0.84, y1 + h * 0.1],
+          [w * 0.3, y + h * 0.16],
+        ]);
+        g.fillStyle = rand() < 0.5 ? white(0.24) : 'rgba(22,25,30,0.24)';
+        g.fill();
+        g.strokeStyle = white(0.6);
+        g.lineWidth = 0.6 * k;
+        g.beginPath();
+        g.moveTo(w * 0.3, y);
+        g.lineTo(w * 0.84, y1);
+        g.stroke();
+      }
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, k, h);
+      if (lit) {
+        g.fillStyle = 'rgba(214,232,255,0.16)';
+        g.fillRect(0, 0, w, h);
+      }
     },
   }),
 };

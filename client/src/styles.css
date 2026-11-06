@@ -1820,6 +1820,33 @@ p.hint {
   letter-spacing: 0.04em;
 }
 
+/* RAWGLASS: smoked glass in a bright silver rim, a band of light slanting across the glass, white
+   geometric digits, silver labels; the gauge silver cells, white over the clear line, named CLARITY */
+.hud[data-gear='rawglass'] {
+  --hud-label-colour: #c3cad3;
+  --hud-num-font: 'Orbitron', var(--font-display);
+  --hud-num-colour: #f6f8fa;
+  --plate-bg:
+    linear-gradient(115deg, transparent 0 18%, rgba(255, 255, 255, 0.1) 18% 30%, transparent 30% 36%, rgba(255, 255, 255, 0.05) 36% 39%, transparent 39%),
+    linear-gradient(#2a2f36, #121418 52%, #1b1e23);
+  --plate-border: 2px solid #e3e7ec;
+  --gauge-off: rgba(220, 226, 234, 0.1);
+  --gauge-low: #b7bec8;
+  --gauge-high: #ffffff;
+  --gauge-name-colour: #e3e7ec;
+}
+
+.hud[data-gear='rawglass'] .hud-gauge {
+  outline: 2px solid #e3e7ec;
+  background-color: #121418;
+}
+
+.hud[data-gear='rawglass'] .hud-gauge-name {
+  font-family: 'Orbitron', var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
 .hud-toast {
   position: absolute;
   top: 88%;

@@ -91,6 +91,7 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
+  rawglass: { deck: 'rawglass/deck' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */

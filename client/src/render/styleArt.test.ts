@@ -330,6 +330,7 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
+  rawglass: { deck: 'rawglass/deck' },
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
@@ -346,6 +347,8 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   orbital: { 'orbital/selector': 1, 'orbital/toggle': 3, 'orbital/button': 2 },
   // the treble clef medallion on the scratch lane's cheek block
   piano: { 'piano/medallion': 1 },
+  // none: its glass is all its deck
+  rawglass: {},
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */

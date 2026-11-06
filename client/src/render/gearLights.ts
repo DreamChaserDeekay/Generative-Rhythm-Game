@@ -548,6 +548,61 @@ function pianoLights(): GearLightSet {
   };
 }
 
+/**
+ * RAWGLASS: a glint on a ridge of its broken glass, one after another on the beats, a light passing
+ * through the slab once a bar, the glass lit cool from within in FEVER.
+ */
+function rawGlassLights(): GearLightSet {
+  // the slab under the ground front edge along its top; ridges where its breaks catch the light
+  const slab = { y: 290, h: 500 };
+  const sparks: readonly (readonly [number, number])[] = [
+    [661, 151],
+    [1693, 257],
+    [267, 246],
+    [1032, 455],
+    [1375, 76],
+    [1860, 445],
+  ];
+  const lights: GearLight[] = [
+    {
+      shape: 'wash',
+      x: 1024,
+      y: slab.y,
+      w: 2048,
+      h: slab.h,
+      colour: 0xdfe8f5,
+      // a bright deck: the light it gets is soft, or it would wash out to white
+      level: (c, calm) => (!c.fever ? 0 : calm ? 0.16 : 0.08 + 0.16 * fade(frac(c.beat), 3)),
+      mark: 'slab',
+      grow: 1,
+    },
+    {
+      shape: 'glow',
+      x: 1024,
+      y: slab.y,
+      w: 300,
+      h: 420,
+      colour: 0xf2f6fb,
+      level: (c, calm) => (calm ? 0 : 0.28 * Math.sin(Math.PI * frac(c.bar)) ** 2),
+      at: (c) => [150 + 1748 * frac(c.bar), slab.y],
+    },
+  ];
+  sparks.forEach(([x, y], i) =>
+    lights.push({
+      shape: 'glint',
+      x,
+      y,
+      w: 120,
+      h: 120,
+      colour: 0xffffff,
+      level: (c, calm) => (calm ? 0.25 * softTurn(c.beat, i, sparks.length) : 0.95 * fade(sinceTurn(c.beat, i, sparks.length), 3.5)),
+      mark: `spark.${i}`,
+      grow: 1.4,
+    }),
+  );
+  return { lights };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   standard: standardLights,
@@ -558,6 +613,7 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   racing: racingLights,
   orbital: orbitalLights,
   piano: pianoLights,
+  rawglass: rawGlassLights,
 };
 
 /** How strongly a light's shape shows at (x, y), -1..1 across its quad (y toward the camera); `arc` the ring's that shows (null: all of it). */

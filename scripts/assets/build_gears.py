@@ -11,7 +11,9 @@ Three kinds of picture:
   as far as the generation shows it) sampled where the generation shows it, through the mapping in
   deck.json (deck plane px to the generation's px: the camera's homography of the template frame the
   generation was asked to repaint, times the alignment of the generation onto that frame). The renderer
-  draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture). Where a gear's
+  draws it on the cameras near the one it was painted from (deckArt.ts: deckPicture). The raw glass
+  deck's picture is kept laid flat already (its curved lines painted out there: assets-src/PROVENANCE.md),
+  its deck.json mapping the deck plane straight onto it. Where a gear's
   lights shine from inside a part (the keyboard's arrow keys from their well, the standard gear's
   speaker through its holes, the najeon chest's pearl), a mask of where they may show is made from the
   laid-flat deck too (glow.png: the dark of the well round the keys, not the keys themselves, the
@@ -486,7 +488,7 @@ def main() -> None:
             report[f"{gear}/glow"] = [m.shape[1], m.shape[0]]
         return a
 
-    decks = {gear: deck(gear) for gear in ("standard", "cabinet", "receiver", "najeon", "keyboard", "racing", "orbital", "piano")}
+    decks = {gear: deck(gear) for gear in ("standard", "cabinet", "receiver", "najeon", "keyboard", "racing", "orbital", "piano", "rawglass")}
 
     def sprite(gear: str, part: str, a: np.ndarray) -> None:
         a = despill(a)
