@@ -58,12 +58,17 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
                 limit = min(limit, params.hold_hand_limit)
             if count > limit:
                 problems.append(f"{count} presses on hand {hand} at {t}ms (limit {limit})")
+    last_t = max((n["t"] for n in notes), default=0.0)
     for h in holds:
         overlapping = [
             o for o in holds
             if o is not h and lanes[o["lane"]].hand == lanes[h["lane"]].hand and o["t"] <= h["t"] < o["endT"]
         ]
-        if len(overlapping) + 1 > params.max_holds_per_hand:
+        # the chord that ends the chart holds over the song's reverb with nothing to play after it
+        # (ending.py): a hand may hold as many keys as it presses
+        closing = h["t"] >= last_t - TIME_EPS and all(o["t"] >= last_t - TIME_EPS for o in overlapping)
+        limit = params.hand_chord_limit if closing else params.max_holds_per_hand
+        if len(overlapping) + 1 > limit:
             problems.append(f"{len(overlapping) + 1} long notes held on hand {lanes[h['lane']].hand} at {h['t']}ms")
     # A side note is a bar over its hand's keys: its head keeps the jack spacing from that hand's key
     # notes, unless they are hit together.

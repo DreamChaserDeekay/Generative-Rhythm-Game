@@ -19,6 +19,7 @@ from .rolls import coarser, mark_rolls, roll_level
 from .tempo import TempoMap
 
 DRUMS = STEM_NAMES.index("drums")
+BASS = STEM_NAMES.index("bass")
 VOCALS = STEM_NAMES.index("vocals")
 OTHER = STEM_NAMES.index("other")
 MAX_GAP_S = 4.0  # silences longer than this do not count toward the target density
@@ -60,6 +61,7 @@ class Slot:
     jack_scale: float = 1.0  # the section plan's scale of the same-lane cost here (plan.py)
     jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets here (plan.py)
     tune: bool = False  # in a repeat that follows the melody (sections.repeatFocus): the drums keep no homes
+    voice: tuple[int, ...] | None = None  # the stems of its unit's voice (sections.voices): a chord's notes keep to them
 
     @cached_property
     def src(self) -> int | None:
@@ -89,12 +91,22 @@ def home_of(slot: Slot) -> int | None:
     return slot.sound_group
 
 
+def max_hold_beats(skill: float) -> float:
+    """The longest long note at a skill (difficulty.json holds.maxBeats, [skill, beats] points;
+    MAX_LN_BEATS without it): human 7K BMS charts hold 4 beats or more in 9% of their long notes."""
+    table = difficulty_config()["holds"].get("maxBeats")
+    if not table:
+        return MAX_LN_BEATS
+    points = sorted((float(a), float(b)) for a, b in table)
+    return float(np.interp(skill, [a for a, _ in points], [b for _, b in points]))
+
+
 def hold_end(start: float, sustain: float, min_beats: float, skill: float) -> float | None:
     """Beat where a long note over a sound held `sustain` beats from `start` lets go (see
     HOLD_END_SLACK), or None when no grid point leaves it `min_beats` long."""
     if sustain < min_beats - 1e-9:
         return None
-    end = start + min(MAX_LN_BEATS, sustain)
+    end = start + min(max_hold_beats(skill), sustain)
     steps = (1.0, 0.5, 0.25) if skill >= HALF_BEAT_HOLDS_BELOW else (1.0, 0.5)
     for step in steps:
         e = math.floor((end + HOLD_END_TOLERANCE) / step + 1e-9) * step
@@ -160,10 +172,18 @@ def hold_count(c: Candidate, params: GenParams) -> int:
     share = float(pad["stemShare"])
     pitched = sum(1 for name in ("bass", "vocals", "other") if float(c.sources[STEM_NAMES.index(name)]) >= share)
     melody = (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"])
-    rich = pitched >= 2 or (pad_like(c) and not melody)
+    if params.skill < float(pad.get("chordHoldBelow", 0.0)):
+        # below this skill only a pad-like sound that is no melody note and lasts holds twice: a
+        # full mix has two pitched stems at most hits, and half the 6K ELITE long notes started as
+        # pairs (human charts: 14%, docs/PATTERN_DESIGN.md 87)
+        rich = pad_like(c) and not melody and c.sustain_beats >= float(pad["longBeats"])
+    else:
+        rich = pitched >= 2 or (pad_like(c) and not melody)
     if not rich:
         return 1
-    n = 2 + max(0, pitched - 1) + (1 if c.sustain_beats >= float(pad["longBeats"]) else 0) + (1 if c.strength >= float(pad["strongAtLeast"]) else 0)
+    n = 2
+    if params.skill >= float(pad.get("addersFrom", 0.0)):
+        n += max(0, pitched - 1) + (1 if c.sustain_beats >= float(pad["longBeats"]) else 0) + (1 if c.strength >= float(pad["strongAtLeast"]) else 0)
     return min(cap, n)
 
 
@@ -218,13 +238,23 @@ def holdable(c: Candidate, tempo: TempoMap) -> bool:
     hit over a bass or a pad that goes on sounding. A pad, choir or string sound (holds.pad)
     qualifies however soft its attack (`pad_like`)."""
     cfg = difficulty_config()["holds"]
+    src = int(np.argmax(c.sources)) if c.sources is not None else None
+    melody_note = float(load_config("instruments")["rhythmSource"]["melody"]["note"])
+    if cfg.get("noDrums") and src == DRUMS and (c.melody or 0.0) < melody_note:
+        return False  # a drum hit does not sound on: its length was the sound under it (a sung note under a kick does)
+    if src == BASS and (c.pitch is None or c.harmonic < float(cfg.get("bassHarmonicAtLeast", 0.0))):
+        return False
     if c.sustain_beats * tempo.beat_ms(c.beat) >= float(cfg["minSoundMs"]) and pad_like(c):
         return True
     if c.sustain_beats * tempo.beat_ms(c.beat) < float(cfg["minSoundMs"]):
         return False
+    if c.attack < float(cfg.get("headAttackAtLeast", 0.0)):
+        return False  # a swell or a late low end is no head for a long note
+    if cfg.get("noQuiet") and c.quiet:
+        return False  # the drums are out: a reverb tail or an echo, not a held note
     if c.strength < float(cfg["strengthAtLeast"]):
         return False  # a faint sound over another one: the length is mostly the other sound's
-    if (c.melody or 0.0) >= float(load_config("instruments")["rhythmSource"]["melody"]["note"]):
+    if (c.melody or 0.0) >= melody_note:
         ok = True
     elif c.sources is None:
         ok = c.harmonic >= float(cfg["harmonicAtLeast"])

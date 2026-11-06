@@ -32,6 +32,7 @@ W_BALANCE = 0.5
 W_NOISE = 0.35
 W_DROP = 6.0
 ANCHOR_MS = 260.0  # notes closer than this keep an anchor going (same as the guide measure's fast moves)
+RING_FINGER = 3  # finger numbers of the ring and little fingers (key_modes.json lanes[].finger)
 RUN_MS = 400.0  # single notes closer than this form a run (bms_stats.RUN_MS: the hand-shape feedback counts like it)
 MID_MS = 260.0  # moves between single notes closer than this count for the middle-key feedback
 JACK_MS = 260.0  # a key hit again at the next time at most this later is a fast jack (bms_stats FAST_MS)
@@ -155,6 +156,7 @@ class _Weights:
     under_hold: float = 0.0
     under_adjacent: float = 0.0
     under_ring: float = 1.0
+    block_ring: bool = False  # no tap on a hand whose ring or little finger holds a long note (underHold.blockFrom)
     under_fast: float = 0.0
     under_fast_ms: float = 0.0
     # a long note with notes under it leaves one hand free for them (hands.underHold.freeHandBelow):
@@ -229,6 +231,7 @@ class _Weights:
             under_hold=by_skill(under.get("cost", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
             under_adjacent=by_skill(under.get("adjacent", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
             under_ring=float(under.get("ringScale", 1.0)),
+            block_ring=params.skill >= float(under.get("blockFrom", 2.0)),
             under_fast=by_skill(under.get("fast", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
             under_fast_ms=float(under.get("fastMs", 0.0)),
             free_hand=params.skill < float(under.get("freeHandBelow", 0.0)),
@@ -618,23 +621,32 @@ def search(
             if ctx is not None and not same_phrase and len(state.prev_lanes) == 1:
                 carry = ctx.key_index.get(state.prev_lanes[0])
             holding_hands: dict[str, int] = {}
+            blocked: set[str] = set()  # hands whose ring or little finger holds: no tap under it (PATTERN_DESIGN 87-5 D)
             for i in range(n_lanes):
                 if state.hold_end[i] > t:
                     holding_hands[lanes[i].hand] = holding_hands.get(lanes[i].hand, 0) + 1
+                    if weights.block_ring and lanes[i].kind == "key" and lanes[i].finger >= RING_FINGER:
+                        blocked.add(lanes[i].hand)
             special = _special_lane(slot, state, free, special_lanes, lanes, holding_hands, params, hold_end_t)
             mean_use = sum(state.usage[i] for i in key_lanes) / max(1, len(key_lanes))
             want_keys = slot.size - (1 if special is not None else 0)
             free_keys = [i for i in free if i in key_lanes]
             combos: list[tuple[int, ...]] = []
             dropped = 0
-            holding_key = tuple(sorted(holding_hands.items()))
-            for k in range(min(want_keys, len(free_keys)), -1, -1):
-                key = (tuple(free_keys), k, holding_key, special)
-                combos = combo_cache.get(key)  # type: ignore[assignment]
-                if combos is None:
-                    combos = combo_cache[key] = _valid_combos(free_keys, k, lanes, params, holding_hands, special)
-                if combos or k == 0:
-                    dropped = want_keys - k
+            # a hand whose ring finger holds gives its notes to the other hand; when that cannot
+            # take them (a fill taking turns, both hands holding) the note goes under the hold
+            # (the cost below) rather than nowhere
+            for block in ((blocked, set()) if blocked else (set(),)):
+                holding_key = (tuple(sorted(holding_hands.items())), tuple(sorted(block)))
+                for k in range(min(want_keys, len(free_keys)), -1, -1):
+                    key = (tuple(free_keys), k, holding_key, special)
+                    combos = combo_cache.get(key)  # type: ignore[assignment]
+                    if combos is None:
+                        combos = combo_cache[key] = _valid_combos(free_keys, k, lanes, params, holding_hands, special, block)
+                    if combos or k == 0:
+                        dropped = want_keys - k
+                        break
+                if dropped == 0 or not block:
                     break
             # A pattern of repeats repeats a sound: a different sound on the same lane is a forced
             # jack.
@@ -850,7 +862,7 @@ def notes_from_choices(
         stems = None
         if lanes is not None and slot.sources is not None:
             rhythm_left = _rhythm_left(plan[si] if plan else None, n_keys)
-            stems = note_sources(slot.sources, lanes_used, ln_lanes[0] if ln_lanes else None, lanes, rhythm_left, share)
+            stems = note_sources(slot.sources, lanes_used, ln_lanes, lanes, rhythm_left, share, slot.voice)
         for lane in sorted(lanes_used):
             note: dict[str, Any] = {"beat": round(slot.beat, 6), "t": round(slot.t, 3), "lane": lane, "type": "tap"}
             if slot.src is not None:
@@ -867,21 +879,31 @@ def notes_from_choices(
 def note_sources(
     sources: np.ndarray,
     lanes_used: tuple[int, ...],
-    ln_lane: int | None,
+    ln_lanes: tuple[int, ...],
     lanes: list[LaneInfo],
     rhythm_left: bool,
     min_share: float,
+    voice: tuple[int, ...] | None = None,
 ) -> dict[int, int]:
     """Instrument (stem index) of every note of one hit. Every instrument sounding at the hit (at
     least `min_share` of it) gets a note of its own where the chord has room, so each note plays a
     sound of the song (DPC: notes are the song's keysounds; notes without one cost points when they
     do not fit the music). A side long note takes the instrument that sustains best, the keys take
     the rest from the rhythm side to the melody side (low instruments on the rhythm side), the
-    loudest of them takes any notes left over, and a key long note gets the one that sustains."""
+    loudest of them takes any notes left over, and the key long notes get the ones that sustain,
+    never the drums (a drum hit does not sound on; docs/PATTERN_DESIGN.md 87). With a `voice` (the
+    stems its unit follows) the chord keeps to those stems where they sound."""
     dominant = int(np.argmax(sources))
     pool = [int(i) for i in np.argsort(-sources, kind="stable") if sources[i] >= min_share] or [dominant]
+    if voice is not None:
+        # the unit's voice (sections.voices): the chord keeps to its stems where they sound
+        own = [s for s in pool if s in voice]
+        if own:
+            pool = own
+            dominant = own[0]
     out: dict[int, int] = {}
     keys = sorted(i for i in lanes_used if lanes[i].kind == "key")
+    ln_lane = ln_lanes[0] if ln_lanes else None
     for i in lanes_used:
         if lanes[i].kind == "key":
             continue
@@ -893,15 +915,26 @@ def note_sources(
     if not keys:
         return out
     picked = pool[: len(keys)]
-    order = sorted(picked, key=lambda s: STEM_POSITION[STEM_NAMES[s]], reverse=not rhythm_left)
-    counts = {s: 1 for s in picked}
-    counts[picked[0]] += len(keys) - len(picked)
-    out.update(zip(keys, [s for s in order for _ in range(counts[s])]))
-    if ln_lane in out and len(picked) > 1 and lanes[ln_lane].kind == "key":
-        best = min(picked, key=lambda s: STEM_SUSTAIN[STEM_NAMES[s]])
-        if out[ln_lane] != best:
-            other = min((k for k in keys if out[k] == best), key=lambda k: abs(k - ln_lane))
-            out[ln_lane], out[other] = out[other], out[ln_lane]
+    held = [i for i in keys if i in ln_lanes]
+    taps = [i for i in keys if i not in held]
+    if held:
+        # the held keys first: the chord's instruments that sound on, the drums never (a drum hit
+        # does not sound on; docs/PATTERN_DESIGN.md 87), the best other instrument when the chord has
+        # none; the taps take what is left
+        drums = STEM_NAMES.index("drums")
+        sustaining = sorted((s for s in picked if s != drums), key=lambda s: STEM_SUSTAIN[STEM_NAMES[s]])
+        if not sustaining:
+            sustaining = [int(i) for i in np.argsort(-sources, kind="stable") if i != drums and sources[i] > 0.0][:1] or [dominant]
+        for n, i in enumerate(held):
+            out[i] = sustaining[min(n, len(sustaining) - 1)]
+        used = set(sustaining[: len(held)])
+        picked = [s for s in picked if s not in used] or [pool[0]]
+    if taps:
+        picked = picked[: len(taps)]
+        order = sorted(picked, key=lambda s: STEM_POSITION[STEM_NAMES[s]], reverse=not rhythm_left)
+        counts = {s: 1 for s in picked}
+        counts[picked[0]] += len(taps) - len(picked)
+        out.update(zip(taps, [s for s in order for _ in range(counts[s])]))
     return out
 
 
@@ -1024,6 +1057,7 @@ def _valid_combos(
     params: GenParams,
     holding_hands: dict[str, int],
     special: int | None,
+    blocked: set[str] | None = None,
 ) -> list[tuple[int, ...]]:
     if k == 0:
         return [()]
@@ -1040,6 +1074,8 @@ def _valid_combos(
             limit = 1 if hand == "T" else params.hand_chord_limit
             if holding_hands.get(hand):
                 limit = min(limit, params.hold_hand_limit)
+            if blocked and hand in blocked:
+                limit = 0  # the ring or little finger holds: the hand's other fingers move with it
             if count > limit:
                 ok = False
                 break
