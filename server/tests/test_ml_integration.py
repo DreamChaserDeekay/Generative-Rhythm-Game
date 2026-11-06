@@ -55,6 +55,24 @@ def test_demucs_stems() -> None:
     assert _corr(stems["bass"], s.stems["bass"]) > 0.8
 
 
+def test_demucs_six_stems_keep_guitar_and_piano_and_give_section_leads() -> None:
+    """htdemucs_6s (the default model, docs/PATTERN_DESIGN.md 86): the four stems still add up to
+    the input, guitar and piano come beside them, and the analysis gets section leads and onset
+    instrument shares."""
+    pytest.importorskip("torch")
+    pytest.importorskip("demucs")
+    from rhythm_server.analysis.backends import Backend, demucs_backend
+
+    s = song()
+    stems = demucs_backend.separate(s.pcm, s.sample_rate, {"model": "htdemucs_6s", "device": "cpu", "shifts": 1, "overlap": 0.25})
+    assert set(stems) == set(STEM_NAMES) | {"guitar", "piano"}
+    assert float(np.max(np.abs(sum(stems[k] for k in STEM_NAMES) - s.pcm))) < 1e-4
+    backend = Backend(kind="stems", name="demucs", version="test", options={"model": "htdemucs_6s", "device": "cpu", "shifts": 1, "overlap": 0.25})
+    a = analyze(s.pcm, s.sample_rate, "ml-six-stems", backends={"stems": backend})
+    assert all(sec.get("lead") in ("vocals", "guitar", "piano", "other") for sec in a["sections"])
+    assert all(set(o["instruments"]) == {"guitar", "piano"} for o in a["onsets"])
+
+
 def test_basic_pitch_notes_follow_the_lead() -> None:
     pytest.importorskip("basic_pitch")
     from rhythm_server.analysis.backends import basic_pitch_backend

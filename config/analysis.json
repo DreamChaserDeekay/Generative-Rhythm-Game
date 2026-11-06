@@ -3,7 +3,7 @@
   "ml": {
     "enabled": true,
     "device": "cpu",
-    "stems": { "backend": "demucs", "model": "htdemucs", "shifts": 1, "overlap": 0.25 },
+    "stems": { "backend": "demucs", "model": "htdemucs_6s", "shifts": 1, "overlap": 0.25 },
     "beats": { "backend": "beat_this", "checkpoint": "final0" },
     "pitch": { "backend": "basic_pitch", "minNoteMs": 120 },
     "structure": { "backend": "allin1", "model": "harmonix-all" }
