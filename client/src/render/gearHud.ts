@@ -19,7 +19,8 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
  * condensed sans, warm white; NAJEON: gold serif digits and capitals; KEYBOARD: a pixel font (its
  * OLED's), the judgement cream over an orange bar; RACING: slanted white digits as a dash prints
  * them, a red bar under the judgement; ORBITAL: the judgement in white stencil capitals, the combo
- * in green seven-segment digits.
+ * in green seven-segment digits; PIANO: ivory in a Didone's bold italic, as a score prints its
+ * dynamics, outlined in ebony over a brass bar, "MAX" in white and its percent brass.
  */
 export const GEAR_TYPES: Record<GearStyle, HudType> = {
   standard: { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#37e2ff', outline: '#0b0c10', stroke: 6, split: true },
@@ -29,6 +30,7 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
   keyboard: { font: 'Silkscreen', size: 34, combo: 52, tracking: 0.02, max: '#fff4e6', outline: '#050506', stroke: 4, bar: '#ff8a1e' },
   racing: { font: 'Chakra Petch', size: 44, combo: 60, tracking: 0.02, max: '#ffffff', outline: '#0a0a0b', stroke: 6, bar: '#e3242b' },
   orbital: { font: 'Saira Stencil One', size: 42, combo: 56, tracking: 0.06, max: '#ffffff', outline: '#14181a', stroke: 5, comboFont: 'DSEG7 Classic', comboColor: '#3dff6e', comboOutline: '#050805' },
+  piano: { font: 'Bodoni Moda', size: 44, combo: 62, tracking: 0.02, max: '#e2bf72', outline: '#0a0909', stroke: 5, split: true, bar: '#c9a45c', comboColor: '#f6f0e3' },
 };
 
 /** The name each gear prints by its gauge (STANDARD's plain gauge has none). */
@@ -40,6 +42,7 @@ export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   keyboard: 'CHARGE',
   racing: 'FUEL',
   orbital: 'O2',
+  piano: 'FORTE',
 };
 
 /** The gear the HUD dresses itself for: a picked gear (a skin's LINE or STEM gear has no HUD of its own). */

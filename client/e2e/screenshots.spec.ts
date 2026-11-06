@@ -372,6 +372,7 @@ test('play: the gears a player picks, each with its HUD (gauge, score panel, dig
     ['keyboard', '37-gear-keyboard'],
     ['racing', '38-gear-racing'],
     ['orbital', '39-gear-orbital'],
+    ['piano', '40-gear-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'EXPERT');

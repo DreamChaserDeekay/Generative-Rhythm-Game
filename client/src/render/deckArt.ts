@@ -5,9 +5,10 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  * The gear: the track's frame down its edges and, under the judge line, a plate. The skins' own
  * gears, LINE (LED bars) and STEM (instrument dots), have a light per lane on it in the lane's colour
  * that lights while its key is down (a tint picture, see tintArt). The ones a player picks (설정 →
- * 기어, GEAR_STYLES) are each one object with no lane's key on it (the lanes and the key beams show
- * the keys): a red judge line a little above them (GEAR_JUDGE) and the object's own panel under
- * it, drawn from its pictures where they loaded (render/styleArt.ts) and in code where not:
+ * 기어, GEAR_STYLES) are each one object, none of them lit per lane (the lanes and the key beams show
+ * the keys; only PIANO's keys follow the lanes): a red judge line a little above them (GEAR_JUDGE)
+ * and the object's own panel under it, drawn from its pictures where they loaded
+ * (render/styleArt.ts) and in code where not:
  *
  * - STANDARD (기본): the game's own controller, graphite rails with a cyan line, smoked glass with a
  *   glass jog dial, the game's name over a cyan light strip and a speaker grille;
@@ -27,11 +28,16 @@ import { ink, tone, type NoteMark, type Paint } from './tintArt';
  * - ORBITAL (우주선 계기판): a spacecraft's instrument panel in light grey paint, a guarded selector,
  *   guarded toggles, the master alarm lamp, a caution stripe and square push buttons, labels
  *   silk-screened in black; its frame gold foil (an insulation blanket) under a yellow handrail.
+ * - PIANO (피아노): the keyboard end of a concert grand in polished ebony lacquer, the one gear with a
+ *   key per lane: an ivory white key under each key lane from just under the lacquer lip with its
+ *   brass inlay, the black keys of an octave between them, and a cheek block with a brass treble
+ *   clef medallion under the scratch lane (a plain one under a side lane); its frame the piano's
+ *   rim, black lacquer with a brass line along the lanes.
  */
-export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital';
+export type DeckStyle = 'line' | 'stem' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano';
 /** The gears a player picks. */
 export type GearStyle = Exclude<DeckStyle, 'line' | 'stem'>;
-export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano'];
 export const DECK_STYLES: DeckStyle[] = ['line', 'stem', ...GEAR_STYLES];
 export const isGear = (style: DeckStyle): style is GearStyle => style !== 'line' && style !== 'stem';
 export type KeyKind = 'white' | 'other' | 'scratch';
@@ -41,6 +47,8 @@ export interface DeckLane {
   left: number;
   width: number;
   kind: KeyKind;
+  /** A side lane (FX) with its own place in the row (not one laid over the keys: DeckSide). */
+  side?: boolean;
 }
 
 /**
@@ -242,7 +250,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle';
+export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -1388,6 +1396,142 @@ function orbitalPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): v
   }
 }
 
+/** PIANO's ivory. */
+const IVORY = '#efe8d8';
+
+/**
+ * Whether PIANO has a black key between its white keys `i` and `i + 1` (counted from the left, the
+ * first a C): an octave's, after C, D, F, G and A, none after E and B.
+ */
+export function blackKeyAfter(i: number): boolean {
+  return [0, 1, 3, 4, 5].includes(((i % 7) + 7) % 7);
+}
+
+/** PIANO's black keys reach this share of the white keys the screen shows. */
+const BLACK_KEY_REACH = 0.58;
+/** PIANO's lacquer lip toward the judge line, as deep as it looks across (plane px). */
+const PIANO_LIP = 3.2;
+
+/**
+ * PIANO: polished ebony lacquer under a bevelled lip with a brass inlay; an ivory white key under
+ * each key lane, the black keys of an octave standing between them, a cheek block under the scratch
+ * lane with the brass treble clef medallion standing on it (a plain cheek block under a side lane).
+ */
+function pianoPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+  const st = s.stretch;
+  const lacquer = g.createLinearGradient(0, 0, 0, s.room);
+  lacquer.addColorStop(0, '#121113');
+  lacquer.addColorStop(1, '#050405');
+  g.fillStyle = lacquer;
+  g.fillRect(0, 0, s.width, s.depth);
+  // the lip: a dim bevel (nothing bright right under the judge line), the brass inlay at its foot
+  const lip = PIANO_LIP * st;
+  const bevel = g.createLinearGradient(0, 0, 0, lip);
+  bevel.addColorStop(0, '#2c2a2e');
+  bevel.addColorStop(0.4, '#151416');
+  bevel.addColorStop(1, '#09080a');
+  g.fillStyle = bevel;
+  g.fillRect(0, 0, s.width, lip);
+  g.fillStyle = white(0.12);
+  g.fillRect(0, 0, s.width, 0.8);
+  const inlay: Box = { x: 0, y: lip, w: s.width, h: 1.2 };
+  g.fillStyle = shade(BRASS, 1.15, 0.95);
+  g.fillRect(inlay.x, inlay.y, inlay.w, inlay.h);
+  mark(s, 'inlay', inlay);
+  const top = lip + inlay.h;
+  const reach = Math.max(0, s.room - top);
+  // the white keys, the lacquer showing in the gaps between them; their far ends in the lip's shadow
+  const whites = s.lanes.filter((l) => l.kind !== 'scratch' && !l.side);
+  const gap = 1.1;
+  for (const l of whites) {
+    const b: Box = { x: l.left + gap / 2, y: top, w: l.width - gap, h: s.depth - top };
+    const face = g.createLinearGradient(b.x, 0, b.x + b.w, 0);
+    face.addColorStop(0, '#f6f1e6');
+    face.addColorStop(0.2, IVORY);
+    face.addColorStop(0.8, '#e6dfcd');
+    face.addColorStop(1, '#c9c0ab');
+    g.fillStyle = face;
+    g.fillRect(b.x, b.y, b.w, b.h);
+    const sheen = g.createLinearGradient(0, top, 0, s.room);
+    sheen.addColorStop(0, black(0.5));
+    sheen.addColorStop(Math.min(0.5, (9 * st) / Math.max(1, reach)), black(0));
+    sheen.addColorStop(1, white(0.06));
+    g.fillStyle = sheen;
+    g.fillRect(b.x, b.y, b.w, b.h);
+  }
+  // the black keys standing on them, throwing their shadows down and to the right
+  let n = 0;
+  for (let i = 0; i + 1 < whites.length; i++, n++) {
+    const [a, b] = [whites[i], whites[i + 1]];
+    // only between neighbours (a side lane between them breaks the keyboard), and a C again after one
+    if (Math.abs(a.left + a.width - b.left) > 0.5) {
+      n = -1;
+      continue;
+    }
+    if (!blackKeyAfter(n)) continue;
+    const w = Math.min(a.width, b.width) * 0.56;
+    const key: Box = { x: b.left - w / 2, y: top - 0.6, w, h: reach * BLACK_KEY_REACH };
+    if (key.h < 6) continue;
+    dropShadow(g, key, 0.32, false);
+    rounded(g, key, w * 0.08, st);
+    const body = g.createLinearGradient(key.x, 0, key.x + key.w, 0);
+    body.addColorStop(0, '#2e2c31');
+    body.addColorStop(0.14, '#121114');
+    body.addColorStop(0.86, '#0a090b');
+    body.addColorStop(1, '#020202');
+    g.fillStyle = body;
+    g.fill();
+    // its top: a lighter band between the tapered sides, the slope of its front end catching the light
+    const slope = Math.min(key.h * 0.2, 5 * st);
+    const face: Box = { x: key.x + w * 0.14, y: key.y, w: w * 0.72, h: key.h - slope };
+    const lit = g.createLinearGradient(0, face.y, 0, face.y + face.h);
+    lit.addColorStop(0, white(0.01));
+    lit.addColorStop(1, white(0.09));
+    g.fillStyle = lit;
+    g.fillRect(face.x, face.y, face.w, face.h);
+    const end = g.createLinearGradient(0, face.y + face.h, 0, key.y + key.h);
+    end.addColorStop(0, white(0.2));
+    end.addColorStop(1, white(0.04));
+    g.fillStyle = end;
+    g.fillRect(face.x, face.y + face.h, face.w, slope * 0.9);
+  }
+  // the cheek blocks, a little proud of the keys, the medallion on the scratch lane's
+  for (const l of s.lanes.filter((k) => k.kind === 'scratch' || k.side)) {
+    const block: Box = { x: l.left, y: top, w: l.width, h: s.depth - top };
+    dropShadow(g, { ...block, h: Math.max(1, reach) }, 0.06, false);
+    const face = g.createLinearGradient(block.x, block.y, block.x + block.w, block.y + reach);
+    face.addColorStop(0, '#1e1d21');
+    face.addColorStop(0.55, '#0b0a0c');
+    face.addColorStop(1, '#050405');
+    g.fillStyle = face;
+    g.fillRect(block.x, block.y, block.w, block.h);
+    g.fillStyle = white(0.1);
+    g.fillRect(block.x + block.w - 0.8, block.y, 0.8, block.h);
+    if (l.kind !== 'scratch' || reach < 12 * st) continue;
+    const aspect = art.medallion ? art.medallion.height / art.medallion.width : 1;
+    const size = Math.min(l.width * 0.58, (reach * 0.62) / (st * aspect));
+    const medallion = boxAt(l.left + l.width / 2, top + reach * 0.48, size, st, aspect);
+    thing(
+      g,
+      art.medallion,
+      medallion,
+      (b) => {
+        shadedDisc(g, b, [
+          [0, '#f0d79a'],
+          [0.5, BRASS],
+          [1, '#5e4318'],
+        ]);
+        disc(g, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.36, st);
+        g.lineWidth = 1;
+        g.strokeStyle = black(0.45);
+        g.stroke();
+      },
+      0.14,
+    );
+    mark(s, 'medallion', medallion);
+  }
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
   standard: standardPlate,
   cabinet: cabinetPlate,
@@ -1396,12 +1540,13 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   keyboard: keyboardPlate,
   racing: racingPlate,
   orbital: orbitalPlate,
+  piano: pianoPlate,
 };
 
 /** Paints the plate of `style` on `g`, whose units are plane px: a gear from its pictures `art` (in code where one is missing). */
 export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: DeckSpec, art: GearArt = {}): void {
   if (!isGear(style)) PLATES[style](g, spec);
-  else if (art.deck && spec.stretch <= DECK_PICTURE_FLATTEST) deckPicture(g, spec, art.deck);
+  else if (art.deck && deckFromPicture(style, spec, art)) deckPicture(g, spec, art.deck);
   else {
     GEAR_PLATES[style](g, spec, art);
     wallShade(g, spec, GEAR_FRAMES[style](art).height ?? 0);
@@ -1418,6 +1563,20 @@ export function paintDeck(style: DeckStyle, g: CanvasRenderingContext2D, spec: D
 export const DECK_PICTURE_STRETCH = 1.2;
 /** A camera flattening the deck more than this (the plane one) sees it from too far off the pictures' angle: its deck is drawn in code. */
 export const DECK_PICTURE_FLATTEST = 2;
+
+/**
+ * The row of lanes a gear's deck picture was painted over, for a gear with a part per lane (PIANO's
+ * keys): its picture is laid only on a deck whose lanes are those, any other row drawn in code.
+ */
+const PICTURE_ROWS: Partial<Record<GearStyle, (s: Pick<DeckSpec, 'lanes' | 'sides'>) => boolean>> = {
+  // 7K+1S: the scratch lane's cheek block, then seven white keys
+  piano: (s) => s.sides.length === 0 && s.lanes.length === 8 && s.lanes[0].kind === 'scratch' && s.lanes.slice(1).every((l) => l.kind !== 'scratch' && !l.side),
+};
+
+/** Whether a gear's deck is laid from its picture: one loaded, a camera near the picture's angle, and a row of lanes it was painted for. */
+export function deckFromPicture(style: DeckStyle, spec: Pick<DeckSpec, 'stretch' | 'lanes' | 'sides'>, art: GearArt): boolean {
+  return isGear(style) && Boolean(art.deck) && spec.stretch <= DECK_PICTURE_FLATTEST && (PICTURE_ROWS[style]?.(spec) ?? true);
+}
 
 /** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
 function deckPicture(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
@@ -1903,6 +2062,47 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       lamp(g, f1 + 2.4 * k, h / 2, 1.7 * k, 1, AMBER, lit);
       g.fillStyle = black(0.6);
       g.fillRect(0, 0, 0.6 * k, h);
+    },
+  }),
+  // the piano's rim: polished ebony lacquer with a long reflection down it, a brass line along the
+  // lanes (brighter, its warm light on the lacquer, in FEVER)
+  piano: () => ({
+    body: '#0b0a0b',
+    edge: BRASS,
+    width: 24,
+    tile: 64,
+    lit: true,
+    height: 26,
+    // the rim's side: lacquer catching the light under its rounded top edge, the brass line just under it
+    face: (g, w, h, k, lit) => {
+      const lacquer = g.createLinearGradient(0, 0, 0, h);
+      lacquer.addColorStop(0, '#2b292d');
+      lacquer.addColorStop(0.2, '#0f0e10');
+      lacquer.addColorStop(1, '#030303');
+      g.fillStyle = lacquer;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = white(0.06);
+      g.fillRect(0, h * 0.5, w, 1.2 * k);
+      g.fillStyle = shade(BRASS, lit ? 1.3 : 1.05, lit ? 1 : 0.85);
+      g.fillRect(0, 2.2 * k, w, 0.8 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const lacquer = g.createLinearGradient(0, 0, w, 0);
+      lacquer.addColorStop(0, '#030303');
+      lacquer.addColorStop(0.3, '#18171a');
+      lacquer.addColorStop(0.42, '#3a383d');
+      lacquer.addColorStop(0.56, '#121113');
+      lacquer.addColorStop(1, '#060506');
+      g.fillStyle = lacquer;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, k, h);
+      if (lit) {
+        g.fillStyle = shade(BRASS, 1.2, 0.22);
+        g.fillRect(w - 6 * k, 0, 5.4 * k, h);
+      }
+      g.fillStyle = shade(BRASS, lit ? 1.35 : 1.1, lit ? 1 : 0.9);
+      g.fillRect(w - 3.4 * k, 0, 1.1 * k, h);
     },
   }),
 };

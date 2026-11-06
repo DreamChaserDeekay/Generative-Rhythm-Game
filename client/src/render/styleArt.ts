@@ -90,6 +90,7 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   keyboard: { deck: 'keyboard/deck', glow: 'keyboard/glow', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
   racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
+  piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */
@@ -267,14 +268,12 @@ const NOTE_WIDTH = 0.9;
 const GEM_WIDTH = 0.98;
 const GEM_SHAPE = NOTE_CELL.crystal.h / NOTE_CELL.crystal.w;
 const GEM_BRIGHT = 1.25;
-/**
- * The band of light under CRYSTAL's star, across the whole lane: as deep as this share of the note,
- * at this strength in the middle. The star's horizontal points are thin; the band carries the note's
- * line from edge to edge, as a bar's does.
- */
-const GEM_BAND = { depth: 0.22, alpha: 1 } as const;
 
-/** CRYSTAL: a cut gem drawn as a four-pointed star across the lane, its long points at the lane's edges and the note's ends, on a band of light across it, its lane's mark cut in its heart. */
+/**
+ * CRYSTAL: a cut gem drawn as a four-pointed star across the lane, its long points at the lane's
+ * edges and the note's ends, its lane's mark cut in its heart; nothing under it (a band of light
+ * across the lane read as a bar note under the star).
+ */
 function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
   return (g, w, h, mark) => {
     if (mark === 'side') {
@@ -282,14 +281,6 @@ function crystalNote(notes: ArtImage, side: ArtImage | undefined): NotePaint {
       else NOTE_PAINT.star4(g, w, h, mark);
       return;
     }
-    const band = h * GEM_BAND.depth;
-    const light = g.createLinearGradient(0, (h - band) / 2, 0, (h + band) / 2);
-    light.addColorStop(0, ink(1, 0, 0));
-    light.addColorStop(0.35, ink(1, 0.25, GEM_BAND.alpha));
-    light.addColorStop(0.65, ink(1, 0.25, GEM_BAND.alpha));
-    light.addColorStop(1, ink(1, 0, 0));
-    g.fillStyle = light;
-    g.fillRect(0, (h - band) / 2, w, band);
     g.imageSmoothingQuality = 'high';
     // drawn once into the note's picture (a canvas filter where the browser has one; as drawn where not)
     g.filter = `brightness(${GEM_BRIGHT})`;

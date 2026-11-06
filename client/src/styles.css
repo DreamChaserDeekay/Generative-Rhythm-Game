@@ -109,6 +109,15 @@
   font-display: block;
 }
 
+/* a Didone's bold italic, as a score prints its dynamics: the piano's judgement, combo and digits */
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('./assets/fonts/BodoniModa-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: block;
+}
+
 /* one syllable, 흥 (NAJEON's gauge), cut from Noto Serif KR Bold */
 @font-face {
   font-family: 'Noto Serif KR';
@@ -1775,6 +1784,40 @@ p.hint {
 .hud[data-gear='orbital'] .hud-gauge {
   outline: 2px solid #b9bdc2;
   background-color: #070b08;
+}
+
+/* PIANO: an ebony lacquer plate with a strip of keys along its foot (an octave's white and black
+   keys), ivory Didone digits, brass labels; the gauge ivory cells, brass over the clear line, named
+   FORTE in the digits' italic */
+.hud[data-gear='piano'] {
+  --hud-label-colour: #c9a45c;
+  --hud-num-font: 'Bodoni Moda', var(--font-display);
+  --hud-num-colour: #f6f0e3;
+  --plate-bg:
+    linear-gradient(to right, transparent 5.5px, #0a0909 5.5px 10.5px, transparent 10.5px 13.5px, #0a0909 13.5px 18.5px, transparent 18.5px 29.5px, #0a0909 29.5px 34.5px, transparent 34.5px 37.5px, #0a0909 37.5px 42.5px, transparent 42.5px 45.5px, #0a0909 45.5px 50.5px, transparent 50.5px) left calc(100% - 4px) / 56px 6px repeat-x,
+    repeating-linear-gradient(to right, #3a342b 0 1px, transparent 1px 8px) left bottom / 100% 10px no-repeat,
+    linear-gradient(#efe8d8, #ddd4c0) left bottom / 100% 10px no-repeat,
+    linear-gradient(#151416, #060506);
+  --plate-border: 1px solid #2e2c31;
+  --gauge-off: rgba(246, 240, 227, 0.08);
+  --gauge-low: #ece5d4;
+  --gauge-high: #e2bf72;
+  --gauge-name-colour: #e2bf72;
+}
+
+.hud[data-gear='piano'] .hud-num {
+  font-style: italic;
+}
+
+.hud[data-gear='piano'] .hud-gauge {
+  outline: 1px solid #2e2c31;
+  background-color: #060506;
+}
+
+.hud[data-gear='piano'] .hud-gauge-name {
+  font-family: 'Bodoni Moda', var(--font-display);
+  font-style: italic;
+  letter-spacing: 0.04em;
 }
 
 .hud-toast {
