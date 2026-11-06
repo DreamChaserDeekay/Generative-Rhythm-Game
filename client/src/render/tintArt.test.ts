@@ -6,7 +6,7 @@ describe('the note families’ depth along the track', () => {
 
   it('keeps the bars and the plate a bar deep, and makes the coin and the stars as deep as keeps their shape at the judge line', () => {
     // SDVX shows the track about 1.54 times shorter along than across at the judge line
-    for (const style of ['flat', 'stem', 'chamfer'] as const) expect(noteDepthOf(style, bar, 0.84, 1.54)).toBe(bar);
+    for (const style of ['flat', 'chamfer'] as const) expect(noteDepthOf(style, bar, 0.84, 1.54)).toBe(bar);
     // a coin as deep on the screen as it is wide; the five-pointed star a little less; the four-pointed
     // star (drawn in code) as deep as it is wide, its vertical points as long as its horizontal ones
     expect(noteDepthOf('round', bar, 0.84, 1.54)).toBeCloseTo(0.84 * 1.54, 9);
@@ -30,7 +30,7 @@ describe('the note families’ depth along the track', () => {
     expect(laneDepthOf('star5', 1.3, 0.75, bar)).toBeCloseTo(1.3 * 0.75, 9);
     // no deeper than three bars
     expect(laneDepthOf('round', 2, 1.6, bar)).toBe(bar * 3);
-    for (const style of ['flat', 'stem'] as const) expect(laneDepthOf(style, bar, 1.6, bar)).toBe(bar);
+    expect(laneDepthOf('flat', bar, 1.6, bar)).toBe(bar);
   });
 
   it('gives every note style a long note of its own family', () => {

@@ -27,11 +27,11 @@ export interface HudInfo {
   feverEnabled: boolean;
   feverManualKey: string | null;
   pacemakerLabel: string | null;
-  /** The judgement and combo type (the gear's or the skin's, render/gearHud.ts). */
+  /** The judgement and combo type (the gear's or the track's own, render/gearHud.ts). */
   type: HudType;
   /**
    * The picked gear the HUD beside the track is dressed for (data-gear: its gauge, the score panel's
-   * housing, the readouts' digits, the gauge's name); none for a skin's own gear.
+   * housing, the readouts' digits, the gauge's name); none in a HUD shown without a gear.
    */
   gear?: GearStyle | null;
   /** Opacity of the judgement and the combo, so notes behind them show through (1 = solid). */
@@ -285,7 +285,6 @@ export class Hud {
   private readonly judgePop: HTMLElement;
   private readonly judgeText: HTMLElement;
   private readonly judgeLabel: HTMLElement;
-  private readonly judgeCombo: HTMLElement;
   private readonly judgeSub: HTMLElement;
   private readonly judgeFastSlow: HTMLElement;
   private readonly judgeMs: HTMLElement;
@@ -382,7 +381,7 @@ export class Hud {
         <div class="hud-head"><span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
       </div>
       <div class="hud-plane">
-        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span><span class="hud-judge-combo"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
+        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
         <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
         <div class="hud-fever" data-testid="hud-fever"><span class="hud-fever-text"></span><span class="hud-fever-bar"><i class="hud-fever-fill"></i></span></div>
         <div class="hud-speed"><span class="hud-label">SPEED</span><span class="hud-num hud-speed-num" data-testid="hud-speed"></span><span class="hud-label hud-bpm" data-testid="hud-bpm">BPM <b class="hud-bpm-num"></b></span></div>
@@ -457,7 +456,7 @@ export class Hud {
     root.dataset.keysounds = info.keysounds.join(' ');
     if (info.gear) root.dataset.gear = info.gear;
 
-    // the skin's type on the whole HUD: the plane's judgement and combo, and the end banner
+    // the type on the whole HUD: the plane's judgement and combo, and the end banner
     const t = info.type;
     const font = HUD_FONTS[t.font];
     root.style.setProperty('--hud-font', `'${t.font}'`);
@@ -475,19 +474,16 @@ export class Hud {
     root.style.setProperty('--combo-color', t.comboColor ?? 'var(--text)');
     root.style.setProperty('--combo-outline', t.comboOutline ?? t.outline);
     this.plane = q('.hud-plane');
-    this.plane.classList.toggle('inline', Boolean(t.inline));
     this.comboBox = q('.hud-combo');
     this.comboBox.style.opacity = this.judgeOpacity;
     this.comboNum = q('.hud-combo-num');
     this.judgeBox = q('.hud-judge');
     this.judgePop = q('.hud-judge-pop');
     this.judgeLabel = q('.hud-judge-label');
-    this.judgeCombo = q('.hud-judge-combo');
     this.judgeSub = q('.hud-judge-sub');
     this.judgeFastSlow = q('.hud-judge-fs');
     this.judgeMs = q('.hud-judge-ms');
     this.judgeText = q('.hud-judge-text');
-    if (t.skew) this.judgeText.style.transform = `skewX(${t.skew}deg)`;
     const bar = q('.hud-judge-bar');
     if (t.bar) bar.style.background = t.bar;
     else bar.remove();
@@ -624,7 +620,6 @@ export class Hud {
     this.place(this.judgeBox, 0, -judgeAt, `translate(-50%, -50%) scaleY(${j.stretch.toFixed(3)})`);
     const [fit] = this.measure(this.judgeText, [
       [this.judgeLabel, 'MAX 100%'],
-      [this.judgeCombo, t.inline ? '0000' : ''],
     ], () => (this.judgeBox.style.fontSize = px(t.size * j.k)));
     const jk = j.k * Math.min(1, (2 * p.halfWidth - 24) / Math.max(1, fit));
     this.judgeBox.style.fontSize = px(t.size * jk);
@@ -641,7 +636,6 @@ export class Hud {
         this.judgeBox,
         [
           [this.judgeLabel, 'MAX 100%'],
-          [this.judgeCombo, t.inline ? '0000' : ''],
           [this.judgeFastSlow, 'FAST'],
           [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
         ],
@@ -934,10 +928,8 @@ export class Hud {
     this.lastCombo = combo;
     const text = combo >= 2 ? String(combo) : '';
     this.comboNum.textContent = text;
-    // an inline type writes the combo after the judgement instead
-    this.judgeCombo.textContent = this.type.inline ? text : '';
-    this.comboBox.style.visibility = combo >= 2 && !this.type.inline ? 'visible' : 'hidden';
-    if (rose && this.bumpCombo && !this.type.inline) {
+    this.comboBox.style.visibility = combo >= 2 ? 'visible' : 'hidden';
+    if (rose && this.bumpCombo) {
       // a transform animation: runs on the compositor, no layout per hit
       this.comboBump?.cancel();
       this.comboBump = this.comboNum.animate(COMBO_BUMP, { duration: COMBO_BUMP_MS, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });

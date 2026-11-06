@@ -163,7 +163,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
       for (; next < notes.length && notes[next].t <= now; next++) {
         const n = notes[next];
         n.headDone = true;
-        r.hitEffect(n.lane, hitColor, perfNow, n.index);
+        r.hitEffect(n.lane, hitColor, perfNow);
         if (n.type === 'hold') held[n.lane] = n.index;
         else {
           n.tailDone = true;
@@ -174,7 +174,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
         if (index === null || notes[index].endT > now) return;
         notes[index].tailDone = true;
         held[lane] = null;
-        r.hitEffect(lane, hitColor, perfNow, index);
+        r.hitEffect(lane, hitColor, perfNow);
       });
       r.render(
         {

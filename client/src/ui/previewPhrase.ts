@@ -7,7 +7,7 @@ export interface PhraseNote {
   beat: number;
   /** Long notes end here. */
   endBeat?: number;
-  /** The instrument it follows (the STEM skin colours notes by it). */
+  /** The instrument it follows. */
   src: StemName;
 }
 

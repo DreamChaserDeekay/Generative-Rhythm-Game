@@ -1,7 +1,7 @@
 """Builds the concept sets' game pictures from assets-src/styles/<set>/ into client/public/media/styles/<set>/
-and lists them in client/public/media/manifest.json as "<set>/<name>" (the crystal set as "gem/<name>": see NAME;
-the manifest's other entries are kept), and the flipbooks of the hits of no set (FLASH, FLARE, BUBBLES, GRID) from
-assets-src/styles/hits/ into client/public/media/styles/hits/ as "<hit>/hitBurst" and "<hit>/hitHold".
+and lists them in client/public/media/manifest.json as "<set>/<name>" (the manifest's other entries are kept), and
+the flipbooks of the hits of no set (FLASH, FLARE, BUBBLES, GRID) from assets-src/styles/hits/ into
+client/public/media/styles/hits/ as "<hit>/hitBurst" and "<hit>/hitHold".
 
     python scripts/assets/build_styles.py
 
@@ -411,11 +411,6 @@ SET_ART = {
 HIT_ONLY = ["piano"]
 
 
-# The sets' names in the manifest: "crystal" already names an earlier texture set (skins/crystal/, which user
-# skins may ask for by name), so the crystal set's pictures are listed as "gem/<name>".
-NAME = {"crystal": "gem"}
-
-
 def fit_into(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
     """`rgba` scaled to fit w × h, keeping its proportions, about the middle of a transparent w × h."""
     sh, sw = rgba.shape[:2]
@@ -503,7 +498,7 @@ def set_notes(cid: str, textures: dict) -> None:
             r, col = divmod(i, 2)
             paste(atlas, fit_into(rgba, 500, 500), col * 512 + 6, r * 512 + 6)
     save_rgba(atlas, OUT / cid / "notes.png")
-    textures[f"{NAME.get(cid, cid)}/notes"] = {"file": f"styles/{cid}/notes.png", "bundle": "notes", "size": [1024, 1024]}
+    textures[f"{cid}/notes"] = {"file": f"styles/{cid}/notes.png", "bundle": "notes", "size": [1024, 1024]}
 
 
 def set_long(cid: str, textures: dict) -> dict:
@@ -532,7 +527,7 @@ def set_long(cid: str, textures: dict) -> dict:
         paste(atlas, resize_premultiplied(body, LONG_W, LONG_TILE), i * LONG_W, 0)
         paste(atlas, resize_premultiplied(rgba[iy.start:iy.start + c["cap"]], LONG_W, end), 256 + i * LONG_W, 0)
     save_rgba(atlas, OUT / cid / "long.png")
-    textures[f"{NAME.get(cid, cid)}/long"] = {"file": f"styles/{cid}/long.png", "bundle": "notes", "size": [512, 256]}
+    textures[f"{cid}/long"] = {"file": f"styles/{cid}/long.png", "bundle": "notes", "size": [512, 256]}
     return {"end": end}
 
 
@@ -561,7 +556,7 @@ def set_side(cid: str, textures: dict) -> dict:
         paste(atlas, resize_premultiplied(rgba, width, th), 0, y)
         layout[key] = {"h": th, "cut": round(cut * width)}
     save_rgba(atlas, OUT / cid / "side.png")
-    textures[f"{NAME.get(cid, cid)}/side"] = {"file": f"styles/{cid}/side.png", "bundle": "notes", "size": [1024, 512]}
+    textures[f"{cid}/side"] = {"file": f"styles/{cid}/side.png", "bundle": "notes", "size": [1024, 512]}
     return layout
 
 
@@ -678,7 +673,7 @@ def set_hits(cid: str, textures: dict) -> None:
             afterglow(frame, line, 0.5 * (1 - f / 16) ** 1.2 * g)
 
     save_grey(burst_sheet(draw_burst), OUT / cid / "hit_burst.png")
-    textures[f"{NAME.get(cid, cid)}/hitBurst"] = hit_entry(f"styles/{cid}/hit_burst.png", "burst")
+    textures[f"{cid}/hitBurst"] = hit_entry(f"styles/{cid}/hit_burst.png", "burst")
 
     # where each sparkle twinkles round the glow (across, along; a share of the effect's size from its middle)
     twinkles = [(rng.uniform(-0.35, 0.35), rng.uniform(-0.3, 0.3), rng.uniform(0, 1), rng.integers(0, max(1, len(sprites)))) for _ in range(9)]
@@ -707,7 +702,7 @@ def set_hits(cid: str, textures: dict) -> None:
                     place(frame, sp, cx + cell * x, hold_line + cell * y, size, 0, b)
 
     save_grey(burst_sheet(draw_hold), OUT / cid / "hit_hold.png")
-    textures[f"{NAME.get(cid, cid)}/hitHold"] = hit_entry(f"styles/{cid}/hit_hold.png", "hold")
+    textures[f"{cid}/hitHold"] = hit_entry(f"styles/{cid}/hit_hold.png", "hold")
 
 
 # ---------- the hits of no set: FLASH, FLARE, BUBBLES, GRID ----------

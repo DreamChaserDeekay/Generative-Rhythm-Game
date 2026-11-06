@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES, paintDeck, type DeckMark, type DeckSpec } from './deckArt';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, sinceTurn, softTurn, spectrumBars, type BeatClock } from './gearLights';
-import { BASE_SKIN } from './skins';
 
 /** The deck pictures' rows (2048 across, the SDVX 16:9 room: build_gears.py). */
 const PICTURE_ROWS = 541;
@@ -17,15 +16,12 @@ function deckSpec(room: number, stretch: number, marks: DeckMark[]): DeckSpec {
     width,
     room,
     depth: room + 40,
-    keyTop: 8,
-    keyDepth: 56,
     stretch,
     lanes: [
       { left: 0, width: 68.5, kind: 'scratch' },
       ...Array.from({ length: 7 }, (_, i) => ({ left: 68.5 + i * lane, width: lane, kind: i % 2 ? ('other' as const) : ('white' as const) })),
     ],
     sides: [],
-    colours: BASE_SKIN.colors,
     marks,
   };
 }

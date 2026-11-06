@@ -20,8 +20,7 @@ import { CameraFx } from '../render/cameraFx';
 import { hexString } from '../render/noteColors';
 import { GRADE_COLORS } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
-import { hudGearOf, hudTypeFor } from '../render/gearHud';
-import { styleOf } from '../render/skins';
+import { hudTypeFor } from '../render/gearHud';
 import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
 import { LONG_OF } from '../render/tintArt';
 import {
@@ -70,7 +69,7 @@ export interface PlaySetup {
   canvas: HTMLCanvasElement;
   hudRoot: HTMLElement;
   bgRoot: HTMLElement;
-  /** Textures of the skin, loaded beforehand (null = drawn in code); the renderer disposes them. */
+  /** The parts' pictures and the hit's flipbooks, loaded beforehand (null = drawn in code); the renderer disposes them. */
   art?: SkinArt | null;
   /** The replay of the best play (BEST pacemaker), when it was kept and loaded. */
   bestReplay?: ReplayData | null;
@@ -266,9 +265,9 @@ export class PlayController {
     });
     // how a mode's side lanes are drawn (data-side-notes on the canvas; not shown)
     if (mode.lanes.some((l) => l.kind === 'side')) setup.canvas.dataset.sideNotes = this.renderer.geometry.lanes.some((l) => l.over) ? 'half' : 'lanes';
-    // what the gear is drawn with, the skin's own or the parts picked apart from it (data-style; not shown)
-    const style = styleOf(skin);
-    setup.canvas.dataset.style = [style.note, LONG_OF[style.note], style.side ?? 'bar', style.deck, style.hit].join(' ');
+    // what the gear is drawn with: the parts picked (data-style; not shown)
+    const style = skin.style;
+    setup.canvas.dataset.style = [style.note, LONG_OF[style.note], style.side, style.deck, style.hit].join(' ');
     // and which of them are drawn from art (data-art; not shown)
     setup.canvas.dataset.art = this.renderer.artParts;
     // and in which colours, lane by lane (data-lane-colors; not shown)
@@ -341,8 +340,8 @@ export class PlayController {
         feverManualKey: settings.fever === 'MANUAL' ? this.triggerLabel('fever') : null,
         // a pacer with nothing to follow still shows its row (a dash), so a chosen BEST never just vanishes
         pacemakerLabel: this.practice || settings.pacemaker === 'OFF' ? null : pacemakerLabel(settings.pacemaker),
-        type: hudTypeFor(styleOf(skin), settings.hudType),
-        gear: hudGearOf(styleOf(skin)),
+        type: hudTypeFor(skin.style, settings.hudType),
+        gear: skin.style.deck,
         judgementOpacity: settings.judgementOpacity,
         counterMissLabel: settings.judgeCounter ? rules.missLabel : null,
         // in real ms as the errors are (the table's windows are song ms: a practice's rate stretches them)
@@ -878,7 +877,7 @@ export class PlayController {
     if (e.type === 'judge') {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
-      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_COLORS[e.cls] ?? 0xffffff, now, e.noteIndex);
+      if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_COLORS[e.cls] ?? 0xffffff, now);
       if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
         // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
         // judged BREAK sounds like an empty press (the start of its slice over the song)

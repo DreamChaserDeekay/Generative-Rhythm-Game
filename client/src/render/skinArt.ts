@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { styleOf, type Skin, type TextureSlot } from './skins';
-import { styleImageIds, styleTextures, type ArtImage, type StyleImages } from './styleArt';
+import type { Skin } from './skins';
+import { styleImageIds, styleTextures, type ArtImage, type HitSlot, type StyleImages } from './styleArt';
 
 /** A flipbook sheet: `frames` cells of a cols × rows grid, read row by row from the top left. */
 export interface Flipbook {
@@ -11,24 +11,14 @@ export interface Flipbook {
   loop: boolean;
 }
 
-/** One texture of client/public/media/manifest.json (written by scripts/assets/build_p0.py). */
+/** One texture of client/public/media/manifest.json (written by scripts/assets/build_styles.py and build_gears.py). */
 export interface MediaTexture {
   /** Path under /media/. */
   file: string;
   bundle: string;
   size: [number, number];
-  /** Long note body and rails: one repeat is (drawn width × tileAspect) long. */
-  tileAspect?: number;
-  /** Judgement line: depth of its quad on the track. */
-  depth?: number;
-  /** Rails: width on the track. */
-  width?: number;
-  /** Floor: track length of one repeat, and the gain (sRGB) that brings the tile's mean back to 1. */
-  tile?: number;
-  gain?: number;
   flipbook?: Flipbook;
-  /** Hit effects: sprite size per lane width; hold sparks: height of the judgement line on the sprite (0 = bottom). */
-  scale?: number;
+  /** Hit flipbooks: where the judgement line crosses a frame (0 = its bottom, 1 its top). */
   anchorY?: number;
   /** Hit flipbooks: how much larger a frame is than the effect drawn in it (room all round the whole effect). */
   span?: number;
@@ -51,16 +41,16 @@ export interface ArtTexture {
   spec: MediaTexture;
 }
 
-/** The loaded textures of a skin, and the pictures its style's parts draw from. Parts left out are drawn in code. */
+/** The loaded flipbooks of the hit picked, and the pictures the other parts picked draw from. Parts left out are drawn in code. */
 export interface SkinArt {
-  slots: Partial<Record<TextureSlot, ArtTexture>>;
+  slots: Partial<Record<HitSlot, ArtTexture>>;
   /** By manifest id (render/styleArt.ts). */
   images: StyleImages;
   effects: MediaEffects;
 }
 
 const DEFAULT_EFFECTS: MediaEffects = { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
-const POSITIVE = ['tileAspect', 'depth', 'width', 'tile', 'gain', 'scale', 'span'] as const;
+const POSITIVE = ['span'] as const;
 
 export function mediaUrl(file: string): string {
   return `${import.meta.env.BASE_URL}media/${file}`;
@@ -161,14 +151,14 @@ const BROWSER: ArtSources = {
 };
 
 /**
- * Loads the textures a skin names, its style's hit flipbooks and the pictures its style's parts draw
- * from (styleArt.ts). Never throws: a missing manifest gives null, and a part whose entry is unknown
- * or whose file is missing, broken or not the size the manifest says is left out (the renderer draws
- * it in code).
+ * Loads the flipbooks of the hit picked and the pictures the other parts picked draw from
+ * (styleArt.ts). Never throws: a missing manifest gives null, and a part whose entry is unknown or
+ * whose file is missing, broken or not the size the manifest says is left out (the renderer draws it
+ * in code).
  */
 export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Promise<SkinArt | null> {
-  const style = styleOf(skin);
-  const wanted = Object.entries({ ...skin.textures, ...styleTextures(style) }) as [TextureSlot, string][];
+  const style = skin.style;
+  const wanted = Object.entries(styleTextures(style)) as [HitSlot, string][];
   const pictures = sources.image ? styleImageIds(style) : [];
   if (wanted.length === 0 && pictures.length === 0) return null;
   const media = await sources.manifest().catch(() => null);

@@ -1,14 +1,14 @@
-import { isGear, type GearStyle } from './deckArt';
-import type { HudType, SkinStyle } from './skins';
+import type { GearStyle } from './deckArt';
+import { DEFAULT_HUD_TYPE, type HudType, type SkinStyle } from './skins';
 
 /**
  * What a picked gear brings to the HUD beside the track, as its object would print it: the
- * judgement and combo type (unless the player keeps the skin's, 설정 → 기어 → 판정·콤보 글꼴), and
- * the gauge's name. The gauge's look, the score panel's housing and the readouts' digits are the
+ * judgement and combo type (unless the player keeps the track's own, 기본: 설정 → 기어 → 판정·콤보
+ * 글꼴), and the gauge's name. The gauge's look, the score panel's housing and the readouts' digits are the
  * gear's in the HUD's styles (styles.css: .hud[data-gear]).
  */
 
-/** Which type writes the judgement and the combo: the picked gear's, or the skin's. */
+/** Which type writes the judgement and the combo: the picked gear's, or the track's own (기본; saved as 'skin'). */
 export type HudTypeSource = 'gear' | 'skin';
 export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
 
@@ -48,11 +48,7 @@ export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   rawglass: 'CLARITY',
 };
 
-/** The gear the HUD dresses itself for: a picked gear (a skin's LINE or STEM gear has no HUD of its own). */
-export const hudGearOf = (style: Pick<SkinStyle, 'deck'>): GearStyle | null => (isGear(style.deck) ? style.deck : null);
-
-/** The judgement and combo type of a play: the gear's, unless the player keeps the skin's (or the gear is a skin's own). */
-export function hudTypeFor(style: Pick<SkinStyle, 'deck' | 'type'>, source: HudTypeSource): HudType {
-  const gear = hudGearOf(style);
-  return source === 'gear' && gear ? GEAR_TYPES[gear] : style.type;
+/** The judgement and combo type of a play: the gear's, unless the player keeps the track's own. */
+export function hudTypeFor(style: Pick<SkinStyle, 'deck'>, source: HudTypeSource): HudType {
+  return source === 'gear' ? GEAR_TYPES[style.deck] : DEFAULT_HUD_TYPE;
 }

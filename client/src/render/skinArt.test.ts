@@ -4,7 +4,7 @@ import { disposeSkinArt, flipbookOffset, loadSkinArt, parseManifest, parseMediaT
 import type { ArtImage } from './styleArt';
 import { BASE_SKIN } from './skins';
 
-const NOTE = { file: 'skins/glass/note_tap.png', bundle: 'notes', size: [256, 64] };
+const NOTE = { file: 'styles/mecha/notes.png', bundle: 'notes', size: [1024, 1024] };
 const BOOK = { cols: 4, rows: 4, frames: 16, fps: 60, loop: false };
 
 function fakeTexture(width: number, height: number): THREE.Texture & { disposed: boolean } {
@@ -17,8 +17,10 @@ function fakeTexture(width: number, height: number): THREE.Texture & { disposed:
 describe('media manifest', () => {
   it('keeps well-formed texture entries', () => {
     expect(parseMediaTexture(NOTE)).toEqual(NOTE);
-    const burst = { file: 'fx/hit_burst_ring.png', bundle: 'effects', size: [1024, 1024], flipbook: BOOK, scale: 1.7, anchorY: 0.5, span: 1.375 };
+    const burst = { file: 'styles/hits/flash_burst.png', bundle: 'effects', size: [1024, 1024], flipbook: BOOK, anchorY: 0.5, span: 1.375 };
     expect(parseMediaTexture(burst)).toEqual(burst);
+    // what the game reads no more (the old texture sets' tiling and sizes) is left out
+    expect(parseMediaTexture({ ...NOTE, tile: 2.4, gain: 2, scale: 1.7 })).toEqual(NOTE);
     expect(parseMediaTexture({ ...burst, flipbook: { ...BOOK, loop: 'yes' } })?.flipbook?.loop).toBe(false);
   });
 
@@ -27,18 +29,17 @@ describe('media manifest', () => {
       expect(parseMediaTexture({ ...NOTE, file })).toBeNull();
     }
     for (const size of [[256], [256, 0], [256.5, 64], [4096, 64], '256x64']) expect(parseMediaTexture({ ...NOTE, size })).toBeNull();
-    expect(parseMediaTexture({ ...NOTE, tileAspect: -1 })).toBeNull();
-    expect(parseMediaTexture({ ...NOTE, gain: Number.NaN })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, anchorY: 1.5 })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, span: 0 })).toBeNull();
+    expect(parseMediaTexture({ ...NOTE, span: Number.NaN })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, flipbook: { ...BOOK, frames: 17 } })).toBeNull();
     expect(parseMediaTexture({ ...NOTE, flipbook: { ...BOOK, fps: 0 } })).toBeNull();
     expect(parseMediaTexture(null)).toBeNull();
   });
 
   it('drops malformed entries and fills in the effect defaults', () => {
-    const m = parseManifest({ version: 1, textures: { 'glass/note': NOTE, 'glass/bad': { ...NOTE, file: '../x.png' } } });
-    expect(Object.keys(m?.textures ?? {})).toEqual(['glass/note']);
+    const m = parseManifest({ version: 1, textures: { 'mecha/notes': NOTE, 'mecha/bad': { ...NOTE, file: '../x.png' } } });
+    expect(Object.keys(m?.textures ?? {})).toEqual(['mecha/notes']);
     expect(m?.effects).toEqual({ reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 });
     expect(parseManifest({ textures: {}, effects: { reducedFlashOpacity: 0.3, reducedFlashScale: 'big' } })?.effects).toEqual({
       reducedFlashOpacity: 0.3,
@@ -60,44 +61,50 @@ describe('media manifest', () => {
   });
 });
 
-describe('loading skin textures', () => {
-  // a skin on the glass set's textures, slot by slot (the track's own is drawn in code)
-  const glass = { ...BASE_SKIN, textures: { note: 'glass/note', floor: 'glass/floor', rails: 'glass/rails', judgeLine: 'glass/judgeLine' } };
+describe('loading the parts’ pictures and the hit’s flipbooks', () => {
+  // the mecha hit's flipbooks (no way to decode pictures: the flipbooks alone are asked for)
+  const mechaHit = { ...BASE_SKIN, style: { ...BASE_SKIN.style, hit: 'mecha' as const } };
   const manifest: MediaManifest = {
     version: 1,
     textures: {
-      'glass/note': parseMediaTexture(NOTE)!,
-      'glass/floor': parseMediaTexture({ file: 'skins/glass/floor.png', bundle: 'gear', size: [512, 512], tile: 2.4, gain: 2 })!,
-      'glass/rails': parseMediaTexture({ file: 'skins/glass/rail.png', bundle: 'gear', size: [64, 1024], width: 0.26 })!,
-      'glass/judgeLine': parseMediaTexture({ file: 'skins/glass/judge_line.png', bundle: 'gear', size: [1024, 64] })!,
+      'mecha/hitBurst': parseMediaTexture({ file: 'styles/mecha/hit_burst.png', bundle: 'effects', size: [1024, 1024], flipbook: BOOK })!,
+      'mecha/hitHold': parseMediaTexture({ file: 'styles/mecha/hit_hold.png', bundle: 'effects', size: [1024, 1024], flipbook: { ...BOOK, loop: true } })!,
     },
     effects: { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 },
   };
 
   it('leaves out what is missing, broken or the wrong size', async () => {
     const made: ReturnType<typeof fakeTexture>[] = [];
-    const art = await loadSkinArt(glass, {
+    const art = await loadSkinArt(mechaHit, {
       manifest: async () => manifest,
       texture: async (url) => {
-        if (url.endsWith('rail.png')) throw new Error('404');
-        // the judgement line comes back at the wrong size
-        const t = url.endsWith('judge_line.png') ? fakeTexture(512, 64) : url.endsWith('floor.png') ? fakeTexture(512, 512) : fakeTexture(256, 64);
+        // the hold's flipbook comes back at the wrong size
+        const t = url.endsWith('hit_hold.png') ? fakeTexture(512, 512) : fakeTexture(1024, 1024);
         made.push(t);
         return t;
       },
     });
-    expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['floor', 'note']);
-    expect(art?.slots.note?.texture.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(Object.keys(art?.slots ?? {})).toEqual(['hitBurst']);
+    expect(art?.slots.hitBurst?.texture.colorSpace).toBe(THREE.SRGBColorSpace);
     expect(made.filter((t) => t.disposed)).toHaveLength(1);
+    const missing = await loadSkinArt(mechaHit, {
+      manifest: async () => manifest,
+      texture: async (url) => {
+        if (url.endsWith('hit_burst.png')) throw new Error('404');
+        return fakeTexture(1024, 1024);
+      },
+    });
+    expect(Object.keys(missing?.slots ?? {})).toEqual(['hitHold']);
   });
 
-  it('gives nothing without a manifest or for a skin drawn in code', async () => {
-    const texture = async () => fakeTexture(256, 64);
-    expect(await loadSkinArt(glass, { manifest: async () => null, texture })).toBeNull();
-    expect(await loadSkinArt(glass, { manifest: () => Promise.reject(new Error('offline')), texture })).toBeNull();
+  it('gives nothing without a manifest, or when none of what the parts draw from loads', async () => {
+    const texture = async () => fakeTexture(1024, 1024);
+    expect(await loadSkinArt(mechaHit, { manifest: async () => null, texture })).toBeNull();
+    expect(await loadSkinArt(mechaHit, { manifest: () => Promise.reject(new Error('offline')), texture })).toBeNull();
+    // the flash's flipbooks are not in this manifest
     expect(await loadSkinArt(BASE_SKIN, { manifest: async () => manifest, texture })).toBeNull();
     const failing = { manifest: async () => manifest, texture: () => Promise.reject(new Error('broken')) };
-    expect(await loadSkinArt(glass, failing)).toBeNull();
+    expect(await loadSkinArt(mechaHit, failing)).toBeNull();
   });
 
   it('loads the pictures and flipbooks of the style’s parts drawn from art, leaving out what is missing or the wrong size', async () => {
@@ -128,13 +135,13 @@ describe('loading skin textures', () => {
         return { width, height } as unknown as ArtImage;
       },
     };
-    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style!, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
+    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
     expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/coin.png', 'gears/cabinet/joystick.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
     expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/coin', 'cabinet/joystick', 'mecha/notes']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
-    // nothing to draw from art without a way to decode pictures, or for a skin drawn in code
+    // no pictures without a way to decode them, and nothing for parts the manifest has none of
     expect(Object.keys((await loadSkinArt(mechaSkin, { ...sources, image: undefined }))?.images ?? {})).toEqual([]);
     expect(await loadSkinArt(BASE_SKIN, sources)).toBeNull();
     disposeSkinArt(art);

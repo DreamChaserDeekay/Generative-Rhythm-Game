@@ -1395,7 +1395,7 @@ function GamepadPanel({
 }
 
 /**
- * The window or full screen, a user skin from JSON, the analysis backends, and a full reset: a
+ * The window or full screen, the analysis backends (with how to install them), and a full reset: a
  * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
  */
 function AdvancedPanel({
