@@ -1,63 +1,63 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import type { DeckStyle } from '../render/deckArt';
-import { BUILTIN_SKINS, PART_DECKS, PART_HITS, PART_NOTES, type SkinParts } from '../render/skins';
-import { SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
-import type { Settings } from '../settings/settings';
+import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
+import type { HudTypeSource } from '../render/gearHud';
+import type { SkinParts } from '../render/skins';
+import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 
 /** The option rows of the settings and the song select's play options. */
 
 export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/** The track skins to choose from: the built-in ones, and the user's when there is one. */
-export function skinChoices(settings: Pick<Settings, 'customSkin'>): [string, string][] {
-  return [
-    ...BUILTIN_SKINS.map((k): [string, string] => [k.id, k.label]),
-    ...(settings.customSkin !== null ? [['custom', (settings.customSkin as { label?: string }).label ?? '사용자 스킨'] as [string, string]] : []),
-  ];
-}
-
-/** The parts of the gear by name (설정 → 기어). */
-export const NOTE_NAMES: Record<NoteStyle, string> = { flat: '기본', stem: '악기색', chamfer: '메카 챔퍼', round: '원형', star4: '별 (4각)', star5: '별 (5각)' };
+/** The parts by name (설정 → 노트 and 기어). */
+export const NOTE_NAMES: Record<NoteStyle, string> = {
+  flat: '기본',
+  chrome: '크롬 베벨',
+  hairline: '헤어라인',
+  glass: '유리',
+  enamel: '에나멜',
+  pearl: '펄',
+  carbon: '카본',
+  chamfer: '메카 챔퍼',
+  round: '원형',
+  star4: '별 (4각)',
+  star5: '별 (5각)',
+};
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
-export const DECK_NAMES: Record<DeckStyle, string> = {
-  line: '라인',
-  stem: '악기색',
-  arcade: '아케이드',
-  mixer: '믹서',
-  hazard: '해저드',
-  neon: '네온',
-  crystal: '크리스털',
-  candy: '캔디',
-  jewel: '보석',
-  mono: '모노',
-  concrete: '콘크리트 슬래브',
-  avionics: '에이비오닉스',
-  cassette: '카세트 데크',
-  grand: '그랜드 피아노',
+export const DECK_NAMES: Record<GearStyle, string> = {
+  standard: '기본',
+  cabinet: '오락실 기체',
+  receiver: '빈티지 리시버',
+  najeon: '나전칠기',
+  keyboard: '커스텀 키보드',
+  racing: '레이싱 휠',
+  orbital: '우주선 계기판',
+  piano: '피아노',
+  rawglass: '달',
 };
-export const HIT_NAMES: Record<HitStyle | 'flipbook' | 'none', string> = {
+export const HIT_NAMES: Record<HitStyle, string> = {
   flash: '플래시',
-  stemflash: '악기색 플래시',
-  star: '별빛',
-  bomb: '사각 폭발',
   flare: '플레어',
-  hex: '육각',
-  shards: '파편',
   bubbles: '거품',
-  wave: '임팩트 웨이브',
-  spark: '스파크',
   grid: 'LED 그리드',
-  shutter: '셔터',
-  flipbook: '보석 섬광',
-  none: '없음',
+  mecha: '메카 섬광',
+  club: '클럽 링',
+  crystal: '크리스털 파편',
+  neon: '네온 아크',
+  piano: '피아노 음표',
 };
+
+/** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
+export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [
+  ['gear', '기어'],
+  ['skin', '기본'],
+];
 
 /** Each part's choices, by name. */
 export const PART_CHOICES: { [K in keyof SkinParts]: [SkinParts[K], string][] } = {
-  note: PART_NOTES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
+  note: NOTE_STYLES.map((v): [NoteStyle, string] => [v, NOTE_NAMES[v]]),
   side: SIDE_STYLES.map((v): [SideStyle, string] => [v, SIDE_NAMES[v]]),
-  deck: PART_DECKS.map((v): [DeckStyle, string] => [v, DECK_NAMES[v]]),
-  hit: PART_HITS.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
+  deck: GEAR_STYLES.map((v): [GearStyle, string] => [v, DECK_NAMES[v]]),
+  hit: HIT_STYLES.map((v): [HitStyle, string] => [v, HIT_NAMES[v]]),
 };
 
 export interface RowProps {

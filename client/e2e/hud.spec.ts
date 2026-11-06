@@ -47,13 +47,13 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
 
   // SPEED once, two decimals; a cover one decimal; both under the judge line, off the notes and the combo
   await page.keyboard.press('ArrowUp');
-  await expect(page.getByTestId('hud-toast')).toHaveText('SPEED 4.10');
+  await expect(page.getByTestId('hud-toast')).toHaveText('노트 속도 4.10');
   expect((await stored(page)).hiSpeed).toBe(4.1);
   const [toast, combo] = [await page.getByTestId('hud-toast').boundingBox(), await page.locator('.hud-combo').boundingBox()];
   expect(toast && toast.y > 720 * 0.78).toBe(true);
   expect(toast && combo && toast.y > combo.y + combo.height).toBe(true);
   await page.keyboard.press('PageDown');
-  await expect(page.getByTestId('hud-toast')).toHaveText('SUDDEN+ 2.5%');
+  await expect(page.getByTestId('hud-toast')).toHaveText('노트 등장 위치 2.5%');
 
   // paused, ↑↓ move through the menu and leave SPEED alone; Enter resumes, READY over the rewind
   await page.keyboard.press('Escape');
@@ -132,11 +132,13 @@ test('the score panel reads at 12 px or more on the default camera, its farthest
 
 test('a narrow screen: the score panel stays on the screen and readable, each label over its number', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await readablePanel(page, { lastKeyMode: '8K', cameraPreset: 'LOW', skin: 'neon', pacemaker: '98' }, /stacked/);
+  await readablePanel(page, { lastKeyMode: '8K', cameraPreset: 'LOW', pacemaker: '98' }, /stacked/);
 });
 
-test('a high LIFT: no room over the gear, so the score panel stands upright at the lower left, clear of the time left', async ({ page }) => {
-  await readablePanel(page, { lastKeyMode: '7K+1S', lift: 0.3, coversOn: true, pacemaker: '95' }, /upright/);
+test('a very wide gear on a narrow window: no room beside it, so the score panel stands upright at the lower left, clear of the time left', async ({ page }) => {
+  // (판정선 위치 raises the line 100 px at most: the room beside the gear stays)
+  await page.setViewportSize({ width: 960, height: 720 });
+  await readablePanel(page, { lastKeyMode: '8K', laneWidthScale: 1.4, coversOn: true, pacemaker: '95' }, /upright/);
   const panel = await page.getByTestId('hud-panel').boundingBox();
   expect(panel && panel.x < 100 && panel.y + panel.height > 720 - 100).toBe(true);
 });

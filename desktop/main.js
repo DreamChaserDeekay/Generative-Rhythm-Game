@@ -99,7 +99,7 @@ function stopLeftServer(port, token) {
 
 /**
  * The port to serve the game on: the home port while it can be had (the page's origin, whose
- * storage keeps the game's settings: keys, offsets, skin, favourites). A server of ours left on it
+ * storage keeps the game's settings: keys, offsets, parts, favourites). A server of ours left on it
  * is asked to stop, and one stopping is waited for a moment. Taken by something else, or held back
  * by the system (Windows' excluded port ranges, which can change at a restart), any free port for
  * this launch only: the home port stays the home port (`home` false). The first launch makes its

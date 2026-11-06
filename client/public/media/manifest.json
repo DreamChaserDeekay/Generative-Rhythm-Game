@@ -1,70 +1,8 @@
 {
   "version": 1,
   "textures": {
-    "crystal/floor": {
-      "file": "skins/crystal/floor.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ],
-      "gain": 2.001,
-      "tile": 2.4
-    },
-    "crystal/judgeLine": {
-      "file": "skins/crystal/judge_line.png",
-      "bundle": "gear",
-      "size": [
-        1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "crystal/longBody": {
-      "file": "skins/crystal/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 5.4
-    },
-    "crystal/note": {
-      "file": "skins/crystal/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "crystal/rails": {
-      "file": "skins/crystal/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        1024
-      ],
-      "tileAspect": 18.67,
-      "width": 0.26
-    },
-    "crystal/scratch": {
-      "file": "skins/crystal/note_scratch.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "crystal/side": {
-      "file": "skins/crystal/note_side.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        64
-      ]
-    },
-    "fx/hitBurstGlow": {
-      "file": "fx/hit_burst_glow.png",
+    "bubbles/hitBurst": {
+      "file": "styles/hits/bubbles_burst.png",
       "bundle": "effects",
       "size": [
         1024,
@@ -77,30 +15,15 @@
         "fps": 60,
         "loop": false
       },
-      "scale": 1.35
+      "anchorY": 0.5,
+      "span": 1.375
     },
-    "fx/hitBurstRing": {
-      "file": "fx/hit_burst_ring.png",
+    "bubbles/hitHold": {
+      "file": "styles/hits/bubbles_hold.png",
       "bundle": "effects",
       "size": [
         1024,
         1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 60,
-        "loop": false
-      },
-      "scale": 1.7
-    },
-    "fx/hitHold": {
-      "file": "fx/hit_hold.png",
-      "bundle": "effects",
-      "size": [
-        512,
-        512
       ],
       "flipbook": {
         "cols": 4,
@@ -109,201 +32,679 @@
         "fps": 24,
         "loop": true
       },
-      "scale": 1.5,
-      "anchorY": 0.15
+      "anchorY": 0.5,
+      "span": 1.375
     },
-    "fx/keyBeam": {
-      "file": "fx/key_beam.png",
-      "bundle": "gear",
-      "size": [
-        64,
-        512
-      ]
-    },
-    "gel/floor": {
-      "file": "skins/gel/floor.png",
+    "cabinet/abs": {
+      "file": "gears/cabinet/abs.png",
       "bundle": "gear",
       "size": [
         512,
         512
-      ],
-      "gain": 2.0,
-      "tile": 2.4
+      ]
     },
-    "gel/judgeLine": {
-      "file": "skins/gel/judge_line.png",
+    "cabinet/button": {
+      "file": "gears/cabinet/button.png",
       "bundle": "gear",
       "size": [
-        1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "gel/longBody": {
-      "file": "skins/gel/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.37
-    },
-    "gel/note": {
-      "file": "skins/gel/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
+        384,
+        384
       ]
     },
-    "gel/rails": {
-      "file": "skins/gel/rail.png",
+    "cabinet/coin": {
+      "file": "gears/cabinet/coin.png",
       "bundle": "gear",
       "size": [
-        64,
-        1024
-      ],
-      "tileAspect": 12.33,
-      "width": 0.26
-    },
-    "gel/scratch": {
-      "file": "skins/gel/note_scratch.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
+        558,
+        384
       ]
     },
-    "gel/side": {
-      "file": "skins/gel/note_side.png",
-      "bundle": "notes",
+    "cabinet/deck": {
+      "file": "gears/cabinet/deck.webp",
+      "bundle": "gear",
       "size": [
-        128,
-        64
+        2048,
+        541
       ]
     },
-    "glass/floor": {
-      "file": "skins/glass/floor.png",
+    "cabinet/joystick": {
+      "file": "gears/cabinet/joystick.png",
       "bundle": "gear",
       "size": [
         512,
         512
-      ],
-      "gain": 2.002,
-      "tile": 2.4
+      ]
     },
-    "glass/judgeLine": {
-      "file": "skins/glass/judge_line.png",
-      "bundle": "gear",
+    "club/hitBurst": {
+      "file": "styles/club/hit_burst.png",
+      "bundle": "effects",
       "size": [
         1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "glass/longBody": {
-      "file": "skins/glass/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.07
-    },
-    "glass/note": {
-      "file": "skins/glass/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "glass/rails": {
-      "file": "skins/glass/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
         1024
       ],
-      "tileAspect": 12.44,
-      "width": 0.26
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
     },
-    "glass/scratch": {
-      "file": "skins/glass/note_scratch.png",
+    "club/hitHold": {
+      "file": "styles/club/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "club/long": {
+      "file": "styles/club/long.png",
       "bundle": "notes",
       "size": [
-        256,
-        64
+        512,
+        256
       ]
     },
-    "glass/side": {
-      "file": "skins/glass/note_side.png",
+    "club/notes": {
+      "file": "styles/club/notes.png",
       "bundle": "notes",
       "size": [
-        128,
-        64
+        1024,
+        1024
       ]
     },
-    "metal/floor": {
-      "file": "skins/metal/floor.png",
+    "club/side": {
+      "file": "styles/club/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "crystal/hitBurst": {
+      "file": "styles/crystal/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "crystal/hitHold": {
+      "file": "styles/crystal/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "crystal/long": {
+      "file": "styles/crystal/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "crystal/notes": {
+      "file": "styles/crystal/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "crystal/side": {
+      "file": "styles/crystal/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "flare/hitBurst": {
+      "file": "styles/hits/flare_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "flare/hitHold": {
+      "file": "styles/hits/flare_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "flash/hitBurst": {
+      "file": "styles/hits/flash_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "flash/hitHold": {
+      "file": "styles/hits/flash_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "grid/hitBurst": {
+      "file": "styles/hits/grid_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "grid/hitHold": {
+      "file": "styles/hits/grid_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "keyboard/alu": {
+      "file": "gears/keyboard/alu.png",
       "bundle": "gear",
       "size": [
         512,
         512
-      ],
-      "gain": 1.999,
-      "tile": 2.4
+      ]
     },
-    "metal/judgeLine": {
-      "file": "skins/metal/judge_line.png",
+    "keyboard/brass": {
+      "file": "gears/keyboard/brass.png",
       "bundle": "gear",
+      "size": [
+        912,
+        192
+      ]
+    },
+    "keyboard/deck": {
+      "file": "gears/keyboard/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "keyboard/glow": {
+      "file": "gears/keyboard/glow.png",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "keyboard/keycap": {
+      "file": "gears/keyboard/keycap.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "keyboard/knob": {
+      "file": "gears/keyboard/knob.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "mecha/hitBurst": {
+      "file": "styles/mecha/hit_burst.png",
+      "bundle": "effects",
       "size": [
         1024,
-        64
-      ],
-      "depth": 0.5
-    },
-    "metal/longBody": {
-      "file": "skins/metal/long_body.png",
-      "bundle": "notes",
-      "size": [
-        128,
-        256
-      ],
-      "tileAspect": 4.46
-    },
-    "metal/note": {
-      "file": "skins/metal/note_tap.png",
-      "bundle": "notes",
-      "size": [
-        256,
-        64
-      ]
-    },
-    "metal/rails": {
-      "file": "skins/metal/rail.png",
-      "bundle": "gear",
-      "size": [
-        64,
         1024
       ],
-      "tileAspect": 11.2,
-      "width": 0.26
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
     },
-    "metal/scratch": {
-      "file": "skins/metal/note_scratch.png",
+    "mecha/hitHold": {
+      "file": "styles/mecha/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "mecha/long": {
+      "file": "styles/mecha/long.png",
       "bundle": "notes",
       "size": [
-        256,
-        64
+        512,
+        256
       ]
     },
-    "metal/side": {
-      "file": "skins/metal/note_side.png",
+    "mecha/notes": {
+      "file": "styles/mecha/notes.png",
       "bundle": "notes",
       "size": [
+        1024,
+        1024
+      ]
+    },
+    "mecha/side": {
+      "file": "styles/mecha/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "najeon/band": {
+      "file": "gears/najeon/band.png",
+      "bundle": "gear",
+      "size": [
         128,
-        64
+        2048
+      ]
+    },
+    "najeon/deck": {
+      "file": "gears/najeon/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "najeon/glow": {
+      "file": "gears/najeon/glow.png",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "najeon/lid": {
+      "file": "gears/najeon/lid.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "najeon/lock": {
+      "file": "gears/najeon/lock.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "neon/hitBurst": {
+      "file": "styles/neon/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "neon/hitHold": {
+      "file": "styles/neon/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "neon/long": {
+      "file": "styles/neon/long.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
+    "neon/notes": {
+      "file": "styles/neon/notes.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "neon/side": {
+      "file": "styles/neon/side.png",
+      "bundle": "notes",
+      "size": [
+        1024,
+        512
+      ]
+    },
+    "orbital/button": {
+      "file": "gears/orbital/button.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "orbital/deck": {
+      "file": "gears/orbital/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "orbital/foil": {
+      "file": "gears/orbital/foil.png",
+      "bundle": "gear",
+      "size": [
+        128,
+        768
+      ]
+    },
+    "orbital/paint": {
+      "file": "gears/orbital/paint.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "orbital/selector": {
+      "file": "gears/orbital/selector.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "orbital/toggle": {
+      "file": "gears/orbital/toggle.png",
+      "bundle": "gear",
+      "size": [
+        495,
+        512
+      ]
+    },
+    "piano/deck": {
+      "file": "gears/piano/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "piano/hitBurst": {
+      "file": "styles/piano/hit_burst.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 60,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "piano/hitHold": {
+      "file": "styles/piano/hit_hold.png",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 1.375
+    },
+    "piano/medallion": {
+      "file": "gears/piano/medallion.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        265
+      ]
+    },
+    "racing/button": {
+      "file": "gears/racing/button.png",
+      "bundle": "gear",
+      "size": [
+        384,
+        384
+      ]
+    },
+    "racing/carbon": {
+      "file": "gears/racing/carbon.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        256
+      ]
+    },
+    "racing/deck": {
+      "file": "gears/racing/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "racing/rotary": {
+      "file": "gears/racing/rotary.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "rawglass/deck": {
+      "file": "gears/rawglass/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "receiver/deck": {
+      "file": "gears/receiver/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "receiver/knob": {
+      "file": "gears/receiver/knob.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "receiver/silver": {
+      "file": "gears/receiver/silver.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
+      ]
+    },
+    "receiver/switch": {
+      "file": "gears/receiver/switch.png",
+      "bundle": "gear",
+      "size": [
+        320,
+        368
+      ]
+    },
+    "receiver/walnut": {
+      "file": "gears/receiver/walnut.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        1024
+      ]
+    },
+    "standard/deck": {
+      "file": "gears/standard/deck.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "standard/glow": {
+      "file": "gears/standard/glow.png",
+      "bundle": "gear",
+      "size": [
+        2048,
+        541
+      ]
+    },
+    "standard/graphite": {
+      "file": "gears/standard/graphite.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        1024
+      ]
+    },
+    "standard/jog": {
+      "file": "gears/standard/jog.png",
+      "bundle": "gear",
+      "size": [
+        512,
+        512
       ]
     }
   },

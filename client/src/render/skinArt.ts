@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { Skin, TextureSlot } from './skins';
+import type { Skin } from './skins';
+import { styleImageIds, styleTextures, type ArtImage, type HitSlot, type StyleImages } from './styleArt';
 
 /** A flipbook sheet: `frames` cells of a cols × rows grid, read row by row from the top left. */
 export interface Flipbook {
@@ -10,25 +11,17 @@ export interface Flipbook {
   loop: boolean;
 }
 
-/** One texture of client/public/media/manifest.json (written by scripts/assets/build_p0.py). */
+/** One texture of client/public/media/manifest.json (written by scripts/assets/build_styles.py and build_gears.py). */
 export interface MediaTexture {
   /** Path under /media/. */
   file: string;
   bundle: string;
   size: [number, number];
-  /** Long note body and rails: one repeat is (drawn width × tileAspect) long. */
-  tileAspect?: number;
-  /** Judgement line: depth of its quad on the track. */
-  depth?: number;
-  /** Rails: width on the track. */
-  width?: number;
-  /** Floor: track length of one repeat, and the gain (sRGB) that brings the tile's mean back to 1. */
-  tile?: number;
-  gain?: number;
   flipbook?: Flipbook;
-  /** Hit effects: sprite size per lane width; hold sparks: height of the judgement line on the sprite (0 = bottom). */
-  scale?: number;
+  /** Hit flipbooks: where the judgement line crosses a frame (0 = its bottom, 1 its top). */
   anchorY?: number;
+  /** Hit flipbooks: how much larger a frame is than the effect drawn in it (room all round the whole effect). */
+  span?: number;
 }
 
 /** "Reduce flashing" for the textured hit effects. */
@@ -48,14 +41,16 @@ export interface ArtTexture {
   spec: MediaTexture;
 }
 
-/** The loaded textures of a skin. Parts left out are drawn in code. */
+/** The loaded flipbooks of the hit picked, and the pictures the other parts picked draw from. Parts left out are drawn in code. */
 export interface SkinArt {
-  slots: Partial<Record<TextureSlot, ArtTexture>>;
+  slots: Partial<Record<HitSlot, ArtTexture>>;
+  /** By manifest id (render/styleArt.ts). */
+  images: StyleImages;
   effects: MediaEffects;
 }
 
 const DEFAULT_EFFECTS: MediaEffects = { reducedFlashOpacity: 0.45, reducedFlashScale: 0.8 };
-const POSITIVE = ['tileAspect', 'depth', 'width', 'tile', 'gain', 'scale'] as const;
+const POSITIVE = ['span'] as const;
 
 export function mediaUrl(file: string): string {
   return `${import.meta.env.BASE_URL}media/${file}`;
@@ -126,32 +121,58 @@ export function flipbookOffset(book: Flipbook, frame: number): [number, number] 
 export interface ArtSources {
   manifest(): Promise<MediaManifest | null>;
   texture(url: string): Promise<THREE.Texture>;
+  /** A picture decoded for drawing on a canvas (without it, none is loaded). */
+  image?(url: string): Promise<ArtImage>;
+}
+
+/**
+ * A picture as its file holds it: no colour management (a tint picture's channels are amounts, not
+ * colours), its alpha not multiplied in yet (the canvas it is drawn on does that).
+ */
+async function decodeImage(url: string): Promise<ArtImage> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+  const blob = await res.blob();
+  if (typeof createImageBitmap === 'function') return createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  const image = new Image();
+  image.src = URL.createObjectURL(blob);
+  try {
+    await image.decode();
+  } finally {
+    URL.revokeObjectURL(image.src);
+  }
+  return image;
 }
 
 const BROWSER: ArtSources = {
   manifest: loadManifest,
   texture: (url) => new THREE.TextureLoader().loadAsync(url),
+  image: decodeImage,
 };
 
 /**
- * Loads the textures a skin names. Never throws: a missing manifest gives null, and a part whose
- * entry is unknown or whose file is missing, broken or not the size the manifest says is left out
- * (the renderer draws it in code).
+ * Loads the flipbooks of the hit picked and the pictures the other parts picked draw from
+ * (styleArt.ts). Never throws: a missing manifest gives null, and a part whose entry is unknown or
+ * whose file is missing, broken or not the size the manifest says is left out (the renderer draws it
+ * in code).
  */
 export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Promise<SkinArt | null> {
-  const wanted = Object.entries(skin.textures ?? {}) as [TextureSlot, string][];
-  if (wanted.length === 0) return null;
+  const style = skin.style;
+  const wanted = Object.entries(styleTextures(style)) as [HitSlot, string][];
+  const pictures = sources.image ? styleImageIds(style) : [];
+  if (wanted.length === 0 && pictures.length === 0) return null;
   const media = await sources.manifest().catch(() => null);
   if (!media) return null;
   const slots: SkinArt['slots'] = {};
-  await Promise.all(
-    wanted.map(async ([slot, id]) => {
+  const images: Record<string, ArtImage> = {};
+  const fits = (image: { width?: number; height?: number }, size: [number, number]) => image.width === size[0] && image.height === size[1];
+  await Promise.all([
+    ...wanted.map(async ([slot, id]) => {
       const spec = media.textures[id];
       if (!spec) return;
       try {
         const texture = await sources.texture(mediaUrl(spec.file));
-        const image = texture.image as { width?: number; height?: number };
-        if (image.width !== spec.size[0] || image.height !== spec.size[1]) {
+        if (!fits(texture.image as { width?: number; height?: number }, spec.size)) {
           texture.dispose();
           return;
         }
@@ -161,10 +182,26 @@ export async function loadSkinArt(skin: Skin, sources: ArtSources = BROWSER): Pr
         // missing or broken file: this part keeps the drawn look
       }
     }),
-  );
-  return Object.keys(slots).length > 0 ? { slots, effects: media.effects } : null;
+    ...pictures.map(async (id) => {
+      const spec = media.textures[id];
+      if (!spec || !sources.image) return;
+      try {
+        const image = await sources.image(mediaUrl(spec.file));
+        if (fits(image, spec.size)) images[id] = image;
+        else closeImage(image);
+      } catch {
+        // as a texture's: drawn in code
+      }
+    }),
+  ]);
+  return Object.keys(slots).length > 0 || Object.keys(images).length > 0 ? { slots, images, effects: media.effects } : null;
+}
+
+function closeImage(image: ArtImage): void {
+  if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) image.close();
 }
 
 export function disposeSkinArt(art: SkinArt | null | undefined): void {
   for (const a of Object.values(art?.slots ?? {})) a.texture.dispose();
+  for (const image of Object.values(art?.images ?? {})) if (image) closeImage(image);
 }

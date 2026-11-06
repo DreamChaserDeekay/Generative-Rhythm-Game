@@ -16,17 +16,16 @@ import type { ScrollMode } from '../engine/scroll';
 import type { KeyModeId } from '../engine/types';
 import type { SideNotes } from '../render/layout';
 import { noteColorsFor, presetById, sanitizePresets, SKIN_COLORS, type ColorPreset } from '../render/noteColors';
-import type { Palette } from '../render/palette';
-import { BUILTIN_SKINS, DEFAULT_PARTS, sanitizeParts, sanitizeSkin, SKIN_RENAMES, skinById, withParts, type Skin, type SkinParts } from '../render/skins';
+import { HUD_TYPE_SOURCES, type HudTypeSource } from '../render/gearHud';
+import { BASE_SKIN, DEFAULT_PARTS, sanitizeParts, withParts, type Skin, type SkinParts } from '../render/skins';
 import type { HitEffectSize } from '../render/TrackRenderer';
 import { DEFAULT_TURNTABLE, isPadCode, MENU_BUTTON_KEYS, MENU_BUTTONS, MENU_PAD_CODE, type MenuButton } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, type PadPlayButton } from '../input/padPlay';
 import { cleanPlayKey, DEFAULT_PLAY_KEYS, parseKey, PLAY_ACTIONS, type PlayAction } from '../input/playKeys';
 
 export type { ScrollMode } from '../engine/scroll';
-export type { Palette } from '../render/palette';
 export type { HitEffectSize } from '../render/TrackRenderer';
-export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['normal', 'small', 'off'];
+export const HIT_EFFECT_SIZES: readonly HitEffectSize[] = ['large', 'normal', 'small', 'off'];
 export type { SideNotes } from '../render/layout';
 export const SIDE_NOTES: readonly SideNotes[] = ['lanes', 'half'];
 export type JudgePosition = 'low' | 'mid' | 'high';
@@ -139,15 +138,19 @@ export interface Settings {
   gaugeType: GaugeTypeId;
   fever: FeverMode;
   placement: PlacementId;
-  /** SUDDEN+: share of the travel distance hidden at the far end (0..MAX_COVER). */
+  /** 노트 등장 위치 (SUDDEN+): share of the travel distance hidden at the far end (0..MAX_COVER). */
   sudden: number;
   /** HIDDEN+: share of the travel distance hidden just before the judgement line. */
   hidden: number;
-  /** LIFT: share of the track the judgement line is raised by. */
-  lift: number;
+  /**
+   * 판정선 위치 (LIFT): how far the judgement line is raised (+) or lowered (−), in shares of
+   * JUDGE_LINE_SPAN_PX (MIN_JUDGE_LINE..MAX_JUDGE_LINE); the renderer and the scroll model take it as
+   * a share of the track (liftShare).
+   */
+  judgeLinePosition: number;
   /** Home toggles the covers without losing their positions. */
   coversOn: boolean;
-  /** Keep the visible time ("green number") when covers or LIFT move, like floating hi-speed. */
+  /** Keep the visible time ("green number") when the covers or the judgement line move, like floating hi-speed. */
   keepVisibleTime: boolean;
   /** time: fixed speed; beat: speed follows the chart BPM (BMS/DJMAX style soflan). */
   scrollMode: ScrollMode;
@@ -161,23 +164,21 @@ export interface Settings {
   /** A line across the track at every bar. */
   barLines: boolean;
   reducedFlash: boolean;
-  palette: Palette;
   pacemaker: Pacemaker;
   generation: GenerationPrefs;
   /** Keysounds on generated charts: a hit plays its slice of the stem it follows, a miss leaves it out. */
   keysound: boolean;
   /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
   cameraFx: number;
-  /** Hit and hold effects at the skin's size, about a lane wide, or none. */
+  /** Hit and hold effects larger than the usual size, at it, about a lane wide, or none. */
   hitEffectSize: HitEffectSize;
   /** 4K+FX and 6K+FX: side notes in lanes of their own at the edges, or as bars over half the key lanes (DJMAX's side tracks). */
   sideNotes: SideNotes;
-  skin: string;
-  /** User skin (JSON object), used when `skin` is "custom". */
-  customSkin: unknown;
-  /** Notes, side notes, gear and hit effect picked apart from the skin (each the skin's by default). */
+  /** Notes, side notes, gear and hit effect picked over the track (render/skins.ts: BASE_SKIN). */
   parts: SkinParts;
-  /** The note colours by lane: a preset's id, or SKIN_COLORS (기본: the palette's and the skin's). */
+  /** The judgement and combo in the picked gear's type, or the track's own (render/gearHud.ts). */
+  hudType: HudTypeSource;
+  /** The note colours by lane: a preset's id, or SKIN_COLORS (기본: the track's own). */
   noteColors: string;
   /** The player's own note colour presets. */
   colorPresets: ColorPreset[];
@@ -195,7 +196,15 @@ export const BASE_VISIBLE_MS = 5000;
 export const HI_SPEED_MIN = 0.5;
 export const HI_SPEED_MAX = 10;
 export const MAX_COVER = 0.85;
-export const MAX_LIFT = 0.5;
+/**
+ * 판정선 위치 moves the judgement line JUDGE_LINE_SPAN_PX px of the sheets' track (73.65 to a track
+ * unit) for 100 %: −20 % lowers it by the gap a picked gear leaves under it (GEAR_JUDGE.gap, 40 px),
+ * onto the gear; +50 % raises it 100 px.
+ */
+export const JUDGE_LINE_SPAN_PX = 200;
+export const MIN_JUDGE_LINE = -0.2;
+export const MAX_JUDGE_LINE = 0.5;
+const SHEET_PX_PER_UNIT = 73.65;
 export const KEY_BEAM_MAX = 2;
 export const TURNTABLE_STEPS_MAX = 4;
 export const TURNTABLE_RELEASE_MIN = 40;
@@ -243,7 +252,7 @@ export const DEFAULT_SETTINGS: Settings = {
   placement: 'OFF',
   sudden: 0,
   hidden: 0,
-  lift: 0,
+  judgeLinePosition: 0,
   coversOn: true,
   keepVisibleTime: false,
   scrollMode: 'time',
@@ -253,16 +262,14 @@ export const DEFAULT_SETTINGS: Settings = {
   errorBar: false,
   barLines: true,
   reducedFlash: false,
-  palette: 'default',
   pacemaker: 'OFF',
   generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
   hitEffectSize: 'normal',
   sideNotes: 'half',
-  skin: 'flat',
-  customSkin: null,
   parts: DEFAULT_PARTS,
+  hudType: 'gear',
   noteColors: SKIN_COLORS,
   colorPresets: [],
   bgBrightness: 0.35,
@@ -358,14 +365,17 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.placement = pick(s.placement, placementIds, d.placement);
   s.sudden = num(s.sudden, 0, MAX_COVER, 0);
   s.hidden = num(s.hidden, 0, MAX_COVER, 0);
-  s.lift = num(s.lift, 0, MAX_LIFT, 0);
+  // LIFT was a share of the track's length: kept where it put the line, as far as the range goes
+  const lift = (raw as { lift?: unknown }).lift;
+  const position = raw.judgeLinePosition ?? (typeof lift === 'number' && Number.isFinite(lift) ? (lift * SHEET_PX_PER_UNIT * cameraConfig.trackLength) / JUDGE_LINE_SPAN_PX : 0);
+  s.judgeLinePosition = Math.round(num(position, MIN_JUDGE_LINE, MAX_JUDGE_LINE, 0) * 100) / 100;
+  delete (s as { lift?: unknown }).lift;
   s.keyBeamLength = num(s.keyBeamLength, 0, KEY_BEAM_MAX, d.keyBeamLength);
   s.scrollMode = pick(s.scrollMode, ['time', 'beat'] as ScrollMode[], d.scrollMode);
   s.judgePosition = pick(s.judgePosition, ['low', 'mid', 'high'] as JudgePosition[], d.judgePosition);
   s.judgementOpacity = pick(s.judgementOpacity, JUDGEMENT_OPACITIES, d.judgementOpacity);
   s.judgeCounter = s.judgeCounter === true;
   s.errorBar = s.errorBar === true;
-  s.palette = pick(s.palette, ['default', 'colorblind'] as Palette[], d.palette);
   s.pacemaker = pick(s.pacemaker, PACEMAKERS, d.pacemaker);
   s.keysound = Boolean(s.keysound);
   s.barLines = s.barLines !== false;
@@ -373,11 +383,10 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.hitEffectSize = pick(s.hitEffectSize, HIT_EFFECT_SIZES, d.hitEffectSize);
   // side notes are always laid over half the keys (DJMAX's side tracks); lanes of their own are no longer offered
   s.sideNotes = 'half';
-  // skins of earlier versions open as the skin that took their place
-  s.skin = pick(SKIN_RENAMES[String(s.skin)] ?? s.skin, [...BUILTIN_SKINS.map((k) => k.id), 'custom'], d.skin);
-  s.customSkin = sanitizeSkin(s.customSkin);
-  if (s.skin === 'custom' && s.customSkin === null) s.skin = d.skin;
+  // the track skin, a user skin and the colour palette of earlier versions are gone: the track has one look and one set of colours
+  for (const gone of ['skin', 'customSkin', 'palette']) delete (s as Record<string, unknown>)[gone];
   s.parts = sanitizeParts(s.parts);
+  s.hudType = pick(s.hudType, HUD_TYPE_SOURCES, d.hudType);
   s.colorPresets = sanitizePresets(raw.colorPresets);
   s.noteColors = typeof s.noteColors === 'string' && presetById(s.noteColors, s.colorPresets) ? s.noteColors : SKIN_COLORS;
   s.bgBrightness = num(s.bgBrightness, 0, 1, d.bgBrightness);
@@ -628,17 +637,17 @@ export function clampHiSpeed(hiSpeed: number): number {
   return Math.round(Math.min(HI_SPEED_MAX, Math.max(HI_SPEED_MIN, hiSpeed)) * 100) / 100;
 }
 
+/** The track the gear is drawn with: its one look, with the parts picked. */
+export function skinOf(settings: Pick<Settings, 'parts'>): Skin {
+  return withParts(BASE_SKIN, settings.parts);
+}
+
+/** Every lane's colour in a key mode: the note colours picked, or the track's own. */
+export function laneColorsOf(settings: Pick<Settings, 'parts' | 'noteColors' | 'colorPresets'>, mode: KeyModeId): number[] {
+  return noteColorsFor(skinOf(settings), mode, settings.noteColors, settings.colorPresets);
+}
+
 /** Time a note takes over the whole (unlifted) track length. */
-/** The skin the gear is drawn with: the chosen one, with the parts picked apart from it. */
-export function skinOf(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts'>): Skin {
-  return withParts(skinById(settings.skin, settings.customSkin), settings.parts);
-}
-
-/** Every lane's colour in a key mode: the note colours picked, or the palette's and the skin's. */
-export function laneColorsOf(settings: Pick<Settings, 'skin' | 'customSkin' | 'parts' | 'palette' | 'noteColors' | 'colorPresets'>, mode: KeyModeId): number[] {
-  return noteColorsFor(skinOf(settings), settings.palette, mode, settings.noteColors, settings.colorPresets);
-}
-
 export function visibleTimeMs(hiSpeed: number): number {
   return BASE_VISIBLE_MS / clampHiSpeed(hiSpeed);
 }
@@ -646,17 +655,23 @@ export function visibleTimeMs(hiSpeed: number): number {
 export interface CoverState {
   sudden: number;
   hidden: number;
+  /** The share of the track's length the judgement line is raised by (below 0: lowered), from 판정선 위치. */
   lift: number;
 }
 
-/** Covers in effect (Home turns SUDDEN+/HIDDEN+ off; LIFT stays). */
-export function activeCovers(s: Pick<Settings, 'sudden' | 'hidden' | 'lift' | 'coversOn'>): CoverState {
+/** 판정선 위치 as the share of the track's length the judgement line is raised by (CoverState.lift). */
+export function liftShare(position: number): number {
+  return (position * JUDGE_LINE_SPAN_PX) / SHEET_PX_PER_UNIT / cameraConfig.trackLength;
+}
+
+/** Covers in effect (Home turns 노트 등장 위치 and HIDDEN+ off; the judgement line stays where it is). */
+export function activeCovers(s: Pick<Settings, 'sudden' | 'hidden' | 'judgeLinePosition' | 'coversOn'>): CoverState {
   const sudden = s.coversOn ? s.sudden : 0;
   const hidden = s.coversOn ? s.hidden : 0;
   const over = sudden + hidden - (1 - MIN_VISIBLE_SHARE);
   // Never let the two covers meet: trim HIDDEN+ first, it is the one added on top.
   const h = over > 0 ? Math.max(0, hidden - over) : hidden;
-  return { sudden: Math.min(sudden, 1 - MIN_VISIBLE_SHARE), hidden: h, lift: s.lift };
+  return { sudden: Math.min(sudden, 1 - MIN_VISIBLE_SHARE), hidden: h, lift: liftShare(s.judgeLinePosition) };
 }
 
 /** Share of the whole track length from the SUDDEN+ edge down to the judgement line. */
@@ -673,10 +688,10 @@ export function greenNumber(hiSpeed: number, c: CoverState): number {
 }
 
 /**
- * Applies a cover/LIFT change; with `keepVisibleTime` the hi-speed is rescaled so the green number
+ * Applies a cover or judgement line change; with `keepVisibleTime` the hi-speed is rescaled so the green number
  * stays the same (as long as the hi-speed range allows it).
  */
-export function withCovers(s: Settings, patch: Partial<Pick<Settings, 'sudden' | 'hidden' | 'lift' | 'coversOn'>>): Settings {
+export function withCovers(s: Settings, patch: Partial<Pick<Settings, 'sudden' | 'hidden' | 'judgeLinePosition' | 'coversOn'>>): Settings {
   const next = sanitizeSettings({ ...s, ...patch });
   if (!s.keepVisibleTime) return next;
   const before = visibleShare(activeCovers(s));

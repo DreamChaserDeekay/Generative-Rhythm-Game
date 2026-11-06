@@ -4,7 +4,7 @@ import { cameraConfig, keyModes } from '../engine/config';
 import { ScrollModel } from '../engine/scroll';
 import { visibleTimeMs } from '../settings/settings';
 import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan } from './layout';
-import { baseFrame, FIT_TRACK_END_Y, fitFov, frameCamera, keyRow, LINE_Y, NOTE_Y, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
+import { baseFrame, deckStretch, FIT_TRACK_END_Y, fitFov, frameCamera, LINE_Y, NOTE_Y, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
 
 function presetCamera(presetId: string, aspect: number): TrackCamera {
   return poseCamera(cameraPose(cameraConfig.presets[presetId]), aspect);
@@ -243,7 +243,7 @@ describe('track layout', () => {
         expect(held.near).toBe(line);
         expect(held.far).toBeCloseTo(tap(E, 1200).far, 9);
       }
-      // at SPEED 4 a skin's usual note is about 11 ms off its time at either edge (what a chord was off by)
+      // at SPEED 4 a bar note is about 11 ms off its time at either edge (what a chord was off by)
       if (hiSpeed === 4) expect((0.35 * visibleMs) / L).toBeCloseTo(10.9, 1);
     }
   });
@@ -263,9 +263,9 @@ describe('track layout', () => {
     for (const id of ['FLAT', 'SDVX', 'LOW']) expect(fogStartZ(cameraConfig.presets[id], L)).toBeCloseTo(-0.55 * L, 9);
   });
 
-  it('keeps the round lane lights under the line round and as large on the plane camera', () => {
+  it('keeps round things on the deck round on every camera, the plane one too', () => {
     const [W, H] = [1600, 900];
-    /** How much longer along the track than across it a round light must be drawn at `z` (the renderer's 0.85 / trackAspect). */
+    /** How much longer along the track than across it a round thing must be drawn at `z` (the renderer's 0.85 / trackAspect). */
     const flatten = (id: string, z = 0.5) => {
       const camera = presetCamera(id, W / H);
       const px = (x: number, zz: number) => new THREE.Vector3(x, 0, zz).project(camera);
@@ -273,20 +273,21 @@ describe('track layout', () => {
       const along = (px(0, z + 0.25).y - px(0, z - 0.25).y) * (H / 2);
       return 0.85 / (Math.abs(along) / across);
     };
-    // the perspective cameras keep their row as it was
+    // the perspective cameras flatten the deck a little, in twentieths
     for (const id of ['FLAT', 'SDVX', 'LOW']) {
       const f = flatten(id);
       expect(f).toBeLessThan(1.3);
-      expect(keyRow(72, f)).toEqual({ depth: 72, stretch: Math.round(Math.max(1, f) * 20) / 20 });
-      expect(keyRow(40, f).depth).toBe(40);
+      for (const room of [96, 320]) expect(deckStretch(room, () => f)).toBe(Math.round(Math.max(1, f) * 20) / 20);
     }
+    // the plane camera far more: drawn round on the screen all the same
     const f = flatten('PLANE');
     expect(f).toBeGreaterThan(2.5);
-    const plane = keyRow(72, f);
-    // drawn round on the screen ...
-    expect(plane.stretch).toBeCloseTo(f, 1);
-    // ... and as large: a row holds a light this long along it for its width (see deckArt's radius)
-    const sdvx = keyRow(72, flatten('SDVX'));
-    expect(plane.depth / plane.stretch).toBeGreaterThan((sdvx.depth / sdvx.stretch) * 0.95);
+    expect(deckStretch(912, () => f)).toBeCloseTo(f, 1);
+    // measured at the middle of a band about a third of the room deep, 40 to 72 px
+    const bands: number[] = [];
+    for (const room of [60, 155, 320]) deckStretch(room, (band) => (bands.push(band), 1.2));
+    expect(bands).toEqual([40, 56, 72]);
+    // never squashed, nor stretched past 3.5
+    expect([deckStretch(320, () => 0.6), deckStretch(320, () => 9)]).toEqual([1, 3.5]);
   });
 });

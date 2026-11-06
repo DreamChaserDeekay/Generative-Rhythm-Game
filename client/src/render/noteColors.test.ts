@@ -17,8 +17,8 @@ import {
   toHsv,
   withLaneColor,
 } from './noteColors';
-import { LANE_PALETTES } from './palette';
-import { BUILTIN_SKINS, laneColorsFor, skinById } from './skins';
+import { LANE_COLORS } from './palette';
+import { BASE_SKIN, laneColorsFor } from './skins';
 
 const MODES = Object.keys(keyModes) as KeyModeId[];
 
@@ -33,10 +33,9 @@ describe('note colour presets', () => {
     expect(new Set(BUILTIN_PRESETS.map((p) => p.id)).size).toBe(BUILTIN_PRESETS.length);
   });
 
-  it('repeat neither the palettes’ nor any skin’s lane colours', () => {
+  it('repeat none of 기본’s lane colours', () => {
     const taken = new Set<string>();
-    for (const palette of ['default', 'colorblind'] as const) for (const m of MODES) taken.add(laneColorsFor(skinById('flat', null), palette, keyModes[m]).join());
-    for (const skin of BUILTIN_SKINS) for (const m of MODES) taken.add(laneColorsFor(skin, 'default', keyModes[m]).join());
+    for (const m of MODES) taken.add(laneColorsFor(BASE_SKIN, keyModes[m]).join());
     for (const p of BUILTIN_PRESETS) {
       for (const m of MODES) expect(taken.has(p.lanes[m].map((c) => parseInt(c.slice(1), 16)).join())).toBe(false);
     }
@@ -56,23 +55,20 @@ describe('note colour presets', () => {
     expect(hands.lanes['6K+FX'][7]).toBe('#ff9a3c');
   });
 
-  it('draws 기본 in the palette’s and the skin’s colours, any other in the preset’s', () => {
-    const club = skinById('club', null);
-    expect(noteColorsFor(club, 'default', '4K', SKIN_COLORS, [])).toEqual(laneColorsFor(club, 'default', keyModes['4K']));
-    expect(noteColorsFor(club, 'colorblind', '4K', SKIN_COLORS, [])[0]).toBe(LANE_PALETTES.colorblind.white);
-    // a preset is its own colours whatever the palette or the skin
+  it('draws 기본 in the track’s own colours, any other in the preset’s', () => {
+    expect(noteColorsFor(BASE_SKIN, '4K', SKIN_COLORS, [])).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
     const amber = presetById('amber', [])!;
-    expect(noteColorsFor(club, 'colorblind', '5K', 'amber', []).map(hexString)).toEqual(amber.lanes['5K']);
+    expect(noteColorsFor(BASE_SKIN, '5K', 'amber', []).map(hexString)).toEqual(amber.lanes['5K']);
     // a preset no longer there: 기본
-    expect(noteColorsFor(club, 'default', '4K', 'user-9', [])).toEqual(laneColorsFor(club, 'default', keyModes['4K']));
+    expect(noteColorsFor(BASE_SKIN, '4K', 'user-9', [])).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
   });
 
   it('starts a preset of the player’s own from what is shown, on the next number, and changes one lane of one key mode', () => {
-    const flat = skinById('flat', null);
-    const first = newPreset([], lanesOf(flat, 'default', SKIN_COLORS, []));
+    const flat = BASE_SKIN;
+    const first = newPreset([], lanesOf(flat, SKIN_COLORS, []));
     expect([first.id, first.name]).toEqual(['user-1', '내 색 1']);
-    expect(first.lanes['7K+1S']).toEqual(laneColorsFor(flat, 'default', keyModes['7K+1S']).map(hexString));
-    const second = newPreset([first, { ...first, id: 'user-4' }], lanesOf(flat, 'default', 'aurora', []));
+    expect(first.lanes['7K+1S']).toEqual(laneColorsFor(flat, keyModes['7K+1S']).map(hexString));
+    const second = newPreset([first, { ...first, id: 'user-4' }], lanesOf(flat, 'aurora', []));
     expect([second.id, second.name]).toEqual(['user-5', '내 색 5']);
     expect(second.lanes).toEqual(presetById('aurora', [])!.lanes);
     const edited = withLaneColor(first, '7K+1S', 2, '#123456');
@@ -90,7 +86,7 @@ describe('note colour presets', () => {
       ['user-2', '밤'],
       ['user-3', '내 색 3'],
     ]);
-    expect(kept[1].lanes['4K']).toEqual(['#000000', hexString(LANE_PALETTES.default.blue), hexString(LANE_PALETTES.default.blue), hexString(LANE_PALETTES.default.white)]);
+    expect(kept[1].lanes['4K']).toEqual(['#000000', hexString(LANE_COLORS.blue), hexString(LANE_COLORS.blue), hexString(LANE_COLORS.white)]);
     expect(kept[1].lanes['7K+1S']).toHaveLength(8);
     expect(sanitizePresets(Array.from({ length: 30 }, (_, i) => ({ ...good, id: `user-${i + 1}` })))).toHaveLength(MAX_USER_PRESETS);
     expect(sanitizePresets(undefined)).toEqual([]);

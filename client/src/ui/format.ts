@@ -3,8 +3,14 @@
 /** A speed: 4.00, 4.10, 4.37 (two decimals: keeping the visible time moves it by 0.01). */
 export const speedText = (v: number) => v.toFixed(2);
 
-/** A cover or LIFT share: 25.0% (one decimal: in play they move by 2.5 %). */
+/** A cover's share: 25.0% (one decimal: in play they move by 2.5 %). */
 export const coverText = (v: number) => `${(Math.round(v * 1000) / 10).toFixed(1)}%`;
+
+/** 판정선 위치: +10%, −20%, 0% (whole percents: it moves by 1 % in the settings, 5 % in play). */
+export function judgeLineText(v: number): string {
+  const pct = Math.round(v * 100);
+  return pct === 0 ? '0%' : `${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`;
+}
 
 /** A point in a song to a tenth of a second: 1:05.3 (a practice segment's ends). */
 export function pointText(ms: number): string {

@@ -7,7 +7,7 @@ import { isReplay, type ReplayData } from '../engine/replay';
 import type { StemName } from '../engine/types';
 import { GamepadMenuBridge } from '../input/gamepad';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
-import { styleOf } from '../render/skins';
+import { hudTypeFor } from '../render/gearHud';
 import { padPlayOf, skinOf, songOffsetOf, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { loadHudFont } from './Hud';
@@ -49,10 +49,10 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   useEffect(() => {
     let cancelled = false;
     let controller: PlayController | null = null;
-    // skin textures and type load alongside the audio; without the textures the skin is drawn in code
+    // the parts' pictures and the type load alongside the audio; without the pictures the parts are drawn in code
     const skin = skinOf(settings);
     const artLoad = loadSkinArt(skin);
-    const fontLoad = loadHudFont(styleOf(skin).type);
+    const fontLoad = loadHudFont(hudTypeFor(skin.style, settings.hudType));
     const bestReplayLoad = bestReplayOf(request, settings);
     (async () => {
       try {

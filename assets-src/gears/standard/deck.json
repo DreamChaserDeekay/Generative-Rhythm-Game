@@ -1,0 +1,18 @@
+{
+ "template": "this game's 7K+1S play frame with the gear, SDVX camera, 1920x1080, cropped to x 320-1600, y 360-1080 (1280x720); the generation aligned onto it (affine, on the lanes, walls and judge line)",
+ "h": [
+  3.226653261475283,
+  -1.2562736853495473,
+  1375.170839158086,
+  0.0001600030903481992,
+  1.1770526405695108,
+  1009.2523602855206,
+  0.0,
+  -0.0009147599131869046,
+  1.0
+ ],
+ "top": 51.0,
+ "width": 589.2,
+ "room": 155.55,
+ "stretch": 1.2
+}

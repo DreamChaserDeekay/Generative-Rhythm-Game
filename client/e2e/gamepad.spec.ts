@@ -40,19 +40,21 @@ async function plugPad(page: Page, mapping = 'standard') {
       },
       [index, value],
     );
-  // held long enough for the 16 ms menu polling to see it; with `busyMs` the page is kept busy that
-  // long (no polling, no frames) before the button is let go. `set` holds or lets go of a button,
-  // `axis` moves an axis.
+  // held 80 ms by the page's own clock, so its 16 ms menu polling sees it: a poll held up by a busy
+  // page (a renderer starting) runs before a timer due later; with `busyMs` the page is kept busy
+  // that long (no polling, no frames) before the button is let go. `set` holds or lets go of a
+  // button, `axis` moves an axis.
+  const pageWait = (ms: number) => page.evaluate((t) => new Promise((r) => setTimeout(r, t)), ms);
   const press = async (button: number, busyMs = 0) => {
     await set(button, true);
-    await page.waitForTimeout(80);
+    await pageWait(80);
     if (busyMs > 0)
       await page.evaluate((ms) => {
         const end = performance.now() + ms;
         while (performance.now() < end);
       }, busyMs);
     await set(button, false);
-    await page.waitForTimeout(80);
+    await pageWait(80);
   };
   return Object.assign(press, { set, axis });
 }
@@ -96,10 +98,10 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await press(PAD.A);
   await expect(bars).toHaveAttribute('aria-checked', String(!checked));
   expect((await stored(page)).barLines).toBe(!checked);
-  // on (노트 색), the d-pad goes along the lanes' swatches and down to the hue, whose ←→ change
+  // on (노트: its note colours), the d-pad goes along the lanes' swatches and down to the hue, whose ←→ change
   // the lane's colour (a copy of the preset takes it)
   await press(PAD.RB);
-  await expect(page.getByTestId('settings-tab-colors')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-notes')).toHaveAttribute('aria-selected', 'true');
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await page.getByTestId('color-lane-0').focus();
   await press(PAD.RIGHT);
@@ -120,7 +122,7 @@ test('a pad works the settings: the d-pad moves the focus, ←→ change a row, 
   await expect.poll(async () => Number(await fx.getAttribute('data-value'))).toBeLessThan(before);
   expect((await stored(page)).cameraFx).toBeLessThan(before);
   await press(PAD.LB);
-  await expect(page.getByTestId('settings-tab-colors')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('settings-tab-notes')).toHaveAttribute('aria-selected', 'true');
   await page.getByTestId('settings-tab-pad').click();
   await expect(page.getByTestId('gamepad-status')).toContainText('E2E Pad');
 
@@ -254,6 +256,9 @@ test('a pad works the song select: LB / RB a page, X the play options on their f
   await press(PAD.RB);
   await expect(page.getByTestId('toggle-gear')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('quick-speed')).toBeFocused();
+  // the tab's gear preview starts a renderer: a tap made and let go while that keeps the page busy
+  // is never seen by the pad's polling (on a loaded machine), so wait for two frames first
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await press(PAD.B);
   await expect(page.getByTestId('play-options')).toHaveCount(0);
   expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.songId)).toBe(songs[1].id);

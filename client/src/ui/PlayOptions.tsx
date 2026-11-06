@@ -14,7 +14,8 @@ import {
   HI_SPEED_MIN,
   KEY_BEAM_MAX,
   MAX_COVER,
-  MAX_LIFT,
+  MAX_JUDGE_LINE,
+  MIN_JUDGE_LINE,
   playKeysOf,
   RHYTHM_SOURCES,
   withCovers,
@@ -27,8 +28,8 @@ import {
 import type { PracticeOptions } from './App';
 import { ChartMinimap } from './ChartMinimap';
 import { GearPreview } from './GearPreview';
-import { coverText, pointText, speedText } from './format';
-import { Choice, NumberOption, OptionalNumberOption, pct, skinChoices, Toggle, type RowProps } from './optionRows';
+import { coverText, judgeLineText, pointText, speedText } from './format';
+import { Choice, NumberOption, OptionalNumberOption, pct, Toggle, type RowProps } from './optionRows';
 import { pacemakerChoices } from './playRules';
 import { focusFirstStop } from './selectNav';
 
@@ -412,7 +413,7 @@ export function generationSummary(g: GenerationPrefs, keyMode: KeyModeId): strin
 export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: SettingsProps & PanelRows & { keyMode: KeyModeId }) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const row = { onHelp, passEnter: true };
-  const cover = (key: 'sudden' | 'hidden' | 'lift', label: string, max: number, help: string) => (
+  const cover = (key: 'sudden' | 'hidden', label: string, max: number, help: string) => (
     <NumberOption
       {...row}
       label={label}
@@ -432,7 +433,7 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
       <div className="panel-rows">
         <NumberOption
           {...row}
-          label="SPEED"
+          label="노트 속도"
           testId="quick-speed"
           value={settings.hiSpeed}
           min={HI_SPEED_MIN}
@@ -443,10 +444,21 @@ export function GearOptions({ settings, onSettingsChange, keyMode, onHelp }: Set
           onChange={(v) => set('hiSpeed', clampHiSpeed(v))}
           help="노트가 내려오는 빠르기"
         />
-        {cover('sudden', 'SUDDEN+', MAX_COVER, '트랙 위쪽을 가리는 커버')}
-        {cover('hidden', 'HIDDEN+', MAX_COVER, '판정선 바로 위를 가리는 커버')}
-        {cover('lift', 'LIFT', MAX_LIFT, '판정선을 올리는 만큼')}
-        <Choice {...row} label="트랙 스킨" testId="quick-skin" value={settings.skin} options={skinChoices(settings)} onChange={(id) => set('skin', id)} help="트랙·레일·판정선의 색과 글꼴 (노트·기어는 설정 → 기어)" />
+        {cover('sudden', '노트 등장 위치', MAX_COVER, '트랙 위쪽을 가려 노트가 나타나는 곳을 내림 (SUDDEN+)')}
+        {cover('hidden', '노트 사라짐 위치', MAX_COVER, '판정선 바로 위를 가려 노트가 사라지는 곳을 올림 (HIDDEN+)')}
+        <NumberOption
+          {...row}
+          label="판정선 위치"
+          testId="quick-lift"
+          value={settings.judgeLinePosition}
+          min={MIN_JUDGE_LINE}
+          max={MAX_JUDGE_LINE}
+          step={0.01}
+          bigStep={0.05}
+          format={judgeLineText}
+          onChange={(v) => onSettingsChange(withCovers(settings, { judgeLinePosition: v }))}
+          help="판정선을 올리거나(+) 내림(−), −20%면 기어에 붙음 (LIFT)"
+        />
         <Choice
           {...row}
           label="카메라"
@@ -562,7 +574,6 @@ export function PlayOptionsPanel(props: SettingsProps & {
             <PracticePanel practice={practice} onChange={props.onPracticeChange} onHelp={setHelp} />
             <ChartMinimap
               chart={chart}
-              palette={settings.palette}
               selection={[practice.startMs, practice.endMs]}
               onSelect={(startMs, endMs) => props.onPracticeChange({ ...practice, startMs, endMs })}
               onHelp={setHelp}

@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Skin pictures drawn in code, in "tint" form: red is how much of the part's colour shows (0 dark
+ * The parts' pictures drawn in code, in "tint" form: red is how much of the part's colour shows (0 dark
  * … 1 the colour itself), green how far it is then lifted toward white, alpha the shape. One
- * picture serves every lane colour and palette (the colour-blind one too); tintMaterial puts the
- * colour in.
+ * picture serves every lane colour; tintMaterial puts the colour in.
  */
 export type Paint = (g: CanvasRenderingContext2D, w: number, h: number) => void;
 
@@ -108,12 +107,20 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 // ---------- notes, seen from above (canvas top = the far edge) ----------
 
 /**
- * FLAT and STEM are plain bars. The others are families, each with its own long note (LONG_OF):
- * CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along the
- * judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
+ * FLAT is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
+ * each with a long note of its own (LONG_OF). The others are families, each with its own long
+ * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
+ * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
  */
-export type NoteStyle = 'flat' | 'stem' | 'chamfer' | 'round' | 'star4' | 'star5';
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'stem', 'chamfer', 'round', 'star4', 'star5'];
+export type NoteStyle = 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+/**
+ * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
+ * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
+ */
+export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
+export const NOTE_STYLES: NoteStyle[] = ['flat', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+/** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
+export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -128,23 +135,23 @@ export type NotePaint = (g: CanvasRenderingContext2D, w: number, h: number, mark
  * How much longer along the track than across it the families draw their marks, cuts and ends, so
  * they keep their shape where the camera flattens the track (about this much near the judge line).
  */
-const NOTE_STRETCH = 1.7;
+export const NOTE_STRETCH = 1.7;
 
 /**
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
  * depth): the coin round, the five-pointed star as drawn, the compass star wide.
  */
-const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 0.62, star5: 0.95 };
+const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95 };
 
 /**
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
  * as keeps their shape at the judge line for a note `width` wide, where the camera shows the track
  * `flatten` times shorter along than across (no shallower than a bar, nor over three times as deep:
- * the plane camera and very wide lanes flatten them a little).
+ * the plane camera and very wide lanes flatten them a little). `shape`: a note drawn from art
+ * looks this tall for its width (null: it lies in a bar's depth; see styleArt's noteShapeOf).
  */
-export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number): number {
-  const shape = NOTE_SHAPE[style];
-  return shape === undefined ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
+export function noteDepthOf(style: NoteStyle, base: number, width: number, flatten: number, shape: number | null = NOTE_SHAPE[style] ?? null): number {
+  return shape === null ? base : Math.min(base * 3, Math.max(base, width * shape * flatten));
 }
 
 /**
@@ -153,7 +160,7 @@ export function noteDepthOf(style: NoteStyle, base: number, width: number, flatt
  * or shallower (no more than three bars deep); the plain bars stay as deep.
  */
 export function laneDepthOf(style: NoteStyle, depth: number, share: number, base: number): number {
-  return style === 'flat' || style === 'stem' ? depth : Math.min(base * 3, depth * share);
+  return isBarNote(style) ? depth : Math.min(base * 3, depth * share);
 }
 
 /** Sizes in the mockups are px on a note 51.5 px deep: `u(n)` turns them into px of this picture. */
@@ -197,7 +204,7 @@ function chamferOutline(x: number, y: number, w: number, h: number, c: number, t
  * pointing up the track on a blue key's, a diamond on a gold key's, two slashes on the scratch's,
  * none on a side lane's. Filled, or drawn as an outline.
  */
-function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number, cy: number, r: number, colour: string, filled: boolean): void {
+export function noteMark(g: CanvasRenderingContext2D, mark: NoteMark, cx: number, cy: number, r: number, colour: string, filled: boolean): void {
   if (mark === 'side') return;
   g.save();
   g.translate(cx, cy);
@@ -384,7 +391,8 @@ function star4Note(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
     [-X, 0],
     [0, -Y],
   ];
-  const waists = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [X * 0.2, Y * 0.44]);
+  // thin between its points: its vertical points as long as the note is deep, its arms as thick as a bar
+  const waists = around([0.25, 0.75, 1.25, 1.75].map((q) => q * Math.PI), () => [X * 0.2, Y * 0.27]);
   facetedStar(g, tips, waists, outline);
   // the heart
   const [kx, ky] = [X * 0.1, Y * 0.2];
@@ -431,32 +439,320 @@ function star5Note(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
   g.restore();
 }
 
+// ---------- the bars in a finish of their own (MATERIAL_NOTES): FLAT's outline, another surface ----------
+
+/** The same stream of numbers on every paint, so a note's grain never changes when it is painted again. */
+function seeded(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** Keeps the bar's outline (FLAT's) as the clip for what is drawn next, until restore. */
+function barClip(g: CanvasRenderingContext2D, w: number, h: number): void {
+  g.save();
+  roundRect(g, 0, 0, w, h, unit(h)(5));
+  g.clip();
+}
+
+/** A band slanting across a picture, from `x` (its far edge) `w` wide, leaning `lean` px over its depth `h`. */
+function slant(g: CanvasRenderingContext2D, x: number, w: number, lean: number, h: number, fill: string): void {
+  polygon(g, [
+    [x, 0],
+    [x + w, 0],
+    [x + w - lean, h],
+    [x - lean, h],
+  ]);
+  g.fillStyle = fill;
+  g.fill();
+}
+
+/**
+ * CHROME: mirror-polished metal in the lane's colour, cut with bevels all round as a bevelled mirror
+ * is: its far and left bevels catching the light, the right one in half shade, the near one dark;
+ * the flat mirror between them shows the room it faces, a bright horizon across it, a glint slanting
+ * over it.
+ */
+function chromeNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  barClip(g, w, h);
+  const [bx, by] = [Math.min(w * 0.08, u(11)), Math.min(h * 0.24, u(12))];
+  const [ix0, iy0, ix1, iy1] = [bx, by, w - bx, h - by];
+  const facet = (points: [number, number][], fill: string) => {
+    polygon(g, points);
+    g.fillStyle = fill;
+    g.fill();
+  };
+  facet(
+    [
+      [0, 0],
+      [w, 0],
+      [ix1, iy0],
+      [ix0, iy0],
+    ],
+    ink(1, 0.82),
+  );
+  facet(
+    [
+      [0, 0],
+      [ix0, iy0],
+      [ix0, iy1],
+      [0, h],
+    ],
+    ink(1, 0.5),
+  );
+  facet(
+    [
+      [w, 0],
+      [w, h],
+      [ix1, iy1],
+      [ix1, iy0],
+    ],
+    tone(0.5),
+  );
+  facet(
+    [
+      [0, h],
+      [ix0, iy1],
+      [ix1, iy1],
+      [w, h],
+    ],
+    tone(0.38),
+  );
+  const mirror = g.createLinearGradient(0, iy0, 0, iy1);
+  mirror.addColorStop(0, ink(1, 0.62));
+  mirror.addColorStop(0.44, ink(1, 0.3));
+  mirror.addColorStop(0.5, tone(0.62));
+  mirror.addColorStop(1, ink(1, 0.2));
+  g.fillStyle = mirror;
+  g.fillRect(ix0, iy0, ix1 - ix0, iy1 - iy0);
+  g.fillStyle = ink(1, 0.92);
+  g.fillRect(ix0, iy0 + (iy1 - iy0) * 0.45, ix1 - ix0, Math.max(1, u(1.4)));
+  g.save();
+  g.beginPath();
+  g.rect(ix0, iy0, ix1 - ix0, iy1 - iy0);
+  g.clip();
+  slant(g, ix0 + (ix1 - ix0) * 0.2, (ix1 - ix0) * 0.07, (iy1 - iy0) * 0.6, iy1, ink(1, 0.75, 0.35));
+  g.restore();
+  // the ridges where the bevels meet, from the far corners
+  g.strokeStyle = ink(1, 0.95, 0.8);
+  g.lineWidth = Math.max(1, u(0.8));
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(ix0, iy0);
+  g.moveTo(w, 0);
+  g.lineTo(ix1, iy0);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * HAIRLINE: brushed metal anodised in the lane's colour: fine hairlines across it, light and dark, a
+ * soft band of light standing across the brushing (where brushed metal shows its light), a bright
+ * chamfer along its far edge and a dark one along its near edge.
+ */
+function hairlineNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  barClip(g, w, h);
+  g.fillStyle = tone(0.8);
+  g.fillRect(0, 0, w, h);
+  const rand = seeded(11);
+  const line = Math.max(1, u(0.7));
+  for (let y = 0; y < h; y += line) {
+    for (let i = 0, n = 2 + Math.floor(rand() * 3); i < n; i++) {
+      const [x, len, light, a] = [rand() * w - w * 0.1, w * (0.25 + rand() * 0.7), rand() < 0.5, 0.08 + rand() * 0.18];
+      g.fillStyle = light ? ink(1, 0.55, a) : tone(0.5, a);
+      g.fillRect(x, y, len, line);
+    }
+  }
+  const sheen = g.createLinearGradient(0, 0, w, 0);
+  sheen.addColorStop(0.12, ink(1, 0.5, 0));
+  sheen.addColorStop(0.3, ink(1, 0.5, 0.55));
+  sheen.addColorStop(0.48, ink(1, 0.5, 0));
+  sheen.addColorStop(0.7, ink(1, 0.35, 0));
+  sheen.addColorStop(0.8, ink(1, 0.35, 0.3));
+  sheen.addColorStop(0.9, ink(1, 0.35, 0));
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = ink(1, 0.85, 0.9);
+  g.fillRect(0, 0, w, Math.max(1, u(2)));
+  g.fillStyle = tone(0.4, 0.9);
+  g.fillRect(0, h - Math.max(1, u(2.5)), w, Math.max(1, u(2.5)));
+  g.restore();
+}
+
+/**
+ * GLASS: clear glass in the lane's colour, the track showing through it: deeper toward its near
+ * edge, a glint slanting across it, a bright rim all round where its edges catch the light and a
+ * faint one inside.
+ */
+function glassNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  barClip(g, w, h);
+  const body = g.createLinearGradient(0, 0, 0, h);
+  body.addColorStop(0, ink(1, 0.25, 0.32));
+  body.addColorStop(0.55, ink(0.95, 0.05, 0.4));
+  body.addColorStop(1, ink(0.7, 0, 0.55));
+  g.fillStyle = body;
+  g.fillRect(0, 0, w, h);
+  slant(g, w * 0.18, w * 0.1, h * 0.6, h, ink(1, 0.8, 0.35));
+  slant(g, w * 0.32, w * 0.025, h * 0.6, h, ink(1, 0.8, 0.22));
+  roundRect(g, 0, 0, w, h, u(5));
+  g.lineWidth = Math.max(2, u(5));
+  g.strokeStyle = ink(1, 0.75, 0.95);
+  g.stroke();
+  roundRect(g, u(5), u(5), w - u(10), h - u(10), u(3));
+  g.lineWidth = Math.max(1, u(1.2));
+  g.strokeStyle = ink(1, 0.6, 0.35);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * ENAMEL: deep glossy enamel in the lane's colour, darker toward its near edge and its ends as it
+ * rounds over; a crisp reflection of a window across its far third, a thin rim of light along its
+ * near edge.
+ */
+function enamelNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  barClip(g, w, h);
+  const body = g.createLinearGradient(0, 0, 0, h);
+  body.addColorStop(0, tone(1));
+  body.addColorStop(0.7, tone(0.82));
+  body.addColorStop(1, tone(0.55));
+  g.fillStyle = body;
+  g.fillRect(0, 0, w, h);
+  const ends = g.createLinearGradient(0, 0, w, 0);
+  ends.addColorStop(0, tone(0.5, 0.7));
+  ends.addColorStop(0.08, tone(0.5, 0));
+  ends.addColorStop(0.92, tone(0.5, 0));
+  ends.addColorStop(1, tone(0.45, 0.8));
+  g.fillStyle = ends;
+  g.fillRect(0, 0, w, h);
+  const win = { x: u(7), y: u(3.5), w: w - u(14), h: h * 0.34 };
+  roundRect(g, win.x, win.y, win.w, win.h, u(4));
+  const glare = g.createLinearGradient(0, win.y, 0, win.y + win.h);
+  glare.addColorStop(0, ink(1, 0.92, 0.95));
+  glare.addColorStop(0.5, ink(1, 0.75, 0.55));
+  glare.addColorStop(1, ink(1, 0.6, 0));
+  g.fillStyle = glare;
+  g.fill();
+  g.fillStyle = ink(1, 0.5, 0.55);
+  g.fillRect(u(6), h - u(5.5), w - u(12), Math.max(1, u(1.6)));
+  g.restore();
+}
+
+/**
+ * PEARL: a satin pearl glaze, the lane's colour soft and pale: a broad soft sheen over its far half,
+ * two pearly glows across it, gently shaded toward its near edge.
+ */
+function pearlNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  barClip(g, w, h);
+  const sheen = g.createLinearGradient(0, 0, 0, h);
+  sheen.addColorStop(0, ink(1, 0.7));
+  sheen.addColorStop(0.45, ink(1, 0.42));
+  sheen.addColorStop(1, ink(0.78, 0.18));
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, w, h);
+  for (const [cx, cy, r, lift, a] of [
+    [0.26, 0.3, 0.32, 0.95, 0.8],
+    [0.68, 0.6, 0.3, 0.85, 0.55],
+    [0.9, 0.25, 0.14, 0.9, 0.45],
+  ]) {
+    g.save();
+    g.translate(cx * w, cy * h);
+    g.scale(1, (h / w) * 2.4);
+    const glow = g.createRadialGradient(0, 0, 0, 0, 0, r * w);
+    glow.addColorStop(0, ink(1, lift, a));
+    glow.addColorStop(1, ink(1, lift, 0));
+    g.fillStyle = glow;
+    g.fillRect(-r * w, -r * w, 2 * r * w, 2 * r * w);
+    g.restore();
+  }
+  g.restore();
+}
+
+/**
+ * CARBON: woven carbon fibre under a clear coat, in the lane's colour faintly, the colour itself in a
+ * stripe across its middle and at its ends: the twill's tows catching the light in steps, the clear
+ * coat's gloss along its far edge.
+ */
+function carbonNote(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  barClip(g, w, h);
+  carbonWeave(g, w, h, Math.max(3, u(4.5)));
+  g.fillStyle = tone(1);
+  g.fillRect(0, h * 0.4, w, h * 0.2);
+  g.fillRect(0, 0, Math.max(2, u(3)), h);
+  g.fillRect(w - Math.max(2, u(3)), 0, Math.max(2, u(3)), h);
+  g.fillStyle = ink(1, 0.45);
+  g.fillRect(0, h * 0.4, w, Math.max(1, u(1)));
+  const gloss = g.createLinearGradient(0, 0, 0, h * 0.32);
+  gloss.addColorStop(0, ink(1, 0.6, 0.38));
+  gloss.addColorStop(1, ink(1, 0.6, 0));
+  g.fillStyle = gloss;
+  g.fillRect(0, 0, w, h * 0.32);
+  g.restore();
+}
+
+/** A 2/2 twill of carbon tows `c` px square over the picture: each lit along its own run, across or along, in steps. */
+function carbonWeave(g: CanvasRenderingContext2D, w: number, h: number, c: number): void {
+  g.fillStyle = tone(0.1);
+  g.fillRect(0, 0, w, h);
+  for (let j = 0; j * c < h; j++) {
+    for (let i = 0; i * c < w; i++) {
+      const [x, y] = [i * c, j * c];
+      const across = (i + j) % 4 < 2;
+      const grad = across ? g.createLinearGradient(0, y, 0, y + c) : g.createLinearGradient(x, 0, x + c, 0);
+      grad.addColorStop(0, tone(0.1));
+      grad.addColorStop(0.5, across ? ink(0.32, 0.1) : ink(0.24, 0.05));
+      grad.addColorStop(1, tone(0.1));
+      g.fillStyle = grad;
+      g.fillRect(x, y, c, c);
+    }
+  }
+}
+
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   flat: (g, w, h) => {
     const u = unit(h);
-    g.fillStyle = tone(1);
     roundRect(g, 0, 0, w, h, u(5));
-    g.fill();
-    // light along the far edge
-    g.save();
-    g.clip();
-    g.fillStyle = ink(1, 0.4);
-    g.fillRect(0, 0, w, u(4));
-    g.restore();
-  },
-  stem: (g, w, h) => {
-    const u = unit(h);
-    g.fillStyle = tone(1);
-    roundRect(g, 0, 0, w, h, u(5));
+    // the top of a slab (the renderer draws its walls): a little deeper toward its near edge, where it
+    // rounds over into its wall
+    const face = g.createLinearGradient(0, 0, 0, h);
+    face.addColorStop(0, tone(1));
+    face.addColorStop(0.62, tone(0.96));
+    face.addColorStop(1, tone(0.8));
+    g.fillStyle = face;
     g.fill();
     g.save();
     g.clip();
-    g.fillStyle = ink(1, 0.35);
-    g.fillRect(0, 0, w, u(4));
-    g.fillStyle = tone(0.55);
-    g.fillRect(0, h - u(9), w, u(9));
+    // a gloss over its far half, brightest at the lip of its far edge, where the light catches it
+    const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
+    gloss.addColorStop(0, ink(1, 0.62));
+    gloss.addColorStop(0.12, ink(1, 0.36));
+    gloss.addColorStop(1, ink(1, 0.36, 0));
+    g.fillStyle = gloss;
+    g.fillRect(0, 0, w, h * 0.55);
+    // lit along its left edge, the side the light comes from, and shaded along its right
+    const edge = Math.min(0.2, u(7) / w);
+    const across = g.createLinearGradient(0, 0, w, 0);
+    across.addColorStop(0, ink(1, 0.3, 0.9));
+    across.addColorStop(edge, ink(1, 0.3, 0));
+    across.addColorStop(1 - edge, tone(0.7, 0));
+    across.addColorStop(1, tone(0.7, 0.7));
+    g.fillStyle = across;
+    g.fillRect(0, 0, w, h);
     g.restore();
   },
+  chrome: chromeNote,
+  hairline: hairlineNote,
+  glass: glassNote,
+  enamel: enamelNote,
+  pearl: pearlNote,
+  carbon: carbonNote,
   chamfer: chamferNote,
   round: roundNote,
   star4: star4Note,
@@ -465,11 +761,23 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'solid' | 'stem' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['solid', 'stem', 'rail', 'capsule', 'ray'];
+export type LongStyle = 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
-/** The long note of each note style's family. */
-export const LONG_OF: Record<NoteStyle, LongStyle> = { flat: 'solid', stem: 'stem', chamfer: 'rail', round: 'capsule', star4: 'ray', star5: 'ray' };
+/** The long note of each note style's family (each material its own). */
+export const LONG_OF: Record<NoteStyle, LongStyle> = {
+  flat: 'solid',
+  chrome: 'chrome',
+  hairline: 'hairline',
+  glass: 'glass',
+  enamel: 'enamel',
+  pearl: 'pearl',
+  carbon: 'carbon',
+  chamfer: 'rail',
+  round: 'capsule',
+  star4: 'ray',
+  star5: 'ray',
+};
 
 /**
  * A long note is its body alone (a head or tail drawn like a tap note reads as one more note):
@@ -480,6 +788,10 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = { flat: 'solid', stem: 'ste
 export interface LongPaint {
   body: Paint;
   end: Paint;
+  /** Its body and ends while held, where they differ (a picture drawn from art: light flows inside it). */
+  held?: { body: Paint; end: Paint };
+  /** How wide its pictures are painted (px; default 64). */
+  px?: number;
   /** Tile length per body width (the texture repeats every `tile` widths along the note). */
   tile: number;
   /** Depth of each end, per body width. */
@@ -550,22 +862,17 @@ const RAY: [number, number, string][] = [
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   solid: {
     body: (g, w, h) => {
-      g.fillStyle = tone(1, 0.88);
+      // a rounded bar lit from the left: a gloss down its left third, deeper toward its right
+      const shade = g.createLinearGradient(0, 0, w, 0);
+      shade.addColorStop(0, tone(1.12, 0.92));
+      shade.addColorStop(0.3, tone(1.06, 0.9));
+      shade.addColorStop(0.55, tone(1, 0.88));
+      shade.addColorStop(1, tone(0.78, 0.9));
+      g.fillStyle = shade;
       g.fillRect(0, 0, w, h);
       sides(g, w, h, 4, ink(1, 0.97));
     },
     end: squareEnd(tone(1, 0.88), ink(1, 0.97), 4),
-    tile: 1,
-    endDepth: 0.12,
-    width: 0.8,
-  },
-  stem: {
-    body: (g, w, h) => {
-      g.fillStyle = tone(1, 0.86);
-      g.fillRect(0, 0, w, h);
-      sides(g, w, h, 4, ink(1, 1, 0.8));
-    },
-    end: squareEnd(tone(1, 0.86), ink(1, 1, 0.8), 4),
     tile: 1,
     endDepth: 0.12,
     width: 0.8,
@@ -679,7 +986,142 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     endDepth: 0.5 * NOTE_STRETCH,
     width: 0.9,
   },
+  ...materialLongs(),
 };
+
+/** A material's long note: its body down the note, closed at each end by `rim` across its outer edge `t` px (of a 54 px body) deep. */
+function materialLong(body: Paint, rim: string, t: number): LongPaint {
+  return {
+    body,
+    end: (g, w, h) => {
+      body(g, w, h);
+      g.fillStyle = rim;
+      g.fillRect(0, 0, w, across(w)(t));
+    },
+    tile: 1,
+    endDepth: 0.12,
+    width: 0.82,
+  };
+}
+
+/** The materials' long notes: their finish down a bar as wide as FLAT's (canvas top = farther, across = the lane). */
+function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
+  return {
+    // bevels down both edges, the left lit, the right in half shade; the mirror between, a bright line down it
+    chrome: materialLong(
+      (g, w, h) => {
+        const a = across(w);
+        g.fillStyle = tone(0.3);
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = ink(1, 0.6);
+        g.fillRect(a(2), 0, a(8), h);
+        g.fillStyle = tone(0.5);
+        g.fillRect(w - a(10), 0, a(8), h);
+        const mirror = g.createLinearGradient(a(10), 0, w - a(10), 0);
+        mirror.addColorStop(0, ink(1, 0.42));
+        mirror.addColorStop(0.42, ink(1, 0.14));
+        mirror.addColorStop(0.47, ink(1, 0.9));
+        mirror.addColorStop(0.53, tone(0.38));
+        mirror.addColorStop(1, tone(0.76));
+        g.fillStyle = mirror;
+        g.fillRect(a(10), 0, w - a(20), h);
+      },
+      ink(1, 0.85),
+      5,
+    ),
+    // hairlines down its length, the light across them a band down its left third
+    hairline: materialLong(
+      (g, w, h) => {
+        g.fillStyle = tone(0.8);
+        g.fillRect(0, 0, w, h);
+        const rand = seeded(23);
+        for (let x = 0; x < w; x += 1) {
+          const [light, a] = [rand() < 0.5, 0.06 + rand() * 0.2];
+          g.fillStyle = light ? ink(1, 0.55, a) : tone(0.5, a);
+          g.fillRect(x, 0, 1, h);
+        }
+        const sheen = g.createLinearGradient(0, 0, w, 0);
+        sheen.addColorStop(0.1, ink(1, 0.5, 0));
+        sheen.addColorStop(0.28, ink(1, 0.5, 0.5));
+        sheen.addColorStop(0.46, ink(1, 0.5, 0));
+        sheen.addColorStop(0.85, tone(0.5, 0));
+        sheen.addColorStop(1, tone(0.5, 0.6));
+        g.fillStyle = sheen;
+        g.fillRect(0, 0, w, h);
+      },
+      ink(1, 0.85, 0.9),
+      4,
+    ),
+    // the track showing through it, bright down its edges where they catch the light
+    glass: materialLong(
+      (g, w, h) => {
+        const a = across(w);
+        g.fillStyle = ink(0.95, 0.1, 0.36);
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = ink(1, 0.75, 0.9);
+        g.fillRect(0, 0, a(3.5), h);
+        g.fillRect(w - a(3.5), 0, a(3.5), h);
+        g.fillStyle = ink(1, 0.6, 0.3);
+        g.fillRect(a(7), 0, a(1.5), h);
+        g.fillRect(w - a(8.5), 0, a(1.5), h);
+        g.fillStyle = ink(1, 0.8, 0.22);
+        g.fillRect(a(15), 0, a(5), h);
+      },
+      ink(1, 0.8, 0.95),
+      4,
+    ),
+    // a glossy rod: deep colour, a crisp highlight down its left third, darker toward its right
+    enamel: materialLong(
+      (g, w, h) => {
+        const rod = g.createLinearGradient(0, 0, w, 0);
+        rod.addColorStop(0, tone(0.55));
+        rod.addColorStop(0.12, tone(0.95));
+        rod.addColorStop(0.2, ink(1, 0.88));
+        rod.addColorStop(0.3, ink(1, 0.7));
+        rod.addColorStop(0.34, tone(1));
+        rod.addColorStop(0.75, tone(0.82));
+        rod.addColorStop(1, tone(0.45));
+        g.fillStyle = rod;
+        g.fillRect(0, 0, w, h);
+      },
+      ink(1, 0.7),
+      4,
+    ),
+    // satin: pale, a soft sheen down its left half
+    pearl: materialLong(
+      (g, w, h) => {
+        const satin = g.createLinearGradient(0, 0, w, 0);
+        satin.addColorStop(0, ink(0.9, 0.32));
+        satin.addColorStop(0.3, ink(1, 0.8));
+        satin.addColorStop(0.6, ink(1, 0.5));
+        satin.addColorStop(1, ink(0.88, 0.28));
+        g.fillStyle = satin;
+        g.fillRect(0, 0, w, h);
+      },
+      ink(1, 0.85),
+      4,
+    ),
+    // the weave down its length (eight tows across a tile), the lane's colour down its edges and its middle
+    carbon: materialLong(
+      (g, w, h) => {
+        const a = across(w);
+        carbonWeave(g, w, h, w / 8);
+        g.fillStyle = tone(1);
+        g.fillRect(0, 0, a(5), h);
+        g.fillRect(w - a(5), 0, a(5), h);
+        g.fillRect(w / 2 - a(1.5), 0, a(3), h);
+        const gloss = g.createLinearGradient(0, 0, w, 0);
+        gloss.addColorStop(0.1, ink(1, 0.6, 0));
+        gloss.addColorStop(0.25, ink(1, 0.6, 0.3));
+        gloss.addColorStop(0.4, ink(1, 0.6, 0));
+        g.fillStyle = gloss;
+        g.fillRect(0, 0, w, h);
+      },
+      tone(1.3),
+      4,
+    ),
+  };
+}
 
 // ---------- side notes laid over half the keys (반쪽 덮기) ----------
 
@@ -690,7 +1132,7 @@ export type SidePart = 'tap' | 'body' | 'end' | 'flash';
 export const SIDE_FLASH_LINE = 0.8;
 
 /**
- * A side tap laid over half the keys, alike in every skin (in its side lane's colour): half
+ * A side tap laid over half the keys, alike for every note style (in its side lane's colour): half
  * see-through, so the key notes drawn over it and the lanes under it show, between bright bands
  * `edge` of its depth deep along its far and near edges (what shows of it past a key note at its
  * time), its ends bright too. Painted for the bar's proportions; canvas top = the far edge.
@@ -734,22 +1176,36 @@ export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
     g.fillStyle = ink(1, 0.3);
     g.fillRect(0, 0, w, h);
   },
-  // light across the half: a bright bar on the judge line (SIDE_FLASH_LINE down), whitest in its
-  // middle, and light rising from it a short way up the track, fading out as it rises (under the
-  // line, over the gear, only the bar's own edge); the half's ends fade
+  // light across the half: a white-hot core on the judge line (SIDE_FLASH_LINE down) in a bright bar,
+  // and rays of light rising from it a short way up the track, brighter and longer in some places
+  // than others, fading out as they rise; under the line, over the gear, a short glow; the half's
+  // ends fade
   flash: (g, w, h) => {
     const image = g.createImageData(w, h);
     const fade = w * 0.04;
+    // the rays across the half (shares of its width) and how bright each is: the same every time
+    const peaks = [0.05, 0.13, 0.22, 0.31, 0.4, 0.49, 0.57, 0.66, 0.74, 0.83, 0.9, 0.96];
+    const heights = [0.7, 1, 0.55, 0.9, 0.6, 1, 0.75, 0.95, 0.5, 0.85, 1, 0.6];
+    const rays = new Float32Array(w);
+    for (let x = 0; x < w; x++) {
+      const u = (x + 0.5) / w;
+      let r = 0;
+      peaks.forEach((p, i) => (r = Math.max(r, heights[i] * Math.exp(-(((u - p) / 0.024) ** 2)))));
+      rays[x] = 0.35 + 0.65 * r;
+    }
     for (let y = 0; y < h; y++) {
       // from the line, in shares of the depth (up the track is negative)
       const d = (y + 0.5) / h - SIDE_FLASH_LINE;
       const bar = Math.exp(-d * d * 120);
-      const rise = d < 0 ? 0.55 * Math.exp(d * 4) : 0;
+      const core = Math.exp(-d * d * 1400);
+      const below = d > 0 ? 0.3 * Math.exp(-d * 18) : 0;
       for (let x = 0; x < w; x++) {
+        // a brighter ray reaches further up
+        const rise = d < 0 ? 0.62 * rays[x] * Math.exp(d * (2.6 + 2.4 * (1 - rays[x]))) : 0;
         const i = (y * w + x) * 4;
         image.data[i] = 255;
-        image.data[i + 1] = Math.round(255 * 0.7 * bar);
-        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
+        image.data[i + 1] = Math.round(255 * Math.min(1, 0.55 * bar + 0.45 * core + 0.3 * rise));
+        image.data[i + 3] = Math.round(255 * Math.min(1, bar + rise + below) * Math.min(1, (x + 0.5) / fade, (w - x - 0.5) / fade));
       }
     }
     g.putImageData(image, 0, 0);
@@ -844,8 +1300,26 @@ export function sideDotsEnd(cols: number): Paint {
 
 // ---------- hit effects: flipbooks drawn here, lying flat on the track at the judge line ----------
 
-export type HitStyle = 'flash' | 'stemflash' | 'star' | 'bomb' | 'flare' | 'hex' | 'shards' | 'bubbles' | 'wave' | 'spark' | 'grid' | 'shutter';
-export const HIT_STYLES: HitStyle[] = ['flash', 'stemflash', 'star', 'bomb', 'flare', 'hex', 'shards', 'bubbles', 'wave', 'spark', 'grid', 'shutter'];
+/**
+ * Every hit a player picks is drawn from art (flipbooks, see styleArt.ts): FLASH, FLARE, BUBBLES and
+ * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
+ * they are drawn here: the four as themselves, a set's as FLASH.
+ */
+export type HitStyle = 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+/** The hits drawn in code. */
+type DrawnHit = 'flash' | 'flare' | 'bubbles' | 'grid';
+const DRAWN_AS: Record<HitStyle, DrawnHit> = {
+  flash: 'flash',
+  flare: 'flare',
+  bubbles: 'bubbles',
+  grid: 'grid',
+  mecha: 'flash',
+  club: 'flash',
+  crystal: 'flash',
+  neon: 'flash',
+  piano: 'flash',
+};
 
 export interface EffectSheet {
   texture: THREE.CanvasTexture;
@@ -864,26 +1338,13 @@ export interface EffectSheet {
  * One frame cell's size in px (a lane is 64 px wide in it), its centre, and how wide the effect
  * drawn in it gets halfway through (in px, see drawEffect), per style.
  */
-const CELLS: Record<HitStyle, { w: number; h: number; cy: number; reach: number }> = {
+const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   flash: { w: 128, h: 192, cy: 104, reach: 84 },
-  stemflash: { w: 128, h: 192, cy: 104, reach: 84 },
-  star: { w: 192, h: 128, cy: 64, reach: 104 },
-  bomb: { w: 160, h: 160, cy: 80, reach: 83 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
-  hex: { w: 160, h: 112, cy: 56, reach: 96 },
-  shards: { w: 160, h: 112, cy: 56, reach: 74 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
-  // these four play out under the line only, toward the gear: the next notes above it stay clear
-  wave: { w: 160, h: 96, cy: 10, reach: 52 },
-  spark: { w: 176, h: 136, cy: 12, reach: 52 },
+  // played out under the line only, toward the gear: the next notes above it stay clear
   grid: { w: 96, h: 64, cy: 6, reach: 32 },
-  shutter: { w: 128, h: 112, cy: 10, reach: 42 },
 };
-
-/** Styles whose rings, rays or frames would rise above the judge line across the next lanes. */
-const FADES_ABOVE: readonly HitStyle[] = ['star', 'bomb', 'hex'];
-/** Above the judge line they keep to about a lane: px from the hit where they are gone (a lane at HIT_SIZE is 36 px). */
-const ABOVE_REACH = 28;
 
 export const EFFECT_FRAMES = 16;
 
@@ -891,7 +1352,8 @@ export const EFFECT_FRAMES = 16;
  * The effect `style` as a 4×4 flipbook: frame f shows it at progress f/16 (the mockups' SVG
  * drawn on a canvas; the lane colour is the material's, white is lifted toward white).
  */
-export function effectSheet(style: HitStyle): EffectSheet {
+export function effectSheet(hit: HitStyle): EffectSheet {
+  const style = DRAWN_AS[hit];
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
@@ -903,31 +1365,10 @@ export function effectSheet(style: HitStyle): EffectSheet {
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
       drawEffect(g, style, f / EFFECT_FRAMES);
-      if (FADES_ABOVE.includes(style)) fadeAbove(g, cell, f / EFFECT_FRAMES);
       g.restore();
     }
   });
   return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64 };
-}
-
-/**
- * Above the judge line (up the cell from its centre) the part a player reads the next notes in:
- * there an effect keeps to about a lane around the hit and fades out sooner than below the line.
- */
-function fadeAbove(g: CanvasRenderingContext2D, cell: { w: number; cy: number }, p: number): void {
-  g.save();
-  g.beginPath();
-  g.rect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
-  g.clip();
-  g.globalCompositeOperation = 'destination-in';
-  // what stays: all of it near the hit at first, less and less of it as the effect goes on
-  const grad = g.createRadialGradient(0, 0, 0, 0, 0, ABOVE_REACH);
-  grad.addColorStop(0, 'rgba(0,0,0,1)');
-  grad.addColorStop(Math.max(0.05, 0.6 * (1 - p)), 'rgba(0,0,0,1)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = grad;
-  g.fillRect(-cell.w / 2, -cell.cy, cell.w, cell.cy);
-  g.restore();
 }
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
@@ -936,7 +1377,7 @@ export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: nu
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: DrawnHit, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);
@@ -951,11 +1392,10 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
     g.stroke();
   };
   switch (style) {
-    case 'flash':
-    case 'stemflash': {
+    case 'flash': {
       // a bright bar on the judge line, a line opening toward the gear, a short column of light
       // (no line opening up the track: there it read as a note or a bar line)
-      const fill = style === 'stemflash' ? colour : white;
+      const fill = white;
       const fw = 66 * s;
       const fh = (16 - 10 * p) * s;
       const grad = g.createLinearGradient(0, 0, 0, -70 * s);
@@ -971,35 +1411,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
       break;
     }
-    case 'star': {
-      for (let k = 0; k < 8; k++) {
-        const ang = (k / 8) * Math.PI * 2 + Math.PI / 8;
-        const r1 = (10 + 26 * p) * s;
-        const r2 = (22 + 52 * p) * s;
-        line(Math.cos(ang) * r1, Math.sin(ang) * r1 * 0.6, Math.cos(ang) * r2, Math.sin(ang) * r2 * 0.6, k % 2 ? colour(a) : white(a), 4 * s);
-      }
-      g.fillStyle = white(a);
-      g.beginPath();
-      g.ellipse(0, 0, Math.max(0.1, (30 - 18 * p) * s), Math.max(0.1, (12 - 6 * p) * s), 0, 0, Math.PI * 2);
-      g.fill();
-      break;
-    }
-    case 'bomb': {
-      const sz = (18 + 54 * p) * s;
-      g.strokeStyle = colour(a);
-      g.lineWidth = 4 * s;
-      g.strokeRect(-sz / 2, -sz / 2, sz, sz);
-      const sz2 = (8 + 30 * p) * s;
-      g.fillStyle = white(a * 0.9);
-      g.fillRect(-sz2 / 2, -sz2 / 2, sz2, sz2);
-      g.fillStyle = colour(a);
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        const d = (16 + 40 * p) * s;
-        const q = 6 * s;
-        g.fillRect(dx * d - q / 2, dy * d - q / 2, q, q);
-      }
-      break;
-    }
     case 'flare': {
       // a streak across the lane with a four-point star in the middle
       const hw = (46 + 110 * p) * s;
@@ -1012,79 +1423,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       g.fill();
       polygon(g, [[-r * 0.7, 0], [0, -k], [r * 0.7, 0], [0, k]]);
       g.fill();
-      break;
-    }
-    case 'hex': {
-      const hexagon = (r: number): [number, number][] =>
-        Array.from({ length: 6 }, (_, k) => {
-          const ang = (k / 6) * Math.PI * 2 + Math.PI / 6;
-          return [Math.cos(ang) * r, Math.sin(ang) * r * 0.62];
-        });
-      g.lineWidth = 4 * s;
-      g.strokeStyle = colour(a);
-      polygon(g, hexagon((20 + 46 * p) * s));
-      g.stroke();
-      g.lineWidth = 3 * s;
-      g.strokeStyle = white(a);
-      polygon(g, hexagon((10 + 24 * p) * s));
-      g.stroke();
-      g.fillStyle = white(a);
-      g.beginPath();
-      g.ellipse(0, 0, Math.max(0.1, (22 - 14 * p) * s), Math.max(0.1, (8 - 5 * p) * s), 0, 0, Math.PI * 2);
-      g.fill();
-      break;
-    }
-    case 'shards': {
-      for (let k = 0; k < 6; k++) {
-        const ang = (k / 6) * Math.PI * 2;
-        const d = (8 + 46 * p) * s;
-        const q = (8 - 3 * p) * s;
-        g.save();
-        g.translate(Math.cos(ang) * d, Math.sin(ang) * d * 0.6);
-        g.rotate(Math.PI / 4);
-        g.fillStyle = k % 2 ? colour(a) : white(a);
-        g.fillRect(-q / 2, -q / 2, q, q);
-        g.restore();
-      }
-      g.strokeStyle = white(a * 0.8);
-      g.lineWidth = 2 * s;
-      g.beginPath();
-      g.ellipse(0, 0, (16 + 30 * p) * s, (8 + 14 * p) * s, 0, 0, Math.PI * 2);
-      g.stroke();
-      break;
-    }
-    case 'wave': {
-      // rings spreading from the hit under the line, toward the gear, their far edges on the line
-      for (let k = 0; k < 3; k++) {
-        const q = p - k * 0.12;
-        if (q < 0) continue;
-        const rx = (12 + 70 * q) * s;
-        const ry = rx * 0.42;
-        const alpha = Math.max(0, 1 - q * 1.25) * (k === 0 ? 1 : 0.75);
-        g.lineWidth = (k === 0 ? 4 : 2.6) * s * (1 - q * 0.5);
-        g.strokeStyle = k === 0 ? white(alpha) : colour(alpha);
-        g.beginPath();
-        g.ellipse(0, ry + 2 * s, rx, ry, 0, 0, Math.PI * 2);
-        g.stroke();
-      }
-      break;
-    }
-    case 'spark': {
-      // a flash on the line, and sparks thrown down from it toward the gear in a fan
-      const flash = Math.max(0, 1 - p * 3);
-      if (flash > 0) {
-        g.fillStyle = white(flash);
-        roundRect(g, -30 * s, -3 * s, 60 * s, 7 * s, 3 * s);
-        g.fill();
-      }
-      for (let k = 0; k < 14; k++) {
-        // the same fan every frame: each spark's angle and speed fixed by its number
-        const ang = (((k * 0.618) % 1) - 0.5) * 1.8;
-        const speed = 0.55 + 0.45 * ((k * 0.382 + 0.17) % 1);
-        const head = (4 + 100 * p * speed) * s;
-        const tail = Math.max(0, head - (16 + 30 * (1 - p)) * s * speed);
-        line(Math.sin(ang) * tail, Math.cos(ang) * tail, Math.sin(ang) * head, Math.cos(ang) * head, k % 3 === 0 ? white(a) : colour(a), (3 - 1.6 * p) * s);
-      }
       break;
     }
     case 'grid': {
@@ -1108,37 +1446,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
       }
       break;
     }
-    case 'shutter': {
-      // slats slide in from the lane's sides under the line, meet in a white flash, then drop away
-      const close = Math.min(1, p / 0.2);
-      const drop = Math.max(0, p - 0.25) * 60 * s;
-      const fade = p < 0.25 ? 1 : Math.max(0, 1 - (p - 0.25) / 0.6);
-      const half = 32 * s;
-      for (let k = 0; k < 3; k++) {
-        const y = 3 * s + k * 8 * s + drop * (0.6 + 0.2 * k);
-        const reach = half * close;
-        g.fillStyle = k === 1 ? white(fade) : colour(fade);
-        roundRect(g, -half - 6 * s, y, reach + 5 * s, 5 * s, 1.5 * s);
-        g.fill();
-        roundRect(g, half - reach + s, y, reach + 5 * s, 5 * s, 1.5 * s);
-        g.fill();
-      }
-      if (p > 0.12 && p < 0.45) {
-        const f = Math.max(0, 1 - Math.abs(p - 0.22) / 0.23);
-        const r = (8 + 22 * f) * s;
-        g.fillStyle = white(f);
-        polygon(
-          g,
-          Array.from({ length: 16 }, (_, i) => {
-            const ang = (i / 16) * Math.PI * 2;
-            const rr = i % 2 ? r * 0.4 : r;
-            return [Math.cos(ang) * rr, 14 * s + Math.sin(ang) * rr * 0.45] as [number, number];
-          }),
-        );
-        g.fill();
-      }
-      break;
-    }
     case 'bubbles': {
       for (const [dx, dy, r] of [[-14, -8, 9], [10, -14, 7], [16, 6, 6], [-6, 10, 5], [0, -2, 11]]) {
         const k = 1 + 1.6 * p;
@@ -1156,23 +1463,6 @@ function drawEffect(g: CanvasRenderingContext2D, style: HitStyle, p: number): vo
 }
 
 // ---------- the gear around the lanes ----------
-
-/** Key beam with bright edges (NEON): fades out up the lane (canvas top = the far end). */
-export function neonBeamTexture(): THREE.CanvasTexture {
-  return paintTexture(64, 128, (g, w, h) => {
-    const grad = g.createLinearGradient(0, h, 0, 0);
-    grad.addColorStop(0, tone(1, 0.34));
-    grad.addColorStop(1, tone(1, 0));
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-    const edge = g.createLinearGradient(0, h, 0, 0);
-    edge.addColorStop(0, tone(1, 0.7));
-    edge.addColorStop(1, tone(1, 0));
-    g.fillStyle = edge;
-    g.fillRect(0, 0, 3, h);
-    g.fillRect(w - 3, 0, 3, h);
-  });
-}
 
 /** erf to 1.5e-7 (Abramowitz & Stegun 7.1.26). */
 function erf(x: number): number {
@@ -1193,119 +1483,38 @@ export function shadowAt(d: number, size: number, blur: number): number {
 /** How far a box-shadow of `blur` px reaches out of its bar, in px. */
 export const shadowReach = (blur: number) => blur * 1.5;
 
-/** A rail's glow across it (canvas x spans the rail and its reach both sides): its box-shadow at `alpha`. */
-export function railGlowTexture(size: number, blur: number, alpha: number): THREE.CanvasTexture {
-  const across = size + 2 * shadowReach(blur);
-  return paintTexture(128, 4, (g, w, h) => {
-    for (let x = 0; x < w; x++) {
-      g.fillStyle = ink(1, 0, alpha * shadowAt(((x + 0.5) / w - 0.5) * across, size, blur));
-      g.fillRect(x, 0, 1, h);
-    }
-  });
-}
-
-/** The judge line's glow, its box-shadow at `alpha` (the canvas spans the line and the reach around it, 1 px a px). */
-export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number, ends = true): THREE.CanvasTexture {
+/**
+ * The judge line's glow, its box-shadow at `alpha` spreading above and below the line, as wide as the
+ * line (the canvas spans the line and the reach above and below it, 1 px a px).
+ */
+export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number): THREE.CanvasTexture {
   const reach = shadowReach(blur);
-  // without its ends the glow spreads above and below the line only, as wide as the line
-  const w = Math.ceil(ends ? width + 2 * reach : width);
+  const w = Math.ceil(width);
   const h = Math.ceil(height + 2 * reach);
   return paintTexture(w, h, (g) => {
     const image = g.createImageData(w, h);
     const down = Array.from({ length: h }, (_, y) => shadowAt(y + 0.5 - h / 2, height, blur));
     for (let x = 0; x < w; x++) {
-      const across = ends ? alpha * shadowAt(x + 0.5 - w / 2, width, blur) : alpha;
       for (let y = 0; y < h; y++) {
         const i = (y * w + x) * 4;
         image.data[i] = 255;
-        image.data[i + 3] = Math.round(255 * across * down[y]);
+        image.data[i + 3] = Math.round(255 * alpha * down[y]);
       }
     }
     g.putImageData(image, 0, 0);
   });
 }
 
-/** A bevelled rail lit on its inner face (canvas left = the outer side). */
-export function railBevelTexture(): THREE.CanvasTexture {
-  return paintTexture(64, 4, (g, w, h) => {
-    const grad = g.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, tone(0.55));
-    grad.addColorStop(0.35, ink(1, 0.45));
-    grad.addColorStop(0.6, tone(1));
-    grad.addColorStop(1, tone(0.7));
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-  });
-}
-
-/** STREET: faint white stripes across the lanes, slanted (one tile 22 px of the sheets square). */
-export function stripesTexture(): THREE.CanvasTexture {
-  return paintTexture(64, 64, (g, w, h) => {
-    g.fillStyle = ink(1, 1, 0.035 * 2);
-    // a -35° band 6 px wide every 22 px, drawn twice across the tile so it repeats seamlessly
-    g.save();
-    g.beginPath();
-    g.rect(0, 0, w, h);
-    g.clip();
-    const step = (22 / 22) * w;
-    const band = (6 / 22) * w;
-    const slope = Math.tan((35 * Math.PI) / 180);
-    for (let x = -2 * w; x < 3 * w; x += step) {
-      g.beginPath();
-      g.moveTo(x, h);
-      g.lineTo(x + band, h);
-      g.lineTo(x + band + h / slope, 0);
-      g.lineTo(x + h / slope, 0);
-      g.closePath();
-      g.fill();
-    }
-    g.restore();
-  });
-}
-
-/**
- * JEWEL: the floor in faint flat facets. A quilt of diamonds, each four triangles a shade apart
- * (lit from the upper left); one tile holds a whole period, 45 px of the sheets square.
- */
-export function facetsTexture(): THREE.CanvasTexture {
-  return paintTexture(128, 128, (g, w, h) => {
-    const image = g.createImageData(w, h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const u = (x + y + 1) / w;
-        const v = (x - y) / w;
-        const fu = u - Math.floor(u) - 0.5;
-        const fv = v - Math.floor(v) - 0.5;
-        const shade = Math.abs(fu) > Math.abs(fv) ? (fu < 0 ? 0.04 : -0.03) : fv < 0 ? 0.015 : -0.015;
-        const i = (y * w + x) * 4;
-        // light facets lift to white, dark ones are black (tint picture: red = colour, green = white)
-        image.data[i] = image.data[i + 1] = shade > 0 ? 255 : 0;
-        image.data[i + 3] = Math.round(Math.abs(shade) * 2.2 * 255);
-      }
-    }
-    g.putImageData(image, 0, 0);
-  });
-}
-
-/** A plain picture in real colours (walls, the arcade deck): `stops` across, or down with `down`. */
-export function gradientTexture(stops: [number, string][], down = false, border?: { colour: string; width: number; side: 'all' | 'top' | 'inner' }): THREE.CanvasTexture {
+/** A plain picture in real colours (a wall's shade on the lanes): `stops` across it. */
+export function gradientTexture(stops: [number, string][]): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = down ? 4 : 64;
-  canvas.height = down ? 64 : 4;
+  canvas.width = 64;
+  canvas.height = 4;
   const g = canvas.getContext('2d') as CanvasRenderingContext2D;
-  const grad = down ? g.createLinearGradient(0, 0, 0, canvas.height) : g.createLinearGradient(0, 0, canvas.width, 0);
+  const grad = g.createLinearGradient(0, 0, canvas.width, 0);
   for (const [at, colour] of stops) grad.addColorStop(at, colour);
   g.fillStyle = grad;
   g.fillRect(0, 0, canvas.width, canvas.height);
-  if (border) {
-    g.fillStyle = border.colour;
-    if (border.side === 'top') g.fillRect(0, 0, canvas.width, border.width);
-    else if (border.side === 'inner') g.fillRect(canvas.width - border.width, 0, border.width, canvas.height);
-    else {
-      g.fillRect(0, 0, border.width, canvas.height);
-      g.fillRect(canvas.width - border.width, 0, border.width, canvas.height);
-    }
-  }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;

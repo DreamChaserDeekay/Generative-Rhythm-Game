@@ -1,6 +1,8 @@
 import type { JudgeEvent } from '../engine/session';
+import type { GearStyle } from '../render/deckArt';
+import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
-import { HUD_FONTS, type HudType } from '../render/skins';
+import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
 import { clockText, errorKind, errorText, speedText } from './format';
 import type { KeyPairNames } from './visualSync';
 
@@ -25,8 +27,13 @@ export interface HudInfo {
   feverEnabled: boolean;
   feverManualKey: string | null;
   pacemakerLabel: string | null;
-  /** The skin's judgement and combo type. */
+  /** The judgement and combo type (the gear's or the track's own, render/gearHud.ts). */
   type: HudType;
+  /**
+   * The picked gear the HUD beside the track is dressed for (data-gear: its gauge, the score panel's
+   * housing, the readouts' digits, the gauge's name); none in a HUD shown without a gear.
+   */
+  gear?: GearStyle | null;
   /** Opacity of the judgement and the combo, so notes behind them show through (1 = solid). */
   judgementOpacity: number;
   /** The miss label (BREAK, MISS, POOR) of the counts under the score panel; null shows none. */
@@ -89,6 +96,15 @@ const UPRIGHT_MAX_STRETCH = 4;
 const GAUGE_FROM = 0.15;
 const GAUGE_LENGTH = 9;
 const GAUGE_CELLS = 40;
+/**
+ * RECEIVER's gauge is a needle meter standing at the gauge's foot (screen px at 720p): its needle
+ * sweeps METER_SWEEP degrees each way of upright, from empty to full.
+ */
+const METER_WIDTH = 112;
+const METER_HEIGHT = 80;
+const METER_SWEEP = 48;
+/** The score panel's housing (a gear's): this far round its lines (screen px at 720p). */
+const PLATE_PAD = 8;
 /** The song's progress: a thin bar left of the gear, as long as the gauge right of it (screen px wide, and its gap to the panel). */
 const PROGRESS_WIDTH = 5;
 const PROGRESS_GAP = 12;
@@ -208,11 +224,41 @@ export function infoRoom(h: readonly number[], edge: number, far: number, left: 
   return Math.min(x(bottom), x(Math.min(bottom, Math.max(top, corner)))) - left;
 }
 
-/** Loads a skin's type before the play starts, so the first judgement is not drawn in a fallback font. */
+/** A font of the HUD as CSS's font shorthand. */
+const fontSpec = (font: HudFont, px: number) => `${HUD_FONTS[font].italic ? 'italic ' : ''}${HUD_FONTS[font].weight} ${px}px '${font}'`;
+
+/** Loads a type's fonts before the play starts, so the first judgement or combo is not drawn in a fallback font. */
 export function loadHudFont(type: HudType): Promise<unknown> {
-  const f = HUD_FONTS[type.font];
-  const load = document.fonts?.load(`${f.italic ? 'italic ' : ''}${f.weight} 40px '${type.font}'`, 'MAX 100% COMBO 0123456789');
-  return load ? load.catch(() => null) : Promise.resolve(null);
+  const loads = [document.fonts?.load(fontSpec(type.font, 40), 'MAX 100% COMBO 0123456789')];
+  if (type.comboFont) loads.push(document.fonts?.load(fontSpec(type.comboFont, 40), '0123456789'));
+  return Promise.all(loads.map((load) => (load ? load.catch(() => null) : null)));
+}
+
+/**
+ * RECEIVER's needle meter (an SVG, 100 × 66): an amber face, its scale over the needle's sweep with
+ * a red zone from the clear line (`clear`, 0..1; none for a survival gauge), its name, the needle.
+ */
+function meterSvg(name: string, clear: number | null): string {
+  const pivot = [50, 62] as const;
+  const at = (share: number, r: number): [number, number] => {
+    const a = ((-METER_SWEEP + 2 * METER_SWEEP * share) * Math.PI) / 180;
+    return [pivot[0] + r * Math.sin(a), pivot[1] - r * Math.cos(a)];
+  };
+  const p = (v: [number, number]) => `${v[0].toFixed(2)} ${v[1].toFixed(2)}`;
+  const arc = (from: number, to: number, r: number) => `M ${p(at(from, r))} A ${r} ${r} 0 0 1 ${p(at(to, r))}`;
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const long = i % 5 === 0;
+    return `M ${p(at(i / 10, 44))} L ${p(at(i / 10, long ? 51 : 48))}`;
+  }).join(' ');
+  return `<svg viewBox="0 0 100 66" preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id="hud-meter-light" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd58c"/><stop offset="1" stop-color="#e59a3a"/></linearGradient></defs>
+    <rect class="hud-meter-face" x="0" y="0" width="100" height="66" fill="url(#hud-meter-light)"/>
+    ${clear === null ? '' : `<path class="hud-meter-zone" d="${arc(clear, 1, 47)}"/>`}
+    <path class="hud-meter-scale" d="${arc(0, 1, 44)} ${ticks}"/>
+    <text class="hud-meter-name" x="50" y="49">${name}</text>
+    <line class="hud-meter-needle" x1="50" y1="62" x2="50" y2="12"/>
+    <rect class="hud-meter-base" x="0" y="58" width="100" height="8"/>
+  </svg>`;
 }
 
 /** "MAX 100%" with its first word in white (a split type), else the whole label in the judgement's colour. */
@@ -239,7 +285,6 @@ export class Hud {
   private readonly judgePop: HTMLElement;
   private readonly judgeText: HTMLElement;
   private readonly judgeLabel: HTMLElement;
-  private readonly judgeCombo: HTMLElement;
   private readonly judgeSub: HTMLElement;
   private readonly judgeFastSlow: HTMLElement;
   private readonly judgeMs: HTMLElement;
@@ -259,6 +304,13 @@ export class Hud {
   private readonly gaugeClearLabel: HTMLElement;
   private readonly gaugeValue: HTMLElement;
   private readonly gaugeNum: HTMLElement;
+  /** The gear's name for the gauge (GROOVE, 흥), standing over its far end. */
+  private readonly gaugeName: HTMLElement;
+  /** RECEIVER's needle meter in place of the gauge's cells, and its needle. */
+  private readonly meter: HTMLElement | null = null;
+  private readonly meterNeedle: SVGElement | null = null;
+  /** The score panel's housing on the track under its lines (a gear's). */
+  private readonly panelPlate: HTMLElement;
   private readonly speed: HTMLElement;
   private readonly speedNum: HTMLElement;
   private readonly bpm: HTMLElement;
@@ -329,7 +381,7 @@ export class Hud {
         <div class="hud-head"><span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
       </div>
       <div class="hud-plane">
-        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span><span class="hud-judge-combo"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
+        <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
         <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
         <div class="hud-fever" data-testid="hud-fever"><span class="hud-fever-text"></span><span class="hud-fever-bar"><i class="hud-fever-fill"></i></span></div>
         <div class="hud-speed"><span class="hud-label">SPEED</span><span class="hud-num hud-speed-num" data-testid="hud-speed"></span><span class="hud-label hud-bpm" data-testid="hud-bpm">BPM <b class="hud-bpm-num"></b></span></div>
@@ -339,6 +391,8 @@ export class Hud {
         <i class="hud-gauge-clear"></i>
         <div class="hud-gauge-clear-label"><span class="hud-label">CLEAR</span></div>
         <div class="hud-gauge-value" data-testid="hud-gauge"><span class="hud-num hud-gauge-num"></span><span class="hud-label hud-gauge-type"></span></div>
+        <div class="hud-gauge-name"></div>
+        <i class="hud-panel-plate"></i>
         <div class="hud-panel" data-testid="hud-panel">
           <div class="hud-row"><span class="hud-label hud-score-label"></span><span class="hud-num hud-score">0</span></div>
           <div class="hud-row hud-pace-item"><span class="hud-label hud-pace-label"></span><span class="hud-num hud-pace" data-testid="hud-pace"></span></div>
@@ -400,8 +454,9 @@ export class Hud {
     }
     root.dataset.mode = info.mode;
     root.dataset.keysounds = info.keysounds.join(' ');
+    if (info.gear) root.dataset.gear = info.gear;
 
-    // the skin's type on the whole HUD: the plane's judgement and combo, and the end banner
+    // the type on the whole HUD: the plane's judgement and combo, and the end banner
     const t = info.type;
     const font = HUD_FONTS[t.font];
     root.style.setProperty('--hud-font', `'${t.font}'`);
@@ -411,20 +466,24 @@ export class Hud {
     root.style.setProperty('--hud-outline', t.outline);
     root.style.setProperty('--hud-stroke', `${t.stroke}px`);
     root.style.setProperty('--judge-max', t.max);
+    // the combo in its own digits where the type has them (a gear's readout)
+    const combo = HUD_FONTS[t.comboFont ?? t.font];
+    root.style.setProperty('--combo-font', `'${t.comboFont ?? t.font}'`);
+    root.style.setProperty('--combo-weight', String(combo.weight));
+    root.style.setProperty('--combo-style', combo.italic ? 'italic' : 'normal');
+    root.style.setProperty('--combo-color', t.comboColor ?? 'var(--text)');
+    root.style.setProperty('--combo-outline', t.comboOutline ?? t.outline);
     this.plane = q('.hud-plane');
-    this.plane.classList.toggle('inline', Boolean(t.inline));
     this.comboBox = q('.hud-combo');
     this.comboBox.style.opacity = this.judgeOpacity;
     this.comboNum = q('.hud-combo-num');
     this.judgeBox = q('.hud-judge');
     this.judgePop = q('.hud-judge-pop');
     this.judgeLabel = q('.hud-judge-label');
-    this.judgeCombo = q('.hud-judge-combo');
     this.judgeSub = q('.hud-judge-sub');
     this.judgeFastSlow = q('.hud-judge-fs');
     this.judgeMs = q('.hud-judge-ms');
     this.judgeText = q('.hud-judge-text');
-    if (t.skew) this.judgeText.style.transform = `skewX(${t.skew}deg)`;
     const bar = q('.hud-judge-bar');
     if (t.bar) bar.style.background = t.bar;
     else bar.remove();
@@ -472,6 +531,23 @@ export class Hud {
     this.gaugeValue = q('.hud-gauge-value');
     this.gaugeNum = q('.hud-gauge-num');
     q('.hud-gauge-type').textContent = info.gaugeLabel;
+    // the gear's name for its gauge by it; RECEIVER's gauge a needle meter in its place
+    const gaugeName = info.gear ? GAUGE_NAMES[info.gear] : null;
+    this.gaugeName = q('.hud-gauge-name');
+    if (gaugeName && info.gear !== 'receiver') this.gaugeName.textContent = gaugeName;
+    else this.gaugeName.remove();
+    if (info.gear === 'receiver') {
+      const meter = document.createElement('div');
+      meter.className = 'hud-meter';
+      meter.dataset.testid = 'hud-meter';
+      meter.innerHTML = meterSvg(gaugeName ?? '', info.survivalGauge ? null : this.gaugeClearShare);
+      this.plane.append(meter);
+      this.meter = meter;
+      this.meterNeedle = meter.querySelector('.hud-meter-needle');
+      for (const el of [this.gauge, this.gaugeClear, this.gaugeClearLabel]) el.remove();
+    }
+    this.panelPlate = q('.hud-panel-plate');
+    if (!info.gear) this.panelPlate.remove();
     this.speed = q('.hud-speed');
     this.speedNum = q('.hud-speed-num');
     this.bpm = q('.hud-bpm-num');
@@ -544,7 +620,6 @@ export class Hud {
     this.place(this.judgeBox, 0, -judgeAt, `translate(-50%, -50%) scaleY(${j.stretch.toFixed(3)})`);
     const [fit] = this.measure(this.judgeText, [
       [this.judgeLabel, 'MAX 100%'],
-      [this.judgeCombo, t.inline ? '0000' : ''],
     ], () => (this.judgeBox.style.fontSize = px(t.size * j.k)));
     const jk = j.k * Math.min(1, (2 * p.halfWidth - 24) / Math.max(1, fit));
     this.judgeBox.style.fontSize = px(t.size * jk);
@@ -561,7 +636,6 @@ export class Hud {
         this.judgeBox,
         [
           [this.judgeLabel, 'MAX 100%'],
-          [this.judgeCombo, t.inline ? '0000' : ''],
           [this.judgeFastSlow, 'FAST'],
           [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
         ],
@@ -596,20 +670,35 @@ export class Hud {
     this.fever.style.fontSize = px(20 * f.k);
 
     const g = at(right, foot, SIDE_ASPECT);
-    const width = 14 * 1.3 * g.k;
-    this.place(this.gauge, right, foot - length, '');
-    this.gauge.style.width = px(width);
-    this.gauge.style.height = px(length);
-    this.gauge.style.setProperty('--cell', px(length / GAUGE_CELLS));
-    this.gauge.style.setProperty('--gap', px(3 * g.k));
-    const clearAt = foot - this.gaugeClearShare * length;
-    this.place(this.gaugeClear, right - 6 * g.k, clearAt, 'translateY(-50%)');
-    this.gaugeClear.style.width = px(width + 12 * g.k);
-    this.gaugeClear.style.height = px(4 * g.k);
+    let width = 14 * 1.3 * g.k;
+    if (this.meter) {
+      // the needle meter standing at the gauge's foot, upright as the panel's lines are
+      const u = uprightAt(p.h, right, foot);
+      width = METER_WIDTH * hud * u.k;
+      this.meter.style.width = px(width);
+      this.meter.style.height = px(METER_HEIGHT * hud * u.k);
+      this.place(this.meter, right, foot, `translateY(-100%) scaleY(${u.stretch.toFixed(3)})`);
+    } else {
+      this.place(this.gauge, right, foot - length, '');
+      this.gauge.style.width = px(width);
+      this.gauge.style.height = px(length);
+      this.gauge.style.setProperty('--cell', px(length / GAUGE_CELLS));
+      this.gauge.style.setProperty('--gap', px(3 * g.k));
+      const clearAt = foot - this.gaugeClearShare * length;
+      this.place(this.gaugeClear, right - 6 * g.k, clearAt, 'translateY(-50%)');
+      this.gaugeClear.style.width = px(width + 12 * g.k);
+      this.gaugeClear.style.height = px(4 * g.k);
+      const cx = right + width + 14 * g.k;
+      const cl = at(cx, clearAt, SIDE_ASPECT);
+      this.place(this.gaugeClearLabel, cx, clearAt, `translateY(-50%) scaleY(${cl.stretch.toFixed(3)})`);
+      this.sizeText(this.gaugeClearLabel, cl.k, 15, 30);
+      // the gear's name for the gauge over its far end
+      const top = foot - length - 8 * g.k;
+      const n = at(right + width / 2, top, SIDE_ASPECT);
+      this.place(this.gaugeName, right + width / 2, top, `translate(-50%, -100%) scaleY(${n.stretch.toFixed(3)})`);
+      this.gaugeName.style.fontSize = px(18 * n.k);
+    }
     const textX = right + width + 14 * g.k;
-    const cl = at(textX, clearAt, SIDE_ASPECT);
-    this.place(this.gaugeClearLabel, textX, clearAt, `translateY(-50%) scaleY(${cl.stretch.toFixed(3)})`);
-    this.sizeText(this.gaugeClearLabel, cl.k, 15, 30);
     const v = at(textX, foot, SIDE_ASPECT);
     this.place(this.gaugeValue, textX, foot, `translateY(-100%) scaleY(${v.stretch.toFixed(3)})`);
     this.sizeText(this.gaugeValue, v.k, 15, 30);
@@ -712,10 +801,13 @@ export class Hud {
       this.panel.classList.remove('stacked');
       this.panel.classList.add('upright');
       this.root.append(this.panel);
+      this.panelPlate.style.display = 'none';
       for (const el of [...rows, ...cells]) el.removeAttribute('style');
       this.sizeText(this.panel, hud, PANEL_LABEL, PANEL_NUM);
     } else {
       let y = c.bottom;
+      let left = c.x;
+      let pad = 0;
       els.forEach((el, i) => {
         const ht = sizes[i][1];
         const u = uprightAt(c.h, c.x, planeYAt(c.h, c.x, planePoint(c.h, c.x, y)[1] - (ht * k) / 2));
@@ -723,9 +815,17 @@ export class Hud {
         // two columns line up: every row as wide on the screen as the widest (a live number wider still grows it leftward)
         if (widest !== null) el.style.minWidth = `${Math.round(widest * k * u.k * 100) / 100}px`;
         this.place(el, c.x, y, `translate(-100%, -100%) scaleY(${u.stretch.toFixed(3)})`);
+        if (i === 0) pad = PLATE_PAD * hud * k * u.k;
+        left = Math.min(left, c.x - el.offsetWidth);
         y -= ht * k * u.k * u.stretch;
       });
       timeFoot = Math.min(timeFoot, y);
+      // the gear's housing lying under the lines
+      this.panelPlate.style.display = '';
+      this.place(this.panelPlate, left - pad, y - pad, '');
+      this.panelPlate.style.width = `${Math.round((c.x - left + 2 * pad) * 100) / 100}px`;
+      this.panelPlate.style.height = `${Math.round((c.bottom - y + 2 * pad) * 100) / 100}px`;
+      timeFoot = Math.min(timeFoot, y - pad);
     }
     // the time left over the bar, or over the panel where that reaches higher; under the plate
     const timeY = Math.max(planePoint(c.h, c.barX, timeFoot)[1] - TIME_GAP * hud, c.top + this.progressTime.offsetHeight);
@@ -828,10 +928,8 @@ export class Hud {
     this.lastCombo = combo;
     const text = combo >= 2 ? String(combo) : '';
     this.comboNum.textContent = text;
-    // an inline type writes the combo after the judgement instead
-    this.judgeCombo.textContent = this.type.inline ? text : '';
-    this.comboBox.style.visibility = combo >= 2 && !this.type.inline ? 'visible' : 'hidden';
-    if (rose && this.bumpCombo && !this.type.inline) {
+    this.comboBox.style.visibility = combo >= 2 ? 'visible' : 'hidden';
+    if (rose && this.bumpCombo) {
       // a transform animation: runs on the compositor, no layout per hit
       this.comboBump?.cancel();
       this.comboBump = this.comboNum.animate(COMBO_BUMP, { duration: COMBO_BUMP_MS, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' });
@@ -921,6 +1019,7 @@ export class Hud {
       // whole cells from the bottom (a clip, no layout while playing), rounded down as the number
       const cells = gaugeCells(gauge);
       this.gaugeFill.style.clipPath = `inset(${(100 * (GAUGE_CELLS - cells)) / GAUGE_CELLS}% 0 0 0)`;
+      this.meterNeedle?.setAttribute('transform', `rotate(${(-METER_SWEEP + (2 * METER_SWEEP * gauge) / 100).toFixed(1)} 50 62)`);
       this.gaugeNum.textContent = `${gauge}%`;
       this.gaugeValue.classList.toggle('cleared', !this.survival && stats.gauge >= this.gaugeClearShare * 100);
     }

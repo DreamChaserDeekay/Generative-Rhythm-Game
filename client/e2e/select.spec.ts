@@ -72,19 +72,17 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   await expect(speed).toHaveAttribute('data-value', String(Math.round((speedBefore + 0.1) * 10) / 10));
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('quick-sudden')).toBeFocused();
-  const skin = page.getByTestId('quick-skin');
-  const camera = await page.getByTestId('quick-camera').getAttribute('data-value');
-  await skin.focus();
-  // a skin is the track's colours: the notes and the gear are picked in the settings
-  await expect(page.getByTestId('play-options-help')).toContainText('노트·기어는 설정 → 기어');
-  const skinBefore = (await skin.getAttribute('data-value')) ?? '';
+  // the track has one look: no skin row among them
+  await expect(page.getByTestId('quick-skin')).toHaveCount(0);
+  const camera = page.getByTestId('quick-camera');
+  await camera.focus();
+  const cameraBefore = (await camera.getAttribute('data-value')) ?? '';
   await page.keyboard.press('ArrowRight');
-  await expect(skin).not.toHaveAttribute('data-value', skinBefore);
+  await expect(camera).not.toHaveAttribute('data-value', cameraBefore);
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 16');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}'));
-  expect(stored.skin).toBe(await skin.getAttribute('data-value'));
-  // a skin keeps the camera
-  expect(stored.cameraPreset).toBe(camera);
+  expect(stored.cameraPreset).toBe(await camera.getAttribute('data-value'));
+  expect(stored).not.toHaveProperty('skin');
   expect(errors).toEqual([]);
 });
 
@@ -718,7 +716,7 @@ test('every difficulty shows its level by itself (계산 중 until then), kept a
   expect(errors).toEqual([]);
 });
 
-test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), the difficulty ←→ picked underlined, and the colour-blind palette has lamps of its own', async ({ page }) => {
+test('the list writes levels in the plain colour, each lamp a mark of its own shape (a full combo fills the cell), and the difficulty ←→ picked underlined', async ({ page }) => {
   const errors = trackErrors(page);
   // (its charts are not to be had: the list shows what its records say)
   const [song] = fakeSongs(1, 'ready');
@@ -752,11 +750,6 @@ test('the list writes levels in the plain colour, each lamp a mark of its own sh
   await page.keyboard.press('ArrowRight');
   await expect(cells.nth(1)).toHaveClass(/active/);
   await expect(cells.nth(0)).not.toHaveClass(/active/);
-  // the colour-blind palette: its own lamp colours, the same shapes
-  await page.evaluate(() => document.documentElement.classList.add('palette-cb'));
-  expect(await style(2, 'border-top-color', true)).toBe('rgb(213, 94, 0)');
-  expect(await style(0, 'background-color')).toBe('rgb(230, 159, 0)');
-  expect(await style(2, 'background-color', true)).toBe('rgba(0, 0, 0, 0)');
   expect(errors).toEqual([]);
 });
 

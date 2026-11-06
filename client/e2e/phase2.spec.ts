@@ -17,7 +17,7 @@ test('side tracks, EX-SCORE, HARD gauge, MIRROR and covers on the sync test', as
   await page.addInitScript(() => {
     localStorage.setItem(
       'grg.settings.v1',
-      JSON.stringify({ lastKeyMode: '6K+FX', ruleset: 'EXSCORE', gaugeType: 'HARD', placement: 'MIRROR', sudden: 0.2, lift: 0.1, fever: 'AUTO' }),
+      JSON.stringify({ lastKeyMode: '6K+FX', ruleset: 'EXSCORE', gaugeType: 'HARD', placement: 'MIRROR', sudden: 0.2, judgeLinePosition: 0.5, fever: 'AUTO' }),
     );
   });
   await page.goto('/');
@@ -107,13 +107,13 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   expect(errors).toEqual([]);
 });
 
-test('keyboard rollover test and colour-blind palette in the settings', async ({ page }) => {
+test('keyboard rollover test in the settings, and no colour palette row in the gear tab', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-palette', 'colorblind');
-  await expect(page.locator('html')).toHaveClass(/palette-cb/);
+  await expect(page.getByTestId('opt-deck-style')).toBeVisible();
+  await expect(page.getByTestId('opt-palette')).toHaveCount(0);
   await settingsTab(page, 'keys');
   await page.getByTestId('ghost-4K').click();
   await expect(page.getByTestId('ghost-test')).toBeVisible();

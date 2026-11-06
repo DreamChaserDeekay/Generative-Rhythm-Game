@@ -7,6 +7,9 @@ import {
   chartPickOf,
   DEFAULT_SETTINGS,
   greenNumber,
+  liftShare,
+  MAX_JUDGE_LINE,
+  MIN_JUDGE_LINE,
   laneColorsOf,
   laneKeysFor,
   padMenuFor,
@@ -27,8 +30,9 @@ import {
   withPattern,
   withSongOffset,
 } from './settings';
-import { skinById, laneColorsFor } from '../render/skins';
-import { difficultyTiers, keyModes } from '../engine/config';
+import { GEAR_JUDGE } from '../render/deckArt';
+import { BASE_SKIN, laneColorsFor } from '../render/skins';
+import { cameraConfig, difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
@@ -50,6 +54,7 @@ describe('settings', () => {
 
   it('keeps the hit effect size and the plane camera (settings saved before them: the usual effects, SDVX)', () => {
     expect(sanitizeSettings({})).toMatchObject({ hitEffectSize: 'normal', cameraPreset: 'SDVX' });
+    expect(sanitizeSettings({ hitEffectSize: 'large' }).hitEffectSize).toBe('large');
     expect(sanitizeSettings({ hitEffectSize: 'small' }).hitEffectSize).toBe('small');
     expect(sanitizeSettings({ hitEffectSize: 'off' }).hitEffectSize).toBe('off');
     expect(sanitizeSettings({ hitEffectSize: 'huge' as never }).hitEffectSize).toBe('normal');
@@ -85,22 +90,21 @@ describe('settings', () => {
     expect(sanitizeSettings({ barLines: 'x' as never }).barLines).toBe(true);
   });
 
-  it('opens settings saved before the textured skins, and keeps a picked one', () => {
-    expect(DEFAULT_SETTINGS.skin).toBe('flat');
-    expect(sanitizeSettings({ skin: 'neon', customSkin: null }).skin).toBe('neon');
-    expect(sanitizeSettings({ skin: 'jewel' }).skin).toBe('jewel');
-    expect(sanitizeSettings({ skin: 'chrome' as never }).skin).toBe(DEFAULT_SETTINGS.skin);
-    const custom = sanitizeSettings({ skin: 'custom', customSkin: { label: '내 스킨', textures: { note: 'gel/note' } } });
-    expect([custom.skin, (custom.customSkin as { textures?: unknown } | null)?.textures]).toEqual(['custom', { note: 'gel/note' }]);
+  it('drops the track skin, the user skin and the colour palette earlier versions saved: the track has one look and one set of colours', () => {
+    const old = sanitizeSettings({ skin: 'neon', customSkin: { label: '내 스킨' }, palette: 'colorblind', parts: { note: 'round' } } as never);
+    for (const gone of ['skin', 'customSkin', 'palette']) expect(old).not.toHaveProperty(gone);
+    expect(old.parts.note).toBe('round');
+    expect(skinOf(old).colors).toBe(BASE_SKIN.colors);
+    expect(laneColorsOf(old, '4K')).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
   });
 
   it('keeps the note colours picked, the player’s own presets, and draws the lanes in them', () => {
     expect([DEFAULT_SETTINGS.noteColors, DEFAULT_SETTINGS.colorPresets]).toEqual(['skin', []]);
     const own = { id: 'user-1', name: '밤', lanes: { '4K': ['#111111', '#222222', '#333333', '#444444'] } };
-    const s = sanitizeSettings({ skin: 'club', noteColors: 'user-1', colorPresets: [own] as never });
+    const s = sanitizeSettings({ noteColors: 'user-1', colorPresets: [own] as never });
     expect(s.noteColors).toBe('user-1');
     expect(laneColorsOf(s, '4K')).toEqual([0x111111, 0x222222, 0x333333, 0x444444]);
-    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(skinById('club', null), 'default', keyModes['4K']));
+    expect(laneColorsOf({ ...s, noteColors: 'skin' }, '4K')).toEqual(laneColorsFor(BASE_SKIN, keyModes['4K']));
     // a preset gone, or one no version had: 기본
     expect(sanitizeSettings({ noteColors: 'user-2', colorPresets: [own] as never }).noteColors).toBe('skin');
     expect(sanitizeSettings({ noteColors: 'neon' }).noteColors).toBe('skin');
@@ -110,18 +114,28 @@ describe('settings', () => {
     expect([reset.noteColors, reset.colorPresets]).toEqual(['skin', s.colorPresets]);
   });
 
-  it('keeps the parts picked apart from the skin and draws the skin with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'grand', hit: 'flash' });
-    const s = sanitizeSettings({ skin: 'pop', parts: { note: 'star5', side: 'dots', deck: 'grand', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'grand', hit: 'flash' });
-    // the skin keeps its colours
-    expect(skinOf(s).colors).toBe(skinById('pop', null).colors);
+  it('keeps the parts picked and draws the track with them', () => {
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
+    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
+    // the track keeps its colours
+    expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
+    // the piano note taken out: the flat notes, the piano hit kept
+    expect(sanitizeSettings({ parts: { note: 'piano', hit: 'piano' } as never }).parts).toMatchObject({ note: 'flat', hit: 'piano' });
+    // a gear colour an earlier version saved is dropped, and its gear, taken out, is the standard one
+    const old = sanitizeSettings({ parts: { deck: 'arcade', deckColour: 'white' } as never });
+    expect(old.parts).not.toHaveProperty('deckColour');
+    expect(skinOf(old).style).toMatchObject({ deck: 'standard' });
+    expect(skinOf(old).style).not.toHaveProperty('deckColour');
+    for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
+    for (const deck of ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
   });
 
-  it('opens a skin of an earlier version as the skin that took its place', () => {
-    const renamed = Object.fromEntries(['classic', 'metal', 'glass', 'crystal', 'gel', 'sunset', 'neon', 'mono'].map((id) => [id, sanitizeSettings({ skin: id }).skin]));
-    expect(renamed).toEqual({ classic: 'club', metal: 'arcade', glass: 'glass', crystal: 'jewel', gel: 'pop', sunset: 'pop', neon: 'neon', mono: 'mono' });
+  it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {
+    expect(DEFAULT_SETTINGS.hudType).toBe('gear');
+    expect(sanitizeSettings({ hudType: 'skin' }).hudType).toBe('skin');
+    expect(sanitizeSettings({ hudType: 'nope' as never }).hudType).toBe('gear');
   });
 
   it('keeps the song select favourites, folder and order, dropping unknown ones', () => {
@@ -150,13 +164,31 @@ describe('settings', () => {
     expect(sanitizeSettings({ difficultySystem: 'GRG', lastDifficulty: 'EXPERT' } as never).lastDifficulty).toBe('EXPERT');
   });
 
-  it('computes the green number from SUDDEN+ and LIFT (not HIDDEN+)', () => {
+  it('computes the green number from 노트 등장 위치 (SUDDEN+) and 판정선 위치 (not HIDDEN+)', () => {
     const base = { ...DEFAULT_SETTINGS, hiSpeed: 4 };
     expect(greenNumber(4, activeCovers(base))).toBeCloseTo(1250, 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.2 }))).toBeCloseTo(1000, 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.2, hidden: 0.3 }))).toBeCloseTo(1000, 9);
-    expect(greenNumber(4, activeCovers({ ...base, lift: 0.2 }))).toBeCloseTo(1000, 9);
+    // the line raised 100 px of the track's 2946 (40 units of 73.65 px) reaches the notes that much sooner, lowered later
+    const track = cameraConfig.trackLength * 73.65;
+    expect(greenNumber(4, activeCovers({ ...base, judgeLinePosition: 0.5 }))).toBeCloseTo(1250 * (1 - 100 / track), 9);
+    expect(greenNumber(4, activeCovers({ ...base, judgeLinePosition: -0.2 }))).toBeCloseTo(1250 * (1 + 40 / track), 9);
     expect(greenNumber(4, activeCovers({ ...base, sudden: 0.5, coversOn: false }))).toBeCloseTo(1250, 9);
+  });
+
+  it('moves the judge line −20 % to +50 %, −20 % onto a picked gear; a LIFT saved before stays where it put the line', () => {
+    expect(sanitizeSettings({}).judgeLinePosition).toBe(0);
+    expect(sanitizeSettings({ judgeLinePosition: -1 }).judgeLinePosition).toBe(MIN_JUDGE_LINE);
+    expect(sanitizeSettings({ judgeLinePosition: 2 }).judgeLinePosition).toBe(MAX_JUDGE_LINE);
+    expect([MIN_JUDGE_LINE, MAX_JUDGE_LINE]).toEqual([-0.2, 0.5]);
+    // −20 % lowers it by the gap a picked gear leaves under the line (px of the sheets' track, 73.65 to a unit)
+    expect(liftShare(MIN_JUDGE_LINE) * cameraConfig.trackLength * 73.65).toBeCloseTo(-GEAR_JUDGE.gap, 9);
+    // LIFT was a share of the track's length: 1 % of it was 29.46 px, now +15 %; a high one is the top
+    const old = sanitizeSettings({ lift: 0.01 } as never);
+    expect(old.judgeLinePosition).toBe(0.15);
+    expect('lift' in old).toBe(false);
+    expect(sanitizeSettings({ lift: 0.3 } as never).judgeLinePosition).toBe(MAX_JUDGE_LINE);
+    expect(sanitizeSettings({ lift: 0.3, judgeLinePosition: -0.1 } as never).judgeLinePosition).toBe(-0.1);
   });
 
   it('keeps the green number when covers move and visible time is locked', () => {
@@ -332,7 +364,7 @@ describe('settings', () => {
   });
 
   it('never lets the covers close the lane', () => {
-    const c = activeCovers({ sudden: 0.85, hidden: 0.85, lift: 0, coversOn: true });
+    const c = activeCovers({ sudden: 0.85, hidden: 0.85, judgeLinePosition: 0, coversOn: true });
     expect(c.sudden + c.hidden).toBeLessThanOrEqual(0.9 + 1e-9);
   });
 });

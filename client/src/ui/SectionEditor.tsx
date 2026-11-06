@@ -145,7 +145,10 @@ export function SectionEditor({ songId, onSaved, onClose }: { songId: string; on
   };
   const play = () => {
     menuMusic.stop(); // the song select's preview would play over it
-    void sound().play();
+    // a pause before the song starts (Space just after Enter) cuts the play short: nothing went wrong
+    sound()
+      .play()
+      .catch(() => undefined);
   };
   const toggle = () => (sound().paused ? play() : sound().pause());
   const playFrom = (i: number) => {

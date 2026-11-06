@@ -1357,7 +1357,6 @@ export function SongSelectScreen(props: Props) {
                 song={selected}
                 chart={chart}
                 chartFailed={entryChartKey !== null && chartStore.hasFailed(entryChartKey)}
-                palette={settings.palette}
                 keysound={settings.keysound}
                 practice={practice}
                 onSelectRange={(startMs, endMs) => setPractice({ rate: 1, loop: true, ...practice, startMs, endMs })}
@@ -1530,7 +1529,7 @@ export function SongSelectScreen(props: Props) {
                 {ready ? (
                   <button className="option-chips" data-testid="play-options-button" aria-label="플레이 옵션" aria-expanded={panel === 'options'} onClick={() => (panel === 'options' ? setPanel('none') : openOptions())}>
                     <span className="chip">
-                      SPEED <b>{speedText(settings.hiSpeed)}</b>
+                      노트 속도 <b>{speedText(settings.hiSpeed)}</b>
                     </span>
                     <span className="chip">
                       게이지 <b>{gaugeRules[settings.gaugeType].label}</b>

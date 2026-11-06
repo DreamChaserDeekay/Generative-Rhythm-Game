@@ -4,11 +4,10 @@ import { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { ChartTiming, KeyModeId } from '../engine/types';
 import { hexString } from '../render/noteColors';
-import { GRADE_PALETTES } from '../render/palette';
+import { GRADE_COLORS } from '../render/palette';
 import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
-import { skinById, withParts } from '../render/skins';
 import { TrackRenderer } from '../render/TrackRenderer';
-import { activeCovers, greenNumber, laneColorsOf, visibleTimeMs, type Settings } from '../settings/settings';
+import { activeCovers, greenNumber, laneColorsOf, skinOf, visibleTimeMs, type Settings } from '../settings/settings';
 import { coverText } from './format';
 import { PHRASE_BEATS, previewPhrase } from './previewPhrase';
 
@@ -22,18 +21,15 @@ const LEAD_MS = 2000;
 
 type PreviewSettings = Pick<
   Settings,
-  | 'skin'
-  | 'customSkin'
   | 'parts'
   | 'cameraPreset'
   | 'laneWidthScale'
-  | 'palette'
   | 'reducedFlash'
   | 'barLines'
   | 'hiSpeed'
   | 'sudden'
   | 'hidden'
-  | 'lift'
+  | 'judgeLinePosition'
   | 'coversOn'
   | 'keyBeamLength'
   | 'hitEffectSize'
@@ -43,7 +39,7 @@ type PreviewSettings = Pick<
 >;
 
 /**
- * The gear as it will be played, in the settings: the skin, camera, lane width, side notes, note
+ * The gear as it will be played, in the settings: the parts picked, camera, lane width, side notes, note
  * colours, covers, hit effects and hi-speed in effect, with a short phrase coming down and played on
  * its own. Every change shows at once; `laneColors` shows colours not kept yet (one being picked).
  */
@@ -60,13 +56,13 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
   shownColours.current = colours;
 
   // what the renderer is built from; the camera, covers and speed change on a running one
-  const { skin: skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
+  const { parts, laneWidthScale, reducedFlash, barLines, hitEffectSize, sideNotes } = settings;
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
     let alive = true;
     let made: TrackRenderer | null = null;
-    const skin = withParts(skinById(skinId, customSkin), parts);
+    const skin = skinOf({ parts });
     void loadSkinArt(skin)
       .catch(() => null)
       .then((art) => {
@@ -79,7 +75,6 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
           camera: cameraConfig.presets[cameraConfig.default],
           trackWidth: cameraConfig.trackWidth * laneWidthScale,
           trackLength: cameraConfig.trackLength,
-          palette,
           reducedFlash,
           covers: { sudden: 0, hidden: 0, lift: 0 },
           skin,
@@ -100,7 +95,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
       if (renderer.current === made) renderer.current = null;
       made?.dispose();
     };
-  }, [keyMode, skinId, customSkin, parts, laneWidthScale, palette, reducedFlash, barLines, hitEffectSize, sideNotes]);
+  }, [keyMode, parts, laneWidthScale, reducedFlash, barLines, hitEffectSize, sideNotes]);
 
   useEffect(() => renderer.current?.setLaneColors(shownColours.current), [built, colourKey]);
 
@@ -133,7 +128,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
     watch.observe(el);
 
     const phrase = previewPhrase(keyModes[keyMode]);
-    const hitColor = GRADE_PALETTES[palette]['g-max'] ?? 0xffffff;
+    const hitColor = GRADE_COLORS['g-max'] ?? 0xffffff;
     const notes: SessionNote[] = [];
     const bars: number[] = [];
     let phrases = 0;
@@ -168,7 +163,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
       for (; next < notes.length && notes[next].t <= now; next++) {
         const n = notes[next];
         n.headDone = true;
-        r.hitEffect(n.lane, hitColor, perfNow, n.index);
+        r.hitEffect(n.lane, hitColor, perfNow);
         if (n.type === 'hold') held[n.lane] = n.index;
         else {
           n.tailDone = true;
@@ -179,7 +174,7 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
         if (index === null || notes[index].endT > now) return;
         notes[index].tailDone = true;
         held[lane] = null;
-        r.hitEffect(lane, hitColor, perfNow, index);
+        r.hitEffect(lane, hitColor, perfNow);
       });
       r.render(
         {
@@ -200,12 +195,12 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
       watch.disconnect();
       r.reset();
     };
-  }, [built, keyMode, palette]);
+  }, [built, keyMode]);
 
   return (
     <div className="gear-preview" ref={box} data-testid="gear-preview" data-lane-colors={colours.map(hexString).join(' ')}>
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
-      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">SUDDEN+ {coverText(settings.sudden)}</span>}
+      {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">노트 등장 위치 {coverText(settings.sudden)}</span>}
       <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
         <span className="label">보이는 시간</span>
         <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>

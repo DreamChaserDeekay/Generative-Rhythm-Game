@@ -75,7 +75,7 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
               </span>
             ) : null}
             <span>
-              <span className="label">SPEED</span> <b>{speedText(settings.hiSpeed)}</b>
+              <span className="label">노트 속도</span> <b>{speedText(settings.hiSpeed)}</b>
             </span>
           </p>
           {rules.length > 0 && (
