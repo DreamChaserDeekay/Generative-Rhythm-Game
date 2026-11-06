@@ -1,7 +1,7 @@
 """Song structure against the sections a person marked on real songs (docs/PATTERN_DESIGN.md 69).
 
     python scripts/measure_structure.py capture TRUTH.json CACHE --music DIR [--music DIR ...]
-    python scripts/measure_structure.py score TRUTH.json CACHE [--split SPLIT.json] [--songs] [--rules R,R…] [--parts P,P…]
+    python scripts/measure_structure.py score TRUTH.json CACHE [--split SPLIT.json] [--songs] [--rules R,R…] [--nodes N,N…] [--parts P,P…]
     python scripts/measure_structure.py score TRUTH.json CACHE --split SPLIT.json --sweep [--parts P,P…]
 
 TRUTH.json is what the marking page exports: {"songs": [{"file", "size", "durationS", "sections":
@@ -15,7 +15,7 @@ and prints numbers only (per-song lines with --songs):
   groupF      pairwise F of the repetition groups (two moments in one group in both)
   So Su       over- / under-segmentation (normalised conditional entropy of the groups, 1 = none)
   chP chR     share of the found chorus inside a marked chorus / of the marked chorus found
-  preview     the first found chorus starts inside a marked chorus
+  preview     the song preview (analyzer.preview_section) starts inside a marked chorus
 
 and the kinds of error: boundaries within 3 s but not 0.5 s (how many bars off), marked boundaries
 missed, found boundaries with nothing marked near, and time per (marked, found) label.
@@ -26,7 +26,9 @@ for a last check stay unseen.
 --rules turns on exactly the named label and boundary rules of the structure step (structure.
 LABEL_RULES, BOUNDARY_RULES; "none" is analyzer 1.11.0, "default" what the analyzer uses). --sweep
 scores "none", "default", each rule alone and the default without each rule, one line per rule set
-and part (docs/PATTERN_DESIGN.md 69-12).
+and part (docs/PATTERN_DESIGN.md 69-12). --nodes turns the learned nodes of analyzer 1.14.0 on or
+off ("none" is 1.13.0; "refine" moves section starts by a bar, "chorus" picks the chorus groups;
+docs/PATTERN_DESIGN.md 84). A cache from before 1.14.0 lacks the stem cues the chorus node reads.
 """
 
 from __future__ import annotations
@@ -48,6 +50,8 @@ from rhythm_server.analysis import structure as S  # noqa: E402
 from rhythm_server.config import SAMPLE_RATE  # noqa: E402
 
 FRAME_S = 0.5
+# StructureInputs fields a cache has only from analyzer 1.14.0 on (older caches replay without them)
+EXTRA = ("stem_energy", "stem_rise", "melody_hz", "onset_sources", "onset_melody", "onset_pitch")
 CHORUS = {"chorus", "drop"}
 LABELS = ("intro", "verse", "pre-chorus", "chorus", "bridge", "outro")
 
@@ -113,21 +117,27 @@ def capture(truth: dict, cache: Path, roots: list[str], force: bool) -> None:
             cache / f"{key}.npz", log_mel=x.log_mel.astype(np.float32), chroma=x.chroma.astype(np.float32), frame_rate=x.frame_rate,
             rms_db=x.rms_db.astype(np.float32), beats=x.beats, beat0=x.beat0, beats_per_bar=x.beats_per_bar, times=x.times,
             strength=x.strength, bands=x.bands, duration=len(pcm) / SAMPLE_RATE,
+            # instrument tagging (analyzer 1.14.0 and later): stems per coarse frame and per onset
+            **{k: np.asarray(getattr(x, k), dtype=np.float32) for k in EXTRA if getattr(x, k) is not None},
         )
         print(f"{key} {len(pcm) / SAMPLE_RATE:6.1f}s {len(x.beats)} beats", flush=True)
 
 
-def replay(z) -> tuple[list[float], list[str], list[str], float]:
-    """Section starts (s), labels and groups of the current structure step, and the bar length (s)."""
+def replay(z) -> tuple[list[float], list[str], list[str], float, float | None]:
+    """Section starts (s), labels and groups of the current structure step, the bar length (s) and
+    where the song preview starts (s; None without a chorus)."""
     x = A.StructureInputs(
         z["log_mel"].astype(np.float64), z["chroma"].astype(np.float64), float(z["frame_rate"]), z["rms_db"].astype(np.float64),
         z["beats"], int(z["beat0"]), int(z["beats_per_bar"]), z["times"], z["strength"], z["bands"],
+        **{k: z[k].astype(np.float64) for k in EXTRA if k in z.files},
     )
     secs = A.song_sections(x)
     beats = x.beats
     starts = [0.0] + [float(beats[s.start_beat]) for s in secs[1:]]
     bar = float(np.median(np.diff(beats))) * x.beats_per_bar if len(beats) > 1 else 2.0
-    return starts, [s.label for s in secs], [s.group for s in secs], bar
+    pre = A.preview_section(secs)
+    preview = None if pre is None else starts[secs.index(pre)]
+    return starts, [s.label for s in secs], [s.group for s in secs], bar, preview
 
 
 def matches(ref: list[float], est: list[float], window: float) -> list[tuple[int, int]]:
@@ -181,7 +191,7 @@ def nce(ref: list[str], est: list[str]) -> tuple[float, float]:
 
 
 def score_song(song: dict, z) -> dict:
-    est_t, est_l, est_g, bar = replay(z)
+    est_t, est_l, est_g, bar, first = replay(z)
     ref = sorted(song["sections"], key=lambda r: r["t"])
     ref_t = [0.0] + [float(r["t"]) for r in ref[1:]]
     ref_l = [r["label"] for r in ref]
@@ -197,7 +207,6 @@ def score_song(song: dict, z) -> dict:
     rg, eg = frames(ref_t, ref_g, n), frames(est_t, est_g, n)
     so, su = nce(rg, eg)
     rc, ec = np.array([x == "chorus" for x in rl]), np.array([x == "chorus" for x in el])
-    first = next((t for t, lab in zip(est_t, est_l) if lab == "chorus"), None)
     return {
         "HR.5F": f_measure(len(matches(ri, ei, 0.5)), len(ri), len(ei)),
         "HR3F": f_measure(len(near), len(ri), len(ei)),
@@ -252,6 +261,20 @@ def use_rules(spec: str) -> None:
         raise SystemExit(f"unknown rules: {', '.join(sorted(unknown))} (known: {', '.join(ALL_RULES)})")
     boundary = set(DEFAULT_RULES[1])
     S.LABEL_RULES, S.BOUNDARY_RULES = frozenset(names - boundary), frozenset(names & boundary)
+
+
+DEFAULT_NODES = {"refine": S.REFINE_WEIGHTS, "chorus": S.CHORUS_WEIGHTS}
+
+
+def use_nodes(spec: str) -> None:
+    """Turn on exactly the learned nodes in `spec` ("none", "default" or "refine,chorus"): the
+    boundary refinement and chorus nodes of analyzer 1.14.0 (docs/PATTERN_DESIGN.md 84)."""
+    names = set(DEFAULT_NODES) if spec == "default" else set() if spec == "none" else {n.strip() for n in spec.split(",") if n.strip()}
+    unknown = names - set(DEFAULT_NODES)
+    if unknown:
+        raise SystemExit(f"unknown nodes: {', '.join(sorted(unknown))} (known: {', '.join(DEFAULT_NODES)})")
+    S.REFINE_WEIGHTS = DEFAULT_NODES["refine"] if "refine" in names else None
+    S.CHORUS_WEIGHTS = DEFAULT_NODES["chorus"] if "chorus" in names else None
 
 
 def wanted(truth: dict, split: dict | None, parts: list[str] | None) -> dict[str, list[str]]:
@@ -322,11 +345,13 @@ def main() -> None:
     ap.add_argument("--rules", default="default", help='"none" (analyzer 1.11.0), "default", or rule names joined by commas')
     ap.add_argument("--parts", help="split parts to score, joined by commas (the rest stay unseen)")
     ap.add_argument("--sweep", action="store_true", help="score the rule sets of PATTERN_DESIGN 69-12 one line each")
+    ap.add_argument("--nodes", default="default", help='learned nodes: "none" (analyzer 1.13.0), "default", or "refine", "chorus" joined by commas')
     a = ap.parse_args()
     truth = json.load(open(a.truth, encoding="utf-8"))
     if a.mode == "capture":
         capture(truth, Path(a.cache), a.music, a.force)
         return
+    use_nodes(a.nodes)
     split = json.load(open(a.split, encoding="utf-8")) if a.split else None
     parts = [p.strip() for p in a.parts.split(",")] if a.parts else None
     if a.sweep:

@@ -28,7 +28,7 @@ from .tempo import drum_flux, estimate_tempo
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.13.0"
+ANALYZER_VERSION = "1.14.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -91,6 +91,14 @@ class StructureInputs:
     times: np.ndarray  # onsets (seconds), their strength and band shares
     strength: np.ndarray
     bands: np.ndarray
+    # what the instrument tagging found (coarse frames x 4 stems, and per onset); the structure
+    # nodes that need vocals or a leading instrument read these, older caches have none
+    stem_energy: np.ndarray | None = None
+    stem_rise: np.ndarray | None = None
+    melody_hz: np.ndarray | None = None
+    onset_sources: np.ndarray | None = None
+    onset_melody: np.ndarray | None = None
+    onset_pitch: np.ndarray | None = None
 
 
 def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -> list[Section]:
@@ -114,7 +122,39 @@ def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -
             return sections
     beat_strength = np.zeros(len(beats))
     np.add.at(beat_strength, np.clip(np.searchsorted(beats, x.times, side="right") - 1, 0, len(beats) - 1), x.strength)
-    return find_sections(features, beat_energy, x.beat0, bpb, beat_strength, float(np.median(np.diff(beats))))
+    return find_sections(features, beat_energy, x.beat0, bpb, beat_strength, float(np.median(np.diff(beats))), _beat_cues(x, beat_energy))
+
+
+def preview_section(sections: list[Section]) -> Section | None:
+    """Where the song preview starts: the first section of the chorus group heard most often (the
+    louder group on a tie, then the earlier). On the 30 marked songs this started inside a marked
+    chorus in 22 songs, the first chorus section in 19 (docs/PATTERN_DESIGN.md 84)."""
+    by: dict[str, list[Section]] = {}
+    for s in sections:
+        if s.label == "chorus":
+            by.setdefault(s.group, []).append(s)
+    if not by:
+        return None
+    best = max(by.values(), key=lambda cs: (len(cs), round(float(np.mean([c.energy for c in cs])), 3), -cs[0].start_beat))
+    return best[0]
+
+
+def _beat_cues(x: StructureInputs, beat_energy: np.ndarray) -> dict[str, np.ndarray]:
+    """Per-beat cues for the chorus node (structure.SECTION_CUES): loudness (dB) and the melody's
+    pitch (median MIDI note, NaN where there is none), with the beat times."""
+    cues: dict[str, np.ndarray] = {"time": np.asarray(x.beats, dtype=np.float64), "loud": beat_energy}
+    if x.melody_hz is not None and len(x.melody_hz) and np.any(np.nan_to_num(x.melody_hz) > 0):
+        hz = np.nan_to_num(np.asarray(x.melody_hz, dtype=np.float64), nan=0.0)
+        midi = np.where(hz > 0, 69.0 + 12.0 * np.log2(np.maximum(hz, 1e-6) / 440.0), np.nan)
+        frames = np.clip(np.round(x.beats * x.frame_rate).astype(int), 0, len(midi) - 1)
+        ends = np.append(frames[1:], len(midi))
+        pitch = np.full(len(frames), np.nan)
+        for i, (a, b) in enumerate(zip(frames, ends)):
+            seg = midi[a : max(b, a + 1)]
+            if np.isfinite(seg).any():
+                pitch[i] = float(np.nanmedian(seg))
+        cues["pitch"] = pitch
+    return cues
 
 
 def _frame_rms_db(mono: np.ndarray, hop: int, size: int) -> np.ndarray:
@@ -257,12 +297,19 @@ def analyze(
     fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
     log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
     rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
-    sections = song_sections(StructureInputs(log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands), ml_struct)
+    sections = song_sections(
+        StructureInputs(
+            log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands,
+            stem_energy=stem_act.energy, stem_rise=stem_act.rise, melody_hz=stem_act.melody_hz,
+            onset_sources=shares, onset_melody=melody, onset_pitch=pitch_arr,
+        ),
+        ml_struct,
+    )
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
     preview_ms = 0.0
-    chorus = next((s for s in sections if s.label == "chorus"), None)
+    chorus = preview_section(sections)
     if chorus is not None:
         preview_ms = float(beat_ms[chorus.start_beat])
     elif len(rms_db):
