@@ -11,7 +11,12 @@ on:
 
 jobs:
   allin1:
-    runs-on: windows-latest
+    # PyTorch 2.1's headers against the newest MSVC (windows-latest: Visual Studio 2026) or VS 2022
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     env:
       # the MSVC environment comes from msvc-dev-cmd: torch's extension builder must not set it up again
@@ -37,12 +42,24 @@ jobs:
       - name: Build NATTEN 0.14.6 from source (CPU)
         id: natten
         run: |
-          set -x
           export NATTEN_N_WORKERS=4
-          # the sdist on PyPI first, the git tag as the fallback
-          pip install --no-build-isolation -v "natten==0.14.6" 2>&1 | tail -n 60 \
-            || pip install --no-build-isolation -v "git+https://github.com/SHI-Labs/NATTEN@v0.14.6" 2>&1 | tail -n 80
+          cl 2>&1 | head -n 1 || true
+          status=0
+          pip install --no-build-isolation -v "natten==0.14.6" > natten_build.log 2>&1 || status=$?
+          echo "pip exit $status, log $(wc -l < natten_build.log) lines"
+          # the compiler's own messages (the traceback after them only says the build failed)
+          grep -nE "error C[0-9]{4}|fatal error|error LNK|: error|FAILED:" natten_build.log | head -n 60 || true
+          tail -n 15 natten_build.log
+          [ "$status" = 0 ]
           python -c "import natten; from natten.functional import natten1dqkrpb, natten1dav; print('natten', natten.__version__)"
+
+      - name: Keep the NATTEN build log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: natten-build-log-${{ matrix.os }}
+          path: natten_build.log
+          if-no-files-found: ignore
 
       - name: madmom from GitHub and allin1
         run: |
