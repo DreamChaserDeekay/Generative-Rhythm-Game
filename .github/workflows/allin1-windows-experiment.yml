@@ -46,8 +46,14 @@ jobs:
           cl 2>&1 | head -n 1 || true
           # NATTEN 0.14.6's CPU dispatch macros are GCC statement expressions, ({ ... }), which MSVC
           # does not have; they are only used as statements, so do { ... } while (0) is the same code
-          pip download --no-deps --no-binary :all: "natten==0.14.6" -d sdist
-          tar -xzf sdist/natten-0.14.6.tar.gz
+          # the source archive straight from PyPI (pip download would run setup.py without torch)
+          python - <<'PY'
+          import json, urllib.request
+          meta = json.load(urllib.request.urlopen("https://pypi.org/pypi/natten/0.14.6/json"))
+          url = next(u["url"] for u in meta["urls"] if u["packagetype"] == "sdist")
+          urllib.request.urlretrieve(url, "natten-0.14.6.tar.gz")
+          PY
+          tar -xzf natten-0.14.6.tar.gz
           h=natten-0.14.6/src/natten/csrc/cpu/natten_cpu_commons.h
           sed -i -E 's/^\(\{([[:space:]]*\\)$/do {\1/; s/^\}\)[[:space:]]*$/} while (0)/' "$h"
           echo "statement expressions left: $(grep -cE '^\(\{|^\}\)' "$h" || true)"
