@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import shutil
 import subprocess
 import time
@@ -109,7 +110,7 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
 
 def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkeypatch) -> None:
     """The top tier of a song too calm for it (difficulty.json songFit) is a 404, worked out once."""
-    import rhythm_server.api.app as app_module
+    import rhythm_server.generator.workers as chart_maker  # where the server makes its charts
     from rhythm_server.config import difficulty_config
 
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
@@ -117,8 +118,8 @@ def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkey
     monkeypatch.setitem(fit, "from", 99.0)
     monkeypatch.setitem(fit, "to", 100.0)
     made = []
-    real = app_module.generate_chart
-    monkeypatch.setattr(app_module, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
+    real = chart_maker.generate_chart
+    monkeypatch.setattr(chart_maker, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
     req = {"keyMode": "7K+1S", "difficulty": "MASTER", "brief": True}
     for _ in range(2):
         r = client.post(f"/api/songs/{song['id']}/charts", json=req)
@@ -319,6 +320,55 @@ def test_decoding_other_formats(tmp_path) -> None:
     sf.write(mono, np.mean(song.pcm, axis=1), 48000)
     pcm = audio_io.decode_audio(mono)
     assert pcm.shape[1] == 2  # resampled to 44.1k stereo
+
+
+def test_the_canonical_audio_is_known_before_its_file_is_written(tmp_path) -> None:
+    """audio_io.canonical_pcm gives what the 16-bit FLAC gives back, bit for bit (the sign of zero
+    too), so an upload's analysis can start on it while the file is written."""
+    from rhythm_server import audio_io
+
+    rng = np.random.default_rng(4)
+    cases = [
+        synth(128.0, 4, 3).pcm,
+        rng.uniform(-1.0, 1.0, (50000, 2)),
+        rng.normal(0.0, 1.5, (50000, 2)),  # louder than full scale: normalized first
+        rng.normal(0.0, 1e-5, (20000, 2)),  # mostly zeros, rounded from both sides
+    ]
+    for pcm in cases:
+        pcm = np.ascontiguousarray(pcm, dtype=np.float32)
+        audio_io.write_canonical(tmp_path / "a.flac", pcm)
+        back, sr = audio_io.read_canonical(tmp_path / "a.flac")
+        known = audio_io.canonical_pcm(pcm)
+        assert known is not None and sr == 44100
+        assert known.dtype == back.dtype and np.array_equal(known.view(np.int32), back.view(np.int32))
+    bad = np.zeros((100, 2), dtype=np.float32)
+    bad[5] = np.nan
+    assert audio_io.canonical_pcm(bad) is None
+
+
+def test_an_upload_starts_its_analysis_before_its_file_is_written(tmp_path) -> None:
+    from rhythm_server import audio_io
+    from rhythm_server.analysis.analyzer import analyze
+
+    app = create_app(tmp_path / "data", client_dist=None, chart_workers=0)
+    queue = app.state.queue
+    handed: list[bool] = []
+    submit = queue.submit
+    queue.submit = lambda song_id, pcm=None: handed.append(pcm is not None) or submit(song_id, pcm=pcm)
+    with TestClient(app) as c:
+        song = c.post("/api/songs", files={"file": ("groove.wav", wav_bytes(), "audio/wav")}).json()["song"]
+        end = time.monotonic() + 120
+        while (song := c.get(f"/api/songs/{song['id']}").json()["song"])["status"] not in ("ready", "error"):
+            assert time.monotonic() < end
+            time.sleep(0.02)
+        assert song["status"] == "ready" and handed == [True]
+        lib = c.app.state.library
+        assert c.get(f"/api/songs/{song['id']}/audio").status_code == 200
+        assert not list(lib.song_dir(song["id"]).glob("*.part"))
+        # the analysis is the one the file gives
+        pcm, sr = audio_io.read_canonical(lib.audio_path(song["id"]))
+        made = json.dumps(analyze(pcm, sr, song["audioHash"], overrides={}), sort_keys=True)
+        assert json.dumps(lib.load_analysis(song["id"]), sort_keys=True) == made
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs the ffmpeg CLI to build a tagged file")

@@ -90,6 +90,8 @@ const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m
 const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
 /** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
 const PREFETCH_DELAY_MS = 300;
+/** The song list is asked for this often while a song is analyzed (its progress, the moment it is ready). */
+const ANALYSIS_POLL_MS = 400;
 /** A server that does not answer is asked again this often. */
 const RECONNECT_MS = 3000;
 
@@ -265,11 +267,11 @@ export function SongSelectScreen(props: Props) {
     if (firstRun && panel === 'none') startPanel.current?.querySelector<HTMLElement>('button')?.focus();
   }, [firstRun, panel]);
 
-  // Poll while something is being analyzed.
+  // Poll while something is being analyzed (a song turning ready is seen soon: its charts are made then).
   const analyzing = songs.some((s) => s.status === 'queued' || s.status === 'analyzing');
   useEffect(() => {
     if (!analyzing) return;
-    const id = window.setInterval(() => void refresh(), 800);
+    const id = window.setInterval(() => void refresh(), ANALYSIS_POLL_MS);
     return () => window.clearInterval(id);
   }, [analyzing, refresh]);
 
@@ -326,12 +328,16 @@ export function SongSelectScreen(props: Props) {
   // (a song whose saved chart was chosen last waits for its list: that chart is the one wanted first)
   const entryLoading = picked !== null && !savedLoaded;
   const prefetchKey = selected && ready && !entryLoading ? `${tiers.map((t) => tierChart(selected, t.id).key).join(' ')} ${entryChartKey}` : null;
+  // the song the cursor stayed on while it was analyzed: once ready, its charts are asked for at
+  // once (the server started them as the analysis ended; the cursor has rested long enough)
+  const analyzedUnderCursor = useRef<string | null>(null);
   useEffect(() => {
     if (!selected || !ready || prefetchKey === null) return;
     const song = selected;
     const entry = savedEntry;
     const at = difficulty;
     let alive = true;
+    const delay = analyzedUnderCursor.current === song.id ? 0 : PREFETCH_DELAY_MS;
     const timer = window.setTimeout(async () => {
       if (entry) await chartStore.loadSaved(entry.chartId);
       else await loadTier(song, at, true);
@@ -346,12 +352,16 @@ export function SongSelectScreen(props: Props) {
         return c.chartId !== null && chartStore.failure(c.key) === 404;
       });
       if (alive && gone.length > 0) onSettingsChange(gone.reduce((next, t) => withPattern(next, tierKey(song, t.id), null), current.current));
-    }, PREFETCH_DELAY_MS);
+    }, delay);
     return () => {
       alive = false;
       window.clearTimeout(timer);
     };
   }, [prefetchKey, health]);
+  // (after the effect above, which reads it when the song turns ready)
+  useEffect(() => {
+    analyzedUnderCursor.current = selected && !ready ? selected.id : null;
+  }, [selected?.id, ready]);
 
   // Highlight preview of the selected song: fades in, loops, fades out when leaving the song. It
   // plays on behind the settings (App), so coming back from them keeps the one playing; until the
