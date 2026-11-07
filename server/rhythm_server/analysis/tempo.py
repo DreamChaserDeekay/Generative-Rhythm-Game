@@ -189,29 +189,44 @@ def beat_level_bpm(odf: np.ndarray, frame_rate: float) -> float:
     return 60.0 * frame_rate / lag
 
 
-def _kernel(period: float) -> np.ndarray:
-    """Comb template sampled at phase offsets m / PHASE_BINS."""
-    u = np.arange(PHASE_BINS) / PHASE_BINS
-    sigma = KERNEL_SIGMA_S / period
-    k = np.zeros(PHASE_BINS)
-    for pos, weight in COMB:
-        d = np.abs(u - pos)
-        d = np.minimum(d, 1 - d)
-        k += weight * np.exp(-0.5 * (d / sigma) ** 2)
+# the comb's circular distance to each of its teeth, per phase bin (the kernel's period-free part)
+_PHASE_DIST = []
+for _pos, _weight in COMB:
+    _d = np.abs(np.arange(PHASE_BINS) / PHASE_BINS - _pos)
+    _PHASE_DIST.append((np.minimum(_d, 1 - _d), _weight))
+# rows of candidate grids scored in one batch: about this many onset-by-grid cells at most
+_BATCH_CELLS = 1 << 21
+
+
+def _kernels(periods: np.ndarray) -> np.ndarray:
+    """Comb templates sampled at phase offsets m / PHASE_BINS, one row per period."""
+    sigma = (KERNEL_SIGMA_S / periods)[:, None]
+    k = np.zeros((len(periods), PHASE_BINS))
+    for d, weight in _PHASE_DIST:
+        k += weight * np.exp(-0.5 * (d[None, :] / sigma) ** 2)
     return k
+
+
+def _phase_scores_many(times: np.ndarray, weights: np.ndarray, periods: np.ndarray) -> np.ndarray:
+    """Alignment score for every phase bin (circular correlation of onsets with the comb), one row
+    per period. All the periods go through numpy at once: scoring them one by one was 20,000 small
+    FFT calls on a 4-minute song, most of the tempo step's time; the numbers are the same."""
+    n = len(periods)
+    u = np.mod(times[None, :] / periods[:, None], 1.0)
+    bins = np.minimum((u * PHASE_BINS).astype(int), PHASE_BINS - 1)
+    bins += (np.arange(n) * PHASE_BINS)[:, None]
+    hist = np.bincount(bins.ravel(), weights=np.broadcast_to(weights, bins.shape).ravel(), minlength=n * PHASE_BINS)
+    hist = hist.reshape(n, PHASE_BINS)
+    # score[p] = sum_q hist[q] * K(q - p): circular cross-correlation
+    return np.real(np.fft.ifft(np.fft.fft(hist, axis=1) * np.conj(np.fft.fft(_kernels(periods), axis=1)), axis=1))
 
 
 def _phase_scores(times: np.ndarray, weights: np.ndarray, period: float) -> np.ndarray:
     """Alignment score for every phase bin (circular correlation of onsets with the comb)."""
-    u = np.mod(times / period, 1.0)
-    hist = np.bincount(np.minimum((u * PHASE_BINS).astype(int), PHASE_BINS - 1), weights=weights, minlength=PHASE_BINS)
-    # score[p] = sum_q hist[q] * K(q - p): circular cross-correlation
-    return np.real(np.fft.ifft(np.fft.fft(hist) * np.conj(np.fft.fft(_kernel(period)))))
+    return _phase_scores_many(times, weights, np.array([period], dtype=np.float64))[0]
 
 
-def _best_phase(times: np.ndarray, weights: np.ndarray, period: float) -> tuple[float, float]:
-    """Phase (s) of the best-aligned grid; bin p stands for a grid point at (p + 0.5) / PHASE_BINS."""
-    scores = _phase_scores(times, weights, period)
+def _peak_phase(scores: np.ndarray, period: float) -> tuple[float, float]:
     i = int(np.argmax(scores))
     a, b, c = scores[(i - 1) % PHASE_BINS], scores[i], scores[(i + 1) % PHASE_BINS]
     denom = a - 2 * b + c
@@ -220,16 +235,30 @@ def _best_phase(times: np.ndarray, weights: np.ndarray, period: float) -> tuple[
     return phase, float(b)
 
 
+def _best_phase(times: np.ndarray, weights: np.ndarray, period: float) -> tuple[float, float]:
+    """Phase (s) of the best-aligned grid; bin p stands for a grid point at (p + 0.5) / PHASE_BINS."""
+    return _peak_phase(_phase_scores(times, weights, period), period)
+
+
+def _best_phases(times: np.ndarray, weights: np.ndarray, periods: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(phases, scores) of _best_phase for every period, scored in batches."""
+    phases = np.empty(len(periods))
+    scores = np.empty(len(periods))
+    rows = max(1, _BATCH_CELLS // max(1, len(times)))
+    for start in range(0, len(periods), rows):
+        chunk = periods[start : start + rows]
+        for k, (row, period) in enumerate(zip(_phase_scores_many(times, weights, chunk), chunk)):
+            phases[start + k], scores[start + k] = _peak_phase(row, period)
+    return phases, scores
+
+
 def fit_grid(times: np.ndarray, weights: np.ndarray, bpm_guess: float, search: float = 0.03) -> GridFit:
     """Best (bpm, phase) near `bpm_guess` by coarse-to-fine search over the comb alignment."""
     total = float(np.sum(weights)) + 1e-12
     norm = sum(w for _, w in COMB)
 
     def evaluate(bpms: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        scores = np.empty(len(bpms))
-        phases = np.empty(len(bpms))
-        for k, bpm in enumerate(bpms):
-            phases[k], scores[k] = _best_phase(times, weights, 60.0 / bpm)
+        phases, scores = _best_phases(times, weights, 60.0 / bpms)
         return scores, phases
 
     lo, hi = bpm_guess * (1 - search), bpm_guess * (1 + search)
