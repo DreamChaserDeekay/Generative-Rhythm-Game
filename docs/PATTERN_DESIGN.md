@@ -6427,3 +6427,38 @@ BMS 60곡(85장과 같은 곡)을 다시 받아 키음으로 믹스를 만들었
 | **최종**(음성 ELITE부터, 상한 없음) | **76.4** | 75.8 | 85.2 | 67.1 | 0.660 |
 
 음성을 HARD부터 켠 쪽이 7키 사람 채보에는 가장 가까웠지만(+1.6), HARD · EXPERT 채보가 전제한 "같은 음악은 같은 노트"의 테스트 14건과 부딪혀 ELITE부터로 두었다(다음 과제: 그 테스트들이 사람 채보를 재는지 우리 설계를 재는지 가리기). 레인 이동 n-gram 비용(44장)은 이제 끄는 쪽이 0.3 가깝고 합성곡 가드 테스트도 깨져 `xfail`로 두었다(끌지는 따로 판단).
+
+## 88. allin1을 Windows 설치 파일에 넣을 수 있는가 (실험, 앱은 그대로)
+
+곡 구조 백엔드 allin1(69-9)은 Linux · Docker에서만 돌려 봤다. 설치 파일에 넣을 수 있는지 GitHub Actions의 Windows 러너에서 시험했다(`.github/workflows/allin1-windows-experiment.yml`, 수동 실행 전용). 걸림돌은 의존성 NATTEN이었다: allin1 1.1.0(2023-10, 마지막 판)은 `natten.functional.natten1dqkrpb` · `natten1dav`를 쓰는데 이 함수는 NATTEN 0.14.x에만 있고, NATTEN은 어느 판도 Windows 휠이 없다.
+
+### 88-1. 조합과 결과
+
+Python 3.11, CPU PyTorch 2.1.2, NATTEN 0.14.6(소스 빌드), madmom 0.17.dev0(GitHub), allin1 1.1.0, Demucs 4.0.1. Visual Studio 2026(MSVC 19.51, `windows-latest`)과 2022(MSVC 19.44, `windows-2022`) 두 러너에서 모두 통과했다(실행 8).
+
+| | VS 2026 러너 | VS 2022 러너 |
+|---|---|---|
+| NATTEN 빌드 | 81초 | 113초 |
+| allin1 24초 합성 클립(첫 실행, 가중치 내려받기 포함) | 35초 | 68초 |
+| BPM · 박 · 다운비트(정답 120 · 48 · 12) | 120 · 47 · 12 | 120 · 47 · 11 |
+| 우리 서버의 백엔드 인식 | structure allin1-1.1.0, stems demucs-4.0.1 | 같음 |
+
+합성 클립에는 구간이 없어 구간은 intro 하나였다(정상). 실제 곡의 분석 시간은 재지 않았다(69-9의 Linux CPU에서는 곡당 20분 안팎).
+
+### 88-2. 고친 것 (워크플로 안에서만)
+
+1. setuptools를 70 아래로: PyTorch 2.1의 확장 빌더가 `pkg_resources`를 쓴다.
+2. `DISTUTILS_USE_SDK=1`: MSVC 환경을 미리 켰으니 PyTorch가 다시 켜지 않게.
+3. NATTEN 0.14.6의 CPU 분기 매크로 두 개(`natten_cpu_commons.h`)가 GCC 전용 문법(statement expression, `({ … })`)이라 MSVC가 읽지 못한다(C3409 · C2059). 문장으로만 쓰이므로 `do { … } while (0)`로 바꿨다. 바꾼 매크로가 엄격한 C++17로 컴파일되고 같은 템플릿으로 분기하는지 먼저 확인했다. NATTEN에 Windows 휠이 없던 직접 원인으로 보인다.
+4. Git Bash가 MSVC 링커 대신 유닉스 `link`를 집지 않게 MSVC 도구 폴더를 PATH 맨 앞에.
+5. NATTEN 소스 압축 파일에 든 옛 `natten.egg-info`(작성자 PC의 절대 경로)를 지운다.
+
+### 88-3. 라이선스 · 크기
+
+- allin1은 madmom의 신호 처리(STFT · 필터 스펙트로그램)와 DBN 다운비트 디코더(`DBNDownBeatTrackingProcessor`)만 쓰고, 입력은 allin1 자신의 활성값이다. madmom의 사전학습 모델(`madmom/models`, CC BY-NC-SA)은 쓰지 않는다(allin1 1.1.0 소스 확인). 묶을 때 그 폴더를 빼면 비상업 라이선스 문제가 빠진다. allin1 가중치(harmonix-all)는 라이선스가 밝혀져 있지 않아 지금처럼 첫 실행 때 내려받게 둔다.
+- 설치된 크기: PyTorch 2.1.2 CPU 1,059 MB(지금 ML판 서버 묶음 전체 784 MB보다 크다), scipy 118, numpy 33, matplotlib 33, madmom 32(모델 포함), NATTEN 1.9, allin1 0.3 MB. 설치 파일 크기는 PyInstaller로 묶어 봐야 안다(재지 않음).
+
+### 88-4. 판단과 남은 것
+
+- 기술적으로는 세 번째 설치 파일("구조 분석판")이 된다. 기본판 · ML판은 그대로 두고 따로 만드는 편이 맞다: PyTorch를 2.1로 고정해야 해서 ML판(PyTorch 2.11)과 섞을 수 없다.
+- 만들기 전에 확인할 것: 우리 Demucs 백엔드가 Demucs 4.0.1 · PyTorch 2.1에서 6스템을 그대로 쓰는지(ML판은 4.1), PyInstaller가 NATTEN의 `_C.pyd` · madmom의 Cython 확장을 묶는지, 실제 곡 하나의 분석 시간, 보컬 없는 곡은 기본 분석을 쓰게 하는 선택(69-9).
