@@ -7,7 +7,9 @@ playback both use that file, so decoder differences (MP3 encoder delay, etc.) ca
 from __future__ import annotations
 
 import hashlib
+import io
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import av
@@ -63,6 +65,53 @@ def write_canonical(path: Path, pcm: np.ndarray, sample_rate: int = SAMPLE_RATE)
 def read_canonical(path: Path) -> tuple[np.ndarray, int]:
     pcm, sr = sf.read(str(path), dtype="float32", always_2d=True)
     return pcm, int(sr)
+
+
+def _as_flac16(pcm: np.ndarray) -> np.ndarray:
+    """libsndfile's FLAC 16-bit samples of float PCM, read back as float: round(x * 32768) to the
+    nearest (ties to even), clipped to the 16-bit range, over 32768 (all exact in float32). A tiny
+    negative sample rounds to -0.0 where the file holds 0: adding 0.0 makes it +0.0."""
+    q = pcm * np.float32(32768.0)
+    np.rint(q, out=q)
+    np.clip(q, -32768.0, 32767.0, out=q)
+    q += np.float32(0.0)
+    q /= np.float32(32768.0)
+    return q
+
+
+@lru_cache(maxsize=1)
+def _flac16_known() -> bool:
+    """Whether this libsndfile writes and reads 16-bit FLAC as _as_flac16 says (ties, both ends of
+    the range, past them, tiny and random values)."""
+    rng = np.random.default_rng(0)
+    probe = np.concatenate([
+        (np.arange(-33000, 33000, dtype=np.float64) + 0.5) / 32768.0,
+        np.array([0.0, -0.0, 1.0, -1.0, 0.99999, -0.99999, 1.0 - 2.0**-24, 1e-9, -1e-9]),
+        rng.uniform(-1.0, 1.0, 20000), rng.normal(0.0, 1e-4, 4000),
+    ]).astype(np.float32)
+    probe = np.ascontiguousarray(np.stack([probe, probe[::-1]], axis=1))
+    buf = io.BytesIO()
+    try:
+        sf.write(buf, probe, SAMPLE_RATE, format="FLAC", subtype="PCM_16")
+        buf.seek(0)
+        back = sf.read(buf, dtype="float32", always_2d=True)[0]
+    except Exception:
+        return False
+    # bit for bit (the sign of zero too)
+    return back.shape == probe.shape and np.array_equal(back.view(np.int32), _as_flac16(probe).view(np.int32))
+
+
+def canonical_pcm(pcm: np.ndarray) -> np.ndarray | None:
+    """The PCM `read_canonical` gives back once `write_canonical` has stored `pcm`, without the file
+    (the analysis can start on it while the file is written). None when that cannot be worked out
+    here (the file is read then): a libsndfile that rounds otherwise, or samples that are not
+    finite."""
+    if pcm.dtype != np.float32 or pcm.ndim != 2 or not pcm.size or not np.isfinite(pcm).all() or not _flac16_known():
+        return None
+    peak = float(np.max(np.abs(pcm)))
+    if peak > 1.0:
+        pcm = pcm / peak
+    return np.ascontiguousarray(_as_flac16(pcm))
 
 
 def _metadata_value(meta: dict[str, str], key: str) -> str | None:

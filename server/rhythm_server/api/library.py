@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -126,6 +128,8 @@ class Library:
         for sub in ("songs", "charts", "replays", "tmp"):
             (root / sub).mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        # songs whose canonical audio is being written while their analysis already runs
+        self._writing: dict[str, threading.Event] = {}
         self._db = sqlite3.connect(str(root / "library.sqlite3"), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         with self._lock:
@@ -200,8 +204,14 @@ class Library:
         return self.root / "tmp" / f"{time.time_ns()}{suffix}"
 
     # ---------- songs ----------
-    def add_song_file(self, src: Path, original_name: str) -> tuple[dict[str, Any], bool]:
-        """Import an audio file. Returns (song, created); a duplicate file returns the existing song."""
+    def add_song_file(
+        self, src: Path, original_name: str, start: Callable[[str, np.ndarray], None] | None = None
+    ) -> tuple[dict[str, Any], bool]:
+        """Import an audio file. Returns (song, created); a duplicate file returns the existing song.
+        `start(song_id, pcm)`: called with the decoded audio as the canonical file will give it back
+        (audio_io.canonical_pcm), once the song is in the library and before that file is written:
+        its analysis starts meanwhile (wait_audio waits for the file). Not called when that audio
+        cannot be worked out here."""
         digest = audio_io.file_sha256(src)
         song_id = digest[:16]
         existing = self._row(song_id)
@@ -215,7 +225,9 @@ class Library:
         shutil.move(str(src), original)
         try:
             pcm = audio_io.decode_audio(original)
-            audio_io.write_canonical(self.audio_path(song_id), pcm)
+            early = audio_io.canonical_pcm(pcm) if start is not None else None
+            if early is None:
+                self._write_audio(song_id, pcm)
             tags = audio_io.read_tags(original)
             cover = audio_io.read_cover(original)
         except Exception:
@@ -225,8 +237,35 @@ class Library:
             data, mime = cover
             (song_dir / ("cover.png" if "png" in mime else "cover.jpg")).write_bytes(data)
         title = tags.title or Path(original_name).stem or "Untitled"
+        if early is not None:
+            written = self._writing[song_id] = threading.Event()
         self._insert_song(song_id, title, tags.artist or "", tags.album or "", original_name, f"sha256:{digest}", len(pcm) / SAMPLE_RATE * 1000.0, cover is not None)
+        if early is not None:
+            assert start is not None
+            try:
+                start(song_id, early)
+                del early
+                self._write_audio(song_id, pcm)
+            except Exception:
+                self.delete_song(song_id)
+                raise
+            finally:
+                written.set()
+                self._writing.pop(song_id, None)
         return self.get_song(song_id), True
+
+    def _write_audio(self, song_id: str, pcm: np.ndarray) -> None:
+        """The canonical audio, under its name only once whole (a song may be read while written)."""
+        path = self.audio_path(song_id)
+        part = path.with_name(path.name + ".part")
+        audio_io.write_canonical(part, pcm)
+        os.replace(part, path)
+
+    def wait_audio(self, song_id: str, timeout: float = 300.0) -> None:
+        """Returns once the song's canonical audio is written (an upload whose analysis started first)."""
+        written = self._writing.get(song_id)
+        if written is not None:
+            written.wait(timeout)
 
     def add_generated_song(self, pcm: np.ndarray, title: str, artist: str) -> dict[str, Any]:
         """Import PCM made in-process (the synthetic demo track)."""

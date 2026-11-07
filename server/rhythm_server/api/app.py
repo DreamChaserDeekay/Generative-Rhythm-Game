@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import logging
 import os
@@ -33,11 +34,12 @@ from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
 from ..formats.images import MAX_IMAGE_BYTES, MEDIA_TYPES, image_kind
 from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, extract_images, safe_relpath
-from ..generator import GENERATOR_VERSION, GenerationError, TierNotMade, chart_id_for, default_seed, generate_chart
+from ..generator import GENERATOR_VERSION, GenerationError, TierNotMade, chart_id_for, default_seed
 from ..generator.sections import edited_analysis
 from .sketch import sketch_of
 from ..generator.core import keysound_meta
 from ..generator.params import resolve_params
+from ..generator.workers import AHEAD, BRIEF, WHOLE, ChartMaker, default_workers
 from ..synth import make_song
 from .imports import import_package
 from .jobs import AnalysisQueue
@@ -157,22 +159,35 @@ def create_app(
     client_dist: Path | None = CLIENT_DIST,
     synchronous_jobs: bool = False,
     shutdown_token: str | None = None,
+    chart_workers: int | None = None,
 ) -> FastAPI:
     """`shutdown_token`: the desktop app's, for POST /api/shutdown (a later launch stops the server
-    an earlier one left behind on its port); None: no such route."""
+    an earlier one left behind on its port); None: no such route. `chart_workers`: processes that
+    make charts (generator/workers.py); None: one per core but one (none with synchronous jobs, as
+    in the tests: their charts are made in the server's threads)."""
     library = Library(root or data_dir())
-    # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
-    queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id: ensure_stems(song_id))
+    # stems for keysounds are separated right after each analysis (ensure_stems is defined below);
+    # a song just analyzed has its charts made ahead (make_ahead, below)
+    queue = AnalysisQueue(
+        library,
+        synchronous=synchronous_jobs,
+        after_analysis=lambda song_id: ensure_stems(song_id),
+        on_ready=lambda song_id: make_ahead(song_id),
+    )
+    maker = ChartMaker(chart_workers if chart_workers is not None else 0 if synchronous_jobs else default_workers())
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        maker.start()
         queue.resume_pending()
         yield
         queue.shutdown()
+        maker.close()
 
     app = FastAPI(title="Generative Rhythm Game server", version=__version__, lifespan=lifespan)
     app.state.library = library
     app.state.queue = queue
+    app.state.charts = maker
 
     def song_or_404(song_id: str) -> dict[str, Any]:
         try:
@@ -264,14 +279,22 @@ def create_app(
                     tmp.unlink(missing_ok=True)
                     raise HTTPException(413, "파일이 너무 큽니다 (최대 300MB)")
                 out.write(chunk)
+        # with no analysis ahead of it, the song's analysis starts on the decoded audio while its
+        # canonical file is written
+        started: list[str] = []
+
+        def start(song_id: str, pcm: Any) -> None:
+            queue.submit(song_id, pcm=pcm)
+            started.append(song_id)
+
         try:
-            song, created = library.add_song_file(tmp, name)
+            song, created = library.add_song_file(tmp, name, start=start if queue.starts_now() else None)
         except Exception as e:
             tmp.unlink(missing_ok=True)
             raise HTTPException(422, f"오디오를 읽지 못했습니다: {e}") from e
-        if created or song["status"] == "error":
+        if (created or song["status"] == "error") and song["id"] not in started:
             queue.submit(song["id"])
-            song = library.get_song(song["id"])
+        song = library.get_song(song["id"])
         return {"song": annotate([song])[0], "created": created}
 
     @app.post("/api/songs/demo", status_code=201)
@@ -391,6 +414,7 @@ def create_app(
     @app.get("/api/songs/{song_id}/audio")
     def song_audio(song_id: str) -> FileResponse:
         song_or_404(song_id)
+        library.wait_audio(song_id)
         path = library.audio_path(song_id)
         if not path.exists():
             raise HTTPException(404, "오디오 파일이 없습니다")
@@ -471,6 +495,11 @@ def create_app(
     # tiers a song has no chart on (its top tier on a calm song): the generator's answer, worked out
     # over a whole level fit, is kept so the song select's next visit does not make it again
     not_made: OrderedDict[str, str] = OrderedDict()
+    # charts made ahead come in from the chart maker's thread
+    briefs_lock = threading.Lock()
+    # the key mode and options charts were last asked for whole (and the tier): a song analyzed
+    # next has that key mode's tiers made ahead
+    last_asked: dict[str, Any] = {}
 
     def keep(cache: OrderedDict[str, Any], key: str, value: Any, size: int) -> None:
         cache[key] = value
@@ -478,16 +507,74 @@ def create_app(
         while len(cache) > size:
             cache.popitem(last=False)
 
+    def chart_analysis(song: dict[str, Any]) -> dict[str, Any] | None:
+        """The analysis charts of the song are made from (with the user's sections)."""
+        analysis = library.load_analysis(song["id"])
+        if analysis is not None and song.get("sections"):
+            analysis = edited_analysis(analysis, song["sections"])
+        return analysis
+
+    def chart_meta(song: dict[str, Any]) -> dict[str, Any]:
+        return {"songId": song["id"], "title": song["title"], "artist": song["artist"]}
+
+    def keep_made(chart_id: str, job: Any) -> None:
+        """A chart made ahead goes where a brief one would."""
+        try:
+            chart = job.result()
+        except TierNotMade as e:
+            with briefs_lock:
+                keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
+            return
+        except Exception:
+            return  # asked for, it is made again and the error answered then
+        with briefs_lock:
+            keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
+            keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
+
+    def make_tiers_ahead(song: dict[str, Any], analysis: dict[str, Any], key_mode: str, options: dict[str, Any], tiers: list[str]) -> None:
+        """Starts the default charts of `tiers` (their own seeds, no target level) that are not made
+        yet: the song select asks for them next (each tier's level on its plate)."""
+        for tier in tiers:
+            try:
+                params = resolve_params(key_mode, tier, None, options)
+            except (ValueError, StopIteration):
+                return
+            seed = default_seed(analysis["audioHash"], key_mode, params.difficulty, params.target_level)
+            chart_id = chart_id_for(analysis, key_mode, params, seed)
+            with briefs_lock:
+                if chart_id in brief_metas or chart_id in not_made:
+                    continue
+            if library.chart_path(chart_id).exists():
+                continue
+            job, new = maker.job(chart_id, AHEAD, (analysis, key_mode, tier, None, seed, options, chart_meta(song)))
+            if new:
+                job.add_done_callback(lambda j, c=chart_id: keep_made(c, j))
+
+    def make_ahead(song_id: str) -> None:
+        """A song just analyzed (none waiting after it): the tiers of the key mode charts were last
+        asked for in, that tier first, so the song select finds them made."""
+        if not maker.parallel or not last_asked or queue.waiting(song_id):
+            return
+        try:
+            song = library.get_song(song_id)
+            analysis = chart_analysis(song)
+        except SongNotFound:
+            return
+        if analysis is None:
+            return
+        order = list(difficulty_config()["order"])
+        first = last_asked["difficulty"]
+        tiers = [first] + [t for t in order if t != first] if first in order else order
+        make_tiers_ahead(song, analysis, last_asked["keyMode"], last_asked["params"], tiers)
+
     @app.post("/api/songs/{song_id}/charts")
     async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
         song = song_or_404(song_id)
         if song["status"] != "ready":
             raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
-        analysis = library.load_analysis(song_id)
+        analysis = chart_analysis(song)
         if analysis is None:
             raise HTTPException(409, "분석 결과가 없습니다")
-        if song.get("sections"):
-            analysis = edited_analysis(analysis, song["sections"])
         try:
             params = resolve_params(req.keyMode, req.difficulty, req.targetLevel, req.params)
         except (ValueError, StopIteration) as e:
@@ -501,27 +588,41 @@ def create_app(
         cached = library.load_chart(chart_id)
         if cached is not None:
             return {"meta": cached["meta"], "cached": True} if req.brief else {"chart": cached, "cached": True}
-        if req.brief and chart_id in brief_metas:
-            brief_metas.move_to_end(chart_id)
-            return {"meta": brief_metas[chart_id], "cached": True}
-        if chart_id in not_made:
-            raise HTTPException(404, not_made[chart_id])
-        chart = brief_charts.pop(chart_id, None)
+        with briefs_lock:
+            if req.brief and chart_id in brief_metas:
+                brief_metas.move_to_end(chart_id)
+                return {"meta": brief_metas[chart_id], "cached": True}
+            if chart_id in not_made:
+                raise HTTPException(404, not_made[chart_id])
+            chart = brief_charts.pop(chart_id, None)
         made = chart is not None
         if chart is None:
-            meta = {"songId": song_id, "title": song["title"], "artist": song["artist"]}
+            job, _ = maker.job(
+                chart_id, BRIEF if req.brief else WHOLE,
+                (analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, chart_meta(song)),
+            )
+            if maker.parallel:
+                # the song select asks for the other tiers next: they are made meanwhile, side by side
+                if not req.brief:
+                    last_asked.update(keyMode=req.keyMode, params=dict(req.params), difficulty=req.difficulty)
+                order = list(difficulty_config()["order"])
+                make_tiers_ahead(song, analysis, req.keyMode, req.params, [t for t in order if t != req.difficulty])
             try:
-                chart = await run_in_threadpool(
-                    generate_chart, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, meta
-                )
+                chart = await asyncio.wrap_future(job)
             except TierNotMade as e:
-                keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
+                with briefs_lock:
+                    keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
                 raise HTTPException(404, str(e)) from e
             except GenerationError as e:
                 raise HTTPException(422, str(e)) from e
+            if not req.brief:
+                # a chart made ahead was kept as a brief one by its job: it is saved now instead
+                with briefs_lock:
+                    brief_charts.pop(chart_id, None)
         if req.brief:
-            keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
-            keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
+            with briefs_lock:
+                keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
+                keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
             return {"meta": chart["meta"], "cached": made}
         library.save_chart(chart, song_id)
         return {"chart": chart, "cached": made}

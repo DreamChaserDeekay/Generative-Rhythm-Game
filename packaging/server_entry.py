@@ -15,7 +15,12 @@ if getattr(sys, "frozen", False):
     os.environ.setdefault("GRG_CONFIG_DIR", os.path.join(bundle, "config"))
     os.environ.setdefault("GRG_CLIENT_DIST", os.path.join(bundle, "client_dist"))
 
+import multiprocessing  # noqa: E402
+
 from rhythm_server.__main__ import main  # noqa: E402  (after the environment is set)
 
 if __name__ == "__main__":
+    # the chart workers (rhythm_server/generator/workers.py) are spawned processes; in the bundled
+    # exe they start as the exe itself, and this hands them over to multiprocessing
+    multiprocessing.freeze_support()
     main()
