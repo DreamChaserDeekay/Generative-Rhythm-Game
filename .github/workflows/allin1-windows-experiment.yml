@@ -42,6 +42,9 @@ jobs:
       - name: Build NATTEN 0.14.6 from source (CPU)
         id: natten
         run: |
+          # Git Bash puts its own Unix `link` ahead of MSVC's linker: MSVC's tool folder goes first
+          export PATH="$(dirname "$(command -v cl)"):$PATH"
+          echo "linker: $(command -v link)"
           export NATTEN_N_WORKERS=4
           cl 2>&1 | head -n 1 || true
           # NATTEN 0.14.6's CPU dispatch macros are GCC statement expressions, ({ ... }), which MSVC
@@ -76,6 +79,7 @@ jobs:
 
       - name: madmom from GitHub and allin1
         run: |
+          export PATH="$(dirname "$(command -v cl)"):$PATH"
           pip install --no-build-isolation "git+https://github.com/CPJKU/madmom" 2>&1 | tail -n 20
           pip install "demucs<4.1" allin1 2>&1 | tail -n 20
           python -c "import madmom, allin1; print('madmom', madmom.__version__, 'allin1 ok')"
