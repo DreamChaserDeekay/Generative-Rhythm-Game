@@ -9,7 +9,8 @@ worker works out the top tier's first round, core.lane_plan, for itself).
 One job per chart id: a request for a chart that is being made, or waits to be, joins that job
 instead of making it again. Jobs wait their turn by priority: a whole chart someone waits to play
 first, then the briefs the song select asks for, then charts made ahead (the other tiers of a key
-mode asked for, a song just analyzed)."""
+mode asked for, a song just analyzed). Charts made ahead wait while a whole chart is being made, so
+the chosen tier has the cores to itself (the others start the moment it is done)."""
 
 from __future__ import annotations
 
@@ -85,7 +86,8 @@ class ChartMaker:
         self._waiting: list[list[Any]] = []
         self._entries: dict[str, list[Any]] = {}
         self._order = itertools.count()
-        self._running = 0
+        # the jobs being made, by chart id: their priority
+        self._running: dict[str, int] = {}
         self._pool: ProcessPoolExecutor | ThreadPoolExecutor | None = None
         self._closed = False
         # finished jobs are handled on a thread of their own, not in the pool's (a process pool's
@@ -131,6 +133,10 @@ class ChartMaker:
                 if entry is not None and priority < entry[0]:
                     self._push(chart_id, priority, entry[3], entry[4])
                     entry[3] = None
+                    self._dispatch()
+                elif chart_id in self._running and priority < self._running[chart_id]:
+                    # being made ahead and now asked for: the others made ahead wait for it
+                    self._running[chart_id] = priority
                 return fut, False
             fut = Future()
             self._jobs[chart_id] = fut
@@ -156,18 +162,22 @@ class ChartMaker:
 
     def _dispatch(self) -> None:
         slots = self.workers if self.parallel else THREADS
-        while not self._closed and self._running < slots and self._waiting:
-            entry = heapq.heappop(self._waiting)
+        while not self._closed and len(self._running) < slots and self._waiting:
+            entry = self._waiting[0]
             if entry[3] is None:
+                heapq.heappop(self._waiting)
                 continue
-            _, _, chart_id, args, tries = entry
+            if entry[0] == AHEAD and WHOLE in self._running.values():
+                break  # (the queue is in priority order: only charts made ahead are left)
+            heapq.heappop(self._waiting)
+            priority, _, chart_id, args, tries = entry
             del self._entries[chart_id]
-            self._running += 1
+            self._running[chart_id] = priority
             self.started += 1
             try:
                 inner = self._executor().submit(_make, args)
             except (BrokenProcessPool, RuntimeError) as e:
-                self._running -= 1
+                self._running.pop(chart_id, None)
                 self._drop_broken_pool()
                 self._fail(chart_id, args, tries, e)
                 continue
@@ -201,7 +211,7 @@ class ChartMaker:
         error = inner.exception() if not inner.cancelled() else RuntimeError("chart job cancelled")
         if isinstance(error, BrokenProcessPool):
             with self._lock:
-                self._running -= 1
+                self._running.pop(chart_id, None)
                 self._drop_broken_pool()
                 self._fail(chart_id, args, tries, error)
                 self._dispatch()
@@ -213,6 +223,6 @@ class ChartMaker:
         else:
             fut.set_result(inner.result())
         with self._lock:
-            self._running -= 1
+            self._running.pop(chart_id, None)
             self._jobs.pop(chart_id, None)
             self._dispatch()

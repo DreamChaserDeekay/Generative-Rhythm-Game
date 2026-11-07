@@ -535,9 +535,12 @@ def create_app(
             keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
             keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
 
-    def make_tiers_ahead(song: dict[str, Any], analysis: dict[str, Any], key_mode: str, options: dict[str, Any], tiers: list[str]) -> None:
+    def make_tiers_ahead(
+        song: dict[str, Any], analysis: dict[str, Any], key_mode: str, options: dict[str, Any], tiers: list[str], chosen: str | None = None
+    ) -> None:
         """Starts the default charts of `tiers` (their own seeds, no target level) that are not made
-        yet: the song select asks for them next (each tier's level on its plate)."""
+        yet: the song select asks for them next (each tier's level on its plate). `chosen`: the
+        tier the player is likely to open, made as a chart to play (the others wait for it)."""
         for tier in tiers:
             try:
                 params = resolve_params(key_mode, tier, None, options)
@@ -550,13 +553,15 @@ def create_app(
                     continue
             if library.chart_path(chart_id).exists():
                 continue
-            job, new = maker.job(chart_id, AHEAD, (analysis, key_mode, tier, None, seed, options, chart_meta(song)))
+            priority = WHOLE if tier == chosen else AHEAD
+            job, new = maker.job(chart_id, priority, (analysis, key_mode, tier, None, seed, options, chart_meta(song)))
             if new:
                 job.add_done_callback(lambda j, c=chart_id: keep_made(c, j))
 
     def make_ahead(song_id: str) -> None:
         """A song just analyzed (none waiting after it): the tiers of the key mode charts were last
-        asked for in, that tier first, so the song select finds them made."""
+        asked for in, so the song select finds them made; that tier first, alone (the player most
+        likely opens it), then the others."""
         if not maker.parallel or not last_asked or queue.waiting(song_id):
             return
         try:
@@ -569,7 +574,7 @@ def create_app(
         order = list(difficulty_config()["order"])
         first = last_asked["difficulty"]
         tiers = [first] + [t for t in order if t != first] if first in order else order
-        make_tiers_ahead(song, analysis, last_asked["keyMode"], last_asked["params"], tiers)
+        make_tiers_ahead(song, analysis, last_asked["keyMode"], last_asked["params"], tiers, chosen=first)
 
     @app.post("/api/songs/{song_id}/charts")
     async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
