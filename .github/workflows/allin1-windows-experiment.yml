@@ -25,7 +25,8 @@ jobs:
 
       - name: PyTorch 2.1 CPU and build tools
         run: |
-          python -m pip install -U pip setuptools wheel
+          # torch 2.1's cpp_extension imports pkg_resources, which new setuptools no longer ships
+          python -m pip install -U pip "setuptools<70" wheel
           pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu
           pip install "numpy<2" cython ninja cmake
           python -c "import torch, numpy; print('torch', torch.__version__, 'numpy', numpy.__version__)"
@@ -89,8 +90,8 @@ jobs:
         if: always()
         run: |
           python - <<'EOF'
-          import os, site, pathlib
-          root = pathlib.Path(site.getsitepackages()[0])
+          import pathlib, sysconfig
+          root = pathlib.Path(sysconfig.get_paths()["purelib"])
           def mb(p):
               return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6 if p.exists() else 0.0
           for name in ("torch", "torchaudio", "natten", "madmom", "allin1", "demucs", "librosa", "numpy", "scipy", "matplotlib", "hydra", "omegaconf"):
