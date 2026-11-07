@@ -5,8 +5,10 @@
 # .github/workflows/allin1-windows-experiment.yml (docs/PATTERN_DESIGN.md 88).
 set -euo pipefail
 
-work="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/natten-build"
+# a relative folder: GNU tar reads a Windows path such as D:\a\_temp\x.tar.gz as a remote host
+work=.natten-build
 mkdir -p "$work"
+cd "$work"
 # Git Bash puts its own Unix `link` ahead of MSVC's linker: MSVC's tool folder goes first
 if command -v cl >/dev/null 2>&1; then
   export PATH="$(dirname "$(command -v cl)"):$PATH"
@@ -16,14 +18,15 @@ export DISTUTILS_USE_SDK=1
 export NATTEN_N_WORKERS="${NATTEN_N_WORKERS:-4}"
 
 # the source archive straight from PyPI (pip download would run setup.py without torch)
-python - "$work" <<'PY'
-import json, sys, urllib.request
+python - <<'PY'
+import json, urllib.request
 meta = json.load(urllib.request.urlopen("https://pypi.org/pypi/natten/0.14.6/json"))
 url = next(u["url"] for u in meta["urls"] if u["packagetype"] == "sdist")
-urllib.request.urlretrieve(url, sys.argv[1] + "/natten-0.14.6.tar.gz")
+urllib.request.urlretrieve(url, "natten-0.14.6.tar.gz")
 PY
-tar -xzf "$work/natten-0.14.6.tar.gz" -C "$work"
-src="$work/natten-0.14.6"
+rm -rf natten-0.14.6
+tar -xzf natten-0.14.6.tar.gz
+src=natten-0.14.6
 # the archive ships a stale egg-info whose file list has absolute Linux paths (setuptools refuses them)
 rm -rf "$src/src/natten.egg-info"
 # NATTEN 0.14.6's CPU dispatch macros are GCC statement expressions, ({ ... }), which MSVC does not
@@ -33,9 +36,9 @@ sed -i -E 's/^\(\{([[:space:]]*\\)$/do {\1/; s/^\}\)[[:space:]]*$/} while (0)/' 
 left=$(grep -cE '^\(\{|^\}\)' "$h" || true)
 [ "$left" = 0 ] || { echo "statement expressions left in $h: $left"; exit 1; }
 
-log="$work/natten_build.log"
+log=natten_build.log
 status=0
-python -m pip install --no-build-isolation -v "$src" > "$log" 2>&1 || status=$?
+python -m pip install --no-build-isolation -v "./$src" > "$log" 2>&1 || status=$?
 echo "NATTEN build: pip exit $status, log $(wc -l < "$log") lines"
 if [ "$status" != 0 ]; then
   # the compiler's own messages (the traceback after them only says the build failed)
