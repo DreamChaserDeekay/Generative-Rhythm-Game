@@ -20,8 +20,9 @@ PROGRESS_INTERVAL_S = 0.25
 
 
 class AnalysisQueue:
-    """`after_analysis` runs for each analyzed song once the queued analyses are done (the stems
-    for keysounds are separated there, so a first play does not wait for them). `on_ready` runs
+    """`after_analysis(song_id, pcm)` runs for each analyzed song once the queued analyses are done
+    (the stems for keysounds are separated there, so a first play does not wait for them); `pcm`
+    is the song's canonical audio when it ran right after the analysis, else None. `on_ready` runs
     once a song's analysis is saved, just before the song shows as ready (its charts are started
     then). Synchronous queues (tests, command line) skip both."""
 
@@ -29,7 +30,7 @@ class AnalysisQueue:
         self,
         library: Library,
         synchronous: bool = False,
-        after_analysis: Callable[[str], None] | None = None,
+        after_analysis: Callable[[str, np.ndarray | None], None] | None = None,
         on_ready: Callable[[str], None] | None = None,
     ):
         self.library = library
@@ -92,6 +93,8 @@ class AnalysisQueue:
                 pcm, sr = audio_io.read_canonical(lib.audio_path(song_id))
             stems: dict = {}
             result = analyze(pcm, sr, song["audioHash"], overrides=song["overrides"], progress=progress, stems_out=stems)
+            # the stems are separated next when no analysis waits: from this audio, not the file again
+            kept = pcm if self.after_analysis is not None and self._executor is not None and not self.waiting(song_id) else None
             del pcm
             # the canonical file of an upload that handed its audio over (stems and playback read it)
             lib.wait_audio(song_id)
@@ -125,7 +128,7 @@ class AnalysisQueue:
         if self.after_analysis is not None and self._executor is not None:
             # queued behind the analyses waiting now: every song becomes playable first
             try:
-                self._executor.submit(self._after, song_id)
+                self._executor.submit(self._after, song_id, kept)
             except RuntimeError:
                 pass  # shutting down
 
@@ -137,9 +140,9 @@ class AnalysisQueue:
         except Exception as e:  # charts are made when asked for all the same
             log.warning("starting the charts of %s failed: %s", song_id, e)
 
-    def _after(self, song_id: str) -> None:
+    def _after(self, song_id: str, pcm: np.ndarray | None) -> None:
         try:
             assert self.after_analysis is not None
-            self.after_analysis(song_id)
+            self.after_analysis(song_id, pcm)
         except Exception as e:
             log.warning("post-analysis step failed for %s: %s", song_id, e)

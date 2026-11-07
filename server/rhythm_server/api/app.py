@@ -171,7 +171,7 @@ def create_app(
     queue = AnalysisQueue(
         library,
         synchronous=synchronous_jobs,
-        after_analysis=lambda song_id: ensure_stems(song_id),
+        after_analysis=lambda song_id, pcm: ensure_stems(song_id, pcm),
         on_ready=lambda song_id: make_ahead(song_id),
     )
     maker = ChartMaker(chart_workers if chart_workers is not None else 0 if synchronous_jobs else default_workers())
@@ -211,8 +211,9 @@ def create_app(
     stem_locks: dict[str, threading.Lock] = {}
     stem_locks_guard = threading.Lock()
 
-    def ensure_stems(song_id: str) -> dict[str, Any]:
-        """Cached stems, separating them first (ML separator when installed, else the core one)."""
+    def ensure_stems(song_id: str, pcm: Any = None) -> dict[str, Any]:
+        """Cached stems, separating them first (ML separator when installed, else the core one).
+        `pcm`: the song's canonical audio when at hand (right after its analysis), else read."""
         info = library.stems_info(song_id)
         if info is not None:
             return info
@@ -222,7 +223,10 @@ def create_app(
             info = library.stems_info(song_id)
             if info is not None:
                 return info
-            pcm, sr = audio_io.read_canonical(library.audio_path(song_id))
+            if pcm is not None:
+                sr = audio_io.SAMPLE_RATE
+            else:
+                pcm, sr = audio_io.read_canonical(library.audio_path(song_id))
             stems, method = None, "core-dsp"
             backend = detect_backends().get("stems")
             if backend is not None:

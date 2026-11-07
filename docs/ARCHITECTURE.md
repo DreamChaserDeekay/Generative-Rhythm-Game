@@ -143,7 +143,7 @@
 | GET | `/api/health` | 서버 상태, 분석기·생성기 버전, 분석 백엔드 상태(설치·사용 여부·버전·라이선스), 스템 이름 |
 | POST | `/api/shutdown` | 서버 끄기(202). 환경 변수 `GRG_SHUTDOWN_TOKEN`으로 띄운 서버에만 있고(데스크톱 앱), 헤더 `X-Shutdown-Token`이 맞지 않으면 403 |
 | GET | `/api/songs` | 곡 목록. 곡마다 `analyzer`(분석에 쓴 백엔드), `outdated`(분석기 버전이나 쓸 수 있는 백엔드가 바뀌었으면 true), `hasBga`, `bgaYoutube`(유튜브 영상 ID 또는 null), `bgaOffsetMs`, `sections`(사용자가 고친 구간 또는 null), `coverAt`(커버를 바꾸거나 지운 시각: 클라이언트가 커버 주소에 붙여 새 그림을 바로 보임), 채보별 최고 기록 `records`(판정 모드별 `byMode`는 빼서 가볍게) |
-| POST | `/api/songs` | 곡 업로드(multipart). 표준 FLAC 생성 후 분석 작업 시작 |
+| POST | `/api/songs` | 곡 업로드(multipart). 앞에 기다리는 분석이 없으면 디코딩한 오디오로 분석을 바로 시작하고 그동안 표준 FLAC을 쓴다(아래 "로딩 시간"), 아니면 FLAC을 쓴 뒤 분석 작업을 줄 세운다 |
 | POST | `/api/songs/demo` | 합성 데모 곡 추가(음악 파일 없이 체험) |
 | GET | `/api/songs/{id}` | 곡 정보, 분석 진행률, 기록(`byMode` 포함) |
 | PATCH | `/api/songs/{id}` | 제목·아티스트·BPM·첫 박 오프셋 보정 → 재분석(고친 구간은 지움), BGA 오프셋(`bgaOffsetMs`), 유튜브 BGA(`bgaYoutube`: 링크나 영상 ID, 빈 문자열이면 지움. 영상 파일을 대신하고, 영상 파일을 올리면 링크가 지워진다), 구간 고치기(`sections`: `{startBeat, label, group}` 목록, `[]`이면 분석값으로) |
@@ -159,7 +159,7 @@
 | POST / DELETE | `/api/songs/{id}/cover` | 커버 그림 올리기(png · jpg · gif · bmp · webp를 첫 바이트로 판별, 최대 20MB; 태그·패키지 그림 대신) / 지우기(디스크 그림으로) |
 | GET | `/api/songs/{id}/sketch` | 메뉴용 구간과 파형 봉우리(고친 구간이 있으면 그것) |
 | GET | `/api/songs/{id}/analysis` | AnalysisResult |
-| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency · patternEngine) — 같은 chartId면 캐시. 곡에 고친 구간이 있으면 그 구간으로 만든다. `brief: true`면 메타만 답하고 디스크에 저장하지 않는다(메모리에 마지막 12개 채보와 메타 1000개; 다음에 전체를 요청하면 다시 만들지 않고 그때 저장). 목표 레벨 없이 요청한 MASTER가 잔잔한 곡이라 없으면 404(같은 요청은 다시 만들지 않고 404; `docs/PATTERN_DESIGN.md` 72장), 만들 수 없는 채보는 422 |
+| POST | `/api/songs/{id}/charts` | 채보 생성(키 모드, 난이도, 목표 레벨, 시드, `newSeed`, `params`: style · rhythmSource · density · longNoteRatio · maxChord · scratchRate · sideRate · instrumentMapping · repeatConsistency · patternEngine) — 같은 chartId면 캐시. 곡에 고친 구간이 있으면 그 구간으로 만든다. `brief: true`면 메타만 답하고 디스크에 저장하지 않는다(메모리에 마지막 12개 채보와 메타 1000개; 다음에 전체를 요청하면 다시 만들지 않고 그때 저장). 목표 레벨 없이 요청한 MASTER가 잔잔한 곡이라 없으면 404(같은 요청은 다시 만들지 않고 404; `docs/PATTERN_DESIGN.md` 72장), 만들 수 없는 채보는 422. 채보는 작업 프로세스에서 만들고, 요청 하나가 그 키 모드의 다른 난이도(기본 시드)도 함께 시작한다(아래 "로딩 시간") |
 | GET | `/api/charts/{chartId}` | 채보 |
 | POST | `/api/scores` | 플레이 기록 저장(선택: `replay`, 그 `settings`에 녹화 때 `inputOffsetMs`·`songOffsetMs`) → 곡의 기록 |
 | GET | `/api/songs/{id}/scores` | 채보별 최고 기록: 기본 점수가 가장 높은 판(`bestScoreId`, `hasReplay`, `score`, `rate`), 모든 판 중 가장 좋은 `lamp`·`maxCombo`, 끝까지 친 판의 최소 BREAK `minBreaks`(그런 판이 없으면 null), 그 점수 규칙으로 친 판의 최고 `exScore`·`weightedScore`(없으면 null), `plays`, `lastPlayedAt`, 생성 채보면 `generatorVersion`과 기본 패턴인지(`defaultSeed`), 가져온 채보면 파일의 레벨 `sourceLevel`, 판정 모드마다 같은 항목 `byMode` |
@@ -197,6 +197,16 @@ data/
 - 분석기는 단계마다 ML 결과가 있으면 쓰고, 예외가 나면 그 단계만 기본 분석으로 돌린 뒤 `analyzer.errors[단계]`에 남긴다. 실제로 쓴 백엔드는 `analyzer.backends`(예: `{"stems": "demucs-4.1.0", "beats": "beat_this-1.1.0", "pitch": "core", "structure": "core"}`)에 기록한다.
 - ML 결과는 기본 분석의 입력으로 들어간다: beat_this 박은 기본 분석 박 격자의 반 박 판정(분석기 1.13.0, 그 전에는 템포 추정의 BPM 힌트와 박자·첫 다운비트였는데 BMS 곡에서 더 나빴다), basic-pitch 노트는 가까운 온셋의 음높이, allin1 구간은 마디에 스냅해 구조로, Demucs 스템은 온셋 태깅·구간 주도 악기·키음 스템으로 쓴다.
 - 곡 목록의 `outdated`는 저장된 분석의 분석기 버전이 다르거나, 지금 쓸 수 있는 백엔드가 분석 때 쓴 것과 다르면 true다. 클라이언트는 이때 "다시 분석" 버튼을 보인다.
+
+### 로딩 시간 (업로드 → 분석 → 채보 → 키음)
+
+결과(분석 JSON · 채보 · 스템 파일)는 하나씩 차례로 할 때와 바이트 단위로 같고, 기다리는 시간만 줄인다(`docs/PATTERN_DESIGN.md` 89장).
+
+- **업로드**(`Library.add_song_file`): 앞에 기다리는 분석이 없으면, 디코딩한 오디오를 16bit FLAC이 돌려줄 값으로 바꿔(`audio_io.canonical_pcm`, 설치된 libsndfile과 비트 단위로 맞는지 처음 한 번 확인) 분석 큐에 넘기고, 표준 FLAC은 그동안 `audio.flac.part`로 쓴 뒤 이름을 바꾼다. 분석 작업은 곡을 '준비됨'으로 바꾸기 전에, 오디오 경로는 답하기 전에 파일을 기다린다(`Library.wait_audio`).
+- **분석**(`analysis/analyzer.py`): 서로의 결과가 필요 없는 단계를 스레드 둘에서 나란히(STFT · 화성/타악 분리와 멜 · 온셋, 스템 활동 · 음 길이 · 구조 입력과 템포 · 마디). 템포 격자 후보는 numpy 한 번에 맞춘다.
+- **채보**(`generator/workers.py`의 `ChartMaker`): 코어 수 − 1개(최대 4개, `GRG_CHART_WORKERS`로 정하고 0이면 서버 스레드에서) 작업 프로세스를 서버가 시작할 때 띄운다(spawn). 채보 id마다 작업 하나(같은 채보를 다시 요청하면 그 작업을 기다림), 우선순위는 플레이할 채보 → 선곡의 요약 → 미리 만드는 채보. 채보 요청은 그 키 모드의 다른 난이도도 시작하고, 분석이 끝난 곡은(뒤에 기다리는 분석이 없으면) 마지막으로 전체를 요청한 키 모드의 다섯 난이도를 '준비됨' 전에 시작한다(`AnalysisQueue.on_ready`). 미리 만든 채보는 요약 채보와 같은 메모리 캐시에 둔다.
+- **스템**: 분석 바로 뒤의 분리는 분석한 오디오를 그대로 쓰고(`after_analysis(song_id, pcm)`), 스템 FLAC 넷은 나란히 쓴다.
+- **클라이언트**: 분석 중에는 곡 목록을 400ms마다 묻고, 분석되는 동안 커서가 머문 곡은 준비되자마자 채보를 묻는다.
 
 ## 8. 디렉터리 구조
 

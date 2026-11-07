@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -399,13 +400,18 @@ class Library:
         return json.loads(p.read_text(encoding="utf-8"))
 
     def save_stems(self, song_id: str, stems: dict[str, np.ndarray], method: str) -> None:
-        """Stores separated stems as 16-bit FLAC next to the canonical audio."""
+        """Stores separated stems as 16-bit FLAC next to the canonical audio. The files are encoded
+        side by side (libsndfile lets go of the GIL): a first play with keysounds waits for them."""
         d = self.stems_dir(song_id)
         d.mkdir(parents=True, exist_ok=True)
-        for name in STEM_NAMES:
+
+        def write(name: str) -> None:
             tmp = d / f"{name}.tmp.flac"
             sf.write(tmp, np.clip(stems[name], -1.0, 1.0), SAMPLE_RATE, subtype="PCM_16", format="FLAC")
             tmp.replace(self.stem_path(song_id, name))
+
+        with ThreadPoolExecutor(len(STEM_NAMES), thread_name_prefix="stem-write") as writers:
+            list(writers.map(write, STEM_NAMES))
         (d / "stems.json").write_text(json.dumps({"method": method, "names": list(STEM_NAMES), "createdAt": time.time()}), encoding="utf-8")
 
     def clear_stems(self, song_id: str) -> None:

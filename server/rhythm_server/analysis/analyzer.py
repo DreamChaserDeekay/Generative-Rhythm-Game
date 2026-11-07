@@ -8,6 +8,7 @@ is missing or fails leaves the core result for that part.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -220,6 +221,21 @@ def analyze(
     mono = mono.astype(np.float32)
     duration = len(mono) / sr
 
+    # Steps that do not need each other's results run side by side on two more threads (numpy and
+    # scipy let go of the GIL in their loops): the STFT and its harmonic/percussive split beside
+    # the mel spectrum and the onsets, then the stem activity, the notes and the structure's inputs
+    # beside the tempo and the meter. Each step only reads its inputs, so the results are the same
+    # as one after another (about a fifth of the analysis's time).
+    parts = ThreadPoolExecutor(max_workers=2, thread_name_prefix="analysis-part")
+    freqs = np.fft.rfftfreq(COARSE_NFFT, 1.0 / sr)
+    max_bin = int(np.searchsorted(freqs, HARMONIC_MAX_HZ))
+    coarse_rate = sr / COARSE_HOP
+
+    def split() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        mag = stft_magnitude(mono, COARSE_NFFT, COARSE_HOP)
+        return (mag, *hpss(mag[:, :max_bin]))
+
+    split_job = parts.submit(split)
     report(0.05, "스펙트럼 계산")
     mel, centers = mel_power(mono, sr, FINE_NFFT, FINE_HOP, N_MELS, 30.0, min(16000.0, sr / 2 - 1))
     fine_rate = sr / FINE_HOP
@@ -228,11 +244,17 @@ def analyze(
     od = detect_onsets(mel, centers, fine_rate, ONSET_BIAS_S)
 
     report(0.3, "화성/타악 분리")
-    mag = stft_magnitude(mono, COARSE_NFFT, COARSE_HOP)
-    freqs = np.fft.rfftfreq(COARSE_NFFT, 1.0 / sr)
-    max_bin = int(np.searchsorted(freqs, HARMONIC_MAX_HZ))
-    harmonic, percussive = hpss(mag[:, :max_bin])
-    coarse_rate = sr / COARSE_HOP
+    mag, harmonic, percussive = split_job.result()
+    stem_job = parts.submit(stem_activity, mag, harmonic, percussive, freqs, coarse_rate) if ml_stems is None else None
+    notes_job = parts.submit(analyze_notes, od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
+
+    def structure_levels() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
+        log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
+        energy_hop = int(sr * 0.1)
+        return log_mel, _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT), _frame_rms_db(mono, energy_hop, energy_hop * 2)
+
+    levels_job = parts.submit(structure_levels)
 
     report(0.45, "템포 분석")
     drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
@@ -269,15 +291,15 @@ def analyze(
     beat0 = meter.first_downbeat_index if len(beats) else 0
 
     report(0.7, "음 길이·음높이 분석")
-    notes = analyze_notes(od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
+    notes = notes_job.result()
 
     report(0.75, "악기 구분")
     instruments = None
-    if ml_stems is not None:
+    if stem_job is None:
         stem_act = ml.activity_from_stems(ml_stems, COARSE_NFFT, COARSE_HOP, float(np.max(mag)))
         instruments = ml.instrument_activity(ml_stems, sr)
     else:
-        stem_act = stem_activity(mag, harmonic, percussive, freqs, coarse_rate)
+        stem_act = stem_job.result()
     sources, shares = tag_onsets(od.times, stem_act, coarse_rate)
     melody = melody_presence(od.times, stem_act, coarse_rate, shares)
     pitch_arr, sustain_arr = notes.pitch, notes.sustain_end
@@ -296,9 +318,8 @@ def analyze(
     groups = sound_groups(harmonic, coarse_rate, times)
 
     report(0.8, "곡 구조 분석")
-    fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
-    log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
-    rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
+    log_mel, rms_db, energy_db = levels_job.result()
+    parts.shutdown()
     sections = song_sections(
         StructureInputs(
             log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands,
@@ -319,8 +340,6 @@ def analyze(
         smooth = np.convolve(rms_db, np.ones(win) / win, mode="valid")
         preview_ms = float(np.argmax(smooth) / coarse_rate * 1000.0)
 
-    energy_hop = int(sr * 0.1)
-    energy_db = _frame_rms_db(mono, energy_hop, energy_hop * 2)
     energy = np.clip((energy_db + 60.0) / 60.0, 0.0, 1.0)
 
     inst_flux = inst_loud = None
