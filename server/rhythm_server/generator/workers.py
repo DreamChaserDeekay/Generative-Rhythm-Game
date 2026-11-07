@@ -51,6 +51,21 @@ def _make(args: ChartArgs) -> dict[str, Any]:
     return generate_chart(analysis, key_mode, difficulty, target_level, seed, params, meta)
 
 
+def _end_with_the_server() -> None:
+    """A worker ends as soon as the server process is gone. A server stopped at once (killed, a
+    crash, os._exit after /api/shutdown) never tells its workers, and they would wait for jobs
+    for good: each holds both ends of its own job queue, so the queue never breaks."""
+    parent = multiprocessing.parent_process()
+    if parent is None:
+        return
+
+    def watch() -> None:
+        parent.join()  # the parent's sentinel: its process handle (Windows) or a pipe it holds
+        os._exit(0)
+
+    threading.Thread(target=watch, name="server-watch", daemon=True).start()
+
+
 def _warm() -> None:
     """Loads the configs a chart reads (the imports came with this module)."""
     from ..config import difficulty_config, load_config
@@ -132,7 +147,9 @@ class ChartMaker:
         if self._pool is None:
             if self.parallel:
                 # spawn on every system: forking the server's threads is unsafe
-                self._pool = ProcessPoolExecutor(self.workers, mp_context=multiprocessing.get_context("spawn"))
+                self._pool = ProcessPoolExecutor(
+                    self.workers, mp_context=multiprocessing.get_context("spawn"), initializer=_end_with_the_server
+                )
             else:
                 self._pool = ThreadPoolExecutor(THREADS, thread_name_prefix="chart")
         return self._pool

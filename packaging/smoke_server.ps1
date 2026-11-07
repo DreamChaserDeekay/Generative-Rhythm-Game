@@ -91,3 +91,13 @@ catch {
 finally {
   Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 }
+
+# the chart workers (spawned rhythm-server processes) end with the server, even one stopped at once
+$left = @()
+for ($i = 0; $i -lt 40; $i++) {
+  $left = @(Get-Process -Name 'rhythm-server' -ErrorAction SilentlyContinue)
+  if ($left.Count -eq 0) { break }
+  Start-Sleep -Milliseconds 250
+}
+if ($left.Count -gt 0) { throw "$($left.Count) chart worker process(es) outlived the stopped server" }
+Write-Host 'chart workers ended with the server: ok'
