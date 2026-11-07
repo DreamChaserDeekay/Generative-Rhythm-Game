@@ -75,12 +75,14 @@ class AnalysisQueue:
     def _run(self, song_id: str) -> None:
         lib = self.library
         last = 0.0
+        shown = ""
 
         def progress(p: float, label: str) -> None:
-            nonlocal last
+            # a new step always shows (a slow ML step must not hide behind the one just before it)
+            nonlocal last, shown
             now = time.monotonic()
-            if now - last >= PROGRESS_INTERVAL_S or p >= 1.0:
-                last = now
+            if label != shown or now - last >= PROGRESS_INTERVAL_S or p >= 1.0:
+                last, shown = now, label
                 lib.update_song(song_id, status="analyzing", progress=round(p, 3), progress_label=label)
 
         try:

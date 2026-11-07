@@ -54,6 +54,35 @@ def test_shutdown_only_with_the_desktop_apps_token(tmp_path, monkeypatch) -> Non
         assert stops == [True]
 
 
+def test_each_analysis_step_shows_in_the_progress(tmp_path, monkeypatch) -> None:
+    """A step that starts right after another (the ML stem separation, once the audio is in memory)
+    still shows: the song list would otherwise say "reading the audio" through the whole step."""
+    from rhythm_server.api import jobs
+    from rhythm_server.api.library import Library
+
+    real = jobs.analyze
+
+    def with_ml_steps(pcm, sr, audio_hash="", overrides=None, progress=None, stems_out=None):
+        progress(0.02, "스템 분리 (Demucs)")
+        progress(0.35, "비트 추적 (beat_this)")
+        return real(pcm, sr, audio_hash, overrides=overrides, progress=progress, stems_out=stems_out, backends={})
+
+    labels: list[str] = []
+    update = Library.update_song
+
+    def record(self, song_id, **fields):
+        if fields.get("status") == "analyzing":
+            labels.append(fields["progress_label"])
+        return update(self, song_id, **fields)
+
+    monkeypatch.setattr(jobs, "analyze", with_ml_steps)
+    monkeypatch.setattr(Library, "update_song", record)
+    with TestClient(create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)) as c:
+        song = c.post("/api/songs", files={"file": ("a.wav", wav_bytes(4), "audio/wav")}).json()["song"]
+    assert song["status"] == "ready"
+    assert labels[:3] == ["오디오 읽는 중", "스템 분리 (Demucs)", "비트 추적 (beat_this)"]
+
+
 def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     r = client.post("/api/songs", files={"file": ("groove.wav", wav_bytes(), "audio/wav")})
     assert r.status_code == 201, r.text
