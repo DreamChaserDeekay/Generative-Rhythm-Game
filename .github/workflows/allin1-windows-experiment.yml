@@ -57,6 +57,8 @@ jobs:
           urllib.request.urlretrieve(url, "natten-0.14.6.tar.gz")
           PY
           tar -xzf natten-0.14.6.tar.gz
+          # the archive ships a stale egg-info whose file list has absolute Linux paths (setuptools refuses them)
+          rm -rf natten-0.14.6/src/natten.egg-info
           h=natten-0.14.6/src/natten/csrc/cpu/natten_cpu_commons.h
           sed -i -E 's/^\(\{([[:space:]]*\\)$/do {\1/; s/^\}\)[[:space:]]*$/} while (0)/' "$h"
           echo "statement expressions left: $(grep -cE '^\(\{|^\}\)' "$h" || true)"
