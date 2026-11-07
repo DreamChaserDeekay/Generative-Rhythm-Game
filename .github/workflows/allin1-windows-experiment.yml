@@ -1,0 +1,99 @@
+name: Experiment - allin1 on Windows
+
+# Can the structure backend allin1 go into a Windows installer? allin1 1.1.0 needs NATTEN's old ops
+# (natten.functional.natten1dqkrpb, gone after 0.14.x), NATTEN has no Windows wheels, and madmom
+# builds from GitHub. This job builds NATTEN 0.14.6 from source with MSVC against CPU PyTorch 2.1 on
+# Python 3.11, installs madmom and allin1, imports them, and runs allin1 on a 24-second synthetic
+# clip (downloads the harmonix-all and Demucs weights). Manual only: it decides whether a third
+# "structure" edition is worth building (docs/PATTERN_DESIGN.md 69-9, README allin1 row).
+on:
+  workflow_dispatch:
+
+jobs:
+  allin1:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: PyTorch 2.1 CPU and build tools
+        run: |
+          python -m pip install -U pip setuptools wheel
+          pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy<2" cython ninja cmake
+          python -c "import torch, numpy; print('torch', torch.__version__, 'numpy', numpy.__version__)"
+
+      - name: Build NATTEN 0.14.6 from source (CPU)
+        id: natten
+        run: |
+          set -x
+          export NATTEN_N_WORKERS=4
+          # the sdist on PyPI first, the git tag as the fallback
+          pip install --no-build-isolation -v "natten==0.14.6" 2>&1 | tail -n 60 \
+            || pip install --no-build-isolation -v "git+https://github.com/SHI-Labs/NATTEN@v0.14.6" 2>&1 | tail -n 80
+          python -c "import natten; from natten.functional import natten1dqkrpb, natten1dav; print('natten', natten.__version__)"
+
+      - name: madmom from GitHub and allin1
+        run: |
+          pip install --no-build-isolation "git+https://github.com/CPJKU/madmom" 2>&1 | tail -n 20
+          pip install "demucs<4.1" allin1 2>&1 | tail -n 20
+          python -c "import madmom, allin1; print('madmom', madmom.__version__, 'allin1 ok')"
+          pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|numpy|librosa|hydra-core|omegaconf) "
+
+      - name: Run allin1 on a synthetic clip (CPU)
+        timeout-minutes: 30
+        run: |
+          python - <<'EOF'
+          import time
+          import numpy as np
+          import soundfile as sf
+          sr = 44100
+          t = np.arange(24 * sr) / sr
+          beat = 60.0 / 120.0
+          y = 0.2 * np.sin(2 * np.pi * 220 * t) * (1 + 0.3 * np.sin(2 * np.pi * 0.25 * t))
+          for b in np.arange(0, 24, beat):
+              i = int(b * sr)
+              y[i:i + 2000] += 0.8 * np.exp(-np.arange(2000) / 300) * np.sign(np.sin(2 * np.pi * 60 * np.arange(2000) / sr))
+          sf.write("clip.wav", np.stack([y, y], axis=1).astype(np.float32), sr)
+          import allin1
+          t0 = time.time()
+          result = allin1.analyze("clip.wav", device="cpu", keep_byproducts=False, multiprocess=False)
+          print("seconds", round(time.time() - t0, 1))
+          print("bpm", result.bpm, "beats", len(result.beats), "downbeats", len(result.downbeats))
+          print("segments", [(round(s.start, 2), round(s.end, 2), s.label) for s in result.segments])
+          EOF
+
+      - name: Our backend sees it
+        run: |
+          pip install -e server 2>&1 | tail -n 3
+          python - <<'EOF'
+          import numpy as np, soundfile as sf
+          from rhythm_server.analysis.backends import detect
+          backends = detect()
+          print({k: v.label for k, v in backends.items()})
+          assert "structure" in backends and backends["structure"].name == "allin1", backends
+          from rhythm_server.analysis.backends import allin1_backend
+          pcm, sr = sf.read("clip.wav", dtype="float32")
+          out = allin1_backend.structure(pcm, sr, {"device": "cpu", "model": "harmonix-all"})
+          print("backend", out["bpm"], len(out["beats"]), out["segments"])
+          EOF
+
+      - name: Size of what an installer would add
+        if: always()
+        run: |
+          python - <<'EOF'
+          import os, site, pathlib
+          root = pathlib.Path(site.getsitepackages()[0])
+          def mb(p):
+              return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6 if p.exists() else 0.0
+          for name in ("torch", "torchaudio", "natten", "madmom", "allin1", "demucs", "librosa", "numpy", "scipy", "matplotlib", "hydra", "omegaconf"):
+              print(f"{name:12s} {mb(root / name):8.1f} MB")
+          print(f"{'site-packages':12s} {mb(root):8.1f} MB")
+          EOF
