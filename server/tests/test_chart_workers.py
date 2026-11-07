@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import signal
+import subprocess
+import sys
 import time
+from pathlib import Path
 
 import pytest
 import soundfile as sf
@@ -72,6 +77,58 @@ def test_workers_make_the_charts_the_server_threads_make(file_song_fit) -> None:
         assert maker.started == len(jobs)
     finally:
         maker.close()
+
+
+SERVER_STAND_IN = """
+import os, sys, time
+sys.path.insert(0, sys.argv[1])
+from rhythm_server.generator.workers import ChartMaker
+
+if __name__ == "__main__":
+    maker = ChartMaker(2)
+    maker.start()
+    end = time.monotonic() + 60
+    while len(maker._pool._processes) < 2 and time.monotonic() < end:
+        time.sleep(0.05)
+    # the workers are up and take jobs
+    assert maker._pool.submit(os.getpid).result(timeout=60) in maker._pool._processes
+    print(" ".join(str(pid) for pid in maker._pool._processes), flush=True)
+    time.sleep(600)
+"""
+
+
+def _running(pid: int) -> bool:
+    """Alive and not a zombie (a container's first process may never reap an orphan)."""
+    try:
+        with open(f"/proc/{pid}/status", encoding="utf-8") as f:
+            return not any(line.startswith("State:") and "Z" in line.split()[1] for line in f)
+    except FileNotFoundError:
+        return False
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reads /proc")
+def test_workers_end_when_the_server_is_killed(tmp_path) -> None:
+    """A server stopped at once (killed, a crash, os._exit after /api/shutdown) leaves no workers."""
+    script = tmp_path / "server_stand_in.py"
+    script.write_text(SERVER_STAND_IN, encoding="utf-8")
+    server = subprocess.Popen([sys.executable, str(script), str(Path(__file__).resolve().parents[1])], stdout=subprocess.PIPE, text=True)
+    pids: list[int] = []
+    try:
+        assert server.stdout is not None
+        pids = [int(p) for p in server.stdout.readline().split()]
+        time.sleep(1.0)
+        assert len(pids) == 2 and all(_running(p) for p in pids)
+        server.kill()
+        server.wait(10)
+        end = time.monotonic() + 15
+        while any(_running(p) for p in pids):
+            assert time.monotonic() < end, "the chart workers outlived the killed server"
+            time.sleep(0.05)
+    finally:
+        server.kill()
+        for pid in pids:
+            if _running(pid):
+                os.kill(pid, signal.SIGKILL)
 
 
 def test_the_other_tiers_are_made_while_one_is_asked_for(tmp_path, file_song_fit) -> None:
