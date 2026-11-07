@@ -13,6 +13,9 @@ jobs:
   allin1:
     runs-on: windows-latest
     timeout-minutes: 90
+    env:
+      # the MSVC environment comes from msvc-dev-cmd: torch's extension builder must not set it up again
+      DISTUTILS_USE_SDK: '1'
     defaults:
       run:
         shell: bash
