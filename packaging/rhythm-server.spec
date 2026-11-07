@@ -1,8 +1,10 @@
 # PyInstaller spec: one folder with the analysis server, the shared config and the built client.
 # GRG_EDITION=ml builds the ML edition (README: 데스크톱 앱, docs/ARCHITECTURE.md): PyTorch (CPU), Demucs, beat_this
 # and basic-pitch (its ONNX model) come along and the analysis uses them; their model weights are
-# downloaded on first use. Otherwise (the default edition) they are left out and the desktop app
-# runs the core analysis.
+# downloaded on first use. GRG_EDITION=structure is the ML edition with allin1 (song structure) on
+# PyTorch 2.1 (packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 89). Otherwise (the
+# default edition) they are left out and the desktop app runs the core analysis.
+import importlib.util
 import os
 from pathlib import Path
 
@@ -16,7 +18,7 @@ hiddenimports = collect_submodules("rhythm_server") + collect_submodules("uvicor
 # soundfile is a single module (its contrib hook covers it); libsndfile ships in _soundfile_data
 packages = ["av", "_soundfile_data"]
 excludes = ["tensorflow", "allin1", "tkinter", "matplotlib", "pytest", "IPython"]
-if EDITION == "ml":
+if EDITION in ("ml", "structure"):
     # torch, torchaudio, onnxruntime, numba and scikit-learn have their own hooks; these carry data
     # files (model configs, the ONNX model, librosa's lazy-loader stubs, resampy's filters) or are
     # imported lazily
@@ -24,8 +26,20 @@ if EDITION == "ml":
                  "rotary_embedding_torch", "einops", "mir_eval", "pretty_midi", "huggingface_hub", "safetensors"]
 else:
     excludes += ["torch", "torchaudio", "demucs", "beat_this", "basic_pitch", "onnxruntime", "librosa"]
+if EDITION == "structure":
+    # allin1 and what it imports: NATTEN (built from source, packaging/build_natten.sh), madmom (its
+    # signal processing and DBN decoder only), its configs (Hydra, OmegaConf) and matplotlib (allin1
+    # imports its plotting module; the adapter sets the Agg backend)
+    packages += ["allin1", "natten", "madmom", "omegaconf", "hydra"]
+    excludes = [e for e in excludes if e not in ("allin1", "matplotlib")]
 for package in packages:
+    if importlib.util.find_spec(package) is None:
+        print(f"rhythm-server.spec: {package} is not installed, left out")
+        continue
     d, b, h = collect_all(package)
+    if package == "madmom":
+        # madmom's pre-trained models are CC BY-NC-SA; allin1 runs its own models, so they stay out
+        d = [(src, dest) for src, dest in d if not dest.replace("\\", "/").startswith("madmom/models")]
     datas += d
     binaries += b
     hiddenimports += h

@@ -291,6 +291,54 @@ def test_adapters_convert_library_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert out["segments"] == [(0.0, 8.0, "intro"), (8.0, 16.0, "chorus")] and out["bpm"] == 120.0
 
 
+def test_allin1_separates_in_this_process(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """allin1 starts `sys.executable -m demucs.separate`, which in the desktop app would start the
+    bundled server again: the adapter has Demucs run in this process, with allin1's arguments."""
+    from rhythm_server.analysis.backends import allin1_backend
+
+    calls: list[list[str]] = []
+
+    def fake_separate(args: list[str]) -> None:
+        calls.append(args)
+        out = Path(args[args.index("--out") + 1]) / "htdemucs"
+        for song in args[6:]:
+            (out / Path(song).stem).mkdir(parents=True, exist_ok=True)
+            for stem in allin1_backend.DEMIX_STEMS:
+                (out / Path(song).stem / f"{stem}.wav").write_bytes(b"")
+
+    def original_demix(paths, demix_dir, device):  # what allin1 would do: a new process
+        raise AssertionError("allin1's own demix (a new process) was used")
+
+    seg = types.SimpleNamespace
+    analyze_module = types.ModuleType("allin1.analyze")
+    analyze_module.demix = original_demix
+
+    def fake_analyze(path: str, demix_dir: str = "./demix", device: str = "cpu", keep_byproducts: bool = True, multiprocess: bool = True):
+        stems = analyze_module.demix([Path(path)], Path(demix_dir), device)
+        assert stems == [Path(demix_dir) / "htdemucs" / "audio"] and (stems[0] / "vocals.wav").is_file() and multiprocess is False
+        return seg(bpm=120, beats=[0.5], downbeats=[0.5], segments=[seg(start=0.0, end=4.0, label="intro")])
+
+    monkeypatch.setitem(sys.modules, "allin1", types.SimpleNamespace(analyze=fake_analyze))
+    monkeypatch.setitem(sys.modules, "allin1.analyze", analyze_module)
+    monkeypatch.setitem(sys.modules, "demucs", types.ModuleType("demucs"))
+    monkeypatch.setitem(sys.modules, "demucs.separate", types.SimpleNamespace(main=fake_separate))
+    out = allin1_backend.structure(np.zeros((44100, 2), np.float32), 44100, {"device": "cpu"})
+    assert out["segments"] == [(0.0, 4.0, "intro")] and analyze_module.demix is allin1_backend.demix_here
+    assert len(calls) == 1 and calls[0][2:6] == ["--name", "htdemucs", "--device", "cpu"] and calls[0][-1].endswith("audio.wav")
+    # a song already separated is not separated again; a Demucs failure (it exits) is an error
+    song = tmp_path / "song.wav"
+    fake_separate(["--out", tmp_path.as_posix(), "--name", "htdemucs", "--device", "cpu", song.as_posix()])
+    calls.clear()
+    assert allin1_backend.demix_here([song], tmp_path, "cpu") == [tmp_path / "htdemucs" / "song"] and calls == []
+
+    def failing(args: list[str]) -> None:
+        raise SystemExit(1)
+
+    monkeypatch.setitem(sys.modules, "demucs.separate", types.SimpleNamespace(main=failing))
+    with pytest.raises(RuntimeError, match="Demucs"):
+        allin1_backend.demix_here([tmp_path / "other.wav"], tmp_path, "cpu")
+
+
 def test_ml_helpers() -> None:
     beats = 0.5 + np.arange(64) * (60 / 140)
     assert abs(ml.bpm_hint(beats) - 140) < 1e-6

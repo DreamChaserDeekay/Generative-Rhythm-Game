@@ -2,7 +2,8 @@
 # starts it, analyzes a demo song, generates a chart and decodes an uploaded MP3 file.
 # -ExpectML (the ML edition): the server must report Demucs, beat_this and basic-pitch as active, and
 # the demo song must be analyzed with them (their weights are downloaded on the first analysis).
-param([switch]$ExpectML)
+# -ExpectStructure (the structure edition): allin1 too, for the song structure.
+param([switch]$ExpectML, [switch]$ExpectStructure)
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = Split-Path -Parent $PSScriptRoot
@@ -15,7 +16,7 @@ $library = Join-Path $work 'library'
 $proc = Start-Process -FilePath $exe -ArgumentList "--port 8795 --data `"$library`"" `
   -RedirectStandardOutput (Join-Path $work 'server.log') -RedirectStandardError (Join-Path $work 'server.err.log') -PassThru -NoNewWindow
 
-$waitSteps = if ($ExpectML) { 1200 } else { 240 }
+$waitSteps = if ($ExpectStructure) { 2400 } elseif ($ExpectML) { 1200 } else { 240 }
 function Wait-Ready($id) {
   for ($i = 0; $i -lt $waitSteps; $i++) {
     $s = (Invoke-RestMethod "$base/api/songs/$id").song
@@ -35,7 +36,8 @@ try {
   $active = @($health.backends | Where-Object { $_.active } | ForEach-Object { "$($_.name)-$($_.version)" })
   Write-Host "ML backends: $(if ($active) { $active -join ', ' } else { 'none' })"
   if ($ExpectML) {
-    foreach ($name in 'demucs', 'beat_this', 'basic_pitch') {
+    $expected = @('demucs', 'beat_this', 'basic_pitch') + $(if ($ExpectStructure) { @('allin1') } else { @() })
+    foreach ($name in $expected) {
       if (-not ($health.backends | Where-Object { $_.name -eq $name -and $_.active })) { throw "the ML edition has no active $name" }
     }
   }
@@ -48,6 +50,9 @@ try {
     $used = $s.analyzer.backends
     if ($used.stems -notmatch '^demucs' -or $used.beats -notmatch '^beat_this' -or $used.pitch -notmatch '^basic_pitch') {
       throw "the demo song was not analyzed with the ML backends: $($used | ConvertTo-Json -Compress) $($s.analyzer.errors | ConvertTo-Json -Compress)"
+    }
+    if ($ExpectStructure -and $used.structure -notmatch '^allin1') {
+      throw "the demo song's structure was not analyzed with allin1: $($used | ConvertTo-Json -Compress) $($s.analyzer.errors | ConvertTo-Json -Compress)"
     }
   }
   $chart = (Invoke-RestMethod -Method Post "$base/api/songs/$($demo.id)/charts" -ContentType 'application/json' -Body '{"keyMode":"7K+1S","difficulty":"HARD"}').chart
