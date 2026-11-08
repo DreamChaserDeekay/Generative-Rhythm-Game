@@ -54,6 +54,36 @@ describe('stem keysounds', () => {
     expect(stemKeysoundLabel(plan)).toBe('키음 드럼·보컬');
   });
 
+  it('ends a slice with its own sound and leaves the rest of the stem in the background', () => {
+    // generator 0.9.51: srcEnd is where the note's sound ends (the stem's next sound)
+    const list = [
+      { t: 1000, src: 'other' as StemName, srcEnd: 1250 },
+      { t: 2000, src: 'other' as StemName, srcEnd: 2125 },
+      { t: 2010, src: 'other' as StemName, srcEnd: 2400 }, // the same chord: the later end
+      { t: 3000, src: 'other' as StemName, srcEnd: 3600 }, // past the next note: the next note wins
+      { t: 3500, src: 'other' as StemName },
+      { t: 6000, src: 'drums' as StemName, srcEnd: 6200 },
+    ];
+    const plan = planStemKeysounds(list, 10000, ['other', 'drums'], OPTIONS)!;
+    const slice = (i: number) => {
+      const s = plan.noteSlice[i];
+      return s === null ? null : [plan.slices[s].startMs, plan.slices[s].endMs];
+    };
+    expect(slice(0)).toEqual([1000, 1250]);
+    expect(slice(1)).toEqual([2000, 2400]);
+    expect(plan.noteSlice[2]).toBe(plan.noteSlice[1]);
+    expect(slice(3)).toEqual([3000, 3500]);
+    expect(slice(4)).toEqual([3500, 7500]); // no srcEnd (an older chart): note to note, at most maxSliceMs
+    expect(slice(5)).toEqual([6000, 6200]);
+    // between the slices the stem plays in the background
+    expect(plan.ranges.other).toEqual([
+      [1000, 1250],
+      [2000, 2400],
+      [3000, 7500],
+    ]);
+    expect(plan.ranges.drums).toEqual([[6000, 6200]]);
+  });
+
   it('leaves stems that were not loaded, and charts without sources, in the background', () => {
     const list = notes([
       [1000, 'vocals'],
