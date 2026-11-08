@@ -2,7 +2,7 @@
 # NATTEN 0.14.6 from source, CPU only, for the structure edition (allin1 1.1.0 needs NATTEN's 0.14
 # functions; NATTEN has no Windows wheels). Run from the repository root in Git Bash, inside an
 # MSVC developer environment (ilammy/msvc-dev-cmd), with PyTorch already installed. Worked out in
-# .github/workflows/allin1-windows-experiment.yml (docs/PATTERN_DESIGN.md 88).
+# .github/workflows/allin1-windows-experiment.yml (docs/PATTERN_DESIGN.md 88, 90).
 set -euo pipefail
 
 # a relative folder: GNU tar reads a Windows path such as D:\a\_temp\x.tar.gz as a remote host

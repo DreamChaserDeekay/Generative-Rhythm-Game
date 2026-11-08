@@ -6,7 +6,7 @@ name: Desktop app (Windows)
 # (the core analysis only), ml (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; a 347 MB
 # installer; packaging/ml_torch.txt pins PyTorch) and, on develop and manual runs, structure (the ml
 # edition plus allin1 for the song structure, on Python 3.11 and PyTorch 2.1 with NATTEN built from
-# source; packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 89).
+# source; packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 90).
 on:
   workflow_dispatch:
   push:
@@ -126,6 +126,9 @@ jobs:
 
       - name: Install silently and launch the installed app
         shell: pwsh
+        env:
+          # the app's 90-second demo song: allin1 takes about 2.2 times the song's length on this runner
+          GRG_SMOKE_ANALYSIS_MS: ${{ matrix.edition == 'structure' && '900000' || '180000' }}
         run: |
           $setup = Get-ChildItem "desktop/dist/$($env:SETUP_PREFIX)-*.exe" | Select-Object -First 1
           Write-Host "installer: $($setup.Name) ($([math]::Round($setup.Length / 1MB)) MB)"

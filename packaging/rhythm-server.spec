@@ -2,7 +2,7 @@
 # GRG_EDITION=ml builds the ML edition (README: 데스크톱 앱, docs/ARCHITECTURE.md): PyTorch (CPU), Demucs, beat_this
 # and basic-pitch (its ONNX model) come along and the analysis uses them; their model weights are
 # downloaded on first use. GRG_EDITION=structure is the ML edition with allin1 (song structure) on
-# PyTorch 2.1 (packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 89). Otherwise (the
+# PyTorch 2.1 (packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 90). Otherwise (the
 # default edition) they are left out and the desktop app runs the core analysis.
 import importlib.util
 import os

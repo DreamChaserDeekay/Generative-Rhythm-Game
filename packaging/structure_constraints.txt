@@ -2,7 +2,7 @@
 # nothing moves these: allin1 1.1.0 needs NATTEN 0.14.x, which builds against PyTorch 2.1 (and
 # PyTorch 2.1 wheels need numpy 1). PyTorch and torchaudio come from the CPU wheel index
 # (https://download.pytorch.org/whl/cpu); Demucs 4.1 accepts torch >= 2.1, so it stays the ML
-# edition's. docs/PATTERN_DESIGN.md 88-89.
+# edition's. docs/PATTERN_DESIGN.md 88, 90.
 torch==2.1.2
 torchaudio==2.1.2
 numpy<2

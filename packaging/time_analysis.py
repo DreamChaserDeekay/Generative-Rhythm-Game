@@ -25,6 +25,8 @@ def call(base: str, path: str, body: dict | None = None, timeout: float = 600.0)
 
 
 def main() -> None:
+    # the stage labels are Korean: a Windows console's code page cannot print them
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     exe, work = Path(sys.argv[1]), Path(sys.argv[2])
     port = int(sys.argv[3]) if len(sys.argv) > 3 else 8796
     base = f"http://127.0.0.1:{port}"
