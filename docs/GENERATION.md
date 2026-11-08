@@ -45,7 +45,7 @@
 | 스템 | Demucs `htdemucs_6s` (shifts 1, overlap 0.25; 분석기 1.14.0까지 `htdemucs`) | 4스템을 그대로 쓰고(추가 스템은 other에 합침, 잔차도 other), 이 스템으로 온셋 태깅·구간 주도 스템·키음 스템을 계산. 기타 · 피아노는 따로도 읽어 온셋마다 그 몫(`instruments`), 구간마다 가장 큰 선율 악기(`lead` · `leadShares`)를 낸다(`docs/PATTERN_DESIGN.md` 86장) | 드럼 24.8 · 베이스 13.3 dB |
 | 박 | beat_this `final0` | 분석기 1.13.0부터 반 박 판정만: 기본 분석의 박 격자 안에 든 beat_this 박의 절반 넘게가 우리 박보다 박 사이에 가까우면 격자를 반 박 옮긴다(`ml.half_beat_phase`, 양 끝에 반 박씩 더함). 곡 설정에서 첫 박을 옮긴 곡은 그대로. 템포 · 박자 · 첫 다운비트는 기본 분석. 1.12.0까지 쓰던 BPM 힌트와 다운비트는 BMS 215곡에서 기본 분석보다 나빴다(`docs/PATTERN_DESIGN.md` 75장) | 합성 곡: 박 오차 중앙값 5ms. BMS 215곡: 40ms 안 93.0 → 95.3%, 반 박 3.7 → 1.4%, 다운비트가 마디선에 0.831 → 0.868 |
 | 음높이 | basic-pitch (최소 120ms) | 시작이 온셋 ±50ms 안인 노트 중 가장 확실한 것의 MIDI 음높이와 끝(롱노트 후보)을 씀. 베이스 온셋은 MIDI 55 미만, 나머지는 그 위의 노트를 고름(Python 3.11에서만 설치 가능) | 노트 음높이가 온셋에 반영 |
-| 구조 | allin1 `harmonix-all` | 구간을 마디에 스냅하고 한 마디보다 짧은 조각은 합친 뒤, 라벨로 반복 그룹을 묶고 에너지는 구간 음량의 중앙값 | 가짜 모듈로만 검증 |
+| 구조 | allin1 `harmonix-all` | 구간 시작을 우리 마디선에 스냅하고 한 마디보다 짧은 조각은 합친 뒤, 라벨로 반복 그룹을 묶고 에너지는 구간 음량의 중앙값. 라벨은 intro · verse · chorus · bridge · outro 그대로, inst → verse, solo · break → bridge(start · end는 경계로 쓰지 않음). 분석기 1.16.0부터 후렴이 하나도 없으면 기본 분석의 하이라이트 규칙(`structure.highlight_sections`를 음량 + 타격 세기 `section_intensity`로)이 가장 센 구간을 후렴으로 정하고(모든 구간이 후렴이 되는 곡은 그대로), allin1의 원래 라벨을 구간마다 `mlLabel`, 스냅 전 구간을 `mlSegments`로 남긴다(`docs/PATTERN_DESIGN.md` 92장) | 사람이 표시한 29곡: 경계 HR.5F 0.599 · 라벨 0.618(기본 분석 1.11.0은 0.467 · 0.424), 연주곡에서는 기본 분석보다 낮음(`docs/PATTERN_DESIGN.md` 69-9) |
 
 단계마다 실패하면 그 단계만 기본 분석으로 돌리고 `analyzer.errors`에 남긴다. 4분(235초) 합성 곡을 4코어 CPU에서 Demucs · beat_this · basic-pitch로 분석하면 242초 걸렸다(기본 분석 18초). Demucs는 합성 리드를 other로 보내므로 이 곡의 키음 스템은 기본 분리의 vocals 대신 other가 된다.
 

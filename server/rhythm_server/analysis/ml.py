@@ -123,31 +123,44 @@ def sections_from_segments(
     if n < 8:
         return []
     bars = list(range(beat0 % bpb, n, bpb)) or [0]
-    marks: dict[int, str] = {}
+    marks: dict[int, tuple[str, str]] = {}  # bar -> (our label, the backend's own label)
     for start, _, label in segments:
         mapped = SEGMENT_LABELS.get(label.lower())
         if mapped is not None:
-            marks.setdefault(min(bars, key=lambda b: abs(beats[b] - start)), mapped)
+            marks.setdefault(min(bars, key=lambda b: abs(beats[b] - start)), (mapped, label))
     edges = sorted(set(marks) | {0}) + [n]
-    raw: list[tuple[int, int, str]] = []
+    raw: list[tuple[int, int, str, str | None]] = []
     for a, b in zip(edges, edges[1:]):
         if b <= a:
             continue
         if raw and b - a < bpb:
-            raw[-1] = (raw[-1][0], b, raw[-1][2])  # shorter than a bar: part of the previous one
+            raw[-1] = (raw[-1][0], b, raw[-1][2], raw[-1][3])  # shorter than a bar: part of the previous one
             continue
-        raw.append((a, b, marks.get(a, raw[-1][2] if raw else "intro")))
+        if a in marks:
+            raw.append((a, b, *marks[a]))
+        else:
+            # no segment starts here (the song's start before the first labelled segment): what the
+            # backend called the moment it covers ("start" mostly)
+            raw.append((a, b, raw[-1][2] if raw else "intro", raw[-1][3] if raw else _segment_at(segments, float(beats[a]))))
     if not raw:
         return []
-    energies = np.array([float(np.median(beat_energy[a:b])) for a, b, _ in raw])
+    energies = np.array([float(np.median(beat_energy[a:b])) for a, b, _, _ in raw])
     span = float(np.ptp(energies))
     norm = (energies - energies.min()) / span if span > 1e-9 else np.full(len(raw), 0.5)
     groups: dict[str, str] = {}
     out = []
-    for (a, b, label), e in zip(raw, norm):
+    for (a, b, label, own), e in zip(raw, norm):
         group = groups.setdefault(label, chr(ord("A") + len(groups) % 26))
-        out.append(Section(start_beat=a, end_beat=b, energy=float(e), group=group, label=label))
+        out.append(Section(start_beat=a, end_beat=b, energy=float(e), group=group, label=label, ml_label=own))
     return out
+
+
+def _segment_at(segments: list[tuple[float, float, str]], t: float) -> str | None:
+    """The label of the segment around time `t` (seconds), else of the last one before it."""
+    before = [s for s in segments if s[0] <= t + 1e-6]
+    inside = [s for s in before if t < s[1]]
+    pick = (inside or before or segments[:1])
+    return str(pick[-1][2]) if pick else None
 
 
 def activity_from_stems(stems: dict[str, np.ndarray], n_fft: int, hop: int, ref: float) -> StemActivity:

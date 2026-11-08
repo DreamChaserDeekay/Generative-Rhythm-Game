@@ -195,7 +195,7 @@ data/
 - 종류는 stems · beats · pitch · structure 네 가지이고, 어댑터마다 라이브러리를 **처음 쓸 때만** 불러온다. 설치 여부는 `importlib.util.find_spec`으로만 확인하므로 PyTorch가 설치되어 있어도 서버 시작이 느려지지 않는다.
 - 옵션은 `config/analysis.json`의 `ml`(모델 이름·장치·shifts 등). `ml.enabled=false` 또는 `GRG_ML=0`이면 모두 끈다.
 - 분석기는 단계마다 ML 결과가 있으면 쓰고, 예외가 나면 그 단계만 기본 분석으로 돌린 뒤 `analyzer.errors[단계]`에 남긴다. 실제로 쓴 백엔드는 `analyzer.backends`(예: `{"stems": "demucs-4.1.0", "beats": "beat_this-1.1.0", "pitch": "core", "structure": "core"}`)에 기록한다.
-- ML 결과는 기본 분석의 입력으로 들어간다: beat_this 박은 기본 분석 박 격자의 반 박 판정(분석기 1.13.0, 그 전에는 템포 추정의 BPM 힌트와 박자·첫 다운비트였는데 BMS 곡에서 더 나빴다), basic-pitch 노트는 가까운 온셋의 음높이, allin1 구간은 마디에 스냅해 구조로, Demucs 스템은 온셋 태깅·구간 주도 악기·키음 스템으로 쓴다.
+- ML 결과는 기본 분석의 입력으로 들어간다: beat_this 박은 기본 분석 박 격자의 반 박 판정(분석기 1.13.0, 그 전에는 템포 추정의 BPM 힌트와 박자·첫 다운비트였는데 BMS 곡에서 더 나빴다), basic-pitch 노트는 가까운 온셋의 음높이, allin1 구간은 마디에 스냅해 구조로(후렴이 없으면 기본 분석의 하이라이트 규칙으로 후렴을 정하고, allin1의 원래 이름표는 `mlLabel` · `mlSegments`로 남김, 분석기 1.16.0), Demucs 스템은 온셋 태깅·구간 주도 악기·키음 스템으로 쓴다.
 - 곡 목록의 `outdated`는 저장된 분석의 분석기 버전이 다르거나, 지금 쓸 수 있는 백엔드가 분석 때 쓴 것과 다르면 true다. 클라이언트는 이때 "다시 분석" 버튼을 보인다.
 
 ### 로딩 시간 (업로드 → 분석 → 채보 → 키음)

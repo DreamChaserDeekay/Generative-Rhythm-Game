@@ -17,6 +17,7 @@ cosine self-similarity matrix drives everything:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -87,6 +88,7 @@ class Section:
     label: str
     loop_bars: int = 0  # the section's bars repeat after this many (0 = unknown)
     confidence: float = 0.0  # 0..1: how clear its boundary and its group are
+    ml_label: str | None = None  # the ML backend's own label for it (allin1's "inst", "break" ...), as it gave it
 
 
 def beat_sync(features: np.ndarray, frame_rate: float, beats: np.ndarray) -> np.ndarray:
@@ -541,6 +543,73 @@ def chorus_node(hot: set[int], spans: list[tuple[int, int]], groups: list[int], 
     return {i for i in range(len(groups)) if groups[i] in picked}
 
 
+def highlight_sections(spans: list[tuple[float, float]], groups: list[Any], energy: np.ndarray) -> set[int]:
+    """The highlight (chorus) sections from intensity and repetition: the loudest repeated group
+    when it is near the most intense section, else the most intense sections whatever repeats (with
+    their group's other occurrences near them). `spans` are in bars, `energy` the sections'
+    intensity (section_intensity), `groups` any labels of the repetition groups."""
+    k = len(spans)
+    count = {g: groups.count(g) for g in set(groups)}
+    repeated = [g for g in count if count[g] >= 2]
+    group_energy = {g: float(np.mean([energy[i] for i in range(k) if groups[i] == g])) for g in count}
+    length = [b - a for a, b in spans]
+
+    # A group every occurrence of which leads straight into one same other group (a verse into its
+    # pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the loudest.
+    # A long crescendo build-up is often as loud as the chorus it opens, and its rolls hit hard.
+    def leads_in(g: Any) -> bool:
+        idx = [i for i in range(k) if groups[i] == g]
+        nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
+        return len(nxt) == 1 and None not in nxt and next(iter(nxt)) in repeated and next(iter(nxt)) != g
+
+    hot: set[int] = set()
+    if repeated:
+        top = max(group_energy[g] for g in repeated)
+        # a group that does not lead in and is near the top beats one that does (HIGHLIGHT_MATE_MARGIN)
+        landing = [g for g in repeated if not leads_in(g) and group_energy[g] >= top - HIGHLIGHT_MATE_MARGIN]
+        near = landing or [g for g in repeated if group_energy[g] >= top - LEAD_IN_MARGIN]
+        chorus = max(near, key=lambda g: (not leads_in(g), round(group_energy[g], 2), count[g], -groups.index(g)))
+        hot = {i for i in range(k) if groups[i] == chorus}
+    if k > 2:
+        lead = {i for i in range(k) if groups[i] in repeated and leads_in(groups[i]) and i not in hot}
+        # a passage heard once and shorter than HIGHLIGHT_MIN_BARS (a build-up's last bars, a fill)
+        # is no highlight however hard it hits
+        brief = {i for i in range(k) if count[groups[i]] < 2 and length[i] < HIGHLIGHT_MIN_BARS}
+        free = [i for i in range(k) if i not in lead and i not in brief] or [i for i in range(k) if i not in lead] or list(range(k))
+        peak = max(float(energy[i]) for i in free)
+        if not hot or float(np.mean([energy[i] for i in hot])) < peak - HIGHLIGHT_MARGIN:
+            hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
+            hot_groups = {groups[i] for i in hot}
+            hot |= {i for i in free if groups[i] in hot_groups and energy[i] >= peak - HIGHLIGHT_MATE_MARGIN}
+    return hot
+
+
+HIGHLIGHT_LABELS = ("chorus", "drop")
+
+
+def promote_highlight(sections: list[Section], beat_energy: np.ndarray, beat_strength: np.ndarray | None, beats_per_bar: int) -> bool:
+    """Sections found another way (an ML backend) that name no chorus get one: the most intense of
+    them by the core analysis's own highlight rule (highlight_sections on section_intensity) become
+    the chorus. allin1, trained on songs with vocals, can call an instrumental song's drops "inst"
+    and its breakdowns "break" and name no chorus at all; the generator's highlight rules (the
+    densest part, chords, camera) then had nothing to follow (docs/PATTERN_DESIGN.md 92). The
+    groups stay as they are (a group may hold a chorus and a verse, as in label_sections); when the
+    rule would make every section the chorus there is no highlight and nothing changes. Labels
+    change in place; True when any did."""
+    if not sections or any(s.label in HIGHLIGHT_LABELS for s in sections):
+        return False
+    bpb = max(1, int(beats_per_bar))
+    ranges = [(s.start_beat, s.end_beat) for s in sections]
+    spans = [(a / bpb, b / bpb) for a, b in ranges]
+    energy = section_intensity(beat_energy, beat_strength, ranges)
+    hot = highlight_sections(spans, [s.group for s in sections], energy)
+    if not hot or len(hot) == len(sections):
+        return False
+    for i in hot:
+        sections[i].label = "chorus"
+    return True
+
+
 def label_sections(
     spans: list[tuple[int, int]],
     groups: list[int],
@@ -566,34 +635,7 @@ def label_sections(
     group_energy = {g: float(np.mean([energy[i] for i in range(k) if groups[i] == g])) for g in count}
     labels = [""] * k
     length = [b - a for a, b in spans]
-
-    # A group every occurrence of which leads straight into one same other group (a verse into its
-    # pre-chorus, a build-up into its drop) leads in: it is the chorus only if clearly the loudest.
-    # A long crescendo build-up is often as loud as the chorus it opens, and its rolls hit hard.
-    def leads_in(g: int) -> bool:
-        idx = [i for i in range(k) if groups[i] == g]
-        nxt = {groups[i + 1] if i + 1 < k else None for i in idx}
-        return len(nxt) == 1 and None not in nxt and next(iter(nxt)) in repeated and next(iter(nxt)) != g
-
-    hot: set[int] = set()
-    if repeated:
-        top = max(group_energy[g] for g in repeated)
-        # a group that does not lead in and is near the top beats one that does (HIGHLIGHT_MATE_MARGIN)
-        landing = [g for g in repeated if not leads_in(g) and group_energy[g] >= top - HIGHLIGHT_MATE_MARGIN]
-        near = landing or [g for g in repeated if group_energy[g] >= top - LEAD_IN_MARGIN]
-        chorus = max(near, key=lambda g: (not leads_in(g), round(group_energy[g], 2), count[g], -groups.index(g)))
-        hot = {i for i in range(k) if groups[i] == chorus}
-    if k > 2:
-        lead = {i for i in range(k) if groups[i] in repeated and leads_in(groups[i]) and i not in hot}
-        # a passage heard once and shorter than HIGHLIGHT_MIN_BARS (a build-up's last bars, a fill)
-        # is no highlight however hard it hits
-        brief = {i for i in range(k) if count[groups[i]] < 2 and length[i] < HIGHLIGHT_MIN_BARS}
-        free = [i for i in range(k) if i not in lead and i not in brief] or [i for i in range(k) if i not in lead] or list(range(k))
-        peak = max(float(energy[i]) for i in free)
-        if not hot or float(np.mean([energy[i] for i in hot])) < peak - HIGHLIGHT_MARGIN:
-            hot = {i for i in free if energy[i] >= peak - HIGHLIGHT_MARGIN}
-            hot_groups = {groups[i] for i in hot}
-            hot |= {i for i in free if groups[i] in hot_groups and energy[i] >= peak - HIGHLIGHT_MATE_MARGIN}
+    hot = highlight_sections(spans, groups, energy)
     if CHORUS_WEIGHTS and group_cues is not None:
         hot = chorus_node(hot, spans, groups, energy, group_cues)
     if hot and sim is not None and threshold is not None:
