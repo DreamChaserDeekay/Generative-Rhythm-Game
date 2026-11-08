@@ -25,6 +25,12 @@ the pitch of the notes (`pitch_of`, from the analysis onsets).
   hand (BMS-Generator keeps chord mates two keys apart).
 - pivots (5B): two-note chords that alternate left key + middle key and middle key + right key, as a
   share of the two-note chords (key modes with a shared middle key).
+- dpc (the DPC2026 reviews, docs/PATTERN_DESIGN.md 91). strongBothHands: share of the instants on
+  beats 1 and 3 of the dense bars (twelve key notes or more) struck by both hands (the 5B middle key
+  stands in for the missing hand). samePitchStay: share of a tune's single notes (not drums) whose
+  pitch (stem, semitone) had a single note in the 8 beats before, 260 ms or more earlier, that keep
+  its lane. arpeggioJacks: a key hit three times or more in a row by single notes, each within 300
+  ms, the pitch moving a semitone or more at least twice, per 1000 key notes.
 """
 
 from __future__ import annotations
@@ -53,6 +59,10 @@ BAR_NOTES = 10  # key notes from which a bar is held to the hands' share band
 BAR_BAND = (0.3, 0.7)  # the left hand's share of such a bar
 PIVOT_MS = 600.0  # two-note chords closer than this answer each other
 SAME_PITCH = 0.5  # semitones
+DENSE_BAR_NOTES = 12  # key notes from which a bar is dense (the DPC measures)
+STAY_BEATS = 8.0  # how far back a pitch is remembered for samePitchStay
+STAY_MS = 260.0  # ...and how much later its next note must come
+ARPEGGIO_MS = 300.0  # hits of one key closer than this make an arpeggio jack
 
 
 PitchOf = Callable[[float], float | None]
@@ -385,6 +395,62 @@ def pivots(notes: list[dict[str, Any]], key_mode: str) -> float | None:
     return _round(sum(pivot) / len(pairs))
 
 
+def dpc(notes: list[dict[str, Any]], key_mode: str, pitch_of: PitchOf | None = None) -> dict[str, float | None]:
+    index, hand_of, _, _ = _layout(key_mode)
+    events = _events(notes, index)
+    key_notes = sum(len(ns) for _, _, ns in events)
+    bars: dict[int, list[tuple[float, list[dict[str, Any]]]]] = {}
+    for _, beat, ns in events:
+        bars.setdefault(int(beat // BAR_BEATS), []).append((beat, ns))
+    strong = both = 0
+    for bar, evs in bars.items():
+        if sum(len(ns) for _, ns in evs) < DENSE_BAR_NOTES:
+            continue
+        for beat, ns in evs:
+            pos = beat - BAR_BEATS * bar
+            if abs(pos - round(pos)) > 0.02 or int(round(pos)) % 2:
+                continue
+            hands_used = {hand_of[index[int(n["lane"])]] for n in ns}
+            strong += 1
+            both += ("L" in hands_used and "R" in hands_used) or ("T" in hands_used and len(ns) >= 2)
+    out: dict[str, float | None] = {"strongBothHands": _round(both / strong) if strong else None}
+    if pitch_of is None:
+        out.update(samePitchStay=None, arpeggioJacks=None)
+        return out
+    last: dict[tuple[Any, int], tuple[float, float, int]] = {}
+    stays = kept = 0
+    for t, beat, ns in events:
+        if len(ns) != 1 or ns[0].get("src") == "drums":
+            continue
+        p = pitch_of(t)
+        if p is None:
+            continue
+        key = (ns[0].get("src"), int(round(p)))
+        lane = int(ns[0]["lane"])
+        if key in last and t - last[key][0] >= STAY_MS and beat - last[key][1] <= STAY_BEATS:
+            stays += 1
+            kept += lane == last[key][2]
+        last[key] = (t, beat, lane)
+    arpeggios = 0
+    run: list[tuple[float, int, float | None]] = []
+
+    def close(run: list[tuple[float, int, float | None]]) -> int:
+        pitches = [p for _, _, p in run if p is not None]
+        moves = sum(1 for a, b in zip(pitches, pitches[1:]) if abs(a - b) >= 1.0)
+        return int(len(run) >= 3 and moves >= 2)
+
+    for t, _, ns in events:
+        if len(ns) == 1 and run and int(ns[0]["lane"]) == run[-1][1] and t - run[-1][0] <= ARPEGGIO_MS:
+            run.append((t, int(ns[0]["lane"]), pitch_of(t)))
+            continue
+        arpeggios += close(run)
+        run = [(t, int(ns[0]["lane"]), pitch_of(t))] if len(ns) == 1 else []
+    arpeggios += close(run)
+    out["samePitchStay"] = _round(kept / stays) if stays else None
+    out["arpeggioJacks"] = _round(1000.0 * arpeggios / key_notes, 2) if key_notes else None
+    return out
+
+
 def guide_profile(
     notes: list[dict[str, Any]],
     key_mode: str,
@@ -400,6 +466,7 @@ def guide_profile(
     out.update(hands(notes, key_mode, pitch_of))
     out.update(balance(notes, key_mode))
     out["pivots"] = pivots(notes, key_mode)
+    out.update(dpc(notes, key_mode, pitch_of))
     return out
 
 

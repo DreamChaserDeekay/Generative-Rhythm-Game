@@ -214,7 +214,9 @@ def test_scales_become_stairs_and_two_note_figures_trills() -> None:
         return sum(hits) / len(hits)
 
     assert trill_share(key_sequence(designer, bars["oscillate"])) >= 0.8
-    assert trill_share(key_sequence(classic, bars["oscillate"])) < 0.5
+    # (note by note they scattered until generator 0.9.50, whose pitch memory keeps a pitch that
+    # comes back on its lane, PATTERN_DESIGN 91: the two pitches now take two lanes there too)
+    assert trill_share(key_sequence(classic, bars["oscillate"])) >= 0.8
     # a repeated note may stay on its lane (BMS: about half the jacks repeat their keysound), but it
     # does not pile up past the jack-streak limit; note by note nearly every repeat was a jack
     free = int(round(by_skill(load_config("patterns")["hands"]["jackFree"], resolve_params("6K", "HARD").skill)))

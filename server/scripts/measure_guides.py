@@ -42,6 +42,7 @@ MEASURES = (
     "contour", "pitchOrder",
     "unmotivatedJacks", "fingerLoad", "anchors", "anchorMax", "handStreaks", "doubles", "handRuns", "jackStreaks",
     "lopsided", "shapeLeft", "offBars", "adjacentChords", "pivots",
+    "strongBothHands", "samePitchStay", "arpeggioJacks",
     "loopLane", "repeatLane",
 )
 SHORT = {
@@ -49,6 +50,7 @@ SHORT = {
     "unmotivatedJacks": "uJack", "fingerLoad": "finger", "anchors": "anchor", "anchorMax": "aMax", "handStreaks": "streak", "doubles": "double",
     "handRuns": "hRun", "jackStreaks": "jStreak", "offBars": "offBar", "adjacentChords": "adjChd",
     "lopsided": "lopside", "shapeLeft": "shapeL", "pivots": "pivot", "loopLane": "loopL", "repeatLane": "repL",
+    "strongBothHands": "strong2H", "samePitchStay": "pStay", "arpeggioJacks": "arpJack",
 }
 
 
