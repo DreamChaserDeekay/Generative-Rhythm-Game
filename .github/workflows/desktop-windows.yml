@@ -114,7 +114,7 @@ jobs:
         working-directory: desktop
         run: |
           npm ci
-          # its tools from GitHub's release downloads, retried (one failed download fails the build)
+          # its tools and Electron from GitHub's release downloads, retried (one failed download fails the build)
           bash ../packaging/fetch_builder_tools.sh
           npx electron-builder --win nsis --x64 --publish never "-c.nsis.artifactName=${SETUP_PREFIX}-\${version}.\${ext}"
 
