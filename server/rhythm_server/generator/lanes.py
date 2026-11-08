@@ -16,7 +16,7 @@ from ..analysis.stems import STEM_NAMES
 from ..config import difficulty_config, key_modes, load_config
 from .motifs import MotifContext, SlotPlan, by_key_mode, by_skill, motif_context, motif_costs, one_hand_region
 from .params import GenParams
-from .select import Slot, home_of, sound_of
+from .select import Slot, home_of, melodic, sound_of
 from .tempo import TempoMap
 
 BEAM_WIDTH = 5
@@ -163,6 +163,23 @@ class _Weights:
     # no hold on one hand while the other holds through notes, and a held chord's other long notes
     # stay on its hand
     free_hand: bool = False
+    # a lane hit again within other_jack_ms by another sound (not the same sound, not the same pitch)
+    # pays this per lane (hands.otherSoundJack): DPC2026 reviewers count a jack only where the music
+    # repeats a sound, and an arpeggio forced into one lane disqualified a pattern
+    # (docs/PATTERN_DESIGN.md 91)
+    other_jack: float = 0.0
+    other_jack_ms: float = 0.0
+    # a tune's single key note (not drums) whose pitch (stem and semitone) had a single key note in
+    # the last same_pitch_beats, slow_ms or more ago, pays this for leaving that lane
+    # (hands.samePitchStay): same pitch, same lane, also with other notes between
+    same_pitch_stay: float = 0.0
+    same_pitch_beats: float = 0.0
+    # a chord on a drum beat (an integer beat, drums' share at least strong_drums) of a bar with
+    # strong_bar_slots slots or more pays this when all its keys are on one hand
+    # (hands.strongTwoHands): DPC2026 reviewers want both hands on the accents of a dense passage
+    strong_two_hands: float = 0.0
+    strong_bar_slots: int = 0
+    strong_drums: float = 1.0
 
     @staticmethod
     def of(params: GenParams) -> "_Weights":
@@ -235,6 +252,13 @@ class _Weights:
             under_fast=by_skill(under.get("fast", 0.0), params.skill) * by_key_mode(under.get("keyModeScale", 1.0), params.key_mode),
             under_fast_ms=float(under.get("fastMs", 0.0)),
             free_hand=params.skill < float(under.get("freeHandBelow", 0.0)),
+            other_jack=_tune_contour(hands.get("otherSoundJack", 0.0), params),
+            other_jack_ms=float(hands.get("otherSoundJackMs", 0.0)),
+            same_pitch_stay=_tune_contour(hands.get("samePitchStay", 0.0), params),
+            same_pitch_beats=float(hands.get("samePitchBeats", 0.0)),
+            strong_two_hands=_tune_contour((hands.get("strongTwoHands") or {}).get("cost", 0.0), params),
+            strong_bar_slots=int((hands.get("strongTwoHands") or {}).get("minBarSlots", 0)),
+            strong_drums=float((hands.get("strongTwoHands") or {}).get("minDrums", 1.0)),
         )
 
 
@@ -292,6 +316,7 @@ class _State:
     bar: int = -1  # bar of this slot
     bar_hands: tuple[float, float] = (0.0, 0.0)  # left / right key notes of that bar so far (a middle key: half each)
     memory: tuple[tuple[Any, int], ...] = ()  # (sound, lane) of the latest single key notes, one per sound, oldest first
+    pitches: tuple[tuple[Any, int, float, float], ...] = ()  # (pitch, lane, beat, time) of the latest tune single notes, one per pitch
     # hand-shape feedback counts, measured like the BMS statistics (scripts/bms_stats.py): notes in
     # runs of single notes, those a hand plays third or later in a row, full bars and lopsided ones
     fb_run: int = 0
@@ -331,9 +356,33 @@ def _remember(memory: tuple[tuple[Any, int], ...], sound: Any, keys_used: tuple[
     return (kept + ((sound, keys_used[0]),))[-size:]
 
 
+def _strong_slots(slots: list[Slot], beats_per_bar: float, w: "_Weights") -> list[bool]:
+    """Per slot: a drum hit on the beat of a busy bar (_Weights.strong_two_hands)."""
+    bar_of = [int(math.floor(s.beat / beats_per_bar + 1e-9)) for s in slots]
+    per_bar: dict[int, int] = {}
+    for b in bar_of:
+        per_bar[b] = per_bar.get(b, 0) + 1
+    return [
+        abs(s.beat - round(s.beat)) < 1e-6 and s.sources is not None and float(s.sources[DRUMS]) >= w.strong_drums
+        and per_bar[b] >= w.strong_bar_slots
+        for s, b in zip(slots, bar_of)
+    ]
+
+
+def _remember_pitch(
+    pitches: tuple[tuple[Any, int, float, float], ...], sound: Any, keys_used: tuple[int, ...], beat: float, t: float, window: float
+) -> tuple[tuple[Any, int, float, float], ...]:
+    """The pitch memory after a slot: a tune's single key note moves its pitch to the end with its
+    lane; pitches older than `window` beats are let go."""
+    kept = tuple(m for m in pitches if beat - m[2] <= window and (sound is None or m[0] != sound))
+    if sound is None or len(keys_used) != 1:
+        return kept
+    return kept + ((sound, keys_used[0], beat, t),)
+
+
 def _tune_contour(value: Any, params: GenParams) -> float:
-    """hands.contourScale: a number, or {key mode: number or [skill, scale] pairs} with "*" for the
-    key modes it leaves out."""
+    """hands.contourScale (and the other hand settings read the same way): a number, or {key mode:
+    number or [skill, scale] pairs} with "*" for the key modes it leaves out."""
     if isinstance(value, dict):
         value = value.get(params.key_mode, value.get("*", 1.0))
     return by_skill(value, params.skill)
@@ -530,6 +579,7 @@ def search(
         for l in lanes
     ]
     bpb = tempo.beats_per_bar
+    strong_slots = _strong_slots(slots, bpb, weights) if weights.strong_two_hands > 0 else None
     min_gap = [params.min_jack_ms for l in lanes]
     # A side note is a bar over its hand's keys: around its head that hand keeps the jack spacing
     # (DPC judges mark notes squeezed against side notes). Key lanes watch their hand's side lanes
@@ -599,6 +649,10 @@ def search(
         repeats = sp is not None and sp.repeats(slot.size - (1 if slot.special else 0))
         sound = sound_of(slot)
         home_sound = home_of(slot)
+        # a tune note's pitch for the pitch memory (drums carry no pitch of their own); a shape the plan
+        # draws (a stair, a trill) keeps its own lanes: a scale wider than the keys comes down a stair
+        pitch_key = sound if weights.same_pitch_stay > 0 and slot.roll is None and melodic(slot) and slot.src != DRUMS else None
+        stay_here = pitch_key is not None and (sp is None or sp.motif == "step")
         bar = int(slot.beat // bpb + 1e-9)
         # The same-hand and balance rules leave alone what the plan puts on one hand on purpose: a
         # shape that stays on a hand, and a role kept to one hand (rhythm one hand, melody the other).
@@ -695,6 +749,12 @@ def search(
                 held = [j for j in key_lanes if state.hold_end[j] > t and hands[j] != "T"]
                 if held:
                     costs = [c + _under_hold_cost(state, combo, held, lanes, hand_keys, t, weights) for c, combo in zip(costs, combos)]
+            if strong_slots is not None and strong_slots[si]:
+                costs = [c + weights.strong_two_hands if len(combo) >= 2 and len({hands[i] for i in combo}) == 1 else c for c, combo in zip(costs, combos)]
+            if stay_here and state.pitches:
+                home = next((m for m in reversed(state.pitches) if m[0] == pitch_key), None)
+                if home is not None and t - home[3] >= weights.slow_ms and slot.beat - home[2] <= weights.same_pitch_beats:
+                    costs = [c + weights.same_pitch_stay if len(combo) == 1 and combo[0] != home[1] else c for c, combo in zip(costs, combos)]
             if weights.memory > 0 and home_sound is not None and not same_sound and slot.roll is None and state.memory:
                 home = next((lane for s, lane in reversed(state.memory) if s == home_sound), None)
                 if home is not None:
@@ -820,6 +880,7 @@ def search(
                     bar=bar,
                     bar_hands=(left, right),
                     memory=_remember(state.memory, home_sound, keys_used, weights.memory_size) if weights.memory > 0 else (),
+                    pitches=_remember_pitch(state.pitches, pitch_key, keys_used, slot.beat, t, weights.same_pitch_beats) if weights.same_pitch_stay > 0 else (),
                     **(fb or {}),
                     **mv,
                 )
@@ -1174,6 +1235,8 @@ def _costs(
     if not keep_pitch and not bonus:
         speed = min(1.0, max(0.0, (400.0 - dt) / 300.0))
         jack = jack_scale * w.jack * (0.6 + speed) * (w.slow_jack if slow else 1.0)
+    # another sound on a lane just hit (a planned repeat or a roll keeps its own plan)
+    other_jack = w.other_jack if w.other_jack and dt < w.other_jack_ms and not same_sound and not same_pitch and slot.roll is None and not planned_repeat else 0.0
     usage = w.slow_usage if slow else w.usage
     balance = [usage * (u - mean_use) / (mean_use + 1.0) for u in state.usage]
     single_prev = prev[0] if len(prev) == 1 else None
@@ -1280,7 +1343,7 @@ def _costs(
                 repeated += 1
         if repeated:
             if not keep_pitch:
-                cost += jack * repeated
+                cost += (jack + other_jack) * repeated
             if bonus:
                 # up to the jack-streak limit: past it a lane pays its streak cost like any other
                 cost -= bonus * sum(1 for i in combo if i in prev and i not in streak_cost and not (planned_repeat and state.streak and state.streak[i] >= 2))

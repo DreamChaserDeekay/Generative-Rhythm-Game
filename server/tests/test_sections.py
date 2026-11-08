@@ -103,9 +103,11 @@ def test_a_repeated_chorus_is_the_first_one_on_the_same_instrument() -> None:
             notes_at, lanes_at = alike(at(chorus[0], fixed), at(later, fixed))
             assert notes_at >= 0.9 and lanes_at >= 0.9, (key_mode, later["startBeat"], notes_at, lanes_at)
         # the second chorus is not the first one again: other notes (NORMAL picks the vocal's) or
-        # other lanes (the drums leave their home keys)
+        # other lanes (the drums leave their home keys). Since generator 0.9.50 a drum hit may not
+        # take a key the melody just struck (hands.otherSoundJack, PATTERN_DESIGN 91), which leaves
+        # them fewer keys to go to: 6K keeps 0.93 of the lanes
         notes_at, lanes_at = alike(at(chorus[0]), at(chorus[1]))
-        assert notes_at < 0.9 or lanes_at < 0.9, (key_mode, notes_at, lanes_at)
+        assert notes_at < 0.9 or lanes_at < 0.95, (key_mode, notes_at, lanes_at)
 
 
 @pytest.mark.parametrize("key_mode,difficulty,level", CHARTS)

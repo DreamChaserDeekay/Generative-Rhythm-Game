@@ -2,9 +2,11 @@ name: Desktop app (Windows)
 
 # Builds the Windows installers: the client, the analysis server bundled with PyInstaller (it has to
 # run on Windows to produce a Windows executable), then the Electron NSIS installer. Each installer is
-# then installed silently and the installed app is launched once as a smoke test. Two editions: core
-# (the core analysis only) and ml (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; a 347 MB
-# installer; packaging/ml_torch.txt pins PyTorch).
+# then installed silently and the installed app is launched once as a smoke test. Editions: core
+# (the core analysis only), ml (PyTorch CPU, Demucs, beat_this, basic-pitch ONNX; a 347 MB
+# installer; packaging/ml_torch.txt pins PyTorch) and, on develop and manual runs, structure (the ml
+# edition plus allin1 for the song structure, on Python 3.11 and PyTorch 2.1 with NATTEN built from
+# source; packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 90).
 on:
   workflow_dispatch:
   push:
@@ -24,25 +26,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [core, ml]
+        edition: ${{ fromJSON((github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch') && '["core", "ml", "structure"]' || '["core", "ml"]') }}
     name: windows (${{ matrix.edition }})
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         shell: bash
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       GRG_EDITION: ${{ matrix.edition }}
-      SETUP_PREFIX: ${{ matrix.edition == 'ml' && 'GenerativeRhythm-ML-Setup' || 'GenerativeRhythm-Setup' }}
+      SETUP_PREFIX: ${{ matrix.edition == 'structure' && 'GenerativeRhythm-ML-Structure-Setup' || matrix.edition == 'ml' && 'GenerativeRhythm-ML-Setup' || 'GenerativeRhythm-Setup' }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          # allin1's NATTEN builds against PyTorch 2.1, which has no Python 3.12 wheels
+          python-version: ${{ matrix.edition == 'structure' && '3.11' || '3.12' }}
           cache: pip
           cache-dependency-path: server/pyproject.toml
+
+      # NATTEN and madmom are built from source for the structure edition
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: matrix.edition == 'structure'
 
       - uses: actions/setup-node@v5
         with:
@@ -66,6 +73,22 @@ jobs:
             python -m pip install -e "./server[build,ml]"
             # its ONNX model on Python 3.12; its declared TensorFlow has no 3.12 wheels (server/pyproject.toml)
             python -m pip install --no-deps "basic-pitch>=0.4"
+          elif [ "$GRG_EDITION" = structure ]; then
+            # every install keeps PyTorch 2.1.2, torchaudio 2.1.2 and numpy 1 (NATTEN's build is tied to them)
+            export PIP_CONSTRAINT="$PWD/packaging/structure_constraints.txt"
+            # torch 2.1's extension builder imports pkg_resources, which new setuptools no longer ships
+            python -m pip install "setuptools<70" wheel
+            python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+            python -m pip install numpy cython ninja cmake
+            bash packaging/build_natten.sh
+            # madmom's PyPI release (0.16.1) predates numpy 1.24; allin1 needs the current source
+            export PATH="$(dirname "$(command -v cl)"):$PATH"
+            python -m pip install --no-build-isolation "git+https://github.com/CPJKU/madmom"
+            # the ml extra's packages one by one: on Python 3.11 it would bring basic-pitch's TensorFlow
+            python -m pip install -e "./server[build]" "demucs>=4.1" "beat-this>=1.0" "onnxruntime>=1.17" "librosa>=0.10" \
+              "mir-eval>=0.6" "pretty-midi>=0.2.9" "resampy>=0.2.2,<0.4.3" scikit-learn allin1
+            python -m pip install --no-deps "basic-pitch>=0.4"
+            python -m pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|beat.this|basic.pitch|numpy|onnxruntime|matplotlib) " || true
           else
             python -m pip install -e "./server[build]"
           fi
@@ -76,7 +99,16 @@ jobs:
       - name: Smoke test the bundled server
         shell: pwsh
         run: |
-          if ($env:GRG_EDITION -eq 'ml') { ./packaging/smoke_server.ps1 -ExpectML } else { ./packaging/smoke_server.ps1 }
+          if ($env:GRG_EDITION -eq 'structure') { ./packaging/smoke_server.ps1 -ExpectML -ExpectStructure }
+          elseif ($env:GRG_EDITION -eq 'ml') { ./packaging/smoke_server.ps1 -ExpectML }
+          else { ./packaging/smoke_server.ps1 }
+
+      # how long a 4-minute song takes with allin1 (its weights came with the smoke test); informational
+      - name: Time a 4-minute song's analysis
+        if: matrix.edition == 'structure'
+        continue-on-error: true
+        timeout-minutes: 75
+        run: python packaging/time_analysis.py server/dist/rhythm-server/rhythm-server.exe "$RUNNER_TEMP/grg-timing"
 
       - name: Build the installer (electron-builder, NSIS)
         working-directory: desktop
@@ -86,7 +118,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.edition == 'ml' && 'GenerativeRhythm-Windows-ML-Setup' || 'GenerativeRhythm-Windows-Setup' }}
+          name: ${{ matrix.edition == 'structure' && 'GenerativeRhythm-Windows-ML-Structure-Setup' || matrix.edition == 'ml' && 'GenerativeRhythm-Windows-ML-Setup' || 'GenerativeRhythm-Windows-Setup' }}
           path: desktop/dist/${{ env.SETUP_PREFIX }}-*.exe
           if-no-files-found: error
           retention-days: 30
@@ -94,6 +126,9 @@ jobs:
 
       - name: Install silently and launch the installed app
         shell: pwsh
+        env:
+          # the app's 90-second demo song: allin1 takes about 2.2 times the song's length on this runner
+          GRG_SMOKE_ANALYSIS_MS: ${{ matrix.edition == 'structure' && '900000' || '180000' }}
         run: |
           $setup = Get-ChildItem "desktop/dist/$($env:SETUP_PREFIX)-*.exe" | Select-Object -First 1
           Write-Host "installer: $($setup.Name) ($([math]::Round($setup.Length / 1MB)) MB)"
@@ -110,6 +145,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force desktop/dist/smoke | Out-Null
           Copy-Item (Join-Path $env:RUNNER_TEMP 'grg-smoke/*.log') desktop/dist/smoke -ErrorAction SilentlyContinue
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'grg-timing/*.log') desktop/dist/smoke -ErrorAction SilentlyContinue
           Copy-Item (Join-Path $env:APPDATA 'Generative Rhythm/server.log') desktop/dist/smoke/desktop-server.log -ErrorAction SilentlyContinue
 
       - uses: actions/upload-artifact@v5

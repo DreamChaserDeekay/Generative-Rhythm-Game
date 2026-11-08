@@ -131,6 +131,62 @@ def test_workers_end_when_the_server_is_killed(tmp_path) -> None:
                 os.kill(pid, signal.SIGKILL)
 
 
+def test_charts_made_ahead_wait_for_the_chosen_one(monkeypatch) -> None:
+    """The tier asked for whole is made alone; the tiers made ahead start once it is done (also when
+    the one asked for was itself being made ahead)."""
+    import threading
+
+    from rhythm_server.generator import workers
+
+    started: list[str] = []
+    gates = {tier: threading.Event() for tier in ("EXPERT", "NORMAL", "HARD", "ELITE")}
+
+    def fake_make(args):
+        started.append(args[2])
+        assert gates[args[2]].wait(10)
+        return {"tier": args[2]}
+
+    def wait_started(count: int) -> None:
+        end = time.monotonic() + 10
+        while len(started) < count:
+            assert time.monotonic() < end
+            time.sleep(0.01)
+
+    monkeypatch.setattr(workers, "_make", fake_make)
+    maker = ChartMaker(0)
+    try:
+        args = lambda tier: ({}, "6K", tier, None, 1, {}, None)  # noqa: E731
+        chosen, _ = maker.job("c-EXPERT", WHOLE, args("EXPERT"))
+        ahead = [maker.job(f"c-{t}", AHEAD, args(t))[0] for t in ("NORMAL", "HARD")]
+        wait_started(1)
+        time.sleep(0.2)
+        assert started == ["EXPERT"]
+        gates["EXPERT"].set()
+        assert chosen.result(10) == {"tier": "EXPERT"}
+        wait_started(3)
+        assert sorted(started[1:]) == ["HARD", "NORMAL"]
+        gates["NORMAL"].set()
+        gates["HARD"].set()
+        assert [f.result(10)["tier"] for f in ahead] == ["NORMAL", "HARD"]
+        # being made ahead, then asked for: what is made ahead after it waits for it
+        started.clear()
+        gates["NORMAL"].clear()
+        first, _ = maker.job("d-NORMAL", AHEAD, args("NORMAL"))
+        wait_started(1)
+        same, new = maker.job("d-NORMAL", WHOLE, args("NORMAL"))
+        assert same is first and not new
+        later, _ = maker.job("d-ELITE", AHEAD, args("ELITE"))
+        time.sleep(0.2)
+        assert started == ["NORMAL"]
+        gates["NORMAL"].set()
+        gates["ELITE"].set()
+        assert later.result(10) == {"tier": "ELITE"} and started == ["NORMAL", "ELITE"]
+    finally:
+        for gate in gates.values():
+            gate.set()
+        maker.close()
+
+
 def test_the_other_tiers_are_made_while_one_is_asked_for(tmp_path, file_song_fit) -> None:
     with TestClient(create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True, chart_workers=2)) as c:
         song = c.post("/api/songs", files={"file": ("a.wav", wav_bytes(128.0, 24, 6), "audio/wav")}).json()["song"]
