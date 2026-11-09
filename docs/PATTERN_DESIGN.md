@@ -6864,6 +6864,7 @@ Python 3.11, CPU PyTorch 2.1.2, NATTEN 0.14.6(소스 빌드), madmom 0.17.dev0(G
   - 작은 무작위 모델로 PyTorch와 같다(차이 1e-4 아래). 시험 6개, PyTorch 2.14 · 2.1.2(구조 분석판) 둘 다.
   - 실제 체크포인트: 아래 98-3.
   - Windows 묶음 서버에서는 `rhythm-server selftest`가 같은 일을 작은 모델로 한다. 내보내기, DirectML(목록에 있으면) · CPU 제공자, DXGI 어댑터 목록이다. ML판 · 구조 분석판 연기 시험(`smoke_server.ps1 -ExpectML`)이 이것을 먼저 돌린다. GitHub 러너에는 GPU가 없으므로, 데모 곡 분석은 그대로 Demucs로 되는지 본다.
+- Windows 러너 첫 확인(실행 290): DXGI 어댑터 목록이 `[0, "Microsoft Basic Render Driver", 0MB]`, `[1, 같은 이름, 0MB, 소프트웨어]`로 읽혔다. 쓸 GPU가 없어 데모 곡 스템은 Demucs로 갔다. 자체 시험에서 DirectML은 "Specified display adapter handle is invalid"로 시작하지 못했고, ONNX Runtime이 스스로 CPU로 돌아갔다. 실제 PC에서 이렇게 되면 이 모델이 CPU에서 곡당 20분쯤 돈다. 그래서 세션에 DirectML이 없으면 오류로 보고 그 곡을 Demucs로 넘긴다(`session`).
 - 묶음: Windows에서 `[ml]`은 `onnxruntime-directml`과 `onnx`를 받는다. 다른 OS는 `onnxruntime`이다. PyInstaller 명세는 `onnx` · `onnxruntime`을 통째로 담는다(DirectML.dll 포함).
 
 ### 98-3. 실제 체크포인트 확인
