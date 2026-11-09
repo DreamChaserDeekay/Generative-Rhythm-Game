@@ -117,3 +117,21 @@ def test_the_stems_go_to_demucs_when_the_model_does_not_suit_the_machine(monkeyp
     stems = be.detect()["stems"]
     assert stems.label == "roformer-x" and stems.fallback is not None and stems.fallback.name == "demucs"
     assert stems.options["device"] == "auto" and "model" not in stems.options  # each backend gets its own settings
+
+
+def test_a_directml_session_that_fell_back_to_the_cpu_leaves_the_song_to_demucs(tmp_path, monkeypatch) -> None:
+    """ONNX Runtime quietly runs on the CPU when DirectML cannot open the GPU (the Windows runner:
+    "Specified display adapter handle is invalid"): the model is not run there (some 20 minutes a song)."""
+    ort = pytest.importorskip("onnxruntime")
+    pytest.importorskip("onnx")
+    opts = _tiny(tmp_path, monkeypatch, "dml")
+    rb._has_dml.cache_clear()
+    monkeypatch.setattr(rb, "_has_dml", lambda: True)
+    real = ort.InferenceSession
+
+    def cpu_only(path, so=None, providers=None, **kw):
+        return real(path, so, providers=["CPUExecutionProvider"])
+
+    monkeypatch.setattr(ort, "InferenceSession", cpu_only)
+    with pytest.raises(RuntimeError, match="DirectML could not start"):
+        rb.separate(_pcm(44100), 44100, opts)

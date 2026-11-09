@@ -301,6 +301,11 @@ def session(options: dict[str, Any]) -> Any:
                 providers.insert(0, ("DmlExecutionProvider", {"device_id": found[0] if found else 0}))
                 log.info("BS-RoFormer on DirectML: %s", found)
             sess = ort.InferenceSession(str(path), so, providers=providers)
+            if dml and "DmlExecutionProvider" not in sess.get_providers():
+                # ONNX Runtime falls back to the CPU on its own when DirectML cannot start (a GPU
+                # it cannot open): on the CPU this model takes some 20 minutes a song, so the song
+                # goes to the fallback separator (Demucs) instead
+                raise RuntimeError(f"DirectML could not start on {gpu(int(options.get('minGpuMB', 2048)))}; ONNX Runtime has {sess.get_providers()}")
             _cache[key] = sess
     return sess
 
