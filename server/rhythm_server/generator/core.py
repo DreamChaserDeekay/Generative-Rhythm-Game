@@ -224,6 +224,9 @@ def generate_chart(
         song placed low in the range thins further (songFit floorAtBottom; with the tier's floor
         every song stopped there, whatever its place)."""
         assert fit is not None
+        # the top tier's first round per key mode as before 0.9.53's 16th runs made it rate higher
+        # (songFit strengthScale: the same song keeps its place in the level ranges)
+        found *= float((fit.get("strengthScale") or {}).get(key_mode, 1.0))
         if is_top and found < float(fit["from"]):
             raise TierNotMade(f"이 곡에는 {top} 채보가 없습니다")
         at = song_place(found, fit)
