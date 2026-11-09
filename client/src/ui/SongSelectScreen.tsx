@@ -122,7 +122,20 @@ export function SongSelectScreen(props: Props) {
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
+  // the charts this screen waits for the server to make, by chart key (Enter on a tier, F5): their
+  // plates say so (Mapperatorinator's take minutes: the server's own word, making or queued,
+  // replaces it as the briefs come in) and nothing else is marked
+  const [makingKeys, setMakingKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const makingRef = useRef<Set<string>>(new Set());
+  const markMaking = (key: string, on: boolean) => {
+    const next = new Set(makingRef.current);
+    if (on) next.add(key);
+    else next.delete(key);
+    makingRef.current = next;
+    setMakingKeys(next);
+  };
+  // a word about a chart Mapperatorinator is making, or has made, under the song list
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -322,6 +335,7 @@ export function SongSelectScreen(props: Props) {
     selectionRun.current++;
     setError(null);
   }, [selected?.id, keyMode, entryChartKey, selected?.status]);
+  useEffect(() => setNotice(null), [selected?.id]);
 
   // Once the cursor rests on a song: the chart of the selected entry (the panels, the summary and
   // Enter want it), then the levels of the other tiers, one at a time. The server makes the chart
@@ -372,7 +386,7 @@ export function SongSelectScreen(props: Props) {
   // ask again every few seconds, so a chart made shows its level and notes
   const aiPending =
     selected !== null && ready && chartStore.aiCharts && prefetchKey !== null
-      ? generating ||
+      ? makingKeys.size > 0 ||
         tiers.some((t) => {
           const b = chartStore.brief(tierChart(selected, t.id).key);
           return b?.predicted === true && (b.making === true || b.queued === true);
@@ -535,8 +549,8 @@ export function SongSelectScreen(props: Props) {
     const kept = chartStore.chart(entryChartKey);
     if (kept) return kept;
     const run = selectionRun.current;
-    setBusy(chartStore.aiCharts && !savedEntry ? 'AI 채보 생성 중… (만들고 있는 채보가 있으면 그다음 차례)' : '채보 생성 중…');
-    setGenerating(true);
+    setBusy('채보 생성 중…');
+    markMaking(entryChartKey, true);
     try {
       const c = (savedEntry ? await chartStore.loadSaved(savedEntry.chartId, true) : await loadTier(selected, difficulty, true, true)) as ServerChart | null;
       // the cursor moved on while the server was making it: it is not for the chart chosen now
@@ -546,7 +560,33 @@ export function SongSelectScreen(props: Props) {
       return null;
     } finally {
       setBusy(null);
-      setGenerating(false);
+      markMaking(entryChartKey, false);
+    }
+  };
+
+  /**
+   * Mapperatorinator makes a chart in minutes on the GPU: Enter on a tier not made yet asks the
+   * server for it and comes back at once. Its plate says so, the status line names it, and any
+   * chart already made can be played meanwhile; when it is done its plate shows its level, and
+   * Enter plays it (it does not start by itself: minutes may have passed).
+   */
+  const makeAi = async (song: Song, tier: string, key: string, spec: ChartSpec) => {
+    const name = `${song.title} ${tier}`;
+    if (makingRef.current.has(key)) {
+      setNotice(`${name} 채보는 만들고 있습니다. 다 되면 Enter로 플레이합니다.`);
+      return;
+    }
+    markMaking(key, true);
+    setError(null);
+    setNotice(`AI 채보를 만들고 있습니다: ${name} (곡 길이에 따라 1–3분). 다른 채보는 그동안 플레이할 수 있습니다.`);
+    try {
+      const c = await chartStore.loadChart(spec, true);
+      if (c) setNotice(`${name} 채보가 준비되었습니다 (레벨 ${c.meta.level}). Enter로 플레이합니다.`);
+    } catch (e) {
+      setNotice(null);
+      setError(`${name}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      markMaking(key, false);
     }
   };
 
@@ -557,6 +597,15 @@ export function SongSelectScreen(props: Props) {
     if (!selected || selected.status !== 'ready' || busy !== null || starting.current) return;
     starting.current = true;
     try {
+      if (chartStore.aiCharts && !savedEntry && entryChartKey && !entryLoading && !chartStore.chart(entryChartKey)) {
+        // a chart Mapperatorinator has not made yet is asked for in the background (makeAi)
+        const { spec, key } = tierChart(selected, difficulty);
+        const brief = spec ? (chartStore.brief(key) ?? (await chartStore.loadBrief(spec))) : null;
+        if (spec && brief?.predicted) {
+          void makeAi(selected, difficulty, key, spec);
+          return;
+        }
+      }
       const c = await loadSelected();
       if (!c || (c.meta.songId && c.meta.songId !== selected.id)) return;
       const best = recordOf(selected, c.meta.chartId);
@@ -580,8 +629,14 @@ export function SongSelectScreen(props: Props) {
     if (!selected || !ready || busy !== null || savedEntry || entryLoading) return;
     const key = tierKey(selected, difficulty);
     const base = specOf(selected, difficulty, null);
-    setBusy('새 패턴 만드는 중…');
-    setGenerating(true);
+    const plate = tierChart(selected, difficulty).key;
+    // with Mapperatorinator (minutes) the screen stays free meanwhile, as for a chart asked for by Enter
+    const ai = chartStore.aiCharts;
+    if (ai) {
+      if (makingRef.current.has(plate)) return;
+      setNotice(`AI가 새 패턴을 만들고 있습니다: ${selected.title} ${difficulty} (곡 길이에 따라 1–3분).`);
+    } else setBusy('새 패턴 만드는 중…');
+    markMaking(plate, true);
     setError(null);
     try {
       const { chart: c } = await api.generate(selected.id, { ...requestOf(base), seed: null, newSeed: true });
@@ -589,11 +644,13 @@ export function SongSelectScreen(props: Props) {
       if (seed === undefined) return;
       chartStore.put(chartKey({ ...base, seed }), c);
       onSettingsChange(withPattern(current.current, key, seed));
+      if (ai) setNotice(`${selected.title} ${difficulty}의 새 패턴이 준비되었습니다 (레벨 ${c.meta.level}). Enter로 플레이합니다.`);
     } catch (e) {
+      if (ai) setNotice(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(null);
-      setGenerating(false);
+      if (!ai) setBusy(null);
+      markMaking(plate, false);
     }
   };
   const defaultPattern = () => {
@@ -1535,7 +1592,7 @@ export function SongSelectScreen(props: Props) {
                       ruleset={settings.ruleset}
                       targetLevel={target === undefined ? null : Math.min(target, maxLevel)}
                       pattern={patternOf(settings, tierKey(selected, t.id))}
-                      generating={!savedEntry && t.id === difficulty && generating}
+                      generating={!savedEntry && makingKeys.has(tierChart(selected, t.id).key)}
                       folded={panel !== 'none'}
                       onPick={() => setDifficulty(t.id)}
                     />
@@ -1554,7 +1611,7 @@ export function SongSelectScreen(props: Props) {
                       active={savedEntry?.chartId === c.chartId}
                       record={recordOf(selected, c.chartId)}
                       ruleset={settings.ruleset}
-                      generating={savedEntry?.chartId === c.chartId && generating}
+                      generating={makingKeys.has(savedChartKey(c.chartId))}
                       folded={panel !== 'none'}
                       onPick={() => pickEntry({ chartId: c.chartId })}
                     />
@@ -1647,6 +1704,8 @@ export function SongSelectScreen(props: Props) {
               </span>
             ) : busy ? (
               <span data-testid="busy">{busy}</span>
+            ) : notice ? (
+              <span data-testid="ai-notice">{notice}</span>
             ) : null}
           </p>
         </main>
