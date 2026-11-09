@@ -34,7 +34,7 @@ import {
 import { failureReason } from './analysisError';
 import type { PlayRequest, PracticeOptions } from './App';
 import type { CalibrationStep } from './CalibrationScreen';
-import { analysisStamp, chartKey, chartStore, requestOf, savedChartKey, tierAbsent, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
+import { aiMakingLabel, analysisStamp, chartKey, chartStore, requestOf, savedChartKey, tierAbsent, useChartStore, type ChartBrief, type ChartSpec } from './chartCache';
 import { desktopShell } from './displayMode';
 import { CHART_FILE, entryFiles, sortDrop, type DroppedFile } from './dropFiles';
 import { dayText, speedText } from './format';
@@ -581,7 +581,7 @@ export function SongSelectScreen(props: Props) {
     setNotice(`AI 채보를 만들고 있습니다: ${name} (곡 길이에 따라 1–3분). 다른 채보는 그동안 플레이할 수 있습니다.`);
     try {
       const c = await chartStore.loadChart(spec, true);
-      if (c) setNotice(`${name} 채보가 준비되었습니다 (레벨 ${c.meta.level}). Enter로 플레이합니다.`);
+      if (c) setNotice(`${name} 채보가 준비되었습니다 (레벨 ${c.meta.level}${aiMakingLabel(c.meta) ? `, ${aiMakingLabel(c.meta)}` : ''}). Enter로 플레이합니다.`);
     } catch (e) {
       setNotice(null);
       setError(`${name}: ${e instanceof Error ? e.message : String(e)}`);
@@ -644,7 +644,7 @@ export function SongSelectScreen(props: Props) {
       if (seed === undefined) return;
       chartStore.put(chartKey({ ...base, seed }), c);
       onSettingsChange(withPattern(current.current, key, seed));
-      if (ai) setNotice(`${selected.title} ${difficulty}의 새 패턴이 준비되었습니다 (레벨 ${c.meta.level}). Enter로 플레이합니다.`);
+      if (ai) setNotice(`${selected.title} ${difficulty}의 새 패턴이 준비되었습니다 (레벨 ${c.meta.level}${aiMakingLabel(c.meta) ? `, ${aiMakingLabel(c.meta)}` : ''}). Enter로 플레이합니다.`);
     } catch (e) {
       if (ai) setNotice(null);
       setError(e instanceof Error ? e.message : String(e));
@@ -2144,6 +2144,12 @@ function ChartSummary(props: { chart: ServerChart | null; ready: boolean; failed
               <dt>롱노트</dt>
               <dd>{chart.notes.filter((n) => n.type === 'hold').length.toLocaleString('en-US')}</dd>
             </div>
+            {aiMakingLabel(m) && (
+              <div>
+                <dt>AI 생성</dt>
+                <dd data-testid="chart-ai">{aiMakingLabel(m)}</dd>
+              </div>
+            )}
             <div>
               <dt>평균 / 최대 NPS</dt>
               <dd>

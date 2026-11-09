@@ -71,6 +71,20 @@ export function requestOf(spec: ChartSpec): ChartRequest {
   return { keyMode: spec.keyMode, difficulty: spec.difficulty, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
 }
 
+/** How Mapperatorinator made a chart (its meta.generator), or null for the built-in generator's. */
+export function aiMaking(meta: ServerChart['meta']): { seconds: number | null; model: string | null; precision: string | null; device: string | null } | null {
+  const g = meta.generator as { name?: string; model?: string; seconds?: number; precision?: string; device?: string } | undefined;
+  if (g?.name !== 'mapperatorinator') return null;
+  return { seconds: typeof g.seconds === 'number' ? g.seconds : null, model: g.model ?? null, precision: g.precision ?? null, device: g.device ?? null };
+}
+
+/** "v32 · fp16 · 83초": what the chart info says about an AI chart's making. */
+export function aiMakingLabel(meta: ServerChart['meta']): string | null {
+  const ai = aiMaking(meta);
+  if (!ai) return null;
+  return [ai.model, ai.precision, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
+}
+
 export function briefOf(meta: ServerChart['meta']): ChartBrief {
   const brief: ChartBrief = { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
   const ai = meta as { predicted?: boolean; making?: boolean; queued?: boolean };

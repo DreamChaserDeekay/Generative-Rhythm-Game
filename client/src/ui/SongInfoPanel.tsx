@@ -8,6 +8,7 @@ import { failureReason } from './analysisError';
 import type { PracticeOptions } from './App';
 import { AnalysisView } from './AnalysisView';
 import type { CalibrationStep } from './CalibrationScreen';
+import { aiMakingLabel } from './chartCache';
 import { ChartMinimap } from './ChartMinimap';
 import { shortDayText } from './format';
 import { lampClass, LampMark } from './lamps';
@@ -420,6 +421,11 @@ function ChartPreview(props: {
         <div><span className="label">노트</span> <strong data-testid="chart-notes">{m.noteCount}</strong></div>
         <div><span className="label">롱노트</span> <strong>{holds}</strong></div>
         <div><span className="label">평균 / 최대 NPS</span> <strong>{m.nps.avg} / {m.nps.peak}</strong></div>
+        {aiMakingLabel(m) && (
+          <div title="Mapperatorinator가 만든 채보: 모델 · 연산 정밀도 · 만드는 데 걸린 시간">
+            <span className="label">AI 생성</span> <strong>{aiMakingLabel(m)}</strong>
+          </div>
+        )}
         <div><span className="label">세부 난이도</span> <strong>{m.rating.toFixed(2)}</strong></div>
         {m.handLoad && (
           <div title="손별 부담 (난이도 모델의 손 strain 비율)">
