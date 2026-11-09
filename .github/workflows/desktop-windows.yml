@@ -65,6 +65,20 @@ jobs:
           npm ci
           npm run build
 
+      # Mapperatorinator's source and slider's (its .osu parser) at the commits config/mapper.json
+      # pins, bundled so the app sets its runtime up without GitHub (docs/MAPPERATORINATOR.md)
+      - name: Fetch Mapperatorinator's source
+        run: |
+          read -r src slider < <(python -c "import json; r = json.load(open('config/mapper.json'))['runtime']; print(r['source']['commit'], r['slider']['commit'])")
+          for spec in "mapperatorinator OliBomby/Mapperatorinator $src" "slider OliBomby/slider $slider"; do
+            set -- $spec
+            git init -q "packaging/vendor/$1"
+            git -C "packaging/vendor/$1" fetch -q --depth 1 "https://github.com/$2.git" "$3"
+            git -C "packaging/vendor/$1" checkout -q FETCH_HEAD
+          done
+          rm -rf packaging/vendor/mapperatorinator/.git packaging/vendor/slider/.git
+          du -sh packaging/vendor/*
+
       - name: Bundle the analysis server (PyInstaller)
         run: |
           python -m pip install --upgrade pip
@@ -102,6 +116,26 @@ jobs:
           if ($env:GRG_EDITION -eq 'structure') { ./packaging/smoke_server.ps1 -ExpectML -ExpectStructure }
           elseif ($env:GRG_EDITION -eq 'ml') { ./packaging/smoke_server.ps1 -ExpectML }
           else { ./packaging/smoke_server.ps1 }
+
+      # Mapperatorinator end to end on this runner's CPU (it has no GPU) with the small model: the
+      # runtime's setup (uv, Python 3.11, CPU PyTorch, its packages, the weights) and one chart of a
+      # 20-second synthetic song. Informational: the app runs it on an NVIDIA GPU (docs/MAPPERATORINATOR.md)
+      - name: Mapperatorinator on the CPU (setup and one chart)
+        if: matrix.edition == 'core'
+        continue-on-error: true
+        timeout-minutes: 60
+        env:
+          GRG_MAPPER_ALLOW_CPU: '1'
+          GRG_MAPPER_MODEL: v32-mini
+          GRG_MAPPER_HOME: ${{ runner.temp }}/grg-mapper
+        run: |
+          exe=server/dist/rhythm-server/rhythm-server.exe
+          "$exe" mapper status
+          ok=0
+          "$exe" mapper setup && "$exe" mapper generate --seconds 20 --mode 7K+1S --difficulty HARD && ok=1
+          mkdir -p "$RUNNER_TEMP/grg-smoke"
+          cp "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/grg-smoke/" 2>/dev/null || true
+          if [ "$ok" != 1 ]; then tail -n 80 "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" 2>/dev/null; exit 1; fi
 
       # how long a 4-minute song takes with allin1 (its weights came with the smoke test); informational
       - name: Time a 4-minute song's analysis

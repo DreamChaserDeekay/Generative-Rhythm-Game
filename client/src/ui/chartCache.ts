@@ -23,6 +23,8 @@ export interface ChartBrief {
   noteCount: number;
   /** The seed it was made with (the default pattern's too; none for a chart not generated). */
   seed: number | null;
+  /** Not made yet (Mapperatorinator makes a chart when it is opened): `level` is the one it aims at. */
+  predicted?: boolean;
 }
 
 // The song list asks for the key of every tier of every song it shows: the parts of a key that are
@@ -67,7 +69,9 @@ export function requestOf(spec: ChartSpec): ChartRequest {
 }
 
 export function briefOf(meta: ServerChart['meta']): ChartBrief {
-  return { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
+  const brief: ChartBrief = { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
+  if ((meta as { predicted?: boolean }).predicted) brief.predicted = true;
+  return brief;
 }
 
 /** So many briefs (a few numbers each) and whole charts are kept, the oldest going first. */

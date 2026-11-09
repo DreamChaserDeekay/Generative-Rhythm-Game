@@ -132,6 +132,22 @@ export interface BackendStatus {
   license: string;
 }
 
+/** Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): its own Python, set up on first use. */
+export interface MapperStatus {
+  enabled: boolean;
+  /** disabled · unsupported (no NVIDIA GPU) · missing (not set up) · installing · failed · ready */
+  state: 'disabled' | 'unsupported' | 'missing' | 'installing' | 'failed' | 'ready';
+  model: string;
+  gpus: { name: string; memoryMB: number }[];
+  home: string;
+  reason?: string;
+  error?: string;
+  progress?: { step: string; fraction: number } | null;
+  runtime?: { device: string; gpu?: string | null; memoryMB?: number | null; torch?: string; model?: string };
+  /** The last chart Mapperatorinator failed on (the built-in generator made it). */
+  lastError?: { chart: string; error: string; at: number } | null;
+}
+
 export interface Health {
   ok: boolean;
   version: string;
@@ -141,6 +157,7 @@ export interface Health {
   difficulties: string[];
   formats: string[];
   backends: BackendStatus[];
+  mapper?: MapperStatus;
 }
 
 export interface GeneratedChartMeta {
@@ -280,7 +297,9 @@ export const api = {
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),
   sections: (id: string) => request<SongSections>(`/api/songs/${id}/sections`),
   sketch: (id: string) => request<SongSketch>(`/api/songs/${id}/sketch`),
-  generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean }>(`/api/songs/${id}/charts`, json(req)),
+  generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean; notice?: string }>(`/api/songs/${id}/charts`, json(req)),
+  mapper: () => request<MapperStatus>('/api/mapper'),
+  installMapper: () => request<MapperStatus>('/api/mapper/install', { method: 'POST' }),
   /** The chart's meta only (made and kept by the server like the whole chart). */
   chartMeta: async (id: string, req: ChartRequest) => (await request<{ meta: ServerChart['meta']; cached: boolean }>(`/api/songs/${id}/charts`, json({ ...req, brief: true }))).meta,
   saveScore: (record: {

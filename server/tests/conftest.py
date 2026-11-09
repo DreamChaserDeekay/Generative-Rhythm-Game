@@ -58,3 +58,11 @@ def analysis128() -> dict:
 @pytest.fixture(scope="session")
 def analysis174() -> dict:
     return analysis_of(174.0, 40, 2)
+
+
+@pytest.fixture(autouse=True)
+def no_mapper_runtime(tmp_path_factory, monkeypatch):
+    """Mapperatorinator's runtime (this branch's chart generator, docs/MAPPERATORINATOR.md) is not
+    set up in the tests unless a test sets one up: an empty runtime folder of its own."""
+    monkeypatch.setenv("GRG_MAPPER_HOME", str(tmp_path_factory.mktemp("mapper-home")))
+    yield

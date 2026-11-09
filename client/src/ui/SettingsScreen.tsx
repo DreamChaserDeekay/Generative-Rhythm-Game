@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { api, type BackendStatus } from '../api/client';
+import { api, type BackendStatus, type MapperStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
@@ -1394,6 +1394,96 @@ function GamepadPanel({
   );
 }
 
+const MAPPER_STATE: Record<MapperStatus['state'], string> = {
+  disabled: '꺼짐',
+  unsupported: 'NVIDIA GPU 없음',
+  missing: '설치 안 됨',
+  installing: '설치 중',
+  failed: '설치 실패',
+  ready: '사용 중',
+};
+
+/**
+ * Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): whether it makes the
+ * charts here, and its setup (its own Python with CUDA PyTorch and the model, a few GB, downloaded
+ * once). Without an NVIDIA GPU, or before it is set up, charts come from the built-in generator.
+ */
+function MapperGroup() {
+  const [status, setStatus] = useState<MapperStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => {
+      api
+        .mapper()
+        .then((m) => {
+          if (!alive) return;
+          setStatus(m);
+          if (m.state === 'installing') timer = setTimeout(poll, 2000);
+        })
+        .catch(() => alive && setStatus(null));
+    };
+    poll();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [status?.state === 'installing']);
+  const install = () => {
+    setError(null);
+    api
+      .installMapper()
+      .then(setStatus)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  if (status === null) return null;
+  const gpu = status.runtime?.gpu ?? status.gpus[0]?.name ?? null;
+  const progress = status.progress ? `${status.progress.step} (${Math.round(status.progress.fraction * 100)}%)` : null;
+  return (
+    <div className="settings-group" data-testid="mapper-status">
+      <h3>AI 채보 (Mapperatorinator)</h3>
+      <p className="settings-note">
+        이 빌드는 채보를 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)로 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와
+        모델, 약 4GB) 채보를 열 때마다 GPU로 만듭니다(곡 길이에 따라 1–3분). 설치 전이나 NVIDIA GPU가 없는 PC에서는 기존 생성기로 만듭니다.
+      </p>
+      <table className="backend-table">
+        <tbody>
+          <tr>
+            <td>상태</td>
+            <td className={status.state === 'ready' ? 'ok' : 'off'}>
+              {MAPPER_STATE[status.state]}
+              {progress ? ` · ${progress}` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td>GPU</td>
+            <td>{gpu ? `${gpu}${status.runtime?.device === 'cpu' ? ' (CPU로 실행)' : ''}` : '찾지 못함'}</td>
+          </tr>
+          <tr>
+            <td>모델</td>
+            <td>{status.model}</td>
+          </tr>
+        </tbody>
+      </table>
+      {status.reason && <p className="settings-note">{status.reason}</p>}
+      {(status.error || error) && <p className="settings-note">설치 오류: {status.error ?? error} (자세한 기록: {status.home}\setup.log)</p>}
+      {status.lastError && (
+        <p className="settings-note">
+          마지막 실패({status.lastError.chart}): {status.lastError.error} — 그 채보는 기존 생성기로 만들었습니다.
+        </p>
+      )}
+      {(status.state === 'missing' || status.state === 'failed' || status.state === 'ready') && (
+        <div className="row">
+          <button type="button" data-testid="mapper-install" onClick={install}>
+            {status.state === 'ready' ? '다시 설치' : status.state === 'failed' ? '다시 시도' : '설치 (약 4GB 내려받기)'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The window or full screen, the analysis backends (with how to install them), and a full reset: a
  * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
@@ -1450,6 +1540,7 @@ function AdvancedPanel({
             : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
         }
       />
+      <MapperGroup />
       <div className="settings-group" data-testid="backend-status">
         <h3>분석 백엔드</h3>
         <p className="settings-note">

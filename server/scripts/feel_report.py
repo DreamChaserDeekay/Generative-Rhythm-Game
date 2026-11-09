@@ -9,6 +9,12 @@ generators and compare, before a merge:
     python -I server/scripts/feel_report.py compare old.json new.json
     python -I server/scripts/feel_report.py show new.json --song "Emerald Sword"
 
+`--saved mapperatorinator` measures the charts the app made and saved instead of generating them
+(the newest of each key mode and tier whose generator starts so: the Mapperatorinator branch's
+charts, made on the GPU when opened; docs/MAPPERATORINATOR.md):
+
+    python -I server/scripts/feel_report.py run --library <data dir> --saved mapperatorinator --out ai.json
+
 `--library` is the app's data folder (library.sqlite3 and songs/<id>/analysis.json), or several
 (the editions of the app each keep their own; a song in several counts once, from the first);
 `--analysis` takes analysis.json files instead. Only analyses are read (no audio), and the results stay where
@@ -61,7 +67,7 @@ def songs_of(args: argparse.Namespace) -> list[dict[str, Any]]:
             # a song in two libraries (two editions of the app) counts once: the first library's analysis
             if path.is_file() and title.lower() not in seen:
                 seen.add(title.lower())
-                out.append({"id": sid, "title": title, "artist": artist, "path": str(path)})
+                out.append({"id": sid, "title": title, "artist": artist, "path": str(path), "library": str(root)})
         db.close()
     for p in args.analysis or []:
         out.append({"id": Path(p).parent.name, "title": Path(p).parent.name, "artist": "", "path": str(Path(p).resolve())})
@@ -75,7 +81,24 @@ def watched(windows: list[dict[str, Any]], title: str) -> list[dict[str, Any]]:
     return [w for w in windows if w["song"].lower() in title.lower()]
 
 
-def job(song: dict[str, Any], charts: list[tuple[str, str]], windows: list[dict[str, Any]]) -> dict[str, Any]:
+def saved_chart(song: dict[str, Any], key_mode: str, tier: str, prefix: str) -> dict[str, Any]:
+    """The newest chart of the song the app saved for this key mode and tier, by a generator whose
+    version starts with `prefix`."""
+    root = Path(song.get("library") or "")
+    db = sqlite3.connect(f"file:{root / 'library.sqlite3'}?mode=ro", uri=True)
+    try:
+        row = db.execute(
+            "SELECT id FROM charts WHERE song_id = ? AND key_mode = ? AND difficulty = ? AND generator_version LIKE ? ORDER BY created_at DESC LIMIT 1",
+            (song["id"], key_mode, tier, prefix + "%"),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise LookupError(f"no saved {prefix} chart (open it in the app first)")
+    return json.loads((root / "charts" / f"{row[0]}.json").read_text(encoding="utf-8"))
+
+
+def job(song: dict[str, Any], charts: list[tuple[str, str]], windows: list[dict[str, Any]], saved: str | None = None) -> dict[str, Any]:
     from rhythm_server.generator.core import GENERATOR_VERSION, generate_chart
 
     feel = load_feel()
@@ -83,10 +106,10 @@ def job(song: dict[str, Any], charts: list[tuple[str, str]], windows: list[dict[
     mine = [(float(w["from"]) * 1000.0, float(w["to"]) * 1000.0) for w in watched(windows, song["title"]) if "from" in w]
     info = a.get("analyzer", {})
     rec = {"title": song["title"], "artist": song["artist"], "analyzer": info.get("version"), "backends": info.get("backends"),
-           "durationSec": round(float(a["durationMs"]) / 1000.0, 1), "bpm": a.get("tempo", {}).get("bpm"), "generator": GENERATOR_VERSION, "charts": {}}
+           "durationSec": round(float(a["durationMs"]) / 1000.0, 1), "bpm": a.get("tempo", {}).get("bpm"), "generator": saved or GENERATOR_VERSION, "charts": {}}
     for key_mode, tier in charts:
         try:
-            chart = generate_chart(a, key_mode, tier, None)
+            chart = saved_chart(song, key_mode, tier, saved) if saved else generate_chart(a, key_mode, tier, None)
         except Exception as e:  # a tier the song does not make (TierNotMade) or a failure to report
             rec["charts"][f"{key_mode}:{tier}"] = {"error": f"{type(e).__name__}: {e}"}
             continue
@@ -106,7 +129,7 @@ def run(args: argparse.Namespace) -> None:
     print(f"# {len(songs)} songs, generator from {repo}", flush=True)
     results = []
     with ProcessPoolExecutor(max_workers=args.workers, initializer=_init, initargs=(repo,)) as pool:
-        futs = [pool.submit(job, s, charts, windows) for s in songs]
+        futs = [pool.submit(job, s, charts, windows, args.saved) for s in songs]
         for k, fut in enumerate(futs, 1):
             results.append(fut.result())
             if k % 10 == 0 or k == len(futs):
@@ -311,6 +334,7 @@ def main() -> None:
     r.add_argument("--charts", default=DEFAULT_CHARTS)
     r.add_argument("--repo", help="the checkout whose generator to measure (default: this one)")
     r.add_argument("--workers", type=int, default=max(1, min(6, (os.cpu_count() or 2) - 1)))
+    r.add_argument("--saved", help="measure the saved charts whose generator version starts so (e.g. mapperatorinator) instead of generating")
     r.add_argument("--out", required=True)
     c = sub.add_parser("compare")
     c.add_argument("old")

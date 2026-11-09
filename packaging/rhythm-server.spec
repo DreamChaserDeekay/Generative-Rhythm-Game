@@ -34,6 +34,16 @@ if EDITION == "structure":
     # imports its plotting module; the adapter sets the Agg backend)
     packages += ["allin1", "natten", "madmom", "omegaconf", "hydra"]
     excludes = [e for e in excludes if e not in ("allin1", "matplotlib")]
+# Mapperatorinator (docs/MAPPERATORINATOR.md): the worker that runs in its own Python (a file, not
+# a frozen module) and its source and slider's at the pinned commits (packaging/vendor, fetched by
+# the workflow; without them the app downloads them from GitHub when it sets the runtime up)
+datas.append((str(ROOT / "server" / "rhythm_server" / "mapper" / "worker.py"), "rhythm_server/mapper"))
+for name in ("mapperatorinator", "slider"):
+    vendor = ROOT / "packaging" / "vendor" / name
+    if vendor.is_dir():
+        datas.append((str(vendor), f"vendor/{name}"))
+    else:
+        print(f"rhythm-server.spec: packaging/vendor/{name} is missing, left out")
 for package in packages:
     if importlib.util.find_spec(package) is None:
         print(f"rhythm-server.spec: {package} is not installed, left out")

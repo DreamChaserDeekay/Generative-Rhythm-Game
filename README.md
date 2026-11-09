@@ -1,5 +1,7 @@
 # Generative Rhythm Game
 
+> **이 브랜치(`claude/mapperatorinator`)는 채보 생성기를 [Mapperatorinator](https://github.com/OliBomby/Mapperatorinator)(AI, NVIDIA GPU)로 바꾼 실험판입니다.** 무엇이 바뀌었는지, 설치 파일을 어디서 받는지, 알려진 한계는 [docs/MAPPERATORINATOR.md](docs/MAPPERATORINATOR.md)에 있습니다. 설치 파일은 [Actions → Desktop app (Windows)](https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/workflows/desktop-windows.yml)에서 이 브랜치의 최신 실행 → Artifacts.
+
 내 음악 파일을 넣고 키 모드와 난이도를 고르면, 로컬 분석 서버가 곡을 분석해 그 곡만의 채보를 만들어 주고, 그 채보를 **SOUND VOLTEX식 3D 원근 트랙** 위에서 **DJMAX RESPECT V 판정 기준**으로 플레이하는 건반형 리듬게임입니다.
 
 - 개발 명세(프롬프트): [docs/PROMPT.md](docs/PROMPT.md)

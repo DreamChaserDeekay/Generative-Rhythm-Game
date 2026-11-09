@@ -1944,11 +1944,13 @@ function TierPlate(props: {
     ? '만드는 중'
     : props.pending
       ? '계산 중'
-      : brief
-        ? `${brief.noteCount.toLocaleString('en-US')} 노트`
-        : props.failed
-          ? '만들지 못함'
-          : `${levelLabel(t.levels[0])}–${t.levels[1]}`;
+      : brief?.predicted
+        ? 'AI · 열면 만듦'
+        : brief
+          ? `${brief.noteCount.toLocaleString('en-US')} 노트`
+          : props.failed
+            ? '만들지 못함'
+            : `${levelLabel(t.levels[0])}–${t.levels[1]}`;
   // the short name, or what makes its chart another than the default: its target level, its pattern
   const marks = [props.targetLevel !== null ? `목표 ${levelLabel(props.targetLevel)}` : null, props.pattern === null ? null : typeof props.pattern === 'number' ? '새 패턴' : '고른 패턴'];
   const side = marks.filter((m) => m !== null).join(' · ') || t.short;

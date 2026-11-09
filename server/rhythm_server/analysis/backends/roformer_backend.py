@@ -148,8 +148,8 @@ def gpu(min_mb: int = 2048) -> tuple[int, str, int] | None:
     return None if best is None else best[:3]
 
 
-def _dxgi_adapters() -> list[tuple[int, str, int, bool]]:
-    """(index, name, dedicated video MB, software) of each adapter, in DXGI's order."""
+def _dxgi_adapters() -> list[tuple[int, str, int, bool, int]]:
+    """(index, name, dedicated video MB, software, PCI vendor id) of each adapter, in DXGI's order."""
     import ctypes
 
     class GUID(ctypes.Structure):
@@ -182,7 +182,7 @@ def _dxgi_adapters() -> list[tuple[int, str, int, bool]]:
             try:
                 desc = DESC1()
                 if method(adapter, 10, (ctypes.POINTER(DESC1),), ctypes.byref(desc)) == 0:  # GetDesc1
-                    out.append((i, desc.Description, int(desc.DedicatedVideoMemory) >> 20, bool(desc.Flags & 2)))  # DXGI_ADAPTER_FLAG_SOFTWARE
+                    out.append((i, desc.Description, int(desc.DedicatedVideoMemory) >> 20, bool(desc.Flags & 2), int(desc.VendorId)))  # DXGI_ADAPTER_FLAG_SOFTWARE
             finally:
                 method(adapter, 2)  # Release
     finally:
