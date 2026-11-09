@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { api, type BackendStatus, type MapperStatus } from '../api/client';
+import { api, type BackendStatus, type MapperSettings, type MapperStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
@@ -46,7 +46,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
+import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -1408,7 +1408,7 @@ const MAPPER_STATE: Record<MapperStatus['state'], string> = {
  * charts here, and its setup (its own Python with CUDA PyTorch and the model, a few GB, downloaded
  * once). Without an NVIDIA GPU, or before it is set up, charts come from the built-in generator.
  */
-function MapperGroup() {
+function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
   const [status, setStatus] = useState<MapperStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -1480,6 +1480,125 @@ function MapperGroup() {
           </button>
         </div>
       )}
+      {status.settings && status.state !== 'unsupported' && <MapperSettingsRows settings={status.settings} onHelp={onHelp} onSaved={setStatus} onError={setError} />}
+    </div>
+  );
+}
+
+/**
+ * Mapperatorinator's settings (the server keeps them in its runtime folder: a new install of the
+ * app keeps them). A chart already made stays as it was; the ones made from now on follow them.
+ */
+function MapperSettingsRows({
+  settings,
+  onHelp,
+  onSaved,
+  onError,
+}: {
+  settings: MapperSettings;
+  onHelp: (help: string) => void;
+  onSaved: (s: MapperStatus) => void;
+  onError: (e: string | null) => void;
+}) {
+  const [shown, setShown] = useState(settings);
+  useEffect(() => setShown(settings), [settings]);
+  const change = <K extends keyof MapperSettings>(key: K, value: MapperSettings[K]) => {
+    setShown((s) => ({ ...s, [key]: value }));
+    onError(null);
+    api
+      .mapperSettings({ [key]: value } as Partial<MapperSettings>)
+      .then(onSaved)
+      .catch((e: unknown) => onError(e instanceof Error ? e.message : String(e)));
+  };
+  const remade = ' 바꾸면 이제부터 만드는 채보에 적용됩니다(이미 만든 채보는 그대로 남고, 다시 열면 새로 만듭니다).';
+  return (
+    <div className="mapper-settings" data-testid="mapper-settings">
+      <Toggle
+        onHelp={onHelp}
+        label="AI 채보 쓰기"
+        testId="mapper-enabled"
+        value={shown.enabled}
+        onChange={(v) => change('enabled', v)}
+        help="끄면 Mapperatorinator를 쓰지 않고 기존 생성기로 채보를 만듭니다. 설치한 실행 환경은 그대로 남습니다."
+      />
+      <Choice
+        onHelp={onHelp}
+        label="모델"
+        testId="mapper-model"
+        value={shown.model}
+        options={
+          [
+            ['v32', 'v32 (기본)'],
+            ['v32-mini', 'v32-mini (작고 빠름)'],
+          ] as [MapperSettings['model'], string][]
+        }
+        onChange={(v) => change('model', v)}
+        help={`v32-mini는 v32보다 작아 빠르고 GPU 메모리를 덜 쓰지만 채보 품질이 낮을 수 있습니다. 처음 쓸 때 가중치(약 0.2GB)를 한 번 더 내려받습니다.${remade}`}
+      />
+      <Choice
+        onHelp={onHelp}
+        label="연산 정밀도"
+        testId="mapper-precision"
+        value={shown.precision}
+        options={
+          [
+            ['auto', '자동'],
+            ['fp16', 'fp16 (빠름)'],
+            ['fp32', 'fp32'],
+          ] as [MapperSettings['precision'], string][]
+        }
+        onChange={(v) => change('precision', v)}
+        help="자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다(RTX 20xx는 fp32). RTX 20xx는 fp16이 빨라 만드는 시간이 줄 수 있지만, 결과가 조금 달라지거나 드물게 실패할 수 있습니다. 실패하면 그 채보는 기존 생성기로 만듭니다."
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="난이도 배율"
+        testId="mapper-stars"
+        value={shown.starsScale}
+        min={0.5}
+        max={2}
+        step={0.05}
+        bigStep={0.25}
+        format={(v) => `×${v.toFixed(2)}`}
+        onChange={(v) => change('starsScale', v)}
+        help={`티어마다 Mapperatorinator에 요청하는 osu! 별점에 곱합니다. 채보가 티어보다 쉽게 나오면 1보다 크게, 어렵게 나오면 작게 하세요. 화면의 레벨은 만들어진 노트를 앱이 잰 값입니다.${remade}`}
+      />
+      <OptionalNumberOption
+        onHelp={onHelp}
+        label="롱노트 비율"
+        testId="mapper-holds"
+        value={shown.holdNoteRatio}
+        min={0}
+        max={1}
+        step={0.05}
+        bigStep={0.2}
+        auto={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('holdNoteRatio', v)}
+        help={`전체 노트 가운데 롱노트의 비율을 요청합니다. 자동이면 모델이 곡에 맞게 정합니다.${remade}`}
+      />
+      <OptionalNumberOption
+        onHelp={onHelp}
+        label="다양성"
+        testId="mapper-temperature"
+        value={shown.temperature}
+        min={0.3}
+        max={1.5}
+        step={0.05}
+        bigStep={0.2}
+        auto={0.9}
+        format={(v) => v.toFixed(2)}
+        onChange={(v) => change('temperature', v)}
+        help={`모델이 노트를 고를 때의 무작위성(temperature)입니다. 높이면 패턴이 다양해지고 낮추면 무난해집니다. 자동은 모델 기본값(v32: 0.9)입니다.${remade}`}
+      />
+      <Toggle
+        onHelp={onHelp}
+        label="앱의 박자 쓰기"
+        testId="mapper-timing"
+        value={shown.useAppTiming}
+        onChange={(v) => change('useAppTiming', v)}
+        help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 빨리 만들어집니다. 끄면 모델이 박자를 직접 찾습니다(느리고, 마디선과 어긋날 수 있음).${remade}`}
+      />
     </div>
   );
 }
@@ -1540,7 +1659,7 @@ function AdvancedPanel({
             : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
         }
       />
-      <MapperGroup />
+      <MapperGroup onHelp={onHelp} />
       <div className="settings-group" data-testid="backend-status">
         <h3>분석 백엔드</h3>
         <p className="settings-note">

@@ -120,6 +120,16 @@ class Generator:
     def _model(self, args, auto_select: bool, lora: bool = True):
         key = (args.model_path, args.gamemode, args.precision, args.device, args.attn_implementation, auto_select)
         if key not in self.models:
+            # another model or precision (the settings changed): the old ones leave the GPU first
+            for old in [k for k in self.models if k[:5] != key[:5]]:
+                del self.models[old]
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
             self.models[key] = self.inference.load_model_with_server(
                 args.model_path, args.train, args.device, max_batch_size=args.max_batch_size, use_server=False,
                 precision=args.precision, attn_implementation=args.attn_implementation, lora_path=args.lora_path if lora else None,

@@ -64,6 +64,21 @@ def stars_for(level: float, table: list[list[float]]) -> float:
     return pts[-1][1]
 
 
+def stars_of(level: float, cfg: dict[str, Any]) -> float:
+    """The star rating asked for: the table's (starsForLevel) times the settings' starsScale."""
+    return round(stars_for(level, cfg["starsForLevel"]) * float(cfg.get("starsScale") or 1.0), 2)
+
+
+# the settings a chart depends on: a chart id holds them, and so does the generator tag the song
+# select keeps its briefs under (a change of them makes other charts)
+CHART_SETTINGS = ("model", "useAppTiming", "holdNoteRatio", "temperature", "starsForLevel", "starsScale")
+
+
+def settings_tag(cfg: dict[str, Any]) -> str:
+    payload = {k: cfg.get(k) for k in CHART_SETTINGS}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:8]
+
+
 def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cfg: dict[str, Any]) -> str:
     payload = {
         "audioHash": analysis.get("audioHash", ""),
@@ -78,6 +93,7 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "holdNoteRatio": cfg.get("holdNoteRatio"),
         "temperature": cfg.get("temperature"),
         "stars": cfg.get("starsForLevel"),
+        "starsScale": float(cfg.get("starsScale") or 1.0),
     }
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
@@ -167,7 +183,7 @@ def predicted_meta(
         "chartId": cid, "audioHash": analysis.get("audioHash", ""), "songId": meta.get("songId"), "title": meta.get("title", "Untitled"),
         "artist": meta.get("artist", ""), "keyMode": key_mode, "lanes": [l["id"] for l in key_modes()[key_mode]["lanes"]],
         "difficulty": difficulty, "level": level, "noteCount": 0, "predicted": True,
-        "generator": {"name": "mapperatorinator", "model": cfg.get("model", "v32"), "seed": seed, "stars": stars_for(level, cfg["starsForLevel"])},
+        "generator": {"name": "mapperatorinator", "model": cfg.get("model", "v32"), "seed": seed, "stars": stars_of(level, cfg)},
     }
 
 
@@ -232,7 +248,7 @@ def make_chart(
                 # what the client asks for again for a new pattern of the same chart
                 "params": {"difficulty": difficulty, "targetLevel": target_level},
                 "targetLevel": level,
-                "stars": stars_for(level, cfg["starsForLevel"]),
+                "stars": stars_of(level, cfg),
                 "keycount": len(columns(key_mode)),
                 "timing": "app" if cfg.get("useAppTiming", True) else "model",
                 "seconds": info.get("seconds"),
@@ -252,7 +268,7 @@ def request_for(
 ) -> dict[str, Any]:
     return {
         "audio": str(audio), "out": str(out), "beatmap": str(beatmap) if beatmap else None, "model": cfg.get("model", "v32"),
-        "keycount": len(columns(key_mode)), "difficulty": stars_for(level, cfg["starsForLevel"]), "seed": int(seed),
+        "keycount": len(columns(key_mode)), "difficulty": stars_of(level, cfg), "seed": int(seed),
         "holdNoteRatio": cfg.get("holdNoteRatio"), "temperature": cfg.get("temperature"),
         "precision": cfg.get("precision", "auto"), "device": "cpu" if cfg.get("_cpu") else "auto",
         "title": meta.get("title"), "artist": meta.get("artist"),

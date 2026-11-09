@@ -250,3 +250,21 @@ def test_the_queue_makes_the_opened_chart_first_then_the_background_ones() -> No
     assert first.result(5)["name"] == "first" and bg1.result(5) and bg2.result(5)
     assert order == ["first", "bg2", "bg1"]
     q.close()
+
+
+def test_the_settings_screen_settings_are_kept_and_make_other_charts(mapped: TestClient) -> None:
+    before = mapped.get("/api/mapper").json()
+    assert before["settings"]["starsScale"] == 1.0 and before["settings"]["model"] == "v32"
+    tag = mapped.get("/api/health").json()["generator"]
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    req = {"keyMode": "6K", "difficulty": "EXPERT", "brief": True}
+    old = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    r = mapped.put("/api/mapper/settings", json={"starsScale": 1.25, "holdNoteRatio": 0.3, "precision": "fp16"})
+    assert r.status_code == 200 and r.json()["settings"] == {**before["settings"], "starsScale": 1.25, "holdNoteRatio": 0.3, "precision": "fp16"}
+    assert json.loads(rt.settings_path().read_text(encoding="utf-8"))["starsScale"] == 1.25  # kept in the runtime folder
+    new = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    assert new["chartId"] != old["chartId"] and new["generator"]["stars"] == round(old["generator"]["stars"] * 1.25, 2)
+    assert mapped.get("/api/health").json()["generator"] != tag  # the song select drops its old briefs
+    for bad in ({"model": "v99"}, {"starsScale": 9}, {"enabled": "yes"}, {"nope": 1}):
+        assert mapped.put("/api/mapper/settings", json=bad).status_code == 400
+    assert mapped.put("/api/mapper/settings", json={"holdNoteRatio": None}).json()["settings"]["holdNoteRatio"] is None

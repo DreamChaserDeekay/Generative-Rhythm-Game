@@ -146,6 +146,20 @@ export interface MapperStatus {
   runtime?: { device: string; gpu?: string | null; memoryMB?: number | null; torch?: string; model?: string };
   /** The last chart Mapperatorinator failed on (the built-in generator made it). */
   lastError?: { chart: string; error: string; at: number } | null;
+  /** The settings screen's settings (kept in the runtime folder). */
+  settings?: MapperSettings;
+}
+
+export interface MapperSettings {
+  enabled: boolean;
+  model: 'v32' | 'v32-mini';
+  precision: 'auto' | 'fp32' | 'fp16';
+  /** The star rating asked for, times this (1: the level table's). */
+  starsScale: number;
+  /** null: the model chooses. */
+  holdNoteRatio: number | null;
+  temperature: number | null;
+  useAppTiming: boolean;
 }
 
 export interface Health {
@@ -300,6 +314,7 @@ export const api = {
   generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean; notice?: string }>(`/api/songs/${id}/charts`, json(req)),
   mapper: () => request<MapperStatus>('/api/mapper'),
   installMapper: () => request<MapperStatus>('/api/mapper/install', { method: 'POST' }),
+  mapperSettings: (patch: Partial<MapperSettings>) => request<MapperStatus>('/api/mapper/settings', { ...json(patch), method: 'PUT' }),
   /** The chart's meta only (made and kept by the server like the whole chart). */
   chartMeta: async (id: string, req: ChartRequest) => (await request<{ meta: ServerChart['meta']; cached: boolean }>(`/api/songs/${id}/charts`, json({ ...req, brief: true }))).meta,
   saveScore: (record: {

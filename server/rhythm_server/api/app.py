@@ -46,7 +46,8 @@ from .imports import import_package
 from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
-from ..mapper.charts import MAPPER_VERSION
+from ..mapper.charts import MAPPER_VERSION, settings_tag
+from ..mapper.runtime import public_settings, save_settings
 from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
 
 log = logging.getLogger("rhythm_server.api")
@@ -262,7 +263,7 @@ def create_app(
             "version": __version__,
             "analyzer": f"{ANALYZER_NAME}-{ANALYZER_VERSION}",
             # charts known by their brief are told apart by this: Mapperatorinator's once it is set up
-            "generator": f"{GENERATOR_VERSION}+mapper-{mapper.config().get('model', 'v32')}-{MAPPER_VERSION}" if mapper.active() else GENERATOR_VERSION,
+            "generator": f"{GENERATOR_VERSION}+mapper-{MAPPER_VERSION}-{settings_tag(mapper.config())}" if mapper.active() else GENERATOR_VERSION,
             "keyModes": keymodes["enabled"],
             "difficulties": difficulty_config()["order"],
             "formats": sorted(SUPPORTED_EXTENSIONS),
@@ -272,7 +273,18 @@ def create_app(
         }
 
     def mapper_state() -> dict[str, Any]:
-        return {**mapper.runtime.status(), "lastError": mapper.last_error}
+        return {**mapper.runtime.status(), "lastError": mapper.last_error, "settings": public_settings()}
+
+    @app.put("/api/mapper/settings")
+    def mapper_settings(patch: dict[str, Any]) -> dict[str, Any]:
+        """The settings screen's Mapperatorinator settings (kept in the runtime folder: a new
+        install of the app keeps them). A chart made with other settings stays saved; the ones
+        made from now on follow these."""
+        try:
+            save_settings(patch)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return mapper_state()
 
     @app.get("/api/mapper")
     def mapper_status() -> dict[str, Any]:

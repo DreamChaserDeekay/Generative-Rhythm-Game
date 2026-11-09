@@ -45,15 +45,89 @@ NVIDIA = 0x10DE
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
+# what the settings screen changes (kept in the runtime folder's settings.json, so a new install of
+# the app keeps it): name -> allowed values (a tuple of choices, or (low, high) for a number; None
+# also allowed where the second item says so)
+USER_SETTINGS: dict[str, Any] = {
+    "enabled": bool,
+    "model": ("v32", "v32-mini"),
+    "precision": ("auto", "fp32", "fp16"),
+    "starsScale": (0.5, 2.0, False),
+    "holdNoteRatio": (0.0, 1.0, True),
+    "temperature": (0.3, 1.5, True),
+    "useAppTiming": bool,
+}
+
+
+def settings_path() -> Path:
+    return home() / "settings.json"
+
+
+def check_settings(patch: dict[str, Any]) -> dict[str, Any]:
+    """The settings of `patch` that are valid (ValueError for one that is not)."""
+    out: dict[str, Any] = {}
+    for key, value in patch.items():
+        rule = USER_SETTINGS.get(key)
+        if rule is None:
+            raise ValueError(f"알 수 없는 설정: {key}")
+        if rule is bool:
+            if not isinstance(value, bool):
+                raise ValueError(f"{key}: 켬/끔이어야 합니다")
+        elif isinstance(rule[0], str):
+            if value not in rule:
+                raise ValueError(f"{key}: {', '.join(rule)} 가운데 하나여야 합니다")
+        else:
+            low, high, nullable = rule
+            if value is None and nullable:
+                pass
+            elif isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= float(value) <= high:
+                raise ValueError(f"{key}: {low}–{high}{' 또는 자동' if nullable else ''}이어야 합니다")
+            else:
+                value = round(float(value), 3)
+        out[key] = value
+    return out
+
+
+def user_settings() -> dict[str, Any]:
+    try:
+        stored = json.loads(settings_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    good: dict[str, Any] = {}
+    for key, value in (stored.items() if isinstance(stored, dict) else []):
+        try:
+            good.update(check_settings({key: value}))
+        except ValueError:
+            continue  # an old or broken entry: the default instead
+    return good
+
+
+def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
+    merged = {**user_settings(), **check_settings(patch)}
+    path = settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".part")
+    tmp.write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, path)
+    return merged
+
+
 def mapper_config() -> dict[str, Any]:
-    """config/mapper.json, with GRG_MAPPER_ALLOW_CPU=1 (set up and run on the CPU: the desktop
-    build's smoke test) and GRG_MAPPER_MODEL (another inference config, e.g. v32-mini) over it."""
-    cfg = dict(load_config("mapper"))
+    """config/mapper.json, the settings screen's settings over it (settings.json in the runtime
+    folder), and GRG_MAPPER_ALLOW_CPU=1 (set up and run on the CPU: the desktop build's smoke test)
+    and GRG_MAPPER_MODEL (another inference config, e.g. v32-mini) over both."""
+    cfg = {"starsScale": 1.0, **load_config("mapper"), **user_settings()}
     if os.environ.get("GRG_MAPPER_ALLOW_CPU") == "1":
         cfg.update(allowCpu=True, requireNvidia=False)
     if os.environ.get("GRG_MAPPER_MODEL"):
         cfg["model"] = os.environ["GRG_MAPPER_MODEL"]
     return cfg
+
+
+def public_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The settings the settings screen shows, as they are now."""
+    cfg = cfg or mapper_config()
+    return {key: cfg.get(key) for key in USER_SETTINGS}
 
 
 def home() -> Path:
