@@ -74,8 +74,18 @@ export function requestOf(spec: ChartSpec): ChartRequest {
 /** How Mapperatorinator made a chart (its meta.generator), or null for the built-in generator's. */
 export function aiMaking(
   meta: ServerChart['meta'],
-): { seconds: number | null; model: string | null; precision: string | null; encoder: string | null; device: string | null } | null {
-  const g = meta.generator as { name?: string; model?: string; seconds?: number; precision?: string; encoder?: string; device?: string } | undefined;
+): {
+  seconds: number | null;
+  model: string | null;
+  precision: string | null;
+  encoder: string | null;
+  /** Whose timing the chart has: the app's analysis ('app', the default) or the model's own timing pass ('model'). */
+  timing: 'app' | 'model' | null;
+  device: string | null;
+} | null {
+  const g = meta.generator as
+    | { name?: string; model?: string; seconds?: number; precision?: string; encoder?: string; timing?: 'app' | 'model'; device?: string }
+    | undefined;
   if (g?.name !== 'mapperatorinator') return null;
   return {
     seconds: typeof g.seconds === 'number' ? g.seconds : null,
@@ -83,16 +93,19 @@ export function aiMaking(
     precision: g.precision ?? null,
     // the encoder's precision when it differs from the rest (fp16 runs the encoder in fp32)
     encoder: g.encoder ?? null,
+    timing: g.timing ?? null,
     device: g.device ?? null,
   };
 }
 
-/** "v32 · fp16(인코더 fp32) · 83초": what the chart info says about an AI chart's making. */
+/** "v32 · fp16(인코더 fp32) · 83초", "v32 · fp32 · 모델 박자 · 120초": what the chart info says about an AI chart's making. */
 export function aiMakingLabel(meta: ServerChart['meta']): string | null {
   const ai = aiMaking(meta);
   if (!ai) return null;
   const precision = ai.precision === null ? null : `${ai.precision}${ai.encoder && ai.encoder !== ai.precision ? `(인코더 ${ai.encoder})` : ''}`;
-  return [ai.model, precision, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
+  // the model's own timing is the exception worth naming: the chart's BPM is then the model's, not the app's
+  const timing = ai.timing === 'model' ? '모델 박자' : null;
+  return [ai.model, precision, timing, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
 }
 
 export function briefOf(meta: ServerChart['meta']): ChartBrief {

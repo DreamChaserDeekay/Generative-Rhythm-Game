@@ -1610,7 +1610,7 @@ function MapperSettingsRows({
         testId="mapper-timing"
         value={shown.useAppTiming}
         onChange={(v) => change('useAppTiming', v)}
-        help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 빨리 만들어집니다. 끄면 모델이 박자를 직접 찾습니다(느리고, 마디선과 어긋날 수 있음).${remade}`}
+        help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 모델의 박자 찾기 패스를 건너뛰어 빨리 만들어집니다. 끄면 모델이 곡 전체를 한 번 더 지나며 박자를 직접 찾아 시간이 더 들고, BPM · 마디선이 앱과 어긋날 수 있습니다. 이때 채보의 BPM은 모델이 만든 것이라 정밀도 문제가 BPM에도 미칩니다. 그런 채보는 채보 정보의 "AI 생성" 줄에 "모델 박자"가 붙습니다.${remade}`}
       />
       <Toggle
         onHelp={onHelp}

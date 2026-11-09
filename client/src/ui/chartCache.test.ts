@@ -342,5 +342,8 @@ describe('what the chart info says about how an AI chart was made', () => {
     // fp16 runs the encoder in fp32 (worker.encoder_fp32); the label tells such a chart from an older fp16 one
     expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp16', encoder: 'fp32', seconds: 20.6 }))).toBe('v32 · fp16(인코더 fp32) · 21초');
     expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32-mini', precision: 'fp16', encoder: 'fp16' }))).toBe('v32-mini · fp16');
+    // the app's timing is the default and goes unsaid; the model's own timing is named
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp32', timing: 'app', seconds: 120 }))).toBe('v32 · fp32 · 120초');
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp32', timing: 'model', seconds: 120 }))).toBe('v32 · fp32 · 모델 박자 · 120초');
   });
 });
