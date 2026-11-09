@@ -65,6 +65,7 @@ class Unit:
     jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets in it
     focus: int | None = None  # the stem this repeat of its music follows first (sectioned.repeatFocus)
     voice: tuple[int, ...] | None = None  # the stems this unit's notes keep to (sectioned.voices)
+    lead_solo: bool = False  # in a section a guitar or piano leads (6-stem analysis, sectioned.leadSolo)
 
 
 @dataclass
@@ -285,8 +286,8 @@ def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], pe
     by_plan = bool(planned) and section_plan.plan_config().get("highlightRatio") == "plan"
     changed = False
     for k, u in enumerate(units):
-        if u.label in tops or u.length <= 0:
-            continue
+        if u.label in tops or u.length <= 0 or u.lead_solo:
+            continue  # an instrument solo is a highlight of its own (sectioned.leadSolo)
         share = min(1.0, u.density / max(planned)) if by_plan and u.density is not None else blueprint(u.label)["density"] / top_density
         cap = level * u.length * share
         if per_unit_n[k] > cap:
@@ -360,6 +361,43 @@ def _mark_focus(units: list[Unit], sections: list[dict[str, Any]], params: GenPa
 
 def _section_of(rows: list[dict[str, Any]], u: Unit) -> dict[str, Any] | None:
     return next((s for s in rows if str(s.get("group")) == u.group and float(s["startBeat"]) <= u.start + 1e-6 < float(s.get("endBeat", math.inf))), None)
+
+
+def _lead_section(sec: dict[str, Any] | None) -> bool:
+    """A section a guitar or piano leads (6-stem analysis: its `lead` one of melody.solo
+    instrumentLeads with `leadShares` of it at minLeadShare at least): an instrument solo."""
+    if not sec:
+        return False
+    solo = load_config("instruments")["rhythmSource"]["melody"].get("solo", {})
+    lead = sec.get("lead")
+    return lead in set(solo.get("instrumentLeads", ())) and float((sec.get("leadShares") or {}).get(lead, 0.0)) >= float(solo.get("minLeadShare", 1.0))
+
+
+def _mark_lead_solos(units: list[Unit], sections: list[dict[str, Any]]) -> None:
+    """`lead_solo` of the units of instrument-solo sections (sectioned.leadSolo; nothing without it)."""
+    if not sectioned_config().get("leadSolo"):
+        return
+    rows = sorted(sections, key=lambda s: float(s["startBeat"]))
+    for u in units:
+        u.lead_solo = _lead_section(_section_of(rows, u))
+
+
+def _mark_lead_voices(units: list[Unit], params: GenParams) -> bool:
+    """Under the tiers of sectioned.voices (its minSkill), an instrument solo still follows the
+    instrument (sectioned.leadSolo, docs/PATTERN_DESIGN.md 94): its units take the tune voice, so the
+    drums there are its companions (beats one and three) and the rest of the drums is gated as in
+    the voices of the higher tiers. A rhythm source the player picked keeps leading. Whether any
+    unit took it."""
+    rule = sectioned_config().get("leadSolo")
+    voices = sectioned_config().get("voices") or {}
+    if not rule or not rule.get("voiceUnderVoices", False) or params.rhythm_source != "auto" or params.key_mode in voices.get("offKeyModes", ()):
+        return False
+    tune = tuple(STEM_NAMES.index(n) for n in ("vocals", "other"))
+    took = False
+    for u in units:
+        if u.lead_solo:
+            u.voice, u.focus, took = tune, None, True
+    return took
 
 
 def _mark_voices(units: list[Unit], sections: list[dict[str, Any]], params: GenParams, per_unit: list[dict[int, int]] | None = None, cands: list[Candidate] | None = None) -> bool:
@@ -482,7 +520,10 @@ def _companion(c: Candidate, u: Unit, bpb: int, drums_at_least: float, median_st
     if float(c.sources[STEM_NAMES.index("drums")]) < drums_at_least:
         return False
     beat_in_bar = (c.beat - u.start) % bpb
-    return (bpb % 2 == 0 and abs(beat_in_bar - bpb // 2) < 1e-6) or c.strength >= median_strength
+    third = bpb % 2 == 0 and abs(beat_in_bar - bpb // 2) < 1e-6
+    if u.lead_solo and (sectioned_config().get("leadSolo") or {}).get("companion") == "strongBeats":
+        return third  # an instrument solo keeps the drums on beats one and three only (sectioned.leadSolo)
+    return third or c.strength >= median_strength
 
 
 def _focus_weights(units: list[Unit]) -> dict[int, np.ndarray]:
@@ -657,9 +698,11 @@ def layout(
     bpb = tempo.beats_per_bar
     units = make_units(sections, cands[0].beat, cands[-1].beat, bpb)
     per_unit = _unit_cands(units, cands)
+    _mark_lead_solos(units, sections)
     voices_on = _mark_voices(units, sections, params, per_unit, cands)
     if not voices_on:
         _mark_focus(units, sections, params)
+        _mark_lead_voices(units, params)
     n_classes = classify(units, per_unit, cands)
     _mark_variation(units, params)
     _plan_units(units, cands, analysis, tempo, memo)
@@ -701,6 +744,7 @@ def layout(
     expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
     target_slots = params.avg_nps * params.density * density_scale * active_seconds(cands) / expected_chord_notes
     dens = sectioned_config()["density"]
+    solo_density = float((sectioned_config().get("leadSolo") or {}).get("density", 1.0))
     weight = []
     for u in units:
         if not per_unit[u.index]:
@@ -708,7 +752,9 @@ def layout(
             continue
         bp = blueprint(u.label)
         rule = bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy)
-        weight.append(u.length * (rule if u.density is None else u.density))
+        # an instrument solo takes more of the notes (sectioned.leadSolo density): human BMS charts
+        # play a song's busiest melody at 1.14-1.20 times their mean, a solo here came out at its mean
+        weight.append(u.length * (rule if u.density is None else u.density) * (solo_density if u.lead_solo else 1.0))
 
     def spread() -> list[float]:
         total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
@@ -984,7 +1030,7 @@ def layout(
             beat = c.beat if beat is None else beat
             idx.append(len(slots))
             drums_voice = u.voice is not None and STEM_NAMES.index("drums") in u.voice
-            tune_unit = (u.voice is not None and not drums_voice) if voices_on else (u.focus is not None and STEM_NAMES[u.focus] != "drums")
+            tune_unit = (u.voice is not None and not drums_voice) if (voices_on or u.voice is not None) else (u.focus is not None and STEM_NAMES[u.focus] != "drums")
             # a chord on the voice's own moments keeps to its stems; a downbeat or a companion note takes every instrument sounding
             voice = u.voice if (u.voice is not None and not c.downbeat and not _companion(c, u, bpb, companion_drums, median_strength)) else None
             slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target, tune=tune_unit, voice=voice))
@@ -1266,6 +1312,35 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
         use(idxs, size - 2)
         for i in idxs:
             slots[i].size = size
+    # an instrument solo keeps the drums with it (sectioned.leadSolo drumChords): on beats one and
+    # three, where a drum and the tune both sound (each keysound.chordShare at least), the note is a
+    # chord of the drum and the louder tune stem, past the chord share and within the stretch cap
+    if (sectioned_config().get("leadSolo") or {}).get("drumChords") and any(getattr(u, "lead_solo", False) for u in units):
+        share = float(load_config("instruments")["keysound"]["chordShare"])
+        drums, tunes = STEM_NAMES.index("drums"), [STEM_NAMES.index(n) for n in ("vocals", "other")]
+
+        def pair(i: int) -> tuple[int, int] | None:
+            u, c = units[slot_unit[i]], cands[slot_cand[i]]
+            if not u.lead_solo or slots[i].roll is not None or c.sources is None:
+                return None
+            beat_in_bar = (slots[i].beat - u.start) % beats_per_bar
+            strong = min(beat_in_bar, beats_per_bar - beat_in_bar) < 1e-6 or (int(beats_per_bar) % 2 == 0 and abs(beat_in_bar - beats_per_bar / 2) < 1e-6)
+            tune = max(tunes, key=lambda k: float(c.sources[k]))
+            ok = strong and float(c.sources[drums]) >= share and float(c.sources[tune]) >= share
+            return (drums, tune) if ok else None
+
+        for key, idxs in _realized(positions, _outside(slots, positions)):
+            pairs = [pair(i) for i in idxs]
+            if not idxs or any(p is None for p in pairs):
+                continue
+            if all(slots[i].size == 1 for i in idxs):
+                if not fits(idxs, 1):
+                    continue  # past the stretch cap: no chord here
+                use(idxs, 1)
+                for i in idxs:
+                    slots[i].size = 2
+            for i, p in zip(idxs, pairs):
+                slots[i].voice = p  # the chord's notes: the drum and the tune (lanes.note_sources)
     return capped
 
 
