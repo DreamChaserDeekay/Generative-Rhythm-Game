@@ -172,6 +172,11 @@ Artifacts는 30일 동안 보관됩니다. 기한이 지났거나 새로 만들�
   - 기타 솔로가 있는 곡(예: 메탈 · 록)에서 솔로 구간의 노트가 드럼보다 기타 선율을 따라가는지 본다. 피아노가 이끄는 구간은 피아노를 따르는지 본다.
   - 노래가 이끄는 구간, ML 없이 분석한 곡의 채보는 전과 같은지 본다.
   - 알려 줄 것: 곡 이름 · 난이도 · 시각, 기타 · 피아노를 따르지 않은 솔로나 엉뚱한 악기를 따른 구간.
+- [ ] **체감 회귀 세트**(병합 전에, 생성기를 바꾼 경우; `docs/PATTERN_DESIGN.md` 95장): PC의 앱 라이브러리 곡 전부로 이전 생성기와 새 생성기의 채보를 같은 지표로 잰다. 음원은 읽지 않고 analysis.json만 읽는다. 결과 파일(곡 이름이 들어 있음)은 저장소 밖에 둔다.
+  - 이전(예: develop)과 새 브랜치를 각각 작업 트리로 받는다: `git worktree add <old> origin/develop`, `git worktree add <new> origin/<브랜치>`.
+  - `python -I <new>/server/scripts/feel_report.py run --library <앱 데이터 폴더> --repo <old> --out old.json`, 같은 명령에서 `--repo <new> --out new.json`.
+  - `python -I <new>/server/scripts/feel_report.py compare old.json new.json`의 출력 전체를 붙여 준다(곡 전체 중앙값 · 지켜볼 구간 · 가장 크게 바뀐 곡).
+  - 플레이 소감이 나오면 그 곡 이름과 시각을 `server/scripts/feel_windows.json`에 더한다.
 - [ ] **악기 솔로의 밀도와 드럼** (ML판 · 구조 분석판, 생성기 0.9.52, 채보를 **다시 만든다**; `docs/PATTERN_DESIGN.md` 94장): 기타 솔로가 있는 곡(예: Emerald Sword 2:10–2:59)을 6K HARD · 6K ELITE · 7K+1S EXPERT로 친다.
   - 솔로 구간이 그 곡의 다른 구간보다 조금 더 빽빽하고(후렴만큼이거나 그 이상), 노트가 기타 선율을 따라가는지 본다.
   - 드럼이 사라지지 않고 마디의 첫 박 · 셋째 박에 남는지, 그 자리에서 기타와 함께 치는 동치(키음이 드럼과 기타 둘)가 되는지 본다. 그 밖의 박에서 드럼만 치는 노트는 거의 없어야 한다.
