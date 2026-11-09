@@ -6819,3 +6819,26 @@ Python 3.11, CPU PyTorch 2.1.2, NATTEN 0.14.6(소스 빌드), madmom 0.17.dev0(G
 - **몰림(대비)**: 가장 빽빽한 4마디 ÷ 중앙값이 사람 1.46–1.61, 우리 1.22–1.29다. 사람은 빽빽한 곳과 성긴 곳의 차이가 더 크다. 구간 몫(노트 예산의 다음 단계)에서 다룬다.
 - **쉬운 단계**: 레벨 1–8은 사람보다 24% 더 치고 동치가 적다(1.17 대 1.27). 이번에는 건드리지 않았다.
 - **PC 확인**: 6K(사람 BMS는 7키라 직접 비교가 없다)와 실제 곡은 체감 회귀 세트로 잰다.
+
+## 97. 스템 분리기: BS-RoFormer SW 백엔드 (분석기 그대로, 기본은 Demucs)
+
+요청: 스템 분리기를 더 좋은 오픈소스로 바꾼다(상업 배포 계획 없음). 후보는 BS-RoFormer SW 6스템이다. 같은 여섯 스템(베이스 · 드럼 · 그 외 · 보컬 · 기타 · 피아노)을 내고, 공개된 점수로 기타 SDR이 Demucs `htdemucs_6s`의 5.22에서 9.05dB, 피아노 7.83, 보컬 11.30, 드럼 14.11, 베이스 14.62다. 85장에서 6스템이 함께 울리는 기타 음을 기타로 맞힌 몫이 0.17이었고, 구간 리드를 찾는 재현율은 0.49였다(86장). 기타 · 피아노 솔로를 따르는 데 걸리는 곳이 분리 품질이다.
+
+### 97-1. 넣은 것
+
+- **모델 코드**(`server/rhythm_server/analysis/backends/bs_roformer.py`): ZFTurbo Music-Source-Separation-Training의 BS-RoFormer(MIT, lucidrains BS-RoFormer 기반)를 추론만 남겨 옮겼다. 모듈 · 매개변수 이름이 같아 공개 체크포인트가 그대로 실린다(텐서 1,939개, 빠짐 · 남음 없음). 의존성은 ML판이 이미 담는 torch · einops · rotary_embedding_torch다. 긴 곡은 MSST처럼 겹치는 덩어리(588,800 샘플 = 13.4초, 두 번 겹침)에 선형 페이드로 나눠 돈다.
+- **백엔드**(`roformer_backend.py`, `config/analysis.json` `ml.models.roformer`): 가중치(`BS-Rofo-SW-Fixed.ckpt`, 699,412,152바이트; 원 게시자 계정이 지워져 enerjazzer/BS-ROFO-SW-Fixed 미러)를 처음 쓸 때 받아 sha256으로 확인하고 모델 폴더(GRG_MODEL_DIR, 없으면 PyTorch 허브 폴더)에 둔다. `weights_only=True`로 읽는다(텐서만, 피클 코드 실행 없음). 결과는 Demucs 백엔드와 같은 꼴이다: 네 스템(기타 · 피아노는 그 외에 합침, 남는 것도 그 외)과 기타 · 피아노 따로. `device: auto`는 CUDA가 있으면 GPU(float16)다.
+- 스템 백엔드를 고르는 설정(`ml.stems.backend`)은 아직 `demucs`다. 아래 속도 때문이다.
+- 라이선스: 모델 코드는 MIT, 가중치는 비상업(CC BY-NC-SA 4.0)이다. 상업 배포를 하지 않는다는 전제로 넣었다(`licenses.roformer`).
+
+### 97-2. 속도 (클라우드 CPU 4코어, AVX-512 · AMX)
+
+| | 시간 |
+|---|---|
+| Demucs `htdemucs_6s`, 20초 음원 | 13.7초(실시간의 0.7배) |
+| BS-RoFormer SW, 20초 음원(두 번 겹침) | 183초(실시간의 9.2배) |
+| BS-RoFormer SW, 덩어리 하나(13.4초) float32 · bfloat16 · int8 동적 양자화 | 35.0 · 24.7 · 33.1초 |
+
+- 같은 CPU에서 Demucs의 13배쯤 느리다. 4분 곡이면 이 CPU에서 20–37분이다. bfloat16은 1.4배 빠르고 결과가 54dB까지 같지만, bfloat16 명령이 있는 CPU에서만이다. int8 양자화는 빨라지지 않았다.
+- GPU(CUDA)에서는 이 모델이 보통 곡당 수십 초다(이 환경에 GPU가 없어 재지 않음). ML판은 CPU용 PyTorch만 담는다.
+- 품질(85 · 86장 지표로 Demucs와 나란히)은 아직 재지 않았다. 클라우드 CPU로는 곡당 수십 분이라, 기본으로 바꿀지 정한 뒤 일부 곡 · 일부 구간으로 잰다.

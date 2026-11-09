@@ -1,4 +1,4 @@
-"""Optional ML analysis backends (Demucs, beat_this, basic-pitch, allin1).
+"""Optional ML analysis backends (Demucs or BS-RoFormer, beat_this, basic-pitch, allin1).
 
 Each adapter imports its library lazily, so the server runs without any of them. `detect()`
 reports which ones are installed and enabled; the analyzer uses those and falls back to the core
@@ -21,6 +21,8 @@ KINDS = ("stems", "beats", "pitch", "structure")
 # kind -> (adapter module, packages that must be importable, distribution name for the version)
 ADAPTERS: dict[str, tuple[str, tuple[str, ...], str]] = {
     "demucs": ("demucs_backend", ("demucs", "torch"), "demucs"),
+    # the BS-RoFormer model is in this package (bs_roformer.py); its label is the checkpoint's
+    "roformer": ("roformer_backend", ("torch", "einops", "rotary_embedding_torch"), "roformer"),
     "beat_this": ("beat_this_backend", ("beat_this", "torch"), "beat-this"),
     "basic_pitch": ("basic_pitch_backend", ("basic_pitch",), "basic-pitch"),
     "allin1": ("allin1_backend", ("allin1", "torch"), "allin1"),
@@ -59,6 +61,9 @@ def installed(name: str) -> bool:
 
 
 def _version(name: str) -> str:
+    fixed = (ml_config().get("models", {}).get(name) or {}).get("version")
+    if fixed:
+        return str(fixed)
     try:
         return importlib.metadata.version(ADAPTERS[name][2])
     except importlib.metadata.PackageNotFoundError:
@@ -75,7 +80,9 @@ def detect() -> dict[str, Backend]:
         spec = cfg.get(kind) or {}
         name = spec.get("backend")
         if name in ADAPTERS and installed(name):
-            options = {k: v for k, v in spec.items() if k != "backend"}
+            # the backend's own settings (ml.models) under the kind's
+            options = {**(cfg.get("models", {}).get(name) or {}), **{k: v for k, v in spec.items() if k != "backend"}}
+            options.pop("version", None)
             options.setdefault("device", cfg.get("device", "cpu"))
             out[kind] = Backend(kind=kind, name=name, version=_version(name), options=options)
     return out
