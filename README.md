@@ -58,6 +58,7 @@
 - [x] **기타 · 피아노가 이끄는 구간 (ML)** — ML을 설치하면 Demucs 6스템(`htdemucs_6s`)으로 구간마다 기타 · 피아노 · 보컬 · 그 밖 가운데 무엇이 이끄는지 정하고, 기타 · 피아노 구간에서는 그 악기 몫이 큰 소리에 노트를 둠. BMS 60곡의 키음 정답에서 '기타'라 한 구간의 73%, '피아노'라 한 구간의 83%가 맞았고, 기타 구간에서 드럼 없이 기타만 울리는 자리에 노트가 놓인 몫이 ELITE 0.34 → 0.52(사람 채보 0.56)로 올랐음. ML 없이 분석한 곡은 그대로(분석기 1.15.0, 생성기 0.9.48)
 - [x] **6키 ELITE를 플레이어 자리에서** — 구간마다 한 악기 줄기(드럼 · 베이스 · 선율)를 따르고(4마디 안에서 키음의 악기가 바뀌지 않게; 선율 아래 정박의 킥은 보조), 음악이 치는 첫 박에는 꼭 노트를 두며, 롱노트는 드럼 소리 · 다시 치는 소리 · 잔향 위에 두지 않고 손마다 하나씩. BMS 60곡 6K ELITE에서 4마디 창의 우세 악기 몫 0.57 → 0.73(사람 0.77), 첫 박 노트 0.86 → 0.93(사람 0.90), 곡당 롱노트 30 → 6(동시 1개 93%).
 - [x] **로딩 시간 줄이기** — 결과(분석 · 채보 · 스템)는 바이트 단위로 그대로 두고, 템포 맞춤을 한 번에, 분석 단계를 나란히, 업로드한 오디오로 분석을 바로 시작, 채보를 작업 프로세스에서 난이도끼리 나란히(분석이 끝나면 마지막 키 모드로 미리), 스템 파일을 나란히 씀. 4분 곡(4코어)을 올린 뒤 곡 준비 6.2 → 3.1초, 고른 난이도 채보 10.6 → 5.5초, 다섯 난이도 레벨 17.5 → 5.7초, 키음 플레이 준비 19.5 → 7.9초(`docs/PATTERN_DESIGN.md` 89장)
+- [x] **스템 분리기 BS-RoFormer SW (GPU)** — GPU가 있으면 스템 분리를 Demucs 6스템 대신 BS-RoFormer SW로 함(공개 점수로 기타 SDR 5.22 → 9.05dB). Windows ML판은 CUDA 없이 ONNX Runtime DirectML로 DirectX 12 GPU(전용 메모리 2GB 이상)에서 돌리고, GPU가 없거나 실패하면 Demucs로. 가중치는 비상업 라이선스(`docs/PATTERN_DESIGN.md` 97 · 98장)
 
 ## 준비물
 
@@ -92,26 +93,27 @@ cd ../server
 ```bash
 cd server
 .venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu   # CPU용 PyTorch
-.venv/bin/pip install -e ".[ml]"                                                        # demucs · beat-this (+ basic-pitch, Python 3.11)
+.venv/bin/pip install -e ".[ml]"                                                        # demucs · beat-this · onnx(Windows: onnxruntime-directml) (+ basic-pitch, Python 3.11)
 .venv/bin/pip install --no-deps "basic-pitch>=0.4"                                       # Python 3.12 이상: basic-pitch를 ONNX로 (TensorFlow 없이)
 ```
 
 | 백엔드 | 하는 일 | 없을 때(기본 분석) | 라이선스 |
 |---|---|---|---|
-| Demucs (htdemucs_6s) | 드럼·베이스·보컬·그 외 4스템 분리, 기타·피아노가 이끄는 구간과 온셋마다 기타·피아노 몫(분석기 1.15.0부터) | HPSS + 배음 마스크 분리(기타·피아노 구간 없음) | 코드 MIT, 가중치는 라이선스 명시 없음 |
+| BS-RoFormer SW (GPU가 있을 때, 기본) | Demucs와 같은 6스템 분리를 더 깨끗하게(공개 점수로 기타 SDR 9.05dB, Demucs 6스템 5.22). NVIDIA GPU면 CUDA용 PyTorch로, Windows에서는 DirectX 12 GPU(전용 메모리 2GB 이상)에서 ONNX Runtime DirectML로 돌립니다. GPU가 없으면 Demucs를 씁니다(CPU에서는 4분 곡에 20분 남짓이라). PATTERN_DESIGN 97 · 98 | Demucs | 모델 코드 MIT, 가중치는 비상업(CC BY-NC-SA 4.0) |
+| Demucs (htdemucs_6s) | 드럼·베이스·보컬·그 외 4스템 분리, 기타·피아노가 이끄는 구간과 온셋마다 기타·피아노 몫(분석기 1.15.0부터). GPU가 없거나 BS-RoFormer가 실패하면 이것을 씁니다 | HPSS + 배음 마스크 분리(기타·피아노 구간 없음) | 코드 MIT, 가중치는 라이선스 명시 없음 |
 | beat_this | 박 → 우리 박 격자가 반 박 어긋났는지 확인(분석기 1.13.0부터, 템포·박자는 기본 분석) | 온셋 자기상관·다운비트 단서 | 코드·가중치 MIT |
 | basic-pitch | 멜로디 음높이 | 온셋 배음 분석 | Apache-2.0. Python 3.11에서는 TensorFlow 2.15로, 3.12 이상에서는 들어 있는 ONNX 모델을 onnxruntime으로 돌립니다 |
 | allin1 | 곡 구조 라벨(절·후렴) | 자기유사 행렬 구조 분석 | 코드 MIT, 의존성 madmom의 모델이 비상업 라이선스라 `[ml]`에 넣지 않았습니다. 직접 설치하면 씁니다. 사람이 구간을 표시한 29곡에서 보컬 곡은 기본 분석보다 정확했지만(이름표 0.618 대 0.424) 연주곡 · 클래식은 더 틀렸습니다(PATTERN_DESIGN 69-9). Windows에서는 NATTEN 0.14.6을 고쳐 빌드하면 PyTorch 2.1과 함께 돌아가고, 이렇게 묶은 **구조 분석판** 설치 파일이 있습니다(아래 데스크톱 앱, PATTERN_DESIGN 88 · 90) |
 
-- 모델 가중치는 처음 쓸 때 한 번 내려받습니다(Demucs 6스템 약 55MB, beat_this 약 81MB). 4스템 `htdemucs`를 쓰려면 `config/analysis.json`의 `ml.stems.model`을 바꾸세요(기타·피아노 구간은 나오지 않습니다). 음원은 PC 밖으로 나가지 않습니다.
+- 모델 가중치는 처음 쓸 때 한 번 내려받습니다(Demucs 6스템 약 55MB, beat_this 약 81MB, GPU가 있으면 BS-RoFormer SW 약 700MB). BS-RoFormer는 DirectML로 돌릴 때 처음 한 번 ONNX 파일(약 670MB)을 체크포인트 옆에 만듭니다. 4스템 `htdemucs`를 쓰려면 `config/analysis.json`의 `ml.models.demucs.model`을 바꾸세요(기타·피아노 구간은 나오지 않습니다). 음원은 PC 밖으로 나가지 않습니다.
 - **느립니다**: 4코어 CPU에서 Demucs · beat_this · basic-pitch를 모두 쓰면 4분 곡 분석이 약 4분(242초) 걸립니다(기본 분석은 약 8초). 분석은 백그라운드 작업이라 진행률을 보며 다른 곡을 플레이할 수 있습니다. 단계별로 끄려면 `config/analysis.json`에서 그 단계의 `backend`를 `null`로 바꾸세요.
-- GPU를 쓰려면 pytorch.org 안내대로 CUDA용 PyTorch를 설치하고 `config/analysis.json`의 `ml.device`를 `"cuda"`로 바꾸세요.
+- GPU를 쓰려면 pytorch.org 안내대로 CUDA용 PyTorch를 설치하세요. BS-RoFormer는 저절로 CUDA를 씁니다. Demucs · beat_this까지 GPU로 돌리려면 `config/analysis.json`의 `ml.device`를 `"cuda"`로 바꾸세요. Windows에서는 CUDA 없이도 `[ml]`이 ONNX Runtime DirectML을 받아 BS-RoFormer를 GPU로 돌립니다. GPU가 없는 PC에서 BS-RoFormer를 억지로 쓰려면 `ml.models.roformer.cpu`를 `true`로 두세요(아주 느립니다).
 - `ml.enabled`를 `false`로 두거나 `GRG_ML=0`으로 서버를 띄우면 ML을 쓰지 않습니다. ML 백엔드가 실패하면 그 단계만 기본 분석으로 대체하고 분석 결과의 `analyzer.errors`에 남깁니다.
 - 백엔드를 설치·제거하거나 분석기가 바뀌면, 이미 분석한 곡의 곡 정보에 **다시 분석** 버튼이 나타납니다.
 
 ### 데스크톱 앱 (선택)
 
-Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)가 코드를 올릴 때마다 Windows 머신에서 만들고, 묶은 서버를 따로 띄워 데모 곡 분석·MP3 업로드·채보 생성을 확인한 뒤, 무인 설치한 앱을 Playwright로 실행해 곡 분석부터 오토 플레이까지 돌려 봅니다. 만들어진 설치 파일과 그때 찍은 화면은 실행 결과의 Artifacts에 30일간 남습니다. 설치 파일은 세 가지입니다. **기본판**(`GenerativeRhythm-Windows-Setup`)은 기본 분석만 쓰고, **ML판**(`GenerativeRhythm-Windows-ML-Setup`)에는 CPU용 PyTorch · Demucs 6스템 · beat_this · basic-pitch(ONNX)가 들어 있어 위 표의 ML 분석을 씁니다. **구조 분석판**(`GenerativeRhythm-Windows-ML-Structure-Setup`)은 ML판에 곡 구조 분석 allin1까지 넣은 것으로, `develop`에 올릴 때와 워크플로를 직접 돌릴 때만 만들어집니다. 셋은 같은 앱이라 하나를 설치하면 다른 판을 덮어씁니다. 받아서 설치하고 확인하는 순서는 [docs/TESTING.md](docs/TESTING.md)에 있습니다.
+Windows 설치 파일은 GitHub Actions(`.github/workflows/desktop-windows.yml`)가 코드를 올릴 때마다 Windows 머신에서 만들고, 묶은 서버를 따로 띄워 데모 곡 분석·MP3 업로드·채보 생성을 확인한 뒤, 무인 설치한 앱을 Playwright로 실행해 곡 분석부터 오토 플레이까지 돌려 봅니다. 만들어진 설치 파일과 그때 찍은 화면은 실행 결과의 Artifacts에 30일간 남습니다. 설치 파일은 세 가지입니다. **기본판**(`GenerativeRhythm-Windows-Setup`)은 기본 분석만 쓰고, **ML판**(`GenerativeRhythm-Windows-ML-Setup`)에는 CPU용 PyTorch · BS-RoFormer SW(GPU에서 DirectML) · Demucs 6스템 · beat_this · basic-pitch(ONNX)가 들어 있어 위 표의 ML 분석을 씁니다. **구조 분석판**(`GenerativeRhythm-Windows-ML-Structure-Setup`)은 ML판에 곡 구조 분석 allin1까지 넣은 것으로, `develop`에 올릴 때와 워크플로를 직접 돌릴 때만 만들어집니다. 셋은 같은 앱이라 하나를 설치하면 다른 판을 덮어씁니다. 받아서 설치하고 확인하는 순서는 [docs/TESTING.md](docs/TESTING.md)에 있습니다.
 
 브라우저 대신 창 하나로 실행하는 앱을 직접 만들 수도 있습니다. 분석 서버를 PyInstaller로 묶어 Electron 앱에 넣고, 앱이 켜질 때 로컬 포트에 서버를 띄웁니다. 라이브러리는 사용자 앱 데이터 폴더(`Generative Rhythm/library`)에 저장됩니다.
 
@@ -129,7 +131,7 @@ cd desktop && npm install && npm start   # 개발용: 저장소의 Python 서버
 - 설치 파일은 코드 서명이 없어 처음 실행할 때 SmartScreen 경고가 뜹니다(**추가 정보 → 실행**).
 - GPU 드라이버가 없는 PC(가상 머신, 원격 데스크톱)에서도 Chromium의 소프트웨어 렌더러로 화면이 나오게 했습니다(느릴 수 있음).
 - 기본판에는 기본 분석만 들어갑니다. 크기는 압축 전 약 570MB입니다.
-- ML판은 설치 파일 약 347MB, 압축 전 약 0.8GB(묶은 서버 784MB)입니다. 모델 가중치(Demucs 6스템 약 55MB, beat_this 약 81MB)는 처음 분석할 때 한 번 내려받습니다(인터넷 필요, 사용자 폴더의 `.cache`). 분석은 CPU에서 돌아 기본판보다 느립니다(BMS 곡 2–3분 길이에 약 50초, 4코어). GPU는 쓰지 않습니다. 끄려면 앱 폴더 `resources/server/_internal/config/analysis.json`의 `ml.enabled`를 `false`로.
+- ML판은 설치 파일 약 347MB, 압축 전 약 0.8GB(묶은 서버 784MB)입니다. 모델 가중치(Demucs 6스템 약 55MB, beat_this 약 81MB)는 처음 분석할 때 한 번 내려받습니다(인터넷 필요, 사용자 폴더의 `.cache`). 분석은 CPU에서 돌아 기본판보다 느립니다(BMS 곡 2–3분 길이에 약 50초, 4코어). 전용 메모리 2GB 이상의 GPU가 있으면 스템 분리만 BS-RoFormer SW를 DirectML로 GPU에서 돌립니다. 처음 한 번 약 700MB를 받고 ONNX로 내보내며, 이것이 실패하면 그 곡은 Demucs로 분리합니다(PATTERN_DESIGN 98). 끄려면 앱 폴더 `resources/server/_internal/config/analysis.json`의 `ml.enabled`를 `false`로.
 - 구조 분석판은 설치 파일 약 357MB(묶은 서버 818MB)입니다. allin1이 NATTEN 0.14에 묶여 PyTorch 2.1 · Python 3.11로 만들고(`packaging/structure_constraints.txt`, NATTEN은 `packaging/build_natten.sh`로 MSVC에서 소스 빌드), madmom의 비상업 모델은 넣지 않습니다. allin1은 4분 곡 분석에 2분 남짓을 더합니다(이 저장소의 4코어 Linux에서 allin1 없이 약 93초(추정) → 225초, GitHub의 Windows 러너에서는 9–13분). 처음 분석할 때 allin1 모델(약 95MB)을 더 내려받습니다. 보컬 없는 곡(연주곡 · 클래식)은 allin1 구조가 기본 분석보다 덜 맞았습니다(PATTERN_DESIGN 69-9 · 90).
 
 ### 플레이

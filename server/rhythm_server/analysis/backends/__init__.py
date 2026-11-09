@@ -2,7 +2,9 @@
 
 Each adapter imports its library lazily, so the server runs without any of them. `detect()`
 reports which ones are installed and enabled; the analyzer uses those and falls back to the core
-numpy/scipy analysis for the rest (or when an adapter fails).
+numpy/scipy analysis for the rest (or when an adapter fails). A kind may name a `fallback` backend:
+it is used when the first is not installed, says the machine does not suit it (its adapter's
+`usable(options)`: BS-RoFormer without a GPU) or fails on a song.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ class Backend:
     name: str
     version: str
     options: dict[str, Any] = field(default_factory=dict)
+    fallback: Backend | None = None
 
     @property
     def label(self) -> str:
@@ -70,6 +73,23 @@ def _version(name: str) -> str:
         return "unknown"
 
 
+def _backend(kind: str, name: str, spec: dict[str, Any], cfg: dict[str, Any]) -> Backend | None:
+    if name not in ADAPTERS or not installed(name):
+        return None
+    # the backend's own settings (ml.models) under the kind's
+    options = {**(cfg.get("models", {}).get(name) or {}), **{k: v for k, v in spec.items() if k not in ("backend", "fallback")}}
+    options.pop("version", None)
+    options.setdefault("device", cfg.get("device", "cpu"))
+    backend = Backend(kind=kind, name=name, version=_version(name), options=options)
+    try:
+        usable = getattr(backend.module(), "usable", None)
+        if usable is not None and not usable(options):
+            return None
+    except Exception:  # an adapter that cannot even be imported is not usable
+        return None
+    return backend
+
+
 def detect() -> dict[str, Backend]:
     """Installed and enabled ML backends by kind (empty when ML is off or nothing is installed)."""
     if not ml_enabled():
@@ -78,13 +98,13 @@ def detect() -> dict[str, Backend]:
     out: dict[str, Backend] = {}
     for kind in KINDS:
         spec = cfg.get(kind) or {}
-        name = spec.get("backend")
-        if name in ADAPTERS and installed(name):
-            # the backend's own settings (ml.models) under the kind's
-            options = {**(cfg.get("models", {}).get(name) or {}), **{k: v for k, v in spec.items() if k != "backend"}}
-            options.pop("version", None)
-            options.setdefault("device", cfg.get("device", "cpu"))
-            out[kind] = Backend(kind=kind, name=name, version=_version(name), options=options)
+        first = _backend(kind, str(spec.get("backend")), spec, cfg)
+        second = _backend(kind, str(spec.get("fallback")), spec, cfg) if spec.get("fallback") else None
+        if first is not None:
+            first.fallback = second
+            out[kind] = first
+        elif second is not None:
+            out[kind] = second
     return out
 
 
@@ -95,7 +115,8 @@ def status() -> list[dict[str, Any]]:
     active = detect()
     rows = []
     for kind in KINDS:
-        name = (cfg.get(kind) or {}).get("backend")
+        # the backend in use, else the one asked for
+        name = active[kind].name if kind in active else (cfg.get(kind) or {}).get("backend")
         if name not in ADAPTERS:
             continue
         rows.append(

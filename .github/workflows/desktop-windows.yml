@@ -85,10 +85,10 @@ jobs:
             export PATH="$(dirname "$(command -v cl)"):$PATH"
             python -m pip install --no-build-isolation "git+https://github.com/CPJKU/madmom"
             # the ml extra's packages one by one: on Python 3.11 it would bring basic-pitch's TensorFlow
-            python -m pip install -e "./server[build]" "demucs>=4.1" "beat-this>=1.0" "onnxruntime>=1.17" "librosa>=0.10" \
+            python -m pip install -e "./server[build]" "demucs>=4.1" "beat-this>=1.0" "onnxruntime-directml>=1.17" "onnx>=1.16" "librosa>=0.10" \
               "mir-eval>=0.6" "pretty-midi>=0.2.9" "resampy>=0.2.2,<0.4.3" scikit-learn allin1
             python -m pip install --no-deps "basic-pitch>=0.4"
-            python -m pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|beat.this|basic.pitch|numpy|onnxruntime|matplotlib) " || true
+            python -m pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|beat.this|basic.pitch|numpy|onnxruntime.*|onnx|matplotlib) " || true
           else
             python -m pip install -e "./server[build]"
           fi

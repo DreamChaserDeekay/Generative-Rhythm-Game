@@ -229,11 +229,12 @@ def create_app(
                 pcm, sr = audio_io.read_canonical(library.audio_path(song_id))
             stems, method = None, "core-dsp"
             backend = detect_backends().get("stems")
-            if backend is not None:
+            while backend is not None and stems is None:
                 try:
                     stems, method = backend.module().separate(pcm, sr, backend.options), backend.label
                 except Exception as e:
-                    log.warning("stem backend %s failed, using the core separator: %s", backend.label, e)
+                    log.warning("stem backend %s failed: %s", backend.label, e)
+                    backend = backend.fallback  # the second separator, then the core one
             if stems is None:
                 stems = separate(pcm, sr)
             library.save_stems(song_id, stems, method)

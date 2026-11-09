@@ -76,6 +76,14 @@ def _synth(args: argparse.Namespace) -> None:
     print(f"{args.output}: {song.duration:.1f}s, {args.bpm} BPM, {args.bars}마디", file=sys.stderr)
 
 
+def _selftest(_args: argparse.Namespace) -> None:
+    from .analysis.backends import roformer_backend
+
+    report = roformer_backend.self_test()
+    print(json.dumps(report, ensure_ascii=False, default=str))
+    sys.exit(0 if report["ok"] else 1)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="rhythm_server", description="Generative Rhythm Game 로컬 분석 서버")
     sub = parser.add_subparsers(dest="command")
@@ -104,8 +112,10 @@ def main(argv: list[str] | None = None) -> None:
     synth.add_argument("--bars", type=int, default=32)
     synth.add_argument("--seed", type=int, default=0)
 
+    sub.add_parser("selftest", help="BS-RoFormer의 ONNX · DirectML 경로 점검 (ML판)")
+
     args = parser.parse_args(argv)
-    {"analyze": _analyze, "generate": _generate, "synth": _synth}.get(args.command or "serve", _serve)(args)
+    {"analyze": _analyze, "generate": _generate, "synth": _synth, "selftest": _selftest}.get(args.command or "serve", _serve)(args)
 
 
 if __name__ == "__main__":

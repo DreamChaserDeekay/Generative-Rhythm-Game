@@ -158,9 +158,15 @@ Artifacts는 30일 동안 보관됩니다. 기한이 지났거나 새로 만들�
   - 느린 곡(100–140 BPM)이 두 배로 잡히지 않았는지도 본다. 잡혔으면 **곡 설정 → BPM 보정 ÷2**로 고칠 수 있다.
   - 알려 줄 것: 곡 이름, 실제 BPM과 곡 정보의 BPM, 박이나 마디선이 어긋난 곳의 시각.
 - [ ] **데스크톱 ML판** (`GenerativeRhythm-ML-Setup`):
-  - 설정 화면의 분석 백엔드 표에 Demucs · beat_this · basic-pitch가 '사용'으로 나오는지 본다(allin1은 없음).
+  - 설정 화면의 분석 백엔드 표에 Demucs(GPU가 있으면 BS-RoFormer) · beat_this · basic-pitch가 '사용'으로 나오는지 본다(allin1은 없음).
   - 처음 곡을 분석할 때 모델(약 140MB)을 내려받고 분석이 끝나는지, 두 번째 곡부터는 내려받지 않는지 본다. 인터넷이 끊긴 상태의 첫 분석은 그 단계만 기본 분석으로 돌아가야 한다(곡 정보의 분석 오류에 남음).
   - 4분 곡 분석에 걸린 시간을 알려 준다(CPU · 코어 수와 함께).
+- [ ] **BS-RoFormer SW를 GPU로** (ML판 · 구조 분석판, GPU가 있는 PC, `docs/PATTERN_DESIGN.md` 98장):
+  - 설정 화면의 분석 백엔드 표 스템 줄에 `roformer`가 '사용'으로 나오는지 본다. GPU가 없는 PC에서는 `demucs`가 나와야 한다.
+  - 처음 분석할 때 체크포인트(약 700MB)를 받고 ONNX 파일(약 670MB, `%USERPROFILE%\.cache\torch\hub\checkpoints\BS-Rofo-SW-Fixed.masks-v1.onnx`)을 만든 뒤 분석이 끝나는지 본다. 두 번째 곡부터는 둘 다 다시 하지 않아야 한다.
+  - 곡 정보의 분석 백엔드에 스템이 `roformer-bs-sw-1`로 나오는지 본다. `demucs-…`로 나오면 BS-RoFormer가 실패해 Demucs로 넘어간 것이니, 곡 정보의 분석 오류(스템)와 `%APPDATA%\Generative Rhythm\server.log`의 `DirectX adapters` · `BS-RoFormer on DirectML` 줄을 알려 준다.
+  - 4분 곡 분석 시간을 GPU 이름 · 전용 메모리와 함께 알려 준다. 작업 관리자 → 성능 → GPU에서 분석 중 전용 GPU 메모리를 얼마나 쓰는지도 본다.
+  - 기타 · 피아노 솔로 곡(전에 Demucs로 분석한 곡)을 **다시 분석**해, 솔로 구간 노트가 기타 · 피아노 선율을 전보다 잘 따르는지 본다.
 - [ ] **데스크톱 구조 분석판** (`GenerativeRhythm-ML-Structure-Setup`, `docs/PATTERN_DESIGN.md` 90장):
   - 설정 화면의 분석 백엔드 표에 Demucs · beat_this · basic-pitch · allin1이 모두 '사용'으로 나오는지 본다.
   - 처음 분석할 때 ML판의 모델에 더해 allin1 모델(약 95MB: 구조 모델 11MB, allin1이 따로 쓰는 4스템 Demucs 84MB)을 한 번 내려받는지 본다.

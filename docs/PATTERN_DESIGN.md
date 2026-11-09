@@ -6842,3 +6842,48 @@ Python 3.11, CPU PyTorch 2.1.2, NATTEN 0.14.6(소스 빌드), madmom 0.17.dev0(G
 - 같은 CPU에서 Demucs의 13배쯤 느리다. 4분 곡이면 이 CPU에서 20–37분이다. bfloat16은 1.4배 빠르고 결과가 54dB까지 같지만, bfloat16 명령이 있는 CPU에서만이다. int8 양자화는 빨라지지 않았다.
 - GPU(CUDA)에서는 이 모델이 보통 곡당 수십 초다(이 환경에 GPU가 없어 재지 않음). ML판은 CPU용 PyTorch만 담는다.
 - 품질(85 · 86장 지표로 Demucs와 나란히)은 아직 재지 않았다. 클라우드 CPU로는 곡당 수십 분이라, 기본으로 바꿀지 정한 뒤 일부 곡 · 일부 구간으로 잰다.
+
+## 98. 기본 스템 분리기를 BS-RoFormer SW로 (GPU에서; 없으면 Demucs)
+
+요청: 집 PC에 NVIDIA GPU가 있으니 기본을 BS-RoFormer SW로. 97장의 속도 때문에 CPU에서는 기본으로 둘 수 없다(4분 곡에 20분 남짓). 그래서 "GPU가 있으면 BS-RoFormer, 없으면 Demucs"로 했다. ML판은 CPU용 PyTorch만 담는다(CUDA판 PyTorch는 2GB가 넘어 NSIS 설치 파일에 들어가지 않는다). 대신 BS-RoFormer의 신경망만 ONNX로 내보내 ONNX Runtime의 DirectML로 돌린다. DirectML은 DirectX 12 GPU면 NVIDIA · AMD · Intel 가리지 않는다.
+
+### 98-1. 고르는 규칙
+
+- `config/analysis.json` `ml.stems`는 `{"backend": "roformer", "fallback": "demucs"}`다. Demucs 설정(`htdemucs_6s`, shifts 1, overlap 0.25)은 `ml.models.demucs`로 옮겼다. 백엔드마다 자기 설정만 받는다.
+- `backends.detect`: 첫 백엔드가 설치되어 있지 않거나, 어댑터의 `usable(options)`가 이 PC에 맞지 않는다고 하면 `fallback`을 쓴다. 첫 백엔드가 곡 하나에서 실패해도(내려받기 · 내보내기 · GPU 메모리) 그 곡은 fallback으로 분리한다(`analyzer.run_ml`, `app.ensure_stems`). 실패는 `analyzer.errors.stems`에 남는다. 설정 화면 표에는 실제로 쓰는 쪽이 나온다.
+- `roformer_backend.usable`: `device`가 `auto`이면 가속기가 있을 때만 쓴다. 순서는 CUDA(PyTorch, float16) → DirectML(ONNX Runtime)이다. `cpu: true`나 `device: "cpu"`로 두면 CPU에서도 쓴다.
+- DirectML 판정: ONNX Runtime DirectML판은 GPU가 없어도 자기를 목록에 올린다. 그러면 소프트웨어 어댑터(WARP)나 작은 내장 GPU에서 돌게 된다. 그래서 DXGI로 어댑터를 직접 센다(`gpu()`, ctypes로 `CreateDXGIFactory1` → `EnumAdapters1` → `GetDesc1`). 소프트웨어 어댑터가 아니고 전용 메모리가 `minGpuMB`(2048) 이상인 것 가운데 메모리가 가장 큰 것을 고르고, 그 번호를 DirectML의 `device_id`로 넘긴다. 노트북처럼 내장 GPU가 0번이어도 외장 GPU를 쓴다.
+
+### 98-2. ONNX 경로
+
+- 모델을 `spectrum`(STFT) · `masks`(신경망) · `stems`(마스크 곱 · 역STFT)로 나눴다. `forward`는 셋을 차례로 부른다. 같은 계산이다.
+- 처음 쓸 때 `masks`만 ONNX로 내보낸다. opset 17, TorchScript 내보내기(`dynamo=False`), 프레임 축은 자유다(예시 입력 64프레임). 회전 위치 임베딩의 캐시는 내보내는 동안 끈다. 캐시는 파이썬 분기라, 켜 두면 예시 길이가 그래프에 굳는다. 파일은 체크포인트 옆 `BS-Rofo-SW-Fixed.masks-v1.onnx`(약 670MB)다. 임시 파일에 쓰고 이름을 바꾼다. 내보낸 뒤에는 CPU에 올린 PyTorch 모델을 내린다.
+- 돌릴 때 STFT와 역STFT는 PyTorch(CPU)가 맡는다. 무게 없는 meta 장치 모델로 하므로 가중치를 다시 읽지 않는다. 신경망만 ONNX Runtime(DirectML, `enable_mem_pattern` 끔)이 맡는다.
+- 덩어리: DirectML에서는 `dmlChunk` 352,256 샘플(8.0초, 689프레임)이다. 시간축 주의(attention) 점수는 덩어리 하나에 밴드 62 × 헤드 8 × 프레임²이다. 588,800 샘플(1,151프레임)이면 2.6GB짜리 텐서가 생겨 8GB GPU에서 빠듯하다. 689프레임이면 0.94GB다.
+- 확인(이 환경 CPU, ONNX Runtime CPU 제공자):
+  - 작은 무작위 모델로 PyTorch와 같다(차이 1e-4 아래). 시험 6개, PyTorch 2.14 · 2.1.2(구조 분석판) 둘 다.
+  - 실제 체크포인트: 아래 98-3.
+  - Windows 묶음 서버에서는 `rhythm-server selftest`가 같은 일을 작은 모델로 한다. 내보내기, DirectML(목록에 있으면) · CPU 제공자, DXGI 어댑터 목록이다. ML판 · 구조 분석판 연기 시험(`smoke_server.ps1 -ExpectML`)이 이것을 먼저 돌린다. GitHub 러너에는 GPU가 없으므로, 데모 곡 분석은 그대로 Demucs로 되는지 본다.
+- 묶음: Windows에서 `[ml]`은 `onnxruntime-directml`과 `onnx`를 받는다. 다른 OS는 `onnxruntime`이다. PyInstaller 명세는 `onnx` · `onnxruntime`을 통째로 담는다(DirectML.dll 포함).
+
+### 98-3. 실제 체크포인트 확인
+
+이 환경 CPU 4코어에서 쟀다. 합성 곡 10초를 `dmlChunk` 덩어리로 돌렸고, ONNX Runtime은 CPU 제공자다. 같은 내보낸 파일을 Windows에서는 DirectML이 돌린다.
+
+| | 값 |
+|---|---|
+| ONNX 파일 | 668MB |
+| 내보내기(체크포인트 읽기 포함, 처음 한 번) | 36.1초 |
+| ONNX Runtime CPU · PyTorch CPU, 10초 음원 | 102.7 · 147.5초 |
+| 스템별 최대 차이 | 2e-9 – 4.2e-7 |
+| 스템별 SNR(PyTorch 기준) | 69 – 132dB |
+
+- 내보낸 신경망은 PyTorch와 같은 스템을 낸다. SNR이 가장 낮은 보컬 · 기타는 합성 곡에서 거의 비어 있는 스템이다.
+- CPU에서도 ONNX Runtime이 PyTorch보다 1.4배 빨랐다. 그래도 실시간의 10배라 GPU 없는 PC의 기본은 그대로 Demucs다.
+
+### 98-4. 남은 것
+
+- 집 PC(NVIDIA)에서 DirectML 속도와 GPU 메모리를 재야 한다. 첫 분석은 체크포인트(약 700MB)를 내려받고 ONNX로 내보내는 데 몇 분 더 걸린다.
+- 품질 비교(85 · 86장 지표로 Demucs와 나란히)는 GPU에서 BMS 곡으로 한다. 기타 · 피아노 몫과 구간 리드 재현율을 본다.
+- DirectML에서 float16 ONNX(속도 2배 안팎 기대)는 품질을 잰 뒤 정한다.
+- allin1(구조 분석판)은 여전히 자기 4스템 Demucs를 따로 돌린다.

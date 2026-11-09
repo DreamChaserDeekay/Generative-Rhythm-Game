@@ -3,12 +3,13 @@
   "ml": {
     "enabled": true,
     "device": "cpu",
-    "stems": { "backend": "demucs", "model": "htdemucs_6s", "shifts": 1, "overlap": 0.25 },
+    "stems": { "backend": "roformer", "fallback": "demucs" },
     "beats": { "backend": "beat_this", "checkpoint": "final0" },
     "pitch": { "backend": "basic_pitch", "minNoteMs": 120 },
     "structure": { "backend": "allin1", "model": "harmonix-all" },
     "models": {
-      "roformer": { "version": "bs-sw-1", "file": "BS-Rofo-SW-Fixed.ckpt", "url": "https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed/resolve/main/BS-Rofo-SW-Fixed.ckpt", "sha256": "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e", "bytes": 699412152, "instruments": ["bass", "drums", "other", "vocals", "guitar", "piano"], "chunk": 588800, "overlap": 2, "device": "auto", "bf16": false,
+      "demucs": { "model": "htdemucs_6s", "shifts": 1, "overlap": 0.25 },
+      "roformer": { "version": "bs-sw-1", "file": "BS-Rofo-SW-Fixed.ckpt", "url": "https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed/resolve/main/BS-Rofo-SW-Fixed.ckpt", "sha256": "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e", "bytes": 699412152, "instruments": ["bass", "drums", "other", "vocals", "guitar", "piano"], "chunk": 588800, "dmlChunk": 352256, "overlap": 2, "device": "auto", "cpu": false, "minGpuMB": 2048, "directml": true, "bf16": false,
         "model": { "dim": 256, "depth": 12, "stereo": true, "num_stems": 6, "time_transformer_depth": 1, "freq_transformer_depth": 1, "freqs_per_bands": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 12, 12, 12, 12, 12, 12, 12, 12, 24, 24, 24, 24, 24, 24, 24, 24, 48, 48, 48, 48, 48, 48, 48, 48, 128, 129], "dim_head": 64, "heads": 8, "dim_freqs_in": 1025, "stft_n_fft": 2048, "stft_hop_length": 512, "stft_win_length": 2048, "stft_normalized": false, "mask_estimator_depth": 2, "mlp_expansion_factor": 4, "skip_connection": false } }
     }
   },

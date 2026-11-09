@@ -219,17 +219,21 @@ class BSRoformer(Module):
         )
         self.zero_dc = zero_dc
 
-    def forward(self, raw_audio):
-        """(batch, channels, samples) -> (batch, stems, channels, samples)."""
-        device = raw_audio.device
+    def spectrum(self, raw_audio):
+        """(batch, channels, samples) -> the STFT (batch, freqs x channels, frames, 2) and the
+        network's input (batch, frames, freqs x channels x 2)."""
         if raw_audio.ndim == 2:
             raw_audio = rearrange(raw_audio, "b t -> b 1 t")
         raw_audio, packed_shape = _pack_one(raw_audio, "* t")
-        window = self.stft_window_fn(device=device)
+        window = self.stft_window_fn(device=raw_audio.device)
         stft_repr = torch.view_as_real(torch.stft(raw_audio, **self.stft_kwargs, window=window, return_complex=True))
         stft_repr = _unpack_one(stft_repr, packed_shape, "* f t c")
         stft_repr = rearrange(stft_repr, "b s f t c -> b (f s) t c")
-        x = rearrange(stft_repr, "b f t c -> b t (f c)")
+        return stft_repr, rearrange(stft_repr, "b f t c -> b t (f c)")
+
+    def masks(self, x):
+        """The network: its input (batch, frames, freqs x channels x 2) -> the stems' complex masks
+        (batch, stems, frames, freqs x channels x 2). The part exported to ONNX (no STFT inside)."""
         x = self.band_split(x)
         store = [None] * len(self.layers)
         for i, (time_transformer, freq_transformer) in enumerate(self.layers):
@@ -247,20 +251,39 @@ class BSRoformer(Module):
             if self.skip_connection:
                 store[i] = x
         x = self.final_norm(x)
-        mask = torch.stack([fn(x) for fn in self.mask_estimators], dim=1)
-        mask = rearrange(mask, "b n t (f c) -> b n f t c", c=2)
+        return torch.stack([fn(x) for fn in self.mask_estimators], dim=1)
+
+    def stems(self, stft_repr, mask, length):
+        """The stems from the mixture's STFT and the masks: (batch, stems, channels, samples)."""
+        window = self.stft_window_fn(device=stft_repr.device)
+        mask = rearrange(mask.float(), "b n t (f c) -> b n f t c", c=2)
         stft_repr = rearrange(stft_repr, "b f t c -> b 1 f t c")
         stft_repr = torch.view_as_complex(stft_repr) * torch.view_as_complex(mask)
         stft_repr = rearrange(stft_repr, "b n (f s) t -> (b n s) f t", s=self.audio_channels)
         if self.zero_dc:
             stft_repr[:, 0] = 0.0
-        recon = torch.istft(stft_repr, **self.stft_kwargs, window=window, return_complex=False, length=raw_audio.shape[-1])
+        recon = torch.istft(stft_repr, **self.stft_kwargs, window=window, return_complex=False, length=length)
         return rearrange(recon, "(b n s) t -> b n s t", s=self.audio_channels, n=self.num_stems)
 
+    def forward(self, raw_audio):
+        """(batch, channels, samples) -> (batch, stems, channels, samples)."""
+        stft_repr, x = self.spectrum(raw_audio)
+        return self.stems(stft_repr, self.masks(x), raw_audio.shape[-1])
 
-def demix(model: Module, mix: torch.Tensor, chunk: int, overlap: int, batch: int = 1, progress: Callable[[float], None] | None = None) -> torch.Tensor:
+
+def demix(
+    run: Callable[[torch.Tensor], torch.Tensor],
+    num_stems: int,
+    mix: torch.Tensor,
+    chunk: int,
+    overlap: int,
+    batch: int = 1,
+    progress: Callable[[float], None] | None = None,
+) -> torch.Tensor:
     """Separate a whole track (channels, samples) by overlapping chunks with linear fades, as MSST's
-    `demix` (generic mode) does: (stems, channels, samples)."""
+    `demix` (generic mode) does: (stems, channels, samples). `run` separates a batch of chunks,
+    (batch, channels, samples) -> (batch, stems, channels, samples): the model itself, or its STFT
+    around an ONNX session (roformer_backend)."""
     fade = chunk // 10
     step = chunk // overlap
     border = chunk - step
@@ -272,7 +295,7 @@ def demix(model: Module, mix: torch.Tensor, chunk: int, overlap: int, batch: int
     window[:fade] = torch.linspace(0, 1, fade, device=device)
     window[-fade:] = torch.linspace(1, 0, fade, device=device)
     total = mix.shape[-1]
-    result = torch.zeros((model.num_stems,) + tuple(mix.shape), dtype=torch.float32, device=device)
+    result = torch.zeros((num_stems,) + tuple(mix.shape), dtype=torch.float32, device=device)
     counter = torch.zeros(total, dtype=torch.float32, device=device)
     starts = list(range(0, total, step))
     with torch.inference_mode():
@@ -283,7 +306,7 @@ def demix(model: Module, mix: torch.Tensor, chunk: int, overlap: int, batch: int
                 part = mix[:, i : i + chunk]
                 pad_mode = "reflect" if part.shape[-1] > chunk // 2 else "constant"
                 parts.append(F.pad(part[None], (0, chunk - part.shape[-1]), mode=pad_mode)[0])
-            out = model(torch.stack(parts)).float()
+            out = run(torch.stack(parts)).float()
             for j, i in enumerate(group):
                 seg = min(chunk, total - i)
                 w = window.clone()

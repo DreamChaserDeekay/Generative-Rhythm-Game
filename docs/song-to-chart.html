@@ -294,7 +294,7 @@ footer.end { padding-block: 40px 64px; border-top: 1px solid var(--line); font-s
       <span class="scale" style="left:100%;transform:translateX(-100%)">1</span>
     </div>
     <ol>
-      <li><b>1</b><i>0.02</i><span>스템 분리 (Demucs)</span></li>
+      <li><b>1</b><i>0.02</i><span>스템 분리 (BS-RoFormer · GPU가 없으면 Demucs)</span></li>
       <li><b>2</b><i>0.35</i><span>비트 추적 (beat_this)</span></li>
       <li><b>3</b><i>0.42</i><span>음 전사 (basic-pitch)</span></li>
       <li><b>4</b><i>0.50</i><span>곡 구조 (allin1)</span></li>
@@ -328,7 +328,7 @@ footer.end { padding-block: 40px 64px; border-top: 1px solid var(--line); font-s
   <h3>어떤 계산이 어디서 오는가</h3>
   <p class="intro">단계마다 아래 넷 중 무엇으로 계산하는지 표시했다. 같은 단계 안에서도 섞여 있으면 둘 다 붙였다.</p>
   <div class="legend">
-    <div><span class="o o-ml">ML 모델</span><span>구조 분석판에 묶여 있는 딥러닝 모델 넷: Demucs <code>htdemucs_6s</code>, beat_this <code>final0</code>, basic-pitch(ONNX), allin1 <code>harmonix-all</code>. 단계마다 실패하면 그 단계만 자체 분석으로 돌아간다.</span></div>
+    <div><span class="o o-ml">ML 모델</span><span>구조 분석판에 묶여 있는 딥러닝 모델: BS-RoFormer SW(GPU가 있을 때, DirectML) 또는 Demucs <code>htdemucs_6s</code>, beat_this <code>final0</code>, basic-pitch(ONNX), allin1 <code>harmonix-all</code>. 단계마다 실패하면 그 단계만 자체 분석으로 돌아간다(스템은 BS-RoFormer → Demucs → 자체).</span></div>
     <div><span class="o o-dsp">자체 분석</span><span>numpy · scipy로 직접 쓴 신호 처리. 온셋, 화성/타악 분리, 템포와 박 격자, 음 길이, 마디 자기유사 행렬 같은 것.</span></div>
     <div><span class="o o-fit">BMS로 맞춘 모델</span><span>사람이 만든 BMS 채보와 키음에서 맞춘 작은 모델과 집계 표. 반 박 판정, 마디 첫 박, 새 소리 확신, 노트 고르기, 구간 설계, 7키 레인 이동 같은 것. 채보 자체는 저장소에 없고 숫자만 있다.</span></div>
     <div><span class="o o-rule">규칙과 비용</span><span><code>config/*.json</code>의 값으로 정한 규칙. 손 제약, 연타 간격, 레인 비용의 가중치, 난이도 프리셋.</span></div>
@@ -339,8 +339,8 @@ footer.end { padding-block: 40px 64px; border-top: 1px solid var(--line); font-s
     <thead><tr><th>설치 파일</th><th>스템</th><th>박</th><th>음높이</th><th>곡 구조</th></tr></thead>
     <tbody>
       <tr><td>기본판</td><td>자체 마스크 4스템</td><td>자체</td><td>자체</td><td>자체</td></tr>
-      <tr><td>ML판</td><td>Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td>자체</td></tr>
-      <tr><td><strong>ML + 구조 분석판</strong></td><td>Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td><strong>allin1</strong> (실패하면 자체)</td></tr>
+      <tr><td>ML판</td><td>BS-RoFormer SW(GPU) · Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td>자체</td></tr>
+      <tr><td><strong>ML + 구조 분석판</strong></td><td>BS-RoFormer SW(GPU) · Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td><strong>allin1</strong> (실패하면 자체)</td></tr>
     </tbody>
   </table></div>
   <p class="small">생성기는 세 판이 같다. 분석 결과가 다르니 같은 곡이라도 판마다 채보가 다르다(분석에 쓴 백엔드가 채보 ID에 들어간다).</p>
