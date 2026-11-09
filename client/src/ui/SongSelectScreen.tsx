@@ -90,6 +90,8 @@ const IMPORT_FILE = /\.(osz|zip|osu|bms|bme|bml|pms|bmson|wav|ogg|oga|flac|mp3|m
 const IMAGE_FILE = /\.(png|jpe?g|bmp|gif|webp)$/i;
 /** The charts of a song are asked for once the cursor has rested on it this long (not on every song passed). */
 const PREFETCH_DELAY_MS = 300;
+/** How often the plates of tiers Mapperatorinator is making (or will make next) ask again. */
+const AI_REFRESH_MS = 5000;
 /** The song list is asked for this often while a song is analyzed (its progress, the moment it is ready). */
 const ANALYSIS_POLL_MS = 400;
 /** A server that does not answer is asked again this often. */
@@ -340,7 +342,9 @@ export function SongSelectScreen(props: Props) {
     const delay = analyzedUnderCursor.current === song.id ? 0 : PREFETCH_DELAY_MS;
     const timer = window.setTimeout(async () => {
       if (entry) await chartStore.loadSaved(entry.chartId);
-      else await loadTier(song, at, true);
+      // Mapperatorinator makes a chart when it is played (a minute or more on the GPU), not when
+      // the cursor rests on it: its brief only
+      else await loadTier(song, at, !chartStore.aiCharts);
       for (const t of tiers) {
         if (!alive) return;
         if (entry || t.id !== at) await loadTier(song, t.id, false);
@@ -362,6 +366,29 @@ export function SongSelectScreen(props: Props) {
   useEffect(() => {
     analyzedUnderCursor.current = selected && !ready ? selected.id : null;
   }, [selected?.id, ready]);
+
+  // Mapperatorinator makes the chart played, then the other tiers of its key mode, one at a time:
+  // while one of the song's tiers is being made or waits (or Enter waits for one), their plates
+  // ask again every few seconds, so a chart made shows its level and notes
+  const aiPending =
+    selected !== null && ready && chartStore.aiCharts && prefetchKey !== null
+      ? generating ||
+        tiers.some((t) => {
+          const b = chartStore.brief(tierChart(selected, t.id).key);
+          return b?.predicted === true && (b.making === true || b.queued === true);
+        })
+      : false;
+  useEffect(() => {
+    if (!aiPending || !selected) return;
+    const song = selected;
+    const timer = window.setInterval(() => {
+      for (const t of tiers) {
+        const { spec, key } = tierChart(song, t.id);
+        if (spec && chartStore.brief(key)?.predicted) void chartStore.refreshBrief(spec);
+      }
+    }, AI_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [aiPending, prefetchKey]);
 
   // Highlight preview of the selected song: fades in, loops, fades out when leaving the song. It
   // plays on behind the settings (App), so coming back from them keeps the one playing; until the
@@ -508,7 +535,7 @@ export function SongSelectScreen(props: Props) {
     const kept = chartStore.chart(entryChartKey);
     if (kept) return kept;
     const run = selectionRun.current;
-    setBusy('채보 생성 중…');
+    setBusy(chartStore.aiCharts && !savedEntry ? 'AI 채보 생성 중… (만들고 있는 채보가 있으면 그다음 차례)' : '채보 생성 중…');
     setGenerating(true);
     try {
       const c = (savedEntry ? await chartStore.loadSaved(savedEntry.chartId, true) : await loadTier(selected, difficulty, true, true)) as ServerChart | null;
@@ -1940,17 +1967,19 @@ function TierPlate(props: {
       </button>
     );
   }
-  const note = props.generating
-    ? '만드는 중'
-    : props.pending
-      ? '계산 중'
-      : brief?.predicted
-        ? 'AI · 열면 만듦'
+  // a tier Mapperatorinator has not made yet: being made, waiting its turn, or made when played
+  const ai = brief?.predicted ? (brief.making ? 'AI · 만드는 중' : brief.queued ? 'AI · 대기 중' : props.generating ? 'AI · 만드는 중' : 'AI · 열면 만듦') : null;
+  const note =
+    ai ??
+    (props.generating
+      ? '만드는 중'
+      : props.pending
+        ? '계산 중'
         : brief
           ? `${brief.noteCount.toLocaleString('en-US')} 노트`
           : props.failed
             ? '만들지 못함'
-            : `${levelLabel(t.levels[0])}–${t.levels[1]}`;
+            : `${levelLabel(t.levels[0])}–${t.levels[1]}`);
   // the short name, or what makes its chart another than the default: its target level, its pattern
   const marks = [props.targetLevel !== null ? `목표 ${levelLabel(props.targetLevel)}` : null, props.pattern === null ? null : typeof props.pattern === 'number' ? '새 패턴' : '고른 패턴'];
   const side = marks.filter((m) => m !== null).join(' · ') || t.short;

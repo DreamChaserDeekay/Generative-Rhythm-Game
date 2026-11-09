@@ -47,6 +47,36 @@ function store(fail = new Map<string, Error>()) {
 const cannot = () => new ApiError(422, 'nope');
 const down = () => new ApiError(503, 'down');
 
+describe('Mapperatorinator charts (the briefs of tiers not made yet)', () => {
+  it('asks again for a brief until its chart is made, and tells the generator apart', async () => {
+    let state: 'waiting' | 'making' | 'made' = 'waiting';
+    const s = new ChartStore({
+      chart: async (x) => chartOf(x),
+      meta: async (x) =>
+        state === 'made'
+          ? chartOf(x).meta
+          : ({ ...chartOf(x).meta, noteCount: 0, predicted: true, making: state === 'making', queued: state === 'waiting' } as unknown as ServerChart['meta']),
+      saved: async () => {
+        throw new Error('unused');
+      },
+    });
+    expect(s.aiCharts).toBe(false);
+    s.remember('0.9.53+mapper-v32-1');
+    expect(s.aiCharts).toBe(true);
+    const x = spec({ difficulty: 'ELITE' });
+    expect(await s.loadBrief(x)).toMatchObject({ predicted: true, queued: true });
+    state = 'making';
+    expect(await s.refreshBrief(x)).toMatchObject({ predicted: true, making: true });
+    state = 'made';
+    const made = await s.refreshBrief(x);
+    expect(made?.predicted).toBeUndefined();
+    expect(made?.noteCount).toBe(120);
+    // a made chart's brief is not asked for again
+    state = 'waiting';
+    expect((await s.refreshBrief(x))?.noteCount).toBe(120);
+  });
+});
+
 describe('the song select chart store', () => {
   it('keys a chart by all it is made of', () => {
     expect(chartKey(spec())).toBe(chartKey(spec()));

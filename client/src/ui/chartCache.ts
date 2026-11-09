@@ -25,6 +25,9 @@ export interface ChartBrief {
   seed: number | null;
   /** Not made yet (Mapperatorinator makes a chart when it is opened): `level` is the one it aims at. */
   predicted?: boolean;
+  /** Mapperatorinator is making it now, or it waits its turn (the other tiers of a key mode opened). */
+  making?: boolean;
+  queued?: boolean;
 }
 
 // The song list asks for the key of every tier of every song it shows: the parts of a key that are
@@ -70,7 +73,12 @@ export function requestOf(spec: ChartSpec): ChartRequest {
 
 export function briefOf(meta: ServerChart['meta']): ChartBrief {
   const brief: ChartBrief = { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
-  if ((meta as { predicted?: boolean }).predicted) brief.predicted = true;
+  const ai = meta as { predicted?: boolean; making?: boolean; queued?: boolean };
+  if (ai.predicted) {
+    brief.predicted = true;
+    if (ai.making) brief.making = true;
+    if (ai.queued) brief.queued = true;
+  }
   return brief;
 }
 
@@ -125,6 +133,30 @@ export class ChartStore {
   /** A whole chart kept (null: not loaded, or let go). */
   chart(key: string): ServerChart | null {
     return this.charts.get(key) ?? null;
+  }
+
+  /** Charts come from Mapperatorinator (the server's generator says so): a chart is made when it is opened, not ahead. */
+  get aiCharts(): boolean {
+    return this.generator?.includes('+mapper-') ?? false;
+  }
+
+  /**
+   * Asks again for the brief of a chart not made yet (Mapperatorinator): it may be made now, or
+   * being made, or waiting its turn. A known brief of a made chart is kept as it is.
+   */
+  refreshBrief(spec: ChartSpec): Promise<ChartBrief | null> {
+    const key = chartKey(spec);
+    const known = this.briefs.get(key);
+    if (known && !known.predicted) return Promise.resolve(known);
+    return this.once(`refresh:${key}`, async () => {
+      try {
+        this.keepBrief(key, briefOf(await this.fetchers.meta(spec)));
+        this.changed();
+      } catch {
+        // the next round asks again
+      }
+      return this.briefs.get(key) ?? null;
+    });
   }
 
   /** The request for it failed (and was not made again since). */

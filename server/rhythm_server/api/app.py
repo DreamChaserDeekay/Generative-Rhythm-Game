@@ -13,7 +13,6 @@ import threading
 import time
 import zipfile
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -48,6 +47,7 @@ from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
 from ..mapper.charts import MAPPER_VERSION
+from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
 
 log = logging.getLogger("rhythm_server.api")
 MAX_UPLOAD_BYTES = 300 * 1024 * 1024
@@ -174,9 +174,9 @@ def create_app(
     is set up, the server's own generator's before that or without an NVIDIA GPU."""
     library = Library(root or data_dir())
     mapper = mapper or Mapper()
-    # Mapperatorinator's charts being made, by chart id (one at a time: one GPU)
-    mapper_jobs: dict[str, Any] = {}
-    mapper_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mapper")
+    # Mapperatorinator's charts, one at a time (one GPU): the one opened first, then the other
+    # tiers of its key mode in the background
+    mapper_queue = MapperQueue(mapper.generate)
     # stems for keysounds are separated right after each analysis (ensure_stems is defined below);
     # a song just analyzed has its charts made ahead (make_ahead, below)
     queue = AnalysisQueue(
@@ -194,7 +194,7 @@ def create_app(
         yield
         queue.shutdown()
         maker.close()
-        mapper_pool.shutdown(wait=False, cancel_futures=True)
+        mapper_queue.close()
         mapper.close()
 
     app = FastAPI(title="Generative Rhythm Game server", version=__version__, lifespan=lifespan)
@@ -608,32 +608,58 @@ def create_app(
         tiers = [first] + [t for t in order if t != first] if first in order else order
         make_tiers_ahead(song, analysis, last_asked["keyMode"], last_asked["params"], tiers, chosen=first)
 
+    def queue_mapper(song: dict[str, Any], analysis: dict[str, Any], key_mode: str, tier: str, target: int | None, seed: int | None, priority: int) -> tuple[str, Any]:
+        """Queues a Mapperatorinator chart (None for the job when it is saved already): its id and
+        job. A made chart is saved by its job, whoever waits for it."""
+        _, seed, chart_id = mapper.plan(analysis, key_mode, tier, target, seed)
+        if library.chart_path(chart_id).exists():
+            return chart_id, None
+        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(song["id"]))
+        job, new = mapper_queue.submit(chart_id, priority, args)
+        if new:
+            def done(j: Any, sid: str = song["id"], label: str = f"{song['title']} {key_mode} {tier}") -> None:
+                if j.cancelled():
+                    return
+                e = j.exception()
+                if e is None:
+                    library.save_chart(j.result(), sid)
+                else:
+                    log.warning("Mapperatorinator could not make %s: %s", label, e)
+                    mapper.last_error = {"chart": label, "error": str(e), "at": time.time()}
+
+            job.add_done_callback(done)
+        return chart_id, job
+
     async def mapper_chart(song: dict[str, Any], analysis: dict[str, Any], req: ChartRequest, seed: int | None) -> dict[str, Any] | None:
         """A chart by Mapperatorinator (None: it failed, and the server's own generator makes it).
-        A brief gets the level the tier aims at: a chart is made only when it is opened (about a
-        minute on the GPU), one at a time."""
+        A brief gets the level the tier aims at and whether it is being made or waits to be. A chart
+        opened is made first; then the other tiers of its key mode, in the background."""
         _, seed, chart_id = mapper.plan(analysis, req.keyMode, req.difficulty, req.targetLevel, seed)
         cached = library.load_chart(chart_id)
         if cached is not None:
             return {"meta": cached["meta"], "cached": True} if req.brief else {"chart": cached, "cached": True}
         if req.brief:
-            return {"meta": mapper.predicted(analysis, req.keyMode, req.difficulty, req.targetLevel, seed, chart_meta(song)), "cached": False}
-        with briefs_lock:
-            job = mapper_jobs.get(chart_id)
-            if job is None:
-                job = mapper_pool.submit(
-                    mapper.generate, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, chart_meta(song), library.audio_path(song["id"])
-                )
-                mapper_jobs[chart_id] = job
-                job.add_done_callback(lambda _j, c=chart_id: mapper_jobs.pop(c, None))
+            meta = mapper.predicted(analysis, req.keyMode, req.difficulty, req.targetLevel, seed, chart_meta(song))
+            state = mapper_queue.state(chart_id)
+            meta["making"], meta["queued"] = state == "making", state == "queued"
+            return {"meta": meta, "cached": False}
+        _, job = queue_mapper(song, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, OPENED)
+        for tier in difficulty_config()["order"]:
+            if tier != req.difficulty:
+                try:
+                    queue_mapper(song, analysis, req.keyMode, tier, None, None, BACKGROUND)
+                except (ValueError, StopIteration):
+                    pass  # a tier this key mode does not have
+        if job is None:  # saved meanwhile
+            chart = library.load_chart(chart_id)
+            if chart is not None:
+                return {"chart": chart, "cached": True}
+            return None
         try:
             chart = await asyncio.wrap_future(job)
         except MapperError as e:
-            log.warning("Mapperatorinator could not make %s %s: %s", req.keyMode, req.difficulty, e)
             mapper_failed[song["id"]] = str(e)
-            mapper.last_error = {"chart": f"{song['title']} {req.keyMode} {req.difficulty}", "error": str(e), "at": time.time()}
             return None
-        library.save_chart(chart, song["id"])
         return {"chart": chart, "cached": False}
 
     # the last Mapperatorinator failure on a song (its chart came from the server's own generator)

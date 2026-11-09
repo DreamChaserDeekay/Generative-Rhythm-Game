@@ -173,9 +173,10 @@ def predicted_meta(
 
 def make_chart(
     analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
-    osu_text: str, info: dict[str, Any],
+    osu_text: str, info: dict[str, Any], target_level: int | None = None,
 ) -> dict[str, Any]:
-    """One of our charts from the .osu Mapperatorinator made."""
+    """One of our charts from the .osu Mapperatorinator made (`target_level`: the level asked for,
+    None for a tier's default chart)."""
     params = resolve_params(key_mode, difficulty, level, {})
     lanes = lane_infos(key_mode)
     timing = analysis["timing"] if cfg.get("useAppTiming", True) else parse_osu(osu_text).timing
@@ -228,6 +229,8 @@ def make_chart(
                 "model": cfg.get("model", "v32"),
                 "analyzer": f"{analysis['analyzer']['name']}-{analysis['analyzer']['version']}",
                 "seed": seed,
+                # what the client asks for again for a new pattern of the same chart
+                "params": {"difficulty": difficulty, "targetLevel": target_level},
                 "targetLevel": level,
                 "stars": stars_for(level, cfg["starsForLevel"]),
                 "keycount": len(columns(key_mode)),

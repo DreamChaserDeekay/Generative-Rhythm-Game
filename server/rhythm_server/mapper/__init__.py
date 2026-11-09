@@ -75,7 +75,7 @@ class Mapper:
             answer = self.service.generate(request, float(cfg.get("timeoutSeconds", 1800)))
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
             try:
-                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer)
+                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level)
             except ValueError as e:
                 raise MapperError(str(e)) from e
         finally:

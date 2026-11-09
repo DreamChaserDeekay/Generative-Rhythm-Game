@@ -9,6 +9,8 @@ import io
 import json
 import sys
 import textwrap
+import threading
+import time
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -185,6 +187,20 @@ def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: Te
     assert again["cached"] is True and again["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
     brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT", "brief": True}).json()["meta"]
     assert "predicted" not in brief2 and brief2["noteCount"] == 48  # the made chart's own meta now
+    # the other tiers of the key mode follow in the background, one at a time, and are saved
+    others = [t for t in ("NORMAL", "HARD", "ELITE", "MASTER")]
+    deadline = time.time() + 30
+    made: dict[str, dict] = {}
+    while time.time() < deadline and len(made) < len(others):
+        for tier in others:
+            m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": tier, "brief": True}).json()["meta"]
+            if m.get("predicted"):
+                assert m["queued"] or m["making"]  # waiting its turn, or being made
+            else:
+                made[tier] = m
+        time.sleep(0.2)
+    assert set(made) == set(others) and all(m["generator"]["name"] == "mapperatorinator" for m in made.values())
+    assert mapped.get(f"/api/charts/{made['ELITE']['chartId']}").status_code == 200
 
 
 def test_a_failed_mapperatorinator_chart_comes_from_our_generator_with_a_notice(mapped: TestClient) -> None:
@@ -207,3 +223,30 @@ def test_the_feel_report_measures_the_saved_mapperatorinator_charts(mapped: Test
     rec = fr.job(song, [("6K", "ELITE"), ("6K", "HARD")], [], "mapperatorinator")
     assert rec["generator"] == "mapperatorinator" and rec["charts"]["6K:ELITE"]["hits"] > 0
     assert "open it in the app first" in rec["charts"]["6K:HARD"]["error"]
+
+
+def test_the_queue_makes_the_opened_chart_first_then_the_background_ones() -> None:
+    from rhythm_server.mapper.queue import BACKGROUND, OPENED, MapperQueue
+
+    gate = threading.Event()
+    order: list[str] = []
+
+    def run(name: str) -> dict:
+        if name == "first":
+            gate.wait(5)
+        order.append(name)
+        return {"name": name}
+
+    q = MapperQueue(run)
+    first, _ = q.submit("first", OPENED, ("first",))
+    deadline = time.time() + 5
+    while q.state("first") != "making" and time.time() < deadline:
+        time.sleep(0.01)
+    bg1, _ = q.submit("bg1", BACKGROUND, ("bg1",))
+    bg2, _ = q.submit("bg2", BACKGROUND, ("bg2",))
+    again, new = q.submit("bg2", OPENED, ("bg2",))  # opened while it waited: it moves up, same job
+    assert again is bg2 and not new and q.state("bg1") == "queued"
+    gate.set()
+    assert first.result(5)["name"] == "first" and bg1.result(5) and bg2.result(5)
+    assert order == ["first", "bg2", "bg1"]
+    q.close()
