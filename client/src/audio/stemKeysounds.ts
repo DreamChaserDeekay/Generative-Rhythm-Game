@@ -12,6 +12,10 @@ export interface StemKeysoundOptions {
   chordMs: number;
   /** Fade at slice edges and where a stem leaves or rejoins the background. */
   fadeMs: number;
+  /** (server) A note's sound ends at its stem's next onset with this share of the stem at least. */
+  soundShare?: number;
+  /** (server) ... and an attack confidence of this at least. */
+  soundAttack?: number;
   /** An empty press (a "ghost note") plays this much of the start of a slice. */
   ghostMs: number;
 }
@@ -20,7 +24,8 @@ export const STEM_KEYSOUND: StemKeysoundOptions = instrumentsJson.keysound;
 
 export const STEM_LABELS: Record<StemName, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디' };
 
-/** The part of a stem one hit plays: from its note to the next note of that stem. */
+/** The part of a stem one hit plays: from its note to the end of its sound (`srcEnd`) or the next
+ * note of that stem, whichever comes first. */
 export interface StemSlice {
   stem: StemName;
   startMs: number;
@@ -29,9 +34,11 @@ export interface StemSlice {
 
 /**
  * DJMAX-style keysounds for a chart generated from a song: every note plays the slice of the stem
- * it follows, from the note to the next note of that stem, and the background is the mix with
- * those slices taken out. Hitting every note plays the song exactly; a missed note leaves its
- * slice silent.
+ * it follows, from the note to the end of its own sound (the chart's `srcEnd`, generator 0.9.51:
+ * the stem's next sound) or to the next note of that stem, and the background is the mix with
+ * those slices taken out. So one press plays one sound, and the stem's sounds no note took stay in
+ * the background. Hitting every note plays the song exactly; a missed note leaves its slice silent.
+ * Charts without `srcEnd` (older generators) slice from note to note.
  */
 export interface StemKeysoundPlan {
   stems: StemName[];
@@ -45,6 +52,8 @@ export interface StemKeysoundPlan {
 interface NoteLike {
   t: number;
   src?: StemName;
+  /** Song ms where the note's own sound in its stem ends (generated charts, 0.9.51). */
+  srcEnd?: number;
 }
 
 /** Stems with enough notes to be keysounded (the others stay in the background). */
@@ -81,7 +90,12 @@ export function planStemKeysounds(
     groups.forEach((group, g) => {
       const startMs = notes[group[0]].t;
       const next = g + 1 < groups.length ? notes[groups[g + 1][0]].t : durationMs;
-      const endMs = Math.min(next, startMs + options.maxSliceMs, Math.max(startMs, durationMs));
+      // the end of the chord's own sound (the latest of its notes'), when the chart gives it
+      const own = group.reduce((end, i) => {
+        const e = notes[i].srcEnd;
+        return e === undefined ? end : end === Infinity ? e : Math.max(end, e);
+      }, Infinity);
+      const endMs = Math.min(next, own, startMs + options.maxSliceMs, Math.max(startMs, durationMs));
       if (endMs <= startMs) return;
       const index = slices.push({ stem, startMs, endMs }) - 1;
       for (const i of group) noteSlice[i] = index;

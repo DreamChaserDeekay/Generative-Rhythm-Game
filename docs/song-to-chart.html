@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>곡에서 채보까지</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column beside a sticky contents rail on wide screens. Every pipeline step is a
+   spec-sheet row (name, origin, file | plain summary, mechanism). Origin colours carry meaning:
+   red = ML model, blue = our own signal processing, amber = fitted on human BMS charts, slate = rules. */
+:root {
+  --paper: #F2F4F8;
+  --panel: #FFFFFF;
+  --ink: #141A26;
+  --ink-2: #4C566A;
+  --line: #D6DCE6;
+  --dsp: #2453D1;
+  --ml: #BF3B2A;
+  --fit: #9C6210;
+  --rule: #556078;
+  --dsp-soft: #E2E9FB;
+  --ml-soft: #F7E3DF;
+  --fit-soft: #F4E8D3;
+  --rule-soft: #E6E9F0;
+  --code: #E9EDF4;
+  --lane-l: #2453D1;
+  --lane-r: #BF3B2A;
+  --lane-t: #8A93A6;
+  --c-demucs: #BF3B2A;
+  --c-beat: #E0803A;
+  --c-pitch: #C9547F;
+  --c-allin1: #7D2418;
+  --c-base: #2453D1;
+  --display: "Do Hyeon", "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --step-0: 0.82rem;
+  --step-1: 0.95rem;
+  --step-2: 1.0625rem;
+  --step-3: 1.35rem;
+  --step-4: 1.9rem;
+  --step-5: clamp(2.4rem, 6vw, 3.6rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E131D; --panel: #151C29; --ink: #E6EAF2; --ink-2: #9BA5B8; --line: #283246;
+    --dsp: #7FA0FF; --ml: #FF8A75; --fit: #EDB458; --rule: #A5AFC2;
+    --dsp-soft: #1C2A4D; --ml-soft: #3A2220; --fit-soft: #352A16; --rule-soft: #222B3B; --code: #1D2534;
+    --lane-l: #7FA0FF; --lane-r: #FF8A75; --lane-t: #6F7A8F;
+    --c-demucs: #FF8A75; --c-beat: #F2A45E; --c-pitch: #EE86AE; --c-allin1: #C9563F; --c-base: #7FA0FF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E131D; --panel: #151C29; --ink: #E6EAF2; --ink-2: #9BA5B8; --line: #283246;
+  --dsp: #7FA0FF; --ml: #FF8A75; --fit: #EDB458; --rule: #A5AFC2;
+  --dsp-soft: #1C2A4D; --ml-soft: #3A2220; --fit-soft: #352A16; --rule-soft: #222B3B; --code: #1D2534;
+  --lane-l: #7FA0FF; --lane-r: #FF8A75; --lane-t: #6F7A8F;
+  --c-demucs: #FF8A75; --c-beat: #F2A45E; --c-pitch: #EE86AE; --c-allin1: #C9563F; --c-base: #7FA0FF;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.72;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+a { color: var(--dsp); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--dsp); outline-offset: 2px; border-radius: 2px; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.2em; }
+li + li { margin-top: 0.3em; }
+strong { font-weight: 600; }
+.tab { font-variant-numeric: tabular-nums; }
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+.layout { display: grid; grid-template-columns: 1fr; gap: 40px; }
+@media (min-width: 1000px) {
+  .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 56px; }
+}
+main { min-width: 0; max-width: 780px; }
+
+/* contents rail */
+.toc { display: none; }
+@media (min-width: 1000px) {
+  .toc {
+    display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px);
+    align-self: start; font-size: var(--step-0); padding-block: 8px 24px;
+    max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+}
+.toc p { font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 10px; font-size: 0.72rem; }
+.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.toc a { color: var(--ink-2); text-decoration: none; display: block; padding: 3px 0 3px 10px; border-left: 2px solid var(--line); }
+.toc a:hover { color: var(--ink); border-left-color: var(--dsp); }
+.toc .sub a { padding-left: 22px; font-size: 0.78rem; }
+
+/* hero */
+.hero { padding-block: 56px 36px; display: grid; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.hero h1 { font-family: var(--display); font-weight: 400; font-size: var(--step-5); line-height: 1.05; letter-spacing: -0.01em; }
+.lede { font-size: var(--step-2); color: var(--ink); max-width: 40em; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; font-family: var(--mono); font-size: 0.78rem; color: var(--ink-2); }
+
+/* progress track (the app's analysis bar) */
+.track { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 18px 14px; display: grid; gap: 14px; }
+.track-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.track-head strong { font-size: var(--step-1); }
+.track-head span { font-size: var(--step-0); color: var(--ink-2); }
+.bar { position: relative; height: 34px; }
+.bar::before { content: ""; position: absolute; left: 0; right: 0; top: 16px; height: 2px; background: var(--line); }
+.bar .fill { position: absolute; left: 0; top: 15px; height: 4px; border-radius: 2px; }
+.bar .tick { position: absolute; top: 9px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 2px solid var(--panel); font-family: var(--mono); font-size: 0.55rem; line-height: 12px; text-align: center; color: var(--panel); font-weight: 500; }
+.bar .scale { position: absolute; top: 26px; font-family: var(--mono); font-size: 0.66rem; color: var(--ink-2); transform: translateX(-50%); }
+.track ol { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 18px; font-size: var(--step-0); }
+.track li { margin: 0; display: grid; grid-template-columns: 22px 72px 1fr; align-items: baseline; gap: 4px; }
+.track li b { font-family: var(--mono); font-weight: 500; font-size: 0.7rem; color: var(--ink-2); }
+.track li i { font-style: normal; font-family: var(--mono); color: var(--ink-2); font-size: 0.74rem; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.bg-ml { background: var(--ml); } .bg-dsp { background: var(--dsp); } .bg-fit { background: var(--fit); } .bg-rule { background: var(--rule); }
+.track .note { font-size: var(--step-0); color: var(--ink-2); }
+
+/* sections */
+section.part { padding-block: 44px 8px; border-top: 1px solid var(--line); display: grid; gap: 20px; }
+.part > header { display: grid; gap: 8px; }
+.part-no { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.1em; color: var(--ink-2); text-transform: uppercase; }
+.part h2 { font-family: var(--display); font-weight: 400; font-size: var(--step-4); line-height: 1.15; }
+.part h3 { font-size: var(--step-3); font-weight: 600; line-height: 1.35; margin-top: 18px; }
+.intro { max-width: 42em; color: var(--ink); }
+.say { font-size: var(--step-2); }
+.small { font-size: var(--step-0); color: var(--ink-2); }
+
+/* origin chips */
+.o { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 500; padding: 1px 8px 1px 6px; border-radius: 999px; white-space: nowrap; line-height: 1.6; }
+.o::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.o-ml { color: var(--ml); background: var(--ml-soft); }
+.o-dsp { color: var(--dsp); background: var(--dsp-soft); }
+.o-fit { color: var(--fit); background: var(--fit-soft); }
+.o-rule { color: var(--rule); background: var(--rule-soft); }
+.legend { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 640px) { .legend { grid-template-columns: 1fr 1fr; } }
+.legend div { display: grid; gap: 4px; align-content: start; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: var(--step-1); }
+
+/* flow overview */
+.flow { display: grid; grid-template-columns: 1fr; gap: 0; counter-reset: flow; }
+@media (min-width: 720px) { .flow { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.flow > div { position: relative; padding: 14px 14px 16px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 6px; align-content: start; min-width: 0; }
+@media (max-width: 719px) { .flow > div + div { border-top: 0; } .flow > div:first-child { border-radius: 6px 6px 0 0; } .flow > div:last-child { border-radius: 0 0 6px 6px; } }
+@media (min-width: 720px) { .flow > div + div { border-left: 0; } .flow > div:first-child { border-radius: 6px 0 0 6px; } .flow > div:last-child { border-radius: 0 6px 6px 0; } }
+.flow b { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-2); font-weight: 500; }
+.flow h4 { font-size: var(--step-2); font-weight: 600; }
+.flow p { font-size: var(--step-0); color: var(--ink-2); line-height: 1.6; }
+.flow .when { font-family: var(--mono); font-size: 0.72rem; color: var(--ink); }
+
+/* spec-sheet rows */
+.steps { display: grid; border-top: 1px solid var(--line); }
+.step { display: grid; grid-template-columns: 1fr; gap: 10px 28px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+@media (min-width: 720px) { .step { grid-template-columns: 190px minmax(0, 1fr); } }
+.step > .k { display: grid; gap: 6px; align-content: start; justify-items: start; min-width: 0; }
+.step > .k h4 { font-size: var(--step-2); font-weight: 600; line-height: 1.4; }
+.step > .k .at { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-2); }
+.step > .k code { background: none; padding: 0; font-size: 0.72rem; color: var(--ink-2); }
+.step > .v { display: grid; gap: 10px; min-width: 0; }
+.plain { font-size: var(--step-2); }
+.how { font-size: var(--step-1); color: var(--ink); }
+.how li::marker { color: var(--ink-2); }
+.num { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-2); border-left: 2px solid var(--line); padding-left: 10px; }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step-0); font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 0.76rem; letter-spacing: 0.02em; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; white-space: nowrap; }
+
+/* key mode strips */
+.modes { display: grid; gap: 8px; }
+.mode { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 12px; }
+.mode span { font-family: var(--mono); font-size: 0.8rem; }
+.lanes { display: flex; gap: 3px; }
+.lanes i { flex: 1 1 0; max-width: 34px; height: 22px; border-radius: 3px; background: var(--panel); border: 2px solid var(--lane-t); }
+.lanes i.L { border-color: var(--lane-l); }
+.lanes i.R { border-color: var(--lane-r); }
+.lanes i.s { background: repeating-linear-gradient(135deg, var(--line) 0 3px, transparent 3px 6px); }
+.lanes i.L.k { background: var(--dsp-soft); } .lanes i.R.k { background: var(--ml-soft); }
+
+/* timing bars */
+.tbars { display: grid; gap: 14px; }
+.trow { display: grid; gap: 5px; }
+.trow .lab { display: flex; justify-content: space-between; gap: 12px; font-size: var(--step-0); }
+.trow .lab span:last-child { font-family: var(--mono); color: var(--ink-2); }
+.stack { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.stack i { display: block; height: 100%; }
+.stack i + i { box-shadow: inset 1px 0 0 var(--panel); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--step-0); color: var(--ink-2); }
+.keyrow span { display: inline-flex; align-items: center; gap: 6px; }
+.keyrow i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ordered generation outline */
+.outline { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; counter-reset: g; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.outline > li { counter-increment: g; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 11px 14px; margin: 0; border-bottom: 1px solid var(--line); }
+.outline > li:last-child { border-bottom: 0; }
+.outline > li::before { content: counter(g); font-family: var(--mono); font-size: 0.8rem; color: var(--ink-2); padding-top: 2px; }
+.outline > li.loop { background: var(--dsp-soft); }
+.outline .t { display: grid; gap: 2px; }
+.outline .t span { font-size: var(--step-0); color: var(--ink-2); }
+.outline ol { margin-top: 6px; font-size: var(--step-0); }
+
+/* formula */
+.formula { font-family: var(--mono); font-size: 0.84rem; background: var(--code); border-radius: 4px; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+
+footer.end { padding-block: 40px 64px; border-top: 1px solid var(--line); font-size: var(--step-0); color: var(--ink-2); display: grid; gap: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar .fill { transition: width 0.6s ease; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="layout">
+
+<nav class="toc" aria-label="목차">
+  <p>목차</p>
+  <ol>
+    <li><a href="#flow">1. 전체 흐름</a></li>
+    <li><a href="#upload">2. 앱 시작과 업로드</a></li>
+    <li><a href="#analysis">3. 분석</a></li>
+    <li class="sub"><a href="#ml">3-1. ML 네 단계</a></li>
+    <li class="sub"><a href="#core">3-2. 자체 분석</a></li>
+    <li class="sub"><a href="#result">3-3. 분석 결과</a></li>
+    <li><a href="#generate">4. 채보 생성</a></li>
+    <li class="sub"><a href="#when">4-0. 언제 만드나</a></li>
+    <li class="sub"><a href="#tiers">4-1. 난이도와 옵션</a></li>
+    <li class="sub"><a href="#skeleton">4-2. 곡의 세기와 뼈대</a></li>
+    <li class="sub"><a href="#candidates">4-3. 후보</a></li>
+    <li class="sub"><a href="#sections">4-4. 구간 엔진</a></li>
+    <li class="sub"><a href="#planner">4-5. 악구 플래너</a></li>
+    <li class="sub"><a href="#lanes">4-6. 레인 정하기</a></li>
+    <li class="sub"><a href="#level">4-7. 레벨 맞추기</a></li>
+    <li class="sub"><a href="#finish">4-8. 마무리</a></li>
+    <li><a href="#play">5. 플레이</a></li>
+    <li><a href="#time">6. 걸리는 시간</a></li>
+    <li><a href="#files">7. 파일 지도</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <p class="eyebrow">Generative Rhythm · Windows ML + 구조 분석판</p>
+  <h1>곡에서 채보까지</h1>
+  <p class="lede">음원 파일 하나를 올리면 서버가 곡을 한 번 분석하고, 그 분석으로 키 모드와 난이도마다 채보를 만든다. 이 문서는 그 과정을 순서대로 따라간다. 단계마다 먼저 쉽게 요약하고, 그 아래에 실제로 쓰는 계산과 값, 코드 파일을 적었다.</p>
+  <div class="meta"><span>분석기 1.16.0</span><span>생성기 0.9.51</span><span>2026-11-08 기준</span></div>
+
+  <div class="track" role="figure" aria-label="분석 진행 막대와 단계 이름">
+    <div class="track-head"><strong>앱의 분석 막대가 지나가는 자리</strong><span>분석기가 내는 진행 값(0–1)과 단계 이름</span></div>
+    <div class="bar" aria-hidden="true">
+      <div class="fill bg-ml" style="width:60%"></div>
+      <div class="fill bg-dsp" style="left:60%;width:40%"></div>
+      <span class="tick bg-ml" style="left:2%">1</span>
+      <span class="tick bg-ml" style="left:35%">2</span>
+      <span class="tick bg-ml" style="left:42%">3</span>
+      <span class="tick bg-ml" style="left:50%">4</span>
+      <span class="tick bg-dsp" style="left:62%">5</span>
+      <span class="tick bg-dsp" style="left:72%">6</span>
+      <span class="tick bg-dsp" style="left:78%">7</span>
+      <span class="tick bg-dsp" style="left:84%">8</span>
+      <span class="tick bg-dsp" style="left:90%">9</span>
+      <span class="tick bg-dsp" style="left:96.8%">10</span>
+      <span class="scale" style="left:0%;transform:none">0</span>
+      <span class="scale" style="left:60%">0.6</span>
+      <span class="scale" style="left:100%;transform:translateX(-100%)">1</span>
+    </div>
+    <ol>
+      <li><b>1</b><i>0.02</i><span>스템 분리 (Demucs)</span></li>
+      <li><b>2</b><i>0.35</i><span>비트 추적 (beat_this)</span></li>
+      <li><b>3</b><i>0.42</i><span>음 전사 (basic-pitch)</span></li>
+      <li><b>4</b><i>0.50</i><span>곡 구조 (allin1)</span></li>
+      <li><b>5</b><i>0.62–0.68</i><span>스펙트럼 계산 · 온셋 검출</span></li>
+      <li><b>6</b><i>0.72</i><span>화성/타악 분리</span></li>
+      <li><b>7</b><i>0.78</i><span>템포 분석</span></li>
+      <li><b>8</b><i>0.84–0.88</i><span>마디 분석 · 음 길이·음높이</span></li>
+      <li><b>9</b><i>0.90–0.92</i><span>악기 구분 · 곡 구조 분석</span></li>
+      <li><b>10</b><i>0.97</i><span>결과 정리</span></li>
+    </ol>
+    <p class="note">그 앞에 "대기 중"과 "오디오 읽는 중"(0.01)이, 끝에 "완료"가 온다. 빨간 앞쪽 60%는 ML 모델 네 개, 파란 뒤쪽 40%는 자체 분석이다. 막대의 길이는 시간에 비례하지 않는다. Windows에서 4분 곡을 분석하면 1번(Demucs)이 약 4분 30초, 4번(allin1)이 약 7분 걸리고, 5–10번은 모두 합쳐 12초 남짓이다(6장).</p>
+  </div>
+</header>
+
+<!-- 1 -->
+<section class="part" id="flow">
+  <header>
+    <p class="part-no">1 · 전체 흐름</p>
+    <h2>무거운 분석은 한 번, 채보는 몇 초씩</h2>
+    <p class="intro say">곡은 올릴 때 한 번만 분석한다. 이 단계가 무겁고, ML 모델이 여기에 모여 있다. 채보는 저장된 분석 결과를 읽어 키 모드와 난이도마다 따로 만들며, 하나에 몇 초 걸린다. 다른 난이도나 '다른 패턴'을 만들 때는 다시 분석하지 않는다.</p>
+  </header>
+
+  <div class="flow">
+    <div><b>앱</b><h4>업로드</h4><p>곡 파일을 고르면 앱이 로컬 서버로 보낸다.</p><span class="when">곡마다 한 번</span></div>
+    <div><b>서버</b><h4>표준 오디오</h4><p>FFmpeg로 한 번 풀어 44.1kHz 스테레오 FLAC로 저장한다. 분석과 재생이 같은 PCM을 쓴다.</p><span class="when">곡마다 한 번</span></div>
+    <div><b>서버</b><h4>분석</h4><p>ML 네 단계가 먼저, 자체 분석이 그 뒤에 돈다. 박 격자 · 온셋 · 음높이 · 악기 · 구간이 나온다.</p><span class="when">곡마다 한 번 · 수 분</span></div>
+    <div><b>서버</b><h4>생성</h4><p>후보를 뽑고, 구간 단위로 노트를 고르고, 레인을 정하고, 레벨에 맞을 때까지 다시 만든다.</p><span class="when">채보마다 · 수 초</span></div>
+    <div><b>앱</b><h4>플레이</h4><p>같은 오디오에 맞춰 노트가 내려오고, 노트마다 그 악기 스템이 키음이 된다.</p><span class="when">플레이마다</span></div>
+  </div>
+
+  <h3>어떤 계산이 어디서 오는가</h3>
+  <p class="intro">단계마다 아래 넷 중 무엇으로 계산하는지 표시했다. 같은 단계 안에서도 섞여 있으면 둘 다 붙였다.</p>
+  <div class="legend">
+    <div><span class="o o-ml">ML 모델</span><span>구조 분석판에 묶여 있는 딥러닝 모델 넷: Demucs <code>htdemucs_6s</code>, beat_this <code>final0</code>, basic-pitch(ONNX), allin1 <code>harmonix-all</code>. 단계마다 실패하면 그 단계만 자체 분석으로 돌아간다.</span></div>
+    <div><span class="o o-dsp">자체 분석</span><span>numpy · scipy로 직접 쓴 신호 처리. 온셋, 화성/타악 분리, 템포와 박 격자, 음 길이, 마디 자기유사 행렬 같은 것.</span></div>
+    <div><span class="o o-fit">BMS로 맞춘 모델</span><span>사람이 만든 BMS 채보와 키음에서 맞춘 작은 모델과 집계 표. 반 박 판정, 마디 첫 박, 새 소리 확신, 노트 고르기, 구간 설계, 7키 레인 이동 같은 것. 채보 자체는 저장소에 없고 숫자만 있다.</span></div>
+    <div><span class="o o-rule">규칙과 비용</span><span><code>config/*.json</code>의 값으로 정한 규칙. 손 제약, 연타 간격, 레인 비용의 가중치, 난이도 프리셋.</span></div>
+  </div>
+
+  <h3>판마다 다른 점</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>설치 파일</th><th>스템</th><th>박</th><th>음높이</th><th>곡 구조</th></tr></thead>
+    <tbody>
+      <tr><td>기본판</td><td>자체 마스크 4스템</td><td>자체</td><td>자체</td><td>자체</td></tr>
+      <tr><td>ML판</td><td>Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td>자체</td></tr>
+      <tr><td><strong>ML + 구조 분석판</strong></td><td>Demucs 6스템</td><td>자체 + beat_this 반 박 판정</td><td>basic-pitch</td><td><strong>allin1</strong> (실패하면 자체)</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">생성기는 세 판이 같다. 분석 결과가 다르니 같은 곡이라도 판마다 채보가 다르다(분석에 쓴 백엔드가 채보 ID에 들어간다).</p>
+</section>
+
+<!-- 2 -->
+<section class="part" id="upload">
+  <header>
+    <p class="part-no">2 · 앱 시작과 업로드</p>
+    <h2>파일이 서버에 닿기까지</h2>
+    <p class="intro say">데스크톱 앱은 창을 띄우기 전에 내 PC 안에서 분석 서버를 하나 띄우고, 그 서버가 게임 화면까지 내준다. 곡을 올리면 서버가 파일을 표준 오디오로 바꿔 저장하고 분석 작업을 큐에 넣는다.</p>
+  </header>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>서버 띄우기</h4><span class="o o-rule">앱</span><code>desktop/main.js</code></div>
+      <div class="v">
+        <p class="plain">앱이 묶여 있는 서버 실행 파일을 띄우고, 응답할 때까지 기다렸다가 게임 화면을 연다.</p>
+        <ul class="how">
+          <li><code>resources/server/rhythm-server.exe --port &lt;포트&gt; --data &lt;폴더&gt;</code>. 데이터는 <code>%APPDATA%\Generative Rhythm\library</code>, 서버 로그는 <code>%APPDATA%\Generative Rhythm\server.log</code>.</li>
+          <li>포트는 지난번과 같은 "집 포트"를 다시 쓴다. 게임 설정이 그 주소의 브라우저 저장소에 있기 때문이다. 다른 프로그램이 쓰고 있으면 그번만 32768–65535의 빈 포트를 쓰고 설정을 못 불러온다고 알린다.</li>
+          <li><code>GET /api/health</code>를 250ms마다 묻고 최대 120초 기다린다(첫 실행 때 백신이 DLL을 모두 검사해서 넉넉히 잡았다). 그동안 창에는 "분석 서버를 시작하는 중…"이 뜬다.</li>
+          <li>서버는 시작하면서 채보 워커 프로세스를 미리 띄우고, 지난번에 분석이 끝나지 않은 곡을 다시 큐에 넣는다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>ML 백엔드 켜기</h4><span class="o o-ml">ML 모델</span><code>analysis/backends/__init__.py · config/analysis.json</code></div>
+      <div class="v">
+        <p class="plain">설치본 안에 모델 라이브러리가 있으면 단계마다 자동으로 쓴다. 가중치는 처음 분석할 때 한 번 받는다.</p>
+        <ul class="how">
+          <li>시작할 때는 라이브러리를 불러오지 않고 있는지만 본다(<code>find_spec</code>). <code>config/analysis.json</code>의 <code>ml.enabled</code>가 켜져 있고 환경 변수 <code>GRG_ML</code>이 끄지 않았으면 쓴다.</li>
+          <li>설정 → 고급의 "분석 백엔드" 표에 단계마다 "사용 중 (버전)", "설치됨 · 꺼짐", "설치 안 됨"과 라이선스가 나온다. 곡 정보에는 그 곡을 분석한 백엔드가 나오고, 백엔드나 분석기 버전이 바뀌면 "다시 분석" 버튼이 생긴다.</li>
+          <li>처음 받는 가중치: Demucs 6스템 약 55MB, beat_this 약 81MB, allin1 가중치 11MB(모델 8개), allin1이 쓰는 4스템 Demucs 84MB. basic-pitch 모델은 설치본에 들어 있다. 인터넷이 없으면 그 단계만 자체 분석으로 돌아가고 <code>analyzer.errors</code>에 남는다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>업로드</h4><span class="o o-rule">서버</span><code>api/app.py · upload_song</code></div>
+      <div class="v">
+        <p class="plain">선곡 화면에서 파일을 고르면 하나씩 서버로 보낸다. 같은 파일을 다시 올리면 새 곡을 만들지 않는다.</p>
+        <ul class="how">
+          <li>받는 형식: mp3 · ogg · oga · opus · wav · flac · m4a · aac(서버는 mp4도). <code>POST /api/songs</code>에 파일을 1MiB씩 흘려 임시 파일로 받고, 300MB를 넘으면 거절한다.</li>
+          <li>곡 ID는 올린 파일 바이트의 SHA-256 앞 16자리다. 이미 있는 ID면 임시 파일을 지우고 그 곡을 돌려준다. 원본은 <code>songs/&lt;id&gt;/original.&lt;확장자&gt;</code>로 옮긴다.</li>
+          <li>제목 · 아티스트 · 앨범은 파일 태그에서(제목이 없으면 파일 이름), 들어 있는 표지 그림은 <code>cover.png</code> · <code>cover.jpg</code>로 저장한다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>표준 오디오</h4><span class="o o-dsp">자체</span><code>audio_io.py · library.add_song_file</code></div>
+      <div class="v">
+        <p class="plain">어떤 형식으로 올려도 한 번 풀어서 같은 FLAC 하나로 만든다. 분석과 재생이 이 FLAC을 같이 써서, MP3 디코더마다 다른 앞부분 지연이 채보를 밀어내지 못한다.</p>
+        <ul class="how">
+          <li>PyAV(FFmpeg)로 풀어 44.1kHz 스테레오 float32로 리샘플한다. 최댓값이 1을 넘으면 정규화하고 16비트 FLAC <code>audio.flac</code>로 쓴다.</li>
+          <li>분석 큐가 비어 있으면 FLAC을 쓰는 동안 기다리지 않고 바로 분석을 시작한다. 이때 넘기는 PCM은 FLAC을 다시 읽었을 때와 비트까지 같게 맞춘다(×32768, 짝수 쪽 반올림, 자르기, ÷32768). 이 PC의 libsndfile이 정말 그렇게 읽는지 처음에 한 번 확인한다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>분석 작업 큐</h4><span class="o o-rule">서버</span><code>api/jobs.py</code></div>
+      <div class="v">
+        <p class="plain">분석은 한 번에 한 곡씩 돈다. 선곡 화면은 0.4초마다 상태를 물어 진행 막대를 그린다.</p>
+        <ul class="how">
+          <li>상태는 <code>queued</code>(대기 중) → <code>analyzing</code> → <code>ready</code>(완료) 또는 <code>error</code>(실패)다. 진행 값과 단계 이름은 단계 이름이 바뀔 때마다, 아니면 0.25초에 한 번 기록한다.</li>
+          <li>순서: "오디오 읽는 중"(0.01) → <code>analyze()</code>(3장) → <code>analysis.json</code>을 임시 파일에 쓰고 바꿔 넣기 → Demucs 스템 4개(드럼 · 베이스 · 보컬 · 그 외)를 16비트 FLAC과 <code>stems.json</code>으로 저장(기타 · 피아노는 분석에만 쓰고 저장하지 않는다) → 미리 만들 채보가 있으면 만들기(4장) → <code>ready</code>와 BPM · 미리듣기 자리 · 분석기 버전 · 백엔드 · 오류 기록.</li>
+          <li>Demucs가 없는 판은 분석이 끝난 뒤 같은 큐에서 자체 분리로 키음 스템을 만든다. 구조 분석판은 분석 중에 이미 만들었으므로 건너뛴다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>곡 폴더 <code>songs/&lt;id&gt;/</code></th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><code>original.&lt;확장자&gt;</code></td><td>올린 파일 그대로</td></tr>
+      <tr><td><code>audio.flac</code></td><td>표준 오디오(44.1kHz 스테레오 16비트). 분석 · 재생 · 키음의 기준</td></tr>
+      <tr><td><code>analysis.json</code></td><td>분석 결과(3-3). 채보를 만들 때마다 이것을 읽는다</td></tr>
+      <tr><td><code>stems/*.flac</code> · <code>stems.json</code></td><td>키음 스템 4개와 어떤 분리기로 만들었는지</td></tr>
+      <tr><td><code>cover.*</code></td><td>파일에 들어 있던 표지</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">곡 목록은 <code>library.sqlite3</code>, 저장한 채보는 <code>charts/&lt;chartId&gt;.json</code>, 리플레이는 <code>replays/</code>에 있다.</p>
+</section>
+
+<!-- 3 -->
+<section class="part" id="analysis">
+  <header>
+    <p class="part-no">3 · 분석</p>
+    <h2>곡을 숫자로 읽기</h2>
+    <p class="intro say">분석기 <code>analyze()</code>(1.16.0)는 ML 단계를 먼저 차례로 돌리고(진행 0–0.6), 그다음 자체 분석을 돌린다(0.6–1). ML 결과는 대부분 자체 분석의 입력이나 판정으로 들어가고, 박 격자처럼 리듬 게임에 꼭 맞아야 하는 것은 자체 분석이 정한다.</p>
+    <p class="intro small">자체 분석의 일부는 스레드 둘에서 나란히 돈다. STFT와 화성/타악 분리가 멜 스펙트럼 · 온셋 옆에서, 스템 활동량 · 음 분석 · 구조 입력이 템포 · 박자 옆에서 돈다. 각 단계는 입력만 읽으므로 결과는 차례로 돌린 것과 같다.</p>
+  </header>
+
+  <h3 id="ml">3-1. ML 네 단계</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>스템 분리</h4><span class="o o-ml">Demucs htdemucs_6s</span><span class="at">진행 0.02</span><code>analysis/backends/demucs_backend.py</code></div>
+      <div class="v">
+        <p class="plain">곡을 드럼 · 베이스 · 보컬 · 기타 · 피아노 · 그 외, 여섯 소리로 나눈다.</p>
+        <ul class="how">
+          <li>shifts 1, overlap 0.25. 분석은 4스템(drums · bass · vocals · other)으로 쓰고, 기타 · 피아노와 잔차는 other에 더한다.</li>
+          <li>스템마다 STFT(4096점 · 홉 1024)의 로그 플럭스로 활동량을 구한다. 각 스템을 자기 95백분위(최댓값의 2% 하한)로 나눠, 광대역인 드럼이 멜로디 어택을 덮지 않게 한다.</li>
+          <li>기타 · 피아노는 따로 읽어 온셋마다 그 몫(<code>instruments</code>)을, 구간마다 가장 큰 선율 악기(<code>lead</code>)를 낸다. 생성기가 기타 · 피아노가 이끄는 구간에서 그 악기를 따른다.</li>
+          <li>나눈 스템은 키음 스템 파일로도 저장한다.</li>
+        </ul>
+        <p class="num">ML이 없으면 HPSS · 베이스 f0 · 주선율 f0 · 좌우 상관으로 만든 마스크 4스템을 쓴다(합성 곡 SDR 드럼 5.6 dB, Demucs는 24.8 dB).</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>비트 추적</h4><span class="o o-ml">beat_this final0</span><span class="o o-fit">반 박 판정</span><span class="at">진행 0.35</span><code>analysis/ml.py · half_beat_phase</code></div>
+      <div class="v">
+        <p class="plain">딥러닝으로 박 자리를 찍는다. 우리는 그 결과로 "우리 박 격자가 반 박 어긋났나"만 묻는다.</p>
+        <ul class="how">
+          <li>템포 · 박자 · 첫 다운비트는 자체 분석이 정한다. beat_this 박을 그대로 쓰면 박마다 시각을 따로 잡아서 BPM이 맞는 곡이 36%뿐이고, 리듬 게임에 필요한 일정한 격자가 되지 않는다.</li>
+          <li>자체 격자 안에 든 beat_this 박의 절반 넘게가 우리 박보다 박 사이에 더 가까우면 격자를 반 박 옮긴다. 옮긴 격자는 양 끝에 반 박씩 더해 곡 길이를 덮는다.</li>
+          <li>곡 설정에서 첫 박을 직접 옮긴 곡은 판정하지 않는다.</li>
+        </ul>
+        <p class="num">BMS 215곡(템포 하나): 반 박 어긋남 3.7 → 1.4%, 박 20ms 이내 0.930 → 0.953, 다운비트가 마디선에 0.831 → 0.868. 맞던 200곡 중 망친 곡 1개.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>음 전사</h4><span class="o o-ml">basic-pitch (ONNX)</span><span class="at">진행 0.42</span><code>analysis/ml.py · apply_notes</code></div>
+      <div class="v">
+        <p class="plain">곡에서 음표(음높이와 길이)를 받아 적어, 온셋마다 "무슨 음이 얼마나 울리나"를 바꿔 넣는다.</p>
+        <ul class="how">
+          <li>120ms 이상인 노트만 쓴다. 시작이 온셋 ±50ms 안인 노트 가운데 가장 확실한 것의 MIDI 음높이와 끝을 그 온셋의 음높이 · 지속 끝으로 쓴다.</li>
+          <li>베이스 온셋은 MIDI 55 미만의 노트를, 나머지는 그 위의 노트를 고른다.</li>
+          <li>음높이는 레인 배치(높은 음은 오른쪽, 오르면 오른쪽으로)에, 지속 끝은 롱노트 길이에 쓰인다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>곡 구조</h4><span class="o o-ml">allin1 harmonix-all</span><span class="o o-dsp">마디 스냅 · 루프</span><span class="at">진행 0.50</span><code>analysis/backends/allin1_backend.py · ml.sections_from_segments</code></div>
+      <div class="v">
+        <p class="plain">곡을 인트로 · 벌스 · 후렴 같은 구간으로 나누고 이름을 붙인다. 구조 분석판에서는 이 결과를 그대로 곡 구조로 쓴다.</p>
+        <ul class="how">
+          <li>allin1은 자기 안에서 4스템 분리(htdemucs)를 한 번 더 하고 구간 경계 · 이름표를 낸다. 묶은 서버에서는 Demucs를 따로 띄우지 않고 같은 프로세스에서 부르도록 어댑터가 바꾼다.</li>
+          <li>allin1도 박 · 다운비트 · BPM을 내지만 쓰지 않는다. 구간 시작 시각만 가장 가까운 <strong>우리 마디선</strong>에 붙인다. 채보 노트가 우리 격자에 놓이므로 구간 경계도 같은 마디선에 있어야 한다.</li>
+          <li>이름표 바꾸기: intro · verse · chorus · bridge · outro는 그대로, inst → verse, solo · break → bridge. start · end 표시는 경계로 쓰지 않는다.</li>
+          <li>한 마디보다 짧은 조각은 앞 구간에 합친다. 같은 이름표끼리 반복 묶음(A, B …)이 되고, 구간 에너지는 구간 음량의 중앙값을 곡 안에서 0–1로 편 값이다.</li>
+          <li>구간마다 루프 길이(1 · 2 · 4마디)는 자체 분석의 마디 자기유사 행렬로 잰다(<code>structure.add_loops</code>).</li>
+          <li><strong>후렴이 없을 때</strong>: allin1이 chorus를 하나도 내지 않으면(보컬 없는 하드코어 · EDM에서 드롭을 inst, 브레이크다운을 break로 붙이는 경우) 자체 분석의 하이라이트 규칙으로 후렴을 정한다. 음량과 타격 세기로 본 가장 센 구간(빌드업과 한 번만 나오는 짧은 구간은 빼고)이 후렴이 되고, 모든 구간이 후렴이 될 곡은 그대로 둔다(분석기 1.16.0, <code>structure.promote_highlight</code>).</li>
+          <li>allin1이 원래 붙인 이름표는 구간마다 <code>mlLabel</code>, 마디선에 맞추기 전 구간 전부는 <code>mlSegments</code>로 분석 결과에 남는다.</li>
+          <li>allin1이 실패하거나 구간을 하나도 내지 않으면 자체 구조 분석(아래 3-2)으로 돌아간다. 둘을 함께 돌려 고르지는 않는다.</li>
+        </ul>
+        <p class="num">사람이 표시한 29곡: 경계 0.5초 안 F 0.599 · 이름표 0.618 · 후렴 재현율 0.718(자체 분석 1.11.0은 0.467 · 0.424 · 0.471). 보컬 곡에서 크게 앞서고 연주곡 · 클래식에서는 자체 분석보다 낮다.</p>
+      </div>
+    </article>
+  </div>
+
+  <h3 id="core">3-2. 자체 분석</h3>
+  <p class="intro small">진행 막대의 순서대로 적었다. ML 결과가 들어가는 자리는 따로 표시했다.</p>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>스펙트럼 · 온셋</h4><span class="o o-dsp">자체</span><span class="at">0.62 · 0.68</span><code>analysis/onsets.py · spectral.py</code></div>
+      <div class="v">
+        <p class="plain">소리가 새로 시작되는 순간(온셋)을 밀리초 단위로 찾는다. 노트는 모두 이 온셋에서 나온다.</p>
+        <ul class="how">
+          <li>멜 스펙트럼(1024점 · 홉 256)에 SuperFlux식 플럭스를 쓴다: 주파수 쪽 최댓값 필터를 건 뒤 2프레임 전과 비교해, 비브라토가 가짜 온셋을 만들지 않게 한다.</li>
+          <li>저 · 중 · 고역을 따로 피크 검출하고, 포물선 보간으로 프레임보다 잘게 시각을 잡는다.</li>
+          <li>강한 온셋 바로 뒤의 같은 대역 약한 피크(킥의 피치 스윕, 감쇠)는 가린다.</li>
+        </ul>
+        <p class="num">합성 곡 재현율 0.82–1.0, 타이밍 편향 중앙값 ±1ms.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>화성/타악 분리</h4><span class="o o-dsp">자체</span><span class="at">0.72</span><code>analysis/stems.py · hpss</code></div>
+      <div class="v">
+        <p class="plain">스펙트럼을 오래 울리는 화성 성분과 짧게 치는 타악 성분으로 가른다.</p>
+        <ul class="how">
+          <li>STFT 크기에 메디안 필터(커널 17)를 시간 방향 · 주파수 방향으로 걸어 둘을 나눈다(HPSS).</li>
+          <li>타악 성분은 드럼 플럭스(200Hz 아래는 킥, 위는 스네어 쪽)로 템포와 마디 판정에, 화성 성분은 크로마(12음 분포) · 음 길이 · 같은 소리 묶음에 쓰인다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>템포와 박 격자</h4><span class="o o-dsp">자체</span><span class="o o-fit">BMS 모델</span><span class="at">0.78</span><code>analysis/tempo.py</code></div>
+      <div class="v">
+        <p class="plain">곡의 BPM과 첫 박을 정해, 곡 전체에 깔리는 일정한 박 격자를 만든다. 리듬 게임에서 가장 중요한 단계다.</p>
+        <ul class="how">
+          <li><strong>템포 단계</strong>: 온셋 함수의 자기상관에 135 BPM 중심의 사전분포를 곱해 고른 단계와 그 2 · ½ · ¾ · ⅔ · 1.5배를 빗살 맞춤으로 견주고 70–260 BPM으로 접는다. 스네어가 네 칸 중 한 칸에만 오면(백비트) 반으로, 200 BPM 위는 반 박에 킥 · 스네어가 85% 넘게 올 때만 그대로 둔다.</li>
+          <li><strong>반 · 두 배</strong>: 빗살 점수 · 사전분포 · 박 간격 자기상관 · 백비트 비로 된 모델 점수가 2.5점 넘게 나을 때만 옮기고, 그래도 반 박에 드럼이 박만큼 오면 로지스틱 모델로 두 배를 고른다.</li>
+          <li><strong>격자 맞춤</strong>: 정박 1 · 8분 0.45 · 16분 0.2인 빗살 템플릿을 전곡 온셋에 대어 BPM(0.0002 단위)과 위상을 거친 것에서 세밀한 것으로 찾는다. 킥 · 베이스에 무게를 더 줘 엇박 하이햇이 위상을 빼앗지 못하게 한다.</li>
+          <li><strong>반 박 · 셋잇단 · 16분</strong>: 반 박 옮긴 격자가 박인지는 200Hz 위 · 아래 타악 플럭스, 중음역 온셋 세기, 박으로 들어갈 때 화성 변화, 마디 화성 · 음색 변화의 로그 비로 된 로지스틱 모델이 정한다. 셔플은 1/3박 옮긴 격자의 타악이 1.5배 세면 그쪽으로, 드럼이 1/4박 옮긴 격자를 1.2배 세게 치면 16분 옮긴다.</li>
+          <li><strong>ML</strong>: 여기서 beat_this의 반 박 판정(3-1)이 한 번 더 걸린다.</li>
+          <li><strong>템포 변화</strong>: 24박 창마다 지역 BPM을 구해 전체와 1.2% 넘게 다르면 나누고 경계를 잔차가 최소인 곳으로 옮긴다. 나눈 격자가 온셋을 확실히 더 잘 덮는 곡에서만 쓴다.</li>
+        </ul>
+        <p class="num">합성 곡 격자 오차 최대 1.4ms. BMS 곡에서 반 박 판정 96.0%(630곡), 템포 하나인 곡에서 반으로 잡는 곡 2.2% · 두 배 4.2%.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>박자와 마디 첫 박</h4><span class="o o-fit">BMS 모델</span><span class="at">0.84</span><code>analysis/meter.py</code></div>
+      <div class="v">
+        <p class="plain">4/4인지 3/4인지, 마디가 어느 박에서 시작하는지 정한다. 화면의 마디선과 구간 경계가 여기서 나온다.</p>
+        <ul class="how">
+          <li>박마다 단서를 모은다: 킥 · 스네어 플럭스, 박으로 들어갈 때 화성 변화, 마디 화성 변화, 바로 앞 박의 온셋, 마디마다 바뀌는 온셋 세기와 음색.</li>
+          <li>4/4의 네 위상마다 단서를 평균해 네 위상 평균에 대한 로그 비로 더하는 조건부 로짓이다(가중치 4.78 · −0.97 · 2.77 · 5.03 · 0.95 · 3.78 · 2.01 · 3.35).</li>
+          <li>3/4는 박 단서 · 마디 화성 · 킥 · 스네어가 3박 위상에 몰리는 정도와 화성이 6 · 12박 뒤에 돌아오는 정도의 로지스틱 모델이 0.8 넘게 확신할 때만 고른다.</li>
+        </ul>
+        <p class="num">BMS 4/4 곡 마디 첫 박 97.7%(고를 때 쓰지 않은 526곡). 4/4 곡을 3/4로 잡은 곡 0.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>음 길이 · 음높이</h4><span class="o o-dsp">자체</span><span class="o o-ml">basic-pitch</span><span class="at">0.88</span><code>analysis/pitch.py</code></div>
+      <div class="v">
+        <p class="plain">온셋마다 무슨 음인지, 그 소리가 얼마나 오래 울리는지 잰다. 롱노트는 이 길이로 정한다.</p>
+        <ul class="how">
+          <li>음높이: 온셋에서 새로 커진 화성 성분 가운데 멜로디 대역(200–2000Hz)의 가장 센 부분음을 찾고 하위 배음으로 확인한다.</li>
+          <li>지속: 화성 성분에서 그 음의 배음만 따라가다가, 그 음이 더한 몫이 −10dB로 떨어지거나 다른 온셋이 다시 치면 끝낸다. 음 직전부터 깔려 있던 같은 배음(패드 · 화음)의 절반은 밑소리로 보고 뺀다.</li>
+          <li>ML: basic-pitch 노트가 있는 온셋은 그 음높이와 끝으로 바꾼다(3-1).</li>
+        </ul>
+        <p class="num">합성 곡 긴 음 끝점 오차 중앙값 25ms.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>악기 구분</h4><span class="o o-ml">Demucs 스템</span><span class="o o-dsp">태깅</span><span class="at">0.90</span><code>analysis/stems.py · ml.py</code></div>
+      <div class="v">
+        <p class="plain">온셋마다 어떤 악기 소리인지, 그 음이 주선율인지 붙인다.</p>
+        <ul class="how">
+          <li>온셋 ±1프레임에서 스템 활동량의 비율이 <code>sources</code>, 가장 큰 스템이 <code>source</code>다. 노트의 <code>src</code>(키음 스템)가 여기서 온다.</li>
+          <li>멜로디 존재도(0–1): 보컬 스템의 자기 어택(95백분위 대비 0.6이면 1), 또는 어택 없이 주선율 음높이가 0.6반음 넘게 바뀐 레가토 음(0.5). 그 온셋의 보컬 비율이 낮으면(0.3 · 0.2 미만) 줄여, 노래 밑 스네어 롤이 멜로디가 되지 않게 한다.</li>
+          <li>구간마다 스템 비율과 주도 스템(<code>leader</code>), 기타 · 피아노가 이끄는 구간의 <code>lead</code>를 낸다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>가짜 온셋 지우기</h4><span class="o o-dsp">자체</span><code>pitch.held_swells</code></div>
+      <div class="v">
+        <p class="plain">길게 울리는 화음의 맥놀이나 트레몰로가 만든 '새 소리 없는 온셋'을 지운다.</p>
+        <ul class="how">
+          <li>같은 세기 이상의 소리가 아직 울리고, 새것이 없으면(화성 상승 10% 미만, 타악 상승 50% 미만, 고역 비율 0.4 미만, 드럼 타격 아님) 지운다.</li>
+        </ul>
+        <p class="num">합성 곡 7곡의 가짜 온셋 78% 제거, 실제 온셋 손실 0.2%. 피아노 화음만 있는 곡 1006 → 36개.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>새 소리 확신</h4><span class="o o-fit">BMS 모델</span><code>onsets.attack_confidence</code></div>
+      <div class="v">
+        <p class="plain">온셋마다 "정말 새 소리가 시작되나"를 0–1로 매긴다(<code>attack</code>). 생성기는 확신이 높은 온셋에 노트를 먼저 둔다.</p>
+        <ul class="how">
+          <li>그 온셋의 가장 센 대역이 20ms 전부터 직후까지 오른 dB, 화성 상승, 드럼 비율, 100ms 안 앞 온셋과의 거리와 세기 비, 저음 대역 여부의 로지스틱 모델이다.</li>
+          <li>BMS 키음 파일이 시작되는 자리를 정답으로 맞췄다. 울리는 음의 늦은 저음, 부풀음, 같은 소리를 두 번 잡은 것이 낮게 나온다.</li>
+        </ul>
+        <p class="num">반으로 나눈 BMS 곡에서 AUC 0.87. 합성 곡 실제 온셋 평균 0.93, 가짜 온셋 0.45.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>같은 소리 묶음</h4><span class="o o-dsp">자체</span><code>analysis/sound_groups.py</code></div>
+      <div class="v">
+        <p class="plain">같은 샘플을 다시 친 소리끼리 번호(<code>soundGroup</code>)를 붙인다. 생성기가 같은 소리를 같은 레인에 두는 열쇠다.</p>
+        <ul class="how">
+          <li>온셋에서 화성 스펙트럼(STFT 4096점 · 홉 1024, 5kHz까지)이 오르는 모양(2프레임 뒤 − 2프레임 앞, 오른 만큼만, 제곱근)을 벡터로 만든다.</li>
+          <li>곡마다 평균 연결로 묶고 코사인 0.7에서 자른다. 같은 샘플은 섞인 음원에서도 배음이 오르는 자리가 같다는 점을 쓴다.</li>
+        </ul>
+        <p class="num">BMS 220곡: 묶음 하나가 한 키음인 몫 0.911, 같은 키음 쌍을 가리는 AUC 0.869.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>곡 구조</h4><span class="o o-ml">allin1</span><span class="o o-dsp">대체 경로</span><span class="at">0.92</span><code>analyzer.song_sections · structure.py</code></div>
+      <div class="v">
+        <p class="plain">구조 분석판은 allin1 구간(3-1)을 쓴다. allin1이 실패한 곡만 아래 자체 분석으로 구간을 찾는다.</p>
+        <ul class="how">
+          <li>마디마다 음색(멜 40) · 화성(크로마) · 리듬(박 4칸 × 대역 온셋 세기) · 활동량을 이어 붙인 벡터로 마디 자기유사 행렬을 만든다.</li>
+          <li>경계: 체커보드 신규성 + 반복 경로의 시작 · 끝 + 4 · 8마디 격자 보너스를 동적 계획법으로 고른다(4마디 이상). 그 뒤 경계마다 한 마디 앞 · 뒤 · 제자리 가운데 선택 모델이 고른 마디선으로 다듬는다.</li>
+          <li>반복 묶음은 마디 유사도의 평균 연결 군집, 이름표는 규칙(가장 센 반복이 후렴, 모든 등장이 후렴 바로 앞인 짧은 반복이 프리코러스 …)에 후렴 찾기 모델을 더한다.</li>
+          <li>어느 경로든 구간마다 루프 길이(1 · 2 · 4마디), 에너지, 스템 비율이 붙고, 미리듣기는 가장 많이 나온 후렴 묶음의 첫 구간에서 시작한다.</li>
+        </ul>
+        <p class="num">자체 분석 1.14.0, 사람 표시 30곡: 경계 0.5초 안 F 0.501, 이름표 0.580, 후렴 재현율 0.690.</p>
+      </div>
+    </article>
+  </div>
+
+  <h3 id="result">3-3. 분석 결과에 남는 것</h3>
+  <p class="intro">분석 결과는 <code>analysis.json</code> 하나다. 생성기는 오디오를 다시 듣지 않고 이 파일만 읽는다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>항목</th><th>내용</th><th>생성기가 쓰는 곳</th></tr></thead>
+    <tbody>
+      <tr><td><code>analyzer</code></td><td>분석기 이름 · 버전(1.16.0), 단계마다 쓴 백엔드, 실패한 단계의 오류</td><td>채보 ID</td></tr>
+      <tr><td><code>tempo</code> · <code>timing</code></td><td>BPM(최소 · 최대 · 하나인지), 첫 다운비트 시각, 구간마다 BPM인 템포 지도, 박자</td><td>격자 · 마디선 · 박 위치 가중치</td></tr>
+      <tr><td><code>beats</code></td><td>박마다 시각과 다운비트 여부</td><td>마디 첫 박 앵커 · 화면 마디선</td></tr>
+      <tr><td><code>onsets</code></td><td>온셋마다 시각 · 세기 · 대역(저 · 중 · 고) · 음높이 · 화성 비율 · 지속 끝 · 스템(<code>source</code> · <code>sources</code>) · 멜로디 존재도 · <code>attack</code> · <code>soundGroup</code> · 기타 · 피아노 몫</td><td>후보 · 점수 · 롱노트 · 레인 · 키음</td></tr>
+      <tr><td><code>sustains</code></td><td>긴 음마다 시작 · 끝 · 음높이 · 세기</td><td>롱노트 · 패드 롱노트</td></tr>
+      <tr><td><code>sections</code></td><td>구간마다 시작 · 끝(시각과 박), 이름표, 반복 묶음, 에너지, 루프 길이, 신뢰도, 스템 비율, 주도 스템, 기타 · 피아노 리드</td><td>구간 엔진 · 설계 · 음성 · 카메라</td></tr>
+      <tr><td><code>mlLabel</code> · <code>mlSegments</code></td><td>allin1이 구간에 붙인 원래 이름표, 마디선에 맞추기 전의 allin1 구간(구조 분석판만)</td><td>쓰지 않음(원인 확인용)</td></tr>
+      <tr><td><code>stems</code></td><td>스템 이름 · 분리 방법 · 에너지 몫</td><td>키음</td></tr>
+      <tr><td><code>energy</code> · <code>waveform</code></td><td>100ms마다 음량, 20ms마다 파형 피크</td><td>조용한 구간 · 미니맵</td></tr>
+      <tr><td><code>previewMs</code> · <code>overrides</code></td><td>미리듣기 시작(첫 후렴, 없으면 가장 큰 15초), 사용자가 고친 BPM · 첫 박 · 구간</td><td>선곡 화면 · 다시 분석</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">분석기 버전이나 쓴 백엔드가 지금과 다르면 곡이 "오래됨"으로 표시된다. 다시 분석하거나 곡 설정에서 BPM · 첫 박을 고치면 분석이 새로 돌고, 채보 ID가 분석 정보를 담고 있어 채보도 새로 만들어진다.</p>
+</section>
+
+<!-- 4 -->
+<section class="part" id="generate">
+  <header>
+    <p class="part-no">4 · 채보 생성</p>
+    <h2>분석에서 노트로</h2>
+    <p class="intro say">생성기 <code>generate_chart()</code>는 분석 결과 · 키 모드 · 난이도 · 옵션 · 시드를 받아 채보 하나를 만든다. 같은 입력이면 언제나 같은 채보다. 큰 순서는 아래와 같고, 가운데의 반복이 "레벨이 맞을 때까지 다시 만들기"다.</p>
+  </header>
+
+  <h3 id="when">4-0. 언제, 어떤 순서로 만드나</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>선곡 화면의 요청</h4><span class="o o-rule">앱 · 서버</span><code>SongSelectScreen.tsx · app.create_chart</code></div>
+      <div class="v">
+        <p class="plain">곡에 커서가 0.3초 머무르면 지금 고른 난이도의 채보 전체를 먼저 요청하고, 나머지 네 난이도는 선곡 화면에 띄울 요약(레벨 · 노트 수 등)을 차례로 요청한다.</p>
+        <ul class="how">
+          <li>한 번에 만드는 것은 지금 키 모드의 다섯 난이도뿐이다. 다른 키 모드는 그 키 모드를 고를 때 만든다.</li>
+          <li>서버는 디스크에 저장된 채보 → 기억해 둔 요약 → 만들지 않기로 한 난이도(404) 순으로 찾고, 없으면 만든다. 채보 전체는 <code>charts/&lt;chartId&gt;.json</code>으로 저장하고, 요약만 요청한 채보는 메모리에만 둔다.</li>
+          <li>F5("다른 패턴")는 새 시드로 다시 만든다. 채보 ID가 달라 기록도 따로 남는다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>워커와 우선순위</h4><span class="o o-rule">서버</span><code>generator/workers.py</code></div>
+      <div class="v">
+        <p class="plain">채보는 워커 프로세스 여러 개에서 나란히 만든다. 고른 난이도가 늘 먼저다.</p>
+        <ul class="how">
+          <li>워커 수는 CPU 수 − 1, 최대 4개다(하나에 약 70MB). 같은 채보를 두 번 요청하면 하던 작업에 합류한다.</li>
+          <li>우선순위: 고른 채보 전체 &gt; 요약 &gt; 미리 만들기. 고른 채보를 만드는 동안 미리 만들기는 시작하지 않는다. 미리 만들던 채보를 고르면 그 채보의 우선순위를 올린다.</li>
+          <li>분석이 끝난 곡은 <code>ready</code>가 되기 전에, 마지막으로 요청받은 키 모드 · 옵션으로 다섯 난이도를 미리 만든다(마지막에 고른 난이도부터). 그래서 분석이 끝나고 커서를 올리면 이미 만들어져 있다.</li>
+          <li>MASTER 뼈대(4-2)는 워커마다 한 번 만들어 기억한다.</li>
+        </ul>
+        <p class="num">자체 분석만 쓴 4분 곡(4코어): 업로드부터 곡 준비 3.1–3.2초, 고른 난이도 5.5초, 다섯 난이도 5.6–5.8초. 구조 분석판은 분석이 수 분 걸리므로(6장) 그 시간이 앞에 더해진다.</p>
+      </div>
+    </article>
+  </div>
+
+  <h3>한 채보를 만드는 순서</h3>
+  <ol class="outline">
+    <li><div class="t"><strong>파라미터 정하기</strong><span>난이도 프리셋 + 키 모드 보정 + 스타일 + 사용자 옵션 · <code>params.py</code></span></div></li>
+    <li><div class="t"><strong>템포 지도 · 스윙 마디</strong><span>분석의 박 격자를 시각 ↔ 박 변환표로, 마디마다 셋잇단 격자를 열지 판정 · <code>tempo.py</code> · <code>candidates.swing_bars</code></span></div></li>
+    <li><div class="t"><strong>후보 만들기</strong><span>온셋을 격자에 붙이고 점수를 매긴다 · <code>candidates.py</code></span></div></li>
+    <li><div class="t"><strong>드럼 롤 찾기</strong><span>곡에서 한 번, 모든 격자에서 · <code>rolls.py</code></span></div></li>
+    <li><div class="t"><strong>곡의 세기와 MASTER 뼈대</strong><span>MASTER 첫 판의 레이팅과 레인을 기억해 다른 난이도가 따른다 · <code>core.lane_plan</code></span></div></li>
+    <li class="loop"><div class="t"><strong>반복 (최대 6번)</strong><span>레벨이 범위 안이고 레이팅이 목표에서 0.75 안이면 멈춘다</span>
+      <ol>
+        <li>구간 배치: 단위 · 재료 · 설계 · 노트 고르기 · 동치 · 롱노트 · <code>sections.layout</code></li>
+        <li>악구 계획: 악구마다 패턴 모양 · <code>planner.py</code></li>
+        <li>레인 정하기: 빔 서치 + 반복 복사 · <code>sections.place</code> · <code>lanes.py</code></li>
+        <li>어긋난 동치 정리 · <code>near.merge_near</code></li>
+        <li>난이도 산정 · <code>difficulty/estimator.py</code></li>
+        <li>밀도 배율 고치기</li>
+      </ol></div></li>
+    <li><div class="t"><strong>곡 끝 롱노트</strong><span>잔향만 남은 마지막 화음을 늘린다 · <code>ending.py</code></span></div></li>
+    <li><div class="t"><strong>린터</strong><span>플레이 규칙을 하나라도 어기면 채보를 내보내지 않는다 · <code>linter.py</code></span></div></li>
+    <li><div class="t"><strong>연출 · 키음 · ID</strong><span>카메라 연출, 주 키음 스템, 채보 ID · <code>effects.py</code> · <code>core.py</code></span></div></li>
+  </ol>
+
+  <!-- 4-1 -->
+  <h3 id="tiers">4-1. 난이도와 옵션</h3>
+  <p class="intro">난이도는 다섯이고 레벨은 1–20, 난이도마다 네 레벨이다. 난이도가 오를수록 강해지는 규칙은 모두 <strong>단계값</strong>(0–1) 하나로 정한다. 예를 들어 트릴 · 롤 모양은 단계값 0.35부터, 꺾인 계단 · 앵커는 0.6부터 쓴다.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>난이도</th><th>레벨</th><th class="r">단계값</th><th class="r">평균 NPS</th><th class="r">1초 최고</th><th class="r">최대 동치</th><th class="r">연타 최소 간격</th></tr></thead>
+    <tbody>
+      <tr><td>NORMAL</td><td class="tab">1–4</td><td class="r">0.32</td><td class="r">3–5</td><td class="r">8</td><td class="r">2</td><td class="r">115ms</td></tr>
+      <tr><td>HARD</td><td class="tab">5–8</td><td class="r">0.54</td><td class="r">5–8</td><td class="r">12</td><td class="r">3</td><td class="r">100ms</td></tr>
+      <tr><td>EXPERT</td><td class="tab">9–12</td><td class="r">0.75</td><td class="r">8–10.3</td><td class="r">18</td><td class="r">4</td><td class="r">95ms</td></tr>
+      <tr><td>ELITE</td><td class="tab">13–16</td><td class="r">0.86</td><td class="r">10.3–12.5</td><td class="r">22</td><td class="r">5</td><td class="r">90ms</td></tr>
+      <tr><td>MASTER</td><td class="tab">17–20</td><td class="r">0.96</td><td class="r">12.5–16</td><td class="r">26</td><td class="r">6</td><td class="r">85ms</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">NPS는 4K 기준이고 키 모드마다 보정값을 곱한다. 연타 최소 간격은 BMS 사람 채보의 빠른 반복 간격 하위 10%에 맞췄다.</p>
+
+  <p class="intro">키 모드는 일곱이다. 레인마다 손(왼손 · 오른손 · 양손 엄지)과 손가락이 정해져 있고, 레인 배치는 이 손가락 모델 위에서 계산한다.</p>
+  <div class="modes" role="figure" aria-label="키 모드별 레인과 손">
+    <div class="mode"><span>4K</span><div class="lanes"><i class="L k"></i><i class="L k"></i><i class="R k"></i><i class="R k"></i></div></div>
+    <div class="mode"><span>4K+FX</span><div class="lanes"><i class="L s"></i><i class="L k"></i><i class="L k"></i><i class="R k"></i><i class="R k"></i><i class="R s"></i></div></div>
+    <div class="mode"><span>5K</span><div class="lanes"><i class="L k"></i><i class="L k"></i><i class="T k"></i><i class="R k"></i><i class="R k"></i></div></div>
+    <div class="mode"><span>6K</span><div class="lanes"><i class="L k"></i><i class="L k"></i><i class="L k"></i><i class="R k"></i><i class="R k"></i><i class="R k"></i></div></div>
+    <div class="mode"><span>6K+FX</span><div class="lanes"><i class="L s"></i><i class="L k"></i><i class="L k"></i><i class="L k"></i><i class="R k"></i><i class="R k"></i><i class="R k"></i><i class="R s"></i></div></div>
+    <div class="mode"><span>7K+1S</span><div class="lanes"><i class="L s"></i><i class="L k"></i><i class="L k"></i><i class="L k"></i><i class="T k"></i><i class="R k"></i><i class="R k"></i><i class="R k"></i></div></div>
+    <div class="mode"><span>8K</span><div class="lanes"><i class="L k"></i><i class="L k"></i><i class="L k"></i><i class="L k"></i><i class="R k"></i><i class="R k"></i><i class="R k"></i><i class="R k"></i></div></div>
+    <div class="keyrow"><span><i style="border:2px solid var(--lane-l)"></i>왼손</span><span><i style="border:2px solid var(--lane-r)"></i>오른손</span><span><i style="border:2px solid var(--lane-t)"></i>가운데(양손 엄지)</span><span><i style="background:repeating-linear-gradient(135deg,var(--line) 0 3px,transparent 3px 6px);border:1px solid var(--line)"></i>사이드(FX) · 스크래치</span></div>
+  </div>
+  <p class="small"><code>config/keymodes.json</code>. 7K+1S는 사람 7키 BMS 채보에 맞춘 규칙(키 묶음, 레인 이동 n-gram, 되먹임)을 따로 더 받는다. 4-6에서 따로 표시했다.</p>
+
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>파라미터</h4><span class="o o-rule">규칙</span><code>params.py · config/difficulty.json</code></div>
+      <div class="v">
+        <p class="plain">프리셋 위에 스타일 배율을 곱하고, 사용자가 직접 정한 값이 마지막에 이긴다.</p>
+        <ul class="how">
+          <li>프리셋: 평균 · 최고 NPS, 허용 분할(4분 … 32분 · 셋잇단)과 분할마다 상한, 최대 동치, 동치 몫, 롱노트 몫, 연타 최소 간격, 손 제약, 스크래치 · 사이드 몫.</li>
+          <li>스타일 7종: 균형 · 스트림(동치 ×0.45, 손 번갈이) · 동치(×1.8) · 연타(간격 ×0.75) · 롱노트(×2.4) · 테크니컬(엇박 · 잘게 나눈 분할) · 멜로디(음높이 → 레인 비용 ↑).</li>
+          <li>사용자 옵션: 목표 레벨 1–20, 밀도 0.5–1.5배, 롱노트 0–50%, 최대 동치 프리셋 +1까지, 스크래치 · 사이드 0–20%, 리듬 기준(자동 · 드럼 · 베이스 · 멜로디 · 보컬), 악기별 레인 세기 0–1(기본 0.6), 반복 구간 일관성 0–1, 시드("다른 패턴").</li>
+          <li>기본 시드는 <code>sha256(오디오 해시 | 키 모드 | 난이도 | 목표 레벨)</code>의 앞 32비트라서 같은 곡의 기본 채보는 늘 같다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-2 -->
+  <h3 id="skeleton">4-2. 곡의 세기와 MASTER 뼈대</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>곡의 세기</h4><span class="o o-rule">규칙</span><code>core.py · songFit</code></div>
+      <div class="v">
+        <p class="plain">같은 EXPERT라도 조용한 곡은 범위 아래쪽, 빽빽한 곡은 위쪽 레벨이 된다. 곡이 얼마나 센지는 MASTER를 한 번 만들어 보고 정한다.</p>
+        <ul class="how">
+          <li>MASTER를 기본 시드로, 레벨 맞춤 없이 한 번 만든 채보의 레이팅이 곡의 세기다.</li>
+          <li>목표 레벨을 정하지 않은 채보는 세기 17이면 난이도 범위의 맨 아래, 31이면 맨 위를 노린다. 세기가 17에 못 미치는 곡은 MASTER를 만들지 않는다(선곡 화면에서 그 칸이 빈다).</li>
+          <li>목표 레벨을 정한 채보는 그 레벨 하나가 범위이고 가운데를 노린다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>MASTER 뼈대 따르기</h4><span class="o o-rule">비용</span><code>core.lane_plan · sectioned.tierPlan</code></div>
+      <div class="v">
+        <p class="plain">같은 곡의 쉬운 난이도와 어려운 난이도가 비슷하게 움직이도록, 낮은 난이도가 MASTER의 레인 흐름을 따른다.</p>
+        <ul class="how">
+          <li>이어지는 두 단타가 뼈대(MASTER 첫 판)에서도 단타인 자리이면, 이동 방향(오르기 · 내리기 · 같은 키)이 뼈대와 다를 때 비용 2.0을 낸다. MASTER는 자기 첫 판을 3.0으로 따른다. 롤 노트는 빼고 본다.</li>
+          <li>서버는 이 첫 판을 곡 · 키 모드 · 옵션마다 한 번만 만들어 기억한다(최근 32개). 기본 시드 MASTER를 먼저 만들면 그 첫 판이 그대로 남는다.</li>
+        </ul>
+        <p class="num">7K 이웃 난이도의 이동 방향 일치 0.55–0.63 → 0.54–0.69(사람 0.75). 다섯 난이도를 차례로 만들 때 6곡에서 20–29% 빨라졌다.</p>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-3 -->
+  <h3 id="candidates">4-3. 후보: 어디에 노트를 둘 수 있나</h3>
+  <p class="intro">노트는 분석이 찾은 소리 위에만 둔다. <strong>없는 소리에는 노트를 만들지 않는다.</strong> 예외는 하나뿐이다. 같은 음악이 반복되는 구간에서 다른 반복 대부분에 있는 소리가 한 곳에서만 검출이 빠졌으면 그 자리에도 둔다(4-4).</p>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>격자에 붙이기</h4><span class="o o-rule">규칙</span><code>candidates.py</code></div>
+      <div class="v">
+        <p class="plain">온셋 시각을 난이도가 허용하는 박 격자에 맞춘다.</p>
+        <ul class="how">
+          <li>단순한 리듬부터 시도한다: 4분 → 8분 → 16분 → 셋잇단 → 32분. 붙일 때 오차가 35ms 또는 그 분할 간격의 30%를 넘으면 버린다.</li>
+          <li>같은 격자점에 모인 온셋은 하나로 합친다(세기 · 스템 비율은 가중 평균, 멜로디 존재도 · attack은 최댓값).</li>
+          <li>셋잇단 격자는 스윙하는 마디에만 연다. 마디와 앞뒤 마디의 셋잇단 자리 · 곧은 16분 자리 온셋 세기와 곡의 셋잇단 비율을 보는 로지스틱 모델(BMS 755곡)이 0.25 이상인 마디만이다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>후보 점수</h4><span class="o o-rule">규칙</span><span class="o o-fit">노트 고르기 모델</span><code>candidates.py · config/pick.json</code></div>
+      <div class="v">
+        <p class="plain">후보마다 "여기에 노트를 둘 만한가"를 점수로 매긴다. 밀도가 정해지면 점수가 높은 후보부터 노트가 된다.</p>
+        <p class="formula">점수 = 세기<sup>0.7</sup> × 박자 위치 가중치 × 대역 가중치 × (0.55 + 0.9 × 국소 세기) × 리듬 소스 가중치 × attack²</p>
+        <ul class="how">
+          <li><strong>박자 위치</strong>: 마디 첫 박 1.0 · 정박 0.9 · 8분 엇박 0.72 · 16분 0.5 · 셋잇단 0.55. 단계값에 따른 지수를 건다(단계값 0.3까지 1 → 쉬운 채보는 정박, 0.65부터 0.45). 16분 당김음(뒤 자리가 비거나 약한 16분)은 1.8배.</li>
+          <li><strong>리듬 소스</strong>: 드럼 · 베이스 기준이면 0.4 + 1.2 × 그 스템 비율, 멜로디 · 보컬 기준이면 0.3 + 2.7 × 멜로디 존재도, 자동이면 구간 주도 스템을 따른다.</li>
+          <li><strong>국소 세기</strong>: 음량과 온셋 활동량을 8박으로 평활한 값. <strong>attack²</strong>: 새 소리 확신이 낮은 온셋은 지우지 않고 뒤로 민다.</li>
+          <li><strong>노트 고르기 모델</strong>: 분석값 21개(세기 · 대역 · 조화음 · 지속 · 구간 세기 · 박자 위치 · 스템 비율 · 멜로디 존재도 · attack)의 로지스틱 모델이 "사람 BMS 채보가 이 자리에 노트를 둘 확률"을 낸다. 밀도 띠(초당 0–4 · 4–8 · 8–12노트)마다 하나씩, 1,044곡 4,151채보에 맞췄다. 점수 = 손 점수 × (확률 ÷ 기본 손 점수)<sup>몫</sup>, 몫은 NORMAL까지 0.5, EXPERT부터 1이다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>드럼 롤</h4><span class="o o-rule">규칙</span><code>rolls.py</code></div>
+      <div class="v">
+        <p class="plain">빌드업 · 필인처럼 드럼이 빠르게 이어 치는 곳을 찾아, 따로 손을 번갈아 치는 노트로 만든다.</p>
+        <ul class="how">
+          <li>하이햇이 아닌 한 드럼이 1/2–1/8박 간격으로 6타 · 1.5박 이상 이어지면 롤이다. 곡에서 한 번, 32분 · 셋잇단까지 모든 격자에서 찾고, 세기 기준은 16분 후보의 중앙값이다.</li>
+          <li>난이도마다 그 롤에서 자기가 읽을 수 있는 가장 촘촘한 격자의 타격만 친다. 롤은 점수 순서보다 먼저 들어가고, 롤 사이에는 다른 노트를 두지 않는다.</li>
+          <li>모양: 같은 드럼은 양손 트릴, 음높이가 오르면 1-4-2-5-3-6, 내리면 거꾸로, 그 밖에는 벌어지기 · 좁히기 · 지그재그 · 평행 이동 가운데 롤마다 뽑는다(같은 필인은 같은 모양). 빌드업은 언제나 좌우 연타다.</li>
+          <li>한 마디 루프가 같은 롤을 단위마다 쳐서 구간 내내 롤이 되는 것은 16박(새 구간으로 들어가면 32박)에서 끊는다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>잔향 · 쪼갠 음 · 조용한 구간</h4><span class="o o-rule">규칙</span><code>candidates.py · difficulty.ending</code></div>
+      <div class="v">
+        <p class="plain">소리는 있지만 쳐서 재미없는 것을 후보에서 빼거나 깎는다.</p>
+        <ul class="how">
+          <li>곡 끝 20초 안에서, 세기 중앙값 이상인 마지막 타격 뒤로 그 0.7배보다 약한 온셋은 잔향이라 후보가 아니다.</li>
+          <li>음 있는 소리가 앞 음에서 16분 안에 어택이 확실하지 않게 오거나, 앞 음의 소리 안에서 같은 음으로 약하게 오면 음을 쪼갠 것으로 보고 0.35배.</li>
+          <li>드럼이 빠진 구간(구간 드럼 비율이 곡 최대의 40% 미만)에서는 딜레이 메아리 · 16분 쪼개기 · 약한 어택의 잔향을 빼고 동치를 붙이지 않는다.</li>
+          <li>멜로디 악기가 이끌고 온셋의 55% 이상이 멜로디 음인 구간은 솔로로 보고 멜로디 점수 × 2, 정박이 아닌 다른 소리 × 0.3.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-4 -->
+  <h3 id="sections">4-4. 구간 엔진: 같은 음악은 같은 노트로</h3>
+  <p class="intro">기본 엔진(<code>patternEngine: "sectioned"</code>)은 곡 구조에서 내려오며 채보를 만든다. 반복되는 음악을 한 번 설계하고, 그 설계를 반복마다 복사한 뒤 조금씩 더한다. 그래서 두 번째 후렴이 첫 번째 후렴과 같은 손 모양으로 시작한다.</p>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>단위와 재료</h4><span class="o o-dsp">분석 구간</span><code>sections.py</code></div>
+      <div class="v">
+        <p class="plain">구간을 루프 길이로 자르고, 같은 음악인 조각끼리 묶는다.</p>
+        <ul class="how">
+          <li><strong>단위</strong>: 구간을 분석한 루프 길이(최대 4마디)로 자른다. 첫 다운비트 앞은 따로 둔다.</li>
+          <li><strong>재료 묶음</strong>: 같은 반복 묶음 안에서 후보가 60% 넘게 겹치는(세기로 가중, 같은 자리에 음이 다르면 절반) 단위끼리 묶는다. 필인처럼 다른 단위는 따로 묶인다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>구간 설계 모델</h4><span class="o o-fit">BMS 모델</span><code>plan.py · config/plan.json</code></div>
+      <div class="v">
+        <p class="plain">단위마다 노트를 얼마나 빽빽하게, 동치 · 롱노트를 얼마나 둘지 음악을 보고 정한다.</p>
+        <ul class="how">
+          <li>단위마다 음악 특징 48개(후보 · 온셋 · 음량 · 스템 · 박 자리 · 구조)를 곡 안에서 표준화해 입력 111개를 만든다.</li>
+          <li>사람 BMS 7키 채보 9,126개(2,223곡)에 맞춘 모델이 곡 평균에 대한 로그 비로 예측한다: 밀도(부스팅 나무 300그루), 동치 몫 · 롱노트 몫 · 연타 몫(선형).</li>
+          <li>단위의 노트 몫 = 길이 × exp(밀도 예측). 동치 자리의 가치에 exp(동치 예측), 롱노트 자리에 exp(롱노트 예측)<sup>6</sup>을 곱한다. 연타 예측은 꺼 두었다.</li>
+          <li>후렴 · 드롭이 가장 빽빽하다: 다른 구간은 하이라이트가 칠 수 있는 밀도의 라벨 비율까지만, 동치도 하이라이트에 몬다.</li>
+          <li>기승전결: 뒤 반복은 앞 반복의 노트를 그대로 치고 더 받는다(마지막 반복 10%, 마지막 후렴 15%, 프리코러스는 끝으로 갈수록 35%까지). 곡 앞 35%는 뒤의 가장 촘촘한 구간의 0.9배를 넘지 않는다. 새 구간의 첫 박은 동치로 연다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>음성과 앵커</h4><span class="o o-rule">규칙</span><code>sectioned.voices · anchors</code></div>
+      <div class="v">
+        <p class="plain">한 단위 안에서 노트가 이 악기 저 악기로 튀지 않게, 단위마다 따라갈 악기를 정한다.</p>
+        <ul class="how">
+          <li>단계값 0.5부터 단위마다 <strong>음성</strong>(드럼 · 베이스 · 선율)을 하나 두고, 음성 밖 스템의 소리는 점수 × 0.15다. 첫 박과 보조 음성(선율 아래 정박의 드럼)은 그대로 둔다. 동치의 스템 나누기도 음성 안에서만 한다.</li>
+          <li>ELITE 아래에서는 두 번 넘게 나오는 벌스 · 후렴이 첫 · 셋째에는 드럼을, 둘째 · 넷째에는 멜로디를 먼저 따른다.</li>
+          <li>앵커: 슬롯을 고를 때 롤 다음, 점수 순서보다 먼저 음악이 치는 마디 첫 박(ELITE부터는 드럼이 치는 셋째 박도)을 받는다.</li>
+        </ul>
+        <p class="num">BMS 60곡 6K ELITE: 4마디 창의 우세 악기 몫 0.57 → 0.74, 노트마다 악기 바뀜 0.59 → 0.36(사람 0.32), 첫 박 노트 0.86 → 0.93(사람 0.90).</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>노트 고르기</h4><span class="o o-rule">규칙</span><code>sections.layout</code></div>
+      <div class="v">
+        <p class="plain">재료의 모든 단위에서 점수를 평균해 순위를 매기고, 고른 자리를 그 재료의 모든 단위에 놓는다.</p>
+        <ul class="how">
+          <li>대부분의 반복에 있는 소리가 앞에 온다. 재료의 노트 수는 가장 가벼운 단위(보통 첫 반복)가 정하고, 더 받는 단위는 순위대로 더한다.</li>
+          <li>드럼 롤이 재료 단위의 과반에 있으면(빌드업) 먼저 들어가고, 일부에만 있으면(루프를 닫는 필인) 그 단위에만 더한다.</li>
+          <li>단위가 셋 이상인 재료에서 2/3 넘는 단위에 있는 뚜렷한 소리는 검출이 빠진 단위에도 놓는다(조용한 곳 제외).</li>
+          <li>최고 밀도 · 분할 상한은 모든 단위의 시각으로 확인한다(예: MASTER 32분 상한 0.015).</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>동치 · 롱노트 · 사이드 · 스크래치</h4><span class="o o-rule">규칙</span><code>select.py · holds · chordShare</code></div>
+      <div class="v">
+        <p class="plain">재료 자리마다 동치 · 롱노트 · 사이드 노트를 정한다. 그래서 반복마다 같은 자리가 동치 · 롱노트가 된다.</p>
+        <ul class="how">
+          <li><strong>동치</strong>: 여러 대역이 동시에 센 타격에. 한 소리에서 20% 넘게 울리는 악기가 둘 이상이면 동치의 노트가 악기를 하나씩 맡는다(그 노트를 치면 그 악기가 들린다).</li>
+          <li><strong>롱노트</strong>: 소리 자체가 350ms 넘게 울리고, 온셋 세기 0.4 이상, 멜로디 음이거나 드럼 비율 0.4 미만인 음 있는 소리이며 머리가 8분 자리일 때만. 드럼 스템 소리는 안 되고, 같은 스템이 다시 치면 거기서 끝난다. 패드 · 콰이어 · 현은 어택이 약해도 되고, 화음이면 악기 수 · 길이 · 세기만큼 여러 줄(HARD 1 · EXPERT · MASTER 2).</li>
+          <li><strong>롱노트 끝</strong>: 소리 끝 + 1/4박 이전의 마지막 격자점(정박 → 반박 순). 정박은 0.5박, 반박은 0.25박까지만 일찍 뗀다. NORMAL은 누르는 동안 다른 노트와 1박 넘게 떨어지게 비운다.</li>
+          <li><strong>사이드(FX)</strong>: 패드 · 스트링 · 긴 보컬 위 롱노트가 60%, 나머지는 센 타격. 450ms 넘게 띄우고 저역이 세면 왼쪽, 고역이 세면 오른쪽. <strong>스크래치</strong>: 저역 + 고역 임팩트에(BMS 사람 몫 5.7–9.0%에 맞춤).</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-5 -->
+  <h3 id="planner">4-5. 악구 플래너: 손 모양 고르기</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>몸짓 → 모양</h4><span class="o o-rule">규칙</span><code>planner.py · motifs.py</code></div>
+      <div class="v">
+        <p class="plain">악구의 선율이 어떻게 움직이는지 보고, 그에 맞는 손 모양(계단 · 트릴 · 재봉틀 …)을 고른다. 재료의 첫 단위가 이 계획을 받는다.</p>
+        <ul class="how">
+          <li><strong>악구</strong>: 단위가 악구다(구간 엔진). 선율 음(드럼이 아닌 소리)으로 <strong>몸짓</strong>을 판단한다: 반복음(같은 음 60% 이상) · 왕복(방향이 70% 넘게 바뀜) · 페달 · 순차 진행(평균 2.5반음 이하) · 분산화음(7반음 이하) · 리듬(드럼 55% 이상) · 자유.</li>
+          <li><strong>모양 후보</strong>: 단타 이동 · 계단 · 롤 · 트릴 · 손 번갈이 · 대화 · 꺾인 계단 · 앵커 · 연타 · 재봉틀(RR LL). 단계값으로 거른다(트릴 · 롤 · 대화 0.35부터, 꺾인 계단 · 앵커 · 연타 0.6부터, 재봉틀은 음 간격 400ms 이하 악구에만).</li>
+          <li><strong>점수</strong> = 몸짓 적합도 × 모양 가중치 × 스타일 · 키 모드 가중치. 반복 묶음마다 주제 모양 1–2개에 보너스, 다른 음악인데 같은 모양이 이어지면 벌점, 복잡도가 예산(단계값 × 구간 에너지, 곡 첫머리 두 악구는 0.6배)을 넘으면 벌점.</li>
+          <li><strong>비터비</strong>로 악구 열 전체의 최선을 고른다. 반복 구간은 첫 등장의 모양을 쓴다.</li>
+          <li><strong>질감 · 역할</strong>: 동치는 바로 앞 동치와 다른 모양이 기본, 최상급에서는 겹계단 · 동치 연타. 리듬과 선율이 한 악구에 같이 있으면 0.7부터 한 손씩 맡기고, 좌우는 곡 내내 그대로 둔다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-6 -->
+  <h3 id="lanes">4-6. 레인 정하기: 빔 서치</h3>
+  <p class="intro">노트 시각이 정해지면 레인을 정한다. 슬롯(같은 시각의 노트 묶음)을 시간 순서로 하나씩 놓으면서, 그때까지의 배치 가운데 <strong>비용이 가장 낮은 5개만</strong> 들고 간다(빔 폭 5). 하드 제약을 어기는 배치는 아예 만들지 않고, 나머지는 비용의 합으로 겨룬다. 같은 상태를 공유하는 조합의 계산은 한 번만 한다.</p>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>하드 제약</h4><span class="o o-rule">규칙</span><code>lanes.py · linter.py</code></div>
+      <div class="v">
+        <p class="plain">사람 손으로 칠 수 없는 배치는 비용과 상관없이 막는다. 린터도 같은 규칙을 다시 검사한다.</p>
+        <ul class="how">
+          <li>같은 레인 연타 간격(난이도 표의 연타 최소 간격), 롱노트 뒤 간격(꼬리 1/4박 뒤 다시 칠 수 있음), 손당 동시 입력, 롱노트를 잡은 손의 추가 입력, 손당 롱노트 수.</li>
+          <li>사이드 노트 머리 앞뒤의 같은 손 노트는 연타 간격만큼 비운다. 롱노트를 잡은 손의 스크래치는 그 손이 두 키를 더 누를 수 있는 난이도에서만. ELITE부터 약지가 롱노트를 잡은 손에는 탭이 없다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>음악을 따르는 비용</h4><span class="o o-rule">비용</span><code>lanes._costs · config/patterns.json hands</code></div>
+      <div class="v">
+        <p class="plain">레인이 소리와 맞게 움직이도록 하는 비용이다.</p>
+        <ul class="how">
+          <li><strong>음높이 → 위치</strong>: 높은 음은 오른쪽, 오르면 오른쪽으로(계단), 같은 음은 같은 레인. 두 선율 음 사이 방향이 음높이와 어긋나면 비용(7K+1S 밖에서는 EXPERT부터 5배). 플래너가 정한 모양과 다르면 비용(한 칸 차이는 절반), 그때 음높이 비용은 모양에 따라 줄인다(트릴 0.2배).</li>
+          <li><strong>같은 소리 반복</strong>: 1초 안에 같은 소리가 다시 나오면 같은 레인 비용 없이 보너스(NORMAL까지 1.2 · EXPERT 0.5 · MASTER 0.3). 260ms 넘게 떨어진 반복은 2초 안까지 더 큰 보너스(1.5 → 1.0).</li>
+          <li><strong>키음 기억</strong>: 같은 소리 묶음(<code>soundGroup</code>)이 다른 노트를 사이에 두고 다시 나오면, 그 묶음이 마지막에 쓴 레인을 떠나는 단타가 2.5를 낸다.</li>
+          <li><strong>드럼 자리</strong>: 킥 · 스네어 · 하이햇은 곡 내내 자기 키를 1.5배로 지킨다. 키는 채보(시드)마다 뽑아서 모든 곡의 스네어가 같은 키에 오지 않는다. 악기별 레인 세기로 킥은 왼쪽(0.2) · 스네어 가운데(0.5) · 하이햇 오른쪽(0.8)으로 당긴다.</li>
+          <li><strong>반복 복사</strong>: 재료의 첫 단위 뒤 단위들은 같은 자리의 레인을 복사 보너스 40(× 반복 구간 일관성)으로 따른다. 하드 제약이 막는 노트와 축연타 상한을 넘기는 복사만 바뀐다. 롤 노트는 복사하지 않고 손 차례를 지킨다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>손을 위한 비용</h4><span class="o o-rule">비용</span><code>lanes.py · hands</code></div>
+      <div class="v">
+        <p class="plain">칠 수는 있어도 손이 불편한 배치를 덜 고르게 한다.</p>
+        <ul class="how">
+          <li>손가락 힘: 엄지 0.9 · 검지 1 · 중지 0.95 · 약지 0.8 · 새끼 0.65. 약한 손가락끼리의 트릴은 최상급에서만.</li>
+          <li>한 키가 이어진 슬롯에 세 번 넘게 들어가면 넘친 번마다 0.6. 다른 소리의 같은 레인 반복은 ×0.1(억지 연타), 축연타(한 키를 한 노트 걸러 계속)는 6 · 8 · 10타 넘게 이어지면 비용.</li>
+          <li>마디 노트가 10개 넘으면 한 손 몫을 30–70% 밖으로 미는 노트마다 0.1. 한 손의 붙은 두 키 동치는 단계값 0.2까지 1.5, 0.5부터 0.5.</li>
+          <li>롱노트를 누르는 손이 치는 키 노트에 비용: 누른 손가락 옆이면 더, 약지 · 새끼가 끼면 1.5배. 다른 손이 그 사이 노트를 치고 있으면 새 롱노트를 걸지 않는다.</li>
+          <li>레인 사용량 균형(기억이 슬롯마다 0.97배로 줄어 노트 30여 개를 기억, 배율 0.7)과 시드 기반의 작은 잡음(같은 시드면 같은 채보).</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>DPC2026 평가 규칙</h4><span class="o o-rule">비용</span><span class="at">생성기 0.9.50 · 7K+1S 제외</span><code>lanes.py · hands</code></div>
+      <div class="v">
+        <p class="plain">DJMAX 패턴 공모전 평가지 · 실격 패턴 시트에서 가져온 세 규칙이다.</p>
+        <ul class="how">
+          <li><strong>억지 연타</strong>(otherSoundJack): 방금 친 키를 300ms 안에 다른 소리로 다시 치면 비용 3.0. 단계값 0.857부터 줄어 MASTER(0.924)에서 0.</li>
+          <li><strong>같은 음 같은 자리</strong>(samePitchStay): 선율의 같은 음이 8박 안에 다시 나오면 그 음이 있던 레인을 떠나는 단타에 3.0. 플래너가 계단 모양을 정하지 않은 음에만.</li>
+          <li><strong>바쁜 마디의 강박은 양손</strong>(strongTwoHands): 슬롯이 8개 넘고 드럼 몫이 0.3 이상인 마디의 강박에서 한 손에 몰린 동치에 2.0.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>7K+1S 전용</h4><span class="o o-fit">BMS 집계</span><code>config/lane_moves.json · hands.*Target</code></div>
+      <div class="v">
+        <p class="plain">7키는 사람 BMS 채보가 많아서, 사람 채보의 통계로 레인 흐름을 직접 끌어당긴다.</p>
+        <ul class="how">
+          <li><strong>키 묶음</strong>: 악구마다 사람 채보의 4마디 창에서 센 키 묶음(1357 · 1345 · 13456 …) 가운데 단계값에 맞는 4–6키를 뽑아 그 안에 머문다.</li>
+          <li><strong>레인 이동 n-gram</strong>: (이전 키, 들어온 이동, 박 위상, 밀도 띠)마다 다음 키를 센 표(사람 채보 7,387개, 합계만)로 단타 뒤 단타에 0.5 × (−log P). 가장 그럴듯한 키만 고르면 트릴이 늘어서 굼벨 잡음으로 확률대로 뽑는다.</li>
+          <li><strong>되먹임</strong>: 길마다 몫을 세어 레벨별 사람 값으로 끈다. 한 손 3연속(세기 32), 가운데 키(8), 쏠린 마디(8), 계단(16), 빠른 연타 · 연타 줄기(16), 앵커(3). 모자라면 보너스, 넘치면 비용.</li>
+          <li>2개 동치 모양(대칭 · 가운데 키와 이웃 · 한 손 붙음 …)마다 단계값별 비용, 바깥 키 · 도약 비용 끄기와 키마다 붙는 비용(1번 키를 당기고 가운데 키를 민다).</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-7 -->
+  <h3 id="level">4-7. 레벨 맞추기</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>난이도 산정</h4><span class="o o-rule">모델</span><code>difficulty/estimator.py</code></div>
+      <div class="v">
+        <p class="plain">만든 채보가 얼마나 어려운지 손가락 · 손 · 전체의 피로도로 잰다.</p>
+        <ul class="how">
+          <li>osu!mania식 strain: 누를 때마다 레인 strain +2, 손 strain +1, 전체 strain +1(다른 롱노트를 잡고 있으면 ×1.25). 각각 초당 0.125 · 0.2 · 0.30배로 줄어든다. 한 순간의 값 = 레인 + 0.6 × 손 + 전체.</li>
+          <li>400ms 구간 피크를 큰 순서로 0.9배씩 가중합하고, 같은 키 모드의 고른 스트림으로 보정해 <strong>유효 NPS</strong>로 바꾼다. 키 모드 보정값으로 나눠 레벨 표(4K 기준 3.2–16.6)에 대어 레벨 1–20을 매긴다.</li>
+          <li>손 항 때문에 같은 밀도라도 한 손 트릴 · 한 손 계단이 양손 교대보다 어렵게 나온다. 스킬 지표(stream · chord · jack · longNote · technical · stamina)와 손 부담도 함께 낸다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>다시 만들기</h4><span class="o o-rule">규칙</span><code>core.generate_chart</code></div>
+      <div class="v">
+        <p class="plain">레벨이 목표에서 벗어나면 밀도 배율을 고쳐 4-4부터 다시 만든다. 최대 6번이다.</p>
+        <ul class="how">
+          <li>새 배율 = 배율 × (목표 유효 NPS ÷ 지금 유효 NPS)<sup>0.9</sup>. 레벨 범위 안이면 프리셋 최소 밀도 아래로는 솎지 않고, 범위를 넘는 동안에는 그 아래로도 솎는다. 밀도를 줄이면 1초 최고 밀도도 배율의 제곱근만큼 줄인다.</li>
+          <li>밀도를 올려도 노트가 늘지 않으면(쓸 소리를 다 썼으면) 차례로 푼다: ① 빌드업(앞 반복이 덜 치기 · 곡 앞 상한) ② 강한 타격을 동치로 두껍게(×1.4씩) ③ 4마디 동치 상한을 1.3배씩 ④ 설계 모델의 롱노트 자리를 라벨 규칙으로. 그래도 모자라면 <code>densityLimited</code>로 표시한다.</li>
+          <li>레벨이 범위 안이고 레이팅이 목표에서 0.75 안이면 멈춘다. 6번 가운데 가장 가까운 판을 쓴다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+
+  <!-- 4-8 -->
+  <h3 id="finish">4-8. 마무리</h3>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>어긋난 동치 정리</h4><span class="o o-rule">규칙</span><code>near.merge_near</code></div>
+      <div class="v">
+        <p class="plain">거의 같은 시각에 따로 떨어진 두 노트를 동치로 합친다.</p>
+        <ul class="how"><li>앞뒤가 16분 넘게 빈 두 노트 시각이 80ms 안이고 32분 · 1/12박 간격이거나, 1/6박이면서 곧은 격자와 셋잇단 격자에 하나씩 있으면 촘촘한 쪽을 성긴 쪽으로 옮겨 동치로 만들고, 손 규칙상 안 되면 뺀다.</li></ul>
+        <p class="num">7K MASTER 채보당 고립된 32분 · 1/12박 쌍 15.0 → 2.1(사람 0.69).</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>곡 끝 롱노트</h4><span class="o o-rule">규칙</span><code>ending.py</code></div>
+      <div class="v">
+        <p class="plain">마지막 노트 뒤로 잔향만 1박 넘게 남으면, 마지막 노트를 잔향이 끝나는 반 박까지(8박까지) 롱노트로 늘린다.</p>
+        <ul class="how"><li>화음이면 악기 수만큼 여러 줄(MASTER 6줄까지)로 끝내고, 방금 친 레인과 사이드 노트가 있는 손은 건너뛴다.</li></ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>린터</h4><span class="o o-rule">규칙</span><code>linter.py</code></div>
+      <div class="v">
+        <p class="plain">레인 범위 · 시각 · 중복 · 롱노트 겹침과 간격 · 연타 간격 · 동치 수 · 손 제약 · 손당 롱노트 수 · 사이드 노트 주변을 다시 검사한다. 하나라도 어기면 채보를 내보내지 않고 오류를 낸다.</p>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>연출 · 키음 · ID</h4><span class="o o-rule">규칙</span><code>effects.py · core.keysound_meta</code></div>
+      <div class="v">
+        <p class="plain">채보에 카메라 연출과 키음 정보를 붙이고 ID를 매긴다.</p>
+        <ul class="how">
+          <li>카메라: 앞 구간보다 에너지가 0.25 넘게 오르면 2박 줌 펄스, 후렴 · 드롭의 센 박마다 작은 펄스, 드럼이 빠진 구간은 넓게, 빌드업은 마디마다 좁혀 다음 구간에서 풀기, 센 구간은 노트가 몰린 손 쪽으로 기울이기.</li>
+          <li>소리 끝: 노트마다 그 소리가 <code>src</code> 스템에서 끝나는 시각(<code>srcEnd</code>)을 붙인다. 그 스템의 다음 소리(그 스템 비율 0.2 이상이거나 주 스템이고 어택 확신 0.5 이상인 온셋)이고, 키음이 여기서 끝난다(생성기 0.9.51, <code>core.mark_sound_ends</code>).</li>
+          <li>주 키음 스템: 노트의 <code>src</code>를 세어 음 있는 스템(보컬 · 그 외 · 베이스) 가운데 가장 많은 것이 15% 이상이면 그것, 아니면 드럼.</li>
+          <li>채보 ID에는 분석(분석기 버전 · 백엔드 포함) · 키 모드 · 파라미터 · 시드 · 생성기 버전이 들어간다. 그래서 다시 분석하거나 버전이 바뀌면 다른 채보 · 다른 기록이 된다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="part" id="play">
+  <header>
+    <p class="part-no">5 · 플레이</p>
+    <h2>노트를 치면 그 악기가 난다</h2>
+    <p class="intro say">플레이 화면은 같은 <code>audio.flac</code>을 재생하고, 곡 시간과 판정은 이 믹스를 기준으로 한다. 키음을 켜면 노트마다 그 노트가 따르는 스템(<code>src</code>)의 소리가 난다.</p>
+  </header>
+  <div class="steps">
+    <article class="step">
+      <div class="k"><h4>오디오 불러오기</h4><span class="o o-rule">앱</span><code>ui/playRequest.ts · PlayScreen.tsx</code></div>
+      <div class="v">
+        <ul class="how">
+          <li><code>GET /api/songs/{id}/audio</code>로 표준 오디오를 받아 브라우저가 디코딩한다. 노트의 10% 이상이 따르는 스템이 키음 스템이 되고, <code>GET /api/songs/{id}/stems/{이름}</code>으로 함께 받는다("키음 준비 중…").</li>
+          <li>스템이 아직 없으면 서버가 그 자리에서 나누고, 받지 못하면 믹스만 재생한다.</li>
+        </ul>
+      </div>
+    </article>
+    <article class="step">
+      <div class="k"><h4>노트마다 키음</h4><span class="o o-dsp">자체</span><code>client/src/audio/</code></div>
+      <div class="v">
+        <p class="plain">반주는 "믹스 − 키음 스템"으로 깔고, 노트를 치면 그 스템의 조각을 낸다. 다 맞히면 원곡이 샘플 단위로 다시 이어진다.</p>
+        <ul class="how">
+          <li>키음 스템 버퍼를 믹스와 같은 시각에 위상을 뒤집어(게인 −1) 키음 구간에서만 더해서, 반주 버퍼를 따로 만들지 않는다.</li>
+          <li>노트의 조각은 그 노트부터 그 노트의 소리가 끝나는 곳까지다. 채보에 노트마다 적힌 <code>srcEnd</code>(생성기 0.9.51: 노트 시각에서 35ms가 지난 뒤 처음 오는 그 스템의 소리)와 같은 스템의 다음 노트 가운데 이른 쪽이고, 최대 4초, 30ms 안의 동치는 한 조각이다. 그래서 한 번 누르면 음 하나(드럼이면 한 번)가 나고, 노트가 맡지 않은 그 스템의 음은 배경으로 흐른다. 실제 곡 30곡에서 한 번에 나는 소리가 평균 4.26 → 1.02개가 되었다.</li>
+          <li>조각은 3ms 일찍 시작해 앞 조각과 크로스페이드한다. 키음은 1.2배로 내서 친 소리가 조금 드러나고, 넘치는 순간은 출력 리미터가 받는다.</li>
+          <li>놓치거나 BREAK면 그 조각(음 하나)만 빠진다. 빈 누름은 그 레인 다음 노트 조각의 앞부분(최대 0.3초)을 곡 위에 따로 낸다.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="part" id="time">
+  <header>
+    <p class="part-no">6 · 걸리는 시간</p>
+    <h2>4분 곡 하나</h2>
+    <p class="intro">4분 합성 곡(128 BPM)을 가중치를 받아 둔 상태에서 잰 값이다. 한 번씩 잰 것이고, GitHub의 Windows 러너는 실행마다 크게 다르다(같은 측정이 544초와 775초). 집 PC는 대개 더 빠르다.</p>
+  </header>
+  <div class="tbars" role="figure" aria-label="분석 단계별 시간, 같은 축">
+    <div class="trow"><div class="lab"><span>4코어 Linux 컨테이너, 묶지 않은 서버</span><span>224.8초</span></div>
+      <div class="stack" style="width:29.02%"><i style="width:30.96%;background:var(--c-demucs)"></i><i style="width:3.07%;background:var(--c-beat)"></i><i style="width:3.34%;background:var(--c-pitch)"></i><i style="width:58.54%;background:var(--c-allin1)"></i><i style="width:4.09%;background:var(--c-base)"></i></div></div>
+    <div class="trow"><div class="lab"><span>같은 컨테이너, 설치본과 같이 묶은 서버</span><span>278.4초</span></div>
+      <div class="stack" style="width:35.94%"><i style="width:30.50%;background:var(--c-demucs)"></i><i style="width:2.73%;background:var(--c-beat)"></i><i style="width:7.54%;background:var(--c-pitch)"></i><i style="width:54.20%;background:var(--c-allin1)"></i><i style="width:3.84%;background:var(--c-base)"></i></div></div>
+    <div class="trow"><div class="lab"><span>GitHub Actions Windows 러너, 묶은 서버</span><span>774.6초</span></div>
+      <div class="stack" style="width:100%"><i style="width:34.81%;background:var(--c-demucs)"></i><i style="width:5.53%;background:var(--c-beat)"></i><i style="width:1.07%;background:var(--c-pitch)"></i><i style="width:56.56%;background:var(--c-allin1)"></i><i style="width:1.60%;background:var(--c-base)"></i></div></div>
+    <div class="keyrow"><span><i style="background:var(--c-demucs)"></i>Demucs 6스템</span><span><i style="background:var(--c-beat)"></i>beat_this</span><span><i style="background:var(--c-pitch)"></i>basic-pitch</span><span><i style="background:var(--c-allin1)"></i>allin1(자기 4스템 분리 포함)</span><span><i style="background:var(--c-base)"></i>자체 분석</span></div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>단계</th><th class="r">컨테이너 · 묶지 않음</th><th class="r">컨테이너 · 묶은 서버</th><th class="r">Windows 러너</th></tr></thead>
+    <tbody>
+      <tr><td>Demucs 6스템</td><td class="r">69.6초</td><td class="r">84.9초</td><td class="r">269.6초</td></tr>
+      <tr><td>beat_this</td><td class="r">6.9초</td><td class="r">7.6초</td><td class="r">42.8초</td></tr>
+      <tr><td>basic-pitch</td><td class="r">7.5초</td><td class="r">21.0초</td><td class="r">8.3초</td></tr>
+      <tr><td>allin1 (자기 4스템 분리 포함)</td><td class="r">131.6초</td><td class="r">150.9초</td><td class="r">438.1초</td></tr>
+      <tr><td>자체 분석</td><td class="r">9.2초</td><td class="r">10.7초</td><td class="r">12.4초</td></tr>
+      <tr><td><strong>합계</strong></td><td class="r"><strong>224.8초</strong></td><td class="r"><strong>278.4초</strong></td><td class="r"><strong>774.6초</strong></td></tr>
+      <tr><td>6K EXPERT 채보 하나</td><td class="r">–</td><td class="r">1.9초</td><td class="r">3.4초</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">allin1을 빼면(ML판) 컨테이너 합계가 약 93초다. allin1 시간의 절반쯤은 allin1이 따로 하는 4스템 분리로 보인다. 우리 6스템을 넘기면 줄겠지만 allin1이 htdemucs 4스템으로 학습되어 결과가 바뀔 수 있어 넣지 않았다(재 보지 않음). 첫 분석 때는 가중치를 한 번 받는다: ML판 약 140MB, 여기에 allin1 가중치 11MB와 allin1이 쓰는 4스템 Demucs 84MB.</p>
+</section>
+
+<!-- 7 -->
+<section class="part" id="files">
+  <header>
+    <p class="part-no">7 · 파일 지도</p>
+    <h2>어디를 열면 되나</h2>
+  </header>
+  <div class="tbl"><table>
+    <thead><tr><th>하는 일</th><th>파일</th></tr></thead>
+    <tbody>
+      <tr><td>분석 순서 전체, 진행 표시, 구조 경로 고르기</td><td><code>server/rhythm_server/analysis/analyzer.py</code></td></tr>
+      <tr><td>ML 백엔드 감지와 어댑터</td><td><code>analysis/backends/</code> · <code>analysis/ml.py</code></td></tr>
+      <tr><td>온셋 · attack</td><td><code>analysis/onsets.py</code></td></tr>
+      <tr><td>템포 · 박 격자 · 반 박</td><td><code>analysis/tempo.py</code></td></tr>
+      <tr><td>박자 · 마디 첫 박</td><td><code>analysis/meter.py</code></td></tr>
+      <tr><td>음높이 · 지속 · 가짜 온셋</td><td><code>analysis/pitch.py</code></td></tr>
+      <tr><td>스템 · 태깅 · 멜로디 존재도</td><td><code>analysis/stems.py</code></td></tr>
+      <tr><td>같은 소리 묶음</td><td><code>analysis/sound_groups.py</code></td></tr>
+      <tr><td>자체 구조 분석 · 루프 길이</td><td><code>analysis/structure.py</code></td></tr>
+      <tr><td>생성 순서 · 레벨 루프 · 뼈대</td><td><code>generator/core.py</code></td></tr>
+      <tr><td>후보 · 스윙 마디 · 점수</td><td><code>generator/candidates.py</code> · <code>select.py</code></td></tr>
+      <tr><td>드럼 롤</td><td><code>generator/rolls.py</code></td></tr>
+      <tr><td>구간 엔진</td><td><code>generator/sections.py</code> · <code>plan.py</code></td></tr>
+      <tr><td>악구 플래너 · 모양</td><td><code>generator/planner.py</code> · <code>motifs.py</code></td></tr>
+      <tr><td>레인 빔 서치 · 비용</td><td><code>generator/lanes.py</code></td></tr>
+      <tr><td>어긋난 동치 · 곡 끝 · 연출 · 린터</td><td><code>generator/near.py</code> · <code>ending.py</code> · <code>effects.py</code> · <code>linter.py</code></td></tr>
+      <tr><td>난이도 산정</td><td><code>difficulty/estimator.py</code></td></tr>
+      <tr><td>튜닝 값</td><td><code>config/difficulty.json</code> · <code>patterns.json</code> · <code>instruments.json</code> · <code>keymodes.json</code> · <code>pick.json</code> · <code>plan.json</code> · <code>lane_moves.json</code></td></tr>
+      <tr><td>설계 이유와 측정</td><td><code>docs/GENERATION.md</code> · <code>docs/PATTERN_DESIGN.md</code> · <code>docs/ARCHITECTURE.md</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer class="end">
+  <p>숫자는 저장소의 측정 문서(<code>docs/GENERATION.md</code>, <code>docs/PATTERN_DESIGN.md</code>)에서 옮겼다. 합성 곡 · 사람이 표시한 곡 · BMS 곡의 측정이 섞여 있어, 같은 지표라도 곡 묶음이 다르면 바로 견줄 수 없다.</p>
+  <p>BMS 채보 · 음원 · 표시는 저장소에 넣지 않고 집계 숫자만 남겼다.</p>
+</footer>
+
+</main>
+</div>
+</div>
+</body>
+</html>

@@ -23,13 +23,13 @@ from .pitch import analyze_notes, held_swells
 from .sound_groups import sound_groups
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
-from .structure import Section, add_loops, beat_sync, find_sections, rhythm_grid, structure_features
+from .structure import Section, add_loops, beat_sync, find_sections, promote_highlight, rhythm_grid, structure_features
 from .tempo import drum_flux, estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.15.0"
+ANALYZER_VERSION = "1.16.0"
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -103,7 +103,8 @@ class StructureInputs:
 
 
 def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -> list[Section]:
-    """Sections of the song: the ML backend's segments when it gave any, else find_sections."""
+    """Sections of the song: the ML backend's segments when it gave any (with a chorus by the core
+    highlight rule when it named none, structure.promote_highlight), else find_sections."""
     beats, rate, bpb = x.beats, x.frame_rate, x.beats_per_bar
     if len(beats) < 8:
         return []
@@ -116,13 +117,14 @@ def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -
         ]
     )
     beat_energy = beat_sync(x.rms_db[:, None], rate, beats)[:, 0]
+    beat_strength = np.zeros(len(beats))
+    np.add.at(beat_strength, np.clip(np.searchsorted(beats, x.times, side="right") - 1, 0, len(beats) - 1), x.strength)
     if ml_struct is not None:
         sections = ml.sections_from_segments(ml_struct["segments"], beats, x.beat0, bpb, beat_energy)
         add_loops(sections, features, x.beat0, bpb)
         if sections:
+            promote_highlight(sections, beat_energy, beat_strength, bpb)
             return sections
-    beat_strength = np.zeros(len(beats))
-    np.add.at(beat_strength, np.clip(np.searchsorted(beats, x.times, side="right") - 1, 0, len(beats) - 1), x.strength)
     return find_sections(features, beat_energy, x.beat0, bpb, beat_strength, float(np.median(np.diff(beats))), _beat_cues(x, beat_energy))
 
 
@@ -384,6 +386,7 @@ def analyze(
             "energy": round(s.energy, 3),
             "loopBars": s.loop_bars,
             "confidence": s.confidence,
+            **({"mlLabel": s.ml_label} if s.ml_label is not None else {}),
         }
         for s in sections
     ]
@@ -425,4 +428,10 @@ def analyze(
         "waveform": {"frameMs": 20, "peaks": _waveform(mono, sr, 20)},
         "previewMs": round(preview_ms, 1),
         "overrides": {k: v for k, v in overrides.items() if v is not None},
+        # the structure backend's segments as it gave them (seconds -> ms, its own labels), to see what
+        # it said before they were snapped to our bar lines and renamed
+        **({"mlSegments": [
+            {"t": round(float(a) * 1000.0, 1), "endT": round(float(b) * 1000.0, 1), "label": str(lab)}
+            for a, b, lab in ml_struct.get("segments", [])
+        ]} if ml_struct is not None else {}),
     }

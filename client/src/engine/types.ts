@@ -17,6 +17,8 @@ export interface ChartNote {
   endT?: number;
   /** Stem whose sound the note follows (charts generated from stem analysis). */
   src?: StemName;
+  /** Where the note's own sound in `src` ends, ms (generator 0.9.51): its keysound stops here. */
+  srcEnd?: number;
   /** Keysound (index into `Chart.sounds`) played when the note is pressed (imported BMS/bmson). */
   snd?: number;
   /** Start that many ms into the sound (bmson channels that continue a sliced stem). */
