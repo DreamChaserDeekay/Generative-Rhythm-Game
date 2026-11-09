@@ -143,7 +143,17 @@ export interface MapperStatus {
   reason?: string;
   error?: string;
   progress?: { step: string; fraction: number } | null;
-  runtime?: { device: string; gpu?: string | null; memoryMB?: number | null; torch?: string; model?: string };
+  runtime?: {
+    device: string;
+    gpu?: string | null;
+    memoryMB?: number | null;
+    /** CUDA compute capability [major, minor]; bf16 is native from 8 (Ampere). */
+    capability?: [number, number] | null;
+    /** Whether the GPU runs bf16 natively (what precision "auto" means on it); absent in older installs. */
+    bf16?: boolean | null;
+    torch?: string;
+    model?: string;
+  };
   /** The last chart Mapperatorinator failed on (the built-in generator made it). */
   lastError?: { chart: string; error: string; at: number } | null;
   /** The settings screen's settings (kept in the runtime folder). */

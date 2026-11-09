@@ -258,6 +258,8 @@ def make_chart(
                 "seconds": info.get("seconds"),
                 "device": info.get("device"),
                 "precision": info.get("precision"),
+                # "fp32" when a fp16 model's encoder ran in fp32 (worker.encoder_fp32)
+                **({"encoder": info["encoder"]} if info.get("encoder") else {}),
             },
         },
         "timing": timing,

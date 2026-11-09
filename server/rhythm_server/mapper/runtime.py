@@ -339,7 +339,7 @@ class Runtime:
             self._worker_json(["--download", repo], logf, timeout=7200)
             state = {
                 "tag": RUNTIME_TAG, "device": "cuda" if info.get("cuda") else "cpu", "gpu": info.get("device"), "memoryMB": info.get("memoryMB"),
-                "capability": info.get("capability"), "torch": info.get("torch"), "python": info.get("python"), "model": repo,
+                "capability": info.get("capability"), "bf16": info.get("bf16"), "torch": info.get("torch"), "python": info.get("python"), "model": repo,
                 "source": rt["source"]["commit"], "installedAt": time.time(),
             }
             (self.root / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")

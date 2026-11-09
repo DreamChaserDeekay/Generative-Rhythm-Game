@@ -72,17 +72,27 @@ export function requestOf(spec: ChartSpec): ChartRequest {
 }
 
 /** How Mapperatorinator made a chart (its meta.generator), or null for the built-in generator's. */
-export function aiMaking(meta: ServerChart['meta']): { seconds: number | null; model: string | null; precision: string | null; device: string | null } | null {
-  const g = meta.generator as { name?: string; model?: string; seconds?: number; precision?: string; device?: string } | undefined;
+export function aiMaking(
+  meta: ServerChart['meta'],
+): { seconds: number | null; model: string | null; precision: string | null; encoder: string | null; device: string | null } | null {
+  const g = meta.generator as { name?: string; model?: string; seconds?: number; precision?: string; encoder?: string; device?: string } | undefined;
   if (g?.name !== 'mapperatorinator') return null;
-  return { seconds: typeof g.seconds === 'number' ? g.seconds : null, model: g.model ?? null, precision: g.precision ?? null, device: g.device ?? null };
+  return {
+    seconds: typeof g.seconds === 'number' ? g.seconds : null,
+    model: g.model ?? null,
+    precision: g.precision ?? null,
+    // the encoder's precision when it differs from the rest (fp16 runs the encoder in fp32)
+    encoder: g.encoder ?? null,
+    device: g.device ?? null,
+  };
 }
 
-/** "v32 · fp16 · 83초": what the chart info says about an AI chart's making. */
+/** "v32 · fp16(인코더 fp32) · 83초": what the chart info says about an AI chart's making. */
 export function aiMakingLabel(meta: ServerChart['meta']): string | null {
   const ai = aiMaking(meta);
   if (!ai) return null;
-  return [ai.model, ai.precision, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
+  const precision = ai.precision === null ? null : `${ai.precision}${ai.encoder && ai.encoder !== ai.precision ? `(인코더 ${ai.encoder})` : ''}`;
+  return [ai.model, precision, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
 }
 
 export function briefOf(meta: ServerChart['meta']): ChartBrief {

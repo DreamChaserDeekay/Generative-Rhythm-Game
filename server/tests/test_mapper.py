@@ -276,3 +276,62 @@ def test_the_settings_screen_settings_are_kept_and_make_other_charts(mapped: Tes
     cfg = mapped.app.state.mapper.config()
     request = charts.request_for("6K", 10, 1, cfg, Path("a.wav"), Path("out"), None, {})
     assert (request["hitsounds"], request["lookback"], request["lookahead"], request["parallel"]) == (False, 0.4, 0.2, True)
+
+
+def test_fp16_encoder_stand_in_routes_the_encoder_precompute(monkeypatch):
+    """worker.encoder_fp32 (fp16 models: the encoder side in fp32) runs only in Mapperatorinator's
+    Python; what can be checked here is its plumbing: the stand-in exposes every name osuT5's
+    server.precompute_encoder_outputs reads of a model, and the patched precompute routes a fp16
+    model through its stand-in (hidden states cast to fp16) and other models through untouched."""
+    import types
+
+    from rhythm_server.mapper import worker
+
+    class Tensor:
+        def __init__(self, tag):
+            self.tag = tag
+
+        def to(self, dtype):
+            return Tensor((self.tag, dtype))
+
+    class Module:
+        def float(self):
+            return self
+
+        def eval(self):
+            return self
+
+    model = types.SimpleNamespace(
+        device="cuda:0", spectrogram="mel", num_classes=7, do_style_embed=True, do_difficulty_embed=True, do_mapper_embed=False,
+        do_song_position_embed=True, project_encoder_input=True,
+    )
+    encoder32 = Module()
+    parts = {name: Module() for name in ("style_embedder", "difficulty_embedder", "song_pos_embedder", "encoder_embedder")}
+    shadow = worker.encoder_shadow(model, encoder32, parts, "fp32")
+    read_by_precompute = (
+        "device", "eval", "spectrogram", "num_classes", "do_style_embed", "do_difficulty_embed", "do_mapper_embed",
+        "do_song_position_embed", "project_encoder_input", "style_embedder", "difficulty_embedder", "song_pos_embedder", "encoder_embedder",
+    )
+    assert all(hasattr(shadow, name) for name in read_by_precompute)
+    assert shadow.transformer.dtype == "fp32" and shadow.transformer.model.encoder is encoder32
+    assert shadow.style_embedder is parts["style_embedder"] and shadow.eval() is None
+
+    calls = []
+
+    def original(m, frames, cond_kwargs, song_positions=None, batch_size=16):
+        calls.append((m, frames, song_positions, batch_size))
+        return Tensor("hidden")
+
+    server = types.SimpleNamespace(precompute_encoder_outputs=original)
+    processor = types.SimpleNamespace(precompute_encoder_outputs=original)
+    monkeypatch.setattr(worker, "_PRECOMPUTE_PATCHED", False)
+    monkeypatch.setattr(worker, "_ENCODERS32", {id(model): shadow})
+    worker._patch_precompute(server, processor, "fp16")
+    assert processor.precompute_encoder_outputs is server.precompute_encoder_outputs is not original
+    other = object()
+    assert processor.precompute_encoder_outputs(model, "frames", {}, "positions", batch_size=4).tag == ("hidden", "fp16")
+    assert server.precompute_encoder_outputs(other, "frames", {}).tag == "hidden"
+    assert calls == [(shadow, "frames", "positions", 4), (other, "frames", None, 16)]
+    # patched once: a second call keeps the first wrapper
+    worker._patch_precompute(server, processor, "fp16")
+    assert len(calls) == 2 and processor.precompute_encoder_outputs(other, "f", {}).tag == "hidden"

@@ -1480,9 +1480,20 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
           </button>
         </div>
       )}
-      {status.settings && status.state !== 'unsupported' && <MapperSettingsRows settings={status.settings} onHelp={onHelp} onSaved={setStatus} onError={setError} />}
+      {status.settings && status.state !== 'unsupported' && (
+        <MapperSettingsRows settings={status.settings} autoPrecision={autoPrecision(status)} onHelp={onHelp} onSaved={setStatus} onError={setError} />
+      )}
     </div>
   );
+}
+
+/** What precision "자동" comes to on the installed runtime's device (Mapperatorinator picks bf16, or fp32 where the GPU has no native bf16); null before the install. */
+export function autoPrecision(status: MapperStatus): string | null {
+  const rt = status.runtime;
+  if (!rt) return null;
+  if (rt.device !== 'cuda') return 'fp32';
+  const bf16 = rt.bf16 ?? (rt.capability ? rt.capability[0] >= 8 : null);
+  return bf16 === null ? null : bf16 ? 'bf16' : 'fp32';
 }
 
 /**
@@ -1491,11 +1502,13 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
  */
 function MapperSettingsRows({
   settings,
+  autoPrecision: auto,
   onHelp,
   onSaved,
   onError,
 }: {
   settings: MapperSettings;
+  autoPrecision: string | null;
   onHelp: (help: string) => void;
   onSaved: (s: MapperStatus) => void;
   onError: (e: string | null) => void;
@@ -1542,13 +1555,13 @@ function MapperSettingsRows({
         value={shown.precision}
         options={
           [
-            ['auto', '자동'],
-            ['fp16', 'fp16 (빠름)'],
+            ['auto', auto ? `자동 (${auto})` : '자동'],
+            ['fp16', 'fp16 (빠름, 인코더는 fp32)'],
             ['fp32', 'fp32'],
           ] as [MapperSettings['precision'], string][]
         }
         onChange={(v) => change('precision', v)}
-        help="자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다(RTX 20xx는 fp32). RTX 20xx는 fp16이 빨라 만드는 시간이 줄 수 있지만, 결과가 조금 달라지거나 드물게 실패할 수 있습니다. 실패하면 그 채보는 기존 생성기로 만듭니다."
+        help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요. 실패하면 그 채보는 기존 생성기로 만듭니다.`}
       />
       <NumberOption
         onHelp={onHelp}
