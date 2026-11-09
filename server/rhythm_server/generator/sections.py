@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import heapq
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -741,7 +742,7 @@ def layout(
                 supply[u.index] = supply_scale * sum(1 for ci in per_unit[u.index].values() if own_voice(cands[ci], u))
 
     # budget: the preset's note count spread over the units by their blueprint density
-    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
+    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.tap_chord_max - 2))
     target_slots = params.avg_nps * params.density * density_scale * active_seconds(cands) / expected_chord_notes
     dens = sectioned_config()["density"]
     solo_density = float((sectioned_config().get("leadSolo") or {}).get("density", 1.0))
@@ -819,6 +820,9 @@ def layout(
 
     rolls_cfg = rolls_config()
     anchors_cfg = sectioned_config().get("anchors")
+    run_cfg = sectioned_config().get("runs")
+    if run_cfg and params.key_mode in run_cfg.get("offKeyModes", ()):
+        run_cfg = None
 
     def rollish(c: Candidate) -> bool:
         """A sound that can be a roll's hit where another repeat of the music has the roll."""
@@ -893,11 +897,23 @@ def layout(
                     take(times)
                     sub_counts[1] = sub_counts.get(1, 0) + len(times)
                     picked_total += len(times)
-        for k in order:
-            if k in picks or inside(k):
-                continue
+        # runs (sectioned.runs): a sound a 16th from a note already picked rises by `gain` per such
+        # neighbour, so where the music plays 16ths the notes grow into runs from its strong hits
+        # instead of scattering over the best-scoring sounds one by one (human BMS charts put a
+        # quarter to two thirds of their hits in 16th runs of four and more, ours a third of
+        # that: docs/PATTERN_DESIGN.md 96)
+        run_gain = _by_skill(run_cfg.get("gain", 0.0), params.skill) * float(params.extra.get("runScale", 1.0)) if run_cfg else 0.0
+        step16 = GRID // 4
+        pending = [(-consensus[k], k) for k in order]
+        heapq.heapify(pending)
+        seen_k: set[int] = set()
+        while pending:
             if len(picks) >= want:
                 break
+            _, k = heapq.heappop(pending)
+            if k in seen_k or k in picks or inside(k):
+                continue
+            seen_k.add(k)
             times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
             sub = grid_of(cands[next(per_unit[m][k] for m in ms if k in per_unit[m])])
             if partial_ok(sub, len(times)) and window_ok(times):
@@ -905,6 +921,12 @@ def layout(
                 take(times)
                 sub_counts[sub] = sub_counts.get(sub, 0) + len(times)
                 picked_total += len(times)
+                if run_gain > 0:
+                    picked_set = set(picks)
+                    for nb in (k - step16, k + step16):
+                        if nb in presence and nb not in seen_k and nb not in picked_set and (presence[nb] >= 0.5 or len(ms) == 1):
+                            near = (nb - step16 in picked_set) + (nb + step16 in picked_set)
+                            heapq.heappush(pending, (-consensus[nb] * (1.0 + run_gain * near), nb))
         # floor: a bar of the loop with sound keeps at least one note
         if want >= 2:
             bar_keys = {}
@@ -1235,7 +1257,7 @@ def _plan_weight(units_of: list[Unit], what: str, power: float | None = 1.0) -> 
 def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float, beats_per_bar: float = 4.0, cap_scale: float | None = 1.0) -> bool:
     """Chord sizes of the slots; True when the stretch cap (sectioned.chordWindow) refused a chord
     or made one smaller."""
-    max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
+    max_chord = min(params.tap_chord_max, max(2, int(np.ceil(key_count * 0.6))))
     if max_chord < 2 or not slots:
         return False
     ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
@@ -1291,18 +1313,52 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
             for i in idxs:
                 room[win_of[i]] -= notes
 
+    # each unit's share of the chords (sectioned.chordBudget): its slots times its plan chord
+    # weight. Human BMS charts give a section about the song's notes per hit however busy it is
+    # (0.86-1.03 of the song's from the sparsest to the busiest sections); by worth alone the loud
+    # busy units took the chords (0.63 -> 1.05), the hardest seconds rated the chart up and the
+    # level loop thinned all of it (docs/PATTERN_DESIGN.md 96)
+    budget = sectioned_config().get("chordBudget") or {}
+    quota: dict[int, float] | None = None
+    held: dict[int, int] = {}
+    if budget.get("perUnit"):
+        power = float(section_plan.plan_config().get("chordPower", 1.0))
+        n_in: dict[int, int] = {}
+        for i, s in enumerate(slots):
+            if s.roll is None:
+                n_in[slot_unit[i]] = n_in.get(slot_unit[i], 0) + 1
+        w = {k: n * _plan_weight([units[k]], "chord", power) for k, n in n_in.items()}
+        total = sum(w.values()) or 1.0
+        quota = {k: target * v / total for k, v in w.items()}
+
+    def in_quota(idxs: list[int], loose: float) -> bool:
+        if quota is None:
+            return True
+        need: dict[int, int] = {}
+        for i in idxs:
+            need[slot_unit[i]] = need.get(slot_unit[i], 0) + 1
+        return all(held.get(k, 0) + n <= quota.get(k, 0.0) * loose + 0.5 for k, n in need.items())
+
     placed = 0
     picked: list[list[int]] = []
     capped = False
-    for worth, key, idxs in options:
-        if placed >= target - 0.5 * len(idxs):
-            break
-        if not fits(idxs, 1):
-            capped = True
-            continue
-        use(idxs, 1)
-        picked.append(idxs)
-        placed += len(idxs)
+    taken: set[Any] = set()
+    # first within every unit's share, then (a unit short of chordable sounds) up to `loosen` times it
+    for loose in (1.0, float(budget.get("loosen", 1.5))) if quota is not None else (1.0,):
+        for worth, key, idxs in options:
+            if placed >= target - 0.5 * len(idxs):
+                break
+            if key in taken or not in_quota(idxs, loose):
+                continue
+            if not fits(idxs, 1):
+                capped = True
+                continue
+            use(idxs, 1)
+            picked.append(idxs)
+            taken.add(key)
+            placed += len(idxs)
+            for i in idxs:
+                held[slot_unit[i]] = held.get(slot_unit[i], 0) + 1
     for rank, idxs in enumerate(picked):
         size = max(2, min(max_chord, size_at(rank / max(1, len(picked)))))
         # a bigger chord takes its added notes from the stretch's room too

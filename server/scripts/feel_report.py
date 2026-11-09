@@ -9,8 +9,9 @@ generators and compare, before a merge:
     python -I server/scripts/feel_report.py compare old.json new.json
     python -I server/scripts/feel_report.py show new.json --song "Emerald Sword"
 
-`--library` is the app's data folder (library.sqlite3 and songs/<id>/analysis.json); `--analysis`
-takes analysis.json files instead. Only analyses are read (no audio), and the results stay where
+`--library` is the app's data folder (library.sqlite3 and songs/<id>/analysis.json), or several
+(the editions of the app each keep their own; a song in several counts once, from the first);
+`--analysis` takes analysis.json files instead. Only analyses are read (no audio), and the results stay where
 `--out` puts them: they name the songs, so they are not for the repository.
 """
 
@@ -51,12 +52,15 @@ def _init(repo: str) -> None:
 
 def songs_of(args: argparse.Namespace) -> list[dict[str, Any]]:
     out = []
-    if args.library:
-        root = Path(args.library)
+    seen: set[str] = set()
+    for lib in args.library or []:
+        root = Path(lib)
         db = sqlite3.connect(f"file:{root / 'library.sqlite3'}?mode=ro", uri=True)
         for sid, title, artist in db.execute("SELECT id, title, artist FROM songs ORDER BY title"):
             path = root / "songs" / sid / "analysis.json"
-            if path.is_file():
+            # a song in two libraries (two editions of the app) counts once: the first library's analysis
+            if path.is_file() and title.lower() not in seen:
+                seen.add(title.lower())
                 out.append({"id": sid, "title": title, "artist": artist, "path": str(path)})
         db.close()
     for p in args.analysis or []:
@@ -142,6 +146,7 @@ def summary(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "peak4": med([c["peak4"] for c in cs]),
             "highlight": med([c["highlight"] for c in cs]),
             "highlightUnder1": sum(1 for c in cs if c["highlight"] is not None and c["highlight"] < 1.0),
+            "sixteenths": med([r["sixteenths"] for r in secs]),
             "switches": med([r["switches"] for r in secs]),
             "run4": med([r["run4"] for r in secs]),
             "strongDrums": med([r["strongDrums"] for r in secs]),
@@ -167,7 +172,7 @@ SUMMARY_ROWS = [
     ("peak4", "densest 4 bars / median", 2), ("highlight", "highlight / densest other section", 2), ("highlightUnder1", "songs where another section is denser", None),
     ("chorusHitsRatio", "chorus hits / song", 2), ("verseHitsRatio", "verse hits / song", 2), ("bridgeHitsRatio", "bridge hits / song", 2),
     ("introHitsRatio", "intro hits / song", 2), ("outroHitsRatio", "outro hits / song", 2), ("chorusNotesPerHit", "chorus notes/hit", 2), ("verseNotesPerHit", "verse notes/hit", 2),
-    ("switches", "instrument changes per hit", 2), ("run4", "main instrument share per 4 bars", 2), ("drums", "drum notes", "%"),
+    ("sixteenths", "gaps of a 16th or less (16th runs)", "%"), ("switches", "instrument changes per hit", 2), ("run4", "main instrument share per 4 bars", 2), ("drums", "drum notes", "%"),
     ("strongDrums", "drum notes on beats 1/3", "%"), ("downbeats", "struck first beats with a note", "%"),
     ("leadSections", "guitar/piano lead sections", None), ("leadHitsRatio", "  their hits / song", 2), ("leadNotesPerHit", "  their notes/hit", 2),
     ("leadSixteenths", "  their gaps of a 16th or less", "%"), ("leadDrums", "  their drum notes", "%"), ("leadOnLead", "  their hits on the lead's notes", "%"),
@@ -299,7 +304,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
-    r.add_argument("--library", help="the app's data folder (library.sqlite3, songs/)")
+    r.add_argument("--library", nargs="*", help="the app's data folders (library.sqlite3, songs/); a song in several counts once, from the first")
     r.add_argument("--analysis", nargs="*", help="analysis.json files instead of a library")
     r.add_argument("--songs", help="only titles containing one of these (comma-separated)")
     r.add_argument("--windows", default=str(HERE.with_name("feel_windows.json")))

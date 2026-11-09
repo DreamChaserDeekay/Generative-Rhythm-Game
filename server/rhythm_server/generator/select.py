@@ -285,7 +285,7 @@ def select_slots(
 ) -> list[Slot]:
     if not cands:
         return []
-    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
+    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.tap_chord_max - 2))
     target_notes = params.avg_nps * params.density * density_scale * active_seconds(cands)
     target_slots = max(1, int(round(target_notes / expected_chord_notes)))
 
@@ -403,7 +403,7 @@ def select_slots(
 
 def _assign_chords(slots: list[Slot], chosen: list[Candidate], params: GenParams, key_count: int, chord_scale: float) -> None:
     # Full-hand chords on few keys (quads on 4K) are rare accents, not a texture.
-    max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
+    max_chord = min(params.tap_chord_max, max(2, int(np.ceil(key_count * 0.6))))
     if max_chord < 2 or not slots:
         return
     worth = []
