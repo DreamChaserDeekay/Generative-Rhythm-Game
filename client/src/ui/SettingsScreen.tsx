@@ -1599,6 +1599,48 @@ function MapperSettingsRows({
         onChange={(v) => change('useAppTiming', v)}
         help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 빨리 만들어집니다. 끄면 모델이 박자를 직접 찾습니다(느리고, 마디선과 어긋날 수 있음).${remade}`}
       />
+      <Toggle
+        onHelp={onHelp}
+        label="히트사운드 생성"
+        testId="mapper-hitsounds"
+        value={shown.hitsounds}
+        onChange={(v) => change('hitsounds', v)}
+        help={`모델이 노트마다 히트사운드 · 볼륨 토큰도 만듭니다(노트 하나의 토큰 5개 중 2개). 앱은 히트사운드를 쓰지 않으므로 끄면 그만큼 빨라집니다. 대신 모델이 '히트사운드 없는 맵'처럼 채보를 만들어 패턴이 조금 달라질 수 있습니다.${remade}`}
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="이전 문맥"
+        testId="mapper-lookback"
+        value={shown.lookback}
+        min={0.3}
+        max={0.8}
+        step={0.1}
+        bigStep={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('lookback', v)}
+        help={`16.4초 창의 앞부분 얼마를 이미 만든 노트(문맥)로 채울지입니다. 앞 미리보기와 합쳐 90%까지이고, 나머지만큼 창이 앞으로 나아가므로 둘을 줄이면 창 수가 줄어 빨라집니다. 50% 아래로 내리면 8초가 넘는 롱노트가 창 경계에서 끊길 수 있습니다.${remade}`}
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="앞 미리보기"
+        testId="mapper-lookahead"
+        value={shown.lookahead}
+        min={0}
+        max={0.6}
+        step={0.1}
+        bigStep={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('lookahead', v)}
+        help={`창의 뒷부분 얼마를 노트 없이 '다음에 올 음악'으로만 보여 줄지입니다. 줄이면 창이 더 나아가 빨라지지만, 모델이 앞을 덜 보고 노트를 놓습니다.${remade}`}
+      />
+      <Toggle
+        onHelp={onHelp}
+        label="병렬 생성"
+        testId="mapper-parallel"
+        value={shown.parallel}
+        onChange={(v) => change('parallel', v)}
+        help={`창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다(모자라면 그 채보는 기존 생성기로). 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`}
+      />
     </div>
   );
 }

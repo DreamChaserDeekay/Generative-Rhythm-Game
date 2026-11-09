@@ -56,7 +56,15 @@ USER_SETTINGS: dict[str, Any] = {
     "holdNoteRatio": (0.0, 1.0, True),
     "temperature": (0.3, 1.5, True),
     "useAppTiming": bool,
+    # speed: hitsound tokens (two of a note's five), the window overlap (a 16.4 s window is
+    # advanced by 1 - lookback - lookahead of itself), windows made independently in batches
+    "hitsounds": bool,
+    "lookback": (0.3, 0.8, False),
+    "lookahead": (0.0, 0.6, False),
+    "parallel": bool,
 }
+# the window must advance: so much of it at least
+MIN_STRIDE = 0.1
 
 
 def settings_path() -> Path:
@@ -104,6 +112,10 @@ def user_settings() -> dict[str, Any]:
 
 def save_settings(patch: dict[str, Any]) -> dict[str, Any]:
     merged = {**user_settings(), **check_settings(patch)}
+    base = load_config("mapper")
+    overlap = float(merged.get("lookback", base.get("lookback", 0.5))) + float(merged.get("lookahead", base.get("lookahead", 0.4)))
+    if overlap > 1.0 - MIN_STRIDE + 1e-9:
+        raise ValueError(f"이전 문맥과 앞 미리보기를 합쳐 {1.0 - MIN_STRIDE:.1f}까지만 됩니다 (지금 {overlap:.1f})")
     path = settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".part")

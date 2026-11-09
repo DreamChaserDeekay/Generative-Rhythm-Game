@@ -265,6 +265,14 @@ def test_the_settings_screen_settings_are_kept_and_make_other_charts(mapped: Tes
     new = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
     assert new["chartId"] != old["chartId"] and new["generator"]["stars"] == round(old["generator"]["stars"] * 1.25, 2)
     assert mapped.get("/api/health").json()["generator"] != tag  # the song select drops its old briefs
-    for bad in ({"model": "v99"}, {"starsScale": 9}, {"enabled": "yes"}, {"nope": 1}):
+    for bad in ({"model": "v99"}, {"starsScale": 9}, {"enabled": "yes"}, {"nope": 1}, {"lookback": 0.6, "lookahead": 0.4}):
         assert mapped.put("/api/mapper/settings", json=bad).status_code == 400
     assert mapped.put("/api/mapper/settings", json={"holdNoteRatio": None}).json()["settings"]["holdNoteRatio"] is None
+    # the speed settings reach the worker's request and make other charts
+    s = mapped.put("/api/mapper/settings", json={"hitsounds": False, "lookback": 0.4, "lookahead": 0.2, "parallel": True}).json()["settings"]
+    assert (s["hitsounds"], s["lookback"], s["lookahead"], s["parallel"]) == (False, 0.4, 0.2, True)
+    faster = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    assert faster["chartId"] not in (old["chartId"], new["chartId"])
+    cfg = mapped.app.state.mapper.config()
+    request = charts.request_for("6K", 10, 1, cfg, Path("a.wav"), Path("out"), None, {})
+    assert (request["hitsounds"], request["lookback"], request["lookahead"], request["parallel"]) == (False, 0.4, 0.2, True)

@@ -71,7 +71,7 @@ def stars_of(level: float, cfg: dict[str, Any]) -> float:
 
 # the settings a chart depends on: a chart id holds them, and so does the generator tag the song
 # select keeps its briefs under (a change of them makes other charts)
-CHART_SETTINGS = ("model", "useAppTiming", "holdNoteRatio", "temperature", "starsForLevel", "starsScale")
+CHART_SETTINGS = ("model", "useAppTiming", "holdNoteRatio", "temperature", "starsForLevel", "starsScale", "hitsounds", "lookback", "lookahead", "parallel")
 
 
 def settings_tag(cfg: dict[str, Any]) -> str:
@@ -94,6 +94,10 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "temperature": cfg.get("temperature"),
         "stars": cfg.get("starsForLevel"),
         "starsScale": float(cfg.get("starsScale") or 1.0),
+        "hitsounds": bool(cfg.get("hitsounds", True)),
+        "lookback": float(cfg.get("lookback", 0.5)),
+        "lookahead": float(cfg.get("lookahead", 0.4)),
+        "parallel": bool(cfg.get("parallel", False)),
     }
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
@@ -270,6 +274,8 @@ def request_for(
         "audio": str(audio), "out": str(out), "beatmap": str(beatmap) if beatmap else None, "model": cfg.get("model", "v32"),
         "keycount": len(columns(key_mode)), "difficulty": stars_of(level, cfg), "seed": int(seed),
         "holdNoteRatio": cfg.get("holdNoteRatio"), "temperature": cfg.get("temperature"),
+        "hitsounds": bool(cfg.get("hitsounds", True)), "lookback": float(cfg.get("lookback", 0.5)), "lookahead": float(cfg.get("lookahead", 0.4)),
+        "parallel": bool(cfg.get("parallel", False)),
         "precision": cfg.get("precision", "auto"), "device": "cpu" if cfg.get("_cpu") else "auto",
         "title": meta.get("title"), "artist": meta.get("artist"),
     }

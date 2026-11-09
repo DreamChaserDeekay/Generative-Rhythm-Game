@@ -92,7 +92,19 @@ class Generator:
         args.difficulty = float(req["difficulty"])
         args.seed = int(req["seed"]) % (2**31)
         args.hold_note_ratio = req.get("holdNoteRatio")
-        args.hitsounded = True
+        # hitsound and volume tokens are two of a mania note's five: off, the decode is that much
+        # shorter (the app plays its own keysounds; the model then maps as for an unhitsounded map)
+        args.hitsounded = bool(req.get("hitsounds", True))
+        # how far each 16.4 s window advances: 1 - lookback - lookahead of itself (the defaults 0.5
+        # and 0.4 see every second of music in ten windows)
+        if req.get("lookback") is not None:
+            args.lookback = float(req["lookback"])
+        if req.get("lookahead") is not None:
+            args.lookahead = float(req["lookahead"])
+        # windows made independently, a batch at a time on the GPU (no context between windows)
+        args.parallel = bool(req.get("parallel", False))
+        if args.parallel:
+            args.max_batch_size = int(req.get("batchSize") or 8)
         args.use_server = False
         args.export_osz = False
         args.add_to_beatmap = False
@@ -108,10 +120,13 @@ class Generator:
         args.creator = "Mapperatorinator"
         args.version = f"{args.keycount}K {args.difficulty:.2f}"
         args.tags = "generative-rhythm"
+        # the notes only: the model's template is [TIMING, MAP, SV] and it makes each in its own
+        # pass over the song; the app uses no scroll speed changes, so the SV pass is skipped
+        # (asking for MAP alone makes the passes up to MAP), and the timing is given, not made
+        args.output_type = [self.ContextType.MAP]
         if args.beatmap_path:
             # the song's timing as given (the app's beats and bar lines); the model maps on it
             args.in_context = [self.ContextType.TIMING]
-            args.output_type = [c for c in args.output_type if c != self.ContextType.TIMING] or [self.ContextType.MAP]
         else:
             args.in_context = [self.ContextType.NONE]
         self.inference.compile_args(args, verbose=False)

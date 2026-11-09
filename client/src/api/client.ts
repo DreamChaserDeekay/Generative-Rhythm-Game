@@ -160,6 +160,13 @@ export interface MapperSettings {
   holdNoteRatio: number | null;
   temperature: number | null;
   useAppTiming: boolean;
+  /** Hitsound tokens (two of a note's five): off is faster. */
+  hitsounds: boolean;
+  /** How much of a 16.4 s window is the previous notes (context) and a look ahead; the window advances by the rest. */
+  lookback: number;
+  lookahead: number;
+  /** Windows made independently in batches: fast, no context between windows. */
+  parallel: boolean;
 }
 
 export interface Health {
