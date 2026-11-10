@@ -1,28 +1,21 @@
-import type { JudgeEvent } from '@game/engine/session';
-import type { Chart } from '@game/engine/types';
 import { hudTypeFor } from '@game/render/gearHud';
 import { loadSkinArt } from '@game/render/skinArt';
 import { bindingsFor, keyLabel, secondBindingsFor, skinOf } from '@game/settings/settings';
 import { playedSettings, ruleChips } from '@game/ui/playRules';
 import type { PlayRequest } from '@game/ui/App';
-import { loadHudFont, type HudStats } from '@game/ui/Hud';
+import { loadHudFont } from '@game/ui/Hud';
 import { PlayController, type PlayOutcome } from '@game/ui/PlayController';
 import { gameEngine, sfx, unlock } from './audio';
-import { SECTION_KO, STEMS, bpmText, chartOf, detailOf, songs, type SongEntry } from './data';
-import { clock, el, esc, kbd, token } from './dom';
-import type { Stage } from './stage';
-import { setSettings, state } from './state';
-
-const STEM_KO: Record<string, string> = { drums: '드럼', bass: '베이스', vocals: '보컬', other: '멜로디·기타' };
-/** The rail shows this much of the song above the line. */
-const RAIL_AHEAD_MS = 60_000;
-const FEVER_TOKENS: Record<number, string> = { 2: '#6dff8a', 3: '#ffd84f', 4: '#ff8f4f', 5: '#ff6b6b' };
+import { coverOf, jacket, lampMark } from './art';
+import { bpmText, chartOf, detailOf, songs, type SampleRecord, type SongEntry } from './data';
+import { clock, el, esc, kbd } from './dom';
+import { mediaOf, setSettings, state } from './state';
 
 /**
  * Play. The track, the gear and the HUD lying on it are the game's own (its PlayController runs
- * here unchanged). The mockup's part is what stands around them: the hand-over from the song
- * select, the song's rail, the stems being played, FEVER at the screen's edge, the pause menu on
- * the line and the slate a play ends with.
+ * here unchanged, with the game's own background layer: the jacket and the registered video). The
+ * mockup's part is only what stands around them: the card a play starts from, the song's name in a
+ * corner, the pause menu and the card a play ends with.
  */
 export class PlayScreen {
   readonly root = el('section', 'screen play');
@@ -31,26 +24,15 @@ export class PlayScreen {
   private paused = false;
   private pauseAt = 0;
   private outcome: PlayOutcome | null = null;
-  private chart: Chart | null = null;
   private song: SongEntry | null = null;
-  private railPx = 0;
-  private lastCombo = 0;
-  private feverOn = false;
   onLeave: () => void = () => undefined;
 
-  constructor(
-    app: HTMLElement,
-    private stage: Stage,
-  ) {
+  constructor(app: HTMLElement) {
     this.root.innerHTML = `
       <div class="game-scope"><div class="play-screen"><div class="play-bg"></div><canvas class="play-canvas"></canvas><div class="hud"></div></div></div>
-      <div class="pf-rail"><div class="pf-rail-strip"><canvas></canvas></div><i class="pf-rail-past"></i></div>
-      <div class="pf-stems">${STEMS.map((s) => `<span class="cap" data-stem="${s}" style="--c:var(--stem-${s})"><i></i>${STEM_KO[s]}</span>`).join('')}</div>
       <div class="pf-head"></div>
-      <button class="pf-esc" data-key="Escape">일시정지 ${kbd('Esc')}</button>
-      <i class="pf-fever top"></i><i class="pf-fever bottom"></i>
-      <div class="pf-slate"></div>
-      <div class="pf-keys"></div>
+      <button class="pf-esc" data-key="Escape">${kbd('Esc')}<span>일시정지</span></button>
+      <div class="pf-card"></div>
       <div class="pf-pause"></div>
       <div class="pf-result"></div>`;
     app.append(this.root);
@@ -60,6 +42,20 @@ export class PlayScreen {
     return this.root.querySelector(s) as T;
   }
 
+  /** The jacket comes over from where it stood on the song select. */
+  arriveFrom(from: DOMRect | null): void {
+    const jk = this.q('.pf-card-in .jk');
+    const to = jk.getBoundingClientRect();
+    if (!from || to.width === 0 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    jk.animate(
+      [
+        { transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width})` },
+        { transformOrigin: '0 0', transform: 'none' },
+      ],
+      { duration: 420, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+  }
+
   enter(auto: boolean): void {
     const mine = ++this.run;
     const song = songs[state.song];
@@ -67,21 +63,30 @@ export class PlayScreen {
     this.outcome = null;
     this.paused = false;
     this.root.classList.add('on');
-    this.root.classList.remove('live', 'paused', 'done', 'fever');
-    this.stage.drain();
-    this.stage.strike();
-    this.q('.pf-keys').innerHTML = '';
-    const summary = song.charts[state.mode][state.tier];
-    this.q('.pf-slate').innerHTML = `
-      <div class="pf-slate-tier" data-tier="${state.tier}"><b>${state.tier}</b><span class="num">${summary.level}</span><em class="num">${state.mode}</em>${auto || state.autoPlay ? '<em>AUTO</em>' : ''}</div>
-      <h1>${esc(song.title)}</h1>
-      <div class="by">${esc(song.artist)}</div>
-      <div class="pf-slate-facts"><span><span class="cap">BPM</span><b class="num">${bpmText(song)}</b></span><span><span class="cap">노트</span><b class="num">${summary.noteCount.toLocaleString('en-US')}</b></span><span><span class="cap">길이</span><b class="num">${clock(song.durationMs)}</b></span><span><span class="cap">노트 속도</span><b class="num">${state.settings.hiSpeed.toFixed(2)}</b></span></div>
-      <div class="pf-slate-rules"></div>
-      <div class="pf-slate-load"><span class="pf-load-text">불러오는 중…</span><i class="pf-load-bar"><u></u></i><button data-key="Escape">${kbd('Esc')} 취소</button></div>`;
-    this.q('.pf-head').innerHTML = `<b>${esc(song.title)}</b><span class="pf-chip" data-tier="${state.tier}">${state.tier} <span class="num">${summary.level}</span></span><span class="num">${state.mode}</span>${auto || state.autoPlay ? '<span class="pf-tag">AUTO</span>' : ''}`;
+    this.root.classList.remove('live', 'paused', 'done');
+    const c = song.charts[state.mode][state.tier];
+    const chip = `<span class="chip-tier" data-tier="${state.tier}">${state.mode} · ${state.tier}<b class="num">${c.level}</b></span>`;
+    this.q('.pf-card').innerHTML = `
+      <div class="pf-card-in">
+        ${jacket(song)}
+        <div class="pf-card-text">
+          <div class="pf-card-chips">${chip}${auto ? '<span class="pf-tag">AUTO</span>' : ''}</div>
+          <h1>${esc(song.title)}</h1>
+          <div class="by">${esc(song.artist)}</div>
+          <div class="pf-card-facts">
+            <span><span class="cap en">BPM</span><b class="num">${bpmText(song)}</b></span>
+            <span><span class="cap">노트</span><b class="num">${c.noteCount.toLocaleString('en-US')}</b></span>
+            <span><span class="cap">길이</span><b class="num">${clock(song.durationMs)}</b></span>
+            <span><span class="cap">노트 속도</span><b class="num">${state.settings.hiSpeed.toFixed(2)}</b></span>
+          </div>
+          <div class="pf-card-rules"></div>
+          <div class="pf-card-keys"></div>
+        </div>
+      </div>
+      <div class="pf-card-load"><i class="pf-load-bar"><u></u></i><span class="pf-load-text">불러오는 중</span><button data-key="Escape">${kbd('Esc')}<span>취소</span></button></div>`;
+    this.q('.pf-head').innerHTML = `${jacket(song)}<div><b>${esc(song.title)}</b><span>${esc(song.artist)}</span></div>${chip}${auto ? '<span class="pf-tag">AUTO</span>' : ''}`;
     sfx('start');
-    void this.begin(mine, song, auto || state.autoPlay);
+    void this.begin(mine, song, auto);
   }
 
   private async begin(mine: number, song: SongEntry, autoPlay: boolean): Promise<void> {
@@ -94,23 +99,31 @@ export class PlayScreen {
         gameEngine.load(`./audio/${song.id}.mp3`),
         loadSkinArt(skin).catch(() => null),
         loadHudFont(hudTypeFor(skin.style, settings.hudType)),
-        // the track is on its way to the middle of the screen meanwhile
-        new Promise((r) => setTimeout(r, 900)),
+        new Promise((r) => setTimeout(r, 700)),
       ]);
       if (mine !== this.run) return;
       const chart = chartOf(song, detail, state.mode, state.tier);
-      this.chart = chart;
-      this.drawRail(song);
-      const request: PlayRequest = { chart, loadAudio: async () => buffer, autoPlay };
+      const media = mediaOf(song.id);
+      const request: PlayRequest = {
+        chart,
+        loadAudio: async () => buffer,
+        autoPlay,
+        // the game's own background layer: the jacket, and the video registered on the song select
+        // (a YouTube link needs the network and YouTube's player: the mockup leaves it out)
+        background: { coverUrl: coverOf(song), bgaUrl: media.video?.kind === 'file' ? media.video.url : null, bgaYoutube: null, bgaOffsetMs: media.videoOffsetMs },
+      };
       // the rules of this play where they are not the defaults, as the game's loading card lists them
-      this.q('.pf-slate-rules').innerHTML = ruleChips(playedSettings(request, settings), false)
+      this.q('.pf-card-rules').innerHTML = ruleChips(playedSettings(request, settings), false)
         .map(([name, value]) => `<span>${name ? `<span class="cap">${esc(name)}</span>` : ''}<b>${esc(value)}</b></span>`)
         .join('');
-      this.showKeys(chart);
+      const keys = bindingsFor(settings, chart.meta.keyMode);
+      const seconds = secondBindingsFor(settings, chart.meta.keyMode);
+      this.q('.pf-card-keys').innerHTML = `<span class="cap">키</span>${keys.map((code, lane) => kbd(seconds[lane] ? `${keyLabel(code)} · ${keyLabel(seconds[lane] as string)}` : keyLabel(code))).join('')}`;
+      this.root.classList.add('ready');
       // long enough to read the keys on a fast machine too
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 900));
       if (mine !== this.run) return;
-      // the game's own hit sound is an oscillator: the mockup plays its recorded one on each judgement instead
+      // the game's own hit sound is an oscillator: off here (the sounds are being chosen again)
       gameEngine.playHitSound = () => undefined;
       this.controller = new PlayController(
         { request, buffer, bufferPlacement: { originMs: 0, rate: 1 }, settings: { ...settings, hitSound: false }, canvas: this.q('.play-canvas') as HTMLCanvasElement, hudRoot: this.q('.hud'), bgRoot: this.q('.play-bg'), art },
@@ -120,130 +133,10 @@ export class PlayScreen {
           onSettingsChange: (s) => setSettings({ ...s, hitSound: state.settings.hitSound }),
         },
       );
-      this.tap(this.controller);
-      this.stage.stop();
       this.root.classList.add('live');
-      this.lastCombo = 0;
     } catch (e) {
       if (mine !== this.run) return;
-      this.q('.pf-slate-load').innerHTML = `${esc(e instanceof Error ? e.message : String(e))} <span>${kbd('Esc')} 돌아가기</span>`;
-    }
-  }
-
-  /** The keys that play the lanes, standing on the track's line each at its lane, under the colour of the stem the lane follows most. */
-  private showKeys(chart: Chart): void {
-    const xs = this.stage.laneXs();
-    const keys = bindingsFor(state.settings, chart.meta.keyMode);
-    const seconds = secondBindingsFor(state.settings, chart.meta.keyMode);
-    const counts = chart.meta.lanes.map(() => new Map<string, number>());
-    for (const n of chart.notes) if (n.src) counts[n.lane]?.set(n.src, (counts[n.lane].get(n.src) ?? 0) + 1);
-    const stems = counts.map((c) => [...c.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null);
-    const present = STEMS.filter((s) => stems.includes(s));
-    this.q('.pf-keys').innerHTML =
-      keys.map((code, lane) => `<span style="left:${xs[lane] ?? 0}px;--c:${stems[lane] ? `var(--stem-${stems[lane]})` : 'var(--rule-strong)'}">${kbd(seconds[lane] ? `${keyLabel(code)} · ${keyLabel(seconds[lane] as string)}` : keyLabel(code))}<i></i></span>`).join('') +
-      `<em class="cap">레인이 따라가는 악기 ${present.map((s) => `<b style="--c:var(--stem-${s})"><i></i>${STEM_KO[s]}</b>`).join('')}</em>`;
-  }
-
-  /** Listens in on the game's HUD: what it is told each frame and each judgement drives the frame around it. */
-  private tap(controller: PlayController): void {
-    const hud = (controller as unknown as { hud: { update: (t: number, s: HudStats) => void; showJudge: (e: JudgeEvent, t: number) => void } }).hud;
-    const update = hud.update.bind(hud);
-    hud.update = (t, s) => {
-      update(t, s);
-      this.frame(s);
-    };
-    const showJudge = hud.showJudge.bind(hud);
-    hud.showJudge = (e, t) => {
-      showJudge(e, t);
-      this.judged(e);
-    };
-  }
-
-  private judged(e: JudgeEvent): void {
-    if (e.isBreak) {
-      if (e.comboBreak && this.lastCombo >= 10) sfx('miss');
-      this.lastCombo = 0;
-      return;
-    }
-    if (e.kind !== 'tail' && state.settings.hitSound) sfx('hit', 0.9);
-    const src = this.chart?.notes[e.noteIndex]?.src;
-    if (src) this.q(`.pf-stems [data-stem="${src}"] i`)?.animate([{ opacity: 1 }, { opacity: 0.22 }], { duration: 200, easing: 'ease-out' });
-    if (Math.floor(e.combo / 100) > Math.floor(this.lastCombo / 100)) sfx('combo');
-    this.lastCombo = e.combo;
-  }
-
-  private frame(s: HudStats): void {
-    const song = this.song;
-    // once the play has ended its clock is gone: the rail stays where the song left it
-    if (!song || this.outcome) return;
-    const now = gameEngine.songTimeAtPerf(performance.now());
-    // the rail: the song comes down to the line as the notes do, sixty seconds to the screen
-    const strip = this.q('.pf-rail-strip');
-    strip.style.transform = `translateY(${(Math.max(0, now) / song.durationMs) * this.railPx}px)`;
-    const fever = s.fever;
-    if (fever.active !== this.feverOn) {
-      this.feverOn = fever.active;
-      this.root.classList.toggle('fever', fever.active);
-      if (fever.active) sfx('fever');
-    }
-    if (fever.active) {
-      this.root.style.setProperty('--fever', FEVER_TOKENS[Math.min(5, Math.max(2, fever.multiplier))] ?? token('--bone'));
-      this.root.style.setProperty('--fever-left', String(fever.remaining));
-    }
-  }
-
-  /** The song as a rail: its sections by name in their leading stem's colour, and the chart's notes per second beside them. */
-  private drawRail(song: SongEntry): void {
-    const canvas = this.q('.pf-rail-strip canvas') as HTMLCanvasElement;
-    const rail = this.q('.pf-rail');
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    const px = rem / 16;
-    const w = rail.clientWidth;
-    const ahead = this.root.clientHeight * 0.77;
-    const h = Math.round((song.durationMs / RAIL_AHEAD_MS) * ahead);
-    this.railPx = h;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
-    g.scale(dpr, dpr);
-    const y = (ms: number) => h - (ms / song.durationMs) * h;
-    const nps = song.charts[state.mode][state.tier].nps;
-    const top = Math.max(1, ...nps.graph);
-    const bar = 5 * px;
-    const x0 = bar + 4 * px;
-    const room = w - x0 - 2 * px;
-    // the chart's notes per second as a profile beside the sections: wider where there is more to hit
-    g.fillStyle = token('--ink-3');
-    nps.graph.forEach((v, i) => {
-      const y1 = y((i + 1) * nps.binMs);
-      const y0 = y(i * nps.binMs);
-      g.fillRect(x0, y1, (v / top) * room, y0 - y1 + 0.5);
-    });
-    g.strokeStyle = token('--bone-3');
-    g.lineWidth = 1.5 * px;
-    g.beginPath();
-    nps.graph.forEach((v, i) => {
-      const x = x0 + (v / top) * room;
-      g.lineTo(x, y(i * nps.binMs));
-      g.lineTo(x, y((i + 1) * nps.binMs));
-    });
-    g.stroke();
-    g.font = `700 ${13 * px}px ${token('--font-ui')}`;
-    g.textBaseline = 'bottom';
-    for (const s of song.sketch.sections) {
-      const y0 = y(s.t);
-      const y1 = y(s.endT);
-      g.fillStyle = token(`--stem-${s.leader ?? 'other'}`);
-      g.fillRect(0, y1 + px, bar, y0 - y1 - 2 * px);
-      g.fillStyle = token('--rule-strong');
-      g.fillRect(0, Math.round(y0) - px, w, px);
-      if (y0 - y1 > 20 * px) {
-        g.fillStyle = token('--bone');
-        g.fillText(SECTION_KO[s.label] ?? s.label, bar + 6 * px, y0 - 4 * px);
-      }
+      this.q('.pf-card-load').innerHTML = `<span class="pf-load-text">${esc(e instanceof Error ? e.message : String(e))}</span><button data-key="Escape">${kbd('Esc')}<span>돌아가기</span></button>`;
     }
   }
 
@@ -259,41 +152,46 @@ export class PlayScreen {
   private drawPause(): void {
     const song = this.song;
     const now = Math.max(0, gameEngine.songTimeAtPerf(performance.now()));
-    const section = song?.sketch.sections.find((s) => now >= s.t && now < s.endT);
-    const items: [string, string][] = [
-      ['계속하기', 'Esc'],
-      ['다시 하기', 'R'],
-      ['나가기', 'Q'],
+    const items: [string, string, string][] = [
+      ['계속하기', 'Esc', 'Escape'],
+      ['다시 하기', 'R', 'KeyR'],
+      ['나가기', 'Q', 'KeyQ'],
     ];
-    const codes = ['Escape', 'KeyR', 'KeyQ'];
     this.q('.pf-pause').innerHTML = `
-      <div class="pf-pause-head"><b>일시정지</b><span class="num">${clock(now)} / ${clock(song?.durationMs ?? 0)}</span>${section ? `<span class="cap">${SECTION_KO[section.label] ?? section.label}</span>` : ''}</div>
-      <div class="pf-pause-items">${items.map(([label, key], i) => `<button data-key="${codes[i]}" class="${i === this.pauseAt ? 'on' : ''}">${label}${kbd(key)}</button>`).join('')}</div>
-      <div class="pf-pause-hint"><span>${kbd('←', '→')} 고르기</span><span>${kbd('Enter')} 결정</span></div>`;
+      <div class="sheet-box">
+        <div class="sheet-head"><b>일시정지</b><span class="num">${clock(now)} / ${clock(song?.durationMs ?? 0)}</span></div>
+        <div class="sheet-items">${items.map(([label, key, code], i) => `<button data-key="${code}" class="${i === this.pauseAt ? 'on' : ''}"><span>${label}</span><span class="right">${kbd(key)}</span></button>`).join('')}</div>
+        <div class="sheet-foot"><span>${kbd('↑', '↓')}고르기</span><span>${kbd('Enter')}결정</span></div>
+      </div>`;
   }
 
   private finish(outcome: PlayOutcome): void {
     this.outcome = outcome;
     const r = outcome.result;
+    const song = this.song as SongEntry;
     this.root.classList.add('done');
-    this.root.classList.remove('fever');
     sfx('result');
     this.q('.pf-result').innerHTML = `
-      <div class="pf-result-lamp" data-lamp="${r.lamp}"><i class="lamp" data-lamp="${r.lamp}"></i><b>${r.lamp}</b></div>
-      <div class="pf-result-nums">
-        <span><span class="cap">RATE</span><b class="num">${r.rate.toFixed(2)}%</b></span>
-        <span><span class="cap">SCORE</span><b class="num">${Math.round(r.score).toLocaleString('en-US')}</b></span>
-        <span><span class="cap">MAX COMBO</span><b class="num">${r.maxCombo}</b></span>
-        <span><span class="cap">BREAK</span><b class="num">${r.breaks}</b></span>
-      </div>
-      <div class="pf-result-hint"><button data-key="Enter">${kbd('Enter')} 선곡으로</button><button data-key="KeyR">${kbd('R')} 다시 하기</button><em>결과 화면은 이번 시안의 범위 밖이라 요약만 둡니다</em></div>`;
+      <div class="pf-result-in">
+        ${jacket(song)}
+        <div class="pf-result-text">
+          <div class="pf-result-lamp">${lampMark(r.lamp as SampleRecord['lamp'])}<b>${esc(r.lamp)}</b></div>
+          <h1>${esc(song.title)}</h1>
+          <div class="pf-result-nums">
+            <span><span class="cap en">RATE</span><b class="num">${r.rate.toFixed(2)}<small>%</small></b></span>
+            <span><span class="cap en">SCORE</span><b class="num">${Math.round(r.score).toLocaleString('en-US')}</b></span>
+            <span><span class="cap en">MAX COMBO</span><b class="num">${r.maxCombo}</b></span>
+            <span><span class="cap en">BREAK</span><b class="num">${r.breaks}</b></span>
+          </div>
+          <div class="pf-result-hint"><button data-key="Enter">${kbd('Enter')}<span>곡 선택으로</span></button><button data-key="KeyR">${kbd('R')}<span>다시 하기</span></button></div>
+          <p>결과 화면은 이번 시안의 범위 밖이라 요약만 둡니다.</p>
+        </div>
+      </div>`;
   }
 
   private retry(): void {
     this.outcome = null;
-    this.root.classList.remove('done', 'paused', 'fever');
-    this.feverOn = false;
-    this.lastCombo = 0;
+    this.root.classList.remove('done', 'paused');
     sfx('start');
     this.controller?.restart();
   }
@@ -302,18 +200,14 @@ export class PlayScreen {
     this.run++;
     this.controller?.dispose();
     this.controller = null;
-    this.root.classList.remove('on', 'live', 'paused', 'done', 'fever');
-    this.feverOn = false;
-    // the menus' track takes the stage again
-    this.stage.draining = false;
-    this.stage.start();
-    this.stage.fit();
+    this.root.classList.remove('on', 'live', 'paused', 'done', 'ready');
   }
 
   key(e: KeyboardEvent): boolean {
     const code = e.code;
+    const enter = code === 'Enter' || code === 'NumpadEnter';
     if (this.outcome) {
-      if (code === 'Enter' || code === 'NumpadEnter' || code === 'Escape') {
+      if (enter || code === 'Escape') {
         sfx('confirm');
         this.onLeave();
       } else if (code === 'KeyR') this.retry();
@@ -336,18 +230,18 @@ export class PlayScreen {
         e.stopPropagation();
         return true;
       }
-      if (code === 'KeyQ' || ((code === 'Enter' || code === 'NumpadEnter') && this.pauseAt === 2)) {
+      if (code === 'KeyQ' || (enter && this.pauseAt === 2)) {
         sfx('back');
         e.stopPropagation();
         this.onLeave();
         return true;
       }
-      if (code === 'KeyR' || ((code === 'Enter' || code === 'NumpadEnter') && this.pauseAt === 1)) {
+      if (code === 'KeyR' || (enter && this.pauseAt === 1)) {
         e.stopPropagation();
         this.retry();
         return true;
       }
-      if (code === 'Enter' || code === 'NumpadEnter') {
+      if (enter) {
         e.stopPropagation();
         sfx('confirm');
         this.controller.resume();

@@ -12,13 +12,13 @@ import { activeCovers, laneColorsOf, skinOf, visibleTimeMs, type Settings } from
 const PRESS_MS = 70;
 
 /**
- * The track that never leaves the screen: the game's own renderer (the gear, notes and hit effect
- * picked in the settings) on a canvas as large as the window and framed exactly as the play screen
- * frames it. The menus only move and shrink it with a CSS transform about the judgement line, so the
- * line keeps its height on every screen and the play screen takes over without a jump.
+ * The track shown in the menus: the game's own renderer (the gear, notes and hit effect picked in
+ * the settings) on a canvas of its own, playing a chart by itself in time with the preview. One
+ * stage is moved to wherever it is shown (곡 정보·도구, the settings' preview).
  */
 export class Stage {
-  readonly canvas: HTMLCanvasElement;
+  readonly box = document.createElement('div');
+  readonly canvas = document.createElement('canvas');
   private renderer: TrackRenderer | null = null;
   private settings: Settings;
   private mode: KeyModeId;
@@ -38,18 +38,19 @@ export class Stage {
   clock: () => number | null = () => null;
   private freeAt = performance.now();
   private freeFrom = 0;
-  /** Called on every note the preview plays (the song select's lamps of the stems). */
-  onHit: ((note: SessionNote) => void) | null = null;
-  /** Notes stop coming (the hand-over to the play screen): what is on the track runs out. */
-  draining = false;
-  /** The track was built or framed anew (where its judgement line is may have changed). */
-  onLayout: (() => void) | null = null;
 
-  constructor(canvas: HTMLCanvasElement, settings: Settings, mode: KeyModeId) {
-    this.canvas = canvas;
+  constructor(settings: Settings, mode: KeyModeId) {
+    this.box.className = 'stage-box';
+    this.box.append(this.canvas);
     this.settings = settings;
     this.mode = mode;
     window.addEventListener('resize', () => this.fit());
+  }
+
+  /** Shows the track in `host` (it leaves wherever it was). */
+  mount(host: HTMLElement): void {
+    if (this.box.parentElement !== host) host.append(this.box);
+    this.fit();
   }
 
   private key(): string {
@@ -113,57 +114,11 @@ export class Stage {
     r.setLaneColors(laneColorsOf(s, this.mode));
     const timing = this.chart?.timing ?? { offsetMs: 0, tempoMap: [{ beat: 0, bpm: 120 }], meter: [{ measure: 0, beatsPerMeasure: 4 }] };
     this.scroll = new ScrollModel({ trackLength: r.geometry.length, visibleMs: visibleTimeMs(s.hiSpeed), lift: covers.lift, mode: 'time', timing, rate: 1, durationMs: this.chart?.meta.durationMs ?? 3_600_000 });
-    this.onLayout?.();
   }
 
   fit(): void {
-    const box = this.canvas.parentElement;
-    if (box && this.renderer) this.renderer.resize(box.clientWidth, box.clientHeight);
-    this.onLayout?.();
-  }
-
-  /** Every lane struck at once (the song picked is hit onto the line). */
-  strike(): void {
-    const r = this.renderer;
-    if (!r) return;
-    const now = performance.now();
-    r.geometry.lanes.forEach((_, lane) => r.hitEffect(lane, GRADE_COLORS['g-max'] ?? 0xffffff, now));
-  }
-
-  /** Empties the track (the hand-over to the play screen: its own notes come next). */
-  drain(): void {
-    this.draining = true;
-    this.notes = [];
-    this.next = 0;
-    this.held.fill(null);
-    this.renderer?.reset();
-  }
-
-  /**
-   * Where each lane crosses the judgement line on the full-size canvas (CSS px). A side lane drawn
-   * over half the keys has no place of its own on the line: it is given one just outside the track.
-   */
-  laneXs(): number[] {
-    const r = this.renderer;
-    if (!r) return [];
-    const { h, halfWidth } = r.hudPlane();
-    const unit = halfWidth / (r.geometry.width / 2);
-    const at = (x: number) => (h[0] * x + h[2]) / (h[6] * x + h[8]);
-    return r.geometry.lanes.map((l) => at(l.over ? Math.sign(l.x) * halfWidth * 1.16 : l.x * unit));
-  }
-
-  /** Where the track's judgement line is on the full-size canvas (CSS px): its two ends and its height. */
-  lineEnds(): { left: number; right: number; y: number } | null {
-    const r = this.renderer;
-    if (!r) return null;
-    const { h, halfWidth } = r.hudPlane();
-    const at = (x: number) => {
-      const w = h[6] * x + h[8];
-      return [(h[0] * x + h[2]) / w, (h[3] * x + h[5]) / w];
-    };
-    const [left, y] = at(-halfWidth);
-    const [right] = at(halfWidth);
-    return { left, right, y };
+    const { clientWidth: w, clientHeight: h } = this.box;
+    if (this.renderer && w > 0 && h > 0) this.renderer.resize(w, h);
   }
 
   /** The chart the preview plays (null: an empty track). */
@@ -172,7 +127,6 @@ export class Stage {
     const c = this.chart;
     this.notes = (c?.notes ?? []).map((n, index) => ({ index, lane: n.lane, t: n.t, type: n.type, endT: n.endT ?? n.t, ticks: [], nextTick: 0, headDone: false, tailDone: false, broken: false, src: n.src }));
     this.bars = c ? new TempoMap(c.timing).barLines(c.meta.durationMs ?? 0) : [];
-    this.draining = false;
     this.live();
     this.rewind();
   }
@@ -229,7 +183,6 @@ export class Stage {
       const n = notes[this.next];
       n.headDone = true;
       r.hitEffect(n.lane, hit, perfNow);
-      this.onHit?.(n);
       if (n.type === 'hold') this.held[n.lane] = n.index;
       else {
         n.tailDone = true;
@@ -256,7 +209,7 @@ export class Stage {
     );
   };
 
-  /** Lets go of the canvas' renderer (the play screen draws on its own canvas over it). */
+  /** Lets go of the renderer. */
   dispose(): void {
     this.stop();
     this.building++;

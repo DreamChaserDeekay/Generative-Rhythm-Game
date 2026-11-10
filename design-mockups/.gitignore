@@ -8,3 +8,5 @@ _src/sfx/raw/
 
 # the songs' analysis and charts (the repository ignores every data/ folder: this one is the mockup's)
 !/public/data/
+# the jackets as generated (1024 px): the mockup uses the 720 px copies in public/covers
+_src/covers/*.png

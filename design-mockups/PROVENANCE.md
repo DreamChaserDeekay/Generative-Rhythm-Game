@@ -3,28 +3,28 @@
 시안(`design-mockups/`)에 들어 있는 것이 어디서 왔는지 파일마다 적습니다. 이 문서는 `tools/provenance.py`가 각 `manifest.json`과 측정 기록에서 만듭니다.
 
 - 받은 날: 2026-11-10
-- 새로 받은 그림, 생성한 그림: 없음. 시안의 그림은 모두 곡의 분석 데이터를 코드로 캔버스에 그린 것입니다. 이미지 생성 모델을 쓰지 않았고 비용은 0입니다.
-- 코드로 만든 소리, AI로 생성한 소리: 없음.
+- 생성한 그림: 표본 커버 10장(아래 '커버'). 온라인에서 받아 쓴 그림은 없습니다. 아이콘 · 램프 · 디스크는 시안의 코드(SVG)입니다.
+- 코드로 만든 소리, AI로 생성한 소리: 없음. 효과음은 이번 시안에서 쓰지 않습니다(아래 '효과음').
 - 로그인·봇 확인·유료 벽을 지나 받은 것: 없음.
 
 ## 곡
 
-이 곡들을 이 게임의 분석 서버에 넣어 분석하고 채보를 만들었습니다(`tools/export_songs.py`). `public/data/`의 수치는 모두 그 결과이고, `public/audio/`는 원본을 mp3로 다시 인코딩한 것입니다.
+이 곡들을 이 게임의 분석 서버에 넣어 분석하고 채보를 만들었습니다(`tools/export_songs.py`). `public/data/`의 수치는 모두 그 결과이고, `public/audio/`는 원본을 mp3로 다시 인코딩한 것입니다. 곡 목록의 앨범명은 받은 음원 파일의 태그에 적힌 그대로입니다(서버가 읽는 것과 같은 태그를 `ffprobe`로 읽었습니다. 태그가 없는 곡은 비어 있습니다).
 
-| 파일 (`public/audio/`) | 제목 | 아티스트 | 라이선스 | 곡의 쪽 | 받은 주소 | 손댄 내용 |
-|---|---|---|---|---|---|---|
-| `c7b45c868634e2eb.mp3`, `c7b45c868634e2eb.pre.mp3` | Fighting Stance | TeknoAXE | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=1827&genre=Drum_and_Bass | https://teknoaxe.com/direct_download.php?file=Fighting_Stance.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `71aaa757a77f5ca7.mp3`, `71aaa757a77f5ca7.pre.mp3` | Path of the Neutron | TeknoAXE | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=2011&genre=Breakbeats | https://teknoaxe.com/direct_download.php?file=Path_of_the_Neutron.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `392b9575daebefce.mp3`, `392b9575daebefce.pre.mp3` | Hover Pit | TeknoAXE | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=1935&genre=Electro | https://teknoaxe.com/direct_download.php?file=Hover_Pit.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `ef26589e066cc2f6.mp3`, `ef26589e066cc2f6.pre.mp3` | Newer Wave | Kevin MacLeod | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Newer%20Wave.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `048f03a2118b317b.mp3`, `048f03a2118b317b.pre.mp3` | Raving Energy (faster) | Kevin MacLeod | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Raving%20Energy%20%28faster%29.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `d9169be3f95ad456.mp3`, `d9169be3f95ad456.pre.mp3` | The Cannery | Kevin MacLeod | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20Cannery.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `053fa0e9dbb9a9ad.mp3`, `053fa0e9dbb9a9ad.pre.mp3` | Chibi Ninja | Eric Skiff | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://ericskiff.com/music/ | https://ericskiff.com/music/Resistor%20Anthems/03%20Chibi%20Ninja.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `50be286d170f5a08.mp3`, `50be286d170f5a08.pre.mp3` | Juggernaut | Scott Buckley | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://www.scottbuckley.com.au/library/juggernaut/ | https://www.scottbuckley.com.au/library/wp-content/uploads/2022/07/Juggernaut.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `2abb268a451c6b58.mp3`, `2abb268a451c6b58.pre.mp3` | Funky Junky | Jason Shaw | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://audionautix.com/free-music/pop-funk | https://audionautix.com/Music/FunkyJunky.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `eb4d53bbf9a87461.mp3`, `eb4d53bbf9a87461.pre.mp3` | Griphop | Kevin MacLeod | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Griphop.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `441d1b594a15b0ac.mp3`, `441d1b594a15b0ac.pre.mp3` | Exit the Premises | Kevin MacLeod | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Exit%20the%20Premises.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
-| `9e74d37101f54f11.mp3`, `9e74d37101f54f11.pre.mp3` | Arpanauts | Eric Skiff | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://ericskiff.com/music/ | https://ericskiff.com/music/Resistor%20Anthems/10%20Arpanauts.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| 파일 (`public/audio/`) | 제목 | 아티스트 | 앨범 (파일의 태그) | 라이선스 | 곡의 쪽 | 받은 주소 | 손댄 내용 |
+|---|---|---|---|---|---|---|---|
+| `c7b45c868634e2eb.mp3`, `c7b45c868634e2eb.pre.mp3` | Fighting Stance | TeknoAXE | (없음) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=1827&genre=Drum_and_Bass | https://teknoaxe.com/direct_download.php?file=Fighting_Stance.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `71aaa757a77f5ca7.mp3`, `71aaa757a77f5ca7.pre.mp3` | Path of the Neutron | TeknoAXE | (없음) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=2011&genre=Breakbeats | https://teknoaxe.com/direct_download.php?file=Path_of_the_Neutron.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `392b9575daebefce.mp3`, `392b9575daebefce.pre.mp3` | Hover Pit | TeknoAXE | (없음) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://teknoaxe.com/Link_Code_3.php?q=1935&genre=Electro | https://teknoaxe.com/direct_download.php?file=Hover_Pit.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `ef26589e066cc2f6.mp3`, `ef26589e066cc2f6.pre.mp3` | Newer Wave | Kevin MacLeod | Project 80s | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Newer%20Wave.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `048f03a2118b317b.mp3`, `048f03a2118b317b.pre.mp3` | Raving Energy (faster) | Kevin MacLeod | (없음) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Raving%20Energy%20%28faster%29.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `d9169be3f95ad456.mp3`, `d9169be3f95ad456.pre.mp3` | The Cannery | Kevin MacLeod | (없음) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20Cannery.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `053fa0e9dbb9a9ad.mp3`, `053fa0e9dbb9a9ad.pre.mp3` | Chibi Ninja | Eric Skiff | Resistor Anthems | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://ericskiff.com/music/ | https://ericskiff.com/music/Resistor%20Anthems/03%20Chibi%20Ninja.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `50be286d170f5a08.mp3`, `50be286d170f5a08.pre.mp3` | Juggernaut | Scott Buckley | www.scottbuckley.com.au/library | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://www.scottbuckley.com.au/library/juggernaut/ | https://www.scottbuckley.com.au/library/wp-content/uploads/2022/07/Juggernaut.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `2abb268a451c6b58.mp3`, `2abb268a451c6b58.pre.mp3` | Funky Junky | Jason Shaw | FAST | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://audionautix.com/free-music/pop-funk | https://audionautix.com/Music/FunkyJunky.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `eb4d53bbf9a87461.mp3`, `eb4d53bbf9a87461.pre.mp3` | Griphop | Kevin MacLeod | Medium Electronic | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Griphop.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `441d1b594a15b0ac.mp3`, `441d1b594a15b0ac.pre.mp3` | Exit the Premises | Kevin MacLeod | Royalty-Free | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://incompetech.com/music/royalty-free/music.html | https://incompetech.com/music/royalty-free/mp3-royaltyfree/Exit%20the%20Premises.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
+| `9e74d37101f54f11.mp3`, `9e74d37101f54f11.pre.mp3` | Arpanauts | Eric Skiff | Resistor Anthems | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://ericskiff.com/music/ | https://ericskiff.com/music/Resistor%20Anthems/10%20Arpanauts.mp3 | 전곡: 96 kbps mp3로 다시 인코딩, 태그 제거. 미리듣기: 분석이 고른 미리듣기 지점부터 24초, 앞 0.6초·뒤 1.2초 페이드, 112 kbps mp3 |
 
 라이선스 문구(받은 쪽에서 읽은 그대로):
 
@@ -90,9 +90,33 @@
 
 음원 파일에 들어 있던 커버 그림은 쓰지 않았습니다(다시 인코딩하면서 뺐고, 지금 게임의 화면을 찍을 때도 지웠습니다).
 
-기록(램프 · RATE · BREAK · 플레이 수)은 표본입니다(`src/data.ts`의 `SAMPLE`). 기록은 플레이어마다의 것이라 시안에는 없어서, 화면을 보이기 위해 몇 곡에 넣었습니다.
+기록(램프 · RATE · BREAK · 플레이 수)과 즐겨찾기 네 곡은 표본입니다(`src/data.ts`의 `SAMPLE`, `src/state.ts`의 `favorites`). 플레이어마다의 것이라 시안에는 없어서, 화면을 보이기 위해 넣었습니다. 설정의 AI 채보 탭에 있는 상태 표(사용 중 · GPU 이름)도 표본입니다.
+
+## 커버
+
+시안의 커버는 곡의 실제 커버가 아니라, 시안을 위해 이미지 생성 모델로 새로 만든 표본입니다(`tools/make_covers.py`). 참고한 그림이나 따라 그린 그림은 없고, 프롬프트는 곡의 제목에서 떠올린 장면을 직접 적은 것입니다. 두 곡(Hover Pit, Arpanauts)은 커버가 없는 곡의 모습을 보이려고 만들지 않았습니다.
+
+- 만든 날: 2026-11-10
+- 호출: Vertex AI `generateContent`, 한 번에 한 장, 1K(1024 × 1024), 다시 만든 것 없음
+- 손댄 내용: 720 × 720으로 줄여 JPEG로 저장(`public/covers/`). 생성된 그대로의 PNG(1024 × 1024)는 저장소에 넣지 않았습니다.
+- 비용: 호출 10번. 응답이 알려 주는 것은 토큰 수뿐이라 정확한 금액은 모릅니다. 받은 안내의 단가(2K 한 장에 약 $0.06)로 어림하면 합계 $0.60 이하입니다.
+
+| 파일 (`public/covers/`) | 곡 | 모델 | 프롬프트 (전문) | 토큰 (입력 / 그림 / 전체) |
+|---|---|---|---|---|
+| `c7b45c868634e2eb.jpg` | Fighting Stance | gemini-nano-banana-2.1 | Square album cover art. A boxer's taped fist frozen mid-punch, chalk dust bursting off the knuckles, shot from below against a pure black background, one hard crimson rim light from the left. Photorealistic, high contrast, razor-sharp detail. No text, no letters, no numbers, no signs, no logos, no watermark. | 70 / 1120 / 2191 |
+| `71aaa757a77f5ca7.jpg` | Path of the Neutron | gemini-nano-banana-2.1 | Square album cover art. A cloud-chamber photograph of particle tracks: fine white spirals and straight streaks branching from one bright collision point, on a deep petrol-teal background with soft film grain. Scientific, elegant, minimal. No text, no letters, no numbers, no signs, no logos, no watermark. | 63 / 1120 / 1962 |
+| `ef26589e066cc2f6.jpg` | Newer Wave | gemini-nano-banana-2.1 | Square album cover art. A calm sea at dusk seen through half-open horizontal window blinds, bands of peach and coral light falling across a dark room wall, the silhouette of one potted palm. Grainy 35mm film photograph, soft and nostalgic. No text, no letters, no numbers, no signs, no logos, no watermark. | 70 / 1120 / 2024 |
+| `048f03a2118b317b.jpg` | Raving Energy (faster) | gemini-nano-banana-2.1 | Square album cover art. Hundreds of raised hands in a dark hall caught in a burst of white strobe light and falling yellow confetti, long-exposure light trails, seen from the stage. Euphoric, saturated yellow and black. No text, no letters, no numbers, no signs, no logos, no watermark. | 63 / 1120 / 2293 |
+| `d9169be3f95ad456.jpg` | The Cannery | gemini-nano-banana-2.1 | Square album cover art. An endless row of dented bare tin cans riding a steel conveyor belt inside an old factory, warm tungsten work lamps, drifting steam, shallow depth of field, one can painted bright red. Cinematic photograph. No text, no letters, no numbers, no signs, no logos, no watermark. | 64 / 1120 / 2386 |
+| `053fa0e9dbb9a9ad.jpg` | Chibi Ninja | gemini-nano-banana-2.1 | Square album cover art in crisp pixel art with a limited palette of indigo, magenta and cream. A tiny round ninja leaps between tiled rooftops in front of an enormous full moon, a few pixel stars. Clean hard pixels, no anti-aliasing. No text, no letters, no numbers, no signs, no logos, no watermark. | 68 / 1120 / 2375 |
+| `50be286d170f5a08.jpg` | Juggernaut | gemini-nano-banana-2.1 | Square album cover art. A colossal armoured siege machine on tank treads emerging from a dust storm at dawn, tiny soldiers with plain banners in the foreground for scale, a low golden sun behind it. Epic matte painting in muted ochre and steel blue. No text, no letters, no numbers, no signs, no logos, no watermark. | 68 / 1120 / 2103 |
+| `2abb268a451c6b58.jpg` | Funky Junky | gemini-nano-banana-2.1 | Square album cover art. A drum kit built from junkyard scrap, hubcap cymbals, oil-drum toms and a chrome bumper, set on cracked asphalt under hard midday sun. Saturated 1970s colour photograph in orange and turquoise. No text, no letters, no numbers, no signs, no logos, no watermark. | 73 / 1120 / 2198 |
+| `eb4d53bbf9a87461.jpg` | Griphop | gemini-nano-banana-2.1 | Square album cover art. A violin leaning against stacked milk crates full of records in a bare concrete stairwell, lit by a harsh on-camera flash with deep shadows, slightly tilted framing. Gritty documentary photograph, desaturated with a touch of green. No text, no letters, no numbers, no signs, no logos, no watermark. | 69 / 1120 / 2029 |
+| `441d1b594a15b0ac.jpg` | Exit the Premises | gemini-nano-banana-2.1 | Square album cover art. A long dark corridor with a glossy floor, at its end a single open door flooding the frame with white light, one lone silhouette walking out, a faint green glow on the walls. Symmetrical, minimal architectural photograph. No text, no letters, no numbers, no signs, no logos, no watermark. | 67 / 1120 / 2299 |
 
 ## 효과음
+
+이번 시안에서는 효과음을 쓰지 않습니다(소리는 다음에 다시 고르기로 했습니다). 첫 시안에서 받아 다듬은 샘플과 소리 고르기 판의 코드는 그때를 위해 저장소에 남겨 두었고(`_src/sfx/kit/`, `src/sound.ts`, `src/audio.ts`의 `SFX_ON`), 빌드와 올린 시안에는 들어가지 않습니다. 아래는 그 샘플들의 기록입니다.
 
 실제 타악기를 스튜디오에서 녹음한 샘플 라이브러리 셋에서 왔습니다. 라이선스는 저장소마다의 라이선스 파일을 읽어 확인했습니다(모두 CC0 1.0 전문).
 
@@ -104,7 +128,7 @@
 
 손댄 내용(모든 파일, `tools/build_sfx.py`): 타격의 1ms 앞에서 자르고, 이벤트마다 정한 길이에서 끊어 끝의 4분의 1을(적어도 8ms) 줄이고, 가장 큰 30ms의 RMS가 이벤트의 크기가 되게 음량을 맞추고(피크는 −1 dBFS를 넘지 않게), 44.1 kHz 16비트 WAV로 저장. EQ·리버브·음높이 가공은 없습니다.
 
-| 파일 (`public/sfx/`) | 이벤트 | 원본 파일 | 받은 주소 | 길이 | 음량 | 피크 dBFS | 30ms RMS dBFS | 원본 피크 dBFS | 원본 클리핑 | 원본 가장 조용한 20ms dBFS |
+| 파일 (`_src/sfx/kit/`) | 이벤트 | 원본 파일 | 받은 주소 | 길이 | 음량 | 피크 dBFS | 30ms RMS dBFS | 원본 피크 dBFS | 원본 클리핑 | 원본 가장 조용한 20ms dBFS |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `cursor-stick.wav` | cursor | `snare_14__sc__top__sn_sc_vl3_rr1.flac` (Karoryfer Samples · Big Rusty Drums) | https://raw.githubusercontent.com/sfzinstruments/karoryfer.big-rusty-drums/main/Samples/snare_14/sc/top/sn_sc_vl3_rr1.flac | 120 ms | +17.0 dB | -10.8 | -27.0 | -27.7 | 0 | -91.8 |
 | `cursor-wood.wav` | cursor | `Woodblock__wood_click_pp_rr1.wav` (Versilian Community Sample Library (VCSL)) | https://raw.githubusercontent.com/sgossner/VCSL/master/Idiophones/Struck%20Idiophones/Woodblock/wood_click_pp_rr1.wav | 140 ms | +17.8 dB | -12.1 | -27.0 | -29.9 | 0 | -89.0 |
@@ -180,4 +204,5 @@
 - `client/src`의 렌더러 · HUD · 플레이 컨트롤러 · 설정 · 엔진: 고치지 않고 불러 씁니다(`@game` 별칭).
 - `client/public/media`의 기어 · 노트 · 타격 효과 그림: 빌드할 때 `dist/media`로 복사합니다. 출처는 `assets-src/PROVENANCE.md`.
 - `_src/settings-inventory.json`: `client/src/ui/SettingsScreen.tsx`, `optionRows.tsx`, `PlayOptions.tsx`, `NoteColorsPanel.tsx`에서 탭 · 항목 · 값 · 범위 · 도움말을 그대로 읽어 옮긴 것.
+- 설정의 AI 채보 탭(`src/inventory.ts`의 `mapperTab`): `claude/mapperatorinator` 브랜치의 `client/src/ui/SettingsScreen.tsx`(`MapperGroup`, `MapperSettingsRows`)에서 항목 · 순서 · 범위 · 기본값 · 도움말을 읽어 옮긴 것. 그 브랜치의 코드는 이 브랜치에 들이지 않았습니다.
 - `_src/health.json`: 곡을 분석한 서버의 `GET /api/health` 응답에서 분석 백엔드 부분.

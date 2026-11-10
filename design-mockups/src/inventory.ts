@@ -46,6 +46,11 @@ export interface Row {
   /** A block that is only read (the song's chart information): drawn as it is, never picked. */
   html?: string;
   skip?: boolean;
+  /** A value drawn its own way (the practice section), and what ←→ do on it. */
+  render?: (on: boolean) => string;
+  onKey?: (dir: 1 | -1, big: boolean) => void;
+  /** A value that is a view of something else (the picked lane's colour): never marked as changed. */
+  free?: boolean;
 }
 export interface Tab {
   id: string;
@@ -148,7 +153,6 @@ const BINDS: Record<string, { get: (s: Settings) => number; bind: (v: number) =>
   음악: { get: (s) => s.musicVolume, bind: (v) => ({ musicVolume: v }) },
   효과음: { get: (s) => s.sfxVolume, bind: (v) => ({ sfxVolume: v }) },
   타격음: { get: (s) => (s.hitSound ? 0 : 1), bind: (v) => ({ hitSound: v === 0 }) },
-  '오토 플레이': { get: () => (state.autoPlay ? 0 : 1), bind: (v) => ((state.autoPlay = v === 0), {}) },
 };
 
 const MODE_IDS = Object.keys(keyModes) as KeyModeId[];
@@ -183,6 +187,7 @@ function wireNotes(tab: Tab): void {
   };
   tab.sync();
   for (const r of [preset, modeRow, lane, hue, sat, val]) r.initial = r.value;
+  for (const r of [modeRow, lane, hue, sat, val]) r.free = true;
   preset.bind = (v) => ({ noteColors: ids()[v] });
   modeRow.bind = (v) => {
     state.mode = MODE_IDS[v];
@@ -260,6 +265,8 @@ function make(r: RawRow, heading?: string): Row {
     row.value = def === null ? (r.label === '색상' ? 206 : r.label === '채도' ? 8 : r.label === '밝기' ? 100 : r.label === '재생 속도' ? 1 : row.min) : v;
   } else if (kind === 'keybind') {
     row.caps = def && !def.includes('빈 칸') ? def.split(' ') : [''];
+  } else if (kind === 'info' && def) {
+    row.values = [def];
   }
   const b = BINDS[r.label];
   if (b) {
@@ -279,6 +286,14 @@ function make(r: RawRow, heading?: string): Row {
 }
 
 export const round = (v: number, step: number) => Math.round(v / step) * step;
+
+/** Rows tied to the game's settings read their value from them again (the same setting is shown in more than one place). */
+export function syncRows(rows: Row[]): void {
+  for (const r of rows) {
+    const b = BINDS[r.label];
+    if (b && r.bind) r.value = b.get(state.settings);
+  }
+}
 
 function tabOf(t: RawTab): Tab {
   const headingOf = new Map<string, string>();
@@ -304,10 +319,85 @@ export const markReset = (at: number) => (resetAt = at);
 
 const data = raw as unknown as { tabs: RawTab[]; playOptions: { tabs: { id: string; label: string; defaultHelp: string }[]; rows: RawRow[] } };
 
-export function settingsTabs(): Tab[] {
-  return data.tabs.map(tabOf);
+/**
+ * AI 채보 (Mapperatorinator): the chart generator's settings as the claude/mapperatorinator branch
+ * has them in 설정 → 고급 (client/src/ui/SettingsScreen.tsx, MapperGroup and MapperSettingsRows):
+ * the rows, their order, ranges, defaults and help are that branch's. The chart generation options
+ * of the play options are gone, so this is where a chart's making is steered.
+ */
+function mapperTab(): Tab {
+  const remade = ' 바꾸면 이제부터 만드는 채보에 적용됩니다(이미 만든 채보는 그대로 남고, 다시 열면 새로 만듭니다).';
+  const base = { values: [] as string[], min: 0, max: 0, step: 1, bigStep: 1, format: (v: number) => String(v), value: 0 as number | null, initial: 0 as number | null };
+  const sw = (label: string, on: boolean, help: string): Row => ({ ...base, label, kind: 'switch', help, values: ['켬', '끔'], value: on ? 0 : 1, initial: on ? 0 : 1 });
+  const choice = (label: string, values: string[], help: string): Row => ({ ...base, label, kind: 'choice', help, values });
+  const num = (label: string, min: number, max: number, step: number, bigStep: number, value: number | null, format: (v: number) => string, help: string, auto = false): Row => ({ ...base, label, kind: 'number', help, min, max, step, bigStep, value, initial: value, format, auto });
+  const pc = (v: number) => `${Math.round(v * 100)}%`;
+  const model = choice('모델', ['v32 (기본)', 'v32-mini (작고 빠름)'], `v32-mini는 v32보다 작아 빠르고 GPU 메모리를 덜 쓰지만 채보 품질이 낮을 수 있습니다. 처음 쓸 때 가중치(약 0.2GB)를 한 번 더 내려받습니다.${remade}`);
+  const status: Row = {
+    ...base,
+    label: '상태',
+    kind: 'info',
+    help: '',
+    skip: true,
+    html: '',
+  };
+  const rows: Row[] = [
+    {
+      ...base,
+      label: '안내',
+      kind: 'info',
+      help: '',
+      skip: true,
+      html: '<p>이 빌드는 채보를 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)로 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와 모델, 약 4GB) 채보를 열 때마다 GPU로 만듭니다(곡 길이에 따라 1–3분). 설치 전이나 NVIDIA GPU가 없는 PC에서는 기존 생성기로 만듭니다.</p>',
+    },
+    status,
+    { ...base, label: '실행 환경', kind: 'action', help: 'PyTorch CUDA와 모델(약 4GB)을 내려받아 설치합니다. 설치한 뒤에는 다시 설치할 수 있습니다.', values: ['다시 설치'] },
+    { ...sw('AI 채보 쓰기', true, '끄면 Mapperatorinator를 쓰지 않고 기존 생성기로 채보를 만듭니다. 설치한 실행 환경은 그대로 남습니다.'), heading: '채보 만들기' },
+    model,
+    choice('연산 정밀도', ['자동', 'fp16 (빠름, 인코더는 fp32)', 'fp32'], '자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). fp16 채보가 이상하면 fp32로 두세요. 실패하면 그 채보는 기존 생성기로 만듭니다.'),
+    num('난이도 배율', 0.5, 2, 0.05, 0.25, 1, (v) => `×${v.toFixed(2)}`, `티어마다 Mapperatorinator에 요청하는 osu! 별점에 곱합니다. 채보가 티어보다 쉽게 나오면 1보다 크게, 어렵게 나오면 작게 하세요. 화면의 레벨은 만들어진 노트를 앱이 잰 값입니다.${remade}`),
+    num('롱노트 비율', 0, 1, 0.05, 0.2, null, pc, `전체 노트 가운데 롱노트의 비율을 요청합니다. 자동이면 모델이 곡에 맞게 정합니다.${remade}`, true),
+    num('다양성', 0.3, 1.5, 0.05, 0.2, null, (v) => v.toFixed(2), `모델이 노트를 고를 때의 무작위성(temperature)입니다. 높이면 패턴이 다양해지고 낮추면 무난해집니다. 자동은 모델 기본값(v32: 0.9)입니다.${remade}`, true),
+    sw('앱의 박자 쓰기', true, `켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 모델의 박자 찾기 패스를 건너뛰어 빨리 만들어집니다. 끄면 모델이 곡 전체를 한 번 더 지나며 박자를 직접 찾아 시간이 더 들고, BPM · 마디선이 앱과 어긋날 수 있습니다. 그런 채보는 채보 정보의 "AI 생성" 줄에 "모델 박자"가 붙습니다.${remade}`),
+    { ...sw('히트사운드 생성', true, `모델이 노트마다 히트사운드 · 볼륨 토큰도 만듭니다(노트 하나의 토큰 5개 중 2개). 앱은 히트사운드를 쓰지 않으므로 끄면 그만큼 빨라집니다. 대신 모델이 '히트사운드 없는 맵'처럼 채보를 만들어 패턴이 조금 달라질 수 있습니다.${remade}`), heading: '만드는 속도' },
+    num('이전 문맥', 0.3, 0.8, 0.1, 0.2, 0.5, pc, `16.4초 창의 앞부분 얼마를 이미 만든 노트(문맥)로 채울지입니다. 앞 미리보기와 합쳐 90%까지이고, 나머지만큼 창이 앞으로 나아가므로 둘을 줄이면 창 수가 줄어 빨라집니다. 50% 아래로 내리면 8초가 넘는 롱노트가 창 경계에서 끊길 수 있습니다.${remade}`),
+    num('앞 미리보기', 0, 0.6, 0.1, 0.2, 0.4, pc, `창의 뒷부분 얼마를 노트 없이 '다음에 올 음악'으로만 보여 줄지입니다. 줄이면 창이 더 나아가 빨라지지만, 모델이 앞을 덜 보고 노트를 놓습니다.${remade}`),
+    sw('병렬 생성', false, `창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다(모자라면 그 채보는 기존 생성기로). 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`),
+  ];
+  const tab: Tab = { id: 'mapper', label: 'AI 채보', intro: '채보를 만드는 모델과 그 옵션', defaultHelp: '', rows };
+  // the status as the server would report it: SAMPLE values (this machine has no NVIDIA GPU to ask)
+  tab.sync = () => {
+    status.html = `<table class="kv"><tbody><tr><td>상태</td><td class="ok">사용 중</td></tr><tr><td>GPU</td><td>서버가 찾은 GPU 이름</td></tr><tr><td>모델</td><td>${model.value === 1 ? 'v32-mini' : 'v32'}</td></tr></tbody></table>`;
+  };
+  tab.sync();
+  return tab;
 }
 
-export function playOptionTabs(): Tab[] {
-  return data.playOptions.tabs.map((t) => tabOf({ id: t.id, label: t.label, defaultHelp: t.defaultHelp, rows: data.playOptions.rows.filter((r) => r.tab === t.label) }));
+export function settingsTabs(): Tab[] {
+  const tabs = data.tabs.map((t) =>
+    // 난이도 기준 (기본 · DJMAX · EZ2ON) is gone from the game's newer branches: left out here too
+    tabOf(t.id === 'play' ? { ...t, rows: t.rows.filter((r) => r.label !== '난이도 기준') } : t),
+  );
+  const at = tabs.findIndex((t) => t.id === 'advanced');
+  tabs.splice(at < 0 ? tabs.length : at, 0, mapperTab());
+  return tabs;
+}
+
+/**
+ * The play options as one list: what the song select's strip shows first (노트 속도, 배치, FEVER),
+ * then what is left of 플레이 규칙. 게이지 · 페이스메이커 stay in 설정 → 플레이; 오토 플레이 and
+ * 목표 레벨, the 속도·기어 tab and the 생성 옵션 tab are taken out.
+ */
+export function playOptionRows(): Row[] {
+  const pick = (label: string, tab: string) => data.playOptions.rows.find((r) => r.label === label && r.tab === tab) as RawRow;
+  const tab = tabOf({
+    id: 'rules',
+    label: '플레이 옵션',
+    rows: [pick('노트 속도', '속도·기어'), ...['배치', 'FEVER', '판정', '점수 규칙', '연습 모드', '재생 속도', '구간 반복'].map((l) => pick(l, '플레이 규칙'))],
+  });
+  const by = (l: string) => tab.rows.find((r) => r.label === l) as Row;
+  by('판정').heading = '—';
+  by('연습 모드').heading = '—';
+  by('구간 반복').value = by('구간 반복').initial = 0;
+  return tab.rows;
 }

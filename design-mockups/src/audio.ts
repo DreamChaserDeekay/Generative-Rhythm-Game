@@ -33,6 +33,12 @@ export interface Kit {
   events: KitEvent[];
 }
 
+/**
+ * The menu and play sounds are parked: the kit is being chosen again later, so nothing of it is
+ * loaded or played for now. The calls stay where the sounds belong (sfx('cursor') …), and the
+ * samples wait in _src/sfx/kit (they go back to public/sfx when this is turned on).
+ */
+export const SFX_ON = false;
 const STORE = 'hanjul.sfx.v1';
 const engine = getAudioEngine();
 export const ctx = engine.ctx;
@@ -52,6 +58,7 @@ export async function unlock(): Promise<void> {
 }
 
 export async function loadKit(): Promise<void> {
+  if (!SFX_ON) return;
   try {
     picks = JSON.parse(localStorage.getItem(STORE) ?? '{}') as Record<string, string>;
   } catch {
@@ -124,6 +131,7 @@ function fire(c: Candidate, gain = 1, rate = 1): void {
 
 /** Plays the event's picked sample. `gain` and `rate` only scale the recording (quieter repeats, a detent a step up). */
 export function sfx(event: string, gain = 1, rate = 1): void {
+  if (!SFX_ON) return;
   const c = pickOf(event);
   if (c) fire(c, gain, rate);
 }

@@ -1,0 +1,1059 @@
+/* ── song select ─────────────────────────────────────────────────────────────────────────── */
+/* behind everything: the picked jacket's colours, stretched from a 6 px picture (no blur runs) */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.backdrop i {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 520ms linear;
+}
+.backdrop i.on {
+  opacity: 1;
+}
+.backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 12, 14, 0.8);
+}
+[data-backdrop='plain'] .backdrop {
+  display: none;
+}
+
+/* the key modes, across the top */
+.modes {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: 1rem;
+}
+#app .modes button {
+  position: relative;
+  height: 1.875rem;
+  padding: 0 0.75rem;
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: var(--t-17);
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+#app .modes button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--paper);
+  transform: skewX(var(--skew));
+  opacity: 0;
+}
+#app .modes button span {
+  position: relative;
+}
+#app .modes button.on {
+  color: var(--on-paper);
+}
+#app .modes button.on::before {
+  opacity: 1;
+}
+.modes-key {
+  margin-left: 0.75rem;
+}
+/* while the song's page is read, the key mode stays as it is */
+.reading .modes {
+  pointer-events: none;
+}
+.reading .modes button:not(.on),
+.reading .modes-key {
+  visibility: hidden;
+}
+
+/* the picked song, on the left */
+.info,
+.opts {
+  position: absolute;
+  left: var(--gutter);
+  top: 4.75rem;
+  width: var(--col-w);
+  transition:
+    opacity var(--move) linear,
+    transform var(--move) var(--ease);
+}
+.hero {
+  position: relative;
+  display: flex;
+  gap: 1.75rem;
+  height: 18.75rem;
+}
+.hero.arrive .jk-slot {
+  animation: jk-in 220ms var(--ease);
+}
+.hero.arrive .ident > * {
+  animation: text-in 220ms var(--ease) backwards;
+}
+.hero.arrive .ident > :nth-child(3) {
+  animation-delay: 20ms;
+}
+.hero.arrive .ident > :nth-child(4) {
+  animation-delay: 40ms;
+}
+.hero.arrive .ident > :nth-child(5) {
+  animation-delay: 60ms;
+}
+@keyframes jk-in {
+  from {
+    opacity: 0.25;
+    transform: translateY(0.5rem);
+  }
+}
+@keyframes text-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.5rem);
+  }
+}
+.jk-box {
+  position: relative;
+  flex: none;
+  width: 18.75rem;
+  height: 18.75rem;
+}
+.jk-slot,
+.jk-slot .jk {
+  width: 100%;
+  height: 100%;
+}
+.jk-slot .jk {
+  outline: 1px solid var(--hair);
+  outline-offset: -1px;
+}
+/* what is registered on the jacket: its picture (the pencil) and the background video */
+#app .jk-btn {
+  position: absolute;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  background: rgba(11, 12, 14, 0.86);
+  color: var(--text);
+  font-size: var(--t-13);
+  font-weight: 700;
+}
+.jk-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.jk-btn.edit {
+  right: 0;
+}
+.jk-btn.video {
+  left: 0;
+}
+#app .jk-btn.video.has {
+  background: var(--paper);
+  color: var(--on-paper);
+}
+#app .jk-btn.video.has kbd {
+  border-color: var(--on-paper);
+  color: var(--on-paper);
+}
+.ident {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+#app .fav {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--text-3);
+}
+#app .fav.on {
+  color: var(--lamp-maxcombo);
+}
+.fav svg {
+  width: 100%;
+  height: 100%;
+}
+.album {
+  min-height: 1.25rem;
+  padding-right: 2rem;
+  font-size: var(--t-13);
+  font-weight: 600;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ident h1 {
+  margin-top: 0.25rem;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.ident h1[data-size='l'] {
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+.ident h1[data-size='s'] {
+  font-size: 1.5rem;
+}
+.artist {
+  margin-top: 0.5rem;
+  font-size: var(--t-17);
+  font-weight: 500;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  margin-top: auto;
+  display: flex;
+  gap: 2rem;
+}
+.meta > div {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.meta b {
+  font-size: var(--t-32);
+  line-height: 1.1;
+}
+.beat {
+  position: absolute;
+  left: 2.125rem;
+  top: 0.375rem;
+  width: 0.375rem;
+  height: 0.375rem;
+  background: var(--text);
+  opacity: 0.22;
+}
+
+/* the five steps of the picked song's difficulty */
+.tiers {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-left: 0.4375rem;
+}
+#app .tier {
+  position: relative;
+  flex: 1;
+  height: 4.25rem;
+  color: var(--text);
+}
+#app .tier::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-1);
+  box-shadow: inset 0 0 0 1px var(--hair);
+  transform: skewX(var(--skew));
+  transition: background var(--fast) linear;
+}
+#app .tier.on::before {
+  background: var(--tier);
+  box-shadow: none;
+}
+.tier-in {
+  position: absolute;
+  inset: 0.4375rem 0.75rem 0.375rem 0.625rem;
+  display: block;
+}
+.tier-name {
+  position: absolute;
+  left: 0.25rem;
+  top: 0;
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: var(--t-15);
+  letter-spacing: 0.08em;
+  color: var(--tier);
+}
+.tier-in b {
+  position: absolute;
+  right: 0.125rem;
+  bottom: -0.125rem;
+  font-size: 2.125rem;
+  line-height: 1;
+}
+.tier-in .lamp {
+  position: absolute;
+  left: -0.125rem;
+  bottom: 0.25rem;
+}
+.tier.on .tier-name,
+.tier.on .tier-in b {
+  color: var(--on-paper);
+}
+.tier.on .lamp {
+  color: var(--on-paper);
+}
+
+/* the picked chart in four numbers */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 1.25rem;
+}
+.facts > div {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.875rem;
+  border-left: 1px solid var(--hair);
+}
+.facts > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.facts b {
+  font-size: var(--t-24);
+  line-height: 1.25;
+}
+.facts b small {
+  font-size: var(--t-15);
+  margin-left: 0.0625rem;
+}
+.facts b.none {
+  font-family: var(--font-ui);
+  font-size: var(--t-15);
+  font-weight: 600;
+  color: var(--text-2);
+  line-height: 2rem;
+}
+.best-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--text);
+}
+
+/* how it will be played: three values on the screen, the rest a key away */
+#app .quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: 100%;
+  margin-top: 1.375rem;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--hair);
+  text-align: left;
+}
+.quick-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  font-size: var(--t-13);
+  font-weight: 700;
+  color: var(--text);
+}
+.quick-cell {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.875rem;
+  border-left: 1px solid var(--hair);
+}
+.quick-cell b {
+  font-size: var(--t-20);
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.quick-cell b.num {
+  font-size: var(--t-24);
+  line-height: 1.25;
+}
+
+/* the play options opened in place: the song shrinks to a line, the rows take its room */
+.opts {
+  bottom: calc(var(--hint-h) + 0.75rem);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(0.75rem);
+  pointer-events: none;
+}
+.opting .opts {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.opting .info {
+  opacity: 0;
+  transform: translateY(-0.75rem);
+  pointer-events: none;
+}
+.opting .wheel,
+.opting .filters {
+  opacity: 0.28;
+  pointer-events: none;
+}
+.opts-song {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.opts-song .jk {
+  width: 4rem;
+  flex: none;
+}
+.opts-song > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opts-song b {
+  font-size: var(--t-20);
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opts-song > div span {
+  font-size: var(--t-15);
+  color: var(--text-2);
+}
+.chip-tier {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  background: var(--tier);
+  color: var(--on-paper);
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: var(--t-15);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.chip-tier b {
+  font-size: var(--t-20);
+}
+.opts-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0.5rem;
+}
+.opts-head b {
+  font-size: var(--t-24);
+  font-weight: 800;
+}
+.opts-head span {
+  font-size: var(--t-13);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.opts-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.opts-rows::-webkit-scrollbar {
+  display: none;
+}
+.opts-help {
+  min-height: 2.875rem;
+  padding-top: 0.75rem;
+  font-size: var(--t-15);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+/* the practice stretch within the song */
+.span-map {
+  position: relative;
+  width: 9rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  background: rgba(127, 127, 127, 0.35);
+}
+.span-map i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: currentColor;
+}
+.span-name {
+  margin-left: 0.25rem;
+  font-size: var(--t-13);
+}
+
+/* the library: which songs (1 · 5) and in what order (2 – 4) */
+.filters {
+  position: absolute;
+  left: var(--list-x);
+  right: var(--gutter);
+  top: calc(var(--top-h) + 0.5rem);
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.125rem;
+  transition: opacity var(--move) linear;
+  z-index: 2;
+}
+#app .chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 100%;
+  font-size: var(--t-15);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+#app .chip.on {
+  color: var(--text);
+  font-weight: 800;
+}
+#app .chip.on::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0.125rem;
+  background: var(--paper);
+}
+#app .chip.on kbd {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--on-paper);
+}
+.chip .dir {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  margin-left: -0.125rem;
+}
+.chip .dir svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 2.6;
+}
+.filters-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+#app .find {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 1.875rem;
+  max-width: 11rem;
+  font-size: var(--t-15);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.find span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.find svg {
+  width: 1rem;
+  height: 1rem;
+}
+#app .find.has {
+  color: var(--text);
+}
+.find.on {
+  padding: 0 0.625rem;
+  border: 1px solid var(--paper);
+  color: var(--text);
+}
+.find input {
+  width: 9.5rem;
+  background: none;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.find input::placeholder {
+  color: var(--text-3);
+  font-weight: 600;
+}
+
+/* the wheel: the picked song in the middle, the others leaning away from it */
+.wheel {
+  position: absolute;
+  left: calc(var(--list-x) - 1rem);
+  right: 0;
+  top: calc(var(--top-h) + 2.75rem);
+  bottom: var(--hint-h);
+  overflow: hidden;
+  transition: opacity var(--move) linear;
+}
+.wrow {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  width: var(--row-w);
+  height: 3.25rem;
+  margin-top: -1.625rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.875rem 0 0.75rem;
+  cursor: pointer;
+  transition:
+    transform var(--move) var(--ease),
+    opacity var(--move) linear,
+    height var(--move) var(--ease),
+    margin-top var(--move) var(--ease);
+  will-change: transform;
+}
+.wrow.on {
+  height: 5.5rem;
+  margin-top: -2.75rem;
+  padding-left: 1.125rem;
+  color: var(--on-paper);
+  z-index: 1;
+}
+.wplate {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.045);
+  transform: skewX(var(--skew));
+}
+.wrow.on .wplate {
+  background: var(--paper);
+}
+/* the picked difficulty's colour on the picked song's plate */
+.wrow.on .wplate::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0.375rem;
+  background: var(--tier);
+}
+.wjk {
+  position: relative;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  transition:
+    width var(--move) var(--ease),
+    height var(--move) var(--ease);
+}
+.wrow.on .wjk {
+  width: 4.25rem;
+  height: 4.25rem;
+}
+.wjk .jk {
+  width: 100%;
+  height: 100%;
+}
+.wtext {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wtext b {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wtext span {
+  font-size: var(--t-13);
+  font-weight: 500;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wrow.on .wtext b {
+  font-size: 1.375rem;
+  font-weight: 800;
+}
+.wrow.on .wtext span {
+  font-size: var(--t-15);
+  font-weight: 600;
+  color: var(--on-paper-2);
+}
+.wfav {
+  position: relative;
+  display: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--lamp-maxcombo);
+}
+.wrow.is-fav .wfav {
+  display: block;
+}
+.wrow.on .wfav {
+  color: var(--on-paper);
+}
+.wfav svg {
+  width: 100%;
+  height: 100%;
+}
+.wlv {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 3.25rem;
+}
+.wlv b {
+  min-width: 1.5rem;
+  text-align: right;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--tier);
+}
+.wrow.on .wlv b {
+  font-size: 2.125rem;
+  color: var(--on-paper);
+}
+.wrow.on .wlv .lamp {
+  color: var(--on-paper);
+}
+.wheel-empty {
+  position: absolute;
+  left: var(--list-x);
+  right: var(--gutter);
+  top: 45%;
+  display: none;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.empty .wheel-empty {
+  display: flex;
+}
+.wheel-empty b {
+  font-size: var(--t-20);
+  font-weight: 800;
+}
+.wheel-empty span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: var(--t-15);
+  color: var(--text-2);
+}
+.empty .info {
+  visibility: hidden;
+}
+
+/* ── 곡 정보·도구: everything else about the song ─────────────────────────────────────────── */
+.sinfo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--top-h);
+  bottom: var(--hint-h);
+  display: none;
+  grid-template-columns: 13.5rem minmax(0, 1fr) 18.5rem;
+  gap: 2.5rem;
+  padding: 1.25rem var(--gutter) 0.75rem;
+  background: var(--bg);
+  z-index: 3;
+}
+.sinfo.on {
+  display: grid;
+  animation: sinfo-in var(--move) var(--ease);
+}
+@keyframes sinfo-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+.si-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.si-song {
+  display: flex;
+  flex-direction: column;
+}
+.si-song .jk {
+  width: 8.5rem;
+  margin-bottom: 0.875rem;
+}
+.si-song b {
+  font-size: var(--t-17);
+  font-weight: 800;
+  line-height: 1.25;
+}
+.si-song > span:not(.chip-tier) {
+  font-size: var(--t-13);
+  color: var(--text-2);
+}
+.si-song .chip-tier {
+  margin: 0.75rem auto 0 0;
+}
+.si-tabs {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.5rem;
+}
+#app .si-tabs button,
+#app .cfg-tabs button {
+  height: 2.375rem;
+  padding: 0 0.875rem;
+  font-size: var(--t-17);
+  font-weight: 700;
+  color: var(--text-2);
+}
+#app .si-tabs button.on,
+#app .cfg-tabs button.on {
+  background: var(--paper);
+  color: var(--on-paper);
+}
+.si-tabs-key,
+.cfg-tabs-key {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin-top: 0.75rem;
+  padding-left: 0.875rem;
+  font-size: var(--t-13);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.si-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.si-head,
+.cfg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+.si-head b,
+.cfg-head b {
+  font-size: var(--t-24);
+  font-weight: 800;
+}
+.si-head span,
+.cfg-head span {
+  font-size: var(--t-13);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.si-scope {
+  height: 13.25rem;
+}
+.si-scope canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.si-legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+  font-size: var(--t-13);
+  color: var(--text-2);
+}
+.si-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.si-legend .line {
+  width: 1rem;
+  height: 0.125rem;
+  background: var(--tier);
+}
+.si-legend .bar {
+  width: 0.1875rem;
+  height: 0.75rem;
+  background: rgba(255, 255, 255, 0.3);
+}
+.si-stats {
+  display: grid;
+  grid-template-columns: repeat(7, auto);
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+.si-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+.si-stats b {
+  font-size: var(--t-20);
+  line-height: 1.3;
+}
+.si-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 0.875rem;
+}
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-top: 0.375rem;
+}
+.bars > div {
+  display: grid;
+  grid-template-columns: 4.25rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--t-13);
+  color: var(--text-2);
+}
+.bars i {
+  height: 0.25rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.bars u {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+.bars b {
+  text-align: right;
+  font-size: var(--t-15);
+  color: var(--text);
+}
+.si-rows,
+.cfg-rows {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0.75rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.si-rows::-webkit-scrollbar,
+.cfg-rows::-webkit-scrollbar {
+  display: none;
+}
+[data-tab='tools'] .si-rows,
+[data-tab='song'] .si-rows {
+  margin-top: 0;
+}
+.si-help {
+  min-height: 2.75rem;
+  padding-top: 0.625rem;
+  font-size: var(--t-15);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.si-none {
+  font-size: var(--t-17);
+  color: var(--text-2);
+}
+.si-records {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-17);
+}
+.si-records th {
+  padding: 0 0.875rem 0.5rem;
+  border-bottom: 1px solid var(--hair);
+  text-align: left;
+  font-size: var(--t-13);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.si-records td {
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border-bottom: 1px solid var(--hair);
+  font-weight: 600;
+}
+.si-records td.num {
+  font-size: var(--t-20);
+}
+.si-records td[data-tier] b {
+  font-family: var(--font-num);
+  letter-spacing: 0.08em;
+  color: var(--tier);
+}
+.si-records tr.cur td {
+  background: rgba(255, 255, 255, 0.06);
+}
+.si-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.si-preview-head,
+.cfg-preview-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  height: 2.25rem;
+  white-space: nowrap;
+}
+.si-preview-head b,
+.cfg-preview-head b {
+  font-size: var(--t-17);
+}
+.si-preview-head span:last-child {
+  margin-left: auto;
+  font-size: var(--t-13);
+  font-weight: 700;
+}
+.si-stage,
+.cfg-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #050506;
+  overflow: hidden;
+}
+.stage-box {
+  position: absolute;
+  inset: 0;
+}
+.stage-box canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* what just happened is said under the library */
+.select .toast {
+  left: calc(var(--list-x) + var(--row-w) / 2);
+}

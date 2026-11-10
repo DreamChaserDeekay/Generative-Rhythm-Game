@@ -1,12 +1,12 @@
 import './styles.css';
-import { loadKit, preview, setSfxLevel, sfx, unlock } from './audio';
+import { preview, unlock } from './audio';
+import { MARK } from './art';
 import { ConfigScreen } from './config';
 import { chartOf, detailOf, loadLibrary, songs } from './data';
-import { el } from './dom';
+import { el, kbd } from './dom';
 import { NotesPage } from './notes';
 import { PlayScreen } from './play';
 import { SelectScreen } from './select';
-import { SoundBoard } from './sound';
 import { Stage } from './stage';
 import { onSettings, state, type ScreenName } from './state';
 
@@ -14,97 +14,72 @@ const app = document.getElementById('app') as HTMLElement;
 
 /**
  * Everything is drawn for a 1280 × 720 screen and grows with the window (1 rem = 16 px at 720p).
- * A window taller than 16:9 keeps the 16:9 frame across its width; a wider one gives the menus the room.
+ * A window taller than 16:9 keeps the 16:9 frame across its width.
  */
 function fit(): void {
   const box = app.parentElement as HTMLElement;
   const w = box.clientWidth;
   const h = Math.min(box.clientHeight, (w * 9) / 16);
+  const width = Math.min(w, (h * 16) / 9);
   app.style.height = `${h}px`;
+  app.style.width = `${width}px`;
+  app.style.left = `${(w - width) / 2}px`;
   app.style.top = `${Math.max(0, (box.clientHeight - h) / 2)}px`;
-  const rem = (16 * h) / 720;
-  document.documentElement.style.fontSize = `${rem}px`;
-  // the track in the menus: 0.56 of its play size, its middle 15 rem from the right edge
-  const s = 0.56;
-  const x = w / 2 - 15 * rem;
-  app.style.setProperty('--menu-s', String(s));
-  app.style.setProperty('--menu-x', `${x}px`);
+  document.documentElement.style.fontSize = `${(16 * h) / 720}px`;
 }
 
-/** The screen's line runs up to the left end of the track's own line, wherever the camera puts it. */
-function joinLine(stage: Stage): void {
-  const ends = stage.lineEnds();
-  if (!ends) return;
-  const w = app.clientWidth;
-  const s = Number(app.style.getPropertyValue('--menu-s'));
-  const x = parseFloat(app.style.getPropertyValue('--menu-x'));
-  const rem = parseFloat(document.documentElement.style.fontSize);
-  const left = w / 2 + (ends.left - w / 2) * s + x;
-  app.style.setProperty('--line-stop', `${w - left - rem * 0.375}px`);
-}
-
-const PAGES: [ScreenName, string][] = [
-  ['select', '곡 선택'],
-  ['config', '설정'],
-  ['play', '플레이'],
-  ['sound', '소리 고르기'],
-  ['notes', '설명'],
-];
-/** How loud the preview plays under each screen. */
-const BED: Record<ScreenName, number> = { select: 0.85, config: 0.5, play: 0, sound: 0, notes: 0.18 };
+/** How loud the song's preview plays under each screen. */
+const BED: Record<ScreenName, number> = { select: 0.85, config: 0.5, play: 0, notes: 0.18 };
+/** The mockup's two side-by-side choices: what is behind the song select, and how its list leans. */
+const CHOICES = {
+  backdrop: { key: 'F7', label: '배경', values: ['wash', 'plain'], names: { wash: '커버 색', plain: '단색' } },
+  wheel: { key: 'F8', label: '목록', values: ['arc', 'flat'], names: { arc: '휠', flat: '직선' } },
+} as const;
 
 async function boot(): Promise<void> {
   fit();
   window.addEventListener('resize', fit);
   await loadLibrary();
   state.song = Math.min(state.song, songs.length - 1);
+  app.dataset.backdrop = 'wash';
+  app.dataset.wheel = 'arc';
 
-  const stageBox = el('div', 'stage');
-  const canvas = el('canvas');
-  stageBox.append(canvas);
-  app.append(stageBox, el('div', 'the-line'), el('div', 'line-end'));
-  const stage = new Stage(canvas, state.settings, state.mode);
+  const stage = new Stage(state.settings, state.mode);
   stage.clock = () => preview.songMs();
-  stage.onLayout = () => joinLine(stage);
-  stage.apply(state.settings, state.mode);
-  stage.start();
-
   const select = new SelectScreen(stage);
-  const config = new ConfigScreen();
+  const config = new ConfigScreen(stage);
   app.append(select.root, config.root);
-  const play = new PlayScreen(app, stage);
-  const sound = new SoundBoard();
+  const play = new PlayScreen(app);
   const notes = new NotesPage();
-  app.append(sound.root, notes.root);
+  app.append(notes.root);
   const dock = el('nav', 'dock');
   const gate = el(
     'div',
     'gate',
-    `<div><b>한 줄</b><span>Generative Rhythm · 곡 선택 · 설정 · 플레이 디자인 시안</span><p>키보드로 조작합니다. 화면 아래 줄에 지금 쓸 수 있는 키가 늘 보이고, 그 키들은 눌러도(클릭) 됩니다.<br />위 가운데의 <i>시안</i> 줄에서 숫자 1–5로 다섯 쪽을 오갑니다. 소리가 납니다.</p><em>아무 키나 눌러 시작</em></div>`,
+    `<div><div class="mark">${MARK}<span>GENERATIVE RHYTHM</span></div><h1>곡 선택 · 설정 · 플레이<br />디자인 시안 2</h1><p>키보드로 조작합니다. 화면 아래 줄에 지금 쓸 수 있는 키가 늘 보이고, 그 키들은 눌러도(클릭) 됩니다.</p><p><b>${kbd('F1')} 시안 설명</b> · <b>${kbd('F7')} 배경 후보</b> · <b>${kbd('F8')} 목록 후보</b>는 시안 전용 키입니다.<br />효과음은 이번 시안에서 뺐습니다. 곡 미리듣기와 플레이 음악만 납니다.</p><em><span>아무 키나 눌러 시작</span></em></div>`,
   );
   // on a screen too small to read the 16:9 frame: say so, in type that does not shrink with it
   const small = el('p', 'small-screen', '이 시안은 키보드로 조작하는 가로 화면용입니다. 1280 × 720보다 큰 창에서 열어 주세요.');
   app.append(dock, gate);
   (app.parentElement as HTMLElement).append(small);
 
-  const screens = { select, config, play, sound, notes };
+  const screens = { select, config, play, notes };
   let at: ScreenName = 'select';
   let unlocked = false;
-  let bedBoost = 0;
-  const bed = () => preview.setLevel(Math.max(BED[at], bedBoost) * (state.settings.musicVolume / 0.9));
+  const bed = () => preview.setLevel(BED[at] * (state.settings.musicVolume / 0.9));
   const drawDock = () => {
-    dock.innerHTML = `<span class="cap">시안</span>${PAGES.map(([id, label], i) => `<button data-go="${id}" class="${id === at ? 'on' : ''}"><kbd>${i + 1}</kbd>${label}</button>`).join('')}`;
+    dock.innerHTML = `<button data-key="F1" class="${at === 'notes' ? 'on' : ''}">${kbd('F1')}시안 설명${at === 'notes' ? ' 닫기' : ''}</button>`;
   };
   const go = (to: ScreenName, how?: { auto?: boolean }) => {
     if (to === at && to !== 'play') return;
-    if (to === at) screens[at].leave();
-    else screens[at].leave();
+    const jacketAt = at === 'select' && to === 'play' ? select.jacketRect() : null;
+    screens[at].leave();
     at = to;
     app.dataset.screen = to;
-    bedBoost = 0;
     if (to === 'play') {
       preview.cancel();
       play.enter(how?.auto ?? false);
+      play.arriveFrom(jacketAt);
     } else {
       screens[to].enter();
       bed();
@@ -118,56 +93,67 @@ async function boot(): Promise<void> {
     drawDock();
   };
   select.onPlay = (auto) => go('play', { auto });
-  select.onConfig = () => {
-    sfx('open');
-    go('config');
-  };
+  select.onConfig = () => go('config');
   config.onDone = () => go('select');
   play.onLeave = () => go('select');
-  sound.onDone = () => go('select');
-  sound.onMusic = (on) => {
-    bedBoost = on ? 0.7 : 0;
-    bed();
-  };
   notes.onDone = () => go('select');
-  // a key mode changed in the settings: the track plays the picked song's chart of that mode
-  let shown = `${state.mode}`;
-  const followMode = () => {
-    if (shown === state.mode) return;
-    shown = state.mode;
+  notes.onChoice = (name) => choose(name);
+
+  // the track in the menus plays the picked song's chart of the picked key mode
+  let shown = '';
+  const follow = () => {
+    const key = `${state.song}|${state.mode}|${state.tier}`;
+    if (shown === key || at !== 'config') return;
+    shown = key;
     const song = songs[state.song];
     const [mode, tier] = [state.mode, state.tier];
-    void detailOf(song).then((d) => state.mode === mode && songs[state.song] === song && stage.setChart(chartOf(song, d, mode, tier)));
+    void detailOf(song).then((d) => state.mode === mode && songs[state.song] === song && at === 'config' && stage.setChart(chartOf(song, d, mode, tier)));
   };
   onSettings(() => {
     stage.apply(state.settings, state.mode);
-    followMode();
-    setSfxLevel(state.settings.sfxVolume);
+    follow();
     if (at !== 'play') bed();
   });
-  setSfxLevel(state.settings.sfxVolume);
+  const enterConfig = config.enter.bind(config);
+  config.enter = () => {
+    enterConfig();
+    shown = '';
+    follow();
+  };
+
+  const names = () => ({
+    backdrop: (CHOICES.backdrop.names as Record<string, string>)[app.dataset.backdrop ?? 'wash'],
+    wheel: (CHOICES.wheel.names as Record<string, string>)[app.dataset.wheel ?? 'arc'],
+  });
+  const choose = (name: keyof typeof CHOICES): void => {
+    const c = CHOICES[name];
+    const now = app.dataset[name] ?? c.values[0];
+    const next = c.values[(c.values.indexOf(now as never) + 1) % c.values.length];
+    app.dataset[name] = next;
+    notes.showChoices(names());
+    if (at === 'select') {
+      select.relayout();
+      select.toast(`${c.label} 후보: ${(c.names as Record<string, string>)[next]}`, 1500);
+    }
+  };
 
   const open = async () => {
     if (unlocked) return;
     unlocked = true;
     gate.classList.add('gone');
     await unlock();
-    sfx('confirm');
     if (at !== 'play') {
       bed();
       void preview.play(songs[state.song].id, songs[state.song].previewMs);
     }
   };
 
-  /** A key, to the mockup's own navigation first and then to the screen it is on. */
+  /** A key, to the mockup's own first and then to the screen it is on. */
   const handle = (e: KeyboardEvent): boolean => {
-    const digit = /^(?:Digit|Numpad)([1-5])$/.exec(e.code);
-    // the mockup's own keys: 1–5 jump between its pages (not while a play runs or a field takes text)
-    if (digit && at !== 'play' && !e.altKey && !select.takesText && !config.takesKeys) {
-      const to = PAGES[Number(digit[1]) - 1][0];
-      if (to !== at) sfx('tab');
-      go(to);
-      return true;
+    if (at !== 'play' && !select.takesText && !config.takesKeys) {
+      if (e.code === 'F1') return go(at === 'notes' ? 'select' : 'notes'), true;
+      if (e.code === CHOICES.backdrop.key) return choose('backdrop'), true;
+      if (e.code === CHOICES.wheel.key) return choose('wheel'), true;
     }
     return screens[at].key(e);
   };
@@ -188,11 +174,9 @@ async function boot(): Promise<void> {
   app.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
     if (!unlocked) return void open();
-    const b = t.closest<HTMLElement>('[data-go]');
-    if (b?.dataset.go) {
-      if (b.dataset.go !== at) sfx('tab');
-      return go(b.dataset.go as ScreenName);
-    }
+    // a pressed button keeps no focus (Space and Enter are the screen's keys, not the button's)
+    const focused = document.activeElement as HTMLElement | null;
+    if (focused && focused !== document.body && focused.tagName !== 'INPUT') focused.blur();
     const k = t.closest<HTMLElement>('[data-key]');
     if (k?.dataset.key) {
       const [code, shift] = k.dataset.key.startsWith('Shift+') ? [k.dataset.key.slice(6), true] : [k.dataset.key, false];
@@ -202,13 +186,26 @@ async function boot(): Promise<void> {
     }
   });
 
+  notes.showChoices(names());
   const hash = location.hash.slice(1);
   const start = (hash === 'options' ? 'config' : hash) as ScreenName;
   app.dataset.screen = at;
   select.enter();
   drawDock();
   if (start !== 'select' && start !== 'play' && start in screens) go(start);
-  await loadKit();
+  // the jackets are ready before the wheel turns to them
+  await Promise.all(
+    songs
+      .filter((s) => s.hasCover)
+      .map(
+        (s) =>
+          new Promise<void>((done) => {
+            const img = new Image();
+            img.onload = img.onerror = () => done();
+            img.src = `./covers/${s.id}.jpg`;
+          }),
+      ),
+  );
   (window as unknown as { __ready: boolean }).__ready = true;
 }
 

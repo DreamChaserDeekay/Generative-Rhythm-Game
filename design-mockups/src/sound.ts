@@ -1,6 +1,6 @@
 import { audition, bufferOf, kit, pickOf, resetPicks, setPick, sfx, type Candidate, type KitEvent } from './audio';
 import { clamp, el, esc, fitCanvas, kbd, token } from './dom';
-import { EMBLEM } from './select';
+import { MARK as EMBLEM } from './art';
 
 /** A run of the kit as the menus and a play would sound it, to hear whether it is one set. */
 const DEMO: [event: string, afterMs: number][] = [

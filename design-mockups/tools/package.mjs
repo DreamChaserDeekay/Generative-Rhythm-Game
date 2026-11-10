@@ -10,7 +10,7 @@ const html = readFileSync(join(dist, 'index.html'), 'utf8');
 const css = [...html.matchAll(/<link rel="stylesheet"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
 const js = [...html.matchAll(/<script type="module"[^>]*src="([^"]+)"/g)].map((m) => m[1]);
 const page = [
-  '<title>Generative Rhythm 한 줄 시안</title>',
+  '<title>Generative Rhythm 디자인 시안</title>',
   ...css.map((href) => `<link rel="stylesheet" href="${href}">`),
   '<div id="app"></div>',
   ...js.map((src) => `<script type="module" src="${src}"></script>`),

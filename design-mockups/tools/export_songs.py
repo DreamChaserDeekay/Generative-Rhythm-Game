@@ -141,6 +141,10 @@ def main() -> None:
                 "id": sid,
                 "title": song["title"],
                 "artist": song["artist"],
+                # the album as the server read it from the file's tags (empty when the file has none)
+                "album": song.get("album", ""),
+                # a sample jacket made for the mockup (tools/make_covers.py), never the file's own picture
+                "hasCover": (OUT / "covers" / f"{sid}.jpg").exists(),
                 "durationMs": song["durationMs"],
                 "bpm": song["bpm"],
                 "bpmMin": song["bpmMin"],

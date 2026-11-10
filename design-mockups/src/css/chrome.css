@@ -1,0 +1,314 @@
+/* ── the mockup's own chrome (not part of the design): its start card, its key, its notes ──── */
+.dock {
+  position: absolute;
+  right: calc(var(--gutter) + 7.5rem);
+  top: 0;
+  height: var(--top-h);
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  z-index: 40;
+}
+#app .dock button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px dashed var(--hair-2);
+  font-size: var(--t-13);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+#app .dock button.on {
+  border-style: solid;
+  border-color: var(--paper);
+  color: var(--text);
+}
+[data-screen='play'] .dock {
+  display: none;
+}
+[data-screen='notes'] .dock {
+  right: var(--gutter);
+}
+.gate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 60;
+  transition:
+    opacity 260ms linear,
+    visibility 0s linear 260ms;
+}
+.gate.gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.gate > div {
+  width: 40rem;
+}
+.gate .mark {
+  margin-bottom: 1.5rem;
+}
+.gate h1 {
+  font-size: var(--t-44);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+#app .gate p {
+  margin-top: 1rem;
+  font-size: var(--t-17);
+  line-height: 1.65;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.gate p b {
+  color: var(--text);
+  font-weight: 700;
+}
+.gate em {
+  display: inline-block;
+  margin-top: 2rem;
+  padding: 0.5rem 1rem;
+  background: var(--paper);
+  color: var(--on-paper);
+  font-style: normal;
+  font-size: var(--t-17);
+  font-weight: 800;
+  transform: skewX(var(--skew));
+}
+.gate em span {
+  display: inline-block;
+  transform: skewX(calc(-1 * var(--skew)));
+}
+
+/* 설명: a page to read */
+#app .doc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--top-h);
+  bottom: 0;
+  overflow-y: auto;
+  outline: none;
+  background: var(--bg);
+  user-select: text;
+  -webkit-user-select: text;
+}
+#app .doc article {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 2rem var(--gutter) 6rem;
+  font-size: var(--t-17);
+  line-height: 1.7;
+}
+#app .doc h1 {
+  font-size: 3.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0;
+}
+#app .doc .lede {
+  margin: 1rem 0 0;
+  font-size: 1.375rem;
+  line-height: 1.5;
+  font-weight: 500;
+  max-width: 46rem;
+  text-wrap: pretty;
+}
+#app .doc h2 {
+  margin: 4rem 0 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hair-2);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+#app .doc h3 {
+  margin: 2rem 0 0.5rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+#app .doc p,
+#app .doc li {
+  max-width: 46rem;
+  color: var(--text);
+  text-wrap: pretty;
+}
+#app .doc p {
+  margin: 0 0 0.75rem;
+}
+#app .doc ul,
+#app .doc ol {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+#app .doc li {
+  margin-bottom: 0.5rem;
+}
+#app .doc .dim {
+  color: var(--text-2);
+}
+#app .doc a {
+  color: var(--text);
+  text-underline-offset: 3px;
+}
+#app .doc code,
+#app .doc kbd {
+  font-size: 0.875em;
+}
+#app .doc kbd {
+  height: 1.5em;
+  vertical-align: 0.05em;
+}
+#app .doc code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  padding: 0 0.25em;
+  background: var(--bg-2);
+  overflow-wrap: anywhere;
+}
+#app .doc figure {
+  margin: 1rem 0 1.5rem;
+}
+#app .doc figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--hair);
+}
+#app .doc figcaption {
+  margin-top: 0.5rem;
+  color: var(--text-2);
+  font-size: var(--t-15);
+  max-width: 46rem;
+}
+#app .doc .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+#app .doc .pair figure {
+  margin: 0 0 1rem;
+}
+#app .doc .tablebox {
+  overflow-x: auto;
+  margin: 0.75rem 0 1.5rem;
+}
+#app .doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-15);
+  line-height: 1.5;
+}
+#app .doc th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-2);
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--hair-2);
+  white-space: nowrap;
+}
+#app .doc td {
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--hair);
+  vertical-align: top;
+}
+#app .doc td.num,
+#app .doc td:first-child {
+  white-space: nowrap;
+}
+#app .doc td.wrap:first-child {
+  white-space: normal;
+}
+#app .doc .done {
+  color: var(--ok);
+  font-weight: 700;
+  white-space: nowrap;
+}
+#app .doc .ask {
+  color: var(--warn);
+  font-weight: 700;
+}
+#app .doc .covers {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  margin: 0.75rem 0 1.5rem;
+}
+#app .doc .covers figure {
+  margin: 0;
+}
+#app .doc .covers figcaption {
+  font-size: var(--t-13);
+}
+#app .doc .try {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1.5rem;
+}
+#app .doc .try button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--hair-2);
+  font-size: var(--t-15);
+  font-weight: 700;
+}
+#app .doc details {
+  max-width: 46rem;
+  margin: 0 0 0.75rem;
+  color: var(--text-2);
+  font-size: var(--t-15);
+}
+#app .doc summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrow,
+  .info,
+  .opts {
+    transition: none;
+  }
+  .hero.arrive .jk-slot,
+  .hero.arrive .ident > *,
+  .sheet-box.fresh,
+  .sinfo.on,
+  .pf-card-text,
+  .pf-card-load,
+  .pf-result-in {
+    animation: none;
+  }
+}
+
+/* a window too small for the frame: a note in type that does not shrink with it */
+.small-screen {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: var(--paper);
+  color: var(--on-paper);
+  font: 600 14px/1.5 var(--font-ui);
+  z-index: 100;
+}
+@media (max-width: 719px), (max-height: 399px) {
+  .small-screen {
+    display: block;
+  }
+}

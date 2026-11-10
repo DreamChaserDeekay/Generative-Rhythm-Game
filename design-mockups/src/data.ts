@@ -36,6 +36,10 @@ export interface SongEntry {
   id: string;
   title: string;
   artist: string;
+  /** As the game's server reads it from the file's tags ('' when the file has none). */
+  album: string;
+  /** A sample jacket of the mockup (public/covers). */
+  hasCover: boolean;
   durationMs: number;
   bpm: number;
   bpmMin: number;
@@ -99,6 +103,13 @@ export function detailOf(song: SongEntry): Promise<SongDetail> {
     details.set(song.id, d);
   }
   return d;
+}
+
+/** The stem that has most of the song (the colour of a song's disc while it has no jacket, as in the game). */
+export function leadStem(song: SongEntry): StemName {
+  const shares = song.sketch.stems;
+  if (!shares) return 'other';
+  return STEMS.reduce((best, s) => (shares[s] > shares[best] ? s : best), STEMS[0]);
 }
 
 export function recordOf(songIndex: number, tier: Tier): SampleRecord | null {

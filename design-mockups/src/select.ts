@@ -1,17 +1,21 @@
-import type { SessionNote } from '@game/engine/session';
 import { preview, sfx } from './audio';
-import { MODES, SECTION_KO, STEMS, STEM_KO, TIERS, TIER_SHORT, bestLamp, bpmText, chartOf, detailOf, recordOf, songs, type ChartSummary, type SongDetail, type SongEntry, type Tier } from './data';
-import { clamp, clock, el, esc, fitCanvas, kbd, token } from './dom';
-import { playOptionTabs, type Row, type Tab } from './inventory';
-import { RowsPane } from './rows';
+import { ICON, MARK, coverOf, jacket, lampMark, washOf } from './art';
+import { MODES, SECTION_KO, TIERS, bpmText, detailOf, recordOf, songs, type SongDetail, type SongEntry, type Tier } from './data';
+import { clamp, clock, el, esc, kbd } from './dom';
+import { playOptionRows, syncRows, type Row } from './inventory';
+import { RowList } from './rows';
+import { SongInfo } from './songinfo';
 import type { Stage } from './stage';
-import { state } from './state';
+import { favorites, mediaOf, onSettings, state } from './state';
 
-const PLACEMENT_KO: Record<string, string> = { OFF: '정배치', MIRROR: '미러', RANDOM: '랜덤', 'R-RANDOM': 'R-랜덤', 'S-RANDOM': 'S-랜덤', 'H-RANDOM': 'H-랜덤' };
-const FEVER_KO: Record<string, string> = { AUTO: '자동', MANUAL: '수동', OFF: '끔' };
-const FOLDERS = ['전체', '즐겨찾기', '미플레이', '미클리어', '풀콤 미달'] as const;
-const SORTS = ['추가순', '제목순', '아티스트순', 'BPM순', '레벨순', '램프순', 'RATE순', '최근 플레이순'] as const;
-const LAMP_ORDER = ['FAILED', 'EASY CLEAR', 'CLEAR', 'HARD CLEAR', 'MAX COMBO', 'PERFECT PLAY'];
+type SortKey = 'title' | 'artist' | 'album';
+const FILTERS: { id: 'all' | SortKey | 'fav'; label: string }[] = [
+  { id: 'all', label: '전체' },
+  { id: 'title', label: '곡명' },
+  { id: 'artist', label: '아티스트명' },
+  { id: 'album', label: '앨범명' },
+  { id: 'fav', label: '즐겨찾기' },
+];
 const ADD_ITEMS: [string, string][] = [
   ['음악 파일', 'mp3 · ogg · wav · flac · m4a'],
   ['데모 곡', '합성한 128 BPM 곡'],
@@ -19,120 +23,159 @@ const ADD_ITEMS: [string, string][] = [
   ['채보 가져오기 · 폴더', 'BMS · bmson 폴더 (키음 포함)'],
   ['리플레이 파일 보기', '결과 화면에서 내보낸 .grgreplay.json'],
 ];
-const PATTERNS: [string, string][] = [
-  ['stairs', '계단'],
-  ['trills', '트릴'],
-  ['chords', '동치'],
-  ['jacks', '연타'],
-  ['holdTaps', '롱잡'],
-  ['leaps', '도약'],
-];
-const SKILLS: [string, string][] = [
-  ['stream', '스트림'],
-  ['chord', '동치'],
-  ['jack', '연타'],
-  ['longNote', '롱노트'],
-  ['technical', '테크니컬'],
-  ['stamina', '스태미나'],
-];
+const IMAGE_ACCEPT = '.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*';
+const VIDEO_ACCEPT = '.mp4,.webm,.m4v,.mov,.ogv,video/*';
+/** The wheel, in rem: the picked row's half height and its neighbours' pitch, and how far a row leans out per step away. */
+const ROW_NEAR = 4.5;
+const ROW_STEP = 3.5;
+const ARC = 0.32;
+const FADE = [1, 0.94, 0.8, 0.62, 0.42];
+
+interface SheetItem {
+  label: string;
+  sub?: string;
+  /** The key that does the same from the list (shown at the row's end). */
+  cap?: string;
+  /** A value changed with ←→ in the sheet. */
+  value?: () => string;
+  step?: (dir: 1 | -1, big: boolean) => void;
+  run?: () => void;
+  disabled?: boolean;
+}
+interface Sheet {
+  title: string;
+  sub?: string;
+  items: SheetItem[];
+  note?: string;
+  at: number;
+  atJacket?: boolean;
+  /** A line of text is being typed (a YouTube link). */
+  input?: { placeholder: string; submit: (text: string) => void };
+}
 
 /**
- * Song select. The list runs under the line: the song standing on it is the song picked, the five
- * steps of its difficulty stand on the line beside it, and the track plays the picked chart in time
- * with the preview. Above the line is what the analysis read in the song; under it, what to do.
+ * Song select. The song is its jacket: the picked one stands large on the left with what there is
+ * to decide about it (the difficulty, how it will be played), and the library is the wheel on the
+ * right. Everything else about a song is a key away (곡 정보·도구), not on this screen.
  */
 export class SelectScreen {
   readonly root = el('section', 'screen select');
   private rows: HTMLElement[] = [];
   private order: number[] = [];
-  private folder = 0;
-  private sort = 0;
+  private scope: 'all' | 'fav' = 'all';
+  private sort: { key: SortKey; dir: 'desc' | 'asc' } | null = null;
   private query = '';
   private searching = false;
-  private favorites = new Set<number>();
+  /** The song picked when the search began (Esc goes back to it). */
+  private searchFrom = -1;
   private detail: SongDetail | null = null;
-  private scope!: HTMLCanvasElement;
-  private overview: HTMLCanvasElement | null = null;
-  private overviewKey = '';
-  private raf = 0;
-  private pane: RowsPane | null = null;
-  private paneKind: 'options' | 'info' | null = null;
-  private addAt = -1;
+  private shownSong = -1;
   private active = false;
+  private raf = 0;
   private toastTimer = 0;
+  private previewTimer = 0;
+  private washAt = 0;
+  private sheet: Sheet | null = null;
+  private optRows: Row[] = playOptionRows();
+  private optList: RowList | null = null;
+  private info: SongInfo;
+  /** The practice stretch, in bars of the song (연습 모드). */
+  private practice = { from: 0, to: 0, song: -1 };
+  private fileInput = el('input');
   onPlay: (auto: boolean) => void = () => undefined;
   onConfig: () => void = () => undefined;
 
-  constructor(private stage: Stage) {
+  constructor(stage: Stage) {
     this.root.innerHTML = `
+      <div class="backdrop"><i></i><i></i></div>
       <header class="top">
-        <div class="mark">${EMBLEM}<span>GENERATIVE RHYTHM</span></div>
-        <span class="where">선곡</span>
-        <div class="acts"><button data-key="Equal">곡 추가 ${kbd('+')}</button><button data-key="F10">설정 ${kbd('F10')}</button></div>
+        <div class="mark">${MARK}<span>GENERATIVE RHYTHM</span></div>
+        <nav class="modes">${MODES.map((m) => `<button data-mode="${m}"><span>${m}</span></button>`).join('')}<span class="modes-key">${kbd('Tab')}</span></nav>
+        <div class="end"><button class="top-act" data-key="F10">설정 ${kbd('F10')}</button></div>
       </header>
-      <div class="folders"></div>
-      <div class="finder"><button class="find" data-key="Slash">${kbd('/')}<span class="find-text">제목·아티스트 검색</span></button><button data-key="F4"><span data-sort></span> ${kbd('F4')}</button></div>
-      <div class="list-head"><span class="cap" data-pos></span><span class="cap">BPM</span><span class="lv cap">${TIERS.map((t) => `<span data-t="${t}">${TIER_SHORT[t]}</span>`).join('')}</span></div>
-      <div class="list"></div>
-      <div class="list-empty"></div>
-      <div class="song">
-        <div class="facts">
-          <div><span class="cap">BPM</span><b class="num" data-bpm></b></div>
-          <div><span class="cap">길이</span><b class="num" data-len></b></div>
-          <div><span class="cap">박자</span><b class="num" data-meter></b></div>
+      <div class="info">
+        <div class="hero">
+          <div class="jk-box">
+            <div class="jk-slot"></div>
+            <button class="jk-btn video" data-key="KeyV" title="배경 영상">${ICON.film}<span data-video></span>${kbd('V')}</button>
+            <button class="jk-btn edit" data-key="KeyC" title="커버 수정">${ICON.pencil}${kbd('C')}</button>
+          </div>
+          <div class="ident">
+            <button class="fav" data-key="F3" title="즐겨찾기 (F3)"></button>
+            <div class="album" data-album></div>
+            <h1 data-title></h1>
+            <div class="artist" data-artist></div>
+            <div class="meta">
+              <div><span class="cap en">BPM</span><b class="num" data-bpm></b><i class="beat"></i></div>
+              <div><span class="cap">길이</span><b class="num" data-len></b></div>
+            </div>
+          </div>
         </div>
-        <div class="scope"><canvas></canvas></div>
-        <div class="chart-facts">
+        <div class="tiers"></div>
+        <div class="facts">
           <div><span class="cap">노트</span><b class="num" data-notes></b></div>
-          <div><span class="cap">롱노트</span><b class="num" data-long></b></div>
           <div><span class="cap">평균 / 최대 NPS</span><b class="num" data-nps></b></div>
           <div><span class="cap">세부 난이도</span><b class="num" data-rating></b></div>
+          <div class="best" data-best></div>
         </div>
-        <div class="best"></div>
+        <button class="quick" data-key="Space">
+          <span class="quick-head"><span>플레이 옵션</span>${kbd('Space')}</span>
+          <span class="quick-cell"><span class="cap">노트 속도</span><b class="num" data-speed></b></span>
+          <span class="quick-cell"><span class="cap">배치</span><b data-place></b></span>
+          <span class="quick-cell"><span class="cap">FEVER</span><b data-fever></b></span>
+        </button>
       </div>
-      <div class="tiers"></div>
-      <div class="under">
-        <div class="chips">
-          <div><span class="cap">노트 속도</span><b class="num" data-speed></b></div>
-          <div><span class="cap">게이지</span><b class="num" data-gauge></b></div>
-          <div><span class="cap">배치</span><b data-place></b></div>
-          <div><span class="cap">FEVER</span><b data-fever></b></div>
-        </div>
-        <div class="go"><button class="btn" data-key="F5">새 패턴 ${kbd('F5')}</button><button class="btn main" data-key="Enter">플레이 ${kbd('Enter')}</button></div>
+      <div class="opts">
+        <div class="opts-song"></div>
+        <div class="opts-head"><b>플레이 옵션</b><span>다음 플레이에 적용됩니다</span></div>
+        <div class="opts-rows"></div>
+        <p class="opts-help"></p>
       </div>
-      <div class="over-track">
-        <div class="modes">${MODES.map((m) => `<span data-m="${m}">${m}</span>`).join('')}${kbd('Tab')}</div>
-        <div class="now"><span class="cap">미리보기</span><b class="num" data-now></b><span data-section></span></div>
-        <div class="stem-lamps"><span class="cap">노트가 따라가는 악기</span>${STEMS.map((s) => `<span class="cap" data-stem="${s}" style="--c:var(--stem-${s})"><i></i>${STEM_KO[s]}</span>`).join('')}</div>
-      </div>
-      <div class="pane-host"></div>
-      <div class="add-menu"></div>
+      <div class="filters"></div>
+      <div class="wheel"></div>
+      <div class="wheel-empty"></div>
       <div class="toast"></div>
-      <footer class="hints"></footer>`;
-    this.scope = this.root.querySelector('.scope canvas') as HTMLCanvasElement;
-    const list = this.root.querySelector('.list') as HTMLElement;
+      <footer class="hints"></footer>
+      <div class="sheet"></div>`;
+    const wheel = this.q('.wheel');
     songs.forEach((song, i) => {
-      const row = el('div', 'srow');
+      const row = el('div', 'wrow');
       row.dataset.i = String(i);
-      row.innerHTML = `<b class="mega"></b><i class="lamp" data-lamp="${bestLamp(i) ?? 'none'}"></i><canvas class="sig"></canvas><div class="name"><b>${esc(song.title)}</b><span>${esc(song.artist)}</span></div><span class="bpm num">${bpmText(song)}</span><span class="lv num"></span><i class="fav"></i>`;
-      (row.querySelector('.mega') as HTMLElement).textContent = song.title;
-      list.append(row);
+      row.innerHTML = `<span class="wplate"></span><span class="wjk"></span><span class="wtext"><b>${esc(song.title)}</b><span></span></span><span class="wfav">${ICON.starOn}</span><span class="wlv"></span>`;
+      wheel.append(row);
       this.rows.push(row);
     });
-    stage.onHit = (n) => this.flash(n);
-    window.addEventListener('resize', () => this.active && this.refresh(false));
+    this.fileInput.type = 'file';
+    this.fileInput.hidden = true;
+    this.root.append(this.fileInput);
+    this.info = new SongInfo(this.root, stage);
+    this.info.onClose = () => {
+      this.root.classList.toggle('reading', this.info.open);
+      this.hints();
+    };
+    this.info.onToast = (text) => this.toast(text);
+    this.info.onTier = () => {
+      this.drawWheel();
+      this.drawTier();
+    };
     this.root.addEventListener('click', (e) => this.click(e));
+    window.addEventListener('resize', () => this.active && this.place());
+    onSettings(() => this.active && this.drawQuick());
+    this.wirePractice();
   }
 
   private get song(): SongEntry {
     return songs[state.song];
   }
-  /** The search field is taking what is typed. */
+  /** A line of text is being typed: keys are the field's. */
   get takesText(): boolean {
-    return this.searching;
+    return this.searching || Boolean(this.sheet?.input);
   }
   private q<T extends HTMLElement>(s: string): T {
     return this.root.querySelector(s) as T;
+  }
+  private get mode(): 'list' | 'opts' | 'info' {
+    return this.info.open ? 'info' : this.root.classList.contains('opting') ? 'opts' : 'list';
   }
 
   enter(): void {
@@ -140,11 +183,11 @@ export class SelectScreen {
     this.root.classList.add('on');
     this.reorder();
     this.refresh(true);
-    cancelAnimationFrame(this.raf);
+    this.info.resume();
     const tick = () => {
       if (!this.active) return;
       this.raf = requestAnimationFrame(tick);
-      this.drawScope();
+      this.beat();
     };
     this.raf = requestAnimationFrame(tick);
   }
@@ -152,254 +195,602 @@ export class SelectScreen {
   leave(): void {
     this.active = false;
     this.root.classList.remove('on');
-    this.closePane();
-    this.closeAdd();
-    document.documentElement.style.setProperty('--beat', '0');
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.previewTimer);
+    this.closeSheet();
+    this.info.pause();
   }
 
-  // ── the list ────────────────────────────────────────────────────────────────────────────
+  // ── the library: which songs, in what order ───────────────────────────────────────────────
 
-  private inFolder(i: number): boolean {
-    const lamp = bestLamp(i);
-    if (this.folder === 1) return this.favorites.has(i);
-    if (this.folder === 2) return lamp === null;
-    if (this.folder === 3) return lamp === 'FAILED';
-    if (this.folder === 4) return lamp !== null && lamp !== 'MAX COMBO' && lamp !== 'PERFECT PLAY';
-    return true;
-  }
-
-  /** The songs of the folder that match the search, in the order picked. */
   private reorder(): void {
     const q = this.query.trim().toLowerCase();
-    const level = (i: number) => songs[i].charts[state.mode][state.tier].level;
-    const lamp = (i: number) => LAMP_ORDER.indexOf(bestLamp(i) ?? '');
-    const rate = (i: number) => recordOf(i, state.tier)?.rate ?? -1;
-    const by: ((a: number, b: number) => number)[] = [
-      (a, b) => a - b,
-      (a, b) => songs[a].title.localeCompare(songs[b].title),
-      (a, b) => songs[a].artist.localeCompare(songs[b].artist),
-      (a, b) => songs[a].bpm - songs[b].bpm,
-      (a, b) => level(a) - level(b),
-      (a, b) => lamp(b) - lamp(a),
-      (a, b) => rate(b) - rate(a),
-      (a, b) => a - b,
-    ];
-    this.order = songs
-      .map((_, i) => i)
-      .filter((i) => this.inFolder(i) && (!q || songs[i].title.toLowerCase().includes(q) || songs[i].artist.toLowerCase().includes(q)))
-      .sort((a, b) => by[this.sort](a, b) || a - b);
-    if (this.order.length > 0 && !this.order.includes(state.song)) state.song = this.order[0];
-  }
-
-  /** The list under the line: the picked row stands on it, the rest above and below. */
-  private layout(): void {
-    const list = this.q('.list');
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    const lineY = this.root.clientHeight * 0.77 - list.offsetTop - rem * 0.09375;
-    const rowH = 2.75 * rem;
-    const onH = 5.75 * rem;
-    const at = this.order.indexOf(state.song);
-    this.rows.forEach((row, i) => {
-      const k = this.order.indexOf(i);
-      row.hidden = k < 0;
-      if (k < 0) return;
-      const d = k - at;
-      const y = d === 0 ? lineY - onH : d < 0 ? lineY - onH + d * rowH : lineY + rem * 0.625 + (d - 1) * rowH;
-      row.style.transform = `translateY(${y}px)`;
-      row.classList.toggle('on', d === 0);
-      // only rows that show whole: none cut by the list's top or by the key hints
-      row.style.opacity = y < -rem * 0.25 || y + (d === 0 ? onH : rowH) > list.clientHeight ? '0' : '1';
-      row.classList.toggle('faved', this.favorites.has(i));
-      if (d === 0) fitText(row.querySelector('.mega') as HTMLElement, 2.5 * rem, 1.25 * rem);
-    });
-    this.q('[data-pos]').innerHTML = `<b class="num">${this.order.length ? at + 1 : 0} / ${this.order.length}</b><span>난이도 기준 <b>기본</b></span>`;
-    const empty = this.q('.list-empty');
-    empty.textContent = this.order.length ? '' : this.query ? `"${this.query}"에 맞는 곡이 없습니다` : `${FOLDERS[this.folder]} 폴더에 곡이 없습니다 (F6으로 다음 폴더)`;
-  }
-
-  private refresh(songChanged: boolean): void {
-    const song = this.song;
-    const summary = song.charts[state.mode][state.tier];
-    const q = <T extends HTMLElement>(s: string) => this.q<T>(s);
-    const count = (f: number) => {
-      const keep = this.folder;
-      this.folder = f;
-      const n = songs.filter((_, i) => this.inFolder(i)).length;
-      this.folder = keep;
-      return n;
-    };
-    q('.folders').innerHTML = FOLDERS.map((f, i) => `<button class="${i === this.folder ? 'on' : ''}" data-folder="${i}">${f}<i class="num">${count(i)}</i></button>`).join('') + `<span>${kbd('F6')}</span>`;
-    q('[data-sort]').textContent = SORTS[this.sort];
-    const find = q('.find');
-    find.classList.toggle('typing', this.searching);
-    find.classList.toggle('has', this.query !== '');
-    q('.find-text').textContent = this.searching || this.query ? this.query : '제목·아티스트 검색';
-    q('[data-bpm]').textContent = bpmText(song);
-    q('[data-len]').textContent = clock(song.durationMs);
-    q('[data-meter]').textContent = `${song.sketch.beatsPerBar}/4`;
-    q('[data-notes]').textContent = summary.noteCount.toLocaleString('en-US');
-    q('[data-long]').textContent = String(summary.longNotes);
-    q('[data-nps]').textContent = `${summary.nps.avg.toFixed(2)} / ${Math.round(summary.nps.peak)}`;
-    q('[data-rating]').textContent = summary.rating.toFixed(2);
-    const s = state.settings;
-    q('[data-speed]').textContent = s.hiSpeed.toFixed(2);
-    q('[data-gauge]').textContent = s.gaugeType;
-    q('[data-place]').textContent = PLACEMENT_KO[s.placement] ?? s.placement;
-    q('[data-fever]').textContent = FEVER_KO[s.fever] ?? s.fever;
-    const rec = recordOf(state.song, state.tier);
-    q('.best').innerHTML = rec
-      ? `<span class="cap">최고 기록</span><i class="lamp" data-lamp="${rec.lamp}"></i><b>${rec.lamp}</b><b class="num">${rec.rate.toFixed(2)}%</b><span class="muted">최소 BREAK <span class="num">${rec.breaks}</span> · 플레이 <span class="num">${rec.plays}</span></span>`
-      : `<span class="cap">최고 기록</span><span class="muted">기록 없음</span>`;
-    q('.tiers').innerHTML = TIERS.map((t) => {
-      const c = song.charts[state.mode][t];
-      const r = recordOf(state.song, t);
-      return `<button class="tier${t === state.tier ? ' on' : ''}" data-tier="${t}"><span class="tn">${t === state.tier ? t : TIER_SHORT[t]}</span><span class="tfoot"><span class="lvl num">${c.level}</span><i class="lamp" data-lamp="${r?.lamp ?? 'none'}"></i></span></button>`;
-    }).join('');
-    this.root.querySelectorAll<HTMLElement>('.modes span').forEach((m) => m.classList.toggle('on', m.dataset.m === state.mode));
-    const head = q('.list-head .lv');
-    head.dataset.tier = state.tier;
-    head.querySelectorAll<HTMLElement>('span').forEach((x) => x.classList.toggle('at', x.dataset.t === state.tier));
-    this.rows.forEach((row, i) => {
-      const lv = row.querySelector('.lv') as HTMLElement;
-      lv.dataset.tier = state.tier;
-      lv.innerHTML = TIERS.map((t) => `<span${t === state.tier ? ' class="at"' : ''}>${songs[i].charts[state.mode][t].level}</span>`).join('');
-    });
-    this.layout();
-    this.hints();
-    requestAnimationFrame(() => this.rows.forEach((row, i) => !row.hidden && drawSigil(row.querySelector('.sig') as HTMLCanvasElement, songs[i])));
-    if (songChanged) {
-      this.detail = null;
-      this.stage.setChart(null);
-      this.stage.runFrom(song.previewMs);
-      if (this.active) void preview.play(song.id, song.previewMs);
+    const list = songs.map((_, i) => i).filter((i) => (this.scope === 'fav' ? favorites.has(i) : true) && (!q || `${songs[i].title} ${songs[i].artist}`.toLowerCase().includes(q)));
+    if (this.sort) {
+      const { key, dir } = this.sort;
+      const order = new Intl.Collator(['ko', 'en'], { sensitivity: 'base', numeric: true });
+      list.sort((a, b) => {
+        const [x, y] = [songs[a][key], songs[b][key]];
+        // a song without the name it is ordered by stays at the end, whichever way the order runs
+        if (!x || !y) return x ? -1 : y ? 1 : a - b;
+        return (dir === 'asc' ? 1 : -1) * order.compare(x, y) || a - b;
+      });
     }
-    const wanted = song.id;
-    void detailOf(song).then((d) => {
-      if (this.song.id !== wanted) return;
-      this.detail = d;
-      this.stage.setChart(chartOf(song, d, state.mode, state.tier));
+    this.order = list;
+    if (list.length > 0 && !list.includes(state.song)) state.song = list[0];
+  }
+
+  /** A press on a filter: 전체 and 즐겨찾기 choose which songs, the three names order them (내림차순, 오름차순, off). */
+  private filter(i: number): void {
+    const f = FILTERS[i];
+    if (!f) return;
+    let said = '';
+    if (f.id === 'all' || f.id === 'fav') {
+      const next = f.id === 'all' ? 'all' : this.scope === 'fav' ? 'all' : 'fav';
+      if (next === this.scope) return sfx('edge');
+      this.scope = next;
+      said = next === 'fav' ? '즐겨찾기한 곡만' : '모든 곡';
+    } else if (this.sort?.key !== f.id) {
+      this.sort = { key: f.id, dir: 'desc' };
+      said = `${f.label} 내림차순`;
+    } else if (this.sort.dir === 'desc') {
+      this.sort = { key: f.id, dir: 'asc' };
+      said = `${f.label} 오름차순`;
+    } else {
+      this.sort = null;
+      said = `${f.label} 정렬 해제 · 추가한 순서`;
+    }
+    sfx('tab');
+    this.reorder();
+    this.refresh(false);
+    this.toast(said, 1300);
+  }
+
+  private drawFilters(): void {
+    const chips = FILTERS.map((f, i) => {
+      const on = f.id === 'all' ? this.scope === 'all' : f.id === 'fav' ? this.scope === 'fav' : this.sort?.key === f.id;
+      const arrow = f.id !== 'all' && f.id !== 'fav' && this.sort?.key === f.id ? `<i class="dir" title="${this.sort.dir === 'desc' ? '내림차순' : '오름차순'}">${this.sort.dir === 'desc' ? ICON.down : ICON.up}</i>` : '';
+      return `<button class="chip${on ? ' on' : ''}" data-key="Digit${i + 1}">${kbd(String(i + 1))}<span>${f.label}</span>${arrow}</button>`;
+    }).join('');
+    const find = this.searching
+      ? `<label class="find on">${ICON.search}<input type="text" spellcheck="false" placeholder="제목 · 아티스트" value="${esc(this.query)}" /></label>`
+      : `<button class="find${this.query ? ' has' : ''}" data-key="Slash" title="제목 · 아티스트 검색">${ICON.search}${this.query ? `<span>${esc(this.query)}</span>` : ''}${kbd('/')}</button>`;
+    this.q('.filters').innerHTML = `${chips}<span class="filters-end">${find}</span>`;
+    if (this.searching) {
+      const input = this.q<HTMLInputElement>('.find input');
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.addEventListener('input', () => {
+        this.query = input.value;
+        this.reorder();
+        this.refresh(false, true);
+      });
+      input.addEventListener('blur', () => this.searching && this.endSearch(false));
+    }
+  }
+
+  private endSearch(clear: boolean): void {
+    this.searching = false;
+    const before = state.song;
+    if (clear) {
+      this.query = '';
+      if (this.searchFrom >= 0) state.song = this.searchFrom;
+    }
+    this.reorder();
+    this.refresh(state.song !== before);
+  }
+
+  // ── drawing ──────────────────────────────────────────────────────────────────────────────
+
+  /** Brings the screen up to date. `songChanged`: the picked song's own parts are drawn anew and its preview starts. */
+  private refresh(songChanged: boolean, typing = false): void {
+    const empty = this.order.length === 0;
+    this.root.classList.toggle('empty', empty);
+    if (!typing) this.drawFilters();
+    this.q('.wheel-empty').innerHTML = empty ? (this.query ? `<b>'${esc(this.query)}'에 맞는 곡이 없습니다</b><span>${kbd('Esc')} 검색 지우기</span>` : `<b>즐겨찾기한 곡이 없습니다</b><span>곡에서 ${kbd('F3')}으로 넣습니다 · ${kbd('1')} 전체 보기</span>`) : '';
+    this.root.querySelectorAll<HTMLElement>('.modes [data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.mode));
+    this.drawWheel();
+    if (!empty) {
+      if (songChanged || this.shownSong !== state.song) this.drawSong();
+      this.drawTier();
+    }
+    this.drawQuick();
+    this.hints();
+  }
+
+  private drawWheel(): void {
+    this.rows.forEach((row, i) => {
+      const song = songs[i];
+      const second = this.sort?.key === 'album' ? song.album || '앨범 정보 없음' : song.artist;
+      const sub = row.querySelector('.wtext span') as HTMLElement;
+      if (sub.textContent !== second) sub.textContent = second;
+      const jk = row.querySelector('.wjk') as HTMLElement;
+      const cover = coverOf(song) ?? '';
+      if (jk.dataset.cover !== cover) {
+        jk.dataset.cover = cover;
+        jk.innerHTML = jacket(song);
+      }
+      row.classList.toggle('is-fav', favorites.has(i));
+      const c = song.charts[state.mode][state.tier];
+      const lv = row.querySelector('.wlv') as HTMLElement;
+      lv.dataset.tier = state.tier;
+      lv.innerHTML = `${lampMark(recordOf(i, state.tier)?.lamp ?? null)}<b class="num">${c.level}</b>`;
     });
+    this.place();
+  }
+
+  /** Each row to its place on the wheel: the picked song in the middle, the others leaning away from it. */
+  private place(): void {
+    const at = this.order.indexOf(state.song);
+    const arc = (document.getElementById('app') as HTMLElement).dataset.wheel === 'flat' ? 0 : ARC;
+    this.rows.forEach((row, i) => {
+      const pos = this.order.indexOf(i);
+      if (pos < 0) {
+        row.classList.remove('on');
+        row.style.opacity = '0';
+        row.style.visibility = 'hidden';
+        return;
+      }
+      const d = pos - at;
+      const ad = Math.abs(d);
+      const y = d === 0 ? 0 : Math.sign(d) * (ROW_NEAR + (ad - 1) * ROW_STEP);
+      row.style.transform = `translate(${(arc * d * d).toFixed(3)}rem, ${y}rem)`;
+      row.style.opacity = String(FADE[ad] ?? 0);
+      row.style.visibility = ad > 5 ? 'hidden' : 'visible';
+      row.classList.toggle('on', d === 0);
+    });
+  }
+
+  private drawSong(): void {
+    const song = this.song;
+    this.shownSong = state.song;
+    this.detail = null;
+    void detailOf(song).then((d) => {
+      if (this.song === song) this.detail = d;
+    });
+    const hero = this.q('.hero');
+    this.q('.jk-slot').innerHTML = jacket(song);
+    this.q('[data-album]').textContent = song.album;
+    const title = this.q('[data-title]');
+    title.textContent = song.title;
+    // a short name is set large, a long one smaller: three sizes, never more than three lines
+    title.dataset.size = song.title.length <= 12 ? 'l' : song.title.length <= 22 ? 'm' : 's';
+    this.q('[data-artist]').textContent = song.artist;
+    this.q('[data-bpm]').textContent = bpmText(song);
+    this.q('[data-len]').textContent = clock(song.durationMs);
+    this.drawMedia();
+    // the song arrives: a short settle, not a show
+    hero.classList.remove('arrive');
+    void hero.offsetWidth;
+    hero.classList.add('arrive');
+    this.wash();
+    clearTimeout(this.previewTimer);
+    // the preview starts once the cursor rests on a song
+    this.previewTimer = window.setTimeout(() => this.active && this.song === song && void preview.play(song.id, song.previewMs), 220);
+    if (this.practice.song !== state.song) this.practice = { from: 0, to: 0, song: -1 };
+  }
+
+  /** What hangs on the jacket: the favourite, and whether a background video is registered. */
+  private drawMedia(): void {
+    const m = mediaOf(this.song.id);
+    const fav = this.q('.fav');
+    fav.innerHTML = favorites.has(state.song) ? ICON.starOn : ICON.star;
+    fav.classList.toggle('on', favorites.has(state.song));
+    const video = this.q('.jk-btn.video');
+    video.classList.toggle('has', Boolean(m.video));
+    this.q('[data-video]').textContent = m.video ? (m.video.kind === 'youtube' ? '유튜브' : '등록됨') : '배경 영상';
+  }
+
+  /** The screen behind takes the jacket's colours (one of two layers, cross-faded). */
+  private wash(): void {
+    const layers = this.root.querySelectorAll<HTMLElement>('.backdrop i');
+    const url = coverOf(this.song);
+    const song = this.song;
+    const show = (data: string | null) => {
+      if (this.song !== song) return;
+      this.washAt = 1 - this.washAt;
+      layers[this.washAt].style.backgroundImage = data ? `url(${data})` : 'none';
+      layers[this.washAt].classList.add('on');
+      layers[1 - this.washAt].classList.remove('on');
+    };
+    if (url) void washOf(url).then(show);
+    else show(null);
+  }
+
+  private drawTier(): void {
+    const song = this.song;
+    this.q('.tiers').innerHTML = TIERS.map((t, i) => {
+      const c = song.charts[state.mode][t];
+      return `<button class="tier${t === state.tier ? ' on' : ''}" data-tier="${t}" data-tier-i="${i}"><span class="tier-in"><span class="tier-name">${t}</span>${lampMark(recordOf(state.song, t)?.lamp ?? null)}<b class="num">${c.level}</b></span></button>`;
+    }).join('');
+    const c = song.charts[state.mode][state.tier];
+    this.q('[data-notes]').textContent = c.noteCount.toLocaleString('en-US');
+    this.q('[data-nps]').textContent = `${c.nps.avg} / ${c.nps.peak}`;
+    this.q('[data-rating]').textContent = c.rating.toFixed(2);
+    const best = recordOf(state.song, state.tier);
+    this.q('[data-best]').innerHTML = best
+      ? `<span class="cap en best-lamp">${lampMark(best.lamp)}${best.lamp}</span><b class="num">${best.rate.toFixed(2)}<small>%</small></b>`
+      : `<span class="cap en">BEST</span><b class="none">기록 없음</b>`;
+    this.root.dataset.tier = state.tier;
+  }
+
+  private drawQuick(): void {
+    const text = (label: string) => {
+      const r = this.optRows.find((x) => x.label === label) as Row;
+      return r.kind === 'number' ? (r.value === null ? '자동' : r.format(r.value)) : (r.values[r.value ?? 0] ?? '');
+    };
+    // the rows follow the settings (a play changes the speed, the settings screen the rest)
+    syncRows(this.optRows);
+    this.q('[data-speed]').textContent = text('노트 속도');
+    this.q('[data-place]').textContent = text('배치');
+    this.q('[data-fever]').textContent = text('FEVER').replace(/ \(.*\)$/, '');
+  }
+
+  /** The dot by the BPM ticks with the song's analysed beats while its preview plays. */
+  private beat(): void {
+    const beats = this.detail?.beats;
+    const now = preview.songMs();
+    let v = 0;
+    if (beats && now !== null) {
+      let lo = 0;
+      let hi = beats.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (beats[mid] <= now) lo = mid + 1;
+        else hi = mid;
+      }
+      const last = beats[lo - 1];
+      if (last !== undefined && now - last < 160) v = 1 - (now - last) / 160;
+    }
+    (this.q('.beat') as HTMLElement).style.opacity = (0.22 + 0.78 * v).toFixed(2);
   }
 
   private hints(): void {
-    const item = (keys: string[], label: string, key = keys[0]) => `<button data-key="${key}">${kbd(...keys)} ${label}</button>`;
+    const item = (keys: string[], label: string, code?: string) => `<button data-key="${code ?? keys[0]}">${kbd(...keys)}${label}</button>`;
     const foot = this.q('.hints');
-    if (this.addAt >= 0) foot.innerHTML = `${item(['←', '→'], '고르기', 'ArrowRight')}<span class="end">${item(['Esc'], '닫기', 'Escape')}${item(['Enter'], '고르기')}</span>`;
-    else if (this.searching) foot.innerHTML = `<span>글자를 치면 바로 걸러집니다</span><span class="end">${item(['Esc'], '검색 지우기', 'Escape')}${item(['Enter'], '검색 끝내기')}</span>`;
-    else if (this.pane)
-      foot.innerHTML =
-        `${item(['↑', '↓'], '항목', 'ArrowDown')}${item(['←', '→'], '값', 'ArrowRight')}` +
-        (this.paneKind === 'options' ? `${item(['Q', 'E'], '탭', 'KeyE')}${item(['Space'], '플레이 옵션 닫기')}${item(['I'], '곡 정보·도구', 'KeyI')}` : `${item(['Space'], '플레이 옵션')}${item(['I'], '곡 정보·도구 닫기', 'KeyI')}`) +
-        `<span class="end">${item(['Esc'], '닫기', 'Escape')}${item(['Shift+Enter'], '오토 플레이')}${item(['Enter'], '플레이')}</span>`;
+    if (this.mode === 'info') foot.innerHTML = this.info.hints();
+    else if (this.mode === 'opts')
+      foot.innerHTML = `${item(['↑', '↓'], '항목', 'ArrowDown')}${item(['←', '→'], '값', 'ArrowRight')}<span>${kbd('Shift')}큰 단계</span><span class="end">${item(['Space'], '닫기', 'Space')}<button class="go" data-key="Enter">${kbd('Enter')}<span>${this.practising ? '연습 시작' : '플레이'}</span></button></span>`;
+    else if (this.order.length === 0) foot.innerHTML = `${item(['1'], '전체', 'Digit1')}${item(['/'], '검색', 'Slash')}<span class="end">${item(['Esc'], '메뉴', 'Escape')}</span>`;
     else
-      foot.innerHTML = `${item(['↑', '↓'], '곡', 'ArrowDown')}${item(['PgUp', 'PgDn'], '페이지', 'PageDown')}${item(['←', '→'], '난이도', 'ArrowRight')}${item(['Tab'], '키 모드')}${item(['F6'], '폴더')}${item(['Space'], '플레이 옵션')}${item(['I'], '곡 정보·도구', 'KeyI')}${item(['F2'], '랜덤')}${item(['F3'], '즐겨찾기')}<span class="end">${item(['Shift+Enter'], '오토 플레이')}${item(['Enter'], '플레이')}</span>`;
+      foot.innerHTML = `${item(['↑', '↓'], '곡', 'ArrowDown')}${item(['←', '→'], '난이도', 'ArrowRight')}${item(['Tab'], '키 모드', 'Tab')}${item(['Space'], '플레이 옵션', 'Space')}${item(['I'], '곡 정보·도구', 'KeyI')}<span class="end">${item(['Esc'], '메뉴', 'Escape')}<button class="go" data-key="Enter">${kbd('Enter')}<span>${this.practising ? '연습 시작' : '플레이'}</span></button></span>`;
   }
 
-  private toast(text: string): void {
+  /** Where the picked song's jacket stands (the play's card takes it from there). */
+  jacketRect(): DOMRect | null {
+    return this.mode === 'list' ? this.q('.jk-slot').getBoundingClientRect() : null;
+  }
+
+  /** The wheel is laid out anew (one of the mockup's side-by-side choices changed). */
+  relayout(): void {
+    this.place();
+  }
+
+  toast(text: string, ms = 2600): void {
     const t = this.q('.toast');
     t.textContent = text;
     t.classList.add('on');
     clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => t.classList.remove('on'), 2200);
+    this.toastTimer = window.setTimeout(() => t.classList.remove('on'), ms);
   }
 
-  private flash(n: SessionNote): void {
-    if (!this.active || !n.src) return;
-    this.root.querySelector(`.stem-lamps [data-stem="${n.src}"] i`)?.animate([{ opacity: 1 }, { opacity: 0.22 }], { duration: 220, easing: 'ease-out' });
+  // ── the play options, in place ───────────────────────────────────────────────────────────
+
+  /** 연습 모드's stretch of the song: a row of its own, moved a bar at a time. */
+  private wirePractice(): void {
+    const mode = this.optRows.find((r) => r.label === '연습 모드') as Row;
+    const at = this.optRows.indexOf(mode);
+    const bars = () => this.detail?.downbeats ?? [];
+    const range = () => {
+      const b = bars();
+      if (this.practice.song !== state.song && b.length > 1) {
+        // the song's first chorus, or its first section
+        const s = this.song.sketch.sections.find((x) => x.label === 'chorus') ?? this.song.sketch.sections[0];
+        const from = Math.max(0, b.findIndex((t) => t >= (s?.t ?? 0) - 40));
+        const to = b.findIndex((t) => t >= (s?.endT ?? this.song.durationMs) - 40);
+        this.practice = { from, to: to < 0 ? b.length - 1 : Math.max(from + 1, to), song: state.song };
+      }
+      return this.practice;
+    };
+    const stamp = (ms: number) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(1).padStart(4, '0')}`;
+    const row: Row = {
+      label: '구간',
+      kind: 'custom',
+      help: '←→ 구간을 한 마디씩 옮기고, Shift+←→ 한 마디씩 늘이거나 줄입니다.',
+      values: [],
+      min: 0,
+      max: 0,
+      step: 1,
+      bigStep: 1,
+      format: String,
+      value: 0,
+      initial: 0,
+      when: () => mode.value === 0,
+      render: () => {
+        const b = bars();
+        if (b.length < 2) return '<span class="v">곡을 읽는 중…</span>';
+        const p = range();
+        const [t0, t1] = [b[p.from], b[p.to] ?? this.song.durationMs];
+        const dur = this.song.durationMs;
+        const name = this.song.sketch.sections.find((s) => t0 >= s.t - 40 && t0 < s.endT - 40);
+        return `<span class="span-map"><i style="left:${(t0 / dur) * 100}%;width:${((t1 - t0) / dur) * 100}%"></i></span><i class="rl-arr">${ICON.left}</i><span class="v num">${stamp(t0)} – ${stamp(t1)}</span><i class="rl-arr">${ICON.right}</i>${name ? `<span class="span-name">${SECTION_KO[name.label] ?? name.label}</span>` : ''}`;
+      },
+      onKey: (dir, big) => {
+        const b = bars();
+        if (b.length < 2) return;
+        const p = range();
+        if (big) p.to = clamp(p.to + dir, p.from + 1, b.length - 1);
+        else {
+          const len = p.to - p.from;
+          p.from = clamp(p.from + dir, 0, b.length - 1 - len);
+          p.to = p.from + len;
+        }
+        sfx('slide');
+      },
+    };
+    this.optRows.splice(at + 1, 0, row);
   }
 
-  // ── panes over the song's column ────────────────────────────────────────────────────────
-
-  private openPane(kind: 'options' | 'info'): void {
-    if (this.paneKind === kind) return this.closePane(true);
-    this.pane?.dispose();
-    const host = this.q('.pane-host');
-    this.paneKind = kind;
-    this.pane =
-      kind === 'options'
-        ? new RowsPane(host, playOptionTabs(), { title: '플레이 옵션', passEnter: true, onChange: () => this.refreshChips() })
-        : new RowsPane(host, [this.infoTab()], { title: '곡 정보·도구', onAction: (r) => this.infoAction(r) });
-    this.root.classList.add('paned');
+  private openOptions(): void {
+    if (this.order.length === 0) return sfx('edge');
+    this.root.classList.add('opting');
+    const song = this.song;
+    const c = song.charts[state.mode][state.tier];
+    this.q('.opts-song').innerHTML = `${jacket(song)}<div><b>${esc(song.title)}</b><span>${esc(song.artist)}</span></div><span class="chip-tier" data-tier="${state.tier}">${state.tier}<b class="num">${c.level}</b></span>`;
+    this.drawQuick();
+    this.optList = new RowList(this.q('.opts-rows'), this.optRows, {
+      passEnter: true,
+      onFocus: (r) => (this.q('.opts-help').textContent = r?.help ?? ''),
+      onChange: () => {
+        this.drawQuick();
+        this.hints();
+      },
+    });
+    sfx('open');
     this.hints();
+  }
+
+  private closeOptions(sound = true): void {
+    if (!this.root.classList.contains('opting')) return;
+    this.root.classList.remove('opting');
+    this.optList?.dispose();
+    this.optList = null;
+    if (sound) sfx('back');
+    this.drawQuick();
+    this.hints();
+  }
+
+  // ── sheets ───────────────────────────────────────────────────────────────────────────────
+
+  private openSheet(sheet: Omit<Sheet, 'at'>): void {
+    this.sheet = { ...sheet, at: Math.max(0, sheet.items.findIndex((i) => !i.disabled)) };
+    this.drawSheet(true);
     sfx('open');
   }
 
-  private closePane(sound = false): void {
-    if (!this.pane) return;
-    this.pane.dispose();
-    this.pane = null;
-    this.paneKind = null;
-    this.root.classList.remove('paned');
+  private closeSheet(sound = false): void {
+    if (!this.sheet) return;
+    this.sheet = null;
+    this.q('.sheet').classList.remove('on');
+    this.q('.sheet').innerHTML = '';
     if (sound) sfx('back');
-    if (this.active) this.refresh(false);
   }
 
-  private refreshChips(): void {
-    const s = state.settings;
-    this.q('[data-speed]').textContent = s.hiSpeed.toFixed(2);
-    this.q('[data-gauge]').textContent = s.gaugeType;
-    this.q('[data-place]').textContent = PLACEMENT_KO[s.placement] ?? s.placement;
-    this.q('[data-fever]').textContent = FEVER_KO[s.fever] ?? s.fever;
+  private drawSheet(fresh = false): void {
+    const s = this.sheet;
+    if (!s) return;
+    const box = this.q('.sheet');
+    box.classList.add('on');
+    const items = s.items
+      .map((it, i) => {
+        const on = i === s.at && !s.input;
+        const right = it.value ? `<span class="right">${on ? `<i class="rl-arr on">${ICON.left}</i>` : ''}<b class="num">${esc(it.value())}</b>${on ? `<i class="rl-arr on">${ICON.right}</i>` : ''}</span>` : it.cap ? `<span class="right">${kbd(it.cap)}</span>` : '';
+        return `<button class="${on ? 'on' : ''}" data-sheet="${i}"${it.disabled ? ' disabled' : ''}><span>${esc(it.label)}</span>${it.sub ? `<span class="sub">${esc(it.sub)}</span>` : ''}${right}</button>`;
+      })
+      .join('');
+    const input = s.input ? `<label class="sheet-input"><input type="text" inputmode="url" spellcheck="false" placeholder="${esc(s.input.placeholder)}" /></label>` : '';
+    const foot = s.input
+      ? `<span>${kbd('Enter')}등록</span><span>${kbd('Esc')}취소</span>`
+      : `<span>${kbd('↑', '↓')}고르기</span>${s.items.some((i) => i.step) ? `<span>${kbd('←', '→')}값</span>` : ''}<span>${kbd('Enter')}결정</span><span>${kbd('Esc')}닫기</span>`;
+    box.innerHTML = `<div class="sheet-box${s.atJacket ? ' at-jacket' : ''}${fresh ? ' fresh' : ''}"><div class="sheet-head"><b>${esc(s.title)}</b>${s.sub ? `<span>${esc(s.sub)}</span>` : ''}</div><div class="sheet-items">${items}</div>${input}${s.note ? `<p class="sheet-note">${s.note}</p>` : ''}<div class="sheet-foot">${foot}</div></div>`;
+    if (s.input) box.querySelector('input')?.focus();
   }
 
-  /** 곡 정보·도구: the chart's information and the song's records to read, then the tools and the song's settings as rows. */
-  private infoTab(): Tab {
-    const song = this.song;
-    const c = song.charts[state.mode][state.tier];
-    const base = { values: [] as string[], min: 0, max: 0, step: 1, bigStep: 1, format: (v: number) => String(v), value: 0, initial: 0 };
-    const block = (label: string, html: string, heading?: string): Row => ({ ...base, label, kind: 'info', help: '', html, skip: true, heading });
-    const act = (label: string, text: string, help: string, heading?: string): Row => ({ ...base, label, kind: 'action', help, values: [text], heading });
-    const signed = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
-    const rows: Row[] = [
-      block('채보 정보', chartInfo(c), `채보 정보 · ${state.mode} ${state.tier}`),
-      act('채보 편집', '열기', '이 채보를 에디터에서 고칩니다. 고친 채보는 따로 저장됩니다.'),
-      { ...base, label: '내보내기', kind: 'choice', help: '음원은 넣지 않고 파일 이름만 적습니다', values: ['osu!mania', 'BMS', 'bmson'] },
-      block('기록', recordTable(state.song), '기록'),
-      act('싱크 테스트', '보기', '박자에 맞춰 노트가 내려오는 테스트를 오토로 봅니다 (←→ 표시 오프셋)', '도구'),
-      act('싱크 테스트 · 직접 치기', '시작', '같은 테스트를 직접 칩니다.'),
-      act('판정 오프셋 측정', '열기', '메트로놈을 듣고 쳐서 판정 오프셋을 잽니다.'),
-      act('표시 오프셋 맞추기', '열기', '노트를 보며 표시 오프셋을 맞춥니다.'),
-      block('분석', `<div class="kv"><span class="cap">분석</span><b>스템 기본 · 비트 기본 · 음높이 기본 · 구조 기본</b></div>`, '곡 설정'),
-      { ...base, label: 'BPM 보정', kind: 'choice', help: '분석한 BPM이 절반이나 두 배로 잡혔을 때 고칩니다. 곡을 다시 분석해 채보를 새로 만듭니다.', values: ['자동', '×2', '÷2'] },
-      { ...base, label: '곡 오프셋', kind: 'number', min: -200, max: 200, step: 1, bigStep: 5, format: signed, help: '이 곡만 판정과 노트를 함께 늦추거나(+) 당깁니다. 기록과 채보는 그대로입니다. 플레이 중에 바꾸는 키: - / =, 5ms씩은 Shift+- / Shift+=.' },
-      { ...base, label: '첫 박 위치', kind: 'number', min: -200, max: 200, step: 1, bigStep: 10, format: (v) => (v === 0 ? '자동' : signed(v)), help: '마디선과 채보가 음악의 박과 어긋나 보일 때 분석한 박을 옮깁니다. 곡을 다시 분석해 채보를 새로 만들어서, 기록은 새 채보에 따로 남습니다.' },
-      act('커버', '그림 고르기', '목록과 플레이 배경에 쓰는 그림입니다 (png·jpg·webp·gif·bmp). 지우면 곡을 이끄는 악기 색의 디스크로 돌아갑니다.'),
-      act('배경 영상', '파일 고르기', '플레이 배경에 깔 영상 파일이나 유튜브 링크입니다.'),
-      act('구간', '구간 편집', '분석한 구간(인트로·벌스·후렴…)을 직접 고칩니다. 지금은 자동 분석입니다.'),
-      act('분석 보기', '열기', '박·마디선, 구간, 스템별 온셋을 봅니다.'),
-      { ...act('라이브러리에서 삭제', '라이브러리에서 삭제', '이 곡의 기록도 함께 지워집니다'), values: ['라이브러리에서 삭제', '한 번 더 누르면 지웁니다'], press: 'twice' },
-    ];
-    return { id: 'info', label: '곡 정보·도구', intro: song.title, defaultHelp: '', rows };
-  }
-
-  private infoAction(r: Row): boolean {
-    sfx('confirm');
-    this.toast(`'${r.label}'은(는) 지금 화면을 그대로 엽니다. 이번 시안은 선곡·설정·플레이 세 화면만 다룹니다.`);
+  private sheetKey(e: KeyboardEvent): boolean {
+    const s = this.sheet as Sheet;
+    const code = e.code;
+    if (s.input) {
+      if (code === 'Escape') {
+        s.input = undefined;
+        this.drawSheet();
+        sfx('back');
+        return true;
+      }
+      if (code === 'Enter' || code === 'NumpadEnter') {
+        const text = (this.q('.sheet input') as HTMLInputElement).value.trim();
+        if (text) s.input.submit(text);
+        else sfx('edge');
+        return true;
+      }
+      return false;
+    }
+    const it = s.items[s.at];
+    if (code === 'Escape') this.closeSheet(true);
+    else if (code === 'ArrowUp' || code === 'ArrowDown') {
+      const d = code === 'ArrowUp' ? -1 : 1;
+      let next = s.at + d;
+      while (s.items[next]?.disabled) next += d;
+      if (!s.items[next]) return sfx('edge'), true;
+      s.at = next;
+      sfx('cursor');
+      this.drawSheet();
+    } else if ((code === 'ArrowLeft' || code === 'ArrowRight') && it?.step) {
+      it.step(code === 'ArrowLeft' ? -1 : 1, e.shiftKey);
+      sfx('slide');
+      this.drawSheet();
+    } else if (code === 'Enter' || code === 'NumpadEnter' || code === 'Space') {
+      if (it?.run) {
+        sfx('confirm');
+        it.run();
+      } else sfx('edge');
+    }
     return true;
   }
 
-  // ── 곡 추가: its five things stand on the line ───────────────────────────────────────────
+  /** Asks for a file of the player's (it stays in this browser: the mockup has no server to keep it). */
+  private pickFile(accept: string, done: (file: File) => void): void {
+    const input = this.fileInput;
+    input.accept = accept;
+    input.value = '';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) done(file);
+    };
+    input.click();
+  }
+
+  /** 커버: the pencil on the jacket. */
+  private openCover(): void {
+    const song = this.song;
+    const m = mediaOf(song.id);
+    const has = coverOf(song) !== null;
+    this.openSheet({
+      title: '커버',
+      sub: has ? '그림' : '디스크',
+      atJacket: true,
+      items: [
+        {
+          label: '커버 이미지 고르기',
+          sub: 'png · jpg · webp · gif · bmp',
+          run: () =>
+            this.pickFile(IMAGE_ACCEPT, (file) => {
+              if (m.cover) URL.revokeObjectURL(m.cover);
+              m.cover = URL.createObjectURL(file);
+              this.closeSheet();
+              this.shownSong = -1;
+              this.refresh(true);
+              this.toast('커버를 바꿨습니다. 목록과 플레이 배경에 쓰입니다.');
+            }),
+        },
+        {
+          label: '지우기',
+          disabled: !has,
+          run: () => {
+            if (m.cover) URL.revokeObjectURL(m.cover);
+            m.cover = null;
+            this.closeSheet();
+            this.shownSong = -1;
+            this.refresh(true);
+            this.toast('커버를 지웠습니다. 곡을 이끄는 악기 색의 디스크로 돌아갑니다.');
+          },
+        },
+      ],
+      note: '목록과 플레이 배경에 쓰는 그림입니다. 지우면 곡을 이끄는 악기 색의 디스크로 돌아갑니다.',
+    });
+  }
+
+  /** 배경 영상: a file or a YouTube link, how far it is shifted against the song, or its removal. */
+  private openVideo(): void {
+    const song = this.song;
+    const m = mediaOf(song.id);
+    const done = (text: string) => {
+      this.closeSheet();
+      this.drawMedia();
+      this.toast(text);
+    };
+    const signed = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
+    const items: SheetItem[] = m.video
+      ? [
+          {
+            label: '영상 싱크',
+            value: () => signed(m.videoOffsetMs),
+            step: (dir, big) => (m.videoOffsetMs = clamp(m.videoOffsetMs + dir * (big ? 100 : 10), -5000, 5000)),
+          },
+          {
+            label: '지우기',
+            run: () => {
+              if (m.video?.kind === 'file') URL.revokeObjectURL(m.video.url);
+              m.video = null;
+              m.videoOffsetMs = 0;
+              done('배경 영상을 지웠습니다.');
+            },
+          },
+        ]
+      : [
+          {
+            label: '영상 고르기',
+            sub: 'mp4 · webm',
+            run: () =>
+              this.pickFile(VIDEO_ACCEPT, (file) => {
+                m.video = { kind: 'file', url: URL.createObjectURL(file), name: file.name };
+                done('배경 영상을 등록했습니다. 플레이 배경에 나옵니다.');
+              }),
+          },
+          {
+            label: '유튜브 링크',
+            sub: 'youtube.com/watch?v=… · youtu.be/…',
+            run: () => {
+              (this.sheet as Sheet).note = '유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.';
+              (this.sheet as Sheet).input = {
+                placeholder: '유튜브 영상 링크',
+                submit: (text) => {
+                  if (!/(youtube\.com\/watch\?|youtu\.be\/)/.test(text)) return this.toast('유튜브 영상 링크가 아닙니다 (youtube.com/watch?v=… · youtu.be/…)');
+                  m.video = { kind: 'youtube', url: text, name: text };
+                  done('유튜브 영상을 등록했습니다.');
+                },
+              };
+              this.drawSheet();
+            },
+          },
+        ];
+    this.openSheet({
+      title: '배경 영상',
+      sub: m.video ? (m.video.kind === 'youtube' ? '유튜브' : `등록됨 · ${m.video.name}`) : '없음',
+      atJacket: true,
+      items,
+      note:
+        m.video?.kind === 'youtube'
+          ? '유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.'
+          : '플레이 화면의 배경에 깔리는 영상입니다. 영상 싱크는 ←→ 10ms, Shift+←→ 100ms씩 옮깁니다.',
+    });
+  }
 
   private openAdd(): void {
-    this.closePane();
-    this.addAt = 0;
-    this.root.classList.add('adding');
-    this.drawAdd();
-    this.hints();
-    sfx('open');
-  }
-  private closeAdd(sound = false): void {
-    if (this.addAt < 0) return;
-    this.addAt = -1;
-    this.root.classList.remove('adding');
-    if (sound) sfx('back');
-    if (this.active) this.hints();
-  }
-  private drawAdd(): void {
-    this.q('.add-menu').innerHTML = `<div class="add-head"><b>곡 추가</b><span>음악 파일을 화면에 끌어다 놓아도 됩니다</span></div><div class="add-items">${ADD_ITEMS.map(([b, s], i) => `<button class="${i === this.addAt ? 'on' : ''}" data-add="${i}"><b>${b}</b><span>${s}</span></button>`).join('')}</div>`;
+    this.openSheet({
+      title: '곡 추가',
+      sub: '음악 파일을 화면에 끌어다 놓아도 됩니다',
+      items: ADD_ITEMS.map(([label, sub]) => ({
+        label,
+        sub,
+        run: () => {
+          this.closeSheet();
+          this.toast(`'${label}': 시안에는 분석 서버가 없어 곡을 넣지 않습니다.`);
+        },
+      })),
+    });
   }
 
-  // ── keys ────────────────────────────────────────────────────────────────────────────────
+  private openMenu(): void {
+    const fav = favorites.has(state.song);
+    const none = this.order.length === 0;
+    const close = (run: () => void) => () => {
+      this.closeSheet();
+      run();
+    };
+    this.openSheet({
+      title: '메뉴',
+      items: [
+        { label: '곡 추가', cap: '+', run: close(() => this.openAdd()) },
+        { label: '무작위 선곡', cap: 'F2', disabled: none, run: close(() => this.random()) },
+        { label: fav ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기', cap: 'F3', disabled: none, run: close(() => this.toggleFavorite()) },
+        { label: '새 패턴 만들기', sub: `${state.mode} ${state.tier}`, cap: 'F5', disabled: none, run: close(() => this.newPattern()) },
+        { label: '오토 플레이로 보기', sub: '기록은 남지 않습니다', cap: 'Shift+Enter', disabled: none, run: close(() => this.play(true)) },
+        { label: '설정', cap: 'F10', run: close(() => this.onConfig()) },
+      ],
+    });
+  }
+
+  // ── what the keys do ─────────────────────────────────────────────────────────────────────
 
   private move(d: number): void {
     const at = this.order.indexOf(state.song);
@@ -415,399 +806,133 @@ export class SelectScreen {
     if (TIERS[i] === state.tier) return;
     state.tier = TIERS[i] as Tier;
     sfx('slide', 1, 0.94 + i * 0.03);
-    if (this.sort >= 4) this.reorder();
     this.refresh(false);
-    if (this.paneKind === 'info') {
-      this.closePane();
-      this.openPane('info');
-    }
+  }
+
+  private setMode(i: number): void {
+    state.mode = MODES[(i + MODES.length) % MODES.length];
+    state.settings = { ...state.settings, lastKeyMode: state.mode };
+    sfx('tab');
+    this.refresh(false);
+  }
+
+  private random(): void {
+    if (this.order.length < 2) return sfx('edge');
+    let next = state.song;
+    while (next === state.song) next = this.order[Math.floor(Math.random() * this.order.length)];
+    state.song = next;
+    sfx('confirm');
+    this.refresh(true);
+  }
+
+  private toggleFavorite(): void {
+    if (this.order.length === 0) return sfx('edge');
+    const was = favorites.has(state.song);
+    if (was) favorites.delete(state.song);
+    else favorites.add(state.song);
+    sfx(was ? 'off' : 'on');
+    this.toast(was ? '즐겨찾기에서 뺐습니다' : '즐겨찾기에 넣었습니다', 1300);
+    const kept = state.song;
+    this.reorder();
+    // the song just taken out of the favourites stays picked until the cursor leaves it
+    if (this.scope === 'fav' && was && !this.order.includes(kept)) state.song = this.order[0] ?? kept;
+    this.refresh(state.song !== kept);
+    this.drawMedia();
+  }
+
+  private newPattern(): void {
+    sfx('confirm');
+    this.toast(`새 패턴: 서버가 ${this.song.title} ${state.tier} 채보를 다시 만듭니다. 시안에는 서버가 없어 그대로입니다.`);
+  }
+
+  private get practising(): boolean {
+    return this.optRows.find((r) => r.label === '연습 모드')?.value === 0;
+  }
+
+  private play(auto: boolean): void {
+    if (this.order.length === 0) return sfx('edge');
+    // a practice run (a stretch of the song, slowed and looped) is the game's own and is not in the mockup
+    if (this.practising && !auto) return this.toast('연습 플레이는 지금 게임의 것 그대로라 시안에는 넣지 않았습니다. 연습 모드를 끄면 플레이합니다.');
+    this.closeOptions(false);
+    this.onPlay(auto);
   }
 
   key(e: KeyboardEvent): boolean {
     const code = e.code;
+    if (this.sheet) return this.sheetKey(e);
     if (this.searching) {
-      if (code === 'Escape') {
-        this.query = '';
-        this.searching = false;
-        sfx('back');
-      } else if (code === 'Enter' || code === 'NumpadEnter' || code === 'ArrowDown' || code === 'ArrowUp') {
-        this.searching = false;
-        sfx('confirm');
-      } else if (code === 'Backspace') this.query = this.query.slice(0, -1);
-      else if (e.key.length === 1) {
-        this.query += e.key;
-        sfx('cursor', 0.7);
+      if (code === 'Escape') this.endSearch(true);
+      else if (code === 'Enter' || code === 'NumpadEnter' || code === 'ArrowUp' || code === 'ArrowDown' || code === 'Tab') {
+        this.endSearch(false);
+        if (code === 'ArrowUp' || code === 'ArrowDown') this.move(code === 'ArrowUp' ? -1 : 1);
       } else return false;
-      const before = state.song;
-      this.reorder();
-      this.refresh(before !== state.song);
       return true;
     }
-    if (this.addAt >= 0) {
-      if (code === 'Escape' || code === 'Equal' || code === 'NumpadAdd') this.closeAdd(true);
-      else if (code === 'ArrowLeft' || code === 'ArrowRight' || code === 'ArrowUp' || code === 'ArrowDown') {
-        this.addAt = (this.addAt + (code === 'ArrowLeft' || code === 'ArrowUp' ? -1 : 1) + ADD_ITEMS.length) % ADD_ITEMS.length;
-        sfx('cursor');
-        this.drawAdd();
-      } else if (code === 'Enter' || code === 'NumpadEnter') {
-        sfx('confirm');
-        this.toast(`'${ADD_ITEMS[this.addAt][0]}': 시안에는 서버가 없어 파일을 받지 않습니다.`);
-        this.closeAdd();
-      }
+    if (this.mode === 'info') {
+      if (!this.info.key(e) && code === 'F10') this.onConfig();
       return true;
     }
-    if (code === 'Enter' || code === 'NumpadEnter') {
-      if (this.order.length === 0) sfx('edge');
-      else this.onPlay(e.shiftKey);
+    if (code === 'Enter' || code === 'NumpadEnter') return this.play(e.shiftKey), true;
+    if (this.mode === 'opts') {
+      if (code === 'Space' || code === 'Escape') this.closeOptions();
+      else this.optList?.key(e);
       return true;
     }
-    if (code === 'Space') {
-      this.openPane('options');
-      return true;
-    }
-    if (code === 'KeyI') {
-      this.openPane('info');
-      return true;
-    }
-    if (this.pane) {
-      if (code === 'Escape') {
-        this.closePane(true);
-        return true;
-      }
-      return this.pane.key(e);
-    }
-    if (code === 'ArrowUp') this.move(-1);
-    else if (code === 'ArrowDown') this.move(1);
-    else if (code === 'PageUp') this.move(-5);
-    else if (code === 'PageDown') this.move(5);
-    else if (code === 'F2') {
-      if (this.order.length < 2) return sfx('edge'), true;
-      let r = state.song;
-      while (r === state.song) r = this.order[Math.floor(Math.random() * this.order.length)];
-      state.song = r;
-      sfx('cursor');
-      this.refresh(true);
-    } else if (code === 'ArrowLeft' || code === 'ArrowRight') this.setTier(TIERS.indexOf(state.tier) + (code === 'ArrowLeft' ? -1 : 1));
-    else if (code === 'Tab') {
-      const i = (MODES.indexOf(state.mode) + (e.shiftKey ? MODES.length - 1 : 1)) % MODES.length;
-      state.mode = MODES[i];
-      state.settings = { ...state.settings, lastKeyMode: state.mode };
-      sfx('tab');
-      this.stage.apply(state.settings, state.mode);
-      this.reorder();
-      this.refresh(false);
-    } else if (code === 'F6') {
-      this.folder = (this.folder + (e.shiftKey ? FOLDERS.length - 1 : 1)) % FOLDERS.length;
-      sfx('tab');
-      const before = state.song;
-      this.reorder();
-      this.refresh(before !== state.song);
-    } else if (code === 'F4') {
-      this.sort = (this.sort + 1) % SORTS.length;
-      sfx('slide');
-      this.reorder();
-      this.refresh(false);
-    } else if (code === 'F3') {
-      if (this.favorites.has(state.song)) {
-        this.favorites.delete(state.song);
-        sfx('off');
-      } else {
-        this.favorites.add(state.song);
-        sfx('on');
-      }
-      const before = state.song;
-      this.reorder();
-      this.refresh(before !== state.song);
-    } else if (code === 'Slash') {
+    if (code === 'ArrowUp' || code === 'ArrowDown') this.move(code === 'ArrowUp' ? -1 : 1);
+    else if (code === 'PageUp' || code === 'PageDown') this.move(code === 'PageUp' ? -5 : 5);
+    else if (code === 'Home' || code === 'End') this.move(code === 'Home' ? -999 : 999);
+    else if (code === 'ArrowLeft' || code === 'ArrowRight') this.setTier(TIERS.indexOf(state.tier) + (code === 'ArrowLeft' ? -1 : 1));
+    else if (code === 'Tab') this.setMode(MODES.indexOf(state.mode) + (e.shiftKey ? -1 : 1));
+    else if (/^(Digit|Numpad)[1-5]$/.test(code)) this.filter(Number(code.slice(-1)) - 1);
+    else if (code === 'Slash') {
       this.searching = true;
+      if (!this.query) this.searchFrom = state.song;
       sfx('open');
-      this.refresh(false);
-    } else if (code === 'Equal' || code === 'NumpadAdd') this.openAdd();
+      this.drawFilters();
+    } else if (code === 'Space') this.openOptions();
+    else if (code === 'KeyI') {
+      if (this.order.length === 0) return sfx('edge'), true;
+      this.info.show();
+      this.root.classList.add('reading');
+      this.hints();
+    } else if (code === 'KeyC') this.order.length ? this.openCover() : sfx('edge');
+    else if (code === 'KeyV') this.order.length ? this.openVideo() : sfx('edge');
+    else if (code === 'F2') this.random();
+    else if (code === 'F3') this.toggleFavorite();
+    else if (code === 'F5') this.order.length ? this.newPattern() : sfx('edge');
+    else if (code === 'Equal' || code === 'NumpadAdd') this.openAdd();
     else if (code === 'F10') this.onConfig();
-    else if (code === 'F5') {
-      sfx('confirm');
-      this.toast('새 패턴은 서버가 같은 난이도로 채보를 다시 만드는 기능입니다. 시안에는 서버가 없어 만들지 않습니다.');
-    } else if (code === 'Escape') sfx('edge');
+    else if (code === 'Escape') this.openMenu();
     else return false;
     return true;
   }
 
-  /** A pointer does what the keys do: a hint is its key, a row its song, a step its difficulty. */
   private click(e: MouseEvent): void {
     const t = e.target as HTMLElement;
-    const press = (code: string, shift = false) => this.key(new KeyboardEvent('keydown', { code, key: code, shiftKey: shift }));
-    const folder = t.closest<HTMLElement>('[data-folder]');
-    if (folder && !this.pane) {
-      this.folder = Number(folder.dataset.folder);
-      sfx('tab');
-      const before = state.song;
-      this.reorder();
-      this.refresh(before !== state.song);
+    if (this.sheet) {
+      const it = t.closest<HTMLElement>('[data-sheet]');
+      if (it) {
+        const i = Number(it.dataset.sheet);
+        const item = this.sheet.items[i];
+        if (item.disabled) return;
+        this.sheet.at = i;
+        if (item.run) item.run();
+        else this.drawSheet();
+      } else if (!t.closest('.sheet-box')) this.closeSheet(true);
       return;
     }
-    const add = t.closest<HTMLElement>('[data-add]');
-    if (add) {
-      this.addAt = Number(add.dataset.add);
-      press('Enter');
-      return;
-    }
-    if (this.pane || this.addAt >= 0) return;
-    const tier = t.closest<HTMLElement>('.tier');
-    if (tier?.dataset.tier) return this.setTier(TIERS.indexOf(tier.dataset.tier as Tier));
-    const mode = t.closest<HTMLElement>('.modes [data-m]');
-    if (mode?.dataset.m && mode.dataset.m !== state.mode) {
-      state.mode = mode.dataset.m as typeof state.mode;
-      state.settings = { ...state.settings, lastKeyMode: state.mode };
-      sfx('tab');
-      this.stage.apply(state.settings, state.mode);
-      this.reorder();
-      this.refresh(false);
-      return;
-    }
-    const row = t.closest<HTMLElement>('.srow');
-    if (row?.dataset.i) {
+    if (this.mode !== 'list') return;
+    const row = t.closest<HTMLElement>('.wrow');
+    if (row) {
       const i = Number(row.dataset.i);
-      if (i === state.song) return;
+      if (i === state.song) return this.play(false);
       state.song = i;
       sfx('cursor');
-      this.refresh(true);
+      return this.refresh(true);
     }
-  }
-
-  // ── the song as the analysis read it ─────────────────────────────────────────────────────
-
-  /** Its sections, its level and the chart's notes per second over the whole song, and six seconds of the four stems' onsets going by. */
-  private drawScope(): void {
-    const { g, w, h } = fitCanvas(this.scope);
-    if (w === 0) return;
-    const song = this.song;
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    const px = rem / 16;
-    const ovH = Math.round(h * 0.44);
-    const key = `${song.id}|${state.mode}|${state.tier}|${w}x${ovH}|${this.detail ? 1 : 0}`;
-    if (!this.overview || this.overviewKey !== key) {
-      this.overview = drawOverview(song, this.detail, w, ovH, px);
-      this.overviewKey = key;
-    }
-    g.drawImage(this.overview, 0, 0, w, ovH);
-    const now = preview.songMs() ?? song.previewMs;
-    const dur = song.durationMs;
-    const bandH = 18 * px;
-    // the stretch of the song the preview plays, and where it is now
-    const [from, to] = preview.playing ? preview.windowMs : [song.previewMs, song.previewMs + 24000];
-    const line = token('--line');
-    g.fillStyle = token('--bone');
-    g.globalAlpha = 0.09;
-    g.fillRect((from / dur) * w, bandH + 2 * px, ((Math.min(to, dur) - from) / dur) * w, ovH - bandH - 2 * px);
-    g.globalAlpha = 1;
-    g.fillStyle = line;
-    g.fillRect(Math.round((now / dur) * w) - px, bandH - 3 * px, 2 * px, ovH - bandH + 3 * px);
-
-    drawAxis(g, dur, w, ovH, px);
-    // the stems: six seconds of their onsets going by under a fixed mark
-    const top = ovH + 30 * px;
-    const laneH = (h - top) / 4;
-    const plate = 68 * px;
-    const mark = Math.round(plate + (w - plate) * 0.22);
-    const span = 6000;
-    const perMs = (w - plate) / span;
-    const t0 = now - (mark - plate) / perMs;
-    g.textBaseline = 'middle';
-    g.textAlign = 'left';
-    STEMS.forEach((stem, i) => {
-      const y = top + i * laneH;
-      g.fillStyle = token('--rule');
-      g.fillRect(0, Math.round(y + laneH) - 1, w, 1);
-      const colour = token(`--stem-${stem}`);
-      const onsets = this.detail?.onsets[stem] ?? [];
-      let lo = 0;
-      let hi = onsets.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (onsets[mid][0] < t0) lo = mid + 1;
-        else hi = mid;
-      }
-      g.fillStyle = colour;
-      for (let k = lo; k < onsets.length && onsets[k][0] < t0 + span; k++) {
-        const [t, strength] = onsets[k];
-        const x = plate + (t - t0) * perMs;
-        const tall = Math.max(3 * px, (laneH - 6 * px) * clamp(strength, 0.2, 1));
-        const age = now - t;
-        // an onset lights up as it crosses the mark, then stays dim behind it
-        g.globalAlpha = age < 0 ? 0.9 : age < 90 ? 1 : 0.28;
-        const wide = age >= 0 && age < 90 ? 4 * px : 2 * px;
-        g.fillRect(Math.round(x - wide / 2), Math.round(y + laneH - 2 * px - tall), Math.max(2, wide), tall);
-      }
-      g.globalAlpha = 1;
-      g.fillStyle = colour;
-      g.fillRect(0, Math.round(y + laneH / 2 - 4 * px), 8 * px, 8 * px);
-      g.fillStyle = token('--bone-2');
-      g.font = `600 ${13 * px}px ${token('--font-ui')}`;
-      g.fillText(STEM_KO[stem], 14 * px, y + laneH / 2 + px * 0.5);
-    });
-    g.fillStyle = line;
-    g.fillRect(mark - px, top - 5 * px, 2 * px, h - top + 5 * px);
-    g.beginPath();
-    g.moveTo(mark - 5 * px, top - 5 * px);
-    g.lineTo(mark + 5 * px, top - 5 * px);
-    g.lineTo(mark, top + px);
-    g.fill();
-
-    // which section the preview is in
-    const section = song.sketch.sections.find((s) => now >= s.t && now < s.endT);
-    this.q('[data-now]').textContent = `${clock(now)} / ${clock(dur)}`;
-    this.q('[data-section]').textContent = section ? `${SECTION_KO[section.label] ?? section.label}${section.leader ? ` · ${STEM_KO[section.leader]}이(가) 이끎` : ''}` : '';
-    // the line ticks with the song's analysed beats (a bar's first beat a little more)
-    const beats = this.detail?.beats;
-    let beat = 0;
-    if (beats && preview.playing) {
-      let lo = 0;
-      let hi = beats.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (beats[mid] <= now) lo = mid + 1;
-        else hi = mid;
-      }
-      const last = beats[lo - 1];
-      if (last !== undefined && now - last < 140) beat = (1 - (now - last) / 140) * (this.detail?.downbeats.includes(last) ? 1 : 0.55);
-    }
-    document.documentElement.style.setProperty('--beat', beat.toFixed(3));
+    const tier = t.closest<HTMLElement>('[data-tier-i]');
+    if (tier) return this.setTier(Number(tier.dataset.tierI));
+    const mode = t.closest<HTMLElement>('[data-mode]');
+    if (mode) this.setMode(MODES.indexOf(mode.dataset.mode as (typeof MODES)[number]));
   }
 }
-
-function drawOverview(song: SongEntry, detail: SongDetail | null, w: number, h: number, px: number): HTMLCanvasElement {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const c = document.createElement('canvas');
-  c.width = Math.round(w * dpr);
-  c.height = Math.round(h * dpr);
-  const g = c.getContext('2d') as CanvasRenderingContext2D;
-  g.scale(dpr, dpr);
-  const dur = song.durationMs;
-  const bandH = 18 * px;
-  // the sections, each in the colour of the stem that leads it (brighter where the song is louder)
-  g.font = `700 ${13 * px}px ${token('--font-ui')}`;
-  g.textBaseline = 'middle';
-  for (const s of song.sketch.sections) {
-    const x = (s.t / dur) * w;
-    const sw = ((s.endT - s.t) / dur) * w;
-    g.fillStyle = token(`--stem-${s.leader ?? 'other'}`);
-    g.globalAlpha = 0.35 + 0.65 * s.energy;
-    g.fillRect(Math.round(x), 0, Math.max(1, Math.round(sw) - Math.max(1, px)), bandH);
-    g.globalAlpha = 1;
-    const label = SECTION_KO[s.label] ?? s.label;
-    if (g.measureText(label).width + 8 * px < sw) {
-      g.fillStyle = token('--ink-0');
-      g.fillText(label, x + 4 * px, bandH / 2 + px * 0.5);
-    }
-  }
-  // the song's level over time
-  const peaks = detail?.waveform.peaks ?? song.sketch.peaks;
-  const bars = Math.floor(w / (3 * px));
-  const base = h - 1;
-  const room = h - bandH - 10 * px;
-  g.fillStyle = token('--rule-strong');
-  for (let i = 0; i < bars; i++) {
-    const a = Math.floor((i / bars) * peaks.length);
-    const b = Math.max(a + 1, Math.floor(((i + 1) / bars) * peaks.length));
-    let peak = 0;
-    for (let k = a; k < b; k++) peak = Math.max(peak, peaks[k]);
-    const tall = Math.max(px, peak * room * 0.62);
-    g.fillRect(i * 3 * px, base - tall, 2 * px, tall);
-  }
-  // the chart's notes per second on the same time axis; the scale is the hardest step's peak, so the five steps compare
-  const nps = song.charts[state.mode][state.tier].nps;
-  const top = Math.max(1, ...TIERS.map((t) => Math.max(...song.charts[state.mode][t].nps.graph)));
-  const tier = token(`--tier-${state.tier.toLowerCase()}`);
-  g.strokeStyle = tier;
-  g.lineWidth = 2 * px;
-  g.lineJoin = 'round';
-  g.beginPath();
-  nps.graph.forEach((v, i) => {
-    const x = clamp((((i + 0.5) * nps.binMs) / dur) * w, 0, w);
-    const y = base - (v / top) * (room - 2 * px);
-    if (i === 0) g.moveTo(x, y);
-    else g.lineTo(x, y);
-  });
-  g.stroke();
-  g.fillStyle = token('--bone-3');
-  g.fillRect(0, base, w, 1);
-  return c;
-}
-
-/** Minute marks under the overview (a tick every 30 s, a label every minute). */
-function drawAxis(g: CanvasRenderingContext2D, dur: number, w: number, y: number, px: number): void {
-  g.font = `600 ${13 * px}px ${token('--font-num')}`;
-  g.textBaseline = 'top';
-  for (let t = 0; t <= dur; t += 30_000) {
-    const x = Math.round((t / dur) * (w - 1));
-    const minute = t % 60_000 === 0;
-    g.fillStyle = token('--bone-3');
-    g.fillRect(x, y, 1, (minute ? 5 : 3) * px);
-    if (minute && t > 0 && x < w - 20 * px) {
-      g.fillStyle = token('--bone-2');
-      g.textAlign = 'center';
-      g.fillText(clock(t), x, y + 5 * px);
-    }
-  }
-  g.textAlign = 'left';
-}
-
-/** A song's mark in the list: its level over time, mirrored, each stretch in its leading stem's colour. */
-function drawSigil(canvas: HTMLCanvasElement, song: SongEntry): void {
-  const { g, w, h } = fitCanvas(canvas);
-  if (w === 0) return;
-  const peaks = song.sketch.peaks;
-  const n = 12;
-  const bw = w / n;
-  for (let i = 0; i < n; i++) {
-    const a = Math.floor((i / n) * peaks.length);
-    const b = Math.floor(((i + 1) / n) * peaks.length);
-    let p = 0;
-    for (let k = a; k < b; k++) p = Math.max(p, peaks[k]);
-    const t = ((i + 0.5) / n) * song.durationMs;
-    const s = song.sketch.sections.find((x) => t >= x.t && t < x.endT);
-    g.fillStyle = token(`--stem-${s?.leader ?? 'other'}`);
-    const tall = Math.max(2, p * (h - 4));
-    g.fillRect(Math.round(i * bw), Math.round((h - tall) / 2), Math.max(1, Math.round(bw) - 1), Math.round(tall));
-  }
-}
-
-/** Shrinks a line of type until it fits its box (down to `min`, where it is cut with an ellipsis). */
-function fitText(node: HTMLElement, max: number, min: number): void {
-  let size = max;
-  node.style.fontSize = `${size}px`;
-  while (size > min && node.scrollWidth > node.clientWidth + 1) {
-    size = Math.max(min, size - Math.max(1, max / 24));
-    node.style.fontSize = `${size}px`;
-  }
-}
-
-const pct = (v: number | undefined | null) => (v === undefined || v === null ? '–' : `${Math.round(v * 100)}%`);
-
-function chartInfo(c: ChartSummary): string {
-  const stat = (label: string, value: string) => `<div><span class="cap">${label}</span><b class="num">${value}</b></div>`;
-  const shares = c.keysound?.shares;
-  const stems = shares
-    ? `<div class="stembar">${STEMS.map((s) => `<i style="flex:${Math.max(0.001, shares[s])};background:var(--stem-${s})"></i>`).join('')}</div><div class="stemkey">${STEMS.map((s) => `<span><i style="background:var(--stem-${s})"></i>${STEM_KO[s]} <b class="num">${pct(shares[s])}</b></span>`).join('')}</div>`
-    : '';
-  const bars = (list: [string, string][], values: Record<string, number> | null) =>
-    values ? `<div class="bars">${list.map(([k, label]) => `<div><span>${label}</span><i><u style="width:${Math.round(clamp(values[k] ?? 0, 0, 1) * 100)}%"></u></i><b class="num">${pct(values[k])}</b></div>`).join('')}</div>` : '';
-  return `
-    <div class="stats">
-      ${stat('노트', c.noteCount.toLocaleString('en-US'))}${stat('롱노트', String(c.longNotes))}${stat('평균 / 최대 NPS', `${c.nps.avg} / ${c.nps.peak}`)}${stat('세부 난이도', c.rating.toFixed(2))}
-      ${c.handLoad ? stat('왼손 / 오른손', `${Math.round(c.handLoad.L * 100)} / ${Math.round(c.handLoad.R * 100)}`) : ''}${stat('루프 패턴 일치', pct(c.consistency?.loopLane))}${stat('반복 패턴 일치', pct(c.consistency?.repeatLaneMirror ?? c.repeatConsistency))}
-    </div>
-    <div class="cap sub">노트가 따라가는 악기</div>${stems}
-    <div class="cap sub">패턴</div>${bars(PATTERNS, c.patterns)}
-    <div class="cap sub">스킬</div>${bars(SKILLS, c.skillset)}`;
-}
-
-function recordTable(songIndex: number): string {
-  const rows = TIERS.map((t) => [t, recordOf(songIndex, t)] as const).filter(([, r]) => r);
-  if (rows.length === 0) return `<p class="muted">아직 기록이 없습니다.</p>`;
-  return `<table class="records"><thead><tr><th>패턴</th><th>램프</th><th>RATE</th><th>최소 BREAK</th><th>플레이</th></tr></thead><tbody>${rows
-    .map(([t, r]) => `<tr${t === state.tier ? ' class="cur"' : ''}><td data-tier="${t}"><b>${TIER_SHORT[t]}</b> 기본</td><td><i class="lamp" data-lamp="${r?.lamp}"></i> ${r?.lamp}</td><td class="num">${r?.rate.toFixed(2)}%</td><td class="num">${r?.breaks}</td><td class="num">${r?.plays}</td></tr>`)
-    .join('')}</tbody></table>`;
-}
-
-export const EMBLEM = `<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="22" x2="10" y2="2" stroke="var(--bone)" stroke-width="2.2"/><line x1="19" y1="22" x2="14" y2="2" stroke="var(--bone)" stroke-width="2.2"/><line x1="1" y1="17" x2="23" y2="17" stroke="var(--line)" stroke-width="2.6"/></svg>`;

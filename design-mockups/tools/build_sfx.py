@@ -4,7 +4,7 @@
 
 Every sound is a studio recording of a real percussion instrument (VCSL and Karoryfer Samples, both
 CC0). Nothing is synthesised: a sample is only trimmed to its hit, faded at its end and brought to
-its event's level. Writes public/sfx/*.wav, public/sfx/kit.json (events and their candidates) and
+its event's level. Writes _src/sfx/kit/*.wav, _src/sfx/kit/kit.json (events and their candidates) and
 _src/sfx/report.json (what was measured of each file).
 """
 from __future__ import annotations
@@ -17,7 +17,8 @@ import soundfile as sf
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "_src" / "sfx" / "raw"
-OUT = ROOT / "public" / "sfx"
+# parked outside public/ while the mockup plays no effects (move back to public/sfx when they return)
+OUT = ROOT / "_src" / "sfx" / "kit"
 SR = 44100
 
 V = "vcsl/"
