@@ -844,9 +844,11 @@ p.hint {
   background: var(--bg);
 }
 
-/* No backdrop blur on the loading overlay: with its bar running, a full-screen backdrop blur is
-   redone every frame. Rendering in software (no GPU) that kept Chrome's GPU process busy, and the
-   track's WebGL setup waited behind it with the page frozen (~14 s). Nothing is drawn behind it yet. */
+/* What stands over the play: the start card, the pause menu, a play that could not load. No
+   backdrop blur on any of them: under the start card's running bar a full-screen blur was redone
+   every frame, and rendering in software (no GPU) that kept Chrome's GPU process busy while the
+   track's WebGL setup waited behind it with the page frozen (~14 s). A flat scrim instead: the
+   stopped field stays in sight, dim. */
 .play-overlay {
   position: absolute;
   inset: 0;
@@ -855,127 +857,238 @@ p.hint {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-3);
-  background: var(--scrim);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
 }
 
-.play-overlay h2 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-heading);
+/* a sheet in the middle: a heading or a message, a few rows to pick from, and what it stands over */
+.play-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(22rem, calc(100% - 2 * var(--sp-4)));
+  padding: 1.25rem 1.25rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+}
+
+.play-sheet h2 {
+  margin: 0 0 0.875rem;
+  font-size: var(--fs-title);
   font-weight: 800;
+  line-height: 1.3;
 }
 
-.pause-menu button {
-  min-width: 15rem;
+.play-sheet .error {
+  margin: 0 0 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.play-sheet-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* a row and its key: the one under the cursor is a paper plate */
+.play-sheet-rows button {
   justify-content: space-between;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  font-size: 1.0625rem;
+  text-align: left;
+  border: 0;
 }
 
-/* the loading card: the song about to play on its own colours (a still canvas, no blur) */
+.play-sheet-rows button:hover:not(:disabled) {
+  background: var(--raised);
+}
+
+/* (the cursor of a keyboard or a pad: the plate, not the line round a control) */
+.play-sheet-rows button:focus,
+.play-sheet-rows button:focus:hover:not(:disabled),
+:root[data-input='pad'] .play-sheet-rows button:focus,
+:root[data-input='controller'] .play-sheet-rows button:focus {
+  font-weight: 800;
+  color: var(--on-accent);
+  background: var(--accent);
+  outline: none;
+}
+
+.play-sheet-rows button:active:not(:disabled) {
+  transform: none;
+}
+
+/* the song, its tier and its level, quiet under the rows: a long title gives way, the rest stays */
+.play-sheet-song {
+  display: flex;
+  margin: 0.875rem 0 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: pre;
+  color: var(--text-dim);
+}
+
+.play-sheet-song > span {
+  flex: none;
+}
+
+.play-sheet-song > span:first-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the start card: the song about to play on its own colours (a still canvas, no blur), its jacket
+   and what is to be played beside it, the loading under them. No panel round it. */
 .play-loading {
   isolation: isolate;
-  gap: 0;
   background: var(--bg);
 }
 
+.loading-card,
+.loading-status {
+  width: min(56rem, calc(100% - 2 * var(--gutter)));
+}
+
 .loading-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--sp-8);
-  width: min(55rem, calc(100% - var(--sp-8)));
-  padding: var(--sp-8);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+/* the jacket, square; a short or a narrow window has a smaller one. Coming over from the song
+   select (jacketFlight.ts) it passes over what stands beside it */
+.loading-jacket {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: min(19rem, 32vw, 44vh);
+  aspect-ratio: 1;
+  background: var(--raised);
 }
 
 .loading-art {
-  width: clamp(7.5rem, 30vh, 15rem) !important;
-  height: clamp(7.5rem, 30vh, 15rem) !important;
-  border-radius: var(--radius);
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
 }
 
 .loading-text {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
   min-width: 0;
+}
+
+.loading-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+}
+
+/* the tier, its level and the key mode: a leaning plate in the tier's colour, ink on it (its
+   lower corner stands on the title's edge) */
+.loading-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.75rem;
+  margin-left: 0.1875rem;
+  padding: 0 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--on-accent);
+  background: var(--diff);
+  transform: skewX(var(--skew));
+}
+
+.loading-tier > * {
+  transform: skewX(calc(-1 * var(--skew)));
+}
+
+.loading-level {
+  font-size: var(--fs-title);
+  letter-spacing: 0.01em;
+}
+
+/* (a line that leans with the plate) */
+.loading-tier > i {
+  align-self: stretch;
+  width: 1px;
+  margin: 0.375rem 0.125rem;
+  background: currentColor;
+  opacity: 0.4;
+  transform: none;
+}
+
+/* how the play runs: AUTO, REPLAY, 연습 */
+.loading-mode {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
 }
 
 .loading-text h1 {
   display: -webkit-box;
-  margin: 0;
+  margin: 0.875rem 0 0;
   font-size: var(--fs-display);
-  font-weight: 700;
-  line-height: 1.15;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   overflow: hidden;
   overflow-wrap: anywhere;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
-.loading-text .artist {
-  margin: var(--sp-1) 0 var(--sp-4);
+.loading-artist {
+  margin: 0.375rem 0 0;
   font-size: var(--fs-title);
+  font-weight: 500;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.loading-text p {
-  margin: 0 0 var(--sp-4);
-}
-
-.loading-tier {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
-.loading-tier .tier-name {
-  font-size: var(--fs-title);
-  letter-spacing: 0.04em;
-  color: var(--diff);
-}
-
-.loading-tier .loading-level {
-  font-size: var(--fs-display);
-  line-height: 1;
-}
-
-.loading-tier .key-mode {
-  font-size: var(--fs-title);
-  color: var(--text-dim);
-}
-
-.loading-tier .play-mode {
-  padding: 0 var(--sp-2);
-  font-family: var(--font-ui);
-  font-size: var(--fs-label);
-  color: var(--text-dim);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-
+/* the chart in numbers: a small label over each */
 .loading-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-6);
+  gap: var(--sp-3) 2.25rem;
+  margin: 1.75rem 0 0;
+}
+
+.loading-facts > span {
+  display: flex;
+  flex-direction: column;
 }
 
 .loading-facts .label {
   font-size: var(--fs-label);
   font-weight: 700;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 
 .loading-facts b {
-  margin-left: var(--sp-1);
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 2rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 /* the rules the play runs on where they are not the defaults (judgement, placement, score, gauge) */
@@ -983,17 +1096,19 @@ p.hint {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+  margin: var(--sp-4) 0 0;
 }
 
 .loading-rule {
-  padding: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-label);
-  line-height: 1.2;
+  padding: 0.1875rem var(--sp-2);
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  white-space: nowrap;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
 }
 
 .loading-rule .label {
+  font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
 }
@@ -1002,19 +1117,19 @@ p.hint {
   font-weight: 700;
 }
 
+/* under the card, as wide: the running bar, what is loading, the way out */
 .loading-status {
-  margin-top: auto;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: 2.5rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
 }
 
 .loading-status p {
-  margin: 0 0 var(--sp-2);
-}
-
-.loading-progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  margin: 0;
 }
 
 /* no progress is reported while audio loads: a bar that runs, not a made-up share */
@@ -1022,10 +1137,9 @@ p.hint {
   position: relative;
   flex: 1;
   min-width: 5rem;
-  height: 0.25rem;
+  height: 0.125rem;
   overflow: hidden;
   background: var(--line);
-  border-radius: 0.125rem;
 }
 
 .loading-bar i {
@@ -1033,7 +1147,6 @@ p.hint {
   inset: 0 auto 0 0;
   width: 30%;
   background: var(--text);
-  border-radius: 0.125rem;
   animation: loading-run 1.4s ease-in-out infinite;
 }
 
@@ -1054,36 +1167,82 @@ p.hint {
   }
 }
 
-/* the keys of the lanes, coloured by the instrument each lane follows most */
+/* the keys of the lanes at the foot of the screen, each over the colour of the instrument its
+   lane follows most; the instruments are named beside them */
 .loading-keys {
   position: absolute;
   bottom: var(--sp-8);
   left: 50%;
   display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+  align-items: flex-start;
+  gap: 0.375rem;
+  line-height: 1.75rem;
   transform: translateX(-50%);
 }
 
-.loading-keys .label {
-  margin: 0 var(--sp-2);
+.loading-keys .label,
+.loading-stems {
   font-size: var(--fs-label);
   font-weight: 700;
-  color: var(--text-dim);
   white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.loading-keys .label {
+  margin-right: var(--sp-2);
 }
 
 .loading-key {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
+  gap: 0.25rem;
+}
+
+.loading-key kbd {
+  min-width: 2.125rem;
+  height: 1.75rem;
+  padding: 0 var(--sp-2);
+  font-size: 0.9375rem;
 }
 
 .loading-key i {
-  width: 2.75rem;
-  height: 0.5rem;
-  border-radius: 0.125rem;
+  height: 0.1875rem;
+}
+
+.loading-stems {
+  display: flex;
+  gap: var(--sp-3);
+  margin-left: var(--sp-3);
+}
+
+.loading-stem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.loading-stem i {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+/* a short window: the card's parts stand closer, so the loading keeps clear of the keys */
+@media (max-height: 600px) {
+  .loading-facts {
+    margin-top: var(--sp-4);
+  }
+
+  .loading-rules {
+    margin-top: var(--sp-2);
+  }
+
+  .loading-status {
+    margin-top: var(--sp-4);
+  }
+
+  .loading-keys {
+    bottom: var(--sp-4);
+  }
 }
 
 /* HUD: the song sits on the screen (sizes are the type tokens times --hud-scale, 1 at 720px high,
@@ -1144,58 +1303,108 @@ p.hint {
   border-radius: var(--radius-sm);
 }
 
-/* a plate keeps the song readable over a video or the visualizer; --info-room (Hud.fit) keeps it
-   clear of the gear where the track comes near the screen's corner, and --info-scale shrinks it
-   where that room is narrower than its difficulty chip */
+/* the song at the screen's top left: its jacket, its title over its artist, its difficulty and how
+   the play runs. A flat plate keeps it readable over a video at any brightness (no outline, no
+   shadow); --info-room (Hud.fit) keeps it clear of the gear where the track comes near the
+   screen's corner and no wider than what stands on it, and --info-scale shrinks it where that
+   room is narrower than its widest part. It keeps low, as high as its jacket where it can: the
+   column left of the gear stands under it. */
 .hud-info {
   position: absolute;
   top: var(--sp-4);
   left: var(--sp-4);
   max-width: min(40%, var(--info-room, 100%));
-  padding: var(--sp-2) var(--sp-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  border-radius: var(--radius-sm);
   transform: scale(var(--info-scale, 1));
   transform-origin: 0 0;
 }
 
-/* the difficulty and key mode go under the title where the plate is too narrow for one line */
 .hud-head {
+  display: flex;
+}
+
+/* the jacket, to the plate's edges */
+.hud-jacket {
+  flex: none;
+  align-self: flex-start;
+  display: block;
+  width: calc(48px * var(--hud-scale));
+  height: calc(48px * var(--hud-scale));
+}
+
+/* beside it the song's line: its name, its difficulty, how the play runs. What does not fit
+   beside the name goes under it */
+.hud-line {
+  flex: 1 1 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-1) var(--sp-3);
+  align-content: center;
+  gap: calc(2px * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale));
+  min-width: 0;
+  padding: calc(3px * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale));
   white-space: nowrap;
 }
 
-.hud-chips {
+.hud-name {
+  flex: 0 1 auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-top: var(--sp-1);
+  flex-direction: column;
+  min-width: 0;
 }
 
 .hud-title {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: calc(var(--fs-body) * var(--hud-scale));
   font-weight: 800;
+  line-height: 1.2;
 }
 
+.hud-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+
+/* a narrow plate (Hud.fit): the difficulty stands under the title, in the artist's place */
+.hud-artist:empty,
+.hud-info.tight .hud-artist {
+  display: none;
+}
+
+/* the difficulty and its key mode keep together */
+.hud-tier {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-2) * var(--hud-scale));
+}
+
+/* the tier and its level: a leaning plate in the tier's colour, ink on it (its lower corner
+   stands on the title's edge where it is under it) */
 .hud-diff {
   flex: none;
   display: inline-flex;
   align-items: baseline;
-  gap: var(--sp-1);
-  padding: 0 var(--sp-2);
+  gap: calc(var(--sp-1) * var(--hud-scale));
+  margin-left: calc(2px * var(--hud-scale));
+  padding: 0 calc(var(--sp-2) * var(--hud-scale));
   font-family: var(--font-display);
   font-size: calc(var(--fs-body) * var(--hud-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.25;
   color: var(--bg);
   background: var(--diff);
-  border-radius: var(--radius-sm);
+  transform: skewX(var(--skew));
+}
+
+.hud-diff > * {
+  transform: skewX(calc(-1 * var(--skew)));
 }
 
 .hud-diff-level:empty {
@@ -1209,15 +1418,34 @@ p.hint {
   color: var(--text-dim);
 }
 
-/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL */
+/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL: together on the
+   song's line, or under it */
+.hud-chips {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2px * var(--hud-scale)) calc(6px * var(--hud-scale));
+  min-width: 0;
+}
+
 .hud-chip {
   flex: none;
-  padding: 0 var(--sp-1);
+  padding: 0 calc(6px * var(--hud-scale));
   font-size: calc(var(--fs-label) * var(--hud-scale));
   font-weight: 700;
+  line-height: calc(20px * var(--hud-scale) - 2px);
   color: var(--text);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+}
+
+/* under the song's line, across the plate: the sync test's offsets, as close under it as the
+   line's own parts are */
+.hud-foot {
+  padding: 0 calc(var(--sp-3) * var(--hud-scale)) calc(var(--sp-1) * var(--hud-scale));
+}
+
+.hud-foot > .hud-sync {
+  margin-top: calc(var(--sp-1) * var(--hud-scale));
 }
 
 /* the sync test's offsets as its keys move them, each with its keys */

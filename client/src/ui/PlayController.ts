@@ -1,3 +1,4 @@
+import { api } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
@@ -52,6 +53,7 @@ import { LAMP_CLASS } from './lamps';
 import { PlayBackground } from './PlayBackground';
 import { practiceRunStart } from './practiceLead';
 import { offsetText } from './resultBreakdown';
+import { leadingStem } from './songArt';
 import { judgementChip, judgementSettingsOf, paceRatio, pacemakerLabel, playbackRateText, playedSettings, playModeLabel } from './playRules';
 import { keyPairNames, offsetStep, syncKeyOf, syncTestKeys, type SyncTestKeys } from './visualSync';
 
@@ -322,10 +324,15 @@ export class PlayController {
 
     const gauge = this.gaugeRule();
     const rules = rulesetConfigs[settings.ruleset];
+    // the song's jacket on its plate: its picture, else its disc as the song select draws it
+    const { song } = request;
+    const coverUrl = request.background?.coverUrl ?? (song?.hasCover ? api.coverUrl(song) : null);
     this.hud = new Hud(
       setup.hudRoot,
       {
         title: this.chart.meta.title,
+        artist: this.chart.meta.artist,
+        jacket: song || coverUrl ? { coverUrl, leadStem: song ? () => api.sketch(song.id).then(leadingStem) : undefined } : null,
         keyMode: this.chart.meta.keyMode,
         difficulty: difficultyChip(this.chart.meta),
         mode: request.replay ? 'replay' : request.autoPlay ? 'auto' : this.practice ? 'practice' : 'play',
