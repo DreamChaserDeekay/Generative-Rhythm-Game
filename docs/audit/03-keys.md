@@ -1520,6 +1520,19 @@
 | settings:notes | 설정 parts |  |  |  |
 | result:details | → select | 선곡으로 |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 설정 displayMode | 누르기 |  |  |
+| settings:pad |  | 지정 |  |  |
+| settings:keys | → settings:keys+capture | 바꾸기 |  | 브라우저 기본 동작 남음 |
+| select+add | → select |  |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | → select+options:rules | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+info+add | → select+info | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | → select+options:generation | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | → select+options:gear | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | → select+info+youtube | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | → select+info+analysis | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | → select+info+youtube+analysis | 고르기 |  | 브라우저 기본 동작 남음 |
+| select+first+add | → select+first |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add | 고르기 |  |  |
+| select+first+add+search | → select+first+add | 고르기 |  |  |
 
 #### 패드 B
 
@@ -1544,6 +1557,25 @@
 | result:details | → result | 상세 닫기 |  |  |
 | settings:advanced | → select | 완료 |  |  |
 | settings:fx | → select | 완료 |  |  |
+| settings:pad | → select | 완료 |  |  |
+| settings:sound | → select | 완료 |  |  |
+| settings:keys | → select | 완료 |  |  |
+| settings:pad+capture | → settings:pad |  |  |  |
+| select+offline+info | → select+offline | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:rules | → select+offline | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:generation | → select+offline | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:gear | → select+offline | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+add | → select |  |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | → select+options:rules | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+add | → select+info | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | → select+options:generation | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | → select+options:gear | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | → select+info+youtube | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | → select+info+analysis | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | → select+info+youtube+analysis | 닫기 |  | 브라우저 기본 동작 남음 |
+| select+first+add | → select+first |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add | 닫기 |  |  |
+| select+first+add+search | → select+first+add | 닫기 |  |  |
 
 #### 패드 X
 
@@ -1559,6 +1591,20 @@
 | select+info+youtube+analysis | → select+options:rules | 플레이 옵션 |  |  |
 | result | → play:running | 다시 하기 |  |  |
 | result:details | → play:running | 다시 하기 |  |  |
+| select+first | → select+options:rules |  |  |  |
+| select+offline+info | → select+offline+options:rules | 플레이 옵션 |  |  |
+| select+offline+options:rules | → select+offline | 플레이 옵션 닫기 |  |  |
+| select+offline+options:generation | → select+offline | 플레이 옵션 닫기 |  |  |
+| select+offline+options:gear | → select+offline | 플레이 옵션 닫기 |  |  |
+| select+options:rules+add |  | 플레이 옵션 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+add |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add |  | 플레이 옵션 닫기 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add |  | 플레이 옵션 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
+| select+add+search |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
+| select+first+add+search |  | 플레이 옵션 |  | 브라우저 기본 동작 남음 |
 
 #### 패드 Y
 
@@ -1583,6 +1629,26 @@
 | result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 포커스 → reset-all |  |  | 브라우저 기본 동작 남음 |
 | settings:fx | 포커스 → opt-hit-effect |  |  | 브라우저 기본 동작 남음 |
+| settings:pad | 포커스 → opt-tt-release |  |  | 브라우저 기본 동작 남음 |
+| settings:sound | 포커스 → opt-sfx-volume |  |  | 브라우저 기본 동작 남음 |
+| settings:keys | 포커스 → key-4K-1 |  |  | 브라우저 기본 동작 남음 |
+| select+first | 설정 lastKeyMode |  |  |  |
+| select+offline | 설정 lastKeyMode |  |  |  |
+| select+offline+info | 설정 lastKeyMode |  |  |  |
+| select+offline+options:rules | 설정 lastKeyMode |  |  |  |
+| select+offline+options:generation | 설정 lastKeyMode |  |  |  |
+| select+offline+options:gear | 설정 lastKeyMode |  |  |  |
+| select+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+info+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+first+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add | 키 모드 |  | 브라우저 기본 동작 남음 |
+| select+first+add+search | → select+first+add | 키 모드 |  | 브라우저 기본 동작 남음 |
 
 #### 패드 LB
 
@@ -1600,6 +1666,16 @@
 | settings:notes | → settings:gear | 탭 |  |  |
 | settings:advanced | → settings:pad | 탭 |  |  |
 | settings:fx | → settings:notes | 탭 |  |  |
+| settings:pad | → settings:keys | 탭 |  |  |
+| settings:sound | → settings:fx | 탭 |  |  |
+| settings:keys | → settings:sound | 탭 |  |  |
+| select+offline+options:rules | → select+offline+options:generation | 탭 |  |  |
+| select+offline+options:generation | → select+offline+options:gear | 탭 |  |  |
+| select+offline+options:gear | → select+offline+options:rules | 탭 |  |  |
+| select+options:rules+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+add+search |  | 페이지 |  |  |
 
 #### 패드 RB
 
@@ -1618,6 +1694,16 @@
 | settings:notes | → settings:fx | 탭 |  |  |
 | settings:advanced | → settings:play | 탭 |  |  |
 | settings:fx | → settings:sound | 탭 |  |  |
+| settings:pad | → settings:advanced | 탭 |  |  |
+| settings:sound | → settings:keys | 탭 |  |  |
+| settings:keys | → settings:pad | 탭 |  |  |
+| select+offline+options:rules | → select+offline+options:gear | 탭 |  |  |
+| select+offline+options:generation | → select+offline+options:rules | 탭 |  |  |
+| select+offline+options:gear | → select+offline+options:generation | 탭 |  |  |
+| select+options:rules+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add |  | 탭 |  | 브라우저 기본 동작 남음 |
+| select+add+search | 화면 바뀜 | 페이지 |  |  |
 
 #### 패드 LT
 
@@ -1631,6 +1717,21 @@
 | select+info+youtube |  | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
 | select+info+analysis | → select | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
 | select+info+youtube+analysis | → select | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+first | → select+info |  |  | 브라우저 기본 동작 남음 |
+| select+offline | → select+offline+info |  |  | 브라우저 기본 동작 남음 |
+| select+offline+info | → select+offline | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:rules | → select+offline+info | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:generation | → select+offline+info | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+offline+options:gear | → select+offline+info | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add |  | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+info+add |  | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add |  | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add |  | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add |  | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add |  | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add |  | 곡 정보·도구 닫기 |  | 브라우저 기본 동작 남음 |
+| select+add+search |  | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
+| select+first+add+search |  | 곡 정보·도구 |  | 브라우저 기본 동작 남음 |
 
 #### 패드 RT
 
@@ -1644,6 +1745,23 @@
 | select+info+youtube | → settings:speed |  |  |  |
 | select+info+analysis | → settings:speed |  |  |  |
 | select+info+youtube+analysis | → settings:speed |  |  |  |
+| select+first | → settings:speed |  |  |  |
+| select+offline | → settings:speed |  |  |  |
+| select+offline+info | → settings:speed |  |  |  |
+| select+offline+options:rules | → settings:speed |  |  |  |
+| select+offline+options:generation | → settings:speed |  |  |  |
+| select+offline+options:gear | → settings:speed |  |  |  |
+| select+add | → settings:speed |  |  |  |
+| select+options:rules+add | → settings:speed |  |  |  |
+| select+info+add | → settings:speed |  |  |  |
+| select+options:generation+add | → settings:speed |  |  |  |
+| select+options:gear+add | → settings:speed |  |  |  |
+| select+info+youtube+add | → settings:speed |  |  |  |
+| select+info+analysis+add | → settings:speed |  |  |  |
+| select+info+youtube+analysis+add | → settings:speed |  |  |  |
+| select+first+add | → settings:speed |  |  |  |
+| select+add+search | → settings:speed | 설정 |  |  |
+| select+first+add+search | → settings:speed | 설정 |  |  |
 
 #### 패드 Back
 
@@ -1667,6 +1785,24 @@
 | result:details | → result |  |  |  |
 | settings:advanced | → select |  |  |  |
 | settings:fx | → select |  |  |  |
+| settings:pad | → select |  |  |  |
+| settings:sound | → select |  |  |  |
+| settings:keys | → select |  |  |  |
+| select+offline+info | → select+offline |  |  | 브라우저 기본 동작 남음 |
+| select+offline+options:rules | → select+offline |  |  | 브라우저 기본 동작 남음 |
+| select+offline+options:generation | → select+offline |  |  | 브라우저 기본 동작 남음 |
+| select+offline+options:gear | → select+offline |  |  | 브라우저 기본 동작 남음 |
+| select+add | → select |  |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | → select+options:rules |  |  | 브라우저 기본 동작 남음 |
+| select+info+add | → select+info |  |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | → select+options:generation |  |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | → select+options:gear |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | → select+info+youtube |  |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | → select+info+analysis |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | → select+info+youtube+analysis |  |  | 브라우저 기본 동작 남음 |
+| select+first+add | → select+first |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add |  |  |  |
+| select+first+add+search | → select+first+add |  |  |  |
 
 #### 패드 Start
 
@@ -1688,6 +1824,18 @@
 | settings:notes | 설정 parts |  |  |  |
 | result:details | → select |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 설정 displayMode |  |  |  |
+| settings:keys | → settings:keys+capture |  |  | 브라우저 기본 동작 남음 |
+| select+add | → select |  |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | → select+options:rules |  |  | 브라우저 기본 동작 남음 |
+| select+info+add | → select+info |  |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | → select+options:generation |  |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | → select+options:gear |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | → select+info+youtube |  |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | → select+info+analysis |  |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | → select+info+youtube+analysis |  |  | 브라우저 기본 동작 남음 |
+| select+first+add | → select+first |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add |  |  |  |
+| select+first+add+search | → select+first+add |  |  |  |
 
 #### 패드 RS
 
@@ -1701,6 +1849,8 @@
 | select+info+youtube |  | 오토 플레이 |  | 브라우저 기본 동작 남음 |
 | select+info+analysis | 화면 바뀜 |  |  |  |
 | select+info+youtube+analysis | 화면 바뀜 |  |  |  |
+| select+add+search | → select+add |  |  |  |
+| select+first+add+search | → select+first+add |  |  |  |
 
 #### 패드 Up
 
@@ -1725,6 +1875,26 @@
 | result:details | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced |  | 항목 |  |  |
 | settings:fx |  | 항목 |  |  |
+| settings:pad |  | 모드 |  |  |
+| settings:sound |  | 항목 |  |  |
+| settings:keys |  | 모드 |  |  |
+| select+first | 포커스 → first-calibrate | 버튼 |  |  |
+| select+offline | 포커스 → offline-sync-test |  |  |  |
+| select+offline+info | 포커스 → sync-auto | 항목 |  |  |
+| select+offline+options:rules | 포커스 → toggle-rules | 항목 |  |  |
+| select+offline+options:generation | 포커스 → toggle-generation | 항목 |  |  |
+| select+offline+options:gear | 포커스 → toggle-gear | 항목 |  |  |
+| select+add | 포커스 → open-replay | 곡 |  |  |
+| select+options:rules+add | 포커스 → open-replay | 항목 |  |  |
+| select+info+add | 포커스 → open-replay | 항목 |  |  |
+| select+options:generation+add | 포커스 → open-replay | 항목 |  |  |
+| select+options:gear+add | 포커스 → open-replay | 항목 |  |  |
+| select+info+youtube+add | 포커스 → open-replay | 항목 |  |  |
+| select+info+analysis+add | 포커스 → open-replay | 항목 |  |  |
+| select+info+youtube+analysis+add | 포커스 → open-replay | 항목 |  |  |
+| select+first+add | 포커스 → open-replay | 버튼 |  |  |
+| select+add+search | 화면 바뀜 | 곡 |  |  |
+| select+first+add+search |  | 버튼 |  |  |
 
 #### 패드 Down
 
@@ -1749,6 +1919,26 @@
 | result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 포커스 → reset-all | 항목 |  |  |
 | settings:fx | 포커스 → opt-hit-effect | 항목 |  |  |
+| settings:pad | 포커스 → opt-tt-release | 모드 |  |  |
+| settings:sound | 포커스 → opt-sfx-volume | 항목 |  |  |
+| settings:keys | 포커스 → key2-4K-0 | 모드 |  |  |
+| select+first | 포커스 → first-demo | 버튼 |  |  |
+| select+offline | 포커스 → offline-sync-test |  |  |  |
+| select+offline+info | 포커스 → sync-auto | 항목 |  |  |
+| select+offline+options:rules | 포커스 → rule-gauge | 항목 |  |  |
+| select+offline+options:generation | 포커스 → generation-options>button[0]:자동 | 항목 |  |  |
+| select+offline+options:gear | 포커스 → quick-sudden | 항목 |  |  |
+| select+add | 포커스 → demo-button | 곡 |  |  |
+| select+options:rules+add | 포커스 → demo-button | 항목 |  |  |
+| select+info+add | 포커스 → demo-button | 항목 |  |  |
+| select+options:generation+add | 포커스 → demo-button | 항목 |  |  |
+| select+options:gear+add | 포커스 → demo-button | 항목 |  |  |
+| select+info+youtube+add | 포커스 → demo-button | 항목 |  |  |
+| select+info+analysis+add | 포커스 → demo-button | 항목 |  |  |
+| select+info+youtube+analysis+add | 포커스 → demo-button | 항목 |  |  |
+| select+first+add | 포커스 → demo-button | 버튼 |  |  |
+| select+add+search | 화면 바뀜 | 곡 |  |  |
+| select+first+add+search |  | 버튼 |  |  |
 
 #### 패드 Left
 
@@ -1773,6 +1963,26 @@
 | result:details | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 설정 displayMode | 값 |  |  |
 | settings:fx | 설정 cameraFx | 값 |  |  |
+| settings:pad |  | 레인 |  |  |
+| settings:sound | 설정 musicVolume | 값 |  |  |
+| settings:keys |  | 레인 |  |  |
+| select+first | 포커스 → first-calibrate |  |  |  |
+| select+offline | 포커스 → offline-sync-test | 버튼 |  |  |
+| select+offline+info | 포커스 → sync-auto | 값 |  |  |
+| select+offline+options:rules | 설정 placement | 값 |  |  |
+| select+offline+options:generation | 설정 generation · 포커스 → style-melody | 값 |  |  |
+| select+offline+options:gear | 설정 hiSpeed | 값 |  |  |
+| select+add | 포커스 → add-menu | 난이도 |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | 포커스 → add-menu | 값 |  | 브라우저 기본 동작 남음 |
+| select+first+add | 포커스 → add-menu |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add | 난이도 |  | 브라우저 기본 동작 남음 |
+| select+first+add+search | → select+first+add |  |  | 브라우저 기본 동작 남음 |
 
 #### 패드 Right
 
@@ -1797,6 +2007,26 @@
 | result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:advanced | 설정 displayMode | 값 |  |  |
 | settings:fx | 설정 cameraFx | 값 |  |  |
+| settings:pad | 설정 turntableSteps | 레인 |  |  |
+| settings:sound | 설정 musicVolume | 값 |  |  |
+| settings:keys | 포커스 → key-4K-1 | 레인 |  |  |
+| select+first | 포커스 → first-demo |  |  |  |
+| select+offline | 포커스 → offline-sync-test | 버튼 |  |  |
+| select+offline+info | 포커스 → sync-auto | 값 |  |  |
+| select+offline+options:rules | 설정 placement | 값 |  |  |
+| select+offline+options:generation | 설정 generation · 포커스 → style-stream | 값 |  |  |
+| select+offline+options:gear | 설정 hiSpeed | 값 |  |  |
+| select+add | 포커스 → demo-button | 난이도 |  | 브라우저 기본 동작 남음 |
+| select+options:rules+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+options:generation+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+options:gear+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+analysis+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+info+youtube+analysis+add | 포커스 → demo-button | 값 |  | 브라우저 기본 동작 남음 |
+| select+first+add | 포커스 → demo-button |  |  | 브라우저 기본 동작 남음 |
+| select+add+search | → select+add | 난이도 |  | 브라우저 기본 동작 남음 |
+| select+first+add+search | → select+first+add |  |  | 브라우저 기본 동작 남음 |
 
 #### wait:end
 
@@ -1811,6 +2041,33 @@
 | select+info+youtube | 패드 X | 플레이 옵션 | bga-youtube-input |
 | select+info+youtube | 패드 LT | 곡 정보·도구 닫기 | bga-youtube-input |
 | select+info+youtube | 패드 RS | 오토 플레이 | bga-youtube-input |
+| select+options:rules+add | 패드 LB | 탭 | upload-button |
+| select+options:rules+add | 패드 RB | 탭 | upload-button |
+| select+options:rules+add | 패드 X | 플레이 옵션 닫기 | upload-button |
+| select+options:rules+add | 패드 LT | 곡 정보·도구 | upload-button |
+| select+info+add | 패드 X | 플레이 옵션 | upload-button |
+| select+info+add | 패드 LT | 곡 정보·도구 닫기 | upload-button |
+| select+options:generation+add | 패드 LB | 탭 | upload-button |
+| select+options:generation+add | 패드 RB | 탭 | upload-button |
+| select+options:generation+add | 패드 X | 플레이 옵션 닫기 | upload-button |
+| select+options:generation+add | 패드 LT | 곡 정보·도구 | upload-button |
+| select+options:gear+add | 패드 LB | 탭 | upload-button |
+| select+options:gear+add | 패드 RB | 탭 | upload-button |
+| select+options:gear+add | 패드 X | 플레이 옵션 닫기 | upload-button |
+| select+options:gear+add | 패드 LT | 곡 정보·도구 | upload-button |
+| select+info+youtube+add | 패드 X | 플레이 옵션 | upload-button |
+| select+info+youtube+add | 패드 LT | 곡 정보·도구 닫기 | upload-button |
+| select+info+analysis+add | 패드 X | 플레이 옵션 | upload-button |
+| select+info+analysis+add | 패드 LT | 곡 정보·도구 닫기 | upload-button |
+| select+info+youtube+analysis+add | 패드 X | 플레이 옵션 | upload-button |
+| select+info+youtube+analysis+add | 패드 LT | 곡 정보·도구 닫기 | upload-button |
+| select+add+search | 패드 LB | 페이지 | song-search |
+| select+add+search | 패드 X | 플레이 옵션 | song-search |
+| select+add+search | 패드 LT | 곡 정보·도구 | song-search |
+| select+first+add+search | 패드 Up | 버튼 | song-search |
+| select+first+add+search | 패드 Down | 버튼 | song-search |
+| select+first+add+search | 패드 X | 플레이 옵션 | song-search |
+| select+first+add+search | 패드 LT | 곡 정보·도구 | song-search |
 
 ### 일을 하는데 힌트 바에도 화면의 키 표시에도 없는 키 (숨은 단축키)
 
@@ -1876,18 +2133,33 @@
 | settings:advanced | 패드 Start | 설정 displayMode |
 | settings:fx | 패드 Y | 포커스 → opt-hit-effect |
 | settings:fx | 패드 Back | → select |
+| settings:sound | 패드 Y | 포커스 → opt-sfx-volume |
+| settings:sound | 패드 Back | → select |
+| select+first | 패드 X | → select+options:rules |
+| select+first | 패드 Y | 설정 lastKeyMode |
+| select+first | 패드 LT | → select+info |
+| select+first | 패드 RT | → settings:speed |
+| select+offline | 패드 Y | 설정 lastKeyMode |
+| select+offline | 패드 LT | → select+offline+info |
+| select+offline | 패드 RT | → settings:speed |
+| select+add | 패드 A | → select |
+| select+add | 패드 B | → select |
+| select+add | 패드 Y | 포커스 → demo-button |
+| select+add | 패드 RT | → settings:speed |
+| select+add | 패드 Back | → select |
+| select+add | 패드 Start | → select |
 
 ### 같은 키, 다른 이름 (힌트 바의 말 기준)
 
 | 키 | 이름 수 | 이름들 | 화면 |
 |---|---|---|---|
-| 패드 A | 6 | 플레이 / 누르기 / 시작 / 저장 / 열기 / 선곡으로 | select, calibration, settings, result |
+| 패드 A | 9 | 플레이 / 누르기 / 시작 / 저장 / 열기 / 선곡으로 / 지정 / 바꾸기 / 고르기 | select, calibration, settings, result |
 | 패드 B | 5 | 닫기 / 완료 / 돌아가기 / 멈추기 / 상세 닫기 | select, settings, calibration, result |
+| 패드 Left | 5 | 난이도 / 값 / 1ms / 레인 / 버튼 | select, settings, calibration |
+| 패드 Right | 5 | 난이도 / 값 / 1ms / 레인 / 버튼 | select, settings, calibration |
+| 패드 Up | 4 | 곡 / 항목 / 모드 / 버튼 | select, settings |
+| 패드 Down | 4 | 곡 / 항목 / 모드 / 버튼 | select, settings |
 | 패드 X | 3 | 플레이 옵션 닫기 / 플레이 옵션 / 다시 하기 | select, result |
-| 패드 Left | 3 | 난이도 / 값 / 1ms | select, settings, calibration |
-| 패드 Right | 3 | 난이도 / 값 / 1ms | select, settings, calibration |
-| 패드 LB | 2 | 탭 / 단계 | select, settings, calibration |
-| 패드 RB | 2 | 탭 / 단계 | select, settings, calibration |
+| 패드 LB | 3 | 탭 / 단계 / 페이지 | select, settings, calibration |
+| 패드 RB | 3 | 탭 / 단계 / 페이지 | select, settings, calibration |
 | 패드 LT | 2 | 곡 정보·도구 / 곡 정보·도구 닫기 | select |
-| 패드 Up | 2 | 곡 / 항목 | select, settings |
-| 패드 Down | 2 | 곡 / 항목 | select, settings |
