@@ -10,6 +10,7 @@ import { disposeSkinArt, loadSkinArt } from '../render/skinArt';
 import { hudTypeFor } from '../render/gearHud';
 import { padPlayOf, skinOf, songOffsetOf, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
+import { difficultyChip } from './difficultyChip';
 import { loadHudFont } from './Hud';
 import { LoadingCard } from './LoadingCard';
 import { PlayController, type PlayOutcome } from './PlayController';
@@ -159,6 +160,16 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
     return () => bridge.stop();
   }, [menu, paused, start, select]);
 
+  // what a sheet stands over, under its rows: the song, its tier and its level
+  const { label: tier, level } = difficultyChip(request.chart.meta);
+  const what = (
+    <p className="play-sheet-song">
+      <span>{request.chart.meta.title}</span>
+      <span> · {tier}</span>
+      {level && <span> · {level}</span>}
+    </p>
+  );
+
   return (
     <div className="play-screen" data-testid="play-screen">
       <div ref={bgRef} className="play-bg" data-testid="play-bg" />
@@ -167,16 +178,34 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
       {loading && !error && <LoadingCard request={request} settings={settings} text={loadingText} onCancel={onQuit} />}
       {error && (
         <div className="play-overlay">
-          <p className="error">{error}</p>
-          <button onClick={onQuit} autoFocus>돌아가기 <kbd>Esc</kbd></button>
+          <div className="play-sheet">
+            <p className="error">{error}</p>
+            <div className="play-sheet-rows">
+              <button onClick={onQuit} autoFocus>
+                <span>돌아가기</span> <kbd>Esc</kbd>
+              </button>
+            </div>
+            {what}
+          </div>
         </div>
       )}
       {paused && (
         <div ref={menuRef} className="play-overlay pause-menu" data-testid="pause-menu">
-          <h2>일시정지</h2>
-          <button onClick={() => controllerRef.current?.resume()} autoFocus>계속하기 <kbd>Esc</kbd></button>
-          <button onClick={() => controllerRef.current?.restart()}>다시 하기 <kbd>R</kbd></button>
-          <button onClick={leave}>나가기 <kbd>Q</kbd></button>
+          <div className="play-sheet">
+            <h2>일시정지</h2>
+            <div className="play-sheet-rows">
+              <button onClick={() => controllerRef.current?.resume()} autoFocus>
+                <span>계속하기</span> <kbd>Esc</kbd>
+              </button>
+              <button onClick={() => controllerRef.current?.restart()}>
+                <span>다시 하기</span> <kbd>R</kbd>
+              </button>
+              <button onClick={leave}>
+                <span>나가기</span> <kbd>Q</kbd>
+              </button>
+            </div>
+            {what}
+          </div>
         </div>
       )}
     </div>
