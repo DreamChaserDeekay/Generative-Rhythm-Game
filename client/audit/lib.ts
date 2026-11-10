@@ -435,7 +435,16 @@ export async function openRoot(page: Page, root: Root, settings: string | null =
     },
     [STORAGE_KEY, settings],
   );
-  await page.goto('/');
+  // a navigation now and then is aborted while the dev server is busy: try again
+  for (let i = 0; ; i++) {
+    try {
+      await page.goto('/');
+      break;
+    } catch (e) {
+      if (i >= 3) throw e;
+      await page.waitForTimeout(2000);
+    }
+  }
   await expect(page.getByTestId('song-list')).toBeVisible({ timeout: 30_000 });
   if (root === 'lib') await expect(page.getByTestId('play-button')).toBeEnabled({ timeout: 90_000 });
   if (root === 'empty') await expect(page.getByTestId('first-run')).toBeVisible({ timeout: 30_000 });
