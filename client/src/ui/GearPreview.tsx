@@ -42,8 +42,20 @@ type PreviewSettings = Pick<
  * The gear as it will be played, in the settings: the parts picked, camera, lane width, side notes, note
  * colours, covers, hit effects and hi-speed in effect, with a short phrase coming down and played on
  * its own. Every change shows at once; `laneColors` shows colours not kept yet (one being picked).
+ * Without `visibleTime` the visible time is not written over the picture (the settings write it in
+ * the line above the gear).
  */
-export function GearPreview({ settings, keyMode, laneColors }: { settings: PreviewSettings; keyMode: KeyModeId; laneColors?: readonly number[] }) {
+export function GearPreview({
+  settings,
+  keyMode,
+  laneColors,
+  visibleTime = true,
+}: {
+  settings: PreviewSettings;
+  keyMode: KeyModeId;
+  laneColors?: readonly number[];
+  visibleTime?: boolean;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<TrackRenderer | null>(null);
@@ -201,10 +213,12 @@ export function GearPreview({ settings, keyMode, laneColors }: { settings: Previ
     <div className="gear-preview" ref={box} data-testid="gear-preview" data-lane-colors={colours.map(hexString).join(' ')}>
       <canvas ref={canvas} aria-label={`${keyMode} 미리보기`} />
       {settings.coversOn && settings.sudden > 0 && <span className="preview-tag">노트 등장 위치 {coverText(settings.sudden)}</span>}
-      <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
-        <span className="label">보이는 시간</span>
-        <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>
-      </span>
+      {visibleTime && (
+        <span className="preview-green" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
+          <span className="label">보이는 시간</span>
+          <b data-testid="green-number">{Math.round(greenNumber(hiSpeed, covers))}ms</b>
+        </span>
+      )}
     </div>
   );
 }
