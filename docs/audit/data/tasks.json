@@ -1,0 +1,618 @@
+[
+ {
+  "id": "T01",
+  "title": "곡을 골라(다음 곡) 플레이 시작",
+  "who": "모두",
+  "frequency": "판마다",
+  "why": "한 판을 하려면 반드시 거치는 일",
+  "kb": {
+   "ok": true,
+   "inputs": 2,
+   "klm": 1.9100000000000001,
+   "responseMs": 53,
+   "route": "Down Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 2,
+   "klm": 1.9100000000000001,
+   "responseMs": 193,
+   "route": "Down A"
+  }
+ },
+ {
+  "id": "T02",
+  "title": "결과에서 같은 곡 다시 하기",
+  "who": "매일 하는 사람 · 고수",
+  "frequency": "판마다",
+  "why": "결과 화면의 두 갈래(다시 / 선곡으로) 가운데 하나. 기록을 올리려는 플레이어는 같은 곡을 되풀이함",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 33,
+   "route": "KeyR"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 12,
+   "route": "X"
+  }
+ },
+ {
+  "id": "T03",
+  "title": "결과에서 선곡으로 돌아가기",
+  "who": "모두",
+  "frequency": "판마다",
+  "why": "결과 화면의 두 갈래 가운데 하나",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 57,
+   "route": "Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 34,
+   "route": "A"
+  }
+ },
+ {
+  "id": "T04",
+  "title": "플레이 중 멈추고 처음부터 다시",
+  "who": "고수",
+  "frequency": "판마다",
+  "why": "초반에 놓치면 바로 다시 하는 습관(풀콤·고득점 도전). 일시정지 메뉴가 그 통로",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 2.1900000000000004,
+   "responseMs": 29,
+   "route": "Enter Escape KeyR"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 4,
+   "klm": 2.47,
+   "responseMs": 13,
+   "route": "A Start Down A"
+  }
+ },
+ {
+  "id": "T05",
+  "title": "난이도 한 단계 올리기",
+  "who": "모두",
+  "frequency": "곡마다",
+  "why": "곡마다 맞는 난이도가 달라 고를 때마다 봄",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 14,
+   "route": "Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 9,
+   "route": "Right"
+  }
+ },
+ {
+  "id": "T06",
+  "title": "노트 속도 +0.5 (플레이 전에)",
+  "who": "매일 하는 사람 · 고수",
+  "frequency": "곡마다",
+  "why": "BPM이 다른 곡으로 옮기면 보이는 시간을 맞추려고 바꿈. 플레이 중 키로도 바꿀 수 있음",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 4.890000000000001,
+   "responseMs": 6,
+   "route": "Space KeyE Shift+Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 7,
+   "klm": 6.010000000000001,
+   "responseMs": 8,
+   "route": "X RB Right Right Right Right Right"
+  }
+ },
+ {
+  "id": "T07",
+  "title": "배치를 랜덤으로",
+  "who": "고수",
+  "frequency": "곡마다",
+  "why": "랜덤 계열은 곡이나 연습 목적에 따라 켜고 끔",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 9,
+   "route": "Space Right Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 6,
+   "route": "X Right Right"
+  }
+ },
+ {
+  "id": "T08",
+  "title": "게이지를 HARD로",
+  "who": "고수",
+  "frequency": "곡마다",
+  "why": "클리어 램프를 노릴 때 곡마다 고름",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 7,
+   "route": "Space Down Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 109,
+   "route": "X Down Right"
+  }
+ },
+ {
+  "id": "T09",
+  "title": "새 패턴 만들기 (같은 난이도)",
+  "who": "매일 하는 사람",
+  "frequency": "곡마다",
+  "why": "이 게임의 핵심 기능(곡마다 다른 채보). 마음에 들지 않는 패턴을 바꿀 때",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 29,
+   "route": "F5"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "새 패턴(F5)에 해당하는 패드 버튼이 없고, 선곡 화면에서 십자키는 포커스를 옮기지 않아 \"새 패턴\" 버튼에 닿지 못함"
+  }
+ },
+ {
+  "id": "T10",
+  "title": "오토 플레이로 한 번 보기",
+  "who": "처음 온 사람",
+  "frequency": "곡마다",
+  "why": "새 채보를 치기 전에 미리 보는 용도",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 44,
+   "route": "Shift+Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 16,
+   "route": "RS"
+  }
+ },
+ {
+  "id": "T11",
+  "title": "곡 찾기: 제목으로 검색해서 고르기",
+  "who": "매일 하는 사람",
+  "frequency": "곡마다",
+  "why": "곡이 많아지면 목록을 내려가는 것보다 검색이 빠름",
+  "kb": {
+   "ok": true,
+   "inputs": 6,
+   "klm": 4.380000000000001,
+   "responseMs": 116,
+   "route": "Slash type:demo Enter"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "글자를 넣을 수단이 없음(화면 키보드 없음)"
+  }
+ },
+ {
+  "id": "T12",
+  "title": "이 곡을 즐겨찾기에 넣기",
+  "who": "매일 하는 사람",
+  "frequency": "곡마다",
+  "why": "자주 치는 곡을 모을 때",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 9,
+   "route": "F3"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "즐겨찾기(F3)에 해당하는 패드 버튼이 없고 버튼에 포커스가 닿지 않음"
+  }
+ },
+ {
+  "id": "T13",
+  "title": "즐겨찾기 폴더만 보기",
+  "who": "매일 하는 사람",
+  "frequency": "하루 한 번",
+  "why": "세션을 시작할 때 볼 범위를 정함",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 5,
+   "route": "ShiftLeft"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "폴더(Shift·F6)에 해당하는 패드 버튼이 없음"
+  }
+ },
+ {
+  "id": "T14",
+  "title": "정렬을 레벨순으로",
+  "who": "매일 하는 사람",
+  "frequency": "하루 한 번",
+  "why": "세션을 시작할 때 한 번",
+  "kb": {
+   "ok": true,
+   "inputs": 4,
+   "klm": 2.47,
+   "responseMs": 7,
+   "route": "F4 F4 F4 F4"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "정렬(F4)에 해당하는 패드 버튼이 없음"
+  }
+ },
+ {
+  "id": "T15",
+  "title": "키 모드를 4K에서 6K로",
+  "who": "모두",
+  "frequency": "하루 한 번",
+  "why": "대개 한 세션은 한 키 모드로 침",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 2.1900000000000004,
+   "responseMs": 9,
+   "route": "Tab Tab Tab"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 2.1900000000000004,
+   "responseMs": 8,
+   "route": "Y Y Y"
+  }
+ },
+ {
+  "id": "T16",
+  "title": "판정이 늦게 느껴진다: 판정 오프셋 +10ms",
+  "who": "모두",
+  "frequency": "하루 한 번",
+  "why": "기기(모니터·헤드폰)를 바꾸거나 그날 손이 다를 때. 처음에는 꼭 한 번",
+  "kb": {
+   "ok": true,
+   "inputs": 5,
+   "klm": 5.450000000000001,
+   "responseMs": 5,
+   "route": "F10 KeyQ Down Shift+Right Shift+Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 13,
+   "klm": 7.690000000000001,
+   "responseMs": 5,
+   "route": "RT LB Down Right Right Right Right Right Right Right Right Right Right"
+  }
+ },
+ {
+  "id": "T17",
+  "title": "음악 소리를 10% 줄이기",
+  "who": "모두",
+  "frequency": "하루 한 번",
+  "why": "곡마다 음량이 달라 가끔 맞춤",
+  "kb": {
+   "ok": true,
+   "inputs": 7,
+   "klm": 6.010000000000001,
+   "responseMs": 5,
+   "route": "F10 KeyE KeyE KeyE KeyE Left Left"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 7,
+   "klm": 6.010000000000001,
+   "responseMs": 5,
+   "route": "RT RB RB RB RB Left Left"
+  }
+ },
+ {
+  "id": "T18",
+  "title": "첫 판: 곡이 없을 때 데모 곡을 넣기",
+  "who": "처음 온 사람",
+  "frequency": "처음 한 번",
+  "why": "첫 실행의 첫 일",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 4,
+   "route": "Down"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 7,
+   "route": "Down"
+  }
+ },
+ {
+  "id": "T19",
+  "title": "판정 오프셋 측정 열기",
+  "who": "처음 온 사람",
+  "frequency": "처음 한 번",
+  "why": "기기마다 한 번 맞추면 됨",
+  "kb": {
+   "ok": true,
+   "inputs": 5,
+   "klm": 5.450000000000001,
+   "responseMs": 5,
+   "route": "F10 KeyQ Down Down Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 5,
+   "klm": 5.450000000000001,
+   "responseMs": 5,
+   "route": "RT LB Down Down A"
+  }
+ },
+ {
+  "id": "T20",
+  "title": "4K의 1번 레인 키를 A로 바꾸기",
+  "who": "처음 온 사람",
+  "frequency": "처음 한 번",
+  "why": "키 배치는 한 번 정하면 거의 그대로 씀",
+  "kb": {
+   "ok": true,
+   "inputs": 8,
+   "klm": 6.290000000000001,
+   "responseMs": 9,
+   "route": "F10 KeyE KeyE KeyE KeyE KeyE Enter KeyA"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "키보드 키를 지정하는 일이라 패드만으로는 뜻이 없음"
+  }
+ },
+ {
+  "id": "T21",
+  "title": "기어를 다른 것으로 바꾸기",
+  "who": "모두",
+  "frequency": "거의 안 함",
+  "why": "꾸미기는 한 번 정하면 오래 씀",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 4.890000000000001,
+   "responseMs": 7,
+   "route": "F10 KeyE Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 4.890000000000001,
+   "responseMs": 174,
+   "route": "RT RB Right"
+  }
+ },
+ {
+  "id": "T22",
+  "title": "난이도 기준을 DJMAX로",
+  "who": "고수",
+  "frequency": "거의 안 함",
+  "why": "익숙한 게임의 척도를 한 번 고르면 그대로 씀(기록도 기준마다 따로)",
+  "kb": {
+   "ok": true,
+   "inputs": 4,
+   "klm": 5.170000000000001,
+   "responseMs": 44,
+   "route": "F10 KeyQ KeyQ Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 4,
+   "klm": 5.170000000000001,
+   "responseMs": 10,
+   "route": "RT LB LB Right"
+  }
+ },
+ {
+  "id": "T23",
+  "title": "전체 화면으로",
+  "who": "모두",
+  "frequency": "처음 한 번",
+  "why": "데스크톱 앱은 창 상태를 기억함",
+  "kb": {
+   "ok": true,
+   "inputs": 5,
+   "klm": 5.450000000000001,
+   "responseMs": 11,
+   "route": "F10 KeyQ KeyQ KeyQ Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 5,
+   "klm": 5.450000000000001,
+   "responseMs": 4,
+   "route": "RT LB LB LB Right"
+  }
+ },
+ {
+  "id": "T24",
+  "title": "판정 카운터(FAST·SLOW 수) 켜기",
+  "who": "고수",
+  "frequency": "처음 한 번",
+  "why": "HUD 구성은 한 번 정하면 그대로 씀",
+  "kb": {
+   "ok": true,
+   "inputs": 12,
+   "klm": 7.410000000000001,
+   "responseMs": 19,
+   "route": "F10 KeyQ Down Down Down Down Down Down Down Down Down Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 12,
+   "klm": 7.410000000000001,
+   "responseMs": 5,
+   "route": "RT LB Down Down Down Down Down Down Down Down Down A"
+  }
+ },
+ {
+  "id": "T25",
+  "title": "이 곡의 오프셋을 +5ms",
+  "who": "고수",
+  "frequency": "거의 안 함",
+  "why": "음원 앞 여백이 다른 곡에서만 필요",
+  "kb": {
+   "ok": true,
+   "inputs": 8,
+   "klm": 6.290000000000001,
+   "responseMs": 5,
+   "route": "KeyI Down Down Down Right Right Right Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 8,
+   "klm": 6.290000000000001,
+   "responseMs": 7,
+   "route": "LT Down Down Down Right Right Right A"
+  }
+ },
+ {
+  "id": "T26",
+  "title": "연습 모드 켜기",
+  "who": "매일 하는 사람 · 고수",
+  "frequency": "거의 안 함",
+  "why": "막히는 구간이 있을 때만",
+  "kb": {
+   "ok": true,
+   "inputs": 10,
+   "klm": 5.5,
+   "responseMs": 7,
+   "route": "Space Down Down Down Down Down Down Down Down Right"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 10,
+   "klm": 5.5,
+   "responseMs": 7,
+   "route": "X Down Down Down Down Down Down Down Down Right"
+  }
+ },
+ {
+  "id": "T27",
+  "title": "곡 추가 메뉴 열기",
+  "who": "모두",
+  "frequency": "하루 한 번",
+  "why": "새 곡을 넣을 때(파일 고르기는 운영체제 창이라 세지 않음)",
+  "kb": {
+   "ok": true,
+   "inputs": 1,
+   "klm": 1.6300000000000001,
+   "responseMs": 15,
+   "route": "Shift+Equal"
+  },
+  "pad": {
+   "ok": false,
+   "inputs": 0,
+   "klm": 0,
+   "responseMs": 0,
+   "route": "",
+   "error": "곡 추가(+)에 해당하는 패드 버튼이 없고 상단 바에 포커스가 닿지 않음"
+  }
+ },
+ {
+  "id": "T28",
+  "title": "설정을 모두 초기화",
+  "who": "모두",
+  "frequency": "거의 안 함",
+  "why": "설정이 꼬였을 때의 마지막 수단",
+  "kb": {
+   "ok": true,
+   "inputs": 7,
+   "klm": 6.010000000000001,
+   "responseMs": 5,
+   "route": "F10 KeyQ KeyQ KeyQ Down Enter Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 7,
+   "klm": 6.010000000000001,
+   "responseMs": 5,
+   "route": "RT LB LB LB Down A A"
+  }
+ },
+ {
+  "id": "T29",
+  "title": "채보 에디터 열기",
+  "who": "고수",
+  "frequency": "거의 안 함",
+  "why": "채보를 직접 고치는 사람만",
+  "kb": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 12,
+   "route": "KeyI Down Enter"
+  },
+  "pad": {
+   "ok": true,
+   "inputs": 3,
+   "klm": 3.54,
+   "responseMs": 10,
+   "route": "LT Down A"
+  }
+ }
+]
