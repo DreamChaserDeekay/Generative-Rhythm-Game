@@ -33,6 +33,23 @@ export function fakeSongs(n: number, status: 'error' | 'ready' = 'error') {
   }));
 }
 
+/**
+ * Puts the cursor on the song of that title (its whole title) and the focus on its row, wherever it
+ * is in the library: the wheel draws only the rows around the cursor, and a click on the row under
+ * the cursor plays it, so a song is found through the search, which is cleared again.
+ */
+export async function pickSong(page: Page, title: string) {
+  const search = page.getByTestId('song-search');
+  const picked = page.locator('.song-item.active .song-title');
+  await search.fill(title);
+  await expect(picked).toHaveText(title);
+  // the search over, the cursor stays on the song it found; Enter leaves the search for its row
+  await search.fill('');
+  await search.press('Enter');
+  await expect(picked).toHaveText(title);
+  await expect(page.locator('.song-item.active')).toBeFocused();
+}
+
 /** Opens the song select's play options (Space): the rows of the next play, in the song's place. */
 export async function playOptions(page: Page) {
   const panel = page.getByTestId('play-options');
