@@ -1341,6 +1341,15 @@ export function SongSelectScreen(props: Props) {
               : 'AI 채보는 Enter를 누르면 만들기 시작합니다 (곡 길이에 따라 1–3분).'
           : '채보를 계산하는 중…';
   const other = selected && entryBrief && !entryRecord ? otherBest(recordsOn(selected, keyMode), difficulty, entryBrief.chartId) : null;
+  // an error, or what is being done: said by whichever part of the screen is in front (the song's
+  // column, the play options' foot, the song info's foot)
+  const status = error ? (
+    <span className="error" data-testid="select-error">
+      {error}
+    </span>
+  ) : busy ? (
+    <span data-testid="busy">{busy}</span>
+  ) : null;
   const saved = (m: KeyModeId) => (savedLoaded ? savedCharts.charts.filter((c) => c.keyMode === m).length : 0);
   const at = filtered.findIndex((s) => s.id === selected?.id);
   // the wheel is drawn around the cursor only (a library may hold thousands of songs)
@@ -1468,8 +1477,9 @@ export function SongSelectScreen(props: Props) {
               practice={practice}
               onPracticeToggle={(on) => void togglePractice(on)}
               onPracticeChange={setPractice}
+              status={status}
             />
-          ) : offline ? (
+          ) : panel === 'info' ? null : offline ? (
             <section className="detail-empty offline" data-testid="server-offline" ref={offlinePanel}>
               <h2>분석 서버에 연결할 수 없습니다</h2>
               {desktopShell() ? (
@@ -1691,14 +1701,10 @@ export function SongSelectScreen(props: Props) {
               <p className="hint">{!loaded ? '곡 목록을 불러오는 중…' : '보이는 곡이 없습니다.'}</p>
             </div>
           )}
-          {panel !== 'options' && (
+          {panel === 'none' && (
             <p className="select-status" aria-live="polite">
-              {error ? (
-                <span className="error" data-testid="select-error">
-                  {error}
-                </span>
-              ) : busy ? (
-                <span data-testid="busy">{busy}</span>
+              {status ? (
+                status
               ) : notice ? (
                 <span data-testid="ai-notice">{notice}</span>
               ) : said ? (
@@ -1851,15 +1857,7 @@ export function SongSelectScreen(props: Props) {
           }}
           onSyncTest={(byHand) => onPlay(syncTestRequest(keyMode, !byHand))}
           onCalibrate={props.onCalibrate}
-          status={
-            error ? (
-              <span className="error" data-testid="select-error">
-                {error}
-              </span>
-            ) : busy ? (
-              <span data-testid="busy">{busy}</span>
-            ) : null
-          }
+          status={status}
         />
       )}
 

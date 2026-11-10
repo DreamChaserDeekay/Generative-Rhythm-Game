@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { ServerChart, Song } from '../api/client';
 import { gaugeRules, gaugeTypeIds, judgementConfig, type JudgementModeId } from '../engine/config';
 import type { FeverMode } from '../engine/fever';
@@ -222,6 +222,8 @@ export function PlayOptionsPanel(props: SettingsProps & {
   practice: PracticeOptions | null;
   onPracticeToggle: (on: boolean) => void;
   onPracticeChange: (p: PracticeOptions) => void;
+  /** An error or what is being done (a chart being made for the practice), said at the panel's foot before any help. */
+  status: ReactNode;
 }) {
   const { settings, onSettingsChange, song, entry, chart, practice } = props;
   const body = useRef<HTMLDivElement>(null);
@@ -310,7 +312,7 @@ export function PlayOptionsPanel(props: SettingsProps & {
         </div>
       </div>
       <p className="select-panel-help" data-testid="play-options-help">
-        {help || '설정과 같은 값입니다. 게이지와 페이스메이커, 그 밖의 것은 설정(F10)에 있습니다.'}
+        {props.status || help || '설정과 같은 값입니다. 게이지와 페이스메이커, 그 밖의 것은 설정(F10)에 있습니다.'}
       </p>
     </section>
   );

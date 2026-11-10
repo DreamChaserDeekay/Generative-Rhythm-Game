@@ -3655,7 +3655,7 @@ button.opt:active:not(:disabled) {
   overflow: clip;
 }
 
-/* the selected song's picture read into 24 px and stretched: a soft field of its colours, no blur */
+/* the selected song's picture read into a few pixels and stretched: a soft field of its colours, no blur */
 .backdrop {
   position: absolute;
   inset: 0;

@@ -142,9 +142,12 @@ export function SongArt({ song, size, className = '', fit = false }: { song: Son
   return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} fit={fit} />;
 }
 
+/** The side of the picture the backdrop is stretched from: a few pixels, so it is a wash of colour with no shape left in it. */
+const WASH_SIDE = 6;
+
 /**
- * The selected song's picture read into 24 px and stretched over the screen: a soft field of its
- * colours behind the menus, with no blur filter (a disc cover's colour, evenly).
+ * The selected song's picture read into a few pixels and stretched over the screen: a soft field
+ * of its colours behind the menus, with no blur filter (a disc cover's colour, evenly).
  */
 export function Backdrop({ song }: { song: Song | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -159,6 +162,7 @@ export function Backdrop({ song }: { song: Song | null }) {
     const paint = (source: CanvasImageSource) => {
       if (!alive) return;
       small.clearRect(0, 0, c.width, c.height);
+      small.imageSmoothingQuality = 'high';
       small.drawImage(source, 0, 0, c.width, c.height);
       setDrawn(song.id);
     };
@@ -187,7 +191,7 @@ export function Backdrop({ song }: { song: Song | null }) {
   }, [song?.id, song?.hasCover, song?.coverAt, sketch]);
   return (
     <div className="backdrop" aria-hidden="true">
-      <canvas ref={canvas} width={24} height={24} className={drawn && drawn === song?.id ? 'shown' : ''} />
+      <canvas ref={canvas} width={WASH_SIDE} height={WASH_SIDE} className={drawn && drawn === song?.id ? 'shown' : ''} />
     </div>
   );
 }
