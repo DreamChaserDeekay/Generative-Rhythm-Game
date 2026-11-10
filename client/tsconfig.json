@@ -19,5 +19,5 @@
       "@config/*": ["../config/*"]
     }
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "e2e", "audit", "vite.config.ts", "playwright.config.ts", "playwright.audit.config.ts"]
 }
