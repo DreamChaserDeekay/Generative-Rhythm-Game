@@ -41,7 +41,7 @@ export class PlayBackground {
   private lastDraw = 0;
   private lastSeek = 0;
   /** Spectrum colour (the accent token). */
-  private readonly color = token('--accent');
+  private readonly color = token('--field-accent');
 
   constructor(options: BackgroundOptions) {
     this.options = options;

@@ -105,19 +105,26 @@
 }
 
 :root {
-  /* colour: five base tokens */
-  --bg: #0b0c10;
-  --surface: #15171f;
-  --text: #f3f5f9;
-  --text-dim: #a6adbd;
-  --accent: #37e2ff;
-  /* the game's own colour: the emblem and the gear's right rail only, never controls or text */
+  /* colour: ink and paper. The screen is ink, what is picked or pressed is a paper plate with ink
+     type on it, and colour itself is kept for what it means: a difficulty, a lamp, a judgement,
+     an instrument */
+  --bg: #0b0c0e;
+  --surface: #121317;
+  --text: #f3f1ec;
+  --text-dim: #bab8b2;
+  /* the paper: the picked row, the main button, the focus line */
+  --accent: #f3f1ec;
+  /* the gear's right rail only, never controls or text */
   --brand-rail: #ff4fd8;
+  /* the play field's own light (the visualizer behind the track) */
+  --field-accent: #37e2ff;
 
   /* mixed from the base tokens only */
   --on-accent: var(--bg);
-  --line: color-mix(in srgb, var(--text) 14%, transparent);
-  --line-strong: color-mix(in srgb, var(--text) 28%, transparent);
+  /* the second line of text on a paper plate */
+  --on-accent-dim: color-mix(in srgb, var(--bg) 72%, var(--accent));
+  --line: color-mix(in srgb, var(--text) 11%, transparent);
+  --line-strong: color-mix(in srgb, var(--text) 26%, transparent);
   --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
   --raised-hover: color-mix(in srgb, var(--text) 14%, var(--surface));
   --sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
@@ -176,40 +183,48 @@
   --font-ui: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
   --font-display: 'Barlow Condensed', var(--font-ui);
 
-  /* type: six sizes (13px only for bold labels, key caps and badges) */
-  --fs-label: 13px;
-  --fs-body: 16px;
-  --fs-title: 20px;
-  --fs-heading: 28px;
-  --fs-display: 40px;
-  --fs-hero: 64px;
+  /* type: six sizes (13 only for bold labels, key caps and badges). Sizes are in rem: the menus
+     are drawn for a 1280 × 720 window and grow with a larger one (ui/uiScale.ts sets --ui-scale) */
+  --fs-label: 0.8125rem;
+  --fs-body: 1rem;
+  --fs-title: 1.25rem;
+  --fs-heading: 1.75rem;
+  --fs-display: 2.5rem;
+  --fs-hero: 4rem;
 
   /* spacing: multiples of 4 */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-12: 48px;
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-12: 3rem;
 
-  /* corners */
-  --radius-sm: 4px;
-  --radius: 8px;
+  /* corners: square (a key cap alone is eased) */
+  --radius-sm: 0rem;
+  --radius: 0rem;
+  --radius-key: 2px;
 
   /* repeated sizes */
-  --control-h: 40px;
-  --measure: 720px;
-  --page: 1200px;
-  --topbar-h: 56px;
-  --hintbar-h: 48px;
+  --control-h: 2.5rem;
+  --measure: 45rem;
+  --page: 75rem;
+  --topbar-h: 3.5rem;
+  --hintbar-h: 2.75rem;
+  /* the side margin of every menu screen */
+  --gutter: 3rem;
+  /* the lean of a plate: the difficulty plates, the main key, the picked tab */
+  --skew: -12deg;
 
   /* motion: only when something changes (none with reduced motion) */
-  --motion-fast: 120ms;
+  --motion-fast: 110ms;
+  --motion-move: 170ms;
   --motion-screen: 200ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
+  font-size: calc(16px * var(--ui-scale, 1));
   line-height: 1.5;
   /* Korean breaks between words, not inside them */
   word-break: keep-all;
@@ -217,6 +232,7 @@
   color: var(--text);
   background: var(--bg);
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- base ---------- */
@@ -236,15 +252,25 @@ body,
   overflow: hidden;
 }
 
+/* the cursor of a keyboard or a pad: a paper line around what a key would press. Rows and list
+   entries turn into a paper plate instead (see .opt, .menu-item, the song list) */
 :focus-visible,
 :root[data-input='pad'] :focus,
 :root[data-input='controller'] :focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.125rem;
 }
 
 [hidden] {
   display: none !important;
+}
+
+/* numbers, levels and key names: the condensed face, digits of one width */
+.num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 /* ---------- controls ---------- */
@@ -258,20 +284,20 @@ a.button {
   min-height: var(--control-h);
   padding: 0 var(--sp-4);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   text-decoration: none;
-  background: var(--raised);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.1s, border-color 0.1s;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
 }
 
 button:hover:not(:disabled),
 a.button:hover {
-  background: var(--raised-hover);
-  border-color: var(--line-strong);
+  background: var(--raised);
+  border-color: var(--text-dim);
 }
 
 button:active:not(:disabled) {
@@ -287,6 +313,7 @@ button:disabled {
   opacity: var(--disabled-opacity);
 }
 
+/* the one button a screen is for: a paper plate */
 button.primary {
   font-weight: 800;
   color: var(--on-accent);
@@ -295,8 +322,8 @@ button.primary {
 }
 
 button.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 80%, var(--text));
-  border-color: color-mix(in srgb, var(--accent) 80%, var(--text));
+  background: color-mix(in srgb, var(--accent) 86%, var(--bg));
+  border-color: color-mix(in srgb, var(--accent) 86%, var(--bg));
 }
 
 button.primary:disabled {
@@ -307,7 +334,7 @@ button.primary:disabled {
 
 button.small,
 a.button.small {
-  min-height: 32px;
+  min-height: 2rem;
   padding: 0 var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
@@ -330,27 +357,24 @@ button.danger {
   border-color: color-mix(in srgb, var(--g-break) 45%, transparent);
 }
 
+/* a key: an outlined cap in the colour of the text it stands in (ink on a paper plate) */
 kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 22px;
-  padding: 0 var(--sp-1);
-  font-family: var(--font-ui);
+  min-width: 1.5rem;
+  height: 1.375rem;
+  padding: 0 0.3125rem;
+  font-family: var(--font-display);
   font-size: var(--fs-label);
   font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1;
-  color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-
-button.primary kbd {
-  color: var(--on-accent);
-  background: color-mix(in srgb, var(--bg) 16%, transparent);
-  border-color: color-mix(in srgb, var(--bg) 32%, transparent);
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 46%, transparent);
+  border-radius: var(--radius-key);
 }
 
 input:not([type]),
@@ -363,18 +387,27 @@ select {
   font: inherit;
   color: var(--text);
   background: var(--sunken);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
+}
+
+input:not([type]):focus-visible,
+input[type='number']:focus-visible,
+input[type='text']:focus-visible,
+input[type='search']:focus-visible,
+select:focus-visible {
+  outline-offset: -1px;
+  border-color: var(--accent);
 }
 
 input[type='number'],
 input[type='text'],
 input[type='search'] {
-  width: 88px;
+  width: 5.5rem;
 }
 
 input.youtube-link {
-  flex: 1 1 260px;
+  flex: 1 1 16.25rem;
   width: auto;
   min-width: 0;
 }
@@ -385,24 +418,24 @@ textarea::placeholder {
 }
 
 input[type='range'] {
-  width: 224px;
+  width: 14rem;
   accent-color: var(--accent);
 }
 
 input[type='checkbox'] {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   margin: var(--sp-1) 0 0;
   accent-color: var(--accent);
 }
 
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: var(--sunken);
+  background: transparent;
 }
 
 .segmented.wrap {
@@ -432,9 +465,22 @@ input[type='checkbox'] {
   background: var(--accent);
 }
 
+/* the cursor on a picked choice: the paper line drawn inside the plate, in ink */
+.segmented button:focus-visible,
+:root[data-input='pad'] .segmented button:focus,
+:root[data-input='controller'] .segmented button:focus {
+  outline-offset: -0.25rem;
+}
+
+.segmented button.active:focus-visible,
+:root[data-input='pad'] .segmented button.active:focus,
+:root[data-input='controller'] .segmented button.active:focus {
+  outline-color: var(--on-accent);
+}
+
 .options-grid {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 7rem minmax(0, 1fr);
   gap: var(--sp-3) var(--sp-4);
   align-items: center;
   margin: var(--sp-4) 0;
@@ -468,13 +514,13 @@ input[type='checkbox'] {
 }
 
 .screen-enter {
-  animation: screen-in var(--motion-screen) ease-out;
+  animation: screen-in var(--motion-screen) var(--ease);
 }
 
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(0.5rem);
   }
 }
 
@@ -487,37 +533,46 @@ input[type='checkbox'] {
 .topbar {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-6);
   flex-shrink: 0;
   height: var(--topbar-h);
-  padding: 0 var(--sp-6);
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  margin: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
 }
 
+/* the game's mark: four keys, one of them down */
 .wordmark {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 0.625rem;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.18em;
   white-space: nowrap;
 }
 
+.wordmark .emblem {
+  width: 1.3125rem;
+  height: 0.9375rem;
+}
+
 .topbar .screen-name {
-  padding-left: var(--sp-4);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbar .screen-detail {
   font-weight: 600;
   color: var(--text-dim);
   white-space: nowrap;
-  border-left: 1px solid var(--line-strong);
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
   margin-left: auto;
 }
 
@@ -528,32 +583,32 @@ input[type='checkbox'] {
 .hintbar {
   display: flex;
   align-items: center;
-  gap: var(--sp-6);
+  gap: 1.375rem;
   flex-shrink: 0;
   height: var(--hintbar-h);
-  padding: 0 var(--sp-6);
-  overflow: hidden;
+  margin: 0 var(--gutter);
+  /* (a plate at the end may lean past the line) */
+  overflow: visible;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-dim);
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
   border-top: 1px solid var(--line);
 }
 
 .hint-item {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 0.4375rem;
   white-space: nowrap;
 }
 
 .hint-item kbd + kbd {
-  margin-left: calc(-1 * var(--sp-1));
+  margin-left: -0.1875rem;
 }
 
 /* a hint that is also a button: the same line, raised under the pointer */
 button.hint-item {
-  min-height: 32px;
+  min-height: 1.875rem;
   margin: 0 calc(-1 * var(--sp-2));
   padding: 0 var(--sp-2);
   font-size: inherit;
@@ -569,15 +624,38 @@ button.hint-item:hover:not(:disabled) {
   border-color: transparent;
 }
 
+/* the screen's main key: a leaning paper plate at the end of the line */
+.hint-item.main,
+button.hint-item.main {
+  min-height: 1.875rem;
+  margin: 0;
+  padding: 0 0.875rem 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 0;
+  transform: skewX(var(--skew));
+}
+
+.hint-item.main > * {
+  transform: skewX(calc(-1 * var(--skew)));
+}
+
+button.hint-item.main:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: color-mix(in srgb, var(--accent) 86%, var(--bg));
+}
+
 /* the screen's keys: on a narrow window the minor ones give way, then any that do not fit (they
    wrap onto a hidden line), so the main one at the end stays whole */
 .hint-main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-4) var(--sp-6);
+  gap: var(--sp-4) 1.375rem;
   min-width: 0;
-  height: 32px;
+  height: 1.875rem;
   /* (a focused hint's outline stays whole; the hidden line starts below it) */
   overflow: clip;
   overflow-clip-margin: var(--sp-1);
@@ -587,7 +665,7 @@ button.hint-item:hover:not(:disabled) {
 }
 
 .hint-main .hint-item {
-  min-height: 32px;
+  min-height: 1.875rem;
 }
 
 @media (max-width: 1200px) {
@@ -598,8 +676,9 @@ button.hint-item:hover:not(:disabled) {
 
 .hint-end {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: var(--sp-6);
+  gap: 1.375rem;
   margin-left: auto;
 }
 
@@ -610,7 +689,7 @@ button.hint-item:hover:not(:disabled) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-8) max(var(--sp-4), calc((100% - 960px) / 2)) var(--sp-12);
+  padding: var(--sp-8) max(var(--sp-4), calc((100% - 60rem) / 2)) var(--sp-12);
 }
 
 /* a screen's lead line under the top bar: what to do here */
@@ -650,7 +729,7 @@ button.hint-item:hover:not(:disabled) {
 }
 
 .row .label {
-  min-width: 96px;
+  min-width: 6rem;
   font-size: var(--fs-label);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -693,7 +772,7 @@ p.hint {
 }
 
 .progress {
-  height: 8px;
+  height: 0.5rem;
   margin-top: var(--sp-2);
   border-radius: var(--radius-sm);
   background: var(--raised);
@@ -701,7 +780,7 @@ p.hint {
 }
 
 .progress.small {
-  height: 4px;
+  height: 0.25rem;
 }
 
 .progress > div {
@@ -787,7 +866,7 @@ p.hint {
 }
 
 .pause-menu button {
-  min-width: 240px;
+  min-width: 15rem;
   justify-content: space-between;
 }
 
@@ -802,7 +881,7 @@ p.hint {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--sp-8);
-  width: min(880px, calc(100% - var(--sp-8)));
+  width: min(55rem, calc(100% - var(--sp-8)));
   padding: var(--sp-8);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -810,8 +889,8 @@ p.hint {
 }
 
 .loading-art {
-  width: clamp(120px, 30vh, 240px) !important;
-  height: clamp(120px, 30vh, 240px) !important;
+  width: clamp(7.5rem, 30vh, 15rem) !important;
+  height: clamp(7.5rem, 30vh, 15rem) !important;
   border-radius: var(--radius);
 }
 
@@ -942,11 +1021,11 @@ p.hint {
 .loading-bar {
   position: relative;
   flex: 1;
-  min-width: 80px;
-  height: 4px;
+  min-width: 5rem;
+  height: 0.25rem;
   overflow: hidden;
   background: var(--line);
-  border-radius: 2px;
+  border-radius: 0.125rem;
 }
 
 .loading-bar i {
@@ -954,7 +1033,7 @@ p.hint {
   inset: 0 auto 0 0;
   width: 30%;
   background: var(--text);
-  border-radius: 2px;
+  border-radius: 0.125rem;
   animation: loading-run 1.4s ease-in-out infinite;
 }
 
@@ -1002,9 +1081,9 @@ p.hint {
 }
 
 .loading-key i {
-  width: 44px;
-  height: 8px;
-  border-radius: 2px;
+  width: 2.75rem;
+  height: 0.5rem;
+  border-radius: 0.125rem;
 }
 
 /* HUD: the song sits on the screen (sizes are the type tokens times --hud-scale, 1 at 720px high,
@@ -1012,12 +1091,57 @@ p.hint {
    which Hud.ts lays under the camera's projection with every part sized for the screen where it lies */
 .hud {
   --hud-scale: 1;
+  /* the HUD and the gears keep their own look and their own scale (--hud-scale) whatever the menus
+     do: the tokens they are built from are restated here, in pixels and in the gears' colours */
+  --bg: #0b0c10;
+  --surface: #15171f;
+  --text: #f3f5f9;
+  --text-dim: #a6adbd;
+  --accent: #37e2ff;
+  --on-accent: var(--bg);
+  --line: color-mix(in srgb, var(--text) 14%, transparent);
+  --line-strong: color-mix(in srgb, var(--text) 28%, transparent);
+  --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
+  --raised-hover: color-mix(in srgb, var(--text) 14%, var(--surface));
+  --sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
+  --scrim: color-mix(in srgb, var(--bg) 88%, transparent);
+  --panel: color-mix(in srgb, var(--surface) 92%, transparent);
+  --fs-label: 13px;
+  --fs-body: 16px;
+  --fs-title: 20px;
+  --fs-heading: 28px;
+  --fs-display: 40px;
+  --fs-hero: 64px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --control-h: 40px;
+  font-size: 16px;
+  color: var(--text);
   position: absolute;
   inset: 0;
   z-index: 10;
   overflow: hidden;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+}
+
+.hud kbd {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 var(--sp-1);
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
 }
 
 /* a plate keeps the song readable over a video or the visualizer; --info-room (Hud.fit) keeps it
@@ -1942,7 +2066,7 @@ p.hint {
 
 .result-hero .hero-art {
   /* small beside the outcome: the run strip under it takes the height */
-  width: clamp(112px, 22vh, 200px);
+  width: clamp(7rem, 22vh, 12.5rem);
 }
 
 .result-song {
@@ -2051,12 +2175,12 @@ p.hint {
 
 /* a new best or a first record, beside the number it is about */
 .record-tag {
-  padding: 2px var(--sp-2);
+  padding: 0.125rem var(--sp-2);
   font-weight: 700;
   white-space: nowrap;
   background: var(--raised);
   border-radius: var(--radius-sm);
-  box-shadow: inset 2px 0 0 var(--text);
+  box-shadow: inset 0.125rem 0 0 var(--text);
 }
 
 .next-grade {
@@ -2164,7 +2288,7 @@ p.hint {
 
 .judge-cells {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: var(--sp-2);
 }
 
@@ -2251,7 +2375,7 @@ p.hint {
   flex-direction: column;
   /* the height the rest leaves, within reason (never less than its strip's least: the page scrolls then) */
   flex: 1 1 auto;
-  max-height: 400px;
+  max-height: 25rem;
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2275,7 +2399,7 @@ p.hint {
 .run-strip {
   position: relative;
   flex: 1 1 auto;
-  min-height: 72px;
+  min-height: 4.5rem;
   background: var(--sunken);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -2329,7 +2453,7 @@ p.hint {
   align-content: flex-start;
   column-gap: var(--sp-2);
   min-width: 0;
-  margin-right: 2px;
+  margin-right: 0.125rem;
   padding-top: var(--sp-1);
   overflow: hidden;
   font-size: var(--fs-label);
@@ -2337,7 +2461,7 @@ p.hint {
   line-height: 1.3;
   color: var(--text-dim);
   white-space: nowrap;
-  border-top: 3px solid var(--c);
+  border-top: 0.1875rem solid var(--c);
 }
 
 .run-sections b {
@@ -2350,7 +2474,7 @@ p.hint {
 /* the details under Space, in the summary's place: graphs, the offset suggestion, every judgement */
 .result-details {
   flex: 1 1 auto;
-  min-height: 240px;
+  min-height: 15rem;
   overflow-y: auto;
   padding: var(--sp-4);
   background: var(--panel);
@@ -2468,7 +2592,7 @@ p.hint {
 }
 
 .gauge-graph {
-  height: 88px;
+  height: 5.5rem;
   margin-bottom: var(--sp-4);
   background: var(--sunken);
   border-radius: var(--radius-sm);
@@ -2486,7 +2610,7 @@ p.hint {
 .gauge-graph .fail-line { stroke: var(--g-break); stroke-width: 2; vector-effect: non-scaling-stroke; }
 
 .timeline-graph {
-  height: 172px;
+  height: 10.75rem;
   background: var(--sunken);
   border-radius: var(--radius-sm);
 }
@@ -2502,7 +2626,7 @@ p.hint {
 .histogram {
   display: block;
   width: 100%;
-  height: 100px;
+  height: 6.25rem;
 }
 
 .histogram .bar { fill: currentColor; }
@@ -2547,7 +2671,7 @@ p.hint {
 }
 
 .offset-fix > button:first-child {
-  min-width: 120px;
+  min-width: 7.5rem;
 }
 
 /* a short note beside the top bar's actions (a replay exported) */
@@ -2579,7 +2703,7 @@ p.hint {
    on one line), so the run strip under the counts is still on the screen */
 @media (max-width: 960px) {
   .result-hero .hero-art {
-    width: 112px;
+    width: 7rem;
   }
 
   .result-song h1 {
@@ -2610,7 +2734,7 @@ p.hint {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 360px;
+  grid-template-columns: 12.5rem minmax(0, 1fr) 22.5rem;
   gap: var(--sp-6);
   padding: var(--sp-6);
 }
@@ -2641,7 +2765,7 @@ p.hint {
   font-weight: 700;
   color: var(--text);
   background: var(--raised-hover);
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 0.1875rem 0 0 var(--accent);
 }
 
 .settings-nav-hint {
@@ -2658,12 +2782,12 @@ p.hint {
 .settings-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   /* room for the focused row's outline */
-  padding: 2px;
+  padding: 0.125rem;
 }
 
 .settings-rows h2 {
@@ -2674,29 +2798,31 @@ p.hint {
   color: var(--text-dim);
 }
 
-/* a setting: its name, and its value between ‹ › */
+/* a setting: its name, and its value between ‹ ›. The row under the cursor is a paper plate, and
+   only there do the arrows and the value's place among its choices show */
 .opt {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-4);
   flex-shrink: 0;
-  min-height: 48px;
-  padding: 0 var(--sp-4);
+  min-height: 2.625rem;
+  padding: 0 0.875rem;
   font: inherit;
+  font-size: 1.0625rem;
   text-align: left;
-  color: var(--text);
-  background: var(--panel);
+  color: var(--text-dim);
+  background: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
 }
 
 .opt:focus,
 :root[data-input='pad'] .opt:focus,
 :root[data-input='controller'] .opt:focus {
-  background: var(--raised-hover);
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  color: var(--on-accent);
+  background: var(--accent);
+  outline: none;
 }
 
 .opt-name {
@@ -2707,10 +2833,15 @@ p.hint {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  color: var(--text);
+}
+
+.opt:focus .opt-value {
+  color: inherit;
 }
 
 .opt-value b {
-  min-width: 120px;
+  min-width: 6.5rem;
   font-family: var(--font-display);
   font-size: var(--fs-title);
   font-weight: 700;
@@ -2720,23 +2851,75 @@ p.hint {
 }
 
 .opt-step {
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 1.5rem;
+  min-height: 2rem;
   padding: 0;
   font-size: var(--fs-title);
-  color: var(--text-dim);
+  color: inherit;
   background: transparent;
   border-color: transparent;
+  opacity: 0;
 }
 
+.opt:hover .opt-step,
 .opt:focus .opt-step {
-  color: var(--text);
+  opacity: 1;
 }
 
 .opt-step:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--raised);
+  color: inherit;
+  background: color-mix(in srgb, currentColor 14%, transparent);
   border-color: transparent;
+}
+
+/* where the value stands among its choices (a square each), or in its range (a mark on a line) */
+.opt-pips,
+.opt-meter {
+  display: none;
+  margin-right: var(--sp-1);
+}
+
+.opt:focus .opt-pips {
+  display: flex;
+  gap: 0.1875rem;
+}
+
+.opt-pips i {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.opt-pips i.at {
+  opacity: 1;
+}
+
+.opt:focus .opt-meter {
+  position: relative;
+  display: block;
+  width: 6rem;
+  height: 0.75rem;
+}
+
+.opt-meter::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+.opt-meter i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.1875rem;
+  margin-left: -0.09375rem;
+  background: currentColor;
 }
 
 /* a row that does something */
@@ -2746,8 +2929,14 @@ button.opt {
 }
 
 button.opt:hover:not(:disabled) {
-  background: var(--raised-hover);
+  color: var(--text);
+  background: var(--raised);
   border-color: transparent;
+}
+
+button.opt:focus:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 button.opt:active:not(:disabled) {
@@ -2757,30 +2946,28 @@ button.opt:active:not(:disabled) {
 /* its action as a button, in the middle of where the other rows show their value (‹ value ›) */
 .opt-action .opt-value {
   justify-content: center;
-  width: calc(2 * 32px + 2 * var(--sp-2) + 120px);
+  width: calc(2 * 1.5rem + 2 * var(--sp-2) + 6.5rem);
 }
 
 .opt-action .opt-button {
-  min-width: 120px;
+  min-width: 6.5rem;
   padding: var(--sp-1) var(--sp-3);
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 46%, transparent);
+  border-radius: 0;
 }
 
-.opt-action:hover:not(:disabled) .opt-button,
 .opt-action:focus .opt-button {
-  background: var(--raised-hover);
-  border-color: var(--accent);
+  border-color: currentColor;
 }
 
 /* keys and pad controls: the mode, its caps and its buttons */
 .opt.opt-block {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 4.5rem minmax(0, 1fr);
   align-items: start;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) 0.875rem;
 }
 
 .opt-block > .opt-name {
@@ -2848,7 +3035,7 @@ button.opt:active:not(:disabled) {
 .gear-preview {
   position: relative;
   flex: 1;
-  min-height: 200px;
+  min-height: 12.5rem;
   overflow: hidden;
   background: var(--sunken);
   border: 1px solid var(--line);
@@ -2897,7 +3084,7 @@ button.opt:active:not(:disabled) {
 
 @media (max-width: 1100px) {
   .settings-body {
-    grid-template-columns: 160px minmax(0, 1fr);
+    grid-template-columns: 10rem minmax(0, 1fr);
     overflow-y: auto;
   }
 
@@ -2907,7 +3094,7 @@ button.opt:active:not(:disabled) {
 
   .gear-preview {
     flex: none;
-    height: 320px;
+    height: 20rem;
   }
 }
 
@@ -2922,7 +3109,7 @@ button.opt:active:not(:disabled) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
+  min-width: 3rem;
   min-height: var(--control-h);
   padding: 0 var(--sp-2);
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -2930,7 +3117,7 @@ button.opt:active:not(:disabled) {
   font-weight: 700;
   background: var(--raised);
   border: 1px solid var(--line);
-  border-bottom: 4px solid var(--lane);
+  border-bottom: 0.25rem solid var(--lane);
   border-radius: var(--radius-sm);
 }
 
@@ -2964,8 +3151,8 @@ button.opt:active:not(:disabled) {
 
 .key-grid {
   display: grid;
-  grid-template-columns: repeat(var(--lanes), minmax(48px, auto));
-  grid-template-rows: var(--control-h) 32px;
+  grid-template-columns: repeat(var(--lanes), minmax(3rem, auto));
+  grid-template-rows: var(--control-h) 2rem;
   gap: var(--sp-1);
 }
 
@@ -2976,7 +3163,7 @@ button.opt:active:not(:disabled) {
 /* the mode's name by its keys, "보조 키" by its second keys */
 .opt-block > .key-row-names {
   display: grid;
-  grid-template-rows: var(--control-h) 32px;
+  grid-template-rows: var(--control-h) 2rem;
   row-gap: var(--sp-1);
   align-items: center;
   line-height: 1.2;
@@ -2989,9 +3176,9 @@ button.opt:active:not(:disabled) {
 }
 
 .key-cap.second {
-  min-height: 32px;
+  min-height: 2rem;
   font-size: var(--fs-label);
-  border-bottom-width: 2px;
+  border-bottom-width: 0.125rem;
 }
 
 .key-cap.second:not(.active) {
@@ -3001,15 +3188,15 @@ button.opt:active:not(:disabled) {
 /* note colours (설정 → 노트 색): a swatch per lane, the colour box and the hue bar, the presets' buttons */
 .lane-swatches {
   display: grid;
-  grid-template-columns: repeat(var(--lanes), minmax(40px, 1fr));
+  grid-template-columns: repeat(var(--lanes), minmax(2.5rem, 1fr));
   gap: var(--sp-1);
-  max-width: 480px;
+  max-width: 30rem;
 }
 
 /* the lane's own colour fills it (inline): what the notes of the lane are drawn in */
 .lane-swatch {
   min-width: 0;
-  min-height: 48px;
+  min-height: 3rem;
   padding: 0;
   font-family: var(--font-display);
   font-size: var(--fs-title);
@@ -3030,7 +3217,7 @@ button.opt:active:not(:disabled) {
 
 /* the lane whose colour the rows under it set */
 .lane-swatch.active {
-  box-shadow: inset 0 0 0 2px var(--bg), 0 0 0 2px var(--text);
+  box-shadow: inset 0 0 0 0.125rem var(--bg), 0 0 0 0.125rem var(--text);
 }
 
 .color-picker {
@@ -3046,8 +3233,8 @@ button.opt:active:not(:disabled) {
 /* saturation across, value up, in the hue picked */
 .color-box {
   position: relative;
-  width: 240px;
-  height: 140px;
+  width: 15rem;
+  height: 8.75rem;
   background:
     linear-gradient(to top, var(--picker-black), transparent),
     linear-gradient(to right, var(--picker-white), hsl(calc(var(--hue) * 1deg) 100% 50%));
@@ -3059,9 +3246,9 @@ button.opt:active:not(:disabled) {
 .color-mark,
 .hue-mark {
   position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--picker-white);
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 0.125rem solid var(--picker-white);
   border-radius: 50%;
   box-shadow: 0 0 0 1px var(--picker-black);
   transform: translate(-50%, -50%);
@@ -3073,12 +3260,12 @@ button.opt:active:not(:disabled) {
   flex: 1;
   flex-direction: column;
   gap: var(--sp-3);
-  min-width: 180px;
+  min-width: 11.25rem;
 }
 
 .hue-bar {
   position: relative;
-  height: 20px;
+  height: 1.25rem;
   background: linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
   border-radius: var(--radius-sm);
   cursor: ew-resize;
@@ -3100,7 +3287,7 @@ button.opt:active:not(:disabled) {
 }
 
 .hex-field input {
-  width: 112px;
+  width: 7rem;
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
@@ -3113,7 +3300,7 @@ button.opt:active:not(:disabled) {
 }
 
 .preset-name input {
-  width: 200px;
+  width: 12.5rem;
 }
 
 /* nothing bound: an empty slot (a dash would read as the Minus key) */
@@ -3165,7 +3352,7 @@ button.opt:active:not(:disabled) {
 
 .pad-row {
   display: grid;
-  grid-template-columns: 72px auto minmax(0, 1fr);
+  grid-template-columns: 4.5rem auto minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
   margin-bottom: var(--sp-1);
@@ -3275,9 +3462,9 @@ button.opt:active:not(:disabled) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 176px;
-  height: 176px;
-  border: 6px solid var(--raised-hover);
+  width: 11rem;
+  height: 11rem;
+  border: 0.375rem solid var(--raised-hover);
   border-radius: 50%;
 }
 
@@ -3319,7 +3506,7 @@ button.opt:active:not(:disabled) {
 /* every tap from 250 ms early to 250 ms late, with the mean and the top judgement's window */
 .offset-rail {
   position: relative;
-  height: 96px;
+  height: 6rem;
   margin: var(--sp-2) 0;
   background: var(--sunken);
   border-radius: var(--radius-sm);
@@ -3365,10 +3552,10 @@ button.opt:active:not(:disabled) {
 
 .offset-rail i {
   position: absolute;
-  top: calc(50% - 5px);
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
+  top: calc(50% - 0.3125rem);
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-left: -0.3125rem;
   border-radius: 50%;
   background: color-mix(in srgb, var(--text) 45%, transparent);
 }
@@ -3381,7 +3568,7 @@ button.opt:active:not(:disabled) {
   position: absolute;
   top: var(--sp-2);
   bottom: var(--sp-2);
-  width: 3px;
+  width: 0.1875rem;
   margin-left: -1px;
   background: var(--accent);
 }
@@ -3416,15 +3603,15 @@ button.opt:active:not(:disabled) {
 /* the display step: the gear on the clicks beside the offset and its keys */
 .calib-visual {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 17.5rem;
   align-items: center;
   gap: var(--sp-8);
 }
 
 .calib-gear {
   position: relative;
-  height: min(48vh, 440px);
-  min-height: 240px;
+  height: min(48vh, 27.5rem);
+  min-height: 15rem;
   overflow: hidden;
   background: var(--sunken);
   border: 1px solid var(--line);
@@ -3511,7 +3698,7 @@ button.opt:active:not(:disabled) {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  min-width: 288px;
+  min-width: 18rem;
   padding: var(--sp-1);
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -3522,7 +3709,7 @@ button.opt:active:not(:disabled) {
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
-  min-height: 52px;
+  min-height: 3.25rem;
   padding: var(--sp-2) var(--sp-3);
   text-align: left;
   background: transparent;
@@ -3539,7 +3726,7 @@ button.opt:active:not(:disabled) {
 .add-menu .menu-apart {
   margin-top: var(--sp-1);
   /* a 1px line in the gap over it, kept under the pointer's highlight */
-  box-shadow: 0 -3px 0 -2px var(--line-strong);
+  box-shadow: 0 -0.1875rem 0 -0.125rem var(--line-strong);
 }
 
 .add-menu b {
@@ -3556,7 +3743,7 @@ button.opt:active:not(:disabled) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(340px, 36%, 680px) minmax(0, 1fr);
+  grid-template-columns: clamp(21.25rem, 36%, 42.5rem) minmax(0, 1fr);
   gap: var(--sp-6);
   padding: var(--sp-4) var(--sp-6);
 }
@@ -3565,9 +3752,9 @@ button.opt:active:not(:disabled) {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
+  gap: 0.375rem;
+  min-height: 2rem;
+  padding: 0 0.625rem;
   font-size: var(--fs-label);
   font-weight: 700;
   white-space: nowrap;
@@ -3620,12 +3807,12 @@ button.chip.active b {
 .song-list-panel .search {
   flex: 1;
   min-width: 0;
-  height: 36px;
+  height: 2.25rem;
   background: var(--panel);
 }
 
 .list-tools .sort {
-  min-height: 36px;
+  min-height: 2.25rem;
 }
 
 .song-list {
@@ -3634,14 +3821,14 @@ button.chip.active b {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   padding: 0 var(--sp-1) var(--sp-4) 0;
   border-radius: var(--radius-sm);
 }
 
 .song-list.drag {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-  outline: 2px dashed var(--accent);
+  outline: 0.125rem dashed var(--accent);
 }
 
 .empty-list {
@@ -3656,8 +3843,8 @@ button.chip.active b {
   flex-shrink: 0;
   justify-content: flex-start;
   gap: var(--sp-3);
-  min-height: 54px;
-  padding: 3px var(--sp-3) 3px 3px;
+  min-height: 3.375rem;
+  padding: 0.1875rem var(--sp-3) 0.1875rem 0.1875rem;
   text-align: left;
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   border-color: transparent;
@@ -3672,7 +3859,7 @@ button.chip.active b {
 .song-item.active:hover:not(:disabled) {
   background: var(--raised-hover);
   border-color: transparent;
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 0.1875rem 0 0 var(--accent);
 }
 
 .song-item-text {
@@ -3716,9 +3903,9 @@ button.chip.active b {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 26px;
-  padding: 0 0 0 10px;
+  width: 1.875rem;
+  height: 1.625rem;
+  padding: 0 0 0 0.625rem;
   font-family: var(--font-display);
   font-size: var(--fs-body);
   font-weight: 600;
@@ -3730,7 +3917,7 @@ button.chip.active b {
 /* the column ←→ picked (the entry Enter plays): bold, underlined */
 .tier-level.active {
   font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: inset 0 -0.125rem 0 var(--accent);
 }
 
 .tier-level.unknown {
@@ -3738,9 +3925,9 @@ button.chip.active b {
 }
 
 .tier-level.saved {
-  width: 38px;
+  width: 2.375rem;
   margin-right: var(--sp-1);
-  padding-right: 8px;
+  padding-right: 0.5rem;
   border-right: 1px solid var(--line-strong);
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
@@ -3748,9 +3935,9 @@ button.chip.active b {
 /* the lamp's mark is the cell's left band */
 .tier-level .lamp-mark {
   position: absolute;
-  left: 2px;
-  top: 3px;
-  bottom: 3px;
+  left: 0.125rem;
+  top: 0.1875rem;
+  bottom: 0.1875rem;
   height: auto;
 }
 
@@ -3792,7 +3979,7 @@ button.chip.active b {
 }
 
 .song-state .progress {
-  width: 64px;
+  width: 4rem;
   margin: 0;
 }
 
@@ -3808,10 +3995,10 @@ button.chip.active b {
 
 .fav-mark {
   flex-shrink: 0;
-  width: 3px;
-  height: 20px;
+  width: 0.1875rem;
+  height: 1.25rem;
   margin-right: calc(-1 * var(--sp-1));
-  border-radius: 2px;
+  border-radius: 0.125rem;
   background: var(--lane-gold);
 }
 
@@ -3827,7 +4014,7 @@ button.chip.active b {
   padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
   border-radius: var(--radius-sm);
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 0.1875rem 0 0 var(--accent);
 }
 
 .import-report .row {
@@ -3835,7 +4022,7 @@ button.chip.active b {
 }
 
 .import-report ul {
-  max-height: 140px;
+  max-height: 8.75rem;
   margin: var(--sp-2) 0 0;
   padding-left: var(--sp-4);
   overflow: auto;
@@ -3885,7 +4072,7 @@ button.chip.active b {
 }
 
 .first-run button {
-  min-width: 240px;
+  min-width: 15rem;
   justify-content: flex-start;
 }
 
@@ -3903,7 +4090,7 @@ button.chip.active b {
 
 .hero-art {
   position: relative;
-  width: clamp(160px, 32vh, 400px);
+  width: clamp(10rem, 32vh, 25rem);
   aspect-ratio: 1;
 }
 
@@ -3983,7 +4170,7 @@ button.chip.active b {
 
 /* a narrow column: 오토 플레이 without its key (in its title), so the buttons keep one line and the
    song's place no taller than its picture */
-@container hero-text (max-width: 400px) {
+@container hero-text (max-width: 25rem) {
   .hero-actions .autoplay kbd {
     display: none;
   }
@@ -3991,7 +4178,7 @@ button.chip.active b {
 
 .fav-toggle.on {
   color: var(--text);
-  box-shadow: inset 0 -3px 0 var(--lane-gold);
+  box-shadow: inset 0 -0.1875rem 0 var(--lane-gold);
 }
 
 .mode-row {
@@ -4011,7 +4198,7 @@ button.chip.active b {
 }
 
 .key-modes .segmented button {
-  min-height: 36px;
+  min-height: 2.25rem;
   padding: 0 var(--sp-3);
   font-family: var(--font-display);
   font-weight: 700;
@@ -4024,8 +4211,8 @@ button.chip.active b {
 
 /* a key mode with the song's edited or imported charts (their entries are on it): how many */
 .mode-saved {
-  margin-left: 6px;
-  padding: 0 4px;
+  margin-left: 0.375rem;
+  padding: 0 0.25rem;
   font-size: var(--fs-label);
   line-height: 1.3;
   border: 1px solid currentColor;
@@ -4043,7 +4230,7 @@ button.chip.active b {
 }
 
 .rule-chip {
-  padding: 2px var(--sp-2);
+  padding: 0.125rem var(--sp-2);
   font-size: var(--fs-label);
   font-weight: 700;
   line-height: 1.3;
@@ -4068,12 +4255,12 @@ button.chip.active b {
   align-items: stretch;
   justify-content: stretch;
   gap: var(--sp-1);
-  min-height: 112px;
+  min-height: 7rem;
   padding: var(--sp-3) var(--sp-3) var(--sp-2);
   text-align: left;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--diff);
+  border-top: 0.1875rem solid var(--diff);
   overflow: hidden;
 }
 
@@ -4201,7 +4388,7 @@ button.chip.active b {
   justify-content: space-between;
   align-items: baseline;
   gap: var(--sp-2);
-  min-height: 20px;
+  min-height: 1.25rem;
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
@@ -4277,7 +4464,7 @@ button.chip.active b {
   left: 0;
   bottom: 0;
   width: 40%;
-  height: 2px;
+  height: 0.125rem;
   background: var(--text);
   animation: plate-pending 1.2s ease-in-out infinite alternate;
 }
@@ -4311,7 +4498,7 @@ button.chip.active b {
 .lamp-text {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
   color: var(--lamp, var(--text-dim));
 }
 
@@ -4321,37 +4508,37 @@ button.chip.active b {
   display: inline-block;
   flex-shrink: 0;
   width: 0;
-  height: 12px;
+  height: 0.75rem;
   border-radius: 1px;
 }
 
 .lamp-failed .lamp-mark {
-  width: 6px;
-  border: 1.5px solid var(--lamp);
+  width: 0.375rem;
+  border: 0.09375rem solid var(--lamp);
 }
 
 .lamp-assist .lamp-mark,
 .lamp-easy .lamp-mark {
-  width: 2px;
+  width: 0.125rem;
   background: var(--lamp);
 }
 
 .lamp-clear .lamp-mark {
-  width: 5px;
+  width: 0.3125rem;
   background: var(--lamp);
 }
 
 .lamp-hard .lamp-mark,
 .lamp-exhard .lamp-mark {
-  width: 3px;
-  margin-right: 5px;
+  width: 0.1875rem;
+  margin-right: 0.3125rem;
   background: var(--lamp);
-  box-shadow: 5px 0 0 var(--lamp);
+  box-shadow: 0.3125rem 0 0 var(--lamp);
 }
 
 .lamp-maxcombo .lamp-mark,
 .lamp-perfect .lamp-mark {
-  width: 9px;
+  width: 0.5625rem;
   background: var(--lamp);
 }
 
@@ -4372,7 +4559,7 @@ button.chip.active b {
 }
 
 .analysis-status .progress {
-  width: 160px;
+  width: 10rem;
   margin: 0;
 }
 
@@ -4410,12 +4597,12 @@ button.chip.active b {
   display: flex;
   gap: var(--sp-2);
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-bottom: 0.125rem;
 }
 
 .saved-chart {
   flex: 0 0 auto;
-  max-width: 440px;
+  max-width: 27.5rem;
   min-width: 0;
 }
 
@@ -4424,7 +4611,7 @@ button.saved-plate {
   justify-content: flex-start;
   gap: var(--sp-3);
   width: 100%;
-  min-height: 36px;
+  min-height: 2.25rem;
   padding: 0 var(--sp-3);
   text-align: left;
   white-space: nowrap;
@@ -4437,7 +4624,7 @@ button.saved-plate {
 .saved-chart.active button.saved-plate:hover:not(:disabled) {
   background: var(--raised);
   border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 0.1875rem 0 0 var(--accent);
 }
 
 .saved-head,
@@ -4512,7 +4699,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .go-actions button {
-  min-height: 48px;
+  min-height: 3rem;
   white-space: nowrap;
 }
 
@@ -4550,13 +4737,13 @@ button.option-chips[aria-expanded='true'] .chip {
 
 /* short of room the graph goes first, then the record (before there is a chart, the line about
    making one), then the whole summary */
-@container summary (max-height: 235px) {
+@container summary (max-height: 14.6875rem) {
   .chart-summary .nps-graph {
     display: none;
   }
 }
 
-@container summary (max-height: 159px) {
+@container summary (max-height: 9.9375rem) {
   .chart-summary > dl:not(.summary-record) ~ .summary-record,
   .chart-summary > .hint {
     display: none;
@@ -4567,7 +4754,7 @@ button.option-chips[aria-expanded='true'] .chip {
   }
 }
 
-@container summary (max-height: 85px) {
+@container summary (max-height: 5.3125rem) {
   .chart-summary {
     display: none;
   }
@@ -4621,12 +4808,12 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .chart-summary .nps-graph {
-  height: 64px;
+  height: 4rem;
   margin: 0;
 }
 
 .select-status {
-  min-height: 24px;
+  min-height: 1.5rem;
   margin: 0;
   font-size: var(--fs-label);
   font-weight: 700;
@@ -4648,7 +4835,7 @@ button.option-chips[aria-expanded='true'] .chip {
 @keyframes panel-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(0.5rem);
   }
 }
 
@@ -4681,7 +4868,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .select-panel-head .segmented button {
-  min-height: 32px;
+  min-height: 2rem;
   white-space: nowrap;
 }
 
@@ -4733,7 +4920,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .select-panel-help {
   flex-shrink: 0;
   margin: 0;
-  padding: 6px var(--sp-4);
+  padding: 0.375rem var(--sp-4);
   font-size: var(--fs-label);
   font-weight: 600;
   line-height: 1.4;
@@ -4747,7 +4934,7 @@ button.option-chips[aria-expanded='true'] .chip {
 /* the play options' speed and gear rows, beside the moving gear */
 .gear-options {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(180px, 34%, 300px);
+  grid-template-columns: minmax(0, 1fr) clamp(11.25rem, 34%, 18.75rem);
   gap: var(--sp-4);
 }
 
@@ -4760,10 +4947,10 @@ button.option-chips[aria-expanded='true'] .chip {
 .panel-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   max-width: var(--measure);
   /* room for the focused row's outline */
-  padding: 2px;
+  padding: 0.125rem;
 }
 
 .panel-rows + .panel-rows {
@@ -4776,19 +4963,19 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .panel-rows .opt {
-  min-height: 28px;
+  min-height: 1.75rem;
   padding: 0 var(--sp-3);
   background: var(--raised);
 }
 
 .panel-rows .opt-step {
-  min-width: 28px;
-  min-height: 26px;
+  min-width: 1.75rem;
+  min-height: 1.625rem;
   line-height: 1;
 }
 
 .panel-rows .opt-value b {
-  min-width: 132px;
+  min-width: 8.25rem;
   font-size: var(--fs-body);
 }
 
@@ -4798,7 +4985,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .panel-rows .opt-static .opt-value b {
-  padding-right: 28px;
+  padding-right: 1.75rem;
   text-align: right;
 }
 
@@ -4873,23 +5060,23 @@ button.option-chips[aria-expanded='true'] .chip {
   min-width: 0;
   margin-left: var(--sp-3);
   padding-left: var(--sp-4);
-  line-height: 32px;
+  line-height: 2rem;
   border-left: 1px solid var(--line);
 }
 
 .stem-mix {
   display: flex;
-  height: 24px;
+  height: 1.5rem;
   margin-top: var(--sp-6);
   font-size: var(--fs-label);
   font-weight: 800;
-  line-height: 24px;
+  line-height: 1.5rem;
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .stem-mix .stem {
-  min-width: 2px;
+  min-width: 0.125rem;
   padding: 0 var(--sp-2);
   white-space: nowrap;
   overflow: hidden;
@@ -4897,14 +5084,14 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .stem-mix .stem + .stem {
-  border-left: 2px solid var(--surface);
+  border-left: 0.125rem solid var(--surface);
 }
 
 .stem-mix .stem-drums { background: var(--stem-drums); }
 .stem-mix .stem-bass { background: var(--stem-bass); }
 .stem-mix .stem-vocals { background: var(--stem-vocals); }
 .stem-mix .stem-other { background: var(--stem-other); }
-.stem-mix .stem.lead { box-shadow: inset 0 -4px 0 var(--text); }
+.stem-mix .stem.lead { box-shadow: inset 0 -0.25rem 0 var(--text); }
 
 .pattern-mix {
   display: flex;
@@ -4974,7 +5161,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .nps-graph {
   display: block;
   width: 100%;
-  height: 72px;
+  height: 4.5rem;
   margin: var(--sp-1) 0 0;
 }
 
@@ -4998,7 +5185,7 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .skill {
   display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
+  grid-template-columns: 5rem minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--fs-label);
@@ -5007,7 +5194,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .skill-bar {
-  height: 8px;
+  height: 0.5rem;
   border-radius: var(--radius-sm);
   background: var(--raised);
   overflow: hidden;
@@ -5021,7 +5208,7 @@ button.option-chips[aria-expanded='true'] .chip {
 /* song: tempo fixes, background video, analysis */
 
 .song-tools .row .label {
-  min-width: 112px;
+  min-width: 7rem;
 }
 
 /* the records of the difficulty chosen, a line per chart played (the one Enter plays first) */
@@ -5035,7 +5222,7 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .record-table th,
 .record-table td {
-  padding: 3px var(--sp-2) 3px 0;
+  padding: 0.1875rem var(--sp-2) 0.1875rem 0;
   text-align: left;
   white-space: nowrap;
 }
@@ -5072,7 +5259,7 @@ button.option-chips[aria-expanded='true'] .chip {
 /* (a saved chart's long name gives way) */
 .record-table .record-pattern {
   display: block;
-  max-width: 132px;
+  max-width: 8.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-display);
@@ -5104,8 +5291,8 @@ button.option-chips[aria-expanded='true'] .chip {
 .analysis-legend .dot::before {
   content: '';
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
   margin-right: var(--sp-1);
   vertical-align: middle;
   border-radius: var(--radius-sm);
@@ -5127,14 +5314,14 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .section-player:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.125rem;
 }
 
 .section-wave {
   display: block;
   width: 100%;
-  height: 56px;
+  height: 3.5rem;
   margin-bottom: var(--sp-2);
   cursor: pointer;
   border: 1px solid var(--line);
@@ -5142,7 +5329,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .section-wave.zoom {
-  height: 88px;
+  height: 5.5rem;
 }
 
 .section-row.selected {
@@ -5188,10 +5375,10 @@ button.option-chips[aria-expanded='true'] .chip {
     container-type: normal;
   }
   .hero {
-    grid-template-columns: 120px minmax(0, 1fr);
+    grid-template-columns: 7.5rem minmax(0, 1fr);
   }
   .hero-art {
-    width: 120px;
+    width: 7.5rem;
   }
   .skills {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5251,7 +5438,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .editor-toolbar input.editor-name {
-  width: 184px;
+  width: 11.5rem;
 }
 
 /* 편집: 되돌리기, 다시, 미러 under the button */
@@ -5267,7 +5454,7 @@ button.option-chips[aria-expanded='true'] .chip {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 12.5rem;
   margin-top: var(--sp-1);
   padding: var(--sp-1);
   background: var(--surface);
@@ -5291,7 +5478,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .editor-body {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 352px;
+  grid-template-columns: minmax(0, 1fr) 22rem;
   min-height: 0;
 }
 
@@ -5314,7 +5501,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .editor-lanes {
   position: relative;
   flex: none;
-  height: 52px;
+  height: 3.25rem;
   background: var(--surface);
   border-top: 1px solid var(--line);
 }
@@ -5328,8 +5515,8 @@ button.option-chips[aria-expanded='true'] .chip {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  border-top: 3px solid var(--lane);
+  gap: 0.125rem;
+  border-top: 0.1875rem solid var(--lane);
 }
 
 /* one line, as wide as the lane at most (L-Shift fits a key lane's 48 px) */

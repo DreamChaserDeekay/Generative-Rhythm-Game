@@ -69,6 +69,9 @@ export interface RowProps {
   passEnter?: boolean;
 }
 
+/** A choice of more than this many shows no squares: they would say less than the value's name. */
+const PIPS_MOST = 12;
+
 /**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
  * change it, Shift by a bigger step; Enter moves a choice on or flips a switch, and a click on a
@@ -82,6 +85,10 @@ export function OptionRow(
     onPress?: () => void;
     /** A switch's state (on / off rows). */
     checked?: boolean;
+    /** Where the value stands among its choices: shown as a square each while the row has the cursor. */
+    pips?: { count: number; at: number };
+    /** Where a number stands in its range, 0 to 1: shown as a mark on a line while the row has the cursor. */
+    meter?: number;
   },
 ) {
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -127,6 +134,18 @@ export function OptionRow(
     >
       <span className="opt-name">{props.label}</span>
       <span className="opt-value">
+        {props.pips && props.pips.count > 2 && props.pips.count <= PIPS_MOST && (
+          <span className="opt-pips" aria-hidden="true">
+            {Array.from({ length: props.pips.count }, (_, i) => (
+              <i key={i} className={i === props.pips?.at ? 'at' : undefined} />
+            ))}
+          </span>
+        )}
+        {props.meter !== undefined && (
+          <span className="opt-meter" aria-hidden="true">
+            <i style={{ left: `${Math.min(1, Math.max(0, props.meter)) * 100}%` }} />
+          </span>
+        )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
           ‹
         </button>
@@ -143,7 +162,16 @@ export function OptionRow(
 export function Choice<T extends string>(props: RowProps & { value: T; options: [T, string][]; onChange: (v: T) => void }) {
   const at = Math.max(0, props.options.findIndex(([id]) => id === props.value));
   const move = (dir: 1 | -1) => props.onChange(props.options[(at + dir + props.options.length) % props.options.length][0]);
-  return <OptionRow {...props} text={props.options[at]?.[1] ?? String(props.value)} value={props.value} onStep={(dir) => move(dir)} onPress={() => move(1)} />;
+  return (
+    <OptionRow
+      {...props}
+      text={props.options[at]?.[1] ?? String(props.value)}
+      value={props.value}
+      onStep={(dir) => move(dir)}
+      onPress={() => move(1)}
+      pips={{ count: props.options.length, at }}
+    />
+  );
 }
 
 /** A number between min and max, in steps (Shift: bigger steps). */
@@ -156,7 +184,8 @@ export function NumberOption(
     const clamped = Math.min(props.max, Math.max(props.min, next));
     if (clamped !== props.value) props.onChange(clamped);
   };
-  return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} />;
+  const meter = props.max > props.min ? (props.value - props.min) / (props.max - props.min) : undefined;
+  return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} meter={meter} />;
 }
 
 export interface OptionalRange {

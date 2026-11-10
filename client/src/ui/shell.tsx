@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
-/** Two rails meeting toward the horizon over a judge line: the accent on the left, the brand rail on the right. */
-export function Emblem({ size = 20 }: { size?: number }) {
+/** The game's mark: four keys, one of them down. */
+export function Emblem() {
   return (
-    <svg className="emblem" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <line x1="4" y1="22" x2="10" y2="2" style={{ stroke: 'var(--accent)' }} strokeWidth="2.2" strokeLinecap="square" />
-      <line x1="20" y1="22" x2="14" y2="2" style={{ stroke: 'var(--brand-rail)' }} strokeWidth="2.2" strokeLinecap="square" />
-      <line x1="5.2" y1="17" x2="18.8" y2="17" style={{ stroke: 'var(--text)' }} strokeWidth="2" />
-      <rect x="9.4" y="9" width="5.2" height="2" style={{ fill: 'var(--text)' }} />
+    <svg className="emblem" viewBox="0 0 28 20" aria-hidden="true" fill="currentColor">
+      <rect x="0" y="2" width="5" height="16" />
+      <rect x="7.6" y="2" width="5" height="16" />
+      <rect x="15.2" y="7" width="5" height="11" />
+      <rect x="22.8" y="2" width="5" height="16" />
     </svg>
   );
 }
@@ -30,7 +30,8 @@ export function TopBar({ name, detail, children }: { name: string; detail?: Reac
 /**
  * A key (or keys) and what it does on this screen; with `onClick` the hint is a button too. With
  * `pad`, the pad's buttons for it: while a pad works the menus the bar shows those (and only the
- * hints that have them). A `minor` hint gives way on a narrow window.
+ * hints that have them). A `minor` hint gives way on a narrow window; the `main` one is the
+ * screen's main key, drawn as a paper plate.
  */
 export interface KeyHint {
   keys: string[];
@@ -39,6 +40,7 @@ export interface KeyHint {
   onClick?: () => void;
   testId?: string;
   minor?: boolean;
+  main?: boolean;
 }
 
 /**
@@ -81,11 +83,11 @@ export function HintBar({ hints, end = [] }: { hints: KeyHint[]; end?: KeyHint[]
         {keys.map((k) => (
           <kbd key={k}>{k}</kbd>
         ))}
-        {h.label}
+        <span>{h.label}</span>
       </>
     );
     const key = `${h.keys.join('+')}-${h.label}`;
-    const className = h.minor ? 'hint-item minor' : 'hint-item';
+    const className = `hint-item${h.minor ? ' minor' : ''}${h.main ? ' main' : ''}`;
     return h.onClick ? (
       <button key={key} className={className} data-testid={h.testId} onClick={h.onClick}>
         {content}
