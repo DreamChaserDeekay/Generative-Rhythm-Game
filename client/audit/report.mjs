@@ -139,9 +139,13 @@ function graphReport() {
     out.push(`### ${name}로 닿지 않는 항목`, '', `걸어 본 상태의 항목 ${total}개 가운데 포커스가 닿지도 않고 같은 일을 하는 키도 없는 것: **${unreached}개**. (포인터로 누른 결과와 같은 결과를 내는 키가 그 상태에 있으면 닿는 것으로 셉니다.)`, '', rows.length ? table(['상태', '항목', '키', '포인터로 누르면'], rows) : '', '');
 
     // back: does it return to the state and the control it left
-    const back = probes.filter((p) => p.backTo !== undefined);
+    // (only inputs that open something over where the player was: a panel, a menu, another screen.
+    //  closing a panel or changing a tab is not a place to come back from)
+    const screenOf = (sig) => sig.split('+')[0].split(':')[0];
+    const opens = (p) => p.to.startsWith(`${p.state}+`) || (screenOf(p.to) !== screenOf(p.state) && !['result', 'play'].includes(screenOf(p.state)) && !(screenOf(p.state) !== 'select' && screenOf(p.to) === 'select'));
+    const back = probes.filter((p) => p.backTo !== undefined && opens(p));
     const wrongState = back.filter((p) => p.backTo !== p.state);
-    const wrongFocus = back.filter((p) => p.backTo === p.state && p.backFocus !== p.focus);
+    const wrongFocus = back.filter((p) => p.backTo === p.state && p.backFocus !== p.focus && p.focus !== '(none)');
     metrics[`${device}.backChecked`] = back.length;
     metrics[`${device}.backWrongState`] = wrongState.length;
     metrics[`${device}.backWrongFocus`] = wrongFocus.length;
@@ -204,11 +208,14 @@ function keysReport() {
     for (const s of states) {
       for (const h of s.hints) {
         for (const input of hintInputs(h.keys, device)) {
-          const p = l1.find((x) => x.state === s.sig && x.input === input);
-          if (p && !acts(p)) dead.push([s.sig, keyName(input), h.label, s.focus]);
+          const tried = g.probes.filter((x) => x.state === s.sig && x.input === input && x.level < 3);
+          // (the focus moving is the key working too)
+          if (tried.length > 0 && !tried.some((x) => acts(x) || x.focusAfter !== x.focus)) dead.push([s.sig, keyName(input), h.label, s.focus]);
         }
       }
       const named = new Set([...s.hints.flatMap((h) => hintInputs(h.keys, device)), ...(device === 'kb' ? s.caps.flatMap((c) => hintInputs([c.key], 'kb')) : [])]);
+      // (not where letters go into a field or a key is being captured, and not a state under two overlays)
+      if (/\+search|\+capture|\+running/.test(s.sig) || /settings:(keys|pad)/.test(s.sig) || s.sig.split('+').length > 2) continue;
       for (const p of l1.filter((x) => x.state === s.sig && acts(x) && !named.has(x.input))) {
         // an arrow or Tab that only moves the focus is the keyboard's own
         if (p.to === p.state && p.settings.length === 0 && !p.changed && /Arrow|Tab|Pad:(Up|Down|Left|Right)/.test(p.input)) continue;
@@ -217,7 +224,7 @@ function keysReport() {
     }
     metrics[`${device}.hintsDead`] = dead.length;
     metrics[`${device}.hiddenShortcuts`] = hidden.length;
-    out.push('### 힌트가 말하는데 첫 포커스에서 아무 일도 없던 키', '', dead.length ? table(['상태', '키', '힌트', '첫 포커스'], dead) : '없음', '');
+    out.push('### 힌트가 말하는데 그 상태의 어느 포커스에서도 아무 일이 없던 키', '', dead.length ? table(['상태', '키', '힌트', '첫 포커스'], dead) : '없음', '');
     out.push('### 일을 하는데 힌트 바에도 화면의 키 표시에도 없는 키 (숨은 단축키)', '', hidden.length ? table(['상태', '키', '한 일'], hidden) : '없음', '');
 
     // the same key under different names

@@ -172,6 +172,15 @@ class Crawl {
     throw new Error(`cannot get back to ${st.sig} @ ${focus} (at ${now.sig} @ ${now.focus})`);
   }
 
+  /** A page that no longer loads is thrown away for a new one (seen after a pad's walk of the result screen). */
+  private async fresh(): Promise<void> {
+    const context = this.page.context();
+    await this.page.close({ runBeforeUnload: false }).catch(() => undefined);
+    this.page = await context.newPage();
+    await prepare(this.page, this.device);
+    this.log('a new page');
+  }
+
   private async add(sig: string, root: Root, path: string[], at: Snap): Promise<void> {
     const known = this.states.get(sig);
     // a state a pointer found is kept until a key finds it
@@ -197,6 +206,7 @@ class Crawl {
       this.lost.set(st.sig, (this.lost.get(st.sig) ?? 0) + 1);
       if (this.lost.get(st.sig) === 3) st.skipped = 'could not get back to it';
       this.log(`! ${(e as Error).message.split('\n')[0]}`);
+      if (/page\.goto|Target|closed|crash/i.test((e as Error).message)) await this.fresh();
       return null;
     }
     await keyLog(this.page);
@@ -309,13 +319,17 @@ class Crawl {
   }
 }
 
+async function prepare(page: Page, device: Device): Promise<void> {
+  page.on('filechooser', () => undefined);
+  page.on('dialog', (d) => void d.dismiss());
+  page.on('download', (d) => void d.cancel());
+  await installAudit(page);
+  if (device === 'pad') await plugPad(page);
+}
+
 for (const device of devices) {
   test(`graph: ${device}`, async ({ page }) => {
-    page.on('filechooser', () => undefined);
-    page.on('dialog', (d) => void d.dismiss());
-    page.on('download', (d) => void d.cancel());
-    await installAudit(page);
-    if (device === 'pad') await plugPad(page);
+    await prepare(page, device);
     await page.goto('/');
     await ensureDemoSong(page);
     const crawl = new Crawl(page, device);

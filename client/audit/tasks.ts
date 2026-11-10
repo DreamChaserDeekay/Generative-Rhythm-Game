@@ -69,8 +69,8 @@ export const TASKS: Task[] = [
     why: '결과 화면의 두 갈래(다시 / 선곡으로) 가운데 하나. 기록을 올리려는 플레이어는 같은 곡을 되풀이함',
     goal: play,
     goalTimeoutMs: 20_000,
-    kb: { steps: ['KeyI', until('ArrowDown', { focus: 'sync-auto' }), 'Enter', { wait: 'result-screen', then: 2500 }, 'KeyR'], looks: 1 },
-    pad: { steps: ['Pad:LT', until('Pad:Down', { focus: 'sync-auto' }), 'Pad:A', { wait: 'result-screen', then: 2500 }, 'Pad:X'], looks: 1 },
+    kb: { steps: ['KeyI', until('ArrowDown', { focus: 'sync-auto' }), 'Enter', { wait: 'result-screen', then: 2500 }, 'count:from-here', 'KeyR'], looks: 1 },
+    pad: { steps: ['Pad:LT', until('Pad:Down', { focus: 'sync-auto' }), 'Pad:A', { wait: 'result-screen', then: 2500 }, 'count:from-here', 'Pad:X'], looks: 1 },
   },
   {
     id: 'T03',
@@ -79,8 +79,8 @@ export const TASKS: Task[] = [
     frequency: '판마다',
     why: '결과 화면의 두 갈래 가운데 하나',
     goal: { state: 'select' },
-    kb: { steps: ['KeyI', until('ArrowDown', { focus: 'sync-auto' }), 'Enter', { wait: 'result-screen', then: 2500 }, 'Enter'], looks: 1 },
-    pad: { steps: ['Pad:LT', until('Pad:Down', { focus: 'sync-auto' }), 'Pad:A', { wait: 'result-screen', then: 2500 }, 'Pad:A'], looks: 1 },
+    kb: { steps: ['KeyI', until('ArrowDown', { focus: 'sync-auto' }), 'Enter', { wait: 'result-screen', then: 2500 }, 'count:from-here', 'Enter'], looks: 1 },
+    pad: { steps: ['Pad:LT', until('Pad:Down', { focus: 'sync-auto' }), 'Pad:A', { wait: 'result-screen', then: 2500 }, 'count:from-here', 'Pad:A'], looks: 1 },
   },
   {
     id: 'T04',
@@ -90,8 +90,8 @@ export const TASKS: Task[] = [
     why: '초반에 놓치면 바로 다시 하는 습관(풀콤·고득점 도전). 일시정지 메뉴가 그 통로',
     goal: { state: 'play:running' },
     goalTimeoutMs: 20_000,
-    kb: { steps: ['Enter', { wait: 'hud-panel', then: 2500 }, 'Escape', 'KeyR'], looks: 1 },
-    pad: { steps: ['Pad:A', { wait: 'hud-panel', then: 2500 }, 'Pad:Start', until('Pad:Down', { focus: 'pause-menu>button[1]:다시 하기 R' }), 'Pad:A'], looks: 1 },
+    kb: { steps: ['Enter', { wait: 'play-screen', then: 5000 }, 'Escape', 'KeyR'], looks: 1 },
+    pad: { steps: ['Pad:A', { wait: 'play-screen', then: 5000 }, 'Pad:Start', until('Pad:Down', { focus: 'pause-menu>button[1]:다시 하기 R' }), 'Pad:A'], looks: 1 },
   },
   {
     id: 'T05',

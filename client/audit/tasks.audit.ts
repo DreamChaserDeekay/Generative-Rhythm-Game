@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test';
-import { defaultSettings, ensureDemoSong, installAudit, openRoot, plugPad, press, snap, STORAGE_KEY, writeData, type Device, type Root } from './lib';
+import { defaultSettings, ensureDemoSong, installAudit, openRoot, plugPad, press, readData, snap, STORAGE_KEY, writeData, type Device, type Root } from './lib';
 import { TASKS, type Goal, type Step, type Task } from './tasks';
 
 /**
@@ -65,7 +65,11 @@ async function run(page: Page, task: Task, device: Device, base: string): Promis
   };
   try {
     for (const step of route.steps as Step[]) {
-      if (typeof step === 'string') await once(step);
+      if (step === 'count:from-here') {
+        // what came before only set the scene (a play that ends at once): not part of the task
+        inputs = 0;
+        pressed.length = 0;
+      } else if (typeof step === 'string') await once(step);
       else if ('until' in step) {
         let n = 0;
         while (!(await met(page, step.until))) {
@@ -85,6 +89,7 @@ async function run(page: Page, task: Task, device: Device, base: string): Promis
       ok = await met(page, task.goal);
     }
     const at = await snap(page);
+    if (!ok && process.env.AUDIT_DEBUG) console.log(await page.evaluate((k) => localStorage.getItem(k), STORAGE_KEY));
     return { ok, inputs, klm: inputs * K + route.looks * M, responseMs: Date.now() - t0, route: pressed.join(' '), error: ok ? undefined : `목표에 닿지 않음 (지금 ${at.sig} @ ${at.focus})` };
   } catch (e) {
     return { ok: false, inputs, klm: 0, responseMs: 0, route: pressed.join(' '), error: (e as Error).message.split('\n')[0] };
@@ -92,7 +97,7 @@ async function run(page: Page, task: Task, device: Device, base: string): Promis
 }
 
 test('task costs', async ({ browser }) => {
-  const out: Record<string, unknown>[] = [];
+  const out: Record<string, unknown>[] = only ? ((readData('tasks.json') as Record<string, unknown>[] | null) ?? []) : [];
   let base = '';
   for (const device of ['kb', 'pad'] as Device[]) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -105,7 +110,9 @@ test('task costs', async ({ browser }) => {
     if (!base) base = await defaultSettings(page);
     for (const task of TASKS) {
       if (only && !only.test(task.id)) continue;
-      const r = await run(page, task, device, base);
+      let r = await run(page, task, device, base);
+      // a press now and then lands before the screen takes keys: a failed route is tried once more
+      if (r && !r.ok && r.route) r = await run(page, task, device, base);
       let rec = out.find((t) => t.id === task.id);
       if (!rec) {
         rec = { id: task.id, title: task.title, who: task.who, frequency: task.frequency, why: task.why };
