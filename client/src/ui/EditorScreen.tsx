@@ -167,7 +167,9 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     const view = new EditorView(canvas);
     viewRef.current = view;
     const lay = () => {
-      const { laneX, laneW } = view.layout(laneUnits);
+      const laid = view.layout(laneUnits);
+      // (the lane heads are on the page: the layout's places at the view's scale)
+      const [laneX, laneW] = [laid.laneX.map((v) => v * view.scale), laid.laneW.map((v) => v * view.scale)];
       setHeads((was) => (was && was.x.join() === laneX.join() && was.w.join() === laneW.join() ? was : { x: laneX, w: laneW }));
       draw();
     };
@@ -351,7 +353,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
 
   const local = (e: { clientX: number; clientY: number }) => {
     const rect = (canvasRef.current as HTMLCanvasElement).getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const k = viewRef.current?.scale ?? 1;
+    return { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k };
   };
 
   const onMouseDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {

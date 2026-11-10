@@ -1540,6 +1540,7 @@ export function SongSelectScreen(props: Props) {
                       <dd className="num" data-testid="song-bpm">
                         {bpmLabel(selected)}
                       </dd>
+                      <BeatDot songId={selected.id} chart={chart} />
                     </div>
                     <div>
                       <dt>길이</dt>
@@ -1971,6 +1972,43 @@ function savedLevels(c: SavedChart): string {
 function headlineText(r: ScoreRecord, ruleset: RulesetId): string {
   const head = recordHeadline(r, ruleset);
   return head.label === 'RATE' ? head.value : `${head.label} ${head.value}`;
+}
+
+/** How long the dot by the BPM stays lit after a beat. */
+const BEAT_DOT_MS = 160;
+
+/**
+ * The dot by the BPM: it ticks on the beats the analysis found (the chosen chart's own timing)
+ * while the song's preview plays, so a tempo read wrong is seen at once against what is heard. It
+ * rests without a chart, without sound, and with reduced motion.
+ */
+function BeatDot({ songId, chart }: { songId: string; chart: ServerChart | null }) {
+  const dot = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = dot.current;
+    if (!el || !chart || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const tempo = new TempoMap(chart.timing);
+    let raf = 0;
+    let shown = '';
+    const frame = () => {
+      raf = requestAnimationFrame(frame);
+      const now = menuMusic.songMs(songId);
+      let lit = 0;
+      if (now !== null) {
+        const beat = tempo.msToBeat(now);
+        const since = now - tempo.beatToMs(Math.floor(beat));
+        if (beat >= 0 && since >= 0 && since < BEAT_DOT_MS) lit = 1 - since / BEAT_DOT_MS;
+      }
+      const opacity = (0.22 + 0.78 * lit).toFixed(2);
+      if (opacity !== shown) el.style.opacity = shown = opacity;
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.style.opacity = '';
+    };
+  }, [songId, chart]);
+  return <i className="beat" ref={dot} aria-hidden="true" />;
 }
 
 /** A tier's cell of a song on the list with its tier (`absent`: the song has no chart on it). */
