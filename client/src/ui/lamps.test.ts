@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { difficultySystems } from '../engine/config';
+import { difficultyTiers } from '../engine/config';
 import { LAMP_CLASS } from './lamps';
 
 // The lamp colours of styles.css against the difficulty colours they are shown beside: a lamp is
@@ -32,7 +32,7 @@ function lab(hex: string): [number, number, number] {
 const deltaE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
 
 describe('lamp colours', () => {
-  const tiers = Object.values(difficultySystems).flatMap((s) => s.tiers.map((t) => [`${s.id} ${t.id}`, t.color] as const));
+  const tiers = difficultyTiers.map((t) => [t.id, t.color] as const);
   const lamps = Object.values(LAMP_CLASS);
 
   it('keep off every difficulty colour', () => {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { cameraConfig } from '../engine/config';
 import type { ChartEffect, ChartTiming } from '../engine/types';
-import { CameraFx, MAX_TILT_DEG, ZOOM_DEPTH } from './cameraFx';
+import { CameraFx, MAX_TILT_DEG, VIEW_DEPTH, ZOOM_DEPTH } from './cameraFx';
 import { cameraPose, JUDGE_LINE_Y } from './layout';
 import { baseFrame, frameCamera, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
 
@@ -39,6 +39,29 @@ describe('CameraFx', () => {
     expect(off.enabled).toBe(false);
     expect(off.at(6000)).toEqual({ roll: 0, fovScale: 1 });
     expect(new CameraFx([], timing, 1).enabled).toBe(false);
+  });
+
+  it('holds a wider view through a quiet passage and closes in through a build-up', () => {
+    const views: ChartEffect[] = [
+      { beat: 0, t: 0, type: 'view', value: -1, durationBeats: 2 }, // quiet: opens out over a bar
+      { beat: 8, t: 4000, type: 'view', value: 0.5, durationBeats: 4 }, // build-up, bar by bar
+      { beat: 12, t: 6000, type: 'view', value: 1, durationBeats: 4 },
+      { beat: 16, t: 8000, type: 'view', value: 0, durationBeats: 0.25 }, // the drop lets go at once
+      { beat: 16, t: 8000, type: 'zoom', value: 1, durationBeats: 2 },
+    ];
+    const fx = new CameraFx(views, timing, 1);
+    expect(fx.enabled).toBe(true);
+    expect(fx.at(1000).fovScale).toBeCloseTo(1 + VIEW_DEPTH, 9); // wider and held
+    expect(fx.at(3999).fovScale).toBeCloseTo(1 + VIEW_DEPTH, 9);
+    expect(fx.at(6000).fovScale).toBeCloseTo(1 - VIEW_DEPTH * 0.5, 9);
+    expect(fx.at(7999).fovScale).toBeCloseTo(1 - VIEW_DEPTH, 6); // closest just before the drop
+    expect(fx.at(8125).fovScale).toBeCloseTo(1 - ZOOM_DEPTH * (1 - 0.125 / 1) ** 2, 9); // let go: only the pulse
+    expect(fx.at(9500).fovScale).toBe(1);
+    expect(new CameraFx(views, timing, 0.5).at(1000).fovScale).toBeCloseTo(1 + VIEW_DEPTH / 2, 9);
+    // the plate's pose counts the closest view with the strongest pulse, and no frame goes past it
+    const peak = fx.peak();
+    expect(peak.fovScale).toBeCloseTo((1 - ZOOM_DEPTH) * (1 - VIEW_DEPTH), 9);
+    for (let t = 0; t < 10000; t += 50) expect(fx.at(t).fovScale).toBeGreaterThanOrEqual(peak.fovScale - 1e-12);
   });
 
   it('names its peak toward the screen\'s top left: the deepest counter-clockwise tilt and zoom together', () => {

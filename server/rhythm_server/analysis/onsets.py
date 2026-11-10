@@ -33,6 +33,8 @@ ATTACK_WEIGHTS = {
 ATTACK_BIAS = 1.371
 ATTACK_CLOSE_S = 0.1
 ATTACK_RISE_S = 0.02
+# An onset's spectrum (onset_spectra) is read this many frames after it, once its attack is up.
+SPECTRUM_LAG_FRAMES = 2
 
 
 @dataclass
@@ -123,6 +125,15 @@ def _masked(times: np.ndarray, strength: np.ndarray, bands: np.ndarray) -> np.nd
                 break
             j -= 1
     return masked
+
+
+def onset_spectra(mel_power: np.ndarray, onsets: OnsetData) -> np.ndarray:
+    """Each onset's log10 mel spectrum SPECTRUM_LAG_FRAMES after it (onsets, mels): what it sounds
+    like."""
+    last = len(mel_power) - 1
+    frames = np.clip(np.round((onsets.times - onsets.time_offset) * onsets.frame_rate).astype(int), 0, last)
+    floor = 1e-10 * float(mel_power.max()) + 1e-20
+    return np.log10(mel_power[np.minimum(last, frames + SPECTRUM_LAG_FRAMES)].astype(np.float64) + floor)
 
 
 def band_levels(mel_power: np.ndarray, mel_centers: np.ndarray) -> np.ndarray:

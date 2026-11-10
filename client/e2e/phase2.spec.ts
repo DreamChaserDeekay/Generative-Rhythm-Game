@@ -54,8 +54,9 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
 
   // Long-note style gives more long notes than the balanced default (the chart of other options
-  // comes by itself).
-  await page.getByRole('button', { name: /HARD/ }).first().click();
+  // comes by itself). On NORMAL: the harder tiers of this short song already hold every sound
+  // long enough for a long note (18 either way since generator 0.9.20; NORMAL goes 5 → 18).
+  await page.getByTestId('difficulty-row').getByRole('button', { name: /NORMAL/ }).first().click();
   const level = page.getByTestId('chart-level');
   await expect(level).toBeVisible({ timeout: 30_000 });
   const balanced = await level.getAttribute('data-chart-id');

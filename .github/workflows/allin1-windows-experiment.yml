@@ -1,0 +1,139 @@
+name: Experiment - allin1 on Windows
+
+# Can the structure backend allin1 go into a Windows installer? allin1 1.1.0 needs NATTEN's old ops
+# (natten.functional.natten1dqkrpb, gone after 0.14.x), NATTEN has no Windows wheels, and madmom
+# builds from GitHub. This job builds NATTEN 0.14.6 from source with MSVC against CPU PyTorch 2.1 on
+# Python 3.11, installs madmom and allin1, imports them, and runs allin1 on a 24-second synthetic
+# clip (downloads the harmonix-all and Demucs weights). Manual only: it decides whether a third
+# "structure" edition is worth building (docs/PATTERN_DESIGN.md 69-9, README allin1 row).
+on:
+  workflow_dispatch:
+
+jobs:
+  allin1:
+    # PyTorch 2.1's headers against the newest MSVC (windows-latest: Visual Studio 2026) or VS 2022
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      # the MSVC environment comes from msvc-dev-cmd: torch's extension builder must not set it up again
+      DISTUTILS_USE_SDK: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: PyTorch 2.1 CPU and build tools
+        run: |
+          # torch 2.1's cpp_extension imports pkg_resources, which new setuptools no longer ships
+          python -m pip install -U pip "setuptools<70" wheel
+          pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy<2" cython ninja cmake
+          python -c "import torch, numpy; print('torch', torch.__version__, 'numpy', numpy.__version__)"
+
+      - name: Build NATTEN 0.14.6 from source (CPU)
+        id: natten
+        run: |
+          # Git Bash puts its own Unix `link` ahead of MSVC's linker: MSVC's tool folder goes first
+          export PATH="$(dirname "$(command -v cl)"):$PATH"
+          echo "linker: $(command -v link)"
+          export NATTEN_N_WORKERS=4
+          cl 2>&1 | head -n 1 || true
+          # NATTEN 0.14.6's CPU dispatch macros are GCC statement expressions, ({ ... }), which MSVC
+          # does not have; they are only used as statements, so do { ... } while (0) is the same code
+          # the source archive straight from PyPI (pip download would run setup.py without torch)
+          python - <<'PY'
+          import json, urllib.request
+          meta = json.load(urllib.request.urlopen("https://pypi.org/pypi/natten/0.14.6/json"))
+          url = next(u["url"] for u in meta["urls"] if u["packagetype"] == "sdist")
+          urllib.request.urlretrieve(url, "natten-0.14.6.tar.gz")
+          PY
+          tar -xzf natten-0.14.6.tar.gz
+          # the archive ships a stale egg-info whose file list has absolute Linux paths (setuptools refuses them)
+          rm -rf natten-0.14.6/src/natten.egg-info
+          h=natten-0.14.6/src/natten/csrc/cpu/natten_cpu_commons.h
+          sed -i -E 's/^\(\{([[:space:]]*\\)$/do {\1/; s/^\}\)[[:space:]]*$/} while (0)/' "$h"
+          echo "statement expressions left: $(grep -cE '^\(\{|^\}\)' "$h" || true)"
+          status=0
+          pip install --no-build-isolation -v ./natten-0.14.6 > natten_build.log 2>&1 || status=$?
+          echo "pip exit $status, log $(wc -l < natten_build.log) lines"
+          # the compiler's own messages (the traceback after them only says the build failed)
+          grep -nE "error C[0-9]{4}|fatal error|error LNK|: error|FAILED:" natten_build.log | head -n 60 || true
+          tail -n 15 natten_build.log
+          [ "$status" = 0 ]
+          python -c "import natten; from natten.functional import natten1dqkrpb, natten1dav; print('natten', natten.__version__)"
+
+      - name: Keep the NATTEN build log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: natten-build-log-${{ matrix.os }}
+          path: natten_build.log
+          if-no-files-found: ignore
+
+      - name: madmom from GitHub and allin1
+        run: |
+          export PATH="$(dirname "$(command -v cl)"):$PATH"
+          pip install --no-build-isolation "git+https://github.com/CPJKU/madmom" 2>&1 | tail -n 20
+          pip install "demucs<4.1" allin1 2>&1 | tail -n 20
+          python -c "import madmom, allin1; print('madmom', madmom.__version__, 'allin1 ok')"
+          pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|numpy|librosa|hydra-core|omegaconf) "
+
+      - name: Run allin1 on a synthetic clip (CPU)
+        timeout-minutes: 30
+        run: |
+          python - <<'EOF'
+          import time
+          import numpy as np
+          import soundfile as sf
+          sr = 44100
+          t = np.arange(24 * sr) / sr
+          beat = 60.0 / 120.0
+          y = 0.2 * np.sin(2 * np.pi * 220 * t) * (1 + 0.3 * np.sin(2 * np.pi * 0.25 * t))
+          for b in np.arange(0, 24, beat):
+              i = int(b * sr)
+              y[i:i + 2000] += 0.8 * np.exp(-np.arange(2000) / 300) * np.sign(np.sin(2 * np.pi * 60 * np.arange(2000) / sr))
+          sf.write("clip.wav", np.stack([y, y], axis=1).astype(np.float32), sr)
+          import allin1
+          t0 = time.time()
+          result = allin1.analyze("clip.wav", device="cpu", keep_byproducts=False, multiprocess=False)
+          print("seconds", round(time.time() - t0, 1))
+          print("bpm", result.bpm, "beats", len(result.beats), "downbeats", len(result.downbeats))
+          print("segments", [(round(s.start, 2), round(s.end, 2), s.label) for s in result.segments])
+          EOF
+
+      - name: Our backend sees it
+        run: |
+          pip install -e server 2>&1 | tail -n 3
+          python - <<'EOF'
+          import numpy as np, soundfile as sf
+          from rhythm_server.analysis.backends import detect
+          backends = detect()
+          print({k: v.label for k, v in backends.items()})
+          assert "structure" in backends and backends["structure"].name == "allin1", backends
+          from rhythm_server.analysis.backends import allin1_backend
+          pcm, sr = sf.read("clip.wav", dtype="float32")
+          out = allin1_backend.structure(pcm, sr, {"device": "cpu", "model": "harmonix-all"})
+          print("backend", out["bpm"], len(out["beats"]), out["segments"])
+          EOF
+
+      - name: Size of what an installer would add
+        if: always()
+        run: |
+          python - <<'EOF'
+          import pathlib, sysconfig
+          root = pathlib.Path(sysconfig.get_paths()["purelib"])
+          def mb(p):
+              return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6 if p.exists() else 0.0
+          for name in ("torch", "torchaudio", "natten", "madmom", "allin1", "demucs", "librosa", "numpy", "scipy", "matplotlib", "hydra", "omegaconf"):
+              print(f"{name:12s} {mb(root / name):8.1f} MB")
+          print(f"{'site-packages':12s} {mb(root):8.1f} MB")
+          EOF

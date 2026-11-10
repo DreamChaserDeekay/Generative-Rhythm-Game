@@ -69,6 +69,45 @@ def test_attack_ranks_a_new_sound_above_a_sounding_one_changing() -> None:
     assert attack[1] < 0.5 < min(attack[0], attack[2]), attack
 
 
+def _two_sounds(onsets: int, rate: float = 43.0, bins: int = 400) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """A harmonic spectrogram where two tones with different partials take turns over a quiet
+    floor, louder and softer each time: (spectrogram, onset times, which tone)."""
+    harmonic = np.full((onsets * 25 + 60, bins), 0.01)
+    tones = (np.zeros(bins), np.zeros(bins))
+    tones[0][[20, 40, 60, 80]] = [1.0, 0.5, 0.3, 0.2]
+    tones[1][[30, 45, 90, 135]] = [1.0, 0.7, 0.4, 0.2]
+    times, which = [], []
+    for k in range(onsets):
+        frame = 20 + 25 * k
+        harmonic[frame : frame + 10] += tones[k % 2] * (0.4 + 0.1 * (k % 5))
+        times.append(frame / rate)
+        which.append(k % 2)
+    return harmonic, np.array(times), np.array(which)
+
+
+def test_the_onsets_of_one_sound_share_a_sound_group() -> None:
+    """A keysound chart plays one sample again and again; its onsets rise alike in the harmonic
+    spectrum however loud they are, and another sound's onsets rise elsewhere (PATTERN_DESIGN 58)."""
+    from rhythm_server.analysis.sound_groups import sound_groups
+
+    harmonic, times, which = _two_sounds(20)
+    groups = sound_groups(harmonic, 43.0, times)
+    assert len(set(groups[which == 0])) == 1 and len(set(groups[which == 1])) == 1, groups
+    assert groups[which == 0][0] != groups[which == 1][0]
+
+
+def test_a_long_song_groups_an_even_spread_and_the_rest_by_likeness(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Linkage memory grows with the square of the onsets: past MAX_LINKED onsets an even spread is
+    grouped and every other onset takes the group of its most alike grouped onset."""
+    import rhythm_server.analysis.sound_groups as sg
+
+    harmonic, times, which = _two_sounds(40)
+    full = sg.sound_groups(harmonic, 43.0, times)
+    monkeypatch.setattr(sg, "MAX_LINKED", 15)
+    spread = sg.sound_groups(harmonic, 43.0, times)
+    assert len(set(zip(full.tolist(), spread.tolist()))) == len(set(full.tolist())) == 2, (full, spread)
+
+
 def test_attack_is_high_on_the_true_onsets_of_a_song(analysis128: dict, song128) -> None:
     detected = np.array([o["t"] for o in analysis128["onsets"]]) / 1000.0
     attack = np.array([o["attack"] for o in analysis128["onsets"]])
@@ -104,6 +143,123 @@ def test_tempo_change_is_split_into_segments() -> None:
         assert abs(b - round(b)) * tempo.beat_ms(b) < GRID_LIMIT_MS
 
 
+def _grid_onsets(bpm: float, duration: float, offset: float = 0.5) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+    """Onsets on every beat (strong, low) and half-beat (weaker, high) of one tempo, with an onset
+    function at 100 frames a second: (times, strengths, low fractions, onset function, frame rate)."""
+    period = 60.0 / bpm
+    beats = np.arange(offset, duration - 1.0, period)
+    times = np.concatenate([beats, beats + period / 2])
+    order = np.argsort(times)
+    strengths = np.concatenate([np.ones(len(beats)), 0.5 * np.ones(len(beats))])[order]
+    low = np.concatenate([0.7 * np.ones(len(beats)), 0.2 * np.ones(len(beats))])[order]
+    odf = np.zeros(int(duration * 100.0))
+    odf[np.round(times[order] * 100.0).astype(int)] = strengths
+    return times[order], strengths, low, odf, 100.0
+
+
+def test_a_tempo_split_that_explains_the_onsets_no_better_is_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two windows whose local fit wanders to another tempo split a third of the one-BPM BMS songs
+    into segments, most of them off the chart's beats; a split stands only when its beats explain
+    the onsets clearly better than the one grid."""
+    from rhythm_server.analysis import tempo
+
+    times, strengths, low, odf, rate = _grid_onsets(128.0, 120.0)
+    real = tempo._local_tempos
+    monkeypatch.setattr(tempo, "_local_tempos", lambda *a: [(c, b * (1.02 if 40.0 < c < 70.0 else 1.0)) for c, b in real(*a)])
+    kept = tempo.estimate_tempo(times, strengths, low, odf, rate, 120.0)
+    assert kept.constant and abs(kept.bpm - 128.0) < 0.01
+    on_beats = times[strengths == 1.0]
+    assert max(np.min(np.abs(kept.beats - t)) for t in on_beats) < 0.005
+    monkeypatch.setattr(tempo, "PIECEWISE_WINDOW_SHARE", -1.0)  # without the check the same song splits
+    assert not tempo.estimate_tempo(times, strengths, low, odf, rate, 120.0).constant
+
+
+@pytest.mark.parametrize("gain,picked", [(2.0, 120.0), (3.0, 240.0)])
+def test_the_tempo_octave_moves_only_on_a_clear_margin(monkeypatch: pytest.MonkeyPatch, gain: float, picked: float) -> None:
+    """Half or twice the level found wins only when it scores OCTAVE_MARGIN more: fitted on fast
+    BMS songs, the model alone read slow pop and hip-hop at twice their tempo."""
+    from rhythm_server.analysis import tempo
+
+    def score(*args: object) -> tuple[tempo.GridFit, float]:
+        bpm = float(args[5])  # (times, weights, drums, odf, frame_rate, bpm, duration)
+        return tempo.GridFit(bpm=bpm, phase=0.0, score=0.5), gain if abs(bpm - 240.0) < 1.0 else 0.0
+
+    monkeypatch.setattr(tempo, "_octave_score", score)
+    fit = tempo.GridFit(bpm=120.0, phase=0.1, score=0.5)
+    assert tempo._choose_octave(np.zeros(1), np.zeros(1), None, np.zeros(1), 100.0, fit, 60.0).bpm == picked
+
+
+@pytest.mark.parametrize("half_beats,picked", [(1.0, 240.0), (0.0, 120.0)])
+def test_drums_on_the_half_beats_take_a_kept_tempo_up(monkeypatch: pytest.MonkeyPatch, half_beats: float, picked: float) -> None:
+    """Twice the level found wins below the margin when the kicks and snares hit its half-beats
+    about as hard as its beats (a fast song read at half its tempo), not when they keep to its beats."""
+    from rhythm_server.analysis import tempo
+
+    def score(*args: object) -> tuple[tempo.GridFit, float]:
+        bpm = float(args[5])
+        return tempo.GridFit(bpm=bpm, phase=0.0, score=0.5), 1.5 if abs(bpm - 240.0) < 1.0 else 0.0
+
+    monkeypatch.setattr(tempo, "_octave_score", score)
+    rate, duration = 100.0, 60.0
+    env = np.full(int(duration * rate), 0.01)
+    beats = np.round(np.arange(0.0, duration, 0.5) * rate).astype(int)
+    env[beats] = 1.0
+    env[beats + 25] = max(half_beats, 0.01)  # the half-beats
+    drums = tempo.DrumFlux(high=env.copy(), full=2 * env, frame_rate=rate)
+    fit = tempo.GridFit(bpm=120.0, phase=0.0, score=0.5)
+    assert tempo._choose_octave(np.zeros(1), np.zeros(1), drums, np.zeros(1), 100.0, fit, duration).bpm == picked
+
+
+@pytest.mark.parametrize("drum_offset,expected", [(0.125, 0.125), (0.0, 0.0), (0.375, 0.375)])
+def test_drums_a_sixteenth_away_move_the_phase(drum_offset: float, expected: float) -> None:
+    """A grid a sixteenth before or after the drums moves a quarter of a beat onto them; on them it
+    stays."""
+    from rhythm_server.analysis.tempo import DrumFlux, _quarter_phase
+
+    bpm, duration, rate = 120.0, 60.0, 200.0  # a beat is 0.5 s, a quarter of it 0.125 s
+    env = np.full(int(duration * rate), 0.01)
+    env[np.round((np.arange(0.0, duration - 1.0, 0.5) + drum_offset) * rate).astype(int)] = 1.0
+    drums = DrumFlux(high=env.copy(), full=env.copy(), frame_rate=rate)
+    assert abs(_quarter_phase(drums, bpm, 0.0, duration) - expected) < 1e-6
+
+
+@pytest.mark.parametrize("cue", ["harmony", "drums over mid", "sound"])
+def test_the_half_beat_cues_move_the_phase_onto_the_beat(cue: str) -> None:
+    """With a grid fitted on the off-beats, chords changing on the beats move it onto them; so do
+    drums clearly on the beats, though the mid-band onsets (an off-beat bass's partials) sit on the
+    off-beats, and onsets on the beats and half-beats whose sound changes with every bar."""
+    from rhythm_server.analysis.tempo import DrumFlux, _half_phase
+
+    bpm, duration, rate = 120.0, 60.0, 100.0
+    period = 60.0 / bpm
+    beats = np.arange(0.0, duration, period)
+    frames = int(duration * rate)
+    flux = np.full(frames, 0.01)
+    times = beats + period / 2
+    mid = np.zeros(len(times))
+    chroma = strengths = spectra = None
+    if cue == "harmony":
+        chord = np.random.default_rng(0).integers(0, 12, len(beats))
+        chroma = np.zeros((frames, 12))
+        for i, b in enumerate(beats):
+            chroma[int(b * rate) : int((b + period) * rate), chord[i]] = 1.0
+    elif cue == "sound":
+        times = np.sort(np.concatenate([beats, beats + period / 2]))
+        mid = np.zeros(len(times))
+        strengths = np.ones(len(times))
+        spectra = np.repeat(np.random.default_rng(1).random((len(beats) // 4 + 1, 20)), 8, axis=0)[: len(times)]  # one sound a bar
+    else:
+        mid[:] = 1.0  # every mid-band onset on the off-beats
+        flux = flux.copy()
+        flux[np.round(beats * rate).astype(int)] = 1.0
+    drums = DrumFlux(high=flux.copy(), full=flux.copy(), frame_rate=rate)
+    phase = _half_phase(times, mid, drums, bpm, period / 2, duration, chroma, rate, strengths, spectra)
+    assert min(phase, period - phase) < 1e-6
+    if cue == "sound":  # and a grid on the beats stays, which the bias alone would move
+        assert _half_phase(times, mid, drums, bpm, 0.0, duration, chroma, rate, strengths, spectra) == 0.0
+        assert _half_phase(times, mid, drums, bpm, 0.0, duration, chroma, rate) != 0.0
+
+
 def test_downbeats_match_bar_starts() -> None:
     song = synth(128.0, 32, 1)
     a = analysis_of(128.0, 32, 1)
@@ -125,6 +281,71 @@ def test_bar_harmony_places_the_downbeat_between_like_accents() -> None:
     assert estimate_meter(cues).first_downbeat_index == first + 2
     meter = estimate_meter(cues, chroma)
     assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+@pytest.mark.parametrize("song", ["kick on one", "four on the floor"])
+def test_the_drums_place_the_downbeat_with_the_harmony(song: str) -> None:
+    """Over one held chord the kick on beat 1 and the snares on 2 and 4 place the downbeat. Under
+    four-on-the-floor, whose claps on 2 and 4 put a little more into the kicks' band there, the
+    chord changing every bar still does."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 1
+    beat = [(i - first) % 4 for i in range(n)]
+    cues = np.zeros(n)  # the per-beat cues say nothing
+    snares = np.array([1.0 if b in (1, 3) else 0.1 for b in beat])
+    if song == "kick on one":
+        kicks = np.array([1.0 if b == 0 else 0.3 for b in beat])
+        chroma = np.ones((n, 12))
+    else:
+        kicks = np.array([1.05 if b in (1, 3) else 1.0 for b in beat])
+        chords = np.random.default_rng(2).random((n // 4 + 2, 12))
+        chroma = np.array([chords[(i - first) // 4 + 1] for i in range(n)])
+    accents = BeatAccents(kicks=kicks, snares=snares, onsets=np.full(n, 0.5))
+    meter = estimate_meter(cues, chroma, accents)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+def test_the_loudness_changing_bar_by_bar_places_the_downbeat() -> None:
+    """With even drums and one held chord, bars that alternate loud and soft place the downbeat:
+    bars shifted off it straddle the changes."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 1
+    onsets = np.array([1.0 if ((i - first) // 4) % 2 == 0 else 0.4 for i in range(n)])
+    accents = BeatAccents(kicks=np.ones(n), snares=np.ones(n), onsets=onsets)
+    meter = estimate_meter(np.zeros(n), np.ones((n, 12)), accents)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+def test_the_sound_changing_bar_by_bar_places_the_downbeat() -> None:
+    """With even drums, even onsets and one held chord, onsets that sound different in every bar
+    place the downbeat: bars shifted off it straddle the changes."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, first = 64, 2
+    sounds = np.random.default_rng(3).random((n // 4 + 2, 20))
+    timbre = np.array([sounds[(i - first) // 4 + 1] for i in range(n)])
+    accents = BeatAccents(kicks=np.ones(n), snares=np.ones(n), onsets=np.ones(n))
+    assert estimate_meter(np.zeros(n), np.ones((n, 12)), accents).first_downbeat_index != first  # nothing to go by
+    accents.timbre = timbre
+    meter = estimate_meter(np.zeros(n), np.ones((n, 12)), accents)
+    assert meter.beats_per_bar == 4 and meter.first_downbeat_index == first
+
+
+@pytest.mark.parametrize("beats_per_bar", [3, 4])
+def test_the_drums_and_the_harmony_settle_three_against_four(beats_per_bar: int) -> None:
+    """A kick on the first beat of each bar, snares on the others and chords that change with every
+    bar and come back two bars on: bars of three read as 3/4, bars of four as 4/4."""
+    from rhythm_server.analysis.meter import BeatAccents, estimate_meter
+
+    n, m = 96, beats_per_bar
+    beat = np.arange(n) % m
+    chords = np.random.default_rng(4).random((2, 12))
+    chroma = np.array([chords[(i // m) % 2] for i in range(n)])
+    accents = BeatAccents(kicks=np.where(beat == 0, 1.0, 0.3), snares=np.where(beat == 0, 0.2, 1.0), onsets=np.where(beat == 0, 1.0, 0.6))
+    meter = estimate_meter(np.where(beat == 0, 1.0, 0.1), chroma, accents)
+    assert meter.beats_per_bar == m and meter.first_downbeat_index == 0
 
 
 @pytest.mark.parametrize("chord_beats,meter", [(4, 4), (3, 3)])
@@ -181,7 +402,7 @@ def test_result_shape(analysis128: dict) -> None:
         assert key in a
     assert a["timing"]["tempoMap"][0]["beat"] == 0
     o = a["onsets"][0]
-    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd", "attack"}
+    assert set(o) >= {"t", "strength", "band", "bands", "pitch", "sustainEnd", "attack", "soundGroup"}
     assert o["band"] in ("low", "mid", "high")
 
 

@@ -8,6 +8,8 @@ is missing or fails leaves the core result for that part.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
@@ -15,18 +17,21 @@ from scipy.ndimage import uniform_filter1d
 
 from . import ml
 from .backends import Backend, detect as detect_backends
-from .meter import beat_cues, estimate_meter
-from .onsets import attack_confidence, band_levels, detect_onsets
+from .meter import BeatAccents, beat_cues, beat_onsets, beat_peaks, beat_timbre, estimate_meter
+from .onsets import attack_confidence, band_levels, detect_onsets, onset_spectra
 from .pitch import analyze_notes, held_swells
+from .sound_groups import sound_groups
 from .spectral import chroma_matrix, hpss, mel_filterbank, mel_power, stft_magnitude
 from .stems import STEM_NAMES, melody_presence, stem_activity, tag_onsets
-from .structure import add_loops, beat_sync, find_sections, rhythm_grid, structure_features
+from .structure import Section, add_loops, beat_sync, find_sections, promote_highlight, rhythm_grid, structure_features
 from .tempo import drum_flux, estimate_tempo
 
 log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
-ANALYZER_VERSION = "1.6.1"
+ANALYZER_VERSION = "1.16.0"
+# the progress line's name for each backend
+BACKEND_NAMES = {"demucs": "Demucs", "roformer": "BS-RoFormer", "beat_this": "beat_this", "basic_pitch": "basic-pitch", "allin1": "allin1"}
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -75,6 +80,88 @@ def _beat_activity(beats: np.ndarray, times: np.ndarray, strength: np.ndarray, b
     return out / np.maximum(scale, 1e-9)
 
 
+@dataclass
+class StructureInputs:
+    """What the structure step reads (scripts/measure_structure.py stores it and replays it)."""
+
+    log_mel: np.ndarray  # coarse frames x 40
+    chroma: np.ndarray  # coarse frames x 12
+    frame_rate: float  # coarse frames per second
+    rms_db: np.ndarray  # per coarse frame
+    beats: np.ndarray  # seconds
+    beat0: int  # first downbeat
+    beats_per_bar: int
+    times: np.ndarray  # onsets (seconds), their strength and band shares
+    strength: np.ndarray
+    bands: np.ndarray
+    # what the instrument tagging found (coarse frames x 4 stems, and per onset); the structure
+    # nodes that need vocals or a leading instrument read these, older caches have none
+    stem_energy: np.ndarray | None = None
+    stem_rise: np.ndarray | None = None
+    melody_hz: np.ndarray | None = None
+    onset_sources: np.ndarray | None = None
+    onset_melody: np.ndarray | None = None
+    onset_pitch: np.ndarray | None = None
+
+
+def song_sections(x: StructureInputs, ml_struct: dict[str, Any] | None = None) -> list[Section]:
+    """Sections of the song: the ML backend's segments when it gave any (with a chorus by the core
+    highlight rule when it named none, structure.promote_highlight), else find_sections."""
+    beats, rate, bpb = x.beats, x.frame_rate, x.beats_per_bar
+    if len(beats) < 8:
+        return []
+    features = structure_features(
+        [
+            (beat_sync(x.log_mel, rate, beats), STRUCTURE_WEIGHTS["timbre"]),
+            (beat_sync(x.chroma, rate, beats), STRUCTURE_WEIGHTS["harmony"]),
+            (rhythm_grid(beats, x.times, x.strength, x.bands), STRUCTURE_WEIGHTS["rhythm"]),
+            (_beat_activity(beats, x.times, x.strength, x.bands), STRUCTURE_WEIGHTS["activity"]),
+        ]
+    )
+    beat_energy = beat_sync(x.rms_db[:, None], rate, beats)[:, 0]
+    beat_strength = np.zeros(len(beats))
+    np.add.at(beat_strength, np.clip(np.searchsorted(beats, x.times, side="right") - 1, 0, len(beats) - 1), x.strength)
+    if ml_struct is not None:
+        sections = ml.sections_from_segments(ml_struct["segments"], beats, x.beat0, bpb, beat_energy)
+        add_loops(sections, features, x.beat0, bpb)
+        if sections:
+            promote_highlight(sections, beat_energy, beat_strength, bpb)
+            return sections
+    return find_sections(features, beat_energy, x.beat0, bpb, beat_strength, float(np.median(np.diff(beats))), _beat_cues(x, beat_energy))
+
+
+def preview_section(sections: list[Section]) -> Section | None:
+    """Where the song preview starts: the first section of the chorus group heard most often (the
+    louder group on a tie, then the earlier). On the 30 marked songs this started inside a marked
+    chorus in 22 songs, the first chorus section in 19 (docs/PATTERN_DESIGN.md 84)."""
+    by: dict[str, list[Section]] = {}
+    for s in sections:
+        if s.label == "chorus":
+            by.setdefault(s.group, []).append(s)
+    if not by:
+        return None
+    best = max(by.values(), key=lambda cs: (len(cs), round(float(np.mean([c.energy for c in cs])), 3), -cs[0].start_beat))
+    return best[0]
+
+
+def _beat_cues(x: StructureInputs, beat_energy: np.ndarray) -> dict[str, np.ndarray]:
+    """Per-beat cues for the chorus node (structure.SECTION_CUES): loudness (dB) and the melody's
+    pitch (median MIDI note, NaN where there is none), with the beat times."""
+    cues: dict[str, np.ndarray] = {"time": np.asarray(x.beats, dtype=np.float64), "loud": beat_energy}
+    if x.melody_hz is not None and len(x.melody_hz) and np.any(np.nan_to_num(x.melody_hz) > 0):
+        hz = np.nan_to_num(np.asarray(x.melody_hz, dtype=np.float64), nan=0.0)
+        midi = np.where(hz > 0, 69.0 + 12.0 * np.log2(np.maximum(hz, 1e-6) / 440.0), np.nan)
+        frames = np.clip(np.round(x.beats * x.frame_rate).astype(int), 0, len(midi) - 1)
+        ends = np.append(frames[1:], len(midi))
+        pitch = np.full(len(frames), np.nan)
+        for i, (a, b) in enumerate(zip(frames, ends)):
+            seg = midi[a : max(b, a + 1)]
+            if np.isfinite(seg).any():
+                pitch[i] = float(np.nanmedian(seg))
+        cues["pitch"] = pitch
+    return cues
+
+
 def _frame_rms_db(mono: np.ndarray, hop: int, size: int) -> np.ndarray:
     n = 1 + len(mono) // hop
     pad = np.pad(mono, (size // 2, size))
@@ -115,19 +202,20 @@ def analyze(
 
     def run_ml(kind: str, step: float, label: str, fn: Callable[[Any, dict[str, Any]], Any]) -> Any:
         backend = active.get(kind)
-        if backend is None:
-            return None
-        outer(step, label)
-        try:
-            result = fn(backend.module(), backend.options)
-        except Exception as e:  # a broken backend must not break the analysis
-            log.warning("%s backend %s failed: %s", kind, backend.label, e)
-            errors[kind] = f"{type(e).__name__}: {e}"
-            return None
-        used[kind] = backend.label
-        return result
+        while backend is not None:
+            outer(step, label.format(BACKEND_NAMES.get(backend.name, backend.name)))
+            try:
+                result = fn(backend.module(), backend.options)
+            except Exception as e:  # a broken backend must not break the analysis
+                log.warning("%s backend %s failed: %s", kind, backend.label, e)
+                errors[kind] = f"{type(e).__name__}: {e}"
+                backend = getattr(backend, "fallback", None)  # the kind's second backend, when it has one
+                continue
+            used[kind] = backend.label
+            return result
+        return None
 
-    ml_stems = run_ml("stems", 0.02, "스템 분리 (Demucs)", lambda m, o: m.separate(pcm, sr, o))
+    ml_stems = run_ml("stems", 0.02, "스템 분리 ({})", lambda m, o: m.separate(pcm, sr, o))
     ml_beats = run_ml("beats", 0.35, "비트 추적 (beat_this)", lambda m, o: m.track(pcm, sr, o))
     ml_notes = run_ml("pitch", 0.42, "음 전사 (basic-pitch)", lambda m, o: m.notes(pcm, sr, o))
     ml_struct = run_ml("structure", 0.5, "곡 구조 (allin1)", lambda m, o: m.structure(pcm, sr, o))
@@ -138,6 +226,21 @@ def analyze(
     mono = mono.astype(np.float32)
     duration = len(mono) / sr
 
+    # Steps that do not need each other's results run side by side on two more threads (numpy and
+    # scipy let go of the GIL in their loops): the STFT and its harmonic/percussive split beside
+    # the mel spectrum and the onsets, then the stem activity, the notes and the structure's inputs
+    # beside the tempo and the meter. Each step only reads its inputs, so the results are the same
+    # as one after another (about a fifth of the analysis's time).
+    parts = ThreadPoolExecutor(max_workers=2, thread_name_prefix="analysis-part")
+    freqs = np.fft.rfftfreq(COARSE_NFFT, 1.0 / sr)
+    max_bin = int(np.searchsorted(freqs, HARMONIC_MAX_HZ))
+    coarse_rate = sr / COARSE_HOP
+
+    def split() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        mag = stft_magnitude(mono, COARSE_NFFT, COARSE_HOP)
+        return (mag, *hpss(mag[:, :max_bin]))
+
+    split_job = parts.submit(split)
     report(0.05, "스펙트럼 계산")
     mel, centers = mel_power(mono, sr, FINE_NFFT, FINE_HOP, N_MELS, 30.0, min(16000.0, sr / 2 - 1))
     fine_rate = sr / FINE_HOP
@@ -146,44 +249,62 @@ def analyze(
     od = detect_onsets(mel, centers, fine_rate, ONSET_BIAS_S)
 
     report(0.3, "화성/타악 분리")
-    mag = stft_magnitude(mono, COARSE_NFFT, COARSE_HOP)
-    freqs = np.fft.rfftfreq(COARSE_NFFT, 1.0 / sr)
-    max_bin = int(np.searchsorted(freqs, HARMONIC_MAX_HZ))
-    harmonic, percussive = hpss(mag[:, :max_bin])
-    coarse_rate = sr / COARSE_HOP
+    mag, harmonic, percussive = split_job.result()
+    stem_job = parts.submit(stem_activity, mag, harmonic, percussive, freqs, coarse_rate) if ml_stems is None else None
+    notes_job = parts.submit(analyze_notes, od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
+
+    def structure_levels() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
+        log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
+        energy_hop = int(sr * 0.1)
+        return log_mel, _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT), _frame_rms_db(mono, energy_hop, energy_hop * 2)
+
+    levels_job = parts.submit(structure_levels)
 
     report(0.45, "템포 분석")
-    hint = ml.bpm_hint(ml_beats[0]) if ml_beats is not None else None
     drums = drum_flux(percussive, freqs[:max_bin], float(np.max(mag)), coarse_rate)
-    tempo = estimate_tempo(
-        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), bpm_hint=hint, drums=drums,
-        mid_fraction=od.bands[:, 1],
-    )
-    beats = tempo.beats + float(overrides.get("offsetShiftMs", 0.0)) / 1000.0
-    beats = beats[(beats >= 0) & (beats <= duration)]
-
-    report(0.6, "마디 분석")
     chroma = (harmonic.astype(np.float64) ** 2) @ chroma_matrix(sr, COARSE_NFFT)[:, :max_bin].T
     chroma /= np.linalg.norm(chroma, axis=1, keepdims=True) + 1e-9
+    spectra = onset_spectra(mel, od)
+    tempo = estimate_tempo(
+        od.times, od.strength, od.bands[:, 0], od.odf, fine_rate, duration, bpm_override=overrides.get("bpm"), drums=drums,
+        mid_fraction=od.bands[:, 1], chroma=chroma, chroma_rate=coarse_rate, onset_spectra=spectra,
+    )
+    shift = float(overrides.get("offsetShiftMs", 0.0))
+    beats = tempo.beats + shift / 1000.0
+    beats = beats[(beats >= 0) & (beats <= duration)]
+    if ml_beats is not None and not shift:
+        # beat_this checks only the half-beat phase of our grid (its tempo level and downbeats made
+        # the grid worse on BMS charts, docs/PATTERN_DESIGN.md 75); a first beat the player moved stays
+        beats, _ = ml.half_beat_phase(beats, ml_beats[0])
+        beats = beats[(beats >= 0) & (beats <= duration)]
+
+    report(0.6, "마디 분석")
     beat_chroma = beat_sync(chroma, coarse_rate, beats)
     unit = beat_chroma / (np.linalg.norm(beat_chroma, axis=1, keepdims=True) + 1e-9)
     novelty = np.zeros(len(beats))
     if len(beats) > 1:
         novelty[1:] = 1.0 - np.sum(unit[1:] * unit[:-1], axis=1)
-    meter = ml.meter_from_downbeats(beats, ml_beats[0], ml_beats[1]) if ml_beats is not None else None
-    if meter is None:
-        meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma)
+    accents = BeatAccents(
+        kicks=beat_peaks(beats, np.maximum(drums.full - drums.high, 0.0), drums.frame_rate),
+        snares=beat_peaks(beats, drums.high, drums.frame_rate),
+        onsets=beat_onsets(beats, od.times, od.strength),
+        timbre=beat_timbre(beats, od.times, od.strength, spectra),
+    )
+    meter = estimate_meter(beat_cues(beats, od.times, od.strength, od.bands, novelty), beat_chroma, accents)
     bpb = meter.beats_per_bar
     beat0 = meter.first_downbeat_index if len(beats) else 0
 
     report(0.7, "음 길이·음높이 분석")
-    notes = analyze_notes(od.times, harmonic, percussive, freqs[:max_bin], coarse_rate)
+    notes = notes_job.result()
 
     report(0.75, "악기 구분")
-    if ml_stems is not None:
+    instruments = None
+    if stem_job is None:
         stem_act = ml.activity_from_stems(ml_stems, COARSE_NFFT, COARSE_HOP, float(np.max(mag)))
+        instruments = ml.instrument_activity(ml_stems, sr)
     else:
-        stem_act = stem_activity(mag, harmonic, percussive, freqs, coarse_rate)
+        stem_act = stem_job.result()
     sources, shares = tag_onsets(od.times, stem_act, coarse_rate)
     melody = melody_presence(od.times, stem_act, coarse_rate, shares)
     pitch_arr, sustain_arr = notes.pitch, notes.sustain_end
@@ -198,31 +319,25 @@ def analyze(
     attack = attack_confidence(
         times, strength, bands, notes.harmonic_rise[keep], shares[:, STEM_NAMES.index("drums")], band_levels(mel, centers), fine_rate, od.time_offset,
     )
+    # onsets of one sound (the generator keeps a sound on its lane)
+    groups = sound_groups(harmonic, coarse_rate, times)
 
     report(0.8, "곡 구조 분석")
-    fb, _ = mel_filterbank(sr, COARSE_NFFT, 40, 30.0, min(16000.0, sr / 2 - 1))
-    log_mel = np.log1p(100.0 * (mag.astype(np.float64) ** 2) @ fb.T / (np.max(mag) ** 2 + 1e-12))
-    features = structure_features(
-        [
-            (beat_sync(log_mel, coarse_rate, beats), STRUCTURE_WEIGHTS["timbre"]),
-            (beat_sync(chroma, coarse_rate, beats), STRUCTURE_WEIGHTS["harmony"]),
-            (rhythm_grid(beats, times, strength, bands), STRUCTURE_WEIGHTS["rhythm"]),
-            (_beat_activity(beats, times, strength, bands), STRUCTURE_WEIGHTS["activity"]),
-        ]
-    ) if len(beats) else np.zeros((0, 1))
-    rms_db = _frame_rms_db(mono, COARSE_HOP, COARSE_NFFT)
-    beat_energy = beat_sync(rms_db[:, None], coarse_rate, beats)[:, 0] if len(beats) else np.zeros(0)
-    sections = []
-    if ml_struct is not None and len(beats) >= 8:
-        sections = ml.sections_from_segments(ml_struct["segments"], beats, beat0, bpb, beat_energy)
-        add_loops(sections, features, beat0, bpb)
-    if not sections and len(beats) >= 8:
-        sections = find_sections(features, beat_energy, beat0, bpb)
+    log_mel, rms_db, energy_db = levels_job.result()
+    parts.shutdown()
+    sections = song_sections(
+        StructureInputs(
+            log_mel, chroma, coarse_rate, rms_db, beats, beat0, bpb, times, strength, bands,
+            stem_energy=stem_act.energy, stem_rise=stem_act.rise, melody_hz=stem_act.melody_hz,
+            onset_sources=shares, onset_melody=melody, onset_pitch=pitch_arr,
+        ),
+        ml_struct,
+    )
 
     report(0.92, "결과 정리")
     beat_ms = beats * 1000.0
     preview_ms = 0.0
-    chorus = next((s for s in sections if s.label == "chorus"), None)
+    chorus = preview_section(sections)
     if chorus is not None:
         preview_ms = float(beat_ms[chorus.start_beat])
     elif len(rms_db):
@@ -230,10 +345,11 @@ def analyze(
         smooth = np.convolve(rms_db, np.ones(win) / win, mode="valid")
         preview_ms = float(np.argmax(smooth) / coarse_rate * 1000.0)
 
-    energy_hop = int(sr * 0.1)
-    energy_db = _frame_rms_db(mono, energy_hop, energy_hop * 2)
     energy = np.clip((energy_db + 60.0) / 60.0, 0.0, 1.0)
 
+    inst_flux = inst_loud = None
+    if instruments is not None:
+        inst_flux, inst_loud = ml.instrument_shares(instruments, sr, times)
     onsets = []
     for i, t in enumerate(times):
         p = pitch_arr[i]
@@ -251,8 +367,11 @@ def analyze(
                 "sources": [round(float(x), 3) for x in shares[i]],
                 "melody": round(float(melody[i]), 3),
                 "attack": round(float(attack[i]), 3),
+                "soundGroup": int(groups[i]),
             }
         )
+        if inst_flux is not None:
+            onsets[-1]["instruments"] = {k: round(float(inst_flux[i, ml.SIX_STEMS.index(k)]), 3) for k in ml.INSTRUMENT_STEMS}
     sustains = [
         {"t": o["t"], "endT": o["sustainEnd"], "pitch": o["pitch"], "strength": o["strength"]}
         for o in onsets
@@ -270,10 +389,13 @@ def analyze(
             "energy": round(s.energy, 3),
             "loopBars": s.loop_bars,
             "confidence": s.confidence,
+            **({"mlLabel": s.ml_label} if s.ml_label is not None else {}),
         }
         for s in sections
     ]
     ml.section_stems(section_rows, times * 1000.0, strength, shares)
+    if inst_loud is not None:
+        ml.section_leads(section_rows, times * 1000.0, inst_loud)
     stem_energy = stem_act.energy.sum(axis=0)
     analyzer_info: dict[str, Any] = {"name": ANALYZER_NAME, "version": ANALYZER_VERSION, "backends": used}
     if errors:
@@ -309,4 +431,10 @@ def analyze(
         "waveform": {"frameMs": 20, "peaks": _waveform(mono, sr, 20)},
         "previewMs": round(preview_ms, 1),
         "overrides": {k: v for k, v in overrides.items() if v is not None},
+        # the structure backend's segments as it gave them (seconds -> ms, its own labels), to see what
+        # it said before they were snapped to our bar lines and renamed
+        **({"mlSegments": [
+            {"t": round(float(a) * 1000.0, 1), "endT": round(float(b) * 1000.0, 1), "label": str(lab)}
+            for a, b, lab in ml_struct.get("segments", [])
+        ]} if ml_struct is not None else {}),
     }

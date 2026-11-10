@@ -2,11 +2,14 @@
 // media, analyzes a demo song, previews a chart, starts an autoplay (the default hit's flipbooks) and saves
 // screenshots along the way.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
+// GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes; the structure
+// edition's allin1 takes longer on a CI runner).
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
 const [clientDir, exe, outDir] = process.argv.slice(2);
+const analysisMs = Number(process.env.GRG_SMOKE_ANALYSIS_MS) || 180000;
 const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/playwright'));
 
 (async () => {
@@ -33,7 +36,7 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   await win.getByTestId('add-menu').click();
   await win.getByTestId('demo-button').click();
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
-  await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: 180000 });
+  await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: analysisMs });
   await win.screenshot({ path: path.join(outDir, '1-song-select.png') });
   // the chart's numbers are in the song info (I), which gets the default pattern's chart by itself
   // (F5, the button that made the chart before, now makes a new pattern)

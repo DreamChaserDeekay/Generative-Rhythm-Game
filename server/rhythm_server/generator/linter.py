@@ -28,7 +28,7 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
 
     for lane, ns in by_lane.items():
         ns.sort(key=lambda n: n["t"])
-        min_gap = params.thumb_jack_ms if lanes[lane].hand == "T" and params.thumb_jack_ms else params.min_jack_ms
+        min_gap = params.min_jack_ms
         for a, b in zip(ns, ns[1:]):
             if abs(a["t"] - b["t"]) < TIME_EPS:
                 problems.append(f"duplicate note lane {lane} at {a['t']}ms")
@@ -45,26 +45,30 @@ def lint(notes: list[dict[str, Any]], lanes: list[LaneInfo], params: GenParams, 
     for t, ns in chords.items():
         if len(ns) > max(1, params.max_chord):
             problems.append(f"chord of {len(ns)} at {t}ms exceeds {params.max_chord}")
-        pressed = {n["lane"] for n in ns}
-        for chord in params.pad_forbidden:
-            if pressed.issuperset(chord):
-                problems.append(f"chord {'+'.join(str(i) for i in chord)} at {t}ms cannot be pressed on a pad")
+        held_hands = {lanes[h["lane"]].hand for h in holds if h["t"] < t - TIME_EPS and h["endT"] > t + TIME_EPS}
         per_hand: dict[str, int] = defaultdict(int)
         for n in ns:
             per_hand[lanes[n["lane"]].hand] += 1
-        held_hands = {lanes[h["lane"]].hand for h in holds if h["t"] < t - TIME_EPS and h["endT"] > t + TIME_EPS}
+            # the turntable takes the whole hand: under a long note it needs room for two presses
+            if lanes[n["lane"]].kind == "scratch" and lanes[n["lane"]].hand in held_hands and params.hold_hand_limit < 2:
+                problems.append(f"scratch under a held long note at {t}ms")
         for hand, count in per_hand.items():
             limit = 1 if hand == "T" else params.hand_chord_limit
             if hand in held_hands:
                 limit = min(limit, params.hold_hand_limit)
             if count > limit:
                 problems.append(f"{count} presses on hand {hand} at {t}ms (limit {limit})")
+    last_t = max((n["t"] for n in notes), default=0.0)
     for h in holds:
         overlapping = [
             o for o in holds
             if o is not h and lanes[o["lane"]].hand == lanes[h["lane"]].hand and o["t"] <= h["t"] < o["endT"]
         ]
-        if len(overlapping) + 1 > params.max_holds_per_hand:
+        # the chord that ends the chart holds over the song's reverb with nothing to play after it
+        # (ending.py): a hand may hold as many keys as it presses
+        closing = h["t"] >= last_t - TIME_EPS and all(o["t"] >= last_t - TIME_EPS for o in overlapping)
+        limit = params.hand_chord_limit if closing else params.max_holds_per_hand
+        if len(overlapping) + 1 > limit:
             problems.append(f"{len(overlapping) + 1} long notes held on hand {lanes[h['lane']].hand} at {h['t']}ms")
     # A side note is a bar over its hand's keys: its head keeps the jack spacing from that hand's key
     # notes, unless they are hit together.

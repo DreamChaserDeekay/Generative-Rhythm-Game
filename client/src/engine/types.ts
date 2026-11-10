@@ -1,4 +1,3 @@
-import type { DifficultySystemId } from './config';
 
 export type KeyModeId = '4K' | '4K+FX' | '5K' | '6K' | '6K+FX' | '7K+1S' | '8K';
 
@@ -18,6 +17,8 @@ export interface ChartNote {
   endT?: number;
   /** Stem whose sound the note follows (charts generated from stem analysis). */
   src?: StemName;
+  /** Where the note's own sound in `src` ends, ms (generator 0.9.51): its keysound stops here. */
+  srcEnd?: number;
   /** Keysound (index into `Chart.sounds`) played when the note is pressed (imported BMS/bmson). */
   snd?: number;
   /** Start that many ms into the sound (bmson channels that continue a sliced stem). */
@@ -35,11 +36,14 @@ export interface ChartBgmEvent {
   sl?: number;
 }
 
-/** SDVX-style camera cue: `tilt` eases the track to `value` (-1..1), `zoom` is a pulse (0..1). */
+/**
+ * SDVX-style camera cue: `tilt` eases the track to `value` (-1..1), `zoom` is a pulse (0..1),
+ * `view` eases to a held zoom level (-1 wider .. 1 closer, 0 normal).
+ */
 export interface ChartEffect {
   beat: number;
   t: number;
-  type: 'tilt' | 'zoom';
+  type: 'tilt' | 'zoom' | 'view';
   value: number;
   durationBeats: number;
 }
@@ -118,10 +122,6 @@ export interface ChartMeta {
   keyMode: KeyModeId;
   lanes: string[];
   difficulty: string;
-  /** Difficulty system of `difficulty` and `level` (absent = GRG, the five steps). */
-  difficultySystem?: DifficultySystemId;
-  /** "SC" when the level is on DJMAX's SC scale. */
-  levelScale?: string;
   level: number;
   songId?: string;
   durationMs?: number;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import shutil
 import subprocess
 import time
@@ -33,6 +34,7 @@ def test_health(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] and "4K" in body["keyModes"] and "MASTER" in body["difficulties"]
+    assert "difficultySystems" not in body
 
 
 def test_shutdown_only_with_the_desktop_apps_token(tmp_path, monkeypatch) -> None:
@@ -50,6 +52,35 @@ def test_shutdown_only_with_the_desktop_apps_token(tmp_path, monkeypatch) -> Non
         r = c.post("/api/shutdown", headers={"X-Shutdown-Token": "s3cret"})
         assert r.status_code == 202 and r.json() == {"ok": True}
         assert stops == [True]
+
+
+def test_each_analysis_step_shows_in_the_progress(tmp_path, monkeypatch) -> None:
+    """A step that starts right after another (the ML stem separation, once the audio is in memory)
+    still shows: the song list would otherwise say "reading the audio" through the whole step."""
+    from rhythm_server.api import jobs
+    from rhythm_server.api.library import Library
+
+    real = jobs.analyze
+
+    def with_ml_steps(pcm, sr, audio_hash="", overrides=None, progress=None, stems_out=None):
+        progress(0.02, "스템 분리 (Demucs)")
+        progress(0.35, "비트 추적 (beat_this)")
+        return real(pcm, sr, audio_hash, overrides=overrides, progress=progress, stems_out=stems_out, backends={})
+
+    labels: list[str] = []
+    update = Library.update_song
+
+    def record(self, song_id, **fields):
+        if fields.get("status") == "analyzing":
+            labels.append(fields["progress_label"])
+        return update(self, song_id, **fields)
+
+    monkeypatch.setattr(jobs, "analyze", with_ml_steps)
+    monkeypatch.setattr(Library, "update_song", record)
+    with TestClient(create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)) as c:
+        song = c.post("/api/songs", files={"file": ("a.wav", wav_bytes(4), "audio/wav")}).json()["song"]
+    assert song["status"] == "ready"
+    assert labels[:3] == ["오디오 읽는 중", "스템 분리 (Demucs)", "비트 추적 (beat_this)"]
 
 
 def test_upload_analyze_generate_and_score(client: TestClient) -> None:
@@ -106,9 +137,30 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
+def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkeypatch) -> None:
+    """The top tier of a song too calm for it (difficulty.json songFit) is a 404, worked out once."""
+    import rhythm_server.generator.workers as chart_maker  # where the server makes its charts
+    from rhythm_server.config import difficulty_config
+
+    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
+    fit = difficulty_config()["songFit"]
+    monkeypatch.setitem(fit, "from", 99.0)
+    monkeypatch.setitem(fit, "to", 100.0)
+    made = []
+    real = chart_maker.generate_chart
+    monkeypatch.setattr(chart_maker, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
+    req = {"keyMode": "7K+1S", "difficulty": "MASTER", "brief": True}
+    for _ in range(2):
+        r = client.post(f"/api/songs/{song['id']}/charts", json=req)
+        assert r.status_code == 404 and "MASTER" in r.json()["detail"]
+    assert made == ["MASTER"]
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 18}).status_code == 200
+    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "difficulty": "EXPERT"}).status_code == 200
+
+
 def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
-    req = {"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}
+    req = {"keyMode": "4K", "difficulty": "NORMAL"}
     # the song select's levels: the meta alone, of the same (cached) chart
     brief = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
     assert "chart" not in brief and not brief["cached"] and "notes" not in brief["meta"]
@@ -146,9 +198,42 @@ def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     assert records[other["meta"]["chartId"]]["exScore"] is None and records[other["meta"]["chartId"]]["weightedScore"] is None
 
 
+def test_records_leave_out_charts_of_the_removed_difficulty_systems(tmp_path) -> None:
+    """DJMAX and EZ2ON were taken out (2026-10-27): a chart saved on one of them keeps its file, but
+    its records are no longer listed, also when the library learns its system from the chart file."""
+    import json
+    import sqlite3
+
+    data = tmp_path / "data"
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        sid = c.post("/api/songs/demo", json={"bpm": 140, "bars": 8, "seed": 3}).json()["song"]["id"]
+        req = {"keyMode": "4K", "difficulty": "NORMAL"}
+        assert c.post(f"/api/songs/{sid}/charts", json={**req, "targetLevel": 21}).status_code == 422  # levels end at 20
+        ids = [c.post(f"/api/songs/{sid}/charts", json={**req, "newSeed": k > 0}).json()["chart"]["meta"]["chartId"] for k in range(2)]
+        for cid in ids:
+            score = {"chartId": cid, "songId": sid, "score": 900000, "rate": 90.0, "maxCombo": 10, "lamp": "CLEAR", "judgementMode": "NORMAL", "breaks": 1}
+            assert c.post("/api/scores", json=score).status_code == 201
+        records = c.get(f"/api/songs/{sid}/scores").json()["records"]
+        assert {r["chartId"] for r in records} == set(ids) and all("system" not in r for r in records)
+
+    # the second chart as one made on DJMAX before: its file says so, the library column is not filled yet
+    path = data / "charts" / f"{ids[1]}.json"
+    chart = json.loads(path.read_text(encoding="utf-8"))
+    chart["meta"]["difficultySystem"] = "DJMAX"
+    path.write_text(json.dumps(chart), encoding="utf-8")
+    db = sqlite3.connect(data / "library.sqlite3")
+    db.execute("UPDATE charts SET system = NULL WHERE id = ?", (ids[1],))
+    db.commit()
+    db.close()
+    with TestClient(create_app(data, client_dist=None, synchronous_jobs=True)) as c:
+        assert [r["chartId"] for r in c.get(f"/api/songs/{sid}/scores").json()["records"]] == [ids[0]]
+        songs = {s["id"]: s for s in c.get("/api/songs").json()["songs"]}
+        assert [r["chartId"] for r in songs[sid]["records"]] == [ids[0]]
+
+
 def test_records_by_judgement_mode(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
-    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]["meta"]["chartId"]
     play = {"chartId": cid, "songId": song["id"]}
     plays = [
         dict(play, judgementMode="NORMAL", score=950000, rate=95.0, maxCombo=180, lamp="CLEAR", breaks=4, detail={"ruleset": "RESPECT"}),
@@ -173,7 +258,7 @@ def test_records_by_judgement_mode(client: TestClient) -> None:
 
 def test_the_fewest_break_is_of_the_runs_that_reached_the_end(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 8}).json()["song"]
-    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NM", "system": "DJMAX"}).json()["chart"]["meta"]["chartId"]
+    cid = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "4K", "difficulty": "NORMAL"}).json()["chart"]["meta"]["chartId"]
     play = {"chartId": cid, "songId": song["id"], "score": 500000, "rate": 50.0, "maxCombo": 40}
 
     def record() -> dict:
@@ -264,6 +349,55 @@ def test_decoding_other_formats(tmp_path) -> None:
     sf.write(mono, np.mean(song.pcm, axis=1), 48000)
     pcm = audio_io.decode_audio(mono)
     assert pcm.shape[1] == 2  # resampled to 44.1k stereo
+
+
+def test_the_canonical_audio_is_known_before_its_file_is_written(tmp_path) -> None:
+    """audio_io.canonical_pcm gives what the 16-bit FLAC gives back, bit for bit (the sign of zero
+    too), so an upload's analysis can start on it while the file is written."""
+    from rhythm_server import audio_io
+
+    rng = np.random.default_rng(4)
+    cases = [
+        synth(128.0, 4, 3).pcm,
+        rng.uniform(-1.0, 1.0, (50000, 2)),
+        rng.normal(0.0, 1.5, (50000, 2)),  # louder than full scale: normalized first
+        rng.normal(0.0, 1e-5, (20000, 2)),  # mostly zeros, rounded from both sides
+    ]
+    for pcm in cases:
+        pcm = np.ascontiguousarray(pcm, dtype=np.float32)
+        audio_io.write_canonical(tmp_path / "a.flac", pcm)
+        back, sr = audio_io.read_canonical(tmp_path / "a.flac")
+        known = audio_io.canonical_pcm(pcm)
+        assert known is not None and sr == 44100
+        assert known.dtype == back.dtype and np.array_equal(known.view(np.int32), back.view(np.int32))
+    bad = np.zeros((100, 2), dtype=np.float32)
+    bad[5] = np.nan
+    assert audio_io.canonical_pcm(bad) is None
+
+
+def test_an_upload_starts_its_analysis_before_its_file_is_written(tmp_path) -> None:
+    from rhythm_server import audio_io
+    from rhythm_server.analysis.analyzer import analyze
+
+    app = create_app(tmp_path / "data", client_dist=None, chart_workers=0)
+    queue = app.state.queue
+    handed: list[bool] = []
+    submit = queue.submit
+    queue.submit = lambda song_id, pcm=None: handed.append(pcm is not None) or submit(song_id, pcm=pcm)
+    with TestClient(app) as c:
+        song = c.post("/api/songs", files={"file": ("groove.wav", wav_bytes(), "audio/wav")}).json()["song"]
+        end = time.monotonic() + 120
+        while (song := c.get(f"/api/songs/{song['id']}").json()["song"])["status"] not in ("ready", "error"):
+            assert time.monotonic() < end
+            time.sleep(0.02)
+        assert song["status"] == "ready" and handed == [True]
+        lib = c.app.state.library
+        assert c.get(f"/api/songs/{song['id']}/audio").status_code == 200
+        assert not list(lib.song_dir(song["id"]).glob("*.part"))
+        # the analysis is the one the file gives
+        pcm, sr = audio_io.read_canonical(lib.audio_path(song["id"]))
+        made = json.dumps(analyze(pcm, sr, song["audioHash"], overrides={}), sort_keys=True)
+        assert json.dumps(lib.load_analysis(song["id"]), sort_keys=True) == made
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs the ffmpeg CLI to build a tagged file")

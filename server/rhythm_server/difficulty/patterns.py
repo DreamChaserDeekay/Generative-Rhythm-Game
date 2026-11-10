@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from ..config import difficulty_config, key_modes
+from ..config import key_modes
 
 RUN_MS = 400.0  # consecutive single notes closer than this form a run (shapes are read in runs)
 FAST_MS = 260.0  # moves closer than this are fast (leaps, jacks)
@@ -70,14 +70,6 @@ def _trills(lanes: list[int]) -> list[tuple[int, int, int]]:
                 continue
         i += 1
     return out
-
-
-def pad_forbidden_keys(key_mode: str) -> list[set[int]]:
-    """Chords a pad cannot press (DJMAX), as key indices of this key mode."""
-    lanes = key_modes()[key_mode]["lanes"]
-    keys = [lane["id"] for lane in lanes if lane["kind"] == "key"]
-    chords = difficulty_config().get("systems", {}).get("DJMAX", {}).get("padForbiddenChords", {}).get(key_mode, [])
-    return [{keys.index(x) for x in chord} for chord in chords]
 
 
 def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any]:
@@ -157,7 +149,6 @@ def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any
     pairs = [lanes for lanes in chord_events if len(lanes) == 2]
     adjacent = sum(1 for a, b in pairs if b - a == 1)
     symmetric = sum(1 for a, b in pairs if a + b == n_keys - 1 and b - a != 1)
-    forbidden = pad_forbidden_keys(key_mode)
     fingers = Counter(finger[k] for _, lanes in events for k in lanes)
     shape_total = sum(shapes.values())
 
@@ -181,7 +172,6 @@ def pattern_profile(notes: list[dict[str, Any]], key_mode: str) -> dict[str, Any
                 "symmetric": share(symmetric, len(pairs)),
                 "other": share(len(pairs) - adjacent - symmetric, len(pairs)),
             },
-            "padImpossible": sum(1 for c in chord_events if any(f <= set(c) for f in forbidden)),
             "weakTrills": weak,
             "fingers": {str(f): share(v, total) for f, v in sorted(fingers.items())},
         }

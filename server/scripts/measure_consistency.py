@@ -34,12 +34,12 @@ from rhythm_server.synth import detection_noise, make_structured_song  # noqa: E
 
 SONGS = ((124.0, 1), (150.0, 2))
 CHARTS = (
-    ("6K", "GRG", "NORMAL", None),
-    ("8K", "GRG", "HARD", None),
-    ("4K", "DJMAX", "NM", 6),
-    ("6K", "DJMAX", "HD", 9),
-    ("6K", "DJMAX", "MX", 13),
-    ("8K", "EZ2ON", "HD", 13),
+    ("6K", "NORMAL", None),
+    ("8K", "HARD", None),
+    ("4K", "NORMAL", 6),
+    ("6K", "HARD", 9),
+    ("6K", "MASTER", 13),
+    ("8K", "MASTER", 13),
 )
 MEASURES = ("loopRhythm", "loopLane", "repeatSelect", "repeatLane", "repeatLaneMirror", "barVariety", "laneEntropy")
 
@@ -64,22 +64,22 @@ def truth_sections(analysis: dict, truth: list[dict]) -> list[dict]:
     return rows
 
 
-def candidate_consistency(analysis: dict, key_mode: str, system: str, difficulty: str, level: int | None, sections: list[dict]) -> dict:
+def candidate_consistency(analysis: dict, key_mode: str, difficulty: str, level: int | None, sections: list[dict]) -> dict:
     """Consistency of all snapped onsets (as one-lane notes): the ceiling of selection consistency."""
-    params = resolve_params(key_mode, difficulty, level, None, system)
+    params = resolve_params(key_mode, difficulty, level)
     tempo = TempoMap(analysis["timing"])
     cands = build_candidates(analysis, tempo, params, float(difficulty_config()["snapToleranceMs"]))
     notes = [{"beat": c.beat, "lane": 0} for c in cands]
     return chart_consistency(notes, sections, key_mode)
 
 
-def planner_stats(analysis: dict, key_mode: str, system: str, difficulty: str, level: int | None, sections: list[dict]) -> tuple[float, float]:
+def planner_stats(analysis: dict, key_mode: str, difficulty: str, level: int | None, sections: list[dict]) -> tuple[float, float]:
     """(patterns per section, pattern changes per section) the planner picks at the starting density."""
     from rhythm_server.generator.lanes import lane_infos
     from rhythm_server.generator.planner import phrases_of, plan_patterns
     from rhythm_server.generator.select import select_slots
 
-    params = resolve_params(key_mode, difficulty, level, None, system)
+    params = resolve_params(key_mode, difficulty, level)
     tempo = TempoMap(analysis["timing"])
     lanes = lane_infos(key_mode)
     cands = build_candidates(analysis, tempo, params, float(difficulty_config()["snapToleranceMs"]))
@@ -123,15 +123,15 @@ def main() -> None:
         truth_analysis = copy.deepcopy(analysis)
         truth_analysis["sections"] = truth
         print(f"  {'chart':22s} {'engine':9s} {'sections':8s} " + " ".join(f"{m[:10]:>10s}" for m in MEASURES) + "  level  time")
-        for key_mode, system, difficulty, level in charts:
-            name = f"{key_mode} {system} {difficulty}{'' if level is None else ' ' + str(level)}"
-            cc = candidate_consistency(analysis, key_mode, system, difficulty, level, truth)
-            kinds, changes = planner_stats(truth_analysis, key_mode, system, difficulty, level, truth)
+        for key_mode, difficulty, level in charts:
+            name = f"{key_mode} {difficulty}{'' if level is None else ' ' + str(level)}"
+            cc = candidate_consistency(analysis, key_mode, difficulty, level, truth)
+            kinds, changes = planner_stats(truth_analysis, key_mode, difficulty, level, truth)
             print(f"  {name:22s} {'(onsets)':9s} {'truth':8s} {fmt(cc['loopRhythm']):>10s} {'':>10s} {fmt(cc['repeatSelect']):>10s}   planner: {kinds:.1f} patterns, {changes:.1f} changes per section")
             for engine in engines:
                 for label, source in (("found", analysis), ("truth", truth_analysis)):
                     t1 = time.perf_counter()
-                    chart = generate_chart(source, key_mode, difficulty, level, overrides={"patternEngine": engine}, system=system)
+                    chart = generate_chart(source, key_mode, difficulty, level, overrides={"patternEngine": engine})
                     dt = time.perf_counter() - t1
                     c = chart_consistency(chart["notes"], truth, key_mode)
                     print(f"  {name:22s} {engine:9s} {label:8s} " + " ".join(f"{fmt(c[m]):>10s}" for m in MEASURES) + f"  {chart['meta']['level']:5d} {dt:5.2f}s")

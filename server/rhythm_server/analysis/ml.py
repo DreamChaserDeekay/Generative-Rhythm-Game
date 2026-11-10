@@ -1,5 +1,8 @@
-"""Merging ML backend output into the core analysis (beats → tempo level and downbeats, notes →
-pitch and sustain, labelled segments → sections, stems → per-stem onset activity)."""
+"""Merging ML backend output into the core analysis (beats → the half-beat phase of our grid, notes →
+pitch and sustain, labelled segments → sections, stems → per-stem onset activity). Analyzers before
+1.13.0 took beat_this's tempo level and downbeats (`bpm_hint`, `meter_from_downbeats`); on BMS charts
+those made the grid worse than the core analysis (docs/PATTERN_DESIGN.md 75), and only
+scripts/measure_bms_timing.py still uses them, to compare."""
 
 from __future__ import annotations
 
@@ -10,7 +13,7 @@ import numpy as np
 
 from .meter import MeterResult
 from .pitch import MIN_SUSTAIN_S
-from .spectral import stft_magnitude
+from .spectral import mel_filterbank, stft_magnitude
 from .stems import STEM_NAMES, StemActivity, activity_from_spectra
 from .structure import Section
 from .tempo import NORMAL_RANGE
@@ -43,6 +46,30 @@ def bpm_hint(beats: np.ndarray) -> float | None:
     while bpm > NORMAL_RANGE[1]:
         bpm /= 2
     return bpm
+
+
+def _to_nearest(points: np.ndarray, grid: np.ndarray) -> np.ndarray:
+    """Each point's distance to the nearest grid point (`grid` sorted, two points or more)."""
+    i = np.clip(np.searchsorted(grid, points), 1, len(grid) - 1)
+    return np.minimum(np.abs(points - grid[i - 1]), np.abs(points - grid[i]))
+
+
+def half_beat_phase(grid: np.ndarray, beats: np.ndarray) -> tuple[np.ndarray, bool]:
+    """Our beat grid moved half a beat when most of an ML tracker's beats inside it sit nearer its
+    half beats than its beats; (grid, moved). On 215 constant-tempo BMS songs this put 6 of the 8
+    songs the core analysis had half a beat off on the chart's beats and moved 1 of 200 right ones
+    off (docs/PATTERN_DESIGN.md 75). The moved grid keeps the span: it adds half a beat before the
+    first beat and after the last."""
+    if len(grid) < 4 or len(beats) < 4:
+        return grid, False
+    inside = beats[(beats > grid[0]) & (beats < grid[-1])]
+    if len(inside) < 4:
+        return grid, False
+    mids = 0.5 * (grid[:-1] + grid[1:])
+    if float(np.mean(_to_nearest(inside, mids) < _to_nearest(inside, grid))) <= 0.5:
+        return grid, False
+    first, last = grid[0] - 0.5 * (grid[1] - grid[0]), grid[-1] + 0.5 * (grid[-1] - grid[-2])
+    return np.concatenate([[first], mids, [last]]), True
 
 
 def meter_from_downbeats(grid: np.ndarray, beats: np.ndarray, downbeats: np.ndarray) -> MeterResult | None:
@@ -96,31 +123,44 @@ def sections_from_segments(
     if n < 8:
         return []
     bars = list(range(beat0 % bpb, n, bpb)) or [0]
-    marks: dict[int, str] = {}
+    marks: dict[int, tuple[str, str]] = {}  # bar -> (our label, the backend's own label)
     for start, _, label in segments:
         mapped = SEGMENT_LABELS.get(label.lower())
         if mapped is not None:
-            marks.setdefault(min(bars, key=lambda b: abs(beats[b] - start)), mapped)
+            marks.setdefault(min(bars, key=lambda b: abs(beats[b] - start)), (mapped, label))
     edges = sorted(set(marks) | {0}) + [n]
-    raw: list[tuple[int, int, str]] = []
+    raw: list[tuple[int, int, str, str | None]] = []
     for a, b in zip(edges, edges[1:]):
         if b <= a:
             continue
         if raw and b - a < bpb:
-            raw[-1] = (raw[-1][0], b, raw[-1][2])  # shorter than a bar: part of the previous one
+            raw[-1] = (raw[-1][0], b, raw[-1][2], raw[-1][3])  # shorter than a bar: part of the previous one
             continue
-        raw.append((a, b, marks.get(a, raw[-1][2] if raw else "intro")))
+        if a in marks:
+            raw.append((a, b, *marks[a]))
+        else:
+            # no segment starts here (the song's start before the first labelled segment): what the
+            # backend called the moment it covers ("start" mostly)
+            raw.append((a, b, raw[-1][2] if raw else "intro", raw[-1][3] if raw else _segment_at(segments, float(beats[a]))))
     if not raw:
         return []
-    energies = np.array([float(np.median(beat_energy[a:b])) for a, b, _ in raw])
+    energies = np.array([float(np.median(beat_energy[a:b])) for a, b, _, _ in raw])
     span = float(np.ptp(energies))
     norm = (energies - energies.min()) / span if span > 1e-9 else np.full(len(raw), 0.5)
     groups: dict[str, str] = {}
     out = []
-    for (a, b, label), e in zip(raw, norm):
+    for (a, b, label, own), e in zip(raw, norm):
         group = groups.setdefault(label, chr(ord("A") + len(groups) % 26))
-        out.append(Section(start_beat=a, end_beat=b, energy=float(e), group=group, label=label))
+        out.append(Section(start_beat=a, end_beat=b, energy=float(e), group=group, label=label, ml_label=own))
     return out
+
+
+def _segment_at(segments: list[tuple[float, float, str]], t: float) -> str | None:
+    """The label of the segment around time `t` (seconds), else of the last one before it."""
+    before = [s for s in segments if s[0] <= t + 1e-6]
+    inside = [s for s in before if t < s[1]]
+    pick = (inside or before or segments[:1])
+    return str(pick[-1][2]) if pick else None
 
 
 def activity_from_stems(stems: dict[str, np.ndarray], n_fft: int, hop: int, ref: float) -> StemActivity:
@@ -148,3 +188,77 @@ def section_stems(sections: list[dict[str, Any]], onset_ms: np.ndarray, strength
         share = mix / total if total > 1e-9 else np.full(len(STEM_NAMES), 1.0 / len(STEM_NAMES))
         s["stems"] = [round(float(v), 3) for v in share]
         s["leader"] = STEM_NAMES[int(np.argmax(share))]
+
+
+# Instrument stems of a 6-stem separator (Demucs htdemucs_6s; docs/PATTERN_DESIGN.md 86): guitar and
+# piano are parts of "other". With them each onset gets its share of the onset strength (spectral
+# flux) of the six stems, and each section the stem whose loudness share of its onsets is largest.
+INSTRUMENT_STEMS = ("guitar", "piano")
+SIX_STEMS = ("drums", "bass", "vocals", "guitar", "piano", "other")  # "other" here is what is left of it
+LEAD_STEMS = ("vocals", "guitar", "piano", "other")
+INSTRUMENT_NFFT = 2048
+INSTRUMENT_HOP = 512
+INSTRUMENT_MELS = 64
+FLUX_FRAMES = (-1, 3)  # an onset's flux is the largest in these frames around it
+LOUD_FRAMES = 5  # an onset's loudness is the mean RMS of this many frames from it
+
+
+def instrument_activity(stems: dict[str, np.ndarray], sr: int) -> tuple[np.ndarray, np.ndarray] | None:
+    """(flux, rms) per frame of SIX_STEMS, (frames, 6) each, when the separator gave guitar and
+    piano; None otherwise. Flux: positive change of the log mel spectrum (64 bands)."""
+    if not all(k in stems for k in INSTRUMENT_STEMS):
+        return None
+    fb, _ = mel_filterbank(sr, INSTRUMENT_NFFT, INSTRUMENT_MELS, 30.0, min(16000.0, sr / 2 - 1))
+    fluxes, rmses = [], []
+    for name in SIX_STEMS:
+        y = stems[name]
+        y = y.mean(axis=1) if y.ndim == 2 else y
+        if name == "other":
+            for k in INSTRUMENT_STEMS:
+                g = stems[k]
+                y = y - (g.mean(axis=1) if g.ndim == 2 else g)
+        mel = stft_magnitude(np.asarray(y, dtype=np.float32), INSTRUMENT_NFFT, INSTRUMENT_HOP) @ fb.T
+        lm = np.log1p(100.0 * mel)
+        flux = np.zeros(len(lm))
+        if len(lm) > 1:
+            flux[1:] = np.maximum(0.0, lm[1:] - lm[:-1]).sum(axis=1)
+        fluxes.append(flux)
+        n = len(y) // INSTRUMENT_HOP
+        rmses.append(np.sqrt(np.mean(np.asarray(y[: n * INSTRUMENT_HOP], dtype=np.float64).reshape(n, INSTRUMENT_HOP) ** 2, axis=1) + 1e-12))
+        del mel, lm
+    n = min(min(len(f) for f in fluxes), min(len(r) for r in rmses))
+    return np.stack([f[:n] for f in fluxes], axis=1), np.stack([r[:n] for r in rmses], axis=1)
+
+
+def instrument_shares(activity: tuple[np.ndarray, np.ndarray], sr: int, onset_s: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Per onset (seconds) its share of each SIX_STEMS stem's flux and of their loudness, (n, 6) each."""
+    flux, rms = activity
+    n = len(flux)
+    frames = np.round(np.asarray(onset_s) * sr / INSTRUMENT_HOP).astype(int)
+    f_out = np.zeros((len(frames), len(SIX_STEMS)))
+    e_out = np.zeros((len(frames), len(SIX_STEMS)))
+    for i, fr in enumerate(frames):
+        lo, hi = max(0, fr + FLUX_FRAMES[0]), min(n, fr + FLUX_FRAMES[1])
+        if hi > lo:
+            f = flux[lo:hi].max(axis=0)
+            f_out[i] = f / max(float(f.sum()), 1e-12)
+        lo, hi = max(0, fr), min(n, fr + LOUD_FRAMES)
+        if hi > lo:
+            e = rms[lo:hi].mean(axis=0)
+            e_out[i] = e / max(float(e.sum()), 1e-12)
+    return f_out, e_out
+
+
+def section_leads(sections: list[dict[str, Any]], onset_ms: np.ndarray, loud: np.ndarray) -> None:
+    """Adds each section's lead instrument (the LEAD_STEMS stem with the largest loudness share
+    summed over its onsets) and those shares, in place."""
+    idx = [SIX_STEMS.index(k) for k in LEAD_STEMS]
+    for s in sections:
+        sel = (onset_ms >= s["t"]) & (onset_ms < s["endT"])
+        mix = loud[sel][:, idx].sum(axis=0) if np.any(sel) else np.zeros(len(LEAD_STEMS))
+        total = float(mix.sum())
+        if total <= 1e-9:
+            continue
+        share = mix / total
+        s["lead"] = LEAD_STEMS[int(np.argmax(share))]
+        s["leadShares"] = {k: round(float(v), 3) for k, v in zip(LEAD_STEMS, share)}

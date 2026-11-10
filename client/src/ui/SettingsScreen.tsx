@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { api, type BackendStatus } from '../api/client';
-import { cameraConfig, difficultySystemIds, difficultySystems, enabledKeyModes, keyModes } from '../engine/config';
+import { api, type BackendStatus, type MapperSettings, type MapperStatus } from '../api/client';
+import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
@@ -31,7 +31,6 @@ import {
   TURNTABLE_RELEASE_MIN,
   TURNTABLE_STEPS_MAX,
   withCovers,
-  withDifficultySystem,
   withPlayKey,
   type DisplayMode,
   type HitEffectSize,
@@ -47,7 +46,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
+import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
 import { RuleRow } from './PlayOptions';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -276,8 +275,6 @@ export function SettingsScreen({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const system = difficultySystems[settings.difficultySystem];
-
   const row = {
     onHelp: (text: string) => {
       setHelp(text);
@@ -298,19 +295,6 @@ export function SettingsScreen({
     case 'play':
       content = (
         <>
-          <Choice
-            {...row}
-            label="난이도 기준"
-            testId="opt-system"
-            value={settings.difficultySystem}
-            options={difficultySystemIds.map((id) => [id, difficultySystems[id].label])}
-            onChange={(id) => onSettingsChange(withDifficultySystem(settings, id))}
-            help={
-              settings.difficultySystem === 'GRG'
-                ? '이 게임의 5단계 (Lv.1–15)로 채보를 만듭니다.'
-                : `${system.title}의 난이도별 레벨·밀도·패턴을 따릅니다 (Lv.1–${system.maxLevel}). 기록도 기준마다 따로 남습니다.`
-            }
-          />
           {(['ruleset', 'gauge', 'fever', 'placement', 'pacemaker'] as const).map((rule) => (
             <RuleRow key={rule} {...row} rule={rule} testId={`opt-${rule}`} settings={settings} onSettingsChange={onSettingsChange} detailed />
           ))}
@@ -1410,6 +1394,270 @@ function GamepadPanel({
   );
 }
 
+const MAPPER_STATE: Record<MapperStatus['state'], string> = {
+  disabled: '꺼짐',
+  unsupported: 'NVIDIA GPU 없음',
+  missing: '설치 안 됨',
+  installing: '설치 중',
+  failed: '설치 실패',
+  ready: '사용 중',
+};
+
+/**
+ * Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): whether it makes the
+ * charts here, and its setup (its own Python with CUDA PyTorch and the model, a few GB, downloaded
+ * once). Without an NVIDIA GPU, or before it is set up, charts come from the built-in generator.
+ */
+function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
+  const [status, setStatus] = useState<MapperStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => {
+      api
+        .mapper()
+        .then((m) => {
+          if (!alive) return;
+          setStatus(m);
+          if (m.state === 'installing') timer = setTimeout(poll, 2000);
+        })
+        .catch(() => alive && setStatus(null));
+    };
+    poll();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [status?.state === 'installing']);
+  const install = () => {
+    setError(null);
+    api
+      .installMapper()
+      .then(setStatus)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  if (status === null) return null;
+  const gpu = status.runtime?.gpu ?? status.gpus[0]?.name ?? null;
+  const progress = status.progress ? `${status.progress.step} (${Math.round(status.progress.fraction * 100)}%)` : null;
+  return (
+    <div className="settings-group" data-testid="mapper-status">
+      <h3>AI 채보 (Mapperatorinator)</h3>
+      <p className="settings-note">
+        이 빌드는 채보를 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)로 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와
+        모델, 약 4GB) 채보를 열 때마다 GPU로 만듭니다(곡 길이에 따라 1–3분). 설치 전이나 NVIDIA GPU가 없는 PC에서는 기존 생성기로 만듭니다.
+      </p>
+      <table className="backend-table">
+        <tbody>
+          <tr>
+            <td>상태</td>
+            <td className={status.state === 'ready' ? 'ok' : 'off'}>
+              {MAPPER_STATE[status.state]}
+              {progress ? ` · ${progress}` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td>GPU</td>
+            <td>{gpu ? `${gpu}${status.runtime?.device === 'cpu' ? ' (CPU로 실행)' : ''}` : '찾지 못함'}</td>
+          </tr>
+          <tr>
+            <td>모델</td>
+            <td>{status.model}</td>
+          </tr>
+        </tbody>
+      </table>
+      {status.reason && <p className="settings-note">{status.reason}</p>}
+      {(status.error || error) && <p className="settings-note">설치 오류: {status.error ?? error} (자세한 기록: {status.home}\setup.log)</p>}
+      {status.lastError && (
+        <p className="settings-note">
+          마지막 실패({status.lastError.chart}): {status.lastError.error} — 그 채보는 기존 생성기로 만들었습니다.
+        </p>
+      )}
+      {(status.state === 'missing' || status.state === 'failed' || status.state === 'ready') && (
+        <div className="row">
+          <button type="button" data-testid="mapper-install" onClick={install}>
+            {status.state === 'ready' ? '다시 설치' : status.state === 'failed' ? '다시 시도' : '설치 (약 4GB 내려받기)'}
+          </button>
+        </div>
+      )}
+      {status.settings && status.state !== 'unsupported' && (
+        <MapperSettingsRows settings={status.settings} autoPrecision={autoPrecision(status)} onHelp={onHelp} onSaved={setStatus} onError={setError} />
+      )}
+    </div>
+  );
+}
+
+/** What precision "자동" comes to on the installed runtime's device (Mapperatorinator picks bf16, or fp32 where the GPU has no native bf16); null before the install. */
+export function autoPrecision(status: MapperStatus): string | null {
+  const rt = status.runtime;
+  if (!rt) return null;
+  if (rt.device !== 'cuda') return 'fp32';
+  const bf16 = rt.bf16 ?? (rt.capability ? rt.capability[0] >= 8 : null);
+  return bf16 === null ? null : bf16 ? 'bf16' : 'fp32';
+}
+
+/**
+ * Mapperatorinator's settings (the server keeps them in its runtime folder: a new install of the
+ * app keeps them). A chart already made stays as it was; the ones made from now on follow them.
+ */
+function MapperSettingsRows({
+  settings,
+  autoPrecision: auto,
+  onHelp,
+  onSaved,
+  onError,
+}: {
+  settings: MapperSettings;
+  autoPrecision: string | null;
+  onHelp: (help: string) => void;
+  onSaved: (s: MapperStatus) => void;
+  onError: (e: string | null) => void;
+}) {
+  const [shown, setShown] = useState(settings);
+  useEffect(() => setShown(settings), [settings]);
+  const change = <K extends keyof MapperSettings>(key: K, value: MapperSettings[K]) => {
+    setShown((s) => ({ ...s, [key]: value }));
+    onError(null);
+    api
+      .mapperSettings({ [key]: value } as Partial<MapperSettings>)
+      .then(onSaved)
+      .catch((e: unknown) => onError(e instanceof Error ? e.message : String(e)));
+  };
+  const remade = ' 바꾸면 이제부터 만드는 채보에 적용됩니다(이미 만든 채보는 그대로 남고, 다시 열면 새로 만듭니다).';
+  return (
+    <div className="mapper-settings" data-testid="mapper-settings">
+      <Toggle
+        onHelp={onHelp}
+        label="AI 채보 쓰기"
+        testId="mapper-enabled"
+        value={shown.enabled}
+        onChange={(v) => change('enabled', v)}
+        help="끄면 Mapperatorinator를 쓰지 않고 기존 생성기로 채보를 만듭니다. 설치한 실행 환경은 그대로 남습니다."
+      />
+      <Choice
+        onHelp={onHelp}
+        label="모델"
+        testId="mapper-model"
+        value={shown.model}
+        options={
+          [
+            ['v32', 'v32 (기본)'],
+            ['v32-mini', 'v32-mini (작고 빠름)'],
+          ] as [MapperSettings['model'], string][]
+        }
+        onChange={(v) => change('model', v)}
+        help={`v32-mini는 v32보다 작아 빠르고 GPU 메모리를 덜 쓰지만 채보 품질이 낮을 수 있습니다. 처음 쓸 때 가중치(약 0.2GB)를 한 번 더 내려받습니다.${remade}`}
+      />
+      <Choice
+        onHelp={onHelp}
+        label="연산 정밀도"
+        testId="mapper-precision"
+        value={shown.precision}
+        options={
+          [
+            ['auto', auto ? `자동 (${auto})` : '자동'],
+            ['fp16', 'fp16 (빠름, 인코더는 fp32)'],
+            ['fp32', 'fp32'],
+          ] as [MapperSettings['precision'], string][]
+        }
+        onChange={(v) => change('precision', v)}
+        help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요. 실패하면 그 채보는 기존 생성기로 만듭니다.`}
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="난이도 배율"
+        testId="mapper-stars"
+        value={shown.starsScale}
+        min={0.5}
+        max={2}
+        step={0.05}
+        bigStep={0.25}
+        format={(v) => `×${v.toFixed(2)}`}
+        onChange={(v) => change('starsScale', v)}
+        help={`티어마다 Mapperatorinator에 요청하는 osu! 별점에 곱합니다. 채보가 티어보다 쉽게 나오면 1보다 크게, 어렵게 나오면 작게 하세요. 화면의 레벨은 만들어진 노트를 앱이 잰 값입니다.${remade}`}
+      />
+      <OptionalNumberOption
+        onHelp={onHelp}
+        label="롱노트 비율"
+        testId="mapper-holds"
+        value={shown.holdNoteRatio}
+        min={0}
+        max={1}
+        step={0.05}
+        bigStep={0.2}
+        auto={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('holdNoteRatio', v)}
+        help={`전체 노트 가운데 롱노트의 비율을 요청합니다. 자동이면 모델이 곡에 맞게 정합니다.${remade}`}
+      />
+      <OptionalNumberOption
+        onHelp={onHelp}
+        label="다양성"
+        testId="mapper-temperature"
+        value={shown.temperature}
+        min={0.3}
+        max={1.5}
+        step={0.05}
+        bigStep={0.2}
+        auto={0.9}
+        format={(v) => v.toFixed(2)}
+        onChange={(v) => change('temperature', v)}
+        help={`모델이 노트를 고를 때의 무작위성(temperature)입니다. 높이면 패턴이 다양해지고 낮추면 무난해집니다. 자동은 모델 기본값(v32: 0.9)입니다.${remade}`}
+      />
+      <Toggle
+        onHelp={onHelp}
+        label="앱의 박자 쓰기"
+        testId="mapper-timing"
+        value={shown.useAppTiming}
+        onChange={(v) => change('useAppTiming', v)}
+        help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 모델의 박자 찾기 패스를 건너뛰어 빨리 만들어집니다. 끄면 모델이 곡 전체를 한 번 더 지나며 박자를 직접 찾아 시간이 더 들고, BPM · 마디선이 앱과 어긋날 수 있습니다. 이때 채보의 BPM은 모델이 만든 것이라 정밀도 문제가 BPM에도 미칩니다. 그런 채보는 채보 정보의 "AI 생성" 줄에 "모델 박자"가 붙습니다.${remade}`}
+      />
+      <Toggle
+        onHelp={onHelp}
+        label="히트사운드 생성"
+        testId="mapper-hitsounds"
+        value={shown.hitsounds}
+        onChange={(v) => change('hitsounds', v)}
+        help={`모델이 노트마다 히트사운드 · 볼륨 토큰도 만듭니다(노트 하나의 토큰 5개 중 2개). 앱은 히트사운드를 쓰지 않으므로 끄면 그만큼 빨라집니다. 대신 모델이 '히트사운드 없는 맵'처럼 채보를 만들어 패턴이 조금 달라질 수 있습니다.${remade}`}
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="이전 문맥"
+        testId="mapper-lookback"
+        value={shown.lookback}
+        min={0.3}
+        max={0.8}
+        step={0.1}
+        bigStep={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('lookback', v)}
+        help={`16.4초 창의 앞부분 얼마를 이미 만든 노트(문맥)로 채울지입니다. 앞 미리보기와 합쳐 90%까지이고, 나머지만큼 창이 앞으로 나아가므로 둘을 줄이면 창 수가 줄어 빨라집니다. 50% 아래로 내리면 8초가 넘는 롱노트가 창 경계에서 끊길 수 있습니다.${remade}`}
+      />
+      <NumberOption
+        onHelp={onHelp}
+        label="앞 미리보기"
+        testId="mapper-lookahead"
+        value={shown.lookahead}
+        min={0}
+        max={0.6}
+        step={0.1}
+        bigStep={0.2}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => change('lookahead', v)}
+        help={`창의 뒷부분 얼마를 노트 없이 '다음에 올 음악'으로만 보여 줄지입니다. 줄이면 창이 더 나아가 빨라지지만, 모델이 앞을 덜 보고 노트를 놓습니다.${remade}`}
+      />
+      <Toggle
+        onHelp={onHelp}
+        label="병렬 생성"
+        testId="mapper-parallel"
+        value={shown.parallel}
+        onChange={(v) => change('parallel', v)}
+        help={`창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다(모자라면 그 채보는 기존 생성기로). 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`}
+      />
+    </div>
+  );
+}
+
 /**
  * The window or full screen, the analysis backends (with how to install them), and a full reset: a
  * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
@@ -1466,6 +1714,7 @@ function AdvancedPanel({
             : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
         }
       />
+      <MapperGroup onHelp={onHelp} />
       <div className="settings-group" data-testid="backend-status">
         <h3>분석 백엔드</h3>
         <p className="settings-note">

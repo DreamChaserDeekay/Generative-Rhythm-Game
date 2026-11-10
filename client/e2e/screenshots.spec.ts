@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { autoplay, chooseSetting, difficultySystem, settingsTab, songInfo, tool } from './songSelect';
+import { autoplay, chooseSetting, settingsTab, songInfo, tool } from './songSelect';
 
 // Screenshots for the README and docs/TESTING.md, saved to docs/screenshots. Not part of the normal
 // E2E run:  GRG_SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.ts
@@ -79,9 +79,9 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${OUT}/${name}.png` });
 }
 
-/** The saved settings, on DJMAX's scale (the showcase's MAXIMUM and HARD, as the README tells the shots). */
+/** The saved settings. */
 async function settings(page: Page, values: Record<string, unknown>): Promise<void> {
-  await page.addInitScript((v) => localStorage.setItem('grg.settings.v1', JSON.stringify(v)), { difficultySystem: 'DJMAX', ...values });
+  await page.addInitScript((v) => localStorage.setItem('grg.settings.v1', JSON.stringify(v)), values);
 }
 
 async function selectShowcase(page: Page, keyMode: string, difficulty: string): Promise<void> {
@@ -110,7 +110,7 @@ async function autoplayFor(page: Page, ms: number): Promise<void> {
 async function showcaseChart(page: Page, keyMode: string, difficulty: string): Promise<ChartNoteLite[]> {
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { id: string; title: string }[];
   const song = songs.find((s) => s.title === SHOWCASE)!;
-  const res = await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode, difficulty, system: 'DJMAX' } });
+  const res = await page.request.post(`/api/songs/${song.id}/charts`, { data: { keyMode, difficulty } });
   return (await res.json()).chart.notes;
 }
 
@@ -234,7 +234,7 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   ]) {
     expect((await page.request.post('/api/songs/demo', { data: demo })).ok()).toBe(true);
   }
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await selectShowcase(page, '7K+1S', 'EXPERT');
   await levelsKnown(page);
   await page.mouse.move(0, 0);
   await shot(page, '01-song-select');
@@ -255,22 +255,11 @@ test('song select with a generated chart, and the analysis view', async ({ page 
   await shot(page, '02b-sections');
   await page.getByTestId('edit-sections').click();
   await page.getByTestId('toggle-analysis').click();
-
-  // the same song on EZ2ON's scale
-  await page.getByTestId('toggle-analysis').click();
-  await difficultySystem(page, 'EZ2ON');
-  await page.getByRole('button', { name: /SUPER HARD/ }).click();
-  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('.difficulty.active')).toContainText('SUPER HARD');
-  await levelsKnown(page);
-  await page.mouse.move(0, 0);
-  await shot(page, '01b-song-select-ez2on');
-  await difficultySystem(page, 'DJMAX');
 });
 
 test('play: 7K+1S', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S', hiSpeed: 3.6 });
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await selectShowcase(page, '7K+1S', 'EXPERT');
   await autoplayFor(page, 15_500);
   await shot(page, '03-play-7k');
 });
@@ -302,8 +291,8 @@ async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Pr
   await watchSources(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
   await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
-  await selectShowcase(page, '6K+FX', 'MAXIMUM');
-  const notes = await showcaseChart(page, '6K+FX', 'MX');
+  await selectShowcase(page, '6K+FX', 'EXPERT');
+  const notes = await showcaseChart(page, '6K+FX', 'EXPERT');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
   await autoplayAt(page, held.t + 250);
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-side-notes', 'half');
@@ -320,7 +309,7 @@ test('play: 6K+FX side notes of dots over half the keys', async ({ page }) => {
 
 test('play: the flat PLANE camera, with the judge counter and a pacemaker', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S', cameraPreset: 'PLANE', hiSpeed: 3.6, judgeCounter: true, pacemaker: '98' });
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await selectShowcase(page, '7K+1S', 'EXPERT');
   await autoplayFor(page, 15_500);
   await shot(page, '20-play-plane');
 });
@@ -340,7 +329,7 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
     [{ note: 'flat', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await selectShowcase(page, '7K+1S', 'EXPERT');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
@@ -376,12 +365,12 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   ] as const) {
     await watchSources(page);
     await settings(page, { lastKeyMode: keyMode, parts, hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, keyMode, 'MAXIMUM');
+    await selectShowcase(page, keyMode, 'EXPERT');
     // just after a note is hit while a long note is held in another lane: the hit and the hold both show
-    const notes = await showcaseChart(page, keyMode, 'MX');
-    const held = notes.find((n) => n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 600)!;
-    const tap = notes.find((n) => n.type === 'tap' && n.lane !== held.lane && n.t > held.t + 150 && n.t < (held.endT ?? 0) - 150);
-    await autoplayAt(page, (tap?.t ?? held.t + 250) + 40);
+    const notes = await showcaseChart(page, keyMode, 'EXPERT');
+    const held = notes.find((n) => n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 600);
+    const tap = held && notes.find((n) => n.type === 'tap' && n.lane !== held.lane && n.t > held.t + 150 && n.t < (held.endT ?? 0) - 150);
+    await autoplayAt(page, held ? (tap?.t ?? held.t + 250) + 40 : 14_200);
     await shot(page, name);
   }
 });
@@ -404,7 +393,7 @@ test('play: the gears a player picks, each with its HUD (gauge, score panel, dig
     ['rawglass', '41-gear-rawglass'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
-    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await selectShowcase(page, '7K+1S', 'EXPERT');
     await autoplayFor(page, 15_500);
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
     await shot(page, name);
@@ -416,8 +405,8 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
   test.setTimeout(420_000);
   await watchSources(page);
   await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
-  const notes = await showcaseChart(page, '7K+1S', 'MX');
+  await selectShowcase(page, '7K+1S', 'EXPERT');
+  const notes = await showcaseChart(page, '7K+1S', 'EXPERT');
   const keys = ['ShiftLeft', 'KeyS', 'KeyD', 'KeyF', 'Space', 'KeyJ', 'KeyK', 'KeyL'];
   const result = page.getByTestId('result-screen');
   // a first try, short of the clear
@@ -439,7 +428,7 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
 
 test('chart editor', async ({ page }) => {
   await settings(page, { lastKeyMode: '7K+1S' });
-  await selectShowcase(page, '7K+1S', 'MAXIMUM');
+  await selectShowcase(page, '7K+1S', 'EXPERT');
   await songInfo(page);
   await page.getByTestId('edit-chart').click();
   await expect(page.getByTestId('editor-screen')).toBeVisible();

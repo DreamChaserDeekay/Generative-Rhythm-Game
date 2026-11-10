@@ -14,6 +14,7 @@ from ..config import load_config
 
 FAST_MS = 260.0  # moves closer than this get the ergonomic costs (same threshold as the profile)
 WEAK_FINGER_PAIRS = ({2, 3}, {3, 4})  # middle-ring, ring-pinky
+TRILL_STEP_HITS = 16  # a trill roll this long moves one key out for its second half (alternate_key)
 
 
 @lru_cache(maxsize=None)
@@ -45,12 +46,12 @@ class SlotPlan:
     same_layer: tuple[int, ...] | None = None
     roll: tuple[int, int, int] | None = None  # a drum roll's note: (hit index, hits, roll), motif "alternate"
     roll_spread: bool = False  # the roll is too fast for a key every other note: two keys per hand
-    roll_mirrored: bool = False  # the roll is in a repeat played mirrored: it starts on the right
+    roll_shape: tuple[str, int] | None = None  # the roll's shape (rolls.shapes) and a number picking its keys
     palette: tuple[int, ...] | None = None  # keys the phrase keeps to (the others pay weights.palette)
 
     def repeats(self, size: int) -> bool:
         """Whether the pattern wants the same lanes again (jacks are its point)."""
-        return self.motif in ("jack", "laser", "doubles") if size == 1 else self.chords == "jack"
+        return self.motif in ("jack", "doubles") if size == 1 else self.chords == "jack"
 
 
 @dataclass(frozen=True)
@@ -81,14 +82,16 @@ class MotifContext:
     # system): human charts keep rhythm and melody on their hands for single notes but spread chords
     # over both
     chord_region: float = 1.0
+    # extra cost of each two-note chord shape at the chart's skill (hands.chordShapes, pair_shape)
+    pair_shapes: dict[str, float] | None = None
 
 
-def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, system: str = "GRG", key_mode: str | None = None) -> MotifContext:
+def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.6, key_mode: str | None = None) -> MotifContext:
     cfg = pattern_config()
     keys = [lane for lane in lanes if lane.kind == "key"]
     strength = cfg["finger"]["strength"]
     n = len(keys)
-    hands = {**cfg["hands"], **cfg["hands"]["systems"].get(system, {})}
+    hands = cfg["hands"]
     hand = tuple(lane.hand for lane in keys)
     return MotifContext(
         key_index={lane.index: k for k, lane in enumerate(keys)},
@@ -104,10 +107,8 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         pitch_weight={**{name: float(m.get("pitchWeight", 1.0)) for name, m in cfg["motifs"].items()}, "alternate": float(cfg["rolls"]["pitchWeight"])},
         weak_trill_skill=float(cfg["finger"]["weakTrillSkill"]),
         readability_ms=float(cfg["readability"]["ms"]),
-        # song-home systems (EZ2ON) keep every drum on its key whatever the level; the others less
-        # so as charts get harder
-        home_scale=instrument_mapping
-        * (float(cfg["roles"]["songHomeWeight"]) if system in cfg["roles"]["songHomes"] else 1.0 - 0.5 * skill),
+        # every drum keeps its key through the song whatever the level
+        home_scale=instrument_mapping * float(cfg["roles"]["songHomeWeight"]),
         fan_skill=float(cfg["rolls"]["fanSkill"]),
         adjacent=by_skill(hands["adjacentChord"], skill),
         stretch_span=int(hands["stretchSpan"]),
@@ -115,8 +116,30 @@ def motif_context(lanes: list[Any], skill: float, instrument_mapping: float = 0.
         one_hand_gaps=bool(hands["oneHandGaps"]) and min(hand.count("L"), hand.count("R")) >= 3,
         slow_ms=float(hands["slowRepeatMs"]),
         slow_split=float(hands["slowSplitScale"]),
-        chord_region=float(cfg["roles"].get("chordRegion", {}).get(system, 1.0)),
+        chord_region=float(cfg["roles"].get("chordRegion", 1.0)),
+        pair_shapes=_pair_shapes(hands["chordShapes"], key_mode, skill),
     )
+
+
+def _pair_shapes(cfg: dict[str, Any], key_mode: str | None, skill: float) -> dict[str, float] | None:
+    """hands.chordShapes for the key mode ({key mode: {shape: number or [skill, cost] pairs}}, "*" for
+    the key modes it leaves out) read off at the chart's skill; None when it gives none."""
+    shapes = cfg.get(key_mode, cfg.get("*")) if key_mode else cfg.get("*")
+    return {name: by_skill(v, skill) for name, v in shapes.items()} if shapes else None
+
+
+def pair_shape(ctx: MotifContext, a: int, b: int) -> str:
+    """Shape of a two-note chord on keys a < b: "symmetric" (mirrored keys), "middleAdjacent" (the
+    middle key and its neighbour, 3+4), "middle" (the middle key and another), "adjacent" or
+    "oneHandGap" (one hand, on neighbouring keys or with a key between) and "lopsided" (both hands,
+    not mirrored)."""
+    if a + b == len(ctx.hand) - 1:
+        return "symmetric"
+    if ctx.center is not None and ctx.center in (a, b):
+        return "middleAdjacent" if b - a == 1 else "middle"
+    if ctx.hand[a] == ctx.hand[b]:
+        return "adjacent" if b - a == 1 else "oneHandGap"
+    return "lopsided"
 
 
 def by_skill(value: Any, skill: float) -> float:
@@ -175,14 +198,31 @@ def _step(ctx: MotifContext, sp: SlotPlan, prev: int, d: int, wrap: bool) -> int
     return back if lo <= back <= hi else prev
 
 
-def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = False, mirrored: bool = False, prev: int | None = None) -> int | None:
-    """Key of a drum roll's note (좌우 연타): the hands take turns, from the middle keys outward as
-    the roll goes on (easy charts stay nearer the middle). A roll starts on the left (the right in
-    a repeat played mirrored), so a repeat of the build-up plays it the same way; after that each
-    note takes the other hand from the roll's previous note `prev` (a key), so a note a held note
-    pushed aside does not leave two in a row on one hand. A roll too fast for one key every other
-    note (`spread`: the jack spacing) turns between two keys of each hand (2-3-1-4). None on a key
-    mode without two hands of keys."""
+def alternate_key(
+    ctx: MotifContext,
+    roll: tuple[int, int, int],
+    spread: bool = False,
+    prev: int | None = None,
+    shape: tuple[str, int] | None = None,
+) -> int | None:
+    """Key of a drum roll's note (좌우 연타): the hands take turns, each on the key its `shape`
+    (rolls.shapes, chosen per roll by the planner; "fan" without one) gives it:
+
+    - "fan": from the middle keys outward as the roll goes on (3-4, 2-5, 1-6 on 6K)
+    - "inward": from the outer keys in (1-6, 2-5, 3-4)
+    - "wave": one key further out every turn and back in (3-5-2-6-1-7-2-6-3-5)
+    - "shift": both hands walk the same way (1-4-2-5-3-6), back again when they reach the end;
+      "shiftDown" walks the other way (6-3-5-2-4-1), for hits whose pitch falls
+    - "trill": a trill on one key of each hand (2-5-2-5...), its keys from the shape's number; a
+      long roll (TRILL_STEP_HITS or more) moves the trill one key out for its second half, a build-up
+      twice that long or longer every TRILL_STEP_HITS notes
+
+    Easy charts reach less far out (fanSkill). A roll starts on the left, so a repeat of the
+    build-up plays it the same way; after that each note takes
+    the other hand from the roll's previous note `prev` (a key), so a note a held note pushed aside
+    does not leave two in a row on one hand. A roll too fast for one key every other note (`spread`:
+    the jack spacing) fans out between two keys of each hand (2-3-1-4). None on a key mode without
+    two hands of keys."""
     pos, hits, _ = roll
     left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]  # inner key first
     right = [k for k, h in enumerate(ctx.hand) if h == "R"]
@@ -191,18 +231,65 @@ def alternate_key(ctx: MotifContext, roll: tuple[int, int, int], spread: bool = 
         return None
     width = 2 if spread and levels >= 2 else 1
     reach = 1 + int(round((levels - width) * min(1.0, ctx.skill / ctx.fan_skill)))
-    level = min(reach - 1, pos * reach // max(1, hits)) + (pos // 2) % width
+    name, number = shape if shape is not None and width == 1 else ("fan", 0)
+    # a shape walking down is the mirror of the one walking up: the keys are worked out unmirrored
+    mirrored = name == "shiftDown"
+    if mirrored:
+        name = "shift"
     if prev is not None and pos > 0 and ctx.hand[prev] in ("L", "R"):
-        on_left = ctx.hand[prev] == "R"
+        on_left = (ctx.hand[prev] == "R") != mirrored
     else:
-        on_left = (pos % 2 == 0) != mirrored
-    return left[level] if on_left else right[level]
+        on_left = pos % 2 == 0
+    turn = pos // 2
+    if name == "trill":
+        # every TRILL_STEP_HITS notes the trill moves a key (out, then back in at the edge)
+        shift = pos // TRILL_STEP_HITS if hits >= 2 * TRILL_STEP_HITS else (1 if hits >= TRILL_STEP_HITS and pos >= hits // 2 else 0)
+
+        def bounce(x: int) -> int:
+            if reach <= 1:
+                return 0
+            cycle = 2 * (reach - 1)
+            q = x % cycle
+            return q if q < reach else cycle - q
+
+        a, b = bounce(number % reach + shift), bounce((number // 7) % reach + shift)
+        level = a if on_left else b
+    elif name == "shift" and reach > 1:
+        cycle = 2 * (reach - 1)
+        q = turn % cycle
+        step = q if q < reach else cycle - q
+        level = (reach - 1 - step) if on_left else step
+    elif name == "wave" and reach > 1:
+        cycle = 2 * (reach - 1)
+        q = turn % cycle
+        level = q if q < reach else cycle - q
+    elif name == "inward":
+        level = reach - 1 - min(reach - 1, pos * reach // max(1, hits))
+    else:
+        level = min(reach - 1, pos * reach // max(1, hits)) + turn % width
+    level = min(level, levels - 1)
+    key = left[level] if on_left else right[level]
+    return ctx.mirror[key] if mirrored else key
+
+
+def chord_jack_keys(ctx: MotifContext, number: int) -> tuple[int, ...] | None:
+    """The two keys a chord-jack roll repeats (rolls.shapes "chordJack"): one of each hand, picked
+    by the shape's number within the reach the skill allows (as a trill roll's keys)."""
+    left = [k for k, h in enumerate(ctx.hand) if h == "L"][::-1]
+    right = [k for k, h in enumerate(ctx.hand) if h == "R"]
+    levels = min(len(left), len(right))
+    if levels == 0:
+        return None
+    reach = 1 + int(round((levels - 1) * min(1.0, ctx.skill / ctx.fan_skill)))
+    return tuple(sorted((left[number % reach], right[(number // 7) % reach])))
 
 
 def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], size: int, carry: int | None = None) -> tuple[int, ...] | None:
     """Lanes the slot's pattern asks for, or None when it leaves them to the music. Shapes follow
     the phrase's single notes (chords in between do not break a stair); chord textures follow its
     chords. `carry` is the previous phrase's last single note (a roll goes on across bar lines)."""
+    if size >= 2 and sp.roll is not None and sp.roll_shape is not None and sp.roll_shape[0] == "chordJack":
+        return chord_jack_keys(ctx, sp.roll_shape[1])
     if size >= 2:
         chords = [h for h in hist if len(h) >= 2]
         prev_chord = chords[-1] if chords and len(chords[-1]) == size else None
@@ -228,10 +315,8 @@ def expected_keys(ctx: MotifContext, sp: SlotPlan, hist: list[tuple[int, ...]], 
     else:
         singles = [h[0] for h in hist if len(h) == 1]
     m = sp.motif
-    if m == "laser" and ctx.center is not None:
-        return (ctx.center,)
     if m == "alternate" and sp.roll is not None:
-        key = alternate_key(ctx, sp.roll, sp.roll_spread, sp.roll_mirrored, singles[-1] if singles else carry)
+        key = alternate_key(ctx, sp.roll, sp.roll_spread, singles[-1] if singles else carry, sp.roll_shape)
         return None if key is None else (key,)
     if not singles:
         return None
@@ -292,6 +377,8 @@ def _shape_cost(ctx: MotifContext, sp: SlotPlan, keys: tuple[int, ...]) -> float
         symmetric = a + b == n - 1
         if sp.chords == "pivot" and ctx.center in keys:
             return cost  # the 5B pivot is lopsided on purpose
+        if ctx.pair_shapes:
+            cost += ctx.pair_shapes.get(pair_shape(ctx, a, b), 0.0)
         if sp.wide:
             cost += w["shape"] * (0.0 if span >= n / 2 else 0.6)
         elif span > n / 2 and not symmetric:

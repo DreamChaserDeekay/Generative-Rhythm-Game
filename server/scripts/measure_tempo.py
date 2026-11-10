@@ -42,8 +42,8 @@ SONG_TEMPOS = (76.0, 86.0, 96.0, 100.0, 108.0, 128.0, 156.0, 172.0, 188.0)
 MAKERS = {"pop": make_pop_song, "groove": make_groove_song, "structured": make_structured_song}
 NOTE_SONGS = (("pop 100", lambda: make_pop_song(100.0, 1)), ("pop 128", lambda: make_pop_song(128.0, 2)),
               ("groove 112", lambda: make_groove_song(112.0, 2)), ("structured 124", lambda: make_structured_song(124.0, 1)))
-CHARTS = (("6K", "GRG", "NORMAL", None), ("4K", "DJMAX", "NM", 6), ("6K", "DJMAX", "HD", 9), ("6K", "DJMAX", "MX", 13),
-          ("4K+FX", "DJMAX", "HD", 9), ("8K", "EZ2ON", "HD", 13))
+CHARTS = (("6K", "NORMAL", None), ("4K", "NORMAL", 6), ("6K", "HARD", 9), ("6K", "MASTER", 13),
+          ("4K+FX", "HARD", 9), ("8K", "MASTER", 13))
 TONAL = ("bass", "pad", "pluck", "piano", "guitar")
 
 
@@ -74,8 +74,8 @@ def note_case(job: tuple[str, int]) -> tuple[str, list[tuple[str, int, int, Coun
         return kind in onsets and float(np.min(np.abs(onsets[kind] - t))) < 0.03
 
     rows = []
-    for km, system, difficulty, level in CHARTS:
-        notes = generate_chart(a, km, difficulty, level, system=system)["notes"]
+    for km, difficulty, level in CHARTS:
+        notes = generate_chart(a, km, difficulty, level)["notes"]
         soundless = sum(1 for n in notes if float(np.min(np.abs(every - n["t"] / 1000.0))) >= 0.03)
         kinds: Counter = Counter()
         for n in notes:
@@ -92,7 +92,7 @@ def note_case(job: tuple[str, int]) -> tuple[str, list[tuple[str, int, int, Coun
                 kinds["drum hit"] += 1
             else:
                 kinds["nothing"] += 1
-        rows.append((f"{km} {system} {difficulty} {level or ''}".strip(), len(notes), soundless, kinds))
+        rows.append((f"{km} {difficulty} {level or ''}".strip(), len(notes), soundless, kinds))
     return name, rows
 
 

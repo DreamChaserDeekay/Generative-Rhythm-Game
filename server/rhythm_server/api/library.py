@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +21,7 @@ import soundfile as sf
 
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
-from ..config import DEFAULT_SYSTEM, SAMPLE_RATE, load_config
+from ..config import SAMPLE_RATE, load_config
 from ..generator.core import default_seed
 
 SCHEMA = """
@@ -89,8 +92,10 @@ MIGRATIONS = {
     "cover_at": "REAL",  # when the cover was last set or removed (the client's cache key)
 }
 # charts: where a chart came from (generated / edited / imported), its display name, and the
-# difficulty system its tier belongs to (DJMAX and EZ2ON both have an NM and an HD; null = not
-# read yet from the chart file, done when its records are first listed)
+# difficulty system of a chart made before the DJMAX and EZ2ON systems were taken out (2026-10-27;
+# null = not read yet from the chart file, done when its records are first listed): their records
+# are left out
+GRG_SYSTEM = "GRG"
 CHART_MIGRATIONS = {
     "kind": "TEXT NOT NULL DEFAULT 'generated'",
     "name": "TEXT NOT NULL DEFAULT ''",
@@ -124,6 +129,8 @@ class Library:
         for sub in ("songs", "charts", "replays", "tmp"):
             (root / sub).mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        # songs whose canonical audio is being written while their analysis already runs
+        self._writing: dict[str, threading.Event] = {}
         self._db = sqlite3.connect(str(root / "library.sqlite3"), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         with self._lock:
@@ -198,8 +205,14 @@ class Library:
         return self.root / "tmp" / f"{time.time_ns()}{suffix}"
 
     # ---------- songs ----------
-    def add_song_file(self, src: Path, original_name: str) -> tuple[dict[str, Any], bool]:
-        """Import an audio file. Returns (song, created); a duplicate file returns the existing song."""
+    def add_song_file(
+        self, src: Path, original_name: str, start: Callable[[str, np.ndarray], None] | None = None
+    ) -> tuple[dict[str, Any], bool]:
+        """Import an audio file. Returns (song, created); a duplicate file returns the existing song.
+        `start(song_id, pcm)`: called with the decoded audio as the canonical file will give it back
+        (audio_io.canonical_pcm), once the song is in the library and before that file is written:
+        its analysis starts meanwhile (wait_audio waits for the file). Not called when that audio
+        cannot be worked out here."""
         digest = audio_io.file_sha256(src)
         song_id = digest[:16]
         existing = self._row(song_id)
@@ -213,7 +226,9 @@ class Library:
         shutil.move(str(src), original)
         try:
             pcm = audio_io.decode_audio(original)
-            audio_io.write_canonical(self.audio_path(song_id), pcm)
+            early = audio_io.canonical_pcm(pcm) if start is not None else None
+            if early is None:
+                self._write_audio(song_id, pcm)
             tags = audio_io.read_tags(original)
             cover = audio_io.read_cover(original)
         except Exception:
@@ -223,8 +238,35 @@ class Library:
             data, mime = cover
             (song_dir / ("cover.png" if "png" in mime else "cover.jpg")).write_bytes(data)
         title = tags.title or Path(original_name).stem or "Untitled"
+        if early is not None:
+            written = self._writing[song_id] = threading.Event()
         self._insert_song(song_id, title, tags.artist or "", tags.album or "", original_name, f"sha256:{digest}", len(pcm) / SAMPLE_RATE * 1000.0, cover is not None)
+        if early is not None:
+            assert start is not None
+            try:
+                start(song_id, early)
+                del early
+                self._write_audio(song_id, pcm)
+            except Exception:
+                self.delete_song(song_id)
+                raise
+            finally:
+                written.set()
+                self._writing.pop(song_id, None)
         return self.get_song(song_id), True
+
+    def _write_audio(self, song_id: str, pcm: np.ndarray) -> None:
+        """The canonical audio, under its name only once whole (a song may be read while written)."""
+        path = self.audio_path(song_id)
+        part = path.with_name(path.name + ".part")
+        audio_io.write_canonical(part, pcm)
+        os.replace(part, path)
+
+    def wait_audio(self, song_id: str, timeout: float = 300.0) -> None:
+        """Returns once the song's canonical audio is written (an upload whose analysis started first)."""
+        written = self._writing.get(song_id)
+        if written is not None:
+            written.wait(timeout)
 
     def add_generated_song(self, pcm: np.ndarray, title: str, artist: str) -> dict[str, Any]:
         """Import PCM made in-process (the synthetic demo track)."""
@@ -358,13 +400,18 @@ class Library:
         return json.loads(p.read_text(encoding="utf-8"))
 
     def save_stems(self, song_id: str, stems: dict[str, np.ndarray], method: str) -> None:
-        """Stores separated stems as 16-bit FLAC next to the canonical audio."""
+        """Stores separated stems as 16-bit FLAC next to the canonical audio. The files are encoded
+        side by side (libsndfile lets go of the GIL): a first play with keysounds waits for them."""
         d = self.stems_dir(song_id)
         d.mkdir(parents=True, exist_ok=True)
-        for name in STEM_NAMES:
+
+        def write(name: str) -> None:
             tmp = d / f"{name}.tmp.flac"
             sf.write(tmp, np.clip(stems[name], -1.0, 1.0), SAMPLE_RATE, subtype="PCM_16", format="FLAC")
             tmp.replace(self.stem_path(song_id, name))
+
+        with ThreadPoolExecutor(len(STEM_NAMES), thread_name_prefix="stem-write") as writers:
+            list(writers.map(write, STEM_NAMES))
         (d / "stems.json").write_text(json.dumps({"method": method, "names": list(STEM_NAMES), "createdAt": time.time()}), encoding="utf-8")
 
     def clear_stems(self, song_id: str) -> None:
@@ -423,7 +470,7 @@ class Library:
                 (
                     meta["chartId"], song_id, meta["keyMode"], meta["difficulty"], meta["level"], int(generator.get("seed", 0)),
                     len(chart["notes"]), generator.get("version", source.get("format", kind)), time.time(), kind, meta.get("chartName", ""),
-                    meta.get("difficultySystem") or DEFAULT_SYSTEM, meta.get("sourceLevel"),
+                    GRG_SYSTEM, meta.get("sourceLevel"),
                 ),
             )
             self._db.commit()
@@ -502,7 +549,7 @@ class Library:
             chart = self.load_chart(chart_id)
         except (OSError, ValueError):
             chart = None
-        system = ((chart or {}).get("meta") or {}).get("difficultySystem") or DEFAULT_SYSTEM
+        system = ((chart or {}).get("meta") or {}).get("difficultySystem") or GRG_SYSTEM
         with self._lock:
             self._db.execute("UPDATE charts SET system = ? WHERE id = ?", (system, chart_id))
             self._db.commit()
@@ -527,12 +574,12 @@ class Library:
         for r in rows:
             cur = best.get(r["chart_id"])
             if cur is None:
-                system = r["system"] or self._chart_system(r["chart_id"])
+                if (r["system"] or self._chart_system(r["chart_id"])) != GRG_SYSTEM:
+                    continue
                 best[r["chart_id"]] = cur = {
                     "chartId": r["chart_id"],
                     "songId": r["song_id"],
                     "keyMode": r["key_mode"],
-                    "system": system,
                     "difficulty": r["difficulty"],
                     "level": r["level"],
                     "seed": r["seed"],
@@ -540,7 +587,7 @@ class Library:
                     "name": r["name"],
                     "sourceLevel": r["source_level"],
                     "generatorVersion": r["generator_version"] if r["kind"] == "generated" else None,
-                    "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None, system),
+                    "defaultSeed": r["kind"] == "generated" and r["seed"] == default_seed(r["audio_hash"], r["key_mode"], r["difficulty"], None),
                     **_bests_from(r),
                 }
             detail = _detail(r["detail"])

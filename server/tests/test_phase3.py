@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import threading
 import types
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -178,6 +179,7 @@ class StubBackend:
     def __init__(self, kind: str, name: str, module: types.SimpleNamespace):
         self.kind, self.name, self.version = kind, name, "9.9"
         self.options: dict = {}
+        self.fallback: StubBackend | None = None
         self._module = module
 
     @property
@@ -197,8 +199,11 @@ def test_installed_backends_are_used_and_failures_fall_back_to_core() -> None:
     def broken(*_args):
         raise RuntimeError("model download failed")
 
+    # the first separator fails on the song (BS-RoFormer's download, say): its fallback takes over
+    first = StubBackend("stems", "roformer", types.SimpleNamespace(separate=broken))
+    first.fallback = StubBackend("stems", "demucs", types.SimpleNamespace(separate=lambda pcm, _sr, _o: dict(song.stems)))
     backends = {
-        "stems": StubBackend("stems", "demucs", types.SimpleNamespace(separate=lambda pcm, _sr, _o: dict(song.stems))),
+        "stems": first,
         "beats": StubBackend("beats", "beat_this", types.SimpleNamespace(track=lambda pcm, _sr, _o: (beats, beats[::4]))),
         "pitch": StubBackend("pitch", "basic_pitch", types.SimpleNamespace(notes=lambda pcm, _sr, _o: [(t, t + 0.5, 72.0, 0.9) for t in song.onsets["lead"]])),
         "structure": StubBackend("structure", "allin1", types.SimpleNamespace(structure=broken)),
@@ -207,6 +212,7 @@ def test_installed_backends_are_used_and_failures_fall_back_to_core() -> None:
     used = a["analyzer"]["backends"]
     assert used == {"stems": "demucs-9.9", "beats": "beat_this-9.9", "pitch": "basic_pitch-9.9", "structure": "core"}
     assert "structure" in a["analyzer"]["errors"] and "model download failed" in a["analyzer"]["errors"]["structure"]
+    assert "model download failed" in a["analyzer"]["errors"]["stems"]  # noted, though Demucs made the stems
     assert set(stems_used) == set(STEM_NAMES)
     assert a["stems"]["method"] == "demucs-9.9"
     # true stems -> lead onsets are tagged vocals, and transcribed pitches reach the onsets
@@ -216,6 +222,42 @@ def test_installed_backends_are_used_and_failures_fall_back_to_core() -> None:
     assert any(o["pitch"] == 72.0 for o in tagged)
     gt_down = song.downbeats[0] * 1000
     assert min(abs(b["t"] - gt_down) for b in a["beats"] if b["isDownbeat"]) < 15
+
+
+def test_beat_this_only_moves_our_grid_half_a_beat() -> None:
+    """Analyzer 1.13.0 (docs/PATTERN_DESIGN.md 75): beat_this no longer sets the tempo level or the
+    downbeats, which made the grid worse on BMS charts; when most of its beats sit on our half beats
+    the grid moves half a beat (6 of 8 such BMS songs put right, 1 of 200 right ones moved off),
+    unless the player moved the first beat themselves."""
+    song = song_with_stems(bars=12, seed=9)
+    sr = song.sample_rate
+    core = analyze(song.pcm, sr, "core", backends={})
+    grid = np.array([b["t"] for b in core["beats"]]) / 1000.0
+    mids = 0.5 * (grid[:-1] + grid[1:])
+
+    def tracker(beats: np.ndarray) -> dict:
+        return {"beats": StubBackend("beats", "beat_this", types.SimpleNamespace(track=lambda pcm, _sr, _o: (beats, beats[1::4])))}
+
+    def beats_of(a: dict) -> np.ndarray:
+        return np.array([b["t"] for b in a["beats"]]) / 1000.0
+
+    def on(points: np.ndarray, beats: np.ndarray) -> bool:
+        return bool(np.all(np.min(np.abs(points[:, None] - beats[None, :]), axis=1) < 1e-3))
+
+    moved = analyze(song.pcm, sr, "ml", backends=tracker(mids))
+    assert on(mids, beats_of(moved)) and not on(grid[1:-1], beats_of(moved))
+    assert moved["timing"]["tempoMap"][0]["bpm"] == pytest.approx(core["timing"]["tempoMap"][0]["bpm"], rel=1e-3)
+    # on our beats it changes nothing, its downbeats included
+    kept = analyze(song.pcm, sr, "ml", backends=tracker(grid))
+    assert kept["beats"] == core["beats"] and kept["timing"]["offsetMs"] == core["timing"]["offsetMs"]
+    # a first beat the player moved stays where they put it
+    shifted = analyze(song.pcm, sr, "ml", backends=tracker(mids), overrides={"offsetShiftMs": 10.0})
+    assert on(grid[1:-1] + 0.010, beats_of(shifted))
+    h = 0.5 * float(np.median(np.diff(grid)))
+    assert ml.half_beat_phase(grid, grid + 0.02) == (grid, False)
+    assert ml.half_beat_phase(grid, mids[:3])[1] is False  # too few beats to say
+    moved_grid, did = ml.half_beat_phase(grid, mids + 0.01)
+    assert did and len(moved_grid) == len(grid) + 1 and moved_grid[0] == pytest.approx(grid[0] - h, abs=0.01)
 
 
 def test_adapters_convert_library_output(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -252,6 +294,54 @@ def test_adapters_convert_library_output(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setitem(sys.modules, "allin1", types.SimpleNamespace(analyze=fake_analyze))
     out = allin1_backend.structure(np.zeros((44100, 2), np.float32), 44100, {"device": "cpu"})
     assert out["segments"] == [(0.0, 8.0, "intro"), (8.0, 16.0, "chorus")] and out["bpm"] == 120.0
+
+
+def test_allin1_separates_in_this_process(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """allin1 starts `sys.executable -m demucs.separate`, which in the desktop app would start the
+    bundled server again: the adapter has Demucs run in this process, with allin1's arguments."""
+    from rhythm_server.analysis.backends import allin1_backend
+
+    calls: list[list[str]] = []
+
+    def fake_separate(args: list[str]) -> None:
+        calls.append(args)
+        out = Path(args[args.index("--out") + 1]) / "htdemucs"
+        for song in args[6:]:
+            (out / Path(song).stem).mkdir(parents=True, exist_ok=True)
+            for stem in allin1_backend.DEMIX_STEMS:
+                (out / Path(song).stem / f"{stem}.wav").write_bytes(b"")
+
+    def original_demix(paths, demix_dir, device):  # what allin1 would do: a new process
+        raise AssertionError("allin1's own demix (a new process) was used")
+
+    seg = types.SimpleNamespace
+    analyze_module = types.ModuleType("allin1.analyze")
+    analyze_module.demix = original_demix
+
+    def fake_analyze(path: str, demix_dir: str = "./demix", device: str = "cpu", keep_byproducts: bool = True, multiprocess: bool = True):
+        stems = analyze_module.demix([Path(path)], Path(demix_dir), device)
+        assert stems == [Path(demix_dir) / "htdemucs" / "audio"] and (stems[0] / "vocals.wav").is_file() and multiprocess is False
+        return seg(bpm=120, beats=[0.5], downbeats=[0.5], segments=[seg(start=0.0, end=4.0, label="intro")])
+
+    monkeypatch.setitem(sys.modules, "allin1", types.SimpleNamespace(analyze=fake_analyze))
+    monkeypatch.setitem(sys.modules, "allin1.analyze", analyze_module)
+    monkeypatch.setitem(sys.modules, "demucs", types.ModuleType("demucs"))
+    monkeypatch.setitem(sys.modules, "demucs.separate", types.SimpleNamespace(main=fake_separate))
+    out = allin1_backend.structure(np.zeros((44100, 2), np.float32), 44100, {"device": "cpu"})
+    assert out["segments"] == [(0.0, 4.0, "intro")] and analyze_module.demix is allin1_backend.demix_here
+    assert len(calls) == 1 and calls[0][2:6] == ["--name", "htdemucs", "--device", "cpu"] and calls[0][-1].endswith("audio.wav")
+    # a song already separated is not separated again; a Demucs failure (it exits) is an error
+    song = tmp_path / "song.wav"
+    fake_separate(["--out", tmp_path.as_posix(), "--name", "htdemucs", "--device", "cpu", song.as_posix()])
+    calls.clear()
+    assert allin1_backend.demix_here([song], tmp_path, "cpu") == [tmp_path / "htdemucs" / "song"] and calls == []
+
+    def failing(args: list[str]) -> None:
+        raise SystemExit(1)
+
+    monkeypatch.setitem(sys.modules, "demucs.separate", types.SimpleNamespace(main=failing))
+    with pytest.raises(RuntimeError, match="Demucs"):
+        allin1_backend.demix_here([tmp_path / "other.wav"], tmp_path, "cpu")
 
 
 def test_ml_helpers() -> None:
@@ -315,7 +405,7 @@ def test_charts_carry_sources_camera_cues_and_a_keysound_stem() -> None:
     keysound = chart["meta"]["keysound"]
     assert keysound["stem"] in ("vocals", "other", "bass") and abs(sum(keysound["shares"].values()) - 1) < 0.01
     effects = chart["effects"]
-    assert effects and all(e["type"] in ("tilt", "zoom") for e in effects)
+    assert effects and all(e["type"] in ("tilt", "zoom", "view") for e in effects)
     chorus = [s for s in a["sections"] if s["energy"] >= 0.7]
     assert any(e["type"] == "tilt" and e["beat"] == max(0, chorus[0]["startBeat"]) for e in effects)
     assert all(-1 <= e["value"] <= 1 for e in effects)
@@ -356,15 +446,36 @@ def _tagged_analysis() -> dict:
 def test_instrument_mapping_puts_kicks_left_and_hats_right() -> None:
     a = _tagged_analysis()
 
-    def spread(mapping: float) -> float:
-        chart = generate_chart(a, "7K+1S", "HARD", seed=2, overrides={"instrumentMapping": mapping})
-        lanes = lane_infos("7K+1S")
-        kicks = [lanes[n["lane"]].pos for n in chart["notes"] if lanes[n["lane"]].kind == "key" and round(n["beat"] * 2) % 2 == 0]
-        hats = [lanes[n["lane"]].pos for n in chart["notes"] if lanes[n["lane"]].kind == "key" and round(n["beat"] * 2) % 2 == 1]
-        return float(np.mean(hats) - np.mean(kicks))
+    def drums(mode: str, tier: str, level: int | None, mapping: float, seed: int = 2) -> tuple[list, list[int], list[int]]:
+        chart = generate_chart(a, mode, tier, level, seed=seed, overrides={"instrumentMapping": mapping})
+        lanes = lane_infos(mode)
+        keys = [n for n in chart["notes"] if lanes[n["lane"]].kind == "key"]
+        return lanes, [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 0], [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 1]
 
-    assert spread(1.0) > 0.25
-    assert spread(1.0) > spread(0.0) + 0.2
+    def spread(*chart: object) -> float:
+        lanes, kicks, hats = drums(*chart)  # type: ignore[arg-type]
+        return float(np.mean([lanes[l].pos for l in hats]) - np.mean([lanes[l].pos for l in kicks]))
+
+    # (below skill 0.35, whose drums keep their fixed places)
+    for chart in (("7K+1S", "NORMAL", None), ("8K", "NORMAL", None)):
+        assert spread(*chart, 1.0) > 0.25, chart
+        assert spread(*chart, 1.0) > spread(*chart, 0.0) + 0.2, chart
+    # From skill 0.35 the generator draws each chart's drum keys from the spread of human BMS
+    # charts (generator 0.9.23, roles.drawnHomes): kicks need not be left, but each drum keeps a key
+    # of its own. (The lopsided-bar feedback of 0.9.25 moves some single hats to the hand a bar
+    # leans to; over the held-out charts the same-sound lane share still rises a little, PATTERN_DESIGN
+    # 47. On this song the hats also repeat on the off-beats, so how firmly they keep their key with
+    # the mapping off or on goes either way by seed.)
+    def home(lanes_used: list[int]) -> tuple[int, float]:
+        lane, n = Counter(lanes_used).most_common(1)[0]
+        return lane, n / len(lanes_used)
+
+    shares = []
+    for seed in range(4):
+        _, kicks, hats = drums("7K+1S", "HARD", None, 1.0, seed)
+        assert home(kicks)[0] != home(hats)[0], seed
+        shares.append(home(hats)[1])
+    assert float(np.mean(shares)) > 0.35, shares  # one key of the seven would hold 0.14
 
 
 def test_old_analyses_without_stems_still_generate() -> None:

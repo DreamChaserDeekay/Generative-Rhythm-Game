@@ -9,7 +9,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..config import DEFAULT_SYSTEM, difficulty_config, difficulty_system, key_modes, level_table_for
+from ..config import key_modes, level_table_for
 from ..difficulty.estimator import estimate
 from ..difficulty.patterns import pattern_summary
 from ..generator.tempo import TempoMap
@@ -52,15 +52,10 @@ class ParsedChart:
 
 
 def difficulty_label(meta: dict[str, Any], with_level: bool = True) -> str:
-    """"HARD Lv.9", "DJMAX MX Lv.12", "DJMAX SC 8" (as the client shows it); without the level
-    "HARD", "DJMAX MX"."""
-    system = meta.get("difficultySystem")
-    head = ""
-    if system and system != DEFAULT_SYSTEM:
-        head = str(difficulty_config().get("systems", {}).get(system, {}).get("label", system)) + " "
+    """"HARD Lv.9" (as the client shows it); without the level "HARD"."""
     level = int(meta.get("level") or 0)
-    tail = (f" {level}" if meta.get("levelScale") else f" Lv.{level}") if level > 0 and with_level else ""
-    return f"{head}{meta.get('difficulty', '')}{tail}"
+    tail = f" Lv.{level}" if level > 0 and with_level else ""
+    return f"{meta.get('difficulty', '')}{tail}"
 
 
 def lane_ids(key_mode: str) -> list[str]:
@@ -218,12 +213,9 @@ def assemble_chart(
     extra_meta: dict[str, Any] | None = None,
     sounds: list[str] | None = None,
     bgm: list[dict[str, Any]] | None = None,
-    system: str = DEFAULT_SYSTEM,
-    level_scale: str | None = None,
 ) -> dict[str, Any]:
     """A chart we did not generate (edited or imported): validated, rated with our estimator and
-    identified by its content, so the same notes always get the same chartId. An edited chart is
-    rated on the level scale of the difficulty system it came from."""
+    identified by its content, so the same notes always get the same chartId."""
     lanes = lane_ids(key_mode)
     tempo = TempoMap(timing)
     notes = normalize_notes(notes, tempo)
@@ -234,7 +226,7 @@ def assemble_chart(
         raise FormatError("채보 구조 오류: " + "; ".join(problems[:5]))
     last = max(n.get("endT", n["t"]) for n in notes)
     duration = float(duration_ms) if duration_ms else last + 2000.0
-    table, factor = level_table_for(difficulty_system(system), difficulty, key_mode)
+    table, factor = level_table_for(key_mode)
     est = estimate(notes, key_mode, len(lanes), max(duration, last + 1.0), IMPORTED_MIN_JACK_MS, table, factor)
     timing = {k: v for k, v in timing.items() if k in ("offsetMs", "tempoMap", "meter", "stops") and v is not None}
     payload = {"audioHash": audio_hash, "keyMode": key_mode, "timing": timing, "notes": notes, "bgm": bgm or [], "sounds": sounds or []}
@@ -247,8 +239,6 @@ def assemble_chart(
         "keyMode": key_mode,
         "lanes": lanes,
         "difficulty": difficulty,
-        **({"difficultySystem": system} if system != DEFAULT_SYSTEM else {}),
-        **({"levelScale": level_scale} if level_scale else {}),
         "level": est["level"],
         "rating": est["rating"],
         "durationMs": duration,
