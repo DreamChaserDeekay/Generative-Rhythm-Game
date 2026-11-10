@@ -12,16 +12,20 @@ export function Emblem() {
   );
 }
 
-/** The bar on top of every menu screen: the game's mark, the screen's name (and what it is on) and its actions. */
-export function TopBar({ name, detail, children }: { name: string; detail?: ReactNode; children?: ReactNode }) {
+/**
+ * The bar on top of every menu screen: the game's mark, the screen's name (and what it is on) and
+ * its actions. The song select has no name there: its key modes stand in its place (`nav`).
+ */
+export function TopBar({ name, detail, nav, children }: { name?: string; detail?: ReactNode; nav?: ReactNode; children?: ReactNode }) {
   return (
     <header className="topbar">
       <div className="wordmark">
         <Emblem />
         <span>GENERATIVE RHYTHM</span>
       </div>
-      <span className="screen-name">{name}</span>
+      {name && <span className="screen-name">{name}</span>}
       {detail && <span className="screen-detail">{detail}</span>}
+      {nav}
       {children && <div className="topbar-actions">{children}</div>}
     </header>
   );

@@ -17,6 +17,13 @@ export interface ChartSpec {
 }
 
 /** A chart as the song select names it before its notes are needed. */
+/**
+ * What every generated chart is asked for besides its key mode and difficulty: the generator's own
+ * defaults, spelled out (they are part of a chart's identity, so the records made before the
+ * generation options were taken out of the game are still the same charts').
+ */
+export const GENERATION_PARAMS: Record<string, unknown> = Object.freeze({ style: 'balanced', rhythmSource: 'auto' });
+
 export interface ChartBrief {
   chartId: string;
   level: number;

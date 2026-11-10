@@ -74,6 +74,11 @@ export class SongPreview {
     this.volume = volume;
   }
 
+  /** Where in the song it is now, in ms (null: not playing yet, or on its way out). */
+  songMs(): number | null {
+    return this.stopping || this.audio.paused ? null : this.audio.currentTime * 1000;
+  }
+
   /** Quieter and through a low-pass filter (on), or back as it was (off), over about a third of a second. */
   setMuffled(on: boolean): void {
     const route = this.route ?? (on ? this.connect() : null);
@@ -136,6 +141,7 @@ export interface PreviewPlayer {
   stop(): void;
   setVolume(volume: number): void;
   setMuffled(on: boolean): void;
+  songMs?(): number | null;
 }
 
 /**
@@ -166,6 +172,11 @@ export class MenuMusic {
   stop(): void {
     this.current?.player.stop();
     this.current = null;
+  }
+
+  /** Where `songId`'s preview is in its song now, in ms (null: it is not the one sounding). */
+  songMs(songId: string): number | null {
+    return this.current?.songId === songId ? (this.current.player.songMs?.() ?? null) : null;
   }
 
   muffle(on: boolean): void {

@@ -20,9 +20,26 @@ export function randomIndex(count: number, current: number, random: () => number
   return current >= 0 && pick >= current ? pick + 1 : pick;
 }
 
-/** Shift alone changes the folder only while no lane of the key mode is played with a Shift key. */
-export function shiftChangesFolder(laneKeys: readonly string[]): boolean {
-  return !laneKeys.includes('ShiftLeft') && !laneKeys.includes('ShiftRight');
+/**
+ * The song wheel: the picked song stands in the middle and the others lean away from it. How many
+ * rows show on each side in a wheel `heightRem` high (four in a 720-high window, more in a taller one).
+ */
+export const WHEEL_ROW_NEAR = 4.5;
+export const WHEEL_ROW_STEP = 3.5;
+export function wheelReach(heightRem: number): number {
+  return Math.max(1, Math.floor((heightRem / 2 - WHEEL_ROW_NEAR - 1) / WHEEL_ROW_STEP) + 1);
+}
+
+/**
+ * Where the row `d` steps from the picked one stands on a wheel showing `reach` rows each side: its
+ * shift down and to the right in rem (the rows lean out on an arc, as far at the wheel's end
+ * whatever its height) and how clearly it shows (the far rows fade; past the end, nothing).
+ */
+export function wheelPlace(d: number, reach: number): { x: number; y: number; opacity: number } {
+  const ad = Math.abs(d);
+  const y = d === 0 ? 0 : Math.sign(d) * (WHEEL_ROW_NEAR + (ad - 1) * WHEEL_ROW_STEP);
+  const far = ad / Math.max(1, reach);
+  return { x: 5.12 * far * far, y, opacity: ad > reach ? 0 : 1 - 0.58 * far ** 1.6 };
 }
 
 /**

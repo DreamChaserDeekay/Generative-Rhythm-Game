@@ -36,13 +36,16 @@ import { cameraConfig, difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
-    const s = sanitizeSettings({ ruleset: 'NOPE' as never, hiSpeed: 99, sudden: 3, placement: 'X' as never, generation: { density: 9 } as never });
+    const s = sanitizeSettings({ ruleset: 'NOPE' as never, hiSpeed: 99, sudden: 3, placement: 'X' as never });
     expect(s.ruleset).toBe(DEFAULT_SETTINGS.ruleset);
     expect(s.hiSpeed).toBe(10);
     expect(s.sudden).toBeLessThanOrEqual(0.85);
     expect(s.placement).toBe('OFF');
-    expect(s.generation.density).toBe(1.5);
-    expect(s.generation.style).toBe('balanced');
+  });
+
+  it('drops the generation options of settings saved when the play options had them', () => {
+    const s = sanitizeSettings({ generation: { style: 'chord', density: 1.2 } } as never);
+    expect('generation' in s).toBe(false);
   });
 
   it('keeps the key beam length between off and twice the usual (settings saved before the option: the usual)', () => {
@@ -138,21 +141,19 @@ describe('settings', () => {
     expect(sanitizeSettings({ hudType: 'nope' as never }).hudType).toBe('gear');
   });
 
-  it('keeps the song select favourites, folder and order, dropping unknown ones', () => {
-    expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
-    const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: 'bpm' });
-    expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: 'bpm' });
-    expect(sanitizeSettings({ songFolder: 'noFullCombo', songSort: 'recent' })).toMatchObject({ songFolder: 'noFullCombo', songSort: 'recent' });
-    expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: 'y' as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
+  it('keeps the song select favourites, which songs it lists and its order, dropping unknown ones', () => {
+    expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: null });
+    const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: { key: 'album', dir: 'asc' } });
+    expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: { key: 'album', dir: 'asc' } });
+    expect(sanitizeSettings({ songSort: { key: 'title', dir: 'sideways' } as never }).songSort).toEqual({ key: 'title', dir: 'desc' });
+    expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: { key: 'bpm', dir: 'asc' } as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: null });
   });
 
-  it('keeps the pattern engine choice, dropping unknown ones', () => {
-    expect(sanitizeSettings({}).generation.patternEngine).toBe('sectioned');
-    expect(sanitizeSettings({ generation: { patternEngine: 'classic' } as never }).generation.patternEngine).toBe('classic');
-    expect(sanitizeSettings({ generation: { patternEngine: 'random' } as never }).generation.patternEngine).toBe('sectioned');
-    // "designer" was the default before the sectioned engine; only a picked one stays
-    expect(sanitizeSettings({ generation: { patternEngine: 'designer' } as never }).generation.patternEngine).toBe('sectioned');
-    expect(sanitizeSettings({ generation: { patternEngine: 'designer', engineSet: true } as never }).generation.patternEngine).toBe('designer');
+  it('reads the folders and orders of an earlier version: its record folders are every song, its title and artist orders stay', () => {
+    expect(sanitizeSettings({ songFolder: 'noFullCombo' as never, songSort: 'recent' as never })).toMatchObject({ songFolder: 'all', songSort: null });
+    expect(sanitizeSettings({ songSort: 'title' as never }).songSort).toEqual({ key: 'title', dir: 'asc' });
+    expect(sanitizeSettings({ songSort: 'artist' as never }).songSort).toEqual({ key: 'artist', dir: 'asc' });
+    expect(sanitizeSettings({ songSort: 'added' as never }).songSort).toBeNull();
   });
 
   it('drops the difficulty system of settings saved when there were three, and a tier gone with it or with EASY', () => {

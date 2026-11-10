@@ -32,60 +32,26 @@ export type JudgePosition = 'low' | 'mid' | 'high';
 /** A window, or full screen (the desktop app keeps its window's; a browser asks for it). */
 export type DisplayMode = 'window' | 'fullscreen';
 export const DISPLAY_MODES: readonly DisplayMode[] = ['window', 'fullscreen'];
-/** Song select folders (Shift or F6 steps through them): every song, the favourites, the ones not
- * played on this key mode, the ones played but not cleared on a difficulty,
- * the ones cleared but short of MAX COMBO on a difficulty. */
-export type SongFolder = 'all' | 'favorites' | 'unplayed' | 'uncleared' | 'noFullCombo';
-export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites', 'unplayed', 'uncleared', 'noFullCombo'];
-/** Song select order (F4 steps through them); level, lamp and RATE are those of the selected difficulty. */
-export type SongSort = 'added' | 'title' | 'artist' | 'bpm' | 'level' | 'lamp' | 'rate' | 'recent';
-export const SONG_SORTS: readonly SongSort[] = ['added', 'title', 'artist', 'bpm', 'level', 'lamp', 'rate', 'recent'];
+/** Which songs the song select lists: every song, or the favourites (keys 1 and 5). */
+export type SongFolder = 'all' | 'favorites';
+export const SONG_FOLDERS: readonly SongFolder[] = ['all', 'favorites'];
+/** A name the song select orders its list by (keys 2, 3 and 4). */
+export type SongSortKey = 'title' | 'artist' | 'album';
+export const SONG_SORT_KEYS: readonly SongSortKey[] = ['title', 'artist', 'album'];
+/**
+ * The song select's order: by one name, downward (내림차순) or upward (오름차순). Null is the
+ * library's own order, newest first.
+ */
+export interface SongSort {
+  key: SongSortKey;
+  dir: 'desc' | 'asc';
+}
 /** OFF, the personal best of the chart, a target rate in percent, or (EX-SCORE) a grade or the maximum. */
 export type Pacemaker = 'OFF' | 'BEST' | '90' | '95' | '98' | '99' | '100' | 'A' | 'AA' | 'AAA' | 'MAX';
 /** A difficulty's pattern: a seed (새 패턴), or a chart's id (one chosen from its records). */
 export type Pattern = number | string;
 /** Opacities of the judgement and the combo (notes behind them show through). */
 export const JUDGEMENT_OPACITIES: readonly number[] = [1, 0.7, 0.4];
-
-export type GenStyle = 'balanced' | 'stream' | 'chord' | 'jack' | 'longnote' | 'technical' | 'melody';
-export type RhythmSource = 'auto' | 'drum' | 'bass' | 'melody' | 'vocal';
-/** sectioned = built from the song's sections and loops down (default); designer = patterns planned
- * per phrase; classic = the earlier note-by-note placement (both kept to compare). */
-export type PatternEngine = 'sectioned' | 'designer' | 'classic';
-export const PATTERN_ENGINES: readonly PatternEngine[] = ['sectioned', 'designer', 'classic'];
-
-/** Advanced generation options; null leaves the difficulty preset's value. */
-export interface GenerationPrefs {
-  style: GenStyle;
-  rhythmSource: RhythmSource;
-  density: number | null;
-  longNoteRatio: number | null;
-  maxChord: number | null;
-  /** Scratch or side-note rate, depending on the key mode. */
-  specialRate: number | null;
-  /** Pull of drum / bass notes toward their lane regions (null = server default). */
-  instrumentMapping: number | null;
-  /** 1 = reuse lane patterns in repeated sections, 0 = off (null = server default). */
-  repeatConsistency: number | null;
-  patternEngine: PatternEngine;
-  /** The user picked the engine (a stored "designer" without it is the old default). */
-  engineSet?: boolean;
-}
-
-export const GEN_STYLES: GenStyle[] = ['balanced', 'stream', 'chord', 'jack', 'longnote', 'technical', 'melody'];
-export const RHYTHM_SOURCES: RhythmSource[] = ['auto', 'drum', 'bass', 'melody', 'vocal'];
-
-export const DEFAULT_GENERATION: GenerationPrefs = {
-  style: 'balanced',
-  rhythmSource: 'auto',
-  density: null,
-  longNoteRatio: null,
-  maxChord: null,
-  specialRate: null,
-  instrumentMapping: null,
-  repeatConsistency: null,
-  patternEngine: 'sectioned',
-};
 
 export interface Settings {
   judgementMode: JudgementModeId;
@@ -165,7 +131,6 @@ export interface Settings {
   barLines: boolean;
   reducedFlash: boolean;
   pacemaker: Pacemaker;
-  generation: GenerationPrefs;
   /** Keysounds on generated charts: a hit plays its slice of the stem it follows, a miss leaves it out. */
   keysound: boolean;
   /** SDVX-style camera tilt / zoom from the chart (0 = off .. 1). */
@@ -189,7 +154,7 @@ export interface Settings {
   /** Song ids marked as favourites on the song select. */
   favorites: string[];
   songFolder: SongFolder;
-  songSort: SongSort;
+  songSort: SongSort | null;
 }
 
 export const BASE_VISIBLE_MS = 5000;
@@ -263,7 +228,6 @@ export const DEFAULT_SETTINGS: Settings = {
   barLines: true,
   reducedFlash: false,
   pacemaker: 'OFF',
-  generation: DEFAULT_GENERATION,
   keysound: true,
   cameraFx: 0.6,
   hitEffectSize: 'normal',
@@ -277,7 +241,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bga: true,
   favorites: [],
   songFolder: 'all',
-  songSort: 'added',
+  songSort: null,
 };
 
 const PACEMAKERS: Pacemaker[] = ['OFF', 'BEST', '90', '95', '98', '99', '100', 'A', 'AA', 'AAA', 'MAX'];
@@ -395,23 +359,23 @@ export function sanitizeSettings(raw: Partial<Settings>): Settings {
   s.bga = s.bga !== false;
   s.favorites = Array.isArray(raw.favorites) ? [...new Set(raw.favorites.filter((id) => typeof id === 'string'))].slice(0, 5000) : [];
   s.songFolder = pick(s.songFolder, SONG_FOLDERS, d.songFolder);
-  s.songSort = pick(s.songSort, SONG_SORTS, d.songSort);
-  const g = { ...DEFAULT_GENERATION, ...raw.generation };
-  const optional = (v: unknown, min: number, max: number) => (v === null || v === undefined ? null : num(v, min, max, min));
-  s.generation = {
-    style: pick(g.style, GEN_STYLES, DEFAULT_GENERATION.style),
-    rhythmSource: pick(g.rhythmSource, RHYTHM_SOURCES, DEFAULT_GENERATION.rhythmSource),
-    density: optional(g.density, 0.5, 1.5),
-    longNoteRatio: optional(g.longNoteRatio, 0, 0.5),
-    maxChord: optional(g.maxChord, 1, 8),
-    specialRate: optional(g.specialRate, 0, 0.2),
-    instrumentMapping: optional(g.instrumentMapping, 0, 1),
-    repeatConsistency: optional(g.repeatConsistency, 0, 1),
-    // "designer" was the default before the sectioned engine: only a picked one stays
-    patternEngine: g.patternEngine === 'designer' && g.engineSet !== true ? 'sectioned' : pick(g.patternEngine, PATTERN_ENGINES, DEFAULT_GENERATION.patternEngine),
-    ...(g.engineSet === true ? { engineSet: true } : {}),
-  };
+  s.songSort = sanitizeSongSort(raw.songSort);
+  // the generation options and the target level are gone: a chart is made as its difficulty has it
+  // (or by the AI model's own options), so every player's charts and records are the same ones
+  delete (s as Record<string, unknown>).generation;
   return s;
+}
+
+/**
+ * A stored order: one of the three names with its direction. An order of an earlier version by
+ * title or artist is kept as that name upward (as it was); its other orders are gone.
+ */
+export function sanitizeSongSort(raw: unknown): SongSort | null {
+  if (raw === 'title' || raw === 'artist') return { key: raw, dir: 'asc' };
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { key, dir } = raw as { key?: unknown; dir?: unknown };
+  if (!SONG_SORT_KEYS.includes(key as SongSortKey)) return null;
+  return { key: key as SongSortKey, dir: dir === 'asc' ? 'asc' : 'desc' };
 }
 
 /**
