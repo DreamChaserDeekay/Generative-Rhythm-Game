@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import mapperJson from '@config/mapper.json';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, type BackendStatus, type MapperSettings, type MapperStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
@@ -7,9 +8,12 @@ import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton }
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
 import type { SkinParts } from '../render/skins';
 import {
+  activeCovers,
   bindingLabel,
   bindingsFor,
   clampHiSpeed,
+  DEFAULT_SETTINGS,
+  greenNumber,
   HI_SPEED_MAX,
   HI_SPEED_MIN,
   JUDGEMENT_OPACITIES,
@@ -46,8 +50,9 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
-import { RuleRow } from './PlayOptions';
+import { ActionOption, Choice, DECK_NAMES, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
+import { RuleRow, type PlayRule } from './PlayOptions';
+import { GEAR_HELP, HUD_TYPE_HELP, pickedHelp } from './settingsHelp';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -68,9 +73,9 @@ interface Props {
   onUndoReset: () => void;
 }
 
-export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'advanced';
+export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'mapper' | 'advanced';
 
-/** The tabs in order: name and the line under it. */
+/** The tabs in order: name and the line after it over the rows. */
 const TABS: [SettingsTab, string, string][] = [
   ['play', '플레이', '다음 플레이부터 적용됩니다'],
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
@@ -81,11 +86,28 @@ const TABS: [SettingsTab, string, string][] = [
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '레인의 키와 플레이 중 키'],
   ['pad', '게임패드', '레인, 플레이 중 버튼, 전용 컨트롤러의 메뉴 버튼'],
+  ['mapper', 'AI 채보', '채보를 만드는 모델과 그 옵션'],
   ['advanced', '고급', '화면 모드, 분석 백엔드와 초기화'],
 ];
 
 const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
 const signedMs = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
+/** The gears by name, in the order their help texts go through them. */
+const GEAR_NAMES = PART_CHOICES.deck.map(([, name]) => name);
+/** The default of each rule of the next play (RuleRow), as the row's own choices name it. */
+const RULE_DEFAULTS: Record<PlayRule, string> = {
+  placement: DEFAULT_SETTINGS.placement,
+  gauge: DEFAULT_SETTINGS.gaugeType,
+  fever: DEFAULT_SETTINGS.fever,
+  pacemaker: DEFAULT_SETTINGS.pacemaker,
+  judgement: DEFAULT_SETTINGS.judgementMode,
+  ruleset: DEFAULT_SETTINGS.ruleset,
+};
+/**
+ * The mapper's settings before the player changes any, as the server reads them (mapper/runtime.py,
+ * mapper_config): config/mapper.json, and 1 for the difficulty scale where the file names none.
+ */
+const MAPPER_DEFAULTS: Partial<MapperSettings> = { starsScale: 1, ...(mapperJson as Partial<MapperSettings>) };
 
 /** What the hand-played sync test's keys move, in the key mode it is played in (its keys are those no lane takes). */
 function syncKeysHelp(settings: Settings): string {
@@ -160,6 +182,11 @@ const CAPTURE_HINTS: Record<CaptureKind, KeyHint[]> = {
   padTest: [{ keys: [], pad: ['Start'], label: '길게 눌러 닫기' }],
 };
 
+/** Tabs with a number among their rows: Shift moves it by its bigger step. */
+const BIG_STEP_TABS: ReadonlySet<SettingsTab> = new Set(['judge', 'speed', 'gear', 'notes', 'fx', 'sound', 'pad', 'mapper']);
+/** Tabs with buttons among their rows (a preset kept or deleted, the mapper set up, the reset). */
+const BUTTON_TABS: ReadonlySet<SettingsTab> = new Set(['notes', 'mapper', 'advanced']);
+
 /** The keys of a tab (a pad's buttons beside them, shown while the pad works the menus). */
 function tabHints(tab: SettingsTab): KeyHint[] {
   const tabs: KeyHint = { keys: ['Q', 'E'], pad: ['LB', 'RB'], label: '탭' };
@@ -172,7 +199,8 @@ function tabHints(tab: SettingsTab): KeyHint[] {
   if (tab === 'pad') hints.push({ keys: ['Enter'], pad: ['A'], label: '지정' });
   // the calibration steps and the sync tests under the offsets
   if (tab === 'judge') hints.push({ keys: ['Enter'], pad: ['A'], label: '열기' });
-  if (tab === 'advanced') hints.push({ keys: ['Enter'], pad: ['A'], label: '누르기' });
+  if (BUTTON_TABS.has(tab)) hints.push({ keys: ['Enter'], pad: ['A'], label: '누르기' });
+  if (BIG_STEP_TABS.has(tab)) hints.push({ keys: ['Shift'], label: '큰 단계', minor: true });
   return [...hints, tabs];
 }
 
@@ -180,9 +208,9 @@ function tabHints(tab: SettingsTab): KeyHint[] {
 export const RESET_UNDO_MS = 10000;
 
 /**
- * The settings as an arcade option screen: tabs on the left (Q / E, LB / RB on a pad), a row per
- * setting with its value between ‹ › (↑↓ choose a row, ←→ change it), and on the right a live gear
- * or the chosen row's help.
+ * The settings as an arcade option screen: the tabs down the left (Q / E, LB / RB on a pad), in the
+ * middle a row per setting with its value between ‹ › (↑↓ choose a row, ←→ change it) over the help
+ * of the row under the cursor, and on the right the gear as it will be played, on every tab.
  */
 export function SettingsScreen({
   settings,
@@ -199,7 +227,13 @@ export function SettingsScreen({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => onSettingsChange({ ...settings, [key]: value });
   const setPart = <K extends keyof SkinParts>(key: K, value: SkinParts[K]) => onSettingsChange({ ...settings, parts: { ...settings.parts, [key]: value } });
   const [tab, setTab] = useState<SettingsTab>(initialTab);
+  /** The help of the row under the cursor, and how that row shows its default while its value is another. */
   const [help, setHelp] = useState('');
+  const [helpDefault, setHelpDefault] = useState<string | null>(null);
+  const showHelp = useCallback((text: string) => {
+    setHelp(text);
+    setHelpDefault(null);
+  }, []);
   /** The side notes' row has the focus: the preview shows a key mode with side lanes. */
   const [sideRow, setSideRow] = useState(false);
   /** The key mode whose note colours the 노트 tab shows, and colours being picked there, not kept yet. */
@@ -211,13 +245,30 @@ export function SettingsScreen({
   /** The lane the arrows keep through a line of buttons between two of lanes (see arrowTarget). */
   const column = useRef<number | null>(null);
 
-  // a tab opens on its first row, with the focus there (a click on a tab leaves the focus on it)
-  const focusFirstRow = () => requestAnimationFrame(() => (rows.current && rowStops(rows.current)[0])?.focus({ preventScroll: true }));
+  // a tab opens on its first row, with the focus there (a click on a tab leaves the focus on it).
+  // `awaited`: it had no row yet (its rows come with the server's answer), so the first of them
+  // takes the cursor when they do, unless it was put on a row meanwhile
+  const awaited = useRef(false);
+  const focusFirstRow = () =>
+    requestAnimationFrame(() => {
+      const first = rows.current ? rowStops(rows.current)[0] : undefined;
+      awaited.current = !first;
+      first?.focus({ preventScroll: true });
+    });
+  const focusLateRows = useCallback(() => {
+    const at = document.activeElement;
+    if (awaited.current && (!at || at === document.body || at.closest('.settings-nav'))) focusFirstRow();
+  }, []);
   useEffect(() => {
-    setHelp('');
+    showHelp('');
     setSideRow(false);
     rows.current?.scrollTo(0, 0);
   }, [tab]);
+  // the help under the rows is as tall as its text: the row under the cursor stays in sight as it grows
+  useLayoutEffect(() => {
+    const at = document.activeElement;
+    if (at instanceof HTMLElement && rows.current?.contains(at)) at.scrollIntoView({ block: 'nearest' });
+  }, [help, helpDefault]);
   useEffect(() => {
     // back from a tool of the tab (the sync test, a calibration step), on its row
     const tool = initialFocus ? rows.current?.querySelector<HTMLElement>(`[data-testid="${initialFocus}"]`) : null;
@@ -277,10 +328,12 @@ export function SettingsScreen({
 
   const row = {
     onHelp: (text: string) => {
-      setHelp(text);
+      showHelp(text);
       setSideRow(false);
     },
+    onDefault: setHelpDefault,
   };
+  const d = DEFAULT_SETTINGS;
   // the 노트 tab shows the key mode whose colours it shows; the side notes' row shows them on 4K+FX or
   // 6K+FX when that key mode has no side lanes
   const shownMode = tab === 'notes' ? colorMode : settings.lastKeyMode;
@@ -296,13 +349,14 @@ export function SettingsScreen({
       content = (
         <>
           {(['ruleset', 'gauge', 'fever', 'placement', 'pacemaker'] as const).map((rule) => (
-            <RuleRow key={rule} {...row} rule={rule} testId={`opt-${rule}`} settings={settings} onSettingsChange={onSettingsChange} detailed />
+            <RuleRow key={rule} {...row} rule={rule} testId={`opt-${rule}`} settings={settings} onSettingsChange={onSettingsChange} defaultValue={RULE_DEFAULTS[rule]} detailed />
           ))}
           <Toggle
             {...row}
             label="창을 벗어나면 일시정지"
             testId="opt-pause-on-blur"
             value={settings.pauseOnBlur}
+            defaultValue={d.pauseOnBlur}
             onChange={(v) => set('pauseOnBlur', v)}
             help="다른 창으로 옮기거나 창이 가려지면 플레이를 일시정지합니다 (오토·리플레이는 그대로 흐릅니다). 알림이나 실수로 누른 Windows 키에 판이 깨지지 않습니다."
           />
@@ -312,12 +366,13 @@ export function SettingsScreen({
     case 'judge':
       content = (
         <>
-          <RuleRow {...row} rule="judgement" testId="opt-judgement" settings={settings} onSettingsChange={onSettingsChange} detailed />
+          <RuleRow {...row} rule="judgement" testId="opt-judgement" settings={settings} onSettingsChange={onSettingsChange} defaultValue={RULE_DEFAULTS.judgement} detailed />
           <NumberOption
             {...row}
             label="판정 오프셋"
             testId="opt-input-offset"
             value={settings.inputOffsetMs}
+            defaultValue={d.inputOffsetMs}
             min={-OFFSET_MAX}
             max={OFFSET_MAX}
             step={1}
@@ -339,6 +394,7 @@ export function SettingsScreen({
             label="표시 오프셋"
             testId="opt-visual-offset"
             value={settings.visualOffsetMs}
+            defaultValue={d.visualOffsetMs}
             min={-OFFSET_MAX}
             max={OFFSET_MAX}
             step={1}
@@ -376,6 +432,7 @@ export function SettingsScreen({
             label="판정 ms 오차 표시"
             testId="opt-error-ms"
             value={settings.showErrorMs}
+            defaultValue={d.showErrorMs}
             onChange={(v) => set('showErrorMs', v)}
             help="판정 아래에 몇 ms 빠르거나 늦었는지 보여 줍니다."
           />
@@ -384,6 +441,7 @@ export function SettingsScreen({
             label="판정 오차 막대"
             testId="opt-error-bar"
             value={settings.errorBar}
+            defaultValue={d.errorBar}
             onChange={(v) => set('errorBar', v)}
             help="판정 아래 막대에 최근 20번 친 타이밍을 보여 줍니다. 왼쪽이 FAST, 오른쪽이 SLOW이고, 가운데 옅은 칸이 최고 판정 범위, 긴 선이 평균입니다."
           />
@@ -392,6 +450,7 @@ export function SettingsScreen({
             label="판정 카운터"
             testId="opt-judge-counter"
             value={settings.judgeCounter}
+            defaultValue={d.judgeCounter}
             onChange={(v) => set('judgeCounter', v)}
             help="점수판 아래에 지금까지의 BREAK 수와 FAST·SLOW 수를 보여 줍니다."
           />
@@ -406,6 +465,7 @@ export function SettingsScreen({
             label="노트 속도"
             testId="opt-hi-speed"
             value={settings.hiSpeed}
+            defaultValue={d.hiSpeed}
             min={HI_SPEED_MIN}
             max={HI_SPEED_MAX}
             step={0.1}
@@ -419,6 +479,7 @@ export function SettingsScreen({
             label="노트 등장 위치"
             testId="opt-sudden"
             value={settings.sudden}
+            defaultValue={d.sudden}
             min={0}
             max={MAX_COVER}
             step={0.01}
@@ -432,6 +493,7 @@ export function SettingsScreen({
             label="노트 사라짐 위치"
             testId="opt-hidden"
             value={settings.hidden}
+            defaultValue={d.hidden}
             min={0}
             max={MAX_COVER}
             step={0.01}
@@ -445,6 +507,7 @@ export function SettingsScreen({
             label="판정선 위치"
             testId="opt-lift"
             value={settings.judgeLinePosition}
+            defaultValue={d.judgeLinePosition}
             min={MIN_JUDGE_LINE}
             max={MAX_JUDGE_LINE}
             step={0.01}
@@ -458,6 +521,7 @@ export function SettingsScreen({
             label="커버 사용"
             testId="opt-covers-on"
             value={settings.coversOn}
+            defaultValue={d.coversOn}
             onChange={(v) => onSettingsChange(withCovers(settings, { coversOn: v }))}
             help={`노트 등장 위치와 노트 사라짐 위치의 커버를 씁니다(판정선 위치는 그대로). 플레이 중 켜고 끄는 키: ${bindingLabel(playKeys.covers)}.`}
           />
@@ -466,6 +530,7 @@ export function SettingsScreen({
             label="보이는 시간 유지"
             testId="opt-keep-green"
             value={settings.keepVisibleTime}
+            defaultValue={d.keepVisibleTime}
             onChange={(v) => set('keepVisibleTime', v)}
             help="노트 등장 위치나 판정선 위치를 움직여도 노트가 보이는 시간(녹색 숫자)을 그대로 둡니다 (노트 속도가 함께 바뀝니다)."
           />
@@ -474,6 +539,7 @@ export function SettingsScreen({
             label="스크롤"
             testId="opt-scroll"
             value={settings.scrollMode}
+            defaultValue={d.scrollMode}
             options={
               [
                 ['time', '시간 고정'],
@@ -494,24 +560,27 @@ export function SettingsScreen({
             label="기어"
             testId="opt-deck-style"
             value={settings.parts.deck}
+            defaultValue={d.parts.deck}
             options={PART_CHOICES.deck}
             onChange={(v) => setPart('deck', v)}
-            help="트랙을 담는 기어입니다. 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다. 기본은 그래파이트 테에 스모크 유리와 조그 원판, 오락실 기체는 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구, 빈티지 리시버는 월넛과 은색 앞판에 튜닝 다이얼·노브·스위치·미터, 나전칠기는 흑칠에 자개 학 뚜껑·자개 덩굴·황동 자물쇠 판, 커스텀 키보드는 차콜 알루미늄에 노브·OLED 창·황동 명판·방향키, 레이싱 휠은 카본에 시프트 라이트·로터리·고무 버튼·랩 타이머, 우주선 계기판은 회색 패널에 보호 덮개 셀렉터·토글·경고등·주의 띠와 금박 단열재 테두리, 피아노는 흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달, 달은 깨뜨린 은빛 크리스털 유리 덩어리 한 장(곧은 결정 면 사이로 유리 속의 결이 비침)과 같은 유리의 테두리입니다. 누른 레인은 키빔과 타격 효과로 보입니다. 받침의 버튼·노브·창 같은 부품에는 박자에 맞춰 불이 들어오고, 마디마다 테두리를 따라 빛이 지나가며, 피버 때는 테두리의 불빛이 다 켜집니다. 판정선은 어느 기어에서나 같은 자리의 굵은 붉은 선으로 레이저처럼 조금씩 일렁이고, 받침은 그보다 조금 아래에서 시작합니다."
+            help={GEAR_HELP}
           />
           <Choice
             {...row}
             label="판정·콤보 글꼴"
             testId="opt-hud-type"
             value={settings.hudType}
+            defaultValue={d.hudType}
             options={HUD_TYPE_CHOICES}
             onChange={(v) => set('hudType', v)}
-            help="판정과 콤보를 쓰는 글꼴과 색입니다. 기어를 따르면 기본은 흰 장체(MAX는 흰색, 퍼센트는 하늘색), 오락실 기체는 빨간 7세그 콤보와 굵은 이탤릭 판정, 빈티지 리시버는 호박색 7세그 콤보와 가는 장체 판정, 나전칠기는 금색 세리프, 커스텀 키보드는 픽셀 글꼴과 주황 밑줄, 레이싱 휠은 기울어진 흰 숫자와 빨간 밑줄, 우주선 계기판은 스텐실 판정과 초록 7세그 콤보, 피아노는 악보의 셈여림 글씨 같은 굵은 이탤릭 세리프, 달은 넓은 기하 글꼴(MAX는 흰색, 퍼센트는 은색)로 씁니다. 기본은 기어와 상관없이 흰 장체에 MAX를 하늘색으로 씁니다."
+            help={HUD_TYPE_HELP}
           />
           <Choice
             {...row}
             label="타격 효과"
             testId="opt-hit-style"
             value={settings.parts.hit}
+            defaultValue={d.parts.hit}
             options={PART_CHOICES.hit}
             onChange={(v) => setPart('hit', v)}
             help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 플래시·플레어·거품·LED 그리드와 세트마다 하나(메카 섬광·클럽 링·크리스털 파편·네온 아크·피아노 음표)가 있고, 모두 판정선 위로는 짧게만 남아 내려오는 노트를 가리지 않습니다(LED 그리드는 판정선 아래에만). 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
@@ -521,6 +590,7 @@ export function SettingsScreen({
             label="카메라"
             testId="opt-camera"
             value={settings.cameraPreset}
+            defaultValue={d.cameraPreset}
             options={Object.entries(cameraConfig.presets).map(([id, p]) => [id, p.label])}
             onChange={(id) => set('cameraPreset', id)}
             help="트랙을 내려다보는 높이와 각도입니다. 평면은 원근이 없어 레일이 나란하고 노트가 화면 위에서 아래까지 같은 빠르기로 내려옵니다."
@@ -530,6 +600,7 @@ export function SettingsScreen({
             label="레인 폭"
             testId="opt-lane-width"
             value={settings.laneWidthScale}
+            defaultValue={d.laneWidthScale}
             min={0.8}
             max={1.4}
             step={0.05}
@@ -543,6 +614,7 @@ export function SettingsScreen({
             label="키 빔 길이"
             testId="opt-key-beam"
             value={settings.keyBeamLength}
+            defaultValue={d.keyBeamLength}
             min={0}
             max={KEY_BEAM_MAX}
             step={0.1}
@@ -556,6 +628,7 @@ export function SettingsScreen({
             label="판정 표시 위치"
             testId="opt-judge-position"
             value={settings.judgePosition}
+            defaultValue={d.judgePosition}
             options={
               [
                 ['low', '낮게'],
@@ -571,6 +644,7 @@ export function SettingsScreen({
             label="판정·콤보 불투명도"
             testId="opt-judge-opacity"
             value={String(settings.judgementOpacity)}
+            defaultValue={String(d.judgementOpacity)}
             options={JUDGEMENT_OPACITIES.map((v): [string, string] => [String(v), pct(v)])}
             onChange={(v) => set('judgementOpacity', Number(v))}
             help="판정 글자와 콤보 숫자를 얼마나 진하게 그릴지 정합니다. 낮추면 그 뒤로 지나가는 노트가 비쳐 보입니다."
@@ -580,6 +654,7 @@ export function SettingsScreen({
             label="마디선"
             testId="bar-lines"
             value={settings.barLines}
+            defaultValue={d.barLines}
             onChange={(v) => set('barLines', v)}
             help="마디마다 트랙을 가로지르는 선을 긋습니다."
           />
@@ -594,6 +669,7 @@ export function SettingsScreen({
             label="노트"
             testId="opt-note-style"
             value={settings.parts.note}
+            defaultValue={d.parts.note}
             options={PART_CHOICES.note}
             onChange={(v) => setPart('note', v)}
             help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크)."
@@ -601,12 +677,13 @@ export function SettingsScreen({
           <Choice
             {...row}
             onHelp={(text) => {
-              setHelp(text);
+              showHelp(text);
               setSideRow(true);
             }}
             label="사이드 노트"
             testId="opt-side-style"
             value={settings.parts.side}
+            defaultValue={d.parts.side}
             options={PART_CHOICES.side}
             onChange={(v) => setPart('side', v)}
             help="4K+FX·6K+FX 사이드 노트의 모양입니다. 사이드 노트는 DJMAX처럼 건반 레인의 왼쪽·오른쪽 절반을 덮습니다. 기본은 비치는 막대로, 도트 매트릭스는 LED 점으로 그려 노트의 시점에 놓인 줄이 가장 밝습니다."
@@ -623,6 +700,7 @@ export function SettingsScreen({
             label="카메라 연출"
             testId="camera-fx"
             value={settings.cameraFx}
+            defaultValue={d.cameraFx}
             min={0}
             max={1}
             step={0.1}
@@ -636,6 +714,7 @@ export function SettingsScreen({
             label="타격 효과 크기"
             testId="opt-hit-effect"
             value={settings.hitEffectSize}
+            defaultValue={d.hitEffectSize}
             options={
               [
                 ['large', '크게'],
@@ -652,6 +731,7 @@ export function SettingsScreen({
             label="번쩍임 줄이기"
             testId="opt-reduced-flash"
             value={settings.reducedFlash}
+            defaultValue={d.reducedFlash}
             onChange={(v) => set('reducedFlash', v)}
             help="타격 효과·FEVER·카메라 연출을 약하게 하고, 기어의 불빛과 판정선의 일렁임은 깜빡이지 않고 천천히 오르내리게 합니다."
           />
@@ -660,6 +740,7 @@ export function SettingsScreen({
             label="배경 밝기"
             testId="opt-bg-brightness"
             value={settings.bgBrightness}
+            defaultValue={d.bgBrightness}
             min={0}
             max={1}
             step={0.05}
@@ -673,6 +754,7 @@ export function SettingsScreen({
             label="배경 영상 (BGA)"
             testId="opt-bga"
             value={settings.bga}
+            defaultValue={d.bga}
             onChange={(v) => set('bga', v)}
             help="곡에 등록한 배경 영상을 재생합니다."
           />
@@ -687,6 +769,7 @@ export function SettingsScreen({
             label="음악"
             testId="opt-music-volume"
             value={settings.musicVolume}
+            defaultValue={d.musicVolume}
             min={0}
             max={1}
             step={0.05}
@@ -700,6 +783,7 @@ export function SettingsScreen({
             label="효과음"
             testId="opt-sfx-volume"
             value={settings.sfxVolume}
+            defaultValue={d.sfxVolume}
             min={0}
             max={1}
             step={0.05}
@@ -708,12 +792,13 @@ export function SettingsScreen({
             onChange={(v) => set('sfxVolume', v)}
             help="타격음의 크기입니다."
           />
-          <Toggle {...row} label="타격음" testId="opt-hit-sound" value={settings.hitSound} onChange={(v) => set('hitSound', v)} help="키를 누를 때 짧은 소리를 냅니다." />
+          <Toggle {...row} label="타격음" testId="opt-hit-sound" value={settings.hitSound} defaultValue={d.hitSound} onChange={(v) => set('hitSound', v)} help="키를 누를 때 짧은 소리를 냅니다." />
           <Toggle
             {...row}
             label="키음"
             testId="keysound-toggle"
             value={settings.keysound}
+            defaultValue={d.keysound}
             onChange={(v) => set('keysound', v)}
             help="생성 채보의 노트마다 그 노트가 따라가는 악기 소리를 붙여, 치면 그 소리가 나고 놓치면 빠집니다 (가져온 BMS·bmson은 항상 원래 키음)."
           />
@@ -721,17 +806,24 @@ export function SettingsScreen({
       );
       break;
     case 'keys':
-      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} onCapture={setCapture} />;
+      content = <KeysPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onCapture={setCapture} />;
       break;
     case 'pad':
-      content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} onCapture={setCapture} />;
+      content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onDefault={setHelpDefault} onCapture={setCapture} />;
+      break;
+    case 'mapper':
+      content = <MapperPanel onHelp={showHelp} onDefault={setHelpDefault} onRows={focusLateRows} />;
       break;
     case 'advanced':
-      content = <AdvancedPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={setHelp} undo={canUndoReset} onReset={onReset} onUndo={onUndoReset} />;
+      content = (
+        <AdvancedPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onDefault={setHelpDefault} undo={canUndoReset} onReset={onReset} onUndo={onUndoReset} />
+      );
       break;
   }
 
-  const sideHelp = help || defaultHelp(tab);
+  // the two rows whose help goes through every gear in turn show the picked gear's words only
+  const gear = DECK_NAMES[settings.parts.deck];
+  const gearHelp = help === GEAR_HELP || help === HUD_TYPE_HELP ? pickedHelp(help, GEAR_NAMES, gear) : null;
   return (
     <div className="menu-screen settings-screen screen-enter" data-testid="settings-screen">
       <TopBar name="설정">
@@ -742,7 +834,17 @@ export function SettingsScreen({
       <div className="settings-body">
         <nav className="settings-nav" role="tablist" aria-label="설정 탭">
           {TABS.map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} data-testid={`settings-tab-${id}`} onClick={() => setTab(id)}>
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? 'active' : ''}
+              data-testid={`settings-tab-${id}`}
+              onClick={() => {
+                awaited.current = false;
+                setTab(id);
+              }}
+            >
               {label}
             </button>
           ))}
@@ -751,30 +853,41 @@ export function SettingsScreen({
             <kbd>E</kbd> 탭 이동
           </span>
         </nav>
-        <section className="settings-rows" ref={rows} role="tabpanel" aria-label={heading}>
-          <h2>
-            {heading} · {subtitle}
-          </h2>
-          <Fragment key={tab}>{content}</Fragment>
+        <section className="settings-main" role="tabpanel" aria-label={heading}>
+          <header className="settings-head">
+            <h2>{heading}</h2>
+            <span>{subtitle}</span>
+          </header>
+          <div className="settings-rows" ref={rows}>
+            <Fragment key={tab}>{content}</Fragment>
+          </div>
+          {/* what the row under the cursor means, and its default where its value is another */}
+          <div className="settings-help" data-testid="settings-help">
+            {gearHelp ? (
+              <>
+                {gearHelp.intro && <p>{gearHelp.intro}</p>}
+                <p className="help-picked">
+                  <b>{gear}</b> {gearHelp.clause}
+                </p>
+                {gearHelp.outro && <p>{gearHelp.outro}</p>}
+              </>
+            ) : (
+              <p>{help || defaultHelp(tab)}</p>
+            )}
+            {helpDefault !== null && <span className="help-default">기본값 {helpDefault}</span>}
+          </div>
         </section>
+        {/* the gear as it will be played, whatever the tab: every change shows on it at once */}
         <aside className="settings-side">
-          {/* the gear as it will be played, where a row changes how it looks (the hit effects too) */}
-          {tab === 'speed' || tab === 'gear' || tab === 'notes' || tab === 'fx' ? (
-            <>
-              <span className="settings-side-head">
-                <span>미리보기</span>
-                <span>{previewMode}</span>
-              </span>
-              <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'notes' ? colorDraft ?? undefined : undefined} />
-              <p className="settings-help" data-testid="settings-help">
-                {sideHelp}
-              </p>
-            </>
-          ) : (
-            <p className="settings-help" data-testid="settings-help">
-              {sideHelp}
-            </p>
-          )}
+          <div className="settings-side-head">
+            <span>미리보기</span>
+            <b>{previewMode}</b>
+            <span className="preview-time" title="노트가 나타나서 판정선에 닿기까지의 시간 (녹색 숫자)">
+              <span>보이는 시간</span>
+              <b data-testid="green-number">{Math.round(greenNumber(settings.hiSpeed, activeCovers(settings)))}ms</b>
+            </span>
+          </div>
+          <GearPreview settings={settings} keyMode={previewMode} laneColors={tab === 'notes' ? colorDraft ?? undefined : undefined} visibleTime={false} />
         </aside>
       </div>
       <HintBar
@@ -1112,11 +1225,13 @@ function GamepadPanel({
   settings,
   onSettingsChange,
   onHelp,
+  onDefault,
   onCapture,
 }: {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onHelp: (help: string) => void;
+  onDefault: (text: string | null) => void;
   onCapture: (kind: CaptureKind | null) => void;
 }) {
   const [pads, setPads] = useState<string[]>([]);
@@ -1211,7 +1326,7 @@ function GamepadPanel({
   const laneModes = (code: string | null) => (code ? enabledKeyModes.filter((m) => padBindingsFor(settings, m).includes(code)) : []);
   const playButtons = padPlayOf(settings);
   const menu = padMenuFor(settings);
-  const row = { onHelp };
+  const row = { onHelp, onDefault };
   return (
     <div data-testid="gamepad-settings">
       <p className="settings-status" data-testid="gamepad-status">
@@ -1222,6 +1337,7 @@ function GamepadPanel({
         label="턴테이블 감도"
         testId="opt-tt-steps"
         value={settings.turntableSteps}
+        defaultValue={DEFAULT_SETTINGS.turntableSteps}
         min={1}
         max={TURNTABLE_STEPS_MAX}
         step={1}
@@ -1235,6 +1351,7 @@ function GamepadPanel({
         label="턴테이블 정지 판정"
         testId="opt-tt-release"
         value={settings.turntableReleaseMs}
+        defaultValue={DEFAULT_SETTINGS.turntableReleaseMs}
         min={TURNTABLE_RELEASE_MIN}
         max={TURNTABLE_RELEASE_MAX}
         step={10}
@@ -1404,12 +1521,15 @@ const MAPPER_STATE: Record<MapperStatus['state'], string> = {
 };
 
 /**
- * Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): whether it makes the
- * charts here, and its setup (its own Python with CUDA PyTorch and the model, a few GB, downloaded
- * once). Without an NVIDIA GPU, or before it is set up, charts come from the built-in generator.
+ * Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md), as a tab of its own:
+ * whether it makes the charts here, its setup (its own Python with CUDA PyTorch and the model, a
+ * few GB, downloaded once) and its settings. Without an NVIDIA GPU, or before it is set up, charts
+ * come from the built-in generator. `onRows` says the server has answered: there are rows now.
  */
-function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
+function MapperPanel({ onHelp, onDefault, onRows }: { onHelp: (help: string) => void; onDefault: (text: string | null) => void; onRows: () => void }) {
   const [status, setStatus] = useState<MapperStatus | null>(null);
+  /** The server did not answer: the tab says so in place of the generator's state. */
+  const [unreachable, setUnreachable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -1420,9 +1540,14 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
         .then((m) => {
           if (!alive) return;
           setStatus(m);
+          setUnreachable(false);
           if (m.state === 'installing') timer = setTimeout(poll, 2000);
         })
-        .catch(() => alive && setStatus(null));
+        .catch(() => {
+          if (!alive) return;
+          setStatus(null);
+          setUnreachable(true);
+        });
     };
     poll();
     return () => {
@@ -1430,6 +1555,10 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
       if (timer) clearTimeout(timer);
     };
   }, [status?.state === 'installing']);
+  const answered = status !== null;
+  useEffect(() => {
+    if (answered) onRows();
+  }, [answered, onRows]);
   const install = () => {
     setError(null);
     api
@@ -1437,17 +1566,16 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
       .then(setStatus)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
-  if (status === null) return null;
+  if (status === null) return unreachable ? <p className="settings-note">분석 서버에 연결할 수 없습니다.</p> : null;
   const gpu = status.runtime?.gpu ?? status.gpus[0]?.name ?? null;
   const progress = status.progress ? `${status.progress.step} (${Math.round(status.progress.fraction * 100)}%)` : null;
   return (
-    <div className="settings-group" data-testid="mapper-status">
-      <h3>AI 채보 (Mapperatorinator)</h3>
+    <div data-testid="mapper-status">
       <p className="settings-note">
         이 빌드는 채보를 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)로 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와
         모델, 약 4GB) 채보를 열 때마다 GPU로 만듭니다(곡 길이에 따라 1–3분). 설치 전이나 NVIDIA GPU가 없는 PC에서는 기존 생성기로 만듭니다.
       </p>
-      <table className="backend-table">
+      <table className="backend-table pairs">
         <tbody>
           <tr>
             <td>상태</td>
@@ -1475,13 +1603,18 @@ function MapperGroup({ onHelp }: { onHelp: (help: string) => void }) {
       )}
       {(status.state === 'missing' || status.state === 'failed' || status.state === 'ready') && (
         <div className="row">
-          <button type="button" data-testid="mapper-install" onClick={install}>
+          <button
+            type="button"
+            data-testid="mapper-install"
+            onFocus={() => onHelp('PyTorch CUDA와 모델(약 4GB)을 내려받아 설치합니다. 설치한 뒤에는 다시 설치할 수 있습니다.')}
+            onClick={install}
+          >
             {status.state === 'ready' ? '다시 설치' : status.state === 'failed' ? '다시 시도' : '설치 (약 4GB 내려받기)'}
           </button>
         </div>
       )}
       {status.settings && status.state !== 'unsupported' && (
-        <MapperSettingsRows settings={status.settings} autoPrecision={autoPrecision(status)} onHelp={onHelp} onSaved={setStatus} onError={setError} />
+        <MapperSettingsRows settings={status.settings} autoPrecision={autoPrecision(status)} onHelp={onHelp} onDefault={onDefault} onSaved={setStatus} onError={setError} />
       )}
     </div>
   );
@@ -1504,15 +1637,18 @@ function MapperSettingsRows({
   settings,
   autoPrecision: auto,
   onHelp,
+  onDefault,
   onSaved,
   onError,
 }: {
   settings: MapperSettings;
   autoPrecision: string | null;
   onHelp: (help: string) => void;
+  onDefault: (text: string | null) => void;
   onSaved: (s: MapperStatus) => void;
   onError: (e: string | null) => void;
 }) {
+  const row = { onHelp, onDefault };
   const [shown, setShown] = useState(settings);
   useEffect(() => setShown(settings), [settings]);
   const change = <K extends keyof MapperSettings>(key: K, value: MapperSettings[K]) => {
@@ -1527,18 +1663,20 @@ function MapperSettingsRows({
   return (
     <div className="mapper-settings" data-testid="mapper-settings">
       <Toggle
-        onHelp={onHelp}
+        {...row}
         label="AI 채보 쓰기"
         testId="mapper-enabled"
         value={shown.enabled}
+        defaultValue={MAPPER_DEFAULTS.enabled}
         onChange={(v) => change('enabled', v)}
         help="끄면 Mapperatorinator를 쓰지 않고 기존 생성기로 채보를 만듭니다. 설치한 실행 환경은 그대로 남습니다."
       />
       <Choice
-        onHelp={onHelp}
+        {...row}
         label="모델"
         testId="mapper-model"
         value={shown.model}
+        defaultValue={MAPPER_DEFAULTS.model}
         options={
           [
             ['v32', 'v32 (기본)'],
@@ -1549,10 +1687,11 @@ function MapperSettingsRows({
         help={`v32-mini는 v32보다 작아 빠르고 GPU 메모리를 덜 쓰지만 채보 품질이 낮을 수 있습니다. 처음 쓸 때 가중치(약 0.2GB)를 한 번 더 내려받습니다.${remade}`}
       />
       <Choice
-        onHelp={onHelp}
+        {...row}
         label="연산 정밀도"
         testId="mapper-precision"
         value={shown.precision}
+        defaultValue={MAPPER_DEFAULTS.precision}
         options={
           [
             ['auto', auto ? `자동 (${auto})` : '자동'],
@@ -1564,10 +1703,11 @@ function MapperSettingsRows({
         help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요. 실패하면 그 채보는 기존 생성기로 만듭니다.`}
       />
       <NumberOption
-        onHelp={onHelp}
+        {...row}
         label="난이도 배율"
         testId="mapper-stars"
         value={shown.starsScale}
+        defaultValue={MAPPER_DEFAULTS.starsScale}
         min={0.5}
         max={2}
         step={0.05}
@@ -1577,10 +1717,11 @@ function MapperSettingsRows({
         help={`티어마다 Mapperatorinator에 요청하는 osu! 별점에 곱합니다. 채보가 티어보다 쉽게 나오면 1보다 크게, 어렵게 나오면 작게 하세요. 화면의 레벨은 만들어진 노트를 앱이 잰 값입니다.${remade}`}
       />
       <OptionalNumberOption
-        onHelp={onHelp}
+        {...row}
         label="롱노트 비율"
         testId="mapper-holds"
         value={shown.holdNoteRatio}
+        defaultValue={MAPPER_DEFAULTS.holdNoteRatio}
         min={0}
         max={1}
         step={0.05}
@@ -1591,10 +1732,11 @@ function MapperSettingsRows({
         help={`전체 노트 가운데 롱노트의 비율을 요청합니다. 자동이면 모델이 곡에 맞게 정합니다.${remade}`}
       />
       <OptionalNumberOption
-        onHelp={onHelp}
+        {...row}
         label="다양성"
         testId="mapper-temperature"
         value={shown.temperature}
+        defaultValue={MAPPER_DEFAULTS.temperature}
         min={0.3}
         max={1.5}
         step={0.05}
@@ -1605,26 +1747,29 @@ function MapperSettingsRows({
         help={`모델이 노트를 고를 때의 무작위성(temperature)입니다. 높이면 패턴이 다양해지고 낮추면 무난해집니다. 자동은 모델 기본값(v32: 0.9)입니다.${remade}`}
       />
       <Toggle
-        onHelp={onHelp}
+        {...row}
         label="앱의 박자 쓰기"
         testId="mapper-timing"
         value={shown.useAppTiming}
+        defaultValue={MAPPER_DEFAULTS.useAppTiming}
         onChange={(v) => change('useAppTiming', v)}
         help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 모델의 박자 찾기 패스를 건너뛰어 빨리 만들어집니다. 끄면 모델이 곡 전체를 한 번 더 지나며 박자를 직접 찾아 시간이 더 들고, BPM · 마디선이 앱과 어긋날 수 있습니다. 이때 채보의 BPM은 모델이 만든 것이라 정밀도 문제가 BPM에도 미칩니다. 그런 채보는 채보 정보의 "AI 생성" 줄에 "모델 박자"가 붙습니다.${remade}`}
       />
       <Toggle
-        onHelp={onHelp}
+        {...row}
         label="히트사운드 생성"
         testId="mapper-hitsounds"
         value={shown.hitsounds}
+        defaultValue={MAPPER_DEFAULTS.hitsounds}
         onChange={(v) => change('hitsounds', v)}
         help={`모델이 노트마다 히트사운드 · 볼륨 토큰도 만듭니다(노트 하나의 토큰 5개 중 2개). 앱은 히트사운드를 쓰지 않으므로 끄면 그만큼 빨라집니다. 대신 모델이 '히트사운드 없는 맵'처럼 채보를 만들어 패턴이 조금 달라질 수 있습니다.${remade}`}
       />
       <NumberOption
-        onHelp={onHelp}
+        {...row}
         label="이전 문맥"
         testId="mapper-lookback"
         value={shown.lookback}
+        defaultValue={MAPPER_DEFAULTS.lookback}
         min={0.3}
         max={0.8}
         step={0.1}
@@ -1634,10 +1779,11 @@ function MapperSettingsRows({
         help={`16.4초 창의 앞부분 얼마를 이미 만든 노트(문맥)로 채울지입니다. 앞 미리보기와 합쳐 90%까지이고, 나머지만큼 창이 앞으로 나아가므로 둘을 줄이면 창 수가 줄어 빨라집니다. 50% 아래로 내리면 8초가 넘는 롱노트가 창 경계에서 끊길 수 있습니다.${remade}`}
       />
       <NumberOption
-        onHelp={onHelp}
+        {...row}
         label="앞 미리보기"
         testId="mapper-lookahead"
         value={shown.lookahead}
+        defaultValue={MAPPER_DEFAULTS.lookahead}
         min={0}
         max={0.6}
         step={0.1}
@@ -1647,10 +1793,11 @@ function MapperSettingsRows({
         help={`창의 뒷부분 얼마를 노트 없이 '다음에 올 음악'으로만 보여 줄지입니다. 줄이면 창이 더 나아가 빨라지지만, 모델이 앞을 덜 보고 노트를 놓습니다.${remade}`}
       />
       <Toggle
-        onHelp={onHelp}
+        {...row}
         label="병렬 생성"
         testId="mapper-parallel"
         value={shown.parallel}
+        defaultValue={MAPPER_DEFAULTS.parallel}
         onChange={(v) => change('parallel', v)}
         help={`창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다(모자라면 그 채보는 기존 생성기로). 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`}
       />
@@ -1661,11 +1808,13 @@ function MapperSettingsRows({
 /**
  * The window or full screen, the analysis backends (with how to install them), and a full reset: a
  * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
+ * (The chart generator's setup and settings are a tab of their own: MapperPanel.)
  */
 function AdvancedPanel({
   settings,
   onSettingsChange,
   onHelp,
+  onDefault,
   undo,
   onReset,
   onUndo,
@@ -1673,6 +1822,7 @@ function AdvancedPanel({
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onHelp: (help: string) => void;
+  onDefault: (text: string | null) => void;
   /** A reset can be undone. */
   undo: boolean;
   onReset: () => void;
@@ -1698,9 +1848,11 @@ function AdvancedPanel({
     <>
       <Choice
         onHelp={onHelp}
+        onDefault={onDefault}
         label="화면 모드"
         testId="opt-display-mode"
         value={settings.displayMode}
+        defaultValue={DEFAULT_SETTINGS.displayMode}
         options={
           [
             ['window', '창'],
@@ -1714,7 +1866,6 @@ function AdvancedPanel({
             : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
         }
       />
-      <MapperGroup onHelp={onHelp} />
       <div className="settings-group" data-testid="backend-status">
         <h3>분석 백엔드</h3>
         <p className="settings-note">

@@ -2768,73 +2768,159 @@ p.hint {
 
 /* ---------- settings ---------- */
 
-/* tabs | rows | the gear or the chosen row's help */
+/* the tabs | the picked tab's rows over the help of the row under the cursor | the gear as it will
+   be played. In a window narrower than the menus are drawn for the gear's column gives way first:
+   the rows keep their width, as the longest help is measured for it */
 .settings-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 12.5rem minmax(0, 1fr) 22.5rem;
-  gap: var(--sp-6);
-  padding: var(--sp-6);
+  grid-template-columns: 10.5rem minmax(38rem, 1fr) minmax(14rem, 20.5rem);
+  gap: 2.5rem;
+  margin: 1.25rem var(--gutter) 0.75rem;
 }
 
+/* the tabs: plain names, the picked one a paper plate */
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
   min-height: 0;
 }
 
 .settings-nav button {
+  flex-shrink: 0;
   justify-content: flex-start;
-  padding: 0 var(--sp-3);
+  min-height: 0;
+  height: 2.375rem;
+  padding: 0 0.875rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
   color: var(--text-dim);
   background: transparent;
-  border-color: transparent;
+  border: 0;
 }
 
 .settings-nav button:hover:not(:disabled) {
   color: var(--text);
   background: var(--raised);
-  border-color: transparent;
 }
 
 .settings-nav button.active,
 .settings-nav button.active:hover:not(:disabled) {
-  font-weight: 700;
-  color: var(--text);
-  background: var(--raised-hover);
-  box-shadow: inset 0.1875rem 0 0 var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .settings-nav-hint {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
-  margin-top: auto;
-  padding: 0 var(--sp-3);
+  gap: 0.4375rem;
+  margin-top: 0.75rem;
+  padding-left: 0.875rem;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-dim);
 }
 
-.settings-rows {
+.settings-nav-hint kbd + kbd {
+  margin-left: -0.1875rem;
+}
+
+.settings-main {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  /* room for the focused row's outline */
-  padding: 0.125rem;
 }
 
-.settings-rows h2 {
-  margin: 0 0 var(--sp-2);
+/* the tab's name, and after it what its rows are about */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  margin-bottom: 0.875rem;
+  white-space: nowrap;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.settings-head span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+
+/* the rows scroll under the tab's name where they do not fit (the one under the cursor is kept in sight) */
+.settings-rows {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settings-rows::-webkit-scrollbar {
+  display: none;
+}
+
+/* (a row that is a button is as wide as the others, inside a group of its own too) */
+.settings-rows button.opt {
+  width: 100%;
+}
+
+/* what the row under the cursor means, under a hairline: as tall as its words. The tallest is a
+   gear's (its own words on two lines, between what stands before and after them) with its default
+   named under it: 15rem */
+.settings-help {
+  flex: none;
+  min-height: 3.5rem;
+  max-height: 16rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+  border-top: 1px solid var(--line);
+}
+
+.settings-help p {
+  margin: 0;
+}
+
+.settings-help p + p {
+  margin-top: 0.25rem;
+}
+
+/* the picked gear's own words, out of a help that goes through every gear */
+.settings-help .help-picked {
+  color: var(--text);
+}
+
+.help-picked b {
+  margin-right: 0.25rem;
+  font-weight: 800;
+}
+
+/* the row's default, named while its value is another */
+.help-default {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.0625rem 0.5rem;
   font-size: var(--fs-label);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
 }
 
 /* a setting: its name, and its value between ‹ ›. The row under the cursor is a paper plate, and
@@ -3002,23 +3088,23 @@ button.opt:active:not(:disabled) {
   border-color: currentColor;
 }
 
-/* keys and pad controls: the mode, its caps and its buttons */
+/* a row of more than a value (a mode's keys, a pad's controls, the lanes' colours): its name, and
+   beside it its caps and buttons, each of them a stop of the cursor */
 .opt.opt-block {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   align-items: start;
-  padding: var(--sp-3) 0.875rem;
+  padding: var(--sp-2) 0.875rem;
 }
 
 .opt-block > .opt-name {
-  line-height: var(--control-h);
+  line-height: 2.25rem;
 }
 
 .opt-keys {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2) var(--sp-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
 }
 
 .opt-actions {
@@ -3027,47 +3113,85 @@ button.opt:active:not(:disabled) {
   gap: var(--sp-1);
 }
 
+/* a line of text among the rows: what is connected, what a group is for */
 .settings-status,
 .settings-note {
   margin: var(--sp-2) 0;
+  padding: 0 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
   color: var(--text-dim);
 }
 
+.settings-status:first-child,
+.settings-note:first-child {
+  margin-top: 0;
+}
+
+/* a group of a tab under its own name: a small bold heading over a hairline, nothing around it */
 .settings-group {
   flex-shrink: 0;
-  padding: var(--sp-4);
-  background: var(--panel);
-  border-radius: var(--radius-sm);
+  margin-top: 1.125rem;
 }
 
 .settings-group h3 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-body);
+  margin: 0 0 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: var(--fs-label);
   font-weight: 700;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
 }
 
-.settings-group .row {
-  margin-bottom: 0;
+/* buttons of a tab or of one of its groups, in line with the rows' names */
+.settings-rows .row {
+  margin: var(--sp-3) 0;
+  padding: 0 0.875rem;
 }
 
+.row > .settings-status {
+  margin: 0;
+  padding: 0;
+}
+
+/* the gear as it will be played, under a line that names its key mode and the visible time */
 .settings-side {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
   min-height: 0;
 }
 
 .settings-side-head {
   display: flex;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.625rem;
+  flex-shrink: 0;
+  height: 2.25rem;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 
-.settings-help {
-  margin: 0;
-  color: var(--text-dim);
+.settings-side-head b {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.settings-side-head .preview-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* the "green number", as the help of 노트 속도 calls it */
+.settings-side-head .preview-time b {
+  color: var(--g-high);
 }
 
 /* the gear as it will be played, with the green number */
@@ -3121,16 +3245,27 @@ button.opt:active:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 1100px) {
+/* in the settings it fills its column down to the key hints: a well darker than the screen, no frame */
+.settings-side .gear-preview {
+  min-height: 0;
+  background: color-mix(in srgb, var(--bg) 45%, black);
+  border: 0;
+}
+
+/* a window too narrow for the three columns (their least widths, the gaps and the margins): the
+   gear is left out */
+@media (max-width: 1179px) {
   .settings-body {
-    grid-template-columns: 10rem minmax(0, 1fr);
-    overflow-y: auto;
+    grid-template-columns: 10.5rem minmax(0, 1fr);
   }
 
   .settings-side {
-    grid-column: 2;
+    display: none;
   }
+}
 
+/* (the song select's own gear, in a narrow window) */
+@media (max-width: 1100px) {
   .gear-preview {
     flex: none;
     height: 20rem;
@@ -3143,21 +3278,25 @@ button.opt:active:not(:disabled) {
   gap: var(--sp-1);
 }
 
+/* a lane's key or a pad's control: an outlined cap over a line in its lane's colour. The cap
+   under the cursor, one waiting for its key and one held in a check is a paper plate */
 .key-cap {
-  --lane: var(--line-strong);
+  --lane: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 3rem;
-  min-height: var(--control-h);
+  min-width: 2.75rem;
+  min-height: 2.25rem;
   padding: 0 var(--sp-2);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: var(--fs-body);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
   font-weight: 700;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-bottom: 0.25rem solid var(--lane);
-  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-key);
+  box-shadow: inset 0 -0.1875rem 0 var(--lane);
 }
 
 .key-cap.lane-white { --lane: var(--lane-white); }
@@ -3167,17 +3306,16 @@ button.opt:active:not(:disabled) {
 .key-cap.lane-sideL { --lane: var(--lane-sideL); }
 .key-cap.lane-sideR { --lane: var(--lane-sideR); }
 
-.key-cap:hover:not(:disabled) {
-  border-bottom-color: var(--lane);
-}
-
+.key-cap:focus,
+:root[data-input='pad'] .key-cap:focus,
+:root[data-input='controller'] .key-cap:focus,
+button.key-cap:focus:hover:not(:disabled),
 .key-cap.active,
-.key-cap.active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 35%, var(--surface));
-}
-
-.key-cap.seen:not(.active) {
-  background: color-mix(in srgb, var(--g-high) 12%, var(--surface));
+button.key-cap.active:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  outline: none;
 }
 
 /* a lane's keys over its second keys, column by column */
@@ -3190,8 +3328,8 @@ button.opt:active:not(:disabled) {
 
 .key-grid {
   display: grid;
-  grid-template-columns: repeat(var(--lanes), minmax(3rem, auto));
-  grid-template-rows: var(--control-h) 2rem;
+  grid-template-columns: repeat(var(--lanes), minmax(2.75rem, auto));
+  grid-template-rows: 2.25rem 1.75rem;
   gap: var(--sp-1);
 }
 
@@ -3202,7 +3340,7 @@ button.opt:active:not(:disabled) {
 /* the mode's name by its keys, "보조 키" by its second keys */
 .opt-block > .key-row-names {
   display: grid;
-  grid-template-rows: var(--control-h) 2rem;
+  grid-template-rows: 2.25rem 1.75rem;
   row-gap: var(--sp-1);
   align-items: center;
   line-height: 1.2;
@@ -3215,12 +3353,12 @@ button.opt:active:not(:disabled) {
 }
 
 .key-cap.second {
-  min-height: 2rem;
+  min-height: 1.75rem;
   font-size: var(--fs-label);
-  border-bottom-width: 0.125rem;
+  box-shadow: inset 0 -0.125rem 0 var(--lane);
 }
 
-.key-cap.second:not(.active) {
+.key-cap.second:not(.active, :focus) {
   color: var(--text-dim);
 }
 
@@ -3235,10 +3373,10 @@ button.opt:active:not(:disabled) {
 /* the lane's own colour fills it (inline): what the notes of the lane are drawn in */
 .lane-swatch {
   min-width: 0;
-  min-height: 3rem;
+  min-height: 2.25rem;
   padding: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 1.0625rem;
   font-weight: 700;
   color: var(--text);
   border: 1px solid var(--line-strong);
@@ -3273,7 +3411,7 @@ button.opt:active:not(:disabled) {
 .color-box {
   position: relative;
   width: 15rem;
-  height: 8.75rem;
+  height: 7.5rem;
   background:
     linear-gradient(to top, var(--picker-black), transparent),
     linear-gradient(to right, var(--picker-white), hsl(calc(var(--hue) * 1deg) 100% 50%));
@@ -3327,7 +3465,9 @@ button.opt:active:not(:disabled) {
 
 .hex-field input {
   width: 7rem;
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .color-preset-actions {
@@ -3342,13 +3482,15 @@ button.opt:active:not(:disabled) {
   width: 12.5rem;
 }
 
-/* nothing bound: an empty slot (a dash would read as the Minus key) */
-.key-cap.empty:not(.active) {
-  background: transparent;
+/* nothing bound: an empty slot, fainter than a key's (a dash would read as the Minus key) */
+.key-cap.empty:not(.active, :focus) {
+  border-color: var(--line);
 }
 
 /* a key a lane takes from an in-play function, or two functions on one key */
-.key-cap.clash {
+.key-cap.clash,
+.key-cap.clash:focus,
+button.key-cap.clash:hover:not(:disabled) {
   border-color: var(--g-low);
 }
 
@@ -3356,6 +3498,7 @@ button.opt:active:not(:disabled) {
   margin: 0;
   font-size: var(--fs-label);
   font-weight: 700;
+  line-height: 1.55;
   color: var(--text-dim);
 }
 
@@ -3363,12 +3506,18 @@ button.opt:active:not(:disabled) {
   color: var(--g-low);
 }
 
-/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a row */
+/* (under a group's own table, in line with it) */
+.settings-group > .key-note {
+  padding: 0 0.875rem;
+}
+
+/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a line, a
+   hairline under each */
 .play-key-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-1) var(--sp-6);
-  margin-bottom: var(--sp-2);
+  column-gap: 2rem;
+  margin: 0 0.875rem var(--sp-2);
 }
 
 .play-key {
@@ -3376,6 +3525,11 @@ button.opt:active:not(:disabled) {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+  min-height: 2.75rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
 }
 
 .key-cap.fixed {
@@ -3383,25 +3537,31 @@ button.opt:active:not(:disabled) {
 }
 
 /* inferred from the lanes until assigned */
-.key-cap.inferred:not(.active) {
+.key-cap.inferred:not(.active, :focus) {
   color: var(--text-dim);
   border-style: dashed;
-  border-bottom-style: solid;
 }
 
+/* a pad's button in play: its name, its cap and what it does, a hairline under each */
 .pad-row {
   display: grid;
   grid-template-columns: 4.5rem auto minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
-  margin-bottom: var(--sp-1);
+  min-height: 2.75rem;
+  margin: 0 0.875rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .pad-row-name {
+  font-size: 1.0625rem;
   font-weight: 600;
+  color: var(--text-dim);
 }
 
 .pad-row-note {
+  font-size: 0.9375rem;
+  line-height: 1.4;
   color: var(--text-dim);
 }
 
@@ -3409,27 +3569,60 @@ button.opt:active:not(:disabled) {
   color: var(--g-low);
 }
 
+/* a check opened under its row (the keys held at once, what a pad sends), between two hairlines:
+   a cap not pressed yet is dim, one that came in has a full outline, one held is a paper plate */
 .ghost-test {
   flex-shrink: 0;
-  margin: var(--sp-2) 0;
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--panel);
-  border-radius: var(--radius-sm);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-3) 0.875rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
+.ghost-test .hint {
+  margin: var(--sp-2) 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.ghost-test .key-cap:not(.seen, .active) {
+  color: var(--text-dim);
+}
+
+.key-cap.seen:not(.active) {
+  border-color: var(--text);
+}
+
+/* what the server reports (the analysis backends, the chart generator's state): hairline rows */
 .backend-table {
-  width: 100%;
+  width: calc(100% - 1.75rem);
+  margin: var(--sp-2) 0.875rem;
   border-collapse: collapse;
+  font-size: 0.9375rem;
 }
 
 .backend-table td {
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  padding: 0.3125rem 0.75rem 0.3125rem 0;
   vertical-align: top;
-  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-.backend-table td:nth-child(-n + 2) {
+.backend-table td:last-child {
+  padding-right: 0;
+}
+
+.backend-table td:first-child {
+  color: var(--text-dim);
   white-space: nowrap;
+}
+
+.backend-table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+/* a name and its value */
+.backend-table.pairs td:first-child {
+  width: 6rem;
 }
 
 .backend-table .ok {
@@ -3443,27 +3636,24 @@ button.opt:active:not(:disabled) {
   white-space: nowrap;
 }
 
+/* a licence, in full: it wraps anywhere (a path in it has no spaces) */
+.backend-table .hint {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .install-hint {
-  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-3) 0.875rem 0;
+  padding: var(--sp-3) 0.875rem;
   /* long lines wrap: nothing to scroll sideways for */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: var(--fs-label);
   font-weight: 700;
-  background: var(--sunken);
-  border-radius: var(--radius-sm);
-}
-
-.skin-json {
-  width: 100%;
-  padding: var(--sp-2) var(--sp-3);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text);
-  background: var(--sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  line-height: 1.6;
+  color: var(--text-dim);
+  background: var(--surface);
 }
 
 /* ---------- calibration ---------- */
