@@ -1475,7 +1475,7 @@
 
 ### 브라우저의 기본 동작이 남는 키
 
-페이지가 `preventDefault`하지 않은 키입니다. 브라우저에서 F5는 새로 고침, F3·Ctrl+F는 찾기, F1은 도움말, F11은 전체 화면, Tab은 브라우저 포커스 이동입니다 (데스크톱 앱에서는 메뉴가 없어 대부분 아무 일도 없습니다).
+페이지가 `preventDefault`하지 않은 키입니다. 브라우저에서 F5는 새로 고침, F3·Ctrl+F는 찾기, F1은 도움말, F11은 전체 화면, Tab은 브라우저 포커스 이동입니다 (데스크톱 앱의 메뉴에는 F5 가속키가 없지만 보기 메뉴의 새로 고침(Ctrl+R)은 있습니다: `desktop/main.js`).
 
 | 키 | 상태 수 | 상태 |
 |---|---|---|
@@ -1517,6 +1517,9 @@
 | select+info+youtube+analysis | → select+info+youtube | 누르기 |  |  |
 | result | → select | 선곡으로 |  | 브라우저 기본 동작 남음 |
 | settings:play | 설정 difficultySystem, lastDifficulty |  |  |  |
+| settings:notes | 설정 parts |  |  |  |
+| result:details | → select | 선곡으로 |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 설정 displayMode | 누르기 |  |  |
 
 #### 패드 B
 
@@ -1537,6 +1540,10 @@
 | result | → select |  |  |  |
 | calibration:input+running | → calibration:input | 멈추기 |  |  |
 | settings:play | → select | 완료 |  |  |
+| settings:notes | → select | 완료 |  |  |
+| result:details | → result | 상세 닫기 |  |  |
+| settings:advanced | → select | 완료 |  |  |
+| settings:fx | → select | 완료 |  |  |
 
 #### 패드 X
 
@@ -1551,6 +1558,7 @@
 | select+info+analysis | → select+options:rules | 플레이 옵션 |  |  |
 | select+info+youtube+analysis | → select+options:rules | 플레이 옵션 |  |  |
 | result | → play:running | 다시 하기 |  |  |
+| result:details | → play:running | 다시 하기 |  |  |
 
 #### 패드 Y
 
@@ -1571,6 +1579,10 @@
 | select+info+youtube+analysis | 설정 lastKeyMode |  |  |  |
 | result | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:play | 포커스 → opt-ruleset |  |  | 브라우저 기본 동작 남음 |
+| settings:notes | 화면 바뀜 · 포커스 → opt-side-style |  |  | 브라우저 기본 동작 남음 |
+| result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 포커스 → reset-all |  |  | 브라우저 기본 동작 남음 |
+| settings:fx | 포커스 → opt-hit-effect |  |  | 브라우저 기본 동작 남음 |
 
 #### 패드 LB
 
@@ -1585,6 +1597,9 @@
 | settings:judge | → settings:play | 탭 |  |  |
 | settings:gear | → settings:speed | 탭 |  |  |
 | settings:play | → settings:advanced | 탭 |  |  |
+| settings:notes | → settings:gear | 탭 |  |  |
+| settings:advanced | → settings:pad | 탭 |  |  |
+| settings:fx | → settings:notes | 탭 |  |  |
 
 #### 패드 RB
 
@@ -1600,6 +1615,9 @@
 | settings:judge | → settings:speed | 탭 |  |  |
 | settings:gear | → settings:notes | 탭 |  |  |
 | settings:play | → settings:judge | 탭 |  |  |
+| settings:notes | → settings:fx | 탭 |  |  |
+| settings:advanced | → settings:play | 탭 |  |  |
+| settings:fx | → settings:sound | 탭 |  |  |
 
 #### 패드 LT
 
@@ -1645,6 +1663,10 @@
 | select+info+youtube+analysis | → select |  |  | 브라우저 기본 동작 남음 |
 | result | → select |  |  |  |
 | settings:play | → select |  |  |  |
+| settings:notes | → select |  |  |  |
+| result:details | → result |  |  |  |
+| settings:advanced | → select |  |  |  |
+| settings:fx | → select |  |  |  |
 
 #### 패드 Start
 
@@ -1663,6 +1685,9 @@
 | select+info+youtube+analysis | → select+info+youtube |  |  |  |
 | result | → select |  |  | 브라우저 기본 동작 남음 |
 | settings:play | 설정 difficultySystem, lastDifficulty |  |  |  |
+| settings:notes | 설정 parts |  |  |  |
+| result:details | → select |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 설정 displayMode |  |  |  |
 
 #### 패드 RS
 
@@ -1696,6 +1721,10 @@
 | select+info+youtube+analysis | 포커스 → edit-sections | 항목 |  |  |
 | result | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
 | settings:play |  | 항목 |  |  |
+| settings:notes |  | 항목 |  |  |
+| result:details | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced |  | 항목 |  |  |
+| settings:fx |  | 항목 |  |  |
 
 #### 패드 Down
 
@@ -1716,6 +1745,10 @@
 | select+info+youtube+analysis | 포커스 → sync-auto | 항목 |  |  |
 | result | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:play | 포커스 → opt-ruleset | 항목 |  |  |
+| settings:notes | 화면 바뀜 · 포커스 → opt-side-style | 항목 |  |  |
+| result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 포커스 → reset-all | 항목 |  |  |
+| settings:fx | 포커스 → opt-hit-effect | 항목 |  |  |
 
 #### 패드 Left
 
@@ -1736,6 +1769,10 @@
 | select+info+youtube+analysis |  | 값 |  |  |
 | result | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
 | settings:play | 설정 difficultySystem, lastDifficulty | 값 |  |  |
+| settings:notes | 설정 parts | 값 |  |  |
+| result:details | 포커스 → result-details |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 설정 displayMode | 값 |  |  |
+| settings:fx | 설정 cameraFx | 값 |  |  |
 
 #### 패드 Right
 
@@ -1756,6 +1793,10 @@
 | select+info+youtube+analysis | 포커스 → remove-song | 값 |  |  |
 | result | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
 | settings:play | 설정 difficultySystem, lastDifficulty | 값 |  |  |
+| settings:notes | 설정 parts | 값 |  |  |
+| result:details | 포커스 → result-retry |  |  | 브라우저 기본 동작 남음 |
+| settings:advanced | 설정 displayMode | 값 |  |  |
+| settings:fx | 설정 cameraFx | 값 |  |  |
 
 #### wait:end
 
@@ -1823,13 +1864,25 @@
 | settings:play | 패드 Y | 포커스 → opt-ruleset |
 | settings:play | 패드 Back | → select |
 | settings:play | 패드 Start | 설정 difficultySystem, lastDifficulty |
+| settings:notes | 패드 A | 설정 parts |
+| settings:notes | 패드 Y | 화면 바뀜 · 포커스 → opt-side-style |
+| settings:notes | 패드 Back | → select |
+| settings:notes | 패드 Start | 설정 parts |
+| result:details | 패드 Y | 포커스 → result-retry |
+| result:details | 패드 Back | → result |
+| result:details | 패드 Start | → select |
+| settings:advanced | 패드 Y | 포커스 → reset-all |
+| settings:advanced | 패드 Back | → select |
+| settings:advanced | 패드 Start | 설정 displayMode |
+| settings:fx | 패드 Y | 포커스 → opt-hit-effect |
+| settings:fx | 패드 Back | → select |
 
 ### 같은 키, 다른 이름 (힌트 바의 말 기준)
 
 | 키 | 이름 수 | 이름들 | 화면 |
 |---|---|---|---|
 | 패드 A | 6 | 플레이 / 누르기 / 시작 / 저장 / 열기 / 선곡으로 | select, calibration, settings, result |
-| 패드 B | 4 | 닫기 / 완료 / 돌아가기 / 멈추기 | select, settings, calibration |
+| 패드 B | 5 | 닫기 / 완료 / 돌아가기 / 멈추기 / 상세 닫기 | select, settings, calibration, result |
 | 패드 X | 3 | 플레이 옵션 닫기 / 플레이 옵션 / 다시 하기 | select, result |
 | 패드 Left | 3 | 난이도 / 값 / 1ms | select, settings, calibration |
 | 패드 Right | 3 | 난이도 / 값 / 1ms | select, settings, calibration |

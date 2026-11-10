@@ -241,7 +241,7 @@ function keysReport() {
       const leaks = l1.filter((p) => p.prevented === false && /^(F\d+|Tab|Shift\+Tab|Space|Backspace|Slash|Control\+KeyF)$/.test(p.input));
       const byKey = new Map();
       for (const p of leaks) byKey.set(p.input, [...(byKey.get(p.input) ?? []), p.state]);
-      out.push('### 브라우저의 기본 동작이 남는 키', '', '페이지가 `preventDefault`하지 않은 키입니다. 브라우저에서 F5는 새로 고침, F3·Ctrl+F는 찾기, F1은 도움말, F11은 전체 화면, Tab은 브라우저 포커스 이동입니다 (데스크톱 앱에서는 메뉴가 없어 대부분 아무 일도 없습니다).', '', table(['키', '상태 수', '상태'], [...byKey].map(([k, list]) => [keyName(k), list.length, list.join(', ')])), '');
+      out.push('### 브라우저의 기본 동작이 남는 키', '', '페이지가 `preventDefault`하지 않은 키입니다. 브라우저에서 F5는 새로 고침, F3·Ctrl+F는 찾기, F1은 도움말, F11은 전체 화면, Tab은 브라우저 포커스 이동입니다 (데스크톱 앱의 메뉴에는 F5 가속키가 없지만 보기 메뉴의 새로 고침(Ctrl+R)은 있습니다: `desktop/main.js`).', '', table(['키', '상태 수', '상태'], [...byKey].map(([k, list]) => [keyName(k), list.length, list.join(', ')])), '');
       metrics['kb.f5Unhandled'] = (byKey.get('F5') ?? []).length;
     }
   }

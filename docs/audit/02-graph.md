@@ -1995,7 +1995,7 @@ flowchart LR
 
 ## 패드
 
-상태 24개, 입력 1019번. 이 가운데 패드만으로는 가지 못하고 포인터로만 간 상태: 0개.
+상태 29개, 입력 1194번. 이 가운데 패드만으로는 가지 못하고 포인터로만 간 상태: 0개.
 
 | 상태 | 가는 길 (처음 찾은 길) | 첫 포커스 | 항목 수 | 포커스가 닿은 항목 | 비고 |
 |---|---|---|---|---|---|
@@ -2019,10 +2019,15 @@ flowchart LR
 | result | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 A wait:end | result-back | 3 | 3 |  |
 | calibration:input+running | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Right 패드 Right 패드 A 패드 A | (none) | 1 | 0 |  |
 | settings:play | 패드 RT 패드 LB 패드 LB | opt-system | 18 | 7 |  |
-| settings:notes | 패드 RT 패드 RB 패드 RB | opt-note-style | 24 | 1 |  |
-| select+info+youtube+analysis+armed | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Right 패드 A 패드 Down 패드 Down 패드 Down 패드 A 패드 Right 패드 A | remove-song | 54 | 1 |  |
-| result:details | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 A wait:end 패드 Up 패드 A | result-back | 3 | 1 |  |
-| settings:advanced | 패드 RT 패드 LB 패드 LB 패드 LB | opt-display-mode | 13 | 1 |  |
+| settings:notes | 패드 RT 패드 RB 패드 RB | opt-note-style | 24 | 13 |  |
+| select+info+youtube+analysis+armed | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Right 패드 A 패드 Down 패드 Down 패드 Down 패드 A 패드 Right 패드 A | remove-song | 54 | 1 | ends by itself |
+| result:details | 패드 LT 패드 Up 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 A wait:end 패드 Up 패드 A | result-back | 3 | 3 |  |
+| settings:advanced | 패드 RT 패드 LB 패드 LB 패드 LB | opt-display-mode | 13 | 2 |  |
+| settings:fx | 패드 RT 패드 RB 패드 RB 패드 RB | camera-fx | 16 | 5 |  |
+| settings:notes+armed | 패드 RT 패드 RB 패드 RB 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Down 패드 Right 패드 A | color-preset-delete | 28 | 1 |  |
+| settings:pad | 패드 RT 패드 LB 패드 LB 패드 LB 패드 LB | opt-tt-steps | 92 | 1 |  |
+| settings:advanced+armed | 패드 RT 패드 LB 패드 LB 패드 LB 패드 Down 패드 A | reset-all | 13 | 1 |  |
+| settings:sound | 패드 RT 패드 RB 패드 RB 패드 RB 패드 RB | opt-music-volume | 15 | 1 |  |
 
 ```mermaid
 flowchart LR
@@ -2050,6 +2055,11 @@ flowchart LR
   n21["select+info+youtube+analysis+armed"]
   n22["result:details"]
   n23["settings:advanced"]
+  n24["settings:fx"]
+  n25["settings:notes+armed"]
+  n26["settings:pad"]
+  n27["settings:advanced+armed"]
+  n28["settings:sound"]
   n0 -->|"패드 X"| n1
   n0 -->|"패드 LT"| n2
   n0 -->|"패드 RT"| n3
@@ -2127,20 +2137,34 @@ flowchart LR
   n19 -->|"패드 B, 패드 Back"| n0
   n19 -->|"패드 LB"| n23
   n19 -->|"패드 RB"| n12
+  n20 -->|"패드 B, 패드 Back"| n0
+  n20 -->|"패드 LB"| n13
+  n20 -->|"패드 RB"| n24
+  n20 -->|"패드 A (color-preset-delete)"| n25
+  n22 -->|"패드 A, 패드 Start"| n0
+  n22 -->|"패드 B, 패드 Back, 패드 A (result-details)"| n17
+  n22 -->|"패드 X, 패드 A (result-retry)"| n8
+  n23 -->|"패드 B, 패드 Back"| n0
+  n23 -->|"패드 LB"| n26
+  n23 -->|"패드 RB"| n19
+  n23 -->|"패드 A (reset-all)"| n27
+  n24 -->|"패드 B, 패드 Back"| n0
+  n24 -->|"패드 LB"| n20
+  n24 -->|"패드 RB"| n28
 ```
 
 ### 막다른 곳
 
 | 상태 |
 |---|
-| settings:notes |
-| select+info+youtube+analysis+armed |
-| result:details |
-| settings:advanced |
+| settings:notes+armed |
+| settings:pad |
+| settings:advanced+armed |
+| settings:sound |
 
 ### 패드로 닿지 않는 항목
 
-걸어 본 상태의 항목 540개 가운데 포커스가 닿지도 않고 같은 일을 하는 키도 없는 것: **372개**. (포인터로 누른 결과와 같은 결과를 내는 키가 그 상태에 있으면 닿는 것으로 셉니다.)
+걸어 본 상태의 항목 653개 가운데 포커스가 닿지도 않고 같은 일을 하는 키도 없는 것: **463개**. (포인터로 누른 결과와 같은 결과를 내는 키가 그 상태에 있으면 닿는 것으로 셉니다.)
 
 | 상태 | 항목 | 키 | 포인터로 누르면 |
 |---|---|---|---|
@@ -2440,70 +2464,7 @@ flowchart LR
 | settings:notes | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:notes | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:notes | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 사이드 노트 | opt-side-style | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 프리셋 | opt-color-preset | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 키 모드 | opt-color-mode | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 1번 레인 #eaf6ff | color-lane-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 2번 레인 #4fc3ff | color-lane-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 3번 레인 #4fc3ff | color-lane-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 4번 레인 #eaf6ff | color-lane-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:notes | 1번 레인의 색 (#rrggbb) | color-hex | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 색상 | opt-color-hue | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 채도 | opt-color-saturation | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 밝기 | opt-color-value | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:notes | 새 프리셋으로 저장 | color-preset-new | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 곡 추가 + | add-menu | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 설정 F10 | open-settings | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 전체 3 | folder-all | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 즐겨찾기 0 | folder-favorites | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 미플레이 3 | folder-unplayed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 미클리어 0 | folder-uncleared | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 풀콤 미달 0 | folder-noFullCombo | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 곡 검색 | song-search | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 추가순 F4 | song-sort | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | Demo Groove 100Generative Rhythm (합성 데모)––––– | song-item#fe08 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | Demo Groove 150Generative Rhythm (합성 데모)––––– | song-item#79ce | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | Demo Groove 128Generative Rhythm (합성 데모)––––– | song-item#0bb5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 닫기 Esc | song-info>button[0]:닫기 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | ×2 | song-info>button[2]:×2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | ÷2 | song-info>button[3]:÷2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | BPM | song-info>input[4]:BPM | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | -5ms | song-offset-minus5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | -1ms | song-offset-minus1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | +1ms | song-offset-plus1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | +5ms | song-offset-plus5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | -10ms | song-info>button[6]:-10ms | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | -1ms | song-info>button[7]:-1ms | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | +1ms | song-info>button[8]:+1ms | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | +10ms | song-info>button[9]:+10ms | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 커버 이미지 고르기 | cover-upload | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 영상 고르기 (mp4·webm) | bga-upload | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 유튜브 링크 | bga-youtube | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 유튜브 영상 링크 | bga-youtube-input | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 취소 | bga-youtube-form>button[0]:취소 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 구간 편집 | edit-sections | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 분석 보기 닫기 | toggle-analysis | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 싱크 테스트 | sync-auto | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 싱크 테스트 · 직접 치기 | sync-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 판정 오프셋 측정 | open-calibration | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 표시 오프셋 맞추기 | open-visual-calibration | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 4K | body>button[11]:4K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 4K+FX | body>button[12]:4K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 5K | body>button[13]:5K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 6K | body>button[14]:6K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 6K+FX | body>button[15]:6K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 7K+1S | body>button[16]:7K+1S | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 8K | body>button[17]:8K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | EASY | difficulty-row>button[0]:EASY | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | NORMAL | difficulty-row>button[1]:NORMAL | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | HARD | difficulty-row>button[2]:HARD | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | EXPERT | difficulty-row>button[3]:EXPERT | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | MASTER | difficulty-row>button[4]:MASTER | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 플레이 옵션 | play-options-button | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 새 패턴 F5 | generate-button | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| select+info+youtube+analysis+armed | 플레이 Enter | play-button | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| result:details | 다시 하기 X | result-retry | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| result:details | 상세 Space | result-details | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:advanced | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:advanced | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:advanced | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
@@ -2515,11 +2476,165 @@ flowchart LR
 | settings:advanced | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:advanced | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 | settings:advanced | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
-| settings:advanced | 모두 초기화 | reset-all | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 속도·커버 | settings-tab-speed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 기어 | settings-tab-gear | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 노트 | settings-tab-notes | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 연출·배경 | settings-tab-fx | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 소리 | settings-tab-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:fx | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 속도·커버 | settings-tab-speed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 기어 | settings-tab-gear | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 노트 | settings-tab-notes | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 연출·배경 | settings-tab-fx | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 소리 | settings-tab-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 노트 | opt-note-style | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 사이드 노트 | opt-side-style | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 프리셋 | opt-color-preset | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 키 모드 | opt-color-mode | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 왼쪽 사이드 #b07bff | color-lane-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 1번 레인 #eaf6ff | color-lane-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 2번 레인 #4fc3ff | color-lane-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 3번 레인 #4fc3ff | color-lane-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 4번 레인 #eaf6ff | color-lane-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 오른쪽 사이드 #ff8f4f | color-lane-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 3번 레인의 색 (#rrggbb) | color-hex | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 색상 | opt-color-hue | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 채도 | opt-color-saturation | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 밝기 | opt-color-value | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 새 프리셋으로 저장 | color-preset-new | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:notes+armed | 이름 | color-preset-name | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 속도·커버 | settings-tab-speed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 기어 | settings-tab-gear | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 노트 | settings-tab-notes | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 연출·배경 | settings-tab-fx | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 소리 | settings-tab-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 턴테이블 정지 판정 | opt-tt-release | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K-0 | pad-4K-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K-1 | pad-4K-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K-2 | pad-4K-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K-3 | pad-4K-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-4K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[4]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-4K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-0 | pad-4K+FX-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-1 | pad-4K+FX-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-2 | pad-4K+FX-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-3 | pad-4K+FX-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-4 | pad-4K+FX-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-4K+FX-5 | pad-4K+FX-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-4K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[5]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-4K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-5K-0 | pad-5K-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-5K-1 | pad-5K-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-5K-2 | pad-5K-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-5K-3 | pad-5K-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-5K-4 | pad-5K-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-5K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[6]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-5K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-0 | pad-6K-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-1 | pad-6K-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-2 | pad-6K-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-3 | pad-6K-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-4 | pad-6K-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K-5 | pad-6K-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-6K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[7]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-6K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-0 | pad-6K+FX-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-1 | pad-6K+FX-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-2 | pad-6K+FX-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-3 | pad-6K+FX-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-4 | pad-6K+FX-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-5 | pad-6K+FX-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-6 | pad-6K+FX-6 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-6K+FX-7 | pad-6K+FX-7 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-6K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[8]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-6K+FX | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-0 | pad-7K+1S-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-1 | pad-7K+1S-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-2 | pad-7K+1S-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-3 | pad-7K+1S-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-4 | pad-7K+1S-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-5 | pad-7K+1S-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-6 | pad-7K+1S-6 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-7K+1S-7 | pad-7K+1S-7 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-7K+1S | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[9]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-7K+1S | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-0 | pad-8K-0 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-1 | pad-8K-1 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-2 | pad-8K-2 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-3 | pad-8K-3 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-4 | pad-8K-4 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-5 | pad-8K-5 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-6 | pad-8K-6 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-8K-7 | pad-8K-7 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 차례로 지정 | pad-run-8K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 지우기 | gamepad-settings>button[10]:지우기 | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 입력 확인 | pad-test-8K | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 버튼 9 | pad-play-start | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 버튼 8 | pad-play-select | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-play-fever | pad-play-fever | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 기본값 | pad-play-default | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 버튼 0 | pad-menu-ok | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 버튼 1 | pad-menu-back | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-up | pad-menu-up | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-down | pad-menu-down | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-left | pad-menu-left | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-right | pad-menu-right | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-options | pad-menu-options | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | pad-menu-retry | pad-menu-retry | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:pad | 레인에서 정하기 | pad-menu-default | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 속도·커버 | settings-tab-speed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 기어 | settings-tab-gear | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 노트 | settings-tab-notes | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 연출·배경 | settings-tab-fx | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 소리 | settings-tab-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:advanced+armed | 화면 모드 | opt-display-mode | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 완료 Esc | settings-screen>button[0]:완료 Esc | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 플레이 | settings-tab-play | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 판정·싱크 | settings-tab-judge | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 속도·커버 | settings-tab-speed | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 기어 | settings-tab-gear | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 노트 | settings-tab-notes | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 연출·배경 | settings-tab-fx | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 소리 | settings-tab-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 키 설정 | settings-tab-keys | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 게임패드 | settings-tab-pad | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 고급 | settings-tab-advanced | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 효과음 | opt-sfx-volume | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 타격음 | opt-hit-sound | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
+| settings:sound | 키음 | keysound-toggle | (누르지 않음: 라이브러리를 바꾸거나 파일을 받음) |
 
 ### 뒤로 가기 (B)
 
-다른 상태로 간 입력 29번에 대해 곧바로 뒤로 가기를 눌렀습니다. 원래 상태로 돌아오지 않음: **21번**, 상태는 돌아왔지만 포커스가 다른 곳: **1번**.
+다른 상태로 간 입력 31번에 대해 곧바로 뒤로 가기를 눌렀습니다. 원래 상태로 돌아오지 않음: **23번**, 상태는 돌아왔지만 포커스가 다른 곳: **1번**.
 
 | 떠난 상태 | 입력 | 간 곳 | 뒤로 가면 |
 |---|---|---|---|
@@ -2544,6 +2659,8 @@ flowchart LR
 | select+info+youtube+analysis | 패드 A (remove-song) | select+info+youtube+analysis+armed | select |
 | select+info+youtube+analysis | 패드 A (open-calibration) | calibration:input | select |
 | select+info+youtube+analysis | 패드 A (open-visual-calibration) | calibration:visual | select |
+| settings:notes | 패드 A (color-preset-delete) | settings:notes+armed | select |
+| settings:advanced | 패드 A (reset-all) | settings:advanced+armed | select |
 
 | 상태 | 입력 | 간 곳 | 떠날 때 포커스 | 돌아온 포커스 |
 |---|---|---|---|---|
@@ -2562,20 +2679,15 @@ flowchart LR
 | select+info+search | I Slash |
 | select+info+add | I + |
 | select+add+search | + ↑ Tab Tab Tab Tab Tab Tab Tab |
-| settings:pad | F10 Shift+Tab Shift+Tab Enter |
 | settings:keys | F10 Shift+Tab Shift+Tab Shift+Tab Enter |
-| settings:sound | F10 Shift+Tab Shift+Tab Shift+Tab Shift+Tab Enter |
-| settings:fx | F10 Shift+Tab Shift+Tab Shift+Tab Shift+Tab Shift+Tab Enter |
 | select+options:generation+search | Space PgUp Slash |
 | select+options:generation+add | Space PgUp + |
 | select+options:gear+search | Space PgDn Slash |
 | select+options:gear+add | Space PgDn + |
 | select+options:rules+practice+search | Space ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ← Slash |
 | select+options:rules+practice+add | Space ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ← + |
-| settings:advanced+armed | F10 Shift+Tab Enter ↓ ↓ Enter |
 | settings:pad+capture | F10 Shift+Tab Shift+Tab Enter ↓ ↓ ↓ Enter |
 | settings:keys+capture | F10 Shift+Tab Shift+Tab Shift+Tab Enter ↓ Enter |
-| settings:notes+armed | F10 Shift+Tab Shift+Tab Shift+Tab Shift+Tab Shift+Tab Shift+Tab Enter ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ → Enter |
 | select+first |  |
 | select+first+search | Slash |
 | select+first+add | + |
