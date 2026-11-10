@@ -63,7 +63,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await songInfo(page);
   const holds = async () => Number(((await page.getByTestId('chart-preview').locator('.preview-stats div').nth(1).textContent()) ?? '').replace(/\D/g, ''));
   const balancedHolds = await holds();
-  await playOptions(page, 'generation');
+  await playOptions(page);
   await page.getByTestId('style-longnote').click();
   await expect.poll(() => level.getAttribute('data-chart-id'), { timeout: 30_000 }).not.toBe(balanced);
   await songInfo(page);

@@ -536,7 +536,7 @@ test('a chart never lands on another song, Enter starts one play, and a new anal
   page.on('request', (r) => {
     if (isChartPost(r.method(), r.url()) && !JSON.parse(r.postData() ?? '{}').brief) posts++;
   });
-  await playOptions(page, 'generation');
+  await playOptions(page);
   await page.getByTestId('style-stream').click();
   await autoplay(page);
   await page.keyboard.down('Enter');
