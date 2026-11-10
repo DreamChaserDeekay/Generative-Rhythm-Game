@@ -1,0 +1,56 @@
+{
+ "songs1": {
+  "shownMs": 366,
+  "nodes": 198,
+  "rows": 1,
+  "cursorStepMs": {
+   "median": 33.3,
+   "p95": 33.5
+  },
+  "pageRows": 0,
+  "pressesToMiddleByKeys": 0,
+  "pressesToMiddleBySearch": null
+ },
+ "songs100.search": {
+  "typed": "051",
+  "rowsLeft": 1,
+  "picked": "가짜 곡 051 · 제목이 꽤 긴 곡의 이름입니다",
+  "wanted": "가짜 곡 051 · 제목이 꽤 긴 곡의 이름입니다"
+ },
+ "songs100": {
+  "shownMs": 421,
+  "nodes": 792,
+  "rows": 100,
+  "cursorStepMs": {
+   "median": 33.4,
+   "p95": 62.1
+  },
+  "pageRows": 6,
+  "pressesToMiddleByKeys": 10,
+  "pressesToMiddleBySearch": 5
+ },
+ "songs500.search": {
+  "typed": "251",
+  "rowsLeft": 1,
+  "picked": "가짜 곡 251 · 제목이 꽤 긴 곡의 이름입니다",
+  "wanted": "가짜 곡 251 · 제목이 꽤 긴 곡의 이름입니다"
+ },
+ "songs500": {
+  "shownMs": 597,
+  "nodes": 3192,
+  "rows": 500,
+  "cursorStepMs": {
+   "median": 33.8,
+   "p95": 102.3
+  },
+  "pageRows": 6,
+  "pressesToMiddleByKeys": 45,
+  "pressesToMiddleBySearch": 5
+ },
+ "presets20": {
+  "pressesToLast": 25,
+  "choices": 26,
+  "lastShownAs": "내 색 프리셋 20",
+  "canJump": false
+ }
+}
