@@ -32,8 +32,9 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   });
   if (!media.textures || media.burst !== 200) throw new Error(`game media missing: ${JSON.stringify(media)}`);
   console.log('media:', media.textures, 'textures');
-  // the demo song is in the add (+) menu
-  await win.getByTestId('add-menu').click();
+  // the demo song is in the menu (Esc), under 곡 추가
+  await win.getByTestId('hint-menu').click();
+  await win.getByTestId('menu-add').click();
   await win.getByTestId('demo-button').click();
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: analysisMs });
@@ -46,10 +47,10 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
   // a play needs an audio device for the song clock; take a picture whatever happens
   try {
-    // autoplay is a play option (Space)
-    await win.getByTestId('hint-options').click();
-    await win.getByTestId('autoplay-toggle').check();
-    await win.getByTestId('play-button').click();
+    // the song info closed (its Esc hint), Shift+Enter plays the chart on autoplay
+    await win.getByTestId('hint-info').click();
+    await win.getByTestId('song-info').waitFor({ state: 'detached', timeout: 10000 });
+    await win.keyboard.press('Shift+Enter');
     await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
     await win.waitForTimeout(7000);
     await win.screenshot({ path: path.join(outDir, '3-play.png') });

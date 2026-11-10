@@ -93,7 +93,9 @@ export function HintBar({ hints, end = [] }: { hints: KeyHint[]; end?: KeyHint[]
     const key = `${h.keys.join('+')}-${h.label}`;
     const className = `hint-item${h.minor ? ' minor' : ''}${h.main ? ' main' : ''}`;
     return h.onClick ? (
-      <button key={key} className={className} data-testid={h.testId} onClick={h.onClick}>
+      // (a press does what the key does and leaves the focus where it is: the hints follow the
+      // focus, and one that moved under the pointer between its press and its release got no click)
+      <button key={key} className={className} data-testid={h.testId} onMouseDown={(e) => e.preventDefault()} onClick={h.onClick}>
         {content}
       </button>
     ) : (
