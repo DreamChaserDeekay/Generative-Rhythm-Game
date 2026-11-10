@@ -45,6 +45,7 @@ import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pres
 import { Sheet, type SheetItem } from './Sheet';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { INFO_TABS, KIND_LABELS, SongInfoPanel, type InfoTab } from './SongInfoPanel';
+import { setJacketOrigin } from './jacketFlight';
 import { Backdrop, bpmLabel, SongArt } from './songArt';
 import {
   bestByTier,
@@ -623,6 +624,8 @@ export function SongSelectScreen(props: Props) {
       const c = await loadSelected();
       if (!c || (c.meta.songId && c.meta.songId !== selected.id)) return;
       const best = recordOf(selected, c.meta.chartId);
+      // the start card's jacket comes from where this one stands
+      setJacketOrigin(jacket.current?.getBoundingClientRect() ?? null);
       onPlay(
         buildPlayRequest(selected, c, settings, {
           autoPlay: auto,
