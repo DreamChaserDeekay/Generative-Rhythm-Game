@@ -1,0 +1,112 @@
+{
+ "freepd.com": {
+  "robots_url": "https://freepd.com/robots.txt",
+  "summary": "Fetched 2026-11-10: HTTP 200, effectively empty (1 byte), so no restrictions. But the site is closed: the home page is a \"FreePD.com - Site Closed\" notice (\"we have officially taken the service offline\", \"permanently closed\", 2008-2025) and the old category and mp3 paths return 404 (two HEAD probes). Requests made: home page + 2 HEADs. No audio available.",
+  "used": true
+ },
+ "incompetech.com": {
+  "robots_url": "https://incompetech.com/robots.txt",
+  "summary": "Fetched 2026-11-10: a stray empty \"Disallow:\" line, then \"User-agent: *\" with Disallow for /web-bin/, /users/, /stats/, /home/ only. No rule names Claude/Anthropic or AI agents. Everything used is under /music/royalty-free/ (catalogue JSON, music/FAQ/licences pages, 3 mp3s).",
+  "used": true
+ },
+ "archive.org": {
+  "robots_url": "https://archive.org/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" disallows only /control/ and /report/; no AI-specific rules. Used only for the search API (/advancedsearch.php, 4 queries, one of which returned a backend error) and the metadata API (/metadata/<id>, 5 lookups). NO audio taken: the CC0 netlabel hits were mostly noise/ambient or plainly mislabeled, and the Komiku / Loyalty Freak Music items were uploaded by third parties, not the rights holder (those tracks were taken from the artist's own site instead).",
+  "used": true
+ },
+ "web.archive.org": {
+  "robots_url": "https://web.archive.org/robots.txt",
+  "summary": "robots.txt could NOT be read: both attempts (2026-11-10) ended in a connection reset through this session's egress proxy after ~10 s. Unread robots.txt, so the host was not used - which also rules out Wayback Machine copies of the closed freepd.com.",
+  "used": false
+ },
+ "loyaltyfreakmusic.com": {
+  "robots_url": "https://loyaltyfreakmusic.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" / \"Disallow: /wp-admin/\" / \"Allow: /wp-admin/admin-ajax.php\". No AI-specific rules. Used: home, About, FAQ, music index, 5 album pages, one /wp-json/wp/v2/types call, HEAD size checks on 5 album ZIPs under /wp-content/uploads/, and HTTP Range requests against 4 of them (ZIP directory listings, the small licence text files, 3 mp3 members) instead of downloading 35-145 MB archives. Note: robots.txt does not restrict AI agents, but the FAQ text forbids training AI on the artist's work (recorded in manifest notes). — In the end NOT used: three CC0 tracks were taken and then removed again, because the artist's FAQ refuses AI (\"I forbid you to train your … AI on my work\"); the files were deleted and replaced with CC BY 4.0 tracks from incompetech.com and ericskiff.com.",
+  "used": false
+ },
+ "teknoaxe.com": {
+  "robots_url": "https://teknoaxe.com/robots.txt",
+  "summary": "Fetched 2026-11-10: HTTP 404 - no robots.txt published, so no crawl restrictions stated. Used: home page, about 26 track/genre pages, the banner image, 1 HEAD, and 7 mp3 download requests via the site's own direct_download.php links (6 succeeded, 3 of those were kept; 1 link returned an error text instead of audio and was not retried or worked around), with 2.5-4 s pauses.",
+  "used": true
+ },
+ "ericskiff.com": {
+  "robots_url": "https://ericskiff.com/robots.txt",
+  "summary": "Fetched 2026-11-10: HTTP 404 (GitHub Pages) - no robots.txt published, so no crawl restrictions stated. Used: the music page and 2 mp3s (1 kept).",
+  "used": true
+ },
+ "www.scottbuckley.com.au": {
+  "robots_url": "https://www.scottbuckley.com.au/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" / \"Disallow: /wp-admin/\" / \"Allow: /wp-admin/admin-ajax.php\" plus sitemap lines. No AI-specific rules. Used: library index, one instrumentation listing, 2 track pages, the \"Using This Music\" page, 7 HEAD size checks and 1 mp3 under /library/wp-content/uploads/.",
+  "used": true
+ },
+ "audionautix.com": {
+  "robots_url": "https://audionautix.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" with \"Crawl-delay: 3\" and Disallow for /Insiders/ and /insiders.php; MJ12bot is disallowed entirely. No AI-specific rules. Used with at least 3 s between requests: home, licence page, FAQ, 3 genre listings, 1 mp3 under /Music/.",
+  "used": true
+ },
+ "www.joshwoodward.com": {
+  "robots_url": "https://www.joshwoodward.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-Agent: *\" / \"Allow: /\" / \"Disallow: /mod/concert/\". No AI-specific rules. Home page and FAQ were read (music is CC BY 4.0), but NO audio was taken: the FAQ says the site asks for an email address when you download, and that bandwidth is a cost for the artist, so fetching the mp3s directly would sidestep that step.",
+  "used": true
+ },
+ "creatorchords.com": {
+  "robots_url": "https://creatorchords.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-Agent: *\" disallows /admin/, /checkout/, /accounts/, /my-account/; \"User-agent: GPTBot\" Disallow: /; \"User-agent: ChatGPT-User\" Allow: / (blocks an AI training crawler, explicitly allows user-directed AI fetching; no Claude/Anthropic names). Only the home page was read. NO audio taken: the site (Alexander Nakarada) now sells per-song licences and no clear CC statement was found.",
+  "used": true
+ },
+ "music.orchestralis.net": {
+  "robots_url": "https://music.orchestralis.net/robots.txt",
+  "summary": "Fetched 2026-11-10: one group lists anthropic-ai and Claude-Web (with GPTBot, CCBot, PerplexityBot, cohere-ai and others, under the comment \"# AI Bots\") with \"disallow: /\". Names Anthropic agents, so NOT used; no other request made.",
+  "used": false
+ },
+ "www.serpentsoundstudios.com": {
+  "robots_url": "https://www.serpentsoundstudios.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" disallows only /wp-admin/; a long list of SEO/archive bots is disallowed entirely; no AI agents named. Allowed, but not needed - no other request made.",
+  "used": false
+ },
+ "www.silvermansound.com": {
+  "robots_url": "https://www.silvermansound.com/robots.txt",
+  "summary": "Fetched 2026-11-10: \"User-agent: *\" disallows /wp-admin/, /wp-json/, /?rest_route=, add-to-cart URLs and three WooCommerce folders under /wp-content/uploads/; AdsBot is disallowed entirely; no AI agents named. Allowed for normal pages, but not needed - no other request made.",
+  "used": false
+ },
+ "patrickdearteaga.com": {
+  "robots_url": "https://patrickdearteaga.com/robots.txt",
+  "summary": "Fetched 2026-11-10: HTTP 404 - no robots.txt published. Not needed - no other request made.",
+  "used": false
+ },
+ "www.abstractionmusic.com": {
+  "robots_url": "https://www.abstractionmusic.com/robots.txt",
+  "summary": "Fetched 2026-11-10: HTTP 404 - no robots.txt published. Not needed - no other request made.",
+  "used": false
+ },
+ "commons.wikimedia.org": {
+  "robots_url": "https://commons.wikimedia.org/robots.txt",
+  "summary": "Fetched 2026-11-10 (17.7 KB): named blocks target old scrapers and offline downloaders (HTTrack, wget, MJ12bot and similar; SemrushBot gets a crawl-delay); \"User-agent: *\" disallows /w/, /api/, /trap/, Special: pages and some project discussion pages. No Claude/Anthropic or AI-agent rules. Not needed - no other request made.",
+  "used": false
+ },
+ "opengameart.org": {
+  "robots_url": "https://opengameart.org/robots.txt",
+  "summary": "NOT contacted at all, not even for robots.txt (per the task: its robots.txt has \"Disallow: /\" for Claude-Code / Claude-User / ClaudeBot / anthropic-ai).",
+  "used": false
+ },
+ "freemusicarchive.org": {
+  "robots_url": "https://freemusicarchive.org/robots.txt",
+  "summary": "NOT contacted at all, not even for robots.txt (per the task: it blocks several AI agents by name).",
+  "used": false
+ },
+ "freesound.org": {
+  "robots_url": "https://freesound.org/robots.txt",
+  "summary": "NOT contacted at all, not even for robots.txt (excluded by the task).",
+  "used": false
+ },
+ "pixabay.com": {
+  "robots_url": "https://pixabay.com/robots.txt",
+  "summary": "NOT contacted at all, not even for robots.txt (excluded by the task).",
+  "used": false
+ },
+ "kenney.nl": {
+  "robots_url": "https://kenney.nl/robots.txt",
+  "summary": "NOT contacted at all, not even for robots.txt (excluded by the task).",
+  "used": false
+ }
+}
