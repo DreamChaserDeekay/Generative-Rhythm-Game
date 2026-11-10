@@ -87,7 +87,7 @@ function graphReport() {
     // states and how they were reached
     const pointerOnly = states.filter((s) => s.path.some((p) => p.startsWith('click:')));
     out.push(`상태 ${states.length}개, 입력 ${probes.length}번. 이 가운데 ${name}만으로는 가지 못하고 포인터로만 간 상태: ${pointerOnly.length}개.`, '');
-    out.push(table(['상태', '가는 길 (처음 찾은 길)', '첫 포커스', '항목 수', '포커스가 닿은 항목', '비고'], states.map((s) => [s.sig, s.path.map(keyName).join(' ') || '(시작)', s.focus, s.controls.length, Object.keys(s.stops).filter((k) => k !== '(none)').length, s.skipped ?? (s.path.some((p) => p.startsWith('click:')) ? '포인터로만' : '')])), '');
+    out.push(table(['상태', '가는 길 (처음 찾은 길)', '첫 포커스', '항목 수', '포커스가 닿은 항목', '비고'], states.map((s) => [s.sig, s.path.filter((p) => !p.startsWith('focus=')).map(keyName).join(' ') || '(시작)', s.focus, s.controls.length, Object.keys(s.stops).filter((k) => k !== '(none)').length, s.skipped ?? (s.path.some((p) => p.startsWith('click:')) ? '포인터로만' : '')])), '');
 
     // the edges, merged by pair of states
     const edges = new Map();
@@ -158,7 +158,7 @@ function graphReport() {
     const kbOnly = [...kb].filter((s) => !pad.has(s));
     const padOnly = [...pad].filter((s) => !kb.has(s));
     metrics['pad.statesMissing'] = kbOnly.length;
-    out.push('## 키보드로는 가는데 패드로는 가지 못하는 상태', '', kbOnly.length ? table(['상태', '키보드의 길'], kbOnly.map((s) => [s, graphs.kb.states.find((x) => x.sig === s).path.map(keyName).join(' ')])) : '없음', '');
+    out.push('## 키보드로는 가는데 패드로는 가지 못하는 상태', '', kbOnly.length ? table(['상태', '키보드의 길'], kbOnly.map((s) => [s, graphs.kb.states.find((x) => x.sig === s).path.filter((p) => !p.startsWith('focus=')).map(keyName).join(' ')])) : '없음', '');
     if (padOnly.length) out.push('## 패드로만 가는 상태', '', table(['상태'], padOnly.map((s) => [s])), '');
   }
   write('02-graph.md', out.join('\n'));
@@ -323,12 +323,16 @@ function layoutReport() {
     const rows = [];
     for (const r of ok) for (const x of pick(r)) rows.push([r.viewport, r.state, ...row(x)]);
     // the same thing on many states is said once
+    // (and the rows of a list that differ only by a number: once, with their count)
     const merged = new Map();
     for (const r of rows) {
-      const key = `${r[0]}|${r.slice(2).join('|')}`;
-      merged.set(key, { row: r, states: [...(merged.get(key)?.states ?? []), r[1]] });
+      const key = `${r[0]}|${r[2]}|${String(r[3]).replace(/\d+/g, '#')}`;
+      const had = merged.get(key);
+      merged.set(key, { row: had?.row ?? r, states: [...new Set([...(had?.states ?? []), r[1]])], count: (had?.count ?? 0) + 1 });
     }
-    out.push(merged.size ? table(['창', '상태', ...head], [...merged.values()].map(({ row: r, states }) => [r[0], states.length > 3 ? `${states.slice(0, 3).join(', ')} 외 ${states.length - 3}` : states.join(', '), ...r.slice(2)])) : '없음', '');
+    const list = [...merged.values()];
+    out.push(list.length ? table(['창', '상태', '건수', ...head], list.slice(0, 60).map(({ row: r, states, count }) => [r[0], states.length > 3 ? `${states.slice(0, 3).join(', ')} 외 ${states.length - 3}` : states.join(', '), count, ...r.slice(2)])) : '없음', '');
+    if (list.length > 60) out.push(`(외 ${list.length - 60}가지는 \`data/layout.json\`에)`, '');
   };
   section('잘린 글자', (r) => r.clipped, ['어디', '글자', '보이는 폭/필요한 폭', '말줄임', 'title'], (c) => [c.at, c.text, `${c.shownPx}/${c.needPx}`, c.ellipsis ? '…' : '잘림', c.hasTitle ? '있음' : '없음']);
   section('창 밖으로 나간 글자 (스크롤로도 못 봄)', (r) => r.offscreen, ['어디', '글자', '자리'], (c) => [c.at, c.text, c.rect.join(',')]);

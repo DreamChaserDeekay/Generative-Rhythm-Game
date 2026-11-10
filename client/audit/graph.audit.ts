@@ -134,6 +134,11 @@ class Crawl {
       await this.page.waitForTimeout(2500);
       return settle(this.page);
     }
+    if (input.startsWith('focus=')) {
+      // where the arrows before this step are known to lead (a panel a line longer than it was does not lose the way)
+      if ((await snap(this.page)).focus !== input.slice(6)) await focusKey(this.page, input.slice(6));
+      return snap(this.page);
+    }
     if (input.startsWith('click:')) await clickKey(this.page, input.slice(6));
     else await press(this.page, input);
     return settle(this.page);
@@ -180,12 +185,18 @@ class Crawl {
     this.log(`state ${sig}  ← ${path.join(' ') || '(root)'}`);
   }
 
+  /** States the crawl could not get back to (three times): left alone from then on. */
+  private lost = new Map<string, number>();
+
   private async probe(st: StateRec, focus: string, input: string, level: 1 | 2 | 3): Promise<Probe | null> {
+    if ((this.lost.get(st.sig) ?? 0) >= 3) return null;
     let before: Snap;
     try {
       before = await this.ensure(st, focus, level === 2);
     } catch (e) {
-      this.log(`! ${(e as Error).message}`);
+      this.lost.set(st.sig, (this.lost.get(st.sig) ?? 0) + 1);
+      if (this.lost.get(st.sig) === 3) st.skipped = 'could not get back to it';
+      this.log(`! ${(e as Error).message.split('\n')[0]}`);
       return null;
     }
     await keyLog(this.page);
@@ -207,7 +218,7 @@ class Crawl {
     this.probes.push(rec);
     if (after.sig !== st.sig && after.sig !== 'unknown') {
       const seq = st.stops[focus] ?? [];
-      await this.add(after.sig, st.root, [...st.path, ...seq, input], after);
+      await this.add(after.sig, st.root, [...st.path, ...seq, ...(seq.length > 0 ? [`focus=${focus}`] : []), input], after);
       // back again: to the state it came from, on the control it left?
       if (!after.sig.startsWith('play:') && !st.sig.startsWith('play:') && input !== this.back) {
         const back = await this.step(this.back);

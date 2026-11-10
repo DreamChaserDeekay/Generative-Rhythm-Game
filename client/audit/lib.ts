@@ -234,6 +234,16 @@ export async function installAudit(page: Page): Promise<void> {
         .filter((k) => visible(k) && !k.closest('.hintbar'))
         .map((k) => ({ key: k.textContent ?? '', on: text(k.closest('button, a, .opt, li, p, .key-modes, .play-key, span.settings-nav-hint') ?? k.parentElement, 50) }));
 
+    // requests under way (a chart being made, a song being read): the page has not settled while one is
+    let pending = 0;
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (...args: Parameters<typeof fetch>) => {
+      pending++;
+      return realFetch(...args).finally(() => {
+        pending--;
+      });
+    };
+
     const keys: { code: string; shift: boolean; prevented: boolean; trusted: boolean }[] = [];
     window.addEventListener(
       'keydown',
@@ -248,7 +258,14 @@ export async function installAudit(page: Page): Promise<void> {
     );
 
     (window as unknown as { __audit: unknown }).__audit = {
-      snap: () => ({ sig: state(), focus: keyOf(document.activeElement), hash: hash(), settings: localStorage.getItem('grg.settings.v1') ?? '', pad: document.documentElement.dataset.input ?? '' }),
+      snap: () => ({
+        sig: state(),
+        focus: keyOf(document.activeElement),
+        hash: hash(),
+        settings: localStorage.getItem('grg.settings.v1') ?? '',
+        pad: document.documentElement.dataset.input ?? '',
+        busy: pending > 0 || q('busy') !== null,
+      }),
       controls: () =>
         controls().map((el) => {
           const r = el.getBoundingClientRect();
@@ -289,6 +306,8 @@ export interface Snap {
   hash: number;
   settings: string;
   pad: string;
+  /** A request is under way, or the song select says it is busy. */
+  busy: boolean;
 }
 
 export interface Control {
@@ -340,10 +359,11 @@ export async function settle(page: Page, maxMs = 2500): Promise<Snap> {
   let last = await snap(page);
   const end = Date.now() + maxMs;
   let loadingEnd = Date.now() + 60_000;
+  const busyEnd = Date.now() + 20_000;
   for (;;) {
     await page.waitForTimeout(90);
     const now = await snap(page);
-    if (now.sig === 'play:loading' || now.sig === 'unknown') {
+    if (now.sig === 'play:loading' || now.sig === 'unknown' || (now.busy && Date.now() < busyEnd)) {
       if (Date.now() > loadingEnd) return now;
       last = now;
       continue;
@@ -385,19 +405,17 @@ export async function defaultSettings(page: Page): Promise<string> {
 /** The library the crawl starts from: one demo song (analysed, its chart ready), none, or no server. */
 export type Root = 'lib' | 'empty' | 'offline';
 
-/** The demo song in the server's library, analysed (once per run of the tools). */
+/** Three short demo songs in the server's library, analysed (once per run of the tools). */
 export async function ensureDemoSong(page: Page): Promise<void> {
-  const songs = (await (await page.request.get('/api/songs')).json()) as { songs?: unknown[] } | unknown[];
-  const list = Array.isArray(songs) ? songs : (songs.songs ?? []);
-  if (list.length === 0) await page.request.post('/api/songs/demo', { data: { bpm: 128, bars: 16, seed: 7 } });
+  const songs = (await (await page.request.get('/api/songs')).json()) as { songs: unknown[] };
+  if (songs.songs.length === 0) for (const bpm of [128, 150, 100]) await page.request.post('/api/songs/demo', { data: { bpm, bars: 8, seed: 7 } });
   await expect
     .poll(
       async () => {
-        const body = (await (await page.request.get('/api/songs')).json()) as { songs?: { status: string }[] } | { status: string }[];
-        const all = Array.isArray(body) ? body : (body.songs ?? []);
-        return all.length > 0 && all.every((s) => s.status === 'ready');
+        const body = (await (await page.request.get('/api/songs')).json()) as { songs: { status: string }[] };
+        return body.songs.length >= 3 && body.songs.every((s) => s.status === 'ready');
       },
-      { timeout: 120_000 },
+      { timeout: 180_000 },
     )
     .toBe(true);
 }
@@ -407,6 +425,8 @@ export async function openRoot(page: Page, root: Root, settings: string | null =
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   if (root === 'empty') await page.route(/^https?:\/\/[^/]+\/api\/songs$/, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { songs: [] } }) : route.abort()));
   if (root === 'offline') await page.route(/^https?:\/\/[^/]+\/api\//, (route) => route.abort());
+  // a play's record is answered for, not kept: the library stays as it was from visit to visit
+  if (root === 'lib') await page.route(/^https?:\/\/[^/]+\/api\/scores$/, (route) => (route.request().method() === 'POST' ? route.fulfill({ status: 201, json: { id: 1, records: [] } }) : route.continue()));
   if (page.url() === 'about:blank') await page.goto('/');
   await page.evaluate(
     ([key, value]) => {

@@ -77,6 +77,9 @@ function measure() {
       if (!scroller(el)) unreachable.push({ at: name(el), text: text(el), why: 'outside the window' });
       continue;
     }
+    // scrolled out of its scroller's box: a scroll (the focus does it) brings it back
+    const box = scroller(el)?.getBoundingClientRect();
+    if (box && (cx < box.left || cx > box.right || cy < box.top || cy > box.bottom)) continue;
     const top = document.elementFromPoint(cx, cy);
     if (top && !el.contains(top) && !top.contains(el) && !(top.closest('label')?.contains(el) ?? false)) unreachable.push({ at: name(el), text: text(el), why: `under ${name(top)}` });
   }
@@ -187,6 +190,11 @@ async function focusCheck() {
   const els = [...document.querySelectorAll<HTMLElement>(CONTROLS)].filter((el) => el.getClientRects().length > 0 && !(el as HTMLButtonElement).disabled && !el.classList.contains('opt-step'));
   const was = document.activeElement as HTMLElement | null;
   const none: { at: string; text: string }[] = [];
+  // the look of a focus given by a key: the page draws a pad's focus by the same rule (styles.css:
+  // `:focus-visible, :root[data-input='pad'] :focus`), and a script's focus() is no key press
+  const root = document.documentElement;
+  const input = root.dataset.input;
+  root.dataset.input = 'pad';
   for (const el of els) {
     el.blur();
     const before = look(el);
@@ -194,6 +202,8 @@ async function focusCheck() {
     if (document.activeElement !== el) continue;
     if (look(el) === before) none.push({ at: `${el.closest<HTMLElement>('[data-testid]')?.dataset.testid ?? ''}>${el.tagName.toLowerCase()}`, text: (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 30) });
   }
+  if (input === undefined) delete root.dataset.input;
+  else root.dataset.input = input;
   was?.focus({ preventScroll: true });
   return { checked: els.length, none };
 }
