@@ -267,7 +267,7 @@ test('import a keysounded BMS folder and autoplay it with its keysounds', async 
   const { gain } = (await (await page.request.get(`/api/songs/${songId}/keysounds.json`)).json()) as { gain: number };
 
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   // the note keysounds sound 1.2 times as loud as that
   await expect.poll(() => keysoundBusGain(page), { timeout: 60_000 }).toBeCloseTo(gain * 1.2, 5);
@@ -287,7 +287,7 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
   await page.getByRole('button', { name: '4K', exact: true }).click();
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   // sloppy keyboard play until the result screen appears
   const keys = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];

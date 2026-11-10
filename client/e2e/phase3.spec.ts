@@ -89,7 +89,7 @@ test('stem keysound, background video and camera effects on a generated chart', 
   await expect(page.getByTestId('stem-mix')).toBeVisible();
 
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   // the play's keysounds come from the stems (the HUD names them, not on the screen)
   await expect(page.locator('.hud')).toHaveAttribute('data-keysounds', /\S/, { timeout: 60_000 });
@@ -186,7 +186,7 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect.poll(calls, { timeout: 60_000 }).toContain('seek play');
   const yt = await page.evaluate(() => (window as unknown as { __yt: { videoId: string; host: string; calls: string[] } }).__yt);
@@ -283,12 +283,12 @@ test('side notes always over half the keys (반쪽 덮기): no row to lay them i
   await page.getByRole('button', { name: /완료/ }).click();
 
   // the song select's speed and gear rows have no side notes' row, on a key mode with side lanes either
-  await playOptions(page, 'gear');
+  await playOptions(page);
   await expect(page.getByTestId('quick-speed')).toBeVisible();
   await expect(page.getByTestId('quick-side-notes')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.locator('.key-modes').getByRole('button', { name: '6K+FX', exact: true }).click();
-  await playOptions(page, 'gear');
+  await playOptions(page);
   await expect(page.getByTestId('quick-speed')).toBeVisible();
   await expect(page.getByTestId('quick-side-notes')).toHaveCount(0);
   await page.keyboard.press('Escape');

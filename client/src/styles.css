@@ -3651,6 +3651,8 @@ button.opt:active:not(:disabled) {
 .select-screen {
   position: relative;
   isolation: isolate;
+  /* (nothing here scrolls: a field that takes the focus near an edge must not drag the screen along) */
+  overflow: clip;
 }
 
 /* the selected song's picture read into 24 px and stretched: a soft field of its colours, no blur */
@@ -4460,6 +4462,7 @@ button.opt:active:not(:disabled) {
 }
 
 .filters {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
@@ -4514,7 +4517,8 @@ button.opt:active:not(:disabled) {
   margin-left: -0.125rem;
 }
 
-/* the search: a mark and its key until it is used, then the field */
+/* the search: a mark and its key until it is used. What was typed stays beside the mark; while it
+   is typed the field lies over the end of the filters (their keys are the field's then anyway) */
 .find {
   display: inline-flex;
   align-items: center;
@@ -4536,11 +4540,13 @@ button.opt:active:not(:disabled) {
 
 .find input {
   width: 0;
+  min-width: 0;
   height: auto;
   padding: 0;
   font: inherit;
   font-weight: 700;
   color: var(--text);
+  text-overflow: ellipsis;
   background: transparent;
   border: 0;
   outline: 0;
@@ -4550,19 +4556,29 @@ button.opt:active:not(:disabled) {
   display: none;
 }
 
-.find.has input,
-.find:focus-within input {
-  width: 9.5rem;
-}
-
 .find.has {
   color: var(--text);
 }
 
+.find.has input {
+  width: 4.5rem;
+}
+
 .find:focus-within {
+  position: absolute;
+  top: 0.1875rem;
+  right: 0;
+  z-index: 1;
+  width: 15rem;
   padding: 0 0.625rem;
   color: var(--text);
+  background: var(--bg);
   outline: 1px solid var(--accent);
+}
+
+.find:focus-within input {
+  flex: 1;
+  width: auto;
 }
 
 .find:focus-within kbd {
@@ -5830,8 +5846,19 @@ button.opt:active:not(:disabled) {
 /* a window narrower or lower than the one the screen is drawn for: the jacket and the wheel give way */
 @media (max-width: 1100px) {
   .select-body {
+    grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
     column-gap: 1.5rem;
     padding-left: 1.5rem;
+  }
+
+  .hero {
+    flex-basis: 15rem;
+    gap: 1.25rem;
+  }
+
+  .filters {
+    gap: 0.625rem;
+    margin-right: 1.5rem;
   }
 
   .song-info {

@@ -1669,7 +1669,6 @@ export function SongSelectScreen(props: Props) {
             </>
           ) : firstRun ? (
             <section className="detail-empty first-run" data-testid="first-run" ref={startPanel} aria-label="시작하기">
-              <h2>곡을 넣으면 채보를 만들어 드립니다</h2>
               <button className="primary" data-testid="first-upload" onClick={() => fileInput.current?.click()}>
                 음악 파일 고르기
               </button>

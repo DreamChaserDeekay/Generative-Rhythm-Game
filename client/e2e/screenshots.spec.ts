@@ -101,7 +101,7 @@ async function levelsKnown(page: Page): Promise<void> {
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
 }
@@ -132,7 +132,7 @@ const startsSoFar = (page: Page) => page.evaluate(() => (window as unknown as { 
 /** Starts the play and waits for its loading card to go. */
 async function startPlay(page: Page): Promise<number> {
   const before = await startsSoFar(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
   return before;

@@ -53,7 +53,7 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   await expect(modes.first()).toHaveClass(/active/);
 
   // the play rules: ←→ change a row and ↑↓ go through the rows, not the songs
-  await playOptions(page, 'rules');
+  await playOptions(page);
   const gauge = page.getByTestId('rule-gauge');
   await gauge.focus();
   const before = await gauge.getAttribute('data-value');
@@ -64,7 +64,7 @@ test('the song list keeps the cursor in view and in focus; Shift+Tab steps back;
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 16');
 
   // the speed and gear rows likewise
-  await playOptions(page, 'gear');
+  await playOptions(page);
   const speed = page.getByTestId('quick-speed');
   await speed.focus();
   const speedBefore = Number(await speed.getAttribute('data-value'));
@@ -276,7 +276,7 @@ test('오토 플레이 from the song select: Shift+Enter or its button plays thi
   await expect(auto).toContainText('Shift+Enter');
   await expect(auto).toBeEnabled();
   await expect(page.getByTestId('hint-autoplay')).toContainText('오토 플레이');
-  await expect(page.getByTestId('play-button')).toHaveText(/^플레이/);
+  await expect(page.getByTestId('hint-enter')).toHaveText(/^플레이/);
 
   // Shift+Enter: this play on autoplay
   await page.keyboard.press('Shift+Enter');
@@ -288,7 +288,7 @@ test('오토 플레이 from the song select: Shift+Enter or its button plays thi
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('song-title')).toHaveText('Demo Groove 139');
   // the switch was not turned on: Enter still plays by hand
-  await playOptions(page, 'rules');
+  await playOptions(page);
   await expect(page.getByTestId('autoplay-toggle')).not.toBeChecked();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('play-options')).toHaveCount(0);
@@ -348,7 +348,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   await page.keyboard.press('End');
   await page.keyboard.type('x');
   await expect(page.getByTestId('song-item')).toHaveCount(0);
-  await expect(page.getByTestId('play-button')).toHaveCount(0);
+  await expect(page.getByTestId('hint-enter')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(search).not.toBeFocused();
   await expect(search).toHaveValue('Song 1x');
@@ -368,7 +368,7 @@ test('a search or a folder that leaves the song out puts the cursor on what it s
   await search.fill('');
   await page.getByTestId('folder-favorites').click();
   await expect(page.getByTestId('song-item')).toHaveCount(0);
-  await expect(page.getByTestId('play-button')).toHaveCount(0);
+  await expect(page.getByTestId('hint-enter')).toHaveCount(0);
   await expect(page.getByTestId('hint-folder')).toBeVisible();
   await expect(page.getByTestId('hint-enter')).toHaveCount(0);
   await page.waitForTimeout(500);
@@ -1027,7 +1027,7 @@ test('the chosen one of many imported charts stays in view, the key modes say wh
   whole.length = 0;
   await page.reload();
   await expect(page.getByTestId('song-title')).toHaveText('Fake Song 01');
-  await expect(page.getByTestId('play-button')).toBeDisabled();
+  await expect(page.getByTestId('hint-enter')).toBeDisabled();
   await page.keyboard.press('Enter');
   await expect(active).toContainText('INSANE');
   await expect.poll(inView).toBe(true);
@@ -1207,7 +1207,7 @@ test('a song taken out of the library takes what was kept for it; a chosen chart
   await expect(plate).not.toContainText('고른 패턴');
 
   // a target level, then a chart chosen from the records: played as it was made, so the target goes
-  await playOptions(page, 'rules');
+  await playOptions(page);
   const target = page.getByTestId('target-level');
   await target.focus();
   await page.keyboard.press('ArrowRight');
