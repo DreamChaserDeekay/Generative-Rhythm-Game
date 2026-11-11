@@ -209,9 +209,17 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
 /**
  * The judge line of the gears a player picks, as DJMAX draws its own: a thick red line (`height` plane px) with
  * a light core and a red glow both ways (`blur`), a little above the gear: `gap` plane px of the lanes
- * lie between them, where a note let through runs on until the gear covers it.
+ * lie between them at most, where a note let through runs on until the gear covers it: it is how far
+ * 판정선 위치 lowers the line (−20 %), onto the gear.
  */
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
+/**
+ * How far under the line the gear starts (plane px of lanes between them) with the line where it is by
+ * default: nearer than GEAR_JUDGE.gap, so the screen shows more of the deck (the readouts on it were
+ * found too small to read). A line lowered further than this takes the gear down with it, up to
+ * GEAR_JUDGE.gap, where the gear was before.
+ */
+export const DECK_GAP = 24;
 
 /**
  * The judge line's colours on a gear: GEAR_JUDGE's red, but the skins' own: STANDARD's (a white core in its cyan), SKY's (in sky blue) and PRISM's, a white line edged in ice blue
@@ -609,6 +617,9 @@ const WIRE = { keys: 26, seam: 2, upper: 46, lower: 44, pad: 4 } as const;
  */
 const ASTRAL = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
 
+/** How wide the speed's and the rate's windows are at a deck's two ends (share of the deck's width). */
+const SMALL_WINDOW = 0.23;
+
 /** The steps of the decks that house the readouts. */
 const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND, aqua: AQUA, steel: STEEL, rainbow: RAINBOW, noir: NOIR, magenta: MAGENTA, wire: WIRE, astral: ASTRAL };
 
@@ -633,9 +644,13 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
     : { x: s.width * 0.24, y: top + d.pad * st, w: s.width * 0.52, h: d.upper * st - 2 * d.pad * st };
   const y = top + d.upper * st + pad;
   const h = Math.min(d.lower * st, s.room - top - d.upper * st) - 2 * pad;
-  const w = s.width * 0.2;
   // the AI companies' decks: the two by the deck's middle, under the score (stickers lie over these decks' near corners: standees.ts)
-  if (isBrandGear(style)) return { score: upper, speed: { x: s.width * 0.275, y, w, h }, rate: { x: s.width * 0.525, y, w, h } };
+  if (isBrandGear(style)) {
+    const w = s.width * 0.2;
+    return { score: upper, speed: { x: s.width * 0.275, y, w, h }, rate: { x: s.width * 0.525, y, w, h } };
+  }
+  // wide enough for the rate's seven characters beside its label at the size the score's row leaves them (SMALL_WINDOW)
+  const w = s.width * SMALL_WINDOW;
   // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
   const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
   return { score: upper, speed: { x: edge, y, w, h }, rate: { x: s.width - edge - w, y, w, h } };

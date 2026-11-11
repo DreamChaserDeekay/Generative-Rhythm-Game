@@ -84,8 +84,8 @@ describe('track layout', () => {
 
   it('frames the SDVX preset with the judgement line low and the track end high on screen', () => {
     const L = cameraConfig.trackLength;
-    expect(screenY('SDVX', 0)).toBeCloseTo(0.84, 2);
-    expect(screenY('SDVX', -L)).toBeCloseTo(0.12, 2);
+    expect(screenY('SDVX', 0)).toBeCloseTo(0.77, 2);
+    expect(screenY('SDVX', -L)).toBeCloseTo(0.1, 2);
     for (const id of Object.keys(cameraConfig.presets)) {
       const near = screenY(id, 0);
       const far = screenY(id, -L);
@@ -96,8 +96,9 @@ describe('track layout', () => {
   });
 
   it('moves the view up so the judge line leaves the gear room under it, the whole track still on the screen', () => {
-    expect(JUDGE_LINE_Y).toBeGreaterThan(0.7);
-    expect(JUDGE_LINE_Y).toBeLessThan(0.84);
+    // the gear under the line has the room for its keys, its readouts and a clear strip under them: over a quarter of the height
+    expect(JUDGE_LINE_Y).toBeGreaterThan(0.68);
+    expect(JUDGE_LINE_Y).toBeLessThan(0.75);
     const farEnd = (id: string) => {
       // moving the view shifts the whole picture by the same amount
       const shift = screenY(id, 0) - JUDGE_LINE_Y;
@@ -276,7 +277,7 @@ describe('track layout', () => {
     // the perspective cameras flatten the deck a little, in twentieths
     for (const id of ['FLAT', 'SDVX', 'LOW']) {
       const f = flatten(id);
-      expect(f).toBeLessThan(1.3);
+      expect(f).toBeLessThan(1.45);
       for (const room of [96, 320]) expect(deckStretch(room, () => f)).toBe(Math.round(Math.max(1, f) * 20) / 20);
     }
     // the plane camera far more: drawn round on the screen all the same

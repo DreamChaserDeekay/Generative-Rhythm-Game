@@ -1780,7 +1780,8 @@ p.hint {
 .hud-fever-bar {
   display: block;
   height: 0.35em;
-  margin-top: 0.2em;
+  /* clear of the word over it */
+  margin-top: 0.5em;
   background: var(--line);
   border-radius: 1px;
   overflow: hidden;
@@ -2032,7 +2033,7 @@ p.hint {
 
 .hud[data-gear] .hud-gauge-name {
   display: block;
-  transform-origin: 50% 100%;
+  transform-origin: 0 100%;
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.12em;

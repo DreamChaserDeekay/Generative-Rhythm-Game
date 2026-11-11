@@ -4,7 +4,7 @@ import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
 import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
-import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
+import { DECK_GAP, DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -192,11 +192,10 @@ const TICK_GAP_MS = 180;
 const TICK_SIZE = 0.72;
 const TICK_GAIN = 0.55;
 /**
- * The light flowing down a held long note into the judge line (drawFlows): how far up the note it
- * reaches, how fast it runs (track units a second), how long one run of its picture is, and its
- * share of the note's width.
+ * The light flowing down a held long note into the judge line (drawFlows), from the note's far end
+ * (or the track's, where the note reaches past it): how fast it runs (track units a second), how long
+ * one run of its picture is, and its share of the note's width.
  */
-const FLOW_REACH = 7;
 const FLOW_SPEED = 12;
 const FLOW_TILE = 3.2;
 const FLOW_WIDTH = 0.8;
@@ -615,6 +614,12 @@ export class TrackRenderer {
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top), or lying flat where its style has no thickness (LongPaint.flat). */
   private readonly longSlab: THREE.BufferGeometry;
+  /**
+   * A long note's far end is its top alone: a slab's walls there would be drawn over the body next to
+   * it (the wall that faces the camera at that end is inside the note), and the note would look as if
+   * a second piece lay on it.
+   */
+  private readonly longTop = slabGeometry(0, 0, 0, 0);
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
@@ -1309,6 +1314,8 @@ export class TrackRenderer {
     for (const m of this.staleMaterials) m.dispose();
     (this.deck.material as THREE.MeshBasicMaterial).map?.dispose();
     this.flatGeometry.dispose();
+    this.longSlab.dispose();
+    this.longTop.dispose();
     this.glowTexture.dispose();
     this.ownedTextures.forEach((t) => t.dispose());
     disposeSkinArt(this.artSource);
@@ -1404,6 +1411,7 @@ export class TrackRenderer {
   private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean, dots: boolean): void {
     const cap = this.endPool.next();
     cap.material = this.endMaterial(color, state, dots);
+    cap.geometry = head ? this.longSlab : this.longTop;
     cap.scale.set(width, 1, end);
     cap.rotation.y = head ? Math.PI : 0;
     cap.position.set(x, 0.021, z);
@@ -1660,15 +1668,15 @@ export class TrackRenderer {
   }
 
   /**
-   * The light flowing down each held long note into the judge line: from the line up the note's body
-   * (FLOW_REACH at most, fading out up it), running toward the line faster than the notes scroll.
+   * The light flowing down each held long note into the judge line: from the line all the way up the
+   * note's body (fading out toward its far end), running toward the line faster than the notes scroll.
    */
   private drawFlows(frame: TrackFrame): void {
     this.flows.forEach((mesh, lane) => {
       const far = this.heldFar[lane];
       const g = this.geometry.lanes[lane];
       const near = this.judgeZ;
-      const top = far === null ? near : Math.max(far, near - FLOW_REACH);
+      const top = far === null ? near : far;
       mesh.visible = near - top > 0.05;
       if (!mesh.visible) return;
       mesh.scale.set(g.width * this.long.width * FLOW_WIDTH, 1, near - top);
@@ -1692,9 +1700,10 @@ export class TrackRenderer {
     const pos = geometry.getAttribute('position');
     const colors = new Float32Array(pos.count * 4);
     for (let i = 0; i < pos.count; i++) {
-      // 1 at the line, none at the far end
+      // 1 at the line, none at the far end, and still half as bright a quarter of the way down from it:
+      // the light shows up the whole note, however long it is
       const near = pos.getZ(i) + 0.5;
-      colors.set([1, 1, 1, near * near * (3 - 2 * near)], i * 4);
+      colors.set([1, 1, 1, Math.sqrt(near)], i * 4);
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
     const material = lightMaterial({ map: this.flowTexture, transparent: true, depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false }, 0.9);
@@ -2066,9 +2075,15 @@ export class TrackRenderer {
     this.scene.add(strip);
   }
 
-  /** How far under the middle of the judge line the deck starts (plane px): 3 px under the line (judgeFit times, as the line is), then the gap where the lanes run on (GEAR_JUDGE.gap). */
+  /**
+   * How far under the middle of the unlifted judge line the deck starts (plane px): 3 px under the line
+   * (judgeFit times, as the line is), then the gap where the lanes run on (DECK_GAP). A line lowered
+   * further than that gap (판정선 위치 under −12 %) takes the deck down with it, so the line is on the
+   * gear and never under it: at −20 % (GEAR_JUDGE.gap) the deck is where it always was at that setting.
+   */
   private get deckOffset(): number {
-    return (GEAR_JUDGE.height / 2 + 3) * this.judgeFit + GEAR_JUDGE.gap;
+    const lowered = Math.min(GEAR_JUDGE.gap, Math.max(0, this.judgeZ / PX));
+    return (GEAR_JUDGE.height / 2 + 3) * this.judgeFit + Math.max(DECK_GAP, lowered);
   }
 
   /**

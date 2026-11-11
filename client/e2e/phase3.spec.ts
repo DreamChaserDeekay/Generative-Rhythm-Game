@@ -736,7 +736,7 @@ test('an AI company’s skin in play: the build’s two stickers over the gear�
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   // its notes a shape of their own (the mark) with the star family's band of light for a long note
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini ray bar gemini gemini');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini gemini bar gemini gemini');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
   // the two stickers by the gear, and the mark in the notes
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });

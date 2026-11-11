@@ -129,6 +129,17 @@ const PROGRESS_STEPS = 500;
 const UNIT = 73.65;
 /** Space between the gear and what stands beside it (plane px), and between the score panel and the screen's edge (screen px). */
 const SIDE_GAP = 22;
+/** The numbers written on the gear's deck: the score's and the two smaller ones' size (screen px at 720p), where their windows have the room. */
+const DECK_SCORE = 34;
+const DECK_SMALL = 27;
+/**
+ * What stands at the gear's right (FEVER, the gauge and its name) stands this much further out (screen
+ * px at 720p): the gear's frame rises over the lanes and leans out on the screen, and a word set
+ * against it would lie on it.
+ */
+const RIGHT_OUT = 12;
+/** Screen px (at 720p) between the gauge's far end and its name over it. */
+const GAUGE_NAME_GAP = 16;
 const SIDE_MARGIN = 16;
 /**
  * Where the room beside the gear is narrower than the song's plate's widest part, the plate shrinks,
@@ -785,9 +796,11 @@ export class Hud {
     this.comboBox.style.setProperty('--label-stroke', px(Math.max(3, t.stroke - 2) * c.k));
 
     // beside the gear, on the same plane: FEVER level with the combo, the gauge and SPEED standing on the judge line
-    const right = p.halfWidth + p.sideOut + SIDE_GAP;
+    const side = p.halfWidth + p.sideOut + SIDE_GAP;
     const foot = -GAUGE_FROM * UNIT;
     const length = GAUGE_LENGTH * UNIT;
+    // the right side's stand a little further out than the left's (RIGHT_OUT)
+    const right = side + RIGHT_OUT * at(side, foot, SIDE_ASPECT).k;
     const f = at(right, -comboAt, SIDE_ASPECT);
     this.place(this.fever, right, -comboAt, `translateY(-50%) scaleY(${f.stretch.toFixed(3)})`);
     this.fever.style.fontSize = px(20 * f.k);
@@ -815,10 +828,11 @@ export class Hud {
       const cl = at(cx, clearAt, SIDE_ASPECT);
       this.place(this.gaugeClearLabel, cx, clearAt, `translateY(-50%) scaleY(${cl.stretch.toFixed(3)})`);
       this.sizeText(this.gaugeClearLabel, cl.k, 15, 30);
-      // the gear's name for the gauge over its far end
-      const top = foot - length - 8 * g.k;
-      const n = at(right + width / 2, top, SIDE_ASPECT);
-      this.place(this.gaugeName, right + width / 2, top, `translate(-50%, -100%) scaleY(${n.stretch.toFixed(3)})`);
+      // the gear's name for the gauge over its far end, a gap between them, starting at the gauge's
+      // left edge (centred on the gauge, a name wider than it would reach over the gear's frame)
+      const top = foot - length - GAUGE_NAME_GAP * g.k;
+      const n = at(right, top, SIDE_ASPECT);
+      this.place(this.gaugeName, right, top, `translate(0, -100%) scaleY(${n.stretch.toFixed(3)})`);
       this.gaugeName.style.fontSize = px(18 * n.k);
     }
     const textX = right + width + 14 * g.k;
@@ -830,7 +844,7 @@ export class Hud {
     // and the score panel over it (fitPanel), each upright; the score, the rate and SPEED lie in the
     // gear's deck where it has windows for them (layDeck), and the column keeps what is left
     this.layDeck(p);
-    const left = right + PROGRESS_GAP * at(-right, foot, SIDE_ASPECT).k;
+    const left = side + PROGRESS_GAP * at(-side, foot, SIDE_ASPECT).k;
     const speedTop = this.onDeck ? foot : foot - this.stand(this.speed, p.h, -left, foot, hud, 15, 30);
     const panelFoot = planeYAt(p.h, -left, planePoint(p.h, -left, speedTop)[1] - COLUMN_GAP * hud);
     // the column keeps under the song's plate, and on this side of the horizon (h[4] / h[7])
@@ -975,9 +989,10 @@ export class Hud {
       const [cx, cy] = [box.x + box.w / 2, box.y + box.h / 2];
       const u = uprightAt(p.h, cx, cy);
       const { scale, aspect } = planeScale(p.h, cx, cy);
-      // its type no taller than four fifths of the window as the screen shows it (however flat the
-      // camera lays the deck: `aspect`), nor than the HUD's size
-      const tall = Math.min(num * hud, 0.8 * box.h * scale * aspect);
+      // its type's size no more than the window's depth as the screen shows it (however flat the camera
+      // lays the deck: `aspect`; digits and capitals are seven tenths of their size tall, so they stand
+      // clear of the window's edges), nor than the HUD's size
+      const tall = Math.min(num * hud, box.h * scale * aspect);
       let k = (tall / num) * u.k;
       this.sizeText(el, k, PANEL_LABEL * (num / PANEL_NUM), num);
       const wide = el.offsetWidth;
@@ -987,9 +1002,9 @@ export class Hud {
       }
       this.place(el, cx, cy, `translate(-50%, -50%) scaleY(${u.stretch.toFixed(3)})`);
     };
-    lay(this.scoreRow, d.score, 30);
-    lay(this.speed, d.speed, 24);
-    lay(this.rateRow, d.rate, 24);
+    lay(this.scoreRow, d.score, DECK_SCORE);
+    lay(this.speed, d.speed, DECK_SMALL);
+    lay(this.rateRow, d.rate, DECK_SMALL);
   }
 
   /**

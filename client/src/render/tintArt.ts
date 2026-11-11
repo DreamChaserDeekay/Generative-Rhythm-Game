@@ -1511,19 +1511,19 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
   prism: 'prism',
   sky: 'sky',
   fire: 'fire',
-  // the marks' long notes are plain bands of the families': a capsule, a band of light, a rail, a slab
-  gpt: 'capsule',
-  gemini: 'ray',
-  grok: 'rail',
-  claude: 'solid',
+  // the marks' long notes are each company's own: typing dots, sparkles on a band of light, a slash between two lines, a stitched paper ribbon
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
   aqua: 'aqua',
   steel: 'steel',
   rainbow: 'rainbow',
@@ -1852,6 +1852,111 @@ function wireLong(lit: boolean): Paint {
   };
 }
 
+/**
+ * GPT's long note: a message being written, drawn out: a soft band of the lane's colour, lighter down its
+ * middle, a pale rim down each side, and (`marked`: the body, not its ends) three dots in a row a tile, as
+ * someone typing; `lit` (held), brighter, the dots white. Its ends are cut straight across (LONG_PAINT).
+ */
+function typingLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const k = lit ? 1.16 : 1;
+    const soft = g.createLinearGradient(0, 0, w, 0);
+    soft.addColorStop(0, tone(0.56 * k));
+    soft.addColorStop(0.5, tone(0.86 * k));
+    soft.addColorStop(1, tone(0.56 * k));
+    g.fillStyle = soft;
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.85 : 0.6));
+    if (!marked) return;
+    g.fillStyle = ink(1, lit ? 1 : 0.82);
+    for (const x of [-10.5, 0, 10.5]) {
+      g.beginPath();
+      g.ellipse(w / 2 + a(x), h / 2, a(3), a(3) * NOTE_STRETCH, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  };
+}
+
+/**
+ * GEMINI's long note: a band of light in the lane's colour, see-through, brightest down its middle between two
+ * thin edges, and (`marked`) a four-pointed sparkle a tile on its middle, a small one after it off to one side;
+ * `lit` (held), brighter, the sparkles white. Its ends are cut straight across (LONG_PAINT).
+ */
+function sparkleLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? ink(0.9, 0.05, 0.62) : ink(0.72, 0, 0.44);
+    g.fillRect(0, 0, w, h);
+    const beam = g.createLinearGradient(a(9), 0, a(45), 0);
+    beam.addColorStop(0, ink(1, 0.3, 0));
+    beam.addColorStop(0.5, ink(1, lit ? 0.55 : 0.35, lit ? 0.7 : 0.5));
+    beam.addColorStop(1, ink(1, 0.3, 0));
+    g.fillStyle = beam;
+    g.fillRect(a(9), 0, a(36), h);
+    sides(g, w, h, 2.5, ink(1, lit ? 0.9 : 0.62, lit ? 0.95 : 0.85));
+    if (!marked) return;
+    // as tall on the screen as it is wide: drawn NOTE_STRETCH times longer along the note
+    const star = (x: number, y: number, r: number, fill: string) => {
+      g.save();
+      g.translate(x, y);
+      g.scale(1, NOTE_STRETCH);
+      sparkleAt(g, 0, 0, r);
+      g.fillStyle = fill;
+      g.fill();
+      g.restore();
+    };
+    star(w / 2, h * 0.34, a(11.5), ink(1, lit ? 1 : 0.88));
+    star(w / 2 + a(11), h * 0.8, a(5), ink(1, lit ? 0.95 : 0.7, 0.92));
+  };
+}
+
+/**
+ * GROK's long note: black between two thin lines of the lane's colour, and (`marked`) one slash a tile across
+ * its middle, a stroke of its mark; `lit` (held), the lines and the slash white-bright. Its ends are cut straight
+ * across (LONG_PAINT).
+ */
+function slashLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? tone(0.3, 0.92) : tone(0.12, 0.9);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.92 : 0.4));
+    if (!marked) return;
+    // leaning to the right, as tall on the screen as it is wide
+    const r = a(8.5);
+    g.beginPath();
+    g.moveTo(w / 2 - r, h / 2 + r * NOTE_STRETCH);
+    g.lineTo(w / 2 + r, h / 2 - r * NOTE_STRETCH);
+    g.lineWidth = a(3.4);
+    g.lineCap = 'butt';
+    g.strokeStyle = ink(1, lit ? 1 : 0.55);
+    g.stroke();
+  };
+}
+
+/**
+ * CLAUDE's long note: a ribbon of paper in the lane's colour, matte, lit from its left, a hem folded down each
+ * side (a dark line just inside each edge) and (`marked`) a seam stitched down its middle, one stitch a tile;
+ * `lit` (held), lighter, the stitches white. Its ends are cut straight across (LONG_PAINT).
+ */
+function ribbonLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const k = lit ? 1.14 : 1;
+    stripes(g, w, h, [
+      [0, 54, tone(0.86 * k)],
+      [0, 5.5, tone(1.06 * k)],
+      [48.5, 54, tone(0.7 * k)],
+      [5.5, 7, tone(0.46)],
+      [47, 48.5, tone(0.46)],
+    ]);
+    if (!marked) return;
+    g.fillStyle = ink(1, lit ? 1 : 0.74);
+    g.fillRect(a(25.3), h * 0.18, a(3.4), h * 0.64);
+  };
+}
+
 /** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
 function solidLong(lit: boolean): Paint {
   return (g, w, h) => {
@@ -1915,6 +2020,50 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     end: squareEnd(fireLong(false), ink(1, 0.92), 3),
     held: { body: fireLong(true), end: squareEnd(fireLong(true), ink(1, 1), 3) },
     tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // GPT's: a soft band, three typing dots in a row a tile (held: brighter, the dots white), each end cut straight across
+  gpt: {
+    body: typingLong(false),
+    end: squareEnd(typingLong(false, false), ink(1, 0.85), 3),
+    held: { body: typingLong(true), end: squareEnd(typingLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 1.3,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // Gemini's: a see-through band of light, a four-pointed sparkle and a small one a tile (held: brighter), each end
+  // cut straight across; flat, with no walls
+  gemini: {
+    body: sparkleLong(false),
+    end: squareEnd(sparkleLong(false, false), ink(1, 0.9, 0.95), 3),
+    held: { body: sparkleLong(true), end: squareEnd(sparkleLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 1.7,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // Grok's: black between two thin lines, a slash a tile (held: white-bright), each end cut straight across; flat, with no walls
+  grok: {
+    body: slashLong(false),
+    end: squareEnd(slashLong(false, false), ink(1, 0.85), 3),
+    held: { body: slashLong(true), end: squareEnd(slashLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 0.9,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // Claude's: a paper ribbon with a hem down each side, a seam stitched down its middle (held: lighter, the stitches
+  // white), each end cut straight across
+  claude: {
+    body: ribbonLong(false),
+    end: squareEnd(ribbonLong(false, false), ink(1, 0.85), 3),
+    held: { body: ribbonLong(true), end: squareEnd(ribbonLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 0.5,
     endDepth: 0.2,
     width: 0.8,
   },
@@ -2475,10 +2624,10 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
   sky: { w: 128, h: 64, cy: 30, reach: 42 },
   // a flash on the line and thin sparks off it, most of them up the track a little way: thin enough that the next notes read through them
   fire: { w: 224, h: 160, cy: 116, reach: 64 },
-  // the AI companies': small and close over the line (typing dots and a ring; sparkles; a pen's cross and a ring; a burst of short strokes)
+  // the AI companies': small and close over the line (typing dots and a ring; sparkles; an X that glints and bursts; a burst of short strokes)
   gpt: { w: 128, h: 96, cy: 62, reach: 40 },
   gemini: { w: 128, h: 112, cy: 78, reach: 40 },
-  grok: { w: 128, h: 96, cy: 58, reach: 44 },
+  grok: { w: 144, h: 112, cy: 76, reach: 46 },
   claude: { w: 192, h: 128, cy: 96, reach: 56 },
   // the aqua mecha skin's: a hexagon lying on the line and short dashes along it
   aqua: { w: 160, h: 80, cy: 44, reach: 40 },
@@ -2502,6 +2651,8 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
 };
 
 export const EFFECT_FRAMES = 16;
+/** Where GROK's X stops being whole and flies apart (its hit's progress, 0..1). */
+const X_BURSTS = 0.34;
 
 /**
  * The skins' hits, each drawn by a painter of its own at a progress 0..1: light in colours of their own
@@ -2513,7 +2664,7 @@ const SKIN_HITS: Partial<Record<DrawnHit, (g: CanvasRenderingContext2D, p: numbe
   fire: drawSparks,
   gpt: drawTyping,
   gemini: drawSparkles,
-  grok: drawCross,
+  grok: drawXBurst,
   claude: drawRays,
   aqua: drawLockOn,
   steel: drawPlus,
@@ -2859,36 +3010,92 @@ function drawSparkles(g: CanvasRenderingContext2D, p: number): void {
 }
 
 /**
- * GROK's hit at progress `p`: a cross drawn fast with a pen, two thin white strokes crossing at a slant
- * over the hit, and one thin white ring opening round them. No colour, no glow.
+ * GROK's hit at progress `p`: an X that pops, glints and bursts. Two strokes crossing at a slant over the hit, one
+ * heavy and one thin, land larger than they stay over a short white flash; a four-pointed glint opens and closes
+ * on the heavy stroke's far tip; then the X flies apart, its four arms out along their own lines and small
+ * sparkles between them, while one thin ring opens on the line. All white.
  */
-function drawCross(g: CanvasRenderingContext2D, p: number): void {
+function drawXBurst(g: CanvasRenderingContext2D, p: number): void {
   const s = 64 / 60;
   const out = 1 - (1 - p) ** 3;
   const fade = Math.max(0, 1 - p) ** 1.1;
+  // the flash it lands on
+  const flash = Math.max(0, 1 - p / 0.24);
+  if (flash > 0) {
+    g.save();
+    g.scale(1.5, 0.62);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 28 * s);
+    core.addColorStop(0, `rgba(255,255,255,${0.9 * flash})`);
+    core.addColorStop(0.45, `rgba(255,255,255,${0.35 * flash})`);
+    core.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 28 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // the ring on the line
   g.save();
   g.scale(1, 0.62);
   g.beginPath();
-  g.arc(0, 0, (12 + 30 * out) * s, 0, Math.PI * 2);
-  g.lineWidth = (2 - 1.2 * p) * s;
-  g.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
+  g.arc(0, 0, (10 + 36 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2.2 - 1.4 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${0.85 * fade})`;
   g.stroke();
   g.restore();
-  // each stroke drawn from one end to the other in the effect's first quarter (the second a moment after the first)
-  const reach = 26 * s;
+  // the X, a little up the track from the line: larger than it stays as it lands, whole for a moment, then apart
+  const cy = -14 * s;
+  const pop = p < 0.1 ? 0.5 + (p / 0.1) * 0.8 : p < 0.24 ? 1.3 - ((p - 0.1) / 0.14) * 0.3 : 1;
+  const apart = Math.max(0, (p - X_BURSTS) / (1 - X_BURSTS));
+  const fly = 1 - (1 - apart) ** 2.4;
+  const arm = 19 * s * pop;
+  const alpha = Math.max(0, 1 - apart) ** 1.2;
   g.lineCap = 'butt';
-  g.lineWidth = (2.4 - 1.2 * p) * s;
-  g.strokeStyle = `rgba(255,255,255,${Math.min(1, fade * 1.6)})`;
-  [1, -1].forEach((dir, i) => {
-    const t = Math.min(1, Math.max(0, (p - i * 0.07) / 0.2));
-    if (t <= 0) return;
-    const [x0, y0] = [-dir * reach, -reach * 0.72 - 6 * s];
-    const [x1, y1] = [dir * reach, reach * 0.72 - 6 * s];
+  // each arm's way out from the middle and its stroke: the heavy stroke runs from the upper left to the lower right
+  const arms: [number, number, boolean][] = [
+    [-1, -1, true],
+    [1, 1, true],
+    [1, -1, false],
+    [-1, 1, false],
+  ];
+  for (const [dx, dy, heavy] of arms) {
+    // the track is seen from above its near end: what runs up it is drawn a little shorter than what runs along the line
+    const [ux, uy] = [dx * Math.SQRT1_2, dy * Math.SQRT1_2 * 0.9];
+    const from = apart > 0 ? (2 + 24 * fly) * s : 0;
+    const to = from + arm * (1 - 0.5 * apart);
     g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    g.moveTo(ux * from, cy + uy * from);
+    g.lineTo(ux * to, cy + uy * to);
+    g.lineWidth = (heavy ? 7 : 2.6) * s * pop * (1 - 0.45 * apart);
+    g.strokeStyle = `rgba(255,255,255,${alpha})`;
     g.stroke();
-  });
+  }
+  // the glint on the heavy stroke's upper tip, open and shut between the landing and the burst
+  const glint = Math.sin(Math.min(1, Math.max(0, (p - 0.08) / 0.36)) * Math.PI);
+  if (glint > 0.01) {
+    const tip = arm * Math.SQRT1_2 * 0.92;
+    sparkleAt(g, -tip, cy - tip * 0.9, 15 * s * glint);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, glint * 1.5)})`;
+    g.fill();
+  }
+  if (apart <= 0) return;
+  // the sparkles thrown out between the arms: the angle each flies at (degrees from the line, negative up the track), how far, its size
+  const sparks: [number, number, number][] = [
+    [-90, 30, 6.5],
+    [-8, 38, 5.5],
+    [-172, 38, 5.5],
+    [-124, 42, 3.6],
+    [-56, 42, 3.6],
+    [84, 12, 3.2],
+  ];
+  for (const [deg, far, r] of sparks) {
+    const angle = (deg * Math.PI) / 180;
+    const d = (8 + far * fly) * s;
+    const size = Math.sin(Math.min(1, apart * 1.6) * Math.PI * 0.5) * (1 - 0.45 * apart);
+    sparkleAt(g, Math.cos(angle) * d, cy + Math.sin(angle) * d * 0.86, r * s * size);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, (1 - apart) * 1.9)})`;
+    g.fill();
+  }
 }
 
 /**

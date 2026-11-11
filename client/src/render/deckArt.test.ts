@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type GearStyle, type KeyKind, type Picture } from './deckArt';
+import { blackKeyAfter, DECK_GAP, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type GearStyle, type KeyKind, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { KEY_RISE_MS, notesEndZ, pressLevel } from './TrackRenderer';
 
@@ -392,7 +392,10 @@ describe('the decks of the gears a player picks', () => {
         // under it by the deck's middle, not at its two ends (stickers lie over these decks' near corners)
         const fire = deckReadouts('fire', s)!;
         expect(r.score, gear).toEqual(fire.score);
-        expect([r.speed.y, r.speed.w, r.speed.h, r.rate.y, r.rate.w, r.rate.h]).toEqual([fire.speed.y, fire.speed.w, fire.speed.h, fire.rate.y, fire.rate.w, fire.rate.h]);
+        expect([r.speed.y, r.speed.h, r.rate.y, r.rate.h]).toEqual([fire.speed.y, fire.speed.h, fire.rate.y, fire.rate.h]);
+        // (a fifth of the deck wide each: FIRE's, at the deck's ends, have the room to be wider)
+        expect([r.speed.w, r.rate.w]).toEqual([s.width * 0.2, s.width * 0.2]);
+        expect(fire.speed.w).toBeGreaterThan(r.speed.w);
         expect(r.speed.x).toBeGreaterThan(s.width * 0.25);
         expect(r.rate.x + r.rate.w).toBeLessThan(s.width * 0.75);
         expect(r.speed.x + r.speed.w / 2 + r.rate.x + r.rate.w / 2).toBeCloseTo(s.width, 6);
@@ -656,7 +659,10 @@ describe('the decks of the gears a player picks', () => {
     expect(r).toBeGreaterThan(200);
     expect(Math.max(g, b)).toBeLessThan(80);
     expect(GEAR_JUDGE.height).toBeGreaterThanOrEqual(8);
-    // the lanes run on between the line and the deck, a strip several times the line's depth
+    // the lanes run on between the line and the deck, a strip deeper than the line itself; 판정선 위치 lowers the
+    // line onto the gear over a strip several times the line's depth (the gear then goes down with it)
+    expect(DECK_GAP).toBeGreaterThan(GEAR_JUDGE.height);
+    expect(DECK_GAP).toBeLessThan(GEAR_JUDGE.gap);
     expect(GEAR_JUDGE.gap).toBeGreaterThan(2 * GEAR_JUDGE.height);
     // the skins' in their own colours (a white core in cyan, in ice blue, in sky blue), where and as thick as every gear's
     for (const gear of GEAR_STYLES) {
