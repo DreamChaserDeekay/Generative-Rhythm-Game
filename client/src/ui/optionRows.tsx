@@ -1,7 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
-import type { SkinParts } from '../render/skins';
+import { SKIN_IDS, type SkinId, type SkinParts } from '../render/skins';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 
 /** The option rows of the settings and the song select's play options. */
@@ -48,6 +48,17 @@ export const HIT_NAMES: Record<HitStyle, string> = {
   neon: '네온 아크',
   piano: '피아노 음표',
 };
+
+/** The skins by name (설정 → 기어 → 스킨), and what the row reads while the parts are no skin's (picked one by one). */
+export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털' };
+export const CUSTOM_SKIN = 'custom';
+export const CUSTOM_SKIN_NAME = '직접 고름';
+
+/** The skin row's choices: the skins, and 직접 고름 only while it is what the row reads (it is not something to pick). */
+export function skinChoices(current: SkinId | null): [SkinId | typeof CUSTOM_SKIN, string][] {
+  const skins = SKIN_IDS.map((id): [SkinId | typeof CUSTOM_SKIN, string] => [id, SKIN_NAMES[id]]);
+  return current === null ? [...skins, [CUSTOM_SKIN, CUSTOM_SKIN_NAME]] : skins;
+}
 
 /** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
 export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [

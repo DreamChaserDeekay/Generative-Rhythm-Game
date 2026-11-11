@@ -1,6 +1,7 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import type { GearStyle } from './deckArt';
 import { GEAR_STYLES } from './deckArt';
+import type { HudTypeSource } from './gearHud';
 import { LANE_COLORS } from './palette';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from './tintArt';
 
@@ -99,8 +100,37 @@ function over(fg: string, alpha: number, bg: string): string {
 /** The track's type (기본's, 설정 → 기어 → 판정·콤보 글꼴). */
 export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#7cf7ff', outline: '#0b0c10', stroke: 6 };
 
+/**
+ * A skin: a gear, its notes, its hit effect and (the gear's type) its combo and judgement lettering,
+ * picked together in one row of the settings (설정 → 기어 → 스킨). The side notes are none of a
+ * skin's parts, nor are the lanes or the song's plate. A skin is nothing saved: it is the parts it
+ * sets (skinOf reads it back from them).
+ */
+export type SkinId = 'default' | 'crystal';
+export const SKIN_IDS: SkinId[] = ['default', 'crystal'];
+/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash) and 크리스털 (its parts are saved as 'prism'). */
+export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
+  default: { note: 'flat', deck: 'standard', hit: 'flash' },
+  crystal: { note: 'prism', deck: 'prism', hit: 'prism' },
+};
+
+/**
+ * The skin these parts make with the lettering's source: its gear, notes and hit, written in the
+ * gear's type (whatever the side notes are); null where they were picked part by part, or the
+ * lettering is kept the track's own.
+ */
+export function skinOf(parts: SkinParts, type: HudTypeSource = 'gear'): SkinId | null {
+  if (type !== 'gear') return null;
+  return SKIN_IDS.find((id) => SKIN_PARTS[id].note === parts.note && SKIN_PARTS[id].deck === parts.deck && SKIN_PARTS[id].hit === parts.hit) ?? null;
+}
+
+/** `parts` with a skin's gear, notes and hit; the side notes stay as picked. */
+export function withSkin(parts: SkinParts, skin: SkinId): SkinParts {
+  return { ...SKIN_PARTS[skin], side: parts.side };
+}
+
 /** What a player starts with, the default skin (기본): the plain notes, the side notes as bars, the standard gear and the flash. */
-export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' };
+export const DEFAULT_PARTS: SkinParts = { ...SKIN_PARTS.default, side: 'bar' };
 
 const NEAR = '#15171f';
 const FAR = '#0d0f14';

@@ -464,8 +464,8 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await expect(page.getByTestId('settings-tab-notes')).toHaveText('노트');
   await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('노트');
   await expect(page.getByTestId('opt-color-preset')).toBeVisible();
-  // the notes to pick: PRISM's cut glass, the plain bar (what a player starts with), the bar in its six
-  // finishes and the four shapes, the piano note gone (its hit is the 기어 tab's still)
+  // the notes to pick: the plain bar (what a player starts with), the crystal skin's cut glass, the bar in
+  // its six finishes and the four shapes, the piano note gone (its hit is the 기어 tab's still)
   await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'flat');
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
@@ -578,6 +578,57 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
   expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
   expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(124, 200, 255)');
+  expect(errors).toEqual([]);
+});
+
+test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit and its lettering together, the side notes left as picked; a part changed after it reads 직접 고름', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, string>; hudType?: string });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-side-style', 'dots');
+  await settingsTab(page, 'gear');
+  // the tab's first row (a set of parts: the track skins an earlier version had, 'opt-skin', stay gone); what a player
+  // starts with is the default skin
+  const skin = page.getByTestId('opt-skin-set');
+  await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('스킨');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  await expect(skin).toContainText('기본');
+  // one step: the crystal skin's gear, hit and (in the 노트 tab) notes, written in the gear's type; the side notes stay
+  await chooseSetting(page, 'opt-skin-set', 'crystal');
+  await expect(skin).toContainText('크리스털');
+  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'prism');
+  await expect(page.getByTestId('opt-hit-style')).toHaveAttribute('data-value', 'prism');
+  await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'prism', side: 'dots', deck: 'prism', hit: 'prism' });
+  await settingsTab(page, 'notes');
+  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'prism');
+  // a part changed by hand is no skin: the row says so
+  await chooseSetting(page, 'opt-note-style', 'round');
+  await settingsTab(page, 'gear');
+  await expect(skin).toHaveAttribute('data-value', 'custom');
+  await expect(skin).toContainText('직접 고름');
+  // 직접 고름 is nothing to pick: a step from it lands on a skin, all its parts with it
+  await skin.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'crystal');
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  // the lettering kept the track's own is no skin either; picking a skin gives it back to the gear
+  await chooseSetting(page, 'opt-hud-type', 'skin');
+  await expect(skin).toHaveAttribute('data-value', 'custom');
+  await chooseSetting(page, 'opt-skin-set', 'crystal');
+  await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
+  await expect.poll(async () => (await stored()).hudType).toBe('gear');
+  // and it plays as the crystal skin
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism dots prism prism');
+  await expect(page.locator('.hud')).toHaveAttribute('data-cut', 'crystal');
   expect(errors).toEqual([]);
 });
 

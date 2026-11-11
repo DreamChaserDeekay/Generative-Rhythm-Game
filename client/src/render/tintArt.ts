@@ -119,7 +119,7 @@ export type NoteStyle = 'prism' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'en
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['prism', 'flat', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
 export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
@@ -1591,7 +1591,7 @@ export function sideDotsEnd(cols: number): Paint {
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
 export type HitStyle = 'prism' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['prism', 'flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
 type DrawnHit = 'prism' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {

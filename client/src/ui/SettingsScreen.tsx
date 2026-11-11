@@ -6,7 +6,7 @@ import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
 import { DEFAULT_PAD_PLAY, PAD_PLAY_BUTTONS, RETRY_HOLD_MS, type PadPlayButton } from '../input/padPlay';
 import { bindingOf, laneTakes, modifierOf, PLAY_ACTION_LABELS, PLAY_ACTIONS, sharedPlayKeys, type PlayAction } from '../input/playKeys';
-import type { SkinParts } from '../render/skins';
+import { skinOf, withSkin, type SkinParts } from '../render/skins';
 import {
   activeCovers,
   bindingLabel,
@@ -50,7 +50,7 @@ import { NoteColorsPanel } from './NoteColorsPanel';
 import { PadInputTest } from './PadInputTest';
 import { coverText, judgeLineText, speedText } from './format';
 import { arrowTarget, type NavStop } from './gridNav';
-import { ActionOption, Choice, DECK_NAMES, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, Toggle } from './optionRows';
+import { ActionOption, Choice, CUSTOM_SKIN, DECK_NAMES, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow, type PlayRule } from './PlayOptions';
 import { GEAR_HELP, HUD_TYPE_HELP, pickedHelp } from './settingsHelp';
 import { HintBar, TopBar, type KeyHint } from './shell';
@@ -334,6 +334,8 @@ export function SettingsScreen({
     onDefault: setHelpDefault,
   };
   const d = DEFAULT_SETTINGS;
+  /** The skin the picked parts make (설정 → 기어 → 스킨), or null while they are picked one by one. */
+  const skin = skinOf(settings.parts, settings.hudType);
   // the 노트 tab shows the key mode whose colours it shows; the side notes' row shows them on 4K+FX or
   // 6K+FX when that key mode has no side lanes
   const shownMode = tab === 'notes' ? colorMode : settings.lastKeyMode;
@@ -555,6 +557,18 @@ export function SettingsScreen({
     case 'gear':
       content = (
         <>
+          <Choice
+            {...row}
+            label="스킨"
+            testId="opt-skin-set"
+            value={skin ?? CUSTOM_SKIN}
+            defaultValue={skinOf(d.parts, d.hudType) ?? CUSTOM_SKIN}
+            options={skinChoices(skin)}
+            onChange={(v) => {
+              if (v !== CUSTOM_SKIN) onSettingsChange({ ...settings, parts: withSkin(settings.parts, v), hudType: 'gear' });
+            }}
+            help="기어, 노트, 타격 효과, 판정·콤보 글자를 한 벌로 한 번에 바꿉니다. 기본은 그래파이트 기어에 직각 막대 노트와 플래시, 크리스털은 크리스털 기어에 유리 막대 노트와 크리스털 분광, 면으로 깎은 글자입니다. 사이드 노트와 레인, 화면 왼쪽 위의 곡 정보는 스킨과 상관없이 그대로입니다. 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 직접 고름으로 표시됩니다."
+          />
           <Choice
             {...row}
             label="기어"

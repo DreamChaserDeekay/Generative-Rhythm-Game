@@ -199,7 +199,7 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['prism', 'flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    expect(HIT_STYLES).toEqual(['flash', 'prism', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
     // PRISM's and FLASH (the default skin's) are drawn in code alone
     expect(isArtHit('prism')).toBe(false);
     expect(isArtHit('flash')).toBe(false);

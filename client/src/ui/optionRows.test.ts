@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { optionalStep } from './optionRows';
+import { SKIN_IDS } from '../render/skins';
+import { CUSTOM_SKIN, CUSTOM_SKIN_NAME, DECK_NAMES, HIT_NAMES, NOTE_NAMES, optionalStep, PART_CHOICES, SKIN_NAMES, skinChoices } from './optionRows';
 
 describe('a row that may be 자동', () => {
   const r = { min: 0.5, max: 1.5, step: 0.05, bigStep: 0.25, auto: 1 };
@@ -20,5 +21,28 @@ describe('a row that may be 자동', () => {
     expect(optionalStep(1.4, 1, true, r)).toBe(1.5);
     expect(optionalStep(1.5, 1, true, r)).toBe(null);
     expect(optionalStep(0.6, -1, true, r)).toBe(0.5);
+  });
+});
+
+describe('the skin row', () => {
+  it('offers the skins by name, 기본 first, and 직접 고름 only while the parts are no skin’s', () => {
+    expect(skinChoices('default')).toEqual([
+      ['default', '기본'],
+      ['crystal', '크리스털'],
+    ]);
+    expect(skinChoices('crystal')).toEqual(skinChoices('default'));
+    // picked part by part: the row reads 직접 고름, the last of its choices (a step either way lands on a skin)
+    expect(skinChoices(null)).toEqual([...skinChoices('default'), [CUSTOM_SKIN, CUSTOM_SKIN_NAME]]);
+    expect(CUSTOM_SKIN_NAME).toBe('직접 고름');
+    expect(SKIN_IDS as string[]).not.toContain(CUSTOM_SKIN);
+    expect(Object.keys(SKIN_NAMES)).toEqual(SKIN_IDS);
+  });
+
+  it('names a skin as its gear and its notes are named, and lists each part’s default first', () => {
+    expect([SKIN_NAMES.default, DECK_NAMES.standard, NOTE_NAMES.flat]).toEqual(['기본', '기본', '기본']);
+    expect([SKIN_NAMES.crystal, DECK_NAMES.prism, NOTE_NAMES.prism, HIT_NAMES.prism]).toEqual(['크리스털', '크리스털', '크리스털', '크리스털 분광']);
+    expect(PART_CHOICES.note.slice(0, 2).map(([id]) => id)).toEqual(['flat', 'prism']);
+    expect(PART_CHOICES.deck.slice(0, 2).map(([id]) => id)).toEqual(['standard', 'prism']);
+    expect(PART_CHOICES.hit.slice(0, 2).map(([id]) => id)).toEqual(['flash', 'prism']);
   });
 });
