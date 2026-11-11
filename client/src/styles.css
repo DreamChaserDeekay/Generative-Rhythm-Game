@@ -1887,7 +1887,30 @@ p.hint {
   transform: scaleX(0);
 }
 
-/* the score, SPEED and the rate in the windows of the gear's deck (Hud.layDeck): each one line,
+/* the rate under the judgement (Hud.layoutPlane): one small line, label then number, in a dark outline so it reads
+   over the lanes and the notes passing under it; the same on every gear */
+.hud-row.under-judge {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: calc(var(--label-gap) * 1.4);
+  white-space: nowrap;
+  transform-origin: 50% 0;
+  font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: calc(var(--num) * 0.2) var(--bg);
+  paint-order: stroke fill;
+}
+
+.hud-row.under-judge .hud-label {
+  color: var(--text-dim);
+}
+
+.hud-row.under-judge .hud-num {
+  font-family: var(--font-display);
+  color: var(--text);
+}
+
+/* the score and SPEED in the windows of the gear's deck (Hud.layDeck): each one line,
    label then number, about the middle of its window */
 .hud-row.on-deck,
 .hud-speed.on-deck {

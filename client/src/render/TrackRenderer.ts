@@ -1078,12 +1078,15 @@ export class TrackRenderer {
   }
 
   /**
-   * An effect's colour: the lane's, or, on a sheet in colours of its own (EffectSheet.plain: PRISM's
-   * spectrum), white tinged with it, so the sheet's colours show.
+   * An effect's colour: the lane's; on a code sheet in colours of its own (EffectSheet.plain), white tinged
+   * with it, so the sheet's colours show; on a flipbook in colours of its own (MediaTexture.plain: the skins'
+   * hits), white, the flipbook's colours as they are.
    */
   private tinge(material: THREE.MeshBasicMaterial, color: number): void {
     material.color.setHex(color);
-    if (this.hitSheet?.plain && material.map?.image === this.hitSheet.texture.image) material.color.lerp(WHITE, PLAIN_WHITE);
+    const image = material.map?.image;
+    if (this.hitSheet?.plain && image === this.hitSheet.texture.image) material.color.lerp(WHITE, PLAIN_WHITE);
+    else if (HIT_SLOTS.some((slot) => this.art[slot]?.spec.plain && this.art[slot]?.texture.image === image)) material.color.copy(WHITE);
   }
 
   /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
@@ -1631,7 +1634,7 @@ export class TrackRenderer {
         const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core * (this.art.hitBurst?.spec.span ?? 1) * swell;
         core.mesh.scale.set(size, 1, size * this.stretch);
         core.mesh.position.set(g.x, 0.029, this.judgeZ + size * this.stretch * ((this.art.hitBurst?.spec.anchorY ?? 0.5) - 0.5));
-        core.material.color.setHex(this.laneColors[lane]);
+        this.tinge(core.material, this.laneColors[lane]);
         core.material.opacity = dim * (0.85 + 0.15 * kick);
       }
       if (sparks?.spec.flipbook) {
@@ -1646,7 +1649,7 @@ export class TrackRenderer {
         const anchor = sparks.spec.anchorY ?? 0.15;
         h.mesh.scale.set(size, 1, depth);
         h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (anchor - 0.5));
-        h.material.color.setHex(this.laneColors[lane]);
+        this.tinge(h.material, this.laneColors[lane]);
         h.material.opacity = dim;
         return;
       }
@@ -2149,7 +2152,8 @@ export class TrackRenderer {
       if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
       this.bands.push(source && lane.over ? this.flashQuad() : null);
       const burst = this.art.hitBurst;
-      if (hold?.spec.flipbook && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
+      // (a hold flipbook with a core of its own takes none of the burst's)
+      if (hold?.spec.flipbook && !hold.spec.cored && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
       this.tickAt.push(-Infinity);
       this.tickBurstAt.push(-Infinity);
       this.heldFar.push(null);

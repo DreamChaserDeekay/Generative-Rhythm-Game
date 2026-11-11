@@ -140,6 +140,13 @@ const DECK_SMALL = 27;
 const RIGHT_OUT = 12;
 /** Screen px (at 720p) between the gauge's far end and its name over it. */
 const GAUGE_NAME_GAP = 16;
+/**
+ * The rate under the judgement: its number's and its label's size and the gap over it (screen px at 720p). Small: it is
+ * read at a glance between notes, and the judgement over it is the larger word.
+ */
+const RATE_NUM = 17;
+const RATE_LABEL = 11;
+const RATE_GAP = 7;
 const SIDE_MARGIN = 16;
 /**
  * Where the room beside the gear is narrower than the song's plate's widest part, the plate shrinks,
@@ -614,10 +621,13 @@ export class Hud {
     this.sub = q('.hud-rate');
     this.maxCombo = q('.hud-max-combo');
     this.panel = q('.hud-panel');
-    this.allRows = [...this.panel.children] as HTMLElement[];
-    this.panelRows = [...this.allRows].reverse();
     this.scoreRow = this.score.parentElement as HTMLElement;
     this.rateRow = this.sub.parentElement as HTMLElement;
+    // the rate stands on the track under the judgement (layoutPlane): the column and the deck have no row for it
+    this.rateRow.classList.add('under-judge');
+    this.plane.append(this.rateRow);
+    this.allRows = [...this.panel.children] as HTMLElement[];
+    this.panelRows = [...this.allRows].reverse();
     this.maxComboRow = this.maxCombo.parentElement as HTMLElement;
 
     this.gauge = q('.hud-gauge');
@@ -763,20 +773,22 @@ export class Hud {
     this.judgeSub.style.fontSize = px(sub * jk);
     this.judgeSub.style.setProperty('--ms-size', px(Math.max(MS_MIN, sub * MS_SHARE) * jk));
     this.judgeSub.style.setProperty('--sub-stroke', px(Math.max(3, sub * 0.16) * jk));
+    // under the judgement and its FAST / SLOW (measured as they show at their largest), drawn longer as they are:
+    // the timing error bar where a player has it, then the rate
+    const [, tall] = this.measure(
+      this.judgeBox,
+      [
+        [this.judgeLabel, 'MAX 100%'],
+        [this.judgeFastSlow, 'FAST'],
+        [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
+      ],
+      () => undefined,
+    );
+    const below = -judgeAt + (tall * j.stretch) / 2;
+    const e = at(0, below, TEXT_ASPECT);
+    let under = below;
     const eb = this.errorBar;
     if (eb) {
-      // under the judgement and its FAST / SLOW (measured as they show at their largest), drawn longer as they are
-      const [, tall] = this.measure(
-        this.judgeBox,
-        [
-          [this.judgeLabel, 'MAX 100%'],
-          [this.judgeFastSlow, 'FAST'],
-          [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
-        ],
-        () => undefined,
-      );
-      const below = -judgeAt + (tall * j.stretch) / 2;
-      const e = at(0, below, TEXT_ASPECT);
       const width = Math.min(ERROR_BAR_WIDTH * e.k, 2 * p.halfWidth - 24);
       this.place(eb.el, 0, below + ERROR_BAR_GAP * e.k * e.stretch, `translateX(-50%) scaleY(${e.stretch.toFixed(3)})`);
       eb.el.style.width = px(width);
@@ -787,7 +799,10 @@ export class Hud {
       // the hits shown so far keep their place across the new width
       eb.errors.forEach((ms, i) => (eb.ticks[i].style.transform = errorShift(eb, ms)));
       eb.mean.style.transform = errorShift(eb, eb.meanMs);
+      under = below + (ERROR_BAR_GAP + ERROR_BAR_HEIGHT) * e.k * e.stretch;
     }
+    this.place(this.rateRow, 0, under + RATE_GAP * e.k * e.stretch, `translateX(-50%) scaleY(${e.stretch.toFixed(3)})`);
+    this.sizeText(this.rateRow, e.k, RATE_LABEL, RATE_NUM);
     const c = at(0, -comboAt, TEXT_ASPECT);
     this.place(this.comboBox, 0, -comboAt, `translate(-50%, -50%) scaleY(${c.stretch.toFixed(3)})`);
     this.comboNum.style.fontSize = px(t.combo * c.k);
@@ -972,7 +987,7 @@ export class Hud {
     const on = d !== null;
     if (on !== this.onDeck) {
       this.onDeck = on;
-      const moved = [this.scoreRow, this.rateRow];
+      const moved = [this.scoreRow];
       const kept = this.allRows.filter((row) => !on || (!moved.includes(row) && row !== this.maxComboRow));
       this.panel.replaceChildren(...kept);
       if (on) this.plane.append(...moved);
@@ -1004,7 +1019,6 @@ export class Hud {
     };
     lay(this.scoreRow, d.score, DECK_SCORE);
     lay(this.speed, d.speed, DECK_SMALL);
-    lay(this.rateRow, d.rate, DECK_SMALL);
   }
 
   /**

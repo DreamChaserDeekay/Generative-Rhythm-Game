@@ -32,6 +32,20 @@ function trackErrors(page: Page): string[] {
 }
 
 /**
+ * Where a skin's gear has its readouts (1280x720): the score and SPEED on the deck, under the judge line and on the
+ * screen; the rate small under the judgement, on the track's middle, over the judge line.
+ */
+async function readoutsInPlace(page: Page): Promise<void> {
+  const [speed, score, rate, judge] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate', '.hud-judge'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && judge).toBeTruthy();
+  for (const box of [speed!, score!]) expect(box.x >= 0 && box.x + box.width <= 1280 && box.y > 360 && box.y + box.height <= 720).toBe(true);
+  expect(rate!.y).toBeGreaterThan(judge!.y);
+  expect(rate!.y + rate!.height).toBeLessThan(720 * 0.72);
+  expect(Math.abs(rate!.x + rate!.width / 2 - 640)).toBeLessThan(120);
+  expect(await page.locator('.hud-rate').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(parseFloat(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontSize)));
+}
+
+/**
  * The widest run of FXL's colour (the default palette's purple) along a row of the play's track
  * above the judge line, and its middle, as shares of the screen's width: a side note in a lane of
  * its own is a narrow one at the track's edge; laid over the keys, a bar across their left half.
@@ -100,9 +114,8 @@ test('stem keysound, background video and camera effects on a generated chart', 
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(0);
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase3.png' });
-  // the default gear's deck houses the score, SPEED and the rate: under the judge line, on the screen, the score between the two
-  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
-  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  // the default gear's deck houses the score and SPEED, under the judge line; the rate stands small under the judgement
+  await readoutsInPlace(page);
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
   // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it
@@ -533,10 +546,10 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await chooseSetting(page, 'opt-hit-style', 'flash');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  // the default skin: its notes, its long note, its gear and its hit, all drawn in code
+  // the default skin: its notes, its long note and its gear drawn in code, its hit a flipbook
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
-  // and the crystal skin (its parts saved as 'prism'), picked part by part, drawn in code too
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
+  // and the crystal skin (its parts saved as 'prism'), picked part by part: drawn in code too, its hit a flipbook
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
@@ -553,7 +566,7 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   // its HUD: the gauge named FEVER, the letters cut into planes (each word carries its text for them)
   await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'prism');
   await expect(page.locator('.hud')).toHaveAttribute('data-fill', 'crystal');
@@ -574,9 +587,8 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
     expect(word.fill).toBe('rgba(0, 0, 0, 0)');
   }
   await expect.poll(() => page.locator('.hud-combo-num').evaluate((el) => (el as HTMLElement).dataset.text === el.textContent && el.textContent !== '')).toBe(true);
-  // its deck houses the score, SPEED and the rate as the default one does, on its own plates
-  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
-  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  // its deck houses the score and SPEED as the default one does, the rate under the judgement
+  await readoutsInPlace(page);
   expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(124, 200, 255)');
   expect(errors).toEqual([]);
 });
@@ -627,14 +639,14 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
   await page.keyboard.press('ArrowRight');
   await expect(skin).toHaveAttribute('data-value', 'fire');
   await expect(skin).toContainText('파이어스타터');
-  await expect(page.getByTestId('opt-hit-style')).toContainText('불똥');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('불꽃');
   await expect.poll(async () => (await stored()).parts).toEqual({ note: 'fire', side: 'dots', deck: 'fire', hit: 'fire' });
   // the four AI companies' skins after it, each its own gear, notes and hit under the company's name
   for (const [id, name, hit] of [
-    ['gpt', 'GPT', '입력 중 점'],
+    ['gpt', 'GPT', '물방울 왕관'],
     ['gemini', 'Gemini', '반짝임'],
-    ['grok', 'Grok', '펜 엑스'],
-    ['claude', 'Claude', '손 빛살'],
+    ['grok', 'Grok', '엑스 섬광'],
+    ['claude', 'Claude', '붓 빛살'],
   ] as const) {
     await page.keyboard.press('ArrowRight');
     await expect(skin).toHaveAttribute('data-value', id);
@@ -644,7 +656,7 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
     await expect.poll(async () => (await stored()).parts).toEqual({ note: id, side: 'dots', deck: id, hit: id });
   }
   // the skins after the reference panels the user showed, each its own gear, notes and hit under one name
-  for (const [id, name, hit] of [['aqua', '아쿠아', '록온'], ['steel', '스틸', '십자 섬광'], ['rainbow', '무지개', '색종이'], ['noir', '레드라인', '글리치'], ['magenta', '크림슨', '파편 섬광'], ['wire', '화이트 라인', '선 고리'], ['astral', '별밤', '별빛']] as const) {
+  for (const [id, name, hit] of [['aqua', '아쿠아', '록온'], ['steel', '스틸', '십자 섬광'], ['rainbow', '무지개', '색종이'], ['noir', '레드라인', '글리치'], ['magenta', '크림슨', '파편 섬광'], ['wire', '화이트 라인', '선 불꽃'], ['astral', '별밤', '별빛']] as const) {
     await page.keyboard.press('ArrowRight');
     await expect(skin).toHaveAttribute('data-value', id);
     await expect(skin).toContainText(name);
@@ -681,7 +693,7 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'sky sky bar sky sky');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'sky');
   await expect(hud).toHaveAttribute('data-fill', 'sky');
@@ -702,9 +714,8 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
     expect(word.image).toBe('linear-gradient');
     expect(word.face).toContain('Nunito');
   }
-  // the score, SPEED and the rate on the deck, written in white on its sky; the gauge's cells inside a capsule
-  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
-  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  // the score and SPEED on the deck, written in white on its sky, the rate under the judgement; the gauge's cells inside a capsule
+  await readoutsInPlace(page);
   expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
   const capsule = await page.locator('.hud-gauge').evaluate((el) => {
     const box = getComputedStyle(el, '::before');
@@ -737,7 +748,7 @@ test('an AI company’s skin in play: the build’s two stickers over the gear�
   await tool(page, 'sync-auto');
   // its notes a shape of their own (the mark) with the star family's band of light for a long note
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini gemini bar gemini gemini');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   // the two stickers by the gear, and the mark in the notes
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
@@ -765,7 +776,7 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
   // drawn in code, as the default skin is
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   // the two stand by the gear, one a side
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
   const hud = page.locator('.hud');
@@ -787,9 +798,8 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
     expect(word.image).toBe('linear-gradient');
     expect(word.face).toContain('Barlow Condensed Italic');
   }
-  // the score, SPEED and the rate on the deck
-  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
-  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  // the score and SPEED on the deck, the rate under the judgement
+  await readoutsInPlace(page);
   expect(errors).toEqual([]);
 });
 

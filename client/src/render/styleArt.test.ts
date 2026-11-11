@@ -20,7 +20,7 @@ import {
   styleTextures,
   type ArtImage,
 } from './styleArt';
-import { HIT_STYLES, LONG_OF, LONG_PAINT, NOTE_PAINT, NOTE_STRETCH, noteDepthOf } from './tintArt';
+import { HIT_STYLES, LONG_OF, LONG_PAINT, NOTE_PAINT, NOTE_STRETCH, noteDepthOf, type HitStyle } from './tintArt';
 
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const manifest = parseManifest(JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')))!;
@@ -81,15 +81,16 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots' })).toEqual(['mecha/notes', 'mecha/long', ...cabinet]);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
-    // the track as it starts: the default skin, drawn in code alone (as the PRISM set is)
+    // the track as it starts: the default skin, its parts drawn in code (as the PRISM set's are) and its hit a flipbook
     expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
     expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual([]);
     // the sky skin's too, but for two pictures: the painting of its deck's sky and the feather over its score
     expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/plate', 'sky/feather']);
-    // the Firestarter skin is drawn in code all through (the figures at its sides are the player's own, not the game's)
+    // the Firestarter skin's parts are drawn in code too (the figures at its sides come with the build)
     expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
-    // three hits of no set have flipbooks of their own, as the sets' hits do (FLASH is drawn in code alone)
+    // three hits of no set have flipbooks of their own, as the sets' hits do; the default skin's FLASH plays "basic"
+    expect(styleTextures(BASE_SKIN.style)).toEqual({ hitBurst: 'basic/hitBurst', hitHold: 'basic/hitHold' });
     for (const hit of ['flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
   });
 
@@ -204,15 +205,35 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
     expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
-    // the skins' (PRISM's, SKY's and FLASH, the default skin's) are drawn in code alone
-    expect(isArtHit('prism')).toBe(false);
-    expect(isArtHit('sky')).toBe(false);
-    expect(isArtHit('fire')).toBe(false);
-    expect(isArtHit('flash')).toBe(false);
-    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flash'];
-    for (const hit of drawn) expect(isArtHit(hit), hit).toBe(false);
-    for (const hit of HIT_STYLES.filter((h) => !drawn.includes(h))) {
-      expect(isArtHit(hit), hit).toBe(true);
+    for (const hit of HIT_STYLES) expect(isArtHit(hit), hit).toBe(true);
+    // the skins' hits are animations drawn frame by frame (scripts/assets/build_skin_fx.py): light in colours of their
+    // own, added as it is; the default skin's FLASH is white light the lane colours ("basic": "flash" is an older sheet
+    // nothing plays)
+    const skins: readonly HitStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flash'];
+    for (const hit of skins) {
+      const name = hit === 'flash' ? 'basic' : hit;
+      const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
+      expect([hitBurst, hitHold], hit).toEqual([`${name}/hitBurst`, `${name}/hitHold`]);
+      const [burst, hold] = [manifest.textures[hitBurst!], manifest.textures[hitHold!]];
+      expect([burst.file, hold.file], hit).toEqual([`fx/${name}_burst.webp`, `fx/${name}_hold.webp`]);
+      expect([burst.plain === true, hold.plain === true], hit).toEqual(hit === 'flash' ? [false, false] : [true, true]);
+      // a hit is over in a third of a second (the user's rule: under 0.4 s), its frames the animation's own
+      const book = burst.flipbook!;
+      expect([book.cols, book.rows, book.loop], hit).toEqual([4, 4, false]);
+      expect(book.frames, hit).toBeGreaterThanOrEqual(8);
+      expect(book.frames / book.fps, hit).toBeLessThan(0.4);
+      expect(book.frames / book.fps, hit).toBeGreaterThan(0.25);
+      // the light while a note is held: a loop with a core of its own (no frame of the hit glows under it)
+      expect(hold.flipbook, hit).toMatchObject({ cols: 4, rows: 4, fps: 24, loop: true });
+      expect(hold.flipbook!.frames, hit).toBeGreaterThanOrEqual(8);
+      expect([burst.cored, hold.cored], hit).toEqual([undefined, true]);
+      for (const t of [burst, hold]) {
+        expect(t.anchorY, hit).toBe(0.5);
+        expect(t.span, hit).toBeGreaterThan(0.5);
+        expect(t.span, hit).toBeLessThan(1.7);
+      }
+    }
+    for (const hit of HIT_STYLES.filter((h) => !skins.includes(h))) {
       const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
       for (const id of [hitBurst, hitHold]) {
         expect(id && manifest.textures[id]?.size, `${hit} ${id}`).toEqual([1024, 1024]);

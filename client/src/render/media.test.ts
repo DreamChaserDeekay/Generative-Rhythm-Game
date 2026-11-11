@@ -7,7 +7,7 @@ import { BASE_SKIN } from './skins';
 import { styleTextures } from './styleArt';
 import { HIT_STYLES } from './tintArt';
 
-// The built game media (scripts/assets/build_styles.py and build_gears.py → client/public/media) against its manifest.
+// The built game media (scripts/assets/build_styles.py, build_gears.py and build_skin_fx.py → client/public/media) against its manifest.
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const raw = JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')) as { textures: Record<string, unknown> };
 const manifest = parseManifest(raw)!;
@@ -39,13 +39,14 @@ describe('game media', () => {
     expect(Object.keys(manifest.textures).length).toBeGreaterThan(0);
   });
 
-  it('has every file at the size the manifest gives, in powers of two up to 2048 (a gear’s pictures any size up to it)', () => {
+  it('has every file at the size the manifest gives, in powers of two up to 2048 (a gear’s pictures and the skins’ flipbooks any size up to it)', () => {
     for (const [id, t] of Object.entries(manifest.textures)) {
       const [w, h] = imageSize(join(MEDIA, t.file));
       expect([w, h], id).toEqual(t.size);
-      // a texture the GPU samples; a gear's picture is only drawn on the deck's canvas, at its own proportions
-      const canvasOnly = t.file.startsWith('gears/');
-      expect((canvasOnly || (isPowerOfTwo(w) && isPowerOfTwo(h))) && w <= 2048 && h <= 2048, `${id} ${w}×${h}`).toBe(true);
+      // a texture the GPU samples; a gear's picture is only drawn on the deck's canvas, at its own proportions, and the
+      // skins' flipbooks (fx/) keep the size their frames were drawn at (WebGL 2 samples and mips any size)
+      const anySize = t.file.startsWith('gears/') || t.file.startsWith('fx/');
+      expect((anySize || (isPowerOfTwo(w) && isPowerOfTwo(h))) && w <= 2048 && h <= 2048, `${id} ${w}×${h}`).toBe(true);
       if (t.flipbook) expect(w % t.flipbook.cols === 0 && h % t.flipbook.rows === 0, `${id} cells`).toBe(true);
     }
   });
@@ -59,10 +60,8 @@ describe('game media', () => {
   });
 
   it('has the flipbooks of every hit effect a player picks', () => {
-    // the skins' (PRISM's spectrum, SKY's puff of cloud, the default skin's FLASH) are drawn in code alone (tintArt.ts)
-    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flash'];
-    for (const hit of HIT_STYLES.filter((h) => drawn.includes(h))) expect(styleTextures({ ...BASE_SKIN.style, hit })).toEqual({});
-    for (const hit of HIT_STYLES.filter((h) => !drawn.includes(h))) {
+    // every one, the skins' too (each an animation drawn frame by frame: fx/)
+    for (const hit of HIT_STYLES) {
       const ids = Object.entries(styleTextures({ ...BASE_SKIN.style, hit }));
       expect(ids.map(([slot]) => slot), hit).toEqual(['hitBurst', 'hitHold']);
       for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook, `${hit}.${slot} = ${id}`).toBeDefined();

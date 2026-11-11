@@ -43,12 +43,28 @@ const SET_IDS = Object.keys(SET_NOTES) as ArtSet[];
 const setOf = (note: string): ArtSet | undefined => SET_IDS.find((s) => SET_NOTES[s] === note);
 
 /**
- * The hits drawn from flipbooks (client/public/media/styles/<set>/ and styles/hits/), by their name in
- * the manifest: the sets' and three of no set (FLARE, BUBBLES, GRID). Each is drawn in code while
- * its flipbooks are missing (tintArt.ts: effectSheet); FLASH (the default skin's) and PRISM's are
- * drawn in code alone.
+ * The hits drawn from flipbooks, by their name in the manifest: the sets' and three of no set (FLARE,
+ * BUBBLES, GRID: client/public/media/styles/<set>/ and styles/hits/), and the skins' (client/public/media/fx/:
+ * each a frame-by-frame animation made with the image model, scripts/assets/build_skin_fx.py; the default
+ * skin's FLASH is "basic" there, "flash" being an older sheet nothing plays). Each is drawn in code while its
+ * flipbooks are missing (tintArt.ts: effectSheet).
  */
 const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
+  flash: 'basic',
+  prism: 'prism',
+  sky: 'sky',
+  fire: 'fire',
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
+  aqua: 'aqua',
+  steel: 'steel',
+  rainbow: 'rainbow',
+  noir: 'noir',
+  magenta: 'magenta',
+  wire: 'wire',
+  astral: 'astral',
   flare: 'flare',
   bubbles: 'bubbles',
   grid: 'grid',

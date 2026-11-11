@@ -1945,3 +1945,352 @@
 
 - `plate-1`(07:50 UTC, 약 $0.06, PNG 3,988,599바이트 · `4f0ab4df783e515c`): 견본 없이 글만으로, "평평한 셀 셰이딩"으로 그리라는 프롬프트 · 구도는 맞았고 잠시 받침으로 깔았으나(커밋 271431c ~ c6baae2) 구름이 납작한 만화 구름이라, 사용자가 시안처럼 더 뭉게뭉게하게 바꿔 달라고 해 바꿈. 프롬프트는 그 커밋들의 이 파일과 `make_sky_pictures.py`에 있습니다.
 - `plate-3`(08:22 UTC, 약 $0.06, PNG 4,279,980바이트 · `e82155c5b853fe71`): `plate-2`와 같은 프롬프트와 견본 · 오른쪽 구름이 그림 맨 위까지 닿아, 받침에 깔면 키 표시선 띠 바로 아래부터 구름이 됨
+
+## 스킨의 타격 효과: 프레임 애니메이션 시트 (`styles/skinfx`, 2026-11-11)
+
+스킨 15종(기본 · 크리스털 · 하늘 · 파이어스타터 · GPT · Gemini · Grok · Claude · 아쿠아 · 스틸 · 무지개 · 레드라인 · 크림슨 · 화이트 라인 · 별밤)의 타격 효과를 코드 그림에서 그림으로 바꾼 것입니다. 사용자의 요청(2026-11-11): "이펙트에 단순 도형 (원, 선)으로 이루어진 티가 너무 나고, 애니메이션도 너무 밋밋", "이펙트의 지속시간은 길면 안 돼. 0.4초 이하가 이상적", "GEMINI API 우선으로 이미지 생성 방식으로 다시 작성해줘", "후보에 없는 스킨들도 이펙트를 코드로 작성했다면 이미지로 다시 만들어서 진행해줘", Grok은 "트위터 X 표시가 반짝이면서 터지는 느낌으로".
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 1:1 · 2K → 2048×2048 PNG) · 사용자의 Google Cloud 프로젝트 · 한 장 약 $0.06(토큰 사용량으로 계산한 추정치)
+- 방식: 효과마다 한 장에 **16프레임(4×4, 검은 바탕)의 프레임별 애니메이션**을 그리게 했습니다. 치는 순간(`<효과>_burst`)과 롱노트를 누르는 동안(`<효과>_hold`, 반복) 두 장씩입니다. 예전 세트의 효과(`styles/hits`)처럼 낱장 조각을 코드로 움직인 것이 아니라, 프레임마다 다른 그림입니다.
+- 보낸 그림: 없음(글로만). 다른 게임의 화면, 사용자가 올린 레퍼런스 그림, 로고는 보내지 않았습니다. 회사 스킨은 색과 분위기만 글로 적었고, Grok은 "굵은 획과 가는 획이 엇갈린 X"라고 적었습니다.
+- 만드는 도구: `scripts/assets/make_skin_fx.py make <효과> burst|hold` (받은 그대로는 `assets-src/styles/skinfx/_tries/`에 두고 저장소에는 넣지 않음) → `pick`이 고른 것을 1536×1536 JPEG(품질 92, 색 정보 줄이지 않음)으로 저장
+- 게임용으로: `scripts/assets/build_skin_fx.py`가 검정을 검정으로 만들고(모델의 검정과 JPEG 잡음 제거), 프레임마다 칸 가장자리로 흐려지게 하고, 빛이 사라진 뒤의 프레임과 거의 빈 첫 프레임을 뺀 다음 `client/public/media/fx/<효과>_burst.webp`(1536×1536, 프레임 384px)와 `_hold.webp`(1024×1024, 프레임 256px)로 만듭니다. 치는 순간은 프레임 수와 상관없이 **0.32초**에 끝나고(프레임 수 ÷ 0.32 = fps), 누르는 동안은 24fps 반복입니다. 기본 스킨의 플래시(`basic`)만 흰빛으로 만들어 게임이 레인 색을 입히고, 나머지는 제 색 그대로 더합니다(매니페스트의 `plain`).
+- 고르기: 효과마다 한 장씩 받아 모두 그대로 썼습니다(파이어스타터의 치는 순간은 방식을 시험한 첫 장). 누르는 동안 5장(파이어스타터 · 아쿠아 · 스틸 · 무지개 · 레드라인)은 분당 한도(HTTP 429)로 실패해 다시 요청했습니다(실패한 요청은 그림이 없고 비용도 없음).
+- 비용: 30장 약 $1.80
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 공통 프롬프트
+
+치는 순간(`burst`)의 머리말과 꼬리말(사이에 효과별 `THE EFFECT` · `THE ANIMATION`이 들어감):
+
+  > A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE hit impact effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks.
+  >
+  > LAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom (frame 1 top-left, frame 16 bottom-right). Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell and stays inside its cell with black space around it; nothing touches a cell edge.
+  >
+  > (THE EFFECT … / THE ANIMATION, one continuous motion across the 16 frames: …)
+  > Every frame is a different drawing of the same event a moment later: shapes change, break up and travel outward, they are not one picture scaled up. Painterly, energetic, asymmetric, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.
+
+누르는 동안(`hold`)의 머리말과 꼬리말:
+
+  > A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE small looping effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks: the light that burns steadily at the spot where a long note is being held down.
+  >
+  > LAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom. Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell, about the same size and the same brightness in every frame (it fills about half of the cell's width), and stays inside its cell with plenty of black space around it; nothing touches a cell edge.
+  >
+  > (THE EFFECT … / THE ANIMATION: in every frame …, while ….)
+  > It is a seamless loop: there is no start and no end, no frame is empty and none is much bigger or brighter than the others; frame 16 flows back into frame 1. Every frame is a different drawing of the same steady effect a moment later: the flickering parts change shape and place from frame to frame, they are not one picture turned or scaled. Painterly, energetic, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.
+
+
+### `styles/skinfx/basic_burst.jpg` · `basic_hold.jpg` (기본(플래시))
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,783,289바이트 · sha256 앞 16자리 `bd3da103f10eceb4` · 저장한 JPEG 287,410바이트 → `fx/basic_burst.webp` 1536×1536(110,090바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 3,725,456바이트 · sha256 앞 16자리 `ab451112d3a6c06e` · 저장한 JPEG 254,098바이트 → `fx/basic_hold.webp` 1024×1024(47,022바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a clean, punchy burst of pure light with a crackle of electric energy. Every element is white and grey light only, with no colour at all, because the game colours it itself.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a blinding star-shaped flash with long sharp rays;
+  > - frames 3-5: the flash blows outward into a bright shockwave ring with short crackling arcs of energy on it and sharp glints shooting out in all directions;
+  > - frames 6-10: the ring keeps expanding and breaks into separate thin arcs, the glints fly further and stretch into fine streaks, small four-ray sparkles twinkle;
+  > - frames 11-14: only a few thin arcs and tiny fading sparkles are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint sparkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a steady crackle of pure energy. Every element is white and grey light only, with no colour at all, because the game colours it itself.
+  >
+  > THE ANIMATION: in every frame a small white-hot round core with a soft bloom stays in the centre, while short crackling electric arcs dance around the core, jumping to new places every frame, and tiny sharp sparks and four-ray glints pop off it in all directions.
+
+### `styles/skinfx/prism_burst.jpg` · `prism_hold.jpg` (크리스털)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,762,746바이트 · sha256 앞 16자리 `574de33947ae5a20` · 저장한 JPEG 318,583바이트 → `fx/prism_burst.webp` 1536×1536(113,136바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 3,717,017바이트 · sha256 앞 16자리 `143a926d3efe9690` · 저장한 JPEG 314,906바이트 → `fx/prism_hold.webp` 1024×1024(64,736바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of cut crystal and prismatic light: ice-white and pale-blue shards of clear faceted glass, with thin rainbow dispersion (a fine spectrum of red, yellow, green, blue, violet) along their cut edges.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white glint snaps open into a blinding diamond-shaped flash with a thin rainbow halo;
+  > - frames 3-5: a crystal shatters outward from the centre: many sharp, faceted, translucent shards of different sizes shoot out in all directions, each facet catching white light, thin spectral streaks between them;
+  > - frames 6-10: the shards fly further, tumble and turn so that different facets flash, tiny rainbow glints sparkle among them, the centre is only a pale blue glow;
+  > - frames 11-14: only a few small shards and tiny prismatic sparkles are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint glints; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small point of prismatic light in ice white and pale blue with thin rainbow dispersion (red, yellow, green, blue, violet).
+  >
+  > THE ANIMATION: in every frame a small bright diamond-shaped white core with a pale blue glow stays in the centre, while thin rainbow glints and tiny faceted shards of crystal light flick out from the core at different angles every frame, and small spectral sparkles twinkle around it.
+
+### `styles/skinfx/sky_burst.jpg` · `sky_hold.jpg` (하늘)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,928,577바이트 · sha256 앞 16자리 `3cf8c1d5dd5933b2` · 저장한 JPEG 365,702바이트 → `fx/sky_burst.webp` 1536×1536(137,228바이트), 12프레임 · 37.5fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 4,203,941바이트 · sha256 앞 16자리 `417aa52b73090a84` · 저장한 JPEG 359,087바이트 → `fx/sky_hold.webp` 1024×1024(76,790바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a soft, bright burst of white cloud, sunlight and white feathers in a clear sky-blue glow: white, pale cyan and sky blue.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright sunburst with soft rays;
+  > - frames 3-5: a puff of white cloud bursts open into a ring of billowing cloud wisps, and several white feathers are thrown out from the centre in different directions, with a few sparkling glints;
+  > - frames 6-10: the cloud ring spreads and thins into separate drifting wisps, the feathers whirl outward, turning and curling as they fly, small sparkles twinkle;
+  > - frames 11-14: only two or three small feathers and thin wisps are left, drifting and fading into pale blue;
+  > - frames 15-16: almost nothing, the last faint wisp; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small ball of warm sunlight in white, pale cyan and sky blue.
+  >
+  > THE ANIMATION: in every frame a soft, bright, round white core with a sky-blue glow stays in the centre, while small wisps of white cloud curl and drift around the core, short soft sun rays turn slowly, and one or two tiny white feathers and sparkles float up and away in every frame.
+
+### `styles/skinfx/fire_burst.jpg` · `fire_hold.jpg` (파이어스타터)
+
+- 치는 순간: 2026-11-11 14:06 UTC · PNG 3,603,055바이트 · sha256 앞 16자리 `4889d098a6893898` · 저장한 JPEG 362,901바이트 → `fx/fire_burst.webp` 1536×1536(127,524바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 4,144,443바이트 · sha256 앞 16자리 `02e9dc3be826a192` · 저장한 JPEG 420,893바이트 → `fx/fire_hold.webp` 1024×1024(89,994바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a fiery impact burst, white-hot at its core, molten orange and deep red toward its edges. It is light and fire only.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white-hot point snaps open into a blinding star-shaped flash;
+  > - frames 3-5: the flash blows outward into an irregular ring of licking flame tongues and thick, tapered sparks shooting out in all directions, the core still white;
+  > - frames 6-10: the flame ring keeps expanding and tears apart into separate curling wisps of fire, the sparks fly further and stretch into thin streaks, glowing embers tumble, the core dims to orange;
+  > - frames 11-14: only thin wisps, a few drifting embers and fading streaks are left, getting smaller and darker red;
+  > - frames 15-16: almost nothing, the last two or three dying embers; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small roaring flame, white-hot at its core, molten orange and deep red at its edges. It is light and fire only.
+  >
+  > THE ANIMATION: in every frame a white-hot core stays in the centre, while tongues of orange flame lick outward in all directions with a different shape in every frame, and small glowing embers and short sparks fly off.
+
+### `styles/skinfx/gpt_burst.jpg` · `gpt_hold.jpg` (GPT)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,755,139바이트 · sha256 앞 16자리 `389cbb1b5cd5e503` · 저장한 JPEG 336,084바이트 → `fx/gpt_burst.webp` 1536×1536(119,006바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 4,968,930바이트 · sha256 앞 16자리 `8be1fb97d40c76f2` · 저장한 JPEG 585,012바이트 → `fx/gpt_hold.webp` 1024×1024(136,022바이트), 13프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of liquid light in emerald-teal green (#10a37f) and white, like a drop hitting still water: white at its core, bright teal green around it.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright round bloom of white and teal light;
+  > - frames 3-5: a crown-shaped splash of glowing teal liquid light leaps up and outward from the centre with round droplets flying off its tips, and a bright ripple ring opens around it;
+  > - frames 6-10: the splash collapses and tears into separate ribbons and beads of light, the round droplets fly further and stretch into short streaks, a second, thinner ripple ring follows the first;
+  > - frames 11-14: only thin broken ripple arcs and a few small round droplets are left, getting smaller and darker green;
+  > - frames 15-16: almost nothing, the last one or two faint droplets; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a bead of liquid light in emerald-teal green (#10a37f) and white, seen from above.
+  >
+  > THE ANIMATION: in every frame a bright round white bead with a teal glow stays in the centre, while thin ripple rings pulse outward from the bead one after another, and small round droplets of teal light hop around it at different places in every frame.
+
+### `styles/skinfx/gemini_burst.jpg` · `gemini_hold.jpg` (Gemini)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,367,793바이트 · sha256 앞 16자리 `31442c68eeef5065` · 저장한 JPEG 262,516바이트 → `fx/gemini_burst.webp` 1536×1536(83,488바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 3,858,287바이트 · sha256 앞 16자리 `a7cdb1870051e66c` · 저장한 JPEG 355,550바이트 → `fx/gemini_hold.webp` 1024×1024(72,170바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of four-pointed sparkle stars (each with four long, thin, tapering points and concave sides) in a smooth gradient of blue, violet and pink with white-hot cores.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into one large four-pointed sparkle star with long thin points, white with a blue-to-pink gradient glow;
+  > - frames 3-5: the large star flares to its biggest, turns a little and throws off many smaller four-pointed sparkles in blue, violet and pink that shoot outward in all directions, each leaving a short soft trail;
+  > - frames 6-10: the large star shrinks to a thin cross of light and fades while the small sparkles fly further, each one twinkling (growing and shrinking) at a different moment, with tiny dots of light among them;
+  > - frames 11-14: only a few small sparkles are left, twinkling out one by one;
+  > - frames 15-16: almost nothing, the last one faint sparkle; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a four-pointed sparkle star (four long thin tapering points, concave sides) with a white core and a smooth blue, violet and pink gradient glow.
+  >
+  > THE ANIMATION: in every frame the sparkle star stays in the centre, while its four points lengthen and shorten so that it twinkles, a faint second star turned 45 degrees pulses behind it, and tiny four-pointed sparkles in blue, violet and pink appear and vanish around it.
+
+### `styles/skinfx/grok_burst.jpg` · `grok_hold.jpg` (Grok)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,790,062바이트 · sha256 앞 16자리 `fcb6bad18c637895` · 저장한 JPEG 308,027바이트 → `fx/grok_burst.webp` 1536×1536(112,912바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 3,800,277바이트 · sha256 앞 16자리 `4a9e3ee072fa74e1` · 저장한 JPEG 285,329바이트 → `fx/grok_hold.webp` 1024×1024(57,094바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a bold X mark made of two crossing diagonal strokes, one thick and one thin, in pure white and silver light, monochrome with no colour at all, that flashes, glints and bursts apart.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: two fast diagonal slashes of white light cross each other with motion streaks and form a bold, sharp X, one stroke thick and one thin;
+  > - frames 3-5: the X flares blinding white, a bright star-shaped glint flashes at its crossing point and smaller glints sparkle along its edges and at its four tips;
+  > - frames 6-10: the X cracks and bursts apart: its strokes break into angular shards and splinters that shoot outward along the four diagonal directions, with sharp sparks and four-ray sparkles between them;
+  > - frames 11-14: only a few small shards and twinkling sparkles are left, flying outward, getting smaller and dimmer grey;
+  > - frames 15-16: almost nothing, the last one or two faint sparkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small bold X-shaped spark made of two crossing diagonal strokes, one thick and one thin, in pure white and silver light, monochrome with no colour at all.
+  >
+  > THE ANIMATION: in every frame the X stays in the centre, while its strokes flicker in length and brightness, a sharp star-shaped glint flashes at its crossing point, and tiny angular shards and four-ray sparkles jump off its four tips at different places in every frame.
+
+### `styles/skinfx/claude_burst.jpg` · `claude_hold.jpg` (Claude)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,460,798바이트 · sha256 앞 16자리 `0620f60916cfea5c` · 저장한 JPEG 309,356바이트 → `fx/claude_burst.webp` 1536×1536(113,434바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 4,044,550바이트 · sha256 앞 16자리 `d7d515c538db853c` · 저장한 JPEG 432,263바이트 → `fx/claude_hold.webp` 1024×1024(98,098바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a hand-painted starburst in warm terracotta orange (#d97757) and cream, like a sunburst made of uneven tapered brush strokes with a dry-brush texture: cream-white at the centre, terracotta at the tips.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a small cream-white dab of paint snaps open into a bright asterisk-like burst of short tapered brush strokes;
+  > - frames 3-5: the strokes shoot outward as a full sunburst of a dozen uneven, tapered, textured brush strokes of different lengths, with small flecks and droplets of paint thrown out between them;
+  > - frames 6-10: the strokes detach from the centre and fly outward, thinning into dry-brush streaks, the flecks and droplets scatter further, the centre is only a warm glow;
+  > - frames 11-14: only a few thin streaks and small flecks are left, getting smaller and darker terracotta;
+  > - frames 15-16: almost nothing, the last one or two faint flecks; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small hand-painted starburst in warm terracotta orange (#d97757) and cream, made of uneven tapered brush strokes with a dry-brush texture.
+  >
+  > THE ANIMATION: in every frame a cream-white dab stays in the centre, while about ten short brush strokes radiate from it and pulse in and out unevenly, each a different length in every frame, with small flecks of paint hopping between them.
+
+### `styles/skinfx/aqua_burst.jpg` · `aqua_hold.jpg` (아쿠아)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,548,974바이트 · sha256 앞 16자리 `46120db6f7e8f094` · 저장한 JPEG 333,348바이트 → `fx/aqua_burst.webp` 1536×1536(117,716바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 3,991,646바이트 · sha256 앞 16자리 `4b5112d791fffbb9` · 저장한 JPEG 391,404바이트 → `fx/aqua_hold.webp` 1024×1024(85,392바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a holographic energy burst in aqua cyan (#22e0e6) with hot pink (#ff3f93) accents and a white core, the feel of a mecha's targeting display.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright cyan plasma flash inside a thin hexagonal ring of light;
+  > - frames 3-5: the hexagonal ring snaps wide and breaks at its corners while the plasma flash blows outward into jagged cyan energy tongues, and sharp pink shards and small hexagonal fragments shoot out in all directions;
+  > - frames 6-10: the energy tongues tear into separate cyan wisps and arcs, the pink shards fly further and stretch into thin streaks, small hexagon fragments tumble and flicker like a hologram breaking up;
+  > - frames 11-14: only a few thin cyan arcs, small fragments and pink streaks are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint fragments; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small holographic core of energy in aqua cyan (#22e0e6) with hot pink (#ff3f93) accents.
+  >
+  > THE ANIMATION: in every frame a bright white-cyan plasma core stays in the centre inside a thin hexagonal ring of light, while the hexagonal ring turns step by step and flickers like a hologram, jagged little cyan energy tongues flare off the core, and short pink sparks shoot off at different angles in every frame.
+
+### `styles/skinfx/steel_burst.jpg` · `steel_hold.jpg` (스틸)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,608,490바이트 · sha256 앞 16자리 `f18bcdb3a562d504` · 저장한 JPEG 318,372바이트 → `fx/steel_burst.webp` 1536×1536(114,336바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 4,241,345바이트 · sha256 앞 16자리 `d76a251f8a179b43` · 저장한 JPEG 416,353바이트 → `fx/steel_hold.webp` 1024×1024(102,042바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a cold, hard burst of white-hot welding light and metal sparks in steel blue: a cross-shaped flare with four long rays, white at the core, icy steel blue (#58aaf0) around it.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a blinding cross-shaped flare with four long thin rays and a hot round core;
+  > - frames 3-5: the cross flare is at its biggest and a shower of white-hot metal sparks sprays out from the centre in all directions as long thin streaks, with a thin, sharp shockwave ring opening around it;
+  > - frames 6-10: the flare shrinks to a small hot core, the sparks fly further on slightly curved paths, some split into two, cooling from white to steel blue, the ring thins and breaks into arcs;
+  > - frames 11-14: only a few fading sparks and thin broken arcs are left, getting shorter and darker blue;
+  > - frames 15-16: almost nothing, the last one or two dying sparks; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a white-hot welding point in icy steel blue (#58aaf0).
+  >
+  > THE ANIMATION: in every frame a small blinding white core with a cross-shaped flare of four thin rays stays in the centre, while the rays flicker in length, and a steady spray of small white and steel-blue metal sparks flies off in all directions as thin streaks, different in every frame.
+
+### `styles/skinfx/rainbow_burst.jpg` · `rainbow_hold.jpg` (무지개)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,860,364바이트 · sha256 앞 16자리 `23ae83b01c97da79` · 저장한 JPEG 435,897바이트 → `fx/rainbow_burst.webp` 1536×1536(171,686바이트), 12프레임 · 37.5fps
+- 누르는 동안: 2026-11-11 14:18 UTC · PNG 4,192,909바이트 · sha256 앞 16자리 `439158ad2e9f74e7` · 저장한 JPEG 519,722바이트 → `fx/rainbow_hold.webp` 1024×1024(126,708바이트), 15프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a joyful candy-coloured confetti pop: glossy confetti pieces, curled streamers, small stars and round dots in bright red, orange, yellow, green, sky blue, purple and pink, around a white pop flash.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright white pop flash with short rays, a few coloured dots at its edge;
+  > - frames 3-5: confetti bursts out of the flash in all directions: glossy rectangular pieces, curled streamers, small five-pointed stars and round dots in every colour, the flash already shrinking;
+  > - frames 6-10: the pieces fly further, tumbling and turning so they show different sides, the streamers uncurl, small sparkles twinkle between them, the flash is gone;
+  > - frames 11-14: only a few small pieces, one streamer and a star are left, drifting outward and fading;
+  > - frames 15-16: almost nothing, the last one or two small pieces; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small fizzing sparkle of candy colours: bright red, orange, yellow, green, sky blue, purple and pink around white.
+  >
+  > THE ANIMATION: in every frame a bright white sparkling core stays in the centre, while tiny confetti pieces, round dots and small five-pointed stars in every colour pop out around it and tumble, at different places in every frame.
+
+### `styles/skinfx/noir_burst.jpg` · `noir_hold.jpg` (레드라인)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 1,217,944바이트 · sha256 앞 16자리 `f24094be8b63ae15` · 저장한 JPEG 263,896바이트 → `fx/noir_burst.webp` 1536×1536(78,972바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 3,122,125바이트 · sha256 앞 16자리 `3e292c07e3eb2fd7` · 저장한 JPEG 303,640바이트 → `fx/noir_hold.webp` 1024×1024(34,408바이트), 13프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a digital glitch burst in pure red (#ff1a2b) and white on black: horizontal slices, blocky pixels and torn scanlines, like a corrupted video signal. Only red, white and black.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a thin white horizontal bar of light snaps open at the centre with a red ghost of itself shifted to one side;
+  > - frames 3-5: the bar tears into several horizontal slices that jump left and right out of line, and blocks of red and white pixels of different sizes burst outward from the centre with torn scanline fragments;
+  > - frames 6-10: the slices break up further into small rectangles, the pixel blocks fly outward and split into smaller pixels, some flicker as hollow outlines, with thin red scanlines between them;
+  > - frames 11-14: only a few small pixels and short red dashes are left, scattered wide, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two pixels; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small digital glitch in pure red (#ff1a2b) and white on black, like a corrupted video signal. Only red, white and black.
+  >
+  > THE ANIMATION: in every frame a short bright white horizontal bar stays in the centre, while red and white horizontal slices jitter left and right above and below it, different in every frame, and small red pixel blocks flicker on and off around it.
+
+### `styles/skinfx/magenta_burst.jpg` · `magenta_hold.jpg` (크림슨)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,650,690바이트 · sha256 앞 16자리 `9e08ead26fdd1ef2` · 저장한 JPEG 350,673바이트 → `fx/magenta_burst.webp` 1536×1536(122,912바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:15 UTC · PNG 4,124,655바이트 · sha256 앞 16자리 `cbe916c1997a1a58` · 저장한 JPEG 482,974바이트 → `fx/magenta_hold.webp` 1024×1024(110,140바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a razor-sharp burst of blade-like light in crimson (#f0145a) and hot pink with a white core: angular shards and splinters, the feel of a sword slash.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: two thin white slashes of light cross at the centre as a sharp X-shaped flash with a crimson glow;
+  > - frames 3-5: the flash blows outward into long, angular, blade-like shards of crimson and pink light pointing away from the centre in all directions, with triangular splinters and a few white sparks between them;
+  > - frames 6-10: the shards detach and fly outward, spinning and narrowing, the splinters scatter further, thin curved pink slash arcs sweep around the centre, the core dims to crimson;
+  > - frames 11-14: only a few thin shards, small splinters and fading arcs are left, getting smaller and darker crimson;
+  > - frames 15-16: almost nothing, the last one or two faint splinters; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small core of blade-like light in crimson (#f0145a) and hot pink with a white centre.
+  >
+  > THE ANIMATION: in every frame a white-hot core with a crimson glow stays in the centre, while sharp, thin, blade-like spikes of crimson and pink light stab outward from it at different angles and lengths in every frame, with tiny triangular splinters flying off.
+
+### `styles/skinfx/wire_burst.jpg` · `wire_hold.jpg` (화이트 라인)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,713,098바이트 · sha256 앞 16자리 `e261fb1c8e61f8b6` · 저장한 JPEG 312,217바이트 → `fx/wire_burst.webp` 1536×1536(126,340바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:15 UTC · PNG 4,247,035바이트 · sha256 앞 16자리 `c24014ee0f603834` · 저장한 JPEG 398,292바이트 → `fx/wire_hold.webp` 1024×1024(102,042바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: an elegant firework sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled shapes, pure white with a faint soft glow, monochrome.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny line-drawn star of a few short pen strokes snaps open at the centre;
+  > - frames 3-5: it bursts into a ring of many fine radiating pen strokes of uneven length, like a dandelion or a firework, with a hand-drawn circle around it and tiny line-drawn four-point twinkles at some stroke ends;
+  > - frames 6-10: the strokes fly outward and curve a little like falling firework trails, the circle widens and breaks into short dashes, a second ring of finer strokes opens inside, small twinkles drift;
+  > - frames 11-14: only a few short fading strokes, dashes and tiny twinkles are left, scattered wide;
+  > - frames 15-16: almost nothing, the last one or two faint twinkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small star sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled shapes, pure white, monochrome.
+  >
+  > THE ANIMATION: in every frame a small line-drawn star stays in the centre, while its pen strokes are redrawn at slightly different lengths and angles in every frame so that it shimmers, a thin hand-drawn circle wobbles around it, and tiny line-drawn four-point twinkles appear and vanish near it.
+
+### `styles/skinfx/astral_burst.jpg` · `astral_hold.jpg` (별밤)
+
+- 치는 순간: 2026-11-11 14:11 UTC · PNG 3,876,347바이트 · sha256 앞 16자리 `627fedf8e78dc66c` · 저장한 JPEG 350,014바이트 → `fx/astral_burst.webp` 1536×1536(146,444바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:16 UTC · PNG 5,902,337바이트 · sha256 앞 16자리 `4fdd3837010a18ec` · 저장한 JPEG 785,023바이트 → `fx/astral_hold.webp` 1024×1024(208,396바이트), 15프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of golden starlight and glittering stardust over a soft moon-blue glow: warm gold (#f2c14e) and white stars, pale blue haze, the feel of a night sky.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into one bright golden star with long thin rays;
+  > - frames 3-5: the star flares and throws out a spray of glittering gold stardust and many small four- and five-pointed stars in all directions, each with a short sparkling trail, inside a faint ring of moon-blue haze;
+  > - frames 6-10: the central star shrinks to a soft glow while the small stars fly further, twinkling at different moments, the stardust spreads into drifting swirls of glitter, the blue haze thins;
+  > - frames 11-14: only a few small twinkling stars and specks of glitter are left, drifting outward and fading;
+  > - frames 15-16: almost nothing, the last one or two faint twinkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small golden star over a soft moon-blue glow: warm gold (#f2c14e) and white, pale blue haze.
+  >
+  > THE ANIMATION: in every frame a bright golden star with four long thin rays stays in the centre, while its rays lengthen and shorten so that it twinkles, glittering gold stardust swirls slowly around it, and tiny stars appear and vanish at different places in every frame.
