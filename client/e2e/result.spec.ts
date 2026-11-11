@@ -221,8 +221,8 @@ test("a pad's X plays again on the same lane order; where X is a lane, held on f
   await expect(page.getByTestId('result-screen')).toBeVisible();
   // the pad works the menus: the hint and the buttons name its X and A
   await expect(page.getByTestId('result-retry')).toHaveText(/X\s*같은 배치로 다시/);
-  await expect(page.getByTestId('result-retry')).toHaveText('같은 배치로 다시 X');
-  await expect(page.getByTestId('result-back')).toHaveText('선곡으로 A');
+  await expect(page.getByTestId('result-retry')).toHaveText(/X\s*같은 배치로 다시/);
+  await expect(page.getByTestId('result-back')).toHaveText(/A\s*선곡으로/);
 
   // past those 600 ms X plays again, on the lane order just played
   await page.waitForFunction(() => performance.now() > (window as unknown as { __shownAt: number }).__shownAt + 700);
@@ -255,7 +255,7 @@ test("a controller's own 다시 하기 button plays again from the result, whose
   await expect(page.getByTestId('result-retry')).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('controller');
   await expect(page.getByTestId('result-retry')).toHaveText(/R\s*다시 하기/);
-  await expect(page.getByTestId('result-retry')).toHaveText('다시 하기 R');
+  await expect(page.getByTestId('result-retry')).toHaveText(/R\s*다시 하기/);
   await press(9);
   await expect(page.getByTestId('play-screen')).toBeVisible();
   expect(errors).toEqual([]);

@@ -36,7 +36,7 @@ test('side tracks, EX-SCORE, HARD gauge, MIRROR and covers on the sync test', as
   await page.screenshot({ path: 'test-results/result-phase2.png' });
   await page.getByTestId('result-details').click();
   await expect(page.getByTestId('result-details-panel')).toBeVisible();
-  await page.locator('.result-screen .screen-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await page.locator('.result-screen .result-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.screenshot({ path: 'test-results/result-phase2-graphs.png' });
   expect(errors).toEqual([]);
 });
