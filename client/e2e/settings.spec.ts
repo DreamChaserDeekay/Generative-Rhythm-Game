@@ -87,7 +87,7 @@ test('the help names the picked gear only, and the default of a row whose value 
   // the sky skin's gear after it: its name is the start of a colour's (하늘색) in other gears' words, and only its own are shown
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'sky');
-  await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 아래 쓴 점수와 비치는 알약 창의 속도·정확도, 눈금이 난 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘');
+  await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 아래 쓴 점수와 비치는 알약 창의 속도·정확도, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
   await expect(help).not.toContainText('그래파이트');
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'cabinet');

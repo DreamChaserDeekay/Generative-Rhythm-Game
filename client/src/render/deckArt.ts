@@ -475,7 +475,9 @@ const GEM_WINDOW = 0.45;
 /**
  * The depths of SKY's deck: a thin strip of key dashes, the white line under it, the step with the
  * feather and the score written under it, the step with the speed's and the rate's pills (`pill`:
- * how far inside that step they lie).
+ * how far inside that step they lie). No deeper in all than STANDARD's: the default camera on a 16:9
+ * screen shows hardly more of the deck, and a deck that does not fit loses its readouts to the panel
+ * beside the gear (deckReadouts).
  */
 const SKY = { keys: 18, seam: 2, upper: 68, lower: 46, pad: 5, score: 36, pill: 8 } as const;
 
@@ -2443,6 +2445,8 @@ const SKY_TRACK = 40;
  * one hairline all the way).
  */
 const SKY_EYE = 14.9;
+/** The ticks along the lanes' edges: one every this many track units. */
+const SKY_TICK = 0.24;
 
 /** A smooth line through `points` (Catmull-Rom), `steps` points to each span. */
 function smoothed(points: readonly (readonly [number, number])[], steps: number): [number, number][] {
@@ -2497,8 +2501,9 @@ function strand(g: CanvasRenderingContext2D, w: number, h: number, st: number, s
  * SKY's lanes, as the skin's picture has them (r2-skin-sky-c3.jpg: the colours are read off its lanes
  * laid flat): a deep navy from the far end down to a quarter of the way from the judge line, easing
  * from there to a dim slate blue at the line (well under half the deck's brightness at its brightest),
- * a low bank of cloud at its palest standing on the line under the middle lanes, and the three wind
- * trails (SKY_STRANDS), still: nothing on it moves, and none of it is as bright as a note.
+ * a low bank of cloud at its palest standing on the line under the middle lanes, the three wind
+ * trails (SKY_STRANDS) and an altimeter's ticks along the two edges, still: nothing on it moves, and
+ * none of it is as bright as a note.
  */
 function skyFloor(g: CanvasRenderingContext2D, w: number, h: number, st: number): void {
   const sky = g.createLinearGradient(0, 0, 0, h);
@@ -2539,6 +2544,18 @@ function skyFloor(g: CanvasRenderingContext2D, w: number, h: number, st: number)
   }
   g.restore();
   for (const s of SKY_STRANDS) strand(g, w, h, st, s, Math.max(1.1, w / 440));
+  // an altimeter's ticks along the lanes' two edges, as the picture has them: one every SKY_TICK units
+  // up the track, every fifth longer; a hairline on the screen all the way (drawn deeper the further
+  // up the track, where the camera flattens it), fainter with the distance so they never close into a band
+  for (let i = 1; i * SKY_TICK < SKY_TRACK * 0.7; i++) {
+    const z = i * SKY_TICK;
+    const thick = Math.max(1, (h / SKY_TRACK) * 0.02 * (1 + z / SKY_EYE) ** 2);
+    const reach = w * (i % 5 === 1 ? 0.044 : 0.027);
+    const y = h * (1 - z / SKY_TRACK) - thick / 2;
+    g.fillStyle = `rgba(160,198,240,${(0.5 * (1 - z / (SKY_TRACK * 0.7))).toFixed(3)})`;
+    g.fillRect(w * 0.004, y, reach, thick);
+    g.fillRect(w * 0.996 - reach, y, reach, thick);
+  }
 }
 
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
@@ -3130,21 +3147,21 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),
-  // SKY: a slim strip of sky-tinted glass, a dark seam outside, a white hairline along the lanes, and
-  // fine tick marks along it as on an altimeter's scale, a longer one in each tile (in FEVER the glass
-  // brighter and the hairline cyan)
+  // SKY: a band of pale sky-tinted glass, a dark seam outside, a white line down it nearer the lanes
+  // and a cooler edge along them, plain all its length (the altimeter's ticks its picture has are on
+  // the lanes: skyFloor); in FEVER the glass brighter and the line cyan
   sky: () => ({
-    body: '#6fb3e6',
-    width: 14,
+    body: '#9dbddb',
+    width: 18,
     tile: 40,
     height: 14,
-    // the strip's side: the glass seen through its edge, white under its top, deep blue at its foot
+    // the band's side: the glass seen through its edge, white under its top, deep blue at its foot
     face: (g, w, h, k, lit) => {
       const side = g.createLinearGradient(0, 0, 0, h);
       side.addColorStop(0, '#ffffff');
-      side.addColorStop(0.2, lit ? '#b6e6ff' : '#93cdf4');
-      side.addColorStop(0.6, '#3d7cc0');
-      side.addColorStop(1, '#152c50');
+      side.addColorStop(0.22, lit ? '#c9ecff' : '#b4cfe6');
+      side.addColorStop(0.65, '#5f84ad');
+      side.addColorStop(1, '#1d3558');
       g.fillStyle = side;
       g.fillRect(0, 0, w, h);
       g.fillStyle = lit ? SKY_CYAN : white(0.7);
@@ -3152,23 +3169,17 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     },
     paint: (g, w, h, k, lit) => {
       const across = g.createLinearGradient(0, 0, w, 0);
-      across.addColorStop(0, '#0d2038');
-      across.addColorStop(0.1, '#3a78ba');
-      across.addColorStop(0.5, lit ? '#9bdcff' : '#74b6ea');
-      across.addColorStop(0.84, lit ? '#c8eeff' : '#a6d5f5');
-      across.addColorStop(0.9, lit ? SKY_CYAN : '#ffffff');
-      across.addColorStop(1, '#ffffff');
+      across.addColorStop(0, '#1c3350');
+      across.addColorStop(0.1, lit ? '#93c4e6' : '#86a9cb');
+      across.addColorStop(0.45, lit ? '#aad6f2' : '#9dbddb');
+      across.addColorStop(0.64, lit ? '#c4e6fa' : '#b4cfe6');
+      across.addColorStop(0.7, lit ? SKY_CYAN : '#f4f9fd');
+      across.addColorStop(0.78, lit ? SKY_CYAN : '#f4f9fd');
+      across.addColorStop(0.85, lit ? '#b6dcf5' : '#a9c4de');
+      across.addColorStop(1, '#7f97b3');
       g.fillStyle = across;
       g.fillRect(0, 0, w, h);
-      // the scale: five ticks to a tile, the middle one longer (a tile mirrors at every other: evenly on)
-      g.fillStyle = white(0.8);
-      const thick = Math.max(1, 0.7 * k);
-      for (let i = 0; i < 5; i++) {
-        const y = ((i + 0.5) * h) / 5 - thick / 2;
-        const long = i === 2;
-        g.fillRect(w * (long ? 0.16 : 0.42), y, w * (long ? 0.64 : 0.38), thick);
-      }
-      g.fillStyle = black(0.55);
+      g.fillStyle = black(0.45);
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),

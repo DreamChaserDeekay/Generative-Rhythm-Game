@@ -372,6 +372,31 @@ describe('the decks of the gears a player picks', () => {
     const trails = calls.filter((c) => c[0] === 'addColorStop' && typeof c[2] === 'string' && (c[2] as string).startsWith('rgba(255,255,255')).map((c) => Number((c[2] as string).slice(17, -1)));
     expect(Math.max(...trails)).toBeLessThanOrEqual(0.6);
     expect(Math.min(...trails)).toBe(0);
+    // the ticks along the two edges: drawn last, in pairs that mirror each other, evenly up the track from the
+    // judge line, every fifth longer, each inside the picture and short (under a twentieth of its width)
+    const lastClose = closes[closes.length - 1];
+    const ticks = calls.slice(lastClose).filter((c) => c[0] === 'fillRect') as [string, number, number, number, number][];
+    expect(ticks.length).toBeGreaterThan(100);
+    expect(ticks.length % 2).toBe(0);
+    const lefts = ticks.filter((_, i) => i % 2 === 0);
+    lefts.forEach(([, x, y, tw, th], i) => {
+      const [, rx, ry, rw, rh] = ticks[2 * i + 1];
+      expect([ry, rw, rh]).toEqual([y, tw, th]);
+      expect(rx + rw).toBeCloseTo(w - x, 6);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(tw / w).toBeLessThan(0.05);
+      expect(y).toBeGreaterThan(0);
+      expect(y + th).toBeLessThanOrEqual(h);
+      if (i > 0) expect(y).toBeLessThan(lefts[i - 1][2]);
+    });
+    const long = lefts.map(([, , , tw]) => tw > lefts[1][3] * 1.3);
+    expect(long.slice(0, 11)).toEqual([true, false, false, false, false, true, false, false, false, false, true]);
+    // fainter with the distance: the nearest about half there, the farthest all but gone
+    const faint = calls.slice(lastClose).filter((c) => c[0] === '=' && c[1] === 'fillStyle').map((c) => Number((c[2] as string).slice((c[2] as string).lastIndexOf(',') + 1, -1)));
+    expect(faint[0]).toBeGreaterThan(0.4);
+    expect(faint[0]).toBeLessThanOrEqual(0.5);
+    expect(faint[faint.length - 1]).toBeLessThan(0.02);
+    expect(faint).toEqual([...faint].sort((a, b) => b - a));
   });
 
   it('lights a held cap in its gear’s manner: STANDARD’s a rounded glow, CRYSTAL’s keeping its cut, SKY’s a dash white-hot in its cell’s glow', () => {
