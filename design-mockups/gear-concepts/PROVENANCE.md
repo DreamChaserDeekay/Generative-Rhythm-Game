@@ -28,8 +28,12 @@
 | `r2-gpt-type-2.jpg` | 글자·HUD 시트 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
 | `r2-gpt-long-1.jpg` | 롱노트 4안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
 | `r2-gpt-long-2.jpg` | 롱노트 4안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-deck-min.jpg` | 기어 하단 미니멀 3안 | `gemini-nano-banana-2.1` | 2K | 토큰 411 / 1996 / 3880 (입력 / 출력 / 합계) |
+| `r2-screen-min.jpg` | 화면 전체(미니멀) | `gemini-nano-banana-2.1` | 2K | 토큰 1602 / 1680 / 5330 (입력 / 출력 / 합계) |
 
 합계: Gemini 39747 토큰(요청 10회), GPT sunburst 8장 약 27.7센트. 실패·재시도 없음.
+
+3차(`r2-…-min`): 2차가 너무 화려하다는 사용자 의견에 따라 Gemini로만, 미니멀하게 다시 그린 2장(위 합계에는 들지 않음).
 
 ## 프롬프트 (전문)
 
@@ -106,3 +110,14 @@ Gemini의 long 프롬프트와 같은 내용. 전문은 `r2-long.jpg`의 프롬�
 ### `r2-gpt-long-2.jpg`
 
 Gemini의 long 프롬프트와 같은 내용. 전문은 `r2-long.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(UgQCw43nI3lZONyUzILz)에 기록되어 있습니다.
+
+### `r2-deck-min.jpg`
+
+A design sheet on a near-black background, 16:9: three different minimal designs, stacked one above the other with generous spacing, of the 'gear bottom' of a PC rhythm game, the wide control deck that sits below the judgment line of a seven-lane note highway, each drawn as a wide low trapezoid strip seen in perspective from above (wider at the bottom), with plain black metal side rails joining it at its upper corners. Design A 'SINGLE PRISM': a flat satin black plate with one long, low triangular bar of clear glass lying across its centre, a thin white line of light inside it, a faint spectrum where the light leaves one end. Design B 'INLAY': a flat satin black plate with a single wide chamfered window of clear smoked glass set flush in it, one diagonal facet line across the glass, a hairline of white light along the window's upper edge, a small hexagonal clear stud at the centre. Design C 'EDGE': a thick slab of clear glass with a polished 45-degree bevel along its upper edge that catches a line of light, sitting on a black base, nothing on its surface except one small engraved hexagon outline at the centre. No text. Art direction: MINIMAL and restrained, the taste of a high-end audio product or a camera lens, not fantasy. Mostly satin black anodised aluminium with very few, precise parts of clear cut glass. Large calm flat surfaces, a lot of empty space, two or three facets at most, one thin white line of light, at most one tiny hint of rainbow dispersion at a single edge. No wings, no gem clusters, no ornament, no engraving, no glow bloom, no lens flare, no sparkles. Colours: black, graphite, clear glass, white light, a little azure. It must look designed by an industrial designer, crisp and quiet.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+
+### `r2-screen-min.jpg`
+
+참고 그림으로 함께 보냄: `docs/screenshots/44-prism-7k.png`
+
+This is a screenshot of our PC rhythm game. Redraw it as clean concept art in the same layout and camera, 16:9. KEEP exactly as they are: the lane layout, the falling glass bar notes, the blue judgment line, the plain black metal side rails with their thin line of light, and the position of every element. Change only these, quietly: (1) the control deck below the judgment line: a flat satin black plate with one wide chamfered window of clear smoked glass set flush in it, one long low triangular bar of clear glass lying across its centre with a thin white line of light inside and a faint spectrum at one end, nothing else on it; (2) the combo number and the word COMBO: a clean, sharp italic sans-serif in plain white with a thin dark outline, no facets, no glass effect; (3) the judgment text 'MAX 100%': the same typeface, 'MAX' white and '100%' in a soft azure gradient, a hairline under it; (4) the HUD around the track (song title top-left, SCORE / RATE / MAX COMBO / SPEED on the left, the gauge on the right, the time): each on a small flat plate of smoked glass with chamfered corners and a hairline frame, labels in azure, values in white, the gauge a plain column of thin segments. The gauge's name reads 'FEVER' (not LUMEN). Keep all other texts the same words and numbers as in the screenshot, spelled correctly. Art direction: MINIMAL and restrained, the taste of a high-end audio product or a camera lens, not fantasy. Mostly satin black anodised aluminium with very few, precise parts of clear cut glass. Large calm flat surfaces, a lot of empty space, two or three facets at most, one thin white line of light, at most one tiny hint of rainbow dispersion at a single edge. No wings, no gem clusters, no ornament, no engraving, no glow bloom, no lens flare, no sparkles. Colours: black, graphite, clear glass, white light, a little azure. It must look designed by an industrial designer, crisp and quiet.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+

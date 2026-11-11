@@ -94,6 +94,44 @@ PICTURES: dict[str, tuple[Path | None, str]] = {
     ),
 }
 
+# Third round: the second was too ornate. Quiet, minimal crystal; the rails and the combo plain.
+MINIMAL = (
+    "Art direction: MINIMAL and restrained, the taste of a high-end audio product or a camera lens, not fantasy. Mostly satin black "
+    "anodised aluminium with very few, precise parts of clear cut glass. Large calm flat surfaces, a lot of empty space, two or "
+    "three facets at most, one thin white line of light, at most one tiny hint of rainbow dispersion at a single edge. No wings, "
+    "no gem clusters, no ornament, no engraving, no glow bloom, no lens flare, no sparkles. Colours: black, graphite, clear "
+    "glass, white light, a little azure. It must look designed by an industrial designer, crisp and quiet. "
+)
+PICTURES["deck-min"] = (
+    None,
+    "A design sheet on a near-black background, 16:9: three different minimal designs, stacked one above the other with generous "
+    "spacing, of the 'gear bottom' of a PC rhythm game, the wide control deck that sits below the judgment line of a seven-lane "
+    "note highway, each drawn as a wide low trapezoid strip seen in perspective from above (wider at the bottom), with plain "
+    "black metal side rails joining it at its upper corners. "
+    "Design A 'SINGLE PRISM': a flat satin black plate with one long, low triangular bar of clear glass lying across its "
+    "centre, a thin white line of light inside it, a faint spectrum where the light leaves one end. "
+    "Design B 'INLAY': a flat satin black plate with a single wide chamfered window of clear smoked glass set flush in it, "
+    "one diagonal facet line across the glass, a hairline of white light along the window's upper edge, a small hexagonal clear "
+    "stud at the centre. "
+    "Design C 'EDGE': a thick slab of clear glass with a polished 45-degree bevel along its upper edge that catches a line of "
+    "light, sitting on a black base, nothing on its surface except one small engraved hexagon outline at the centre. No text. " + MINIMAL,
+)
+PICTURES["screen-min"] = (
+    SHOT,
+    "This is a screenshot of our PC rhythm game. Redraw it as clean concept art in the same layout and camera, 16:9. "
+    "KEEP exactly as they are: the lane layout, the falling glass bar notes, the blue judgment line, the plain black metal side rails "
+    "with their thin line of light, and the position of every element. Change only these, quietly: "
+    "(1) the control deck below the judgment line: a flat satin black plate with one wide chamfered window of clear smoked glass set "
+    "flush in it, one long low triangular bar of clear glass lying across its centre with a thin white line of light inside and a "
+    "faint spectrum at one end, nothing else on it; "
+    "(2) the combo number and the word COMBO: a clean, sharp italic sans-serif in plain white with a thin dark outline, no facets, no "
+    "glass effect; (3) the judgment text 'MAX 100%': the same typeface, 'MAX' white and '100%' in a soft azure gradient, a hairline "
+    "under it; (4) the HUD around the track (song title top-left, SCORE / RATE / MAX COMBO / SPEED on the left, the gauge on the "
+    "right, the time): each on a small flat plate of smoked glass with chamfered corners and a hairline frame, labels in azure, "
+    "values in white, the gauge a plain column of thin segments. The gauge's name reads 'FEVER' (not LUMEN). Keep all other texts "
+    "the same words and numbers as in the screenshot, spelled correctly. " + MINIMAL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []

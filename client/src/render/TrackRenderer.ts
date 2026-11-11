@@ -1163,7 +1163,7 @@ export class TrackRenderer {
       if (span.near <= tailZ) continue;
       const state = n.broken ? 'missed' : held ? 'held' : 'idle';
       if (lane.over) this.placeSideLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
-      else this.placeLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state, kind);
+      else this.placeLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
     }
     this.notePool.end();
     this.bodyPool.end();
@@ -1187,30 +1187,13 @@ export class TrackRenderer {
    * its real tail is still beyond the track's far end (`realTailZ` past `tailZ`) the body is open
    * there: the far clip cuts it, as no outline must show an end that is not there.
    */
-  private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed', kind: NoteMark): void {
+  private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
     if (state === 'held') this.heldFar[lane.index] = tailZ;
     // a side lane's long note of dots (SideStyle 'dots') is the side style's, not the note style's
     const dots = this.sideDots && lane.kind === 'side';
     const paint = dots ? DOTS_LONG : this.long;
     const width = lane.width * paint.width;
     const open = realTailZ < tailZ;
-    if (paint.headNote) {
-      // headed by the style's tap note (held: on the judge line, as a tap is at its time), the body
-      // running out from under its middle to a tail closed its own way
-      const depth = this.laneDepths[lane.index];
-      const headAt = state === 'held' ? headZ : headZ - depth / 2;
-      this.placeNote(lane.x, lane.width, headAt, depth, color, NOTE_HEIGHT, kind);
-      const end = open ? 0 : Math.max(0, Math.min(paint.endDepth * width, headAt - tailZ));
-      const body = this.bodyPool.next();
-      body.material = this.bodyMaterial(color, state, dots);
-      const far = tailZ + end;
-      body.visible = headAt > far;
-      body.scale.set(width, 1, Math.max(0.001, headAt - far));
-      body.position.set(lane.x, 0.02, (headAt + far) / 2);
-      this.setBodyUv(body, width * paint.tile, headAt, far, realTailZ);
-      if (end > 0) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false, dots);
-      return;
-    }
     const end = Math.min(paint.endDepth * width, (headZ - tailZ) / (open ? 1 : 2));
     const body = this.bodyPool.next();
     body.material = this.bodyMaterial(color, state, dots);

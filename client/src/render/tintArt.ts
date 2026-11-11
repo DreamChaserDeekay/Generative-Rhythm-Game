@@ -107,8 +107,8 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 // ---------- notes, seen from above (canvas top = the far edge) ----------
 
 /**
- * PRISM is a bar of cut glass (the gear PRISM's set: its long note a glass tube closed by a wedge, its
- * scratch a long hexagon), FLAT is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
+ * PRISM is a bar of cut glass (the gear PRISM's set: its long note a long prism closed by its end
+ * facets, its scratch a long hexagon), FLAT is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
@@ -953,9 +953,8 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
 };
 
 /**
- * A long note is its body alone (a head or tail drawn like a tap note reads as one more note),
- * unless its style heads it with its tap note and closes its tail another way (headNote: PRISM's,
- * whose release is read off a tail unlike its head):
+ * A long note is its body alone (a head or tail drawn like a tap note reads as one more note: the
+ * rule for every style):
  * `body` is one tile of it across the lane (canvas top = farther), repeated along the note;
  * `end` closes it at the head and the tail (canvas top = the outer edge). Sizes are px of a body
  * 54 px wide, as in the mockups.
@@ -965,11 +964,6 @@ export interface LongPaint {
   end: Paint;
   /** Its body and ends while held, where they differ (a picture drawn from art: light flows inside it). */
   held?: { body: Paint; end: Paint };
-  /**
-   * Its head drawn as the style's tap note (the same reading of its start as a tap's), the body
-   * running out from under it: `end` then closes the tail alone.
-   */
-  headNote?: boolean;
   /** How wide its pictures are painted (px; default 64). */
   px?: number;
   /** Tile length per body width (the texture repeats every `tile` widths along the note). */
@@ -1040,84 +1034,84 @@ const RAY: [number, number, string][] = [
 ];
 
 
-/** PRISM's tube across (px of a 54 px body, [from, to, fill]): a rim of light down each edge, clear glass between, the bore down its middle. */
-const tube = (glass: number, rim: number): [number, number, string][] => [
-  [0, 54, ink(1, 0.1, glass)],
-  [0, 2.5, tone(0.4, 0.9)],
-  [51.5, 54, tone(0.4, 0.9)],
-  [2.5, 7.5, ink(1, 0.6, rim)],
-  [46.5, 51.5, ink(1, 0.25, rim * 0.85)],
-  [7.5, 12, ink(1, 0.2, glass * 1.5)],
-  [21, 33, tone(0.5, glass * 1.2)],
+/**
+ * PRISM's long note across (px of a 54 px body, [from, to, fill]): a long triangular prism of glass
+ * seen from above, as wide as its bar: a facet either side of the ridge down its middle, the left
+ * one catching the light and the right one in shade, a rim of light down each edge; `lit` (held)
+ * the glass bright from inside.
+ */
+const prismFacets = (lit: boolean): [number, number, string][] => [
+  [0, 54, tone(0.35, 0.95)],
+  [2, 6, ink(1, lit ? 0.9 : 0.7)],
+  [6, 26, lit ? ink(1, 0.5, 0.95) : ink(1, 0.22, 0.9)],
+  [28, 48, lit ? ink(1, 0.2, 0.92) : tone(0.7, 0.88)],
+  [48, 52, lit ? ink(1, 0.6) : tone(1.1)],
 ];
 
-/** The thread of light inside PRISM's tube over one tile, `amp` px (of 54) from side to side, `core` px wide in `fill` inside a glow. */
-function thread(g: CanvasRenderingContext2D, w: number, h: number, amp: number, core: number, fill: string, glow: string): void {
-  const a = across(w);
-  const path = () => {
-    g.beginPath();
-    for (let y = -2; y <= h + 2; y += 2) {
-      const x = w / 2 + a(amp) * Math.sin((2 * Math.PI * y) / h);
-      if (y === -2) g.moveTo(x, y);
-      else g.lineTo(x, y);
-    }
-  };
-  g.lineCap = 'butt';
-  path();
-  g.strokeStyle = glow;
-  g.lineWidth = a(core * 3.2);
-  g.stroke();
-  path();
-  g.strokeStyle = fill;
-  g.lineWidth = a(core);
-  g.stroke();
-}
-
-/** PRISM's tail: the tube cut to a wedge, narrowing to a bright bar across its outer edge (canvas top). */
-function wedge(body: Paint, bar: string): Paint {
+/** PRISM's long note: its two facets, their glass deeper toward the ridge, and the ridge a line of light (held: white-hot in a glow). */
+function prismLong(lit: boolean): Paint {
   return (g, w, h) => {
     const a = across(w);
-    const cut = w * 0.24;
-    const shape = (t: number): [number, number][] => [
-      [cut + t, t * NOTE_STRETCH],
-      [w - cut - t, t * NOTE_STRETCH],
-      [w - t, h + 1],
-      [t, h + 1],
-    ];
-    polygon(g, shape(0));
-    g.fillStyle = ink(1, 0.6, 0.95);
-    g.fill();
-    g.save();
-    polygon(g, shape(a(3)));
-    g.clip();
-    g.clearRect(0, 0, w, h);
-    body(g, w, h);
-    g.restore();
-    g.fillStyle = bar;
-    g.fillRect(cut, 0, w - 2 * cut, Math.max(2, h * 0.2));
+    stripes(g, w, h, prismFacets(lit));
+    // each facet a little deeper toward the ridge, as glass is where it is thick
+    for (const [from, to] of [[6, 26], [48, 28]]) {
+      const deep = g.createLinearGradient(a(from), 0, a(to), 0);
+      deep.addColorStop(0, tone(0.4, 0));
+      deep.addColorStop(1, tone(0.4, lit ? 0.12 : 0.3));
+      g.fillStyle = deep;
+      g.fillRect(a(Math.min(from, to)), 0, a(Math.abs(to - from)), h);
+    }
+    if (lit) {
+      const glow = g.createLinearGradient(a(17), 0, a(37), 0);
+      glow.addColorStop(0, ink(1, 1, 0));
+      glow.addColorStop(0.5, ink(1, 1, 0.75));
+      glow.addColorStop(1, ink(1, 1, 0));
+      g.fillStyle = glow;
+      g.fillRect(a(17), 0, a(20), h);
+    }
+    g.fillStyle = ink(1, lit ? 1 : 0.85);
+    g.fillRect(a(lit ? 25 : 26), 0, a(lit ? 4 : 2), h);
   };
 }
 
-const prismBody: Paint = (g, w, h) => {
-  stripes(g, w, h, tube(0.2, 0.85));
-  thread(g, w, h, 0, 2.4, ink(1, 0.55, 0.9), ink(1, 0.2, 0.25));
-};
-const prismHeld: Paint = (g, w, h) => {
-  stripes(g, w, h, tube(0.46, 1));
-  thread(g, w, h, 5, 4.2, ink(1, 1), ink(1, 0.6, 0.55));
-};
+/**
+ * PRISM's end: the prism's own end face, a third facet falling from the ridge to the outer edge
+ * (canvas top) between the two side facets, its edges lines of light: the prism closed as a cut
+ * crystal is, not by a bar (a bar there reads as one more note).
+ */
+function prismEnd(lit: boolean): Paint {
+  const body = prismLong(lit);
+  return (g, w, h) => {
+    const a = across(w);
+    body(g, w, h);
+    // the end facet: from the outer edge's corners in to where the ridge stops
+    const face: [number, number][] = [
+      [a(2), 0],
+      [w - a(2), 0],
+      [w / 2, h * 0.86],
+    ];
+    polygon(g, face);
+    g.fillStyle = lit ? ink(1, 0.75) : ink(1, 0.42, 0.95);
+    g.fill();
+    g.lineWidth = Math.max(1, a(1.6));
+    g.lineJoin = 'round';
+    g.strokeStyle = ink(1, lit ? 1 : 0.85);
+    g.stroke();
+    g.fillStyle = ink(1, lit ? 1 : 0.9);
+    g.fillRect(0, 0, w, Math.max(2, a(2.4)));
+  };
+}
 
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
-  // a tube of clear glass narrower than its head, a thread of light down its bore; held, the thread
-  // white-hot and swaying, the glass lit; its tail cut to a wedge
+  // a long triangular prism of glass as wide as its bar, the ridge of light down its middle (held:
+  // white-hot, the glass bright from inside), each end closed by the prism's own end facet
   prism: {
-    body: prismBody,
-    end: wedge(prismBody, ink(1, 0.85)),
-    held: { body: prismHeld, end: wedge(prismHeld, ink(1, 1)) },
-    headNote: true,
-    tile: 2.4,
-    endDepth: 0.62,
-    width: 0.6,
+    body: prismLong(false),
+    end: prismEnd(false),
+    held: { body: prismLong(true), end: prismEnd(true) },
+    tile: 1,
+    endDepth: 0.5 * NOTE_STRETCH * 0.55,
+    width: 0.86,
   },
   solid: {
     body: (g, w, h) => {
