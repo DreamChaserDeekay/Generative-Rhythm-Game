@@ -86,8 +86,13 @@ async function settings(page: Page, values: Record<string, unknown>): Promise<vo
 
 async function selectShowcase(page: Page, keyMode: string, difficulty: string): Promise<void> {
   await page.goto('/');
-  await page.getByTestId('song-item').filter({ hasText: SHOWCASE }).click();
-  await expect(page.getByTestId('song-title')).toHaveText(SHOWCASE);
+  const item = page.getByTestId('song-item').filter({ hasText: SHOWCASE });
+  await expect(item).toBeVisible();
+  await page.waitForTimeout(500);
+  // the cursor may be on the song already (the song a play was last started with): a click on it then would start a play
+  const title = page.getByTestId('song-title');
+  if (!((await title.count()) > 0 && (await title.textContent()) === SHOWCASE)) await item.click();
+  await expect(title).toHaveText(SHOWCASE);
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
   await page.getByRole('button', { name: keyMode, exact: true }).click();
   await page.getByRole('button', { name: new RegExp(difficulty) }).first().click();
