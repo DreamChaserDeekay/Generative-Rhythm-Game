@@ -10,3 +10,5 @@ _src/sfx/raw/
 !/public/data/
 # the jackets as generated (1024 px): the mockup uses the 720 px copies in public/covers
 _src/covers/*.png
+# the concept pictures as generated (2K): the 1600 px copies are in gear-concepts/
+_src/gear-concepts/*.png
