@@ -113,7 +113,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
- * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture the player brings (LOGO_NOTES).
+ * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
  */
 export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
@@ -1092,13 +1092,13 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   g.restore();
 }
 
-// ---------- the AI companies' notes: the company's mark itself, a picture the player brings ----------
+// ---------- the AI companies' notes: the company's mark itself, a picture that comes with the build ----------
 
 /**
  * The notes that are a mark and no bar (the four AI companies' skins): the note is the mark's own
- * outline in its lane's colour, bright, in a thin rim of the colour's deep shade. The mark is no part of the game: it
- * is a picture the player brings (standees.ts keeps it on the player's PC; the renderer hands it over
- * with setNoteEmblem). Without one the note is ROUND's coin.
+ * outline in its lane's colour, bright, in a thin rim of the colour's deep shade. The mark is not drawn here: it
+ * is a picture that comes with the build (public/stage/<skin>/note.png; standees.ts reads it and the
+ * renderer hands it over with setNoteEmblem). Without one the note is ROUND's coin.
  */
 export const LOGO_NOTES = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly NoteStyle[];
 export type LogoNote = (typeof LOGO_NOTES)[number];

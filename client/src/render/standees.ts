@@ -1,7 +1,10 @@
 /**
- * A gear with a stage has pictures at its two sides, and the AI companies' gears a mark their notes are
- * cut in. The pictures are the player's own: picked on this PC and kept in its storage only (IndexedDB).
- * The game comes with none, so neither the repository nor the build holds such a picture.
+ * A gear with a stage has pictures by it: figures at its two sides, or two stickers over its near
+ * corners, and (the AI companies' gears) a mark their skins' notes are cut in. The pictures are a
+ * build's own: the files of `stage/` beside the app (client/public/stage), each gear's in a folder of
+ * its name and listed in `stage/index.json`. Whose pictures they are is written beside the licences
+ * (client/public/licenses/STAGE-PICTURES.md). A build without them plays the same with empty sides and
+ * coins for notes.
  */
 import { BRAND_GEARS, type GearStyle } from './deckArt';
 
@@ -27,20 +30,9 @@ export const STAGES: Partial<Record<GearStyle, Stage>> = {
 /** How many pictures stand by a gear; a gear not named here has no stage. */
 export const STAGE_SLOTS: Partial<Record<GearStyle, number>> = Object.fromEntries(Object.entries(STAGES).map(([gear, stage]) => [gear, stage.slots]));
 
-/** A picked file is the notes' mark, not a picture for the gear's side, when its name says so: "note" or "logo" as a word of it (노트, 로고). */
+/** A file is the notes' mark, not a picture for the gear's side, when its name says so: "note" or "logo" as a word of it. */
 export function isNotePicture(name: string): boolean {
-  const base = name.replace(/\.[^.]*$/, '');
-  return /(^|[^a-z])(note|logo)([^a-z]|$)/i.test(base) || /노트|로고/.test(base);
-}
-
-/**
- * The gear a picked file is for by its name, where it starts with a gear's id and a mark after it
- * ("gpt-1.png", "claude_note.png"): the pictures of several gears can be picked together, each going to
- * its own gear. Null: it is for the gear the player is picking for.
- */
-export function gearOfName(name: string): GearStyle | null {
-  const head = /^([a-z0-9]+)[-_ .]/i.exec(name)?.[1].toLowerCase();
-  return head && head in STAGES ? (head as GearStyle) : null;
+  return /(^|[^a-z])(note|logo)([^a-z]|$)/i.test(name.replace(/\.[^.]*$/, ''));
 }
 
 export interface StandeeFile {
@@ -48,60 +40,15 @@ export interface StandeeFile {
   blob: Blob;
 }
 
-const DB_NAME = 'grg.standees.v1';
-const STORE = 'pictures';
-const listeners = new Set<() => void>();
-
-function openDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
-  return new Promise((resolve) => {
-    let request: IDBOpenDBRequest;
-    try {
-      request = indexedDB.open(DB_NAME, 1);
-    } catch {
-      resolve(null);
-      return;
-    }
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-    request.onblocked = () => resolve(null);
-  });
-}
-
-/** One request on the store, its result (null where the storage cannot be used). */
-async function store<T>(mode: IDBTransactionMode, work: (s: IDBObjectStore) => IDBRequest<T>): Promise<T | null> {
-  const db = await openDb();
-  if (!db) return null;
-  try {
-    return await new Promise<T | null>((resolve) => {
-      const tx = db.transaction(STORE, mode);
-      const request = work(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(request.result ?? null);
-      tx.onerror = () => resolve(null);
-      tx.onabort = () => resolve(null);
-    });
-  } finally {
-    db.close();
-  }
-}
-
 /**
- * The pictures picked for a gear's stage, in the order they stand (left to right across the screen):
- * by name, numbers in it counted as numbers ("2" before "10"), no more than the stage has places for.
+ * A stage's pictures in the order they stand (left to right across the screen): by name, numbers in
+ * it counted as numbers ("2" before "10"), no more than the stage has places for.
  */
 export function standeeOrder<T extends { name: string }>(files: readonly T[], slots: number): T[] {
   return [...files].sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' })).slice(0, Math.max(0, slots));
 }
 
-/** All that is kept for a gear: its side pictures and (a gear whose skin takes one) its notes' mark. */
-async function readKept(gear: GearStyle): Promise<StandeeFile[]> {
-  if (!STAGES[gear]) return [];
-  const kept = await store<StandeeFile[] | undefined>('readonly', (s) => s.get(gear) as IDBRequest<StandeeFile[] | undefined>);
-  return Array.isArray(kept) ? kept.filter((f) => f && f.blob instanceof Blob) : [];
-}
-
-/** What of `files` a gear keeps: its side pictures in their order, no more than it has places for, and after them its notes' mark where its skin takes one (the first so named). */
+/** What of `files` a gear takes: its side pictures in their order, no more than it has places for, and after them its notes' mark where its skin takes one (the first so named). */
 export function keptFor<T extends { name: string }>(gear: GearStyle, files: readonly T[]): T[] {
   const stage = STAGES[gear];
   if (!stage) return [];
@@ -110,44 +57,63 @@ export function keptFor<T extends { name: string }>(gear: GearStyle, files: read
   return [...sides, ...marks];
 }
 
-/** The pictures kept for a gear's sides (none where it has no stage or nothing was picked). */
+/** Where the build's pictures are: `stage/index.json` beside the app names each gear's files, themselves in `stage/<gear>/`. */
+const stageUrl = (path: string) => `${import.meta.env.BASE_URL}stage/${path}`;
+
+/**
+ * What `stage/index.json` lists, read with care: each gear with a stage and its files' plain names
+ * (PNG, WebP or JPEG, no folders); anything else in it is left out.
+ */
+export function shippedNames(raw: unknown): Partial<Record<GearStyle, string[]>> {
+  const out: Partial<Record<GearStyle, string[]>> = {};
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return out;
+  for (const [gear, names] of Object.entries(raw)) {
+    if (!(gear in STAGES) || !Array.isArray(names)) continue;
+    const plain = names.filter((n): n is string => typeof n === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]*\.(png|webp|jpe?g)$/i.test(n) && !n.includes('..'));
+    if (plain.length > 0) out[gear as GearStyle] = plain;
+  }
+  return out;
+}
+
+let shippedIndex: Promise<Partial<Record<GearStyle, string[]>>> | null = null;
+const shippedFiles = new Map<GearStyle, Promise<StandeeFile[]>>();
+
+/** A gear's pictures as the build has them: its side pictures, then its notes' mark (none where the build has none, or they cannot be read). Read once. */
+function stagePictures(gear: GearStyle): Promise<StandeeFile[]> {
+  let files = shippedFiles.get(gear);
+  if (!files) {
+    files = (async () => {
+      try {
+        if (!STAGES[gear] || typeof fetch === 'undefined' || typeof window === 'undefined') return [];
+        shippedIndex ??= fetch(stageUrl('index.json')).then(async (r) => (r.ok ? shippedNames(await r.json()) : {}));
+        const names = (await shippedIndex)[gear] ?? [];
+        const read = await Promise.all(
+          names.map(async (name) => {
+            const r = await fetch(stageUrl(`${gear}/${name}`));
+            return r.ok ? { name, blob: await r.blob() } : null;
+          }),
+        );
+        return keptFor(gear, read.filter((f): f is StandeeFile => f !== null));
+      } catch {
+        return [];
+      }
+    })();
+    shippedFiles.set(gear, files);
+  }
+  return files;
+}
+
+/** The pictures at a gear's sides, in the order they stand (none where it has no stage, or the build has none for it). */
 export async function readStandees(gear: GearStyle): Promise<StandeeFile[]> {
   const stage = STAGES[gear];
   if (!stage) return [];
-  return (await readKept(gear)).filter((f) => !(stage.note && isNotePicture(f.name))).slice(0, stage.slots);
+  return (await stagePictures(gear)).filter((f) => !(stage.note && isNotePicture(f.name)));
 }
 
-/** The picture kept as the mark of a gear's skin's notes (null: none picked, or its skin takes none). */
+/** The mark a gear's skin's notes are cut in (null: its skin takes none, or the build has none for it). */
 export async function readNotePicture(gear: GearStyle): Promise<StandeeFile | null> {
   if (!STAGES[gear]?.note) return null;
-  return (await readKept(gear)).find((f) => isNotePicture(f.name)) ?? null;
-}
-
-/**
- * Keeps `files` as the pictures of the gear the player is picking for, in place of the ones it had
- * (none: that gear's are dropped). A file named for another gear with a stage goes to that gear
- * instead (gearOfName), so the pictures of several gears can be picked at once; a gear none of the
- * files is for keeps what it had. Returns how many now stand at the sides of `gear`.
- */
-export async function writeStandees(gear: GearStyle, files: readonly StandeeFile[]): Promise<number> {
-  if (files.length === 0) await store('readwrite', (s) => s.delete(gear));
-  const groups = new Map<GearStyle, StandeeFile[]>();
-  for (const f of files) {
-    const to = gearOfName(f.name) ?? gear;
-    groups.set(to, [...(groups.get(to) ?? []), f]);
-  }
-  for (const [to, group] of groups) {
-    const kept = keptFor(to, group).map((f) => ({ name: f.name, blob: f.blob }));
-    if (kept.length > 0) await store('readwrite', (s) => s.put(kept, to));
-  }
-  listeners.forEach((l) => l());
-  return (await readStandees(gear)).length;
-}
-
-/** Called whenever a stage's pictures change (a renderer showing them loads them again). */
-export function watchStandees(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  return (await stagePictures(gear)).find((f) => isNotePicture(f.name)) ?? null;
 }
 
 /** The stage as the screen shows it (px): its size, and the gear's outer edges at two heights. */
@@ -181,7 +147,7 @@ export interface StandeeBox {
  *   should stand smaller or less far behind the gear leaves room clear round what it shows.
  * - A sticker (a stage of 'stickers': one a side) sits at the gear's foot, a third of the screen tall
  *   at most, in FRONT of the gear and over its near corner: STICKER_FRONT of its width over the gear
- *   at its hip (the player: the gear's foot may be hidden, the stickers closer in). What of it stands
+ *   at its hip (the user: the gear's foot may be hidden, the stickers closer in). What of it stands
  *   as high as the judge line stays outside the gear, so the line and the lanes over it are never
  *   hidden: it is moved in no further than its own outline allows (StickerShape). The one at the right
  *   stays under the judge line altogether: the gauge's value is written beside the gear just over it,
@@ -289,7 +255,7 @@ const STANDEE_PX = 1024;
 const STICKER_PX = 640;
 
 /**
- * A picked picture made a sticker: its own outline (a picture with no see-through part: a square with
+ * A picture made a sticker: its own outline (a picture with no see-through part: a square with
  * round corners) with a white rim round it as a die-cut sticker has, and a soft shadow under it. Room
  * for the rim is left at its top and its two sides; none at its foot, which stands on the screen's
  * bottom edge.
@@ -360,7 +326,7 @@ export function stickerShape(canvas: HTMLCanvasElement, bands = 40): StickerShap
 }
 
 /**
- * A picked picture made ready to stand: no taller than STANDEE_PX, its feet fading into the floor; one
+ * A picture made ready to stand: no taller than STANDEE_PX, its feet fading into the floor; one
  * with no see-through part (a photograph, not a cut-out) also fades at its top and its two sides, so
  * it stands as a soft-edged banner and not as a hard rectangle.
  */

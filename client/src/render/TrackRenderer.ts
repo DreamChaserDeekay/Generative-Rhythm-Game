@@ -3,7 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
-import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, watchStandees, type StageView, type StickerShape } from './standees';
+import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
 import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
@@ -737,14 +737,13 @@ export class TrackRenderer {
   private cssHeight = 1;
   /**
    * The figures standing at the gear's two sides, where the gear has a stage (standees.ts): the
-   * player's own pictures, drawn on the screen's own plane before the track, so the gear covers
+   * pictures that come with the build, drawn on the screen's own plane before the track, so the gear covers
    * what stands behind it. They move with the view (a chart's zoom and roll) as the gear does.
    */
   private readonly stageScene = new THREE.Scene();
   private readonly stageCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
   private readonly stageGroup = new THREE.Group();
   private standees: { mesh: THREE.Mesh; aspect: number; shape?: StickerShape }[] = [];
-  private stageWatch: (() => void) | null = null;
   private stageLoads = 0;
   /** As stageLoads, for the notes' mark (loadNoteMark). */
   private markLoads = 0;
@@ -878,17 +877,9 @@ export class TrackRenderer {
       mesh.renderOrder = 2.3;
       return mesh;
     });
-    // the player's own pictures: what stands at the gear's sides, and the mark the notes are cut in (standees.ts)
-    const staged = Boolean(STAGES[this.style.deck]);
-    const marked = isLogoNote(this.style.note);
-    if (staged) void this.loadStandees();
-    if (marked) void this.loadNoteMark();
-    if (staged || marked) {
-      this.stageWatch = watchStandees(() => {
-        if (staged) void this.loadStandees();
-        if (marked) void this.loadNoteMark();
-      });
-    }
+    // the build's pictures: what stands by the gear, and the mark the notes are cut in (standees.ts)
+    if (STAGES[this.style.deck]) void this.loadStandees();
+    if (isLogoNote(this.style.note)) void this.loadNoteMark();
   }
 
   setCamera(preset: CameraPreset): void {
@@ -1168,7 +1159,7 @@ export class TrackRenderer {
     this.frameView();
   }
 
-  /** Loads the pictures of the gear's stage (again whenever the player picks others). */
+  /** Loads the pictures of the gear's stage. */
   private async loadStandees(): Promise<void> {
     const load = ++this.stageLoads;
     const files = await readStandees(this.style.deck);
@@ -1196,8 +1187,8 @@ export class TrackRenderer {
   }
 
   /**
-   * Loads the mark the notes are cut in (the AI companies' notes: the player's own picture, kept under
-   * the note style's name; again whenever the player picks another) and has the notes painted again.
+   * Loads the mark the notes are cut in (the AI companies' notes: the build's picture, kept under the
+   * note style's name) and has the notes painted again.
    */
   private async loadNoteMark(): Promise<void> {
     const style = this.style.note;
@@ -1304,7 +1295,6 @@ export class TrackRenderer {
 
   dispose(): void {
     this.disposed = true;
-    this.stageWatch?.();
     this.clearStandees();
     this.gearLights.dispose();
     this.layPressKeys([], [], 0);

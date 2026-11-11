@@ -9,8 +9,8 @@
 | 기본 | 기어 "기본" · 노트 "기본" · 타격 효과 "플래시" | 구현. 처음 시작하는 기본값 |
 | 크리스털 (레퍼런스 1) | 기어 "크리스털" · 노트 "크리스털" · 타격 효과 "크리스털 분광" | 구현 |
 | 하늘 (레퍼런스 2) | 기어 "하늘" · 노트 "하늘" · 타격 효과 "구름 깃털" | 구현 (시안 `r2-skin-sky-c3.jpg`) |
-| 파이어스타터 (스킨 3, 사용자 지정 컨셉) | 기어 "파이어스타터" · 노트 "파이어스타터" · 타격 효과 "불똥" | 구현 (시안 `r2-skin-fire-b.jpg`). 기어 양옆에 내 PC의 그림을 세우는 자리가 있음 |
-| GPT · Gemini · Grok · Claude (스킨 4, 사용자 지정: AI 회사 네 곳) | 각각 같은 이름의 기어 · 노트 · 타격 효과(입력 중 점 / 반짝임 / 펜 엑스 / 손 빛살) | 구현 (시안 `r2-skin-gpt2.jpg`, `-gemini`, `-grok`, `-claude`). 노트는 내 PC에서 가져온 로고 그림의 모양, 기어 하단 양옆에 내 PC의 그림 둘 |
+| 파이어스타터 (스킨 3, 사용자 지정 컨셉) | 기어 "파이어스타터" · 노트 "파이어스타터" · 타격 효과 "불똥" | 구현 (시안 `r2-skin-fire-b.jpg`). 기어 양옆에 멤버들의 일러스트가 섬 |
+| GPT · Gemini · Grok · Claude (스킨 4, 사용자 지정: AI 회사 네 곳) | 각각 같은 이름의 기어 · 노트 · 타격 효과(입력 중 점 / 반짝임 / 펜 엑스 / 손 빛살) | 구현 (시안 `r2-skin-gpt2.jpg`, `-gemini`, `-grok`, `-claude`). 노트는 회사 로고 모양, 기어 하단 양옆에 그 회사의 콘 둘 |
 | 5~11 | | 시안 전 |
 
 ## 스킨 고르기
@@ -95,32 +95,31 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 | 게이지 | 검은 캡슐 안의 칸이 아래 짙은 빨강에서 위로 주황, 주황빛 흰색으로 달아오릅니다. 이름은 FEVER |
 | 조명 | 키캡 밑의 불이 박자마다 세집니다. FEVER에서는 래커가 박자마다 조금 더 달아오릅니다 |
 
-### 기어 양옆의 그림 (내 PC의 그림)
+### 기어 양옆의 그림
 
-사용자 지시: "firestarter 멤버들이 기어 양 옆에 서있도록", "조금 더 작게, 기어에 붙여", "4명 모두". 이 저장소는 공개라서 그 그룹의 그림은 저장소에도 빌드에도 넣지 않습니다. 대신 이 기어에는 **무대**가 있어, 플레이어가 자기 PC에서 고른 그림이 기어 양옆에 섭니다.
+사용자 지시: "firestarter 멤버들이 기어 양 옆에 서있도록", "조금 더 작게, 기어에 붙여", "4명 모두", 그리고 스킨 일러스트를 쓴 판으로 여러 번 다듬은 끝에 "이대로 진행해도 될거같아"(H 판). 처음에는 저장소가 공개라서 그림을 싣지 않고 플레이어가 자기 PC에서 고르게 했으나, 사용자가 "firestarter랑 ai들 그림은 기본적으로 들어가게", "플레이어가 고른 그림은 필요 없이 내가 올린 그림들을 고정으로" 빌드하라고 정했습니다(2026-11-11). 그래서 그림은 **빌드에 들어 있고**(`client/public/stage/fire/`), 설정에서 고르는 줄은 없습니다. 누구의 그림인지는 `client/public/licenses/STAGE-PICTURES.md`에 적었습니다.
 
-- 설정 → 기어에서 기어가 파이어스타터일 때 "양옆 그림 (n/4장)" 줄이 나옵니다. Enter로 파일을 고릅니다(PNG·WebP·JPEG, 4장까지). "양옆 그림 지우기"로 비웁니다.
-- 파일 이름 순서대로 화면 왼쪽부터 섭니다. 4장이면 왼쪽 바깥·왼쪽 안·오른쪽 안·오른쪽 바깥, 2장이면 양쪽에 하나씩입니다.
-- 한쪽에 두 장(인물): 발은 화면 아래 끝. 안쪽 그림은 엉덩이 높이에서 기어 테두리에 닿아 다리가 기어 뒤로 들어가고(키는 화면 높이의 0.54), 바깥 그림은 조금 더 크게(0.6) 안쪽 그림의 3분의 1을 덮습니다.
-- 한쪽에 한 장(판): 그 옆을 채웁니다. 키는 화면 높이의 0.94, 엉덩이 높이에서 폭의 10분의 3이 기어 뒤에 있습니다. 여러 인물을 함께 오린 그림이나 일러스트의 한 부분이 이렇게 섭니다. 더 작게 세우거나 기어에서 떼려면 그림 둘레에 투명한 여백을 두면 됩니다(위 여백은 키를, 안쪽 여백은 기어와의 거리를 정합니다).
+- 그림은 `client/public/stage/<기어>/`에 있고 `client/public/stage/index.json`이 기어마다 파일 이름을 적습니다. 이름 순서대로 화면 왼쪽부터 섭니다.
+- 파이어스타터는 두 장(`1-left.webp`, `2-right.webp`): 일러스트를 두 조각으로 나눈 판으로, 한쪽에 한 장씩 그 옆을 채웁니다. 키는 화면 높이의 0.94, 엉덩이 높이에서 폭의 10분의 3이 기어 뒤에 있습니다. 그림 둘레의 투명한 여백이 크기와 기어와의 거리를 정합니다.
+- 네 장을 넣으면 한쪽에 두 장씩 인물로 섭니다(안쪽은 키 0.54로 기어에 기대고, 바깥쪽은 0.6으로 안쪽의 3분의 1을 덮음).
 - 기어가 그림보다 위에 그려지고, 곡의 카메라 연출(기울기·줌)이 기어를 움직이면 그림도 같이 움직입니다.
 - 배경이 투명한 그림은 그 모양대로, 배경이 있는 그림은 위와 양옆이 흐려진 채로 섭니다. 발 쪽(아래 7%)은 바닥으로 사라지게 흐립니다.
-- 그림은 이 PC의 브라우저 저장소(IndexedDB `grg.standees.v1`)에만 있습니다. 기어 옆에 자리가 없으면(좁은 창, 넓은 레인, 설정의 미리보기) 서지 않습니다.
+- 기어 옆에 자리가 없으면(좁은 창, 넓은 레인, 설정의 미리보기) 서지 않습니다. 그림 파일이 없는 빌드에서는 옆이 빈 채로 같은 스킨이 나옵니다.
 
-코드: `render/standees.ts`(`STAGE_SLOTS`, `standeeBoxes`, `standeeCanvas`, 저장), `TrackRenderer.ts`(`loadStandees`, `placeStandees`: 트랙보다 먼저 그리는 화면 평면의 층), `ui/StandeeRows.tsx`(설정의 두 줄), `deckArt.ts`(`firePlate`, `fireCap`, `chromeDown`, `deckKeys`의 `ember`, `paintLitKey`, `judgeOf`, 레일), `tintArt.ts`(`fireNote`, `fireLong`, `drawSparks`), `gearLights.ts`(`fireLights`), `gearHud.ts`(`GEAR_TYPES.fire`), `skins.ts`, `styles.css`(`.hud[data-gear='fire']`, `.hud[data-fill='fire']`).
+코드: `render/standees.ts`(`STAGES`, `stagePictures`, `shippedNames`, `standeeBoxes`, `standeeCanvas`), `TrackRenderer.ts`(`loadStandees`, `placeStandees`: 트랙보다 먼저 그리는 화면 평면의 층), `deckArt.ts`(`firePlate`, `fireCap`, `chromeDown`, `deckKeys`의 `ember`, `paintLitKey`, `judgeOf`, 레일), `tintArt.ts`(`fireNote`, `fireLong`, `drawSparks`), `gearLights.ts`(`fireLights`), `gearHud.ts`(`GEAR_TYPES.fire`), `skins.ts`, `styles.css`(`.hud[data-gear='fire']`, `.hud[data-fill='fire']`).
 
 ## 'GPT' · 'Gemini' · 'Grok' · 'Claude' 스킨 (스킨 4)
 
-사용자가 스킨 4를 AI 회사 네 곳의 스킨으로 정했습니다(2026-11-11): "각 회사 스킨을 만들어줘", "노트 자체를 로고 모양으로", "기어 하단 디자인은 각 회사의 키 컬러를 사용하되, 색 이외에도 회사 특징이 드러나도록", 디시 AI 활용 갤러리의 회사별 콘 둘(올려다보는 얼굴, Don't Die)은 "기어 하단 좌, 우에 딱 붙여", "기어 앞으로 오게 하고 … 판정선 가리지 않는 선으로만". 시안: `design-mockups/gear-concepts/r2-skin-gpt2.jpg`(처음의 `r2-skin-gpt.jpg`는 특색이 없다는 의견으로 다시 그림), `r2-skin-gemini.jpg`, `r2-skin-grok.jpg`, `r2-skin-claude.jpg`. 스크린샷: `docs/screenshots/59-gpt-7k.png`, `60-gemini-7k.png`, `61-grok-7k.png`, `62-claude-7k.png`(노트의 모양과 양옆의 그림은 테스트가 그 자리에서 그린 대역입니다: 육각 고리, 네 갈래 모양, 엑스, 여덟 획).
+사용자가 스킨 4를 AI 회사 네 곳의 스킨으로 정했습니다(2026-11-11): "각 회사 스킨을 만들어줘", "노트 자체를 로고 모양으로", "기어 하단 디자인은 각 회사의 키 컬러를 사용하되, 색 이외에도 회사 특징이 드러나도록", 디시 AI 활용 갤러리의 회사별 콘 둘(올려다보는 얼굴, Don't Die)은 "기어 하단 좌, 우에 딱 붙여", "기어 앞으로 오게 하고 … 판정선 가리지 않는 선으로만". 시안: `design-mockups/gear-concepts/r2-skin-gpt2.jpg`(처음의 `r2-skin-gpt.jpg`는 특색이 없다는 의견으로 다시 그림), `r2-skin-gemini.jpg`, `r2-skin-grok.jpg`, `r2-skin-claude.jpg`. 스크린샷: `docs/screenshots/59-gpt-7k.png`, `60-gemini-7k.png`, `61-grok-7k.png`, `62-claude-7k.png`.
 
-**회사의 것은 게임에 들어 있지 않습니다.** 이 저장소는 공개라서 로고(상표)와 콘(남의 그림)은 저장소에도 빌드에도 넣지 않습니다. 게임이 그리는 것은 회사의 색과, 그 회사 화면의 분위기를 새로 그린 받침뿐입니다. 노트의 로고와 양옆의 콘은 플레이어가 자기 PC에서 가져온 그림입니다(아래).
+**로고와 콘은 빌드에 들어 있습니다.** 처음에는 저장소가 공개라서 싣지 않고 플레이어가 자기 PC에서 가져오게 했으나, 사용자가 그림을 고정으로 넣어 빌드하라고 정했습니다(2026-11-11). `client/public/stage/<스킨>/`에 스킨마다 세 장이 있고(`1.webp` 올려다보는 콘, `2.png` Don't Die 콘, `note.png` 로고의 흰 실루엣), 누구의 것인지는 `client/public/licenses/STAGE-PICTURES.md`에 적었습니다. 받침·키·레일·타격 효과·글자는 회사의 색과 그 회사 화면의 분위기를 새로 그린 것입니다.
 
 | | GPT | Gemini | Grok | Claude |
 |---|---|---|---|---|
 | 받침 | 청록(#10a37f) 채팅창. 흰 입력창의 점수(왼쪽 더하기, 오른쪽 검은 보내기 버튼), 흰 칩의 속도·정확도, 그 사이 입력 중 점 셋, 좋아요·복사 표시 | 어두운 표면(#131314). 키 아래로 파랑→보라→분홍 빛이 번지고, 그 빛을 테로 두른 알약 창의 점수와 작은 반짝임, 민무늬 알약의 속도·정확도 | 검정과 흰색만. 별이 뿌려진 검은 받침에 비스듬한 선 하나, 수치는 창 없이 꺾쇠 사이에 | 크림색 종이(#f0eee6)에 테라코타(#d97757) 띠. 아이보리 카드의 점수(오른쪽 아래 테라코타 버튼), 종이에 바로 쓴 속도·정확도, 손으로 그린 실타래 |
 | 키 | 흰 타일. 누르면 검은 바탕에 흰 점 | 파랑·빨강·노랑·초록이 은은한 알약. 누르면 그 색으로 켜짐 | 흰 선으로 그린 네모. 누르면 흰색으로 참 | 따뜻한 회색 둥근 네모. 누르면 테라코타에 크림 점 |
 | 레일 · 판정선 | 흰 띠에 청록 줄 · 흰 선에 청록 빛 | 어두운 띠에 파랑→보라 줄 · 흰 선에 보랏빛 | 흰 실선 둘 · 흰 선 | 크림 띠에 테라코타 줄 · 크림 선에 테라코타 빛 |
-| 노트 | 회사 로고 모양 그대로(내 PC의 그림). 레인 색으로 밝게 칠하고 그 색의 짙은 테를 가늘게 두름. 그림이 없으면 동그라미(원형 노트) | 같음 | 같음 | 같음 |
+| 노트 | 회사 로고 모양 그대로(`note.png`의 모양만 쓰고 색은 레인 색). 밝게 칠하고 그 색의 짙은 테를 가늘게 두름. 그림 파일이 없는 빌드에서는 동그라미(원형 노트) | 같음 | 같음 | 같음 |
 | 롱노트 | 캡슐 | 빛의 띠(프리즘) | 레일 | 막대 |
 | 타격 효과 | 입력 중 점: 흰 점 셋이 차례로 튀고 청록 고리 하나 | 반짝임: 둥근 빛과 네 갈래 반짝임 여럿 | 펜 엑스: 흰 획 둘이 엇갈려 그어지고 흰 고리 하나 | 손 빛살: 길이가 다른 짧은 획 열한 개가 퍼짐(크림에서 테라코타) |
 | 글자 | 굵은 고딕(Pretendard), 흰색. 퍼센트는 청록 | 둥근 고딕(Outfit), 파랑→보라→분홍 | 굵은 고정폭(JetBrains Mono), 흰색 | 굵은 세리프(Source Serif 4), 크림에서 테라코타 |
@@ -128,18 +127,16 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 네 받침은 폭이 트랙 폭 그대로이고(시안처럼 화면 양옆으로 퍼지지 않습니다), 속도와 정확도는 다른 스킨과 달리 받침 **가운데**(점수 아래)에 있습니다. 받침의 아래 두 모서리는 그림이 덮기 때문입니다.
 
-### 가져오는 그림: 양옆의 스티커 둘과 노트 그림
+### 그림: 하단 모서리의 스티커 둘과 노트의 로고
 
-- 설정 → 기어에서 기어가 넷 중 하나일 때 "양옆 그림 (n/2장) · 노트 그림 (n/1장)" 줄이 나옵니다. Enter로 파일을 고릅니다(PNG·WebP·JPEG, 한 번에).
-- 이름에 `note`나 `logo`(노트, 로고)가 낱말로 들어간 파일이 **노트 그림**입니다. 그 그림의 모양(투명도)만 쓰고 색은 레인 색으로 칠합니다. 나머지는 **양옆 그림**으로, 이름 순서대로 왼쪽, 오른쪽입니다.
-- 이름이 `gpt-`, `gemini-`, `grok-`, `claude-`(또는 `fire-`)로 시작하는 파일은 그 기어의 그림으로 들어갑니다. 네 기어의 그림 12장을 한 번에 골라도 됩니다.
-- 양옆 그림은 **스티커**로 붙습니다: 그림의 모양대로 흰 테두리와 옅은 그림자를 두르고(배경이 있는 그림은 모서리를 둥글린 네모), 발은 화면 아래 끝, 키는 화면 높이의 0.32까지.
+- `client/public/stage/index.json`이 스킨마다 세 파일을 적습니다. 이름에 `note`(또는 `logo`)가 낱말로 들어간 파일이 **노트의 모양**이고, 나머지 둘이 이름 순서대로 왼쪽, 오른쪽 **스티커**입니다. 설정에서 고르는 줄은 없습니다.
+- 스티커: 그림의 모양대로 흰 테두리와 옅은 그림자를 두르고(배경이 있는 그림은 모서리를 둥글린 네모), 발은 화면 아래 끝, 키는 화면 높이의 0.32까지.
 - 스티커는 기어 **앞**에, 기어의 아래 두 모서리 위에 놓입니다(엉덩이 높이에서 폭의 10분의 3이 기어 위). 판정선 높이 위로 올라오는 부분은 그림의 윤곽을 따져 기어 바깥에만 두므로 판정선과 그 위의 레인은 가리지 않습니다. 오른쪽 스티커는 판정선보다 아래에만 섭니다(그 바로 위에 게이지 수치가 쓰입니다).
-- 곡의 카메라 연출(기울기·줌)이 기어를 움직이면 스티커도 같이 움직입니다. 그림은 이 PC의 브라우저 저장소(IndexedDB `grg.standees.v1`)에만 있습니다.
+- 곡의 카메라 연출(기울기·줌)이 기어를 움직이면 스티커도 같이 움직입니다.
 
-사용자의 콘은 채팅으로 받아 사용자에게만 돌려주었습니다. 올려다보는 콘 넷은 네모 틀에 잘린 머리카락과 팔을 사용자의 지시로 Gemini에 보내 이어 그리고 배경(초록)을 뺐습니다(인터넷에서 원본은 찾지 못했습니다. 남의 그림을 이미지 모델에 보내지 않는다는 지침의, 이 콘에 한한 예외: `design-mockups/gear-concepts/PROVENANCE.md`). 로고는 공개 아이콘 꾸러미(npm `@lobehub/icons-static-svg`)에서 받아 흰 실루엣으로 바꿔 함께 전했습니다.
+콘은 사용자가 채팅으로 준 8장입니다. 올려다보는 콘 넷은 네모 틀에 잘린 머리카락과 팔을 사용자의 지시로 Gemini에 보내 이어 그리고 배경(초록)을 뺐습니다(인터넷에서 원본은 찾지 못했습니다. 남의 그림을 이미지 모델에 보내지 않는다는 지침의, 이 콘에 한한 예외: `design-mockups/gear-concepts/PROVENANCE.md`). Claude의 것은 팔 모양 때문에 두 번 다시 그렸습니다. 로고는 공개 아이콘 꾸러미(npm `@lobehub/icons-static-svg`)에서 받아 흰 실루엣으로 바꿨습니다.
 
-코드: `render/standees.ts`(`STAGES`, `isNotePicture`, `gearOfName`, `keptFor`, `readNotePicture`, `standeeBoxes`의 `'stickers'`, `stickerCanvas`, `stickerShape`), `TrackRenderer.ts`(`loadNoteMark`, `dropNotePictures`, 스티커는 트랙 다음에 그리는 층), `tintArt.ts`(`LOGO_NOTES`, `setNoteEmblem`, `emblemBox`, `logoNote`, `drawTyping`, `drawSparkles`, `drawCross`, `drawRays`), `deckArt.ts`(`BRAND_GEARS`, `gptPlate`, `geminiPlate`, `grokPlate`, `claudePlate`, `BRAND_PRESS`, `deckKeys`의 `press`, `deckReadouts`, `judgeOf`, 레일), `gearLights.ts`(`brandLights`), `gearHud.ts`·`skins.ts`(글꼴, 스킨), `styles.css`(`.hud[data-gear='gpt']` 등, `.hud[data-fill='gemini']`, `'claude'`), `ui/StandeeRows.tsx`.
+코드: `render/standees.ts`(`STAGES`, `isNotePicture`, `keptFor`, `readNotePicture`, `standeeBoxes`의 `'stickers'`, `stickerCanvas`, `stickerShape`), `TrackRenderer.ts`(`loadNoteMark`, `dropNotePictures`, 스티커는 트랙 다음에 그리는 층), `tintArt.ts`(`LOGO_NOTES`, `setNoteEmblem`, `emblemBox`, `logoNote`, `drawTyping`, `drawSparkles`, `drawCross`, `drawRays`), `deckArt.ts`(`BRAND_GEARS`, `gptPlate`, `geminiPlate`, `grokPlate`, `claudePlate`, `BRAND_PRESS`, `deckKeys`의 `press`, `deckReadouts`, `judgeOf`, 레일), `gearLights.ts`(`brandLights`), `gearHud.ts`·`skins.ts`(글꼴, 스킨), `styles.css`(`.hud[data-gear='gpt']` 등, `.hud[data-fill='gemini']`, `'claude'`).
 
 ## '기본' 스킨
 

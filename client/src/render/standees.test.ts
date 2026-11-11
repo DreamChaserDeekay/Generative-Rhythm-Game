@@ -1,36 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES } from './deckArt';
-import { gearOfName, isNotePicture, keptFor, readNotePicture, readStandees, STAGE_SLOTS, STAGES, standeeBoxes, standeeOrder, type StageView } from './standees';
+import { isNotePicture, keptFor, readNotePicture, readStandees, shippedNames, STAGE_SLOTS, STAGES, standeeBoxes, standeeOrder, type StageView } from './standees';
 
 // the default camera on a 1280 × 720 screen: the gear's outer edges at the judge line and at the screen's bottom
 const VIEW: StageView = { width: 1280, height: 720, lineY: 553.75, line: [330, 950], bottom: [255, 1025] };
 const edgeAt = (side: 0 | 1, y: number) => VIEW.line[side] + ((VIEW.bottom[side] - VIEW.line[side]) * (y - VIEW.lineY)) / (VIEW.height - VIEW.lineY);
 
 describe('the figures at a gear’s two sides', () => {
-  it('the Firestarter gear has a stage of four figures, the four AI companies’ gears two stickers and a mark for their notes, and the game comes with no picture for any', async () => {
+  it('the Firestarter gear has a stage of four figures, the four AI companies’ gears two stickers and a mark for their notes', async () => {
     expect(STAGE_SLOTS).toEqual({ fire: 4, gpt: 2, gemini: 2, grok: 2, claude: 2 });
     expect(STAGES.fire).toEqual({ slots: 4, kind: 'figures' });
     for (const gear of ['gpt', 'gemini', 'grok', 'claude'] as const) expect(STAGES[gear]).toEqual({ slots: 2, kind: 'stickers', note: true });
+    // where the build's pictures cannot be read (here: no page), there is none
     for (const gear of GEAR_STYLES) {
       expect(await readStandees(gear), gear).toEqual([]);
       expect(await readNotePicture(gear), gear).toBeNull();
     }
   });
 
-  it('a picked file is the notes’ mark when its name says so, and goes to the gear its name starts with', () => {
-    for (const name of ['gpt-note.png', 'logo.png', 'Claude_Logo.webp', 'my note 2.png', '노트.png', '로고 그림.jpg']) expect(isNotePicture(name), name).toBe(true);
-    // a word of the name, not letters inside another word
-    for (const name of ['1.png', 'gpt-1.png', 'notebook.png', 'keynotes.png', 'logos.png']) expect(isNotePicture(name), name).toBe(false);
-    expect([gearOfName('gpt-1.png'), gearOfName('Gemini_note.png'), gearOfName('grok 2.png'), gearOfName('claude.left.png'), gearOfName('fire-1.png')]).toEqual(['gpt', 'gemini', 'grok', 'claude', 'fire']);
-    // a file named for the gear alone is that gear's too
-    expect(gearOfName('gpt.png')).toBe('gpt');
-    // no gear's name before a mark, or the name of a gear with no stage: it is for the gear being picked for
-    expect([gearOfName('1.png'), gearOfName('gptx-1.png'), gearOfName('standard-1.png'), gearOfName('gpt')]).toEqual([null, null, null, null]);
+  it('the build lists its pictures by gear: plain file names of gears with a stage, anything else left out', () => {
+    expect(shippedNames({ fire: ['1-left.png', '2-right.webp'], gpt: ['1.png', 'note.PNG', 'photo.jpeg'] })).toEqual({ fire: ['1-left.png', '2-right.webp'], gpt: ['1.png', 'note.PNG', 'photo.jpeg'] });
+    // no folders, no other kinds of file, no gear without a stage, nothing that is not a list of names
+    expect(shippedNames({ fire: ['../x.png', 'a/b.png', 'run.js', '.hidden.png', 7, '1.png'], standard: ['1.png'], grok: 'note.png', claude: [] })).toEqual({ fire: ['1.png'] });
+    for (const raw of [null, 3, 'x', [['fire']]]) expect(shippedNames(raw)).toEqual({});
   });
 
-  it('a gear keeps its side pictures in their order and, an AI company’s, one mark after them', () => {
-    const files = ['gpt-note.png', 'gpt-2.png', 'gpt-logo.png', 'gpt-3.png', 'gpt-1.png'].map((name) => ({ name }));
-    expect(keptFor('gpt', files).map((f) => f.name)).toEqual(['gpt-1.png', 'gpt-2.png', 'gpt-logo.png']);
+  it('a file is the notes’ mark when its name says so; a gear takes its side pictures in their order and, an AI company’s, one mark after them', () => {
+    for (const name of ['note.png', 'logo.png', 'Claude_Logo.webp', 'my note 2.png']) expect(isNotePicture(name), name).toBe(true);
+    // a word of the name, not letters inside another word
+    for (const name of ['1.png', '2.webp', 'notebook.png', 'keynotes.png', 'logos.png']) expect(isNotePicture(name), name).toBe(false);
+    const files = ['note.png', '2.png', 'logo.png', '3.png', '1.webp'].map((name) => ({ name }));
+    expect(keptFor('gpt', files).map((f) => f.name)).toEqual(['1.webp', '2.png', 'logo.png']);
     // the Firestarter gear takes no mark: a file so named is a figure as any other
     expect(keptFor('fire', [{ name: 'logo.png' }, { name: 'a.png' }]).map((f) => f.name)).toEqual(['a.png', 'logo.png']);
     expect(keptFor('standard', files)).toEqual([]);

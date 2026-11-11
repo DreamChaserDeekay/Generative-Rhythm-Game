@@ -46,7 +46,7 @@
  *   and one hot red: a row of polished chrome key caps (the held lane's glows orange-red) over a deck of
  *   candy-red lacquer with black wedges cut into it, the score in a window of black glass in a chrome
  *   bevel, the speed and the rate in two dark pills; rails of chrome with a red line; a white-hot judge
- *   line (firePlate). Figures of the player's own stand at its two sides (standees.ts);
+ *   line (firePlate). The group's illustration stands at its two sides (standees.ts);
  * - GPT, GEMINI, GROK and CLAUDE: the gears of four AI companies' skins, each in its company's key colour
  *   and manner: GPT a chat window in teal green (white key tiles, the score in a white message box with
  *   its round send button, typing dots, a reply's thumb and copy marks); GEMINI a dark material surface
@@ -54,7 +54,7 @@
  *   sparkles); GROK pure black and white (outlined boxes, a field of stars, readouts between square
  *   brackets); CLAUDE a page of cream paper with a terracotta band (warm-grey keys, the score in an ivory
  *   card, a ball of thread drawn by hand). Their notes are the company's mark and two stickers stand at
- *   their sides: both the player's own pictures (standees.ts; gptPlate, geminiPlate, grokPlate, claudePlate);
+ *   their sides: pictures that come with the build (standees.ts; gptPlate, geminiPlate, grokPlate, claudePlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
@@ -2391,7 +2391,7 @@ function firePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
 /**
  * The gears of the four AI companies' skins: each in its company's key colour and with something of the
  * company's own manner. Nothing of a company's own is drawn here: its mark (the note's shape) and the
- * two stickers at the gear's sides are pictures the player brings (standees.ts).
+ * two stickers at the gear's sides are pictures that come with the build (public/stage, standees.ts).
  */
 export const BRAND_GEARS = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly GearStyle[];
 export type BrandGear = (typeof BRAND_GEARS)[number];

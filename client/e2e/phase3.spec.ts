@@ -705,62 +705,25 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
   expect(errors).toEqual([]);
 });
 
-test('an AI company’s skin in play: two stickers picked on this PC at the gear’s foot, its notes cut in the mark picked with them, and another gear’s pictures picked in the same go kept for that gear', async ({ page }) => {
+test('an AI company’s skin in play: the build’s two stickers over the gear’s near corners and its notes cut in the build’s mark, with nothing to pick in the settings', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'gemini', side: 'bar', deck: 'gemini', hit: 'gemini' } }));
   });
   await page.goto('/');
+  // the build lists its pictures by gear: two stickers and a mark for each of the four, two figures for the Firestarter gear
+  const index = (await (await page.request.get('/stage/index.json')).json()) as Record<string, string[]>;
+  expect(Object.keys(index).sort()).toEqual(['claude', 'fire', 'gemini', 'gpt', 'grok']);
+  for (const gear of ['gpt', 'gemini', 'grok', 'claude']) {
+    expect(index[gear]).toHaveLength(3);
+    expect(index[gear].filter((name) => /note/.test(name))).toHaveLength(1);
+    for (const name of index[gear]) expect((await page.request.get(`/stage/${gear}/${name}`)).ok(), `${gear}/${name}`).toBe(true);
+  }
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'gemini');
-  const pick = page.getByTestId('standee-pick');
-  await expect(pick).toContainText('양옆 그림 (0/2장) · 노트 그림 (0/1장)');
-  await expect(page.getByTestId('standee-clear')).toHaveCount(0);
-  // plain stand-ins drawn on the spot: a sticker, and a mark (a four-pointed shape)
-  const picture = async (kind: 'sticker' | 'mark', colour: string) =>
-    Buffer.from(
-      (
-        await page.evaluate(
-          ([what, fill]) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 200;
-            canvas.height = 200;
-            const g = canvas.getContext('2d')!;
-            g.fillStyle = fill;
-            g.beginPath();
-            if (what === 'sticker') g.ellipse(100, 110, 80, 90, 0, 0, Math.PI * 2);
-            else {
-              g.moveTo(100, 0);
-              g.quadraticCurveTo(108, 92, 200, 100);
-              g.quadraticCurveTo(108, 108, 100, 200);
-              g.quadraticCurveTo(92, 108, 0, 100);
-              g.quadraticCurveTo(92, 92, 100, 0);
-            }
-            g.fill();
-            return canvas.toDataURL('image/png');
-          },
-          [kind, colour] as const,
-        )
-      ).split(',')[1],
-      'base64',
-    );
-  await page.getByTestId('standee-files').setInputFiles([
-    { name: 'b.png', mimeType: 'image/png', buffer: await picture('sticker', '#fbbc04') },
-    { name: 'a.png', mimeType: 'image/png', buffer: await picture('sticker', '#4285f4') },
-    { name: 'my-note.png', mimeType: 'image/png', buffer: await picture('mark', '#ffffff') },
-    // named for another gear: kept for that gear, not for this one
-    { name: 'claude-note.png', mimeType: 'image/png', buffer: await picture('mark', '#ffffff') },
-    { name: 'claude-1.png', mimeType: 'image/png', buffer: await picture('sticker', '#d97757') },
-  ]);
-  await expect(pick).toContainText('양옆 그림 (2/2장) · 노트 그림 (1/1장)');
-  await expect(page.getByTestId('standee-clear')).toBeVisible();
-  await chooseSetting(page, 'opt-skin-set', 'claude');
-  await expect(pick).toContainText('양옆 그림 (1/2장) · 노트 그림 (1/1장)');
-  await chooseSetting(page, 'opt-skin-set', 'grok');
-  await expect(pick).toContainText('양옆 그림 (0/2장) · 노트 그림 (0/1장)');
-  await chooseSetting(page, 'opt-skin-set', 'gemini');
-  await expect(pick).toContainText('양옆 그림 (2/2장) · 노트 그림 (1/1장)');
+  // the pictures are the build's: no row picks them
+  await expect(page.getByTestId('standee-pick')).toHaveCount(0);
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   // its notes a shape of their own (the mark) with the star family's band of light for a long note
@@ -778,7 +741,7 @@ test('an AI company’s skin in play: two stickers picked on this PC at the gear
   expect(errors).toEqual([]);
 });
 
-test('the Firestarter skin in play: drawn in code, its lettering tall and slanted in a heat of its own, and pictures picked on this PC standing at the gear’s two sides', async ({ page }) => {
+test('the Firestarter skin in play: drawn in code, its lettering tall and slanted in a heat of its own, and the build’s two pictures standing at the gear’s two sides', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' } }));
@@ -787,46 +750,15 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'fire');
-  // the gear has a stage: no picture comes with the game, and the row picks them from this PC (their order by name)
-  const pick = page.getByTestId('standee-pick');
-  await expect(pick).toContainText('양옆 그림 (0/4장)');
-  await expect(page.getByTestId('standee-clear')).toHaveCount(0);
-  const picture = async (colour: string) =>
-    Buffer.from(
-      (
-        await page.evaluate((fill) => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 120;
-          canvas.height = 300;
-          const g = canvas.getContext('2d')!;
-          g.fillStyle = fill;
-          g.beginPath();
-          g.ellipse(60, 150, 50, 140, 0, 0, Math.PI * 2);
-          g.fill();
-          return canvas.toDataURL('image/png');
-        }, colour)
-      ).split(',')[1],
-      'base64',
-    );
-  await page.getByTestId('standee-files').setInputFiles([
-    { name: '2.png', mimeType: 'image/png', buffer: await picture('#c9ced6') },
-    { name: '1.png', mimeType: 'image/png', buffer: await picture('#e8112d') },
-    { name: '3.png', mimeType: 'image/png', buffer: await picture('#ff7a1a') },
-  ]);
-  await expect(pick).toContainText('양옆 그림 (3/4장)');
-  await expect(page.getByTestId('standee-clear')).toBeVisible();
-  // a gear with no stage has no such rows
-  await chooseSetting(page, 'opt-deck-style', 'standard');
+  // the gear's pictures are the build's: no row picks them
   await expect(page.getByTestId('standee-pick')).toHaveCount(0);
-  await chooseSetting(page, 'opt-skin-set', 'fire');
-  await expect(pick).toContainText('양옆 그림 (3/4장)');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
   // drawn in code, as the default skin is
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
-  // the three stand by the gear
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '3', { timeout: 30_000 });
+  // the two stand by the gear, one a side
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'fire');
   await expect(hud).toHaveAttribute('data-fill', 'fire');
