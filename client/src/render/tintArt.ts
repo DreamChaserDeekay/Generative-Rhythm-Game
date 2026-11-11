@@ -887,19 +887,16 @@ function prismFrost(g: CanvasRenderingContext2D, w: number, h: number): void {
 const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : mark === 'side' ? prismFrost(g, w, h) : prismBar(g, w, h));
 
 /**
- * FLAT (the default skin's): a bar with round ends, round on the screen, the top of a slab (the
- * renderer draws its walls): a gloss over its far half, lit along its left end and shaded along its
+ * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
+ * its walls): a gloss over its far half, lit along its left end and shaded along its
  * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
  * by two slanted notches cut through it.
  */
 function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
-  // ends round on the screen: the track is drawn NOTE_STRETCH times longer along
-  const ry = h / 2;
-  const rx = Math.min(ry / NOTE_STRETCH, w * 0.2);
   g.save();
   g.beginPath();
-  g.roundRect(0, 0, w, h, [{ x: rx, y: ry }]);
+  g.rect(0, 0, w, h);
   g.clip();
   const face = g.createLinearGradient(0, 0, 0, h);
   face.addColorStop(0, tone(1));
@@ -923,7 +920,7 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   g.fillRect(0, 0, w, h);
   // the near edge, crisp
   g.fillStyle = ink(1, 0.7);
-  g.fillRect(rx * 0.6, h - Math.max(2, u(5)), w - rx * 1.2, Math.max(2, u(5)));
+  g.fillRect(0, h - Math.max(2, u(5)), w, Math.max(2, u(5)));
   if (mark === 'scratch') {
     // two notches slanting through it, a third and two thirds along
     const lean = (h / NOTE_STRETCH) * 0.8;
@@ -1144,28 +1141,12 @@ function solidLong(lit: boolean): Paint {
   };
 }
 
-/** An end: the body itself, its two outer corners (canvas top) cut at 45° on the screen, a rim in `border` along the cut. */
-function cutEnd(body: Paint, border: string): Paint {
+/** A square end: the body itself, a rim in `border` along its outer edge (canvas top) as down its sides. */
+function squareEnd(body: Paint, border: string): Paint {
   return (g, w, h) => {
-    const a = across(w);
-    const cx = Math.min(w * 0.22, h / NOTE_STRETCH);
-    const outline = (t: number): [number, number][] => [
-      [cx + t * 0.4, t * NOTE_STRETCH],
-      [w - cx - t * 0.4, t * NOTE_STRETCH],
-      [w - t, cx * NOTE_STRETCH],
-      [w - t, h + 1],
-      [t, h + 1],
-      [t, cx * NOTE_STRETCH],
-    ];
-    polygon(g, outline(0));
-    g.fillStyle = border;
-    g.fill();
-    g.save();
-    polygon(g, outline(a(4)));
-    g.clip();
-    g.clearRect(0, 0, w, h);
     body(g, w, h);
-    g.restore();
+    g.fillStyle = border;
+    g.fillRect(0, 0, w, across(w)(4));
   };
 }
 
@@ -1181,11 +1162,11 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     width: 0.86,
   },
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
-  // inside with a line of light down its middle; each end the bar itself, its outer corners cut
+  // inside with a line of light down its middle; each end the bar itself, square, a rim along it
   solid: {
     body: solidLong(false),
-    end: cutEnd(solidLong(false), ink(1, 0.97)),
-    held: { body: solidLong(true), end: cutEnd(solidLong(true), ink(1, 1)) },
+    end: squareEnd(solidLong(false), ink(1, 0.97)),
+    held: { body: solidLong(true), end: squareEnd(solidLong(true), ink(1, 1)) },
     tile: 1,
     endDepth: 0.2,
     width: 0.8,
