@@ -97,6 +97,9 @@ def _mapper(args: argparse.Namespace) -> None:
         return
     if not mapper.active():
         sys.exit(f"Mapperatorinator is not set up: {json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str)}")
+    if args.action == "probe":
+        _mapper_probe(mapper, args)
+        return
     song = make_structured_song(bpm=128.0, seed=2)
     pcm = song.pcm[: int(song.sample_rate * args.seconds)]
     analysis = analyze(pcm, song.sample_rate, "sha256:mapper-try", backends={})
@@ -111,6 +114,49 @@ def _mapper(args: argparse.Namespace) -> None:
     meta = chart["meta"]
     print(json.dumps({"ok": True, "seconds": round(time.time() - t, 1), "keyMode": meta["keyMode"], "level": meta["level"],
                       "noteCount": meta["noteCount"], "generator": meta["generator"]}, ensure_ascii=False, default=str))
+
+
+def _mapper_probe(mapper, args: argparse.Namespace) -> None:
+    """Mapperatorinator's raw .osu of an audio file, with the model's own timing: once with the notes
+    only and once with the scroll speed pass too (what it costs, and what a camera could read of
+    it). Writes <out>/<name>.map.osu, <name>.sv.osu and <name>.json (the seconds of each)."""
+    import shutil
+    import tempfile
+
+    import soundfile as sf
+
+    from . import audio_io
+    from .mapper import charts
+
+    src = Path(args.audio)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    cfg = mapper.config()
+    level = charts.target_level(args.mode, args.difficulty, None)
+    pcm = audio_io.decode_audio(src)
+    report: dict = {"audio": src.name, "seconds": round(len(pcm) / 44100, 1), "model": cfg.get("model"), "mode": args.mode,
+                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg), "runs": {}}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = Path(tmp) / "song.wav"
+            sf.write(wav, pcm, 44100, subtype="PCM_16")
+            for name, sv in (("map", False), ("sv", True)):
+                made = Path(tmp) / name
+                made.mkdir()
+                request = {**charts.request_for(args.mode, level, 1, cfg, wav, made, None, {"title": src.stem}), "sv": sv}
+                t = time.time()
+                try:
+                    answer = mapper.service.generate(request, 3 * 3600.0)
+                    shutil.copyfile(answer["osu"], out / f"{src.stem}.{name}.osu")
+                    report["runs"][name] = {"ok": True, "seconds": round(time.time() - t, 1), "worker": answer.get("seconds"),
+                                            "device": answer.get("device"), "precision": answer.get("precision")}
+                except Exception as e:  # noqa: BLE001  (the other run still counts)
+                    report["runs"][name] = {"ok": False, "seconds": round(time.time() - t, 1), "error": str(e)}
+                print(json.dumps({name: report["runs"][name]}, ensure_ascii=False), file=sys.stderr, flush=True)
+    finally:
+        mapper.close()
+    (out / f"{src.stem}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False))
 
 
 def _selftest(_args: argparse.Namespace) -> None:
@@ -152,7 +198,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("selftest", help="BS-RoFormer의 ONNX · DirectML 경로 점검 (ML판)")
 
     mapper = sub.add_parser("mapper", help="Mapperatorinator 실행 환경: 상태 · 설치 · 시험 생성 (docs/MAPPERATORINATOR.md)")
-    mapper.add_argument("action", choices=["status", "setup", "generate"])
+    mapper.add_argument("action", choices=["status", "setup", "generate", "probe"])
+    mapper.add_argument("--audio", help="probe: 오디오 파일")
+    mapper.add_argument("--out", default="mapper-probe", help="probe: .osu를 둘 폴더")
     mapper.add_argument("--seconds", type=float, default=30.0, help="generate: 합성 곡의 길이(초)")
     mapper.add_argument("--mode", default="7K+1S")
     mapper.add_argument("--difficulty", default="HARD")

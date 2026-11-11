@@ -12,7 +12,7 @@ needs them. docs/MAPPERATORINATOR.md.
 A request: {"id", "audio" (a WAV), "out" (a folder), "beatmap" (an .osu with the song's timing
 points, or null to let the model find the timing), "model" (an inference config: v32, v32-mini),
 "keycount", "difficulty" (star rating), "seed", "holdNoteRatio", "temperature", "precision",
-"device", "title", "artist"}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
+"device", "title", "artist", "sv" (true: the scroll speed pass too, one more pass over the song)}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
 "precision", "encoder" ("fp32" when a fp16 model's encoder ran in fp32, see encoder_fp32)} or
 {"id", "ok": false, "error"}. Mapperatorinator's own prints go to stderr (the server keeps them in
 worker.log).
@@ -235,7 +235,7 @@ class Generator:
         # the notes only: the model's template is [TIMING, MAP, SV] and it makes each in its own
         # pass over the song; the app uses no scroll speed changes, so the SV pass is skipped
         # (asking for MAP alone makes the passes up to MAP), and the timing is given, not made
-        args.output_type = [self.ContextType.MAP]
+        args.output_type = [self.ContextType.MAP, self.ContextType.SV] if req.get("sv") else [self.ContextType.MAP]
         if args.beatmap_path:
             # the song's timing as given (the app's beats and bar lines); the model maps on it
             args.in_context = [self.ContextType.TIMING]
