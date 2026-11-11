@@ -29,6 +29,11 @@ import traceback
 import types
 from pathlib import Path
 
+# run as a script, its own folder leads sys.path: mapper/queue.py there would stand in for the
+# standard queue module (PyTorch imports it). Nothing is imported from that folder.
+if sys.path and os.path.abspath(sys.path[0] or ".") == os.path.dirname(os.path.abspath(__file__)):
+    sys.path.pop(0)
+
 
 def _protocol() -> object:
     """stdout for the answers only: everything printed afterwards (Python's or a C library's) goes
