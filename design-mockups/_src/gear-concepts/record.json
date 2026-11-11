@@ -775,5 +775,101 @@
    "thoughtsTokenCount": 2086
   },
   "made": "2026-11-11"
+ },
+ "r2-skin-crystal-a": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-a",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game with its default skin. Redraw it as clean concept art for a NEW SKIN, 16:9, keeping EXACTLY: the camera and perspective, the lane layout, where every note is, the top-left song information with its time and progress bar (do not restyle that block at all: it belongs to no skin), the place of the combo and of the judgment text, the gauge along the outside of the right rail with its label 'FEVER', the row of eight key caps directly under the judgment line (one per lane, the far-left wider, the pressed one lit), and the three readouts in the deck under them: 'SCORE' in the centre, 'SPEED' at the left, 'RATE' at the right, with the same numbers. The gear stays NO WIDER than the track (a few shard tips may poke out a little at the bottom corners, no more). A long note has NO tap-note cap at its start or end. Restyle the gear, the notes, the hit effect, the judgment line, and the combo and judgment lettering as described. Skin 'CRYSTAL': clear cut crystal on black. The look is LOW-POLY and graphic, not glittering: the crystal is drawn as a few LARGE flat facet planes in white, pale ice blue and pale lavender, each plane one flat tone or one soft gradient, meeting at crisp straight edges, like a paper-craft or vector crystal; here and there a facet carries a faint pastel iridescence (pink to cyan), very soft. NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow rays, NO ornament. Low relief. Side rails: thin bright bands of clear glass, almost white, with one fine inner line, plain all the way up. Deck: under the key caps a cluster of big angular crystal shards and facet planes fills the deck, densest in the middle and at the lower corners, overlapping like a crushed-ice bouquet, in the same flat low-poly manner; the three readouts sit on small clear frosted plates set among the facets, digits dark navy or white for contrast, small and clean. Key caps: slabs of frosted crystal with a bright top edge; the pressed one glows ice blue from inside. Judgment line: a thin white line with a soft ice-blue edge. Notes: bevelled bars of clear glass, ice white and cobalt blue alternating, amber in the centre lane, a ruby hexagonal gem bar in the far-left lane; each note's near edge the brightest. Long note: a long triangular glass prism as wide as its lane's bar with a ridge of light down its middle, both ends closed by a facet (no bar caps); the held one is lit from inside. Hit effect: a small white flash on the line with a few thin flat shards in pale spectrum colours flying sideways, short. Combo number and 'COMBO': a clean geometric italic display type cut with one or two facet lines per glyph, white to ice blue, flat, no glints. Judgment text 'MAX 100%': the same type, 'MAX' white, '100%' ice blue. This version: the shard cluster is asymmetrical and bold, a large pale wing of facets rising a little at the lower right corner and a smaller group at the lower left, the centre around the SCORE plate calmer.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/47-default-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1876,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4961,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 756
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1405
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-crystal-b": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-b",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game with its default skin. Redraw it as clean concept art for a NEW SKIN, 16:9, keeping EXACTLY: the camera and perspective, the lane layout, where every note is, the top-left song information with its time and progress bar (do not restyle that block at all: it belongs to no skin), the place of the combo and of the judgment text, the gauge along the outside of the right rail with its label 'FEVER', the row of eight key caps directly under the judgment line (one per lane, the far-left wider, the pressed one lit), and the three readouts in the deck under them: 'SCORE' in the centre, 'SPEED' at the left, 'RATE' at the right, with the same numbers. The gear stays NO WIDER than the track (a few shard tips may poke out a little at the bottom corners, no more). A long note has NO tap-note cap at its start or end. Restyle the gear, the notes, the hit effect, the judgment line, and the combo and judgment lettering as described. Skin 'CRYSTAL': clear cut crystal on black. The look is LOW-POLY and graphic, not glittering: the crystal is drawn as a few LARGE flat facet planes in white, pale ice blue and pale lavender, each plane one flat tone or one soft gradient, meeting at crisp straight edges, like a paper-craft or vector crystal; here and there a facet carries a faint pastel iridescence (pink to cyan), very soft. NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow rays, NO ornament. Low relief. Side rails: thin bright bands of clear glass, almost white, with one fine inner line, plain all the way up. Deck: under the key caps a cluster of big angular crystal shards and facet planes fills the deck, densest in the middle and at the lower corners, overlapping like a crushed-ice bouquet, in the same flat low-poly manner; the three readouts sit on small clear frosted plates set among the facets, digits dark navy or white for contrast, small and clean. Key caps: slabs of frosted crystal with a bright top edge; the pressed one glows ice blue from inside. Judgment line: a thin white line with a soft ice-blue edge. Notes: bevelled bars of clear glass, ice white and cobalt blue alternating, amber in the centre lane, a ruby hexagonal gem bar in the far-left lane; each note's near edge the brightest. Long note: a long triangular glass prism as wide as its lane's bar with a ridge of light down its middle, both ends closed by a facet (no bar caps); the held one is lit from inside. Hit effect: a small white flash on the line with a few thin flat shards in pale spectrum colours flying sideways, short. Combo number and 'COMBO': a clean geometric italic display type cut with one or two facet lines per glyph, white to ice blue, flat, no glints. Judgment text 'MAX 100%': the same type, 'MAX' white, '100%' ice blue. This version: the shard cluster is symmetrical and quieter: a shallow bed of broad facets across the deck, like a cut gem seen from above (a table facet in the middle holding the SCORE plate, crown facets fanning to both sides), nothing poking outside the gear's width.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/47-default-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1891,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4382,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 771
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 811
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-crystal-parts": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-parts",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A clean design sheet on a near-black background, 16:9, for the 'CRYSTAL' skin of a PC rhythm game; parts in a tidy grid with generous spacing, small thin labels allowed. Skin 'CRYSTAL': clear cut crystal on black. The look is LOW-POLY and graphic, not glittering: the crystal is drawn as a few LARGE flat facet planes in white, pale ice blue and pale lavender, each plane one flat tone or one soft gradient, meeting at crisp straight edges, like a paper-craft or vector crystal; here and there a facet carries a faint pastel iridescence (pink to cyan), very soft. NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow rays, NO ornament. Low relief. Side rails: thin bright bands of clear glass, almost white, with one fine inner line, plain all the way up. Deck: under the key caps a cluster of big angular crystal shards and facet planes fills the deck, densest in the middle and at the lower corners, overlapping like a crushed-ice bouquet, in the same flat low-poly manner; the three readouts sit on small clear frosted plates set among the facets, digits dark navy or white for contrast, small and clean. Key caps: slabs of frosted crystal with a bright top edge; the pressed one glows ice blue from inside. Judgment line: a thin white line with a soft ice-blue edge. Notes: bevelled bars of clear glass, ice white and cobalt blue alternating, amber in the centre lane, a ruby hexagonal gem bar in the far-left lane; each note's near edge the brightest. Long note: a long triangular glass prism as wide as its lane's bar with a ridge of light down its middle, both ends closed by a facet (no bar caps); the held one is lit from inside. Hit effect: a small white flash on the line with a few thin flat shards in pale spectrum colours flying sideways, short. Combo number and 'COMBO': a clean geometric italic display type cut with one or two facet lines per glyph, white to ice blue, flat, no glints. Judgment text 'MAX 100%': the same type, 'MAX' white, '100%' ice blue. Row one, the tap notes seen from the front-top: ice white, cobalt blue, amber, and the ruby gem bar for the turntable lane. Row two, a long note laid horizontally with NO tap-note cap at either end: once idle, once held (lit from inside, the ridge white-hot). Row three, the hit effect as a six-frame sequence from the first bright frame to nothing, and the small steady effect shown where a held long note meets the judgment line. Row four, the lettering: the combo '128' with 'COMBO', the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%', 'BREAK' (BREAK as cracked ruby glass, flat), 'FEVER x3' as a small flat badge. Row five: a segment of the judgment line, one key cap idle and one lit, a short piece of the side rail.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 714,
+   "candidatesTokenCount": 1760,
+   "totalTokenCount": 4188,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 714
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 80
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1714
+  },
+  "made": "2026-11-11"
  }
 }
