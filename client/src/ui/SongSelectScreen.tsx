@@ -39,6 +39,7 @@ import { ArrowIcon, FilmIcon, PencilIcon, SearchIcon, StarIcon } from './icons';
 import { namedPictures } from './importPictures';
 import { lampClass, LampMark } from './lamps';
 import { FEVER_SHORT, PlayOptionsPanel } from './PlayOptions';
+import { clampBgaOffset, describeBgaOffset } from './PlayBackground';
 import { buildPlayRequest } from './playRequest';
 import { judgementChip } from './playRules';
 import { alongLine, cursorStep, edgeLine, lineStep, panelLines, panelStops, pressesOnEnter, randomIndex, wheelPlace, wheelReach } from './selectNav';
@@ -100,10 +101,11 @@ const ANALYSIS_POLL_MS = 400;
 const RECONNECT_MS = 3000;
 /** How long a word about what a key just did stays under the song (a filter, a favourite). */
 const SAID_MS = 2200;
-/** The background video's shift against the song: a step of ←→, of Shift+←→, and how far it goes. */
+/** The background video's shift against the song: a step of ←→, of Shift+←→ (it can also be typed). */
 const BGA_STEP_MS = 10;
 const BGA_BIG_STEP_MS = 100;
-const BGA_SHIFT_MAX_MS = 60000;
+/** Steps with ←→ are saved once they stop for this long (each one saved at once would race the others). */
+const BGA_SAVE_AFTER_MS = 400;
 
 /** What stands in the song's place: nothing (the song itself), the play options, or the song's own page over the whole screen. */
 type Panel = 'none' | 'options' | 'info';
@@ -135,6 +137,12 @@ function titleSize(title: string): 'l' | 'm' | 's' {
 }
 
 const signedMs = (ms: number) => `${ms > 0 ? '+' : ''}${ms}ms`;
+/** A typed shift: "+13000", "-1500", "−200 ms" (null: not a number). */
+function parseShift(text: string): number | null {
+  const t = text.replace(/[\s,]|ms$/gi, '').replace(/[−–]/g, '-');
+  if (!/^[+-]?\d+(\.\d+)?$/.test(t)) return null;
+  return clampBgaOffset(Number(t));
+}
 
 export function SongSelectScreen(props: Props) {
   const { settings, onSettingsChange, onPlay, selectedSongId, onSelectSong } = props;
@@ -168,6 +176,11 @@ export function SongSelectScreen(props: Props) {
   const [sheet, setSheet] = useState<SheetId | null>(null);
   // the YouTube link being typed in the background video's sheet (null: its form is closed)
   const [youtubeDraft, setYoutubeDraft] = useState<string | null>(null);
+  // the background video's shift as typed or stepped in its sheet (saved a moment later)
+  const [bgaShiftDraft, setBgaShiftDraft] = useState('0');
+  const bgaShiftDirty = useRef(false);
+  const bgaShiftTimer = useRef(0);
+  const bgaShiftInput = useRef<HTMLInputElement>(null);
   // a word on what a key just did (a filter, a favourite), gone after a moment
   const [said, setSaid] = useState<string | null>(null);
   const saidTimer = useRef(0);
@@ -418,6 +431,15 @@ export function SongSelectScreen(props: Props) {
     }, AI_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [aiPending, prefetchKey]);
+
+  // The background video's shift in its sheet follows the song's saved one (not while it is being changed)
+  useEffect(() => {
+    bgaShiftDirty.current = false;
+    setBgaShiftDraft(String(selected?.bgaOffsetMs ?? 0));
+  }, [selected?.id]);
+  useEffect(() => {
+    if (!bgaShiftDirty.current) setBgaShiftDraft(String(selected?.bgaOffsetMs ?? 0));
+  }, [selected?.bgaOffsetMs]);
 
   // Highlight preview of the selected song: fades in, loops, fades out when leaving the song. It
   // plays on behind the settings (App), so coming back from them keeps the one playing; until the
@@ -1265,11 +1287,23 @@ export function SongSelectScreen(props: Props) {
     const url = youtubeDraft?.trim();
     if (url && (await patch({ bgaYoutube: url }))) setYoutubeDraft(null);
   };
-  const shiftVideo = (dir: 1 | -1, big: boolean) => {
-    if (!selected) return;
-    const next = Math.min(BGA_SHIFT_MAX_MS, Math.max(-BGA_SHIFT_MAX_MS, (selected.bgaOffsetMs ?? 0) + dir * (big ? BGA_BIG_STEP_MS : BGA_STEP_MS)));
-    if (next !== (selected.bgaOffsetMs ?? 0)) void patch({ bgaOffsetMs: next });
+  const savedShift = selected?.bgaOffsetMs ?? 0;
+  const typedShift = parseShift(bgaShiftDraft);
+  const shownShift = typedShift ?? savedShift;
+  /** Puts `ms` in the sheet and saves it after `delay` ms (steps that follow put the save off). */
+  const setVideoShift = (ms: number, delay: number) => {
+    const next = clampBgaOffset(ms);
+    if (next === null || !selected) return;
+    setBgaShiftDraft(String(next));
+    bgaShiftDirty.current = true;
+    window.clearTimeout(bgaShiftTimer.current);
+    bgaShiftTimer.current = window.setTimeout(() => {
+      void patch({ bgaOffsetMs: next }).finally(() => {
+        bgaShiftDirty.current = false;
+      });
+    }, delay);
   };
+  const shiftVideo = (dir: 1 | -1, big: boolean) => setVideoShift(shownShift + dir * (big ? BGA_BIG_STEP_MS : BGA_STEP_MS), BGA_SAVE_AFTER_MS);
   const YOUTUBE_NOTE = '유튜브 영상은 유튜브 플레이어로 재생돼 인터넷 연결이 필요합니다. 퍼가기를 막은 영상은 나오지 않고, 광고가 있는 영상은 광고가 먼저 나올 수 있습니다.';
   const sheetItems = (): SheetItem[] => {
     if (sheet === 'add') {
@@ -1290,7 +1324,16 @@ export function SongSelectScreen(props: Props) {
     if (sheet === 'video') {
       return hasVideo
         ? [
-            { id: 'shift', label: '영상 싱크', value: signedMs(selected?.bgaOffsetMs ?? 0), testId: 'bga-shift', onStep: shiftVideo },
+            {
+              id: 'shift',
+              label: '영상 싱크',
+              sub: describeBgaOffset(shownShift),
+              value: signedMs(shownShift),
+              testId: 'bga-shift',
+              onStep: shiftVideo,
+              // Enter: type the number
+              onPress: () => bgaShiftInput.current?.select(),
+            },
             { id: 'remove', label: '지우기', testId: 'bga-remove', onPress: () => closeSheet(() => void removeBga()) },
           ]
         : [
@@ -1889,13 +1932,51 @@ export function SongSelectScreen(props: Props) {
               selected?.bgaYoutube || youtubeDraft !== null ? (
                 <span data-testid="bga-youtube-hint">{YOUTUBE_NOTE}</span>
               ) : (
-                '플레이 화면의 배경에 깔리는 영상입니다. 영상 싱크는 ←→ 10ms, Shift+←→ 100ms씩 옮깁니다.'
+                '플레이 화면의 배경에 깔리는 영상입니다.'
               )
             ) : sheet === 'filter' ? (
               '전체와 즐겨찾기는 보이는 곡을, 곡명 · 아티스트명 · 앨범명은 순서를 정합니다: 내림차순, 한 번 더 오름차순, 또 한 번 해제.'
             ) : undefined
           }
         >
+          {sheet === 'video' && hasVideo && (
+            <form
+              className="sheet-form"
+              style={{ flexWrap: 'wrap' }}
+              data-testid="bga-shift-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (typedShift !== null) setVideoShift(typedShift, 0);
+                (e.currentTarget.closest('.sheet-box')?.querySelector('[data-item="shift"]') as HTMLElement | null)?.focus();
+              }}
+            >
+              <input
+                ref={bgaShiftInput}
+                type="text"
+                inputMode="numeric"
+                data-testid="bga-shift-input"
+                aria-label="영상 싱크 (ms)"
+                placeholder="ms"
+                spellCheck={false}
+                value={bgaShiftDraft}
+                onChange={(e) => {
+                  bgaShiftDirty.current = true;
+                  setBgaShiftDraft(e.target.value);
+                }}
+                onBlur={() => {
+                  // left without Enter: back to what is saved (or being saved)
+                  if (typedShift === null) setBgaShiftDraft(String(savedShift));
+                }}
+              />
+              <span aria-hidden="true">ms</span>
+              <button className="small" type="submit" data-testid="bga-shift-save" disabled={typedShift === null}>
+                적용
+              </button>
+              <span style={{ flexBasis: '100%', fontSize: '0.8em', opacity: 0.75 }} data-testid="bga-shift-help">
+                + 숫자는 영상을 늦게 시작하고, − 숫자는 영상 앞부분을 건너뜁니다. 예: 영상 앞 13초를 건너뛰려면 −13000. ←→ 10ms · Shift+←→ 100ms
+              </span>
+            </form>
+          )}
           {sheet === 'video' && youtubeDraft !== null && !hasVideo && (
             // a form on the page, not window.prompt: the desktop app has no prompt dialog
             <form
