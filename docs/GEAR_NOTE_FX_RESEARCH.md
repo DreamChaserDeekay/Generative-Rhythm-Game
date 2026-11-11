@@ -58,3 +58,20 @@
 - EZ2ON REBOOT : R wiki, Options(검색 요약으로만 확인, 본문은 403): https://wikiwiki.jp/ez2on/Options
 - TV Tropes, Arcaea: https://tvtropes.org/pmwiki/pmwiki.php/Videogame/Arcaea
 - TV Tropes, Project SEKAI: https://www.tvtropes.org/pmwiki/pmwiki.php/Videogame/ProjectSEKAI
+
+## 5. 실제 화면을 보고 확인한 것 (2026-11-11 추가)
+
+앞의 표는 글로만 확인한 것이었습니다. 사용자 지적에 따라 Steam 상점의 공개 스크린샷을 내려받아 플레이 화면의 기어를 직접 보았습니다(약 25종). 받은 그림은 저장소에 넣지 않았고 이미지 모델에도 보내지 않았습니다.
+
+- 본 것: DJMAX RESPECT V(앱 960170)의 기본 기어, 기어 팩 5종(Welcome to the Space 1281330, The Clear Blue Sky 1316550, Lisrim 1356222, So Happy 1386616, Tok! Tok! Tok! 1472192). EZ2ON REBOOT : R(1477590)과 DLC 7종(TIME TRAVELER 1758560, CODENAME VIOLET 1926200, ENDLESS CIRCULATION 2325460, EVOLVE 2688860, AZURE EXPRESSION 3279470, Lucent Soirée 4039770, NIGHT TRAVELER 4118900)의 패널.
+- 보지 못한 것: SOUND VOLTEX의 플레이 화면(공식 사이트의 그림은 받아지지 않았고, 찾은 문서에는 플레이 화면 그림이 없었습니다). 나무위키는 자동 접근을 막아(403) 읽지 않았습니다.
+
+공통으로 보인 구성:
+
+1. **판정선 바로 아래에 레인별 키캡이 한 줄 있다.** EZ2ON의 패널은 거의 모두 그렇고(흰색·파란색 버튼이 레인 폭에 맞춰 놓이고 누르면 그 버튼이 켜진다), DJMAX 기본 기어는 어두운 칸에 작은 표식을 둔다.
+2. **점수·콤보 수치가 기어 하단 안에 들어 있다.** EZ2ON은 SCORE와 COMBO(또는 MAX COMBO)를 하단 패널의 창에 넣고, DJMAX는 속도와 점수를 하단 모서리의 작은 알약 모양에 넣는다.
+3. **하단은 좌우 대칭이고 가운데에 엠블럼이 하나 있다**(원판, 별, 다이얼). 레일과 만나는 곳은 바깥으로 벌어지는 어깨 모양이다.
+4. **게이지는 오른쪽 레일을 따라 세로로 붙는다.**
+5. **판정 글자가 기어와 한 벌이다.** 우아한 기어는 가는 세리프, 기계풍 기어는 기울어진 각진 글꼴을 쓴다.
+6. **우아함은 반짝임이 아니라 선에서 나온다.** 가장 차분한 패널(Lucent Soirée)은 어두운 남색 바탕에 가는 선 장식(달의 위상, 별자리 선)과 키캡마다 작은 표식만 두고, 빛 번짐은 타격 순간에만 쓴다.
+7. 대부분 정면에서 본 평면 그래픽이지만, 이 게임은 기울어진 카메라(SDVX식)를 쓰므로 기어는 트랙과 같은 원근의 입체여야 한다. 그래서 구성은 위를 빌리고, 입체감과 빛은 낮게 잡는다.

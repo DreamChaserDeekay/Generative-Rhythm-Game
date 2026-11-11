@@ -218,6 +218,51 @@ PICTURES["pick-b"] = (
     "windows. The side rails end in plain chamfered crystal blocks where they meet the slab. " + FLAT,
 )
 
+# Sixth round: after looking at some 25 commercial gears (store screenshots of DJMAX RESPECT V and its gear packs, EZ2ON
+# REBOOT : R and its DLC panels). The gear stays a 3D object in the track's perspective (the game uses a tilted camera), its
+# relief kept low. Borrowed, as ideas only: a row of key caps under the judge line that light when pressed; a symmetrical
+# deck with one centre emblem; readouts housed in the deck; shoulders flaring where the rails meet it; fine line-work on a
+# dark base for elegance in place of glitter.
+EDIT3D = (
+    "This is concept art of our PC rhythm game's play screen. Make a new version of it, 16:9, changing ONLY the things below and "
+    "keeping everything else exactly as it is (the camera and perspective, the lanes, the notes, the judgment line, the judgment "
+    "text 'MAX 100%', the gauge on the right, the time, all positions). "
+    "(1) Top-left song information: remove its crystal plate, frame and sparkles completely. It becomes plain flat interface text "
+    "on the dark background: a small disc icon, 'Demo Groove 150', 'Generative Rhythm (합성 데모)', a flat red chip 'EXPERT Lv.9', "
+    "'7K+1S', and an outlined chip 'AUTO'. It does not belong to the crystal theme. "
+    "(2) The two crystal side rails: keep the cut-crystal material, a little flatter and calmer: lower relief, fewer facets, "
+    "no star glints, no rainbow flares. "
+    "(4) The combo number '57' and the word 'COMBO': keep a cut-crystal look, a little flatter and calmer: shallow bevel, no "
+    "glints, no rainbow fringe. "
+    "Also the small label over the gauge reads 'FEVER' instead of 'LUMEN'. "
+    "(3) The gear bottom (the big winged gem ornament below the judgment line): REMOVE it and design a new one as a real 3D "
+    "object lying in the same perspective as the track, but restrained: LOW relief, soft even studio light, clean edges, no "
+    "ornament carving, no sculpted wings, no big gem, no sparkles, no star glints, no bloom, no lens flare, no rainbow streaks. It "
+    "should look like the gear of a commercial arcade rhythm game designed by a professional UI artist: symmetrical, engineered, "
+    "elegant, with empty space. Material: clear and frosted cut crystal in ice white and pale azure over a dark navy-graphite "
+    "base; the crystal reads from a few broad facet planes and thin bright edges. "
+)
+PICTURES["pick-c"] = (
+    PICK,
+    EDIT3D + "Its parts: directly under the judgment line a row of eight low crystal key caps aligned to the eight lanes (the "
+    "far-left one wider), each a bevelled block of clear crystal with a tiny engraved four-point mark, one of them lit pale azure "
+    "from inside as if its key is pressed. Under the row a dark navy-graphite deck panel, slightly sloped toward the viewer, with "
+    "one small flat hexagonal cut-crystal emblem set flush at its centre, and fine hairline engraving in pale light spreading "
+    "symmetrically from the emblem (a few thin straight lines and one thin arc, like a technical drawing), nothing else. Where "
+    "the side rails meet the deck, a low crystal shoulder block of three broad facets on each side, flaring slightly outward. " ,
+)
+PICTURES["pick-d"] = (
+    PICK,
+    EDIT3D + "Also remove the two glass plates at the left (SCORE / RATE / MAX COMBO and SPEED): their readouts move into the gear "
+    "bottom. Its parts: directly under the judgment line a row of eight low crystal key caps aligned to the eight lanes (the "
+    "far-left one wider), each a bevelled block of clear crystal, one of them lit pale azure from inside as if its key is "
+    "pressed. Under the row a dark navy-graphite deck panel, slightly sloped toward the viewer, holding three inset windows of "
+    "smoked crystal with thin bright frames: a wide centre window reading 'SCORE 183,280', a smaller left window reading "
+    "'SPEED 3.00', a smaller right window reading 'RATE 100.00%'; between them two thin hairlines. Where the side rails meet the "
+    "deck, a low crystal shoulder block of three broad facets on each side, flaring slightly outward. Readout digits in a clean "
+    "italic sans-serif, white, labels in pale azure. " ,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
