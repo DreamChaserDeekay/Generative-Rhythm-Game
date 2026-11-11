@@ -125,8 +125,9 @@ def streams(notes: list[dict[str, Any]], cfg: dict[str, Any] | None = None) -> l
 def accents(notes: list[dict[str, Any]], hits: list[tuple[float, int, int]] | None = None) -> list[dict[str, Any]]:
     """The chart's hits by strength (0..1), as camera_effects reads onsets ({"t", "strength"}).
     `hits`: the model's hitsounds as (time ms, osu! hitsound bits, volume 0..100) per object; with
-    any finish or clap among them they rank the hits (a finish over a clap over a plain hit, by
-    volume), else the number of notes hit at once does."""
+    any finish or clap among them those are the accents (a finish over a clap, by volume; in two
+    real charts of the small model a clap sat on 8 to 13% of the hits, a finish on 0.2 to 2%), else
+    every hit is one, by the number of notes hit at once."""
     chord: dict[float, int] = {}
     for n in notes:
         t = round(float(n["t"]), 3)
@@ -135,7 +136,9 @@ def accents(notes: list[dict[str, Any]], hits: list[tuple[float, int, int]] | No
     if hits and any(bits & (FINISH | CLAP) for _, bits, _ in hits):
         best: dict[float, float] = {}
         for t, bits, volume in hits:
-            kind = 1.0 if bits & FINISH else 0.6 if bits & CLAP else 0.25
+            if not bits & (FINISH | CLAP):
+                continue  # a plain hit is no accent beside a snare or a cymbal
+            kind = 1.0 if bits & FINISH else 0.6
             loud = 0.6 + 0.4 * min(100, volume) / 100.0 if volume > 0 else 1.0
             best[round(t, 3)] = max(best.get(round(t, 3), 0.0), kind * loud)
         return [{"t": t, "strength": round(s, 3)} for t, s in sorted(best.items())]

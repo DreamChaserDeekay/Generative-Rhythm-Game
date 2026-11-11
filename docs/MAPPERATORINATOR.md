@@ -194,3 +194,92 @@ python -m rhythm_server mapper setup       # 설치 (설정 화면의 버튼과 
 python -m rhythm_server mapper generate    # 합성 곡 30초로 채보 하나
 python -m rhythm_server mapper probe --audio song.mp3 --out probe   # 원본 .osu 둘(노트만 / SV까지)과 걸린 시간
 ```
+
+## 카메라: Mapperatorinator 결과만으로 움직일 수 있나 (2026-11-11 확인)
+
+요청: "카메라 웍도 mapper 분석결과에 따라 다이나믹하고 음악에 맞춘 역동적인 움직임이 가능할지 확인", "현재 앱의 곡 구조분석은 사용하지 않고 mapperatorinator 분석 결과만으로 가능한지 먼저 확인해줘".
+
+**결론: 가능하다.** 앱의 곡 구조 분석 없이, 채보의 노트와 히트사운드만으로 지금과 같은 종류의 연출(줌 펄스 · 유지되는 줌 · 기울기)을 만들 수 있다. 시험판이 이 브랜치에 들어 있다(`server/rhythm_server/chart/camera_notes.py`, `config/mapper.json`의 `cameraFrom: "notes"`). 클라이언트의 카메라 재생(`cameraFx.ts`)은 바꾸지 않았다. 신호의 형식이 그대로라서다.
+
+### 실제 출력으로 본 것
+
+`.github/workflows/mapper-probe.yml`이 CC BY 곡을 Windows 러너의 CPU에서 돌려 모델의 원본 `.osu`를 남긴다(7K+1S HARD, 모델 박자, 히트사운드 켬). 아래는 v32-mini 두 곡이다(집계 숫자만. 음원과 `.osu`는 저장소에 넣지 않는다). 집 PC의 v32는 같은 형식의 출력을 내지만 값은 다를 수 있다.
+
+| | Path of the Neutron (233초) | Newer Wave (175초) |
+|---|---|---|
+| 노트 (그중 롱노트) | 1,220 (180) | 1,318 (20) |
+| 히트사운드: clap · whistle · finish | 156 · 214 · 2 | 105 · 76 · 25 |
+| 노트 볼륨 | 40 · 50 · 70 세 단계 | 모두 40 |
+| 박자(빨간 선) | 20개, 119.7–123 BPM | 7개, 106–111 BPM |
+| SV 패스의 초록 선 | 20개, 0.96–1.008배 | 7개, 0.991–1.038배 |
+| kiai | 0 | 0 |
+| 생성 시간(CPU): 노트만 → SV까지 | 284초 → 335초 | 347초 → 286초 |
+
+| 신호 | 실제로 나오는 것 | 할 수 있는 연출 |
+|---|---|---|
+| 노트 밀도(마디마다 박당 노트 수) | 곡의 모양이 드러난다. Path of the Neutron은 12구간으로 나뉘고 160초 · 208초의 브레이크와 끝의 잦아듦이 잡힌다 | 구간 나누기. 브레이크에서 시야 넓힘, 바쁜 구간에서 기울기, 밀도가 뛰는 곳(드롭 · 후렴)에서 줌 펄스, 마디마다 차오르는 빌드업에서 줌 조이기 |
+| 노트의 레인 | 늘 있다 | 노트가 몰린 손 쪽으로 기울기(지금과 같다) |
+| 히트사운드 clap | 노트의 8–13%. 스네어 자리 | 바쁜 구간의 박 펄스 |
+| 히트사운드 finish | 노트의 0.2–2%. 곡마다 차이가 크다 | 강한 펄스. 드물어서 이것만으로는 부족하다 |
+| 노트 볼륨 | 곡에 따라 세 단계이거나 모두 같다 | 구간의 세기에 보탤 수 있다(시험판은 쓰지 않는다) |
+| 빠른 줄기(스트림) | HARD에서는 0개. 높은 티어에서 나온다 | 다음 구간 직전의 줄기를 빌드업으로 |
+| 모델의 박자 | BPM · 마디선 | 모든 신호를 박과 마디에 맞춤 |
+| SV 패스 | **음악적인 내용이 없다.** 초록 선은 빨간 선마다 하나씩, BPM 변화를 상쇄하는 값뿐이다 | 쓸 것이 없다 |
+| kiai | v32는 만들지 않는다 | — |
+
+- **SV 패스는 켜지 않는다.** 곡 전체를 한 번 더 지나는데(한 곡에서 +51초, 약 18%. 다른 곡은 첫 실행의 모델 적재에 묻혀 재지 못했다) 카메라가 읽을 것이 나오지 않았다.
+- **히트사운드 생성은 켜 둔다**(기본값). 끄면 생성이 빨라지지만 박 펄스의 근거가 없어져 동시치기(화음) 크기로 대신한다.
+- v32-mini의 박자는 템포가 일정한 곡에서도 빨간 선이 여러 개로 흔들린다(120 BPM 곡에 119.7–123). 집 PC의 v32는 BPM과 마디선이 잘 나왔다고 했으므로 모델 차이로 본다. 시험판은 구간을 마디 단위로 자르므로 마디선이 틀리면 연출의 자리도 그만큼 어긋난다.
+
+### 시험판이 하는 일
+
+구간 기반 카메라(`effects.py`)에 넘기던 "구간 · 온셋 · 롤"을 채보에서 만든다. 연출을 만드는 코드는 같다.
+
+1. 마디마다 박당 노트 수를 세고, 곡의 바쁜 마디(상위 10%)를 1로 둔다.
+2. 다음 두 마디의 평균이 앞 두 마디와 0.2 이상 달라지는 마디에서 구간을 자른다. 더 바쁜 구간은 그 수준에 이른 마디부터 시작한다.
+3. 구간의 세기는 곡 안에서 가장 한산한 구간이 0, 가장 바쁜 구간이 1이다. 0.7 이상이면 바쁜 구간(기울기 · 박 펄스), 0.25 이하면 조용한 구간(시야 넓힘)이다.
+4. 바쁜 구간 앞에서 마디가 두 번 이상 연달아 차오르면 빌드업이다(마디마다 줌을 조이고, 다음 구간이 시작할 때 놓으며 펄스).
+5. 박 펄스는 clap · finish가 붙은 박 위의 노트에 준다(히트사운드가 없으면 동시치기가 큰 노트).
+
+두 곡에서 나온 신호 수: 줌 펄스 128 · 89, 기울기 11 · 3, 유지 줌 3 · 2.
+
+### 지금 카메라와 다른 점
+
+- 구간 이름(후렴 · 드롭 · 브레이크다운)을 모른다. "바쁘다 · 한산하다"만 안다. 조용하지만 중요한 구간(잔잔한 후렴)은 바쁜 구간으로 잡히지 않는다.
+- 티어마다 노트가 다르므로 카메라도 티어마다 조금 다르다. 낮은 티어는 밀도 차이가 작아 연출이 줄 수 있다.
+- 멜로디가 오르내리는 방향으로 기우는 것은 없어진다(음높이 분석이 없다). 노트가 한 손에 몰리지 않으면 기울기 방향을 번갈아 준다.
+- 곡 구조 분석(ML판의 allin1 포함)과 무관해져, 분석 없이도 같은 연출이 나온다.
+
+### 고를 것
+
+- **노트 기반으로 간다(추천)**: 곡 구조 분석을 지울 수 있다. 집에서 시험판 빌드로 몇 곡을 만들어 연출이 음악에 맞는지 본 뒤 정한다. 이미 만든 채보의 카메라는 그대로이므로 F5(새 패턴)나 다른 티어로 새로 만들어야 보인다.
+- 구간 기반을 남긴다: `config/mapper.json`의 `cameraFrom`을 `"structure"`로 두면 예전과 같다. 곡 구조 분석도 남는다.
+
+## mapper 전용 정리 (2026-11-11, `claude/mapper-only`)
+
+### 지운 것
+
+- 노트 생성 엔진: `server/rhythm_server/generator/` 가운데 `candidates` · `core` · `ending` · `feel` · `lanes` · `linter` · `motifs` · `near` · `params` · `plan` · `planner` · `repeat` · `rolls` · `sections` · `select` · `workers`.
+- 생성기만 쓰던 것: `difficulty/guides.py`, 설정 `config/patterns.json` · `pick.json` · `plan.json` · `lane_moves.json`.
+- 테스트 18개 파일: `test_buildups` · `test_chart_workers` · `test_dpc2026` · `test_elite_feedback` · `test_ergonomics` · `test_feel` · `test_generator` · `test_guides` · `test_instrument_lead` · `test_lead_solo` · `test_patterns` · `test_performance` · `test_plan` · `test_play_feedback` · `test_player_view` · `test_rhythm` · `test_runaway_feedback` · `test_sections`.
+- 스크립트: `bms_stats` · `compare_bms` · `diagnose_window` · `feel_report`(`feel_windows.json`) · `measure_consistency` · `measure_guides` · `measure_rhythm` · `measure_tempo`.
+- 문서: `docs/GENERATION.md` · `docs/PAPER_SURVEY.md` · `docs/song-to-chart.html`.
+- 빌드: ML판 · 구조 분석판 설치 파일과 그 전용 파일(`packaging/ml_torch.txt` · `structure_constraints.txt` · `build_natten.sh` · `time_analysis.py`).
+- 명령: `python -m rhythm_server generate`.
+
+### 옮겨 남긴 것
+
+- `generator/tempo.py` → `chart/tempo.py`, `generator/effects.py` → `chart/effects.py`.
+- `lanes.py`의 레인 정보 → `chart/lanes.py`. `core.py`의 키음 표시 · 기본 시드 → `chart/keysounds.py`. `sections.py`의 구간 편집 → `chart/sections.py`.
+- `params.py`의 티어 해석 → `difficulty/tiers.py`(레벨 범위와 레벨 측정이 읽는 값만).
+
+### 남은 일
+
+- **분석 모듈 정리.** 박자 분석(`analysis/tempo.py` · `meter.py`, beat_this)은 쓰임이 없어졌지만 아직 지우지 않았다. 곡 구조 분석이 그 박 위에서 돌기 때문에 둘을 함께 지워야 한다. 곡 구조는 위 카메라 결정이 난 뒤에 지운다. 음높이 분석(`analysis/pitch.py`, basic-pitch)도 온셋의 "새 소리인지" 판단에 얽혀 있어, 키음(스템 분리 · 온셋 분석)을 남길지 정해진 뒤에 한 번에 정리한다.
+- 구간 표시 · 구간 편집 · 미리듣기 시작 위치는 아직 곡 구조 분석에서 나온다. 곡 구조를 지우면 대신할 것을 정해야 한다(미리듣기는 세션 4).
+- `config/difficulty.json` · `instruments.json`에 생성기만 읽던 값이 남아 있다. 클라이언트가 같은 파일을 읽으므로 화면 정리(세션 1) 뒤에 줄인다.
+- `docs/PATTERN_DESIGN.md`는 생성기 설계 기록이지만 남은 분석 코드가 그 장 번호를 가리켜서 분석 정리 때 함께 지운다. `.github/workflows/allin1-windows-experiment.yml`도 그때 지운다.
+- 화면(세션 1)이 고칠 곳: 설정의 "AI 채보 쓰기" · "앱의 박자 쓰기" 항목, 마지막 실패 문구("그 채보는 기존 생성기로 만들었습니다"), 곡 정보의 BPM ×2 · ÷2 · 자동으로 버튼(앱의 박자 분석에만 작용한다), 플레이 옵션의 생성 옵션. `chartCache.ts`는 서버의 generator 표기에 `+mapper-`가 있는지로 AI 채보 모드를 판단하므로 서버가 그 표기를 유지한다.
+- NVIDIA GPU가 없는 PC에서 CPU(v32-mini)로 만들게 할지 정하지 않았다. CPU에서 3–4분 곡의 첫 채보에 약 5분이 걸렸다(GitHub 러너, 박자 패스 포함).
+- fp16에서 박자 패스가 곡 끝에서 망가지던 문제의 보완(인코더 fp32)은 집 PC에서 아직 확인하지 못했다. 이제 늘 모델 박자를 쓰므로 fp16을 쓴다면 먼저 확인해야 한다.
+- 망가진 곡 박자를 화면에서 버리는 방법이 없다(`mapper_timing.json`을 직접 지워야 한다).

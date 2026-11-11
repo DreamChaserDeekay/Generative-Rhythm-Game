@@ -80,5 +80,5 @@ def test_accents_are_the_hitsounds_when_there_are_any_else_the_chords() -> None:
     hits = hits_from_osu(osu)
     assert hits == [(0.0, 0, 60), (0.0, 0, 60), (500.0, 4, 100), (1000.0, 8, 80)]
     by_sound = {a["t"]: a["strength"] for a in accents(notes, hits)}
-    assert by_sound[500.0] == 1.0 and by_sound[500.0] > by_sound[1000.0] > by_sound[0.0]  # finish, clap, plain
+    assert by_sound[500.0] == 1.0 and by_sound[500.0] > by_sound[1000.0] and 0.0 not in by_sound  # finish, clap; no plain hit
     assert accents(notes, [(0.0, 0, 60), (500.0, 2, 60)]) == by_chord  # whistles alone rank nothing
