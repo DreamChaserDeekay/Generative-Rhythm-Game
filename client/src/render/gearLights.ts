@@ -656,11 +656,38 @@ function fireLights(): GearLightSet {
   };
 }
 
+/**
+ * The AI companies' gears (GPT, GEMINI, GROK, CLAUDE): what lies under their keys (GPT's seam, GEMINI's
+ * light, GROK's hairline, CLAUDE's band: each plate's 'glow') takes a light of the gear's own on the beat,
+ * stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function brandLights(colour: number): () => GearLightSet {
+  return () => ({
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+    ],
+  });
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
   sky: skyLights,
   fire: fireLights,
+  gpt: brandLights(0x9dffe0),
+  gemini: brandLights(0xc4b0ff),
+  grok: brandLights(0xffffff),
+  claude: brandLights(0xffc4a8),
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

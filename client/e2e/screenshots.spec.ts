@@ -486,6 +486,126 @@ test('play: the Firestarter skin', async ({ page }) => {
   }
 });
 
+test('play: the AI companies’ skins', async ({ page }) => {
+  test.setTimeout(480_000);
+  // also runs on its own (-g "AI companies"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // the stickers at the gear's foot and the mark the notes are cut in are the player's own pictures: here plain
+  // stand-ins drawn on the spot (a bust, a square, and a plain shape for the mark: none of them a company's)
+  await page.evaluate(async () => {
+    const blob = (w: number, h: number, draw: (g: CanvasRenderingContext2D) => void): Promise<Blob> => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      draw(canvas.getContext('2d')!);
+      return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+    };
+    const bust = (fill: string) =>
+      blob(520, 360, (g) => {
+        g.fillStyle = fill;
+        g.beginPath();
+        g.ellipse(260, 150, 150, 140, 0, 0, Math.PI * 2);
+        g.roundRect(60, 250, 400, 160, 70);
+        g.fill();
+      });
+    const square = (fill: string) =>
+      blob(200, 200, (g) => {
+        g.fillStyle = fill;
+        g.fillRect(0, 0, 200, 200);
+      });
+    const marks: Record<string, (g: CanvasRenderingContext2D) => void> = {
+      // a ring of six sides
+      gpt: (g) => {
+        g.beginPath();
+        for (let i = 0; i < 6; i++) g.lineTo(128 + 110 * Math.cos((i * Math.PI) / 3), 128 + 110 * Math.sin((i * Math.PI) / 3));
+        g.closePath();
+        g.lineWidth = 34;
+        g.lineJoin = 'round';
+        g.stroke();
+      },
+      // a four-pointed shape
+      gemini: (g) => {
+        g.beginPath();
+        g.moveTo(128, 0);
+        g.quadraticCurveTo(138, 118, 256, 128);
+        g.quadraticCurveTo(138, 138, 128, 256);
+        g.quadraticCurveTo(118, 138, 0, 128);
+        g.quadraticCurveTo(118, 118, 128, 0);
+        g.fill();
+      },
+      // a cross
+      grok: (g) => {
+        g.lineWidth = 40;
+        g.lineCap = 'butt';
+        g.beginPath();
+        g.moveTo(30, 30);
+        g.lineTo(226, 226);
+        g.moveTo(226, 30);
+        g.lineTo(30, 226);
+        g.stroke();
+      },
+      // eight strokes from the middle
+      claude: (g) => {
+        g.lineWidth = 30;
+        g.lineCap = 'round';
+        g.beginPath();
+        for (let i = 0; i < 8; i++) {
+          g.moveTo(128 + 26 * Math.cos((i * Math.PI) / 4), 128 + 26 * Math.sin((i * Math.PI) / 4));
+          g.lineTo(128 + 106 * Math.cos((i * Math.PI) / 4), 128 + 106 * Math.sin((i * Math.PI) / 4));
+        }
+        g.stroke();
+      },
+    };
+    const kept: Record<string, { name: string; blob: Blob }[]> = {};
+    for (const [gear, draw] of Object.entries(marks)) {
+      kept[gear] = [
+        { name: '1.png', blob: await bust('#c9ccd4') },
+        { name: '2.png', blob: await square('#c9ccd4') },
+        {
+          name: 'note.png',
+          blob: await blob(256, 256, (g) => {
+            g.fillStyle = g.strokeStyle = '#ffffff';
+            draw(g);
+          }),
+        },
+      ];
+    }
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('grg.standees.v1', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('pictures');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('pictures', 'readwrite');
+        for (const [gear, files] of Object.entries(kept)) tx.objectStore('pictures').put(files, gear);
+        tx.oncomplete = () => {
+          open.result.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+  for (const [skin, name] of [
+    ['gpt', '59-gpt-7k'],
+    ['gemini', '60-gemini-7k'],
+    ['grok', '61-grok-7k'],
+    ['claude', '62-claude-7k'],
+  ] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');

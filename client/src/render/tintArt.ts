@@ -112,15 +112,16 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
  * scratch marked with a pair of wings, its long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its scratch a white double slash, its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
- * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
+ * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
+ * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture the player brings (LOGO_NOTES).
  */
-export type NoteStyle = 'prism' | 'sky' | 'fire' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
 export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'sky' || style === 'fire' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
@@ -143,7 +144,7 @@ export const NOTE_STRETCH = 1.7;
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
  * depth): the coin round, the five-pointed star as drawn, the compass star wide.
  */
-const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95 };
+const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95, gpt: 1, gemini: 1, grok: 1, claude: 1 };
 
 /**
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
@@ -1091,10 +1092,98 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   g.restore();
 }
 
+// ---------- the AI companies' notes: the company's mark itself, a picture the player brings ----------
+
+/**
+ * The notes that are a mark and no bar (the four AI companies' skins): the note is the mark's own
+ * outline in its lane's colour, bright, in a thin rim of the colour's deep shade. The mark is no part of the game: it
+ * is a picture the player brings (standees.ts keeps it on the player's PC; the renderer hands it over
+ * with setNoteEmblem). Without one the note is ROUND's coin.
+ */
+export const LOGO_NOTES = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly NoteStyle[];
+export type LogoNote = (typeof LOGO_NOTES)[number];
+export const isLogoNote = (style: NoteStyle): style is LogoNote => (LOGO_NOTES as readonly NoteStyle[]).includes(style);
+
+/** A mark's picture: whatever it shows, only its outline (its alpha) is used. */
+export type Emblem = CanvasImageSource & { readonly width: number; readonly height: number };
+const EMBLEMS = new Map<LogoNote, Emblem>();
+
+/** Gives a logo note its mark (null: none, the note is a coin again). The notes' pictures are painted again by whoever shows them. */
+export function setNoteEmblem(style: LogoNote, picture: Emblem | null): void {
+  if (picture) EMBLEMS.set(style, picture);
+  else EMBLEMS.delete(style);
+}
+
+/** The mark a logo note has now. */
+export const noteEmblemOf = (style: LogoNote): Emblem | undefined => EMBLEMS.get(style);
+
+/**
+ * Where a mark `aspect` wide for its height lies on a note's picture `w` × `h`, so it keeps its shape on
+ * the screen: the picture is the note seen from above, NOTE_STRETCH times deeper than it looks at the
+ * judge line; a note as deep as its lane lets it be (noteDepthOf) is filled, a shallower one (a wide
+ * lane: the scratch's, a 4K key's) holds the mark in its middle, as tall as the note is deep.
+ */
+export function emblemBox(w: number, h: number, aspect: number): { x: number; y: number; w: number; h: number } {
+  // the room across for a mark as tall as the note looks: all of the note where that is (about) the note's width
+  const looks = h / NOTE_STRETCH;
+  const room = looks >= w * 0.9 ? w : looks;
+  const a = Math.max(0.2, Math.min(5, aspect));
+  const [bw, bh] = a >= 1 ? [room, h / a] : [room * a, h];
+  return { x: (w - bw) / 2, y: (h - bh) / 2, w: bw, h: bh };
+}
+
+/** `picture`'s outline filled with `fill`, on a canvas of its own `w` × `h`. */
+function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRenderingContext2D) => string | CanvasGradient): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(picture, 0, 0, canvas.width, canvas.height);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = fill(g);
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function logoNote(style: LogoNote): NotePaint {
+  return (g, w, h, mark) => {
+    const picture = EMBLEMS.get(style);
+    if (!picture) {
+      roundNote(g, w, h, mark);
+      return;
+    }
+    // the rim's room left round the mark
+    const rim = Math.max(1, Math.min(w, h / NOTE_STRETCH) * 0.022);
+    const box = emblemBox(w - 2 * rim, h - 2 * rim * NOTE_STRETCH, picture.width / picture.height);
+    const [x, y] = [box.x + rim, box.y + rim * NOTE_STRETCH];
+    // a thin rim in the colour's deep shade, the outline spread round itself (as wide along the track as across on the
+    // screen): the mark's own lines stay crisp over a lit key or another note
+    const shade = outlineOf(picture, box.w, box.h, () => tone(0.3));
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      g.drawImage(shade, x + Math.cos(a) * rim, y + Math.sin(a) * rim * NOTE_STRETCH, box.w, box.h);
+    }
+    // the mark in the lane's colour, all of it bright: lifted toward white at its far side, the colour itself at its near side
+    const body = outlineOf(picture, box.w, box.h, (c) => {
+      const down = c.createLinearGradient(0, 0, 0, c.canvas.height);
+      down.addColorStop(0, ink(1, 0.42));
+      down.addColorStop(0.55, ink(1, 0.12));
+      down.addColorStop(1, tone(1));
+      return down;
+    });
+    g.drawImage(body, x, y, box.w, box.h);
+  };
+}
+
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   prism: prismNote,
   sky: skyNote,
   fire: fireNote,
+  gpt: logoNote('gpt'),
+  gemini: logoNote('gemini'),
+  grok: logoNote('grok'),
+  claude: logoNote('claude'),
   flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
@@ -1118,6 +1207,11 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   prism: 'prism',
   sky: 'sky',
   fire: 'fire',
+  // the marks' long notes are plain bands of the families': a capsule, a band of light, a rail, a slab
+  gpt: 'capsule',
+  gemini: 'ray',
+  grok: 'rail',
+  claude: 'solid',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -1830,14 +1924,18 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'prism' | 'sky' | 'fire' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'prism' | 'sky' | 'fire' | 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   prism: 'prism',
   sky: 'sky',
   fire: 'fire',
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
   flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
@@ -1878,6 +1976,11 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
   sky: { w: 128, h: 64, cy: 30, reach: 42 },
   // a flash on the line and thin sparks off it, most of them up the track a little way: thin enough that the next notes read through them
   fire: { w: 224, h: 160, cy: 116, reach: 64 },
+  // the AI companies': small and close over the line (typing dots and a ring; sparkles; a pen's cross and a ring; a burst of short strokes)
+  gpt: { w: 128, h: 96, cy: 62, reach: 40 },
+  gemini: { w: 128, h: 112, cy: 78, reach: 40 },
+  grok: { w: 128, h: 96, cy: 58, reach: 44 },
+  claude: { w: 192, h: 128, cy: 96, reach: 56 },
   flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1896,7 +1999,7 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
-  const plain = style === 'prism' || style === 'sky' || style === 'fire';
+  const plain = style === 'prism' || style === 'sky' || style === 'fire' || style === 'gpt' || style === 'gemini' || style === 'grok' || style === 'claude';
   // PRISM's shards, SKY's feathers and FIRE's sparks have hard edges: painted twice as fine, or they show their px on a wide lane
   const fine = plain ? 2 : 1;
   const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
@@ -1910,6 +2013,10 @@ export function effectSheet(hit: HitStyle): EffectSheet {
       if (style === 'prism') drawSpectrum(g, f / EFFECT_FRAMES);
       else if (style === 'sky') drawPuff(g, f / EFFECT_FRAMES);
       else if (style === 'fire') drawSparks(g, f / EFFECT_FRAMES);
+      else if (style === 'gpt') drawTyping(g, f / EFFECT_FRAMES);
+      else if (style === 'gemini') drawSparkles(g, f / EFFECT_FRAMES);
+      else if (style === 'grok') drawCross(g, f / EFFECT_FRAMES);
+      else if (style === 'claude') drawRays(g, f / EFFECT_FRAMES);
       else drawEffect(g, style, f / EFFECT_FRAMES);
       g.restore();
     }
@@ -2145,13 +2252,162 @@ function drawSparks(g: CanvasRenderingContext2D, p: number): void {
   }
 }
 
+/**
+ * GPT's hit at progress `p`: someone typing. Three white dots in a row over the hit, each popping up a
+ * moment after the one before and all gone together, and one thin ring of its green opening on the line.
+ */
+function drawTyping(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.2;
+  g.save();
+  g.scale(1, 0.6);
+  g.beginPath();
+  g.arc(0, 0, (10 + 26 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2.6 - 1.6 * p) * s;
+  g.strokeStyle = `rgba(120,240,205,${0.95 * fade})`;
+  g.stroke();
+  g.restore();
+  for (let i = 0; i < 3; i++) {
+    // each a little later than the one before: it grows past its size and settles
+    const t = Math.min(1, Math.max(0, (p - i * 0.09) / 0.26));
+    if (t <= 0) continue;
+    const pop = t < 0.7 ? (t / 0.7) * 1.25 : 1.25 - ((t - 0.7) / 0.3) * 0.25;
+    g.beginPath();
+    g.arc((i - 1) * 13 * s, (-20 - 6 * out) * s, 4.2 * s * pop, 0, Math.PI * 2);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, fade * 1.5)})`;
+    g.fill();
+  }
+}
+
+/** A four-pointed sparkle about (x, y), `r` to its points, its sides curving in. */
+function sparkleAt(g: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  g.beginPath();
+  g.moveTo(x, y - r);
+  g.quadraticCurveTo(x + r * 0.08, y - r * 0.08, x + r, y);
+  g.quadraticCurveTo(x + r * 0.08, y + r * 0.08, x, y + r);
+  g.quadraticCurveTo(x - r * 0.08, y + r * 0.08, x - r, y);
+  g.quadraticCurveTo(x - r * 0.08, y - r * 0.08, x, y - r);
+  g.closePath();
+}
+
+/**
+ * GEMINI's hit at progress `p`: a soft round light on the line and a few four-pointed sparkles popping
+ * round the hit, white touched with its blue, violet and pink, each growing and fading in its turn.
+ */
+function drawSparkles(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const fade = Math.max(0, 1 - p);
+  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 30 * s);
+  glow.addColorStop(0, `rgba(255,255,255,${0.9 * fade ** 1.6})`);
+  glow.addColorStop(0.35, `rgba(155,160,255,${0.5 * fade ** 1.6})`);
+  glow.addColorStop(1, 'rgba(155,114,203,0)');
+  g.save();
+  g.scale(1.5, 0.62);
+  g.fillStyle = glow;
+  g.beginPath();
+  g.arc(0, 0, 30 * s, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+  // where it pops (px from the hit, up the track negative), its size, when it starts, its colour
+  const stars: [number, number, number, number, string][] = [
+    [-18, -22, 13, 0, '255,255,255'],
+    [17, -30, 10, 0.1, '170,200,255'],
+    [26, -9, 7, 0.2, '255,180,200'],
+    [-27, -7, 6, 0.16, '205,180,255'],
+    [1, -42, 8, 0.26, '255,255,255'],
+  ];
+  for (const [x, y, r, from, rgb] of stars) {
+    const t = (p - from) / (1 - from);
+    if (t <= 0 || t >= 1) continue;
+    const size = Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - 0.35 * t);
+    sparkleAt(g, x * s * (0.8 + 0.3 * t), y * s * (0.8 + 0.3 * t), r * s * size);
+    g.fillStyle = `rgba(${rgb},${Math.min(1, (1 - t) * 1.8)})`;
+    g.fill();
+  }
+}
+
+/**
+ * GROK's hit at progress `p`: a cross drawn fast with a pen, two thin white strokes crossing at a slant
+ * over the hit, and one thin white ring opening round them. No colour, no glow.
+ */
+function drawCross(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  g.save();
+  g.scale(1, 0.62);
+  g.beginPath();
+  g.arc(0, 0, (12 + 30 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2 - 1.2 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
+  g.stroke();
+  g.restore();
+  // each stroke drawn from one end to the other in the effect's first quarter (the second a moment after the first)
+  const reach = 26 * s;
+  g.lineCap = 'butt';
+  g.lineWidth = (2.4 - 1.2 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${Math.min(1, fade * 1.6)})`;
+  [1, -1].forEach((dir, i) => {
+    const t = Math.min(1, Math.max(0, (p - i * 0.07) / 0.2));
+    if (t <= 0) return;
+    const [x0, y0] = [-dir * reach, -reach * 0.72 - 6 * s];
+    const [x1, y1] = [dir * reach, reach * 0.72 - 6 * s];
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    g.stroke();
+  });
+}
+
+/**
+ * CLAUDE's hit at progress `p`: a burst drawn by hand, a dozen short strokes of uneven length flying
+ * out from the hit as rays, cream at their near ends and terracotta at their tips. No ring, no glow.
+ */
+function drawRays(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 2.4;
+  const fade = Math.max(0, 1 - p) ** 0.9;
+  // the angle a stroke flies at (degrees from the line, negative up the track), how far, how long, how thick
+  const rays: [number, number, number, number][] = [
+    [-172, 30, 15, 2.6],
+    [-150, 40, 22, 3.2],
+    [-128, 33, 14, 2.4],
+    [-108, 46, 26, 3.4],
+    [-90, 36, 16, 2.8],
+    [-70, 48, 24, 3.4],
+    [-50, 34, 15, 2.4],
+    [-30, 42, 21, 3.2],
+    [-8, 30, 14, 2.6],
+    [18, 22, 10, 2.2],
+    [162, 22, 10, 2.2],
+  ];
+  g.lineCap = 'round';
+  for (const [deg, far, len, thick] of rays) {
+    const a = (deg * Math.PI) / 180;
+    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.86];
+    const head = (12 + far * out) * s;
+    const tail = Math.max(7 * s, head - len * s * (0.5 + 0.5 * fade));
+    const stroke = g.createLinearGradient(dx * tail, dy * tail, dx * head, dy * head);
+    stroke.addColorStop(0, `rgba(255,246,236,${Math.min(1, fade * 1.5)})`);
+    stroke.addColorStop(0.55, `rgba(255,200,170,${Math.min(1, fade * 1.5)})`);
+    stroke.addColorStop(1, `rgba(217,119,87,${Math.min(1, fade * 1.5)})`);
+    g.beginPath();
+    g.moveTo(dx * tail, dy * tail);
+    g.lineTo(dx * head, dy * head);
+    g.lineWidth = thick * s * (0.6 + 0.4 * fade);
+    g.strokeStyle = stroke;
+    g.stroke();
+  }
+}
+
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
 export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number): [number, number] {
   const f = Math.floor(frame);
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky' | 'fire'>, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude'>, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);

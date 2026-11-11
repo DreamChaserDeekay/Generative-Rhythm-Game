@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBarNote, LONG_OF, LONG_PAINT, LONG_STYLES, laneDepthOf, MATERIAL_NOTES, NOTE_PAINT, NOTE_STYLES, noteDepthOf } from './tintArt';
+import { emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, MATERIAL_NOTES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf } from './tintArt';
 
 describe('the note families’ depth along the track', () => {
   const bar = 0.7;
@@ -102,6 +102,53 @@ describe('the Firestarter skin’s notes', () => {
     expect(LONG_PAINT.fire.held).toBeDefined();
     for (const part of [LONG_PAINT.fire.body, LONG_PAINT.fire.end, LONG_PAINT.fire.held!.body, LONG_PAINT.fire.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
     for (const mark of ['white', 'blue', 'gold', 'scratch', 'side'] as const) expect(() => NOTE_PAINT.fire(recorder().g, 300, 96, mark)).not.toThrow();
+  });
+});
+
+describe('the AI companies’ notes: the company’s mark, a picture the player brings', () => {
+  const recorder = () => {
+    const calls: string[] = [];
+    const g = new Proxy({} as Record<string, unknown>, {
+      get: (target, prop: string) => (prop in target ? target[prop] : prop === 'canvas' ? { width: 64, height: 64 } : (...args: unknown[]) => (calls.push(prop), args.length > 3 && prop.startsWith('create') ? { addColorStop: () => undefined } : undefined)),
+      set: (target, prop: string, value) => ((target[prop] = value), true),
+    }) as unknown as CanvasRenderingContext2D;
+    return { g, calls };
+  };
+
+  it('are shapes and no bars, as deep as keeps the mark’s shape, each with a long note of a family', () => {
+    expect([...LOGO_NOTES]).toEqual(['gpt', 'gemini', 'grok', 'claude']);
+    for (const style of LOGO_NOTES) {
+      expect(isLogoNote(style)).toBe(true);
+      expect(isBarNote(style)).toBe(false);
+      // as the coin: as deep as the note is wide where the camera flattens the track 1.7 times, no more than three bars
+      expect(noteDepthOf(style, 0.7, 0.9, 1.7)).toBeCloseTo(0.9 * 1.7, 6);
+      expect(noteDepthOf(style, 0.7, 2, 1.7)).toBeCloseTo(2.1, 6);
+    }
+    expect([LONG_OF.gpt, LONG_OF.gemini, LONG_OF.grok, LONG_OF.claude]).toEqual(['capsule', 'ray', 'rail', 'solid']);
+    expect(isLogoNote('round')).toBe(false);
+  });
+
+  it('without a mark the note is the coin: nothing of a company’s is drawn by the game itself', () => {
+    for (const style of LOGO_NOTES) {
+      expect(noteEmblemOf(style)).toBeUndefined();
+      const [a, b] = [recorder(), recorder()];
+      NOTE_PAINT[style](a.g, 96, 160, 'white');
+      NOTE_PAINT.round(b.g, 96, 160, 'white');
+      expect(a.calls, style).toEqual(b.calls);
+      expect(a.calls).not.toContain('drawImage');
+    }
+  });
+
+  it('a mark keeps its shape on the screen: it fills a note as deep as its lane lets it be, and lies in the middle of a shallower one', () => {
+    // a note 1.7 times deeper than wide looks square: a square mark fills it
+    expect(emblemBox(100, 170, 1)).toEqual({ x: 0, y: 0, w: 100, h: 170 });
+    // a wide mark is as wide and less deep, a tall one as deep and narrower, each in the middle
+    expect(emblemBox(100, 170, 2)).toEqual({ x: 0, y: 42.5, w: 100, h: 85 });
+    expect(emblemBox(100, 170, 0.5)).toEqual({ x: 25, y: 0, w: 50, h: 170 });
+    // a shallow note (a wide lane's, held to three bars): the mark as tall as the note is deep, in its middle
+    const wide = emblemBox(200, 170, 1);
+    expect(wide.w).toBeCloseTo(100, 6);
+    expect([wide.x, wide.y, wide.h]).toEqual([50, 0, 170]);
   });
 });
 

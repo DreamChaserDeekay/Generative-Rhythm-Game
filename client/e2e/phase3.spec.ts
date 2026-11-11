@@ -470,11 +470,11 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 19; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'fire', 'flat', 'glass', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -629,6 +629,20 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
   await expect(skin).toContainText('파이어스타터');
   await expect(page.getByTestId('opt-hit-style')).toContainText('불똥');
   await expect.poll(async () => (await stored()).parts).toEqual({ note: 'fire', side: 'dots', deck: 'fire', hit: 'fire' });
+  // the four AI companies' skins after it, each its own gear, notes and hit under the company's name
+  for (const [id, name, hit] of [
+    ['gpt', 'GPT', '입력 중 점'],
+    ['gemini', 'Gemini', '반짝임'],
+    ['grok', 'Grok', '펜 엑스'],
+    ['claude', 'Claude', '손 빛살'],
+  ] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(skin).toHaveAttribute('data-value', id);
+    await expect(skin).toContainText(name);
+    await expect(page.getByTestId('opt-deck-style')).toContainText(name);
+    await expect(page.getByTestId('opt-hit-style')).toContainText(hit);
+    await expect.poll(async () => (await stored()).parts).toEqual({ note: id, side: 'dots', deck: id, hit: id });
+  }
   await page.keyboard.press('ArrowRight');
   await expect(skin).toHaveAttribute('data-value', 'default');
   // the lettering kept the track's own is no skin either; picking a skin gives it back to the gear
@@ -688,6 +702,79 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
     return { round: parseFloat(box.borderTopLeftRadius) > 100, ground: box.backgroundColor, cells: getComputedStyle(el).backgroundImage };
   });
   expect(capsule).toEqual({ round: true, ground: 'rgb(12, 28, 51)', cells: 'none' });
+  expect(errors).toEqual([]);
+});
+
+test('an AI company’s skin in play: two stickers picked on this PC at the gear’s foot, its notes cut in the mark picked with them, and another gear’s pictures picked in the same go kept for that gear', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'gemini', side: 'bar', deck: 'gemini', hit: 'gemini' } }));
+  });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'gemini');
+  const pick = page.getByTestId('standee-pick');
+  await expect(pick).toContainText('양옆 그림 (0/2장) · 노트 그림 (0/1장)');
+  await expect(page.getByTestId('standee-clear')).toHaveCount(0);
+  // plain stand-ins drawn on the spot: a sticker, and a mark (a four-pointed shape)
+  const picture = async (kind: 'sticker' | 'mark', colour: string) =>
+    Buffer.from(
+      (
+        await page.evaluate(
+          ([what, fill]) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 200;
+            const g = canvas.getContext('2d')!;
+            g.fillStyle = fill;
+            g.beginPath();
+            if (what === 'sticker') g.ellipse(100, 110, 80, 90, 0, 0, Math.PI * 2);
+            else {
+              g.moveTo(100, 0);
+              g.quadraticCurveTo(108, 92, 200, 100);
+              g.quadraticCurveTo(108, 108, 100, 200);
+              g.quadraticCurveTo(92, 108, 0, 100);
+              g.quadraticCurveTo(92, 92, 100, 0);
+            }
+            g.fill();
+            return canvas.toDataURL('image/png');
+          },
+          [kind, colour] as const,
+        )
+      ).split(',')[1],
+      'base64',
+    );
+  await page.getByTestId('standee-files').setInputFiles([
+    { name: 'b.png', mimeType: 'image/png', buffer: await picture('sticker', '#fbbc04') },
+    { name: 'a.png', mimeType: 'image/png', buffer: await picture('sticker', '#4285f4') },
+    { name: 'my-note.png', mimeType: 'image/png', buffer: await picture('mark', '#ffffff') },
+    // named for another gear: kept for that gear, not for this one
+    { name: 'claude-note.png', mimeType: 'image/png', buffer: await picture('mark', '#ffffff') },
+    { name: 'claude-1.png', mimeType: 'image/png', buffer: await picture('sticker', '#d97757') },
+  ]);
+  await expect(pick).toContainText('양옆 그림 (2/2장) · 노트 그림 (1/1장)');
+  await expect(page.getByTestId('standee-clear')).toBeVisible();
+  await chooseSetting(page, 'opt-skin-set', 'claude');
+  await expect(pick).toContainText('양옆 그림 (1/2장) · 노트 그림 (1/1장)');
+  await chooseSetting(page, 'opt-skin-set', 'grok');
+  await expect(pick).toContainText('양옆 그림 (0/2장) · 노트 그림 (0/1장)');
+  await chooseSetting(page, 'opt-skin-set', 'gemini');
+  await expect(pick).toContainText('양옆 그림 (2/2장) · 노트 그림 (1/1장)');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  // its notes a shape of their own (the mark) with the star family's band of light for a long note
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini ray bar gemini gemini');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // the two stickers by the gear, and the mark in the notes
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
+  const hud = page.locator('.hud');
+  await expect(hud).toHaveAttribute('data-gear', 'gemini');
+  await expect(hud).toHaveAttribute('data-fill', 'gemini');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => document.fonts.check("700 40px 'Outfit'"))).toBe(true);
   expect(errors).toEqual([]);
 });
 

@@ -786,6 +786,187 @@ PICTURES["skin-fire-c"] = (
 )
 
 
+# Skin 4 became four skins, one for each of four AI companies (the user, 2026-11-11): the deck in the company's key colour
+# and with something of the company's own look, the notes carrying its mark, and the company's two stickers at the gear's
+# two sides. Neither the marks nor the stickers are made here and none is sent: the concept shows a plain white disc where
+# a note's mark goes and blank shapes where the stickers go (the player's own pictures, read on the player's PC).
+AI_STAGE = (
+    "Staging: beside the gear sit TWO blank sticker placeholders. At the LEFT of the gear, rising from the bottom edge of the "
+    "screen, a large one about 45% of the screen's height: a flat pale-grey rounded shape like the head and shoulders of a "
+    "bust seen from below (no face, no hair detail, no features at all) with a wide white die-cut sticker border and a soft "
+    "small drop shadow, its lower right corner tucked behind the gear. At the RIGHT of the gear, near the bottom of the "
+    "screen, a smaller one about 24% of the screen's height: a plain pale-grey square with rounded corners, the same white "
+    "die-cut border and drop shadow, tilted five degrees. They sit BESIDE the gear, never over the lanes or the deck, and "
+    "behind the gauge's labels. They are placeholders for pictures added later, so keep them blank. "
+    "Every note (but not a long note) carries in its middle ONE small plain white disc with a thin dark rim, as tall as the "
+    "note: the place of an emblem added later; keep the discs blank. "
+)
+AI_TAIL = (
+    " Original design: it must not resemble any existing game's interface. No logos, no brand marks, no product names, no "
+    "watermark, no characters, no people: the two sticker shapes and the notes' discs stay blank."
+)
+PICTURES["skin-gpt"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'G': the look of a calm, minimal chat assistant's dark interface. Palette: a soft near-black (#212121), a darker "
+    "black (#171717), a raised dark grey (#2f2f2f), white (#ffffff), a quiet grey (#b4b4b4), and ONE accent, a teal green "
+    "(#10a37f). Flat, quiet, generous rounded corners, no gradients, no gloss, no glow except where something is lit. "
+    "Deck: one flat panel of the near-black. In its centre sits a long fully rounded pill of the raised dark grey, like the "
+    "message box of a chat app: 'SCORE' small and grey at its left, the number '266,881' large and white in a clean modern "
+    "sans-serif, and at its right end a small solid white circle holding a black upward arrow. At the lower left and lower "
+    "right two smaller outlined pills (a thin grey outline, no fill) hold 'SPEED 3.00' and 'RATE 100.00%', like suggestion "
+    "chips. Nothing else on the deck. A hairline of the teal green runs along the deck's far edge. "
+    "Key indicators: a row of softly rounded squares of the raised dark grey, one per lane; the pressed one is solid teal "
+    "green with one small white dot in its middle. "
+    "Side rails: slim flat strips of the raised dark grey, each with a teal-green hairline along its inner edge, plain all "
+    "the way up. "
+    "Gauge: a slim dark rounded capsule along the outside of the right rail holding one column of small rounded segments, "
+    "lit teal green from the bottom up to the gauge's level, the unlit ones dark grey. "
+    "Judgment line: a thin white line in a soft teal-green glow. "
+    "Notes: flat bars with generously rounded corners like chat message bubbles, in their lane colours, matte, each with a "
+    "slightly lighter top edge; the far-left lane's pink note is the same bar. "
+    "Long note: a long flat rounded band in its lane's colour, as wide as its lane's note, a soft lighter line down its "
+    "middle, its two ends cut straight across (square, no caps); the held one is brighter. "
+    "Hit effect: three small white dots in a row popping up over the hit, like a typing indicator, and one thin teal-green "
+    "ring opening; short. "
+    "Combo number and 'COMBO': a clean, modern, slightly wide sans-serif in heavy weight, solid white with a thin near-black "
+    "outline; 'COMBO' small, grey, widely letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' teal green, '100%' "
+    "white. " + AI_STAGE,
+    AI_TAIL,
+)
+# The first GPT screen was plain (the user: no character of its own): the deck itself in the key colour, and on it the parts
+# of a chat window: the white message box with its round send button, a reply's small action marks, a typing dot.
+PICTURES["skin-gpt2"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'G': the look of a friendly chat assistant's window, in its well-known teal green. Palette: a teal green "
+    "(#10a37f) as the MAIN colour of the gear, a deeper green (#0b7d62), pure white (#ffffff), a near-black (#0d0d0d) and a "
+    "soft light grey (#ececec). Flat, clean and friendly, with generous fully rounded corners; no gradients but one gentle "
+    "darkening of the green toward the near edge, no gloss, no glow except where something is lit. "
+    "Deck: one flat panel of the teal green, a little deeper green toward its near edge. In its centre lies a long fully "
+    "rounded pill of pure white, like the message box of a chat app: at its left end a small grey plus sign, then 'SCORE' "
+    "small and grey and the number '266,881' large in near-black in a clean modern sans-serif, and at its right end a solid "
+    "near-black circle holding a white upward arrow (a send button). At the lower left a small rounded speech bubble of "
+    "translucent white holds 'SPEED 3.00' in white, and just right of it sit three small solid white dots in a row, the "
+    "middle one a little larger (someone typing). At the lower right 'RATE 100.00%' is written in white straight on the "
+    "green, followed by two tiny white outline marks side by side: a thumbs-up and a pair of overlapping squares (copy). "
+    "Nothing else on the deck. "
+    "Key indicators: a row of softly rounded white squares like app tiles, one per lane, with a hairline gap between them; "
+    "the pressed one is solid near-black with one white dot in its middle. "
+    "Side rails: slim flat white strips, each with a teal-green hairline along its inner edge, plain all the way up. "
+    "Gauge: a slim white rounded capsule along the outside of the right rail holding one column of small rounded segments, "
+    "lit teal green from the bottom up to the gauge's level, the unlit ones light grey. "
+    "Judgment line: a thin white line in a soft teal-green glow. "
+    "Notes: flat matte discs in their lane colours, each with a thin white rim (the place of an emblem added later). "
+    "Long note: a long flat rounded band in its lane's colour, as wide as its lane's note, a soft lighter line down its "
+    "middle, its two ends cut straight across (square, no caps); the held one is brighter. "
+    "Hit effect: three small white dots in a row popping up over the hit, like a typing indicator, and one thin white ring "
+    "opening; short. "
+    "Combo number and 'COMBO': a clean, modern, slightly wide sans-serif in heavy weight, solid white with a thin near-black "
+    "outline; 'COMBO' small, white, widely letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' teal green with a "
+    "thin white outline, '100%' white. "
+    "Staging: at the gear's lower LEFT and lower RIGHT, standing on the bottom edge of the screen and touching the gear's "
+    "two sides, sit two blank sticker placeholders, each about 30% of the screen's height: at the left a flat pale-grey "
+    "rounded shape like the head and shoulders of a bust (no face, no features), at the right a plain pale-grey rounded "
+    "square, each with a white die-cut sticker border. They are placeholders for pictures added later, so keep them blank. ",
+    AI_TAIL,
+)
+PICTURES["skin-gemini"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'S': the look of a friendly assistant drawn in soft material design, on a dark surface. Palette: a blue-black "
+    "surface (#131314), a raised surface (#1e1f20), a soft white (#e3e3e3), and a gradient that runs from blue (#4285f4) "
+    "through violet (#9b72cb) to a warm pink (#d96570); as small accents only, four clear colours in this order: blue "
+    "(#4285f4), red (#ea4335), yellow (#fbbc04), green (#34a853). Soft, rounded, friendly; smooth gradients only where "
+    "named; no gloss, no metal. "
+    "Deck: one flat panel of the blue-black surface. Along its far edge, just under the key indicators, lies a soft band of "
+    "light in the blue-violet-pink gradient, brightest at the edge and fading down into the panel within a short distance, "
+    "like a glow rising behind a prompt box. In the centre a large fully rounded pill of the raised surface with a thin "
+    "outline in the blue-violet-pink gradient holds 'SCORE' small and grey and the number '266,881' large and soft white in "
+    "a rounded geometric sans-serif. At the lower left and lower right two smaller pills of the raised surface (no outline) "
+    "hold 'SPEED 3.00' and 'RATE 100.00%'. Two or three tiny four-pointed sparkles (thin, concave-sided stars) in soft white "
+    "sit near the score pill's upper right, small and quiet. "
+    "Key indicators: a row of fully rounded short pills of the raised surface, one per lane; the pressed one is lit in one "
+    "clear colour, the colours going blue, red, yellow, green across the lanes. "
+    "Side rails: slim strips of the raised surface, each with a hairline in the blue-violet-pink gradient along its inner "
+    "edge, plain all the way up. "
+    "Gauge: a slim dark rounded capsule along the outside of the right rail holding one column of small round dots, lit "
+    "from the bottom up to the gauge's level in the gradient (blue at the bottom, violet, pink at the top), the unlit dim. "
+    "Judgment line: a thin white line in a glow that runs blue at the left through violet to pink at the right. "
+    "Notes: smooth fully rounded bars (pills) in their lane colours, matte with a soft lighter top; the far-left lane's "
+    "pink note is the same pill. "
+    "Long note: a long soft band of light in its lane's colour, as wide as its lane's note, lighter down its middle, its two "
+    "ends cut straight across (square, no caps); the held one is brighter. "
+    "Hit effect: three or four small four-pointed sparkles (concave-sided stars) popping and fading round the hit, soft "
+    "white with a touch of blue and pink, and a soft round glow; short. "
+    "Combo number and 'COMBO': a rounded geometric sans-serif in bold weight, filled with the gradient (blue at the left "
+    "through violet to pink at the right) with a thin blue-black outline; 'COMBO' small, soft white, widely letter-spaced. "
+    "Judgment text 'MAX 100%': the same type, 'MAX' in the gradient, '100%' soft white. " + AI_STAGE,
+    AI_TAIL,
+)
+PICTURES["skin-grok"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'X': stark, minimal, black and white, like the console of a spacecraft drawn by a typographer. Palette: pure black "
+    "(#000000), white (#ffffff), two greys (#8b8b8b and #2a2a2a); NO colour at all in the gear. Hard edges, square "
+    "corners, thin white hairlines, monospaced capitals, a great deal of empty black. "
+    "Deck: one flat panel of pure black with a white hairline round it. A sparse field of tiny white stars (single dots, a "
+    "few a little brighter) lies over it, and ONE long thin white line crosses it at a slant from the lower left to the "
+    "upper right. In the centre, written straight on the black with no box, 'SCORE' small and grey above the number "
+    "'266,881' in large white monospaced digits, with a thin white rule under it and a small white square bracket at each "
+    "of its ends. At the lower left and lower right, in the same monospaced type but small: 'SPEED 3.00' and "
+    "'RATE 100.00%', each between thin white brackets. "
+    "Key indicators: a row of square boxes drawn with a thin white outline on black, one per lane; the pressed one is solid "
+    "white. "
+    "Side rails: thin white hairlines, each doubled by a second fainter grey line just outside it, plain all the way up. "
+    "Gauge: a slim black bar with a white hairline outline along the outside of the right rail holding one column of thin "
+    "flat white segments, lit from the bottom up to the gauge's level, the unlit ones dark grey. "
+    "Judgment line: a thin, hard, pure white line with only a very slight white glow. "
+    "Notes: flat bars with perfectly square corners in their lane colours, each with a hard thin white line along its near "
+    "edge and a thin black line under it; the far-left lane's pink note is the same bar. "
+    "Long note: a long flat band in its lane's colour with a thin white line along each of its two long sides, as wide as "
+    "its lane's note, its two ends cut straight across (square, no caps); the held one is brighter. "
+    "Hit effect: two thin white straight strokes crossing at a slant over the hit, like a quick cross drawn with a pen, and "
+    "one thin white ring opening round them; very short, no glow. "
+    "Combo number and 'COMBO': heavy monospaced digits with square corners, solid white with a thin black outline; 'COMBO' "
+    "small, grey, monospaced capitals, widely letter-spaced. Judgment text 'MAX 100%': the same type, all white. "
+    + AI_STAGE,
+    AI_TAIL,
+)
+PICTURES["skin-claude"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'C': warm, bookish and hand-made, like a page of good paper with a few drawn marks. Palette: a warm cream paper "
+    "(#f0eee6), a lighter ivory (#faf9f5), a terracotta orange (#d97757), a warm charcoal (#141413) for lettering, and a "
+    "warm grey (#b0aea5). Matte, calm, a little organic: slightly irregular hand-drawn lines, serif lettering, no gloss, no "
+    "metal, no neon, no glow except the judgment line and a lit key. "
+    "Deck: one flat panel of the warm cream paper with a very faint paper grain. A band of terracotta runs straight along "
+    "its far edge, just under the key indicators. In the centre sits a softly rounded card of the lighter ivory with a thin "
+    "warm-grey outline, like a writing box: 'SCORE' small in terracotta at its upper left, the number '266,881' large in "
+    "charcoal in an elegant old-style serif typeface, and at its lower right corner a small solid terracotta rounded square "
+    "holding a cream upward arrow. At the lower left and lower right, written straight on the paper in the same serif: "
+    "'SPEED 3.00' and 'RATE 100.00%', the labels terracotta and the numbers charcoal. In the lower left corner of the deck, "
+    "small, ONE loose hand-drawn terracotta line doodle: an open looping scribble like a ball of thread, drawn with a brush "
+    "pen. Nothing else. "
+    "Key indicators: a row of softly rounded squares of the warm grey on the cream, one per lane; the pressed one is solid "
+    "terracotta with a small cream dot. "
+    "Side rails: slim strips of the cream paper, each with a terracotta hairline along its inner edge, plain all the way up. "
+    "Gauge: a slim cream rounded capsule with a thin charcoal outline along the outside of the right rail holding one "
+    "column of small rounded segments, lit terracotta from the bottom up to the gauge's level, the unlit ones warm grey. "
+    "Judgment line: a thin cream-white line in a soft terracotta glow. "
+    "Notes: softly rounded matte bars like pieces of cut paper in their lane colours, each with a thin lighter edge along "
+    "its near side; the far-left lane's pink note is the same bar. "
+    "Long note: a long flat band in its lane's colour like a strip of cut paper, as wide as its lane's note, a slightly "
+    "lighter line down its middle, its two ends cut straight across (square, no caps); the held one is brighter. "
+    "Hit effect: ten or twelve short hand-drawn strokes of uneven length bursting outward from the hit like rays, cream-white "
+    "with terracotta tips; short, no ring, no glow. "
+    "Combo number and 'COMBO': an elegant old-style serif typeface in bold weight, cream at the top easing to terracotta at "
+    "its foot, with a thin charcoal outline; 'COMBO' small, terracotta, in small capitals, widely letter-spaced. Judgment "
+    "text 'MAX 100%': the same serif, 'MAX' terracotta, '100%' cream. " + AI_STAGE,
+    AI_TAIL,
+)
+
+
 def generate(prompt: str, ref: Path | tuple[Path, ...] | None) -> tuple[bytes, dict]:
     # the pictures sent with the prompt, in the order the prompt speaks of them (one, several or none)
     parts: list[dict] = []

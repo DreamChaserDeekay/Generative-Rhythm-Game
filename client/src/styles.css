@@ -50,6 +50,31 @@
   font-display: block;
 }
 
+/* the AI companies' skins': a rounded geometric sans (Gemini), a monospace (Grok), an old-style serif (Claude); GPT's is the app's own sans */
+@font-face {
+  font-family: 'Outfit';
+  src: url('./assets/fonts/Outfit-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./assets/fonts/JetBrainsMono-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: url('./assets/fonts/SourceSerif4-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 @font-face {
   font-family: 'Nunito';
   src: url('./assets/fonts/Nunito-ExtraBoldItalic.woff2') format('woff2');
@@ -2167,6 +2192,220 @@ p.hint {
   background: #d6dbe2;
 }
 
+/* the AI companies' gears: each company's colours and type for the readouts, and a gauge in its manner */
+
+/* GPT: on the deck near-black digits in the white boxes, grey labels; beside the track white on the dark;
+   the gauge a white capsule of rounded cells that fill in its green */
+.hud[data-gear='gpt'] {
+  --hud-label-colour: #b4b4b4;
+  --hud-num-font: 'Pretendard Variable', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(33, 33, 33, 0.78);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.2);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4' fill='%23b4b4b4' fill-opacity='0.55'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='gpt'] .hud-num {
+  font-weight: 800;
+}
+
+.hud[data-gear='gpt'] .on-deck .hud-label {
+  color: #6e6e80;
+}
+
+.hud[data-gear='gpt'] .on-deck .hud-num {
+  color: #0d0d0d;
+}
+
+.hud[data-gear='gpt'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='gpt'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.hud[data-gear='gpt'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='gpt'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #10a37f;
+}
+
+.hud[data-gear='gpt'] .hud-gauge.survival .hud-gauge-fill {
+  background: #0d0d0d;
+}
+
+/* GEMINI: soft white digits in its rounded sans; the gauge a dark capsule of round dots lit blue at its foot
+   through violet to pink */
+.hud[data-gear='gemini'] {
+  --hud-label-colour: #9aa0a6;
+  --hud-num-font: 'Outfit', var(--font-display);
+  --hud-num-colour: #e3e3e3;
+  --plate-bg: rgba(19, 19, 20, 0.8);
+  --plate-border: 1px solid rgba(155, 114, 203, 0.5);
+  --gauge-name-colour: #e3e3e3;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6' fill='%23e3e3e3' fill-opacity='0.14'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='gemini'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='gemini'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='gemini'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #131314;
+  box-shadow: 0 0 0 1px rgba(155, 114, 203, 0.5);
+}
+
+.hud[data-gear='gemini'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='gemini'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #4285f4 0%, #9b72cb 55%, #d96570 100%);
+}
+
+.hud[data-gear='gemini'] .hud-gauge.survival .hud-gauge-fill {
+  background: #e3e3e3;
+}
+
+/* GROK: white monospaced digits, grey labels in the same type; the gauge a black bar in a white hairline, its
+   cells flat and white */
+.hud[data-gear='grok'] {
+  --hud-label-colour: #8b8b8b;
+  --hud-num-font: 'JetBrains Mono', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(0, 0, 0, 0.84);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.7);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='grok'] .hud-num {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.hud[data-gear='grok'] .hud-label {
+  font-family: 'JetBrains Mono', var(--font-display);
+  font-weight: 800;
+}
+
+.hud[data-gear='grok'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='grok'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -26%;
+  padding: var(--cell) 26%;
+  border-radius: 0;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #000000;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.hud[data-gear='grok'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='grok'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #ffffff;
+}
+
+.hud[data-gear='grok'] .hud-gauge.survival .hud-gauge-fill {
+  background: #8b8b8b;
+}
+
+/* CLAUDE: on its paper charcoal digits in a serif, terracotta labels; beside the track ivory on the dark; the
+   gauge a cream capsule of rounded cells that fill in terracotta */
+.hud[data-gear='claude'] {
+  --hud-label-colour: #e08a6a;
+  --hud-num-font: 'Source Serif 4', var(--font-display);
+  --hud-num-colour: #faf9f5;
+  --plate-bg: rgba(20, 20, 19, 0.78);
+  --plate-border: 1px solid rgba(217, 119, 87, 0.55);
+  --gauge-name-colour: #faf9f5;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3' fill='%23b0aea5' fill-opacity='0.6'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='claude'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='claude'] .hud-label {
+  font-family: 'Source Serif 4', var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.hud[data-gear='claude'] .on-deck .hud-label {
+  color: #c15f3c;
+}
+
+.hud[data-gear='claude'] .on-deck .hud-num {
+  color: #141413;
+}
+
+.hud[data-gear='claude'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='claude'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #f0eee6;
+  box-shadow: 0 0 0 1px rgba(20, 20, 19, 0.5);
+}
+
+.hud[data-gear='claude'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='claude'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #d97757;
+}
+
+.hud[data-gear='claude'] .hud-gauge.survival .hud-gauge-fill {
+  background: #141413;
+}
+
 /* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
    each word three layers of the same letters: the outlined ones; over them a white copy (::before);
    over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
@@ -2319,6 +2558,74 @@ p.hint {
 
 .hud[data-fill='fire'] .g-break .hud-fill {
   --fill: linear-gradient(180deg, #e7eef6 0 30%, #8fa3b8 56%, #4c6078 86%);
+}
+
+/* Gemini's: blue through violet to pink across the letters; COMBO thin and soft white, widely spaced; "MAX"
+   white; lower percents a pale blue, a violet, a dusk; a break a soft red */
+.hud[data-fill='gemini'] {
+  --fill: linear-gradient(90deg, #5a95f5 0%, #9b72cb 52%, #e0677a 100%);
+}
+
+.hud[data-fill='gemini'] .hud-combo-label {
+  margin-top: 0.3em;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  --fill: linear-gradient(#e3e3e3, #e3e3e3);
+}
+
+.hud[data-fill='gemini'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='gemini'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #8ab4f8, #a8c7fa);
+}
+
+.hud[data-fill='gemini'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #c2a8f0, #a98bdc);
+}
+
+.hud[data-fill='gemini'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #b5adc4, #8e879c);
+}
+
+.hud[data-fill='gemini'] .g-break .hud-fill {
+  --fill: linear-gradient(90deg, #f6aea9, #e0677a);
+}
+
+/* Claude's: cream at the letters' tops easing to terracotta at their feet; COMBO terracotta, widely spaced;
+   "MAX" cream; lower percents the house's other colours, a kraft ochre, a sky, an olive; a break a warm grey */
+.hud[data-fill='claude'] {
+  --fill: linear-gradient(180deg, #fff6ee 0 34%, #f4b79c 58%, #d97757 88%);
+}
+
+.hud[data-fill='claude'] .hud-combo-label {
+  margin-top: 0.14em;
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
+  --fill: linear-gradient(#e8845f, #e8845f);
+}
+
+.hud[data-fill='claude'] .hud-fill.hud-split {
+  --fill: linear-gradient(#fff6ee, #fff6ee);
+}
+
+.hud[data-fill='claude'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff6e6 0 34%, #e9c28a 58%, #c9973f 88%);
+}
+
+.hud[data-fill='claude'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f7fb 0 34%, #a9c2dd 58%, #6a9bcc 88%);
+}
+
+.hud[data-fill='claude'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f5ec 0 34%, #b4c19c 58%, #788c5d 88%);
+}
+
+.hud[data-fill='claude'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #efeee9 0 34%, #b0aea5 58%, #77756d 88%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

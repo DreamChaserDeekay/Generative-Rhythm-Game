@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type Picture } from './deckArt';
+import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type GearStyle, type KeyKind, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { KEY_RISE_MS, notesEndZ, pressLevel } from './TrackRenderer';
 
@@ -128,7 +128,7 @@ describe('the decks of the gears a player picks', () => {
   });
 
   /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
-  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire'];
+  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude'];
 
   it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, STANDARD’s and CRYSTAL’s key caps and SKY’s dashes)', () => {
     for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) {
@@ -323,6 +323,51 @@ describe('the decks of the gears a player picks', () => {
     const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
     paintDeck('sky', callRecorder().g, short);
     expect(short.marks.map((m) => m.name)).toEqual(['sky']);
+  });
+
+  it('the four AI companies’ gears house the readouts as FIRE does, each key held in its company’s flat colour, and mark what lights under their keys', () => {
+    for (const gear of ['gpt', 'gemini', 'grok', 'claude'] as const) {
+      for (const [room, stretch, mode] of [
+        [155.55, 1.2, '7K+1S'],
+        [912, 3.25, '4K'],
+      ] as [number, number, KeyModeId][]) {
+        const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+        const r = deckReadouts(gear, s)!;
+        // steps as deep as FIRE's (as deep in all as the default gear's deck): the score in the middle; the speed and the rate
+        // under it by the deck's middle, not at its two ends (stickers lie over these decks' near corners)
+        const fire = deckReadouts('fire', s)!;
+        expect(r.score, gear).toEqual(fire.score);
+        expect([r.speed.y, r.speed.w, r.speed.h, r.rate.y, r.rate.w, r.rate.h]).toEqual([fire.speed.y, fire.speed.w, fire.speed.h, fire.rate.y, fire.rate.w, fire.rate.h]);
+        expect(r.speed.x).toBeGreaterThan(s.width * 0.25);
+        expect(r.rate.x + r.rate.w).toBeLessThan(s.width * 0.75);
+        expect(r.speed.x + r.speed.w / 2 + r.rate.x + r.rate.w / 2).toBeCloseTo(s.width, 6);
+        expect(r.speed.x + r.speed.w).toBeLessThan(r.rate.x);
+        paintDeck(gear, callRecorder().g, s);
+        expect(s.marks.map((m) => m.name), gear).toEqual(['glow']);
+        expect([s.marks[0].x, s.marks[0].w]).toEqual([0, s.width]);
+        // a key to a lane, inside its lane, over the readouts
+        const keys = deckKeys(gear, s, false);
+        expect(keys.map((k) => k.lane)).toEqual(s.lanes.map((_, lane) => lane));
+        keys.forEach((k, i) => {
+          expect(k.box.x).toBeGreaterThan(s.lanes[i].left);
+          expect(k.box.x + k.box.w).toBeLessThan(s.lanes[i].left + s.lanes[i].width);
+          expect(k.box.y + k.box.h).toBeLessThan(r.score.y);
+          expect(k.press!.stretch).toBe(stretch);
+          expect(() => paintLitKey(callRecorder().g, 64, 64, k)).not.toThrow();
+        });
+      }
+      expect(deckReadouts(gear, spec(96, 1.1)), gear).toBeNull();
+      expect(() => paintDeck(gear, callRecorder().g, spec(96, 1.1))).not.toThrow();
+    }
+    const held = (gear: 'gpt' | 'gemini' | 'grok' | 'claude') => deckKeys(gear, spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!);
+    // GPT's goes black with a white dot (someone typing), CLAUDE's terracotta with a cream dot, GROK's solid white and square
+    expect(new Set(held('gpt').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#0d0d0d #ffffff']));
+    expect(new Set(held('claude').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#d97757 #f0eee6']));
+    expect(new Set(held('grok').map((p) => `${p.fill} ${p.dot} ${p.round}`))).toEqual(new Set(['#ffffff undefined 0']));
+    // GEMINI's light in four clear colours, lane after lane
+    expect(held('gemini').map((p) => p.fill).slice(0, 5)).toEqual(['#4285f4', '#ea4335', '#fbbc04', '#34a853', '#4285f4']);
+    // each judge line in its company's colour, white at its core, where and as large as every gear's
+    expect(['gpt', 'gemini', 'grok', 'claude'].map((gear) => judgeOf(gear as GearStyle).line)).toEqual(['#12b38b', '#9b72cb', '#ffffff', '#d97757']);
   });
 
   it('FIRE houses the score in a window of black glass and the speed and the rate in two pills, its chrome caps glowing under their near edges, and marks that light and its lacquer', () => {

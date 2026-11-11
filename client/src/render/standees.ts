@@ -1,12 +1,47 @@
 /**
- * A gear with a stage has figures standing at its two sides. Their pictures are the player's own:
- * picked on this PC and kept in its storage only (IndexedDB). The game comes with none, so neither
- * the repository nor the build holds such a picture.
+ * A gear with a stage has pictures at its two sides, and the AI companies' gears a mark their notes are
+ * cut in. The pictures are the player's own: picked on this PC and kept in its storage only (IndexedDB).
+ * The game comes with none, so neither the repository nor the build holds such a picture.
  */
-import type { GearStyle } from './deckArt';
+import { BRAND_GEARS, type GearStyle } from './deckArt';
 
-/** How many figures stand by a gear; a gear not named here has no stage. */
-export const STAGE_SLOTS: Partial<Record<GearStyle, number>> = { fire: 4 };
+/**
+ * What stands by a gear: 'figures' tall beside it and behind it (파이어스타터: up to four, or one piece
+ * of an illustration a side), or two 'stickers' at its foot, one a side, laid over its two near corners
+ * in front of it (the AI companies' gears: the company's two stickers). `note`: the gear's skin also
+ * takes one picture as its notes' mark.
+ */
+export type StageKind = 'figures' | 'stickers';
+export interface Stage {
+  slots: number;
+  kind: StageKind;
+  note?: boolean;
+}
+
+/** The gears with a stage; a gear not named here has none. */
+export const STAGES: Partial<Record<GearStyle, Stage>> = {
+  fire: { slots: 4, kind: 'figures' },
+  ...Object.fromEntries(BRAND_GEARS.map((gear) => [gear, { slots: 2, kind: 'stickers', note: true } satisfies Stage])),
+};
+
+/** How many pictures stand by a gear; a gear not named here has no stage. */
+export const STAGE_SLOTS: Partial<Record<GearStyle, number>> = Object.fromEntries(Object.entries(STAGES).map(([gear, stage]) => [gear, stage.slots]));
+
+/** A picked file is the notes' mark, not a picture for the gear's side, when its name says so: "note" or "logo" as a word of it (노트, 로고). */
+export function isNotePicture(name: string): boolean {
+  const base = name.replace(/\.[^.]*$/, '');
+  return /(^|[^a-z])(note|logo)([^a-z]|$)/i.test(base) || /노트|로고/.test(base);
+}
+
+/**
+ * The gear a picked file is for by its name, where it starts with a gear's id and a mark after it
+ * ("gpt-1.png", "claude_note.png"): the pictures of several gears can be picked together, each going to
+ * its own gear. Null: it is for the gear the player is picking for.
+ */
+export function gearOfName(name: string): GearStyle | null {
+  const head = /^([a-z0-9]+)[-_ .]/i.exec(name)?.[1].toLowerCase();
+  return head && head in STAGES ? (head as GearStyle) : null;
+}
 
 export interface StandeeFile {
   name: string;
@@ -59,20 +94,54 @@ export function standeeOrder<T extends { name: string }>(files: readonly T[], sl
   return [...files].sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' })).slice(0, Math.max(0, slots));
 }
 
-/** The pictures kept for a gear's stage (none where it has no stage or nothing was picked). */
-export async function readStandees(gear: GearStyle): Promise<StandeeFile[]> {
-  if (!STAGE_SLOTS[gear]) return [];
+/** All that is kept for a gear: its side pictures and (a gear whose skin takes one) its notes' mark. */
+async function readKept(gear: GearStyle): Promise<StandeeFile[]> {
+  if (!STAGES[gear]) return [];
   const kept = await store<StandeeFile[] | undefined>('readonly', (s) => s.get(gear) as IDBRequest<StandeeFile[] | undefined>);
   return Array.isArray(kept) ? kept.filter((f) => f && f.blob instanceof Blob) : [];
 }
 
-/** Keeps `files` as a gear's stage pictures in place of the ones it had (none: the stage is emptied). */
+/** What of `files` a gear keeps: its side pictures in their order, no more than it has places for, and after them its notes' mark where its skin takes one (the first so named). */
+export function keptFor<T extends { name: string }>(gear: GearStyle, files: readonly T[]): T[] {
+  const stage = STAGES[gear];
+  if (!stage) return [];
+  const marks = stage.note ? standeeOrder(files.filter((f) => isNotePicture(f.name)), 1) : [];
+  const sides = standeeOrder(files.filter((f) => !(stage.note && isNotePicture(f.name))), stage.slots);
+  return [...sides, ...marks];
+}
+
+/** The pictures kept for a gear's sides (none where it has no stage or nothing was picked). */
+export async function readStandees(gear: GearStyle): Promise<StandeeFile[]> {
+  const stage = STAGES[gear];
+  if (!stage) return [];
+  return (await readKept(gear)).filter((f) => !(stage.note && isNotePicture(f.name))).slice(0, stage.slots);
+}
+
+/** The picture kept as the mark of a gear's skin's notes (null: none picked, or its skin takes none). */
+export async function readNotePicture(gear: GearStyle): Promise<StandeeFile | null> {
+  if (!STAGES[gear]?.note) return null;
+  return (await readKept(gear)).find((f) => isNotePicture(f.name)) ?? null;
+}
+
+/**
+ * Keeps `files` as the pictures of the gear the player is picking for, in place of the ones it had
+ * (none: that gear's are dropped). A file named for another gear with a stage goes to that gear
+ * instead (gearOfName), so the pictures of several gears can be picked at once; a gear none of the
+ * files is for keeps what it had. Returns how many now stand at the sides of `gear`.
+ */
 export async function writeStandees(gear: GearStyle, files: readonly StandeeFile[]): Promise<number> {
-  const kept = standeeOrder(files, STAGE_SLOTS[gear] ?? 0).map((f) => ({ name: f.name, blob: f.blob }));
-  if (kept.length > 0) await store('readwrite', (s) => s.put(kept, gear));
-  else await store('readwrite', (s) => s.delete(gear));
+  if (files.length === 0) await store('readwrite', (s) => s.delete(gear));
+  const groups = new Map<GearStyle, StandeeFile[]>();
+  for (const f of files) {
+    const to = gearOfName(f.name) ?? gear;
+    groups.set(to, [...(groups.get(to) ?? []), f]);
+  }
+  for (const [to, group] of groups) {
+    const kept = keptFor(to, group).map((f) => ({ name: f.name, blob: f.blob }));
+    if (kept.length > 0) await store('readwrite', (s) => s.put(kept, to));
+  }
   listeners.forEach((l) => l());
-  return kept.length;
+  return (await readStandees(gear)).length;
 }
 
 /** Called whenever a stage's pictures change (a renderer showing them loads them again). */
@@ -92,7 +161,7 @@ export interface StageView {
   bottom: readonly [number, number];
 }
 
-/** Where a figure stands on the screen (px from the top left), and whether it stands in front of its side's other one. */
+/** Where a figure stands on the screen (px from the top left), and whether it stands in front of its side's other one (a sticker: in front of the gear). */
 export interface StandeeBox {
   x: number;
   y: number;
@@ -110,14 +179,37 @@ export interface StandeeBox {
  *   at its hip, so a wide picture (two figures cut out together, a piece of an illustration) shows
  *   what it has at its outer side and its top, and the gear hides its inner edge. A picture that
  *   should stand smaller or less far behind the gear leaves room clear round what it shows.
+ * - A sticker (a stage of 'stickers': one a side) sits at the gear's foot, a third of the screen tall
+ *   at most, in FRONT of the gear and over its near corner: STICKER_FRONT of its width over the gear
+ *   at its hip (the player: the gear's foot may be hidden, the stickers closer in). What of it stands
+ *   as high as the judge line stays outside the gear, so the line and the lanes over it are never
+ *   hidden: it is moved in no further than its own outline allows (StickerShape). The one at the right
+ *   stays under the judge line altogether: the gauge's value is written beside the gear just over it,
+ *   and a sticker under those letters would hide them.
  * Each is no wider than its share (`wide`) of the side's room.
  */
 const STANDS = {
+  sticker: { tall: 0.32, wide: 1.3, tuck: 0 },
   alone: { tall: 0.94, wide: 1.9, tuck: 0.3 },
   inner: { tall: 0.54, wide: 0.5, tuck: 0 },
   outer: { tall: 0.6, wide: 0.56, tuck: 0 },
 } as const;
 const HIP = 0.36;
+/** How far under the judge line the right sticker's top stays, and what of a sticker stands higher than this under the line stays outside the gear (share of the screen's height). */
+const STICKER_CLEAR = 0.008;
+/** How much of a sticker's width lies over the gear at its hip. */
+const STICKER_FRONT = 0.3;
+/** The room left between the gear and what of a sticker stands beside the judge line (share of the screen's width). */
+const STICKER_GAP = 0.003;
+
+/**
+ * A sticker's outline: in each of its bands from top to bottom, where it begins and ends across (shares
+ * of its picture's width); NaN where the band is empty. Without one a sticker is taken for its whole box.
+ */
+export interface StickerShape {
+  left: number[];
+  right: number[];
+}
 const OVERLAP = 0.34;
 /** A side with less room than this share of the screen's width has no figure. */
 const MIN_ROOM = 0.08;
@@ -128,7 +220,7 @@ const MIN_ROOM = 0.08;
  * from the screen's edge to the gear's outer edge; a picture too wide for its share of it is made
  * smaller, and a side with next to no room (a wide gear on a narrow window, a preview) has none: null.
  */
-export function standeeBoxes(aspects: readonly number[], view: StageView): (StandeeBox | null)[] {
+export function standeeBoxes(aspects: readonly number[], view: StageView, kind: StageKind = 'figures', shapes: readonly (StickerShape | undefined)[] = []): (StandeeBox | null)[] {
   const n = aspects.length;
   const left = Math.ceil(n / 2);
   // the gear's outer edge on a side (0 left, 1 right) at a height: a straight line on the screen
@@ -149,6 +241,7 @@ export function standeeBoxes(aspects: readonly number[], view: StageView): (Stan
     const sized = (aspect: number, stand: { tall: number; wide: number }) => {
       if (!(aspect > 0)) return null;
       let h = view.height * stand.tall;
+      if (kind === 'stickers' && side === 1) h = Math.min(h, Math.max(0, view.height - view.lineY - view.height * STICKER_CLEAR));
       let w = h * aspect;
       const most = roomAt(view.height - h * HIP) * stand.wide;
       if (w > most) {
@@ -157,10 +250,27 @@ export function standeeBoxes(aspects: readonly number[], view: StageView): (Stan
       }
       return { w, h };
     };
-    const stand = outerAt === undefined ? STANDS.alone : STANDS.inner;
+    const stand = kind === 'stickers' ? STANDS.sticker : outerAt === undefined ? STANDS.alone : STANDS.inner;
     const inner = sized(aspects[innerAt], stand);
     if (!inner) continue;
     // the inner picture's side on the gear's edge at its hip, or that much of it behind the gear
+    if (kind === 'stickers') {
+      // over the gear's near corner; what of it stands beside the judge line or higher, outside the gear
+      const top = view.height - inner.h;
+      let x = edgeAt(side, view.height - inner.h * HIP) - (side === 0 ? inner.w * (1 - STICKER_FRONT) : inner.w * STICKER_FRONT);
+      const shape = shapes[innerAt];
+      const bands = shape?.left.length ?? 24;
+      const gap = view.width * STICKER_GAP;
+      for (let k = 0; k < bands; k++) {
+        const y = top + ((k + 0.5) / bands) * inner.h;
+        if (y >= view.lineY + view.height * STICKER_CLEAR) break;
+        const [from, to] = shape ? [shape.left[k], shape.right[k]] : [0, 1];
+        if (!(to > from)) continue;
+        x = side === 0 ? Math.min(x, edgeAt(0, y) - gap - to * inner.w) : Math.max(x, edgeAt(1, y) + gap - from * inner.w);
+      }
+      boxes[innerAt] = { x, y: top, w: inner.w, h: inner.h, front: true };
+      continue;
+    }
     const lean = edgeAt(side, view.height - inner.h * HIP) - out * inner.w * stand.tuck;
     const innerX = side === 0 ? lean - inner.w : lean;
     boxes[innerAt] = { x: innerX, y: view.height - inner.h, w: inner.w, h: inner.h, front: false };
@@ -175,6 +285,79 @@ export function standeeBoxes(aspects: readonly number[], view: StageView): (Stan
 
 /** A figure's picture is drawn no taller than this (px). */
 const STANDEE_PX = 1024;
+/** A sticker's (it stands a third of the screen tall at most). */
+const STICKER_PX = 640;
+
+/**
+ * A picked picture made a sticker: its own outline (a picture with no see-through part: a square with
+ * round corners) with a white rim round it as a die-cut sticker has, and a soft shadow under it. Room
+ * for the rim is left at its top and its two sides; none at its foot, which stands on the screen's
+ * bottom edge.
+ */
+export function stickerCanvas(picture: CanvasImageSource & { width: number; height: number }): HTMLCanvasElement {
+  const k = Math.min(1, STICKER_PX / picture.height);
+  const [w, h] = [Math.max(1, Math.round(picture.width * k)), Math.max(1, Math.round(picture.height * k))];
+  const rim = Math.max(2, Math.round(h * 0.022));
+  const room = rim * 3;
+  // the picture itself, a square one cut round at its corners
+  const cut = document.createElement('canvas');
+  cut.width = w;
+  cut.height = h;
+  const c = cut.getContext('2d') as CanvasRenderingContext2D;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(picture, 0, 0, w, h);
+  const alphaAt = (x: number, y: number) => c.getImageData(Math.min(w - 1, Math.max(0, Math.round(x))), Math.min(h - 1, Math.max(0, Math.round(y))), 1, 1).data[3];
+  if ([[0, 0], [w - 1, 0], [w / 2, 0], [0, h / 2], [w - 1, h / 2]].every(([x, y]) => alphaAt(x, y) > 250)) {
+    c.globalCompositeOperation = 'destination-in';
+    c.beginPath();
+    c.roundRect(0, 0, w, h + Math.min(w, h), Math.min(w, h) * 0.1);
+    c.fill();
+    c.globalCompositeOperation = 'source-over';
+  }
+  // its outline in white, spread round itself by the rim
+  const white = document.createElement('canvas');
+  white.width = w + 2 * room;
+  white.height = h + room;
+  const o = white.getContext('2d') as CanvasRenderingContext2D;
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    o.drawImage(cut, room + Math.cos(a) * rim, room + Math.sin(a) * rim);
+  }
+  o.globalCompositeOperation = 'source-in';
+  o.fillStyle = '#ffffff';
+  o.fillRect(0, 0, white.width, white.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = white.width;
+  canvas.height = white.height;
+  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  g.shadowColor = 'rgba(0,0,0,0.5)';
+  g.shadowBlur = rim * 1.6;
+  g.shadowOffsetY = rim * 0.6;
+  g.drawImage(white, 0, 0);
+  g.shadowColor = 'transparent';
+  g.drawImage(cut, room, room);
+  return canvas;
+}
+
+/** A sticker's outline read off its picture (its shadow left out): see StickerShape. */
+export function stickerShape(canvas: HTMLCanvasElement, bands = 40): StickerShape {
+  const { width: w, height: h } = canvas;
+  const data = (canvas.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, w, h).data;
+  const shape: StickerShape = { left: [], right: [] };
+  for (let k = 0; k < bands; k++) {
+    let [from, to] = [w, -1];
+    for (let y = Math.floor((k * h) / bands); y < Math.floor(((k + 1) * h) / bands); y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] <= 200) continue;
+        if (x < from) from = x;
+        if (x > to) to = x;
+      }
+    }
+    shape.left.push(to < 0 ? NaN : from / w);
+    shape.right.push(to < 0 ? NaN : (to + 1) / w);
+  }
+  return shape;
+}
 
 /**
  * A picked picture made ready to stand: no taller than STANDEE_PX, its feet fading into the floor; one

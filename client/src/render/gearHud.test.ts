@@ -38,7 +38,12 @@ describe('the HUD a gear brings', () => {
     expect([GEAR_TYPES.sky.font, GEAR_TYPES.sky.fill, GEAR_TYPES.sky.split, HUD_FONTS.Nunito]).toEqual(['Nunito', 'sky', true, { weight: 800, italic: true }]);
     // the Firestarter skin's tall and tight, heavy and slanted, in a heat of its own (the fill 'fire'), "MAX" apart from its percent
     expect([GEAR_TYPES.fire.font, GEAR_TYPES.fire.fill, GEAR_TYPES.fire.split, HUD_FONTS['Barlow Condensed Italic']]).toEqual(['Barlow Condensed Italic', 'fire', true, { weight: 800, italic: true }]);
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'prism' && g !== 'sky' && g !== 'fire')) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
-    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
+    // the AI companies' skins': GPT's plain heavy sans (the app's own), GEMINI's rounded sans in its three colours across, GROK's monospace all white, CLAUDE's serif cream to terracotta
+    expect([GEAR_TYPES.gpt.font, GEAR_TYPES.gemini.font, GEAR_TYPES.grok.font, GEAR_TYPES.claude.font]).toEqual(['Pretendard Variable', 'Outfit', 'JetBrains Mono', 'Source Serif 4']);
+    expect([GEAR_TYPES.gpt.fill, GEAR_TYPES.gemini.fill, GEAR_TYPES.grok.fill, GEAR_TYPES.claude.fill]).toEqual([undefined, 'gemini', undefined, 'claude']);
+    expect([GEAR_TYPES.grok.max, GEAR_TYPES.grok.split]).toEqual(['#ffffff', undefined]);
+    for (const font of ['Pretendard Variable', 'Outfit', 'JetBrains Mono', 'Source Serif 4'] as const) expect(HUD_FONTS[font].italic, font).toBe(false);
+    for (const gear of GEAR_STYLES.filter((g) => !['prism', 'sky', 'fire', 'gemini', 'claude'].includes(g))) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
+    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
   });
 });

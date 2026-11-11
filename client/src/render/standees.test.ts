@@ -1,15 +1,70 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES } from './deckArt';
-import { readStandees, STAGE_SLOTS, standeeBoxes, standeeOrder, type StageView } from './standees';
+import { gearOfName, isNotePicture, keptFor, readNotePicture, readStandees, STAGE_SLOTS, STAGES, standeeBoxes, standeeOrder, type StageView } from './standees';
 
 // the default camera on a 1280 × 720 screen: the gear's outer edges at the judge line and at the screen's bottom
 const VIEW: StageView = { width: 1280, height: 720, lineY: 553.75, line: [330, 950], bottom: [255, 1025] };
 const edgeAt = (side: 0 | 1, y: number) => VIEW.line[side] + ((VIEW.bottom[side] - VIEW.line[side]) * (y - VIEW.lineY)) / (VIEW.height - VIEW.lineY);
 
 describe('the figures at a gear’s two sides', () => {
-  it('only the Firestarter gear has a stage, four figures on it, and the game comes with no picture for it', async () => {
-    expect(STAGE_SLOTS).toEqual({ fire: 4 });
-    for (const gear of GEAR_STYLES) expect(await readStandees(gear), gear).toEqual([]);
+  it('the Firestarter gear has a stage of four figures, the four AI companies’ gears two stickers and a mark for their notes, and the game comes with no picture for any', async () => {
+    expect(STAGE_SLOTS).toEqual({ fire: 4, gpt: 2, gemini: 2, grok: 2, claude: 2 });
+    expect(STAGES.fire).toEqual({ slots: 4, kind: 'figures' });
+    for (const gear of ['gpt', 'gemini', 'grok', 'claude'] as const) expect(STAGES[gear]).toEqual({ slots: 2, kind: 'stickers', note: true });
+    for (const gear of GEAR_STYLES) {
+      expect(await readStandees(gear), gear).toEqual([]);
+      expect(await readNotePicture(gear), gear).toBeNull();
+    }
+  });
+
+  it('a picked file is the notes’ mark when its name says so, and goes to the gear its name starts with', () => {
+    for (const name of ['gpt-note.png', 'logo.png', 'Claude_Logo.webp', 'my note 2.png', '노트.png', '로고 그림.jpg']) expect(isNotePicture(name), name).toBe(true);
+    // a word of the name, not letters inside another word
+    for (const name of ['1.png', 'gpt-1.png', 'notebook.png', 'keynotes.png', 'logos.png']) expect(isNotePicture(name), name).toBe(false);
+    expect([gearOfName('gpt-1.png'), gearOfName('Gemini_note.png'), gearOfName('grok 2.png'), gearOfName('claude.left.png'), gearOfName('fire-1.png')]).toEqual(['gpt', 'gemini', 'grok', 'claude', 'fire']);
+    // a file named for the gear alone is that gear's too
+    expect(gearOfName('gpt.png')).toBe('gpt');
+    // no gear's name before a mark, or the name of a gear with no stage: it is for the gear being picked for
+    expect([gearOfName('1.png'), gearOfName('gptx-1.png'), gearOfName('standard-1.png'), gearOfName('gpt')]).toEqual([null, null, null, null]);
+  });
+
+  it('a gear keeps its side pictures in their order and, an AI company’s, one mark after them', () => {
+    const files = ['gpt-note.png', 'gpt-2.png', 'gpt-logo.png', 'gpt-3.png', 'gpt-1.png'].map((name) => ({ name }));
+    expect(keptFor('gpt', files).map((f) => f.name)).toEqual(['gpt-1.png', 'gpt-2.png', 'gpt-logo.png']);
+    // the Firestarter gear takes no mark: a file so named is a figure as any other
+    expect(keptFor('fire', [{ name: 'logo.png' }, { name: 'a.png' }]).map((f) => f.name)).toEqual(['a.png', 'logo.png']);
+    expect(keptFor('standard', files)).toEqual([]);
+  });
+
+  it('two stickers sit at the gear’s foot in front of it, one over each near corner, as far in as leaves the judge line clear: the right one under the line, where the gauge’s value is written', () => {
+    // an outline as a bust's: narrow at its top (a head in the middle of the picture), as wide as the picture below
+    const bust = { left: Array.from({ length: 20 }, (_, k) => (k < 8 ? 0.3 : 0)), right: Array.from({ length: 20 }, (_, k) => (k < 8 ? 0.7 : 1)) };
+    const [left, right] = standeeBoxes([1.5, 1], VIEW, 'stickers', [bust, undefined]).map((b) => b!);
+    for (const b of [left, right]) {
+      expect(b.y + b.h).toBeCloseTo(720, 6);
+      // in front of the gear, not behind it
+      expect(b.front).toBe(true);
+    }
+    // the left one a third of the screen tall at most
+    expect(left.h).toBeLessThanOrEqual(720 * 0.32 + 1e-6);
+    expect(left.w / left.h).toBeCloseTo(1.5, 6);
+    // three tenths of each one's width over the gear at its hip
+    expect(left.x + left.w).toBeCloseTo(edgeAt(0, 720 - left.h * 0.36) + left.w * 0.3, 6);
+    expect(right.x).toBeCloseTo(edgeAt(1, 720 - right.h * 0.36) - right.w * 0.3, 6);
+    // the left one stands higher than the judge line: what of it is that high (its head) is outside the gear
+    expect(left.y).toBeLessThan(VIEW.lineY);
+    expect(left.x + left.w * 0.7).toBeLessThan(edgeAt(0, VIEW.lineY));
+    // the right one's top stays under the judge line
+    expect(right.y).toBeGreaterThan(VIEW.lineY);
+    expect(right.h).toBeLessThan(left.h);
+    // a sticker whose picture is full to its corners (no outline given: its whole box) is moved in no further than the gear's edge by the judge line
+    const [box] = standeeBoxes([1.5], VIEW, 'stickers').map((b) => b!);
+    expect(box.x + box.w).toBeLessThan(edgeAt(0, VIEW.lineY));
+    expect(box.x + box.w).toBeGreaterThan(edgeAt(0, VIEW.lineY) - 720 * 0.02);
+    expect(box.x).toBeLessThan(left.x);
+    // one picture: at the left; a third and a fourth are not shown (a sticker stage has one place a side)
+    expect(standeeBoxes([1], VIEW, 'stickers').map((b) => b !== null)).toEqual([true]);
+    expect(standeeBoxes([1, 1, 1, 1], VIEW, 'stickers').map((b) => b !== null)).toEqual([false, true, true, false]);
   });
 
   it('stand in the order of their files’ names, numbers counted as numbers, no more than the stage has places for', () => {

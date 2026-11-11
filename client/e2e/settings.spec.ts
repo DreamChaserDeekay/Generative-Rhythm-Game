@@ -93,6 +93,19 @@ test('the help names the picked gear only, and the default of a row whose value 
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'fire');
   await expect(picked).toHaveText('파이어스타터 레인마다 크롬 키캡(누르면 주황빛으로 달아오름), 검은 쐐기가 파고든 빨간 래커 받침에 크롬 테 검은 유리 창의 점수와 어두운 알약 창의 속도·정확도, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 내 PC의 그림을 세우는 자리');
+  // the four AI companies' gears after it
+  for (const [id, words] of [
+    ['gpt', 'GPT 레인마다 흰 타일(누르면 검은 바탕에 흰 점), 청록 받침에 흰 입력창의 점수'],
+    ['gemini', 'Gemini 레인마다 파랑·빨강·노랑·초록이 은은한 알약(누르면 그 색으로 켜짐)'],
+    ['grok', 'Grok 레인마다 흰 선으로 그린 네모 칸(누르면 흰색으로 참)'],
+    ['claude', 'Claude 레인마다 따뜻한 회색 둥근 네모(누르면 테라코타에 크림 점)'],
+  ] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(gear).toHaveAttribute('data-value', id);
+    await expect(picked).toContainText(words);
+    await expect(picked).toContainText('하단 양옆에는 내 PC의 그림 둘을 붙이는 자리');
+    await expect(help).not.toContainText('그래파이트');
+  }
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'cabinet');
   await expect(picked).toHaveText('오락실 기체 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구');

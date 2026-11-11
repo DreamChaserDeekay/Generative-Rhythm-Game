@@ -31,6 +31,10 @@ describe('the skin row', () => {
       ['crystal', '크리스털'],
       ['sky', '하늘'],
       ['fire', '파이어스타터'],
+      ['gpt', 'GPT'],
+      ['gemini', 'Gemini'],
+      ['grok', 'Grok'],
+      ['claude', 'Claude'],
     ]);
     expect(skinChoices('crystal')).toEqual(skinChoices('default'));
     // picked part by part: the row reads 직접 고름, the last of its choices (a step either way lands on a skin)
@@ -45,6 +49,8 @@ describe('the skin row', () => {
     expect([SKIN_NAMES.crystal, DECK_NAMES.prism, NOTE_NAMES.prism, HIT_NAMES.prism]).toEqual(['크리스털', '크리스털', '크리스털', '크리스털 분광']);
     expect([SKIN_NAMES.sky, DECK_NAMES.sky, NOTE_NAMES.sky, HIT_NAMES.sky]).toEqual(['하늘', '하늘', '하늘', '구름 깃털']);
     expect([SKIN_NAMES.fire, DECK_NAMES.fire, NOTE_NAMES.fire, HIT_NAMES.fire]).toEqual(['파이어스타터', '파이어스타터', '파이어스타터', '불똥']);
+    for (const [id, name] of [['gpt', 'GPT'], ['gemini', 'Gemini'], ['grok', 'Grok'], ['claude', 'Claude']] as const) expect([SKIN_NAMES[id], DECK_NAMES[id], NOTE_NAMES[id]]).toEqual([name, name, name]);
+    expect([HIT_NAMES.gpt, HIT_NAMES.gemini, HIT_NAMES.grok, HIT_NAMES.claude]).toEqual(['입력 중 점', '반짝임', '펜 엑스', '손 빛살']);
     // the skins' parts lead each list, in the skins' order
     expect(PART_CHOICES.note.slice(0, 3).map(([id]) => id)).toEqual(['flat', 'prism', 'sky']);
     expect(PART_CHOICES.deck.slice(0, 3).map(([id]) => id)).toEqual(['standard', 'prism', 'sky']);

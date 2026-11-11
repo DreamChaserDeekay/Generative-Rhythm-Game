@@ -3,7 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
-import { readStandees, STAGE_SLOTS, standeeBoxes, standeeCanvas, watchStandees, type StageView } from './standees';
+import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, watchStandees, type StageView, type StickerShape } from './standees';
 import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
@@ -28,12 +28,14 @@ import {
   dotsNote,
   effectSheet,
   gradientTexture,
+  isLogoNote,
   judgeGlowTexture,
   lightMaterial,
   laneDepthOf,
   NOTE_STRETCH,
   noteDepthOf,
   paintTexture,
+  setNoteEmblem,
   shadowReach,
   sheetOffset,
   SIDE_FLASH_LINE,
@@ -741,9 +743,11 @@ export class TrackRenderer {
   private readonly stageScene = new THREE.Scene();
   private readonly stageCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
   private readonly stageGroup = new THREE.Group();
-  private standees: { mesh: THREE.Mesh; aspect: number }[] = [];
+  private standees: { mesh: THREE.Mesh; aspect: number; shape?: StickerShape }[] = [];
   private stageWatch: (() => void) | null = null;
   private stageLoads = 0;
+  /** As stageLoads, for the notes' mark (loadNoteMark). */
+  private markLoads = 0;
   /** The view the figures were last placed for (hudVersion), and the screen and judge line of their resting places. */
   private stagePlaced = -1;
   private stageBase: { key: string; ends: [THREE.Vector2, THREE.Vector2] } | null = null;
@@ -874,9 +878,16 @@ export class TrackRenderer {
       mesh.renderOrder = 2.3;
       return mesh;
     });
-    if (STAGE_SLOTS[this.style.deck]) {
-      void this.loadStandees();
-      this.stageWatch = watchStandees(() => void this.loadStandees());
+    // the player's own pictures: what stands at the gear's sides, and the mark the notes are cut in (standees.ts)
+    const staged = Boolean(STAGES[this.style.deck]);
+    const marked = isLogoNote(this.style.note);
+    if (staged) void this.loadStandees();
+    if (marked) void this.loadNoteMark();
+    if (staged || marked) {
+      this.stageWatch = watchStandees(() => {
+        if (staged) void this.loadStandees();
+        if (marked) void this.loadNoteMark();
+      });
     }
   }
 
@@ -1116,11 +1127,13 @@ export class TrackRenderer {
     this.shimmerJudge(clock);
     this.applyCameraFx(frame.camera);
     this.renderer.clear();
-    if (this.standees.length > 0) {
-      if (this.stagePlaced !== this.planeVersion) this.placeStandees();
-      this.renderer.render(this.stageScene, this.stageCamera);
-    }
+    // what stands by the gear: figures behind it (drawn first), stickers over its near corners (drawn last)
+    const staged = this.standees.length > 0;
+    const over = staged && STAGES[this.style.deck]?.kind === 'stickers';
+    if (staged && this.stagePlaced !== this.planeVersion) this.placeStandees();
+    if (staged && !over) this.renderer.render(this.stageScene, this.stageCamera);
     this.renderer.render(this.scene, this.camera);
+    if (over) this.renderer.render(this.stageScene, this.stageCamera);
     if (this.staleMaterials.length > 0) {
       for (const m of this.staleMaterials) m.dispose();
       this.staleMaterials.length = 0;
@@ -1165,17 +1178,57 @@ export class TrackRenderer {
       return;
     }
     this.clearStandees();
+    const stickers = STAGES[this.style.deck]?.kind === 'stickers';
     for (const picture of pictures) {
       if (!picture) continue;
-      const texture = new THREE.CanvasTexture(standeeCanvas(picture));
+      const canvas = stickers ? stickerCanvas(picture) : standeeCanvas(picture);
+      const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
       this.stageGroup.add(mesh);
-      this.standees.push({ mesh, aspect: picture.width / picture.height });
+      // a sticker's picture has its rim's room round it, and is laid by its own outline
+      this.standees.push({ mesh, aspect: canvas.width / canvas.height, shape: stickers ? stickerShape(canvas) : undefined });
       picture.close();
     }
     this.stagePlaced = -1;
+    this.stageBase = null;
+  }
+
+  /**
+   * Loads the mark the notes are cut in (the AI companies' notes: the player's own picture, kept under
+   * the note style's name; again whenever the player picks another) and has the notes painted again.
+   */
+  private async loadNoteMark(): Promise<void> {
+    const style = this.style.note;
+    if (!isLogoNote(style)) return;
+    const load = ++this.markLoads;
+    const file = await readNotePicture(style);
+    const picture = file ? await createImageBitmap(file.blob).catch(() => null) : null;
+    if (this.disposed || load !== this.markLoads) {
+      picture?.close();
+      return;
+    }
+    setNoteEmblem(style, picture);
+    this.renderer.domElement.dataset.mark = picture ? '1' : '0';
+    this.dropNotePictures();
+  }
+
+  /** Drops the notes' pictures and what was made of them: they are painted again when next shown. */
+  private dropNotePictures(): void {
+    for (const [textures, materials] of [
+      [this.noteTextures, this.noteMaterials],
+      [this.sideTextures, this.sideMaterials],
+    ] as [Map<unknown, THREE.Texture>, Map<string, THREE.Material>][]) {
+      textures.forEach((t) => {
+        t.dispose();
+        const at = this.ownedTextures.indexOf(t);
+        if (at >= 0) this.ownedTextures.splice(at, 1);
+      });
+      textures.clear();
+      materials.forEach((m) => m.dispose());
+      materials.clear();
+    }
   }
 
   private clearStandees(): void {
@@ -1219,7 +1272,7 @@ export class TrackRenderer {
         return { line: a.x, bottom: a.x + (b.x - a.x) * t, y: a.y };
       });
       const view: StageView = { width: W, height: H, lineY: edges[0].y, line: [edges[0].line, edges[1].line], bottom: [edges[0].bottom, edges[1].bottom] };
-      const boxes = standeeBoxes(this.standees.map((f) => f.aspect), view);
+      const boxes = standeeBoxes(this.standees.map((f) => f.aspect), view, STAGES[this.style.deck]?.kind, this.standees.map((f) => f.shape));
       this.standees.forEach(({ mesh }, i) => {
         const box = boxes[i];
         mesh.visible = box !== null;
@@ -2164,19 +2217,7 @@ export class TrackRenderer {
     this.laneDepths = this.lanesDeep(stepped);
     this.sideNoteDepth = stepped + 2 * SIDE_EDGE;
     this.noteReach = this.deepestNote() / 2;
-    for (const [textures, materials] of [
-      [this.noteTextures, this.noteMaterials],
-      [this.sideTextures, this.sideMaterials],
-    ] as [Map<unknown, THREE.Texture>, Map<string, THREE.Material>][]) {
-      textures.forEach((t) => {
-        t.dispose();
-        const at = this.ownedTextures.indexOf(t);
-        if (at >= 0) this.ownedTextures.splice(at, 1);
-      });
-      textures.clear();
-      materials.forEach((m) => m.dispose());
-      materials.clear();
-    }
+    this.dropNotePictures();
   }
 
   /** A key lane: the notes of the others are drawn after its. */

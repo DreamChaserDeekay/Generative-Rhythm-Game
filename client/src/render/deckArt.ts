@@ -47,13 +47,21 @@
  *   candy-red lacquer with black wedges cut into it, the score in a window of black glass in a chrome
  *   bevel, the speed and the rate in two dark pills; rails of chrome with a red line; a white-hot judge
  *   line (firePlate). Figures of the player's own stand at its two sides (standees.ts);
+ * - GPT, GEMINI, GROK and CLAUDE: the gears of four AI companies' skins, each in its company's key colour
+ *   and manner: GPT a chat window in teal green (white key tiles, the score in a white message box with
+ *   its round send button, typing dots, a reply's thumb and copy marks); GEMINI a dark material surface
+ *   (pills that light blue, red, yellow, green, a light of blue through violet to pink under them, a few
+ *   sparkles); GROK pure black and white (outlined boxes, a field of stars, readouts between square
+ *   brackets); CLAUDE a page of cream paper with a terracotta band (warm-grey keys, the score in an ivory
+ *   card, a ball of thread drawn by hand). Their notes are the company's mark and two stickers stand at
+ *   their sides: both the player's own pictures (standees.ts; gptPlate, geminiPlate, grokPlate, claudePlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'prism' | 'sky' | 'fire' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
-/** The gears a player picks: the skins' first (기본, 크리스털, 하늘), then the objects. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+/** The gears a player picks: the skins' first (기본, 크리스털, 하늘, 파이어스타터, the four AI companies'), then the objects. */
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -180,6 +188,11 @@ export function judgeOf(style: GearStyle): { line: string; core: string; glow: s
   if (style === 'sky') return { ...GEAR_JUDGE, line: '#6dbcf7', core: '#ffffff', glow: '#58aef0' };
   // FIRE's: a white-hot wire in a red glow
   if (style === 'fire') return { ...GEAR_JUDGE, line: '#ff3b2f', core: '#ffffff', glow: '#ff2b1f' };
+  // the AI companies': GPT's white in its green, GEMINI's in its violet and blue, GROK's bare white, CLAUDE's cream in its terracotta
+  if (style === 'gpt') return { ...GEAR_JUDGE, line: '#12b38b', core: '#ffffff', glow: GPT_GREEN };
+  if (style === 'gemini') return { ...GEAR_JUDGE, line: GEMINI_VIOLET, core: '#ffffff', glow: '#6f8ff5' };
+  if (style === 'grok') return { ...GEAR_JUDGE, line: '#ffffff', core: '#ffffff', glow: '#6a6a6a' };
+  if (style === 'claude') return { ...GEAR_JUDGE, line: CLAUDE_CLAY, core: '#fff6ee', glow: CLAUDE_CLAY };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -497,14 +510,18 @@ const SKY = { keys: 14, seam: 2, upper: 72, lower: 46, pad: 5, score: 34, pill: 
  */
 const FIRE = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4, glow: 7 } as const;
 
+/** The depths of the AI companies' decks (GPT, GEMINI, GROK, CLAUDE): the row of keys, the seam, the step with the score, the step with the speed and the rate. As deep in all as STANDARD's. */
+const BRAND = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
+
 /** The steps of the decks that house the readouts. */
-const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE };
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND };
 
 /**
  * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
  * the speed and the rate in two at the ends of the lower step (STANDARD's pills; CRYSTAL's long
  * hexagons, whose points lie outside the windows: gemPlate; SKY's score written on the sky in the
- * lower part of its step, the feather left of it, and its two see-through pills); null where the screen
+ * lower part of its step, the feather left of it, and its two see-through pills; the AI companies'
+ * decks have the speed and the rate by the middle, under the score); null where the screen
  * shows too little of the deck for them (a small preview) or the gear houses none.
  */
 export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
@@ -521,6 +538,8 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
   const y = top + d.upper * st + pad;
   const h = Math.min(d.lower * st, s.room - top - d.upper * st) - 2 * pad;
   const w = s.width * 0.2;
+  // the AI companies' decks: the two by the deck's middle, under the score (stickers lie over these decks' near corners: standees.ts)
+  if (isBrandGear(style)) return { score: upper, speed: { x: s.width * 0.275, y, w, h }, rate: { x: s.width * 0.525, y, w, h } };
   // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
   const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
   return { score: upper, speed: { x: edge, y, w, h }, rate: { x: s.width - edge - w, y, w, h } };
@@ -1549,6 +1568,8 @@ export interface DeckKey {
   dash?: [number, number];
   /** A cap inside its box (FIRE's: shares of the box, x, y, w, h): lit, the cap glows as heated metal and its colour's light burns under its near edge. */
   ember?: [number, number, number, number];
+  /** Held, the cap is one flat colour (the AI companies' gears: BRAND_PRESS), its corners `round` plane px, a dot in its middle or none; `stretch`: DeckSpec.stretch. */
+  press?: { fill: string; dot?: string; round: number; stretch: number };
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1583,6 +1604,11 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
       const box: Box = { x: lane.left, y: 0, w: lane.width, h: FIRE.keys * st };
       return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: FIRE_HOT, ember: [(cap.x - box.x) / box.w, cap.y / box.h, cap.w / box.w, cap.h / box.h] as [number, number, number, number] };
     });
+  }
+  if (isBrandGear(style)) {
+    // their keys, one to a lane (gptPlate and the others): the held one in its company's flat colour
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: brandCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { ...BRAND_PRESS[style](i), stretch: st } }));
   }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
@@ -1620,7 +1646,24 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  * its colour's light, brightest along its far edge, a rim of the colour round it; a cap cut as a gem
  * (CRYSTAL's) the same cut full of light. Drawn once; the renderer shows it while the lane's key is held.
  */
-export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash' | 'ember'>): void {
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash' | 'ember' | 'press'>): void {
+  if (key.press) {
+    // the cap in one flat colour, round at its corners as the cap is on the screen, a dot in its middle or none
+    const [kx, ky] = [w / key.box.w, h / key.box.h];
+    const across = Math.min(key.box.w, key.box.h / key.press.stretch);
+    const r = Math.min(key.press.round, across / 2);
+    g.beginPath();
+    g.roundRect(0, 0, w, h, [{ x: r * kx, y: r * key.press.stretch * ky }]);
+    g.fillStyle = key.press.fill;
+    g.fill();
+    if (key.press.dot) {
+      g.beginPath();
+      g.ellipse(w / 2, h / 2, across * 0.12 * kx, across * 0.12 * key.press.stretch * ky, 0, 0, Math.PI * 2);
+      g.fillStyle = key.press.dot;
+      g.fill();
+    }
+    return;
+  }
   if (key.gem) {
     g.save();
     g.scale(w / key.box.w, h / key.box.h);
@@ -2343,6 +2386,402 @@ function firePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
 }
 
+// ---------- the AI companies' gears (GPT, Gemini, Grok, Claude: the four skins that took skin 4's place) ----------
+
+/**
+ * The gears of the four AI companies' skins: each in its company's key colour and with something of the
+ * company's own manner. Nothing of a company's own is drawn here: its mark (the note's shape) and the
+ * two stickers at the gear's sides are pictures the player brings (standees.ts).
+ */
+export const BRAND_GEARS = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly GearStyle[];
+export type BrandGear = (typeof BRAND_GEARS)[number];
+export const isBrandGear = (style: GearStyle): style is BrandGear => (BRAND_GEARS as readonly GearStyle[]).includes(style);
+
+/** A lane's key on their strips: as wide as the lane less a gap. */
+const brandCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2.5, y: 3 * st, w: lane.width - 5, h: (BRAND.keys - 6) * st });
+
+const GPT_GREEN = '#10a37f';
+const GEMINI_BLUE = '#4285f4';
+const GEMINI_VIOLET = '#9b72cb';
+const GEMINI_PINK = '#d96570';
+const GEMINI_SURFACE = '#131314';
+const GEMINI_RAISED = '#1e1f20';
+/** The four clear colours GEMINI's held keys light in, lane after lane. */
+const GEMINI_FOUR = [GEMINI_BLUE, '#ea4335', '#fbbc04', '#34a853'] as const;
+const CLAUDE_PAPER = '#f0eee6';
+const CLAUDE_IVORY = '#faf9f5';
+const CLAUDE_CLAY = '#d97757';
+const CLAUDE_GREY = '#b0aea5';
+
+/** How each of their keys looks while held: the cap in one flat colour (round at its corners as its cap is), a dot in its middle or none. */
+const BRAND_PRESS: Record<BrandGear, (lane: number) => { fill: string; dot?: string; round: number }> = {
+  // a black tile with a white dot: someone typing
+  gpt: () => ({ fill: '#0d0d0d', dot: '#ffffff', round: 7 }),
+  gemini: (lane) => ({ fill: GEMINI_FOUR[lane % GEMINI_FOUR.length], round: 99 }),
+  grok: () => ({ fill: '#ffffff', round: 0 }),
+  claude: () => ({ fill: CLAUDE_CLAY, dot: CLAUDE_PAPER, round: 6 }),
+};
+
+/** Draws with `st` taken out: what `draw` strokes about (x, y) is as thick along the track as across on the screen (1 px there is 1 plane px across). */
+function flatAt(g: CanvasRenderingContext2D, x: number, y: number, st: number, draw: () => void): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(1, st);
+  draw();
+  g.restore();
+}
+
+/** An arrow pointing up the track about (0, 0), `r` long each way (drawn inside flatAt). */
+function upArrow(g: CanvasRenderingContext2D, r: number, colour: string): void {
+  g.beginPath();
+  g.moveTo(0, r);
+  g.lineTo(0, -r);
+  g.moveTo(-r * 0.78, -r * 0.2);
+  g.lineTo(0, -r);
+  g.lineTo(r * 0.78, -r * 0.2);
+  g.lineWidth = Math.max(1.2, r * 0.42);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = colour;
+  g.stroke();
+}
+
+/** The score's window of a deck with BRAND's steps, where the screen shows too little of the deck for its readouts. */
+const brandScore = (s: DeckSpec): Box => ({ x: s.width * 0.24, y: (BRAND.keys + BRAND.seam + BRAND.pad) * s.stretch, w: s.width * 0.52, h: (BRAND.upper - 2 * BRAND.pad) * s.stretch });
+
+/**
+ * GPT: a chat window in its well-known teal green, as wide as the track and no wider. The deck is the
+ * green itself, a little deeper toward the player. Under the judge line a row of white tiles, one to a
+ * lane (the held lane's goes black with a white dot: deckKeys). The score is in a white message box, a
+ * grey plus at its left end and the round black send button at its right; the speed and the rate are in
+ * two white chips by the deck's middle, three typing dots between them, and a thumb and a copy mark
+ * beside the rate's, as under a reply. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function gptPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const green = g.createLinearGradient(0, 0, 0, Math.min(s.depth, Math.max(s.room, 1)));
+  green.addColorStop(0, '#13ab86');
+  green.addColorStop(1, '#0b7d62');
+  g.fillStyle = green;
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    rounded(g, cap, 7, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#ffffff');
+    face.addColorStop(1, '#e3e8ea');
+    g.fillStyle = face;
+    g.fill();
+  }
+  const kh = BRAND.keys * st;
+  g.fillStyle = '#086650';
+  g.fillRect(0, kh, W, BRAND.seam * st);
+  mark(s, 'glow', { x: 0, y: kh - 3 * st, w: W, h: (BRAND.seam + 6) * st });
+  const windows = deckReadouts('gpt', s);
+  const score = windows?.score ?? brandScore(s);
+  // the message box, and what a chat's has at its two ends
+  const u = score.h / st;
+  const mid = score.y + score.h / 2;
+  rounded(g, score, u / 2, st);
+  g.fillStyle = '#ffffff';
+  g.fill();
+  flatAt(g, score.x + u * 0.62, mid, st, () => {
+    const a = u * 0.17;
+    g.beginPath();
+    g.moveTo(-a, 0);
+    g.lineTo(a, 0);
+    g.moveTo(0, -a);
+    g.lineTo(0, a);
+    g.lineWidth = Math.max(1.2, u * 0.055);
+    g.lineCap = 'round';
+    g.strokeStyle = '#9b9ba5';
+    g.stroke();
+  });
+  const button = u * 0.36;
+  disc(g, score.x + score.w - u * 0.56, mid, button, st);
+  g.fillStyle = '#0d0d0d';
+  g.fill();
+  flatAt(g, score.x + score.w - u * 0.56, mid, st, () => upArrow(g, button * 0.46, '#ffffff'));
+  if (!windows) return;
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+  const v = windows.speed.h / st;
+  const low = windows.speed.y + windows.speed.h / 2;
+  // someone typing: three dots, the middle one the largest
+  [0.09, 0.12, 0.09].forEach((r, i) => {
+    disc(g, W / 2 + (i - 1) * v * 0.34, low, v * r, st);
+    g.fillStyle = white(i === 1 ? 0.95 : 0.7);
+    g.fill();
+  });
+  // a reply's marks: a thumb and a copy
+  const size = v * 0.3;
+  flatAt(g, windows.rate.x + windows.rate.w + v * 1.14, low, st, () => {
+    g.lineWidth = Math.max(1.1, size * 0.16);
+    g.lineJoin = 'round';
+    g.strokeStyle = white(0.9);
+    g.beginPath();
+    g.roundRect(-size * 0.3, -size * 0.5, size * 0.8, size * 0.8, size * 0.16);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-size * 0.3, size * 0.5);
+    g.lineTo(-size * 0.52, size * 0.5);
+    g.lineTo(-size * 0.52, -size * 0.26);
+    g.stroke();
+  });
+  flatAt(g, windows.rate.x + windows.rate.w + v * 0.56, low, st, () => {
+    g.lineWidth = Math.max(1.1, size * 0.16);
+    g.lineJoin = 'round';
+    g.strokeStyle = white(0.9);
+    g.beginPath();
+    g.rect(-size * 0.5, -size * 0.04, size * 0.24, size * 0.54);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-size * 0.26, size * 0.5);
+    g.lineTo(-size * 0.26, -size * 0.04);
+    g.lineTo(-size * 0.02, -size * 0.52);
+    g.lineTo(size * 0.14, -size * 0.44);
+    g.lineTo(size * 0.08, -size * 0.1);
+    g.lineTo(size * 0.5, -size * 0.1);
+    g.lineTo(size * 0.4, size * 0.5);
+    g.closePath();
+    g.stroke();
+  });
+}
+
+/** A four-pointed sparkle about (0, 0), `r` to its points, its sides curving in (drawn inside flatAt). */
+function sparkle(g: CanvasRenderingContext2D, r: number): void {
+  g.beginPath();
+  g.moveTo(0, -r);
+  g.quadraticCurveTo(r * 0.08, -r * 0.08, r, 0);
+  g.quadraticCurveTo(r * 0.08, r * 0.08, 0, r);
+  g.quadraticCurveTo(-r * 0.08, r * 0.08, -r, 0);
+  g.quadraticCurveTo(-r * 0.08, -r * 0.08, 0, -r);
+  g.closePath();
+}
+
+/** GEMINI's blue through violet to pink, across from `x0` to `x1`. */
+function geminiAcross(g: CanvasRenderingContext2D, x0: number, x1: number, alpha = 1): CanvasGradient {
+  const c = g.createLinearGradient(x0, 0, x1, 0);
+  c.addColorStop(0, shade(GEMINI_BLUE, 1, alpha));
+  c.addColorStop(0.5, shade(GEMINI_VIOLET, 1, alpha));
+  c.addColorStop(1, shade(GEMINI_PINK, 1, alpha));
+  return c;
+}
+
+/**
+ * GEMINI: a dark material surface, as wide as the track and no wider. Under the judge line a row of
+ * rounded pills, one to a lane, each a quiet shade of one of four clear colours, blue, red, yellow,
+ * green, lane after lane (the held one lights in its colour: deckKeys); under them a light of blue through violet to pink rises and fades
+ * into the deck, as behind a prompt box. The score is in a pill with that light for its outline and a
+ * few small sparkles by it, the speed and the rate in two plain pills. The HUD writes the readouts in
+ * the windows (deckReadouts).
+ */
+function geminiPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = GEMINI_SURFACE;
+  g.fillRect(0, 0, W, s.depth);
+  s.lanes.forEach((lane, i) => {
+    // each pill a quiet shade of the colour it lights in
+    const cap = brandCap(lane, st);
+    rounded(g, cap, cap.h / (2 * st), st);
+    g.fillStyle = GEMINI_RAISED;
+    g.fill();
+    g.fillStyle = shade(GEMINI_FOUR[i % GEMINI_FOUR.length], 1, 0.3);
+    g.fill();
+    g.fillStyle = white(0.08);
+    g.fillRect(cap.x + cap.h / (2 * st), cap.y, cap.w - cap.h / st, Math.max(1, 0.8 * st));
+  });
+  const kh = BRAND.keys * st;
+  // the light under the keys: the three colours across, fading down into the surface
+  const band: Box = { x: 0, y: kh, w: W, h: 20 * st };
+  g.fillStyle = geminiAcross(g, 0, W, 0.62);
+  g.fillRect(band.x, band.y, band.w, band.h);
+  const fade = g.createLinearGradient(0, band.y, 0, band.y + band.h);
+  fade.addColorStop(0, shade(GEMINI_SURFACE, 1, 0));
+  fade.addColorStop(0.5, shade(GEMINI_SURFACE, 1, 0.78));
+  fade.addColorStop(1, GEMINI_SURFACE);
+  g.fillStyle = fade;
+  g.fillRect(band.x, band.y, band.w, band.h + 1);
+  g.fillStyle = geminiAcross(g, 0, W);
+  g.fillRect(0, kh, W, Math.max(1, 1.2 * st));
+  mark(s, 'glow', band);
+  const windows = deckReadouts('gemini', s);
+  const score = windows?.score ?? brandScore(s);
+  const u = score.h / st;
+  rounded(g, score, u / 2, st);
+  g.fillStyle = geminiAcross(g, score.x, score.x + score.w);
+  g.fill();
+  const line = Math.max(1.2, u * 0.045);
+  rounded(g, { x: score.x + line, y: score.y + line * st, w: score.w - 2 * line, h: score.h - 2 * line * st }, u / 2 - line, st);
+  g.fillStyle = GEMINI_RAISED;
+  g.fill();
+  // a few sparkles by its far right end
+  for (const [dx, dy, r, a] of [
+    [0.34, 0.5, 0.2, 0.9],
+    [0.05, 0.16, 0.11, 0.6],
+    [0.58, 0.14, 0.08, 0.5],
+  ] as const) {
+    flatAt(g, score.x + score.w - u * (0.5 + dx), score.y + score.h * dy, st, () => {
+      sparkle(g, u * r);
+      g.fillStyle = white(a);
+      g.fill();
+    });
+  }
+  if (!windows) return;
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = GEMINI_RAISED;
+    g.fill();
+  }
+}
+
+/** A square bracket of a readout written on GROK's deck: at `x`, from `y0` to `y1`, opening toward `dir`. */
+function bracket(g: CanvasRenderingContext2D, x: number, y0: number, y1: number, dir: 1 | -1, reach: number, st: number): void {
+  flatAt(g, x, y0, st, () => {
+    const h = (y1 - y0) / st;
+    g.beginPath();
+    g.moveTo(dir * reach, 0);
+    g.lineTo(0, 0);
+    g.lineTo(0, h);
+    g.lineTo(dir * reach, h);
+    g.lineWidth = 1.3;
+    g.strokeStyle = white(0.9);
+    g.stroke();
+  });
+}
+
+/**
+ * GROK: black and white and nothing else, as wide as the track and no wider: a deck of pure black in a
+ * white hairline, a sparse field of stars over it and one thin line crossing it at a slant. Under the
+ * judge line a row of boxes drawn in a white outline, one to a lane (the held one solid white:
+ * deckKeys). The readouts have no windows: each is written on the black between two square brackets,
+ * the score over a thin rule. The HUD writes them there (deckReadouts).
+ */
+function grokPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = '#000000';
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    g.fillStyle = white(0.86);
+    g.fillRect(cap.x, cap.y, cap.w, cap.h);
+    g.fillStyle = '#000000';
+    g.fillRect(cap.x + 1.3, cap.y + 1.3 * st, cap.w - 2.6, cap.h - 2.6 * st);
+  }
+  const kh = BRAND.keys * st;
+  const top = kh + BRAND.seam * st;
+  const foot = Math.min(s.depth, Math.max(s.room, top + 1));
+  // the stars: the same field at every paint
+  const rand = seeded(29);
+  for (let i = 0; i < 54; i++) {
+    const [x, y, r, a] = [rand() * W, top + rand() * (foot - top), 0.45 + rand() * 0.75, 0.22 + rand() * 0.68];
+    disc(g, x, y, r, st);
+    g.fillStyle = white(a);
+    g.fill();
+  }
+  // the one line across it, at a slant
+  flatAt(g, 0, top, st, () => {
+    const h = (foot - top) / st;
+    g.beginPath();
+    g.moveTo(W * 0.05, h * 0.9);
+    g.lineTo(W * 0.4, h * 0.1);
+    g.lineWidth = 1.1;
+    g.strokeStyle = white(0.7);
+    g.stroke();
+  });
+  // the hairline round the deck
+  g.fillStyle = white(0.9);
+  g.fillRect(0, top - Math.max(1, 0.9 * st), W, Math.max(1, 0.9 * st));
+  mark(s, 'glow', { x: 0, y: top - 4 * st, w: W, h: 8 * st });
+  const windows = deckReadouts('grok', s);
+  const score = windows?.score ?? brandScore(s);
+  // nothing of the field under a readout: it is written on plain black
+  for (const b of windows ? [score, windows.speed, windows.rate] : [score]) {
+    g.fillStyle = '#000000';
+    g.fillRect(b.x, b.y, b.w, b.h);
+    const reach = Math.min(7, b.w * 0.05);
+    bracket(g, b.x, b.y + b.h * 0.12, b.y + b.h * 0.88, 1, reach, st);
+    bracket(g, b.x + b.w, b.y + b.h * 0.12, b.y + b.h * 0.88, -1, reach, st);
+  }
+  g.fillStyle = white(0.5);
+  g.fillRect(score.x + score.w * 0.12, score.y + score.h - Math.max(1, 0.9 * st), score.w * 0.76, Math.max(1, 0.9 * st));
+}
+
+/**
+ * CLAUDE: a page of warm cream paper, as wide as the track and no wider, with a band of terracotta
+ * along its far edge. Under the judge line a row of softly rounded warm-grey squares, one to a lane
+ * (the held one terracotta with a cream dot: deckKeys). The score is in an ivory card, as a writing
+ * box, a small terracotta button with an arrow at its near right corner; the speed and the rate are
+ * written on the paper itself by the deck's middle; left of them one loose line drawn by hand, a ball
+ * of thread and its end running off. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function claudePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = CLAUDE_PAPER;
+  g.fillRect(0, 0, W, s.depth);
+  // the paper's grain
+  const rand = seeded(83);
+  g.fillStyle = 'rgba(120,104,82,0.07)';
+  for (let i = 0; i < 420; i++) g.fillRect(rand() * W, rand() * s.depth, 1 + rand(), (1 + rand()) * st);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    rounded(g, cap, 6, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#c4c1b7');
+    face.addColorStop(1, CLAUDE_GREY);
+    g.fillStyle = face;
+    g.fill();
+  }
+  const kh = BRAND.keys * st;
+  const band: Box = { x: 0, y: kh, w: W, h: (BRAND.seam + 2.4) * st };
+  g.fillStyle = CLAUDE_CLAY;
+  g.fillRect(band.x, band.y, band.w, band.h);
+  mark(s, 'glow', { x: 0, y: band.y - 3 * st, w: W, h: band.h + 6 * st });
+  const windows = deckReadouts('claude', s);
+  const score = windows?.score ?? brandScore(s);
+  const u = score.h / st;
+  rounded(g, score, 8, st);
+  g.fillStyle = '#cfccc2';
+  g.fill();
+  rounded(g, { x: score.x + 1, y: score.y + st, w: score.w - 2, h: score.h - 2 * st }, 7, st);
+  g.fillStyle = CLAUDE_IVORY;
+  g.fill();
+  // the card's button, at its near right corner
+  const b: Box = { x: score.x + score.w - u * 0.68, y: score.y + score.h - u * 0.68 * st, w: u * 0.5, h: u * 0.5 * st };
+  rounded(g, b, 3.5, st);
+  g.fillStyle = CLAUDE_CLAY;
+  g.fill();
+  flatAt(g, b.x + b.w / 2, b.y + b.h / 2, st, () => upArrow(g, u * 0.13, CLAUDE_PAPER));
+  if (!windows) return;
+  // one loose line by hand between the speed and the rate: a ball of thread, its end running off
+  const v = windows.speed.h / st;
+  const low = windows.speed.y + windows.speed.h / 2;
+  const line = seeded(11);
+  flatAt(g, W * 0.07, low, st, () => {
+    const R = v * 0.44;
+    g.lineWidth = 1.3;
+    g.lineCap = 'round';
+    g.strokeStyle = shade(CLAUDE_CLAY, 1, 0.92);
+    for (let i = 0; i < 9; i++) {
+      g.beginPath();
+      g.ellipse((line() - 0.5) * R * 0.3, (line() - 0.5) * R * 0.3, R * (0.62 + 0.38 * line()), R * (0.5 + 0.5 * line()), line() * Math.PI, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(R * 0.8, R * 0.55);
+    g.bezierCurveTo(R * 2.2, R * 1.2, R * 3.1, -R * 0.7, R * 4.4, R * 0.2);
+    g.bezierCurveTo(R * 5, R * 0.6, R * 5.5, R * 0.1, R * 6, R * 0.35);
+    g.stroke();
+  });
+}
+
 // ---------- SKY (the sky skin's gear, 하늘) ----------
 
 /** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
@@ -2787,6 +3226,10 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   prism: crystalPlate,
   sky: skyPlate,
   fire: firePlate,
+  gpt: gptPlate,
+  gemini: geminiPlate,
+  grok: grokPlate,
+  claude: claudePlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -3443,6 +3886,106 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = lit ? '#ffd9b0' : FIRE_RED;
       g.fillRect(w - 2.6 * k, 0, 1.5 * k, h);
       g.fillStyle = black(0.5);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // GPT: a flat white strip, a dark seam outside and its green line along the lanes (lighter in FEVER)
+  gpt: () => ({
+    body: '#eef1f2',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.6, '#c9d0d3');
+      side.addColorStop(1, '#5d6a6e');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#6ff2cd' : GPT_GREEN;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#f4f6f7';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#6ff2cd' : GPT_GREEN;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+      g.fillStyle = black(0.5);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // GEMINI: a strip of its raised surface, a violet line along the lanes (pale violet in FEVER)
+  gemini: () => ({
+    body: GEMINI_RAISED,
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#3a3c40');
+      side.addColorStop(1, '#0c0c0d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#d5c2ff' : GEMINI_VIOLET;
+      g.fillRect(0, h - 2.6 * k, w, 1.3 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#0a0a0b');
+      across.addColorStop(0.12, '#26282b');
+      across.addColorStop(1, GEMINI_RAISED);
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      const line = g.createLinearGradient(w - 3.6 * k, 0, w - 1.6 * k, 0);
+      line.addColorStop(0, lit ? '#a9c4ff' : GEMINI_BLUE);
+      line.addColorStop(1, lit ? '#d5c2ff' : GEMINI_VIOLET);
+      g.fillStyle = line;
+      g.fillRect(w - 3.6 * k, 0, 2 * k, h);
+    },
+  }),
+  // GROK: black, one white hairline along the lanes and a fainter grey one outside it
+  grok: () => ({
+    body: '#000000',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      g.fillStyle = '#050505';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffffff' : white(0.8);
+      g.fillRect(0, 0, w, 1.1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#000000';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = white(lit ? 0.6 : 0.34);
+      g.fillRect(w - 6 * k, 0, 0.9 * k, h);
+      g.fillStyle = lit ? '#ffffff' : white(0.92);
+      g.fillRect(w - 2.2 * k, 0, 1.3 * k, h);
+    },
+  }),
+  // CLAUDE: a strip of its cream paper, a dark seam outside and a terracotta line along the lanes (lighter in FEVER)
+  claude: () => ({
+    body: CLAUDE_PAPER,
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, CLAUDE_IVORY);
+      side.addColorStop(0.6, '#c9c4b6');
+      side.addColorStop(1, '#6b6557');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb89c' : CLAUDE_CLAY;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = CLAUDE_PAPER;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb89c' : CLAUDE_CLAY;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+      g.fillStyle = black(0.45);
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),
