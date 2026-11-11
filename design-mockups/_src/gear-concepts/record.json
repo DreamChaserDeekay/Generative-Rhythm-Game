@@ -240,5 +240,177 @@
    "thoughtsTokenCount": 1454
   },
   "made": "2026-11-11"
+ },
+ "r2-type": {
+  "concept": "PRISM",
+  "kind": "type",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A typography and HUD design sheet on a near-black background, 16:9, for a PC rhythm game, laid out in a tidy grid. Left half, the in-track lettering in one custom display typeface that looks cut from crystal (faceted bevelled glyphs, bright edges, thin spectral fringe, italic and fast): the big combo number '128' with the small word 'COMBO' under it; the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%', 'BREAK' (BREAK in cracked ruby red crystal); 'FEVER x3' as a rainbow dispersion badge; the digits '0123456789'. Right half, the HUD plates in the same family: a song title plate with a square jacket slot, the title 'Demo Groove' and a difficulty chip 'EXPERT 9'; a stats plate with 'SCORE 199,357', 'RATE 100.00%', 'MAX COMBO 62'; a 'SPEED 3.00' plate; a vertical gauge made of cut crystal segments with the name 'LUMEN', a 'CLEAR' mark and '61%'; a time readout '0:27'. Each plate is chamfered smoked glass with a hairline light frame and one facet highlight. All words spelled exactly as given. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 410,
+   "candidatesTokenCount": 1808,
+   "totalTokenCount": 4409,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 410
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 128
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2191
+  },
+  "made": "2026-11-11"
+ },
+ "r2-long": {
+  "concept": "PRISM",
+  "kind": "long",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A design sheet on a near-black background, 16:9: four different designs of a 'long hold note' for a PC rhythm game, side by side, each drawn vertically as it travels down a lane (head at the bottom, tail at the top), each shown twice: idle, and being held (lit from inside, brighter). The tap note of the game is a short wide bevelled bar of clear crystal glass with a bright leading edge; each long note starts with that same bar as its head. Design A 'TUBE': a clear glass tube narrower than the head with a thin thread of light inside, wedge-cut tail. Design B 'FULL PRISM': a long triangular glass prism as wide as the head, a ridge of light down its middle, facets either side, tail a second bar with a notch. Design C 'CRYSTAL SHAFT': a hexagonal crystal column as wide as the head with visible facet planes and internal reflections, pointed crystal tip as its tail. Design D 'LIGHT RIBBON': a flat wide band of frosted glass with two bright edge lines and a soft spectrum inside, tail a thin bright bar. No text. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 361,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4193,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 361
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2152
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-screen-1": {
+  "concept": "PRISM",
+  "kind": "screen",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "C1ZYYXZtmxf320HhQoks",
+  "prompt_note": "Gemini의 screen 프롬프트와 같은 내용을 참고 그림 없이 글로만 썼습니다(레인·노트 배치를 글로 설명).",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-screen-2": {
+  "concept": "PRISM",
+  "kind": "screen",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "N1KAHFEuoTug9179YEua",
+  "prompt_note": "Gemini의 screen 프롬프트와 같은 내용을 참고 그림 없이 글로만 썼습니다(레인·노트 배치를 글로 설명).",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-deck-1": {
+  "concept": "PRISM",
+  "kind": "deck",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "qIRAoKcMD7ubQCXhAcjf",
+  "prompt_note": "Gemini의 deck 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-deck-2": {
+  "concept": "PRISM",
+  "kind": "deck",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "EKXJ4m1Jd4IVYDXuwWFQ",
+  "prompt_note": "Gemini의 deck 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-type-1": {
+  "concept": "PRISM",
+  "kind": "type",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "cJy2g154AwYUZZHGBhWZ",
+  "prompt_note": "Gemini의 type 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-type-2": {
+  "concept": "PRISM",
+  "kind": "type",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "sIpkRueFC9m9lNaaZPt0",
+  "prompt_note": "Gemini의 type 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-long-1": {
+  "concept": "PRISM",
+  "kind": "long",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "QUMOPUGvh90hMCIIVufg",
+  "prompt_note": "Gemini의 long 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
+ },
+ "r2-gpt-long-2": {
+  "concept": "PRISM",
+  "kind": "long",
+  "model": "gpt-image-2.6-sunburst",
+  "via": "ElevenLabs 커넥터(creative_generate_image), flow ry06J25wCO06vFFx1sf9",
+  "generation": "UgQCw43nI3lZONyUzILz",
+  "prompt_note": "Gemini의 long 프롬프트와 같은 내용.",
+  "imageSize": "1280x720, quality high",
+  "usage": {
+   "credits": 179.65,
+   "price_cents": 3.46
+  },
+  "made": "2026-11-11"
  }
 }

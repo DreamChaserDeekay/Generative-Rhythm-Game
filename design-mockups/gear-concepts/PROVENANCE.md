@@ -1,21 +1,35 @@
 # 출처: 기어 · 노트 · 이펙트 콘셉트 시안
 
-이 폴더의 그림 6장은 방향을 고르기 위한 콘셉트 시안이고 게임에 들어가는 에셋이 아닙니다. 모두 `tools/make_gear_concepts.py`가 이미지 모델로 만들었고, 온라인에서 받아 쓴 그림은 없습니다. 아래 표는 `_src/gear-concepts/record.json`에 기록된 그대로입니다.
+이 폴더의 그림은 방향을 고르기 위한 콘셉트 시안이고 게임에 들어가는 에셋이 아닙니다. 모두 이미지 모델로 만들었고 온라인에서 받아 쓴 그림은 없습니다. 아래는 `_src/gear-concepts/record.json`에 기록된 그대로입니다.
 
 - 만든 날: 2026-11-11
-- 원본(2K PNG)은 저장소에 넣지 않고, 가로 1600 px JPG만 둡니다.
-- 프롬프트마다 "기존 게임과 닮지 않을 것, 글자·로고 없음"을 붙였습니다.
+- 원본 PNG는 저장소에 넣지 않고 JPG만 둡니다.
+- 프롬프트마다 "기존 게임과 닮지 않을 것, 로고 없음"을 붙였습니다.
+- 1차(파일 이름에 `r2-` 없음): 콘셉트 3개(PRISM · PRESS · SIGNAL), `tools/make_gear_concepts.py`. 사용자가 PRISM을 골랐습니다.
+- 2차(`r2-`): PRISM에서 노트를 뺀 나머지(기어 하단, 판정·콤보 글자, 주변 HUD, 롱노트 모양). Gemini는 `tools/make_gear_round2.py`, GPT는 사용자 요청으로 ElevenLabs 커넥터의 `gpt-image-2.6-sunburst`.
 
-| 파일 | 콘셉트 | 종류 | 모델 | 크기 | 토큰(입력 / 출력 / 합계) |
-|---|---|---|---|---|---|
-| `prism-screen.jpg` | PRISM | 플레이 화면 | `gemini-nano-banana-2.1` | 2K, 16:9 | 525 / 1772 / 3617 |
-| `prism-parts.jpg` | PRISM | 부품 시트 | `gemini-nano-banana-2.1` | 2K, 16:9 | 440 / 1680 / 3310 |
-| `press-screen.jpg` | PRESS | 플레이 화면 | `gemini-nano-banana-2.1` | 2K, 16:9 | 567 / 1804 / 4758 |
-| `press-parts.jpg` | PRESS | 부품 시트 | `gemini-nano-banana-2.1` | 2K, 16:9 | 482 / 1680 / 3800 |
-| `signal-screen.jpg` | SIGNAL | 플레이 화면 | `gemini-nano-banana-2.1` | 2K, 16:9 | 567 / 1704 / 3955 |
-| `signal-parts.jpg` | SIGNAL | 부품 시트 | `gemini-nano-banana-2.1` | 2K, 16:9 | 482 / 1680 / 3842 |
+| 파일 | 종류 | 모델 | 크기 | 사용량 |
+|---|---|---|---|---|
+| `prism-screen.jpg` | 플레이 화면 | `gemini-nano-banana-2.1` | 2K | 토큰 525 / 1772 / 3617 (입력 / 출력 / 합계) |
+| `prism-parts.jpg` | 부품 시트 | `gemini-nano-banana-2.1` | 2K | 토큰 440 / 1680 / 3310 (입력 / 출력 / 합계) |
+| `press-screen.jpg` | 플레이 화면 | `gemini-nano-banana-2.1` | 2K | 토큰 567 / 1804 / 4758 (입력 / 출력 / 합계) |
+| `press-parts.jpg` | 부품 시트 | `gemini-nano-banana-2.1` | 2K | 토큰 482 / 1680 / 3800 (입력 / 출력 / 합계) |
+| `signal-screen.jpg` | 플레이 화면 | `gemini-nano-banana-2.1` | 2K | 토큰 567 / 1704 / 3955 (입력 / 출력 / 합계) |
+| `signal-parts.jpg` | 부품 시트 | `gemini-nano-banana-2.1` | 2K | 토큰 482 / 1680 / 3842 (입력 / 출력 / 합계) |
+| `r2-screen.jpg` | 플레이 화면 | `gemini-nano-banana-2.1` | 2K | 토큰 1579 / 1802 / 4314 (입력 / 출력 / 합계) |
+| `r2-deck.jpg` | 기어 하단 3안 | `gemini-nano-banana-2.1` | 2K | 토큰 353 / 1742 / 3549 (입력 / 출력 / 합계) |
+| `r2-type.jpg` | 글자·HUD 시트 | `gemini-nano-banana-2.1` | 2K | 토큰 410 / 1808 / 4409 (입력 / 출력 / 합계) |
+| `r2-long.jpg` | 롱노트 4안 | `gemini-nano-banana-2.1` | 2K | 토큰 361 / 1680 / 4193 (입력 / 출력 / 합계) |
+| `r2-gpt-screen-1.jpg` | 플레이 화면 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-screen-2.jpg` | 플레이 화면 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-deck-1.jpg` | 기어 하단 3안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-deck-2.jpg` | 기어 하단 3안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-type-1.jpg` | 글자·HUD 시트 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-type-2.jpg` | 글자·HUD 시트 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-long-1.jpg` | 롱노트 4안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
+| `r2-gpt-long-2.jpg` | 롱노트 4안 | `gpt-image-2.6-sunburst` | 1280x720, quality high | 179.65 크레딧 (약 3.46센트) |
 
-합계 23282 토큰, 요청 6회(실패·재시도 없음).
+합계: Gemini 39747 토큰(요청 10회), GPT sunburst 8장 약 27.7센트. 실패·재시도 없음.
 
 ## 프롬프트 (전문)
 
@@ -42,3 +56,53 @@ Concept art of the play screen of an original PC rhythm game, 16:9, seen as the 
 ### `signal-parts.jpg`
 
 A clean design sheet on a near-black background, 16:9, orthographic front view, parts laid out in a tidy grid with generous spacing, for an original PC rhythm game. Row one: three tap notes (colour A, colour B, centre accent colour), one turntable note of a clearly different shape, each a wide short bar seen from the front-top. Row two: one long hold note laid horizontally showing head cap, body and a differently shaped tail cap, once idle and once glowing as held; one wide translucent 'side note' band with edge lines. Row three: a six-frame sequence of the hit effect from first bright frame to fade-out; one segment of the judgment line; one light beam for a pressed lane. Row four: a wide strip of the control deck below the judgment line and a short piece of the side rail. Style: laboratory test instruments and modular synthesisers, phosphor light on dark glass. Notes are flat bars of glowing phosphor (pale mint white, electric cyan, hot orange accent) with a hard bright core line on the side that touches the judgment line and a short afterglow trail behind. The long note body is a pair of thin parallel traces with a sine wave running between them that grows in amplitude when held; its head is a full bar, its tail a bracket-shaped end marker. The side note is a wide band of faint scan-lines in magenta with bright edge traces, under the notes. The turntable note is a thick double chevron in signal red. The hit effect is an oscilloscope event: a sharp vertical spike and one thin expanding ring that flatten back into the line in six frames, with a few square pixels of noise. The gear is a cream-grey powder-coated instrument chassis with ventilation slots, hex bolts and rubber feet; side rails are engraved measurement graticules (tick marks only); the control deck is a patch panel with round knobs, jack sockets, a few coloured patch cables and one small round scope screen. Judgment line: a steady green-white scope trace with a faint graticule behind it. Highway floor: very dark green-black glass with a barely visible grid. Mood: analog warmth, technical, calm. Original design: it must not resemble any existing game. No text, no letters, no numbers, no logos, no watermark, no characters, no people.
+
+### `r2-screen.jpg`
+
+참고 그림으로 함께 보냄: `docs/screenshots/44-prism-7k.png`
+
+This is a screenshot of our PC rhythm game. Redraw it as polished concept art in the same layout and camera, 16:9. KEEP exactly as they are: the lane layout, the falling glass bar notes, the blue judgment line and the position of every element. REDESIGN with far more character, all in one consistent crystal theme: (1) the control deck below the judgment line: now a rich sculpted crystal console, a large faceted gem set in a machined ring at the centre with light inside it, cut-crystal wings spreading to both sides with facet planes, inlaid hairline light-guides, small hexagonal gem studs, rainbow dispersion along the cut edges, engraved fine ornament; (2) the side rails: bevelled crystal rails with facets and a line of light, crystal end caps where they meet the deck; (3) the combo number and the word COMBO in the middle of the track: custom display lettering that looks cut from crystal, faceted bevelled glyphs with a bright edge and a thin spectral fringe; (4) the judgment text 'MAX 100%': the same crystal lettering family, sharper and smaller, with a small gem-cut underline; (5) the HUD around the track (song title plate top-left, SCORE / RATE / MAX COMBO / SPEED on the left, the gauge with its name and CLEAR mark on the right, the time): each set in a small chamfered glass plate with a hairline frame and a facet highlight, typography matching the crystal lettering, the gauge a column of cut crystal segments. Keep the texts the same words and numbers as in the screenshot, spelled correctly. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+
+### `r2-deck.jpg`
+
+A design sheet on a near-black background, 16:9: three different designs, stacked one above the other with generous spacing, of the 'gear bottom' of a PC rhythm game, the wide control deck that sits below the judgment line of a seven-lane note highway, each drawn as a wide trapezoid strip seen in perspective from above (wider at the bottom), with the ends of the two side rails joining it. Each must be unmistakably crystal, rich and sculpted, not a flat plate. Design A 'GEODE': a black anodised shell split open to show a bed of clear crystal points inside, lit from below, one large hexagonal gem in the centre. Design B 'CHANDELIER': a symmetrical console of cut-crystal wings with long facet planes fanning out from a central brilliant-cut gem in a machined ring, hairline light-guides, rainbow dispersion on the edges. Design C 'OPTICAL BENCH': a precision instrument, a row of triangular glass prisms and lenses on a black rail splitting a white beam into a spectrum that runs across the deck, engraved fine tick ornament. No text. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+
+### `r2-type.jpg`
+
+A typography and HUD design sheet on a near-black background, 16:9, for a PC rhythm game, laid out in a tidy grid. Left half, the in-track lettering in one custom display typeface that looks cut from crystal (faceted bevelled glyphs, bright edges, thin spectral fringe, italic and fast): the big combo number '128' with the small word 'COMBO' under it; the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%', 'BREAK' (BREAK in cracked ruby red crystal); 'FEVER x3' as a rainbow dispersion badge; the digits '0123456789'. Right half, the HUD plates in the same family: a song title plate with a square jacket slot, the title 'Demo Groove' and a difficulty chip 'EXPERT 9'; a stats plate with 'SCORE 199,357', 'RATE 100.00%', 'MAX COMBO 62'; a 'SPEED 3.00' plate; a vertical gauge made of cut crystal segments with the name 'LUMEN', a 'CLEAR' mark and '61%'; a time readout '0:27'. Each plate is chamfered smoked glass with a hairline light frame and one facet highlight. All words spelled exactly as given. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+
+### `r2-long.jpg`
+
+A design sheet on a near-black background, 16:9: four different designs of a 'long hold note' for a PC rhythm game, side by side, each drawn vertically as it travels down a lane (head at the bottom, tail at the top), each shown twice: idle, and being held (lit from inside, brighter). The tap note of the game is a short wide bevelled bar of clear crystal glass with a bright leading edge; each long note starts with that same bar as its head. Design A 'TUBE': a clear glass tube narrower than the head with a thin thread of light inside, wedge-cut tail. Design B 'FULL PRISM': a long triangular glass prism as wide as the head, a ridge of light down its middle, facets either side, tail a second bar with a notch. Design C 'CRYSTAL SHAFT': a hexagonal crystal column as wide as the head with visible facet planes and internal reflections, pointed crystal tip as its tail. Design D 'LIGHT RIBBON': a flat wide band of frosted glass with two bright edge lines and a soft spectrum inside, tail a thin bright bar. No text. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.
+
+### `r2-gpt-screen-1.jpg`
+
+Gemini의 screen 프롬프트와 같은 내용을 참고 그림 없이 글로만 썼습니다(레인·노트 배치를 글로 설명). 전문은 `r2-screen.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(C1ZYYXZtmxf320HhQoks)에 기록되어 있습니다.
+
+### `r2-gpt-screen-2.jpg`
+
+Gemini의 screen 프롬프트와 같은 내용을 참고 그림 없이 글로만 썼습니다(레인·노트 배치를 글로 설명). 전문은 `r2-screen.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(N1KAHFEuoTug9179YEua)에 기록되어 있습니다.
+
+### `r2-gpt-deck-1.jpg`
+
+Gemini의 deck 프롬프트와 같은 내용. 전문은 `r2-deck.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(qIRAoKcMD7ubQCXhAcjf)에 기록되어 있습니다.
+
+### `r2-gpt-deck-2.jpg`
+
+Gemini의 deck 프롬프트와 같은 내용. 전문은 `r2-deck.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(EKXJ4m1Jd4IVYDXuwWFQ)에 기록되어 있습니다.
+
+### `r2-gpt-type-1.jpg`
+
+Gemini의 type 프롬프트와 같은 내용. 전문은 `r2-type.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(cJy2g154AwYUZZHGBhWZ)에 기록되어 있습니다.
+
+### `r2-gpt-type-2.jpg`
+
+Gemini의 type 프롬프트와 같은 내용. 전문은 `r2-type.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(sIpkRueFC9m9lNaaZPt0)에 기록되어 있습니다.
+
+### `r2-gpt-long-1.jpg`
+
+Gemini의 long 프롬프트와 같은 내용. 전문은 `r2-long.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(QUMOPUGvh90hMCIIVufg)에 기록되어 있습니다.
+
+### `r2-gpt-long-2.jpg`
+
+Gemini의 long 프롬프트와 같은 내용. 전문은 `r2-long.jpg`의 프롬프트에서 주제 문단(THEME)과 끝 문장을 같게 쓴 것으로, ElevenLabs flow `ry06J25wCO06vFFx1sf9`의 해당 생성(UgQCw43nI3lZONyUzILz)에 기록되어 있습니다.
