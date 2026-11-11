@@ -1322,5 +1322,107 @@
    ]
   },
   "made": "2026-11-11"
+ },
+ "r2-skin-sky-c1": {
+  "concept": "SKY",
+  "kind": "skin-sky-c1",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "The FIRST picture is concept art of a sky skin (version A) for our PC rhythm game; the SECOND picture is another version (B) of the same skin. Make a new version of the FIRST picture, 16:9, keeping everything of it exactly as it is (the camera, the sky-glass side rails with their tick marks, the row of thin dash key indicators on its navy strip, the deck's sky with its clouds, white arcs and feather mark, the readouts written on it with the same words and numbers, the gauge capsule, the top-left song information, where every note is, the hit effect, the judgment line) EXCEPT these three things. (1) LETTERING: draw the combo number '83', the word 'COMBO' and the judgment text 'MAX 100%' in the typeface of the SECOND picture, a rounded italic sans-serif of medium weight: the digits white with a sky-blue lower part and a thin deep-navy outline, 'COMBO' small and letter-spaced, 'MAX' white, '100%' cyan easing to sky blue. Same places and sizes as now; the small '0ms' under the judgment text stays plain white. (2) NOTES: draw the notes as the SECOND picture draws them: smooth softly rounded matte bars with a thin lighter top face (cloud white and light blue), the gold long note with its soft white middle line and NO caps at its ends, and the far-left lane's pink note carrying the small white pair-of-wings mark of the second picture in place of the chevron. Same positions. (3) LANES: the floor of the note highway between the two rails, from the far end down to the judgment line. Lay over the dark floor a faded image of the same sky that fills the deck, a deep blue at the far end easing to a lighter blue toward the judgment line, and keep on it two or three thin white curved hairlines sweeping across the lanes in long gentle arcs, like wind trails, passing UNDER the notes and the lettering. The floor must stay much darker than the deck, and the notes must stand out on it as clearly as before; the lane dividers stay as faint hairlines. Strength of the sky on the lanes: BARELY THERE. The floor still reads as near-black with only a hint of deep blue in it, a little bluer toward the judgment line; no clouds on it at all. The white curves are fine and clearly traceable but soft, at about a third of full white. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": [
+   "design-mockups/_src/gear-concepts/r2-skin-sky-a.png",
+   "design-mockups/_src/gear-concepts/r2-skin-sky-b2.png"
+  ],
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 2824,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 6714,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 2240
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 584
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2210
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-c2": {
+  "concept": "SKY",
+  "kind": "skin-sky-c2",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "The FIRST picture is concept art of a sky skin (version A) for our PC rhythm game; the SECOND picture is another version (B) of the same skin. Make a new version of the FIRST picture, 16:9, keeping everything of it exactly as it is (the camera, the sky-glass side rails with their tick marks, the row of thin dash key indicators on its navy strip, the deck's sky with its clouds, white arcs and feather mark, the readouts written on it with the same words and numbers, the gauge capsule, the top-left song information, where every note is, the hit effect, the judgment line) EXCEPT these three things. (1) LETTERING: draw the combo number '83', the word 'COMBO' and the judgment text 'MAX 100%' in the typeface of the SECOND picture, a rounded italic sans-serif of medium weight: the digits white with a sky-blue lower part and a thin deep-navy outline, 'COMBO' small and letter-spaced, 'MAX' white, '100%' cyan easing to sky blue. Same places and sizes as now; the small '0ms' under the judgment text stays plain white. (2) NOTES: draw the notes as the SECOND picture draws them: smooth softly rounded matte bars with a thin lighter top face (cloud white and light blue), the gold long note with its soft white middle line and NO caps at its ends, and the far-left lane's pink note carrying the small white pair-of-wings mark of the second picture in place of the chevron. Same positions. (3) LANES: the floor of the note highway between the two rails, from the far end down to the judgment line. Lay over the dark floor a faded image of the same sky that fills the deck, a deep blue at the far end easing to a lighter blue toward the judgment line, and keep on it two or three thin white curved hairlines sweeping across the lanes in long gentle arcs, like wind trails, passing UNDER the notes and the lettering. The floor must stay much darker than the deck, and the notes must stand out on it as clearly as before; the lane dividers stay as faint hairlines. Strength of the sky on the lanes: FAINT BUT PLAIN TO SEE. The floor is a dark night blue in which the sky's gradient can clearly be made out (deep navy far away, a dim blue near the judgment line, about a quarter of the deck's brightness), with only the palest wisp of cloud low near the judgment line. The white curves are fine and clear, at about half of full white. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": [
+   "design-mockups/_src/gear-concepts/r2-skin-sky-a.png",
+   "design-mockups/_src/gear-concepts/r2-skin-sky-b2.png"
+  ],
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 2846,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 6721,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 606
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 2240
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2195
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-c3": {
+  "concept": "SKY",
+  "kind": "skin-sky-c3",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a sky skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY ONE thing and keeping everything else exactly as it is (the side rails with their tick marks, the row of thin dash key indicators, the deck's sky with its clouds, arcs and feather mark and the thin white readouts written on it, the notes with the wings mark on the pink one, the long note, the hit effect, the combo and judgment lettering, the gauge capsule, the top-left song information, the white curved hairlines that sweep across the lanes, all positions). The one change: the strength of the faint sky on the LANES, the floor of the note highway from the far end down to the judgment line. Make it a little stronger and clearer than it is now: a deep navy at the far end easing smoothly to a dim clear blue toward the judgment line, at its brightest about a third of the deck's brightness, like the same sky seen through dark glass; the pale wisp of cloud low near the judgment line may stay, very soft. The floor must still be plainly darker than the deck and than every note, the lane dividers stay as faint hairlines, and the white curves stay exactly as fine and as clear as they are. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-sky-c2.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1443,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3783,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 323
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 660
+  },
+  "made": "2026-11-11"
  }
 }

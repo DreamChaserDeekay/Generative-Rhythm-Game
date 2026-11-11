@@ -35,8 +35,8 @@ THEME = (
     "45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif. "
 )
 
-# id: (reference picture or None, prompt)
-PICTURES: dict[str, tuple[Path | None, str]] = {
+# id: (reference picture, several of them, or None; prompt)
+PICTURES: dict[str, tuple[Path | tuple[Path, ...] | None, str]] = {
     "screen": (
         SHOT,
         "This is a screenshot of our PC rhythm game. Redraw it as polished concept art in the same layout and camera, 16:9. "
@@ -631,11 +631,64 @@ PICTURES["skin-sky-parts2"] = (
     "from under its edges). " + TAIL,
 )
 
+# SKY, the user's pick: version A with version B's lettering and notes, and (the user's own exception, for this skin, to the
+# rule that the lanes belong to no skin) the deck's sky laid very faintly over the lanes with its white curves kept. Two
+# strengths of the faint sky, to choose from. Two pictures are sent: A to redraw, B2 to take the lettering and notes from.
+SKY_PICK = (
+    "The FIRST picture is concept art of a sky skin (version A) for our PC rhythm game; the SECOND picture is another version "
+    "(B) of the same skin. Make a new version of the FIRST picture, 16:9, keeping everything of it exactly as it is (the camera, "
+    "the sky-glass side rails with their tick marks, the row of thin dash key indicators on its navy strip, the deck's sky with "
+    "its clouds, white arcs and feather mark, the readouts written on it with the same words and numbers, the gauge capsule, "
+    "the top-left song information, where every note is, the hit effect, the judgment line) EXCEPT these three things. "
+    "(1) LETTERING: draw the combo number '83', the word 'COMBO' and the judgment text 'MAX 100%' in the typeface of the SECOND "
+    "picture, a rounded italic sans-serif of medium weight: the digits white with a sky-blue lower part and a thin deep-navy "
+    "outline, 'COMBO' small and letter-spaced, 'MAX' white, '100%' cyan easing to sky blue. Same places and sizes as now; the "
+    "small '0ms' under the judgment text stays plain white. "
+    "(2) NOTES: draw the notes as the SECOND picture draws them: smooth softly rounded matte bars with a thin lighter top face "
+    "(cloud white and light blue), the gold long note with its soft white middle line and NO caps at its ends, and the far-left "
+    "lane's pink note carrying the small white pair-of-wings mark of the second picture in place of the chevron. Same positions. "
+    "(3) LANES: the floor of the note highway between the two rails, from the far end down to the judgment line. Lay over the "
+    "dark floor a faded image of the same sky that fills the deck, a deep blue at the far end easing to a lighter blue toward "
+    "the judgment line, and keep on it two or three thin white curved hairlines sweeping across the lanes in long gentle arcs, "
+    "like wind trails, passing UNDER the notes and the lettering. The floor must stay much darker than the deck, and the notes "
+    "must stand out on it as clearly as before; the lane dividers stay as faint hairlines. "
+)
+PICTURES["skin-sky-c1"] = (
+    (RAW / "r2-skin-sky-a.png", RAW / "r2-skin-sky-b2.png"),
+    SKY_PICK + "Strength of the sky on the lanes: BARELY THERE. The floor still reads as near-black with only a hint of deep blue "
+    "in it, a little bluer toward the judgment line; no clouds on it at all. The white curves are fine and clearly traceable "
+    "but soft, at about a third of full white." + TAIL,
+)
+PICTURES["skin-sky-c2"] = (
+    (RAW / "r2-skin-sky-a.png", RAW / "r2-skin-sky-b2.png"),
+    SKY_PICK + "Strength of the sky on the lanes: FAINT BUT PLAIN TO SEE. The floor is a dark night blue in which the sky's "
+    "gradient can clearly be made out (deep navy far away, a dim blue near the judgment line, about a quarter of the deck's "
+    "brightness), with only the palest wisp of cloud low near the judgment line. The white curves are fine and clear, at "
+    "about half of full white." + TAIL,
+)
 
-def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
+# SKY: c2 is the pick as asked (c1 took B's readout capsules too). The same with the lanes' sky a little stronger, to set
+# how faint "very faint" is.
+PICTURES["skin-sky-c3"] = (
+    RAW / "r2-skin-sky-c2.png",
+    "This is concept art of a sky skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY ONE thing and keeping "
+    "everything else exactly as it is (the side rails with their tick marks, the row of thin dash key indicators, the deck's sky "
+    "with its clouds, arcs and feather mark and the thin white readouts written on it, the notes with the wings mark on the pink "
+    "one, the long note, the hit effect, the combo and judgment lettering, the gauge capsule, the top-left song information, "
+    "the white curved hairlines that sweep across the lanes, all positions). The one change: the strength of the faint sky on "
+    "the LANES, the floor of the note highway from the far end down to the judgment line. Make it a little stronger and clearer "
+    "than it is now: a deep navy at the far end easing smoothly to a dim clear blue toward the judgment line, at its brightest "
+    "about a third of the deck's brightness, like the same sky seen through dark glass; the pale wisp of cloud low near the "
+    "judgment line may stay, very soft. The floor must still be plainly darker than the deck and than every note, the lane "
+    "dividers stay as faint hairlines, and the white curves stay exactly as fine and as clear as they are." + TAIL,
+)
+
+
+def generate(prompt: str, ref: Path | tuple[Path, ...] | None) -> tuple[bytes, dict]:
+    # the pictures sent with the prompt, in the order the prompt speaks of them (one, several or none)
     parts: list[dict] = []
-    if ref:
-        parts.append({"inlineData": {"mimeType": "image/png", "data": base64.b64encode(ref.read_bytes()).decode()}})
+    for picture in ref if isinstance(ref, tuple) else ([ref] if ref else []):
+        parts.append({"inlineData": {"mimeType": "image/png", "data": base64.b64encode(picture.read_bytes()).decode()}})
     parts.append({"text": prompt})
     body = {
         "contents": [{"role": "user", "parts": parts}],
@@ -675,7 +728,7 @@ def main() -> None:
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(RAW / f"{name}.png"), "-vf", "scale=1600:-2:flags=lanczos", "-q:v", "3", str(OUT / f"{name}.jpg")], check=True)
         # a skin's pictures are recorded under the skin's name (skin-sky-a: SKY), the earlier rounds under PRISM
         concept = pid.split("-")[1].upper() if pid.startswith("skin-") else "PRISM"
-        record[name] = {"concept": concept, "kind": pid, "model": MODEL, "prompt": full, "reference": str(ref.relative_to(ROOT.parent)) if ref else None, "imageSize": "2K", "usage": usage, "made": MADE}
+        record[name] = {"concept": concept, "kind": pid, "model": MODEL, "prompt": full, "reference": [str(r.relative_to(ROOT.parent)) for r in ref] if isinstance(ref, tuple) else str(ref.relative_to(ROOT.parent)) if ref else None, "imageSize": "2K", "usage": usage, "made": MADE}
         record_file.write_text(json.dumps(record, ensure_ascii=False, indent=1))
         print("made:", name, usage.get("totalTokenCount"))
 
