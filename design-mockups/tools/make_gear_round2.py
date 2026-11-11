@@ -428,6 +428,23 @@ PICTURES["skin-crystal-b5"] = (
     "glints, no bloom." + TAIL,
 )
 
+# CRYSTAL: the readouts' plates in the shape of the skin's gem note, a long hexagon with pointed ends.
+PICTURES["skin-crystal-b6"] = (
+    RAW / "r2-skin-crystal-b5.png",
+    "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the OUTLINE SHAPE "
+    "of the three readout plates in the gear's bottom deck and keeping everything else exactly as it is: the plates' places and "
+    "sizes (SCORE in the centre, SPEED at the lower left, RATE at the lower right, all three INSIDE the gear, between its two "
+    "rails, none of them outside it), their deep sapphire-navy fill, their thin bright bevelled rims, their lettering (labels in "
+    "ice blue, numbers in white, label and number side by side on one line, the same words and numbers), the pale faceted crystal "
+    "deck round them, the dark lanes, the rails, the key caps, the notes, the lettering in the track, the gauge and the top-left "
+    "song information. The change: each plate is no longer a rounded rectangle or a pill. Each becomes a LONG HEXAGON, the shape "
+    "of this skin's gem note (the ruby bar in the far-left lane): a wide flat bar whose left and right ends each come to a "
+    "single point, so it has two long parallel edges (top and bottom) and two short slanted edges at each end meeting in a "
+    "point at mid-height; six straight edges, six sharp corners, no rounded corners anywhere. The SCORE hexagon is the widest; "
+    "the SPEED and RATE hexagons are smaller ones of the same proportions. Inside each, one thin facet line may run parallel to "
+    "the outline a little way in, as on a cut gem's table. Flat and crisp: no sparkles, no glints, no bloom." + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
