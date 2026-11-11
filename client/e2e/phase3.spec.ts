@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { keysoundBusGain } from './audio';
-import { addFromMenu, autoplay, chooseSetting, fakeSongs, playOptions, settingsTab, songInfo, tool } from './songSelect';
+import { addFromMenu, autoplay, chooseSetting, fakeSongs, openSheet, playOptions, settingsTab, songInfo, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
 const python = process.env.GRG_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
@@ -165,7 +165,7 @@ test('a YouTube link as the background video', async ({ page }) => {
   await page.goto('/');
   await addFromMenu(page, 'demo-button');
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 60_000 });
-  await songInfo(page);
+  await openSheet(page, 'video');
   // the link is typed into the page: the desktop app (Electron) cannot show prompt dialogs
   page.on('dialog', (d) => {
     errors.push(`unexpected dialog: ${d.message()}`);
@@ -182,6 +182,23 @@ test('a YouTube link as the background video', async ({ page }) => {
   await expect(page.getByTestId('bga-status')).toHaveText('유튜브');
   await expect(page.getByTestId('bga-youtube-form')).toHaveCount(0);
   await expect(page.getByTestId('bga-youtube-hint')).toBeVisible();
+  // the shift is typed (as well as stepped), and the sheet says which way it moves the video
+  await page.getByTestId('bga-shift-input').fill('-13000');
+  await page.getByTestId('bga-shift-input').press('Enter');
+  await expect(page.getByTestId('bga-shift')).toContainText('-13000ms');
+  await expect(page.getByTestId('bga-shift')).toContainText('앞부분 13초 건너뛰기');
+  const savedShift = async () =>
+    ((await (await page.request.get('/api/songs')).json()).songs as { bgaOffsetMs: number; bgaYoutube: string | null }[]).find((x) => x.bgaYoutube)?.bgaOffsetMs;
+  await expect.poll(savedShift).toBe(-13000);
+  await page.getByTestId('bga-shift-input').fill('+13000');
+  await page.getByTestId('bga-shift-input').press('Enter');
+  await expect(page.getByTestId('bga-shift')).toContainText('13초 늦게 시작');
+  await expect.poll(savedShift).toBe(13000);
+  await page.getByTestId('bga-shift-input').fill('-13000');
+  await page.getByTestId('bga-shift-input').press('Enter');
+  await expect.poll(savedShift).toBe(-13000);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('sheet-video')).toHaveCount(0);
 
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   await expect(page.getByTestId('chart-preview')).toBeVisible({ timeout: 30_000 });
@@ -194,6 +211,8 @@ test('a YouTube link as the background video', async ({ page }) => {
   expect(yt.host).toBe('https://www.youtube-nocookie.com');
   expect(yt.calls[0]).toBe('mute');
   await expect(page.locator('.play-bg .bg-youtube iframe')).toHaveCount(1);
+  // loaded 13 s in before the song starts, and shown only once it plays on song time
+  await expect(page.locator('.play-bg .bg-youtube')).toHaveCSS('opacity', '1', { timeout: 30_000 });
   // the video pauses with the song
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
