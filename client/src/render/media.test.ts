@@ -7,7 +7,7 @@ import { BASE_SKIN } from './skins';
 import { styleTextures } from './styleArt';
 import { HIT_STYLES } from './tintArt';
 
-// The built game media (scripts/assets/build_styles.py, build_gears.py and build_skin_fx.py → client/public/media) against its manifest.
+// The built game media (scripts/assets/build_styles.py, build_gears.py, build_skin_fx.py and build_skin_panels.py → client/public/media) against its manifest.
 const MEDIA = fileURLToPath(new URL('../../public/media/', import.meta.url));
 const raw = JSON.parse(readFileSync(join(MEDIA, 'manifest.json'), 'utf-8')) as { textures: Record<string, unknown> };
 const manifest = parseManifest(raw)!;
@@ -43,9 +43,9 @@ describe('game media', () => {
     for (const [id, t] of Object.entries(manifest.textures)) {
       const [w, h] = imageSize(join(MEDIA, t.file));
       expect([w, h], id).toEqual(t.size);
-      // a texture the GPU samples; a gear's picture is only drawn on the deck's canvas, at its own proportions, and the
-      // skins' flipbooks (fx/) keep the size their frames were drawn at (WebGL 2 samples and mips any size)
-      const anySize = t.file.startsWith('gears/') || t.file.startsWith('fx/');
+      // a texture the GPU samples; a gear's picture and a deck's panel are only drawn on the deck's canvas, at their own
+      // proportions, and the skins' flipbooks (fx/) keep the size their frames were drawn at (WebGL 2 samples and mips any size)
+      const anySize = ['gears/', 'panels/', 'fx/'].some((folder) => t.file.startsWith(folder));
       expect((anySize || (isPowerOfTwo(w) && isPowerOfTwo(h))) && w <= 2048 && h <= 2048, `${id} ${w}×${h}`).toBe(true);
       if (t.flipbook) expect(w % t.flipbook.cols === 0 && h % t.flipbook.rows === 0, `${id} cells`).toBe(true);
     }

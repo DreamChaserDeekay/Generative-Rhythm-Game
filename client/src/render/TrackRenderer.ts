@@ -286,7 +286,7 @@ export interface HudPlane {
   /** Where the track ends up it (plane y). */
   far: number;
   /** The readouts the gear's deck houses: their windows, plane px (x from the track's middle, y from the judge line toward the camera); null where it houses none. */
-  deck: DeckReadouts | null;
+  deck: (DeckReadouts & { /** They lie on the display of the deck's panel (a painting), not in windows drawn in code. */ panel: boolean }) | null;
 }
 
 /**
@@ -1022,14 +1022,19 @@ export class TrackRenderer {
     return this.borderLook.width;
   }
 
+  /** Whether the gear's deck is laid with its panel (the painting of its lower part: deckArt.DECK_PANELS), its picture loaded. */
+  private get panelled(): boolean {
+    return Boolean(gearArtOf(this.style.deck, this.images).panel);
+  }
+
   /** The deck's readout windows on the HUD's plane (see HudPlane.deck). */
-  private deckWindows(): DeckReadouts | null {
+  private deckWindows(): HudPlane['deck'] {
     const r = this.readouts;
     if (!r) return null;
     const left = -this.geometry.width / 2 / PX;
     const top = (this.deckTopZ - this.judgeZ) / PX;
     const move = (b: { x: number; y: number; w: number; h: number }) => ({ x: left + b.x, y: top + b.y, w: b.w, h: b.h });
-    return { speed: move(r.speed), score: move(r.score), rate: move(r.rate) };
+    return { speed: move(r.speed), score: move(r.score), panel: this.panelled };
   }
 
   private planeAs(camera: TrackCamera): HudPlane {
@@ -2202,7 +2207,7 @@ export class TrackRenderer {
     this.planeVersion++;
     // round things on the deck look round, drawn longer along the track where the camera flattens it
     const stretch = deckStretch(Math.round(room / PX), (band) => 0.85 / this.trackAspect(top + STRETCH_TOP * PX + (band * PX) / 2));
-    this.readouts = deckReadouts(this.style.deck, { width: width / PX, room: room / PX, stretch });
+    this.readouts = deckReadouts(this.style.deck, { width: width / PX, room: room / PX, stretch }, this.panelled);
     const painted = `${Math.round(room / PX)}|${stretch}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;

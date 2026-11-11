@@ -985,6 +985,8 @@ export class Hud {
   private layDeck(p: HudPlane): void {
     const d = p.deck;
     const on = d !== null;
+    // on a panel's display the readouts are light on its dark glass, whatever the gear's windows drawn in code take
+    this.root.toggleAttribute('data-panel', Boolean(d?.panel));
     if (on !== this.onDeck) {
       this.onDeck = on;
       const moved = [this.scoreRow];

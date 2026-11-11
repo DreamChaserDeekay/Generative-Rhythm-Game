@@ -1,3 +1,5 @@
+import deckPanels from './deckPanels.json';
+
 
 /**
  * The gear: the track's frame down its edges and, under the judge line, a plate. The gears a player
@@ -203,7 +205,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion' | 'feather';
+export type GearPart = 'deck' | 'panel' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion' | 'feather';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -546,6 +548,10 @@ const STD = { keys: 44, seam: 3, upper: 46, lower: 44, pad: 4 } as const;
 export interface DeckReadouts {
   speed: Box;
   score: Box;
+}
+
+/** The windows a deck drawn in code has: the score's, SPEED's, and a third at the far end from SPEED's (the rate's once: it is under the judgement now, and the window is left as the plate's own). */
+export interface PlateWindows extends DeckReadouts {
   rate: Box;
 }
 
@@ -631,7 +637,7 @@ const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper:
  * decks have the speed and the rate by the middle, under the score); null where the screen
  * shows too little of the deck for them (a small preview) or the gear houses none.
  */
-export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
+export function plateWindows(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): PlateWindows | null {
   const d = DECK_STEPS[style];
   if (!d) return null;
   const st = s.stretch;
@@ -654,6 +660,90 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
   // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
   const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
   return { score: upper, speed: { x: edge, y, w, h }, rate: { x: s.width - edge - w, y, w, h } };
+}
+
+/**
+ * A skin's panel: the painting its deck's lower part is, under its row of keys (one picture from the image model,
+ * scripts/assets/build_skin_panels.py): the picture's size (px) and where its display's glass is in it (shares of the
+ * picture: left, top, right, bottom). The score and SPEED are written on that glass.
+ */
+export interface DeckPanel {
+  size: readonly [number, number];
+  glass: readonly [number, number, number, number];
+}
+export const DECK_PANELS = deckPanels as unknown as Readonly<Partial<Record<GearStyle, DeckPanel>>>;
+
+/** How deep a picture as wide as the deck lies on it (plane px): its own proportions, drawn as much longer along the track as the camera flattens the deck. */
+const panelDepth = (size: readonly [number, number], s: Pick<DeckSpec, 'width' | 'stretch'>) => (size[1] / size[0]) * s.width * s.stretch;
+
+/** The share of a panel's display the score's row takes, of what its two rows have between them (SPEED's the rest). */
+const PANEL_SCORE = 0.6;
+/** The two rows are written on a panel's display where the screen shows this much of it for them, at least (px of the sheets). */
+const PANEL_ROWS = 36;
+
+/** Where a panel's emblem is on it: its middle and its radius, shares of the picture's height (as the panels were asked for: make_skin_panels.py). */
+const PANEL_EMBLEM = { y: 0.595, r: 0.2 } as const;
+
+/**
+ * Where a skin's deck has its readouts: on its panel's display where the panel is laid (`panel`: its picture
+ * loaded), the score across the glass's upper part and SPEED under it in the middle; otherwise in the windows
+ * its plate draws in code (plateWindows). Null where the screen shows too little of the deck for them (a small
+ * preview) or the gear houses none.
+ */
+export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>, panel = false): DeckReadouts | null {
+  const d = DECK_STEPS[style];
+  const picture = panel ? DECK_PANELS[style] : undefined;
+  if (!d || !picture) {
+    const windows = plateWindows(style, s);
+    return windows && { score: windows.score, speed: windows.speed };
+  }
+  const top = (d.keys + d.seam) * s.stretch;
+  const tall = panelDepth(picture.size, s);
+  const [left, far, right, near] = picture.glass;
+  const glass: Box = { x: left * s.width, y: top + far * tall, w: (right - left) * s.width, h: (near - far) * tall };
+  // the two rows fill the glass but for a margin at its edges and between them, the score's the deeper; a screen that
+  // shows less of the deck than the glass (a low camera) has them in the part of the glass it shows
+  const [edge, gap] = [glass.h * 0.05, glass.h * 0.04];
+  const rows = Math.min(glass.h, s.room - glass.y - edge) - 2 * edge - gap;
+  if (rows < PANEL_ROWS * s.stretch) return null;
+  const score: Box = { x: glass.x + glass.w * 0.03, y: glass.y + edge, w: glass.w * 0.94, h: rows * PANEL_SCORE };
+  const wide = Math.min(glass.w * 0.56, s.width * 0.26);
+  const speed: Box = { x: s.width / 2 - wide / 2, y: score.y + score.h + gap, w: wide, h: rows * (1 - PANEL_SCORE) };
+  return { score, speed };
+}
+
+/**
+ * Lays a skin's panel over what its plate drew in code under its keys: the picture across the deck, and on a
+ * camera that shows more of the deck than the picture, its last row run on into shade. The lights of what the plate
+ * drew there go with it (their marks), and the panel's emblem takes the mark `emblem`.
+ */
+function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
+  const d = DECK_STEPS[style];
+  if (!d) return;
+  const top = (d.keys + d.seam) * s.stretch;
+  const tall = panelDepth([pic.width, pic.height], s);
+  g.save();
+  g.beginPath();
+  g.rect(0, top, s.width, s.depth - top);
+  g.clip();
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, top, s.width, tall);
+  const under = s.depth - top - tall;
+  if (under > 0) {
+    g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, top + tall, s.width, under);
+    const fall = g.createLinearGradient(0, top + tall, 0, top + tall + Math.min(under, tall * 0.5));
+    fall.addColorStop(0, 'rgba(0,0,0,0)');
+    fall.addColorStop(1, 'rgba(0,0,0,0.6)');
+    g.fillStyle = fall;
+    g.fillRect(0, top + tall, s.width, under);
+  }
+  g.restore();
+  if (!s.marks) return;
+  const kept = s.marks.filter((m) => m.y < top);
+  s.marks.length = 0;
+  s.marks.push(...kept);
+  const r = tall * PANEL_EMBLEM.r;
+  mark(s, 'emblem', { x: s.width / 2 - r / s.stretch, y: top + tall * PANEL_EMBLEM.y - r, w: (2 * r) / s.stretch, h: 2 * r });
 }
 
 /** A readout's window: a dark well with a hairline round it, `r` round at its corners. */
@@ -723,7 +813,7 @@ function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillRect(cut - slope, top, s.width - 2 * (cut - slope), Math.max(1, 0.8 * st));
   g.fillStyle = black(0.55);
   g.fillRect(cut, top + uh - 1.4 * st, s.width - 2 * cut, 1.4 * st);
-  const windows = deckReadouts('standard', s);
+  const windows = plateWindows('standard', s);
   if (windows) {
     well(g, windows.score, 4, st);
     well(g, windows.speed, windows.speed.h / (2 * st), st);
@@ -2354,7 +2444,7 @@ function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillRect(0, top, W, 5 * st);
   g.fillStyle = white(0.9);
   g.fillRect(0, top, W, Math.max(1, 0.8 * st));
-  const windows = deckReadouts('prism', s);
+  const windows = plateWindows('prism', s);
   if (!windows) return;
   for (const name of ['score', 'speed', 'rate'] as const) {
     gemPlate(g, windows[name], st);
@@ -2470,7 +2560,7 @@ function firePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillStyle = white(0.05);
   g.fill();
   mark(s, 'lacquer', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
-  const windows = deckReadouts('fire', s);
+  const windows = plateWindows('fire', s);
   const score: Box = windows?.score ?? { x: W * 0.24, y: top + FIRE.pad * st, w: W * 0.52, h: (FIRE.upper - 2 * FIRE.pad) * st };
   const cut = Math.min(W * 0.04, (score.h / st) * 1.1);
   // the black shoulders at the far corners, their points at the ends of the score's window
@@ -2624,7 +2714,7 @@ function gptPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillStyle = '#086650';
   g.fillRect(0, kh, W, BRAND.seam * st);
   mark(s, 'glow', { x: 0, y: kh - 3 * st, w: W, h: (BRAND.seam + 6) * st });
-  const windows = deckReadouts('gpt', s);
+  const windows = plateWindows('gpt', s);
   const score = windows?.score ?? brandScore(s);
   // the message box, and what a chat's has at its two ends
   const u = score.h / st;
@@ -2756,7 +2846,7 @@ function geminiPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillStyle = geminiAcross(g, 0, W);
   g.fillRect(0, kh, W, Math.max(1, 1.2 * st));
   mark(s, 'glow', band);
-  const windows = deckReadouts('gemini', s);
+  const windows = plateWindows('gemini', s);
   const score = windows?.score ?? brandScore(s);
   const u = score.h / st;
   rounded(g, score, u / 2, st);
@@ -2845,7 +2935,7 @@ function grokPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillStyle = white(0.9);
   g.fillRect(0, top - Math.max(1, 0.9 * st), W, Math.max(1, 0.9 * st));
   mark(s, 'glow', { x: 0, y: top - 4 * st, w: W, h: 8 * st });
-  const windows = deckReadouts('grok', s);
+  const windows = plateWindows('grok', s);
   const score = windows?.score ?? brandScore(s);
   // nothing of the field under a readout: it is written on plain black
   for (const b of windows ? [score, windows.speed, windows.rate] : [score]) {
@@ -2890,7 +2980,7 @@ function claudePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillStyle = CLAUDE_CLAY;
   g.fillRect(band.x, band.y, band.w, band.h);
   mark(s, 'glow', { x: 0, y: band.y - 3 * st, w: W, h: band.h + 6 * st });
-  const windows = deckReadouts('claude', s);
+  const windows = plateWindows('claude', s);
   const score = windows?.score ?? brandScore(s);
   const u = score.h / st;
   rounded(g, score, 8, st);
@@ -3048,7 +3138,7 @@ function aquaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     }
   }
   // the score's plate: white armour with cut corners in a pink line, a dark window in it
-  const windows = deckReadouts('aqua', s);
+  const windows = plateWindows('aqua', s);
   const score: Box = windows?.score ?? { x: W * 0.24, y: top + AQUA.pad * st, w: W * 0.52, h: (AQUA.upper - 2 * AQUA.pad) * st };
   polygon(g, chamfered(score, 7, st));
   g.fillStyle = armour(g, score.y, score.y + score.h);
@@ -3231,7 +3321,7 @@ function steelPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   g.fillRect(0, top + upper - 0.7 * st, W, 1.4 * st);
   g.fillStyle = white(0.06);
   g.fillRect(0, top + upper + 0.7 * st, W, Math.max(1, 0.7 * st));
-  const windows = deckReadouts('steel', s);
+  const windows = plateWindows('steel', s);
   const score: Box = windows?.score ?? { x: W * 0.24, y: top + STEEL.pad * st, w: W * 0.52, h: (STEEL.upper - 2 * STEEL.pad) * st };
   well(g, score, score.h / (2 * st), st);
   if (!windows) return;
@@ -3379,7 +3469,7 @@ function rainbowPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     g.strokeStyle = 'rgba(21,21,92,0.1)';
     g.stroke();
   };
-  const windows = deckReadouts('rainbow', s);
+  const windows = plateWindows('rainbow', s);
   card(windows?.score ?? { x: W * 0.24, y: top + RAINBOW.pad * st, w: W * 0.52, h: (RAINBOW.upper - 2 * RAINBOW.pad) * st });
   if (!windows) return;
   card(windows.speed);
@@ -3534,7 +3624,7 @@ function noirPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
       g.fillRect(Math.min(cx, cx + sx), Math.min(cy, cy + sy * 5 * st), 1, 5 * st);
     }
   };
-  const windows = deckReadouts('noir', s);
+  const windows = plateWindows('noir', s);
   plate(windows?.score ?? { x: W * 0.24, y: top + NOIR.pad * st, w: W * 0.52, h: (NOIR.upper - 2 * NOIR.pad) * st });
   if (!windows) return;
   plate(windows.speed);
@@ -3682,7 +3772,7 @@ function magentaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     return glass;
   };
   // the score's window: a silver bar along its far side, stepping up in the middle, a crimson one along its near side
-  const windows = deckReadouts('magenta', s);
+  const windows = plateWindows('magenta', s);
   const score: Box = windows?.score ?? { x: W * 0.24, y: top + MAGENTA.pad * st, w: W * 0.52, h: (MAGENTA.upper - 2 * MAGENTA.pad) * st };
   const round: Box = { x: score.x - 4, y: score.y - 2.6 * st, w: score.w + 8, h: score.h + 5.2 * st };
   for (const [from, to, fill] of [
@@ -3856,7 +3946,7 @@ function wirePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     g.fillStyle = white(0.24);
     g.fillRect(b.x + b.w * 0.1, b.y + b.h - 0.7 * st, b.w * 0.8, Math.max(1, 0.7 * st));
   };
-  const windows = deckReadouts('wire', s);
+  const windows = plateWindows('wire', s);
   rule(windows?.score ?? { x: W * 0.24, y: top + WIRE.pad * st, w: W * 0.52, h: (WIRE.upper - 2 * WIRE.pad) * st });
   if (!windows) return;
   rule(windows.speed);
@@ -4049,7 +4139,7 @@ function astralPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
       });
     }
   };
-  const windows = deckReadouts('astral', s);
+  const windows = plateWindows('astral', s);
   rule(windows?.score ?? { x: W * 0.24, y: top + ASTRAL.pad * st, w: W * 0.52, h: (ASTRAL.upper - 2 * ASTRAL.pad) * st });
   if (!windows) return;
   rule(windows.speed);
@@ -4277,7 +4367,7 @@ function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt = {}): 
   g.fillStyle = white(0.92);
   g.fillRect(0, kh, W, SKY.seam * st);
   mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
-  const windows = deckReadouts('sky', s);
+  const windows = plateWindows('sky', s);
   if (!windows) return;
   // the feather left of the score, on its line (its picture where that is loaded; drawn in code
   // otherwise), and the hairline under the score. The score is written about the deck's middle
@@ -4580,6 +4670,7 @@ export function paintDeck(style: GearStyle, g: CanvasRenderingContext2D, spec: D
   if (art.deck && deckFromPicture(style, spec, art)) deckPicture(g, spec, art.deck);
   else {
     GEAR_PLATES[style](g, spec, art);
+    if (art.panel) panelPainting(style, g, spec, art.panel);
     wallShade(g, spec, GEAR_FRAMES[style](art).height);
   }
 }

@@ -48,6 +48,18 @@
 
 코드: `scripts/assets/make_skin_fx.py`(프롬프트와 생성), `scripts/assets/build_skin_fx.py`(검정 정리 · 가장자리 흐림 · 프레임 고르기 · 0.32초 맞춤 → `client/public/media/fx/`), `styleArt.ts`의 `HIT_ART`(스킨의 효과 이름 → 매니페스트 id, 기본 스킨은 `basic`), `skinArt.ts`의 `MediaTexture.plain` · `cored`, `TrackRenderer.ts`의 `tinge`(제 색 플립북은 흰색으로 그대로 더함). 출처와 프롬프트: `assets-src/PROVENANCE.md`.
 
+## 기어 하단은 그림 한 장: 표시창 · 날개 · 문장 (2026-11-11)
+
+사용자 요청(2026-11-11): "판정선을 더 위로 올리고 기어 하단 영역 자체를 넓히라", 이어서 "확장된 기어 하단에 맞게 스킨마다 하단 영역 이미지를 새로 생성해서 적용해줘 … 하단 영역이 여유가 있어지니까 컨셉에 맞는 디자인, 꾸밈 요소를 더 넣을 수 있겠지?". 그래서 15개 스킨 모두 **키 줄 아래의 받침이 Gemini가 그린 그림 한 장**입니다. 아래 스킨별 절의 "받침" · "수치" 설명 가운데 키 줄 아래의 묘사는 그림을 못 읽었을 때 나오는 코드 그림의 것입니다.
+
+- **판정선**: 화면 높이의 72%(77%에서 올림). 기어 하단이 화면의 28%를 차지합니다(`config/camera.json`의 `judgeLineY`, 프리셋 네 개를 함께 맞춤).
+- **구성**(그림 21:9, 위에서 내려다본 평면): 위쪽 가운데에 넓고 어두운 **표시창**(폭의 절반 남짓), 양옆 **날개**에 컨셉 장식(기본: 스피커 그릴 · 노브 · 하늘색 빛줄 / 크리스털: 수정 날개와 사파이어 / 하늘: 뭉게구름과 깃털 / 파이어스타터: 검은 칼날 무늬와 크롬 스피커 / GPT: 대화 말풍선 줄 / Gemini: 오로라와 네 갈래 별 / Grok: 궤도와 별자리 / Claude: 손그림 낙서 / 아쿠아: 흰 장갑판과 청록 통풍구 / 스틸: 깎은 패널과 파란 슬롯 / 무지개: 사탕 캡슐과 스프링클 / 레드라인: 빨간 사선 띠와 망점 / 크림슨: 진홍 빛줄의 장갑 / 화이트 라인: 선 도면 / 별밤: 별자리와 달의 위상), 표시창 바로 아래에 큰 **문장**(조그 휠, 수정 메달, 날개 문장, 불꽃 방패, 꽃 매듭, 별 원반, 블랙홀, 해 도장, 리액터, 기계 원반, 무지개 돔, 과녁, 칼날 문장, 얼굴 고리, 날개 별).
+- **수치**: SCORE(위, 크게)와 SPEED(아래, 가운데)를 표시창 유리 위에 두 줄로 씁니다. 표시창은 모든 스킨이 어두운 유리라 글자는 밝은색입니다(GPT · Claude · 무지개도 표시창 위에서는 흰 글자). RATE는 판정 글자 아래로 갔습니다(아래 절).
+- **카메라별로 보이는 범위**: 기본(SDVX)은 그림의 위쪽 45%쯤, 즉 표시창과 날개, 문장의 윗부분이 화면 아래에 걸쳐 보입니다. 약한 원근 · 평면은 문장 전체와 몸통까지 보입니다. 강한 원근(LOW)은 표시창까지만 보이고 두 줄을 보이는 만큼에 맞춰 씁니다.
+- **키 줄**은 레인을 따라야 하므로 그대로 코드로 그립니다(누르면 켜지는 키캡 포함). 기어의 조명 가운데 키 줄의 빛은 그대로이고, 문장 자리 조명(`emblem`)은 그림의 문장에 맞춰 켜집니다.
+
+코드: `scripts/assets/make_skin_panels.py`(프롬프트 · 배치 안내 그림 · 생성), `scripts/assets/build_skin_panels.py`(게임용 그림과 표시창 자리 측정 → `client/public/media/panels/`, `client/src/render/deckPanels.json`), `deckArt.ts`(`DECK_PANELS`, `panelPainting`, `deckReadouts`의 `panel`, 코드 그림의 창은 `plateWindows`), `styleArt.ts`의 `GEAR_PICTURES`(`<gear>/panel`), `TrackRenderer.ts`(`panelled`, `HudPlane.deck.panel`), `Hud.ts`(`data-panel`), `styles.css`(`.hud[data-panel]`). 출처와 프롬프트: `assets-src/PROVENANCE.md`.
+
 ## RATE는 판정 글자 아래에 (2026-11-11)
 
 사용자 요청: "RATE는 잘 안보이니까 판정 아래에 작게 표시하도록 위치를 변경해", "판정선 아래가 아니라 MAX 100% 같은 판정 아래에". RATE는 기어 하단과 왼쪽 열에서 빠지고, 트랙 가운데 판정 글자(와 FAST/SLOW · 오차 막대) 바로 아래에 작은 한 줄(라벨 11px · 숫자 17px, 720p 기준, 어두운 외곽선)로 항상 떠 있습니다(`Hud.ts`의 `RATE_NUM` · `RATE_LABEL` · `RATE_GAP`, `styles.css`의 `.hud-row.under-judge`). 기어 하단에는 SCORE와 SPEED만 남습니다.

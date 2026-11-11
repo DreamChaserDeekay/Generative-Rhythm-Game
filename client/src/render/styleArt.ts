@@ -95,24 +95,25 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
  * in code (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
-  // drawn in code alone
-  prism: {},
-  // drawn in code but for the painting of its deck's sky and the feather over its score
-  sky: { plate: 'sky/plate', feather: 'sky/feather' },
-  fire: {},
-  gpt: {},
-  gemini: {},
-  grok: {},
-  claude: {},
-  aqua: {},
-  steel: {},
-  rainbow: {},
-  noir: {},
-  magenta: {},
-  wire: {},
-  astral: {},
-  // drawn in code alone: its key caps light with the lanes and its deck houses the HUD's readouts
-  standard: {},
+  // the skins' gears: the row of keys drawn in code (it follows the lanes), the lower part a painting (panel: the
+  // readouts are written on its display), in code where the painting is missing
+  prism: { panel: 'prism/panel' },
+  // (the sky skin's deck in code lays an older painting of its sky and a feather over its score)
+  sky: { panel: 'sky/panel', plate: 'sky/plate', feather: 'sky/feather' },
+  fire: { panel: 'fire/panel' },
+  gpt: { panel: 'gpt/panel' },
+  gemini: { panel: 'gemini/panel' },
+  grok: { panel: 'grok/panel' },
+  claude: { panel: 'claude/panel' },
+  aqua: { panel: 'aqua/panel' },
+  steel: { panel: 'steel/panel' },
+  rainbow: { panel: 'rainbow/panel' },
+  noir: { panel: 'noir/panel' },
+  magenta: { panel: 'magenta/panel' },
+  wire: { panel: 'wire/panel' },
+  astral: { panel: 'astral/panel' },
+  // the default skin's gear, as the skins': its key caps light with the lanes and its panel's display houses the HUD's readouts
+  standard: { panel: 'standard/panel' },
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
   najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },

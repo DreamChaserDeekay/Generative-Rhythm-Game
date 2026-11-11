@@ -1912,6 +1912,16 @@ p.hint {
 
 /* the score and SPEED in the windows of the gear's deck (Hud.layDeck): each one line,
    label then number, about the middle of its window */
+/* (the gears whose windows drawn in code are white write dark in them: on the display of their deck's panel, a
+   painting with dark glass, they write in their own light colours as beside the track) */
+.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude'], [data-gear='rainbow']) .on-deck .hud-label {
+  color: var(--hud-label-colour, var(--text-dim));
+}
+
+.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude'], [data-gear='rainbow']) .on-deck .hud-num {
+  color: var(--hud-num-colour, var(--text));
+}
+
 .hud-row.on-deck,
 .hud-speed.on-deck {
   display: flex;

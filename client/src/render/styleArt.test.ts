@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { deckReadouts, GEAR_STYLES, gearBorderLook, type DeckSpec, type GearStyle } from './deckArt';
+import { plateWindows, GEAR_STYLES, gearBorderLook, type DeckSpec, type GearStyle } from './deckArt';
 import { parseManifest } from './skinArt';
 import { BASE_SKIN, withParts, type SkinStyle } from './skins';
 import {
@@ -81,13 +81,15 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots' })).toEqual(['mecha/notes', 'mecha/long', ...cabinet]);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
-    // the track as it starts: the default skin, its parts drawn in code (as the PRISM set's are) and its hit a flipbook
-    expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
-    expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual([]);
-    // the sky skin's too, but for two pictures: the painting of its deck's sky and the feather over its score
-    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/plate', 'sky/feather']);
+    // the track as it starts: the default skin, its notes and its row of keys drawn in code (as the PRISM set's are),
+    // its deck's lower part a painting (its panel) and its hit a flipbook
+    expect(styleImageIds(BASE_SKIN.style)).toEqual(['standard/panel']);
+    expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual(['prism/panel']);
+    // the sky skin's too, with the two pictures its deck drawn in code lays where its panel is missing: an older
+    // painting of its sky and the feather over its score
+    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/panel', 'sky/plate', 'sky/feather']);
     // the Firestarter skin's parts are drawn in code too (the figures at its sides come with the build)
-    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual([]);
+    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual(['fire/panel']);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // three hits of no set have flipbooks of their own, as the sets' hits do; the default skin's FLASH plays "basic"
     expect(styleTextures(BASE_SKIN.style)).toEqual({ hitBurst: 'basic/hitBurst', hitHold: 'basic/hitHold' });
@@ -181,9 +183,9 @@ const SETS = [
 ] as const;
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
-// on the default gear, which has no pictures (it is drawn in code)
+// on the default gear, whose one picture is its panel (the rest of it is drawn in code)
 const setStyle = (c: SetCase) => withParts(BASE_SKIN, { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }).style;
-const STANDARD: string[] = [];
+const STANDARD: string[] = ['standard/panel'];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
 function deckSpec(room: number, stretch = 1.3): DeckSpec {
@@ -279,8 +281,8 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     expect(notePaintOf(c.note, {})).toBe(NOTE_PAINT[c.note]);
     expect(longPaintOf(c.note, {})).toBe(LONG_PAINT[LONG_OF[c.note]]);
     expect(noteShapeOf(c.note, {})).toBeUndefined();
-    // the default gear has no pictures to miss: all of none loaded
-    expect(artPartsOf(style, {})).toEqual(['gear']);
+    // (the default gear's panel is missing too: no part is drawn from a picture)
+    expect(artPartsOf(style, {})).toEqual([]);
   });
 
   it('draws each key’s note from its own picture, filling the note, and a side lane’s as the side plate', () => {
@@ -412,13 +414,14 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
 /** Whether two boxes on the canvas overlap (touching is not). */
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
+// (where its panel is missing: with it, the panel lies over both, as on every skin's deck)
 describe('the sky gear, drawn in code over a painting, a feather’s picture on it', () => {
   const style = withParts(BASE_SKIN, { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' }).style;
-  const images = loaded(style);
+  const images = Object.fromEntries(Object.entries(loaded(style)).filter(([id]) => id !== 'sky/panel'));
   const spec = (room: number, stretch: number): DeckSpec => ({ width: 8 * 73.65, depth: room + 60, room, stretch, lanes: [], sides: [] });
 
   it('has the painting of its deck’s sky and its feather in the media, no larger than a texture may be, and nothing else', () => {
-    expect(styleImageIds(style)).toEqual(['sky/plate', 'sky/feather']);
+    expect(styleImageIds(style)).toEqual(['sky/panel', 'sky/plate', 'sky/feather']);
     const plate = manifest.textures['sky/plate'];
     expect(plate.file).toBe('gears/sky/plate.webp');
     expect(plate.size[0]).toBe(2048);
@@ -430,7 +433,9 @@ describe('the sky gear, drawn in code over a painting, a feather’s picture on 
     expect(feather.file).toBe('gears/sky/feather.png');
     expect(feather.size).toEqual([256, 256]);
     expect(Object.keys(gearArtOf('sky', images))).toEqual(['plate', 'feather']);
-    expect(artPartsOf(style, images)).toEqual(['gear']);
+    expect(Object.keys(gearArtOf('sky', loaded(style)))).toEqual(['panel', 'plate', 'feather']);
+    expect(artPartsOf(style, loaded(style))).toEqual(['gear']);
+    expect(artPartsOf(style, images)).toEqual([]);
     // not loaded (yet): the gear is drawn in code alone, and says so
     expect(artPartsOf(style, {})).toEqual([]);
   });
@@ -464,7 +469,7 @@ describe('the sky gear, drawn in code over a painting, a feather’s picture on 
       expect(feathers).toHaveLength(1);
       expect(more[more.length - 1]).toBe(feathers[0]);
       const [f] = feathers;
-      const score = deckReadouts('sky', s)!.score;
+      const score = plateWindows('sky', s)!.score;
       expect(f.dh / f.dw).toBeCloseTo(stretch, 6);
       expect(f.dx).toBeGreaterThan(score.x);
       expect(f.dx + f.dw).toBeLessThan(s.width * 0.36);

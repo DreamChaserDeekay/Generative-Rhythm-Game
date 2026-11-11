@@ -2294,3 +2294,233 @@
   > THE EFFECT: a small golden star over a soft moon-blue glow: warm gold (#f2c14e) and white, pale blue haze.
   >
   > THE ANIMATION: in every frame a bright golden star with four long thin rays stays in the centre, while its rays lengthen and shorten so that it twinkles, glittering gold stardust swirls slowly around it, and tiny stars appear and vanish at different places in every frame.
+
+## 스킨의 기어 하단 그림 (`gears/panels`, 2026-11-11)
+
+스킨 15종의 기어 하단(키 줄 아래)을 코드 그림에서 그림 한 장씩으로 바꾼 것입니다. 사용자의 요청(2026-11-11): 판정선을 올려 기어 하단을 넓힌 뒤 "확장된 기어 하단에 맞게 스킨마다 하단 영역 이미지를 새로 생성해서 적용해줘", "RATE는 … 판정 아래에 작게 표시하도록 위치를 변경해. 그러면 하단 영역이 여유가 있어지니까 컨셉에 맞는 디자인, 꾸밈 요소를 더 넣을 수 있겠지?".
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 21:9 · 2K → 3168×1344 PNG) · 사용자의 Google Cloud 프로젝트 · 한 장 약 $0.06(토큰 사용량으로 계산한 추정치)
+- 구성: 위에서 똑바로 내려다본 평면 그림. 위쪽 가운데에 넓고 어두운 **표시창**(게임이 SCORE와 SPEED를 그 위에 씀), 양옆에 컨셉 장식을 담은 **날개**, 표시창 바로 아래에 큰 **문장**, 그 아래는 차분한 몸통.
+- 보낸 그림(둘 다 이 프로젝트의 것): ① 그 스킨의 받침을 게임 코드가 그린 그대로 평면으로 뽑은 그림(`flat-<gear>.png`: `deckArt.ts`의 `paintDeck`을 stretch 1, 7K+1S, 단위당 3px로) — 색 · 재질 · 무늬만 참고하라고 적음, ② 배치 안내 그림(`make_skin_panels.py`의 `guide()`가 그림: 표시창 자리는 검정, 날개는 빗금, 문장은 흰 원, 나머지는 회색). 다른 게임의 화면, 사용자가 올린 레퍼런스 그림, 로고는 보내지 않았습니다.
+- 만드는 도구: `scripts/assets/make_skin_panels.py make <평면 그림 폴더> <gear>` (받은 그대로는 `assets-src/gears/panels/_tries/`에 두고 저장소에는 넣지 않음) → `pick`이 고른 것을 2048×869 JPEG(품질 93, 색 정보 줄이지 않음)으로 저장
+- 게임용으로: `scripts/assets/build_skin_panels.py`가 `client/public/media/panels/<gear>.webp`(2048×869, 품질 90)로 만들고, 그림마다 표시창 유리의 자리(가로 · 세로 비율)를 재서 `client/src/render/deckPanels.json`에 적습니다(위쪽 가운데의 어둡고 고른 직사각형을 한 줄씩 넓혀 가며 찾음; 기본 스킨은 유리 위쪽에 반사광이 그려져 손으로 잰 값을 씀).
+- 게임에서: 키 줄은 레인을 따라야 하므로 코드로 그리고, 그 아래에 이 그림을 받침 폭 그대로 깝니다(`deckArt.ts`의 `panelPainting`; 카메라가 받침을 납작하게 보는 만큼 트랙 방향으로 늘여 그린 그대로 보이게). SCORE와 SPEED는 표시창 유리 위 두 줄(`deckReadouts`). 기본 카메라는 그림의 위쪽 45%쯤(표시창 · 날개 · 문장의 윗부분)을 보여 주고, 받침이 더 깊이 보이는 카메라(약한 원근 · 평면)는 문장과 몸통까지 보여 줍니다. 그림을 못 읽으면 예전 코드 그림이 나옵니다.
+- 고르기: 처음 시험 5장(기본 2 · 아쿠아 2 · 별밤 1: 배치 안내 그림 없이, 그리고 표시창을 40% 깊이로)은 쓰지 않았고, 안내 그림을 넣고 표시창을 35% 깊이로 한 15장을 그대로 썼습니다.
+- 비용: 쓴 15장 약 $0.90, 쓰지 않은 5장 약 $0.30
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 공통 프롬프트
+
+머리말:
+
+  > Image 1 is the current, plain version of one part of our own PC rhythm game's interface: the 'gear deck', the wide control panel that lies under the note lanes, drawn flat from straight above. Use image 1 ONLY for its colour palette, materials and motifs. Ignore its layout: the row of key caps along its top edge and its display windows are NOT part of the new picture.
+  >
+  > Paint a new, far richer and more detailed version of this panel's surface as production game art, at the finish level of the interface art of a top commercial rhythm game. It is used as a flat texture, so it must be a strictly top-down, orthographic, undistorted picture that fills the whole 21:9 frame edge to edge: no perspective, no horizon, no camera angle, no vignette, no frame or border round the picture, no background behind the panel. Mirror-symmetrical about the vertical centre line.
+  >
+  > Image 2 is a LAYOUT GUIDE only (never copy its greys or its hatching): its black rectangle is where the DISPLAY BAY goes, its two hatched areas are the WINGS, its white disc is where the EMBLEM goes, and the plain grey area is the LOWER BODY. Your picture has the same proportions as image 2 and follows its layout exactly.
+
+배치(`{bay}`에는 스킨별 표시창의 유리, `{wings}`와 `{body}`에는 스킨별 날개 · 몸통 설명이 들어감)와 꼬리말:
+
+  > COMPOSITION, exactly (the game depends on it):
+  > - The TOP EDGE of the picture is where the panel meets the row of keys; players see the upper half of the picture most, so the finest design is there.
+  > - DISPLAY BAY (the black rectangle of image 2): in the top centre, one wide display set into the panel, exactly as wide as the black rectangle (from 24 % to 76 % of the picture's width, a little over half of it) and reaching from the top edge down to 35 % of the height, no deeper. {bay} The game writes its score and speed on it, so its inside must stay completely empty and even: no text, no digits, no icons, no ornament, no reflections, no gradients, only a thin frame round it.
+  > - WINGS (the hatched areas of image 2): left and right of the display bay, from the top edge down to about 41 % of the height, the two wings (each about a fifth of the width) carry the richest decoration: {wings}
+  > - EMBLEM (the white disc of image 2): one large emblem centred directly under the display bay, its top almost touching the bay's lower frame, about 40 % of the picture's height across.
+  > - LOWER BODY (the plain grey area of image 2): the rest of the lower part of the picture is the same panel continuing toward the player, with larger and calmer forms: {body} It grows gradually darker and plainer toward the bottom edge, and the bottom tenth is almost plain.
+  > - Keep ornaments out of the outer 3 % at the left and right edges (the game's rails cover them).
+  > No text, no letters, no numbers, no labels, no logos, no brand marks, no watermark, no people, no characters. Crisp, clean, high-resolution; even, soft lighting from the top edge; no strong cast shadows.
+
+### `gears/panels/standard.jpg` (기본)
+
+- 2026-11-11 14:32 UTC · PNG 4,885,575바이트 · sha256 앞 16자리 `5fb576d86f70bb2c` · 저장한 JPEG 384,842바이트 → `panels/standard.webp` 2048×869(132,000바이트) · 표시창 유리: 가로 26.5~73.5%, 세로 3.9~30.6%
+- 스킨별 문구:
+
+  > CONCEPT: a modern professional DJ controller in dark graphite: anodised anthracite metal (#111216 to #2c2e35) with fine machined lines, crisp bevels and chamfers, satin and brushed finishes, thin cyan (#37e2ff) light lines as the only colour, restrained and precise.
+  >
+  > DISPLAY BAY: It is a pane of dark smoked glass, near black (#0b0c10).
+  >
+  > WINGS: rows of fine machined grooves, a small perforated speaker grille, two knurled metal knobs with a cyan index line, tiny hex screws, a thin cyan light guide tracing the wing's edge.
+  >
+  > LOWER BODY: a large jog-wheel ring machined into the metal in the centre under the display bay with a thin cyan light ring, long vent slots to both sides, chamfered panel seams.
+
+### `gears/panels/prism.jpg` (크리스털)
+
+- 2026-11-11 14:32 UTC · PNG 5,368,373바이트 · sha256 앞 16자리 `e824e39800f7d11f` · 저장한 JPEG 541,516바이트 → `panels/prism.webp` 2048×869(246,662바이트) · 표시창 유리: 가로 27.3~72.8%, 세로 4.8~36.6%
+- 스킨별 문구:
+
+  > CONCEPT: cut crystal and light: faceted clear crystal planes in ice white, pale lavender and pale blue, deep sapphire-blue gem insets with silver bezels, thin silver edges, fine rainbow dispersion (a hairline spectrum) where facets meet, the feel of jewellery.
+  >
+  > DISPLAY BAY: It is a plate of deep sapphire-blue glass (#16245a), dark and even.
+  >
+  > WINGS: fans of long crystal facets radiating from the bay, a brilliant-cut sapphire gem in a silver ring on each wing, small hexagonal crystal studs, hairline light guides with rainbow glints.
+  >
+  > LOWER BODY: a large brilliant-cut crystal medallion in the centre under the display bay, wide facet planes spreading from it like a chandelier, a few small gem studs.
+
+### `gears/panels/sky.jpg` (하늘)
+
+- 2026-11-11 14:37 UTC · PNG 4,850,436바이트 · sha256 앞 16자리 `0192b6d38edaccb1` · 저장한 JPEG 438,496바이트 → `panels/sky.webp` 2048×869(165,560바이트) · 표시창 유리: 가로 27.6~72.4%, 세로 5.8~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a clear daytime sky as an anime film's background art paints it: deep clear blue at the top easing to pale sky blue, soft, fluffy, billowing white cumulus clouds with real volume, thin white wind trails, white feathers; only blues and white.
+  >
+  > DISPLAY BAY: It is a pane of clear dark-blue glass (#123a6e) through which a darker, calm sky shows, even in tone.
+  >
+  > WINGS: a tall, billowing cumulus cloud rising on each wing with soft pale-blue shading, one or two white feathers drifting beside it, tiny sparkles of sunlight, hairline white wind trails crossing in long gentle arcs.
+  >
+  > LOWER BODY: a continuous sea of soft cumulus seen from the side, its top edge billowing up into the two clouds of the wings, with a few feathers floating over it; below its top edge it falls evenly into soft pale blue.
+
+### `gears/panels/fire.jpg` (파이어스타터)
+
+- 2026-11-11 14:35 UTC · PNG 5,137,740바이트 · sha256 앞 16자리 `ef2005819a4e8413` · 저장한 JPEG 464,240바이트 → `panels/fire.webp` 2048×869(180,702바이트) · 표시창 유리: 가로 32.3~67.7%, 세로 6.2~34.8%
+- 스킨별 문구:
+
+  > CONCEPT: a rock tour's stage gear: glossy deep-red lacquer (#c8102e) with black angular inlays, mirror chrome trim, the attitude of a muscle car and a tour poster; red, black, chrome and a little white-hot orange.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#0b0b0d) in a chrome frame.
+  >
+  > WINGS: sharp black inlays cut like blades into the red lacquer, chrome edge trim with rivets, a chrome-ringed speaker cone with a black grille on each wing, short hazard stripes, thin orange heat lines.
+  >
+  > LOWER BODY: a large chrome emblem shaped like a stylised flame in a black shield in the centre under the display bay, long black vents raked back like exhausts to both sides, reflections sliding across the red lacquer.
+
+### `gears/panels/gpt.jpg` (GPT)
+
+- 2026-11-11 14:33 UTC · PNG 4,151,688바이트 · sha256 앞 16자리 `c1c601e3d6f97411` · 저장한 JPEG 278,789바이트 → `panels/gpt.webp` 2048×869(74,152바이트) · 표시창 유리: 가로 26.9~73.1%, 세로 5.3~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a calm, friendly chat assistant's interface made physical: a flat surface in emerald-teal green (#10a37f) with soft rounded white shapes, generous spacing, tiny minimal line icons; flat design with gentle depth, no gloss.
+  >
+  > DISPLAY BAY: It is a flat plate of dark green-black (#0d1f1a), even and matt.
+  >
+  > WINGS: soft rounded white pill and bubble shapes of different lengths stacked like lines of a conversation, rows of three small round dots, thin white outline rings, a few tiny abstract line icons (a plus, an arrow, a spark).
+  >
+  > LOWER BODY: one large ornament of interlaced rounded loops (an abstract knot of six soft petals, drawn in thin white lines) in the centre under the display bay, wide soft rounded bands to both sides in slightly darker and lighter teal.
+
+### `gears/panels/gemini.jpg` (Gemini)
+
+- 2026-11-11 14:33 UTC · PNG 5,576,698바이트 · sha256 앞 16자리 `4d2b66c25a9c2fa1` · 저장한 JPEG 444,088바이트 → `panels/gemini.webp` 2048×869(171,850바이트) · 표시창 유리: 가로 26.9~73.1%, 세로 4.8~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a deep night-dark surface (#131314) lit by a soft aurora of blue (#4285f4), violet (#9b72cb) and pink (#d96570): smooth gradients, four-pointed sparkle stars (four long thin points, concave sides), fine starfield, elegant and airy.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#0b0b0c), even and matt.
+  >
+  > WINGS: ribbons of blue-violet-pink gradient light sweeping up each wing, several four-pointed sparkle stars of different sizes, hairline arcs, a fine dust of tiny stars.
+  >
+  > LOWER BODY: one large four-pointed sparkle star with a soft gradient glow in the centre under the display bay, wide aurora ribbons flowing out to both sides, sparse tiny stars.
+
+### `gears/panels/grok.jpg` (Grok)
+
+- 2026-11-11 14:34 UTC · PNG 4,458,870바이트 · sha256 앞 16자리 `77d9245202c93690` · 저장한 JPEG 333,368바이트 → `panels/grok.webp` 2048×869(139,198바이트) · 표시창 유리: 가로 26.7~73.3%, 세로 3.9~33.4%
+- 스킨별 문구:
+
+  > CONCEPT: deep space in pure black and white: a black void with a fine starfield, thin white technical lines, orbits and trajectories, the feel of an observatory's chart; monochrome, no colour at all.
+  >
+  > DISPLAY BAY: It is pure black (#000000), even and matt.
+  >
+  > WINGS: thin white orbit ellipses and trajectory lines crossing each wing, small bracket marks, tick scales, a few bright stars with fine cross flares, dotted constellation lines.
+  >
+  > LOWER BODY: a large black-hole motif in the centre under the display bay: a black disc with a thin bright ring and a fine accretion ring drawn in white lines, long diagonal slash lines and sparse stars to both sides.
+
+### `gears/panels/claude.jpg` (Claude)
+
+- 2026-11-11 14:36 UTC · PNG 5,193,159바이트 · sha256 앞 16자리 `d94487d4f79f8141` · 저장한 JPEG 470,378바이트 → `panels/claude.webp` 2048×869(190,366바이트) · 표시창 유리: 가로 25.1~74.9%, 세로 4.4~34.3%
+- 스킨별 문구:
+
+  > CONCEPT: warm cream paper (#f4efe6) with hand-drawn ink in terracotta (#d97757): the feel of a thoughtful notebook: soft paper grain, loose pen doodles, gentle and literary; cream, terracotta and a little warm brown.
+  >
+  > DISPLAY BAY: It is a sheet of dark warm-brown ink-coloured paper (#2a211c), even and matt.
+  >
+  > WINGS: hand-drawn terracotta doodles on each wing: a sunburst of uneven pen strokes, a loose spiral scribble with a trailing line, small stars and dashes, a pressed-paper stamp ring, faint ruled lines.
+  >
+  > LOWER BODY: one large hand-drawn sunburst of a dozen uneven tapered brush strokes in terracotta in the centre under the display bay, long loose pen flourishes to both sides, a few scattered ink dots, the paper's grain showing.
+
+### `gears/panels/aqua.jpg` (아쿠아)
+
+- 2026-11-11 14:38 UTC · PNG 4,360,011바이트 · sha256 앞 16자리 `43044bc084d77319` · 저장한 JPEG 341,620바이트 → `panels/aqua.webp` 2048×869(101,370바이트) · 표시창 유리: 가로 26.5~73.5%, 세로 4.4~33.0%
+- 스킨별 문구:
+
+  > CONCEPT: a white mecha's console: glossy white armour panels with 45-degree cut corners over dark teal glass (#06262b), aqua-cyan (#22e0e6) light lines, small hot-pink (#ff3f93) accents; clean science-fiction hardware.
+  >
+  > DISPLAY BAY: It is a pane of very dark teal glass (#04191d), even and matt.
+  >
+  > WINGS: white armour plates with cut corners and panel seams on each wing, a row of slanted aqua vent slits, small pink hazard chevrons, hex bolts, thin aqua light guides.
+  >
+  > LOWER BODY: a large circular reactor emblem in the centre under the display bay: a white ring cut by three arrow-like notches around an aqua glowing core, white shoulder plates to both sides over dark teal glass, a few pink accent lines.
+
+### `gears/panels/steel.jpg` (스틸)
+
+- 2026-11-11 14:39 UTC · PNG 5,839,194바이트 · sha256 앞 16자리 `92c7832f075a1185` · 저장한 JPEG 406,427바이트 → `panels/steel.webp` 2048×869(148,886바이트) · 표시창 유리: 가로 26.3~73.7%, 세로 3.0~31.1%
+- 스킨별 문구:
+
+  > CONCEPT: professional studio hardware in dark slate and gunmetal: brushed and bead-blasted metal panels, countersunk screws, embossed plus and cross marks, a cool steel-blue (#58aaf0) light glowing from recessed slots; calm, heavy, industrial.
+  >
+  > DISPLAY BAY: It is a pane of near-black glass (#0c0f13), even and matt.
+  >
+  > WINGS: a milled panel on each wing with a recessed slot glowing steel blue, two knurled knobs, a small grid of embossed plus marks, countersunk screws, fine brushed grain.
+  >
+  > LOWER BODY: a wide recessed plate in the centre under the display bay with a large embossed cross mark and a thin blue light slot, long ventilation louvres to both sides, heavy chamfered edges.
+
+### `gears/panels/rainbow.jpg` (무지개)
+
+- 2026-11-11 14:37 UTC · PNG 4,173,597바이트 · sha256 앞 16자리 `fb2b74d8d5bed939` · 저장한 JPEG 296,001바이트 → `panels/rainbow.webp` 2048×869(88,034바이트) · 표시창 유리: 가로 26.3~73.7%, 세로 6.2~33.0%
+- 스킨별 문구:
+
+  > CONCEPT: a cheerful toy console of glossy white plastic and cut paper with candy colours: red, orange, yellow, green, sky blue, purple and pink capsules, sprinkles and round buttons, soft pastel shadows; bright, sweet, playful.
+  >
+  > DISPLAY BAY: It is a plate of deep navy blue (#15155c), even and matt.
+  >
+  > WINGS: candy-coloured capsule shapes lying at playful angles on each wing, round glossy buttons in different colours, tiny sprinkle dots and small five-pointed stars, soft paper-cut layers.
+  >
+  > LOWER BODY: a navy-blue half dome with a rainbow capsule inside it in the centre under the display bay, big soft rounded white shapes and long pastel candy stripes to both sides, a scatter of sprinkles.
+
+### `gears/panels/noir.jpg` (레드라인)
+
+- 2026-11-11 14:44 UTC · PNG 3,906,833바이트 · sha256 앞 16자리 `0b28b444f529a849` · 저장한 JPEG 418,895바이트 → `panels/noir.webp` 2048×869(140,840바이트) · 표시창 유리: 가로 30.0~70.0%, 세로 5.8~30.6%
+- 스킨별 문구:
+
+  > CONCEPT: flat graphic design in black and pure red (#ff1a2b) with a little white: bold diagonal red bands, halftone dot clusters, glitch blocks and thin technical lines, the feel of a cyberpunk poster. Only black, red and white, completely flat.
+  >
+  > DISPLAY BAY: It is pure black (#000000), even and matt.
+  >
+  > WINGS: bold diagonal red bands cutting across each wing, clusters of halftone dots, small glitch blocks of red and white rectangles, rows of chevron arrows, thin white corner brackets.
+  >
+  > LOWER BODY: wide dark-red diagonal bands and a long thin red curve sweeping through the lower body, one large glitch-block ornament in the centre under the display bay, sparse dot clusters and thin lines.
+
+### `gears/panels/magenta.jpg` (크림슨)
+
+- 2026-11-11 14:41 UTC · PNG 5,129,510바이트 · sha256 앞 16자리 `0eb1726a335d1912` · 저장한 JPEG 474,795바이트 → `panels/magenta.webp` 2048×869(182,626바이트) · 표시창 유리: 가로 27.6~72.4%, 세로 5.3~34.3%
+- 스킨별 문구:
+
+  > CONCEPT: a black war machine with crimson light: matt black angular armour, razor-thin crimson (#f0145a) and hot-pink light lines, polished silver bars, pointed hexagonal panels; aggressive and sharp.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#08080a), even and matt.
+  >
+  > WINGS: pointed hexagonal armour panels outlined in crimson light on each wing, slanted crimson hazard bars, a small crimson lamp, silver bars, sharp chamfers.
+  >
+  > LOWER BODY: a large pointed emblem like a blade's guard in silver and crimson in the centre under the display bay, long angular armour plates swept back to both sides with thin crimson light seams.
+
+### `gears/panels/wire.jpg` (화이트 라인)
+
+- 2026-11-11 14:40 UTC · PNG 4,391,237바이트 · sha256 앞 16자리 `a123fb2448e74659` · 저장한 JPEG 269,331바이트 → `panels/wire.webp` 2048×869(89,148바이트) · 표시창 유리: 가로 28.8~71.2%, 세로 3.9~33.4%
+- 스킨별 문구:
+
+  > CONCEPT: line art in thin white lines on near-black (#0b0b0d): a draughtsman's technical drawing: orbits, circles, tray outlines, dotted grids and tick scales, with one soft white glow; monochrome, elegant, airy.
+  >
+  > DISPLAY BAY: It is near-black (#070708), even and matt, outlined by one thin white line.
+  >
+  > WINGS: thin white line drawings on each wing: concentric arcs and an orbit ellipse, a small dotted grid, tick scales, tiny line-drawn four-point stars, short dashed lines.
+  >
+  > LOWER BODY: a large open ring with two small dots drawn in thin white lines in the centre under the display bay over a soft white glow, long orbit ellipses sweeping out to both sides, a sparse dotted grid.
+
+### `gears/panels/astral.jpg` (별밤)
+
+- 2026-11-11 14:42 UTC · PNG 4,807,497바이트 · sha256 앞 16자리 `115704d729a55adc` · 저장한 JPEG 511,106바이트 → `panels/astral.webp` 2048×869(203,702바이트) · 표시창 유리: 가로 27.3~72.8%, 세로 4.8~38.9%
+- 스킨별 문구:
+
+  > CONCEPT: a night sky as an old star atlas: deep navy (#0a1230 to #16245a) with gold (#f2c14e) filigree lines, constellations, moon phases and small sparkling stars; rich, calm and precious.
+  >
+  > DISPLAY BAY: It is a pane of very dark navy (#070d24), even and matt.
+  >
+  > WINGS: gold constellation lines with star points on each wing, a small row of moon phases, a gold compass-like ring with tick marks, tiny sparkling stars, fine gold filigree corners.
+  >
+  > LOWER BODY: a large winged four-pointed star emblem in gold and white in the centre under the display bay, wide thin gold orbit arcs of a star chart sweeping to both sides, a dusting of small stars.
