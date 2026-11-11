@@ -36,10 +36,12 @@
  *   of sapphire glass, pointed as its gem note is, where the HUD writes the score, the speed and the
  *   rate (deckReadouts); its frame thin rails of clear glass (crystalPlate);
  * - SKY (하늘): the sky skin's gear: a thin navy strip with a dash to a lane (the held lane's lit cyan)
- *   over a deck that is a window onto the sky, blue easing lighter toward the player, cumulus low in
- *   it, thin white wind trails across it and a feather over the score, which is written on the sky
- *   itself; the speed and the rate in two see-through pills; rails of sky-tinted glass with an
- *   altimeter's ticks; and the same sky laid very faintly over the lanes (GEAR_FLOORS: skyPlate, skyFloor);
+ *   over a deck that is a window onto the sky (a painting where it is loaded, the same in plain shapes
+ *   otherwise): blue easing lighter toward the player, a cumulus at each end, thin white wind trails
+ *   across it and a feather over the score, which is written on the sky itself; the speed and the rate
+ *   in two see-through pills; rails of pale glass with a white line; and its sky laid very faintly over
+ *   the lanes with its wind trails and an altimeter's ticks along their edges (GEAR_FLOORS: skyPlate,
+ *   skyFloor);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
