@@ -105,8 +105,8 @@ async function levelsKnown(page: Page): Promise<void> {
 }
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
 }
@@ -134,19 +134,26 @@ async function watchSources(page: Page): Promise<void> {
 
 const startsSoFar = (page: Page) => page.evaluate(() => (window as unknown as { __starts: unknown[] }).__starts.length);
 
+/** The play that was started is on the screen and its loading card has gone. */
+async function playShown(page: Page): Promise<void> {
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+}
+
 /** Starts the play and waits for its loading card to go. */
 async function startPlay(page: Page): Promise<number> {
   const before = await startsSoFar(page);
   await page.getByTestId('hint-enter').click();
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+  await playShown(page);
   return before;
 }
 
 /** Autoplay until the song heard is `ms` in (the song's sources are the first long ones the play starts). */
 async function autoplayAt(page: Page, ms: number): Promise<void> {
+  const before = await startsSoFar(page);
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  const before = await startPlay(page);
+  await playShown(page);
   await page.waitForFunction(
     ({ before, ms }) => {
       type Start = { when: number; offset: number; length: number; ctx: AudioContext };
@@ -492,7 +499,7 @@ test('play: the bar in its finishes', async ({ page }) => {
     [{ note: 'carbon', side: 'bar', deck: 'racing', hit: 'flash' }, '43-note-carbon'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await selectShowcase(page, '7K+1S', 'ELITE');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
