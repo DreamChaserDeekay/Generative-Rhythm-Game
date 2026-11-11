@@ -102,14 +102,20 @@ export interface StandeeBox {
 }
 
 /**
- * How the figures stand. Their feet are at the screen's bottom. The one by the gear leans on it: at
- * `HIP` of its height its inner side is on the gear's outer edge, so its legs go behind the gear, which
- * is wider further down. The one beside it is a little taller (nearer the viewer) and covers `OVERLAP`
- * of the inner one's width. Each is no wider than its share of the side's room.
+ * How the pictures stand. Their feet are at the screen's bottom.
+ * - Two on a side are figures: the one by the gear leans on it (at `HIP` of its height its inner side
+ *   is on the gear's outer edge, so its legs go behind the gear, which is wider further down); the
+ *   one beside it is a little taller (nearer the viewer) and covers `OVERLAP` of the inner one's width.
+ * - One on a side fills the side: nearly as tall as the screen and `tuck` of its width behind the gear
+ *   at its hip, so a wide picture (two figures cut out together, a piece of an illustration) shows
+ *   what it has at its outer side and its top, and the gear hides its inner edge. A picture that
+ *   should stand smaller or less far behind the gear leaves room clear round what it shows.
+ * Each is no wider than its share (`wide`) of the side's room.
  */
 const STANDS = {
-  inner: { tall: 0.54, wide: 0.5 },
-  outer: { tall: 0.6, wide: 0.56 },
+  alone: { tall: 0.94, wide: 1.9, tuck: 0.3 },
+  inner: { tall: 0.54, wide: 0.5, tuck: 0 },
+  outer: { tall: 0.6, wide: 0.56, tuck: 0 },
 } as const;
 const HIP = 0.36;
 const OVERLAP = 0.34;
@@ -117,9 +123,9 @@ const OVERLAP = 0.34;
 const MIN_ROOM = 0.08;
 
 /**
- * Where the figures stand: the pictures in their order across the screen (their `aspects`, width over
- * height), half of them at each side of the gear (the odd one at the left), close against it. A side's
- * room is from the screen's edge to the gear's outer edge; a figure too wide for its share of it is made
+ * Where the pictures stand: in their order across the screen (their `aspects`, width over height),
+ * half of them at each side of the gear (the odd one at the left), close against it. A side's room is
+ * from the screen's edge to the gear's outer edge; a picture too wide for its share of it is made
  * smaller, and a side with next to no room (a wide gear on a narrow window, a preview) has none: null.
  */
 export function standeeBoxes(aspects: readonly number[], view: StageView): (StandeeBox | null)[] {
@@ -151,10 +157,11 @@ export function standeeBoxes(aspects: readonly number[], view: StageView): (Stan
       }
       return { w, h };
     };
-    const inner = sized(aspects[innerAt], STANDS.inner);
+    const stand = outerAt === undefined ? STANDS.alone : STANDS.inner;
+    const inner = sized(aspects[innerAt], stand);
     if (!inner) continue;
-    // the inner figure's side on the gear's edge at its hip
-    const lean = edgeAt(side, view.height - inner.h * HIP);
+    // the inner picture's side on the gear's edge at its hip, or that much of it behind the gear
+    const lean = edgeAt(side, view.height - inner.h * HIP) - out * inner.w * stand.tuck;
     const innerX = side === 0 ? lean - inner.w : lean;
     boxes[innerAt] = { x: innerX, y: view.height - inner.h, w: inner.w, h: inner.h, front: false };
     const outer = outerAt === undefined ? null : sized(aspects[outerAt], STANDS.outer);
@@ -198,7 +205,7 @@ export function standeeCanvas(picture: CanvasImageSource & { width: number; heig
     fade(w, 0, w * 0.84, 0, [w * 0.84, 0, w * 0.16, h], 1);
     fade(0, 0, 0, h * 0.12, [0, 0, w, h * 0.12], 1);
   }
-  fade(0, h, 0, h * 0.86, [0, h * 0.86, w, h * 0.14], 0.9);
+  fade(0, h, 0, h * 0.93, [0, h * 0.93, w, h * 0.07], 0.9);
   g.globalCompositeOperation = 'source-over';
   return canvas;
 }

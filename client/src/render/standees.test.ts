@@ -45,19 +45,31 @@ describe('the figures at a gear’s two sides', () => {
     expect(1280 - (ro.x + ro.w)).toBeCloseTo(lo.x, 6);
   });
 
-  it('fewer stand one a side first (the odd one at the left), a wide picture is made smaller to keep its share of the room, and a side with no room has none', () => {
-    const two = standeeBoxes([0.42, 0.42], VIEW).map((b) => b!);
-    expect(two[0].x + two[0].w).toBeLessThan(640);
-    expect(two[1].x).toBeGreaterThan(640);
-    expect([two[0].front, two[1].front]).toEqual([false, false]);
-    const three = standeeBoxes([0.42, 0.42, 0.42], VIEW);
-    expect(three.map((b) => (b ? (b.x < 640 ? 'left' : 'right') : null))).toEqual(['left', 'left', 'right']);
-    expect(standeeBoxes([0.42], VIEW)[0]!.x).toBeLessThan(640);
-    // a picture wider than it is tall: no wider than half the room by the gear (where a full-size figure's hip would be), its shape kept
-    const [wide] = standeeBoxes([1.4], VIEW).map((b) => b!);
-    expect(wide.w).toBeCloseTo(edgeAt(0, 720 - 720 * 0.54 * 0.36) * 0.5, 6);
-    expect(wide.w / wide.h).toBeCloseTo(1.4, 6);
-    expect(wide.y + wide.h).toBeCloseTo(720, 6);
+  it('one picture on a side fills the side: nearly as tall as the screen, a third of it behind the gear at its hip; a side with no room has none', () => {
+    const two = standeeBoxes([0.7, 0.7], VIEW).map((b) => b!);
+    for (const b of two) {
+      expect(b.h).toBeCloseTo(720 * 0.94, 6);
+      expect(b.w / b.h).toBeCloseTo(0.7, 6);
+      expect(b.y + b.h).toBeCloseTo(720, 6);
+      expect(b.front).toBe(false);
+    }
+    const hip = 720 - 720 * 0.94 * 0.36;
+    // their inner sides three tenths of their width inside the gear's edge at their hip, the two sides alike
+    expect(two[0].x + two[0].w).toBeCloseTo(edgeAt(0, hip) + two[0].w * 0.3, 6);
+    expect(two[1].x).toBeCloseTo(edgeAt(1, hip) - two[1].w * 0.3, 6);
+    expect(1280 - (two[1].x + two[1].w)).toBeCloseTo(two[0].x, 6);
+    // three: two figures at the left, one picture alone at the right
+    const three = standeeBoxes([0.4, 0.4, 0.7], VIEW).map((b) => b!);
+    expect(three.map((b) => (b.x + b.w / 2 < 640 ? 'left' : 'right'))).toEqual(['left', 'left', 'right']);
+    expect([three[0].h, three[1].h, three[2].h].map((h) => Math.round((h / 720) * 100))).toEqual([60, 54, 94]);
+    expect(standeeBoxes([0.7], VIEW)[0]!.x).toBeLessThan(640);
+    // a figure wider than it is tall, one of two: no wider than half the room by the gear (where a full-size figure's hip would be), its shape kept
+    const [, wide] = standeeBoxes([0.42, 1.4], { ...VIEW }).map((b) => b!);
+    expect(wide.w).toBeLessThanOrEqual(edgeAt(0, 720 - 720 * 0.94 * 0.36) * 1.9 + 1e-6);
+    const pair = standeeBoxes([0.42, 1.4, 0.42, 0.42], VIEW).map((b) => b!);
+    expect(pair[1].w).toBeCloseTo(edgeAt(0, 720 - 720 * 0.54 * 0.36) * 0.5, 6);
+    expect(pair[1].w / pair[1].h).toBeCloseTo(1.4, 6);
+    expect(pair[1].y + pair[1].h).toBeCloseTo(720, 6);
     // a gear that fills the screen (a wide gear on a narrow window, a preview): nobody stands
     expect(standeeBoxes([0.42, 0.42, 0.42, 0.42], { ...VIEW, line: [70, 1210], bottom: [40, 1240] })).toEqual([null, null, null, null]);
     expect(standeeBoxes([], VIEW)).toEqual([]);
