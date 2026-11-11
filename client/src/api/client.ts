@@ -132,6 +132,53 @@ export interface BackendStatus {
   license: string;
 }
 
+/** Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): its own Python, set up on first use. */
+export interface MapperStatus {
+  enabled: boolean;
+  /** disabled · unsupported (no NVIDIA GPU) · missing (not set up) · installing · failed · ready */
+  state: 'disabled' | 'unsupported' | 'missing' | 'installing' | 'failed' | 'ready';
+  model: string;
+  gpus: { name: string; memoryMB: number }[];
+  home: string;
+  reason?: string;
+  error?: string;
+  progress?: { step: string; fraction: number } | null;
+  runtime?: {
+    device: string;
+    gpu?: string | null;
+    memoryMB?: number | null;
+    /** CUDA compute capability [major, minor]; bf16 is native from 8 (Ampere). */
+    capability?: [number, number] | null;
+    /** Whether the GPU runs bf16 natively (what precision "auto" means on it); absent in older installs. */
+    bf16?: boolean | null;
+    torch?: string;
+    model?: string;
+  };
+  /** The last chart Mapperatorinator failed on (the built-in generator made it). */
+  lastError?: { chart: string; error: string; at: number } | null;
+  /** The settings screen's settings (kept in the runtime folder). */
+  settings?: MapperSettings;
+}
+
+export interface MapperSettings {
+  enabled: boolean;
+  model: 'v32' | 'v32-mini';
+  precision: 'auto' | 'fp32' | 'fp16';
+  /** The star rating asked for, times this (1: the level table's). */
+  starsScale: number;
+  /** null: the model chooses. */
+  holdNoteRatio: number | null;
+  temperature: number | null;
+  useAppTiming: boolean;
+  /** Hitsound tokens (two of a note's five): off is faster. */
+  hitsounds: boolean;
+  /** How much of a 16.4 s window is the previous notes (context) and a look ahead; the window advances by the rest. */
+  lookback: number;
+  lookahead: number;
+  /** Windows made independently in batches: fast, no context between windows. */
+  parallel: boolean;
+}
+
 export interface Health {
   ok: boolean;
   version: string;
@@ -141,6 +188,7 @@ export interface Health {
   difficulties: string[];
   formats: string[];
   backends: BackendStatus[];
+  mapper?: MapperStatus;
 }
 
 export interface GeneratedChartMeta {
@@ -280,7 +328,10 @@ export const api = {
   analysis: (id: string) => request<AnalysisResult>(`/api/songs/${id}/analysis`),
   sections: (id: string) => request<SongSections>(`/api/songs/${id}/sections`),
   sketch: (id: string) => request<SongSketch>(`/api/songs/${id}/sketch`),
-  generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean }>(`/api/songs/${id}/charts`, json(req)),
+  generate: (id: string, req: ChartRequest) => request<{ chart: ServerChart; cached: boolean; notice?: string }>(`/api/songs/${id}/charts`, json(req)),
+  mapper: () => request<MapperStatus>('/api/mapper'),
+  installMapper: () => request<MapperStatus>('/api/mapper/install', { method: 'POST' }),
+  mapperSettings: (patch: Partial<MapperSettings>) => request<MapperStatus>('/api/mapper/settings', { ...json(patch), method: 'PUT' }),
   /** The chart's meta only (made and kept by the server like the whole chart). */
   chartMeta: async (id: string, req: ChartRequest) => (await request<{ meta: ServerChart['meta']; cached: boolean }>(`/api/songs/${id}/charts`, json({ ...req, brief: true }))).meta,
   saveScore: (record: {

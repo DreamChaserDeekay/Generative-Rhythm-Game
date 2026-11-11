@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Song, type SongSketch } from '../api/client';
 import { token } from './theme';
+import { uiScale } from './uiScale';
 
 /** Colour token of the stem that leads a section. */
 const STEM_TOKENS: Record<string, string> = { drums: '--stem-drums', bass: '--stem-bass', vocals: '--stem-vocals', other: '--stem-other' };
@@ -50,7 +51,8 @@ export function leadingStem(sketch: SongSketch): string | null {
  * on it and the clear hub round the hole.
  */
 export function drawDisc(canvas: HTMLCanvasElement, size: number, colour: string): void {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  // (drawn for the size it shows at: the menus grow with the window)
+  const dpr = Math.min(4, (window.devicePixelRatio || 1) * uiScale());
   canvas.width = Math.round(size * dpr);
   canvas.height = Math.round(size * dpr);
   const g = canvas.getContext('2d');
@@ -113,30 +115,39 @@ export function drawDisc(canvas: HTMLCanvasElement, size: number, colour: string
   g.globalAlpha = 1;
 }
 
-/** A disc cover (see drawDisc): a song's without a picture of its own, or a play's without a song. */
-export function Disc({ size, stem = null, className = '' }: { size: number; stem?: string | null; className?: string }) {
+/** A picture's side as the page sizes it: `size` is in the menus' own pixels (16 to the rem), so it grows with them. */
+const side = (size: number) => ({ width: `${size / 16}rem`, height: `${size / 16}rem` });
+
+/**
+ * A disc cover (see drawDisc): a song's without a picture of its own, or a play's without a song.
+ * `size` is how large it is drawn (and shown, unless `fit`: then the style sheet sizes it).
+ */
+export function Disc({ size, stem = null, className = '', fit = false }: { size: number; stem?: string | null; className?: string; fit?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (canvas.current) drawDisc(canvas.current, size, token(stem ? stemToken(stem) : '--text-dim'));
   }, [size, stem]);
-  return <canvas ref={canvas} className={`song-art ${className}`} style={{ width: size, height: size }} aria-hidden="true" />;
+  return <canvas ref={canvas} className={`song-art ${className}`} style={fit ? undefined : side(size)} aria-hidden="true" />;
 }
 
 /** The song's picture: its own cover when it has one, else its disc. */
-export function SongArt({ song, size, className = '' }: { song: Song; size: number; className?: string }) {
+export function SongArt({ song, size, className = '', fit = false }: { song: Song; size: number; className?: string; fit?: boolean }) {
   // a cover that fails to load leaves the disc, until another cover comes
   const [failed, setFailed] = useState<string | null>(null);
   const cover = api.coverUrl(song);
   const covered = song.hasCover && failed !== cover;
   const sketch = useSketch(covered ? null : song);
   // (the song list is not cut to what shows: a cover loads as its row comes into view, a large BMP off the main thread)
-  if (covered) return <img className={`song-art ${className}`} style={{ width: size, height: size }} src={cover} alt="" loading="lazy" decoding="async" onError={() => setFailed(cover)} />;
-  return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} />;
+  if (covered) return <img className={`song-art ${className}`} style={fit ? undefined : side(size)} src={cover} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(cover)} />;
+  return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} fit={fit} />;
 }
 
+/** The side of the picture the backdrop is stretched from: a few pixels, so it is a wash of colour with no shape left in it. */
+const WASH_SIDE = 6;
+
 /**
- * The selected song's picture read into 24 px and stretched over the screen: a soft field of its
- * colours behind the menus, with no blur filter (a disc cover's colour, evenly).
+ * The selected song's picture read into a few pixels and stretched over the screen: a soft field
+ * of its colours behind the menus, with no blur filter (a disc cover's colour, evenly).
  */
 export function Backdrop({ song }: { song: Song | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -151,6 +162,7 @@ export function Backdrop({ song }: { song: Song | null }) {
     const paint = (source: CanvasImageSource) => {
       if (!alive) return;
       small.clearRect(0, 0, c.width, c.height);
+      small.imageSmoothingQuality = 'high';
       small.drawImage(source, 0, 0, c.width, c.height);
       setDrawn(song.id);
     };
@@ -179,7 +191,7 @@ export function Backdrop({ song }: { song: Song | null }) {
   }, [song?.id, song?.hasCover, song?.coverAt, sketch]);
   return (
     <div className="backdrop" aria-hidden="true">
-      <canvas ref={canvas} width={24} height={24} className={drawn && drawn === song?.id ? 'shown' : ''} />
+      <canvas ref={canvas} width={WASH_SIDE} height={WASH_SIDE} className={drawn && drawn === song?.id ? 'shown' : ''} />
     </div>
   );
 }

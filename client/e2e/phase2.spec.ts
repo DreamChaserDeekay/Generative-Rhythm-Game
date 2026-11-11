@@ -63,7 +63,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await songInfo(page);
   const holds = async () => Number(((await page.getByTestId('chart-preview').locator('.preview-stats div').nth(1).textContent()) ?? '').replace(/\D/g, ''));
   const balancedHolds = await holds();
-  await playOptions(page, 'generation');
+  await playOptions(page);
   await page.getByTestId('style-longnote').click();
   await expect.poll(() => level.getAttribute('data-chart-id'), { timeout: 30_000 }).not.toBe(balanced);
   await songInfo(page);
@@ -72,7 +72,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await expect(page.getByTestId('chart-minimap')).toBeVisible();
 
   // Practice: default eight-bar segment, 0.75x, no loop, autoplay.
-  await playOptions(page, 'rules');
+  await playOptions(page);
   await page.getByTestId('practice-toggle').check();
   await expect(page.getByTestId('practice-options')).toBeVisible();
   const rate = page.getByTestId('practice-rate');
@@ -82,7 +82,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await page.getByTestId('practice-loop').uncheck();
   await page.screenshot({ path: 'test-results/select-phase2.png' });
   await page.getByTestId('autoplay-toggle').check();
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(6000);
   await page.screenshot({ path: 'test-results/play-practice.png' });
@@ -100,7 +100,7 @@ test('generation styles, practice at 0.75x, and a HAZARD failure', async ({ page
   await page.getByTestId('practice-toggle').uncheck();
   await page.getByTestId('toggle-rules').click();
   await chooseSetting(page, 'rule-gauge', 'HAZARD');
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('result-lamp')).toHaveText('FAILED');

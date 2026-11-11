@@ -30,6 +30,8 @@ log = logging.getLogger("rhythm_server.analysis")
 
 ANALYZER_NAME = "core"
 ANALYZER_VERSION = "1.16.0"
+# the progress line's name for each backend
+BACKEND_NAMES = {"demucs": "Demucs", "roformer": "BS-RoFormer", "beat_this": "beat_this", "basic_pitch": "basic-pitch", "allin1": "allin1"}
 RESULT_VERSION = 1
 
 FINE_NFFT = 1024
@@ -200,19 +202,20 @@ def analyze(
 
     def run_ml(kind: str, step: float, label: str, fn: Callable[[Any, dict[str, Any]], Any]) -> Any:
         backend = active.get(kind)
-        if backend is None:
-            return None
-        outer(step, label)
-        try:
-            result = fn(backend.module(), backend.options)
-        except Exception as e:  # a broken backend must not break the analysis
-            log.warning("%s backend %s failed: %s", kind, backend.label, e)
-            errors[kind] = f"{type(e).__name__}: {e}"
-            return None
-        used[kind] = backend.label
-        return result
+        while backend is not None:
+            outer(step, label.format(BACKEND_NAMES.get(backend.name, backend.name)))
+            try:
+                result = fn(backend.module(), backend.options)
+            except Exception as e:  # a broken backend must not break the analysis
+                log.warning("%s backend %s failed: %s", kind, backend.label, e)
+                errors[kind] = f"{type(e).__name__}: {e}"
+                backend = getattr(backend, "fallback", None)  # the kind's second backend, when it has one
+                continue
+            used[kind] = backend.label
+            return result
+        return None
 
-    ml_stems = run_ml("stems", 0.02, "스템 분리 (Demucs)", lambda m, o: m.separate(pcm, sr, o))
+    ml_stems = run_ml("stems", 0.02, "스템 분리 ({})", lambda m, o: m.separate(pcm, sr, o))
     ml_beats = run_ml("beats", 0.35, "비트 추적 (beat_this)", lambda m, o: m.track(pcm, sr, o))
     ml_notes = run_ml("pitch", 0.42, "음 전사 (basic-pitch)", lambda m, o: m.notes(pcm, sr, o))
     ml_struct = run_ml("structure", 0.5, "곡 구조 (allin1)", lambda m, o: m.structure(pcm, sr, o))

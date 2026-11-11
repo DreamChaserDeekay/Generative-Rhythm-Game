@@ -1,0 +1,27 @@
+/* The game's own stylesheet, kept in a layer under the mockup's: only the play screen's HUD (the
+   gears' numbers, gauges and panels, which this mockup leaves as they are) is drawn with it. */
+@import '../../client/src/styles.css' layer(game);
+@import './css/base.css';
+@import './css/select.css';
+@import './css/config.css';
+@import './css/play.css';
+@import './css/chrome.css';
+
+@font-face {
+  font-family: 'HJ Pretendard';
+  src: url('../../client/src/assets/fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HJ Barlow';
+  src: url('../../client/src/assets/fonts/BarlowCondensed-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HJ Barlow';
+  src: url('../../client/src/assets/fonts/BarlowCondensed-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}

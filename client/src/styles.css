@@ -105,19 +105,28 @@
 }
 
 :root {
-  /* colour: five base tokens */
-  --bg: #0b0c10;
-  --surface: #15171f;
-  --text: #f3f5f9;
-  --text-dim: #a6adbd;
-  --accent: #37e2ff;
-  /* the game's own colour: the emblem and the gear's right rail only, never controls or text */
+  /* colour: ink and paper. The screen is ink, what is picked or pressed is a paper plate with ink
+     type on it, and colour itself is kept for what it means: a difficulty, a lamp, a judgement,
+     an instrument */
+  --bg: #0b0c0e;
+  --surface: #121317;
+  --text: #f3f1ec;
+  --text-dim: #bab8b2;
+  /* what is there but not picked (a key mode, an empty mark): never small type */
+  --text-faint: #8d8b86;
+  /* the paper: the picked row, the main button, the focus line */
+  --accent: #f3f1ec;
+  /* the gear's right rail only, never controls or text */
   --brand-rail: #ff4fd8;
+  /* the play field's own light (the visualizer behind the track) */
+  --field-accent: #37e2ff;
 
   /* mixed from the base tokens only */
   --on-accent: var(--bg);
-  --line: color-mix(in srgb, var(--text) 14%, transparent);
-  --line-strong: color-mix(in srgb, var(--text) 28%, transparent);
+  /* the second line of text on a paper plate */
+  --on-accent-dim: color-mix(in srgb, var(--bg) 72%, var(--accent));
+  --line: color-mix(in srgb, var(--text) 11%, transparent);
+  --line-strong: color-mix(in srgb, var(--text) 26%, transparent);
   --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
   --raised-hover: color-mix(in srgb, var(--text) 14%, var(--surface));
   --sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
@@ -176,40 +185,48 @@
   --font-ui: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
   --font-display: 'Barlow Condensed', var(--font-ui);
 
-  /* type: six sizes (13px only for bold labels, key caps and badges) */
-  --fs-label: 13px;
-  --fs-body: 16px;
-  --fs-title: 20px;
-  --fs-heading: 28px;
-  --fs-display: 40px;
-  --fs-hero: 64px;
+  /* type: six sizes (13 only for bold labels, key caps and badges). Sizes are in rem: the menus
+     are drawn for a 1280 × 720 window and grow with a larger one (ui/uiScale.ts sets --ui-scale) */
+  --fs-label: 0.8125rem;
+  --fs-body: 1rem;
+  --fs-title: 1.25rem;
+  --fs-heading: 1.75rem;
+  --fs-display: 2.5rem;
+  --fs-hero: 4rem;
 
   /* spacing: multiples of 4 */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-12: 48px;
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-12: 3rem;
 
-  /* corners */
-  --radius-sm: 4px;
-  --radius: 8px;
+  /* corners: square (a key cap alone is eased) */
+  --radius-sm: 0rem;
+  --radius: 0rem;
+  --radius-key: 2px;
 
   /* repeated sizes */
-  --control-h: 40px;
-  --measure: 720px;
-  --page: 1200px;
-  --topbar-h: 56px;
-  --hintbar-h: 48px;
+  --control-h: 2.5rem;
+  --measure: 45rem;
+  --page: 75rem;
+  --topbar-h: 3.5rem;
+  --hintbar-h: 2.75rem;
+  /* the side margin of every menu screen */
+  --gutter: 3rem;
+  /* the lean of a plate: the difficulty plates, the main key, the picked tab */
+  --skew: -12deg;
 
   /* motion: only when something changes (none with reduced motion) */
-  --motion-fast: 120ms;
+  --motion-fast: 110ms;
+  --motion-move: 170ms;
   --motion-screen: 200ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
+  font-size: calc(16px * var(--ui-scale, 1));
   line-height: 1.5;
   /* Korean breaks between words, not inside them */
   word-break: keep-all;
@@ -217,6 +234,7 @@
   color: var(--text);
   background: var(--bg);
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- base ---------- */
@@ -236,15 +254,25 @@ body,
   overflow: hidden;
 }
 
+/* the cursor of a keyboard or a pad: a paper line around what a key would press. Rows and list
+   entries turn into a paper plate instead (see .opt, .menu-item, the song list) */
 :focus-visible,
 :root[data-input='pad'] :focus,
 :root[data-input='controller'] :focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.125rem;
 }
 
 [hidden] {
   display: none !important;
+}
+
+/* numbers, levels and key names: the condensed face, digits of one width */
+.num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 /* ---------- controls ---------- */
@@ -258,20 +286,20 @@ a.button {
   min-height: var(--control-h);
   padding: 0 var(--sp-4);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   text-decoration: none;
-  background: var(--raised);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.1s, border-color 0.1s;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
 }
 
 button:hover:not(:disabled),
 a.button:hover {
-  background: var(--raised-hover);
-  border-color: var(--line-strong);
+  background: var(--raised);
+  border-color: var(--text-dim);
 }
 
 button:active:not(:disabled) {
@@ -287,6 +315,7 @@ button:disabled {
   opacity: var(--disabled-opacity);
 }
 
+/* the one button a screen is for: a paper plate */
 button.primary {
   font-weight: 800;
   color: var(--on-accent);
@@ -295,8 +324,8 @@ button.primary {
 }
 
 button.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 80%, var(--text));
-  border-color: color-mix(in srgb, var(--accent) 80%, var(--text));
+  background: color-mix(in srgb, var(--accent) 86%, var(--bg));
+  border-color: color-mix(in srgb, var(--accent) 86%, var(--bg));
 }
 
 button.primary:disabled {
@@ -307,7 +336,7 @@ button.primary:disabled {
 
 button.small,
 a.button.small {
-  min-height: 32px;
+  min-height: 2rem;
   padding: 0 var(--sp-3);
   font-size: var(--fs-label);
   font-weight: 700;
@@ -330,27 +359,24 @@ button.danger {
   border-color: color-mix(in srgb, var(--g-break) 45%, transparent);
 }
 
+/* a key: an outlined cap in the colour of the text it stands in (ink on a paper plate) */
 kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 22px;
-  padding: 0 var(--sp-1);
-  font-family: var(--font-ui);
+  min-width: 1.5rem;
+  height: 1.375rem;
+  padding: 0 0.3125rem;
+  font-family: var(--font-display);
   font-size: var(--fs-label);
   font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1;
-  color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-
-button.primary kbd {
-  color: var(--on-accent);
-  background: color-mix(in srgb, var(--bg) 16%, transparent);
-  border-color: color-mix(in srgb, var(--bg) 32%, transparent);
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 46%, transparent);
+  border-radius: var(--radius-key);
 }
 
 input:not([type]),
@@ -363,18 +389,27 @@ select {
   font: inherit;
   color: var(--text);
   background: var(--sunken);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
+}
+
+input:not([type]):focus-visible,
+input[type='number']:focus-visible,
+input[type='text']:focus-visible,
+input[type='search']:focus-visible,
+select:focus-visible {
+  outline-offset: -1px;
+  border-color: var(--accent);
 }
 
 input[type='number'],
 input[type='text'],
 input[type='search'] {
-  width: 88px;
+  width: 5.5rem;
 }
 
 input.youtube-link {
-  flex: 1 1 260px;
+  flex: 1 1 16.25rem;
   width: auto;
   min-width: 0;
 }
@@ -385,24 +420,24 @@ textarea::placeholder {
 }
 
 input[type='range'] {
-  width: 224px;
+  width: 14rem;
   accent-color: var(--accent);
 }
 
 input[type='checkbox'] {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   margin: var(--sp-1) 0 0;
   accent-color: var(--accent);
 }
 
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: var(--sunken);
+  background: transparent;
 }
 
 .segmented.wrap {
@@ -432,9 +467,22 @@ input[type='checkbox'] {
   background: var(--accent);
 }
 
+/* the cursor on a picked choice: the paper line drawn inside the plate, in ink */
+.segmented button:focus-visible,
+:root[data-input='pad'] .segmented button:focus,
+:root[data-input='controller'] .segmented button:focus {
+  outline-offset: -0.25rem;
+}
+
+.segmented button.active:focus-visible,
+:root[data-input='pad'] .segmented button.active:focus,
+:root[data-input='controller'] .segmented button.active:focus {
+  outline-color: var(--on-accent);
+}
+
 .options-grid {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 7rem minmax(0, 1fr);
   gap: var(--sp-3) var(--sp-4);
   align-items: center;
   margin: var(--sp-4) 0;
@@ -468,13 +516,13 @@ input[type='checkbox'] {
 }
 
 .screen-enter {
-  animation: screen-in var(--motion-screen) ease-out;
+  animation: screen-in var(--motion-screen) var(--ease);
 }
 
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(0.5rem);
   }
 }
 
@@ -487,37 +535,46 @@ input[type='checkbox'] {
 .topbar {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-6);
   flex-shrink: 0;
   height: var(--topbar-h);
-  padding: 0 var(--sp-6);
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  margin: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
 }
 
+/* the game's mark: four keys, one of them down */
 .wordmark {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 0.625rem;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.18em;
   white-space: nowrap;
 }
 
+.wordmark .emblem {
+  width: 1.3125rem;
+  height: 0.9375rem;
+}
+
 .topbar .screen-name {
-  padding-left: var(--sp-4);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbar .screen-detail {
   font-weight: 600;
   color: var(--text-dim);
   white-space: nowrap;
-  border-left: 1px solid var(--line-strong);
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
   margin-left: auto;
 }
 
@@ -528,32 +585,32 @@ input[type='checkbox'] {
 .hintbar {
   display: flex;
   align-items: center;
-  gap: var(--sp-6);
+  gap: 1.375rem;
   flex-shrink: 0;
   height: var(--hintbar-h);
-  padding: 0 var(--sp-6);
-  overflow: hidden;
+  margin: 0 var(--gutter);
+  /* (a plate at the end may lean past the line) */
+  overflow: visible;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-dim);
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
   border-top: 1px solid var(--line);
 }
 
 .hint-item {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 0.4375rem;
   white-space: nowrap;
 }
 
 .hint-item kbd + kbd {
-  margin-left: calc(-1 * var(--sp-1));
+  margin-left: -0.1875rem;
 }
 
 /* a hint that is also a button: the same line, raised under the pointer */
 button.hint-item {
-  min-height: 32px;
+  min-height: 1.875rem;
   margin: 0 calc(-1 * var(--sp-2));
   padding: 0 var(--sp-2);
   font-size: inherit;
@@ -569,15 +626,38 @@ button.hint-item:hover:not(:disabled) {
   border-color: transparent;
 }
 
+/* the screen's main key: a leaning paper plate at the end of the line */
+.hint-item.main,
+button.hint-item.main {
+  min-height: 1.875rem;
+  margin: 0;
+  padding: 0 0.875rem 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 0;
+  transform: skewX(var(--skew));
+}
+
+.hint-item.main > * {
+  transform: skewX(calc(-1 * var(--skew)));
+}
+
+button.hint-item.main:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: color-mix(in srgb, var(--accent) 86%, var(--bg));
+}
+
 /* the screen's keys: on a narrow window the minor ones give way, then any that do not fit (they
    wrap onto a hidden line), so the main one at the end stays whole */
 .hint-main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-4) var(--sp-6);
+  gap: var(--sp-4) 1.375rem;
   min-width: 0;
-  height: 32px;
+  height: 1.875rem;
   /* (a focused hint's outline stays whole; the hidden line starts below it) */
   overflow: clip;
   overflow-clip-margin: var(--sp-1);
@@ -587,7 +667,7 @@ button.hint-item:hover:not(:disabled) {
 }
 
 .hint-main .hint-item {
-  min-height: 32px;
+  min-height: 1.875rem;
 }
 
 @media (max-width: 1200px) {
@@ -598,8 +678,9 @@ button.hint-item:hover:not(:disabled) {
 
 .hint-end {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: var(--sp-6);
+  gap: 1.375rem;
   margin-left: auto;
 }
 
@@ -610,7 +691,7 @@ button.hint-item:hover:not(:disabled) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-8) max(var(--sp-4), calc((100% - 960px) / 2)) var(--sp-12);
+  padding: var(--sp-8) max(var(--sp-4), calc((100% - 60rem) / 2)) var(--sp-12);
 }
 
 /* a screen's lead line under the top bar: what to do here */
@@ -650,7 +731,7 @@ button.hint-item:hover:not(:disabled) {
 }
 
 .row .label {
-  min-width: 96px;
+  min-width: 6rem;
   font-size: var(--fs-label);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -692,8 +773,45 @@ p.hint {
   color: var(--g-break);
 }
 
+/* a short fact on a line of its own kind: a key mode, a rule, a kind of play */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+  padding: 0 0.625rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.chip b {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* a song's picture beside its name: the square it stands in (each screen gives it its size) */
+.hero-art {
+  position: relative;
+  aspect-ratio: 1;
+}
+
+.hero-art .song-art {
+  width: 100% !important;
+  height: 100% !important;
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+
 .progress {
-  height: 8px;
+  height: 0.5rem;
   margin-top: var(--sp-2);
   border-radius: var(--radius-sm);
   background: var(--raised);
@@ -701,7 +819,7 @@ p.hint {
 }
 
 .progress.small {
-  height: 4px;
+  height: 0.25rem;
 }
 
 .progress > div {
@@ -765,9 +883,11 @@ p.hint {
   background: var(--bg);
 }
 
-/* No backdrop blur on the loading overlay: with its bar running, a full-screen backdrop blur is
-   redone every frame. Rendering in software (no GPU) that kept Chrome's GPU process busy, and the
-   track's WebGL setup waited behind it with the page frozen (~14 s). Nothing is drawn behind it yet. */
+/* What stands over the play: the start card, the pause menu, a play that could not load. No
+   backdrop blur on any of them: under the start card's running bar a full-screen blur was redone
+   every frame, and rendering in software (no GPU) that kept Chrome's GPU process busy while the
+   track's WebGL setup waited behind it with the page frozen (~14 s). A flat scrim instead: the
+   stopped field stays in sight, dim. */
 .play-overlay {
   position: absolute;
   inset: 0;
@@ -776,127 +896,238 @@ p.hint {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-3);
-  background: var(--scrim);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
 }
 
-.play-overlay h2 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-heading);
+/* a sheet in the middle: a heading or a message, a few rows to pick from, and what it stands over */
+.play-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(22rem, calc(100% - 2 * var(--sp-4)));
+  padding: 1.25rem 1.25rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+}
+
+.play-sheet h2 {
+  margin: 0 0 0.875rem;
+  font-size: var(--fs-title);
   font-weight: 800;
+  line-height: 1.3;
 }
 
-.pause-menu button {
-  min-width: 240px;
+.play-sheet .error {
+  margin: 0 0 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.play-sheet-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* a row and its key: the one under the cursor is a paper plate */
+.play-sheet-rows button {
   justify-content: space-between;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  font-size: 1.0625rem;
+  text-align: left;
+  border: 0;
 }
 
-/* the loading card: the song about to play on its own colours (a still canvas, no blur) */
+.play-sheet-rows button:hover:not(:disabled) {
+  background: var(--raised);
+}
+
+/* (the cursor of a keyboard or a pad: the plate, not the line round a control) */
+.play-sheet-rows button:focus,
+.play-sheet-rows button:focus:hover:not(:disabled),
+:root[data-input='pad'] .play-sheet-rows button:focus,
+:root[data-input='controller'] .play-sheet-rows button:focus {
+  font-weight: 800;
+  color: var(--on-accent);
+  background: var(--accent);
+  outline: none;
+}
+
+.play-sheet-rows button:active:not(:disabled) {
+  transform: none;
+}
+
+/* the song, its tier and its level, quiet under the rows: a long title gives way, the rest stays */
+.play-sheet-song {
+  display: flex;
+  margin: 0.875rem 0 0;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: pre;
+  color: var(--text-dim);
+}
+
+.play-sheet-song > span {
+  flex: none;
+}
+
+.play-sheet-song > span:first-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the start card: the song about to play on its own colours (a still canvas, no blur), its jacket
+   and what is to be played beside it, the loading under them. No panel round it. */
 .play-loading {
   isolation: isolate;
-  gap: 0;
   background: var(--bg);
 }
 
+.loading-card,
+.loading-status {
+  width: min(56rem, calc(100% - 2 * var(--gutter)));
+}
+
 .loading-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--sp-8);
-  width: min(880px, calc(100% - var(--sp-8)));
-  padding: var(--sp-8);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+/* the jacket, square; a short or a narrow window has a smaller one. Coming over from the song
+   select (jacketFlight.ts) it passes over what stands beside it */
+.loading-jacket {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: min(19rem, 32vw, 44vh);
+  aspect-ratio: 1;
+  background: var(--raised);
 }
 
 .loading-art {
-  width: clamp(120px, 30vh, 240px) !important;
-  height: clamp(120px, 30vh, 240px) !important;
-  border-radius: var(--radius);
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
 }
 
 .loading-text {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
   min-width: 0;
+}
+
+.loading-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+}
+
+/* the tier, its level and the key mode: a leaning plate in the tier's colour, ink on it (its
+   lower corner stands on the title's edge) */
+.loading-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.75rem;
+  margin-left: 0.1875rem;
+  padding: 0 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--on-accent);
+  background: var(--diff);
+  transform: skewX(var(--skew));
+}
+
+.loading-tier > * {
+  transform: skewX(calc(-1 * var(--skew)));
+}
+
+.loading-level {
+  font-size: var(--fs-title);
+  letter-spacing: 0.01em;
+}
+
+/* (a line that leans with the plate) */
+.loading-tier > i {
+  align-self: stretch;
+  width: 1px;
+  margin: 0.375rem 0.125rem;
+  background: currentColor;
+  opacity: 0.4;
+  transform: none;
+}
+
+/* how the play runs: AUTO, REPLAY, 연습 */
+.loading-mode {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
 }
 
 .loading-text h1 {
   display: -webkit-box;
-  margin: 0;
+  margin: 0.875rem 0 0;
   font-size: var(--fs-display);
-  font-weight: 700;
-  line-height: 1.15;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   overflow: hidden;
   overflow-wrap: anywhere;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
-.loading-text .artist {
-  margin: var(--sp-1) 0 var(--sp-4);
+.loading-artist {
+  margin: 0.375rem 0 0;
   font-size: var(--fs-title);
+  font-weight: 500;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.loading-text p {
-  margin: 0 0 var(--sp-4);
-}
-
-.loading-tier {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
-.loading-tier .tier-name {
-  font-size: var(--fs-title);
-  letter-spacing: 0.04em;
-  color: var(--diff);
-}
-
-.loading-tier .loading-level {
-  font-size: var(--fs-display);
-  line-height: 1;
-}
-
-.loading-tier .key-mode {
-  font-size: var(--fs-title);
-  color: var(--text-dim);
-}
-
-.loading-tier .play-mode {
-  padding: 0 var(--sp-2);
-  font-family: var(--font-ui);
-  font-size: var(--fs-label);
-  color: var(--text-dim);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-
+/* the chart in numbers: a small label over each */
 .loading-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-6);
+  gap: var(--sp-3) 2.25rem;
+  margin: 1.75rem 0 0;
+}
+
+.loading-facts > span {
+  display: flex;
+  flex-direction: column;
 }
 
 .loading-facts .label {
   font-size: var(--fs-label);
   font-weight: 700;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 
 .loading-facts b {
-  margin-left: var(--sp-1);
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 2rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 /* the rules the play runs on where they are not the defaults (judgement, placement, score, gauge) */
@@ -904,17 +1135,19 @@ p.hint {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+  margin: var(--sp-4) 0 0;
 }
 
 .loading-rule {
-  padding: var(--sp-1) var(--sp-2);
-  font-size: var(--fs-label);
-  line-height: 1.2;
+  padding: 0.1875rem var(--sp-2);
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  white-space: nowrap;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
 }
 
 .loading-rule .label {
+  font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
 }
@@ -923,30 +1156,29 @@ p.hint {
   font-weight: 700;
 }
 
+/* under the card, as wide: the running bar, what is loading, the way out */
 .loading-status {
-  margin-top: auto;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: 2.5rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
 }
 
 .loading-status p {
-  margin: 0 0 var(--sp-2);
-}
-
-.loading-progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  margin: 0;
 }
 
 /* no progress is reported while audio loads: a bar that runs, not a made-up share */
 .loading-bar {
   position: relative;
   flex: 1;
-  min-width: 80px;
-  height: 4px;
+  min-width: 5rem;
+  height: 0.125rem;
   overflow: hidden;
   background: var(--line);
-  border-radius: 2px;
 }
 
 .loading-bar i {
@@ -954,7 +1186,6 @@ p.hint {
   inset: 0 auto 0 0;
   width: 30%;
   background: var(--text);
-  border-radius: 2px;
   animation: loading-run 1.4s ease-in-out infinite;
 }
 
@@ -975,36 +1206,82 @@ p.hint {
   }
 }
 
-/* the keys of the lanes, coloured by the instrument each lane follows most */
+/* the keys of the lanes at the foot of the screen, each over the colour of the instrument its
+   lane follows most; the instruments are named beside them */
 .loading-keys {
   position: absolute;
   bottom: var(--sp-8);
   left: 50%;
   display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+  align-items: flex-start;
+  gap: 0.375rem;
+  line-height: 1.75rem;
   transform: translateX(-50%);
 }
 
-.loading-keys .label {
-  margin: 0 var(--sp-2);
+.loading-keys .label,
+.loading-stems {
   font-size: var(--fs-label);
   font-weight: 700;
-  color: var(--text-dim);
   white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.loading-keys .label {
+  margin-right: var(--sp-2);
 }
 
 .loading-key {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
+  gap: 0.25rem;
+}
+
+.loading-key kbd {
+  min-width: 2.125rem;
+  height: 1.75rem;
+  padding: 0 var(--sp-2);
+  font-size: 0.9375rem;
 }
 
 .loading-key i {
-  width: 44px;
-  height: 8px;
-  border-radius: 2px;
+  height: 0.1875rem;
+}
+
+.loading-stems {
+  display: flex;
+  gap: var(--sp-3);
+  margin-left: var(--sp-3);
+}
+
+.loading-stem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.loading-stem i {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+/* a short window: the card's parts stand closer, so the loading keeps clear of the keys */
+@media (max-height: 600px) {
+  .loading-facts {
+    margin-top: var(--sp-4);
+  }
+
+  .loading-rules {
+    margin-top: var(--sp-2);
+  }
+
+  .loading-status {
+    margin-top: var(--sp-4);
+  }
+
+  .loading-keys {
+    bottom: var(--sp-4);
+  }
 }
 
 /* HUD: the song sits on the screen (sizes are the type tokens times --hud-scale, 1 at 720px high,
@@ -1012,6 +1289,39 @@ p.hint {
    which Hud.ts lays under the camera's projection with every part sized for the screen where it lies */
 .hud {
   --hud-scale: 1;
+  /* the HUD and the gears keep their own look and their own scale (--hud-scale) whatever the menus
+     do: the tokens they are built from are restated here, in pixels and in the gears' colours */
+  --bg: #0b0c10;
+  --surface: #15171f;
+  --text: #f3f5f9;
+  --text-dim: #a6adbd;
+  --accent: #37e2ff;
+  --on-accent: var(--bg);
+  --line: color-mix(in srgb, var(--text) 14%, transparent);
+  --line-strong: color-mix(in srgb, var(--text) 28%, transparent);
+  --raised: color-mix(in srgb, var(--text) 7%, var(--surface));
+  --raised-hover: color-mix(in srgb, var(--text) 14%, var(--surface));
+  --sunken: color-mix(in srgb, var(--bg) 60%, var(--surface));
+  --scrim: color-mix(in srgb, var(--bg) 88%, transparent);
+  --panel: color-mix(in srgb, var(--surface) 92%, transparent);
+  --fs-label: 13px;
+  --fs-body: 16px;
+  --fs-title: 20px;
+  --fs-heading: 28px;
+  --fs-display: 40px;
+  --fs-hero: 64px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --control-h: 40px;
+  font-size: 16px;
+  color: var(--text);
   position: absolute;
   inset: 0;
   z-index: 10;
@@ -1020,58 +1330,120 @@ p.hint {
   font-variant-numeric: tabular-nums;
 }
 
-/* a plate keeps the song readable over a video or the visualizer; --info-room (Hud.fit) keeps it
-   clear of the gear where the track comes near the screen's corner, and --info-scale shrinks it
-   where that room is narrower than its difficulty chip */
+.hud kbd {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 var(--sp-1);
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* the song at the screen's top left: its jacket, its title over its artist, its difficulty and how
+   the play runs. A flat plate keeps it readable over a video at any brightness (no outline, no
+   shadow); --info-room (Hud.fit) keeps it clear of the gear where the track comes near the
+   screen's corner and no wider than what stands on it, and --info-scale shrinks it where that
+   room is narrower than its widest part. It keeps low, as high as its jacket where it can: the
+   column left of the gear stands under it. */
 .hud-info {
   position: absolute;
   top: var(--sp-4);
   left: var(--sp-4);
   max-width: min(40%, var(--info-room, 100%));
-  padding: var(--sp-2) var(--sp-3);
   background: color-mix(in srgb, var(--bg) 72%, transparent);
-  border-radius: var(--radius-sm);
   transform: scale(var(--info-scale, 1));
   transform-origin: 0 0;
 }
 
-/* the difficulty and key mode go under the title where the plate is too narrow for one line */
 .hud-head {
+  display: flex;
+}
+
+/* the jacket, to the plate's edges */
+.hud-jacket {
+  flex: none;
+  align-self: flex-start;
+  display: block;
+  width: calc(48px * var(--hud-scale));
+  height: calc(48px * var(--hud-scale));
+}
+
+/* beside it the song's line: its name, its difficulty, how the play runs. What does not fit
+   beside the name goes under it */
+.hud-line {
+  flex: 1 1 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-1) var(--sp-3);
+  align-content: center;
+  gap: calc(2px * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale));
+  min-width: 0;
+  padding: calc(3px * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale));
   white-space: nowrap;
 }
 
-.hud-chips {
+.hud-name {
+  flex: 0 1 auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-top: var(--sp-1);
+  flex-direction: column;
+  min-width: 0;
 }
 
 .hud-title {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: calc(var(--fs-body) * var(--hud-scale));
   font-weight: 800;
+  line-height: 1.2;
 }
 
+.hud-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(var(--fs-label) * var(--hud-scale));
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+
+/* a narrow plate (Hud.fit): the difficulty stands under the title, in the artist's place */
+.hud-artist:empty,
+.hud-info.tight .hud-artist {
+  display: none;
+}
+
+/* the difficulty and its key mode keep together */
+.hud-tier {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-2) * var(--hud-scale));
+}
+
+/* the tier and its level: a leaning plate in the tier's colour, ink on it (its lower corner
+   stands on the title's edge where it is under it) */
 .hud-diff {
   flex: none;
   display: inline-flex;
   align-items: baseline;
-  gap: var(--sp-1);
-  padding: 0 var(--sp-2);
+  gap: calc(var(--sp-1) * var(--hud-scale));
+  margin-left: calc(2px * var(--hud-scale));
+  padding: 0 calc(var(--sp-2) * var(--hud-scale));
   font-family: var(--font-display);
   font-size: calc(var(--fs-body) * var(--hud-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.25;
   color: var(--bg);
   background: var(--diff);
-  border-radius: var(--radius-sm);
+  transform: skewX(var(--skew));
+}
+
+.hud-diff > * {
+  transform: skewX(calc(-1 * var(--skew)));
 }
 
 .hud-diff-level:empty {
@@ -1085,15 +1457,34 @@ p.hint {
   color: var(--text-dim);
 }
 
-/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL */
+/* how the play runs (AUTO, REPLAY, 연습) and a judgement that is not NORMAL: together on the
+   song's line, or under it */
+.hud-chips {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2px * var(--hud-scale)) calc(6px * var(--hud-scale));
+  min-width: 0;
+}
+
 .hud-chip {
   flex: none;
-  padding: 0 var(--sp-1);
+  padding: 0 calc(6px * var(--hud-scale));
   font-size: calc(var(--fs-label) * var(--hud-scale));
   font-weight: 700;
+  line-height: calc(20px * var(--hud-scale) - 2px);
   color: var(--text);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+}
+
+/* under the song's line, across the plate: the sync test's offsets, as close under it as the
+   line's own parts are */
+.hud-foot {
+  padding: 0 calc(var(--sp-3) * var(--hud-scale)) calc(var(--sp-1) * var(--hud-scale));
+}
+
+.hud-foot > .hud-sync {
+  margin-top: calc(var(--sp-1) * var(--hud-scale));
 }
 
 /* the sync test's offsets as its keys move them, each with its keys */
@@ -1942,7 +2333,7 @@ p.hint {
 
 .result-hero .hero-art {
   /* small beside the outcome: the run strip under it takes the height */
-  width: clamp(112px, 22vh, 200px);
+  width: clamp(7rem, 22vh, 12.5rem);
 }
 
 .result-song {
@@ -2051,12 +2442,12 @@ p.hint {
 
 /* a new best or a first record, beside the number it is about */
 .record-tag {
-  padding: 2px var(--sp-2);
+  padding: 0.125rem var(--sp-2);
   font-weight: 700;
   white-space: nowrap;
   background: var(--raised);
   border-radius: var(--radius-sm);
-  box-shadow: inset 2px 0 0 var(--text);
+  box-shadow: inset 0.125rem 0 0 var(--text);
 }
 
 .next-grade {
@@ -2164,7 +2555,7 @@ p.hint {
 
 .judge-cells {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: var(--sp-2);
 }
 
@@ -2251,7 +2642,7 @@ p.hint {
   flex-direction: column;
   /* the height the rest leaves, within reason (never less than its strip's least: the page scrolls then) */
   flex: 1 1 auto;
-  max-height: 400px;
+  max-height: 25rem;
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2275,7 +2666,7 @@ p.hint {
 .run-strip {
   position: relative;
   flex: 1 1 auto;
-  min-height: 72px;
+  min-height: 4.5rem;
   background: var(--sunken);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -2329,7 +2720,7 @@ p.hint {
   align-content: flex-start;
   column-gap: var(--sp-2);
   min-width: 0;
-  margin-right: 2px;
+  margin-right: 0.125rem;
   padding-top: var(--sp-1);
   overflow: hidden;
   font-size: var(--fs-label);
@@ -2337,7 +2728,7 @@ p.hint {
   line-height: 1.3;
   color: var(--text-dim);
   white-space: nowrap;
-  border-top: 3px solid var(--c);
+  border-top: 0.1875rem solid var(--c);
 }
 
 .run-sections b {
@@ -2350,7 +2741,7 @@ p.hint {
 /* the details under Space, in the summary's place: graphs, the offset suggestion, every judgement */
 .result-details {
   flex: 1 1 auto;
-  min-height: 240px;
+  min-height: 15rem;
   overflow-y: auto;
   padding: var(--sp-4);
   background: var(--panel);
@@ -2468,7 +2859,7 @@ p.hint {
 }
 
 .gauge-graph {
-  height: 88px;
+  height: 5.5rem;
   margin-bottom: var(--sp-4);
   background: var(--sunken);
   border-radius: var(--radius-sm);
@@ -2486,7 +2877,7 @@ p.hint {
 .gauge-graph .fail-line { stroke: var(--g-break); stroke-width: 2; vector-effect: non-scaling-stroke; }
 
 .timeline-graph {
-  height: 172px;
+  height: 10.75rem;
   background: var(--sunken);
   border-radius: var(--radius-sm);
 }
@@ -2502,7 +2893,7 @@ p.hint {
 .histogram {
   display: block;
   width: 100%;
-  height: 100px;
+  height: 6.25rem;
 }
 
 .histogram .bar { fill: currentColor; }
@@ -2547,7 +2938,7 @@ p.hint {
 }
 
 .offset-fix > button:first-child {
-  min-width: 120px;
+  min-width: 7.5rem;
 }
 
 /* a short note beside the top bar's actions (a replay exported) */
@@ -2579,7 +2970,7 @@ p.hint {
    on one line), so the run strip under the counts is still on the screen */
 @media (max-width: 960px) {
   .result-hero .hero-art {
-    width: 112px;
+    width: 7rem;
   }
 
   .result-song h1 {
@@ -2605,98 +2996,186 @@ p.hint {
 
 /* ---------- settings ---------- */
 
-/* tabs | rows | the gear or the chosen row's help */
+/* the tabs | the picked tab's rows over the help of the row under the cursor | the gear as it will
+   be played. In a window narrower than the menus are drawn for the gear's column gives way first:
+   the rows keep their width, as the longest help is measured for it */
 .settings-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 360px;
-  gap: var(--sp-6);
-  padding: var(--sp-6);
+  grid-template-columns: 10.5rem minmax(38rem, 1fr) minmax(14rem, 20.5rem);
+  gap: 2.5rem;
+  margin: 1.25rem var(--gutter) 0.75rem;
 }
 
+/* the tabs: plain names, the picked one a paper plate */
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
   min-height: 0;
 }
 
 .settings-nav button {
+  flex-shrink: 0;
   justify-content: flex-start;
-  padding: 0 var(--sp-3);
+  min-height: 0;
+  height: 2.375rem;
+  padding: 0 0.875rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
   color: var(--text-dim);
   background: transparent;
-  border-color: transparent;
+  border: 0;
 }
 
 .settings-nav button:hover:not(:disabled) {
   color: var(--text);
   background: var(--raised);
-  border-color: transparent;
 }
 
 .settings-nav button.active,
 .settings-nav button.active:hover:not(:disabled) {
-  font-weight: 700;
-  color: var(--text);
-  background: var(--raised-hover);
-  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .settings-nav-hint {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
-  margin-top: auto;
-  padding: 0 var(--sp-3);
+  gap: 0.4375rem;
+  margin-top: 0.75rem;
+  padding-left: 0.875rem;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-dim);
 }
 
-.settings-rows {
+.settings-nav-hint kbd + kbd {
+  margin-left: -0.1875rem;
+}
+
+.settings-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  /* room for the focused row's outline */
-  padding: 2px;
 }
 
-.settings-rows h2 {
-  margin: 0 0 var(--sp-2);
+/* the tab's name, and after it what its rows are about */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  margin-bottom: 0.875rem;
+  white-space: nowrap;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.settings-head span {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--fs-label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-overflow: ellipsis;
   color: var(--text-dim);
 }
 
-/* a setting: its name, and its value between ‹ › */
+/* the rows scroll under the tab's name where they do not fit (the one under the cursor is kept in sight) */
+.settings-rows {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settings-rows::-webkit-scrollbar {
+  display: none;
+}
+
+/* (a row that is a button is as wide as the others, inside a group of its own too) */
+.settings-rows button.opt {
+  width: 100%;
+}
+
+/* what the row under the cursor means, under a hairline: as tall as its words. The tallest is a
+   gear's (its own words on two lines, between what stands before and after them) with its default
+   named under it: 15rem */
+.settings-help {
+  flex: none;
+  min-height: 3.5rem;
+  max-height: 16rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+  border-top: 1px solid var(--line);
+}
+
+.settings-help p {
+  margin: 0;
+}
+
+.settings-help p + p {
+  margin-top: 0.25rem;
+}
+
+/* the picked gear's own words, out of a help that goes through every gear */
+.settings-help .help-picked {
+  color: var(--text);
+}
+
+.help-picked b {
+  margin-right: 0.25rem;
+  font-weight: 800;
+}
+
+/* the row's default, named while its value is another */
+.help-default {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.0625rem 0.5rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+}
+
+/* a setting: its name, and its value between ‹ ›. The row under the cursor is a paper plate, and
+   only there do the arrows and the value's place among its choices show */
 .opt {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-4);
   flex-shrink: 0;
-  min-height: 48px;
-  padding: 0 var(--sp-4);
+  min-height: 2.625rem;
+  padding: 0 0.875rem;
   font: inherit;
+  font-size: 1.0625rem;
   text-align: left;
-  color: var(--text);
-  background: var(--panel);
+  color: var(--text-dim);
+  background: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
 }
 
 .opt:focus,
 :root[data-input='pad'] .opt:focus,
 :root[data-input='controller'] .opt:focus {
-  background: var(--raised-hover);
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  color: var(--on-accent);
+  background: var(--accent);
+  outline: none;
 }
 
 .opt-name {
@@ -2707,10 +3186,15 @@ p.hint {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  color: var(--text);
+}
+
+.opt:focus .opt-value {
+  color: inherit;
 }
 
 .opt-value b {
-  min-width: 120px;
+  min-width: 6.5rem;
   font-family: var(--font-display);
   font-size: var(--fs-title);
   font-weight: 700;
@@ -2720,23 +3204,75 @@ p.hint {
 }
 
 .opt-step {
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 1.5rem;
+  min-height: 2rem;
   padding: 0;
   font-size: var(--fs-title);
-  color: var(--text-dim);
+  color: inherit;
   background: transparent;
   border-color: transparent;
+  opacity: 0;
 }
 
+.opt:hover .opt-step,
 .opt:focus .opt-step {
-  color: var(--text);
+  opacity: 1;
 }
 
 .opt-step:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--raised);
+  color: inherit;
+  background: color-mix(in srgb, currentColor 14%, transparent);
   border-color: transparent;
+}
+
+/* where the value stands among its choices (a square each), or in its range (a mark on a line) */
+.opt-pips,
+.opt-meter {
+  display: none;
+  margin-right: var(--sp-1);
+}
+
+.opt:focus .opt-pips {
+  display: flex;
+  gap: 0.1875rem;
+}
+
+.opt-pips i {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.opt-pips i.at {
+  opacity: 1;
+}
+
+.opt:focus .opt-meter {
+  position: relative;
+  display: block;
+  width: 6rem;
+  height: 0.75rem;
+}
+
+.opt-meter::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+.opt-meter i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.1875rem;
+  margin-left: -0.09375rem;
+  background: currentColor;
 }
 
 /* a row that does something */
@@ -2746,8 +3282,14 @@ button.opt {
 }
 
 button.opt:hover:not(:disabled) {
-  background: var(--raised-hover);
+  color: var(--text);
+  background: var(--raised);
   border-color: transparent;
+}
+
+button.opt:focus:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 button.opt:active:not(:disabled) {
@@ -2757,42 +3299,40 @@ button.opt:active:not(:disabled) {
 /* its action as a button, in the middle of where the other rows show their value (‹ value ›) */
 .opt-action .opt-value {
   justify-content: center;
-  width: calc(2 * 32px + 2 * var(--sp-2) + 120px);
+  width: calc(2 * 1.5rem + 2 * var(--sp-2) + 6.5rem);
 }
 
 .opt-action .opt-button {
-  min-width: 120px;
+  min-width: 6.5rem;
   padding: var(--sp-1) var(--sp-3);
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 46%, transparent);
+  border-radius: 0;
 }
 
-.opt-action:hover:not(:disabled) .opt-button,
 .opt-action:focus .opt-button {
-  background: var(--raised-hover);
-  border-color: var(--accent);
+  border-color: currentColor;
 }
 
-/* keys and pad controls: the mode, its caps and its buttons */
+/* a row of more than a value (a mode's keys, a pad's controls, the lanes' colours): its name, and
+   beside it its caps and buttons, each of them a stop of the cursor */
 .opt.opt-block {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 4.5rem minmax(0, 1fr);
   align-items: start;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) 0.875rem;
 }
 
 .opt-block > .opt-name {
-  line-height: var(--control-h);
+  line-height: 2.25rem;
 }
 
 .opt-keys {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2) var(--sp-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
 }
 
 .opt-actions {
@@ -2801,54 +3341,92 @@ button.opt:active:not(:disabled) {
   gap: var(--sp-1);
 }
 
+/* a line of text among the rows: what is connected, what a group is for */
 .settings-status,
 .settings-note {
   margin: var(--sp-2) 0;
+  padding: 0 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
   color: var(--text-dim);
 }
 
+.settings-status:first-child,
+.settings-note:first-child {
+  margin-top: 0;
+}
+
+/* a group of a tab under its own name: a small bold heading over a hairline, nothing around it */
 .settings-group {
   flex-shrink: 0;
-  padding: var(--sp-4);
-  background: var(--panel);
-  border-radius: var(--radius-sm);
+  margin-top: 1.125rem;
 }
 
 .settings-group h3 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-body);
+  margin: 0 0 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: var(--fs-label);
   font-weight: 700;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
 }
 
-.settings-group .row {
-  margin-bottom: 0;
+/* buttons of a tab or of one of its groups, in line with the rows' names */
+.settings-rows .row {
+  margin: var(--sp-3) 0;
+  padding: 0 0.875rem;
 }
 
+.row > .settings-status {
+  margin: 0;
+  padding: 0;
+}
+
+/* the gear as it will be played, under a line that names its key mode and the visible time */
 .settings-side {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
   min-height: 0;
 }
 
 .settings-side-head {
   display: flex;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.625rem;
+  flex-shrink: 0;
+  height: 2.25rem;
   font-size: var(--fs-label);
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
   color: var(--text-dim);
 }
 
-.settings-help {
-  margin: 0;
-  color: var(--text-dim);
+.settings-side-head b {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.settings-side-head .preview-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+/* the "green number", as the help of 노트 속도 calls it */
+.settings-side-head .preview-time b {
+  color: var(--g-high);
 }
 
 /* the gear as it will be played, with the green number */
 .gear-preview {
   position: relative;
   flex: 1;
-  min-height: 200px;
+  min-height: 12.5rem;
   overflow: hidden;
   background: var(--sunken);
   border: 1px solid var(--line);
@@ -2895,19 +3473,30 @@ button.opt:active:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 1100px) {
+/* in the settings it fills its column down to the key hints: a well darker than the screen, no frame */
+.settings-side .gear-preview {
+  min-height: 0;
+  background: color-mix(in srgb, var(--bg) 45%, black);
+  border: 0;
+}
+
+/* a window too narrow for the three columns (their least widths, the gaps and the margins): the
+   gear is left out */
+@media (max-width: 1179px) {
   .settings-body {
-    grid-template-columns: 160px minmax(0, 1fr);
-    overflow-y: auto;
+    grid-template-columns: 10.5rem minmax(0, 1fr);
   }
 
   .settings-side {
-    grid-column: 2;
+    display: none;
   }
+}
 
+/* (the song select's own gear, in a narrow window) */
+@media (max-width: 1100px) {
   .gear-preview {
     flex: none;
-    height: 320px;
+    height: 20rem;
   }
 }
 
@@ -2917,21 +3506,25 @@ button.opt:active:not(:disabled) {
   gap: var(--sp-1);
 }
 
+/* a lane's key or a pad's control: an outlined cap over a line in its lane's colour. The cap
+   under the cursor, one waiting for its key and one held in a check is a paper plate */
 .key-cap {
-  --lane: var(--line-strong);
+  --lane: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
-  min-height: var(--control-h);
+  min-width: 2.75rem;
+  min-height: 2.25rem;
   padding: 0 var(--sp-2);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: var(--fs-body);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
   font-weight: 700;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-bottom: 4px solid var(--lane);
-  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-key);
+  box-shadow: inset 0 -0.1875rem 0 var(--lane);
 }
 
 .key-cap.lane-white { --lane: var(--lane-white); }
@@ -2941,17 +3534,16 @@ button.opt:active:not(:disabled) {
 .key-cap.lane-sideL { --lane: var(--lane-sideL); }
 .key-cap.lane-sideR { --lane: var(--lane-sideR); }
 
-.key-cap:hover:not(:disabled) {
-  border-bottom-color: var(--lane);
-}
-
+.key-cap:focus,
+:root[data-input='pad'] .key-cap:focus,
+:root[data-input='controller'] .key-cap:focus,
+button.key-cap:focus:hover:not(:disabled),
 .key-cap.active,
-.key-cap.active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 35%, var(--surface));
-}
-
-.key-cap.seen:not(.active) {
-  background: color-mix(in srgb, var(--g-high) 12%, var(--surface));
+button.key-cap.active:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  outline: none;
 }
 
 /* a lane's keys over its second keys, column by column */
@@ -2964,8 +3556,8 @@ button.opt:active:not(:disabled) {
 
 .key-grid {
   display: grid;
-  grid-template-columns: repeat(var(--lanes), minmax(48px, auto));
-  grid-template-rows: var(--control-h) 32px;
+  grid-template-columns: repeat(var(--lanes), minmax(2.75rem, auto));
+  grid-template-rows: 2.25rem 1.75rem;
   gap: var(--sp-1);
 }
 
@@ -2976,7 +3568,7 @@ button.opt:active:not(:disabled) {
 /* the mode's name by its keys, "보조 키" by its second keys */
 .opt-block > .key-row-names {
   display: grid;
-  grid-template-rows: var(--control-h) 32px;
+  grid-template-rows: 2.25rem 1.75rem;
   row-gap: var(--sp-1);
   align-items: center;
   line-height: 1.2;
@@ -2989,30 +3581,30 @@ button.opt:active:not(:disabled) {
 }
 
 .key-cap.second {
-  min-height: 32px;
+  min-height: 1.75rem;
   font-size: var(--fs-label);
-  border-bottom-width: 2px;
+  box-shadow: inset 0 -0.125rem 0 var(--lane);
 }
 
-.key-cap.second:not(.active) {
+.key-cap.second:not(.active, :focus) {
   color: var(--text-dim);
 }
 
 /* note colours (설정 → 노트 색): a swatch per lane, the colour box and the hue bar, the presets' buttons */
 .lane-swatches {
   display: grid;
-  grid-template-columns: repeat(var(--lanes), minmax(40px, 1fr));
+  grid-template-columns: repeat(var(--lanes), minmax(2.5rem, 1fr));
   gap: var(--sp-1);
-  max-width: 480px;
+  max-width: 30rem;
 }
 
 /* the lane's own colour fills it (inline): what the notes of the lane are drawn in */
 .lane-swatch {
   min-width: 0;
-  min-height: 48px;
+  min-height: 2.25rem;
   padding: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 1.0625rem;
   font-weight: 700;
   color: var(--text);
   border: 1px solid var(--line-strong);
@@ -3030,7 +3622,7 @@ button.opt:active:not(:disabled) {
 
 /* the lane whose colour the rows under it set */
 .lane-swatch.active {
-  box-shadow: inset 0 0 0 2px var(--bg), 0 0 0 2px var(--text);
+  box-shadow: inset 0 0 0 0.125rem var(--bg), 0 0 0 0.125rem var(--text);
 }
 
 .color-picker {
@@ -3046,8 +3638,8 @@ button.opt:active:not(:disabled) {
 /* saturation across, value up, in the hue picked */
 .color-box {
   position: relative;
-  width: 240px;
-  height: 140px;
+  width: 15rem;
+  height: 7.5rem;
   background:
     linear-gradient(to top, var(--picker-black), transparent),
     linear-gradient(to right, var(--picker-white), hsl(calc(var(--hue) * 1deg) 100% 50%));
@@ -3059,9 +3651,9 @@ button.opt:active:not(:disabled) {
 .color-mark,
 .hue-mark {
   position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--picker-white);
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 0.125rem solid var(--picker-white);
   border-radius: 50%;
   box-shadow: 0 0 0 1px var(--picker-black);
   transform: translate(-50%, -50%);
@@ -3073,12 +3665,12 @@ button.opt:active:not(:disabled) {
   flex: 1;
   flex-direction: column;
   gap: var(--sp-3);
-  min-width: 180px;
+  min-width: 11.25rem;
 }
 
 .hue-bar {
   position: relative;
-  height: 20px;
+  height: 1.25rem;
   background: linear-gradient(to right, hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
   border-radius: var(--radius-sm);
   cursor: ew-resize;
@@ -3100,8 +3692,10 @@ button.opt:active:not(:disabled) {
 }
 
 .hex-field input {
-  width: 112px;
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  width: 7rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .color-preset-actions {
@@ -3113,16 +3707,18 @@ button.opt:active:not(:disabled) {
 }
 
 .preset-name input {
-  width: 200px;
+  width: 12.5rem;
 }
 
-/* nothing bound: an empty slot (a dash would read as the Minus key) */
-.key-cap.empty:not(.active) {
-  background: transparent;
+/* nothing bound: an empty slot, fainter than a key's (a dash would read as the Minus key) */
+.key-cap.empty:not(.active, :focus) {
+  border-color: var(--line);
 }
 
 /* a key a lane takes from an in-play function, or two functions on one key */
-.key-cap.clash {
+.key-cap.clash,
+.key-cap.clash:focus,
+button.key-cap.clash:hover:not(:disabled) {
   border-color: var(--g-low);
 }
 
@@ -3130,6 +3726,7 @@ button.opt:active:not(:disabled) {
   margin: 0;
   font-size: var(--fs-label);
   font-weight: 700;
+  line-height: 1.55;
   color: var(--text-dim);
 }
 
@@ -3137,12 +3734,18 @@ button.opt:active:not(:disabled) {
   color: var(--g-low);
 }
 
-/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a row */
+/* (under a group's own table, in line with it) */
+.settings-group > .key-note {
+  padding: 0 0.875rem;
+}
+
+/* the in-play functions' keys (and a pad's menu buttons): a name and its cap, two to a line, a
+   hairline under each */
 .play-key-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-1) var(--sp-6);
-  margin-bottom: var(--sp-2);
+  column-gap: 2rem;
+  margin: 0 0.875rem var(--sp-2);
 }
 
 .play-key {
@@ -3150,6 +3753,11 @@ button.opt:active:not(:disabled) {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+  min-height: 2.75rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
 }
 
 .key-cap.fixed {
@@ -3157,25 +3765,31 @@ button.opt:active:not(:disabled) {
 }
 
 /* inferred from the lanes until assigned */
-.key-cap.inferred:not(.active) {
+.key-cap.inferred:not(.active, :focus) {
   color: var(--text-dim);
   border-style: dashed;
-  border-bottom-style: solid;
 }
 
+/* a pad's button in play: its name, its cap and what it does, a hairline under each */
 .pad-row {
   display: grid;
-  grid-template-columns: 72px auto minmax(0, 1fr);
+  grid-template-columns: 4.5rem auto minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
-  margin-bottom: var(--sp-1);
+  min-height: 2.75rem;
+  margin: 0 0.875rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .pad-row-name {
+  font-size: 1.0625rem;
   font-weight: 600;
+  color: var(--text-dim);
 }
 
 .pad-row-note {
+  font-size: 0.9375rem;
+  line-height: 1.4;
   color: var(--text-dim);
 }
 
@@ -3183,27 +3797,60 @@ button.opt:active:not(:disabled) {
   color: var(--g-low);
 }
 
+/* a check opened under its row (the keys held at once, what a pad sends), between two hairlines:
+   a cap not pressed yet is dim, one that came in has a full outline, one held is a paper plate */
 .ghost-test {
   flex-shrink: 0;
-  margin: var(--sp-2) 0;
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--panel);
-  border-radius: var(--radius-sm);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-3) 0.875rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
+.ghost-test .hint {
+  margin: var(--sp-2) 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.ghost-test .key-cap:not(.seen, .active) {
+  color: var(--text-dim);
+}
+
+.key-cap.seen:not(.active) {
+  border-color: var(--text);
+}
+
+/* what the server reports (the analysis backends, the chart generator's state): hairline rows */
 .backend-table {
-  width: 100%;
+  width: calc(100% - 1.75rem);
+  margin: var(--sp-2) 0.875rem;
   border-collapse: collapse;
+  font-size: 0.9375rem;
 }
 
 .backend-table td {
-  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  padding: 0.3125rem 0.75rem 0.3125rem 0;
   vertical-align: top;
-  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-.backend-table td:nth-child(-n + 2) {
+.backend-table td:last-child {
+  padding-right: 0;
+}
+
+.backend-table td:first-child {
+  color: var(--text-dim);
   white-space: nowrap;
+}
+
+.backend-table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+/* a name and its value */
+.backend-table.pairs td:first-child {
+  width: 6rem;
 }
 
 .backend-table .ok {
@@ -3217,27 +3864,24 @@ button.opt:active:not(:disabled) {
   white-space: nowrap;
 }
 
+/* a licence, in full: it wraps anywhere (a path in it has no spaces) */
+.backend-table .hint {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .install-hint {
-  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-3) 0.875rem 0;
+  padding: var(--sp-3) 0.875rem;
   /* long lines wrap: nothing to scroll sideways for */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: var(--fs-label);
   font-weight: 700;
-  background: var(--sunken);
-  border-radius: var(--radius-sm);
-}
-
-.skin-json {
-  width: 100%;
-  padding: var(--sp-2) var(--sp-3);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text);
-  background: var(--sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  line-height: 1.6;
+  color: var(--text-dim);
+  background: var(--surface);
 }
 
 /* ---------- calibration ---------- */
@@ -3275,9 +3919,9 @@ button.opt:active:not(:disabled) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 176px;
-  height: 176px;
-  border: 6px solid var(--raised-hover);
+  width: 11rem;
+  height: 11rem;
+  border: 0.375rem solid var(--raised-hover);
   border-radius: 50%;
 }
 
@@ -3319,7 +3963,7 @@ button.opt:active:not(:disabled) {
 /* every tap from 250 ms early to 250 ms late, with the mean and the top judgement's window */
 .offset-rail {
   position: relative;
-  height: 96px;
+  height: 6rem;
   margin: var(--sp-2) 0;
   background: var(--sunken);
   border-radius: var(--radius-sm);
@@ -3365,10 +4009,10 @@ button.opt:active:not(:disabled) {
 
 .offset-rail i {
   position: absolute;
-  top: calc(50% - 5px);
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
+  top: calc(50% - 0.3125rem);
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-left: -0.3125rem;
   border-radius: 50%;
   background: color-mix(in srgb, var(--text) 45%, transparent);
 }
@@ -3381,7 +4025,7 @@ button.opt:active:not(:disabled) {
   position: absolute;
   top: var(--sp-2);
   bottom: var(--sp-2);
-  width: 3px;
+  width: 0.1875rem;
   margin-left: -1px;
   background: var(--accent);
 }
@@ -3416,15 +4060,15 @@ button.opt:active:not(:disabled) {
 /* the display step: the gear on the clicks beside the offset and its keys */
 .calib-visual {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 17.5rem;
   align-items: center;
   gap: var(--sp-8);
 }
 
 .calib-gear {
   position: relative;
-  height: min(48vh, 440px);
-  min-height: 240px;
+  height: min(48vh, 27.5rem);
+  min-height: 15rem;
   overflow: hidden;
   background: var(--sunken);
   border: 1px solid var(--line);
@@ -3456,37 +4100,45 @@ button.opt:active:not(:disabled) {
 
 /* ---------- song select ---------- */
 
+/* The song is its jacket: the picked one stands large on the left with what there is to decide
+   about it (its difficulty, how it will be played), and the library is the wheel on the right.
+   Everything else about a song is a key away (곡 정보·도구), not on this screen. */
 .select-screen {
   position: relative;
   isolation: isolate;
+  /* (nothing here scrolls: a field that takes the focus near an edge must not drag the screen along) */
+  overflow: clip;
 }
 
-/* the selected song's picture read into 24 px and stretched: a soft field of its colours, no blur */
+/* the selected song's picture read into a few pixels and stretched: a soft field of its colours, no blur */
 .backdrop {
   position: absolute;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
   pointer-events: none;
   background: var(--bg);
 }
 
 .backdrop canvas {
+  position: absolute;
+  inset: -12%;
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 124%;
+  height: 124%;
   opacity: 0;
-  transition: opacity 1.2s ease;
+  transition: opacity 520ms linear;
 }
 
 .backdrop canvas.shown {
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .backdrop::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3495,790 +4147,433 @@ button.opt:active:not(:disabled) {
   }
 }
 
-.select-screen > .panel.offline {
-  margin: var(--sp-4) var(--sp-6) 0;
+/* (the song's own page is one plain sheet: no colour behind its top and bottom lines either) */
+.panel-info .backdrop canvas {
+  opacity: 0;
 }
 
-/* the add menu under the top bar's button */
-.add-menu-wrap {
+/* the select's top bar: the key modes stand where another screen has its name, and no line under it */
+.select-screen .topbar {
+  border-bottom: 0;
+}
+
+.key-modes {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: var(--sp-2);
+}
+
+.key-modes button {
+  position: relative;
+  min-height: 1.875rem;
+  padding: 0 0.75rem;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+}
+
+.key-modes button:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+/* the picked key mode: a leaning paper plate */
+.key-modes button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform: skewX(var(--skew));
+  opacity: 0;
+}
+
+.key-modes button > span {
   position: relative;
 }
 
-.add-menu {
-  position: absolute;
-  top: calc(100% + var(--sp-2));
-  right: 0;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  min-width: 288px;
-  padding: var(--sp-1);
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
+.key-modes button.active,
+.key-modes button.active:hover:not(:disabled) {
+  color: var(--on-accent);
+  opacity: 1;
 }
 
-.add-menu button {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
-  min-height: 52px;
-  padding: var(--sp-2) var(--sp-3);
-  text-align: left;
-  background: transparent;
-  border-color: transparent;
+.key-modes button.active::before {
+  opacity: 1;
 }
 
-.add-menu button:hover:not(:disabled),
-.add-menu button:focus-visible {
-  background: var(--raised-hover);
-  border-color: transparent;
+.key-modes kbd {
+  margin-left: 0.75rem;
 }
 
-/* an item that adds no song (a replay file to watch), set off from those that do */
-.add-menu .menu-apart {
-  margin-top: var(--sp-1);
-  /* a 1px line in the gap over it, kept under the pointer's highlight */
-  box-shadow: 0 -3px 0 -2px var(--line-strong);
-}
-
-.add-menu b {
-  font-weight: 700;
-}
-
-.add-menu span {
+/* a key mode where the song has edited or imported charts says how many */
+.mode-saved {
+  position: relative;
+  margin-left: 0.25rem;
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
+}
+
+.key-modes button.active .mode-saved {
+  color: var(--on-accent-dim);
+}
+
+/* while the song's own page is read, the key mode stays as it is */
+.panel-info .key-modes button:not(.active),
+.panel-info .key-modes kbd {
+  visibility: hidden;
 }
 
 .select-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(340px, 36%, 680px) minmax(0, 1fr);
-  gap: var(--sp-6);
-  padding: var(--sp-4) var(--sp-6);
+  grid-template-columns: minmax(0, min(37.5rem, 50.7%)) minmax(0, 1fr);
+  column-gap: 3rem;
+  padding: 1.25rem 0 0 var(--gutter);
 }
 
-/* chips: the folders, the order, the play options */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  white-space: nowrap;
-  color: var(--text-dim);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-}
-
-.chip b {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-button.chip.active,
-button.chip.active:hover:not(:disabled) {
-  color: var(--on-accent);
-  background: var(--text);
-  border-color: var(--text);
-}
-
-button.chip.active b {
-  color: var(--on-accent);
-}
-
-/* song list (left) */
-
-.song-list-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  min-height: 0;
-}
-
-.folders {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-
-/* the search and the order on one line under the folders */
-.list-tools {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.song-list-panel .search {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  background: var(--panel);
-}
-
-.list-tools .sort {
-  min-height: 36px;
-}
-
-.song-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 var(--sp-1) var(--sp-4) 0;
-  border-radius: var(--radius-sm);
-}
-
-.song-list.drag {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  outline: 2px dashed var(--accent);
-}
-
-.empty-list {
-  padding: var(--sp-6) var(--sp-3);
-  text-align: center;
-  color: var(--text-dim);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-}
-
-.song-item {
-  flex-shrink: 0;
-  justify-content: flex-start;
-  gap: var(--sp-3);
-  min-height: 54px;
-  padding: 3px var(--sp-3) 3px 3px;
-  text-align: left;
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  border-color: transparent;
-}
-
-.song-item:hover:not(:disabled) {
-  background: var(--raised);
-  border-color: transparent;
-}
-
-.song-item.active,
-.song-item.active:hover:not(:disabled) {
-  background: var(--raised-hover);
-  border-color: transparent;
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.song-item-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  line-height: 1.3;
-}
-
-.song-title {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.song-item.active .song-title {
-  font-weight: 700;
-}
-
-.song-sub {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* each tier's level in the plain text colour, its lamp's mark beside it (a full combo fills the
-   cell); the saved charts' cell before them, set apart by a rule, so the tiers line up in every row */
-.song-tiers {
-  display: flex;
-  gap: var(--sp-1);
-  flex-shrink: 0;
-}
-
-.tier-level {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 26px;
-  padding: 0 0 0 10px;
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-  border-radius: var(--radius-sm);
-}
-
-/* the column ←→ picked (the entry Enter plays): bold, underlined */
-.tier-level.active {
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
-
-.tier-level.unknown {
-  color: var(--text-dim);
-}
-
-.tier-level.saved {
-  width: 38px;
-  margin-right: var(--sp-1);
-  padding-right: 8px;
-  border-right: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-}
-
-/* the lamp's mark is the cell's left band */
-.tier-level .lamp-mark {
-  position: absolute;
-  left: 2px;
-  top: 3px;
-  bottom: 3px;
-  height: auto;
-}
-
-.tier-level.lamp-maxcombo,
-.tier-level.lamp-perfect {
-  color: var(--bg);
-  background: var(--lamp);
-}
-
-.tier-level.lamp-maxcombo .lamp-mark,
-.tier-level.lamp-perfect .lamp-mark {
-  display: none;
-}
-
-/* a lamp of another chart of the tier than the one Enter plays: its mark faint, never the cell */
-.tier-level.other .lamp-mark {
-  opacity: 0.4;
-}
-
-.tier-level.other.lamp-maxcombo,
-.tier-level.other.lamp-perfect {
-  color: var(--text);
-  background: none;
-}
-
-.tier-level.other.lamp-maxcombo .lamp-mark,
-.tier-level.other.lamp-perfect .lamp-mark {
-  display: inline-block;
-}
-
-.song-state {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-shrink: 0;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-.song-state .progress {
-  width: 64px;
-  margin: 0;
-}
-
-.song-state .progress > span {
-  display: block;
-  height: 100%;
-  background: var(--text-dim);
-}
-
-.song-state.error {
-  color: var(--g-break);
-}
-
-.fav-mark {
-  flex-shrink: 0;
-  width: 3px;
-  height: 20px;
-  margin-right: calc(-1 * var(--sp-1));
-  border-radius: 2px;
-  background: var(--lane-gold);
-}
-
-/* the song's picture: its cover, else drawn from its analysis, else its first letter */
-.song-art {
-  display: block;
-  flex-shrink: 0;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-}
-
-.import-report {
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--panel);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.import-report .row {
-  margin: 0;
-}
-
-.import-report ul {
-  max-height: 140px;
-  margin: var(--sp-2) 0 0;
-  padding-left: var(--sp-4);
-  overflow: auto;
-  color: var(--text-dim);
-}
-
-/* selected song (right) */
+/* ── the picked song, on the left ── */
 
 .song-detail {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
   min-width: 0;
   min-height: 0;
+  padding-bottom: 0.75rem;
 }
 
-/* the song, or the open panel in its place (it scrolls inside when the window is short); the
-   song keeps its size: the summary under the buttons takes only the room that is left */
-.detail-top {
-  flex: none;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+.song-art {
+  display: block;
+  flex-shrink: 0;
+  object-fit: cover;
 }
 
-/* an open panel takes the column's height (the plates fold to a line under it) */
-.song-detail.panel-open .detail-top {
-  flex: 1 1 0;
-}
-
-.song-detail.panel-open .select-panel {
-  flex: 1 1 auto;
-}
-
-.detail-empty {
-  padding: var(--sp-6);
-  background: var(--panel);
-  border-radius: var(--radius);
-}
-
-/* an empty library: the first things to do, one under another (↑↓ go between them) */
-.first-run {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2);
-}
-
-.first-run button {
-  min-width: 240px;
-  justify-content: flex-start;
-}
-
-.first-run .hint {
-  margin: var(--sp-2) 0 0;
-}
-
+/* the jacket gives way first when a line more stands under it (saved charts, marks) */
 .hero {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--sp-6);
-  align-items: end;
-  min-height: 0;
+  display: flex;
+  gap: 1.75rem;
+  flex: 0 1 18.75rem;
+  min-height: 11rem;
 }
 
-.hero-art {
-  position: relative;
-  width: clamp(160px, 32vh, 400px);
-  aspect-ratio: 1;
+.song-detail .hero-art {
+  flex: none;
+  height: 100%;
+  background: var(--raised);
 }
 
-.hero-art .song-art {
-  width: 100% !important;
-  height: 100% !important;
-  border-radius: var(--radius);
-  box-shadow: 0 0 0 1px var(--line-strong);
+/* what is registered on the jacket: its picture (the pencil) and the background video */
+.art-btn {
+  position: absolute;
+  bottom: 0;
+  gap: 0.375rem;
+  min-height: 2rem;
+  padding: 0 0.5rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  border: 0;
+}
+
+.art-btn:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.art-btn .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.art-btn.edit {
+  right: 0;
+}
+
+.art-btn.video {
+  left: 0;
+}
+
+.art-btn.video.has,
+.art-btn.video.has:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .hero-text {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-width: 0;
-  container: hero-text / inline-size;
 }
 
-.hero-text h2 {
-  display: -webkit-box;
+.fav-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+}
+
+.fav-toggle:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.fav-toggle.on,
+.fav-toggle.on:hover:not(:disabled) {
+  color: var(--lamp-maxcombo);
+}
+
+.fav-toggle .icon {
+  width: 100%;
+  height: 100%;
+}
+
+.hero-text .album {
+  min-height: 1.25rem;
   margin: 0;
-  font-size: var(--fs-display);
-  font-weight: 700;
-  line-height: 1.15;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.hero-text .artist {
-  margin: var(--sp-1) 0 var(--sp-4);
-  font-size: var(--fs-title);
+  padding-right: 2rem;
+  font-size: var(--fs-label);
+  font-weight: 600;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.select-screen .label {
-  font-size: var(--fs-label);
-  font-weight: 700;
+/* a short name is set large, a long one smaller: three sizes, never more than three lines */
+.hero-text h1 {
+  display: -webkit-box;
+  margin: 0.25rem 0 0;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.hero-text h1[data-size='l'] {
+  font-size: 2.5rem;
+  line-height: 1.1;
+}
+
+.hero-text h1[data-size='s'] {
+  font-size: 1.5rem;
+}
+
+.hero-text .artist {
+  margin: 0.5rem 0 0;
+  font-size: 1.0625rem;
+  font-weight: 500;
   color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* a small label over a value */
+.cap,
+.hero-facts dt,
+.chart-facts dt {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.hero-facts dt.en,
+.chart-facts dt.en,
+.chart-facts dt.lamp-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.1em;
 }
 
 .hero-facts {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-2) var(--sp-6);
-  margin-bottom: var(--sp-4);
+  gap: 2rem;
+  margin: auto 0 0;
 }
 
-.hero-facts > span {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-}
-
-.hero-facts b {
-  font-family: var(--font-display);
-  font-size: var(--fs-heading);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.hero-facts small {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-.hero-facts .hero-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-self: center;
-  margin-left: auto;
-  gap: var(--sp-1);
-}
-
-/* a narrow column: 오토 플레이 without its key (in its title), so the buttons keep one line and the
-   song's place no taller than its picture */
-@container hero-text (max-width: 400px) {
-  .hero-actions .autoplay kbd {
-    display: none;
-  }
-}
-
-.fav-toggle.on {
-  color: var(--text);
-  box-shadow: inset 0 -3px 0 var(--lane-gold);
-}
-
-.mode-row {
+.hero-facts > div {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  flex-direction: column;
 }
 
-.key-modes {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.key-modes .segmented {
-  background: var(--panel);
-}
-
-.key-modes .segmented button {
-  min-height: 36px;
-  padding: 0 var(--sp-3);
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
-.key-modes .segmented button.active,
-.key-modes .segmented button.active:hover:not(:disabled) {
+/* the dot by the BPM, lit on each beat of the preview */
+.beat {
+  position: absolute;
+  top: 0.375rem;
+  left: 2.125rem;
+  width: 0.375rem;
+  height: 0.375rem;
   background: var(--text);
+  opacity: 0.22;
 }
 
-/* a key mode with the song's edited or imported charts (their entries are on it): how many */
-.mode-saved {
-  margin-left: 6px;
-  padding: 0 4px;
-  font-size: var(--fs-label);
-  line-height: 1.3;
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
+.hero-facts dd {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
 }
 
-/* the rules beside the difficulty basis: a judgement or a score rule that is not the default */
-.mode-rules {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  margin-left: auto;
-}
+/* ── the five steps of the picked song's difficulty ── */
 
-.rule-chip {
-  padding: 2px var(--sp-2);
-  font-size: var(--fs-label);
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-}
-
-/* the difficulty plates */
 .difficulty-row {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--sp-2);
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-left: 0.4375rem;
 }
 
 .difficulty {
   position: relative;
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  justify-content: stretch;
-  gap: var(--sp-1);
-  min-height: 112px;
-  padding: var(--sp-3) var(--sp-3) var(--sp-2);
-  text-align: left;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--diff);
-  overflow: hidden;
-}
-
-.difficulty:hover:not(:disabled) {
-  border-top-color: var(--diff);
-}
-
-.difficulty.active,
-.difficulty.active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--diff) 16%, var(--surface));
-  border-color: var(--diff);
-}
-
-.diff-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--sp-2);
+  display: block;
+  flex: 1;
   min-width: 0;
+  height: 4.25rem;
+  min-height: 0;
+  padding: 0;
+  font-weight: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+}
+
+.difficulty:hover:not(:disabled),
+.difficulty:active:not(:disabled) {
+  background: transparent;
+  transform: none;
+}
+
+/* the plate leans; what stands on it does not */
+.difficulty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transform: skewX(var(--skew));
+  transition: background-color var(--motion-fast) linear;
+}
+
+.difficulty:hover:not(.active)::before {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.difficulty.active::before {
+  background: var(--diff);
+  box-shadow: none;
+}
+
+.difficulty:focus-visible {
+  outline: none;
+}
+
+.difficulty:focus-visible::before {
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.125rem;
+}
+
+.diff-in {
+  position: absolute;
+  inset: 0.4375rem 0.75rem 0.375rem 0.625rem;
+  display: block;
+  text-align: left;
 }
 
 .diff-name {
+  position: absolute;
+  top: 0;
+  left: 0.25rem;
   font-family: var(--font-display);
-  font-size: var(--fs-title);
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
+  letter-spacing: 0.08em;
   color: var(--diff);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.diff-short {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
 }
 
 .diff-level {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-
-.diff-level strong {
-  font-family: var(--font-display);
-  font-size: var(--fs-display);
-  font-weight: 700;
+  position: absolute;
+  right: 0.125rem;
+  bottom: -0.125rem;
+  font-size: 2.125rem;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
 }
 
-.diff-level strong small {
-  margin-right: var(--sp-1);
-  font-size: var(--fs-body);
-  color: var(--text-dim);
+.diff-level.none {
+  color: var(--text-faint);
 }
 
-.diff-level strong.none {
-  color: var(--text-dim);
+/* a level the AI model aims at, for a chart it has not made yet */
+.difficulty.predicted .diff-level {
+  opacity: 0.55;
 }
 
-.diff-level em {
-  margin-left: auto;
-  font-size: var(--fs-label);
-  font-style: normal;
-  font-weight: 700;
-  color: var(--text-dim);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+.diff-in > .lamp-text,
+.diff-state {
+  position: absolute;
+  bottom: 0.25rem;
+  left: -0.125rem;
 }
 
-.difficulty.active .diff-level em,
-.difficulty.active .diff-short {
-  color: var(--text);
-}
-
-.diff-record {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--sp-1);
-  min-width: 0;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-/* a lamp in the numbers' condensed face; a long one gives way to the number beside it */
-.diff-record .lamp-text,
-.saved-line .lamp-text {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-}
-
-.diff-record .lamp-text,
-.other-best .lamp-text {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.lamp-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.diff-record .none {
-  color: var(--text-dim);
-}
-
-.diff-lamp {
-  flex-shrink: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-/* the best play's MAX COMBO, and a pattern made with 새 패턴 */
-.diff-sub {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--sp-2);
-  min-height: 20px;
+/* why a tier has no lamp to show yet: being worked out, the AI model's, being made, not made */
+.diff-state {
+  bottom: 0.125rem;
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
   white-space: nowrap;
 }
 
-.diff-sub b {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
+.difficulty.active .diff-name,
+.difficulty.active .diff-level,
+.difficulty.active .diff-state {
+  color: var(--on-accent);
 }
 
-.other-best {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.difficulty.active .lamp-text {
+  --lamp: var(--on-accent);
 }
 
-.pattern-tag {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 0 var(--sp-1);
-  color: var(--text);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+/* a tier the song has no chart on: its place is kept, empty */
+.difficulty.absent {
+  cursor: default;
 }
 
-/* under an open panel: a line per plate (its short name, level and lamp), the panel has the room */
-.difficulty.folded {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  min-height: 0;
-  padding: var(--sp-1) var(--sp-3);
+.difficulty.absent::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.difficulty.folded .diff-name {
-  flex-shrink: 0;
-  font-size: var(--fs-body);
-}
-
-.diff-fold-level {
-  font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: 700;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-.diff-fold-level.none {
-  color: var(--text-dim);
-}
-
-.diff-fold-level small {
-  font-size: var(--fs-body);
-  color: var(--diff);
-}
-
-.difficulty.folded .lamp-text {
-  min-width: 0;
-  margin-left: auto;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.difficulty.absent .diff-name {
+  color: var(--text-faint);
 }
 
 /* a chart being made for the plate: a bar runs along its foot */
 .plate-pending {
   position: absolute;
   left: 0;
-  bottom: 0;
+  bottom: -0.375rem;
   width: 40%;
-  height: 2px;
-  background: var(--text);
+  height: 0.125rem;
+  background: currentColor;
   animation: plate-pending 1.2s ease-in-out infinite alternate;
 }
 
@@ -4297,83 +4592,221 @@ button.chip.active b {
   }
 }
 
-/* lamps: the lamp's colour (--lamp) on its name and its mark, on the song list, the plates and the
-   records */
-.lamp-perfect { --lamp: var(--lamp-perfect); }
-.lamp-maxcombo { --lamp: var(--lamp-maxcombo); }
-.lamp-exhard { --lamp: var(--lamp-exhard); }
-.lamp-hard { --lamp: var(--lamp-hard); }
-.lamp-clear { --lamp: var(--lamp-clear); }
-.lamp-easy { --lamp: var(--lamp-easy); }
-.lamp-assist { --lamp: var(--lamp-assist); }
-.lamp-failed { --lamp: var(--lamp-failed); }
-
-.lamp-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--lamp, var(--text-dim));
-}
-
-/* the mark's shape tells the kind of clear without its colour: hollow (failed), thin (assist,
-   easy), full (clear), double (hard, EX-HARD), a block (a full combo); none: never played */
-.lamp-mark {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 0;
-  height: 12px;
-  border-radius: 1px;
-}
-
-.lamp-failed .lamp-mark {
-  width: 6px;
-  border: 1.5px solid var(--lamp);
-}
-
-.lamp-assist .lamp-mark,
-.lamp-easy .lamp-mark {
-  width: 2px;
-  background: var(--lamp);
-}
-
-.lamp-clear .lamp-mark {
-  width: 5px;
-  background: var(--lamp);
-}
-
-.lamp-hard .lamp-mark,
-.lamp-exhard .lamp-mark {
-  width: 3px;
-  margin-right: 5px;
-  background: var(--lamp);
-  box-shadow: 5px 0 0 var(--lamp);
-}
-
-.lamp-maxcombo .lamp-mark,
-.lamp-perfect .lamp-mark {
-  width: 9px;
-  background: var(--lamp);
-}
-
-/* the selected song while it is analysed: beside the play buttons it turns off */
-.analysis-status {
+/* the song's edited and imported charts: entries after the tiers (←→), a line that scrolls across */
+.saved-charts {
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  min-width: 0;
+  flex: none;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+  padding-left: 0.4375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.saved-chart {
+  flex: none;
+  max-width: 100%;
+}
+
+.saved-plate {
+  position: relative;
+  gap: 0.5rem;
+  min-height: 2rem;
+  max-width: 100%;
+  padding: 0 0.75rem;
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.saved-chart.active .saved-plate,
+.saved-chart.active .saved-plate:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.saved-plate .kind {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+
+.saved-plate .name {
+  min-width: 0;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-chart.active .name {
+  color: inherit;
+}
+
+.saved-plate .saved-level {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-chart.active .lamp-text {
+  --lamp: var(--on-accent);
+}
+
+/* ── the picked chart in four numbers ── */
+
+.chart-facts {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 1.25rem 0 0;
+}
+
+.chart-facts > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: 0.875rem;
+  border-left: 1px solid var(--line);
+}
+
+.chart-facts > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.chart-facts dd {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.chart-facts dd small {
+  margin-left: 0.0625rem;
+  font-size: 0.9375rem;
+}
+
+.chart-facts dd.none {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.875rem;
+  color: var(--text-dim);
+}
+
+.chart-facts .lamp-text {
+  gap: 0.375rem;
+  color: var(--text);
+}
+
+/* what makes this play another than the default one: its pattern, a rule, a practice */
+.entry-marks {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.mark-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  min-height: 1.625rem;
+  padding: 0 0.5rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+}
+
+.mark-chip.other-best {
+  color: var(--text-dim);
+}
+
+/* ── how it will be played: three values on the screen, the rest a key away ── */
+
+.quick {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(4, 1fr);
+  justify-items: start;
+  width: 100%;
+  min-height: 0;
+  margin-top: 1.375rem;
+  padding: 0.75rem 0 0;
+  font-weight: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.quick:hover:not(:disabled),
+.quick:active:not(:disabled) {
+  background: transparent;
+  border-color: var(--line-strong);
+  transform: none;
+}
+
+.quick-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+}
+
+.quick-cell {
+  display: flex;
+  flex-direction: column;
+  justify-self: stretch;
+  padding-left: 0.875rem;
+  border-left: 1px solid var(--line);
+}
+
+.quick-cell b {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.quick-cell b.num {
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+/* the selected song while it is analysed (or where its analysis failed): in the place of its chart's numbers */
+.analysis-status {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  border-top: 1px solid var(--line);
 }
 
 .analysis-status .value {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
+  font-size: 1.25rem;
+  color: var(--text);
 }
 
 .analysis-status .progress {
-  width: 160px;
-  margin: 0;
+  flex: 1 1 100%;
+  height: 0.25rem;
+  margin-top: 0;
+  background: var(--line);
 }
 
 .analysis-status .progress > span {
@@ -4385,6 +4818,7 @@ button.chip.active b {
 
 /* a failed analysis: why first, the server's own words folded under it */
 .raw-error {
+  flex: 1 1 100%;
   min-width: 0;
   font-size: var(--fs-label);
   font-weight: 700;
@@ -4403,547 +4837,1004 @@ button.chip.active b {
   overflow-wrap: anywhere;
 }
 
-/* the song's edited and imported charts: entries of the difficulty row after the tiers (←→), a
-   line each in a row of their own that scrolls across (so a 720 px window keeps the play buttons) */
-.saved-charts {
-  flex-shrink: 0;
+/* what the screen has to say about the song: an error, what is being done, what a key just did */
+.select-status {
+  display: -webkit-box;
+  flex: none;
+  min-height: 1.25rem;
+  margin: 0.75rem 0 0;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* no song to show: an empty library's first steps, a server that does not answer */
+.detail-empty {
   display: flex;
-  gap: var(--sp-2);
-  overflow-x: auto;
-  padding-bottom: 2px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  max-width: 34rem;
+  padding-top: var(--sp-6);
 }
 
-.saved-chart {
-  flex: 0 0 auto;
-  max-width: 440px;
-  min-width: 0;
+.detail-empty h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: 1.5rem;
+  font-weight: 800;
 }
 
-button.saved-plate {
-  position: relative;
+.detail-empty .hint {
+  margin: 0;
+}
+
+.detail-empty.first-run button {
+  min-width: 16rem;
   justify-content: flex-start;
-  gap: var(--sp-3);
-  width: 100%;
-  min-height: 36px;
-  padding: 0 var(--sp-3);
-  text-align: left;
-  white-space: nowrap;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  overflow: hidden;
 }
 
-.saved-chart.active button.saved-plate,
-.saved-chart.active button.saved-plate:hover:not(:disabled) {
-  background: var(--raised);
-  border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
+.detail-empty.first-run .hint {
+  margin-top: var(--sp-3);
+  font-size: 0.9375rem;
+  line-height: 1.7;
 }
 
-.saved-head,
-.saved-line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  min-width: 0;
+.detail-empty.first-run .hint kbd {
+  margin-right: 0.1875rem;
 }
 
-.saved-plate .kind {
-  flex-shrink: 0;
-  padding: 0 var(--sp-2);
+.offline pre {
+  align-self: stretch;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-label);
   font-weight: 700;
-  color: var(--text-dim);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  background: var(--surface);
 }
 
-.saved-plate .name {
-  min-width: 0;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.offline .row {
+  margin: var(--sp-2) 0 0;
 }
 
-.saved-line {
-  gap: var(--sp-3);
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-}
+/* ── the library: which songs (1 · 5) and in what order (2 – 4) ── */
 
-.saved-line .lamp-text b {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-/* the play options at a glance, a new pattern, and play */
-.go-row {
+.song-list-panel {
+  position: relative;
   display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-top: -0.75rem;
+  transition: opacity var(--motion-move) linear;
+}
+
+/* under the play options the library rests */
+.panel-options .song-list-panel {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.filters {
+  position: relative;
+  display: flex;
+  flex: none;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
+  gap: 1.125rem;
+  height: 2.25rem;
+  margin-right: var(--gutter);
 }
 
-button.option-chips {
-  gap: var(--sp-2);
+.filter {
+  position: relative;
+  gap: 0.4375rem;
+  height: 100%;
   min-height: 0;
   padding: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-dim);
   background: transparent;
   border: 0;
 }
 
-button.option-chips:hover:not(:disabled) {
+.filter:hover:not(:disabled) {
+  color: var(--text);
   background: transparent;
 }
 
-button.option-chips:hover .chip,
-button.option-chips[aria-expanded='true'] .chip {
-  border-color: var(--line-strong);
-  background: var(--raised);
+.filter.active {
+  font-weight: 800;
+  color: var(--text);
 }
 
-.go-actions {
-  display: flex;
-  gap: var(--sp-2);
+.filter.active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.125rem;
+  background: var(--accent);
+}
+
+.filter.active kbd {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.filter .icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  margin-left: -0.125rem;
+}
+
+/* the search: a mark and its key until it is used. What was typed stays beside the mark; while it
+   is typed the field lies over the end of the filters (their keys are the field's then anyway) */
+.find {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 1.875rem;
   margin-left: auto;
-}
-
-.go-actions button {
-  min-height: 48px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-dim);
   white-space: nowrap;
+  cursor: text;
 }
 
-.go-actions button.play {
-  padding: 0 var(--sp-6);
-  font-size: var(--fs-title);
+.find .icon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
 }
 
-/* a tall window (900 px and up) has room under the play buttons: the chart and the best play,
-   as much of them as the room the song, the plates and the buttons leave holds */
-.summary-room {
+.find input {
+  width: 0;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text);
+  text-overflow: ellipsis;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.find input::-webkit-search-cancel-button {
   display: none;
 }
 
-@media (min-height: 900px) {
-  .summary-room {
-    display: block;
-    flex: 1 1 0;
-    min-height: 0;
-    container: summary / size;
-  }
+.find.has {
+  color: var(--text);
 }
 
-.chart-summary {
+.find.has input {
+  width: 4.5rem;
+}
+
+.find:focus-within {
+  position: absolute;
+  top: 0.1875rem;
+  right: 0;
+  z-index: 1;
+  width: 15rem;
+  padding: 0 0.625rem;
+  color: var(--text);
+  background: var(--bg);
+  outline: 1px solid var(--accent);
+}
+
+.find:focus-within input {
+  flex: 1;
+  width: auto;
+}
+
+.find:focus-within kbd {
+  display: none;
+}
+
+/* what a chart package brought in */
+.import-report {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  max-height: 100%;
-  padding: var(--sp-4);
-  overflow: hidden;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-/* short of room the graph goes first, then the record (before there is a chart, the line about
-   making one), then the whole summary */
-@container summary (max-height: 235px) {
-  .chart-summary .nps-graph {
-    display: none;
-  }
-}
-
-@container summary (max-height: 159px) {
-  .chart-summary > dl:not(.summary-record) ~ .summary-record,
-  .chart-summary > .hint {
-    display: none;
-  }
-  .chart-summary > .hint + .summary-record {
-    padding-top: 0;
-    border-top: 0;
-  }
-}
-
-@container summary (max-height: 85px) {
-  .chart-summary {
-    display: none;
-  }
-}
-
-.chart-summary > .hint {
-  margin: 0;
-}
-
-.summary-stats {
-  display: flex;
+  flex: none;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-8);
-  margin: 0;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0.375rem var(--gutter) 0 0;
+  padding: 0.25rem 0 0.25rem 0.75rem;
+  font-size: 0.9375rem;
+  border-left: 0.1875rem solid var(--accent);
 }
 
-.summary-stats div {
-  display: flex;
-  flex-direction: column;
-}
-
-.summary-stats dt {
+.import-report details {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
 }
 
-.summary-stats dd {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-title);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.import-report button {
+  margin-left: auto;
 }
 
-.summary-stats dd.none {
-  font-family: var(--font-ui);
-  font-size: var(--fs-body);
-  color: var(--text-dim);
+.import-report ul {
+  max-height: 8.75rem;
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-4);
+  overflow: auto;
 }
 
-.summary-record {
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--line);
-}
+/* ── the wheel: the picked song in the middle, the others leaning away from it ── */
 
-/* (alone, for a song that is not analysed) */
-.summary-record:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.chart-summary .nps-graph {
-  height: 64px;
-  margin: 0;
-}
-
-.select-status {
-  min-height: 24px;
-  margin: 0;
-  font-size: var(--fs-label);
-  font-weight: 700;
-  color: var(--text-dim);
-}
-
-/* the Space and I panels: in the song's place, the plates and play stay below */
-.select-panel {
-  display: flex;
-  flex-direction: column;
+.song-list {
+  position: relative;
+  flex: 1;
   min-height: 0;
-  max-height: 100%;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  animation: panel-in var(--motion-screen) ease-out;
+  margin-left: -1rem;
+  overflow: hidden;
 }
 
-@keyframes panel-in {
+.song-list.drag {
+  outline: 0.125rem dashed var(--accent);
+  outline-offset: -0.5rem;
+}
+
+.song-item {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: min(30.5rem, calc(100% - 4rem));
+  height: 3.25rem;
+  min-height: 0;
+  margin-top: -1.625rem;
+  padding: 0 0.875rem 0 0.75rem;
+  font-weight: inherit;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  transition:
+    transform var(--motion-move) var(--ease),
+    opacity var(--motion-move) linear,
+    height var(--motion-move) var(--ease),
+    margin-top var(--motion-move) var(--ease);
+  will-change: transform;
+  animation: song-item-in var(--motion-move) linear;
+}
+
+/* (a row the wheel turns into view comes up from nothing, not from full) */
+@keyframes song-item-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .select-panel {
-    animation: none;
-  }
+.song-item:hover:not(:disabled),
+.song-item:active:not(:disabled) {
+  background: transparent;
 }
 
-.select-panel-head {
+.song-item.active {
+  z-index: 1;
+  height: 5.5rem;
+  margin-top: -2.75rem;
+  padding-left: 1.125rem;
+  color: var(--on-accent);
+}
+
+.song-plate {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+  transform: skewX(var(--skew));
+}
+
+.song-item:hover:not(.active) .song-plate {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+.song-item.active .song-plate {
+  background: var(--accent);
+}
+
+/* the picked difficulty's colour on the picked song's plate */
+.song-item.active .song-plate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0.375rem;
+  background: var(--diff);
+}
+
+.song-item:focus-visible,
+:root[data-input] .song-item:focus {
+  outline: none;
+}
+
+.song-item:focus-visible .song-plate {
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.1875rem;
+}
+
+.song-item .song-art {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+  transition:
+    width var(--motion-move) var(--ease),
+    height var(--motion-move) var(--ease);
+}
+
+.song-item.active .song-art {
+  width: 4.25rem;
+  height: 4.25rem;
+}
+
+.song-item-text {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--line);
-}
-
-.select-panel-head h2 {
-  flex-shrink: 0;
-  margin: 0;
-  font-size: var(--fs-title);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-/* the tabs and the close button keep their size: only the song's name gives way */
-.select-panel-head .segmented,
-.select-panel-head > button {
-  flex-shrink: 0;
-}
-
-.select-panel-head .segmented button {
-  min-height: 32px;
-  white-space: nowrap;
-}
-
-.select-panel-head > button:last-child {
-  margin-left: auto;
-}
-
-/* the song the panel is about, while the panel covers its picture and name */
-.panel-song {
+  flex: 1;
+  flex-direction: column;
   min-width: 0;
-  margin-left: auto;
-  font-weight: 600;
-  color: var(--text-dim);
+}
+
+.song-title,
+.song-sub {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.panel-song + button:last-child {
-  margin-left: 0;
+.song-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.song-sub {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.song-item.active .song-title {
+  font-size: 1.375rem;
+  font-weight: 800;
+}
+
+.song-item.active .song-sub {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--on-accent-dim);
+}
+
+.fav-mark {
+  position: relative;
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--lamp-maxcombo);
+}
+
+.fav-mark .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.song-item.active .fav-mark {
+  color: var(--on-accent);
+}
+
+/* the level of the chart Enter plays, in its difficulty's colour, with its lamp */
+.tier-level {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 3.25rem;
+}
+
+.tier-level b {
+  min-width: 1.5rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  text-align: right;
+  color: var(--diff);
+}
+
+.tier-level.unknown b {
+  color: var(--text-faint);
+}
+
+.song-item.active .tier-level b {
+  font-size: 2.125rem;
+  color: var(--on-accent);
+}
+
+.song-item.active {
+  --lamp: var(--on-accent);
+}
+
+/* a lamp of another chart of the tier than the one Enter plays: faint */
+.tier-level.other .lamp-mark,
+.lamp-text.other .lamp-mark {
+  opacity: 0.4;
+}
+
+.song-state {
+  position: relative;
+  flex: none;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.song-item.active .song-state {
+  color: var(--on-accent-dim);
+}
+
+.song-state.error {
+  color: var(--g-break);
+}
+
+/* no song to list: why, and the key that changes it */
+.empty-list {
+  position: absolute;
+  top: 45%;
+  right: var(--gutter);
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.empty-list b {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.empty-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.9375rem;
+  color: var(--text-dim);
+}
+
+/* ── lamps: the lamp's colour (--lamp) and a mark of its own shape, on the wheel, the plates and
+   the records. The shape tells the kind of clear without its colour (on a paper plate every mark
+   is ink): a ring (failed), a ring with a quarter and a half filled (assist, easy), a disc
+   (clear), a square and a framed square (hard, EX-HARD), a diamond (a full combo), a star (all
+   perfect); none: never played ── */
+.lamp-perfect { --lamp: var(--lamp-perfect); }
+.lamp-maxcombo { --lamp: var(--lamp-maxcombo); }
+.lamp-exhard { --lamp: var(--lamp-exhard); }
+.lamp-hard { --lamp: var(--lamp-hard); }
+.lamp-clear { --lamp: var(--lamp-clear); }
+.lamp-easy { --lamp: var(--lamp-easy); }
+.lamp-assist { --lamp: var(--lamp-assist); }
+.lamp-failed { --lamp: var(--lamp-failed); }
+
+.lamp-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  color: var(--lamp, var(--text-dim));
+}
+
+.lamp-mark {
+  display: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.lamp-failed .lamp-mark,
+.lamp-assist .lamp-mark,
+.lamp-easy .lamp-mark {
+  display: inline-block;
+  border: 0.125rem solid var(--lamp);
+  border-radius: 50%;
+}
+
+.lamp-assist .lamp-mark {
+  background: conic-gradient(var(--lamp) 25%, transparent 0);
+}
+
+.lamp-easy .lamp-mark {
+  background: conic-gradient(var(--lamp) 50%, transparent 0);
+}
+
+.lamp-clear .lamp-mark {
+  display: inline-block;
+  background: var(--lamp);
+  border-radius: 50%;
+}
+
+.lamp-hard .lamp-mark {
+  display: inline-block;
+  width: 0.6875rem;
+  height: 0.6875rem;
+  background: var(--lamp);
+}
+
+.lamp-exhard .lamp-mark {
+  display: inline-block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  margin: 0.15625rem;
+  background: var(--lamp);
+  outline: 1px solid var(--lamp);
+  outline-offset: 0.09375rem;
+}
+
+.lamp-maxcombo .lamp-mark {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  background: var(--lamp);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.lamp-perfect .lamp-mark {
+  display: inline-block;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  background: var(--lamp);
+  clip-path: polygon(50% 0, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 37%);
+}
+
+.lamp-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* ── the Space and I panels ── */
+
+/* a chart named on a line: its difficulty's plate with its level */
+.tier-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--on-accent);
+  background: var(--diff);
+}
+
+.tier-chip b {
+  font-size: 1.25rem;
+}
+
+.select-panel-head {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 0.5rem;
+}
+
+.select-panel-head h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.select-panel-head span {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .select-panel-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-4);
+  scrollbar-width: none;
 }
 
-/* the song info opens with the focus in its body, on no control: nothing to outline */
+/* a panel opens with the focus in its body, on no control: nothing to outline */
 .select-panel-body:focus,
 :root[data-input] .select-panel-body:focus {
   outline: none;
 }
 
-/* option rows sit close to the panel's edges, so a tab's rows fit a 720 px window */
-.select-panel-body:has(> .panel-rows) {
-  padding: var(--sp-2) var(--sp-3);
-}
-
-/* the generation options start the body: no rule above them */
-.select-panel-body > .options-grid {
-  margin: 0 0 var(--sp-3);
-  padding-top: 0;
-  border-top: 0;
-}
-
-/* the focused row's help (or the tab's line), one line */
+/* the focused row's help, under the rows */
 .select-panel-help {
-  flex-shrink: 0;
+  flex: none;
+  min-height: 2.875rem;
   margin: 0;
-  padding: 6px var(--sp-4);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  line-height: 1.4;
+  padding-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.panel-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-rows .opt {
+  min-height: 2.5rem;
+}
+
+/* rows of one kind are set apart from the next by a line */
+.opt-rule {
+  width: 100%;
+  height: 1px;
+  margin: 0.5rem 0;
+  background: var(--line);
+  border: 0;
+}
+
+/* the play options, in the song's own place: the song shrinks to a line, the rows take its room */
+.play-options {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  animation: panel-in var(--motion-move) var(--ease);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-options,
+  .song-info,
+  .sheet-box {
+    animation: none !important;
+  }
+}
+
+.panel-song {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.panel-song .song-art {
+  width: 4rem;
+  height: 4rem;
+}
+
+.panel-song-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-song-text b {
+  font-size: 1.25rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-song-text span {
+  font-size: 0.9375rem;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-top: 1px solid var(--line);
 }
 
-/* the play options' speed and gear rows, beside the moving gear */
-.gear-options {
+/* the practice stretch within the song */
+.range-map {
+  position: relative;
+  width: 9rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  background: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.range-map i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: currentColor;
+}
+
+.range-section {
+  margin-left: 0.625rem;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* 곡 정보·도구: everything else about the song, over the whole screen under the top bar */
+.song-info {
+  position: absolute;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: var(--hintbar-h);
+  left: 0;
+  z-index: 3;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(180px, 34%, 300px);
-  gap: var(--sp-4);
+  grid-template-columns: 13.5rem minmax(0, 1fr) 18.5rem;
+  gap: 2.5rem;
+  padding: 1.25rem var(--gutter) 0.75rem;
+  background: var(--bg);
+  animation: info-in var(--motion-move) var(--ease);
 }
 
-/* compact, so the rows and the gear fit the panel without scrolling on a 720 px window */
-.select-panel-body:has(.gear-options) {
-  padding: var(--sp-2) var(--sp-3);
+@keyframes info-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
 }
 
-/* the panels' option rows: compact, so a tab fits a 720 px window (and no wider than reads well) */
-.panel-rows {
+.info-side {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-width: var(--measure);
-  /* room for the focused row's outline */
-  padding: 2px;
-}
-
-.panel-rows + .panel-rows {
-  margin-top: var(--sp-3);
-}
-
-/* the practice's own rows follow its switch */
-.panel-rows + .practice-rows {
-  margin-top: 0;
-}
-
-.panel-rows .opt {
-  min-height: 28px;
-  padding: 0 var(--sp-3);
-  background: var(--raised);
-}
-
-.panel-rows .opt-step {
-  min-width: 28px;
-  min-height: 26px;
-  line-height: 1;
-}
-
-.panel-rows .opt-value b {
-  min-width: 132px;
-  font-size: var(--fs-body);
-}
-
-/* a row that only shows a value (the practice segment, picked on the minimap) */
-.panel-rows .opt-static {
-  background: transparent;
-}
-
-.panel-rows .opt-static .opt-value b {
-  padding-right: 28px;
-  text-align: right;
-}
-
-/* the practice segment's minimap under its rows */
-.panel-rows + .chart-minimap {
-  margin-top: var(--sp-2);
-}
-
-.gear-options .gear-preview {
   min-height: 0;
 }
 
-.gear-options .preview-green b {
-  font-size: var(--fs-title);
+.info-song {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
+.info-song .song-art {
+  width: 8.5rem;
+  height: 8.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.info-song b {
+  max-width: 100%;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.info-song > span:not(.tier-chip) {
+  max-width: 100%;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-song .tier-chip {
+  margin-top: 0.75rem;
+}
+
+.info-tabs {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.5rem;
+}
+
+.info-tabs button {
+  justify-content: flex-start;
+  min-height: 2.375rem;
+  padding: 0 0.875rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+}
+
+.info-tabs button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.info-tabs button.active,
+.info-tabs button.active:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.info-tabs button.active:focus-visible,
+:root[data-input] .info-tabs button.active:focus {
+  outline-offset: -0.25rem;
+  outline-color: var(--on-accent);
+}
+
+.info-tabs-key {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin-top: 0.75rem;
+  padding-left: 0.875rem;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.info-tabs-key kbd + kbd {
+  margin-left: -0.1875rem;
+}
+
+.info-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.info-main .select-panel-head {
+  margin-bottom: 0.875rem;
+}
+
+.info-main .select-panel-help {
+  min-height: 2.75rem;
+  padding-top: 0.625rem;
+}
+
+/* the chart on the track beside the page */
+.info-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.info-preview-head {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.625rem;
+  height: 2.25rem;
+  white-space: nowrap;
+}
+
+.info-preview-head b {
+  font-size: 1.0625rem;
+}
+
+.info-preview-head .section {
+  margin-left: auto;
+  font-size: var(--fs-label);
+  font-weight: 700;
+}
+
+.chart-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #050506;
+}
+
+.chart-stage canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* a page's groups of rows */
 .panel-group + .panel-group {
-  margin-top: var(--sp-6);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--line);
+  margin-top: 1.125rem;
 }
 
 .panel-group h3 {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--fs-body);
-  font-weight: 700;
-}
-
-.play-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3) var(--sp-6);
-}
-
-.play-toggles .target-level {
-  margin: 0;
-}
-
-/* chart details */
-
-.preview-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4) var(--sp-8);
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.preview-stats > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-stats .label {
-  font-size: var(--fs-label);
-  font-weight: 800;
-  color: var(--text-dim);
-}
-
-.preview-stats strong {
-  font-size: var(--fs-title);
-  font-weight: 800;
-}
-
-.preview-actions {
-  margin: var(--sp-6) 0 0;
-}
-
-/* export links are a group of their own, set apart from the edit buttons */
-.preview-actions .export-label {
-  min-width: 0;
-  margin-left: var(--sp-3);
-  padding-left: var(--sp-4);
-  line-height: 32px;
-  border-left: 1px solid var(--line);
-}
-
-.stem-mix {
-  display: flex;
-  height: 24px;
-  margin-top: var(--sp-6);
-  font-size: var(--fs-label);
-  font-weight: 800;
-  line-height: 24px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.stem-mix .stem {
-  min-width: 2px;
-  padding: 0 var(--sp-2);
-  white-space: nowrap;
-  overflow: hidden;
-  color: var(--bg);
-}
-
-.stem-mix .stem + .stem {
-  border-left: 2px solid var(--surface);
-}
-
-.stem-mix .stem-drums { background: var(--stem-drums); }
-.stem-mix .stem-bass { background: var(--stem-bass); }
-.stem-mix .stem-vocals { background: var(--stem-vocals); }
-.stem-mix .stem-other { background: var(--stem-other); }
-.stem-mix .stem.lead { box-shadow: inset 0 -4px 0 var(--text); }
-
-.pattern-mix {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-2) var(--sp-6);
-  margin-top: var(--sp-4);
-}
-
-.pattern-mix > .label {
-  font-size: var(--fs-label);
-  font-weight: 800;
-  color: var(--text-dim);
-}
-
-.pattern-chip {
+  margin: 0 0 0.375rem;
+  padding-bottom: 0.375rem;
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
 }
 
-.pattern-chip strong {
-  font-size: var(--fs-body);
-  font-weight: 800;
+.panel-group > .hint,
+.song-info .hint {
+  margin: var(--sp-2) 0;
+  font-size: 0.9375rem;
+}
+
+/* a row of links (a chart's files): the row lights with the link under the cursor */
+.opt-links:focus-within {
   color: var(--text);
-  font-variant-numeric: tabular-nums;
+  background: var(--raised);
 }
 
-.chart-preview > .hint {
-  margin: var(--sp-4) 0 0;
+.opt-links .opt-value {
+  gap: var(--sp-2);
 }
 
+.opt.danger .opt-button {
+  color: var(--g-break);
+  border-color: color-mix(in srgb, var(--g-break) 45%, transparent);
+}
+
+.opt.danger:focus .opt-button {
+  color: inherit;
+  border-color: currentColor;
+}
+
+/* 곡 설정: a line each, its name before its controls */
+.song-tools .row {
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-height: 2.875rem;
+  margin: 0;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.song-tools .row .label {
+  flex: none;
+  width: 6.5rem;
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+.song-tools .row:focus-within .label {
+  color: var(--text);
+}
+
+.song-tools .value {
+  min-width: 3.5rem;
+  font-size: 1.0625rem;
+}
+
+.song-tools .value.error {
+  color: var(--g-break);
+}
+
+.song-tools button.small:focus-visible,
+:root[data-input] .song-tools button.small:focus,
+.record-table button.small:focus-visible,
+:root[data-input] .record-table button.small:focus {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* 채보: the chart along the song, its density, and what it is made of */
 .chart-minimap {
   display: block;
   width: 100%;
-  margin-top: var(--sp-4);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
 }
 
 .chart-minimap.selectable {
@@ -4958,73 +5849,142 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .minimap-sections button.active {
-  color: var(--text);
+  color: var(--on-accent);
+  background: var(--accent);
   border-color: var(--accent);
 }
 
 .graph-label {
   display: flex;
   justify-content: space-between;
-  margin-top: var(--sp-4);
+  margin-top: 0.75rem;
   font-size: var(--fs-label);
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-dim);
 }
 
 .nps-graph {
   display: block;
   width: 100%;
-  height: 72px;
+  height: 3.25rem;
   margin: var(--sp-1) 0 0;
 }
 
 .nps-area {
-  fill: color-mix(in srgb, var(--accent) 20%, transparent);
+  fill: color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 .nps-line {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--text);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 
-.skills {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-2) var(--sp-6);
-  margin-top: var(--sp-4);
+.preview-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  margin-top: 0.875rem;
+  padding: 0.625rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
-.skill {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--sp-2);
+.preview-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-stats .label {
   font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.preview-stats strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
   font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-shares {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: 0.75rem;
+}
+
+.chart-shares > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.share {
+  display: grid;
+  grid-template-columns: minmax(0, 6.25rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-label);
   color: var(--text-dim);
 }
 
-.skill-bar {
-  height: 8px;
-  border-radius: var(--radius-sm);
-  background: var(--raised);
-  overflow: hidden;
+.share-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+  white-space: nowrap;
 }
 
-.skill-bar > div {
+.share-text strong {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.share-bar {
+  display: block;
+  height: 0.25rem;
+  background: var(--line);
+}
+
+.share-bar i {
+  display: block;
   height: 100%;
-  background: var(--text-dim);
+  background: var(--text);
 }
 
-/* song: tempo fixes, background video, analysis */
+/* an instrument's share in its colour; the ones whose notes sound (keysounds) are marked */
+.stem-drums .share-bar i { background: var(--stem-drums); }
+.stem-bass .share-bar i { background: var(--stem-bass); }
+.stem-vocals .share-bar i { background: var(--stem-vocals); }
+.stem-other .share-bar i { background: var(--stem-other); }
 
-.song-tools .row .label {
-  min-width: 112px;
+.stem .share-text {
+  position: relative;
+  padding-left: 0.75rem;
 }
 
-/* the records of the difficulty chosen, a line per chart played (the one Enter plays first) */
+.stem.lead .share-text::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  margin-top: -0.15625rem;
+  background: var(--text);
+}
+
+.chart-preview > .hint {
+  margin: var(--sp-2) 0 0;
+}
+
+/* 기록: the records of the difficulty chosen, a line per chart played (the one Enter plays first) */
 .record-table {
   width: 100%;
   border-collapse: collapse;
@@ -5035,17 +5995,18 @@ button.option-chips[aria-expanded='true'] .chip {
 
 .record-table th,
 .record-table td {
-  padding: 3px var(--sp-2) 3px 0;
+  padding: 0.375rem 0.875rem 0.375rem 0;
   text-align: left;
   white-space: nowrap;
 }
 
 .record-table th:first-child,
 .record-table td:first-child {
-  padding-left: var(--sp-2);
+  padding-left: 0.875rem;
 }
 
 .record-table th {
+  padding-bottom: 0.5rem;
   color: var(--text-dim);
   border-bottom: 1px solid var(--line);
 }
@@ -5053,6 +6014,7 @@ button.option-chips[aria-expanded='true'] .chip {
 /* two numbers a column, the second under the first */
 .record-table td {
   vertical-align: top;
+  border-bottom: 1px solid var(--line);
 }
 
 .record-table td > b,
@@ -5062,7 +6024,15 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .record-table td > b {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
   color: var(--text);
+}
+
+.record-table td > .lamp-text {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  letter-spacing: 0.06em;
 }
 
 .record-table td > .sub {
@@ -5072,15 +6042,13 @@ button.option-chips[aria-expanded='true'] .chip {
 /* (a saved chart's long name gives way) */
 .record-table .record-pattern {
   display: block;
-  max-width: 132px;
+  max-width: 8.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
 }
 
 .record-table tr.current td {
-  background: var(--raised);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .record-current {
@@ -5104,97 +6072,272 @@ button.option-chips[aria-expanded='true'] .chip {
 .analysis-legend .dot::before {
   content: '';
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
   margin-right: var(--sp-1);
   vertical-align: middle;
-  border-radius: var(--radius-sm);
   background: var(--dot);
 }
 
 .analysis-scroll {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
 }
 
 .analysis-scroll canvas {
   display: block;
 }
 
-.section-player {
-  border-radius: var(--radius-sm);
-}
-
 .section-player:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--accent);
+  outline-offset: 0.125rem;
 }
 
 .section-wave {
   display: block;
   width: 100%;
-  height: 56px;
+  height: 3.5rem;
   margin-bottom: var(--sp-2);
   cursor: pointer;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
 }
 
 .section-wave.zoom {
-  height: 88px;
+  height: 5.5rem;
 }
 
 .section-row.selected {
   outline: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
 }
 
-.offline pre {
-  padding: var(--sp-3) var(--sp-4);
+/* ── sheets: a short list over the screen (the menu, adding a song, a cover, a video, the filters) ── */
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(5, 6, 7, 0.62);
+}
+
+.sheet-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28rem;
+  max-width: calc(100% - 2rem);
+  max-height: calc(100% - 2rem);
+  padding: 1.25rem 1.25rem 1rem;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  transform: translate(-50%, -50%);
+  animation: sheet-in var(--motion-move) var(--ease);
+}
+
+.sheet-box:focus {
+  outline: none;
+}
+
+/* by the song's jacket: what the sheet is about */
+.sheet-box.at-jacket {
+  top: 11.5rem;
+  left: calc(var(--gutter) + 9.5rem);
+  transform: none;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.sheet-head b {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.sheet-head span {
   font-size: var(--fs-label);
-  font-weight: 700;
-  background: var(--sunken);
-  border-radius: var(--radius-sm);
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
-/* short windows: the song's place gets less height */
-@media (max-height: 760px) {
-  .hero-text h2 {
-    font-size: var(--fs-heading);
+.sheet-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.875rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* the row under the cursor is a paper plate */
+.menu-item:focus,
+.menu-item:focus:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent);
+  outline: none;
+}
+
+.menu-item:disabled {
+  color: var(--text);
+  opacity: 0.4;
+}
+
+.menu-item.apart {
+  margin-top: 0.5rem;
+}
+
+.menu-item.apart::before {
+  content: '';
+  position: absolute;
+  right: 1.25rem;
+  left: 1.25rem;
+  height: 1px;
+  margin-top: -3.25rem;
+  background: var(--line);
+}
+
+.menu-sub {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.menu-item:focus .menu-sub {
+  color: var(--on-accent-dim);
+}
+
+.menu-item > kbd,
+.menu-value {
+  margin-left: auto;
+}
+
+.menu-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menu-value b {
+  min-width: 4.5rem;
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+.menu-value i {
+  font-style: normal;
+  font-size: 1.25rem;
+  opacity: 0;
+}
+
+.menu-item:focus .menu-value i {
+  opacity: 1;
+}
+
+/* a link being typed in a sheet */
+.sheet-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.sheet-form input[type='text'] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  background: transparent;
+  border-color: var(--accent);
+}
+
+.sheet-note {
+  margin: 0.875rem 0 0;
+  padding-top: 0.75rem;
+  font-size: var(--fs-label);
+  line-height: 1.55;
+  color: var(--text-dim);
+  border-top: 1px solid var(--line);
+}
+
+.sheet-foot {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.875rem;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sheet-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.sheet-foot kbd + kbd {
+  margin-left: -0.1875rem;
+}
+
+/* a window narrower or lower than the one the screen is drawn for: the jacket and the wheel give way */
+@media (max-width: 1100px) {
+  .select-body {
+    grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    padding-left: 1.5rem;
   }
-  .hero-text .artist {
-    margin-bottom: var(--sp-2);
-    font-size: var(--fs-body);
+
+  .hero {
+    flex-basis: 15rem;
+    gap: 1.25rem;
   }
-  .hero-facts {
-    margin-bottom: var(--sp-2);
+
+  .filters {
+    gap: 0.625rem;
+    margin-right: 1.5rem;
+  }
+
+  .song-info {
+    grid-template-columns: 11rem minmax(0, 1fr) 14rem;
+    gap: 1.5rem;
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+
+  .sheet-box.at-jacket {
+    left: 1.5rem;
   }
 }
 
 @media (max-width: 860px) {
-  .select-screen {
-    overflow-y: auto;
+  .song-info {
+    grid-template-columns: 9rem minmax(0, 1fr);
   }
-  .select-body {
-    grid-template-columns: 1fr;
-  }
-  .song-list {
-    max-height: 40vh;
-  }
-  /* the screen scrolls: the summary takes its own height */
-  .summary-room {
-    flex: none;
-    container-type: normal;
-  }
-  .hero {
-    grid-template-columns: 120px minmax(0, 1fr);
-  }
-  .hero-art {
-    width: 120px;
-  }
-  .skills {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  .info-preview {
+    display: none;
   }
 }
 
@@ -5251,7 +6394,7 @@ button.option-chips[aria-expanded='true'] .chip {
 }
 
 .editor-toolbar input.editor-name {
-  width: 184px;
+  width: 11.5rem;
 }
 
 /* 편집: 되돌리기, 다시, 미러 under the button */
@@ -5267,7 +6410,7 @@ button.option-chips[aria-expanded='true'] .chip {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  min-width: 200px;
+  min-width: 12.5rem;
   margin-top: var(--sp-1);
   padding: var(--sp-1);
   background: var(--surface);
@@ -5291,7 +6434,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .editor-body {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 352px;
+  grid-template-columns: minmax(0, 1fr) 22rem;
   min-height: 0;
 }
 
@@ -5314,7 +6457,7 @@ button.option-chips[aria-expanded='true'] .chip {
 .editor-lanes {
   position: relative;
   flex: none;
-  height: 52px;
+  height: 3.25rem;
   background: var(--surface);
   border-top: 1px solid var(--line);
 }
@@ -5328,8 +6471,8 @@ button.option-chips[aria-expanded='true'] .chip {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  border-top: 3px solid var(--lane);
+  gap: 0.125rem;
+  border-top: 0.1875rem solid var(--lane);
 }
 
 /* one line, as wide as the lane at most (L-Shift fits a key lane's 48 px) */

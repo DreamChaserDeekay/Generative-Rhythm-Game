@@ -76,6 +76,51 @@ def _synth(args: argparse.Namespace) -> None:
     print(f"{args.output}: {song.duration:.1f}s, {args.bpm} BPM, {args.bars}마디", file=sys.stderr)
 
 
+def _mapper(args: argparse.Namespace) -> None:
+    """Mapperatorinator's runtime from the command line: its status, its setup (what the settings'
+    install button does), and one chart of a synthetic song made with it."""
+    import tempfile
+
+    from . import audio_io
+    from .analysis.analyzer import analyze
+    from .mapper import Mapper
+    from .synth import make_structured_song
+
+    mapper = Mapper()
+    if args.action == "status":
+        print(json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str))
+        return
+    if args.action == "setup":
+        t = time.time()
+        state = mapper.runtime.setup(lambda step, f: print(f"  {f * 100:5.1f}% {step}", file=sys.stderr, flush=True))
+        print(json.dumps({"ok": True, "seconds": round(time.time() - t, 1), **state}, ensure_ascii=False, default=str))
+        return
+    if not mapper.active():
+        sys.exit(f"Mapperatorinator is not set up: {json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str)}")
+    song = make_structured_song(bpm=128.0, seed=2)
+    pcm = song.pcm[: int(song.sample_rate * args.seconds)]
+    analysis = analyze(pcm, song.sample_rate, "sha256:mapper-try", backends={})
+    with tempfile.TemporaryDirectory() as tmp:
+        audio = Path(tmp) / "audio.flac"
+        audio_io.write_canonical(audio, pcm, song.sample_rate)
+        t = time.time()
+        try:
+            chart = mapper.generate(analysis, args.mode, args.difficulty, None, 1, {"title": "synthetic"}, audio)
+        finally:
+            mapper.close()
+    meta = chart["meta"]
+    print(json.dumps({"ok": True, "seconds": round(time.time() - t, 1), "keyMode": meta["keyMode"], "level": meta["level"],
+                      "noteCount": meta["noteCount"], "generator": meta["generator"]}, ensure_ascii=False, default=str))
+
+
+def _selftest(_args: argparse.Namespace) -> None:
+    from .analysis.backends import roformer_backend
+
+    report = roformer_backend.self_test()
+    print(json.dumps(report, ensure_ascii=False, default=str))
+    sys.exit(0 if report["ok"] else 1)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="rhythm_server", description="Generative Rhythm Game 로컬 분석 서버")
     sub = parser.add_subparsers(dest="command")
@@ -104,8 +149,16 @@ def main(argv: list[str] | None = None) -> None:
     synth.add_argument("--bars", type=int, default=32)
     synth.add_argument("--seed", type=int, default=0)
 
+    sub.add_parser("selftest", help="BS-RoFormer의 ONNX · DirectML 경로 점검 (ML판)")
+
+    mapper = sub.add_parser("mapper", help="Mapperatorinator 실행 환경: 상태 · 설치 · 시험 생성 (docs/MAPPERATORINATOR.md)")
+    mapper.add_argument("action", choices=["status", "setup", "generate"])
+    mapper.add_argument("--seconds", type=float, default=30.0, help="generate: 합성 곡의 길이(초)")
+    mapper.add_argument("--mode", default="7K+1S")
+    mapper.add_argument("--difficulty", default="HARD")
+
     args = parser.parse_args(argv)
-    {"analyze": _analyze, "generate": _generate, "synth": _synth}.get(args.command or "serve", _serve)(args)
+    {"analyze": _analyze, "generate": _generate, "synth": _synth, "selftest": _selftest, "mapper": _mapper}.get(args.command or "serve", _serve)(args)
 
 
 if __name__ == "__main__":

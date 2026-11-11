@@ -91,7 +91,7 @@ test('the song preview plays on behind the settings, quieter and muffled, and co
 
   // a play stops it
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 60_000 });
   await expect.poll(async () => (await state()).playing, { timeout: 5_000 }).toBe(false);
   expect(errors).toEqual([]);

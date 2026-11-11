@@ -61,7 +61,15 @@ class GenParams:
     anchor_cap: int = 0
     # how fast chord sizes fall off from two notes (smaller = more three- and four-note chords)
     chord_size_power: float = 3.0
+    # the largest chord of taps (preset maxTapChord; maxChord stays the cap of every instant, the
+    # held chords of pads and of the song's end included: docs/PATTERN_DESIGN.md 96); 0 = maxChord
+    tap_chord: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def tap_chord_max(self) -> int:
+        """The largest chord of taps: the preset's maxTapChord within maxChord."""
+        return min(self.max_chord, self.tap_chord or self.max_chord)
 
     def public(self) -> dict[str, Any]:
         """The user-facing subset stored in chart meta (and hashed into the chart id)."""
@@ -73,6 +81,7 @@ class GenParams:
             "density": round(self.density, 3),
             "longNoteRatio": round(self.long_note_ratio, 3),
             "maxChord": self.max_chord,
+            "maxTapChord": self.tap_chord_max,
             "scratchRate": round(self.scratch_rate, 3),
             "sideRate": round(self.side_rate, 3),
             "style": self.style,
@@ -167,6 +176,7 @@ def resolve_params(
         subdivisions=tuple(int(s) for s in p["subdivisions"]),
         partial={int(k): float(v) for k, v in p.get("partialSubdivisions", {}).items()},
         max_chord=int(p["maxChord"]),
+        tap_chord=int(p.get("maxTapChord", p["maxChord"])),
         chord_ratio=_at(p["chordRatio"], frac),
         long_note_ratio=_at(p["longNoteRatio"], frac),
         min_ln_beats=float(p["minLnBeats"]),
@@ -205,6 +215,7 @@ def resolve_params(
             params.long_note_ratio = clamp("longNoteRatio", value)
         elif key == "maxChord":
             params.max_chord = max(1, min(int(p["maxChord"]) + 1, int(value)))
+            params.tap_chord = params.max_chord  # a chord size the player picks is every chord's
         elif key == "scratchRate":
             params.scratch_rate = clamp("scratchRate", value)
         elif key == "sideRate":
@@ -234,9 +245,11 @@ def _apply_style(params: GenParams, style: dict[str, Any]) -> None:
     params.min_ln_beats = max(0.5, params.min_ln_beats * float(style.get("minLnScale", 1.0)))
     params.min_jack_ms = max(90.0, params.min_jack_ms * float(style.get("minJackScale", 1.0)))
     params.max_chord += int(style.get("maxChordBonus", 0))
+    if params.tap_chord:
+        params.tap_chord += int(style.get("maxChordBonus", 0))
     scale = float(style.get("partialScale", 1.0))
     params.partial = {k: min(1.0, v * scale) for k, v in params.partial.items()}
-    for key in ("jackWeight", "jackBonus", "alternateWeight", "pitchWeight", "contourWeight", "offbeatBoost", "downbeatBoost", "harmonicBoost"):
+    for key in ("jackWeight", "jackBonus", "alternateWeight", "pitchWeight", "contourWeight", "offbeatBoost", "downbeatBoost", "harmonicBoost", "runScale"):
         if key in style:
             params.extra[key] = float(style[key])
     if "subdivisionBoost" in style:

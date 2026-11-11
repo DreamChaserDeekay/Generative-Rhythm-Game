@@ -1,17 +1,23 @@
 {
-  "description": "분석 백엔드. 기본 분석(numpy·scipy)은 항상 동작하고, 아래 ML 백엔드는 해당 패키지가 설치되어 있으면 자동으로 쓴다. enabled=false거나 환경 변수 GRG_ML=0이면 ML을 쓰지 않는다. 실패하면 기본 분석으로 대체하고 분석 결과의 analyzer.errors에 남긴다.",
+  "description": "분석 백엔드. 기본 분석(numpy·scipy)은 항상 동작하고, 아래 ML 백엔드는 해당 패키지가 설치되어 있으면 자동으로 쓴다. enabled=false거나 환경 변수 GRG_ML=0이면 ML을 쓰지 않는다. 실패하면 기본 분석으로 대체하고 분석 결과의 analyzer.errors에 남긴다. ml.models: 백엔드마다의 설정(스템 백엔드를 그 이름으로 고르면 함께 쓴다). roformer는 BS-RoFormer SW 6스템(생성기와 같은 6개: 베이스 · 드럼 · 그 외 · 보컬 · 기타 · 피아노, docs/PATTERN_DESIGN.md 97장): 가중치(file, 약 700MB)를 처음 쓸 때 url에서 받아 sha256으로 확인하고, chunk 샘플(44.1kHz)씩 overlap번 겹쳐 분리한다. device auto는 CUDA가 있으면 GPU(float16), 없으면 CPU이고 bf16은 CPU의 bfloat16 계산이다.",
   "ml": {
     "enabled": true,
     "device": "cpu",
-    "stems": { "backend": "demucs", "model": "htdemucs_6s", "shifts": 1, "overlap": 0.25 },
+    "stems": { "backend": "roformer", "fallback": "demucs" },
     "beats": { "backend": "beat_this", "checkpoint": "final0" },
     "pitch": { "backend": "basic_pitch", "minNoteMs": 120 },
-    "structure": { "backend": "allin1", "model": "harmonix-all" }
+    "structure": { "backend": "allin1", "model": "harmonix-all" },
+    "models": {
+      "demucs": { "model": "htdemucs_6s", "shifts": 1, "overlap": 0.25 },
+      "roformer": { "version": "bs-sw-1", "file": "BS-Rofo-SW-Fixed.ckpt", "url": "https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed/resolve/main/BS-Rofo-SW-Fixed.ckpt", "sha256": "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e", "bytes": 699412152, "instruments": ["bass", "drums", "other", "vocals", "guitar", "piano"], "chunk": 588800, "dmlChunk": 352256, "overlap": 2, "device": "auto", "cpu": false, "minGpuMB": 2048, "directml": true, "bf16": false,
+        "model": { "dim": 256, "depth": 12, "stereo": true, "num_stems": 6, "time_transformer_depth": 1, "freq_transformer_depth": 1, "freqs_per_bands": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 12, 12, 12, 12, 12, 12, 12, 12, 24, 24, 24, 24, 24, 24, 24, 24, 48, 48, 48, 48, 48, 48, 48, 48, 128, 129], "dim_head": 64, "heads": 8, "dim_freqs_in": 1025, "stft_n_fft": 2048, "stft_hop_length": 512, "stft_win_length": 2048, "stft_normalized": false, "mask_estimator_depth": 2, "mlp_expansion_factor": 4, "skip_connection": false } }
+    }
   },
   "licenses": {
     "demucs": "코드 MIT. 사전학습 가중치의 라이선스는 저장소에 따로 명시되어 있지 않다 — 배포 전 확인",
     "beat_this": "코드와 공개 가중치 모두 MIT",
     "basic_pitch": "코드·모델 Apache-2.0",
-    "allin1": "코드 MIT. 가중치 라이선스는 따로 명시되어 있지 않고, 의존성 madmom의 사전학습 모델은 비상업(CC BY-NC-SA) — 상용 배포 시 주의"
+    "allin1": "코드 MIT. 가중치 라이선스는 따로 명시되어 있지 않고, 의존성 madmom의 사전학습 모델은 비상업(CC BY-NC-SA) — 상용 배포 시 주의",
+    "roformer": "모델 코드 MIT(ZFTurbo Music-Source-Separation-Training, lucidrains BS-RoFormer; server/rhythm_server/analysis/backends/bs_roformer.py). BS-RoFormer SW 가중치는 비상업(CC BY-NC-SA 4.0, 원 게시자 계정이 지워져 enerjazzer/BS-ROFO-SW-Fixed 미러에서 받는다) — 상용 배포 불가"
   }
 }

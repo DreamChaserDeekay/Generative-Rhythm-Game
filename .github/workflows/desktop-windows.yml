@@ -65,6 +65,21 @@ jobs:
           npm ci
           npm run build
 
+      # Mapperatorinator's source and slider's (its .osu parser) at the commits config/mapper.json
+      # pins, bundled so the app sets its runtime up without GitHub (docs/MAPPERATORINATOR.md)
+      - name: Fetch Mapperatorinator's source
+        run: |
+          # (Windows Python ends the line with \r\n: the \r goes, or git takes it as part of the commit)
+          read -r src slider < <(python -c "import json; r = json.load(open('config/mapper.json'))['runtime']; print(r['source']['commit'], r['slider']['commit'])" | tr -d '\r')
+          for spec in "mapperatorinator OliBomby/Mapperatorinator $src" "slider OliBomby/slider $slider"; do
+            set -- $spec
+            git init -q "packaging/vendor/$1"
+            git -C "packaging/vendor/$1" fetch -q --depth 1 "https://github.com/$2.git" "$3"
+            git -C "packaging/vendor/$1" checkout -q FETCH_HEAD
+          done
+          rm -rf packaging/vendor/mapperatorinator/.git packaging/vendor/slider/.git
+          du -sh packaging/vendor/*
+
       - name: Bundle the analysis server (PyInstaller)
         run: |
           python -m pip install --upgrade pip
@@ -85,10 +100,10 @@ jobs:
             export PATH="$(dirname "$(command -v cl)"):$PATH"
             python -m pip install --no-build-isolation "git+https://github.com/CPJKU/madmom"
             # the ml extra's packages one by one: on Python 3.11 it would bring basic-pitch's TensorFlow
-            python -m pip install -e "./server[build]" "demucs>=4.1" "beat-this>=1.0" "onnxruntime>=1.17" "librosa>=0.10" \
+            python -m pip install -e "./server[build]" "demucs>=4.1" "beat-this>=1.0" "onnxruntime-directml>=1.17" "onnx>=1.16" "librosa>=0.10" \
               "mir-eval>=0.6" "pretty-midi>=0.2.9" "resampy>=0.2.2,<0.4.3" scikit-learn allin1
             python -m pip install --no-deps "basic-pitch>=0.4"
-            python -m pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|beat.this|basic.pitch|numpy|onnxruntime|matplotlib) " || true
+            python -m pip list 2>/dev/null | grep -iE "^(torch|torchaudio|natten|madmom|allin1|demucs|beat.this|basic.pitch|numpy|onnxruntime.*|onnx|matplotlib) " || true
           else
             python -m pip install -e "./server[build]"
           fi
@@ -125,6 +140,26 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      # Mapperatorinator end to end on this runner's CPU (it has no GPU) with the small model: the
+      # runtime's setup (uv, Python 3.11, CPU PyTorch, its packages, the weights) and one chart of a
+      # 20-second synthetic song. Informational: the app runs it on an NVIDIA GPU (docs/MAPPERATORINATOR.md)
+      - name: Mapperatorinator on the CPU (setup and one chart)
+        if: matrix.edition == 'core'
+        continue-on-error: true
+        timeout-minutes: 60
+        env:
+          GRG_MAPPER_ALLOW_CPU: '1'
+          GRG_MAPPER_MODEL: v32-mini
+          GRG_MAPPER_HOME: ${{ runner.temp }}/grg-mapper
+        run: |
+          exe=server/dist/rhythm-server/rhythm-server.exe
+          "$exe" mapper status
+          ok=0
+          "$exe" mapper setup && "$exe" mapper generate --seconds 20 --mode 7K+1S --difficulty HARD && ok=1
+          mkdir -p "$RUNNER_TEMP/grg-smoke"
+          cp "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/grg-smoke/" 2>/dev/null || true
+          if [ "$ok" != 1 ]; then tail -n 80 "$GRG_MAPPER_HOME/setup.log" "$GRG_MAPPER_HOME/worker.log" 2>/dev/null; exit 1; fi
 
       - name: Install silently and launch the installed app
         shell: pwsh

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScoreRecord, Song } from '../api/client';
-import { bestByTier, inFolder, otherBest, otherLabel, recordHeadline, recordOf, recordScore, recordsOn, sameMark, savedMark, savedRecordsOn, sortSongs, tierMark } from './songRecords';
+import { bestByTier, inFolder, nextSongSort, otherBest, otherLabel, recordHeadline, recordOf, recordScore, recordsOn, sameMark, savedMark, savedRecordsOn, sortSaid, sortSongs, tierMark } from './songRecords';
 
 const record = (difficulty: string, score: number, lamp: string, extra: Partial<ScoreRecord> = {}): ScoreRecord => ({
   chartId: `${difficulty}${score}`,
@@ -20,49 +20,26 @@ const record = (difficulty: string, score: number, lamp: string, extra: Partial<
 const song = (id: string, title: string, records: ScoreRecord[] = [], extra: Partial<Song> = {}) =>
   ({ id, title, artist: 'A', bpm: null, records, ...extra }) as Song;
 
-describe('song select folders', () => {
-  const none = new Set<string>();
+describe('which songs the song select lists', () => {
+  it('전체 is every song, 즐겨찾기 the marked ones', () => {
+    expect(inFolder(song('a', 'A'), 'all', new Set())).toBe(true);
+    expect(inFolder(song('a', 'A'), 'favorites', new Set(['a']))).toBe(true);
+    expect(inFolder(song('b', 'B'), 'favorites', new Set(['a']))).toBe(false);
+  });
 
-  it('미플레이 counts only the bests on this key mode and the four tiers', () => {
+  it('keeps the bests of this key mode and the five tiers apart from the rest', () => {
     // records of the removed EASY tier and the DJMAX and EZ2ON difficulty systems
     const other = song('a', 'A', [record('NORMAL', 900_000, 'CLEAR', { keyMode: '7K+1S' }), record('EASY', 900_000, 'CLEAR'), record('MX', 900_000, 'CLEAR'), record('SHD', 900_000, 'CLEAR')]);
     expect(recordsOn(other, '4K')).toEqual([]);
-    expect(inFolder(other, 'unplayed', '4K', none)).toBe(true);
-    expect(inFolder(song('b', 'B', [record('NORMAL', 900_000, 'FAILED')]), 'unplayed', '4K', none)).toBe(false);
   });
 
-  it('미클리어 is a tier whose every play failed; a clear on another chart of it counts', () => {
-    expect(inFolder(song('a', 'A', [record('HARD', 700_000, 'FAILED'), record('NORMAL', 950_000, 'CLEAR')]), 'uncleared', '4K', none)).toBe(true);
-    expect(inFolder(song('b', 'B', [record('HARD', 700_000, 'FAILED'), record('HARD', 650_000, 'EASY CLEAR', { chartId: 'x' })]), 'uncleared', '4K', none)).toBe(false);
-    expect(inFolder(song('c', 'C'), 'uncleared', '4K', none)).toBe(false);
-  });
-
-  it('풀콤 미달 is a tier cleared short of MAX COMBO on this key mode', () => {
-    expect(inFolder(song('a', 'A', [record('HARD', 900_000, 'FAILED'), record('HARD', 950_000, 'HARD CLEAR', { chartId: 'x' })]), 'noFullCombo', '4K', none)).toBe(true);
-    expect(inFolder(song('b', 'B', [record('HARD', 900_000, 'CLEAR'), record('HARD', 990_000, 'MAX COMBO', { chartId: 'x' })]), 'noFullCombo', '4K', none)).toBe(false);
-    expect(inFolder(song('c', 'C', [record('NORMAL', 990_000, 'PERFECT PLAY'), record('HARD', 700_000, 'FAILED')]), 'noFullCombo', '4K', none)).toBe(false);
-    expect(inFolder(song('d', 'D', [record('NORMAL', 900_000, 'EASY CLEAR', { keyMode: '7K+1S' })]), 'noFullCombo', '4K', none)).toBe(false);
-    expect(inFolder(song('e', 'E'), 'noFullCombo', '4K', none)).toBe(false);
-  });
-
-  it('즐겨찾기 is the marked songs', () => {
-    expect(inFolder(song('a', 'A'), 'favorites', '4K', new Set(['a']))).toBe(true);
-    expect(inFolder(song('b', 'B'), 'favorites', '4K', new Set(['a']))).toBe(false);
-  });
-
-  it('an edited or imported chart is its own, and a folder counts it alone', () => {
+  it('an edited or imported chart is its own', () => {
     const imported = record('HARD', 800_000, 'FAILED', { kind: 'imported', chartId: 'cbms' });
     const s = song('a', 'A', [imported]);
     expect(recordsOn(s, '4K')).toEqual([]);
     expect(savedRecordsOn(s, '4K')).toEqual([imported]);
     expect(savedRecordsOn(s, '7K+1S')).toEqual([]);
-    // played all the same, and not cleared
-    expect(inFolder(s, 'unplayed', '4K', none)).toBe(false);
-    expect(inFolder(s, 'uncleared', '4K', none)).toBe(true);
-    // a generated HARD clear does not clear the imported chart (it is no tier's)
     const both = song('b', 'B', [imported, record('HARD', 900_000, 'CLEAR', { kind: 'generated' })]);
-    expect(inFolder(both, 'uncleared', '4K', none)).toBe(true);
-    expect(inFolder(both, 'noFullCombo', '4K', none)).toBe(true);
     expect(recordOf(both, 'cbms')).toBe(imported);
     expect(recordOf(both, 'cnone')).toBeNull();
   });
@@ -136,48 +113,46 @@ describe('song list marks and record headlines', () => {
 });
 
 describe('song select order', () => {
-  const list = [song('1', '봄비', [], { bpm: 140, artist: 'z' }), song('2', 'Track 10', [], { bpm: null, artist: 'b' }), song('3', 'Track 9', [], { bpm: 96, artist: 'a' })];
-  const on = { keyMode: '4K', difficulty: 'HARD' } as const;
-
-  it('keeps the library order for 추가순 and sorts the others', () => {
-    expect(sortSongs(list, 'added', on).map((s) => s.id)).toEqual(['1', '2', '3']);
-    // Korean order: Hangul before Latin, numbers by their value
-    expect(sortSongs(list, 'title', on).map((s) => s.title)).toEqual(['봄비', 'Track 9', 'Track 10']);
-    expect(sortSongs(list, 'artist', on).map((s) => s.id)).toEqual(['3', '2', '1']);
-    // songs without a BPM (not analysed yet) go last
-    expect(sortSongs(list, 'bpm', on).map((s) => s.id)).toEqual(['3', '1', '2']);
-  });
-
-  // a: HD Lv.9 HARD CLEAR 97%, played at 300; b: HD Lv.7 FAILED 70% (and a NM MAX COMBO); c: only NM; d: HD on 7K+1S
-  const played = [
-    song('a', 'A', [record('HARD', 970_000, 'HARD CLEAR', { level: 9, lastPlayedAt: 300 })]),
-    song('b', 'B', [record('HARD', 700_000, 'FAILED', { level: 7, lastPlayedAt: 100 }), record('NORMAL', 990_000, 'MAX COMBO', { level: 4, lastPlayedAt: 500 })]),
-    song('c', 'C', [record('NORMAL', 900_000, 'CLEAR', { level: 3, lastPlayedAt: 200 })]),
-    song('d', 'D', [record('HARD', 990_000, 'PERFECT PLAY', { keyMode: '7K+1S', level: 1, lastPlayedAt: 400 })]),
+  const list = [
+    song('1', '봄비', [], { artist: 'z', album: '' }),
+    song('2', 'Track 10', [], { artist: 'b', album: 'Night' }),
+    song('3', 'Track 9', [], { artist: 'a', album: 'Day' }),
+    song('4', 'Track 9', [], { artist: '', album: 'Day' }),
   ];
+  const ids = (songs: Song[]) => songs.map((s) => s.id);
 
-  it('orders by the selected tier: level lowest first, lamp and RATE worst first, unknown last', () => {
-    expect(sortSongs(played, 'level', on).map((s) => s.id)).toEqual(['b', 'a', 'c', 'd']);
-    expect(sortSongs(played, 'lamp', on).map((s) => s.id)).toEqual(['b', 'a', 'c', 'd']);
-    expect(sortSongs(played, 'rate', on).map((s) => s.id)).toEqual(['b', 'a', 'c', 'd']);
-    // another tier: only the songs with its records come first
-    expect(sortSongs(played, 'level', { ...on, difficulty: 'NORMAL' }).map((s) => s.id)).toEqual(['c', 'b', 'a', 'd']);
-    expect(sortSongs(played, 'lamp', { ...on, difficulty: 'NORMAL' }).map((s) => s.id)).toEqual(['c', 'b', 'a', 'd']);
+  it('keeps the library order with no order chosen (the very list, so nothing is drawn again)', () => {
+    expect(sortSongs(list, null)).toBe(list);
   });
 
-  it('orders by the level of the chart Enter plays once known, and a song never played on the tier by its saved charts', () => {
-    // b's HD chart is known to be Lv.11 now (a new pattern), d's Lv.2 (never played on 4K)
-    const known = (s: Song) => ({ b: 11, d: 2 })[s.id] ?? null;
-    expect(sortSongs(played, 'level', { ...on, knownLevel: known }).map((s) => s.id)).toEqual(['d', 'a', 'b', 'c']);
-    // e has only an imported chart (BMS Lv.12 as its file says, CLEAR 88%); f nothing on 4K
-    const imported = [song('e', 'E', [record('HARD', 880_000, 'CLEAR', { kind: 'imported', level: 6, sourceLevel: '12' })]), song('f', 'F')];
-    const all = [...played, ...imported];
-    expect(sortSongs(all, 'lamp', on).map((s) => s.id)).toEqual(['b', 'e', 'a', 'c', 'd', 'f']);
-    expect(sortSongs(all, 'rate', on).map((s) => s.id)).toEqual(['b', 'e', 'a', 'c', 'd', 'f']);
-    expect(sortSongs(all, 'level', on).map((s) => s.id)).toEqual(['b', 'a', 'e', 'c', 'd', 'f']);
+  it('orders by a name upward or downward: Hangul before Latin, numbers by their value', () => {
+    expect(ids(sortSongs(list, { key: 'title', dir: 'asc' }))).toEqual(['1', '3', '4', '2']);
+    expect(ids(sortSongs(list, { key: 'title', dir: 'desc' }))).toEqual(['2', '3', '4', '1']);
   });
 
-  it('orders by the last play on any key mode, newest first, songs never played last', () => {
-    expect(sortSongs([...played, song('e', 'E')], 'recent', on).map((s) => s.id)).toEqual(['b', 'd', 'a', 'c', 'e']);
+  it('keeps a song without the name at the end, whichever way the order runs', () => {
+    expect(ids(sortSongs(list, { key: 'artist', dir: 'asc' }))).toEqual(['3', '2', '1', '4']);
+    expect(ids(sortSongs(list, { key: 'artist', dir: 'desc' }))).toEqual(['1', '2', '3', '4']);
+    expect(ids(sortSongs(list, { key: 'album', dir: 'desc' }))).toEqual(['2', '3', '4', '1']);
+  });
+
+  it('keeps songs of one name in the library order, both ways', () => {
+    expect(ids(sortSongs(list, { key: 'album', dir: 'asc' }))).toEqual(['3', '4', '2', '1']);
+    expect(ids(sortSongs(list, { key: 'album', dir: 'desc' })).slice(1, 3)).toEqual(['3', '4']);
+  });
+
+  it('a press on a name orders downward, a second upward, a third not at all; another name starts over', () => {
+    const down = nextSongSort(null, 'title');
+    expect(down).toEqual({ key: 'title', dir: 'desc' });
+    const up = nextSongSort(down, 'title');
+    expect(up).toEqual({ key: 'title', dir: 'asc' });
+    expect(nextSongSort(up, 'title')).toBeNull();
+    expect(nextSongSort(up, 'album')).toEqual({ key: 'album', dir: 'desc' });
+  });
+
+  it('says what a press did', () => {
+    expect(sortSaid('title', { key: 'title', dir: 'desc' })).toBe('곡명 내림차순');
+    expect(sortSaid('artist', { key: 'artist', dir: 'asc' })).toBe('아티스트명 오름차순');
+    expect(sortSaid('album', null)).toBe('앨범명 정렬 해제 · 추가한 순서');
   });
 });

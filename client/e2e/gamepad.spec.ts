@@ -400,11 +400,11 @@ test('the pause menu, the calibration and a song that fails to load answer to Es
     await new Promise((r) => setTimeout(r, 4000));
     await route.abort();
   });
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-loading')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   const back = page.getByRole('button', { name: /돌아가기/ });
   await expect(back).toBeVisible({ timeout: 30_000 });
   await expect(back).toBeFocused();

@@ -20,9 +20,26 @@ export function randomIndex(count: number, current: number, random: () => number
   return current >= 0 && pick >= current ? pick + 1 : pick;
 }
 
-/** Shift alone changes the folder only while no lane of the key mode is played with a Shift key. */
-export function shiftChangesFolder(laneKeys: readonly string[]): boolean {
-  return !laneKeys.includes('ShiftLeft') && !laneKeys.includes('ShiftRight');
+/**
+ * The song wheel: the picked song stands in the middle and the others lean away from it. How many
+ * rows show on each side in a wheel `heightRem` high (four in a 720-high window, more in a taller one).
+ */
+export const WHEEL_ROW_NEAR = 4.5;
+export const WHEEL_ROW_STEP = 3.5;
+export function wheelReach(heightRem: number): number {
+  return Math.max(1, Math.floor((heightRem / 2 - WHEEL_ROW_NEAR - 1) / WHEEL_ROW_STEP) + 1);
+}
+
+/**
+ * Where the row `d` steps from the picked one stands on a wheel showing `reach` rows each side: its
+ * shift down and to the right in rem (the rows lean out on an arc, as far at the wheel's end
+ * whatever its height) and how clearly it shows (the far rows fade; past the end, nothing).
+ */
+export function wheelPlace(d: number, reach: number): { x: number; y: number; opacity: number } {
+  const ad = Math.abs(d);
+  const y = d === 0 ? 0 : Math.sign(d) * (WHEEL_ROW_NEAR + (ad - 1) * WHEEL_ROW_STEP);
+  const far = ad / Math.max(1, reach);
+  return { x: 5.12 * far * far, y, opacity: ad > reach ? 0 : 1 - 0.58 * far ** 1.6 };
 }
 
 /**
@@ -88,15 +105,18 @@ export function panelStops(root: HTMLElement): HTMLElement[] {
   );
 }
 
-/** The line a control is on: its option row, its segmented choice, or its row of buttons. */
+/** The line a control is on: its option row, its segmented choice, its list of tabs, or its row of buttons. */
 export function lineOf(el: HTMLElement): HTMLElement {
-  return el.closest<HTMLElement>('.opt, .segmented, .row') ?? el;
+  return el.closest<HTMLElement>('.opt, .segmented, [role="tablist"], .row') ?? el;
 }
 
-/** The lines of a panel's controls (see PanelLines): a segmented choice's active button is its chosen one. */
+/** Whether a line is a choice of one of its buttons (a segmented choice, a list of tabs). */
+const isChoice = (line: Element) => line.classList.contains('segmented') || line.getAttribute('role') === 'tablist';
+
+/** The lines of a panel's controls (see PanelLines): a choice's active button (the tab that is open) is its chosen one. */
 export function panelLines(stops: readonly HTMLElement[]): PanelLines {
   const lines = stops.map(lineOf);
-  return { lines, chosen: stops.map((el, i) => lines[i].classList.contains('segmented') && el.classList.contains('active')) };
+  return { lines, chosen: stops.map((el, i) => isChoice(lines[i]) && (el.classList.contains('active') || el.getAttribute('aria-selected') === 'true')) };
 }
 
 /** Focuses where a panel's first line lands (from an effect: a panel opened, a tab changed). */
@@ -108,9 +128,9 @@ export function focusFirstStop(root: HTMLElement | null): void {
 
 /**
  * Whether Enter presses a panel's focused control: a button, a link or a box does, a segmented
- * choice's button leaves Enter to the play (as an option row does), and so does anything else.
+ * choice's button or a tab leaves Enter to the play (as an option row does), and so does anything else.
  */
 export function pressesOnEnter(el: Element | null): boolean {
   const pressable = el instanceof HTMLButtonElement || el instanceof HTMLAnchorElement || (el instanceof HTMLInputElement && el.type === 'checkbox');
-  return pressable && !el.closest('.segmented');
+  return pressable && !el.closest('.segmented, [role="tablist"]');
 }

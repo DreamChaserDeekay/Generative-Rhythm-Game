@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alongLine, cursorStep, edgeLine, landing, lineStep, randomIndex, shiftChangesFolder, type PanelLines } from './selectNav';
+import { alongLine, cursorStep, edgeLine, landing, lineStep, randomIndex, wheelPlace, wheelReach, type PanelLines } from './selectNav';
 
 describe('the song list cursor', () => {
   it('wraps around the ends on a fresh press, stops there when held or paged', () => {
@@ -29,12 +29,31 @@ describe('the song list cursor', () => {
   });
 });
 
-describe('the folder key', () => {
-  it('is Shift alone only while no lane of the key mode is played with Shift', () => {
-    expect(shiftChangesFolder(['KeyD', 'KeyF', 'KeyJ', 'KeyK'])).toBe(true);
-    expect(shiftChangesFolder(['ShiftLeft', 'KeyS', 'KeyD'])).toBe(false);
-    // a second key counts too
-    expect(shiftChangesFolder(['KeyD', 'KeyF', 'ShiftRight'])).toBe(false);
+describe('the song wheel', () => {
+  it('shows four rows on each side in a 720-high window, more in a taller one, one at least', () => {
+    // (the wheel is 36 rem high under the filters of a 1280 x 720 window)
+    expect(wheelReach(36)).toBe(4);
+    expect(wheelReach(55)).toBe(7);
+    expect(wheelReach(8)).toBe(1);
+  });
+
+  it('stands the picked row in the middle and the others away from it, leaning out as they go', () => {
+    expect(wheelPlace(0, 4)).toEqual({ x: 0, y: 0, opacity: 1 });
+    const [near, far] = [wheelPlace(1, 4), wheelPlace(4, 4)];
+    expect(near.y).toBe(4.5);
+    expect(far.y).toBe(15);
+    expect(wheelPlace(-4, 4).y).toBe(-15);
+    expect(near.x).toBeCloseTo(0.32);
+    expect(far.x).toBeCloseTo(5.12);
+    // the same lean at the wheel's end whatever its height
+    expect(wheelPlace(7, 7).x).toBeCloseTo(5.12);
+  });
+
+  it('fades the far rows, and shows none past its end', () => {
+    expect(wheelPlace(1, 4).opacity).toBeCloseTo(0.94, 1);
+    expect(wheelPlace(4, 4).opacity).toBeCloseTo(0.42);
+    expect(wheelPlace(5, 4).opacity).toBe(0);
+    expect(wheelPlace(-6, 4).opacity).toBe(0);
   });
 });
 

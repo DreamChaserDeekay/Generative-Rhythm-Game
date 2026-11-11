@@ -7,12 +7,12 @@ import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SH
 import type { Chart, StemName } from '../engine/types';
 import { loadSettings, padMenuKeysFor, patternKey, resetSettings, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
+import { GENERATION_PARAMS } from './chartCache';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
 import { ResultScreen } from './ResultScreen';
 import { RESET_UNDO_MS, SettingsScreen, type SettingsTab } from './SettingsScreen';
-import { generationParams } from './PlayOptions';
 import { useDisplayMode } from './displayMode';
 import { buildPlayRequest } from './playRequest';
 import { bestAfterPlay } from './playRules';
@@ -81,11 +81,9 @@ export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'select' });
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorSession | null>(null);
-  // the song select's practice and target level of each chart, kept while it is away (a play, the settings)
+  // the song select's practice of each chart, kept while it is away (a play, the settings)
   const [practices, setPractices] = useState<Record<string, PracticeOptions>>({});
-  const [targetLevels, setTargetLevels] = useState<Record<string, number>>({});
   const keepPractice = useCallback((key: string, p: PracticeOptions | null) => setPractices((all) => withEntry(all, key, p)), []);
-  const keepTargetLevel = useCallback((key: string, level: number | null) => setTargetLevels((all) => withEntry(all, key, level)), []);
 
   const setSettings = useCallback((next: Settings) => {
     setSettingsState(next);
@@ -190,9 +188,9 @@ export function App() {
       const { chart } = await api.generate(meta.songId, {
         keyMode: meta.keyMode,
         difficulty: meta.difficulty,
-        targetLevel: (meta.generator.params.targetLevel as number | null | undefined) ?? null,
+        targetLevel: null,
         newSeed: true,
-        params: generationParams(settings.generation, meta.keyMode),
+        params: GENERATION_PARAMS,
       });
       // the player left the result screen while it was generating
       if (run !== screenRun.current) return null;
@@ -224,8 +222,6 @@ export function App() {
           onSelectSong={setSelectedSongId}
           practices={practices}
           onPractice={keepPractice}
-          targetLevels={targetLevels}
-          onTargetLevel={keepTargetLevel}
         />
       );
     case 'play':

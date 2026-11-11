@@ -104,7 +104,7 @@ test('a new pattern from the result keeps its tier; a failure is shown, a late o
   await page.getByRole('button', { name: /NORMAL/ }).first().click();
   const playToResult = async () => {
     await autoplay(page);
-    await page.getByTestId('play-button').click();
+    await page.getByTestId('hint-enter').click();
     await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   };
   await playToResult();
@@ -348,7 +348,7 @@ async function watchSources(page: Page) {
  */
 async function playLate(page: Page, notes: { t: number; lane: number; type: string; endT?: number }[], lateMs: number) {
   const before = await page.evaluate(() => (window as unknown as { __starts: unknown[] }).__starts.length);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
   await page.evaluate(
@@ -494,7 +494,7 @@ test("a play the server could not store: the first Enter or Esc (a pad's B) says
   // the server down for the scores; played with nothing pressed, to the result
   await page.route('**/api/scores', (route) => route.abort());
   const playUnsaved = async () => {
-    await page.getByTestId('play-button').click();
+    await page.getByTestId('hint-enter').click();
     await expect(page.getByTestId('play-screen')).toBeVisible();
     await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
     await settled(page);

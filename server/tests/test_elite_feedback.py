@@ -98,6 +98,9 @@ def _chord_slots(beats: list[float]) -> list[SimpleNamespace]:
 
 def test_chords_do_not_pile_into_a_few_bars() -> None:
     params = resolve_params("6K", "ELITE")
+    # the stretch cap alone: chords up to the tier's maxChord (generator 0.9.53 keeps tap chords to
+    # maxTapChord, which piles fewer notes in the loud bars by itself)
+    params.tap_chord = params.max_chord
     # bars 1-4 have loud hits, bars 5-16 soft ones: by worth every chord would go to the first stretch
     beats = [0.5 * k for k in range(128)]
     loud = [SimpleNamespace(quiet=False, bands=np.ones(3), strength=1.5 if b < 16 else 0.3, intensity=0.5, downbeat=False) for b in beats]

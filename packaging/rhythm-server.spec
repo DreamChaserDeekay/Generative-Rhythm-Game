@@ -1,7 +1,7 @@
 # PyInstaller spec: one folder with the analysis server, the shared config and the built client.
-# GRG_EDITION=ml builds the ML edition (README: 데스크톱 앱, docs/ARCHITECTURE.md): PyTorch (CPU), Demucs, beat_this
-# and basic-pitch (its ONNX model) come along and the analysis uses them; their model weights are
-# downloaded on first use. GRG_EDITION=structure is the ML edition with allin1 (song structure) on
+# GRG_EDITION=ml builds the ML edition (README: 데스크톱 앱, docs/ARCHITECTURE.md): PyTorch (CPU), BS-RoFormer
+# (ONNX Runtime DirectML on a GPU), Demucs, beat_this and basic-pitch (its ONNX model) come along and the
+# analysis uses them; their model weights are downloaded on first use. GRG_EDITION=structure is the ML edition with allin1 (song structure) on
 # PyTorch 2.1 (packaging/structure_constraints.txt, docs/PATTERN_DESIGN.md 90). Otherwise (the
 # default edition) they are left out and the desktop app runs the core analysis.
 import importlib.util
@@ -23,7 +23,9 @@ if EDITION in ("ml", "structure"):
     # files (model configs, the ONNX model, librosa's lazy-loader stubs, resampy's filters) or are
     # imported lazily
     packages += ["demucs", "beat_this", "basic_pitch", "librosa", "resampy", "soxr", "sphn", "lameenc", "julius",
-                 "rotary_embedding_torch", "einops", "mir_eval", "pretty_midi", "huggingface_hub", "safetensors"]
+                 "rotary_embedding_torch", "einops", "mir_eval", "pretty_midi", "huggingface_hub", "safetensors",
+                 # BS-RoFormer's ONNX export (onnx) and ONNX Runtime's DirectML build with its DirectML.dll
+                 "onnx", "onnxruntime"]
 else:
     excludes += ["torch", "torchaudio", "demucs", "beat_this", "basic_pitch", "onnxruntime", "librosa"]
 if EDITION == "structure":
@@ -32,6 +34,16 @@ if EDITION == "structure":
     # imports its plotting module; the adapter sets the Agg backend)
     packages += ["allin1", "natten", "madmom", "omegaconf", "hydra"]
     excludes = [e for e in excludes if e not in ("allin1", "matplotlib")]
+# Mapperatorinator (docs/MAPPERATORINATOR.md): the worker that runs in its own Python (a file, not
+# a frozen module) and its source and slider's at the pinned commits (packaging/vendor, fetched by
+# the workflow; without them the app downloads them from GitHub when it sets the runtime up)
+datas.append((str(ROOT / "server" / "rhythm_server" / "mapper" / "worker.py"), "rhythm_server/mapper"))
+for name in ("mapperatorinator", "slider"):
+    vendor = ROOT / "packaging" / "vendor" / name
+    if vendor.is_dir():
+        datas.append((str(vendor), f"vendor/{name}"))
+    else:
+        print(f"rhythm-server.spec: packaging/vendor/{name} is missing, left out")
 for package in packages:
     if importlib.util.find_spec(package) is None:
         print(f"rhythm-server.spec: {package} is not installed, left out")

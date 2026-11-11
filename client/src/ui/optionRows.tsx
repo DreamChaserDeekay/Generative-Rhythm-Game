@@ -67,7 +67,17 @@ export interface RowProps {
   testId?: string;
   /** Enter is the screen's, not the row's (the song select's panels: Enter plays). */
   passEnter?: boolean;
+  /**
+   * The setting's default, where it is one stored value (a choice's id, a number, on or off, null
+   * for 자동). A row given it tells `onDefault`, right after each `onHelp`, how it would show the
+   * default, or null while its value is the default (the settings' "기본값" under the help).
+   */
+  defaultValue?: string | number | boolean | null;
+  onDefault?: (text: string | null) => void;
 }
+
+/** A choice of more than this many shows no squares: they would say less than the value's name. */
+const PIPS_MOST = 12;
 
 /**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
@@ -82,6 +92,12 @@ export function OptionRow(
     onPress?: () => void;
     /** A switch's state (on / off rows). */
     checked?: boolean;
+    /** Where the value stands among its choices: shown as a square each while the row has the cursor. */
+    pips?: { count: number; at: number };
+    /** Where a number stands in its range, 0 to 1: shown as a mark on a line while the row has the cursor. */
+    meter?: number;
+    /** The default as the row shows it, while its value is another (see RowProps.defaultValue). */
+    defaultText?: string | null;
   },
 ) {
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -93,12 +109,17 @@ export function OptionRow(
       if (!e.repeat) props.onPress?.();
     }
   };
-  // the help follows the value (some rows explain the value chosen) while the row has the focus
+  // the help follows the value (some rows explain the value chosen) while the row has the focus,
+  // and so does the default: it is named only while the value is another
   const row = useRef<HTMLDivElement>(null);
-  const { onHelp, help } = props;
+  const { onHelp, help, onDefault, defaultText = null } = props;
+  const tell = () => {
+    onHelp(help);
+    onDefault?.(defaultText);
+  };
   useEffect(() => {
-    if (row.current && document.activeElement === row.current) onHelp(help);
-  }, [help]);
+    if (row.current && document.activeElement === row.current) tell();
+  }, [help, defaultText]);
   // the arrows change the value and leave the focus on the row
   const arrow = (dir: 1 | -1) => ({
     onMouseDown: (e: ReactMouseEvent) => e.preventDefault(),
@@ -123,10 +144,22 @@ export function OptionRow(
         // a switch flips under the pointer anywhere but on its arrows (they flip it themselves)
         if (props.checked !== undefined && !(e.target as HTMLElement).closest('.opt-step')) props.onPress?.();
       }}
-      onFocus={() => props.onHelp(props.help)}
+      onFocus={tell}
     >
       <span className="opt-name">{props.label}</span>
       <span className="opt-value">
+        {props.pips && props.pips.count > 2 && props.pips.count <= PIPS_MOST && (
+          <span className="opt-pips" aria-hidden="true">
+            {Array.from({ length: props.pips.count }, (_, i) => (
+              <i key={i} className={i === props.pips?.at ? 'at' : undefined} />
+            ))}
+          </span>
+        )}
+        {props.meter !== undefined && (
+          <span className="opt-meter" aria-hidden="true">
+            <i style={{ left: `${Math.min(1, Math.max(0, props.meter)) * 100}%` }} />
+          </span>
+        )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
           ‹
         </button>
@@ -139,11 +172,27 @@ export function OptionRow(
   );
 }
 
+/** How a row names its default: not at all where it has none, or where the value now reads the same. */
+function defaultShown(text: string | null, shown: string): string | null {
+  return text === shown ? null : text;
+}
+
 /** One of a list; the ends wrap around. */
 export function Choice<T extends string>(props: RowProps & { value: T; options: [T, string][]; onChange: (v: T) => void }) {
   const at = Math.max(0, props.options.findIndex(([id]) => id === props.value));
   const move = (dir: 1 | -1) => props.onChange(props.options[(at + dir + props.options.length) % props.options.length][0]);
-  return <OptionRow {...props} text={props.options[at]?.[1] ?? String(props.value)} value={props.value} onStep={(dir) => move(dir)} onPress={() => move(1)} />;
+  const text = props.options[at]?.[1] ?? String(props.value);
+  return (
+    <OptionRow
+      {...props}
+      text={text}
+      value={props.value}
+      onStep={(dir) => move(dir)}
+      onPress={() => move(1)}
+      pips={{ count: props.options.length, at }}
+      defaultText={defaultShown(props.options.find(([id]) => id === props.defaultValue)?.[1] ?? null, text)}
+    />
+  );
 }
 
 /** A number between min and max, in steps (Shift: bigger steps). */
@@ -156,7 +205,10 @@ export function NumberOption(
     const clamped = Math.min(props.max, Math.max(props.min, next));
     if (clamped !== props.value) props.onChange(clamped);
   };
-  return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} />;
+  const meter = props.max > props.min ? (props.value - props.min) / (props.max - props.min) : undefined;
+  const text = props.format(props.value);
+  const defaultText = defaultShown(typeof props.defaultValue === 'number' ? props.format(props.defaultValue) : null, text);
+  return <OptionRow {...props} text={text} value={String(props.value)} onStep={step} meter={meter} defaultText={defaultText} />;
 }
 
 export interface OptionalRange {
@@ -183,13 +235,18 @@ export function optionalStep(value: number | null, dir: 1 | -1, big: boolean, r:
 /** A number, or 자동 (null: the generator or the difficulty decides). */
 export function OptionalNumberOption(props: RowProps & OptionalRange & { value: number | null; format: (v: number) => string; onChange: (v: number | null) => void }) {
   const step = (dir: 1 | -1, big: boolean) => props.onChange(optionalStep(props.value, dir, big, props));
-  return <OptionRow {...props} text={props.value === null ? '자동' : props.format(props.value)} value={props.value === null ? 'auto' : String(props.value)} onStep={step} />;
+  const shown = (v: number | null) => (v === null ? '자동' : props.format(v));
+  const text = shown(props.value);
+  const defaultText = defaultShown(props.defaultValue === null || typeof props.defaultValue === 'number' ? shown(props.defaultValue) : null, text);
+  return <OptionRow {...props} text={text} value={props.value === null ? 'auto' : String(props.value)} onStep={step} defaultText={defaultText} />;
 }
 
 /** On or off; ←, → and Enter all flip it. */
 export function Toggle(props: RowProps & { value: boolean; onChange: (v: boolean) => void }) {
   const flip = () => props.onChange(!props.value);
-  return <OptionRow {...props} text={props.value ? '켬' : '끔'} value={String(props.value)} checked={props.value} onStep={flip} onPress={flip} />;
+  const shown = (v: boolean) => (v ? '켬' : '끔');
+  const defaultText = defaultShown(typeof props.defaultValue === 'boolean' ? shown(props.defaultValue) : null, shown(props.value));
+  return <OptionRow {...props} text={shown(props.value)} value={String(props.value)} checked={props.value} onStep={flip} onPress={flip} defaultText={defaultText} />;
 }
 
 /** A row that does something (Enter or a click). */

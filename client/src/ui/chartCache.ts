@@ -17,12 +17,24 @@ export interface ChartSpec {
 }
 
 /** A chart as the song select names it before its notes are needed. */
+/**
+ * What every generated chart is asked for besides its key mode and difficulty: the generator's own
+ * defaults, spelled out (they are part of a chart's identity, so the records made before the
+ * generation options were taken out of the game are still the same charts').
+ */
+export const GENERATION_PARAMS: Record<string, unknown> = Object.freeze({ style: 'balanced', rhythmSource: 'auto' });
+
 export interface ChartBrief {
   chartId: string;
   level: number;
   noteCount: number;
   /** The seed it was made with (the default pattern's too; none for a chart not generated). */
   seed: number | null;
+  /** Not made yet (Mapperatorinator makes a chart when it is opened): `level` is the one it aims at. */
+  predicted?: boolean;
+  /** Mapperatorinator is making it now, or it waits its turn (the other tiers of a key mode opened). */
+  making?: boolean;
+  queued?: boolean;
 }
 
 // The song list asks for the key of every tier of every song it shows: the parts of a key that are
@@ -66,8 +78,52 @@ export function requestOf(spec: ChartSpec): ChartRequest {
   return { keyMode: spec.keyMode, difficulty: spec.difficulty, targetLevel: spec.targetLevel, seed: spec.seed, params: spec.params };
 }
 
+/** How Mapperatorinator made a chart (its meta.generator), or null for the built-in generator's. */
+export function aiMaking(
+  meta: ServerChart['meta'],
+): {
+  seconds: number | null;
+  model: string | null;
+  precision: string | null;
+  encoder: string | null;
+  /** Whose timing the chart has: the app's analysis ('app', the default) or the model's own timing pass ('model'). */
+  timing: 'app' | 'model' | null;
+  device: string | null;
+} | null {
+  const g = meta.generator as
+    | { name?: string; model?: string; seconds?: number; precision?: string; encoder?: string; timing?: 'app' | 'model'; device?: string }
+    | undefined;
+  if (g?.name !== 'mapperatorinator') return null;
+  return {
+    seconds: typeof g.seconds === 'number' ? g.seconds : null,
+    model: g.model ?? null,
+    precision: g.precision ?? null,
+    // the encoder's precision when it differs from the rest (fp16 runs the encoder in fp32)
+    encoder: g.encoder ?? null,
+    timing: g.timing ?? null,
+    device: g.device ?? null,
+  };
+}
+
+/** "v32 · fp16(인코더 fp32) · 83초", "v32 · fp32 · 모델 박자 · 120초": what the chart info says about an AI chart's making. */
+export function aiMakingLabel(meta: ServerChart['meta']): string | null {
+  const ai = aiMaking(meta);
+  if (!ai) return null;
+  const precision = ai.precision === null ? null : `${ai.precision}${ai.encoder && ai.encoder !== ai.precision ? `(인코더 ${ai.encoder})` : ''}`;
+  // the model's own timing is the exception worth naming: the chart's BPM is then the model's, not the app's
+  const timing = ai.timing === 'model' ? '모델 박자' : null;
+  return [ai.model, precision, timing, ai.seconds !== null ? `${Math.round(ai.seconds)}초` : null].filter((x) => x !== null).join(' · ');
+}
+
 export function briefOf(meta: ServerChart['meta']): ChartBrief {
-  return { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
+  const brief: ChartBrief = { chartId: meta.chartId, level: meta.level, noteCount: meta.noteCount, seed: meta.generator?.seed ?? null };
+  const ai = meta as { predicted?: boolean; making?: boolean; queued?: boolean };
+  if (ai.predicted) {
+    brief.predicted = true;
+    if (ai.making) brief.making = true;
+    if (ai.queued) brief.queued = true;
+  }
+  return brief;
 }
 
 /** So many briefs (a few numbers each) and whole charts are kept, the oldest going first. */
@@ -121,6 +177,30 @@ export class ChartStore {
   /** A whole chart kept (null: not loaded, or let go). */
   chart(key: string): ServerChart | null {
     return this.charts.get(key) ?? null;
+  }
+
+  /** Charts come from Mapperatorinator (the server's generator says so): a chart is made when it is opened, not ahead. */
+  get aiCharts(): boolean {
+    return this.generator?.includes('+mapper-') ?? false;
+  }
+
+  /**
+   * Asks again for the brief of a chart not made yet (Mapperatorinator): it may be made now, or
+   * being made, or waiting its turn. A known brief of a made chart is kept as it is.
+   */
+  refreshBrief(spec: ChartSpec): Promise<ChartBrief | null> {
+    const key = chartKey(spec);
+    const known = this.briefs.get(key);
+    if (known && !known.predicted) return Promise.resolve(known);
+    return this.once(`refresh:${key}`, async () => {
+      try {
+        this.keepBrief(key, briefOf(await this.fetchers.meta(spec)));
+        this.changed();
+      } catch {
+        // the next round asks again
+      }
+      return this.briefs.get(key) ?? null;
+    });
   }
 
   /** The request for it failed (and was not made again since). */

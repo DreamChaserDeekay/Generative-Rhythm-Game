@@ -1,7 +1,8 @@
 # Smoke test of the bundled analysis server on Windows (used by the desktop workflow):
 # starts it, analyzes a demo song, generates a chart and decodes an uploaded MP3 file.
-# -ExpectML (the ML edition): the server must report Demucs, beat_this and basic-pitch as active, and
-# the demo song must be analyzed with them (their weights are downloaded on the first analysis).
+# -ExpectML (the ML edition): BS-RoFormer's ONNX path passes its self-test on a tiny model, the server
+# must report Demucs (BS-RoFormer's fallback: the runner has no GPU), beat_this and basic-pitch as
+# active, and the demo song must be analyzed with them (their weights are downloaded on the first analysis).
 # -ExpectStructure (the structure edition): allin1 too, for the song structure.
 param([switch]$ExpectML, [switch]$ExpectStructure)
 $ErrorActionPreference = 'Stop'
@@ -13,6 +14,14 @@ $work = Join-Path $tmp 'grg-smoke'
 New-Item -ItemType Directory -Force $work | Out-Null
 $base = 'http://127.0.0.1:8795'
 $library = Join-Path $work 'library'
+if ($ExpectML) {
+  # BS-RoFormer's GPU path on a tiny random model: its ONNX export and ONNX Runtime (DirectML where it
+  # is listed, else the CPU) against PyTorch, plus the DirectX adapters it would choose from. Without
+  # a GPU of 2 GB or more (this runner) the songs below go to Demucs, BS-RoFormer's fallback.
+  $selftest = & $exe selftest 2> (Join-Path $work 'selftest.err.log')
+  Write-Host "BS-RoFormer self-test: $selftest"
+  if ($LASTEXITCODE -ne 0) { throw "the BS-RoFormer self-test failed: $selftest" }
+}
 $proc = Start-Process -FilePath $exe -ArgumentList "--port 8795 --data `"$library`"" `
   -RedirectStandardOutput (Join-Path $work 'server.log') -RedirectStandardError (Join-Path $work 'server.err.log') -PassThru -NoNewWindow
 

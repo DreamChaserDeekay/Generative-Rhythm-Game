@@ -179,6 +179,7 @@ class StubBackend:
     def __init__(self, kind: str, name: str, module: types.SimpleNamespace):
         self.kind, self.name, self.version = kind, name, "9.9"
         self.options: dict = {}
+        self.fallback: StubBackend | None = None
         self._module = module
 
     @property
@@ -198,8 +199,11 @@ def test_installed_backends_are_used_and_failures_fall_back_to_core() -> None:
     def broken(*_args):
         raise RuntimeError("model download failed")
 
+    # the first separator fails on the song (BS-RoFormer's download, say): its fallback takes over
+    first = StubBackend("stems", "roformer", types.SimpleNamespace(separate=broken))
+    first.fallback = StubBackend("stems", "demucs", types.SimpleNamespace(separate=lambda pcm, _sr, _o: dict(song.stems)))
     backends = {
-        "stems": StubBackend("stems", "demucs", types.SimpleNamespace(separate=lambda pcm, _sr, _o: dict(song.stems))),
+        "stems": first,
         "beats": StubBackend("beats", "beat_this", types.SimpleNamespace(track=lambda pcm, _sr, _o: (beats, beats[::4]))),
         "pitch": StubBackend("pitch", "basic_pitch", types.SimpleNamespace(notes=lambda pcm, _sr, _o: [(t, t + 0.5, 72.0, 0.9) for t in song.onsets["lead"]])),
         "structure": StubBackend("structure", "allin1", types.SimpleNamespace(structure=broken)),
@@ -208,6 +212,7 @@ def test_installed_backends_are_used_and_failures_fall_back_to_core() -> None:
     used = a["analyzer"]["backends"]
     assert used == {"stems": "demucs-9.9", "beats": "beat_this-9.9", "pitch": "basic_pitch-9.9", "structure": "core"}
     assert "structure" in a["analyzer"]["errors"] and "model download failed" in a["analyzer"]["errors"]["structure"]
+    assert "model download failed" in a["analyzer"]["errors"]["stems"]  # noted, though Demucs made the stems
     assert set(stems_used) == set(STEM_NAMES)
     assert a["stems"]["method"] == "demucs-9.9"
     # true stems -> lead onsets are tagged vocals, and transcribed pitches reach the onsets

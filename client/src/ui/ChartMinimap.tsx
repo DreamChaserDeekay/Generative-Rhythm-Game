@@ -6,9 +6,12 @@ import { LANE_COLORS } from '../render/palette';
 import { pointText } from './format';
 import { rangePoints, sectionRange, stepRange } from './practiceRange';
 import { groupColor, sectionLabel } from './sections';
-import { canvasFont, token } from './theme';
+import { token } from './theme';
+import { uiScale } from './uiScale';
 
 const HEIGHT = 112;
+/** The map's text, in its own units (13 of them, as the menus' label size; the page's face). */
+const MAP_FONT = "'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif";
 const SECTION_BAND = 20;
 
 interface Props {
@@ -44,10 +47,11 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
     });
   }, [chart, duration, points]);
 
+  // (the map is drawn in the menus' own pixels: `width` is how many of them it is across)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const observer = new ResizeObserver(() => setWidth(Math.max(200, Math.round(canvas.getBoundingClientRect().width))));
+    const observer = new ResizeObserver(() => setWidth(Math.max(200, Math.round(canvas.getBoundingClientRect().width / uiScale()))));
     observer.observe(canvas);
     return () => observer.disconnect();
   }, []);
@@ -57,7 +61,8 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // drawn at the size it shows (the menus grow with the window), in the same units whatever that is
+    const dpr = Math.min(4, (window.devicePixelRatio || 1) * uiScale());
     canvas.width = width * dpr;
     canvas.height = HEIGHT * dpr;
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
@@ -84,7 +89,7 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
       const room = x(t1) - x(t0);
       if (room > 40) {
         ctx.fillStyle = text;
-        ctx.font = canvasFont(700, '--fs-label');
+        ctx.font = `700 13px ${MAP_FONT}`;
         ctx.textBaseline = 'middle';
         ctx.fillText(room > 72 && s.group ? `${name} ${s.group}` : name, x(t0) + 4, (SECTION_BAND - 2) / 2, room - 6);
       }
@@ -148,7 +153,7 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
       ref={canvasRef}
       className={`chart-minimap ${onSelect ? 'selectable' : ''}`}
       data-testid="chart-minimap"
-      style={{ height: HEIGHT }}
+      style={{ height: `${HEIGHT / 16}rem` }}
       tabIndex={onSelect ? 0 : undefined}
       role={onSelect ? 'slider' : undefined}
       aria-label={onSelect ? '연습 구간' : undefined}

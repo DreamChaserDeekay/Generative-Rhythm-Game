@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import heapq
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -65,6 +66,7 @@ class Unit:
     jack_target: float = 1.0  # the section plan's scale of the fast-jack and jack-streak targets in it
     focus: int | None = None  # the stem this repeat of its music follows first (sectioned.repeatFocus)
     voice: tuple[int, ...] | None = None  # the stems this unit's notes keep to (sectioned.voices)
+    lead_solo: bool = False  # in a section a guitar or piano leads (6-stem analysis, sectioned.leadSolo)
 
 
 @dataclass
@@ -285,8 +287,8 @@ def _cap_below_highlight(units: list["Unit"], per_unit: list[dict[int, int]], pe
     by_plan = bool(planned) and section_plan.plan_config().get("highlightRatio") == "plan"
     changed = False
     for k, u in enumerate(units):
-        if u.label in tops or u.length <= 0:
-            continue
+        if u.label in tops or u.length <= 0 or u.lead_solo:
+            continue  # an instrument solo is a highlight of its own (sectioned.leadSolo)
         share = min(1.0, u.density / max(planned)) if by_plan and u.density is not None else blueprint(u.label)["density"] / top_density
         cap = level * u.length * share
         if per_unit_n[k] > cap:
@@ -360,6 +362,43 @@ def _mark_focus(units: list[Unit], sections: list[dict[str, Any]], params: GenPa
 
 def _section_of(rows: list[dict[str, Any]], u: Unit) -> dict[str, Any] | None:
     return next((s for s in rows if str(s.get("group")) == u.group and float(s["startBeat"]) <= u.start + 1e-6 < float(s.get("endBeat", math.inf))), None)
+
+
+def _lead_section(sec: dict[str, Any] | None) -> bool:
+    """A section a guitar or piano leads (6-stem analysis: its `lead` one of melody.solo
+    instrumentLeads with `leadShares` of it at minLeadShare at least): an instrument solo."""
+    if not sec:
+        return False
+    solo = load_config("instruments")["rhythmSource"]["melody"].get("solo", {})
+    lead = sec.get("lead")
+    return lead in set(solo.get("instrumentLeads", ())) and float((sec.get("leadShares") or {}).get(lead, 0.0)) >= float(solo.get("minLeadShare", 1.0))
+
+
+def _mark_lead_solos(units: list[Unit], sections: list[dict[str, Any]]) -> None:
+    """`lead_solo` of the units of instrument-solo sections (sectioned.leadSolo; nothing without it)."""
+    if not sectioned_config().get("leadSolo"):
+        return
+    rows = sorted(sections, key=lambda s: float(s["startBeat"]))
+    for u in units:
+        u.lead_solo = _lead_section(_section_of(rows, u))
+
+
+def _mark_lead_voices(units: list[Unit], params: GenParams) -> bool:
+    """Under the tiers of sectioned.voices (its minSkill), an instrument solo still follows the
+    instrument (sectioned.leadSolo, docs/PATTERN_DESIGN.md 94): its units take the tune voice, so the
+    drums there are its companions (beats one and three) and the rest of the drums is gated as in
+    the voices of the higher tiers. A rhythm source the player picked keeps leading. Whether any
+    unit took it."""
+    rule = sectioned_config().get("leadSolo")
+    voices = sectioned_config().get("voices") or {}
+    if not rule or not rule.get("voiceUnderVoices", False) or params.rhythm_source != "auto" or params.key_mode in voices.get("offKeyModes", ()):
+        return False
+    tune = tuple(STEM_NAMES.index(n) for n in ("vocals", "other"))
+    took = False
+    for u in units:
+        if u.lead_solo:
+            u.voice, u.focus, took = tune, None, True
+    return took
 
 
 def _mark_voices(units: list[Unit], sections: list[dict[str, Any]], params: GenParams, per_unit: list[dict[int, int]] | None = None, cands: list[Candidate] | None = None) -> bool:
@@ -482,7 +521,10 @@ def _companion(c: Candidate, u: Unit, bpb: int, drums_at_least: float, median_st
     if float(c.sources[STEM_NAMES.index("drums")]) < drums_at_least:
         return False
     beat_in_bar = (c.beat - u.start) % bpb
-    return (bpb % 2 == 0 and abs(beat_in_bar - bpb // 2) < 1e-6) or c.strength >= median_strength
+    third = bpb % 2 == 0 and abs(beat_in_bar - bpb // 2) < 1e-6
+    if u.lead_solo and (sectioned_config().get("leadSolo") or {}).get("companion") == "strongBeats":
+        return third  # an instrument solo keeps the drums on beats one and three only (sectioned.leadSolo)
+    return third or c.strength >= median_strength
 
 
 def _focus_weights(units: list[Unit]) -> dict[int, np.ndarray]:
@@ -657,9 +699,11 @@ def layout(
     bpb = tempo.beats_per_bar
     units = make_units(sections, cands[0].beat, cands[-1].beat, bpb)
     per_unit = _unit_cands(units, cands)
+    _mark_lead_solos(units, sections)
     voices_on = _mark_voices(units, sections, params, per_unit, cands)
     if not voices_on:
         _mark_focus(units, sections, params)
+        _mark_lead_voices(units, params)
     n_classes = classify(units, per_unit, cands)
     _mark_variation(units, params)
     _plan_units(units, cands, analysis, tempo, memo)
@@ -698,9 +742,10 @@ def layout(
                 supply[u.index] = supply_scale * sum(1 for ci in per_unit[u.index].values() if own_voice(cands[ci], u))
 
     # budget: the preset's note count spread over the units by their blueprint density
-    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.max_chord - 2))
+    expected_chord_notes = 1.0 + params.chord_ratio * (0.6 + 0.2 * max(0, params.tap_chord_max - 2))
     target_slots = params.avg_nps * params.density * density_scale * active_seconds(cands) / expected_chord_notes
     dens = sectioned_config()["density"]
+    solo_density = float((sectioned_config().get("leadSolo") or {}).get("density", 1.0))
     weight = []
     for u in units:
         if not per_unit[u.index]:
@@ -708,7 +753,9 @@ def layout(
             continue
         bp = blueprint(u.label)
         rule = bp["density"] * (float(dens["base"]) + float(dens["gain"]) * u.energy)
-        weight.append(u.length * (rule if u.density is None else u.density))
+        # an instrument solo takes more of the notes (sectioned.leadSolo density): human BMS charts
+        # play a song's busiest melody at 1.14-1.20 times their mean, a solo here came out at its mean
+        weight.append(u.length * (rule if u.density is None else u.density) * (solo_density if u.lead_solo else 1.0))
 
     def spread() -> list[float]:
         total_w = sum(w * (1 + u.extra) for w, u in zip(weight, units)) or 1.0
@@ -773,6 +820,9 @@ def layout(
 
     rolls_cfg = rolls_config()
     anchors_cfg = sectioned_config().get("anchors")
+    run_cfg = sectioned_config().get("runs")
+    if run_cfg and params.key_mode in run_cfg.get("offKeyModes", ()):
+        run_cfg = None
 
     def rollish(c: Candidate) -> bool:
         """A sound that can be a roll's hit where another repeat of the music has the roll."""
@@ -847,11 +897,23 @@ def layout(
                     take(times)
                     sub_counts[1] = sub_counts.get(1, 0) + len(times)
                     picked_total += len(times)
-        for k in order:
-            if k in picks or inside(k):
-                continue
+        # runs (sectioned.runs): a sound a 16th from a note already picked rises by `gain` per such
+        # neighbour, so where the music plays 16ths the notes grow into runs from its strong hits
+        # instead of scattering over the best-scoring sounds one by one (human BMS charts put a
+        # quarter to two thirds of their hits in 16th runs of four and more, ours a third of
+        # that: docs/PATTERN_DESIGN.md 96)
+        run_gain = _by_skill(run_cfg.get("gain", 0.0), params.skill) * float(params.extra.get("runScale", 1.0)) if run_cfg else 0.0
+        step16 = GRID // 4
+        pending = [(-consensus[k], k) for k in order]
+        heapq.heapify(pending)
+        seen_k: set[int] = set()
+        while pending:
             if len(picks) >= want:
                 break
+            _, k = heapq.heappop(pending)
+            if k in seen_k or k in picks or inside(k):
+                continue
+            seen_k.add(k)
             times = [cands[per_unit[m][k]].t for m in ms if k in per_unit[m]]
             sub = grid_of(cands[next(per_unit[m][k] for m in ms if k in per_unit[m])])
             if partial_ok(sub, len(times)) and window_ok(times):
@@ -859,6 +921,12 @@ def layout(
                 take(times)
                 sub_counts[sub] = sub_counts.get(sub, 0) + len(times)
                 picked_total += len(times)
+                if run_gain > 0:
+                    picked_set = set(picks)
+                    for nb in (k - step16, k + step16):
+                        if nb in presence and nb not in seen_k and nb not in picked_set and (presence[nb] >= 0.5 or len(ms) == 1):
+                            near = (nb - step16 in picked_set) + (nb + step16 in picked_set)
+                            heapq.heappush(pending, (-consensus[nb] * (1.0 + run_gain * near), nb))
         # floor: a bar of the loop with sound keeps at least one note
         if want >= 2:
             bar_keys = {}
@@ -984,7 +1052,7 @@ def layout(
             beat = c.beat if beat is None else beat
             idx.append(len(slots))
             drums_voice = u.voice is not None and STEM_NAMES.index("drums") in u.voice
-            tune_unit = (u.voice is not None and not drums_voice) if voices_on else (u.focus is not None and STEM_NAMES[u.focus] != "drums")
+            tune_unit = (u.voice is not None and not drums_voice) if (voices_on or u.voice is not None) else (u.focus is not None and STEM_NAMES[u.focus] != "drums")
             # a chord on the voice's own moments keeps to its stems; a downbeat or a companion note takes every instrument sounding
             voice = u.voice if (u.voice is not None and not c.downbeat and not _companion(c, u, bpb, companion_drums, median_strength)) else None
             slots.append(Slot(beat=beat, t=tempo.beat_to_ms(beat) if beat != c.beat else c.t, size=1, hold_end_beat=None, special=None, special_hold=False, pitch=c.pitch, bands=c.bands, score=c.score, subdivision=c.subdivision, strength=c.strength, sources=c.sources, sound_group=c.sound_group, jack_scale=u.jack_scale, jack_target=u.jack_target, tune=tune_unit, voice=voice))
@@ -1189,7 +1257,7 @@ def _plan_weight(units_of: list[Unit], what: str, power: float | None = 1.0) -> 
 def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params: GenParams, key_count: int, chord_scale: float, beats_per_bar: float = 4.0, cap_scale: float | None = 1.0) -> bool:
     """Chord sizes of the slots; True when the stretch cap (sectioned.chordWindow) refused a chord
     or made one smaller."""
-    max_chord = min(params.max_chord, max(2, int(np.ceil(key_count * 0.6))))
+    max_chord = min(params.tap_chord_max, max(2, int(np.ceil(key_count * 0.6))))
     if max_chord < 2 or not slots:
         return False
     ratio = min(MAX_CHORD_RATIO, params.chord_ratio * chord_scale * (0.75 if key_count <= 4 else 1.0))
@@ -1245,18 +1313,52 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
             for i in idxs:
                 room[win_of[i]] -= notes
 
+    # each unit's share of the chords (sectioned.chordBudget): its slots times its plan chord
+    # weight. Human BMS charts give a section about the song's notes per hit however busy it is
+    # (0.86-1.03 of the song's from the sparsest to the busiest sections); by worth alone the loud
+    # busy units took the chords (0.63 -> 1.05), the hardest seconds rated the chart up and the
+    # level loop thinned all of it (docs/PATTERN_DESIGN.md 96)
+    budget = sectioned_config().get("chordBudget") or {}
+    quota: dict[int, float] | None = None
+    held: dict[int, int] = {}
+    if budget.get("perUnit"):
+        power = float(section_plan.plan_config().get("chordPower", 1.0))
+        n_in: dict[int, int] = {}
+        for i, s in enumerate(slots):
+            if s.roll is None:
+                n_in[slot_unit[i]] = n_in.get(slot_unit[i], 0) + 1
+        w = {k: n * _plan_weight([units[k]], "chord", power) for k, n in n_in.items()}
+        total = sum(w.values()) or 1.0
+        quota = {k: target * v / total for k, v in w.items()}
+
+    def in_quota(idxs: list[int], loose: float) -> bool:
+        if quota is None:
+            return True
+        need: dict[int, int] = {}
+        for i in idxs:
+            need[slot_unit[i]] = need.get(slot_unit[i], 0) + 1
+        return all(held.get(k, 0) + n <= quota.get(k, 0.0) * loose + 0.5 for k, n in need.items())
+
     placed = 0
     picked: list[list[int]] = []
     capped = False
-    for worth, key, idxs in options:
-        if placed >= target - 0.5 * len(idxs):
-            break
-        if not fits(idxs, 1):
-            capped = True
-            continue
-        use(idxs, 1)
-        picked.append(idxs)
-        placed += len(idxs)
+    taken: set[Any] = set()
+    # first within every unit's share, then (a unit short of chordable sounds) up to `loosen` times it
+    for loose in (1.0, float(budget.get("loosen", 1.5))) if quota is not None else (1.0,):
+        for worth, key, idxs in options:
+            if placed >= target - 0.5 * len(idxs):
+                break
+            if key in taken or not in_quota(idxs, loose):
+                continue
+            if not fits(idxs, 1):
+                capped = True
+                continue
+            use(idxs, 1)
+            picked.append(idxs)
+            taken.add(key)
+            placed += len(idxs)
+            for i in idxs:
+                held[slot_unit[i]] = held.get(slot_unit[i], 0) + 1
     for rank, idxs in enumerate(picked):
         size = max(2, min(max_chord, size_at(rank / max(1, len(picked)))))
         # a bigger chord takes its added notes from the stretch's room too
@@ -1266,6 +1368,35 @@ def _assign_chords(slots, slot_cand, positions, units, slot_unit, cands, params:
         use(idxs, size - 2)
         for i in idxs:
             slots[i].size = size
+    # an instrument solo keeps the drums with it (sectioned.leadSolo drumChords): on beats one and
+    # three, where a drum and the tune both sound (each keysound.chordShare at least), the note is a
+    # chord of the drum and the louder tune stem, past the chord share and within the stretch cap
+    if (sectioned_config().get("leadSolo") or {}).get("drumChords") and any(getattr(u, "lead_solo", False) for u in units):
+        share = float(load_config("instruments")["keysound"]["chordShare"])
+        drums, tunes = STEM_NAMES.index("drums"), [STEM_NAMES.index(n) for n in ("vocals", "other")]
+
+        def pair(i: int) -> tuple[int, int] | None:
+            u, c = units[slot_unit[i]], cands[slot_cand[i]]
+            if not u.lead_solo or slots[i].roll is not None or c.sources is None:
+                return None
+            beat_in_bar = (slots[i].beat - u.start) % beats_per_bar
+            strong = min(beat_in_bar, beats_per_bar - beat_in_bar) < 1e-6 or (int(beats_per_bar) % 2 == 0 and abs(beat_in_bar - beats_per_bar / 2) < 1e-6)
+            tune = max(tunes, key=lambda k: float(c.sources[k]))
+            ok = strong and float(c.sources[drums]) >= share and float(c.sources[tune]) >= share
+            return (drums, tune) if ok else None
+
+        for key, idxs in _realized(positions, _outside(slots, positions)):
+            pairs = [pair(i) for i in idxs]
+            if not idxs or any(p is None for p in pairs):
+                continue
+            if all(slots[i].size == 1 for i in idxs):
+                if not fits(idxs, 1):
+                    continue  # past the stretch cap: no chord here
+                use(idxs, 1)
+                for i in idxs:
+                    slots[i].size = 2
+            for i, p in zip(idxs, pairs):
+                slots[i].voice = p  # the chord's notes: the drum and the tune (lanes.note_sources)
     return capped
 
 

@@ -165,7 +165,7 @@ test('a long intro is skipped with Enter (again after a retry while READY shows)
     await new Promise((r) => setTimeout(r, 2000));
     await route.continue();
   });
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('loading-rules')).toHaveText(/MAX JUDGEMENT.*배치\s*미러.*점수 규칙\s*EX-SCORE.*게이지\s*HARD/, { timeout: 60_000 });
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
 

@@ -4,10 +4,25 @@ import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
 import { clockText, errorKind, errorText, speedText } from './format';
+import { drawDisc, stemToken } from './songArt';
+import { token } from './theme';
 import type { KeyPairNames } from './visualSync';
+
+/**
+ * The song's jacket on its plate: its picture, or (none, or one that does not load) its disc in
+ * the colour of the stem that leads the song, asked for only then (null: not known, a grey disc).
+ */
+export interface HudJacket {
+  coverUrl: string | null;
+  leadStem?: () => Promise<string | null>;
+}
 
 export interface HudInfo {
   title: string;
+  /** Under the title (empty: no line). */
+  artist: string;
+  /** At the plate's left (null: none, the sync test has no song). */
+  jacket?: HudJacket | null;
   keyMode: string;
   /** Difficulty chip: the tier on its colour and the level ("Lv.12"; empty when none). */
   difficulty: { label: string; level: string; color: string };
@@ -123,6 +138,14 @@ const SIDE_MARGIN = 16;
  * its type to no less than this share of its size at 720p.
  */
 const INFO_LEAST_TYPE = 0.8;
+/** The jacket on the song's plate (.hud-jacket: 48 px at 720p) is drawn once, for its side at the HUD's largest (screen px). */
+const JACKET_SIDE = 48 * MAX_SCALE;
+/**
+ * A plate that cannot hold its jacket, this much of the song's name and the difficulty side by
+ * side is a narrow one (screen px at 720p): there the artist gives way and the difficulty stands
+ * under the title, so the plate is no higher than its jacket.
+ */
+const INFO_NAME_ROOM = 200;
 /**
  * The score panel's labels and numbers (screen px tall at 720p), and the least of them it keeps
  * (labels 12 px, numbers about 21): where two columns would need less, each label goes over its
@@ -270,10 +293,49 @@ function judgementHtml(label: string, split: boolean): string {
 }
 
 /**
- * Imperative DOM overlay; only touches the DOM when a value changes. The song (title, level, key
- * mode, how the play runs) and the messages sit on the screen; the judgement, combo, score panel,
- * gauge, speed, progress and FEVER lie on the track (one plane under the camera's projection: they
- * tilt and zoom with it).
+ * The song's jacket for its plate, drawn once into a small canvas: its picture cut to a square
+ * (the picture itself may be thousands of pixels wide, and is let go), or its disc where it has
+ * none or the picture does not load. Never a broken picture.
+ */
+function jacketOf(jacket: HudJacket): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'hud-jacket';
+  canvas.setAttribute('aria-hidden', 'true');
+  const disc = (stem: string | null) => drawDisc(canvas, JACKET_SIDE, token(stemToken(stem)));
+  const showDisc = () => {
+    disc(null);
+    jacket.leadStem?.().then(
+      (stem) => {
+        if (stem) disc(stem);
+      },
+      () => undefined,
+    );
+  };
+  if (!jacket.coverUrl) {
+    showDisc();
+    return canvas;
+  }
+  const side = Math.round(JACKET_SIDE * Math.min(2, window.devicePixelRatio || 1));
+  canvas.width = side;
+  canvas.height = side;
+  const image = new Image();
+  image.onload = () => {
+    const g = canvas.getContext('2d');
+    const cut = Math.min(image.naturalWidth, image.naturalHeight);
+    if (!g || cut <= 0) return showDisc();
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(image, (image.naturalWidth - cut) / 2, (image.naturalHeight - cut) / 2, cut, cut, 0, 0, side, side);
+  };
+  image.onerror = showDisc;
+  image.src = jacket.coverUrl;
+  return canvas;
+}
+
+/**
+ * Imperative DOM overlay; only touches the DOM when a value changes. The song (jacket, title,
+ * artist, level, key mode, how the play runs) and the messages sit on the screen; the judgement,
+ * combo, score panel, gauge, speed, progress and FEVER lie on the track (one plane under the
+ * camera's projection: they tilt and zoom with it).
  */
 export class Hud {
   private readonly root: HTMLElement;
@@ -378,7 +440,7 @@ export class Hud {
     this.judgeOpacity = String(info.judgementOpacity);
     root.innerHTML = `
       <div class="hud-info">
-        <div class="hud-head"><span class="hud-title"></span><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></div>
+        <div class="hud-head"><div class="hud-line"><span class="hud-name"><span class="hud-title"></span><span class="hud-artist"></span></span><span class="hud-tier"><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></span></div></div>
       </div>
       <div class="hud-plane">
         <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
@@ -408,12 +470,14 @@ export class Hud {
       <div class="hud-banner" data-testid="hud-banner"></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
+    q('.hud-artist').textContent = info.artist;
+    if (info.jacket) q('.hud-head').prepend(jacketOf(info.jacket));
     q('.hud-diff').style.setProperty('--diff', info.difficulty.color);
     q('.hud-diff-tier').textContent = info.difficulty.label;
     q('.hud-diff-level').textContent = info.difficulty.level;
     q('.hud-keymode').textContent = info.keyMode;
     if (info.chips.length > 0) {
-      // under the song's line, so a long title keeps its room
+      // after the difficulty on the song's line, or under it where the line is full (a long title keeps its room)
       const chips = document.createElement('div');
       chips.className = 'hud-chips';
       for (const text of info.chips) {
@@ -422,7 +486,7 @@ export class Hud {
         chip.textContent = text;
         chips.append(chip);
       }
-      q('.hud-info').append(chips);
+      q('.hud-line').append(chips);
     }
     const syncKeys = info.syncKeys;
     if (syncKeys) {
@@ -450,7 +514,11 @@ export class Hud {
       };
       this.syncVisual = row('표시 오프셋', 'visual', syncKeys.visual);
       this.syncInput = syncKeys.judgement === undefined ? null : row('판정 오프셋', 'input', syncKeys.judgement);
-      q('.hud-info').append(sync);
+      // under the song's line, across the plate
+      const foot = document.createElement('div');
+      foot.className = 'hud-foot';
+      foot.append(sync);
+      q('.hud-info').append(foot);
     }
     root.dataset.mode = info.mode;
     root.dataset.keysounds = info.keysounds.join(' ');
@@ -571,8 +639,10 @@ export class Hud {
 
   /**
    * Sizes the screen layer to the screen, and the song's plate no wider than the room left of the
-   * gear (`p`: the track as the camera shows it at the chart's peak, see CameraFx.peak), on start,
-   * resize and an in-play change; reading the size lays the page out.
+   * gear (`p`: the track as the camera shows it at the chart's peak, see CameraFx.peak) nor than
+   * what stands on it, on start, resize and an in-play change; reading the size lays the page out.
+   * The plate keeps low, for the column left of the gear stands under it: on a narrow plate
+   * (INFO_NAME_ROOM) the artist gives way and the difficulty stands under the title.
    */
   fit(p: HudPlane): void {
     this.screenHeight = this.root.clientHeight;
@@ -582,21 +652,51 @@ export class Hud {
       this.root.style.setProperty('--hud-scale', String(scale));
     }
     const info = this.root.querySelector('.hud-info') as HTMLElement;
-    info.style.removeProperty('--info-scale');
-    info.style.removeProperty('--info-room');
-    // the plate's narrowest: its widest part that does not wrap (the difficulty, the key mode, a chip)
-    const style = getComputedStyle(info);
-    const parts = [...info.querySelectorAll<HTMLElement>('.hud-diff, .hud-keymode, .hud-chip, .hud-sync')];
-    const least = Math.max(0, ...parts.map((e) => e.offsetWidth)) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 1;
-    let shrink = 1;
-    // a narrower plate may wrap its chips and grow: then measured again from its new foot
-    for (let pass = 0; pass < 2; pass++) {
-      const room = infoRoom(p.h, p.halfWidth + p.sideOut, p.far, info.offsetLeft, info.offsetTop, info.offsetTop + info.offsetHeight * shrink) - SIDE_MARGIN * scale;
-      // narrower than that, the plate shrinks as a whole (on a screen narrower still it covers the gear)
-      shrink = Math.min(1, Math.max(INFO_LEAST_TYPE / scale, Math.floor((room / least) * 100) / 100));
-      info.style.setProperty('--info-scale', String(shrink));
-      info.style.setProperty('--info-room', room < Infinity ? `${Math.max(least, Math.floor(room / shrink))}px` : '');
+    const line = info.querySelector('.hud-line') as HTMLElement;
+    const name = line.querySelector('.hud-name') as HTMLElement;
+    const tier = line.querySelector('.hud-tier') as HTMLElement;
+    const foot = info.querySelector<HTMLElement>('.hud-foot');
+    info.classList.remove('tight');
+    const widest = (parts: Iterable<HTMLElement>) => Math.max(0, ...[...parts].map((e) => e.offsetWidth));
+    const padding = (box: HTMLElement) => {
+      const style = getComputedStyle(box);
+      return { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight) };
+    };
+    const linePad = padding(line);
+    // the plate's narrowest: the jacket and, beside it, the widest part of the song's line that does
+    // not wrap (the difficulty with its key mode, a chip); or the sync test's rows under them
+    const jacket = info.querySelector<HTMLElement>('.hud-jacket')?.offsetWidth ?? 0;
+    const footPad = foot ? padding(foot) : { left: 0, right: 0 };
+    const rows = foot ? widest(foot.querySelectorAll<HTMLElement>('.hud-sync')) + footPad.left + footPad.right : 0;
+    const least = Math.max(jacket + widest(line.querySelectorAll<HTMLElement>('.hud-tier, .hud-chip')) + linePad.left + linePad.right, rows) + 1;
+    /** Gives the plate its room (and, narrower than its narrowest, its scale); the scale. */
+    const lay = (): number => {
+      info.style.removeProperty('--info-scale');
+      info.style.removeProperty('--info-room');
+      let shrink = 1;
+      // a narrower plate may wrap its line and grow: then measured again from its new foot
+      for (let pass = 0; pass < 2; pass++) {
+        const room = infoRoom(p.h, p.halfWidth + p.sideOut, p.far, info.offsetLeft, info.offsetTop, info.offsetTop + info.offsetHeight * shrink) - SIDE_MARGIN * scale;
+        // narrower than that, the plate shrinks as a whole (on a screen narrower still it covers the gear)
+        shrink = Math.min(1, Math.max(INFO_LEAST_TYPE / scale, Math.floor((room / least) * 100) / 100));
+        info.style.setProperty('--info-scale', String(shrink));
+        info.style.setProperty('--info-room', room < Infinity ? `${Math.max(least, Math.floor(room / shrink))}px` : '');
+      }
+      return shrink;
+    };
+    let shrink = lay();
+    // the difficulty went under the name (the plate is then as wide as it may be), and beside a
+    // name of some length it would not fit either: under the title, in the artist's place
+    const beside = jacket + linePad.left + INFO_NAME_ROOM * scale + (parseFloat(getComputedStyle(line).columnGap) || 0) + tier.offsetWidth + linePad.right;
+    if (tier.offsetTop >= name.offsetTop + name.offsetHeight && info.offsetWidth < beside) {
+      info.classList.add('tight');
+      shrink = lay();
     }
+    // a line that wrapped leaves the plate as wide as its room: no wider than what stands on it
+    // (2 px over the whole pixels read, so the widest line keeps all its parts)
+    const reach = Math.max(0, ...([...line.children] as HTMLElement[]).map((e) => e.offsetLeft + e.offsetWidth));
+    const used = Math.ceil(Math.max(reach + linePad.right, rows)) + 2;
+    if (used < info.offsetWidth) info.style.setProperty('--info-room', `${used}px`);
     this.infoBottom = info.offsetTop + info.offsetHeight * shrink;
   }
 

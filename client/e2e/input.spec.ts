@@ -29,7 +29,7 @@ async function demoSong(page: Page): Promise<string> {
 
 /** Starts the selected chart and waits for its loading card to go. */
 async function play(page: Page) {
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
 }
@@ -143,7 +143,7 @@ test('in play: the judge line’s position (LIFT) on Alt+PageUp/Down, the song o
     await new Promise((r) => setTimeout(r, 1500));
     await route.continue();
   });
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('loading-rules')).toContainText('곡 오프셋 +5ms', { timeout: 60_000 });
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -161,7 +161,7 @@ test('a play that starts after the window was left during its loading starts pau
     await new Promise((r) => setTimeout(r, 1500));
     await route.continue();
   });
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-loading')).toBeVisible();
   // the player switches to another window while it loads
   await page.evaluate(() => {
@@ -188,7 +188,7 @@ test('a practice run gives three seconds and READY before its first note, every 
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
   await demoSong(page);
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
-  await playOptions(page, 'rules');
+  await playOptions(page);
   await page.getByTestId('autoplay-toggle').check();
   await page.getByTestId('practice-toggle').check();
   await page.keyboard.press('Escape');
@@ -228,7 +228,7 @@ test('a practice is kept for its chart across a play; its segment moves by key (
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
   await demoSong(page);
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
-  await playOptions(page, 'rules');
+  await playOptions(page);
   await page.getByTestId('practice-toggle').check();
   const range = page.getByTestId('practice-range');
   const seconds = async () => ((await range.textContent()) ?? '').split('–').map((t) => t.trim().split(':').reduce((m, v) => m * 60 + Number(v), 0));
@@ -272,8 +272,8 @@ test('a practice is kept for its chart across a play; its segment moves by key (
   await page.getByTestId('result-back').click();
 
   // back on the song select the practice is the chart's still
-  await expect(page.getByTestId('play-button')).toContainText('연습 시작');
-  await playOptions(page, 'rules');
+  await expect(page.getByTestId('hint-enter')).toContainText('연습 시작');
+  await playOptions(page);
   await expect(page.getByTestId('practice-toggle')).toBeChecked();
   await expect(range).toHaveText(kept ?? '');
   expect(errors).toEqual([]);
