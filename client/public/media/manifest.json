@@ -675,6 +675,22 @@
         1024
       ]
     },
+    "sky/feather": {
+      "file": "gears/sky/feather.png",
+      "bundle": "gear",
+      "size": [
+        256,
+        256
+      ]
+    },
+    "sky/plate": {
+      "file": "gears/sky/plate.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        886
+      ]
+    },
     "standard/deck": {
       "file": "gears/standard/deck.webp",
       "bundle": "gear",

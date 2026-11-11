@@ -30,13 +30,38 @@
  *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
  *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
  *   the lanes.
+ * - PRISM (크리스털): the crystal skin's gear, as wide as the track and no wider: a row of frosted
+ *   crystal key caps, one to a lane, cut as emeralds are (the held one lit ice blue: deckKeys), over a
+ *   deck of broad flat facets in white, pale ice blue and pale lavender; set in it three long hexagons
+ *   of sapphire glass, pointed as its gem note is, where the HUD writes the score, the speed and the
+ *   rate (deckReadouts); its frame thin rails of clear glass (crystalPlate);
+ * - SKY (하늘): the sky skin's gear: a thin navy strip with a dash to a lane (the held lane's lit cyan)
+ *   over a deck that is a window onto the sky (a painting where it is loaded, the same in plain shapes
+ *   otherwise): blue easing lighter toward the player, a cumulus at each end, thin white wind trails
+ *   across it and a feather (a picture too) left of the score, which is written on the sky itself; the speed and the rate
+ *   in two see-through pills; rails of pale glass with a white line; and its sky laid very faintly over
+ *   the lanes with its wind trails and an altimeter's ticks along their edges (GEAR_FLOORS: skyPlate,
+ *   skyFloor);
+ * - FIRE (파이어스타터): the Firestarter skin's gear, a pop group's comeback stage in gloss black, chrome
+ *   and one hot red: a row of polished chrome key caps (the held lane's glows orange-red) over a deck of
+ *   candy-red lacquer with black wedges cut into it, the score in a window of black glass in a chrome
+ *   bevel, the speed and the rate in two dark pills; rails of chrome with a red line; a white-hot judge
+ *   line (firePlate). The group's illustration stands at its two sides (standees.ts);
+ * - GPT, GEMINI, GROK and CLAUDE: the gears of four AI companies' skins, each in its company's key colour
+ *   and manner: GPT a chat window in teal green (white key tiles, the score in a white message box with
+ *   its round send button, typing dots, a reply's thumb and copy marks); GEMINI a dark material surface
+ *   (pills that light blue, red, yellow, green, a light of blue through violet to pink under them, a few
+ *   sparkles); GROK pure black and white (outlined boxes, a field of stars, readouts between square
+ *   brackets); CLAUDE a page of cream paper with a terracotta band (warm-grey keys, the score in an ivory
+ *   card, a ball of thread drawn by hand). Their notes are the company's mark and two stickers stand at
+ *   their sides: pictures that come with the build (standees.ts; gptPlate, geminiPlate, grokPlate, claudePlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
-/** The gears a player picks. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+/** The gears a player picks: the skins' first (기본, 크리스털, 하늘, 파이어스타터, the four AI companies'), then the objects. */
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -141,7 +166,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion';
+export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion' | 'feather';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -150,6 +175,28 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
  * lie between them, where a note let through runs on until the gear covers it.
  */
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
+
+/**
+ * The judge line's colours on a gear: GEAR_JUDGE's red, but the skins' own: STANDARD's (a white core in its cyan), SKY's (in sky blue) and PRISM's, a white line edged in ice blue
+ * (its scratch is a ruby: a red line would hide the gem's razor as it lands; white to its edges, it
+ * would hide the white keys' notes). Its place and size are
+ * the same on every gear.
+ */
+export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
+  if (style === 'prism') return { ...GEAR_JUDGE, line: CRYSTAL_LINE, core: '#ffffff', glow: CRYSTAL_ICE };
+  // SKY's: a white line in a sky-blue glow, as a horizon
+  if (style === 'sky') return { ...GEAR_JUDGE, line: '#6dbcf7', core: '#ffffff', glow: '#58aef0' };
+  // FIRE's: a white-hot wire in a red glow
+  if (style === 'fire') return { ...GEAR_JUDGE, line: '#ff3b2f', core: '#ffffff', glow: '#ff2b1f' };
+  // the AI companies': GPT's white in its green, GEMINI's in its violet and blue, GROK's bare white, CLAUDE's cream in its terracotta
+  if (style === 'gpt') return { ...GEAR_JUDGE, line: '#12b38b', core: '#ffffff', glow: GPT_GREEN };
+  if (style === 'gemini') return { ...GEAR_JUDGE, line: GEMINI_VIOLET, core: '#ffffff', glow: '#6f8ff5' };
+  if (style === 'grok') return { ...GEAR_JUDGE, line: '#ffffff', core: '#ffffff', glow: '#6a6a6a' };
+  if (style === 'claude') return { ...GEAR_JUDGE, line: CLAUDE_CLAY, core: '#fff6ee', glow: CLAUDE_CLAY };
+  // STANDARD's: a white core in the gear's cyan
+  if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
+  return GEAR_JUDGE;
+}
 
 /** How deep the band of a gear's deck its things lie in looks (plane px across: drawn `stretch` times longer along the track). */
 const BAND = 96;
@@ -314,29 +361,6 @@ function eight(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
 
 const PLATE_SCALE = 0.5;
 
-/** A panel of small holes (a speaker's grille) filling box `b`, the holes `pitch` px apart across. */
-function grille(g: CanvasRenderingContext2D, b: Box, st: number, pitch: number): void {
-  const corner = Math.min(b.w, b.h / st) * 0.18;
-  rounded(g, b, corner, st);
-  g.fillStyle = '#0d0e12';
-  g.fill();
-  g.lineWidth = 1;
-  g.strokeStyle = white(0.1);
-  g.stroke();
-  recess(g, b, corner, st);
-  rounded(g, b, corner, st);
-  g.save();
-  g.clip();
-  g.fillStyle = black(0.75);
-  const r = pitch * 0.28;
-  for (let row = 0, y = b.y + pitch * st * 0.6; y < b.y + b.h - pitch * st * 0.3; row++, y += pitch * st * 0.87) {
-    for (let x = b.x + pitch * (row % 2 ? 1 : 0.5); x < b.x + b.w - pitch * 0.3; x += pitch) {
-      disc(g, x, y, r, st);
-      g.fill();
-    }
-  }
-  g.restore();
-}
 
 /**
  * An analogue meter (the receiver's): an amber-lit face in box `b`, its scale over the needle's
@@ -453,67 +477,153 @@ function brassCorner(g: CanvasRenderingContext2D, x: number, y: number, size: nu
   g.restore();
 }
 
-/** STANDARD: smoked glass in a graphite trim with its cyan line; the glass jog dial, the game's name over a cyan light strip, a speaker grille. */
-function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+/**
+ * The depths of STANDARD's deck, and CRYSTAL's (plane px across, drawn `stretch` times longer along the track): its row of key caps, the seam
+ * under it, its upper step with the score, its lower step with the speed and the rate.
+ */
+const STD = { keys: 44, seam: 3, upper: 46, lower: 44, pad: 4 } as const;
+
+/** The readouts a deck houses (the HUD writes them there): their windows, plane px from the deck's top-left corner. */
+export interface DeckReadouts {
+  speed: Box;
+  score: Box;
+  rate: Box;
+}
+
+/** How long each point of CRYSTAL's readout plates is for a window `h` deep (plane px across), and how far into it the window reaches. */
+const gemPoint = (h: number, st: number) => (h / st) * 0.6;
+const GEM_WINDOW = 0.45;
+
+/**
+ * The depths of SKY's deck: a thin strip of key dashes, the white line under it, the step with the
+ * score written in its lower part (the feather beside it), the step with the speed's and the rate's pills (`pill`:
+ * how far inside that step they lie). No deeper in all than STANDARD's: the default camera on a 16:9
+ * screen shows hardly more of the deck, and a deck that does not fit loses its readouts to the panel
+ * beside the gear (deckReadouts).
+ */
+const SKY = { keys: 14, seam: 2, upper: 72, lower: 46, pad: 5, score: 34, pill: 8 } as const;
+
+/**
+ * The depths of FIRE's deck: its row of chrome key caps (the light under them in its last `glow`), the
+ * chrome trim, the step with the score's window, the step with the speed's and the rate's pills. As
+ * deep in all as STANDARD's.
+ */
+const FIRE = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4, glow: 7 } as const;
+
+/** The depths of the AI companies' decks (GPT, GEMINI, GROK, CLAUDE): the row of keys, the seam, the step with the score, the step with the speed and the rate. As deep in all as STANDARD's. */
+const BRAND = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
+
+/** The steps of the decks that house the readouts. */
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND };
+
+/**
+ * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
+ * the speed and the rate in two at the ends of the lower step (STANDARD's pills; CRYSTAL's long
+ * hexagons, whose points lie outside the windows: gemPlate; SKY's score written on the sky in the
+ * lower part of its step, the feather left of it, and its two see-through pills; the AI companies'
+ * decks have the speed and the rate by the middle, under the score); null where the screen
+ * shows too little of the deck for them (a small preview) or the gear houses none.
+ */
+export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
+  const d = DECK_STEPS[style];
+  if (!d) return null;
   const st = s.stretch;
-  const glass = g.createLinearGradient(0, 0, 0, s.room);
-  glass.addColorStop(0, '#17191f');
-  glass.addColorStop(1, '#0c0d11');
-  g.fillStyle = glass;
-  g.fillRect(0, 0, s.width, s.depth);
-  // a faint sheen across the glass, slanting
-  const lean = s.room * 0.5;
-  for (const [x, w, a] of [
-    [0.12, 0.08, 0.025],
-    [0.62, 0.14, 0.02],
-  ] as [number, number, number][]) {
-    polygon(g, [
-      [x * s.width, 0],
-      [(x + w) * s.width, 0],
-      [(x + w) * s.width - lean, s.room],
-      [x * s.width - lean, s.room],
-    ]);
-    g.fillStyle = white(a);
-    g.fill();
-  }
-  // the graphite trim along its top, the cyan line along its foot
-  const trim = 5 * st;
-  g.fillStyle = '#2a2c31';
-  g.fillRect(0, 0, s.width, trim);
-  g.fillStyle = white(0.1);
-  g.fillRect(0, 0, s.width, 1);
-  g.fillStyle = shade(CYAN, 1, 0.55);
-  g.fillRect(0, trim - 1.2, s.width, 1.2);
-  const band = bandOf(s, trim);
-  if (!band) return;
-  const { y, h, u, mid } = band;
-  const jog = boxAt(s.width * 0.13, mid, u * 0.84, st);
-  thing(
-    g,
-    art.jog,
-    jog,
-    (b) =>
-      shadedDisc(g, b, [
-        [0, '#3a3d45'],
-        [1, '#101116'],
-      ]),
-    0.45,
-  );
-  mark(s, 'jog', { x: jog.x - 2, y: jog.y - 2 * st, w: jog.w + 4, h: jog.h + 4 * st });
-  g.beginPath();
-  g.ellipse(jog.x + jog.w / 2, jog.y + jog.h / 2, jog.w / 2 + 2, jog.h / 2 + 2 * st, 0, 0, Math.PI * 2);
-  g.lineWidth = 1.2;
-  g.strokeStyle = shade(CYAN, 1, 0.45);
-  g.stroke();
-  text(g, 'GENERATIVE RHYTHM', s.width / 2, y + h * 0.4, Math.max(9, u * 0.15), st, white(0.32), { tracking: 4 });
-  const strip: Box = { x: s.width * 0.37, y: y + h * 0.62, w: s.width * 0.26, h: 2.4 * st };
-  rounded(g, strip, 1.2, st);
-  g.fillStyle = shade(CYAN, 1, 0.6);
+  const top = (d.keys + d.seam) * st;
+  if (s.room < top + (d.upper + d.lower * 0.6) * st) return null;
+  const sky = style === 'sky';
+  const pad = (sky ? SKY.pill : d.pad) * st;
+  const upper: Box = sky
+    ? { x: s.width * 0.25, y: top + (d.upper - SKY.score - 2) * st, w: s.width * 0.5, h: SKY.score * st }
+    : { x: s.width * 0.24, y: top + d.pad * st, w: s.width * 0.52, h: d.upper * st - 2 * d.pad * st };
+  const y = top + d.upper * st + pad;
+  const h = Math.min(d.lower * st, s.room - top - d.upper * st) - 2 * pad;
+  const w = s.width * 0.2;
+  // the AI companies' decks: the two by the deck's middle, under the score (stickers lie over these decks' near corners: standees.ts)
+  if (isBrandGear(style)) return { score: upper, speed: { x: s.width * 0.275, y, w, h }, rate: { x: s.width * 0.525, y, w, h } };
+  // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
+  const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
+  return { score: upper, speed: { x: edge, y, w, h }, rate: { x: s.width - edge - w, y, w, h } };
+}
+
+/** A readout's window: a dark well with a hairline round it, `r` round at its corners. */
+function well(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
+  rounded(g, b, r, st);
+  g.fillStyle = '#0a0b0e';
   g.fill();
-  mark(s, 'strip', strip);
-  const speaker = boxAt(s.width * 0.86, mid, s.width * 0.17, st, (u * 0.62) / (s.width * 0.17));
-  grille(g, speaker, st, Math.max(5, u * 0.075));
-  mark(s, 'grille', speaker);
+  g.lineWidth = 1;
+  g.strokeStyle = white(0.1);
+  g.stroke();
+  g.fillStyle = black(0.5);
+  g.fillRect(b.x + r, b.y, b.w - 2 * r, 1.2 * st);
+}
+
+/**
+ * STANDARD (기본): the house gear, matte graphite with one accent, as wide as the track and no wider.
+ * Under the judge line a row of low key caps, one to a lane, that light when their lane's key is held
+ * (deckKeys); under them two steps: the upper, its ends cut back, with the score's window in its
+ * middle; the lower with the speed's and the rate's pills at its ends and a cyan light strip along
+ * its front edge. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  g.fillStyle = '#111216';
+  g.fillRect(0, 0, s.width, s.depth);
+  // the key caps: a graphite cap in each lane, its top edge catching the light, its foot in shade
+  const kh = STD.keys * st;
+  for (const lane of s.lanes) {
+    const cap: Box = { x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: kh - 4 * st };
+    rounded(g, cap, 3, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#4a4e58');
+    face.addColorStop(0.5, '#363940');
+    face.addColorStop(1, '#282a30');
+    g.fillStyle = face;
+    g.fill();
+    g.fillStyle = white(0.2);
+    g.fillRect(cap.x + 3, cap.y, cap.w - 6, Math.max(1, 0.9 * st));
+    g.fillStyle = black(0.5);
+    g.fillRect(cap.x + 3, cap.y + cap.h - 1.6 * st, cap.w - 6, 1.6 * st);
+  }
+  // the seam under the caps
+  g.fillStyle = '#050608';
+  g.fillRect(0, kh, s.width, STD.seam * st);
+  const top = kh + STD.seam * st;
+  // the upper step, its ends cut back so the lower one shows there
+  const lowerFill = g.createLinearGradient(0, top, 0, s.room);
+  lowerFill.addColorStop(0, '#1b1d22');
+  lowerFill.addColorStop(1, '#101115');
+  g.fillStyle = lowerFill;
+  g.fillRect(0, top, s.width, s.depth - top);
+  const uh = STD.upper * st;
+  const cut = s.width * 0.2;
+  const slope = Math.min(s.width * 0.035, uh / st);
+  polygon(g, [
+    [cut - slope, top],
+    [s.width - cut + slope, top],
+    [s.width - cut, top + uh],
+    [cut, top + uh],
+  ]);
+  const upperFill = g.createLinearGradient(0, top, 0, top + uh);
+  upperFill.addColorStop(0, '#2c2e35');
+  upperFill.addColorStop(1, '#22242a');
+  g.fillStyle = upperFill;
+  g.fill();
+  g.fillStyle = white(0.14);
+  g.fillRect(cut - slope, top, s.width - 2 * (cut - slope), Math.max(1, 0.8 * st));
+  g.fillStyle = black(0.55);
+  g.fillRect(cut, top + uh - 1.4 * st, s.width - 2 * cut, 1.4 * st);
+  const windows = deckReadouts('standard', s);
+  if (windows) {
+    well(g, windows.score, 4, st);
+    well(g, windows.speed, windows.speed.h / (2 * st), st);
+    well(g, windows.rate, windows.rate.h / (2 * st), st);
+  }
+  // the light strip along the front edge of what the screen shows
+  const strip: Box = { x: s.width * 0.3, y: Math.max(top + uh + 2 * st, s.room - 7 * st), w: s.width * 0.4, h: 1.6 * st };
+  rounded(g, strip, 0.8, st);
+  g.fillStyle = shade(CYAN, 1, 0.7);
+  g.fill();
+  mark(s, 'strip', { x: strip.x, y: strip.y - 4 * st, w: strip.w, h: strip.h + 8 * st });
 }
 
 /** One of the cabinet's acrylic buttons in box `b`: its picture, its dome tinted `tint` (the milky white is left as it is). */
@@ -1450,6 +1560,16 @@ export interface DeckKey {
   lane: number;
   box: Box;
   notch: { left: number; right: number; depth: number };
+  /** Lit in this colour while held (STANDARD's key caps, CRYSTAL's), where the key does not go down in shade (PIANO's). */
+  lit?: string;
+  /** A cap cut as a gem (CRYSTAL's), drawn this many times longer along the track (DeckSpec.stretch): lit, it keeps its cut (crystalCap). */
+  gem?: number;
+  /** A dash in the middle of its box (SKY's), this share of the box across and along: lit, the dash white in a glow of its colour. */
+  dash?: [number, number];
+  /** A cap inside its box (FIRE's: shares of the box, x, y, w, h): lit, the cap glows as heated metal and its colour's light burns under its near edge. */
+  ember?: [number, number, number, number];
+  /** Held, the cap is one flat colour (the AI companies' gears: BRAND_PRESS), its corners `round` plane px, a dot in its middle or none; `stretch`: DeckSpec.stretch. */
+  press?: { fill: string; dot?: string; round: number; stretch: number };
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1461,6 +1581,35 @@ const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
  * plate draws them in code.
  */
 export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
+  if (style === 'standard' || style === 'prism') {
+    // its key caps, one to a lane (see standardPlate, crystalPlate)
+    const st = s.stretch;
+    const gem = style === 'prism';
+    return s.lanes.map((lane, i) => ({ lane: i, box: capBox(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: gem ? CRYSTAL_ICE : CYAN, ...(gem ? { gem: st } : {}) }));
+  }
+  if (style === 'sky') {
+    // its dashes, one to a lane (skyPlate): the lit one's light fills the lane's cell of the strip
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => {
+      const dash = dashBox(lane, st);
+      const box: Box = { x: lane.left, y: 0, w: lane.width, h: SKY.keys * st };
+      return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: SKY_CYAN, dash: [dash.w / box.w, dash.h / box.h] as [number, number] };
+    });
+  }
+  if (style === 'fire') {
+    // its chrome caps, one to a lane (firePlate): the held one's light is over the cap and under it
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => {
+      const cap = fireCap(lane, st);
+      const box: Box = { x: lane.left, y: 0, w: lane.width, h: FIRE.keys * st };
+      return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: FIRE_HOT, ember: [(cap.x - box.x) / box.w, cap.y / box.h, cap.w / box.w, cap.h / box.h] as [number, number, number, number] };
+    });
+  }
+  if (isBrandGear(style)) {
+    // their keys, one to a lane (gptPlate and the others): the held one in its company's flat colour
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: brandCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { ...BRAND_PRESS[style](i), stretch: st } }));
+  }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
   // plane px down the deck for a px of the picture
@@ -1492,6 +1641,92 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  * shadow along its left edge, a dark gap opens along its right edge, and its far end slips into the
  * lip's shadow. Drawn once; the renderer shows it while the lane's key is held.
  */
+/**
+ * A key cap lit while held, painted over the cap (a `w` × `h` canvas over its box): the cap filled with
+ * its colour's light, brightest along its far edge, a rim of the colour round it; a cap cut as a gem
+ * (CRYSTAL's) the same cut full of light. Drawn once; the renderer shows it while the lane's key is held.
+ */
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash' | 'ember' | 'press'>): void {
+  if (key.press) {
+    // the cap in one flat colour, round at its corners as the cap is on the screen, a dot in its middle or none
+    const [kx, ky] = [w / key.box.w, h / key.box.h];
+    const across = Math.min(key.box.w, key.box.h / key.press.stretch);
+    const r = Math.min(key.press.round, across / 2);
+    g.beginPath();
+    g.roundRect(0, 0, w, h, [{ x: r * kx, y: r * key.press.stretch * ky }]);
+    g.fillStyle = key.press.fill;
+    g.fill();
+    if (key.press.dot) {
+      g.beginPath();
+      g.ellipse(w / 2, h / 2, across * 0.12 * kx, across * 0.12 * key.press.stretch * ky, 0, 0, Math.PI * 2);
+      g.fillStyle = key.press.dot;
+      g.fill();
+    }
+    return;
+  }
+  if (key.gem) {
+    g.save();
+    g.scale(w / key.box.w, h / key.box.h);
+    crystalCap(g, { x: 0, y: 0, w: key.box.w, h: key.box.h }, key.gem, true);
+    g.restore();
+    return;
+  }
+  const colour = key.lit ?? '#ffffff';
+  if (key.ember) {
+    // the cap heated: white-hot along its near edge, its colour over the rest, and the light burning out from under that edge
+    const [cx, cy, cw, ch] = [key.ember[0] * w, key.ember[1] * h, key.ember[2] * w, key.ember[3] * h];
+    const heat = g.createLinearGradient(0, cy, 0, cy + ch);
+    heat.addColorStop(0, shade(colour, 1, 0.34));
+    heat.addColorStop(0.6, shade(colour, 1.1, 0.6));
+    heat.addColorStop(1, shade('#fff1d6', 1, 0.96));
+    g.fillStyle = heat;
+    g.fillRect(cx, cy, cw, ch);
+    const under = g.createLinearGradient(0, cy + ch, 0, h);
+    under.addColorStop(0, shade('#fff1d6', 1, 0.95));
+    under.addColorStop(0.35, shade(colour, 1.1, 0.85));
+    under.addColorStop(1, shade(colour, 1, 0));
+    g.fillStyle = under;
+    g.fillRect(cx - cw * 0.03, cy + ch, cw * 1.06, h - cy - ch);
+    return;
+  }
+  if (key.dash) {
+    // the dash white-hot in the middle of its cell, its colour's glow round it, melting away before the cell's edges
+    const [dw, dh] = [key.dash[0] * w, Math.max(2, key.dash[1] * h * 1.25)];
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.scale(1, h / w);
+    const glow = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.5);
+    glow.addColorStop(0, shade(colour, 1, 0.7));
+    glow.addColorStop(0.55, shade(colour, 1, 0.26));
+    glow.addColorStop(1, shade(colour, 1, 0));
+    g.fillStyle = glow;
+    g.beginPath();
+    g.arc(0, 0, w * 0.5, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    g.beginPath();
+    g.roundRect((w - dw) / 2, (h - dh) / 2, dw, dh, dh / 2);
+    g.fillStyle = shade(colour, 1.6, 1);
+    g.fill();
+    g.beginPath();
+    g.roundRect((w - dw * 0.82) / 2, (h - dh * 0.46) / 2, dw * 0.82, dh * 0.46, dh / 4);
+    g.fillStyle = white(0.95);
+    g.fill();
+    return;
+  }
+  g.beginPath();
+  g.roundRect(0, 0, w, h, Math.min(w, h) * 0.12);
+  const glow = g.createLinearGradient(0, 0, 0, h);
+  glow.addColorStop(0, shade(colour, 1.25, 0.95));
+  glow.addColorStop(0.5, shade(colour, 1, 0.75));
+  glow.addColorStop(1, shade(colour, 0.8, 0.6));
+  g.fillStyle = glow;
+  g.fill();
+  g.lineWidth = Math.max(2, w * 0.06);
+  g.strokeStyle = white(0.85);
+  g.stroke();
+}
+
 export function paintPressedKey(g: CanvasRenderingContext2D, w: number, h: number, notch: DeckKey['notch']): void {
   const [l, r, d] = [notch.left * w, w - notch.right * w, notch.depth * h];
   g.save();
@@ -1674,7 +1909,1327 @@ function rawGlassPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
 }
 
+// ---------- CRYSTAL (the crystal skin's gear; its parts are saved as 'prism') ----------
+
+/** CRYSTAL's ice blue (a held cap's light, its labels, the judge line's glow) and the judge line's edge, a little deeper so the white notes show on it. */
+const CRYSTAL_ICE = '#7cc8ff';
+const CRYSTAL_LINE = '#58b4ff';
+/** White light split into pastels, rose to violet (the light running down CRYSTAL's rails in FEVER). */
+const CRYSTAL_PASTELS = ['#ffc4dd', '#ffe2bd', '#fff5c4', '#c8f4d8', '#bfe9ff', '#c5d3ff', '#dccaff'] as const;
+
+/** A rectangle with its corners cut off (`cut` across and along): from its far edge's left end, clockwise. */
+function octagon(b: Box, cut: readonly [number, number]): [number, number][] {
+  const [cx, cy] = cut;
+  return [
+    [b.x + cx, b.y],
+    [b.x + b.w - cx, b.y],
+    [b.x + b.w, b.y + cy],
+    [b.x + b.w, b.y + b.h - cy],
+    [b.x + b.w - cx, b.y + b.h],
+    [b.x + cx, b.y + b.h],
+    [b.x, b.y + b.h - cy],
+    [b.x, b.y + cy],
+  ];
+}
+
+/** A crystal cap's tones: its table from far to near, the bevel round it (far, right, near, left, then the corners from the far left round), its front face from its top down, and the ridges of its cut. */
+interface CapTones {
+  table: readonly [string, string];
+  bevel: readonly [string, string, string, string];
+  corner: readonly [string, string, string, string];
+  front: readonly [string, string];
+  ridge: string;
+}
+const CAP_IDLE: CapTones = {
+  table: ['#f4f7fb', '#dce4f0'],
+  bevel: ['#ffffff', '#bdc9dc', '#98a6bf', '#e9eff8'],
+  corner: ['#f7fafd', '#d6dfec', '#a6b3c9', '#c4cfe1'],
+  front: ['#7b88a1', '#4c576e'],
+  ridge: 'rgba(255,255,255,0.7)',
+};
+const CAP_LIT: CapTones = {
+  table: ['#d6f2ff', '#8ad0fc'],
+  bevel: ['#f4fcff', '#62b3ec', '#4a9ad9', '#c8ecff'],
+  corner: ['#e6f8ff', '#8ccdf6', '#57a6e2', '#9ad6f9'],
+  front: ['#4189cb', '#28609e'],
+  ridge: 'rgba(255,255,255,0.9)',
+};
+
+/** The box of a key cap over `lane`: STANDARD's and CRYSTAL's rows, a little inside the lane. */
+const capBox = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: (STD.keys - 4) * st });
+
+/**
+ * One of CRYSTAL's key caps in box `b`: a block of frosted crystal cut as an emerald is, its corners
+ * cut off; its table frosted, the bevel round it catching the light along its far and left sides and
+ * in shade along its right and near ones, and under its near edge the block's front face, so it
+ * stands up out of the deck. `lit`: the cap while its key is held, the same cut full of ice-blue
+ * light, its table crossed corner to corner by two facet lines.
+ */
+function crystalCap(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  const t = lit ? CAP_LIT : CAP_IDLE;
+  const front = Math.min(5 * st, b.h * 0.14);
+  const top: Box = { x: b.x, y: b.y, w: b.w, h: b.h - front };
+  const cut: [number, number] = [Math.min(5, top.w * 0.16), Math.min(5 * st, top.h * 0.22)];
+  const rim: [number, number] = [Math.min(4.5, top.w * 0.14), Math.min(4.5 * st, top.h * 0.2)];
+  const o = octagon(top, cut);
+  const i = octagon({ x: top.x + rim[0], y: top.y + rim[1], w: top.w - 2 * rim[0], h: top.h - 2 * rim[1] }, [cut[0] * 0.55, cut[1] * 0.55]);
+  const down = ([x, y]: [number, number]): [number, number] => [x, y + front];
+  // the front face under the near edge, its cut corners turned from the light
+  polygon(g, [o[6], o[5], o[4], o[3], down(o[3]), down(o[4]), down(o[5]), down(o[6])]);
+  const face = g.createLinearGradient(0, top.y + top.h - cut[1], 0, b.y + b.h);
+  face.addColorStop(0, t.front[0]);
+  face.addColorStop(1, t.front[1]);
+  g.fillStyle = face;
+  g.fill();
+  polygon(g, [o[3], o[4], down(o[4]), down(o[3])]);
+  g.fillStyle = black(0.22);
+  g.fill();
+  polygon(g, [o[6], o[5], down(o[5]), down(o[6])]);
+  g.fillStyle = white(0.1);
+  g.fill();
+  // the bevel: four planes and the four cut corners between them
+  const quad = (a: number, c: number, tone: string) => {
+    polygon(g, [o[a], o[c], i[c], i[a]]);
+    g.fillStyle = tone;
+    g.fill();
+  };
+  quad(0, 1, t.bevel[0]);
+  quad(2, 3, t.bevel[1]);
+  quad(4, 5, t.bevel[2]);
+  quad(6, 7, t.bevel[3]);
+  quad(7, 0, t.corner[0]);
+  quad(1, 2, t.corner[1]);
+  quad(3, 4, t.corner[2]);
+  quad(5, 6, t.corner[3]);
+  // the table
+  const table: Box = { x: top.x + rim[0], y: top.y + rim[1], w: top.w - 2 * rim[0], h: top.h - 2 * rim[1] };
+  polygon(g, i);
+  const frost = g.createLinearGradient(0, table.y, 0, table.y + table.h);
+  frost.addColorStop(0, t.table[0]);
+  frost.addColorStop(1, t.table[1]);
+  g.fillStyle = frost;
+  g.fill();
+  g.save();
+  polygon(g, i);
+  g.clip();
+  if (lit) {
+    // two facet lines corner to corner: the far plane lighter, the near one deeper
+    const [cx, cy] = [table.x + table.w / 2, table.y + table.h / 2];
+    polygon(g, [[table.x, table.y], [table.x + table.w, table.y], [cx, cy]]);
+    g.fillStyle = white(0.3);
+    g.fill();
+    polygon(g, [[table.x, table.y + table.h], [table.x + table.w, table.y + table.h], [cx, cy]]);
+    g.fillStyle = 'rgba(40,110,190,0.22)';
+    g.fill();
+    polygon(g, [[table.x + table.w, table.y], [table.x + table.w, table.y + table.h], [cx, cy]]);
+    g.fillStyle = 'rgba(40,110,190,0.1)';
+    g.fill();
+    g.lineWidth = 0.7;
+    g.strokeStyle = white(0.75);
+    g.beginPath();
+    g.moveTo(table.x, table.y);
+    g.lineTo(table.x + table.w, table.y + table.h);
+    g.moveTo(table.x + table.w, table.y);
+    g.lineTo(table.x, table.y + table.h);
+    g.stroke();
+  } else {
+    // frosted: one soft slant of light, no glint
+    const lean = table.h / st;
+    polygon(g, [
+      [table.x + table.w * 0.16 + lean * 0.5, table.y],
+      [table.x + table.w * 0.46 + lean * 0.5, table.y],
+      [table.x + table.w * 0.46 - lean * 0.5, table.y + table.h],
+      [table.x + table.w * 0.16 - lean * 0.5, table.y + table.h],
+    ]);
+    g.fillStyle = white(0.34);
+    g.fill();
+  }
+  g.restore();
+  // the ridges of the cut: round the table, and from its corners out
+  g.lineWidth = 0.7;
+  g.strokeStyle = t.ridge;
+  polygon(g, i);
+  g.stroke();
+  g.beginPath();
+  for (let n = 0; n < 8; n++) {
+    g.moveTo(o[n][0], o[n][1]);
+    g.lineTo(i[n][0], i[n][1]);
+  }
+  g.globalAlpha = 0.55;
+  g.stroke();
+  g.globalAlpha = 1;
+}
+
+/**
+ * One of CRYSTAL's readout plates round the window `b`: a long hexagon, pointed at both ends as the
+ * skin's gem note is (its points outside the window: gemPoint), of deep sapphire glass, set in the
+ * deck: a dark hairline where it meets the deck, a thin bevelled rim catching the light along its far
+ * side, and one facet line inside it, with the short ridges of its points.
+ */
+function gemPlate(g: CanvasRenderingContext2D, b: Box, st: number): void {
+  const point = gemPoint(b.h, st);
+  const [x0, x1] = [b.x - point * (1 - GEM_WINDOW), b.x + b.w + point * (1 - GEM_WINDOW)];
+  const [yt, yb, yc] = [b.y, b.y + b.h, b.y + b.h / 2];
+  // half its depth as the screen shows it, and the hexagon `d` px inside its outline all round
+  const hh = b.h / (2 * st);
+  const sin = hh / Math.hypot(point, hh);
+  const hexagon = (d: number): [number, number][] => {
+    const tip = d / sin;
+    const run = (point * (hh - d)) / hh;
+    return [
+      [x0 + tip, yc],
+      [x0 + tip + run, yt + d * st],
+      [x1 - tip - run, yt + d * st],
+      [x1 - tip, yc],
+      [x1 - tip - run, yb - d * st],
+      [x0 + tip + run, yb - d * st],
+    ];
+  };
+  // where it meets the deck
+  polygon(g, hexagon(-1));
+  g.fillStyle = 'rgba(16,26,60,0.55)';
+  g.fill();
+  // the rim: lit along the far side, in shade along the near
+  polygon(g, hexagon(0));
+  const rim = g.createLinearGradient(0, yt, 0, yb);
+  rim.addColorStop(0, '#ffffff');
+  rim.addColorStop(0.45, '#d5e6f8');
+  rim.addColorStop(0.55, '#a9bfdf');
+  rim.addColorStop(1, '#7f95bd');
+  g.fillStyle = rim;
+  g.fill();
+  // the sapphire
+  const body = hexagon(2);
+  polygon(g, body);
+  const glass = g.createLinearGradient(0, yt, 0, yb);
+  glass.addColorStop(0, '#2a4a9a');
+  glass.addColorStop(0.5, '#1f3577');
+  glass.addColorStop(1, '#172553');
+  g.fillStyle = glass;
+  g.fill();
+  // its far half a flat plane a little lighter
+  g.save();
+  polygon(g, body);
+  g.clip();
+  g.fillStyle = 'rgba(120,170,255,0.09)';
+  g.fillRect(x0, yt, x1 - x0, b.h / 2);
+  g.restore();
+  // the facet line inside, and the ridges of the points
+  const inner = hexagon(5);
+  g.lineWidth = 0.8;
+  g.strokeStyle = 'rgba(124,170,240,0.6)';
+  polygon(g, inner);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(body[0][0], body[0][1]);
+  g.lineTo(inner[0][0], inner[0][1]);
+  g.moveTo(body[3][0], body[3][1]);
+  g.lineTo(inner[3][0], inner[3][1]);
+  g.stroke();
+}
+
+/** CRYSTAL's facets: the left half's, each by its corners (shares of the deck's width, and of the readouts' two steps down from under the caps) and its tone there and mirrored on the right, a shade deeper (the light comes from the left). */
+const CRYSTAL_FACETS: readonly { at: readonly (readonly [number, number])[]; tones: readonly [string, string] }[] = [
+  // beside the score's plate: two planes meeting on a ridge from the far corner
+  { at: [[0, 0], [0.2, 0], [0, 0.56]], tones: ['#e7ddf1', '#d9d0ea'] },
+  { at: [[0.2, 0], [0.31, 0.5], [0, 0.56]], tones: ['#d3d1ee', '#c6c5e7'] },
+  // under the plate (they show at its points and along its edges)
+  { at: [[0.2, 0], [0.5, 0], [0.31, 0.5]], tones: ['#cfe6f8', '#c2dbf2'] },
+  { at: [[0.5, 0], [0.5, 0.62], [0.31, 0.5]], tones: ['#f4f7fb', '#e9eff7'] },
+  // the near step: the plane the speed's (the rate's) plate lies in, and two meeting on the deck's middle
+  { at: [[0, 0.56], [0.31, 0.5], [0.26, 1], [0, 1]], tones: ['#eef2f9', '#e1e9f4'] },
+  { at: [[0.31, 0.5], [0.5, 0.62], [0.4, 1], [0.26, 1]], tones: ['#d4daf2', '#c8d0ec'] },
+  { at: [[0.5, 0.62], [0.5, 1], [0.4, 1]], tones: ['#e6ebf8', '#dae2f3'] },
+];
+
+/**
+ * CRYSTAL (크리스털): the crystal skin's gear, as wide as the track and no wider. Under the judge line
+ * a row of frosted crystal key caps, one to a lane (crystalCap), the held one lit ice blue (deckKeys);
+ * under them the deck, cut as a stone's crown is into a few broad flat facets, white, pale ice blue
+ * and pale lavender, a hairline of light along each ridge and the faintest wash of pastels over them
+ * (no glints, and no light moves on them: the notes are the brightest things on the screen); set in
+ * it the three readout plates (gemPlate), where the HUD writes the score, the speed and the rate
+ * (deckReadouts), the only parts of it that light with the music.
+ */
+function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  // the bed the caps stand in: dark, so each cap's cut shows
+  g.fillStyle = '#0b0f1c';
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) crystalCap(g, capBox(lane, st), st, false);
+  const top = (STD.keys + STD.seam) * st;
+  // the facets over the readouts' two steps; below them (a tall view shows a long way down the deck)
+  // one plain plane, a ridge between
+  const H = (STD.upper + STD.lower) * st;
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  g.fillStyle = '#d3d9ea';
+  g.fillRect(0, top + H, W, Math.max(0, s.depth - top - H));
+  g.lineWidth = 0.8;
+  g.lineJoin = 'round';
+  for (const side of [0, 1] as const) {
+    for (const facet of CRYSTAL_FACETS) {
+      polygon(
+        g,
+        facet.at.map(([u, v]): [number, number] => [(side ? 1 - u : u) * W, top + v * H]),
+      );
+      g.fillStyle = facet.tones[side];
+      g.fill();
+      g.strokeStyle = white(0.75);
+      g.stroke();
+    }
+  }
+  // the faintest wash of pastels across them: rose, ice, violet
+  const wash = g.createLinearGradient(0, top, W, top + H);
+  wash.addColorStop(0, 'rgba(255,170,212,0.13)');
+  wash.addColorStop(0.28, 'rgba(255,255,255,0)');
+  wash.addColorStop(0.5, 'rgba(140,222,255,0.12)');
+  wash.addColorStop(0.72, 'rgba(255,255,255,0)');
+  wash.addColorStop(1, 'rgba(186,160,255,0.13)');
+  g.fillStyle = wash;
+  g.fillRect(0, top, W, s.depth - top);
+  // that plane falls into shade
+  if (s.depth > top + H) {
+    const fall = g.createLinearGradient(0, top + H, 0, Math.min(s.depth, top + 2.2 * H));
+    fall.addColorStop(0, 'rgba(14,20,44,0.06)');
+    fall.addColorStop(1, 'rgba(14,20,44,0.78)');
+    g.fillStyle = fall;
+    g.fillRect(0, top + H, W, s.depth - top - H);
+  }
+  g.restore();
+  // its far edge under the caps: their shadow on it, then the ground edge catching the light
+  const shadow = g.createLinearGradient(0, top, 0, top + 5 * st);
+  shadow.addColorStop(0, 'rgba(20,28,58,0.4)');
+  shadow.addColorStop(1, 'rgba(20,28,58,0)');
+  g.fillStyle = shadow;
+  g.fillRect(0, top, W, 5 * st);
+  g.fillStyle = white(0.9);
+  g.fillRect(0, top, W, Math.max(1, 0.8 * st));
+  const windows = deckReadouts('prism', s);
+  if (!windows) return;
+  for (const name of ['score', 'speed', 'rate'] as const) {
+    gemPlate(g, windows[name], st);
+    // the sapphire takes light from inside (gearLights.ts)
+    mark(s, `plate.${name}`, windows[name]);
+  }
+}
+
+// ---------- FIRE (the Firestarter skin's gear, 파이어스타터) ----------
+
+/** FIRE's one colour, and the heat of what is lit on it (a held key's light, the light under the caps). */
+const FIRE_RED = '#e8112d';
+const FIRE_HOT = '#ff5a1f';
+
+/** Polished chrome down a strip from `y0` to `y1`: the sky in its upper half, the dark horizon, the floor's light below. */
+function chromeDown(g: CanvasRenderingContext2D, y0: number, y1: number): CanvasGradient {
+  const c = g.createLinearGradient(0, y0, 0, y1);
+  c.addColorStop(0, '#f6f8fa');
+  c.addColorStop(0.4, '#b4bcc7');
+  c.addColorStop(0.5, '#4f5661');
+  c.addColorStop(0.6, '#8d95a1');
+  c.addColorStop(1, '#e3e7ec');
+  return c;
+}
+
+/** A lane's key cap on FIRE's strip: as wide as the lane less a gap, the light's room left under it. */
+const fireCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2, y: 3 * st, w: lane.width - 4, h: (FIRE.keys - 3 - FIRE.glow) * st });
+
+/**
+ * FIRE (파이어스타터): a comeback stage in gloss black, chrome and one hot red, as wide as the track and no
+ * wider. Under the judge line a row of polished chrome key caps, one to a lane, each with one slant of
+ * light across it and a thin orange-red light burning under its near edge (the held lane's cap glows:
+ * deckKeys). Under them, past a chrome trim, a deck of candy-red lacquer with one soft straight
+ * reflection: black shoulders cut into its far corners point at the ends of the score's window, a pane
+ * of black glass in a chrome bevel whose ends slant inward, and two black blades run from under that
+ * window's corners to the deck's near edge; the speed and the rate are in two dark pills at the near
+ * corners. Nothing on it is a flame: the fire is its red and the light under the caps. The HUD writes
+ * the readouts in the windows (deckReadouts).
+ */
+function firePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = '#08080a';
+  g.fillRect(0, 0, W, s.depth);
+  // the key caps
+  for (const lane of s.lanes) {
+    const cap = fireCap(lane, st);
+    g.fillStyle = chromeDown(g, cap.y - cap.h * 0.25, cap.y + cap.h * 1.1);
+    g.fillRect(cap.x, cap.y, cap.w, cap.h);
+    // one slant of light: the part over the cap's diagonal brighter, the part under it in shade
+    polygon(g, [
+      [cap.x, cap.y],
+      [cap.x + cap.w, cap.y],
+      [cap.x, cap.y + cap.h],
+    ]);
+    g.fillStyle = white(0.34);
+    g.fill();
+    polygon(g, [
+      [cap.x + cap.w, cap.y],
+      [cap.x + cap.w, cap.y + cap.h],
+      [cap.x, cap.y + cap.h],
+    ]);
+    g.fillStyle = black(0.2);
+    g.fill();
+    g.fillStyle = white(0.9);
+    g.fillRect(cap.x, cap.y, cap.w, Math.max(1, 0.8 * st));
+    g.fillStyle = black(0.55);
+    g.fillRect(cap.x, cap.y + cap.h - 1.2 * st, cap.w, 1.2 * st);
+    // the light under it
+    const under = g.createLinearGradient(0, cap.y + cap.h, 0, FIRE.keys * st);
+    under.addColorStop(0, shade(FIRE_HOT, 1.1, 0.9));
+    under.addColorStop(0.3, shade(FIRE_RED, 1, 0.55));
+    under.addColorStop(1, shade(FIRE_RED, 1, 0));
+    g.fillStyle = under;
+    g.fillRect(cap.x + cap.w * 0.06, cap.y + cap.h, cap.w * 0.88, FIRE.keys * st - cap.y - cap.h);
+  }
+  const kh = FIRE.keys * st;
+  mark(s, 'caps', { x: 0, y: kh - FIRE.glow * st, w: W, h: FIRE.glow * st });
+  // the chrome trim under the caps
+  g.fillStyle = chromeDown(g, kh, kh + FIRE.seam * st);
+  g.fillRect(0, kh, W, FIRE.seam * st);
+  const top = kh + FIRE.seam * st;
+  const H = (FIRE.upper + FIRE.lower) * st;
+  // the lacquer: a deep candy red, darker toward the player and toward its two sides
+  const red = g.createLinearGradient(0, top, 0, top + H);
+  red.addColorStop(0, '#d2122c');
+  red.addColorStop(0.5, '#b60e24');
+  red.addColorStop(1, '#8c0a1b');
+  g.fillStyle = red;
+  g.fillRect(0, top, W, s.depth - top);
+  const sides = g.createLinearGradient(0, 0, W, 0);
+  sides.addColorStop(0, black(0.3));
+  sides.addColorStop(0.16, black(0));
+  sides.addColorStop(0.84, black(0));
+  sides.addColorStop(1, black(0.3));
+  g.fillStyle = sides;
+  g.fillRect(0, top, W, s.depth - top);
+  // one soft straight reflection across it, slanting
+  polygon(g, [
+    [W * 0.12, top],
+    [W * 0.5, top],
+    [W * 0.36, top + H],
+    [W * -0.02, top + H],
+  ]);
+  g.fillStyle = white(0.07);
+  g.fill();
+  polygon(g, [
+    [W * 0.53, top],
+    [W * 0.56, top],
+    [W * 0.42, top + H],
+    [W * 0.39, top + H],
+  ]);
+  g.fillStyle = white(0.05);
+  g.fill();
+  mark(s, 'lacquer', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
+  const windows = deckReadouts('fire', s);
+  const score: Box = windows?.score ?? { x: W * 0.24, y: top + FIRE.pad * st, w: W * 0.52, h: (FIRE.upper - 2 * FIRE.pad) * st };
+  const cut = Math.min(W * 0.04, (score.h / st) * 1.1);
+  // the black shoulders at the far corners, their points at the ends of the score's window
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    polygon(g, [
+      [x(0), top],
+      [x(score.x - W * 0.012), top],
+      [x(0), top + H * 0.3],
+    ]);
+    g.fillStyle = '#0a0a0c';
+    g.fill();
+    // a blade from under the window's corner to the deck's near edge, wider as it comes
+    polygon(g, [
+      [x(score.x + cut + W * 0.006), score.y + score.h + 2 * st],
+      [x(W * 0.462), top + H],
+      [x(W * 0.39), top + H],
+    ]);
+    g.fill();
+  }
+  // the score's window: black glass in a chrome bevel, its two ends slanting inward toward the player
+  const pane = (inset: number): [number, number][] => [
+    [score.x + inset, score.y + inset * st],
+    [score.x + score.w - inset, score.y + inset * st],
+    [score.x + score.w - cut - inset * 0.6, score.y + score.h - inset * st],
+    [score.x + cut + inset * 0.6, score.y + score.h - inset * st],
+  ];
+  polygon(g, pane(0));
+  g.fillStyle = chromeDown(g, score.y, score.y + score.h);
+  g.fill();
+  polygon(g, pane(2));
+  const glass = g.createLinearGradient(0, score.y, 0, score.y + score.h);
+  glass.addColorStop(0, '#17181c');
+  glass.addColorStop(1, '#060607');
+  g.fillStyle = glass;
+  g.fill();
+  // one sheen on the glass, at its left
+  g.save();
+  polygon(g, pane(2));
+  g.clip();
+  polygon(g, [
+    [score.x + score.w * 0.04, score.y],
+    [score.x + score.w * 0.3, score.y],
+    [score.x + score.w * 0.2, score.y + score.h],
+    [score.x - score.w * 0.06, score.y + score.h],
+  ]);
+  g.fillStyle = white(0.07);
+  g.fill();
+  g.restore();
+  if (!windows) return;
+  // the speed's and the rate's pills: the lacquer seen through smoked glass
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = 'rgba(46,3,9,0.8)';
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = black(0.45);
+    g.stroke();
+  }
+}
+
+// ---------- the AI companies' gears (GPT, Gemini, Grok, Claude: the four skins that took skin 4's place) ----------
+
+/**
+ * The gears of the four AI companies' skins: each in its company's key colour and with something of the
+ * company's own manner. Nothing of a company's own is drawn here: its mark (the note's shape) and the
+ * two stickers at the gear's sides are pictures that come with the build (public/stage, standees.ts).
+ */
+export const BRAND_GEARS = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly GearStyle[];
+export type BrandGear = (typeof BRAND_GEARS)[number];
+export const isBrandGear = (style: GearStyle): style is BrandGear => (BRAND_GEARS as readonly GearStyle[]).includes(style);
+
+/** A lane's key on their strips: as wide as the lane less a gap. */
+const brandCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2.5, y: 3 * st, w: lane.width - 5, h: (BRAND.keys - 6) * st });
+
+const GPT_GREEN = '#10a37f';
+const GEMINI_BLUE = '#4285f4';
+const GEMINI_VIOLET = '#9b72cb';
+const GEMINI_PINK = '#d96570';
+const GEMINI_SURFACE = '#131314';
+const GEMINI_RAISED = '#1e1f20';
+/** The four clear colours GEMINI's held keys light in, lane after lane. */
+const GEMINI_FOUR = [GEMINI_BLUE, '#ea4335', '#fbbc04', '#34a853'] as const;
+const CLAUDE_PAPER = '#f0eee6';
+const CLAUDE_IVORY = '#faf9f5';
+const CLAUDE_CLAY = '#d97757';
+const CLAUDE_GREY = '#b0aea5';
+
+/** How each of their keys looks while held: the cap in one flat colour (round at its corners as its cap is), a dot in its middle or none. */
+const BRAND_PRESS: Record<BrandGear, (lane: number) => { fill: string; dot?: string; round: number }> = {
+  // a black tile with a white dot: someone typing
+  gpt: () => ({ fill: '#0d0d0d', dot: '#ffffff', round: 7 }),
+  gemini: (lane) => ({ fill: GEMINI_FOUR[lane % GEMINI_FOUR.length], round: 99 }),
+  grok: () => ({ fill: '#ffffff', round: 0 }),
+  claude: () => ({ fill: CLAUDE_CLAY, dot: CLAUDE_PAPER, round: 6 }),
+};
+
+/** Draws with `st` taken out: what `draw` strokes about (x, y) is as thick along the track as across on the screen (1 px there is 1 plane px across). */
+function flatAt(g: CanvasRenderingContext2D, x: number, y: number, st: number, draw: () => void): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(1, st);
+  draw();
+  g.restore();
+}
+
+/** An arrow pointing up the track about (0, 0), `r` long each way (drawn inside flatAt). */
+function upArrow(g: CanvasRenderingContext2D, r: number, colour: string): void {
+  g.beginPath();
+  g.moveTo(0, r);
+  g.lineTo(0, -r);
+  g.moveTo(-r * 0.78, -r * 0.2);
+  g.lineTo(0, -r);
+  g.lineTo(r * 0.78, -r * 0.2);
+  g.lineWidth = Math.max(1.2, r * 0.42);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = colour;
+  g.stroke();
+}
+
+/** The score's window of a deck with BRAND's steps, where the screen shows too little of the deck for its readouts. */
+const brandScore = (s: DeckSpec): Box => ({ x: s.width * 0.24, y: (BRAND.keys + BRAND.seam + BRAND.pad) * s.stretch, w: s.width * 0.52, h: (BRAND.upper - 2 * BRAND.pad) * s.stretch });
+
+/**
+ * GPT: a chat window in its well-known teal green, as wide as the track and no wider. The deck is the
+ * green itself, a little deeper toward the player. Under the judge line a row of white tiles, one to a
+ * lane (the held lane's goes black with a white dot: deckKeys). The score is in a white message box, a
+ * grey plus at its left end and the round black send button at its right; the speed and the rate are in
+ * two white chips by the deck's middle, three typing dots between them, and a thumb and a copy mark
+ * beside the rate's, as under a reply. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function gptPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const green = g.createLinearGradient(0, 0, 0, Math.min(s.depth, Math.max(s.room, 1)));
+  green.addColorStop(0, '#13ab86');
+  green.addColorStop(1, '#0b7d62');
+  g.fillStyle = green;
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    rounded(g, cap, 7, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#ffffff');
+    face.addColorStop(1, '#e3e8ea');
+    g.fillStyle = face;
+    g.fill();
+  }
+  const kh = BRAND.keys * st;
+  g.fillStyle = '#086650';
+  g.fillRect(0, kh, W, BRAND.seam * st);
+  mark(s, 'glow', { x: 0, y: kh - 3 * st, w: W, h: (BRAND.seam + 6) * st });
+  const windows = deckReadouts('gpt', s);
+  const score = windows?.score ?? brandScore(s);
+  // the message box, and what a chat's has at its two ends
+  const u = score.h / st;
+  const mid = score.y + score.h / 2;
+  rounded(g, score, u / 2, st);
+  g.fillStyle = '#ffffff';
+  g.fill();
+  flatAt(g, score.x + u * 0.62, mid, st, () => {
+    const a = u * 0.17;
+    g.beginPath();
+    g.moveTo(-a, 0);
+    g.lineTo(a, 0);
+    g.moveTo(0, -a);
+    g.lineTo(0, a);
+    g.lineWidth = Math.max(1.2, u * 0.055);
+    g.lineCap = 'round';
+    g.strokeStyle = '#9b9ba5';
+    g.stroke();
+  });
+  const button = u * 0.36;
+  disc(g, score.x + score.w - u * 0.56, mid, button, st);
+  g.fillStyle = '#0d0d0d';
+  g.fill();
+  flatAt(g, score.x + score.w - u * 0.56, mid, st, () => upArrow(g, button * 0.46, '#ffffff'));
+  if (!windows) return;
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+  const v = windows.speed.h / st;
+  const low = windows.speed.y + windows.speed.h / 2;
+  // someone typing: three dots, the middle one the largest
+  [0.09, 0.12, 0.09].forEach((r, i) => {
+    disc(g, W / 2 + (i - 1) * v * 0.34, low, v * r, st);
+    g.fillStyle = white(i === 1 ? 0.95 : 0.7);
+    g.fill();
+  });
+  // a reply's marks: a thumb and a copy
+  const size = v * 0.3;
+  flatAt(g, windows.rate.x + windows.rate.w + v * 1.14, low, st, () => {
+    g.lineWidth = Math.max(1.1, size * 0.16);
+    g.lineJoin = 'round';
+    g.strokeStyle = white(0.9);
+    g.beginPath();
+    g.roundRect(-size * 0.3, -size * 0.5, size * 0.8, size * 0.8, size * 0.16);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-size * 0.3, size * 0.5);
+    g.lineTo(-size * 0.52, size * 0.5);
+    g.lineTo(-size * 0.52, -size * 0.26);
+    g.stroke();
+  });
+  flatAt(g, windows.rate.x + windows.rate.w + v * 0.56, low, st, () => {
+    g.lineWidth = Math.max(1.1, size * 0.16);
+    g.lineJoin = 'round';
+    g.strokeStyle = white(0.9);
+    g.beginPath();
+    g.rect(-size * 0.5, -size * 0.04, size * 0.24, size * 0.54);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-size * 0.26, size * 0.5);
+    g.lineTo(-size * 0.26, -size * 0.04);
+    g.lineTo(-size * 0.02, -size * 0.52);
+    g.lineTo(size * 0.14, -size * 0.44);
+    g.lineTo(size * 0.08, -size * 0.1);
+    g.lineTo(size * 0.5, -size * 0.1);
+    g.lineTo(size * 0.4, size * 0.5);
+    g.closePath();
+    g.stroke();
+  });
+}
+
+/** A four-pointed sparkle about (0, 0), `r` to its points, its sides curving in (drawn inside flatAt). */
+function sparkle(g: CanvasRenderingContext2D, r: number): void {
+  g.beginPath();
+  g.moveTo(0, -r);
+  g.quadraticCurveTo(r * 0.08, -r * 0.08, r, 0);
+  g.quadraticCurveTo(r * 0.08, r * 0.08, 0, r);
+  g.quadraticCurveTo(-r * 0.08, r * 0.08, -r, 0);
+  g.quadraticCurveTo(-r * 0.08, -r * 0.08, 0, -r);
+  g.closePath();
+}
+
+/** GEMINI's blue through violet to pink, across from `x0` to `x1`. */
+function geminiAcross(g: CanvasRenderingContext2D, x0: number, x1: number, alpha = 1): CanvasGradient {
+  const c = g.createLinearGradient(x0, 0, x1, 0);
+  c.addColorStop(0, shade(GEMINI_BLUE, 1, alpha));
+  c.addColorStop(0.5, shade(GEMINI_VIOLET, 1, alpha));
+  c.addColorStop(1, shade(GEMINI_PINK, 1, alpha));
+  return c;
+}
+
+/**
+ * GEMINI: a dark material surface, as wide as the track and no wider. Under the judge line a row of
+ * rounded pills, one to a lane, each a quiet shade of one of four clear colours, blue, red, yellow,
+ * green, lane after lane (the held one lights in its colour: deckKeys); under them a light of blue through violet to pink rises and fades
+ * into the deck, as behind a prompt box. The score is in a pill with that light for its outline and a
+ * few small sparkles by it, the speed and the rate in two plain pills. The HUD writes the readouts in
+ * the windows (deckReadouts).
+ */
+function geminiPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = GEMINI_SURFACE;
+  g.fillRect(0, 0, W, s.depth);
+  s.lanes.forEach((lane, i) => {
+    // each pill a quiet shade of the colour it lights in
+    const cap = brandCap(lane, st);
+    rounded(g, cap, cap.h / (2 * st), st);
+    g.fillStyle = GEMINI_RAISED;
+    g.fill();
+    g.fillStyle = shade(GEMINI_FOUR[i % GEMINI_FOUR.length], 1, 0.3);
+    g.fill();
+    g.fillStyle = white(0.08);
+    g.fillRect(cap.x + cap.h / (2 * st), cap.y, cap.w - cap.h / st, Math.max(1, 0.8 * st));
+  });
+  const kh = BRAND.keys * st;
+  // the light under the keys: the three colours across, fading down into the surface
+  const band: Box = { x: 0, y: kh, w: W, h: 20 * st };
+  g.fillStyle = geminiAcross(g, 0, W, 0.62);
+  g.fillRect(band.x, band.y, band.w, band.h);
+  const fade = g.createLinearGradient(0, band.y, 0, band.y + band.h);
+  fade.addColorStop(0, shade(GEMINI_SURFACE, 1, 0));
+  fade.addColorStop(0.5, shade(GEMINI_SURFACE, 1, 0.78));
+  fade.addColorStop(1, GEMINI_SURFACE);
+  g.fillStyle = fade;
+  g.fillRect(band.x, band.y, band.w, band.h + 1);
+  g.fillStyle = geminiAcross(g, 0, W);
+  g.fillRect(0, kh, W, Math.max(1, 1.2 * st));
+  mark(s, 'glow', band);
+  const windows = deckReadouts('gemini', s);
+  const score = windows?.score ?? brandScore(s);
+  const u = score.h / st;
+  rounded(g, score, u / 2, st);
+  g.fillStyle = geminiAcross(g, score.x, score.x + score.w);
+  g.fill();
+  const line = Math.max(1.2, u * 0.045);
+  rounded(g, { x: score.x + line, y: score.y + line * st, w: score.w - 2 * line, h: score.h - 2 * line * st }, u / 2 - line, st);
+  g.fillStyle = GEMINI_RAISED;
+  g.fill();
+  // a few sparkles by its far right end
+  for (const [dx, dy, r, a] of [
+    [0.34, 0.5, 0.2, 0.9],
+    [0.05, 0.16, 0.11, 0.6],
+    [0.58, 0.14, 0.08, 0.5],
+  ] as const) {
+    flatAt(g, score.x + score.w - u * (0.5 + dx), score.y + score.h * dy, st, () => {
+      sparkle(g, u * r);
+      g.fillStyle = white(a);
+      g.fill();
+    });
+  }
+  if (!windows) return;
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = GEMINI_RAISED;
+    g.fill();
+  }
+}
+
+/** A square bracket of a readout written on GROK's deck: at `x`, from `y0` to `y1`, opening toward `dir`. */
+function bracket(g: CanvasRenderingContext2D, x: number, y0: number, y1: number, dir: 1 | -1, reach: number, st: number): void {
+  flatAt(g, x, y0, st, () => {
+    const h = (y1 - y0) / st;
+    g.beginPath();
+    g.moveTo(dir * reach, 0);
+    g.lineTo(0, 0);
+    g.lineTo(0, h);
+    g.lineTo(dir * reach, h);
+    g.lineWidth = 1.3;
+    g.strokeStyle = white(0.9);
+    g.stroke();
+  });
+}
+
+/**
+ * GROK: black and white and nothing else, as wide as the track and no wider: a deck of pure black in a
+ * white hairline, a sparse field of stars over it and one thin line crossing it at a slant. Under the
+ * judge line a row of boxes drawn in a white outline, one to a lane (the held one solid white:
+ * deckKeys). The readouts have no windows: each is written on the black between two square brackets,
+ * the score over a thin rule. The HUD writes them there (deckReadouts).
+ */
+function grokPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = '#000000';
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    g.fillStyle = white(0.86);
+    g.fillRect(cap.x, cap.y, cap.w, cap.h);
+    g.fillStyle = '#000000';
+    g.fillRect(cap.x + 1.3, cap.y + 1.3 * st, cap.w - 2.6, cap.h - 2.6 * st);
+  }
+  const kh = BRAND.keys * st;
+  const top = kh + BRAND.seam * st;
+  const foot = Math.min(s.depth, Math.max(s.room, top + 1));
+  // the stars: the same field at every paint
+  const rand = seeded(29);
+  for (let i = 0; i < 54; i++) {
+    const [x, y, r, a] = [rand() * W, top + rand() * (foot - top), 0.45 + rand() * 0.75, 0.22 + rand() * 0.68];
+    disc(g, x, y, r, st);
+    g.fillStyle = white(a);
+    g.fill();
+  }
+  // the one line across it, at a slant
+  flatAt(g, 0, top, st, () => {
+    const h = (foot - top) / st;
+    g.beginPath();
+    g.moveTo(W * 0.05, h * 0.9);
+    g.lineTo(W * 0.4, h * 0.1);
+    g.lineWidth = 1.1;
+    g.strokeStyle = white(0.7);
+    g.stroke();
+  });
+  // the hairline round the deck
+  g.fillStyle = white(0.9);
+  g.fillRect(0, top - Math.max(1, 0.9 * st), W, Math.max(1, 0.9 * st));
+  mark(s, 'glow', { x: 0, y: top - 4 * st, w: W, h: 8 * st });
+  const windows = deckReadouts('grok', s);
+  const score = windows?.score ?? brandScore(s);
+  // nothing of the field under a readout: it is written on plain black
+  for (const b of windows ? [score, windows.speed, windows.rate] : [score]) {
+    g.fillStyle = '#000000';
+    g.fillRect(b.x, b.y, b.w, b.h);
+    const reach = Math.min(7, b.w * 0.05);
+    bracket(g, b.x, b.y + b.h * 0.12, b.y + b.h * 0.88, 1, reach, st);
+    bracket(g, b.x + b.w, b.y + b.h * 0.12, b.y + b.h * 0.88, -1, reach, st);
+  }
+  g.fillStyle = white(0.5);
+  g.fillRect(score.x + score.w * 0.12, score.y + score.h - Math.max(1, 0.9 * st), score.w * 0.76, Math.max(1, 0.9 * st));
+}
+
+/**
+ * CLAUDE: a page of warm cream paper, as wide as the track and no wider, with a band of terracotta
+ * along its far edge. Under the judge line a row of softly rounded warm-grey squares, one to a lane
+ * (the held one terracotta with a cream dot: deckKeys). The score is in an ivory card, as a writing
+ * box, a small terracotta button with an arrow at its near right corner; the speed and the rate are
+ * written on the paper itself by the deck's middle; left of them one loose line drawn by hand, a ball
+ * of thread and its end running off. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function claudePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = CLAUDE_PAPER;
+  g.fillRect(0, 0, W, s.depth);
+  // the paper's grain
+  const rand = seeded(83);
+  g.fillStyle = 'rgba(120,104,82,0.07)';
+  for (let i = 0; i < 420; i++) g.fillRect(rand() * W, rand() * s.depth, 1 + rand(), (1 + rand()) * st);
+  for (const lane of s.lanes) {
+    const cap = brandCap(lane, st);
+    rounded(g, cap, 6, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#c4c1b7');
+    face.addColorStop(1, CLAUDE_GREY);
+    g.fillStyle = face;
+    g.fill();
+  }
+  const kh = BRAND.keys * st;
+  const band: Box = { x: 0, y: kh, w: W, h: (BRAND.seam + 2.4) * st };
+  g.fillStyle = CLAUDE_CLAY;
+  g.fillRect(band.x, band.y, band.w, band.h);
+  mark(s, 'glow', { x: 0, y: band.y - 3 * st, w: W, h: band.h + 6 * st });
+  const windows = deckReadouts('claude', s);
+  const score = windows?.score ?? brandScore(s);
+  const u = score.h / st;
+  rounded(g, score, 8, st);
+  g.fillStyle = '#cfccc2';
+  g.fill();
+  rounded(g, { x: score.x + 1, y: score.y + st, w: score.w - 2, h: score.h - 2 * st }, 7, st);
+  g.fillStyle = CLAUDE_IVORY;
+  g.fill();
+  // the card's button, at its near right corner
+  const b: Box = { x: score.x + score.w - u * 0.68, y: score.y + score.h - u * 0.68 * st, w: u * 0.5, h: u * 0.5 * st };
+  rounded(g, b, 3.5, st);
+  g.fillStyle = CLAUDE_CLAY;
+  g.fill();
+  flatAt(g, b.x + b.w / 2, b.y + b.h / 2, st, () => upArrow(g, u * 0.13, CLAUDE_PAPER));
+  if (!windows) return;
+  // one loose line by hand between the speed and the rate: a ball of thread, its end running off
+  const v = windows.speed.h / st;
+  const low = windows.speed.y + windows.speed.h / 2;
+  const line = seeded(11);
+  flatAt(g, W * 0.07, low, st, () => {
+    const R = v * 0.44;
+    g.lineWidth = 1.3;
+    g.lineCap = 'round';
+    g.strokeStyle = shade(CLAUDE_CLAY, 1, 0.92);
+    for (let i = 0; i < 9; i++) {
+      g.beginPath();
+      g.ellipse((line() - 0.5) * R * 0.3, (line() - 0.5) * R * 0.3, R * (0.62 + 0.38 * line()), R * (0.5 + 0.5 * line()), line() * Math.PI, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(R * 0.8, R * 0.55);
+    g.bezierCurveTo(R * 2.2, R * 1.2, R * 3.1, -R * 0.7, R * 4.4, R * 0.2);
+    g.bezierCurveTo(R * 5, R * 0.6, R * 5.5, R * 0.1, R * 6, R * 0.35);
+    g.stroke();
+  });
+}
+
+// ---------- SKY (the sky skin's gear, 하늘) ----------
+
+/** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
+const SKY_FEATHER_X = 0.312;
+/** SKY's one accent, a held dash's light (its housings are a deep navy, #0c1c33: the strip here, the gauge's capsule in the HUD's styles). */
+const SKY_CYAN = '#3fe3e6';
+/** The deck's sky from its far edge to the foot of the readouts' steps. */
+const SKY_BLUES = ['#2f7fd6', '#4d9ee6', '#8ccbf4'] as const;
+
+/** The dash of a lane in SKY's strip: a short thin bar in the lane's middle. */
+const dashBox = (lane: DeckLane, st: number): Box => ({ x: lane.left + lane.width * 0.22, y: (SKY.keys / 2 - 1.6) * st, w: lane.width * 0.56, h: 3.2 * st });
+
+/** One soft puff of cloud about (x, y), `r` across (`st` times longer along the track, so it looks round), in `tone` at `alpha`, its edge melting away. */
+function puff(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number, tone: string, alpha: number): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(1, st);
+  const soft = g.createRadialGradient(0, 0, 0, 0, 0, r);
+  soft.addColorStop(0, shade(tone, 1, alpha));
+  soft.addColorStop(0.62, shade(tone, 1, alpha * 0.94));
+  soft.addColorStop(1, shade(tone, 1, 0));
+  g.fillStyle = soft;
+  g.beginPath();
+  g.arc(0, 0, r, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+}
+
+/**
+ * A cumulus cloud standing on (cx, base), `r` its largest puff: puffs side by side along a flat base,
+ * the middle ones the tallest; a pale blue shade under them first, then their lit white tops, a little
+ * up and to the left (the light comes from there). Flat and soft: an illustration's cloud.
+ */
+function cumulus(g: CanvasRenderingContext2D, cx: number, base: number, r: number, st: number, rand: () => number, puffs = 6): void {
+  const row = cumulusRow(cx, r, rand, puffs);
+  for (const { x, size } of row) puff(g, x, base - size * 0.5 * st, size, st, CLOUD_SHADE, 0.92);
+  for (const { x, size } of row) puff(g, x - size * 0.1, base - size * 0.72 * st, size * 0.86, st, '#ffffff', 0.97);
+}
+
+/** A cloud's shade, under its lit white tops. */
+const CLOUD_SHADE = '#b9d8f2';
+
+/** A cumulus's puffs about `cx`, `r` its largest: side by side, the middle ones the tallest, each a little off its place. */
+function cumulusRow(cx: number, r: number, rand: () => number, puffs: number): { x: number; size: number }[] {
+  return Array.from({ length: puffs }, (_, i) => {
+    const t = puffs > 1 ? i / (puffs - 1) : 0.5;
+    const size = r * (0.5 + 0.5 * Math.sin(Math.PI * t)) * (0.85 + 0.3 * rand());
+    return { x: cx + (t - 0.5) * r * 0.62 * puffs + (rand() - 0.5) * r * 0.2, size };
+  });
+}
+
+/**
+ * A cumulus seen faintly, at `alpha` (cumulus's shape): its shade and its lit tops each one soft
+ * shape, evenly see-through. Puffs drawn see-through one by one would show every place two of them
+ * overlap; here each layer is one outline, filled once (as a shadow thrown from off the canvas: an
+ * even fill with a soft edge).
+ */
+function faintCumulus(g: CanvasRenderingContext2D, cx: number, base: number, r: number, st: number, rand: () => number, puffs: number, alpha: number): void {
+  const row = cumulusRow(cx, r, rand, puffs);
+  const away = 8192;
+  const layer = (tone: string, a: number, place: (p: { x: number; size: number }) => [number, number, number]) => {
+    g.save();
+    g.shadowColor = shade(tone, 1, a);
+    g.shadowBlur = r * 0.16;
+    g.shadowOffsetX = away;
+    g.fillStyle = '#000000';
+    g.beginPath();
+    for (const p of row) {
+      const [x, y, size] = place(p);
+      g.moveTo(x - away + size, y);
+      g.ellipse(x - away, y, size, size * st, 0, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.restore();
+  };
+  layer(CLOUD_SHADE, 0.92 * alpha, ({ x, size }) => [x, base - size * 0.5 * st, size]);
+  layer('#ffffff', 0.97 * alpha, ({ x, size }) => [x - size * 0.1, base - size * 0.72 * st, size * 0.86]);
+}
+
+/** A thin white hairline from `a` through `via` to `b` (a quadratic curve), fading out at both its ends: a wind trail. */
+function trail(g: CanvasRenderingContext2D, a: [number, number], via: [number, number], b: [number, number], width: number, alpha: number): void {
+  const fade = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+  fade.addColorStop(0, white(0));
+  fade.addColorStop(0.18, white(alpha));
+  fade.addColorStop(0.82, white(alpha));
+  fade.addColorStop(1, white(0));
+  g.strokeStyle = fade;
+  g.lineWidth = width;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(a[0], a[1]);
+  g.quadraticCurveTo(via[0], via[1], b[0], b[1]);
+  g.stroke();
+}
+
+/** SKY's mark, a white feather `r` long about (cx, cy), leaning to the right: its vane, the shaft curving down out of it, two nicks in the vane's edge. */
+function feather(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, st: number, notch: string): void {
+  g.save();
+  g.translate(cx, cy);
+  g.scale(1, st);
+  g.rotate(0.56);
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.moveTo(0, -r);
+  g.bezierCurveTo(r * 0.6, -r * 0.62, r * 0.5, r * 0.2, r * 0.02, r * 0.52);
+  g.bezierCurveTo(-r * 0.46, r * 0.22, -r * 0.44, -r * 0.5, 0, -r);
+  g.fill();
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = Math.max(0.6, r * 0.075);
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(0, r * 0.2);
+  g.quadraticCurveTo(r * 0.02, r * 0.75, -r * 0.16, r * 1.12);
+  g.stroke();
+  // the nicks: the sky showing through
+  g.strokeStyle = notch;
+  g.lineWidth = Math.max(0.5, r * 0.06);
+  for (const [x, y] of [[r * 0.46, -r * 0.14], [-r * 0.4, 0], [r * 0.4, r * 0.16]] as const) {
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x * 0.3, y + r * 0.2);
+    g.stroke();
+  }
+  // the shaft, a faint line of shade up the vane
+  g.strokeStyle = notch;
+  g.globalAlpha = 0.45;
+  g.lineWidth = Math.max(0.4, r * 0.04);
+  g.beginPath();
+  g.moveTo(0, -r * 0.78);
+  g.lineTo(0, r * 0.3);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * SKY (하늘): the sky skin's gear, as wide as the track and no wider. Under the judge line a thin navy
+ * strip with a dash to a lane, the held lane's lit cyan (deckKeys); under it, past a white line, the
+ * deck is a window onto the sky: a deep clear blue easing lighter toward the player, cumulus low in it
+ * and toward its two ends (its middle kept clear), thin white wind trails across it, and a feather left
+ * of the score. The score is written on the sky itself, a hairline under it; the speed and the rate in
+ * two see-through pills (deckReadouts). A matte illustration: no sun, no rays, nothing glints. The
+ * sky is its painting where that is loaded (`art.plate`), the same in plain shapes otherwise; the
+ * feather its picture likewise (`art.feather`).
+ */
+function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt = {}): void {
+  const st = s.stretch;
+  const W = s.width;
+  // the strip and its dashes
+  const kh = SKY.keys * st;
+  const strip = g.createLinearGradient(0, 0, 0, kh);
+  strip.addColorStop(0, '#14294a');
+  strip.addColorStop(1, '#0a1730');
+  g.fillStyle = strip;
+  g.fillRect(0, 0, W, kh);
+  g.fillStyle = 'rgba(160,196,232,0.82)';
+  for (const lane of s.lanes) {
+    const dash = dashBox(lane, st);
+    rounded(g, dash, dash.h / (2 * st), st);
+    g.fill();
+  }
+  const top = (SKY.keys + SKY.seam) * st;
+  const H = (SKY.upper + SKY.lower) * st;
+  if (art.plate) skyPainting(g, s, art.plate, top);
+  else skyDrawn(g, s, top, H);
+  // the white line along the sky's far edge
+  g.fillStyle = white(0.92);
+  g.fillRect(0, kh, W, SKY.seam * st);
+  mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
+  const windows = deckReadouts('sky', s);
+  if (!windows) return;
+  // the feather left of the score, on its line (its picture where that is loaded; drawn in code
+  // otherwise), and the hairline under the score. The score is written about the deck's middle
+  // (Hud.layDeck), so its first letter stands further left the longer it is: the feather stands
+  // where a seven-figure score still leaves it room (SKY_FEATHER_X), a little taller than the score's
+  // line, its foot clear of the hairline
+  const line = windows.score.h / st;
+  const side = line * 1.12;
+  const quill = side / 2.9;
+  const at = { x: W * SKY_FEATHER_X, y: windows.score.y + windows.score.h / 2 - line * 0.07 * st };
+  if (art.feather) {
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(art.feather, at.x - side / 2, at.y - (side * st) / 2, side, side * st);
+  } else feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
+  mark(s, 'feather', { x: at.x - quill * 1.6, y: at.y - quill * 1.6 * st, w: quill * 3.2, h: quill * 3.2 * st });
+  const rule = g.createLinearGradient(W * 0.28, 0, W * 0.72, 0);
+  rule.addColorStop(0, white(0));
+  rule.addColorStop(0.2, white(0.75));
+  rule.addColorStop(0.8, white(0.75));
+  rule.addColorStop(1, white(0));
+  g.fillStyle = rule;
+  g.fillRect(W * 0.28, windows.score.y + windows.score.h + 1.5 * st, W * 0.44, Math.max(1, 0.8 * st));
+  // the speed's and the rate's pills: the sky seen through a darker glass (dark enough for white type
+  // where a cloud stands behind it), a white hairline round each
+  for (const pill of [windows.speed, windows.rate]) {
+    rounded(g, pill, pill.h / (2 * st), st);
+    g.fillStyle = 'rgba(12,38,84,0.64)';
+    g.fill();
+    g.lineWidth = 0.8;
+    g.strokeStyle = white(0.62);
+    g.stroke();
+  }
+}
+
+/**
+ * SKY's deck from its painting (a sky painted flat for it, a cloud standing at each end and the middle
+ * clear: scripts/assets/build_gears.py): under the strip, as wide as the deck and as much longer
+ * along the track as the camera flattens the deck, so it shows as it was painted; where the screen
+ * shows the deck deeper than the painting, its sea of cloud runs on and falls into shade.
+ */
+function skyPainting(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture, top: number): void {
+  const tall = (pic.height / pic.width) * s.width * s.stretch;
+  g.save();
+  g.beginPath();
+  g.rect(0, top, s.width, s.depth - top);
+  g.clip();
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, top, s.width, tall);
+  const under = s.depth - top - tall;
+  if (under > 0) {
+    g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, top + tall, s.width, under);
+    const fall = g.createLinearGradient(0, top + tall, 0, top + tall + Math.min(under, tall * 0.6));
+    fall.addColorStop(0, 'rgba(24,40,72,0)');
+    fall.addColorStop(1, 'rgba(24,40,72,0.94)');
+    g.fillStyle = fall;
+    g.fillRect(0, top + tall, s.width, under);
+  }
+  g.restore();
+}
+
+/** SKY's deck drawn in code (its painting not loaded): the same sky in plain shapes. */
+function skyDrawn(g: CanvasRenderingContext2D, s: DeckSpec, top: number, H: number): void {
+  const st = s.stretch;
+  const W = s.width;
+  // the sky: over the readouts' steps, and paler on below them
+  const sky = g.createLinearGradient(0, top, 0, top + H);
+  SKY_BLUES.forEach((c, i) => sky.addColorStop(i / (SKY_BLUES.length - 1), c));
+  g.fillStyle = sky;
+  g.fillRect(0, top, W, s.depth - top);
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  // the wind trails, behind the clouds
+  trail(g, [-0.02 * W, top + 0.4 * H], [0.42 * W, top + 0.02 * H], [1.02 * W, top + 0.32 * H], 0.8, 0.7);
+  trail(g, [0.08 * W, top + 0.98 * H], [0.5 * W, top + 0.44 * H], [1.02 * W, top + 0.6 * H], 0.8, 0.6);
+  trail(g, [-0.02 * W, top + 0.66 * H], [0.36 * W, top + 0.86 * H], [0.8 * W, top + 1.02 * H], 0.7, 0.45);
+  // the clouds: a cumulus standing at each end of the deck, smaller ones behind and beside them, the
+  // middle (the score's) kept clear (the same every time)
+  const rand = seeded(83);
+  const u = H / st / 110;
+  for (const [x, y, r, n] of [
+    [0.22, 0.62, 8, 4],
+    [0.8, 0.56, 7, 4],
+    [0.3, 1.04, 13, 4],
+    [0.71, 1.06, 12, 4],
+    [0.07, 1.1, 50, 4],
+    [0.93, 1.1, 43, 4],
+    [0.2, 1.12, 22, 4],
+    [0.81, 1.14, 20, 4],
+  ] as const) {
+    cumulus(g, x * W, top + y * H, r * u, st, rand, n);
+  }
+  // below the readouts a bank of cloud, falling into shade (a tall view shows a long way down the deck)
+  if (s.depth > top + H) {
+    const bank = g.createLinearGradient(0, top + H, 0, Math.min(s.depth, top + 2.2 * H));
+    bank.addColorStop(0, 'rgba(226,240,251,0)');
+    bank.addColorStop(0.25, 'rgba(226,240,251,0.85)');
+    bank.addColorStop(0.5, 'rgba(160,190,222,0.9)');
+    bank.addColorStop(1, 'rgba(24,40,72,0.94)');
+    g.fillStyle = bank;
+    g.fillRect(0, top + H, W, s.depth - top - H);
+  }
+  g.restore();
+}
+
+/**
+ * A gear's picture laid over the lanes, from the track's far end (the canvas's top) to the judge line
+ * (its bottom): the deck's own, very faint, under the notes (docs/GEAR_NOTE_FX_RESEARCH.md 7: the
+ * lanes stay plainly darker than the deck and than every note). Painted see-through over the track's
+ * floor; none for a gear that leaves the lanes as they are. `st`: how many times longer along the
+ * track than across it a thing is drawn to look round by the judge line (the picture's px are not
+ * square on the track, and the camera flattens it).
+ */
+export type FloorPaint = (g: CanvasRenderingContext2D, w: number, h: number, st: number) => void;
+export const GEAR_FLOORS: Partial<Record<GearStyle, FloorPaint>> = {
+  sky: skyFloor,
+};
+
+/**
+ * SKY's wind trails over the lanes, as the skin's picture has them (design-mockups/gear-concepts/
+ * r2-skin-sky-c3.jpg): three strands rising from low by the left rail to the right in a long S,
+ * steep, then easing across the middle lanes, then steep again toward the right rail. The first and
+ * the last are the bright ones; the second runs close under the first, thinner, and leaves it to die
+ * out in the middle of the track. Each point is where a strand crosses the track: [share of the
+ * track's width from its left edge, track units up from the judge line] on a track SKY_TRACK units
+ * long. Read off the picture row by row (its lanes laid flat) and brought to the game's own view (the
+ * default camera's, measured off a grid drawn on the lanes): on the screen they lie where the
+ * picture has them.
+ */
+const SKY_STRANDS: readonly { alpha: number; width: number; points: readonly (readonly [number, number])[] }[] = [
+  {
+    alpha: 0.6,
+    width: 1,
+    // prettier-ignore
+    points: [[0.037, 2.21], [0.055, 2.99], [0.066, 3.37], [0.08, 3.86], [0.098, 4.34], [0.117, 4.83], [0.143, 5.31], [0.169, 5.8], [0.202, 6.28], [0.241, 6.77], [0.278, 7.26], [0.328, 7.74], [0.385, 8.23], [0.438, 8.72], [0.494, 9.21], [0.548, 9.69], [0.599, 10.18], [0.64, 10.67], [0.674, 11.16], [0.705, 11.65], [0.733, 12.14], [0.759, 12.63], [0.781, 13.12], [0.801, 13.61], [0.818, 14.1], [0.833, 14.6], [0.845, 15.09], [0.858, 15.68], [0.869, 16.37]],
+  },
+  {
+    alpha: 0.32,
+    width: 0.75,
+    // prettier-ignore
+    points: [[0.056, 2.4], [0.07, 2.99], [0.082, 3.37], [0.1, 3.86], [0.121, 4.34], [0.145, 4.83], [0.173, 5.31], [0.2, 5.8], [0.235, 6.28], [0.276, 6.77], [0.309, 7.26], [0.353, 7.74], [0.407, 8.23], [0.46, 8.72], [0.523, 9.21], [0.587, 9.84], [0.653, 10.52], [0.703, 11.01], [0.764, 11.41]],
+  },
+  {
+    alpha: 0.58,
+    width: 1,
+    // prettier-ignore
+    points: [[0.164, 2.4], [0.172, 2.99], [0.179, 3.37], [0.196, 3.86], [0.216, 4.34], [0.241, 4.83], [0.27, 5.31], [0.299, 5.8], [0.337, 6.28], [0.385, 6.77], [0.44, 7.26], [0.498, 7.74], [0.559, 8.23], [0.614, 8.72], [0.662, 9.21], [0.713, 9.69], [0.751, 10.18], [0.786, 10.67], [0.818, 11.16], [0.846, 11.65], [0.87, 12.14], [0.892, 12.63], [0.908, 13.12], [0.926, 13.61], [0.942, 14.1], [0.956, 14.69], [0.968, 15.48]],
+  },
+];
+const SKY_TRACK = 40;
+/**
+ * How far behind the judge line the default camera's eye is, in track units along the track (measured
+ * off the same grid): a thing `z` up the track shows 1 + z / SKY_EYE times smaller than at the line,
+ * and the track that much flatter again (the strands are drawn that much wider and longer, to look
+ * one hairline all the way).
+ */
+const SKY_EYE = 14.9;
+/** The ticks along the lanes' edges: one every this many track units. */
+const SKY_TICK = 0.24;
+
+/** A smooth line through `points` (Catmull-Rom), `steps` points to each span. */
+function smoothed(points: readonly (readonly [number, number])[], steps: number): [number, number][] {
+  const out: [number, number][] = [];
+  const p = (i: number) => points[Math.min(points.length - 1, Math.max(0, i))];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const [a, b, c, d] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps;
+      const at = (n: 0 | 1) => 0.5 * (2 * b[n] + (c[n] - a[n]) * t + (2 * a[n] - 5 * b[n] + 4 * c[n] - d[n]) * t * t + (3 * b[n] - 3 * c[n] + d[n] - a[n]) * t * t * t);
+      out.push([at(0), at(1)]);
+    }
+  }
+  out.push([...points[points.length - 1]] as [number, number]);
+  return out;
+}
+
+/**
+ * One strand of SKY_STRANDS on the lanes' picture: a ribbon as thin on the screen all its way (drawn
+ * wider and, where it runs across the track, longer the further up the track it is), fading out at
+ * both its ends. `hair`: a hairline's width at the judge line, in the picture's px across.
+ */
+function strand(g: CanvasRenderingContext2D, w: number, h: number, st: number, s: (typeof SKY_STRANDS)[number], hair: number): void {
+  const line = smoothed(s.points, 4).map(([f, z]) => ({ x: f * w, y: h * (1 - z / SKY_TRACK), grow: 1 + z / SKY_EYE }));
+  const sides: [number, number][][] = [[], []];
+  line.forEach((p, i) => {
+    const [a, b] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]];
+    // its direction as the screen shows it: the track's length flattened
+    const long = st * p.grow;
+    const [tx, ty] = [b.x - a.x, (b.y - a.y) / long];
+    const len = Math.hypot(tx, ty) || 1;
+    const half = (hair * s.width * p.grow) / 2;
+    const [nx, ny] = [(-ty / len) * half, (tx / len) * half * long];
+    sides[0].push([p.x + nx, p.y + ny]);
+    sides[1].push([p.x - nx, p.y - ny]);
+  });
+  const [first, last] = [line[0], line[line.length - 1]];
+  const fade = g.createLinearGradient(first.x, first.y, last.x, last.y);
+  fade.addColorStop(0, white(0));
+  fade.addColorStop(0.1, white(s.alpha));
+  fade.addColorStop(0.84, white(s.alpha));
+  fade.addColorStop(1, white(0));
+  g.fillStyle = fade;
+  g.beginPath();
+  sides[0].forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
+  for (let i = sides[1].length - 1; i >= 0; i--) g.lineTo(sides[1][i][0], sides[1][i][1]);
+  g.closePath();
+  g.fill();
+}
+
+/**
+ * SKY's lanes, as the skin's picture has them (r2-skin-sky-c3.jpg: the colours are read off its lanes
+ * laid flat): a deep navy from the far end down to a quarter of the way from the judge line, easing
+ * from there to a dim slate blue at the line (well under half the deck's brightness at its brightest),
+ * a low bank of cloud at its palest standing on the line under the middle lanes, the three wind
+ * trails (SKY_STRANDS) and an altimeter's ticks along the two edges, still: nothing on it moves, and
+ * none of it is as bright as a note.
+ */
+function skyFloor(g: CanvasRenderingContext2D, w: number, h: number, st: number): void {
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  // by how far up the track (units of SKY_TRACK)
+  for (const [z, colour] of [
+    [40, '18,20,36'],
+    [21.5, '20,22,45'],
+    [11.7, '20,24,51'],
+    [8.7, '22,28,56'],
+    [6.8, '29,37,65'],
+    [4.8, '37,50,78'],
+    [3.4, '47,65,99'],
+    [2.5, '54,77,111'],
+    [1.7, '59,86,121'],
+    [1, '64,92,128'],
+    [0.4, '76,103,139'],
+    [0, '82,110,146'],
+  ] as const) {
+    sky.addColorStop(1 - z / SKY_TRACK, `rgba(${colour},0.92)`);
+  }
+  g.fillStyle = sky;
+  g.fillRect(0, 0, w, h);
+  // the bank of cloud standing on the line: a cumulus under the middle lanes, a lower one to its right,
+  // wisps toward the rails. The picture's last rows are left the plain sky: they are what shows on
+  // from the line to the gear
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, w, h - 3);
+  g.clip();
+  const rand = seeded(47);
+  for (const [x, r, n] of [
+    [0.46, 0.09, 5],
+    [0.7, 0.056, 4],
+    [0.13, 0.04, 3],
+    [0.9, 0.04, 3],
+  ] as const) {
+    faintCumulus(g, x * w, h + r * w * 0.25 * st, r * w, st, rand, n, 0.17);
+  }
+  g.restore();
+  for (const s of SKY_STRANDS) strand(g, w, h, st, s, Math.max(1.1, w / 440));
+  // an altimeter's ticks along the lanes' two edges, as the picture has them: one every SKY_TICK units
+  // up the track, every fifth longer; a hairline on the screen all the way (drawn deeper the further
+  // up the track, where the camera flattens it), fainter with the distance so they never close into a band
+  for (let i = 1; i * SKY_TICK < SKY_TRACK * 0.7; i++) {
+    const z = i * SKY_TICK;
+    const thick = Math.max(1, (h / SKY_TRACK) * 0.02 * (1 + z / SKY_EYE) ** 2);
+    const reach = w * (i % 5 === 1 ? 0.044 : 0.027);
+    const y = h * (1 - z / SKY_TRACK) - thick / 2;
+    g.fillStyle = `rgba(160,198,240,${(0.5 * (1 - z / (SKY_TRACK * 0.7))).toFixed(3)})`;
+    g.fillRect(w * 0.004, y, reach, thick);
+    g.fillRect(w * 0.996 - reach, y, reach, thick);
+  }
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
+  prism: crystalPlate,
+  sky: skyPlate,
+  fire: firePlate,
+  gpt: gptPlate,
+  gemini: geminiPlate,
+  grok: grokPlate,
+  claude: claudePlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -1720,12 +3275,24 @@ export function deckFromPicture(style: GearStyle, spec: Pick<DeckSpec, 'stretch'
   return Boolean(art.deck) && spec.stretch <= DECK_PICTURE_FLATTEST && (PICTURE_ROWS[style]?.(spec) ?? true);
 }
 
-/** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
+/**
+ * A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it
+ * (the picture's last row) where the screen shows more, and falls into shadow there over a fifth of
+ * the picture's depth: a tall, narrow view (the settings' preview) shows a long way below the picture,
+ * and its last row drawn out all that way read as the gear's foot stretched.
+ */
 function deckPicture(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
   const depth = ((pic.height / pic.width) * s.width * s.stretch) / DECK_PICTURE_STRETCH;
   g.imageSmoothingQuality = 'high';
   g.drawImage(pic, 0, 0, s.width, depth);
-  if (depth < s.depth) g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, depth, s.width, s.depth - depth);
+  if (depth >= s.depth) return;
+  g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, depth, s.width, s.depth - depth);
+  const fall = Math.min(s.depth - depth, depth * 0.2);
+  const shadow = g.createLinearGradient(0, depth, 0, depth + fall);
+  shadow.addColorStop(0, black(0));
+  shadow.addColorStop(1, black(0.92));
+  g.fillStyle = shadow;
+  g.fillRect(0, depth, s.width, s.depth - depth);
 }
 
 /**
@@ -1852,7 +3419,7 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     body: '#2a2c31',
     width: 14,
     tile: 56,
-    height: 16,
+    height: 14,
     // brushed graphite along the track, the cyan light just under its top edge
     face: (g, w, h, k, lit) => {
       const rand = seeded(17);
@@ -1868,11 +3435,11 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = black(0.55);
       g.fillRect(0, 0, k, h);
       g.fillStyle = white(0.1);
-      g.fillRect(w - 4.5 * k, 0, k, h);
-      g.fillStyle = shade(CYAN, 1, lit ? 0.35 : 0.18);
-      g.fillRect(w - 3.6 * k, 0, 2.4 * k, h);
-      g.fillStyle = shade(CYAN, lit ? 1.15 : 1, lit ? 1 : 0.85);
-      g.fillRect(w - 3 * k, 0, 1.2 * k, h);
+      g.fillRect(w - 3.6 * k, 0, 0.8 * k, h);
+      g.fillStyle = shade(CYAN, 1, lit ? 0.35 : 0.14);
+      g.fillRect(w - 2.8 * k, 0, 1.8 * k, h);
+      g.fillStyle = shade(CYAN, lit ? 1.15 : 1, lit ? 1 : 0.8);
+      g.fillRect(w - 2.2 * k, 0, 0.7 * k, h);
     },
   }),
   // the cabinet's ABS side panel, a chrome trim along the lanes, an amber LED in its middle (lit in FEVER)
@@ -2188,6 +3755,238 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       }
       g.fillStyle = shade(BRASS, lit ? 1.35 : 1.1, lit ? 1 : 0.9);
       g.fillRect(w - 3.4 * k, 0, 1.1 * k, h);
+    },
+  }),
+  // CRYSTAL: a thin rail of clear glass: a dark seam outside, its outer face in shade, a white ridge,
+  // its top a clear pale plane with one slant of light in each tile, and its ground inner edge the
+  // brightest, an ice-blue hairline in it (in FEVER the glass takes the ice-blue light and pastels
+  // run down it)
+  prism: () => ({
+    body: '#c7d4e6',
+    width: 16,
+    tile: 128,
+    height: 16,
+    // the rail's side: clear glass seen through its cut edge, white under its ridge, the ice-blue line, grey at its foot
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.2, lit ? '#c4e8ff' : '#dfe8f3');
+      side.addColorStop(0.6, lit ? '#86bfea' : '#a3b3ca');
+      side.addColorStop(1, '#4b576d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = shade(CRYSTAL_ICE, 1, lit ? 0.95 : 0.55);
+      g.fillRect(0, 2.4 * k, w, 0.9 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#2c3548');
+      across.addColorStop(0.07, '#7f8da7');
+      across.addColorStop(0.24, '#b4c1d6');
+      across.addColorStop(0.27, '#ffffff');
+      across.addColorStop(0.32, '#e6eef8');
+      across.addColorStop(0.7, lit ? '#cdeaff' : '#d9e4f1');
+      across.addColorStop(0.88, '#f2f7fc');
+      across.addColorStop(0.92, '#ffffff');
+      across.addColorStop(1, '#ffffff');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      // one slant of light across its top in each tile
+      const [x0, x1] = [w * 0.32, w * 0.86];
+      polygon(g, [
+        [x0, h * 0.34],
+        [x1, h * 0.26],
+        [x1, h * 0.31],
+        [x0, h * 0.39],
+      ]);
+      g.fillStyle = white(0.55);
+      g.fill();
+      if (lit) {
+        // pastels down the tile and back (a tile mirrors at every other: they run on)
+        const run = g.createLinearGradient(0, 0, 0, h);
+        CRYSTAL_PASTELS.forEach((c, i) => run.addColorStop(i / (CRYSTAL_PASTELS.length - 1), c));
+        g.fillStyle = run;
+        g.globalAlpha = 0.5;
+        g.fillRect(x0, 0, x1 - x0, h);
+        g.globalAlpha = 1;
+      }
+      g.fillStyle = shade(CRYSTAL_ICE, 1, lit ? 1 : 0.8);
+      g.fillRect(w - 3.6 * k, 0, 0.9 * k, h);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // SKY: a band of pale sky-tinted glass, a dark seam outside, a white line down it nearer the lanes
+  // and a cooler edge along them, plain all its length (the altimeter's ticks its picture has are on
+  // the lanes: skyFloor); in FEVER the glass brighter and the line cyan
+  sky: () => ({
+    body: '#9dbddb',
+    width: 18,
+    tile: 40,
+    height: 14,
+    // the band's side: the glass seen through its edge, white under its top, deep blue at its foot
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.22, lit ? '#c9ecff' : '#b4cfe6');
+      side.addColorStop(0.65, '#5f84ad');
+      side.addColorStop(1, '#1d3558');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? SKY_CYAN : white(0.7);
+      g.fillRect(0, 2.2 * k, w, 0.9 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#1c3350');
+      across.addColorStop(0.1, lit ? '#93c4e6' : '#86a9cb');
+      across.addColorStop(0.45, lit ? '#aad6f2' : '#9dbddb');
+      across.addColorStop(0.64, lit ? '#c4e6fa' : '#b4cfe6');
+      across.addColorStop(0.7, lit ? SKY_CYAN : '#f4f9fd');
+      across.addColorStop(0.78, lit ? SKY_CYAN : '#f4f9fd');
+      across.addColorStop(0.85, lit ? '#b6dcf5' : '#a9c4de');
+      across.addColorStop(1, '#7f97b3');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = black(0.45);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // FIRE: a strip of polished chrome, a dark seam outside, its horizon's dark band down its middle and a
+  // red line along the lanes; in FEVER the red line burns orange-white
+  fire: () => ({
+    body: '#b4bcc7',
+    width: 16,
+    tile: 40,
+    height: 12,
+    // the strip's side: chrome under its top edge, dark at its foot
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#f6f8fa');
+      side.addColorStop(0.3, '#aab2bd');
+      side.addColorStop(0.7, '#4f5661');
+      side.addColorStop(1, '#17191d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb27a' : FIRE_RED;
+      g.fillRect(0, h - 2.4 * k, w, 1.2 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#15171b');
+      across.addColorStop(0.08, '#8d95a1');
+      across.addColorStop(0.3, '#f6f8fa');
+      across.addColorStop(0.46, '#b4bcc7');
+      across.addColorStop(0.54, '#4f5661');
+      across.addColorStop(0.64, '#9aa2ae');
+      across.addColorStop(0.84, '#e3e7ec');
+      across.addColorStop(1, '#cfd5dc');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffd9b0' : FIRE_RED;
+      g.fillRect(w - 2.6 * k, 0, 1.5 * k, h);
+      g.fillStyle = black(0.5);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // GPT: a flat white strip, a dark seam outside and its green line along the lanes (lighter in FEVER)
+  gpt: () => ({
+    body: '#eef1f2',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.6, '#c9d0d3');
+      side.addColorStop(1, '#5d6a6e');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#6ff2cd' : GPT_GREEN;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#f4f6f7';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#6ff2cd' : GPT_GREEN;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+      g.fillStyle = black(0.5);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // GEMINI: a strip of its raised surface, a violet line along the lanes (pale violet in FEVER)
+  gemini: () => ({
+    body: GEMINI_RAISED,
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#3a3c40');
+      side.addColorStop(1, '#0c0c0d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#d5c2ff' : GEMINI_VIOLET;
+      g.fillRect(0, h - 2.6 * k, w, 1.3 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#0a0a0b');
+      across.addColorStop(0.12, '#26282b');
+      across.addColorStop(1, GEMINI_RAISED);
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      const line = g.createLinearGradient(w - 3.6 * k, 0, w - 1.6 * k, 0);
+      line.addColorStop(0, lit ? '#a9c4ff' : GEMINI_BLUE);
+      line.addColorStop(1, lit ? '#d5c2ff' : GEMINI_VIOLET);
+      g.fillStyle = line;
+      g.fillRect(w - 3.6 * k, 0, 2 * k, h);
+    },
+  }),
+  // GROK: black, one white hairline along the lanes and a fainter grey one outside it
+  grok: () => ({
+    body: '#000000',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      g.fillStyle = '#050505';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffffff' : white(0.8);
+      g.fillRect(0, 0, w, 1.1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#000000';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = white(lit ? 0.6 : 0.34);
+      g.fillRect(w - 6 * k, 0, 0.9 * k, h);
+      g.fillStyle = lit ? '#ffffff' : white(0.92);
+      g.fillRect(w - 2.2 * k, 0, 1.3 * k, h);
+    },
+  }),
+  // CLAUDE: a strip of its cream paper, a dark seam outside and a terracotta line along the lanes (lighter in FEVER)
+  claude: () => ({
+    body: CLAUDE_PAPER,
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, CLAUDE_IVORY);
+      side.addColorStop(0.6, '#c9c4b6');
+      side.addColorStop(1, '#6b6557');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb89c' : CLAUDE_CLAY;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = CLAUDE_PAPER;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb89c' : CLAUDE_CLAY;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+      g.fillStyle = black(0.45);
+      g.fillRect(0, 0, 0.8 * k, h);
     },
   }),
   // rails of the same raw glass along the lanes: a dark seam outside, a broken outer face in shade,

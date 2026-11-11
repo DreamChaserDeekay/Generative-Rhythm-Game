@@ -1887,3 +1887,61 @@
 - `silver-a1`(16:31, 약 $0.059, 4,319,618바이트 · `3eb339183d1db7a5`) · `silver-a2`(16:31, 약 $0.067, 4,384,502바이트 · `72e0cba1b75d351f`): 둘째 시안 실버 글라스(은색 위 두꺼운 유리판에 베벨로 깎은 은도금 유리 막대 셋) · 받침의 네모를 빼고 처음부터 다시 디자인하라 해서 쓰지 않음(a2는 틀도 맞지 않음)
 - `mirror-a1`(16:05, 약 $0.058, 4,297,684바이트 · `d96b073f85483e86`) · `mirror-a2`(16:06, 약 $0.057, 4,344,918바이트 · `39018505bff38b41`): 첫 시안 베벨 미러(크롬 판에 베벨로 깎은 검은 거울 셋) · SG-701과 너무 다르다 해서 쓰지 않음(a2는 그 전에도 판정선 바로 아래 밝은 크롬 띠가 두 번째 판정선처럼 보여 빼 둠)
 - 비용: 쓴 2장 약 $0.122, 쓰지 않은 25장 약 $1.510, 합해 약 $1.632
+
+## 하늘 스킨의 받침 그림과 깃털 (`gears/sky`, 2026-11-11)
+
+'하늘' 스킨(기어 · 노트 · 타격 효과 · 글자)은 코드로 그리지만, 받침의 하늘 · 구름과 점수 왼쪽의 깃털은 그림입니다. 사용자의 물음("에셋을 gemini로 뽑아서 그걸 적용시킬수는 없는거야?")과 요청("깃털도 gemini 그림으로 바꾸고, 기어 하단에 구름도 시안처럼 더 뭉게뭉게하게 바꿔줘")에 따라 넣었습니다. 그림을 읽지 못하면 받침은 코드로 그립니다(`deckArt.ts`의 `skyDrawn`, `feather`). 키 표시선 · 수치 자리 · 레일 · 레인의 그림 · 노트 · 타격 효과 · 글자는 모두 코드입니다.
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`) · 사용자의 Google Cloud 프로젝트 · 2K 한 장 약 $0.06, 1K 한 장 약 $0.04(토큰 사용량으로 계산한 추정치)
+- 보낸 그림: 받침 그림에는 이 스킨의 시안(`design-mockups/gear-concepts/r2-skin-sky-c3.jpg`, 같은 모델로 글만으로 만든 그림)에서 구름 두 군데만 잘라 이어 붙인 견본 한 장(924×196, 수치 · 깃털 · 레일은 들어가지 않게 자름: `make_sky_pictures.py`의 `swatch`)을 "구름을 이렇게 그려 달라"는 견본으로 함께 보냈습니다. 깃털은 글로만 설명했습니다. 사용자가 참고로 준 다른 게임의 스킨 그림은 어디에도 보내지 않았고, 프롬프트에 게임 · 회사 · 아티스트 이름이 없습니다.
+- 만드는 도구: `scripts/assets/make_sky_pictures.py plate feather` (받은 그대로는 `assets-src/gears/sky/_tries/`에 두고 저장소에는 넣지 않음)
+- 비용: 쓴 2장 약 $0.10, 쓰지 않은 2장 약 $0.12, 합해 약 $0.22
+
+### `gears/sky/plate.jpg`
+
+- 용도: 하늘 기어 받침의 하늘과 구름 → `gears/sky/plate.webp` 2048×886(58,934바이트)
+- 날짜: 2026-11-11 08:22 UTC · 두 장 중 첫째 `plate-2` · 21:9 · 2K → 3168×1344 PNG 4,319,306바이트 · sha256 앞 16자리 `337a3a20e77a6801`
+- 저장: 받은 그림 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 708,319바이트
+- 게임용으로: `scripts/assets/build_gears.py`가 위에 빈 하늘을 그림 높이의 2%만큼 덧대고(맨 윗줄을 이어서: 구름이 시안만큼 받침 아래쪽에 서도록) 2048×886으로 줄여 WebP(품질 90)로 저장합니다.
+- 게임에서: 키 표시선 띠 아래에 받침 폭 그대로, 카메라가 받침을 납작하게 보는 만큼 트랙 방향으로 늘여 깔아 그린 그대로 보이게 합니다(`deckArt.ts`의 `skyPainting`). 기본 카메라에서는 그림의 위쪽 절반 남짓(하늘과 양끝 뭉게구름의 윗부분, 가운데는 점수 자리로 비어 있음)이 보이고, 받침이 더 깊이 보이는 화면(평면 카메라, 설정의 미리보기)에서는 그 아래 구름 바다까지 보입니다. 그림보다 더 깊이 보이는 곳은 마지막 줄을 이어 그늘로 가라앉힙니다.
+- 프롬프트(견본이 image 1):
+
+  > Image 1 is a small swatch that shows the look wanted: soft, fluffy, billowing cumulus clouds painted as an anime film's background art paints them, and the blue of the sky behind them. Take nothing from it but that look: how the clouds are painted (their soft volume, the many small round billows piled on one another, their feathered edges, their pale blue shading) and the sky's blue. Its framing and its composition do not matter.
+  >
+  > Paint a wide background painting of a clear daytime sky with white cumulus clouds in that same manner. The clouds have real volume: each is built of many soft, rounded billows heaped on one another, big ones and small ones, their sunlit tops a clean bright white, their folds and undersides shaded softly in pale blue and blue-grey, their edges soft and feathered, with small wisps drifting off them. Soft brushwork, as in a hand-painted anime film background. They are not flat shapes: no outlines, no hard-edged cel shading, no vector look, no cartoon clouds.
+  >
+  > It is used as a flat texture inside a game's interface, so it must be a straight-on, undistorted picture: no horizon line, no ground, no sea, no sun, no lens flare, no rays of light, no stars, no birds, no aircraft, no text.
+  >
+  > Composition, exactly:
+  > - The top fifth of the picture is plain clear sky, a deep clear blue (#2f7fd6), nothing in it.
+  > - Going down, the sky's blue eases lighter: a mid blue (#4a98e2) across the middle of the picture, a pale sky blue (#86c6f2) by two thirds of the way down.
+  > - A large cumulus rises from the lower-left corner. It fills the left 30% of the width; its highest billow, at the far left edge, reaches up to about 20% of the way down from the top; from there it comes down toward the middle of the picture in big soft steps and ends by a third of the width.
+  > - A second cumulus, a little lower, rises from the lower-right corner. It fills the right quarter of the width; its highest billow, at the far right edge, reaches up to about 30% of the way down from the top; it comes down toward the middle in the same way.
+  > - The middle 40% of the width is completely clear sky from the top of the picture down to 60% of its height: no cloud, no wisp, nothing there at all (the game writes white text there).
+  > - One or two small soft tufts of cloud sit low beside the two big ones, below the half-way line, never in the middle.
+  > - Two or three very thin, faint white wind trails cross the whole width in long, gentle arcs, hairline thin, behind the clouds.
+  > - The bottom third of the picture is a continuous sea of the same soft cumulus seen from the side, its top edge billowing and joining the two big clouds; below its top edge it falls evenly into soft pale-blue shade toward the bottom edge of the picture.
+  >
+  > Colours: only these blues and white, the shading pale blue and blue-grey; no yellow, no orange, no pink, no purple, no dark storm cloud. Calm, even daylight from the upper left. No vignette, no frame, no border, no watermark, no text, no letters, no numbers.
+
+### `gears/sky/feather.jpg`
+
+- 용도: 점수 왼쪽의 깃털 → `gears/sky/feather.png` 256×256(29,719바이트, 투명 배경)
+- 날짜: 2026-11-11 08:22 UTC · 한 장을 받아 그대로 씀(`feather-1`) · 1:1 · 1K → 1024×1024 PNG 846,575바이트 · sha256 앞 16자리 `8b154558e8add95d`
+- 저장: 받은 그림 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 132,139바이트
+- 게임용으로: `build_gears.py`의 `cut_white`가 자홍 바탕에서 깃털을 따냅니다. 흰 물체라 다른 부품의 방식(바탕색이 비친 붉은 · 파란 기운을 초록에 맞춰 깎음)을 쓰면 흰색이 초록빛으로 물들어서, 바탕에 없는 초록 채널만으로 색을 다시 만듭니다(초록이 가득한 곳은 흰색, 그늘진 곳은 옅은 하늘색 `#bcd7f3`).
+- 게임에서: SCORE 글자 왼쪽, 같은 줄에 점수 줄보다 조금 크게 놓습니다(`deckArt.ts`의 `skyPlate`; 시안에서는 점수 위였으나 사용자 요청 "기어 하단에 깃털 위치만 score 왼쪽으로 옮겨줘"로 옮김). 그림이 없으면 코드로 그린 깃털이 나옵니다.
+- 프롬프트:
+
+  > One single white bird's feather, seen flat from directly above, centred, on a perfectly flat, uniform, pure magenta (#ff00ff) background.
+  >
+  > The feather leans to the right, about 30 degrees from upright, its tip at the upper right. Its vane is full and softly curved, widest a little above its middle, tapering to a soft point at the tip; one clear split opens in its right edge about two thirds of the way up, and a smaller one lower on its left edge. A fine quill runs up through the vane as a thin pale-blue line and comes out below it as a short, bare, slightly curved shaft pointing to the lower left.
+  >
+  > A clean, elegant illustration, as a game's interface icon is drawn: the feather a clean white, with only the faintest pale-blue (#cfe6fb) shading along the quill and toward the vane's lower edge; smooth, crisp edges.
+  >
+  > No outline round it, no shadow on the background, no glow, no gradient or texture in the background, nothing else in the picture: no second feather, no down, no text, no letters, no frame. The feather, shaft and all, fills about 70% of the picture's height; the flat magenta shows all round it.
+
+### 쓰지 않은 시도
+
+- `plate-1`(07:50 UTC, 약 $0.06, PNG 3,988,599바이트 · `4f0ab4df783e515c`): 견본 없이 글만으로, "평평한 셀 셰이딩"으로 그리라는 프롬프트 · 구도는 맞았고 잠시 받침으로 깔았으나(커밋 271431c ~ c6baae2) 구름이 납작한 만화 구름이라, 사용자가 시안처럼 더 뭉게뭉게하게 바꿔 달라고 해 바꿈. 프롬프트는 그 커밋들의 이 파일과 `make_sky_pictures.py`에 있습니다.
+- `plate-3`(08:22 UTC, 약 $0.06, PNG 4,279,980바이트 · `e82155c5b853fe71`): `plate-2`와 같은 프롬프트와 견본 · 오른쪽 구름이 그림 맨 위까지 닿아, 받침에 깔면 키 표시선 띠 바로 아래부터 구름이 됨

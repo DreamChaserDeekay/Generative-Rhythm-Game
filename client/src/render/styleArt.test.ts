@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { GEAR_STYLES, gearBorderLook, type DeckSpec, type GearStyle } from './deckArt';
+import { deckReadouts, GEAR_STYLES, gearBorderLook, type DeckSpec, type GearStyle } from './deckArt';
 import { parseManifest } from './skinArt';
 import { BASE_SKIN, withParts, type SkinStyle } from './skins';
 import {
@@ -81,11 +81,16 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots' })).toEqual(['mecha/notes', 'mecha/long', ...cabinet]);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
-    // the track as it starts: the flat notes (drawn in code) on the standard gear
-    expect(styleImageIds(BASE_SKIN.style)).toEqual(['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog']);
+    // the track as it starts: the default skin, drawn in code alone (as the PRISM set is)
+    expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
+    expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual([]);
+    // the sky skin's too, but for two pictures: the painting of its deck's sky and the feather over its score
+    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/plate', 'sky/feather']);
+    // the Firestarter skin is drawn in code all through (the figures at its sides are the player's own, not the game's)
+    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
-    // the four hits of no set have flipbooks of their own, as the sets' hits do
-    for (const hit of ['flash', 'flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
+    // three hits of no set have flipbooks of their own, as the sets' hits do (FLASH is drawn in code alone)
+    for (const hit of ['flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
   });
 
   it('has every picture and flipbook in the media, at the size its layout is drawn from', () => {
@@ -175,8 +180,9 @@ const SETS = [
 ] as const;
 type SetCase = (typeof SETS)[number];
 /** The set's parts as the gear tab picks them, on the standard gear. */
+// on the default gear, which has no pictures (it is drawn in code)
 const setStyle = (c: SetCase) => withParts(BASE_SKIN, { note: c.note, side: 'bar', deck: 'standard', hit: c.hit }).style;
-const STANDARD = ['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog'];
+const STANDARD: string[] = [];
 
 /** A deck as the renderer paints it: the whole track's width (8 track units of 73.65 px), a scratch and seven keys. */
 function deckSpec(room: number, stretch = 1.3): DeckSpec {
@@ -197,8 +203,15 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
-    for (const hit of HIT_STYLES) {
+    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    // the skins' (PRISM's, SKY's and FLASH, the default skin's) are drawn in code alone
+    expect(isArtHit('prism')).toBe(false);
+    expect(isArtHit('sky')).toBe(false);
+    expect(isArtHit('fire')).toBe(false);
+    expect(isArtHit('flash')).toBe(false);
+    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flash'];
+    for (const hit of drawn) expect(isArtHit(hit), hit).toBe(false);
+    for (const hit of HIT_STYLES.filter((h) => !drawn.includes(h))) {
       expect(isArtHit(hit), hit).toBe(true);
       const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
       for (const id of [hitBurst, hitHold]) {
@@ -245,7 +258,8 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     expect(notePaintOf(c.note, {})).toBe(NOTE_PAINT[c.note]);
     expect(longPaintOf(c.note, {})).toBe(LONG_PAINT[LONG_OF[c.note]]);
     expect(noteShapeOf(c.note, {})).toBeUndefined();
-    expect(artPartsOf(style, {})).toEqual([]);
+    // the default gear has no pictures to miss: all of none loaded
+    expect(artPartsOf(style, {})).toEqual(['gear']);
   });
 
   it('draws each key’s note from its own picture, filling the note, and a side lane’s as the side plate', () => {
@@ -314,7 +328,8 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
 
 /** Each gear's pictures by part, as the manifest lists them: its whole deck first, then where its lights shine from inside a part. */
 const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
-  standard: { deck: 'standard/deck', glow: 'standard/glow', frame: 'standard/graphite', jog: 'standard/jog' },
+  // drawn in code alone
+  standard: {},
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
   najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
@@ -323,11 +338,20 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
   rawglass: { deck: 'rawglass/deck' },
+  // drawn in code alone
+  prism: {},
+  // drawn in code but for the painting of its deck's sky and the feather over its score
+  sky: { plate: 'sky/plate', feather: 'sky/feather' },
+  fire: {},
+  gpt: {},
+  gemini: {},
+  grok: {},
+  claude: {},
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
 const THINGS: Record<GearStyle, Record<string, number>> = {
-  standard: { 'standard/jog': 1 },
+  standard: {},
   cabinet: { 'cabinet/joystick': 1, 'cabinet/button': 6, 'cabinet/coin': 1 },
   receiver: { 'receiver/knob': 2, 'receiver/switch': 5 },
   najeon: { 'najeon/lid': 2, 'najeon/lock': 1 },
@@ -341,12 +365,98 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   piano: { 'piano/medallion': 1 },
   // none: its glass is all its deck
   rawglass: {},
+  prism: {},
+  sky: {},
+  fire: {},
+  gpt: {},
+  gemini: {},
+  grok: {},
+  claude: {},
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
-describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
+describe('the sky gear, drawn in code over a painting, a feather’s picture on it', () => {
+  const style = withParts(BASE_SKIN, { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' }).style;
+  const images = loaded(style);
+  const spec = (room: number, stretch: number): DeckSpec => ({ width: 8 * 73.65, depth: room + 60, room, stretch, lanes: [], sides: [] });
+
+  it('has the painting of its deck’s sky and its feather in the media, no larger than a texture may be, and nothing else', () => {
+    expect(styleImageIds(style)).toEqual(['sky/plate', 'sky/feather']);
+    const plate = manifest.textures['sky/plate'];
+    expect(plate.file).toBe('gears/sky/plate.webp');
+    expect(plate.size[0]).toBe(2048);
+    // wide: on the usual cameras the deck shows its upper half and a little more
+    expect(plate.size[0] / plate.size[1]).toBeGreaterThan(2);
+    expect(plate.size[0] / plate.size[1]).toBeLessThan(3);
+    // the feather off its ground, in a square
+    const feather = manifest.textures['sky/feather'];
+    expect(feather.file).toBe('gears/sky/feather.png');
+    expect(feather.size).toEqual([256, 256]);
+    expect(Object.keys(gearArtOf('sky', images))).toEqual(['plate', 'feather']);
+    expect(artPartsOf(style, images)).toEqual(['gear']);
+    // not loaded (yet): the gear is drawn in code alone, and says so
+    expect(artPartsOf(style, {})).toEqual([]);
+  });
+
+  it('lays the painting under its strip of dashes, as wide as the deck and as long along the track as keeps it as painted, and the feather left of the score', () => {
+    const [pw, ph] = manifest.textures['sky/plate'].size;
+    for (const [room, stretch] of [
+      [155.55, 1.2],
+      [912, 3.25],
+    ]) {
+      const s = spec(room, stretch);
+      const { g, draws } = recorder();
+      platePaintOf(style, images)(g, s);
+      const [whole, ...more] = draws;
+      expect(whole.id).toBe('sky/plate');
+      // under the strip and its line (16 px of the sheets), across the whole deck
+      expect([whole.dx, whole.dw]).toEqual([0, s.width]);
+      expect(whole.dy).toBeCloseTo(16 * stretch, 6);
+      expect(whole.dh).toBeCloseTo((ph / pw) * s.width * stretch, 6);
+      // where the screen shows the deck deeper than the painting: its last row, down to the deck's end
+      const under = s.depth - whole.dy - whole.dh;
+      const rows = more.filter((d) => d.id === 'sky/plate');
+      if (under > 0) {
+        expect(rows).toHaveLength(1);
+        expect([rows[0].sy, rows[0].sh]).toEqual([ph - 1, 1]);
+        expect(rows[0].dy + rows[0].dh).toBeCloseTo(s.depth, 6);
+      } else expect(rows).toHaveLength(0);
+      // the feather last: on the score's line, left of where the score's first letter stands (the score is written
+      // about the deck's middle), as much longer along the track as the deck is drawn
+      const feathers = more.filter((d) => d.id === 'sky/feather');
+      expect(feathers).toHaveLength(1);
+      expect(more[more.length - 1]).toBe(feathers[0]);
+      const [f] = feathers;
+      const score = deckReadouts('sky', s)!.score;
+      expect(f.dh / f.dw).toBeCloseTo(stretch, 6);
+      expect(f.dx).toBeGreaterThan(score.x);
+      expect(f.dx + f.dw).toBeLessThan(s.width * 0.36);
+      // a little taller than the score's line, its middle a touch over the line's, its foot clear of the hairline under the score
+      expect(f.dh).toBeGreaterThan(score.h);
+      expect(f.dh).toBeLessThan(score.h * 1.2);
+      expect(f.dy + f.dh / 2).toBeLessThan(score.y + score.h / 2);
+      expect(f.dy + f.dh).toBeLessThanOrEqual(score.y + score.h + 1e-6);
+    }
+    // a deck too short for its readouts: the painting alone, no feather
+    const short = recorder();
+    platePaintOf(style, images)(short.g, spec(96, 1.1));
+    expect(short.draws.map((d) => d.id)).not.toContain('sky/feather');
+    expect(short.draws[0].id).toBe('sky/plate');
+    // without its pictures nothing is drawn from one: the same sky and a feather in plain shapes
+    const plain = recorder();
+    platePaintOf(style, {})(plain.g, spec(155.55, 1.2));
+    expect(plain.draws).toEqual([]);
+    // the painting alone loaded: the feather still in code
+    const half = recorder();
+    platePaintOf(style, { 'sky/plate': images['sky/plate'] })(half.g, spec(155.55, 1.2));
+    expect(half.draws.map((d) => d.id)).toEqual(['sky/plate']);
+  });
+});
+
+// STANDARD and PRISM have no pictures: they are drawn in code alone (SKY's two have their own tests above)
+describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'standard'].includes(gear)).map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);

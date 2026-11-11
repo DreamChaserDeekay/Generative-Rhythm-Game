@@ -73,12 +73,39 @@ test('the help names the picked gear only, and the default of a row whose value 
   // the gear's help goes through every gear: what stands before the list, the picked gear's words, what follows
   await gear.focus();
   await expect(help).toContainText('트랙을 담는 기어입니다.');
-  await expect(picked).toHaveText('기본 그래파이트 테에 스모크 유리와 조그 원판');
+  await expect(picked).toHaveText('기본 그래파이트에 레인마다 낮은 키캡(누르면 하늘색 불)과 점수·속도·정확도 창, 앞쪽의 하늘색 불빛 띠');
   await expect(picked.locator('b')).toHaveText('기본');
   await expect(help).toContainText('받침은 그보다 조금 아래에서 시작합니다.');
   await expect(help).not.toContainText('오락실 기체');
   await expect(was).toHaveCount(0);
-  // another gear: its words, and the default named under the help
+  // another gear: its words, and the default named under the help (the crystal skin's gear comes after the default one)
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'prism');
+  await expect(picked).toHaveText('크리스털 레인마다 젖빛 크리스털 키캡(누르면 얼음빛), 넓은 면으로 깎은 옅은 빛깔의 받침에 박힌 사파이어빛 육각 판의 점수·속도·정확도, 레인을 따라 맑은 유리 테두리');
+  await expect(help).not.toContainText('그래파이트');
+  await expect(was).toHaveText('기본값 기본');
+  // the sky skin's gear after it: its name is the start of a colour's (하늘색) in other gears' words, and only its own are shown
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'sky');
+  await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 옆에 쓴 점수와 비치는 알약 창의 속도·정확도, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
+  await expect(help).not.toContainText('그래파이트');
+  // the Firestarter skin's gear after it
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'fire');
+  await expect(picked).toHaveText('파이어스타터 레인마다 크롬 키캡(누르면 주황빛으로 달아오름), 검은 쐐기가 파고든 빨간 래커 받침에 크롬 테 검은 유리 창의 점수와 어두운 알약 창의 속도·정확도, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 멤버들의 일러스트');
+  // the four AI companies' gears after it
+  for (const [id, words] of [
+    ['gpt', 'GPT 레인마다 흰 타일(누르면 검은 바탕에 흰 점), 청록 받침에 흰 입력창의 점수'],
+    ['gemini', 'Gemini 레인마다 파랑·빨강·노랑·초록이 은은한 알약(누르면 그 색으로 켜짐)'],
+    ['grok', 'Grok 레인마다 흰 선으로 그린 네모 칸(누르면 흰색으로 참)'],
+    ['claude', 'Claude 레인마다 따뜻한 회색 둥근 네모(누르면 테라코타에 크림 점)'],
+  ] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(gear).toHaveAttribute('data-value', id);
+    await expect(picked).toContainText(words);
+    await expect(picked).toContainText(`하단 양옆에는 ${words.split(' ')[0]} 콘 둘`);
+    await expect(help).not.toContainText('그래파이트');
+  }
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'cabinet');
   await expect(picked).toHaveText('오락실 기체 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구');

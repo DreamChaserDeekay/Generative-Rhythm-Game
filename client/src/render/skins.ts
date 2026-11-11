@@ -1,6 +1,7 @@
 import type { KeyModeConfig, LaneColor } from '../engine/config';
 import type { GearStyle } from './deckArt';
 import { GEAR_STYLES } from './deckArt';
+import type { HudTypeSource } from './gearHud';
 import { LANE_COLORS } from './palette';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from './tintArt';
 
@@ -23,6 +24,15 @@ export const HUD_FONTS = {
   'Chakra Petch': { weight: 700, italic: true },
   Orbitron: { weight: 800, italic: false },
   'Exo 2': { weight: 700, italic: true },
+  // the sky skin's: rounded strokes, heavy and slanted
+  Nunito: { weight: 800, italic: true },
+  // the Firestarter skin's: tall and tight, heavy and slanted (the family's own italic, under a name of its own)
+  'Barlow Condensed Italic': { weight: 800, italic: true },
+  // the AI companies' skins': the app's own sans in heavy weight (GPT), a rounded geometric sans (GEMINI), a monospace (GROK), an old-style serif (CLAUDE)
+  'Pretendard Variable': { weight: 800, italic: false },
+  Outfit: { weight: 700, italic: false },
+  'JetBrains Mono': { weight: 800, italic: false },
+  'Source Serif 4': { weight: 700, italic: false },
   Cinzel: { weight: 700, italic: false },
   // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
   'DSEG7 Classic': { weight: 700, italic: false },
@@ -53,6 +63,13 @@ export interface HudType {
   split?: boolean;
   /** A bar of this colour under the judgement. */
   bar?: string;
+  /**
+   * The letters' fill laid over them by the HUD's styles in layers, where one flat colour will not
+   * do (styles.css: .hud-fill): the crystal skin's flat planes cut at one angle, as a stone's facets;
+   * the sky skin's white easing to sky blue. The HUD writes each word so the styles can lay it
+   * (Hud.ts: data-fill), and the judgements' colours are that fill's own.
+   */
+  fill?: 'crystal' | 'sky' | 'fire' | 'gemini' | 'claude';
   /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
   comboFont?: HudFont;
   comboColor?: string;
@@ -93,8 +110,43 @@ function over(fg: string, alpha: number, bg: string): string {
 /** The track's type (기본's, 설정 → 기어 → 판정·콤보 글꼴). */
 export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#7cf7ff', outline: '#0b0c10', stroke: 6 };
 
-/** What a player starts with: the flat notes, the side notes as bars, the standard gear and the flash. */
-export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' };
+/**
+ * A skin: a gear, its notes, its hit effect and (the gear's type) its combo and judgement lettering,
+ * picked together in one row of the settings (설정 → 기어 → 스킨). The side notes are none of a
+ * skin's parts, nor are the lanes or the song's plate. A skin is nothing saved: it is the parts it
+ * sets (skinOf reads it back from them).
+ */
+export type SkinId = 'default' | 'crystal' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude';
+export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude'];
+/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash), 크리스털 (its parts are saved as 'prism'), 하늘, 파이어스타터, and the four AI companies' (GPT, Gemini, Grok, Claude). */
+export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
+  default: { note: 'flat', deck: 'standard', hit: 'flash' },
+  crystal: { note: 'prism', deck: 'prism', hit: 'prism' },
+  sky: { note: 'sky', deck: 'sky', hit: 'sky' },
+  fire: { note: 'fire', deck: 'fire', hit: 'fire' },
+  gpt: { note: 'gpt', deck: 'gpt', hit: 'gpt' },
+  gemini: { note: 'gemini', deck: 'gemini', hit: 'gemini' },
+  grok: { note: 'grok', deck: 'grok', hit: 'grok' },
+  claude: { note: 'claude', deck: 'claude', hit: 'claude' },
+};
+
+/**
+ * The skin these parts make with the lettering's source: its gear, notes and hit, written in the
+ * gear's type (whatever the side notes are); null where they were picked part by part, or the
+ * lettering is kept the track's own.
+ */
+export function skinOf(parts: SkinParts, type: HudTypeSource = 'gear'): SkinId | null {
+  if (type !== 'gear') return null;
+  return SKIN_IDS.find((id) => SKIN_PARTS[id].note === parts.note && SKIN_PARTS[id].deck === parts.deck && SKIN_PARTS[id].hit === parts.hit) ?? null;
+}
+
+/** `parts` with a skin's gear, notes and hit; the side notes stay as picked. */
+export function withSkin(parts: SkinParts, skin: SkinId): SkinParts {
+  return { ...SKIN_PARTS[skin], side: parts.side };
+}
+
+/** What a player starts with, the default skin (기본): the plain notes, the side notes as bars, the standard gear and the flash. */
+export const DEFAULT_PARTS: SkinParts = { ...SKIN_PARTS.default, side: 'bar' };
 
 const NEAR = '#15171f';
 const FAR = '#0d0f14';

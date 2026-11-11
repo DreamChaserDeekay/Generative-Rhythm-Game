@@ -43,6 +43,47 @@
 }
 
 @font-face {
+  font-family: 'Barlow Condensed Italic';
+  src: url('./assets/fonts/BarlowCondensed-ExtraBoldItalic.woff2') format('woff2');
+  font-weight: 800;
+  font-style: italic;
+  font-display: block;
+}
+
+/* the AI companies' skins': a rounded geometric sans (Gemini), a monospace (Grok), an old-style serif (Claude); GPT's is the app's own sans */
+@font-face {
+  font-family: 'Outfit';
+  src: url('./assets/fonts/Outfit-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./assets/fonts/JetBrainsMono-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: url('./assets/fonts/SourceSerif4-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Nunito';
+  src: url('./assets/fonts/Nunito-ExtraBoldItalic.woff2') format('woff2');
+  font-weight: 800;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
   font-family: 'Exo 2';
   src: url('./assets/fonts/Exo2-BoldItalic.woff2') format('woff2');
   font-weight: 700;
@@ -1789,8 +1830,31 @@ p.hint {
   color: var(--text);
 }
 
-/* the song's progress left of the gear: a thin bar filled from the bottom (one transform per step) */
+/* the song's time under its plate: how far in, of how long, over a thin bar filled from the left (one
+   transform per step). The same on every gear: the plate is none of a skin's parts */
+.hud-time {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 0.4em;
+  row-gap: calc(5px * var(--hud-scale));
+  padding: calc(var(--sp-1) * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale)) calc(var(--sp-2) * var(--hud-scale));
+  min-width: calc(200px * var(--hud-scale));
+  font-family: var(--font-display);
+  font-size: calc(15px * var(--hud-scale));
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.hud-total {
+  color: var(--text-dim);
+}
+
 .hud-progress {
+  grid-column: 1 / -1;
+  position: relative;
+  display: block;
+  height: calc(3px * var(--hud-scale));
   overflow: hidden;
   background: var(--line);
   border-radius: 1px;
@@ -1799,14 +1863,30 @@ p.hint {
 .hud-progress-fill {
   position: absolute;
   inset: 0;
-  background: var(--text-dim);
-  transform-origin: 50% 100%;
-  transform: scaleY(0);
+  background: #37e2ff;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
 }
 
-.hud-progress-time {
-  text-align: right;
-  transform-origin: 100% 100%;
+/* the score, SPEED and the rate in the windows of the gear's deck (Hud.layDeck): each one line,
+   label then number, about the middle of its window */
+.hud-row.on-deck,
+.hud-speed.on-deck {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: calc(var(--label-gap) * 2);
+  white-space: nowrap;
+  text-align: center;
+  transform-origin: 50% 50%;
+}
+
+.hud-row.on-deck .hud-score {
+  font-size: calc(var(--num) * 1.1);
+}
+
+.hud-speed.on-deck .hud-bpm {
+  display: none;
 }
 
 .hud-gauge-value {
@@ -1955,6 +2035,597 @@ p.hint {
 
 .hud[data-gear='standard'] .hud-gauge {
   outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* PRISM (크리스털): sapphire plates rimmed in light, white digits under ice-blue labels, the gauge a
+   bar of ice-blue glass (no cells: its light fills it), deeper under the clear line */
+.hud[data-gear='prism'] {
+  --hud-label-colour: #7cc8ff;
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(27, 42, 92, 0.72);
+  --plate-border: 1px solid rgba(213, 230, 248, 0.5);
+  --gauge-off: rgba(124, 200, 255, 0.14);
+  --gauge-low: #7cc2ee;
+  --gauge-high: #d8f1ff;
+  --gauge-name-colour: #eaf4ff;
+}
+
+.hud[data-gear='prism'] .hud-gauge {
+  outline: 1px solid rgba(213, 230, 248, 0.45);
+  background: var(--gauge-off);
+}
+
+.hud[data-gear='prism'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background:
+    linear-gradient(var(--gauge-high), var(--gauge-high)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    linear-gradient(var(--gauge-low), var(--gauge-low)) bottom / 100% var(--clear-at) no-repeat;
+}
+
+/* SKY (하늘): white rounded italic digits under sky-blue labels on deep navy glass; the readouts on
+   the deck written in thin white on the sky itself (the speed's and the rate's slanted, in their
+   pills); the gauge a deep navy capsule, a dash to a cell, sky blue to the clear line and cyan over it */
+.hud[data-gear='sky'] {
+  --hud-label-colour: #7fd3f7;
+  --hud-num-font: 'Nunito', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(12, 28, 51, 0.66);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.42);
+  --gauge-low: #39b2e6;
+  --gauge-high: #3fe3e6;
+  --gauge-name-colour: #ffffff;
+  /* a cell's dash (a mask for the lit ones), and the same unlit, a faint cyan */
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' rx='3.5'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' rx='3.5' fill='%233fe3e6' fill-opacity='0.18'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='sky'] .hud-num {
+  font-style: italic;
+  font-weight: 800;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-label {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: #ffffff;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-num {
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-score {
+  font-style: normal;
+  font-weight: 300;
+}
+
+/* white on the sky: a breath of the deck's deep blue under each letter keeps it off the clouds */
+.hud[data-gear='sky'] .hud-row.on-deck {
+  text-shadow: 0 0.05em 0.1em rgba(12, 44, 96, 0.5);
+}
+
+/* the capsule round the cells (a cell and a third of the gauge's width out all round) and the unlit dashes in it */
+.hud[data-gear='sky'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='sky'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -33%;
+  padding: var(--cell) 33%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #0c1c33;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+.hud[data-gear='sky'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='sky'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background:
+    linear-gradient(var(--gauge-high), var(--gauge-high)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    linear-gradient(var(--gauge-low), var(--gauge-low)) bottom / 100% var(--clear-at) no-repeat;
+}
+
+.hud[data-gear='sky'] .hud-gauge.survival .hud-gauge-fill {
+  background: #ff8f84;
+}
+
+/* FIRE (the Firestarter skin): red labels and chrome-white digits in its tall slanted type; the gauge a
+   gloss-black capsule of cells that heat up it, deep red at its foot through orange to orange-white */
+.hud[data-gear='fire'] {
+  --hud-label-colour: #ff4a55;
+  --hud-num-font: 'Barlow Condensed Italic', var(--font-display);
+  --hud-num-colour: #f4f6f9;
+  --plate-bg: rgba(10, 10, 12, 0.74);
+  --plate-border: 1px solid rgba(201, 206, 214, 0.5);
+  --gauge-name-colour: #f4f6f9;
+  /* a cell (a mask for the lit ones), and the same unlit, a dark ember */
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' fill='%23e8112d' fill-opacity='0.16'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='fire'] .hud-num {
+  font-style: italic;
+  font-weight: 800;
+}
+
+.hud[data-gear='fire'] .hud-label {
+  font-family: 'Barlow Condensed Italic', var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud[data-gear='fire'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='fire'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #0b0b0d;
+  box-shadow: 0 0 0 1px rgba(201, 206, 214, 0.4);
+}
+
+.hud[data-gear='fire'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='fire'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #8a0a1b 0%, #c4122a 24%, #e8112d 46%, #ff5a1f 68%, #ff9a3c 86%, #ffe2b8 100%);
+}
+
+.hud[data-gear='fire'] .hud-gauge.survival .hud-gauge-fill {
+  background: #d6dbe2;
+}
+
+/* the AI companies' gears: each company's colours and type for the readouts, and a gauge in its manner */
+
+/* GPT: on the deck near-black digits in the white boxes, grey labels; beside the track white on the dark;
+   the gauge a white capsule of rounded cells that fill in its green */
+.hud[data-gear='gpt'] {
+  --hud-label-colour: #b4b4b4;
+  --hud-num-font: 'Pretendard Variable', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(33, 33, 33, 0.78);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.2);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4' fill='%23b4b4b4' fill-opacity='0.55'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='gpt'] .hud-num {
+  font-weight: 800;
+}
+
+.hud[data-gear='gpt'] .on-deck .hud-label {
+  color: #6e6e80;
+}
+
+.hud[data-gear='gpt'] .on-deck .hud-num {
+  color: #0d0d0d;
+}
+
+.hud[data-gear='gpt'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='gpt'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.hud[data-gear='gpt'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='gpt'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #10a37f;
+}
+
+.hud[data-gear='gpt'] .hud-gauge.survival .hud-gauge-fill {
+  background: #0d0d0d;
+}
+
+/* GEMINI: soft white digits in its rounded sans; the gauge a dark capsule of round dots lit blue at its foot
+   through violet to pink */
+.hud[data-gear='gemini'] {
+  --hud-label-colour: #9aa0a6;
+  --hud-num-font: 'Outfit', var(--font-display);
+  --hud-num-colour: #e3e3e3;
+  --plate-bg: rgba(19, 19, 20, 0.8);
+  --plate-border: 1px solid rgba(155, 114, 203, 0.5);
+  --gauge-name-colour: #e3e3e3;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6' fill='%23e3e3e3' fill-opacity='0.14'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='gemini'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='gemini'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='gemini'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #131314;
+  box-shadow: 0 0 0 1px rgba(155, 114, 203, 0.5);
+}
+
+.hud[data-gear='gemini'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='gemini'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #4285f4 0%, #9b72cb 55%, #d96570 100%);
+}
+
+.hud[data-gear='gemini'] .hud-gauge.survival .hud-gauge-fill {
+  background: #e3e3e3;
+}
+
+/* GROK: white monospaced digits, grey labels in the same type; the gauge a black bar in a white hairline, its
+   cells flat and white */
+.hud[data-gear='grok'] {
+  --hud-label-colour: #8b8b8b;
+  --hud-num-font: 'JetBrains Mono', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(0, 0, 0, 0.84);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.7);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='grok'] .hud-num {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.hud[data-gear='grok'] .hud-label {
+  font-family: 'JetBrains Mono', var(--font-display);
+  font-weight: 800;
+}
+
+.hud[data-gear='grok'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='grok'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -26%;
+  padding: var(--cell) 26%;
+  border-radius: 0;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #000000;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.hud[data-gear='grok'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='grok'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #ffffff;
+}
+
+.hud[data-gear='grok'] .hud-gauge.survival .hud-gauge-fill {
+  background: #8b8b8b;
+}
+
+/* CLAUDE: on its paper charcoal digits in a serif, terracotta labels; beside the track ivory on the dark; the
+   gauge a cream capsule of rounded cells that fill in terracotta */
+.hud[data-gear='claude'] {
+  --hud-label-colour: #e08a6a;
+  --hud-num-font: 'Source Serif 4', var(--font-display);
+  --hud-num-colour: #faf9f5;
+  --plate-bg: rgba(20, 20, 19, 0.78);
+  --plate-border: 1px solid rgba(217, 119, 87, 0.55);
+  --gauge-name-colour: #faf9f5;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3' fill='%23b0aea5' fill-opacity='0.6'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='claude'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='claude'] .hud-label {
+  font-family: 'Source Serif 4', var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.hud[data-gear='claude'] .on-deck .hud-label {
+  color: #c15f3c;
+}
+
+.hud[data-gear='claude'] .on-deck .hud-num {
+  color: #141413;
+}
+
+.hud[data-gear='claude'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='claude'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #f0eee6;
+  box-shadow: 0 0 0 1px rgba(20, 20, 19, 0.5);
+}
+
+.hud[data-gear='claude'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='claude'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #d97757;
+}
+
+.hud[data-gear='claude'] .hud-gauge.survival .hud-gauge-fill {
+  background: #141413;
+}
+
+/* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
+   each word three layers of the same letters: the outlined ones; over them a white copy (::before);
+   over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
+   cut at one angle, the sky skin's white easing to sky blue), which a fill may set a hair lower
+   (--fill-rim), so the white shows along the letters' top edges, a ground edge catching the light.
+   Flat fills only: no glow, no sparkle, nothing painted again but when the word changes. */
+.hud[data-fill] .hud-fill {
+  position: relative;
+  color: var(--hud-outline);
+  /* the planes' layer covers that much of the outline under the letters: the outline that much lower there */
+  text-shadow: 0 var(--fill-rim, 0em) 0 var(--hud-outline);
+}
+
+.hud[data-fill] .hud-judge-label .hud-fill {
+  display: inline-block;
+}
+
+.hud[data-fill] .hud-fill::before,
+.hud[data-fill] .hud-fill::after {
+  content: attr(data-text);
+  position: absolute;
+  /* wider than the word: slanted letters lean out of their box, and the fill is clipped to the box */
+  left: -0.3em;
+  right: -0.3em;
+  top: -0.2em;
+  padding: 0.2em 0.3em;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  pointer-events: none;
+}
+
+.hud[data-fill] .hud-fill::before {
+  color: #ffffff;
+}
+
+.hud[data-fill] .hud-fill::after {
+  top: calc(-0.2em + var(--fill-rim, 0em));
+  color: transparent;
+  background: var(--fill);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* the crystal skin's: white, pale ice blue, a hairline of light, steel blue and a touch of lavender;
+   the best judgement's percent ice blue to azure, lower ones steel blue, lavender, dusk; a break
+   ruby, one crack across it */
+.hud[data-fill='crystal'] {
+  --fill-rim: 0.04em;
+  --fill: linear-gradient(128deg, #ffffff 0 26%, #d9edff 26% 44%, #f7fbff 44% 47.5%, #b3d0ee 47.5% 69%, #c9c2ee 69% 86%, #e3def8 86%);
+}
+
+.hud[data-fill='crystal'] .hud-combo-label {
+  /* close under the digits, as one cut with them */
+  margin-top: 0.12em;
+  font-size: calc(var(--label-size) * 1.25);
+  letter-spacing: 0.08em;
+  --fill: linear-gradient(128deg, #d3ebff 0 31%, #f5faff 31% 35%, #a9c6e8 35% 63%, #c4bcec 63% 85%, #ddd7f6 85%);
+}
+
+.hud[data-fill='crystal'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #c6edff 0 24%, #6ccaf7 24% 45%, #dcf4ff 45% 48.5%, #2aa1e6 48.5% 73%, #1589d1 73%);
+}
+
+.hud[data-fill='crystal'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #d2e5f6 0 24%, #95badd 24% 45%, #e6f1fb 45% 48.5%, #7197c4 48.5% 73%, #5c81b2 73%);
+}
+
+.hud[data-fill='crystal'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #ece8fb 0 24%, #cbc3ee 24% 45%, #f4f1fd 45% 48.5%, #aea3dc 48.5% 73%, #9b90d1 73%);
+}
+
+.hud[data-fill='crystal'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #e8dde9 0 24%, #c3acc7 24% 45%, #f0e8f1 45% 48.5%, #a388a9 48.5% 73%, #8e7497 73%);
+}
+
+.hud[data-fill='crystal'] .g-break .hud-fill {
+  --fill:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M40 0 L37.5 34 L41.5 47 L38 100' fill='none' stroke='%2328060f' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat,
+    linear-gradient(128deg, #ffa6b6 0 22%, #f25f7a 22% 45%, #ff93a6 45% 48.5%, #d02846 48.5% 74%, #a31636 74%);
+}
+
+/* the sky skin's: white easing to sky blue toward the letters' feet, nothing cut across them (no rim:
+   the fill lies square on the letters); COMBO thin and white, widely spaced; the best judgement's
+   percent cyan, lower ones sky blue, periwinkle, dusk; a break a soft sunset coral */
+.hud[data-fill='sky'] {
+  --fill: linear-gradient(180deg, #ffffff 0 44%, #d6edff 60%, #86c9f8 80%);
+}
+
+.hud[data-fill='sky'] .hud-combo-label {
+  margin-top: 0.3em;
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  /* the spacing after its last letter would set it off centre */
+  margin-right: -0.34em;
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='sky'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e2fdff 0 40%, #6feaf0 60%, #1fc0dc 82%);
+}
+
+.hud[data-fill='sky'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e6f4ff 0 40%, #84c8f8 60%, #3f9ce8 82%);
+}
+
+.hud[data-fill='sky'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f3ff 0 40%, #bcc0f6 60%, #8d92e6 82%);
+}
+
+.hud[data-fill='sky'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f4eef7 0 40%, #cbb8d9 60%, #a48bbd 82%);
+}
+
+.hud[data-fill='sky'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #ffece2 0 40%, #ffa38e 60%, #f0696c 82%);
+}
+
+/* the Firestarter skin's: white-hot at the letters' tops easing through orange to red at their feet,
+   as metal out of a fire; COMBO the same heat a step cooler; "MAX" polished chrome (white, the dark
+   horizon across its middle, silver below); its percent the same heat, lower ones cooling to amber,
+   rose and ash; a break a cold steel */
+.hud[data-fill='fire'] {
+  --fill: linear-gradient(180deg, #fff6e0 0 28%, #ffc24a 48%, #ff7a1a 64%, #e8112d 88%);
+}
+
+.hud[data-fill='fire'] .hud-combo-label {
+  margin-top: 0.06em;
+  font-size: calc(var(--label-size) * 1.3);
+  letter-spacing: 0.05em;
+  --fill: linear-gradient(180deg, #ffd48a 0 22%, #ff7a1a 56%, #e8112d 90%);
+}
+
+.hud[data-fill='fire'] .hud-fill.hud-split {
+  --fill: linear-gradient(180deg, #ffffff 0 34%, #c9ced6 47%, #69707c 53%, #b4bcc7 62%, #f4f6f9 88%);
+}
+
+.hud[data-fill='fire'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff6dc 0 30%, #ffd166 54%, #e89a1e 86%);
+}
+
+.hud[data-fill='fire'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff0f1 0 30%, #ff9aa8 56%, #d9566e 86%);
+}
+
+.hud[data-fill='fire'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f4f6f9 0 30%, #b4bcc7 56%, #717985 86%);
+}
+
+.hud[data-fill='fire'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #e7eef6 0 30%, #8fa3b8 56%, #4c6078 86%);
+}
+
+/* Gemini's: blue through violet to pink across the letters; COMBO thin and soft white, widely spaced; "MAX"
+   white; lower percents a pale blue, a violet, a dusk; a break a soft red */
+.hud[data-fill='gemini'] {
+  --fill: linear-gradient(90deg, #5a95f5 0%, #9b72cb 52%, #e0677a 100%);
+}
+
+.hud[data-fill='gemini'] .hud-combo-label {
+  margin-top: 0.3em;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  --fill: linear-gradient(#e3e3e3, #e3e3e3);
+}
+
+.hud[data-fill='gemini'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='gemini'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #8ab4f8, #a8c7fa);
+}
+
+.hud[data-fill='gemini'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #c2a8f0, #a98bdc);
+}
+
+.hud[data-fill='gemini'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #b5adc4, #8e879c);
+}
+
+.hud[data-fill='gemini'] .g-break .hud-fill {
+  --fill: linear-gradient(90deg, #f6aea9, #e0677a);
+}
+
+/* Claude's: cream at the letters' tops easing to terracotta at their feet; COMBO terracotta, widely spaced;
+   "MAX" cream; lower percents the house's other colours, a kraft ochre, a sky, an olive; a break a warm grey */
+.hud[data-fill='claude'] {
+  --fill: linear-gradient(180deg, #fff6ee 0 34%, #f4b79c 58%, #d97757 88%);
+}
+
+.hud[data-fill='claude'] .hud-combo-label {
+  margin-top: 0.14em;
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
+  --fill: linear-gradient(#e8845f, #e8845f);
+}
+
+.hud[data-fill='claude'] .hud-fill.hud-split {
+  --fill: linear-gradient(#fff6ee, #fff6ee);
+}
+
+.hud[data-fill='claude'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff6e6 0 34%, #e9c28a 58%, #c9973f 88%);
+}
+
+.hud[data-fill='claude'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f7fb 0 34%, #a9c2dd 58%, #6a9bcc 88%);
+}
+
+.hud[data-fill='claude'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f5ec 0 34%, #b4c19c 58%, #788c5d 88%);
+}
+
+.hud[data-fill='claude'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #efeee9 0 34%, #b0aea5 58%, #77756d 88%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

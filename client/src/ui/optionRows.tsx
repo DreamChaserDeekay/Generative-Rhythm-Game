@@ -1,7 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
-import type { SkinParts } from '../render/skins';
+import { SKIN_IDS, type SkinId, type SkinParts } from '../render/skins';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 
 /** The option rows of the settings and the song select's play options. */
@@ -10,6 +10,13 @@ export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** The parts by name (설정 → 노트 and 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = {
+  prism: '크리스털',
+  sky: '하늘',
+  fire: '파이어스타터',
+  gpt: 'GPT',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  claude: 'Claude',
   flat: '기본',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
@@ -24,6 +31,13 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
 };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<GearStyle, string> = {
+  prism: '크리스털',
+  sky: '하늘',
+  fire: '파이어스타터',
+  gpt: 'GPT',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  claude: 'Claude',
   standard: '기본',
   cabinet: '오락실 기체',
   receiver: '빈티지 리시버',
@@ -35,6 +49,13 @@ export const DECK_NAMES: Record<GearStyle, string> = {
   rawglass: '달',
 };
 export const HIT_NAMES: Record<HitStyle, string> = {
+  prism: '크리스털 분광',
+  sky: '구름 깃털',
+  fire: '불똥',
+  gpt: '입력 중 점',
+  gemini: '반짝임',
+  grok: '펜 엑스',
+  claude: '손 빛살',
   flash: '플래시',
   flare: '플레어',
   bubbles: '거품',
@@ -45,6 +66,17 @@ export const HIT_NAMES: Record<HitStyle, string> = {
   neon: '네온 아크',
   piano: '피아노 음표',
 };
+
+/** The skins by name (설정 → 기어 → 스킨), and what the row reads while the parts are no skin's (picked one by one). */
+export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털', sky: '하늘', fire: '파이어스타터', gpt: 'GPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude' };
+export const CUSTOM_SKIN = 'custom';
+export const CUSTOM_SKIN_NAME = '직접 고름';
+
+/** The skin row's choices: the skins, and 직접 고름 only while it is what the row reads (it is not something to pick). */
+export function skinChoices(current: SkinId | null): [SkinId | typeof CUSTOM_SKIN, string][] {
+  const skins = SKIN_IDS.map((id): [SkinId | typeof CUSTOM_SKIN, string] => [id, SKIN_NAMES[id]]);
+  return current === null ? [...skins, [CUSTOM_SKIN, CUSTOM_SKIN_NAME]] : skins;
+}
 
 /** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
 export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [

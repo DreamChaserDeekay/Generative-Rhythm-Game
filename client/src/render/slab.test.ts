@@ -50,6 +50,19 @@ describe('a note drawn as a solid slab', () => {
     expect(long.getAttribute('position').getZ(0)).toBe(-0.5);
   });
 
+  it('is the picture alone, lying flat, where it is given no slices: a see-through long note has no walls to show', () => {
+    const flat = slabGeometry(0, 0, 0, 0);
+    const at = flat.getAttribute('position');
+    expect(at.count).toBe(4);
+    expect(flat.getIndex()!.count).toBe(6);
+    for (let i = 0; i < 4; i++) {
+      expect(at.getY(i)).toBe(0);
+      expect((flat.getAttribute('color') as THREE.BufferAttribute).getX(i)).toBe(1);
+    }
+    // laid as a slab's top is: far left, far right, near left, near right
+    expect([0, 1, 2, 3].map((i) => [at.getX(i), at.getZ(i)])).toEqual([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]);
+  });
+
   it('shows its walls under its near edge from every perspective camera, and none from the plane camera', () => {
     for (const id of Object.keys(cameraConfig.presets)) {
       const pose = cameraPose(cameraConfig.presets[id]);

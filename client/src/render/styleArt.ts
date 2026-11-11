@@ -44,11 +44,11 @@ const setOf = (note: string): ArtSet | undefined => SET_IDS.find((s) => SET_NOTE
 
 /**
  * The hits drawn from flipbooks (client/public/media/styles/<set>/ and styles/hits/), by their name in
- * the manifest: the sets' and four of no set (FLASH, FLARE, BUBBLES, GRID). Each is drawn in code
- * while its flipbooks are missing (tintArt.ts: effectSheet).
+ * the manifest: the sets' and three of no set (FLARE, BUBBLES, GRID). Each is drawn in code while
+ * its flipbooks are missing (tintArt.ts: effectSheet); FLASH (the default skin's) and PRISM's are
+ * drawn in code alone.
  */
 const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
-  flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
   grid: 'grid',
@@ -79,7 +79,17 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
  * in code (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
-  standard: { deck: 'standard/deck', glow: 'standard/glow', frame: 'standard/graphite', jog: 'standard/jog' },
+  // drawn in code alone
+  prism: {},
+  // drawn in code but for the painting of its deck's sky and the feather over its score
+  sky: { plate: 'sky/plate', feather: 'sky/feather' },
+  fire: {},
+  gpt: {},
+  gemini: {},
+  grok: {},
+  claude: {},
+  // drawn in code alone: its key caps light with the lanes and its deck houses the HUD's readouts
+  standard: {},
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
   najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },

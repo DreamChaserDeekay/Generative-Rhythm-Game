@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, paintBorder, paintDeck, paintFace, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type Picture } from './deckArt';
+import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type GearStyle, type KeyKind, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { KEY_RISE_MS, notesEndZ, pressLevel } from './TrackRenderer';
 
@@ -127,8 +127,11 @@ describe('the decks of the gears a player picks', () => {
     sides: [],
   });
 
-  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys)', () => {
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) {
+  /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
+  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude'];
+
+  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, STANDARD’s and CRYSTAL’s key caps and SKY’s dashes)', () => {
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) {
       for (const [room, stretch] of [
         [96, 1.1],
         [320, 1.25],
@@ -221,8 +224,308 @@ describe('the decks of the gears a player picks', () => {
     // none under the side lanes with a place of their own, the key lanes' only; side lanes over the keys leave every key lane its key
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '4K+FX'), lanes: deckLanes('4K+FX') }, false).map((k) => k.lane)).toEqual([1, 2, 3, 4]);
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, false).map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5]);
+    // STANDARD's key caps light with their lanes, one over each key lane
+    expect(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#37e2ff']));
+    // CRYSTAL's (saved as 'prism') too, in its ice blue, each keeping its cut when lit (drawn as much longer along the track as the deck is)
+    expect(deckKeys('prism', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit, k.gem])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#7cc8ff', 1.2]));
+    expect(deckKeys('prism', spec(155.55, 1.2, '4K'), false).map((k) => k.box)).toEqual(deckKeys('standard', spec(155.55, 1.2, '4K'), false).map((k) => k.box));
+    // SKY's dashes, one to a lane in a thin strip under the line: a held lane's cell of the strip lights cyan, its dash white-hot in the cell's middle
+    const dashes = deckKeys('sky', spec(155.55, 1.2, '7K+1S'), false);
+    expect(dashes.map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#3fe3e6']));
+    dashes.forEach((k, i) => {
+      const lane = spec(155.55, 1.2, '7K+1S').lanes[i];
+      expect([k.box.x, k.box.y, k.box.w], `dash ${i}`).toEqual([lane.left, 0, lane.width]);
+      // thinner than a key cap by far, and the dash well inside its cell
+      expect(k.box.h).toBeLessThan(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false)[i].box.h / 2);
+      expect(k.dash![0]).toBeGreaterThan(0.3);
+      expect(k.dash![0]).toBeLessThan(0.8);
+      expect(k.dash![1]).toBeLessThan(0.3);
+    });
     // the other gears have no keys
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+  });
+
+  it('STANDARD and CRYSTAL house the score, the speed and the rate on their decks, CRYSTAL’s on long hexagons that stay on the deck', () => {
+    for (const gear of ['standard', 'prism'] as const) {
+      for (const [room, stretch] of [
+        [155.55, 1.2],
+        [912, 3.25],
+      ]) {
+        const s = spec(room, stretch);
+        const r = deckReadouts(gear, s)!;
+        // under the caps and their seam, the score over the other two, which mirror each other
+        expect(r.score.y, gear).toBeGreaterThanOrEqual(47 * stretch);
+        expect(r.score.x + r.score.w / 2, gear).toBeCloseTo(s.width / 2, 6);
+        expect(r.speed.y, gear).toBeGreaterThanOrEqual(r.score.y + r.score.h);
+        expect(r.speed.y + r.speed.h, gear).toBeLessThanOrEqual(room);
+        expect(r.rate.x + r.rate.w, gear).toBeCloseTo(s.width - r.speed.x, 6);
+        expect([r.rate.y, r.rate.w, r.rate.h], gear).toEqual([r.speed.y, r.speed.w, r.speed.h]);
+      }
+      // too little of the deck on the screen (a small preview): none
+      expect(deckReadouts(gear, spec(96, 1.1)), gear).toBeNull();
+    }
+    // the other gears house none
+    for (const gear of GEAR_STYLES.filter((g) => !SKIN_GEARS.includes(g))) expect(deckReadouts(gear, spec(912, 3.25)), gear).toBeNull();
+    // CRYSTAL's hexagons have their points outside the windows, so its side windows start further in
+    expect(deckReadouts('prism', spec(155.55, 1.2))!.speed.x).toBeGreaterThan(deckReadouts('standard', spec(155.55, 1.2))!.speed.x);
+    for (const [room, stretch, mode] of [
+      [155.55, 1.2, '7K+1S'],
+      [912, 3.25, '4K'],
+    ] as [number, number, KeyModeId][]) {
+      // each window marked for the light its sapphire takes, and nothing of the deck drawn off it
+      const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+      const { g, calls } = callRecorder();
+      paintDeck('prism', g, s);
+      expect(s.marks.map((m) => m.name)).toEqual(['plate.score', 'plate.speed', 'plate.rate']);
+      const xs = calls.filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo').map((c) => c[1] as number);
+      expect(xs.length).toBeGreaterThan(100);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...xs)).toBeLessThanOrEqual(s.width);
+    }
+    // a deck too short for them: the caps and the facets alone, no marks
+    const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
+    paintDeck('prism', callRecorder().g, short);
+    expect(short.marks).toEqual([]);
+  });
+
+  it('SKY writes the score on its sky, the feather left of it on its line, the speed and the rate in two pills, and marks the sky and the feather for its lights', () => {
+    for (const [room, stretch, mode] of [
+      [155.55, 1.2, '7K+1S'],
+      [912, 3.25, '4K'],
+    ] as [number, number, KeyModeId][]) {
+      const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+      const r = deckReadouts('sky', s)!;
+      // under the strip of dashes and its line (16 px of the sheets), in the lower part of its step
+      expect(r.score.y).toBeGreaterThanOrEqual((16 + 34) * stretch);
+      expect(r.score.x + r.score.w / 2).toBeCloseTo(s.width / 2, 6);
+      expect(r.speed.y).toBeGreaterThanOrEqual(r.score.y + r.score.h);
+      expect(r.speed.y + r.speed.h).toBeLessThanOrEqual(room);
+      expect(r.rate.x + r.rate.w).toBeCloseTo(s.width - r.speed.x, 6);
+      expect([r.rate.y, r.rate.w, r.rate.h]).toEqual([r.speed.y, r.speed.w, r.speed.h]);
+      paintDeck('sky', callRecorder().g, s);
+      expect(s.marks.map((m) => m.name)).toEqual(['sky', 'feather']);
+      const [sky, feather] = s.marks;
+      // the sky from under the strip across the whole deck; the feather on the score's line, in the left part of
+      // the score's window: left of where the score's first letter stands, however long the score
+      expect([sky.x, sky.w]).toEqual([0, s.width]);
+      expect(sky.y).toBeCloseTo(16 * stretch, 6);
+      const [fx, fy] = [feather.x + feather.w / 2, feather.y + feather.h / 2];
+      expect(fx).toBeGreaterThan(r.score.x);
+      expect(fx).toBeLessThan(s.width * 0.34);
+      expect(fy).toBeGreaterThan(r.score.y);
+      expect(fy).toBeLessThan(r.score.y + r.score.h / 2);
+      // clear of the speed's pill below it and of the left cloud's end of the deck
+      expect(feather.y + feather.h).toBeLessThanOrEqual(r.speed.y + 1e-6);
+      expect(feather.x).toBeGreaterThan(r.speed.x + r.speed.w);
+    }
+    // too little of the deck on the screen: the strip and the sky alone
+    expect(deckReadouts('sky', spec(96, 1.1))).toBeNull();
+    const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
+    paintDeck('sky', callRecorder().g, short);
+    expect(short.marks.map((m) => m.name)).toEqual(['sky']);
+  });
+
+  it('the four AI companies’ gears house the readouts as FIRE does, each key held in its company’s flat colour, and mark what lights under their keys', () => {
+    for (const gear of ['gpt', 'gemini', 'grok', 'claude'] as const) {
+      for (const [room, stretch, mode] of [
+        [155.55, 1.2, '7K+1S'],
+        [912, 3.25, '4K'],
+      ] as [number, number, KeyModeId][]) {
+        const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+        const r = deckReadouts(gear, s)!;
+        // steps as deep as FIRE's (as deep in all as the default gear's deck): the score in the middle; the speed and the rate
+        // under it by the deck's middle, not at its two ends (stickers lie over these decks' near corners)
+        const fire = deckReadouts('fire', s)!;
+        expect(r.score, gear).toEqual(fire.score);
+        expect([r.speed.y, r.speed.w, r.speed.h, r.rate.y, r.rate.w, r.rate.h]).toEqual([fire.speed.y, fire.speed.w, fire.speed.h, fire.rate.y, fire.rate.w, fire.rate.h]);
+        expect(r.speed.x).toBeGreaterThan(s.width * 0.25);
+        expect(r.rate.x + r.rate.w).toBeLessThan(s.width * 0.75);
+        expect(r.speed.x + r.speed.w / 2 + r.rate.x + r.rate.w / 2).toBeCloseTo(s.width, 6);
+        expect(r.speed.x + r.speed.w).toBeLessThan(r.rate.x);
+        paintDeck(gear, callRecorder().g, s);
+        expect(s.marks.map((m) => m.name), gear).toEqual(['glow']);
+        expect([s.marks[0].x, s.marks[0].w]).toEqual([0, s.width]);
+        // a key to a lane, inside its lane, over the readouts
+        const keys = deckKeys(gear, s, false);
+        expect(keys.map((k) => k.lane)).toEqual(s.lanes.map((_, lane) => lane));
+        keys.forEach((k, i) => {
+          expect(k.box.x).toBeGreaterThan(s.lanes[i].left);
+          expect(k.box.x + k.box.w).toBeLessThan(s.lanes[i].left + s.lanes[i].width);
+          expect(k.box.y + k.box.h).toBeLessThan(r.score.y);
+          expect(k.press!.stretch).toBe(stretch);
+          expect(() => paintLitKey(callRecorder().g, 64, 64, k)).not.toThrow();
+        });
+      }
+      expect(deckReadouts(gear, spec(96, 1.1)), gear).toBeNull();
+      expect(() => paintDeck(gear, callRecorder().g, spec(96, 1.1))).not.toThrow();
+    }
+    const held = (gear: 'gpt' | 'gemini' | 'grok' | 'claude') => deckKeys(gear, spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!);
+    // GPT's goes black with a white dot (someone typing), CLAUDE's terracotta with a cream dot, GROK's solid white and square
+    expect(new Set(held('gpt').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#0d0d0d #ffffff']));
+    expect(new Set(held('claude').map((p) => `${p.fill} ${p.dot}`))).toEqual(new Set(['#d97757 #f0eee6']));
+    expect(new Set(held('grok').map((p) => `${p.fill} ${p.dot} ${p.round}`))).toEqual(new Set(['#ffffff undefined 0']));
+    // GEMINI's light in four clear colours, lane after lane
+    expect(held('gemini').map((p) => p.fill).slice(0, 5)).toEqual(['#4285f4', '#ea4335', '#fbbc04', '#34a853', '#4285f4']);
+    // each judge line in its company's colour, white at its core, where and as large as every gear's
+    expect(['gpt', 'gemini', 'grok', 'claude'].map((gear) => judgeOf(gear as GearStyle).line)).toEqual(['#12b38b', '#9b72cb', '#ffffff', '#d97757']);
+  });
+
+  it('FIRE houses the score in a window of black glass and the speed and the rate in two pills, its chrome caps glowing under their near edges, and marks that light and its lacquer', () => {
+    for (const [room, stretch, mode] of [
+      [155.55, 1.2, '7K+1S'],
+      [912, 3.25, '4K'],
+    ] as [number, number, KeyModeId][]) {
+      const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+      const r = deckReadouts('fire', s)!;
+      // under the caps and the chrome trim (45 px of the sheets), the score in the middle, the pills at the two ends under it
+      expect(r.score.y).toBeGreaterThanOrEqual(45 * stretch);
+      expect(r.score.x + r.score.w / 2).toBeCloseTo(s.width / 2, 6);
+      expect(r.speed.y).toBeGreaterThanOrEqual(r.score.y + r.score.h);
+      expect(r.speed.y + r.speed.h).toBeLessThanOrEqual(room);
+      expect(r.rate.x + r.rate.w).toBeCloseTo(s.width - r.speed.x, 6);
+      paintDeck('fire', callRecorder().g, s);
+      expect(s.marks.map((m) => m.name)).toEqual(['caps', 'lacquer']);
+      const [caps, lacquer] = s.marks;
+      // the light under the caps: a thin band across the deck at the foot of their row; the lacquer from under the trim
+      expect([caps.x, caps.w, lacquer.x, lacquer.w]).toEqual([0, s.width, 0, s.width]);
+      expect(caps.y + caps.h).toBeCloseTo(42 * stretch, 6);
+      expect(caps.h).toBeLessThan(10 * stretch);
+      expect(lacquer.y).toBeCloseTo(45 * stretch, 6);
+      // a cap to a lane, its light's room left under it: the held lane's cap glows as heated metal
+      const keys = deckKeys('fire', s, false);
+      expect(keys.map((k) => [k.lane, k.lit])).toEqual(s.lanes.map((_, lane) => [lane, '#ff5a1f']));
+      keys.forEach((k, i) => {
+        expect([k.box.x, k.box.y, k.box.w], `cap ${i}`).toEqual([s.lanes[i].left, 0, s.lanes[i].width]);
+        expect(k.box.h).toBeCloseTo(42 * stretch, 6);
+        const [, y, w, h] = k.ember!;
+        expect(w).toBeGreaterThan(0.9);
+        expect(y + h).toBeLessThan(0.9);
+      });
+    }
+    // as deep in all as the default gear's deck: where that one keeps its readouts, so does this
+    expect(deckReadouts('fire', spec(96, 1.1))).toBeNull();
+    expect(deckReadouts('fire', spec(155.55, 1.2))!.speed.y).toBeCloseTo(deckReadouts('standard', spec(155.55, 1.2))!.speed.y, 6);
+    // its judge line a white-hot wire in red
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(judgeOf('fire').line.slice(i, i + 2), 16));
+    expect(judgeOf('fire').core).toBe('#ffffff');
+    expect(r).toBeGreaterThan(220);
+    expect(Math.max(g, b)).toBeLessThan(90);
+  });
+
+  it('SKY lays its sky over the lanes as its picture has it: dark all the way, a faint bank of cloud on the line, three hairline trails; no other gear paints the lanes', () => {
+    expect(Object.keys(GEAR_FLOORS)).toEqual(['sky']);
+    const [w, h, st] = [1024, 2048, 0.68];
+    const paint = () => {
+      const { g, calls } = callRecorder();
+      GEAR_FLOORS.sky!(g, w, h, st);
+      return calls;
+    };
+    const calls = paint();
+    // the same every time
+    expect(paint()).toEqual(calls);
+    // the ground: its colours from the far end (0) to the judge line (1), every one plainly darker than the deck's sky
+    // (whose darkest blue is #2f7fd6) and than any note, and a deep navy over the far three quarters of the track
+    const ground = calls.filter((c) => c[0] === 'addColorStop' && typeof c[2] === 'string' && !(c[2] as string).startsWith('rgba(255,255,255')) as [string, number, string][];
+    expect(ground.length).toBeGreaterThanOrEqual(8);
+    expect(ground.map(([, at]) => at)).toEqual([...ground.map(([, at]) => at)].sort((a, b) => a - b));
+    for (const [, at, colour] of ground) {
+      const [r, gr, b] = colour.slice(5).split(',').map(Number);
+      expect(Math.max(r, gr, b), colour).toBeLessThan(150);
+      expect(b, colour).toBeGreaterThan(r);
+      if (at < 0.75) expect(Math.max(r, gr, b), colour).toBeLessThan(60);
+    }
+    // the clouds: faint (set as a shadow's colour, each layer one even shape), kept off the picture's last rows
+    // (from the judge line on to the gear the plain sky shows), their puffs as much longer along the track as asked
+    const clouds = calls.filter((c) => c[0] === '=' && c[1] === 'shadowColor').map((c) => Number((c[2] as string).slice((c[2] as string).lastIndexOf(',') + 1, -1)));
+    expect(clouds.length).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...clouds)).toBeLessThanOrEqual(0.2);
+    expect(calls).toContainEqual(['rect', 0, 0, w, h - 3]);
+    const puffs = calls.filter((c) => c[0] === 'ellipse') as [string, number, number, number, number][];
+    expect(puffs.length).toBeGreaterThan(10);
+    for (const [, , , rx, ry] of puffs) expect(ry / rx).toBeCloseTo(st, 5);
+    // the trails: three closed ribbons drawn after the clouds, each from low by the left rail up to the right,
+    // a hairline across (a few px of a picture 1024 px wide), white and see-through
+    const closes = calls.map((c, i) => (c[0] === 'closePath' ? i : -1)).filter((i) => i >= 0);
+    expect(closes).toHaveLength(3);
+    for (const close of closes) {
+      const begin = calls.slice(0, close).map((c) => c[0]).lastIndexOf('beginPath');
+      const path = calls.slice(begin, close).filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo') as [string, number, number][];
+      expect(path.length).toBeGreaterThan(100);
+      expect(path.length % 2).toBe(0);
+      const [, x0, y0] = path[0];
+      // one side out, the other side back: the middle of the path is its far end
+      const [, x1, y1] = path[path.length / 2 - 1];
+      expect(x0 / w).toBeLessThan(0.2);
+      expect(y0 / h).toBeGreaterThan(0.93);
+      expect(x1 / w).toBeGreaterThan(0.7);
+      expect(y1 / h).toBeLessThan(0.75);
+      // as wide as the two sides are apart where they start and where they end
+      for (const [a, b] of [[path[0], path[path.length - 1]], [path[path.length / 2 - 1], path[path.length / 2]]]) expect(Math.hypot(a[1] - b[1], a[2] - b[2])).toBeLessThan(8);
+    }
+    const trails = calls.filter((c) => c[0] === 'addColorStop' && typeof c[2] === 'string' && (c[2] as string).startsWith('rgba(255,255,255')).map((c) => Number((c[2] as string).slice(17, -1)));
+    expect(Math.max(...trails)).toBeLessThanOrEqual(0.6);
+    expect(Math.min(...trails)).toBe(0);
+    // the ticks along the two edges: drawn last, in pairs that mirror each other, evenly up the track from the
+    // judge line, every fifth longer, each inside the picture and short (under a twentieth of its width)
+    const lastClose = closes[closes.length - 1];
+    const ticks = calls.slice(lastClose).filter((c) => c[0] === 'fillRect') as [string, number, number, number, number][];
+    expect(ticks.length).toBeGreaterThan(100);
+    expect(ticks.length % 2).toBe(0);
+    const lefts = ticks.filter((_, i) => i % 2 === 0);
+    lefts.forEach(([, x, y, tw, th], i) => {
+      const [, rx, ry, rw, rh] = ticks[2 * i + 1];
+      expect([ry, rw, rh]).toEqual([y, tw, th]);
+      expect(rx + rw).toBeCloseTo(w - x, 6);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(tw / w).toBeLessThan(0.05);
+      expect(y).toBeGreaterThan(0);
+      expect(y + th).toBeLessThanOrEqual(h);
+      if (i > 0) expect(y).toBeLessThan(lefts[i - 1][2]);
+    });
+    const long = lefts.map(([, , , tw]) => tw > lefts[1][3] * 1.3);
+    expect(long.slice(0, 11)).toEqual([true, false, false, false, false, true, false, false, false, false, true]);
+    // fainter with the distance: the nearest about half there, the farthest all but gone
+    const faint = calls.slice(lastClose).filter((c) => c[0] === '=' && c[1] === 'fillStyle').map((c) => Number((c[2] as string).slice((c[2] as string).lastIndexOf(',') + 1, -1)));
+    expect(faint[0]).toBeGreaterThan(0.4);
+    expect(faint[0]).toBeLessThanOrEqual(0.5);
+    expect(faint[faint.length - 1]).toBeLessThan(0.02);
+    expect(faint).toEqual([...faint].sort((a, b) => b - a));
+  });
+
+  it('lights a held cap in its gear’s manner: STANDARD’s a rounded glow, CRYSTAL’s keeping its cut, SKY’s a dash white-hot in its cell’s glow', () => {
+    const [plain] = deckKeys('standard', spec(155.55, 1.2), false);
+    const [gem] = deckKeys('prism', spec(155.55, 1.2), false);
+    const a = callRecorder();
+    paintLitKey(a.g, 64, 64, plain);
+    expect(a.calls.some((c) => c[0] === 'roundRect')).toBe(true);
+    expect(a.calls.some((c) => c[0] === 'lineTo')).toBe(false);
+    const b = callRecorder();
+    paintLitKey(b.g, 192, 192, gem);
+    expect(b.calls.some((c) => c[0] === 'roundRect')).toBe(false);
+    // drawn in the cap's own px, laid over the whole picture
+    const scale = b.calls.find((c) => c[0] === 'scale') as number[];
+    expect(scale[1]).toBeCloseTo(192 / gem.box.w, 5);
+    expect(scale[2]).toBeCloseTo(192 / gem.box.h, 5);
+    const points = b.calls.filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo') as [string, number, number][];
+    expect(points.length).toBeGreaterThan(40);
+    for (const [, x, y] of points) {
+      expect(x).toBeGreaterThanOrEqual(-1e-6);
+      expect(x).toBeLessThanOrEqual(gem.box.w + 1e-6);
+      expect(y).toBeGreaterThanOrEqual(-1e-6);
+      expect(y).toBeLessThanOrEqual(gem.box.h + 1e-6);
+    }
+    // SKY's: nothing drawn outside the picture, the dash across its middle
+    const [dash] = deckKeys('sky', spec(155.55, 1.2), false);
+    const c = callRecorder();
+    paintLitKey(c.g, 64, 64, dash);
+    const boxes = c.calls.filter((k) => k[0] === 'roundRect' || k[0] === 'fillRect') as [string, number, number, number, number][];
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const [, x, y, w, h] of boxes) {
+      expect(x).toBeGreaterThanOrEqual(-1e-6);
+      expect(x + w).toBeLessThanOrEqual(64 + 1e-6);
+      expect(y).toBeGreaterThanOrEqual(-1e-6);
+      expect(y + h).toBeLessThanOrEqual(64 + 1e-6);
+    }
   });
 
   it('PIANO’s key held down is shaded only inside its outline, round the black keys over its corners', () => {
@@ -300,5 +603,18 @@ describe('the decks of the gears a player picks', () => {
     expect(GEAR_JUDGE.height).toBeGreaterThanOrEqual(8);
     // the lanes run on between the line and the deck, a strip several times the line's depth
     expect(GEAR_JUDGE.gap).toBeGreaterThan(2 * GEAR_JUDGE.height);
+    // the skins' in their own colours (a white core in cyan, in ice blue, in sky blue), where and as thick as every gear's
+    for (const gear of GEAR_STYLES) {
+      const j = judgeOf(gear);
+      expect([j.height, j.blur, j.gap], gear).toEqual([GEAR_JUDGE.height, GEAR_JUDGE.blur, GEAR_JUDGE.gap]);
+      if (!SKIN_GEARS.includes(gear)) expect(j, gear).toBe(GEAR_JUDGE);
+    }
+    expect([judgeOf('standard').core, judgeOf('prism').core, judgeOf('sky').core]).toEqual(['#ffffff', '#ffffff', '#ffffff']);
+    // SKY's edge a sky blue: bluer than it is red, as CRYSTAL's
+    const [sr, , sb] = [1, 3, 5].map((i) => parseInt(judgeOf('sky').line.slice(i, i + 2), 16));
+    expect(sb - sr).toBeGreaterThan(100);
+    // CRYSTAL's edge is blue enough for a white note's edge to show on it
+    const [cr, , cb] = [1, 3, 5].map((i) => parseInt(judgeOf('prism').line.slice(i, i + 2), 16));
+    expect(cb - cr).toBeGreaterThan(120);
   });
 });

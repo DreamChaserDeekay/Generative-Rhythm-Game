@@ -26,6 +26,10 @@ Three kinds of picture:
   receiver's brushed silver and walnut, the standard gear's brushed graphite, the keyboard's
   bead-blasted aluminium, the racing wheel's twill carbon, the orbital panel's grey paint; and the
   orbital frame's gold foil, cut from a generated texture (the renderer repeats it mirrored);
+- the sky skin's painting (assets-src/gears/sky/plate.jpg: a picture of a sky and its clouds, painted
+  straight on, with nothing of the game in it), sized here: the deck's code lays it under its strip
+  of dashes and writes the readouts over it (deckArt.ts: skyPlate); and its feather (feather.jpg, on
+  the magenta ground the objects are drawn on), keyed off its ground;
 - objects, from the picked generations in assets-src/gears/<gear>/ (drawn top-down on a flat magenta
   ground, where they came from: assets-src/PROVENANCE.md): each is cut to the object and masked to its
   shape (a circle or a rounded rectangle, the ground keyed out of its edge), and the najeon frame's
@@ -409,6 +413,24 @@ def glow_mask(deck: np.ndarray, wells: dict) -> np.ndarray:
     return soft * ndimage.gaussian_filter(ndimage.binary_erosion(well, iterations=1).astype(np.float64), 1.0)
 
 
+def cut_white(a: np.ndarray, size: int, shade: str) -> np.ndarray:
+    """A white object off its magenta ground (the sky skin's feather), its colours made again from its
+    green: the ground has no green, so a px's green is the object's own, however much of the ground
+    shows through its edge or lit its rim (the other objects' despill would turn white toward green).
+    White where its green is full, toward `shade` where it is shaded."""
+    t, b, l, r = object_box(a)
+    side = max(b - t, r - l) + 8
+    cy, cx = (t + b) // 2, (l + r) // 2
+    crop = a[max(0, cy - side // 2):cy + side // 2, max(0, cx - side // 2):cx + side // 2]
+    alpha = smoothstep(0.35, 0.6, np.linalg.norm(crop - MAGENTA, axis=2))
+    green = np.clip(crop[..., 1] / np.maximum(alpha, 0.05), 0, 1)
+    dark = np.clip((1 - green) / 0.12, 0, 1)[..., None]
+    rgb = (1 - dark) * np.ones(3, dtype=np.float32) + dark * hexrgb(shade)
+    rgba = np.concatenate([rgb, alpha[..., None]], axis=2).astype(np.float32)
+    im = Image.fromarray(np.clip(rgba * 255 + 0.5, 0, 255).astype(np.uint8), "RGBA").resize((size, size), Image.LANCZOS)
+    return np.asarray(im, dtype=np.float32) / 255
+
+
 def despill(rgba: np.ndarray, reach: int = 12) -> np.ndarray:
     """The magenta ground's light taken out of an object's rim (`reach` px in from its edge): red and blue
     down to where green allows, as a keyer's despill; colours further in (a red ball, pink pearl) are kept."""
@@ -457,6 +479,11 @@ def cut_flat(deck: np.ndarray, box: tuple[int, int, int, int], width: int) -> np
     h = round(width * (y1 - y0) / (x1 - x0) / DECK_PICTURE_STRETCH)
     rgb = resize(deck[y0:y1, x0:x1], width, h)
     return np.concatenate([rgb, ellipse_alpha(width, h)[..., None]], axis=2)
+
+
+# How much plain sky is added over the sky skin's painting (a share of its height, its top row run
+# on): its clouds then stand as far down the deck as the skin's concept has them.
+SKY_PLATE_PAD = 0.02
 
 
 def entry(textures: dict, gear: str, part: str, file: str, size: tuple[int, int]) -> None:
@@ -541,6 +568,25 @@ def main() -> None:
     sprite("orbital", "selector", neutral(cut_disc(load(SRC / "orbital" / "selector.jpg"), 512), 1.0))
     sprite("orbital", "toggle", neutral(cut_round_rect(load(SRC / "orbital" / "toggle.jpg"), 512, 0.05), 1.0))
     sprite("orbital", "button", neutral(cut_round_rect(load(SRC / "orbital" / "button.jpg"), 384, 0.1), 1.0))
+
+    # SKY: the painting of its deck's sky and clouds, a little plain sky added over it (the deck then
+    # shows, on the usual cameras, the painting's upper half: the sky with a cumulus standing at each
+    # end, the taller at the left as the skin's concept has it, the middle clear for the score; the
+    # sea of cloud under them shows only where the screen shows the deck deep), and the feather that
+    # lies over the score, off its magenta ground. Its strip of dashes, its readouts, its frame and
+    # its HUD are drawn in code
+    sky = load(SRC / "sky" / "plate.jpg")
+    pad = round(sky.shape[0] * SKY_PLATE_PAD)
+    sky = np.concatenate([np.repeat(sky[:1], pad, axis=0), sky], axis=0)
+    a = resize(sky, 2048, round(2048 * sky.shape[0] / sky.shape[1]))
+    save_webp(a, OUT / "sky" / "plate.webp")
+    entry(textures, "sky", "plate", "plate.webp", (a.shape[1], a.shape[0]))
+    report["sky/plate"] = [a.shape[1], a.shape[0]]
+    # white on magenta: its colours made again from its green (cut_white), shaded toward a pale sky blue
+    a = cut_white(load(SRC / "sky" / "feather.jpg"), 256, "#bcd7f3")
+    save_rgba(a, OUT / "sky" / "feather.png")
+    entry(textures, "sky", "feather", "feather.png", (a.shape[1], a.shape[0]))
+    report["sky/feather"] = [a.shape[1], a.shape[0]]
 
     # PIANO: lacquer and ivory drawn in code; its treble clef medallion, cut from its laid-flat deck (its brass is its own colour: no ground to take out)
     piano = decks["piano"]

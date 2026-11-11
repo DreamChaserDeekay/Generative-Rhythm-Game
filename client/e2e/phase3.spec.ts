@@ -100,14 +100,9 @@ test('stem keysound, background video and camera effects on a generated chart', 
   await expect(page.locator('.play-bg canvas.bg-visualizer')).toHaveCount(0);
   await page.waitForTimeout(9000);
   await page.screenshot({ path: 'test-results/play-phase3.png' });
-  // the score panel stands over SPEED left of the gear, on the screen; under the judge line is the gear's
-  // (its rows are laid one by one: their boxes together)
-  const panel = await page.locator('.hud-panel .hud-row').evaluateAll((rows) => {
-    const boxes = rows.map((r) => r.getBoundingClientRect());
-    return { x: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
-  });
-  const speed = await page.locator('.hud-speed').boundingBox();
-  expect(speed && panel.x >= 0 && panel.right < 640 && panel.bottom <= speed.y + 2).toBe(true);
+  // the default gear's deck houses the score, SPEED and the rate: under the judge line, on the screen, the score between the two
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
   const videoTime = await page.locator('.play-bg video.bg-video').evaluate((v) => (v as HTMLVideoElement).currentTime);
   expect(videoTime).toBeGreaterThan(1);
   // the chart tilts the track at 12 s: the combo and the judgement lie on it and turn with it
@@ -347,7 +342,8 @@ test('the parts drawn from their pictures, in code where their media is missing 
   };
 
   await play('art');
-  for (const file of ['manifest.json', 'styles/mecha/notes.png', 'styles/mecha/long.png', 'styles/hits/flash_burst.png', 'styles/hits/flash_hold.png']) expect(loaded).toContain(`/media/${file}`);
+  // (the flash and the default gear are drawn in code: no pictures of theirs to load)
+  for (const file of ['manifest.json', 'styles/mecha/notes.png', 'styles/mecha/long.png']) expect(loaded).toContain(`/media/${file}`);
   // a broken note picture: the notes are drawn in code, the rest from its pictures
   await page.route('**/media/styles/mecha/notes.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: 'not a png' }));
   await play('broken-note');
@@ -485,16 +481,17 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await expect(page.getByTestId('settings-tab-notes')).toHaveText('노트');
   await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('노트');
   await expect(page.getByTestId('opt-color-preset')).toBeVisible();
-  // the notes to pick: the plain bar, the bar in its six finishes and the four shapes, the piano note
-  // gone (its hit is the 기어 tab's still)
+  // the notes to pick: the plain bar (what a player starts with), the crystal skin's cut glass, the sky skin's
+  // soft bar, the bar in its six finishes and the four shapes, the piano note gone (its hit is the 기어 tab's still)
+  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'flat');
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < 19; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'flat', 'glass', 'hairline', 'pearl', 'round', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -553,7 +550,254 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await chooseSetting(page, 'opt-hit-style', 'flash');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
+  // the default skin: its notes, its long note, its gear and its hit, all drawn in code
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // and the crystal skin (its parts saved as 'prism'), picked part by part, drawn in code too
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-note-style', 'prism');
+  await expect(page.getByTestId('opt-note-style')).toContainText('크리스털');
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-deck-style', 'prism');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('크리스털');
+  await chooseSetting(page, 'opt-hit-style', 'prism');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('크리스털 분광');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // its HUD: the gauge named FEVER, the letters cut into planes (each word carries its text for them)
+  await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'prism');
+  await expect(page.locator('.hud')).toHaveAttribute('data-fill', 'crystal');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-combo-label')).toHaveAttribute('data-text', 'COMBO');
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  const cut = await page.locator('.hud-judge-label').evaluate((label) =>
+    [...label.querySelectorAll<HTMLElement>('.hud-fill')].map((word) => {
+      const planes = getComputedStyle(word, '::after');
+      return { text: word.textContent, carried: word.dataset.text, clip: planes.backgroundClip, image: planes.backgroundImage.slice(0, 15), fill: planes.color };
+    }),
+  );
+  expect(cut.length).toBeGreaterThan(0);
+  for (const word of cut) {
+    expect(word.carried).toBe(word.text);
+    expect(word.clip).toBe('text');
+    expect(word.image).toMatch(/^(linear-gradient|url)/);
+    expect(word.fill).toBe('rgba(0, 0, 0, 0)');
+  }
+  await expect.poll(() => page.locator('.hud-combo-num').evaluate((el) => (el as HTMLElement).dataset.text === el.textContent && el.textContent !== '')).toBe(true);
+  // its deck houses the score, SPEED and the rate as the default one does, on its own plates
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(124, 200, 255)');
+  expect(errors).toEqual([]);
+});
+
+test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit and its lettering together, the side notes left as picked; a part changed after it reads 직접 고름', async ({ page }) => {
+  const errors = trackErrors(page);
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, string>; hudType?: string });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'notes');
+  await chooseSetting(page, 'opt-side-style', 'dots');
+  await settingsTab(page, 'gear');
+  // the tab's first row (a set of parts: the track skins an earlier version had, 'opt-skin', stay gone); what a player
+  // starts with is the default skin
+  const skin = page.getByTestId('opt-skin-set');
+  await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('스킨');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  await expect(skin).toContainText('기본');
+  // one step: the crystal skin's gear, hit and (in the 노트 tab) notes, written in the gear's type; the side notes stay
+  await chooseSetting(page, 'opt-skin-set', 'crystal');
+  await expect(skin).toContainText('크리스털');
+  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'prism');
+  await expect(page.getByTestId('opt-hit-style')).toHaveAttribute('data-value', 'prism');
+  await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'prism', side: 'dots', deck: 'prism', hit: 'prism' });
+  await settingsTab(page, 'notes');
+  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'prism');
+  // a part changed by hand is no skin: the row says so
+  await chooseSetting(page, 'opt-note-style', 'round');
+  await settingsTab(page, 'gear');
+  await expect(skin).toHaveAttribute('data-value', 'custom');
+  await expect(skin).toContainText('직접 고름');
+  // 직접 고름 is nothing to pick: a step from it lands on a skin, all its parts with it
+  await skin.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'crystal');
+  // the sky skin after it: its gear, its notes, its hit (and its lettering, the gear's); then round to the default again
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'sky');
+  await expect(skin).toContainText('하늘');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('하늘');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('구름 깃털');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'sky', side: 'dots', deck: 'sky', hit: 'sky' });
+  // the Firestarter skin after it
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'fire');
+  await expect(skin).toContainText('파이어스타터');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('불똥');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'fire', side: 'dots', deck: 'fire', hit: 'fire' });
+  // the four AI companies' skins after it, each its own gear, notes and hit under the company's name
+  for (const [id, name, hit] of [
+    ['gpt', 'GPT', '입력 중 점'],
+    ['gemini', 'Gemini', '반짝임'],
+    ['grok', 'Grok', '펜 엑스'],
+    ['claude', 'Claude', '손 빛살'],
+  ] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(skin).toHaveAttribute('data-value', id);
+    await expect(skin).toContainText(name);
+    await expect(page.getByTestId('opt-deck-style')).toContainText(name);
+    await expect(page.getByTestId('opt-hit-style')).toContainText(hit);
+    await expect.poll(async () => (await stored()).parts).toEqual({ note: id, side: 'dots', deck: id, hit: id });
+  }
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'default');
+  // the lettering kept the track's own is no skin either; picking a skin gives it back to the gear
+  await chooseSetting(page, 'opt-hud-type', 'skin');
+  await expect(skin).toHaveAttribute('data-value', 'custom');
+  await chooseSetting(page, 'opt-skin-set', 'crystal');
+  await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
+  await expect.poll(async () => (await stored()).hudType).toBe('gear');
+  // and it plays as the crystal skin
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism dots prism prism');
+  await expect(page.locator('.hud')).toHaveAttribute('data-fill', 'crystal');
+  expect(errors).toEqual([]);
+});
+
+test('the sky skin in play: its notes, gear and hit drawn in code, the lettering round and slanted in its own fill, the readouts on the deck’s sky, the gauge in its capsule', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' } }));
+  });
+  await page.goto('/');
+  // the skin row reads the parts back as the sky skin
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'sky');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'sky sky bar sky sky');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  const hud = page.locator('.hud');
+  await expect(hud).toHaveAttribute('data-gear', 'sky');
+  await expect(hud).toHaveAttribute('data-fill', 'sky');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  // the lettering in the skin's own face (bundled), each word carrying its text for the fill over it
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => document.fonts.check('italic 800 40px Nunito'))).toBe(true);
+  const words = await page.locator('.hud-judge-label').evaluate((label) =>
+    [...label.querySelectorAll<HTMLElement>('.hud-fill')].map((word) => {
+      const fill = getComputedStyle(word, '::after');
+      return { text: word.textContent, carried: word.dataset.text, clip: fill.backgroundClip, image: fill.backgroundImage.slice(0, 15), face: getComputedStyle(word).fontFamily };
+    }),
+  );
+  expect(words.length).toBeGreaterThan(0);
+  for (const word of words) {
+    expect(word.carried).toBe(word.text);
+    expect(word.clip).toBe('text');
+    expect(word.image).toBe('linear-gradient');
+    expect(word.face).toContain('Nunito');
+  }
+  // the score, SPEED and the rate on the deck, written in white on its sky; the gauge's cells inside a capsule
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  const capsule = await page.locator('.hud-gauge').evaluate((el) => {
+    const box = getComputedStyle(el, '::before');
+    return { round: parseFloat(box.borderTopLeftRadius) > 100, ground: box.backgroundColor, cells: getComputedStyle(el).backgroundImage };
+  });
+  expect(capsule).toEqual({ round: true, ground: 'rgb(12, 28, 51)', cells: 'none' });
+  expect(errors).toEqual([]);
+});
+
+test('an AI company’s skin in play: the build’s two stickers over the gear’s near corners and its notes cut in the build’s mark, with nothing to pick in the settings', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'gemini', side: 'bar', deck: 'gemini', hit: 'gemini' } }));
+  });
+  await page.goto('/');
+  // the build lists its pictures by gear: two stickers and a mark for each of the four, two figures for the Firestarter gear
+  const index = (await (await page.request.get('/stage/index.json')).json()) as Record<string, string[]>;
+  expect(Object.keys(index).sort()).toEqual(['claude', 'fire', 'gemini', 'gpt', 'grok']);
+  for (const gear of ['gpt', 'gemini', 'grok', 'claude']) {
+    expect(index[gear]).toHaveLength(3);
+    expect(index[gear].filter((name) => /note/.test(name))).toHaveLength(1);
+    for (const name of index[gear]) expect((await page.request.get(`/stage/${gear}/${name}`)).ok(), `${gear}/${name}`).toBe(true);
+  }
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'gemini');
+  // the pictures are the build's: no row picks them
+  await expect(page.getByTestId('standee-pick')).toHaveCount(0);
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  // its notes a shape of their own (the mark) with the star family's band of light for a long note
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini ray bar gemini gemini');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // the two stickers by the gear, and the mark in the notes
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
+  const hud = page.locator('.hud');
+  await expect(hud).toHaveAttribute('data-gear', 'gemini');
+  await expect(hud).toHaveAttribute('data-fill', 'gemini');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => document.fonts.check("700 40px 'Outfit'"))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('the Firestarter skin in play: drawn in code, its lettering tall and slanted in a heat of its own, and the build’s two pictures standing at the gear’s two sides', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' } }));
+  });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'fire');
+  // the gear's pictures are the build's: no row picks them
+  await expect(page.getByTestId('standee-pick')).toHaveCount(0);
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
+  // drawn in code, as the default skin is
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // the two stand by the gear, one a side
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+  const hud = page.locator('.hud');
+  await expect(hud).toHaveAttribute('data-gear', 'fire');
+  await expect(hud).toHaveAttribute('data-fill', 'fire');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => document.fonts.check("italic 800 40px 'Barlow Condensed Italic'"))).toBe(true);
+  const words = await page.locator('.hud-judge-label').evaluate((label) =>
+    [...label.querySelectorAll<HTMLElement>('.hud-fill')].map((word) => {
+      const fill = getComputedStyle(word, '::after');
+      return { text: word.textContent, carried: word.dataset.text, clip: fill.backgroundClip, image: fill.backgroundImage.slice(0, 15), face: getComputedStyle(word).fontFamily };
+    }),
+  );
+  expect(words.length).toBeGreaterThan(0);
+  for (const word of words) {
+    expect(word.carried).toBe(word.text);
+    expect(word.clip).toBe('text');
+    expect(word.image).toBe('linear-gradient');
+    expect(word.face).toContain('Barlow Condensed Italic');
+  }
+  // the score, SPEED and the rate on the deck
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -642,10 +886,10 @@ test('the club, crystal and neon sets and the piano hit picked part by part, eac
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
-    // the receiver's gauge is a needle meter; the others' a column of cells, named but for the standard gear's
+    // the receiver's gauge is a needle meter (its name on the meter); the others' a column of cells, named
     await expect(page.getByTestId('hud-meter')).toHaveCount(deck === 'receiver' ? 1 : 0);
     await expect(page.locator('.hud-gauge')).toHaveCount(deck === 'receiver' ? 0 : 1);
-    await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'cabinet' || deck === 'najeon' ? 1 : 0);
+    await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'receiver' ? 0 : 1);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `test-results/play-${hit}.png` });
     await page.keyboard.press('Escape');

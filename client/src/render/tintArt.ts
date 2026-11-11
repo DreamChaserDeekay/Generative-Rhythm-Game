@@ -107,20 +107,23 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 // ---------- notes, seen from above (canvas top = the far edge) ----------
 
 /**
- * FLAT is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
+ * PRISM (the crystal skin's, 크리스털) is a bar of cut glass (its long note a long prism closed by its end
+ * facets, its scratch a long hexagon), SKY (the sky skin's, 하늘) a soft matte bar with round corners (its
+ * scratch marked with a pair of wings, its long note a see-through band), FIRE (the Firestarter skin's, 파이어스타터) a bar of gloss lacquer in a chrome lip (its scratch a white double slash, its long note a tube of heated glass cut straight across), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
- * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
+ * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
+ * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
  */
-export type NoteStyle = 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
-export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
+export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'sky' || style === 'fire' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -141,7 +144,7 @@ export const NOTE_STRETCH = 1.7;
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
  * depth): the coin round, the five-pointed star as drawn, the compass star wide.
  */
-const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95 };
+const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95, gpt: 1, gemini: 1, grok: 1, claude: 1 };
 
 /**
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
@@ -715,38 +718,473 @@ function carbonWeave(g: CanvasRenderingContext2D, w: number, h: number, c: numbe
   }
 }
 
-export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
-  flat: (g, w, h) => {
-    const u = unit(h);
-    roundRect(g, 0, 0, w, h, u(5));
-    // the top of a slab (the renderer draws its walls): a little deeper toward its near edge, where it
-    // rounds over into its wall
-    const face = g.createLinearGradient(0, 0, 0, h);
-    face.addColorStop(0, tone(1));
-    face.addColorStop(0.62, tone(0.96));
-    face.addColorStop(1, tone(0.8));
-    g.fillStyle = face;
-    g.fill();
+
+// ---------- PRISM (the crystal skin's notes, 크리스털): bars of cut glass ----------
+
+/**
+ * A bar of cut glass seen from above, its corners cut: bevels all round a flat table in the lane's
+ * colour, the far and left bevels catching the light, the right one in half shade, and its near edge
+ * (the one that meets the judge line: its timing) the brightest thing on it, nearly white.
+ */
+function prismBar(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  // a corner cut at 45° on the screen (the track is drawn NOTE_STRETCH times longer along)
+  const cx = Math.min(u(7) / NOTE_STRETCH, w * 0.12);
+  const cy = Math.min(u(7), h * 0.3);
+  const outline: [number, number][] = [
+    [cx, 0],
+    [w - cx, 0],
+    [w, cy],
+    [w, h - cy],
+    [w - cx, h],
+    [cx, h],
+    [0, h - cy],
+    [0, cy],
+  ];
+  g.save();
+  polygon(g, outline);
+  g.clip();
+  // the glass: its colour deepest in the middle of the table
+  const body = g.createLinearGradient(0, 0, 0, h);
+  body.addColorStop(0, tone(0.9, 0.92));
+  body.addColorStop(0.3, tone(0.74, 0.86));
+  body.addColorStop(0.75, tone(0.56, 0.84));
+  body.addColorStop(1, tone(0.7, 0.9));
+  g.fillStyle = body;
+  g.fillRect(0, 0, w, h);
+  // the far bevel, lit
+  const far = h * 0.24;
+  const bevel = Math.min(far / NOTE_STRETCH, w * 0.14);
+  polygon(g, [
+    [0, 0],
+    [w, 0],
+    [w - bevel, far],
+    [bevel, far],
+  ]);
+  g.fillStyle = ink(1, 0.5);
+  g.fill();
+  g.fillStyle = ink(1, 0.85);
+  g.fillRect(bevel, far - Math.max(1, u(1.2)), w - 2 * bevel, Math.max(1, u(1.2)));
+  // the side bevels: the left lit, the right in half shade
+  polygon(g, [
+    [0, 0],
+    [bevel, far],
+    [bevel, h * 0.8],
+    [0, h],
+  ]);
+  g.fillStyle = ink(1, 0.36);
+  g.fill();
+  polygon(g, [
+    [w, 0],
+    [w - bevel, far],
+    [w - bevel, h * 0.8],
+    [w, h],
+  ]);
+  g.fillStyle = tone(0.62);
+  g.fill();
+  // a glint slanting across the table
+  slant(g, w * 0.22, Math.max(2, w * 0.07), h * 0.5, h, ink(1, 0.7, 0.3));
+  slant(g, w * 0.33, Math.max(1, w * 0.02), h * 0.5, h, ink(1, 0.7, 0.22));
+  // the near edge: a razor of light, a dark line over it so it stands off the table
+  const edge = h * 0.2;
+  g.fillStyle = tone(0.5);
+  g.fillRect(0, h - edge - Math.max(1, u(1.5)), w, Math.max(1, u(1.5)));
+  const razor = g.createLinearGradient(0, h - edge, 0, h);
+  razor.addColorStop(0, ink(1, 0.7));
+  razor.addColorStop(0.5, ink(1, 0.96));
+  razor.addColorStop(1, ink(1, 0.82));
+  g.fillStyle = razor;
+  g.fillRect(0, h - edge, w, edge);
+  g.restore();
+}
+
+/**
+ * PRISM's scratch: a long hexagon, pointed at both ends, cut as a gem is: a table in the middle, the
+ * far facets lit and the near ones deep, the point facets between; its near edge a razor of light as
+ * the bars' is. Told from a key's bar by its outline alone.
+ */
+function prismGem(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  // the points as long as they are deep on the screen, no more than a fifth of the note each
+  const p = Math.min((h / NOTE_STRETCH) * 0.9, w * 0.2);
+  const t = Math.min(p * 0.55, w * 0.1);
+  const [ty, by] = [h * 0.26, h * 0.74];
+  const hexagon: [number, number][] = [
+    [p, 0],
+    [w - p, 0],
+    [w, h / 2],
+    [w - p, h],
+    [p, h],
+    [0, h / 2],
+  ];
+  const table: [number, number][] = [
+    [p + t, ty],
+    [w - p - t, ty],
+    [w - p * 0.45, h / 2],
+    [w - p - t, by],
+    [p + t, by],
+    [p * 0.45, h / 2],
+  ];
+  g.save();
+  polygon(g, hexagon);
+  g.clip();
+  g.fillStyle = tone(0.8);
+  g.fillRect(0, 0, w, h);
+  // far facets lit, near ones deep
+  g.fillStyle = ink(1, 0.42);
+  g.fillRect(0, 0, w, h / 2);
+  g.fillStyle = tone(0.66);
+  g.fillRect(0, h / 2, w, h / 2);
+  // the point facets: the left pair lit, the right in shade
+  polygon(g, [hexagon[5], hexagon[0], table[0], table[5]]);
+  g.fillStyle = ink(1, 0.6);
+  g.fill();
+  polygon(g, [hexagon[5], hexagon[4], table[4], table[5]]);
+  g.fillStyle = tone(0.9);
+  g.fill();
+  polygon(g, [hexagon[2], hexagon[1], table[1], table[2]]);
+  g.fillStyle = tone(0.74);
+  g.fill();
+  polygon(g, [hexagon[2], hexagon[3], table[3], table[2]]);
+  g.fillStyle = tone(0.46);
+  g.fill();
+  // the table, and the ridges round it
+  const top = g.createLinearGradient(0, ty, 0, by);
+  top.addColorStop(0, ink(1, 0.18));
+  top.addColorStop(1, tone(0.9));
+  polygon(g, table);
+  g.fillStyle = top;
+  g.fill();
+  g.lineWidth = Math.max(1, u(1.2));
+  g.strokeStyle = ink(1, 0.8, 0.9);
+  g.stroke();
+  for (let i = 0; i < 6; i++) {
+    g.beginPath();
+    g.moveTo(hexagon[i][0], hexagon[i][1]);
+    g.lineTo(table[i][0], table[i][1]);
+    g.stroke();
+  }
+  // the razor along its near edge
+  const edge = h * 0.16;
+  const razor = g.createLinearGradient(0, h - edge, 0, h);
+  razor.addColorStop(0, ink(1, 0.6, 0));
+  razor.addColorStop(0.4, ink(1, 0.95));
+  razor.addColorStop(1, ink(1, 0.85));
+  g.fillStyle = razor;
+  g.fillRect(0, h - edge, w, edge);
+  g.restore();
+}
+
+/** PRISM's notes: the gem on the scratch, a bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts: they stay the game's see-through bars). */
+const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : prismBar(g, w, h));
+
+// ---------- SKY (the sky skin's notes, 하늘): soft matte bars ----------
+
+/** A bar's outline with its corners round on the screen, `r` across (NOTE_STRETCH times that along). */
+function softOutline(g: CanvasRenderingContext2D, w: number, h: number, r: number): void {
+  const rx = Math.min(r, w / 2);
+  const ry = Math.min(r * NOTE_STRETCH, h / 2);
+  g.beginPath();
+  g.moveTo(rx, 0);
+  g.lineTo(w - rx, 0);
+  g.ellipse(w - rx, ry, rx, ry, 0, -Math.PI / 2, 0);
+  g.lineTo(w, h - ry);
+  g.ellipse(w - rx, h - ry, rx, ry, 0, 0, Math.PI / 2);
+  g.lineTo(rx, h);
+  g.ellipse(rx, h - ry, rx, ry, 0, Math.PI / 2, Math.PI);
+  g.lineTo(0, ry);
+  g.ellipse(rx, ry, rx, ry, 0, Math.PI, Math.PI * 1.5);
+  g.closePath();
+}
+
+/**
+ * SKY's bar: a soft matte bar, its corners round: the lane's colour even and a little pale, lighter
+ * over its far half as a pillow's top is, a touch deeper toward its near edge, and a soft line of
+ * light along that edge (its timing). Nothing on it glints: no gloss, no hard rim.
+ */
+function skyBar(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  g.save();
+  softOutline(g, w, h, u(7) / NOTE_STRETCH);
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, ink(1, 0.34));
+  face.addColorStop(0.5, ink(1, 0.18));
+  face.addColorStop(0.82, ink(1, 0.06));
+  face.addColorStop(1, tone(0.9));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  // its ends rounding away: a breath of shade at each
+  const ends = g.createLinearGradient(0, 0, w, 0);
+  const e = Math.min(0.14, u(9) / w);
+  ends.addColorStop(0, ink(1, 0.5, 0.35));
+  ends.addColorStop(e, ink(1, 0.5, 0));
+  ends.addColorStop(1 - e, tone(0.72, 0));
+  ends.addColorStop(1, tone(0.72, 0.4));
+  g.fillStyle = ends;
+  g.fillRect(0, 0, w, h);
+  // the near edge: a soft line of light, not a razor
+  const edge = g.createLinearGradient(0, h - u(11), 0, h);
+  edge.addColorStop(0, ink(1, 0.8, 0));
+  edge.addColorStop(0.55, ink(1, 0.8, 0.9));
+  edge.addColorStop(1, ink(1, 0.62, 0.95));
+  g.fillStyle = edge;
+  g.fillRect(0, h - u(11), w, u(11));
+  g.restore();
+}
+
+/** One wing of SKY's mark, opening to the right of (0, 0), `r` its half height: the arm along its top, three flight feathers falling from it, each shorter than the last. */
+function wing(g: CanvasRenderingContext2D, r: number): void {
+  g.beginPath();
+  g.moveTo(r * 0.12, r * 0.62);
+  // up the root and out along the arm to the tip
+  g.bezierCurveTo(r * 0.02, -r * 0.1, r * 0.55, -r * 0.85, r * 2.25, -r * 0.92);
+  // the feathers, tip first
+  g.quadraticCurveTo(r * 1.95, -r * 0.5, r * 1.42, -r * 0.34);
+  g.quadraticCurveTo(r * 1.7, -r * 0.22, r * 1.78, -r * 0.02);
+  g.quadraticCurveTo(r * 1.45, r * 0.12, r * 1.0, r * 0.12);
+  g.quadraticCurveTo(r * 1.22, r * 0.28, r * 1.24, r * 0.48);
+  g.quadraticCurveTo(r * 0.7, r * 0.72, r * 0.12, r * 0.62);
+  g.closePath();
+  g.fill();
+}
+
+/** SKY's scratch: the bar, and a pair of white wings opening from its middle. Told from a key's bar by the wings alone. */
+function skyWings(g: CanvasRenderingContext2D, w: number, h: number): void {
+  skyBar(g, w, h);
+  // as tall on the screen as most of the bar's depth, no wider than a third of the bar a wing
+  const r = Math.min((h / NOTE_STRETCH) * 0.36, w / 7);
+  for (const side of [-1, 1]) {
     g.save();
-    g.clip();
-    // a gloss over its far half, brightest at the lip of its far edge, where the light catches it
-    const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
-    gloss.addColorStop(0, ink(1, 0.62));
-    gloss.addColorStop(0.12, ink(1, 0.36));
-    gloss.addColorStop(1, ink(1, 0.36, 0));
-    g.fillStyle = gloss;
-    g.fillRect(0, 0, w, h * 0.55);
-    // lit along its left edge, the side the light comes from, and shaded along its right
-    const edge = Math.min(0.2, u(7) / w);
-    const across = g.createLinearGradient(0, 0, w, 0);
-    across.addColorStop(0, ink(1, 0.3, 0.9));
-    across.addColorStop(edge, ink(1, 0.3, 0));
-    across.addColorStop(1 - edge, tone(0.7, 0));
-    across.addColorStop(1, tone(0.7, 0.7));
-    g.fillStyle = across;
-    g.fillRect(0, 0, w, h);
+    g.translate(w / 2 + side * r * 0.1, h * 0.5);
+    g.scale(side, NOTE_STRETCH);
+    // a soft shade under the wing, then the wing
+    g.fillStyle = tone(0.62, 0.5);
+    g.translate(0, r * 0.12);
+    wing(g, r);
+    g.translate(0, -r * 0.12);
+    g.fillStyle = ink(1, 1);
+    wing(g, r);
     g.restore();
-  },
+  }
+}
+
+/** SKY's notes: the wings on the scratch, the bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts). */
+const skyNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? skyWings(g, w, h) : skyBar(g, w, h));
+
+// ---------- FIRE (the Firestarter skin's notes, 파이어스타터): lacquered bars in a chrome lip ----------
+
+/**
+ * FIRE's bar: a bar of gloss lacquer in the lane's colour, square at its corners, one slant of light
+ * across it, in a thin chrome frame: a hairline down each end and a lip of polished chrome along its
+ * near edge, the brightest thing on it (its timing). The scratch's is told from a key's by a white
+ * double slash through its middle.
+ */
+function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, w, h);
+  g.clip();
+  const lip = Math.max(3, u(10));
+  const face = g.createLinearGradient(0, 0, 0, h - lip);
+  face.addColorStop(0, ink(1, 0.2));
+  face.addColorStop(0.45, tone(1));
+  face.addColorStop(1, tone(0.84));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  // one slant of light across the lacquer
+  const lean = (h / NOTE_STRETCH) * 0.9;
+  polygon(g, [
+    [w * 0.1 + lean, 0],
+    [w * 0.34 + lean, 0],
+    [w * 0.34, h - lip],
+    [w * 0.1, h - lip],
+  ]);
+  g.fillStyle = ink(1, 0.5, 0.5);
+  g.fill();
+  if (mark === 'scratch') {
+    // the double slash, white, through the middle
+    const wide = Math.max(3, (h / NOTE_STRETCH) * 0.3);
+    for (const at of [-0.75, 0.75]) {
+      const x = w / 2 + at * wide * 1.5;
+      polygon(g, [
+        [x + lean / 2 - wide / 2, 0],
+        [x + lean / 2 + wide / 2, 0],
+        [x - lean / 2 + wide / 2, h - lip],
+        [x - lean / 2 - wide / 2, h - lip],
+      ]);
+      g.fillStyle = ink(0, 1);
+      g.fill();
+    }
+  }
+  // the chrome: a hairline down each end, the lip along the near edge
+  const end = Math.max(1.5, u(3));
+  g.fillStyle = ink(0, 0.86);
+  g.fillRect(0, 0, end, h);
+  g.fillStyle = ink(0, 0.62);
+  g.fillRect(w - end, 0, end, h);
+  g.fillStyle = tone(0.3);
+  g.fillRect(0, h - lip - Math.max(1, u(1.4)), w, Math.max(1, u(1.4)));
+  const chrome = g.createLinearGradient(0, h - lip, 0, h);
+  chrome.addColorStop(0, ink(0, 1));
+  chrome.addColorStop(0.45, ink(0, 0.8));
+  chrome.addColorStop(0.62, ink(0, 0.56));
+  chrome.addColorStop(1, ink(0, 0.96));
+  g.fillStyle = chrome;
+  g.fillRect(0, h - lip, w, lip);
+  g.restore();
+}
+
+/**
+ * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
+ * its walls): a gloss over its far half, lit along its left end and shaded along its
+ * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
+ * by two slanted notches cut through it.
+ */
+function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, w, h);
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, tone(1));
+  face.addColorStop(0.62, tone(0.96));
+  face.addColorStop(1, tone(0.82));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
+  gloss.addColorStop(0, ink(1, 0.62));
+  gloss.addColorStop(0.12, ink(1, 0.36));
+  gloss.addColorStop(1, ink(1, 0.36, 0));
+  g.fillStyle = gloss;
+  g.fillRect(0, 0, w, h * 0.55);
+  const edge = Math.min(0.2, u(7) / w);
+  const across = g.createLinearGradient(0, 0, w, 0);
+  across.addColorStop(0, ink(1, 0.3, 0.9));
+  across.addColorStop(edge, ink(1, 0.3, 0));
+  across.addColorStop(1 - edge, tone(0.7, 0));
+  across.addColorStop(1, tone(0.7, 0.7));
+  g.fillStyle = across;
+  g.fillRect(0, 0, w, h);
+  // the near edge, crisp
+  g.fillStyle = ink(1, 0.7);
+  g.fillRect(0, h - Math.max(2, u(5)), w, Math.max(2, u(5)));
+  if (mark === 'scratch') {
+    // two notches slanting through it, a third and two thirds along
+    const lean = (h / NOTE_STRETCH) * 0.8;
+    const wide = Math.max(3, (h / NOTE_STRETCH) * 0.32);
+    for (const at of [1 / 3, 2 / 3]) {
+      const x = w * at;
+      polygon(g, [
+        [x + lean / 2, 0],
+        [x + lean / 2 + wide, 0],
+        [x - lean / 2 + wide, h],
+        [x - lean / 2, h],
+      ]);
+      g.fillStyle = tone(0.38);
+      g.fill();
+      g.fillStyle = ink(1, 0.5);
+      g.fillRect(x - lean / 2 + wide, 0, Math.max(1, wide * 0.18), h);
+    }
+  }
+  g.restore();
+}
+
+// ---------- the AI companies' notes: the company's mark itself, a picture that comes with the build ----------
+
+/**
+ * The notes that are a mark and no bar (the four AI companies' skins): the note is the mark's own
+ * outline in its lane's colour, bright, in a thin rim of the colour's deep shade. The mark is not drawn here: it
+ * is a picture that comes with the build (public/stage/<skin>/note.png; standees.ts reads it and the
+ * renderer hands it over with setNoteEmblem). Without one the note is ROUND's coin.
+ */
+export const LOGO_NOTES = ['gpt', 'gemini', 'grok', 'claude'] as const satisfies readonly NoteStyle[];
+export type LogoNote = (typeof LOGO_NOTES)[number];
+export const isLogoNote = (style: NoteStyle): style is LogoNote => (LOGO_NOTES as readonly NoteStyle[]).includes(style);
+
+/** A mark's picture: whatever it shows, only its outline (its alpha) is used. */
+export type Emblem = CanvasImageSource & { readonly width: number; readonly height: number };
+const EMBLEMS = new Map<LogoNote, Emblem>();
+
+/** Gives a logo note its mark (null: none, the note is a coin again). The notes' pictures are painted again by whoever shows them. */
+export function setNoteEmblem(style: LogoNote, picture: Emblem | null): void {
+  if (picture) EMBLEMS.set(style, picture);
+  else EMBLEMS.delete(style);
+}
+
+/** The mark a logo note has now. */
+export const noteEmblemOf = (style: LogoNote): Emblem | undefined => EMBLEMS.get(style);
+
+/**
+ * Where a mark `aspect` wide for its height lies on a note's picture `w` × `h`, so it keeps its shape on
+ * the screen: the picture is the note seen from above, NOTE_STRETCH times deeper than it looks at the
+ * judge line; a note as deep as its lane lets it be (noteDepthOf) is filled, a shallower one (a wide
+ * lane: the scratch's, a 4K key's) holds the mark in its middle, as tall as the note is deep.
+ */
+export function emblemBox(w: number, h: number, aspect: number): { x: number; y: number; w: number; h: number } {
+  // the room across for a mark as tall as the note looks: all of the note where that is (about) the note's width
+  const looks = h / NOTE_STRETCH;
+  const room = looks >= w * 0.9 ? w : looks;
+  const a = Math.max(0.2, Math.min(5, aspect));
+  const [bw, bh] = a >= 1 ? [room, h / a] : [room * a, h];
+  return { x: (w - bw) / 2, y: (h - bh) / 2, w: bw, h: bh };
+}
+
+/** `picture`'s outline filled with `fill`, on a canvas of its own `w` × `h`. */
+function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRenderingContext2D) => string | CanvasGradient): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(picture, 0, 0, canvas.width, canvas.height);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = fill(g);
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function logoNote(style: LogoNote): NotePaint {
+  return (g, w, h, mark) => {
+    const picture = EMBLEMS.get(style);
+    if (!picture) {
+      roundNote(g, w, h, mark);
+      return;
+    }
+    // the rim's room left round the mark
+    const rim = Math.max(1, Math.min(w, h / NOTE_STRETCH) * 0.022);
+    const box = emblemBox(w - 2 * rim, h - 2 * rim * NOTE_STRETCH, picture.width / picture.height);
+    const [x, y] = [box.x + rim, box.y + rim * NOTE_STRETCH];
+    // a thin rim in the colour's deep shade, the outline spread round itself (as wide along the track as across on the
+    // screen): the mark's own lines stay crisp over a lit key or another note
+    const shade = outlineOf(picture, box.w, box.h, () => tone(0.3));
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      g.drawImage(shade, x + Math.cos(a) * rim, y + Math.sin(a) * rim * NOTE_STRETCH, box.w, box.h);
+    }
+    // the mark in the lane's colour, all of it bright: lifted toward white at its far side, the colour itself at its near side
+    const body = outlineOf(picture, box.w, box.h, (c) => {
+      const down = c.createLinearGradient(0, 0, 0, c.canvas.height);
+      down.addColorStop(0, ink(1, 0.42));
+      down.addColorStop(0.55, ink(1, 0.12));
+      down.addColorStop(1, tone(1));
+      return down;
+    });
+    g.drawImage(body, x, y, box.w, box.h);
+  };
+}
+
+export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
+  prism: prismNote,
+  sky: skyNote,
+  fire: fireNote,
+  gpt: logoNote('gpt'),
+  gemini: logoNote('gemini'),
+  grok: logoNote('grok'),
+  claude: logoNote('claude'),
+  flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
   glass: glassNote,
@@ -761,11 +1199,19 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
+  prism: 'prism',
+  sky: 'sky',
+  fire: 'fire',
+  // the marks' long notes are plain bands of the families': a capsule, a band of light, a rail, a slab
+  gpt: 'capsule',
+  gemini: 'ray',
+  grok: 'rail',
+  claude: 'solid',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -780,7 +1226,8 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
 };
 
 /**
- * A long note is its body alone (a head or tail drawn like a tap note reads as one more note):
+ * A long note is its body alone (a head or tail drawn like a tap note reads as one more note: the
+ * rule for every style):
  * `body` is one tile of it across the lane (canvas top = farther), repeated along the note;
  * `end` closes it at the head and the tail (canvas top = the outer edge). Sizes are px of a body
  * 54 px wide, as in the mockups.
@@ -798,6 +1245,8 @@ export interface LongPaint {
   endDepth: number;
   /** Share of the lane the body covers. */
   width: number;
+  /** It lies flat on the track, with no walls under it (a see-through band has no thickness to show; the others are slabs). */
+  flat?: boolean;
 }
 
 const across = (w: number) => (n: number) => (n * w) / 54;
@@ -810,18 +1259,6 @@ function sides(g: CanvasRenderingContext2D, w: number, h: number, t: number, fil
   g.fillRect(w - a(t), 0, a(t), h);
 }
 
-/** An end: the body's own fill with a border `t` px along its outer edge and down its sides. */
-function squareEnd(fill: string, border: string, t: number, side = t): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    g.fillStyle = fill;
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = border;
-    g.fillRect(0, 0, w, a(t));
-    g.fillRect(0, 0, a(side), h);
-    g.fillRect(w - a(side), 0, a(side), h);
-  };
-}
 
 /** Bands down a body, [from, to, fill] in px of a 54 px body. */
 function stripes(g: CanvasRenderingContext2D, w: number, h: number, bands: [number, number, string][]): void {
@@ -859,22 +1296,204 @@ const RAY: [number, number, string][] = [
   [27, 51.5, tone(0.72)],
 ];
 
+
+/**
+ * PRISM's long note across (px of a 54 px body, [from, to, fill]): a long triangular prism of glass
+ * seen from above, as wide as its bar: a facet either side of the ridge down its middle, the left
+ * one catching the light and the right one in shade, a rim of light down each edge; `lit` (held)
+ * the glass a little brighter from inside, still glass (a wide lane's is a large thing on the screen:
+ * white from edge to edge, it would hide the notes coming down beside it).
+ */
+const prismFacets = (lit: boolean): [number, number, string][] => [
+  [0, 54, tone(0.35, 0.95)],
+  [2, 6, ink(1, lit ? 0.85 : 0.7)],
+  [6, 26, lit ? ink(1, 0.32, 0.92) : ink(1, 0.22, 0.9)],
+  [28, 48, lit ? tone(0.88, 0.9) : tone(0.7, 0.88)],
+  [48, 52, lit ? ink(1, 0.4) : tone(1.1)],
+];
+
+/** PRISM's long note: its two facets, their glass deeper toward the ridge, and the ridge a line of light (held: white in a narrow glow). */
+function prismLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    stripes(g, w, h, prismFacets(lit));
+    // each facet a little deeper toward the ridge, as glass is where it is thick
+    for (const [from, to] of [[6, 26], [48, 28]]) {
+      const deep = g.createLinearGradient(a(from), 0, a(to), 0);
+      deep.addColorStop(0, tone(0.4, 0));
+      deep.addColorStop(1, tone(0.4, lit ? 0.2 : 0.3));
+      g.fillStyle = deep;
+      g.fillRect(a(Math.min(from, to)), 0, a(Math.abs(to - from)), h);
+    }
+    if (lit) {
+      const glow = g.createLinearGradient(a(20), 0, a(34), 0);
+      glow.addColorStop(0, ink(1, 1, 0));
+      glow.addColorStop(0.5, ink(1, 1, 0.6));
+      glow.addColorStop(1, ink(1, 1, 0));
+      g.fillStyle = glow;
+      g.fillRect(a(20), 0, a(14), h);
+    }
+    g.fillStyle = ink(1, lit ? 1 : 0.85);
+    g.fillRect(a(lit ? 25.5 : 26), 0, a(lit ? 3 : 2), h);
+  };
+}
+
+/**
+ * PRISM's end: the prism's own end face, a third facet falling from the ridge to the outer edge
+ * (canvas top) between the two side facets, its edges lines of light: the prism closed as a cut
+ * crystal is, not by a bar (a bar there reads as one more note).
+ */
+function prismEnd(lit: boolean): Paint {
+  const body = prismLong(lit);
+  return (g, w, h) => {
+    const a = across(w);
+    body(g, w, h);
+    // the end facet: from the outer edge's corners in to where the ridge stops
+    const face: [number, number][] = [
+      [a(2), 0],
+      [w - a(2), 0],
+      [w / 2, h * 0.86],
+    ];
+    polygon(g, face);
+    g.fillStyle = lit ? ink(1, 0.75) : ink(1, 0.42, 0.95);
+    g.fill();
+    g.lineWidth = Math.max(1, a(1.6));
+    g.lineJoin = 'round';
+    g.strokeStyle = ink(1, lit ? 1 : 0.85);
+    g.stroke();
+    g.fillStyle = ink(1, lit ? 1 : 0.9);
+    g.fillRect(0, 0, w, Math.max(2, a(2.4)));
+  };
+}
+
+/**
+ * SKY's long note: a see-through band of the lane's colour, even and matte (the lane's sky shows
+ * through it), a thin pale edge down each side and a soft white line down its middle; `lit` (held),
+ * the band brighter and the middle line white in a glow.
+ */
+function skyLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    // held, less of the lane shows through it: the key's beam behind it would wash it out
+    g.fillStyle = lit ? ink(0.9, 0.04, 0.8) : ink(0.96, 0.08, 0.5);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 2.5, ink(1, lit ? 0.85 : 0.7, lit ? 0.95 : 0.85));
+    const half = lit ? 9 : 7;
+    const glow = g.createLinearGradient(a(27 - half), 0, a(27 + half), 0);
+    glow.addColorStop(0, ink(1, 1, 0));
+    glow.addColorStop(0.5, ink(1, 1, lit ? 0.55 : 0.42));
+    glow.addColorStop(1, ink(1, 1, 0));
+    g.fillStyle = glow;
+    g.fillRect(a(27 - half), 0, a(2 * half), h);
+    g.fillStyle = ink(1, 1, lit ? 1 : 0.78);
+    g.fillRect(a(lit ? 25.5 : 26), 0, a(lit ? 3 : 2), h);
+  };
+}
+
+/**
+ * FIRE's long note: a tube of heated glass in the lane's colour, darker toward its two sides as a
+ * round thing is, a white-hot wire down its middle; `lit` (held), it burns brighter and the wire is
+ * wider in a glow. Its ends are cut straight across (LONG_PAINT).
+ */
+function fireLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const k = lit ? 1.14 : 1;
+    const round = g.createLinearGradient(0, 0, w, 0);
+    round.addColorStop(0, tone(0.5 * k));
+    round.addColorStop(0.14, tone(0.86 * k));
+    round.addColorStop(0.36, tone(1.1 * k));
+    round.addColorStop(0.64, tone(1.04 * k));
+    round.addColorStop(0.86, tone(0.8 * k));
+    round.addColorStop(1, tone(0.46 * k));
+    g.fillStyle = round;
+    g.fillRect(0, 0, w, h);
+    const half = lit ? 10 : 6;
+    const glow = g.createLinearGradient(a(27 - half), 0, a(27 + half), 0);
+    glow.addColorStop(0, ink(1, 1, 0));
+    glow.addColorStop(0.5, ink(1, 1, lit ? 0.7 : 0.45));
+    glow.addColorStop(1, ink(1, 1, 0));
+    g.fillStyle = glow;
+    g.fillRect(a(27 - half), 0, a(2 * half), h);
+    g.fillStyle = ink(1, 1);
+    g.fillRect(a(lit ? 25 : 26), 0, a(lit ? 4 : 2), h);
+  };
+}
+
+/** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
+function solidLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const shade = g.createLinearGradient(0, 0, w, 0);
+    const k = lit ? 1.12 : 1;
+    shade.addColorStop(0, tone(1.12 * k, 0.92));
+    shade.addColorStop(0.3, tone(1.06 * k, 0.9));
+    shade.addColorStop(0.55, tone(k, 0.88));
+    shade.addColorStop(1, tone(0.78 * k, 0.9));
+    g.fillStyle = shade;
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 4, ink(1, 0.97));
+    if (!lit) return;
+    const glow = g.createLinearGradient(a(19), 0, a(35), 0);
+    glow.addColorStop(0, ink(1, 1, 0));
+    glow.addColorStop(0.5, ink(1, 1, 0.5));
+    glow.addColorStop(1, ink(1, 1, 0));
+    g.fillStyle = glow;
+    g.fillRect(a(19), 0, a(16), h);
+    g.fillStyle = ink(1, 1);
+    g.fillRect(a(25.5), 0, a(3), h);
+  };
+}
+
+/** A square end: the body itself, a rim in `border` along its outer edge (canvas top) as down its sides, `t` px of a 54 px body. */
+function squareEnd(body: Paint, border: string, t = 4): Paint {
+  return (g, w, h) => {
+    body(g, w, h);
+    g.fillStyle = border;
+    g.fillRect(0, 0, w, across(w)(t));
+  };
+}
+
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
-  solid: {
-    body: (g, w, h) => {
-      // a rounded bar lit from the left: a gloss down its left third, deeper toward its right
-      const shade = g.createLinearGradient(0, 0, w, 0);
-      shade.addColorStop(0, tone(1.12, 0.92));
-      shade.addColorStop(0.3, tone(1.06, 0.9));
-      shade.addColorStop(0.55, tone(1, 0.88));
-      shade.addColorStop(1, tone(0.78, 0.9));
-      g.fillStyle = shade;
-      g.fillRect(0, 0, w, h);
-      sides(g, w, h, 4, ink(1, 0.97));
-    },
-    end: squareEnd(tone(1, 0.88), ink(1, 0.97), 4),
+  // a long triangular prism of glass as wide as its bar, the ridge of light down its middle (held:
+  // white-hot, the glass bright from inside), each end closed by the prism's own end facet
+  prism: {
+    body: prismLong(false),
+    end: prismEnd(false),
+    held: { body: prismLong(true), end: prismEnd(true) },
     tile: 1,
-    endDepth: 0.12,
+    endDepth: 0.5 * NOTE_STRETCH * 0.55,
+    width: 0.86,
+  },
+  // the sky skin's: a see-through band, a soft white line down its middle (held: brighter, the line
+  // in a glow), each end the band itself, square, a thin white edge along it
+  sky: {
+    body: skyLong(false),
+    end: squareEnd(skyLong(false), ink(1, 0.9, 0.95), 3),
+    held: { body: skyLong(true), end: squareEnd(skyLong(true), ink(1, 1), 3) },
+    tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // the Firestarter skin's: a tube of heated glass, a white-hot wire down its middle (held: brighter,
+  // the wire in a glow), each end the tube itself cut straight across, a bright rim along the cut
+  fire: {
+    body: fireLong(false),
+    end: squareEnd(fireLong(false), ink(1, 0.92), 3),
+    held: { body: fireLong(true), end: squareEnd(fireLong(true), ink(1, 1), 3) },
+    tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
+  // inside with a line of light down its middle; each end the bar itself, square, a rim along it
+  solid: {
+    body: solidLong(false),
+    end: squareEnd(solidLong(false), ink(1, 0.97)),
+    held: { body: solidLong(true), end: squareEnd(solidLong(true), ink(1, 1)) },
+    tile: 1,
+    endDepth: 0.2,
     width: 0.8,
   },
   rail: {
@@ -1305,11 +1924,18 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
+  prism: 'prism',
+  sky: 'sky',
+  fire: 'fire',
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
   flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
@@ -1332,6 +1958,11 @@ export interface EffectSheet {
   centre: number;
   /** How wide the effect gets while it is still bright (halfway through), in lane widths. */
   reach: number;
+  /**
+   * Its picture is light in colours of its own on nothing (PRISM's spectrum, SKY's white puff), not a
+   * tint picture: it is added as it is, the lane's colour only tingeing it.
+   */
+  plain?: boolean;
 }
 
 /**
@@ -1339,7 +1970,18 @@ export interface EffectSheet {
  * drawn in it gets halfway through (in px, see drawEffect), per style.
  */
 const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
-  flash: { w: 128, h: 192, cy: 104, reach: 84 },
+  // along the judge line and a little toward the gear: nothing of it rises up the track over the next notes
+  prism: { w: 128, h: 64, cy: 26, reach: 44 },
+  // a ring of cloud lying on the line and a few feathers off it: low, as PRISM's
+  sky: { w: 128, h: 64, cy: 30, reach: 42 },
+  // a flash on the line and thin sparks off it, most of them up the track a little way: thin enough that the next notes read through them
+  fire: { w: 224, h: 160, cy: 116, reach: 64 },
+  // the AI companies': small and close over the line (typing dots and a ring; sparkles; a pen's cross and a ring; a burst of short strokes)
+  gpt: { w: 128, h: 96, cy: 62, reach: 40 },
+  gemini: { w: 128, h: 112, cy: 78, reach: 40 },
+  grok: { w: 128, h: 96, cy: 58, reach: 44 },
+  claude: { w: 192, h: 128, cy: 96, reach: 56 },
+  flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
   // played out under the line only, toward the gear: the next notes above it stay clear
@@ -1357,18 +1999,406 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
-  const texture = paintTexture(cell.w * cols, cell.h * rows, (g) => {
+  const plain = style === 'prism' || style === 'sky' || style === 'fire' || style === 'gpt' || style === 'gemini' || style === 'grok' || style === 'claude';
+  // PRISM's shards, SKY's feathers and FIRE's sparks have hard edges: painted twice as fine, or they show their px on a wide lane
+  const fine = plain ? 2 : 1;
+  const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
+    g.scale(fine, fine);
     for (let f = 0; f < EFFECT_FRAMES; f++) {
       g.save();
       g.translate((f % cols) * cell.w + cell.w / 2, Math.floor(f / cols) * cell.h + cell.cy);
       g.beginPath();
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
-      drawEffect(g, style, f / EFFECT_FRAMES);
+      if (style === 'prism') drawSpectrum(g, f / EFFECT_FRAMES);
+      else if (style === 'sky') drawPuff(g, f / EFFECT_FRAMES);
+      else if (style === 'fire') drawSparks(g, f / EFFECT_FRAMES);
+      else if (style === 'gpt') drawTyping(g, f / EFFECT_FRAMES);
+      else if (style === 'gemini') drawSparkles(g, f / EFFECT_FRAMES);
+      else if (style === 'grok') drawCross(g, f / EFFECT_FRAMES);
+      else if (style === 'claude') drawRays(g, f / EFFECT_FRAMES);
+      else drawEffect(g, style, f / EFFECT_FRAMES);
       g.restore();
     }
   });
-  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64 };
+  return { texture, cols, rows, frames: EFFECT_FRAMES, size: [cell.w / 64, cell.h / 64], centre: cell.cy / cell.h, reach: cell.reach / 64, plain };
+}
+
+/** A picture in colours of its own (sRGB) on nothing, for light that is added as it is (EffectSheet.plain). */
+function colourTexture(w: number, h: number, paint: Paint): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  paint(canvas.getContext('2d') as CanvasRenderingContext2D, w, h);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+/** White light split by a crystal into pastels, rose to violet. */
+const SPECTRUM = ['#ff9dbb', '#ffc59c', '#fff0a8', '#a9f0c6', '#a6e4ff', '#aabeff', '#d1aeff'] as const;
+
+/**
+ * PRISM's hit (the crystal skin's) at progress `p`, about the judge line's crossing of the lane: a
+ * white flash on the line at once, a four-pointed star (its brightest is its first frame), then the
+ * light split: a few flat shards in pastels flying out both ways along the line, some a little toward
+ * the gear and some a little up the track (no further than the star's own point: the next notes stay
+ * clear), and a hairline of the pastels opening along the line; all gone by its end.
+ */
+function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const a = Math.max(0, 1 - p);
+  const rgba = (hex: string, alpha: number) => {
+    const v = parseInt(hex.slice(1), 16);
+    return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${Math.max(0, Math.min(1, alpha))})`;
+  };
+  // the hairline of the spectrum along the line, opening outward
+  const reach = (18 + 22 * Math.sqrt(p)) * s;
+  const line = g.createLinearGradient(-reach, 0, reach, 0);
+  line.addColorStop(0, rgba(SPECTRUM[6], 0));
+  SPECTRUM.forEach((c, i) => line.addColorStop(0.12 + (0.76 * i) / (SPECTRUM.length - 1), rgba(c, 0.85 * a)));
+  line.addColorStop(1, rgba(SPECTRUM[0], 0));
+  g.fillStyle = line;
+  g.fillRect(-reach, -1.5 * s, 2 * reach, 3 * s);
+  // the shards: each a thin sliver flying out along its own line, its colour by where it points
+  const shards: [number, number, number][] = [
+    // angle from the line (degrees, positive toward the gear), length, colour
+    [-4, 12, 0], [9, 14, 4], [-19, 9, 2], [24, 9, 6], [-11, 11, 5],
+  ];
+  for (const side of [-1, 1]) {
+    shards.forEach(([deg, len, c], i) => {
+      const angle = (deg * Math.PI) / 180;
+      const from = (8 + 15 * Math.sqrt(p) * (0.7 + 0.08 * i)) * s;
+      const l = len * s * (0.5 + 0.9 * a);
+      const [dx, dy] = [side * Math.cos(angle), Math.sin(angle)];
+      const [x0, y0] = [dx * from, dy * from];
+      const [x1, y1] = [dx * (from + l), dy * (from + l)];
+      const half = (2.4 - 1.3 * p) * s;
+      polygon(g, [
+        [x0, y0],
+        [(x0 + x1) / 2 - dy * half, (y0 + y1) / 2 + dx * half * side],
+        [x1, y1],
+        [(x0 + x1) / 2 + dy * half, (y0 + y1) / 2 - dx * half * side],
+      ]);
+      g.fillStyle = rgba(SPECTRUM[side < 0 ? c : SPECTRUM.length - 1 - c], Math.min(1, 2.2 * a));
+      g.fill();
+    });
+  }
+  // the flash: a white bar across the lane on the line, its glow, a hot diamond in its middle
+  // (the hit is drawn 1.8 lanes to a lane: the bar and the star stay inside their own lane, so a
+  // chord's flashes stand side by side and do not run into one bar of white)
+  const fw = 24 * s;
+  const fh = (7 - 5 * p) * s;
+  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 16 * s);
+  glow.addColorStop(0, `rgba(255,255,255,${0.4 * a * a})`);
+  glow.addColorStop(1, 'rgba(255,255,255,0)');
+  g.save();
+  g.scale(1.4, 0.6);
+  g.fillStyle = glow;
+  g.beginPath();
+  g.arc(0, 0, 16 * s, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+  g.fillStyle = `rgba(255,255,255,${a})`;
+  roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
+  g.fill();
+  // the star: long points along the line, short ones across it, drawn in as it fades
+  const r = (8.5 - 3.5 * p) * s;
+  const waist = r * 0.24;
+  const up = r * (1.15 - 0.9 * p);
+  polygon(g, [
+    [-r * 1.7, 0],
+    [-waist, -waist * 0.5],
+    [0, -up],
+    [waist, -waist * 0.5],
+    [r * 1.7, 0],
+    [waist, waist * 0.5],
+    [0, up * 0.8],
+    [-waist, waist * 0.5],
+  ]);
+  g.fillStyle = `rgba(255,255,255,${Math.min(1, 1.4 * a)})`;
+  g.fill();
+}
+
+/**
+ * SKY's hit (the sky skin's) at progress `p`, about the judge line's crossing of the lane: a soft
+ * white burst on the line at once, a ring of cloud opening round it (its puffs side by side, a
+ * scalloped ring; flat on the track: wide along the line, shallow across it) and thinning to nothing,
+ * and three small feathers drifting off it, turning as they go. White, a breath of sky blue at the
+ * puffs' edges; no wider than its lane until it has nearly gone (a chord's rings stand side by side),
+ * no further up the track than the ring itself (the next notes stay clear); all gone by its end.
+ */
+function drawPuff(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const a = Math.max(0, 1 - p);
+  const out = Math.sqrt(p);
+  const soft = (x: number, y: number, r: number, alpha: number) => {
+    if (r <= 0 || alpha <= 0) return;
+    const puff = g.createRadialGradient(x, y, 0, x, y, r);
+    puff.addColorStop(0, `rgba(255,255,255,${Math.min(1, alpha)})`);
+    puff.addColorStop(0.68, `rgba(246,251,255,${Math.min(1, alpha * 0.95)})`);
+    puff.addColorStop(1, 'rgba(170,214,250,0)');
+    g.fillStyle = puff;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  // the burst in the middle: a soft light in its first frames, gone by a third of the effect (the
+  // ring is a ring from the start: the lane shows through its middle)
+  const burst = Math.max(0, 1 - 3 * p);
+  g.save();
+  g.scale(1.5, 0.62);
+  soft(0, 0, 8 * s, 0.3 * burst);
+  g.restore();
+  // the ring of cloud, opening: about a lane wide and half as deep on the screen (the hit is drawn 1.8
+  // lanes to a lane), its band of puffs side by side, each a little off the round, the same every
+  // time; the lane shows through its middle from the first frame
+  const [rx, ry] = [(12.5 + 5 * out) * s, (6.6 + 2.6 * out) * s];
+  const puffs = 14;
+  for (let i = 0; i < puffs; i++) {
+    const at = ((i + 0.3 * Math.sin(i * 2.4)) / puffs) * Math.PI * 2;
+    const size = (4.1 - 0.9 * p) * (0.86 + 0.28 * Math.abs(Math.sin(i * 1.7 + 0.6))) * s;
+    soft(Math.cos(at) * rx, Math.sin(at) * ry, size, Math.min(1, 1.6 * a));
+  }
+  // the feathers: slim white vanes flying out, turning
+  const feathers: [number, number, number, number][] = [
+    // the angle it leaves at (degrees from the line, negative up the track), how far it goes, its length, its turn
+    [-150, 15, 7.5, -0.9],
+    [-28, 17, 8.5, 0.8],
+    [30, 13, 6.5, 1.1],
+  ];
+  for (const [deg, far, len, turn] of feathers) {
+    const angle = (deg * Math.PI) / 180;
+    const d = (18 + far * out) * s;
+    g.save();
+    g.translate(Math.cos(angle) * d, Math.sin(angle) * d * 0.55);
+    g.rotate(angle + Math.PI / 2 + turn * p);
+    const l = len * s * (0.75 + 0.25 * a);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, 1.7 * a)})`;
+    g.beginPath();
+    g.moveTo(0, -l);
+    g.bezierCurveTo(l * 0.4, -l * 0.5, l * 0.32, l * 0.35, l * 0.04, l * 0.75);
+    g.bezierCurveTo(-l * 0.24, l * 0.3, -l * 0.26, -l * 0.5, 0, -l);
+    g.fill();
+    g.restore();
+  }
+}
+
+/**
+ * FIRE's hit (the Firestarter skin's) at progress `p`, about the judge line's crossing of the lane:
+ * the strike of a lighter. A white-hot flash on the line at once, wide along it and gone in a third
+ * of the effect, and thin sharp sparks flying off it, most of them up the track and outward: each a
+ * streak white-hot at its head, orange behind and red at its tail, shortening as it flies and gone
+ * before the effect ends. No ring, no smoke; nothing of it is wide enough to hide a note.
+ */
+function drawSparks(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  // the flash: white-hot on the line, wide along it, an orange light round it
+  const flash = Math.max(0, 1 - 2.2 * p);
+  if (flash > 0) {
+    g.save();
+    g.scale(2.1, 0.62);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 24 * s);
+    core.addColorStop(0, `rgba(255,255,255,${flash})`);
+    core.addColorStop(0.22, `rgba(255,246,224,${flash})`);
+    core.addColorStop(0.45, `rgba(255,170,80,${0.75 * flash})`);
+    core.addColorStop(0.72, `rgba(255,80,32,${0.34 * flash})`);
+    core.addColorStop(1, 'rgba(232,17,45,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 24 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // the sparks: the angle it leaves at (degrees from the line, negative up the track), how far it flies, its length, how late it dies (share of the effect)
+  const sparks: [number, number, number, number][] = [
+    [-166, 56, 40, 0.62],
+    [-142, 84, 58, 0.78],
+    [-116, 66, 46, 0.66],
+    [-96, 100, 66, 0.84],
+    [-70, 78, 52, 0.72],
+    [-48, 98, 64, 0.82],
+    [-26, 70, 48, 0.68],
+    [-10, 54, 38, 0.6],
+  ];
+  for (const [deg, far, len, dies] of sparks) {
+    const life = Math.max(0, 1 - p / dies);
+    if (life <= 0) continue;
+    const angle = (deg * Math.PI) / 180;
+    // the track is seen from above its near end: what flies up it is drawn shorter than what flies along the line
+    const [dx, dy] = [Math.cos(angle), Math.sin(angle) * 0.86];
+    const head = (10 + far * out) * s;
+    const tail = Math.max(4 * s, head - len * s * (0.35 + 0.65 * life));
+    const [x0, y0, x1, y1] = [dx * tail, dy * tail, dx * head, dy * head];
+    const streak = g.createLinearGradient(x0, y0, x1, y1);
+    streak.addColorStop(0, 'rgba(232,17,45,0)');
+    streak.addColorStop(0.3, `rgba(255,70,40,${0.9 * Math.min(1, 1.8 * life)})`);
+    streak.addColorStop(0.62, `rgba(255,190,110,${Math.min(1, 2 * life)})`);
+    streak.addColorStop(1, `rgba(255,252,240,${Math.min(1, 2.4 * life)})`);
+    // a thin ray, a point at each end, its widest a third of the way back from its head
+    const wide = (1.5 + 0.8 * life) * s;
+    const [nx, ny] = [(-dy * wide) / 2, (dx * wide) / 2];
+    const [mx, my] = [x0 + (x1 - x0) * 0.68, y0 + (y1 - y0) * 0.68];
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(mx + nx, my + ny);
+    g.lineTo(x1, y1);
+    g.lineTo(mx - nx, my - ny);
+    g.closePath();
+    g.fillStyle = streak;
+    g.fill();
+  }
+}
+
+/**
+ * GPT's hit at progress `p`: someone typing. Three white dots in a row over the hit, each popping up a
+ * moment after the one before and all gone together, and one thin ring of its green opening on the line.
+ */
+function drawTyping(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.2;
+  g.save();
+  g.scale(1, 0.6);
+  g.beginPath();
+  g.arc(0, 0, (10 + 26 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2.6 - 1.6 * p) * s;
+  g.strokeStyle = `rgba(120,240,205,${0.95 * fade})`;
+  g.stroke();
+  g.restore();
+  for (let i = 0; i < 3; i++) {
+    // each a little later than the one before: it grows past its size and settles
+    const t = Math.min(1, Math.max(0, (p - i * 0.09) / 0.26));
+    if (t <= 0) continue;
+    const pop = t < 0.7 ? (t / 0.7) * 1.25 : 1.25 - ((t - 0.7) / 0.3) * 0.25;
+    g.beginPath();
+    g.arc((i - 1) * 13 * s, (-20 - 6 * out) * s, 4.2 * s * pop, 0, Math.PI * 2);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, fade * 1.5)})`;
+    g.fill();
+  }
+}
+
+/** A four-pointed sparkle about (x, y), `r` to its points, its sides curving in. */
+function sparkleAt(g: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  g.beginPath();
+  g.moveTo(x, y - r);
+  g.quadraticCurveTo(x + r * 0.08, y - r * 0.08, x + r, y);
+  g.quadraticCurveTo(x + r * 0.08, y + r * 0.08, x, y + r);
+  g.quadraticCurveTo(x - r * 0.08, y + r * 0.08, x - r, y);
+  g.quadraticCurveTo(x - r * 0.08, y - r * 0.08, x, y - r);
+  g.closePath();
+}
+
+/**
+ * GEMINI's hit at progress `p`: a soft round light on the line and a few four-pointed sparkles popping
+ * round the hit, white touched with its blue, violet and pink, each growing and fading in its turn.
+ */
+function drawSparkles(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const fade = Math.max(0, 1 - p);
+  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 30 * s);
+  glow.addColorStop(0, `rgba(255,255,255,${0.9 * fade ** 1.6})`);
+  glow.addColorStop(0.35, `rgba(155,160,255,${0.5 * fade ** 1.6})`);
+  glow.addColorStop(1, 'rgba(155,114,203,0)');
+  g.save();
+  g.scale(1.5, 0.62);
+  g.fillStyle = glow;
+  g.beginPath();
+  g.arc(0, 0, 30 * s, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+  // where it pops (px from the hit, up the track negative), its size, when it starts, its colour
+  const stars: [number, number, number, number, string][] = [
+    [-18, -22, 13, 0, '255,255,255'],
+    [17, -30, 10, 0.1, '170,200,255'],
+    [26, -9, 7, 0.2, '255,180,200'],
+    [-27, -7, 6, 0.16, '205,180,255'],
+    [1, -42, 8, 0.26, '255,255,255'],
+  ];
+  for (const [x, y, r, from, rgb] of stars) {
+    const t = (p - from) / (1 - from);
+    if (t <= 0 || t >= 1) continue;
+    const size = Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - 0.35 * t);
+    sparkleAt(g, x * s * (0.8 + 0.3 * t), y * s * (0.8 + 0.3 * t), r * s * size);
+    g.fillStyle = `rgba(${rgb},${Math.min(1, (1 - t) * 1.8)})`;
+    g.fill();
+  }
+}
+
+/**
+ * GROK's hit at progress `p`: a cross drawn fast with a pen, two thin white strokes crossing at a slant
+ * over the hit, and one thin white ring opening round them. No colour, no glow.
+ */
+function drawCross(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  g.save();
+  g.scale(1, 0.62);
+  g.beginPath();
+  g.arc(0, 0, (12 + 30 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2 - 1.2 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
+  g.stroke();
+  g.restore();
+  // each stroke drawn from one end to the other in the effect's first quarter (the second a moment after the first)
+  const reach = 26 * s;
+  g.lineCap = 'butt';
+  g.lineWidth = (2.4 - 1.2 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${Math.min(1, fade * 1.6)})`;
+  [1, -1].forEach((dir, i) => {
+    const t = Math.min(1, Math.max(0, (p - i * 0.07) / 0.2));
+    if (t <= 0) return;
+    const [x0, y0] = [-dir * reach, -reach * 0.72 - 6 * s];
+    const [x1, y1] = [dir * reach, reach * 0.72 - 6 * s];
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    g.stroke();
+  });
+}
+
+/**
+ * CLAUDE's hit at progress `p`: a burst drawn by hand, a dozen short strokes of uneven length flying
+ * out from the hit as rays, cream at their near ends and terracotta at their tips. No ring, no glow.
+ */
+function drawRays(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 2.4;
+  const fade = Math.max(0, 1 - p) ** 0.9;
+  // the angle a stroke flies at (degrees from the line, negative up the track), how far, how long, how thick
+  const rays: [number, number, number, number][] = [
+    [-172, 30, 15, 2.6],
+    [-150, 40, 22, 3.2],
+    [-128, 33, 14, 2.4],
+    [-108, 46, 26, 3.4],
+    [-90, 36, 16, 2.8],
+    [-70, 48, 24, 3.4],
+    [-50, 34, 15, 2.4],
+    [-30, 42, 21, 3.2],
+    [-8, 30, 14, 2.6],
+    [18, 22, 10, 2.2],
+    [162, 22, 10, 2.2],
+  ];
+  g.lineCap = 'round';
+  for (const [deg, far, len, thick] of rays) {
+    const a = (deg * Math.PI) / 180;
+    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.86];
+    const head = (12 + far * out) * s;
+    const tail = Math.max(7 * s, head - len * s * (0.5 + 0.5 * fade));
+    const stroke = g.createLinearGradient(dx * tail, dy * tail, dx * head, dy * head);
+    stroke.addColorStop(0, `rgba(255,246,236,${Math.min(1, fade * 1.5)})`);
+    stroke.addColorStop(0.55, `rgba(255,200,170,${Math.min(1, fade * 1.5)})`);
+    stroke.addColorStop(1, `rgba(217,119,87,${Math.min(1, fade * 1.5)})`);
+    g.beginPath();
+    g.moveTo(dx * tail, dy * tail);
+    g.lineTo(dx * head, dy * head);
+    g.lineWidth = thick * s * (0.6 + 0.4 * fade);
+    g.strokeStyle = stroke;
+    g.stroke();
+  }
 }
 
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
@@ -1377,7 +2407,7 @@ export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: nu
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: DrawnHit, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude'>, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);
@@ -1393,22 +2423,25 @@ function drawEffect(g: CanvasRenderingContext2D, style: DrawnHit, p: number): vo
   };
   switch (style) {
     case 'flash': {
-      // a bright bar on the judge line, a line opening toward the gear, a short column of light
-      // (no line opening up the track: there it read as a note or a bar line)
-      const fill = white;
-      const fw = 66 * s;
-      const fh = (16 - 10 * p) * s;
-      const grad = g.createLinearGradient(0, 0, 0, -70 * s);
-      grad.addColorStop(0, fill(0.45 * a));
-      grad.addColorStop(1, fill(0));
-      g.fillStyle = grad;
-      g.fillRect(-fw / 2, -70 * s, fw, 70 * s);
-      g.fillStyle = fill(a);
+      // the default skin's: a flat bar of light across the lane on the judge line, brightest at once,
+      // and one thin ring opening about it; nothing rises up the track over the next notes
+      const fw = (46 + 10 * p) * s;
+      const fh = (9 - 6 * p) * s;
+      const glow = g.createLinearGradient(-fw, 0, fw, 0);
+      glow.addColorStop(0, colour(0));
+      glow.addColorStop(0.5, colour(0.55 * a));
+      glow.addColorStop(1, colour(0));
+      g.fillStyle = glow;
+      g.fillRect(-fw, -fh, 2 * fw, 2 * fh);
+      g.fillStyle = white(a);
       roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
       g.fill();
-      const lw = fw * (1.05 + 0.3 * p);
-      const d = (8 + 26 * p) * s;
-      line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
+      const r = (7 + 9 * Math.sqrt(p)) * s;
+      g.beginPath();
+      g.arc(0, 0, r, 0, Math.PI * 2);
+      g.lineWidth = (2.6 - 1.6 * p) * s;
+      g.strokeStyle = p < 0.2 ? white(a) : colour(a);
+      g.stroke();
       break;
     }
     case 'flare': {

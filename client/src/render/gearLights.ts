@@ -172,23 +172,11 @@ const RING_REACH = 1 / 0.84;
 const ORANGE = 0xff8a24;
 const CYAN = 0x39d4ff;
 
-/** STANDARD: the jog disc's cyan ring breathing on the beat, the light strip under the name with a light running along it each bar, the speaker lit through its holes on the strong beats. */
+/** STANDARD: the light strip along the deck's front edge breathing on the beat (in FEVER it stays lit). */
 function standardLights(): GearLightSet {
-  const strip = { x0: 756, x1: 1294, y: 308.5 };
+  const strip = { x0: 614, x1: 1434, y: 440 };
   return {
     lights: [
-      {
-        shape: 'ring',
-        x: 260.8,
-        y: 254.3,
-        w: 2 * 148.2 * RING_REACH,
-        h: 2 * 176.8 * RING_REACH,
-        arc: [-90, 170],
-        colour: CYAN,
-        level: (c, calm) => (calm ? 0.25 + 0.2 * swell(c.beat, 4) : 0.2 + 0.6 * fade(frac(c.beat), 3.5)),
-        mark: 'jog',
-        grow: RING_REACH,
-      },
       {
         shape: 'wash',
         x: (strip.x0 + strip.x1) / 2,
@@ -196,32 +184,9 @@ function standardLights(): GearLightSet {
         w: strip.x1 - strip.x0 + 24,
         h: 36,
         colour: CYAN,
-        level: (c, calm) => (calm ? 0.3 + 0.15 * swell(c.bar, 1) : 0.25 + 0.35 * fade(frac(c.beat), 3)),
+        level: (c, calm) => (c.fever ? 0.7 : calm ? 0.3 + 0.15 * swell(c.bar, 1) : 0.2 + 0.4 * fade(frac(c.beat), 3)),
         mark: 'strip',
-        grow: [1.04, 6],
-      },
-      {
-        shape: 'glow',
-        x: strip.x0,
-        y: strip.y,
-        w: 110,
-        h: 50,
-        colour: 0xc8f4ff,
-        level: (c, calm) => (calm ? 0 : 0.8 * Math.sin(Math.PI * frac(c.bar)) ** 2),
-        at: (c) => [strip.x0 + (strip.x1 - strip.x0) * frac(c.bar), strip.y],
-      },
-      {
-        shape: 'wash',
-        x: 1770,
-        y: 255,
-        w: 390,
-        h: 290,
-        colour: CYAN,
-        confined: true,
-        level: (c, calm) => (calm ? 0.15 + 0.25 * swell(c.beat, 4) : 0.08 + 0.75 * fade(sinceTurn(c.beat, 0, 2), 3)),
-        mark: 'grille',
-        grow: 0.96,
-        codeWell: { inside: ['grille'], outside: [] },
+        grow: [1.04, 1],
       },
     ],
   };
@@ -603,8 +568,126 @@ function rawGlassLights(): GearLightSet {
   return { lights };
 }
 
+/**
+ * CRYSTAL: nothing glints on it, and no light moves over its pale facets (the notes are the brightest
+ * things on the screen). Its three sapphire plates take a soft light from inside: the faintest breath
+ * once a bar, and in FEVER a swell on each beat.
+ */
+function prismLights(): GearLightSet {
+  const plate = (name: string, x: number, y: number, w: number, h: number): GearLight => ({
+    shape: 'wash',
+    x,
+    y,
+    w,
+    h,
+    colour: 0x8fc8ff,
+    level: (c, calm) => (c.fever ? (calm ? 0.2 : 0.1 + 0.3 * fade(frac(c.beat), 3)) : calm ? 0 : 0.1 * Math.sin(Math.PI * frac(c.bar)) ** 2),
+    mark: `plate.${name}`,
+    grow: [0.96, 0.8],
+  });
+  return { lights: [plate('score', 1024, 240, 1000, 110), plate('speed', 330, 400, 400, 100), plate('rate', 1718, 400, 400, 100)] };
+}
+
+/**
+ * SKY: nothing glints. Its feather takes a soft white light on the beat (a slow breath under 번쩍임
+ * 줄이기), and in FEVER the sky itself brightens a little with each beat, as when a cloud lets the sun by.
+ */
+function skyLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 150,
+        w: 150,
+        h: 150,
+        colour: 0xffffff,
+        // a breath of light behind the feather on the beat: it is white on a bright sky, and a strong glow would blur it
+        level: (c, calm) => (calm ? 0.1 + 0.12 * swell(c.beat, 4) : 0.05 + 0.3 * fade(frac(c.beat), 3)),
+        mark: 'feather',
+        grow: 1.3,
+      },
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 330,
+        w: 2048,
+        h: 420,
+        colour: 0xcfeaff,
+        // a bright deck: the light it gets is soft, or it would wash out to white
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.1 : 0.05 + 0.12 * fade(frac(c.beat), 3)),
+        mark: 'sky',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * FIRE: the light under its key caps flares with each beat (a slow breath under 번쩍임 줄이기), and in
+ * FEVER the lacquer itself glows a little hotter on the beat.
+ */
+function fireLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff6a2a,
+        level: (c, calm) => (calm ? 0.16 + 0.12 * swell(c.beat, 4) : 0.08 + 0.5 * fade(frac(c.beat), 3)),
+        mark: 'caps',
+        grow: [1, 1.6],
+      },
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 330,
+        w: 2048,
+        h: 420,
+        colour: 0xff5a3a,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.12 : 0.06 + 0.16 * fade(frac(c.beat), 3)),
+        mark: 'lacquer',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * The AI companies' gears (GPT, GEMINI, GROK, CLAUDE): what lies under their keys (GPT's seam, GEMINI's
+ * light, GROK's hairline, CLAUDE's band: each plate's 'glow') takes a light of the gear's own on the beat,
+ * stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function brandLights(colour: number): () => GearLightSet {
+  return () => ({
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+    ],
+  });
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
+  prism: prismLights,
+  sky: skyLights,
+  fire: fireLights,
+  gpt: brandLights(0x9dffe0),
+  gemini: brandLights(0xc4b0ff),
+  grok: brandLights(0xffffff),
+  claude: brandLights(0xffc4a8),
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,
