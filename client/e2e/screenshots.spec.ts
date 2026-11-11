@@ -335,7 +335,30 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   }
 });
 
-test('play: the PRISM set, what a player starts with', async ({ page }) => {
+test('play: the default skin, what a player starts with', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "default skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // its key deck with the score, SPEED and the rate in it, the song's time under its plate: the keys
+  // and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '47-default-7k'],
+    ['6K+FX', { fever: 'OFF' }, '48-default-6kfx'],
+    ['4K', {}, '49-default-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the PRISM set', async ({ page }) => {
   test.setTimeout(420_000);
   // also runs on its own (-g "PRISM set"): makes the showcase song when it is missing
   await page.goto('/');

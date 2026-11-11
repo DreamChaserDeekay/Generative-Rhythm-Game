@@ -172,7 +172,7 @@ const RING_REACH = 1 / 0.84;
 const ORANGE = 0xff8a24;
 const CYAN = 0x39d4ff;
 
-/** STANDARD: the light strip along the deck's front edge breathing on the beat, a light running along it each bar (in FEVER the strip stays lit). */
+/** STANDARD: the light strip along the deck's front edge breathing on the beat (in FEVER it stays lit). */
 function standardLights(): GearLightSet {
   const strip = { x0: 614, x1: 1434, y: 440 };
   return {
@@ -187,18 +187,6 @@ function standardLights(): GearLightSet {
         level: (c, calm) => (c.fever ? 0.7 : calm ? 0.3 + 0.15 * swell(c.bar, 1) : 0.2 + 0.4 * fade(frac(c.beat), 3)),
         mark: 'strip',
         grow: [1.04, 1],
-      },
-      {
-        shape: 'glow',
-        x: strip.x0,
-        y: strip.y,
-        w: 110,
-        h: 50,
-        colour: 0xc8f4ff,
-        level: (c, calm) => (calm ? 0 : 0.8 * Math.sin(Math.PI * frac(c.bar)) ** 2),
-        at: (c) => [strip.x0 + (strip.x1 - strip.x0) * frac(c.bar), strip.y],
-        mark: 'strip',
-        grow: [1, 1],
       },
     ],
   };

@@ -78,7 +78,8 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('F2');
   await expect(page.locator('.hud-combo-num')).toHaveText('');
-  await expect(page.locator('.hud-max-combo')).toHaveText('0');
+  // (the default gear's deck houses the score; MAX COMBO is not shown beside it)
+  await expect(page.locator('.hud-score')).toHaveText('0');
   expect(await page.getByTestId('hud-toast').evaluate((el) => (el as HTMLElement).style.opacity)).toBe('0');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
   expect(errors).toEqual([]);

@@ -1,6 +1,29 @@
-# 기어 · 노트 · 이펙트 재디자인: PRISM
+# 기어 · 노트 · 이펙트 재디자인
 
 2026-11-11, 브랜치 `claude/gear-notes-fx`. 조사는 `docs/GEAR_NOTE_FX_RESEARCH.md`, 시안 3개(PRISM · PRESS · SIGNAL)와 출처는 `design-mockups/gear-concepts/`. 사용자가 PRISM(유리·빛)을 골랐습니다.
+
+> 2026-11-11 추가: 사용자의 스킨 지침(`docs/GEAR_NOTE_FX_RESEARCH.md` 7절)에 따라 **'기본' 스킨**을 새로 만들었고, 처음 시작하는 기본값은 다시 '기본'입니다. PRISM은 따로 고르는 한 벌로 남아 있습니다. 아래 "'기본' 스킨" 절이 최신이고, 그 뒤의 PRISM 절은 1차 구현 기록입니다(롱노트는 이후 머리·끝 단노트 없는 풀 프리즘으로, 게이지 이름은 FEVER로 바뀜).
+
+## '기본' 스킨
+
+"스킨"은 기어·노트·이펙트·콤보와 판정 글자를 묶어 가리킵니다(사이드 노트 제외). 지금 코드에서는 설정의 기어 "기본"(`standard`) + 노트 "기본"(`flat`) + 타격 효과 "플래시"(`flash`)가 '기본' 스킨입니다. 시안은 `design-mockups/gear-concepts/r2-skin-default-b.jpg`(사용자가 B를 고름), 스크린샷은 `docs/screenshots/47-default-7k.png`, `48-default-6kfx.png`, `49-default-4k-fever.png`.
+
+| 부분 | 내용 |
+|---|---|
+| 기어 | 무채색 그래파이트에 강조색 하나(청록). 폭은 트랙 폭 그대로. 판정선 아래 레인마다 키캡 한 줄(누른 레인이 청록으로 켜짐), 그 아래 2단 받침: 윗단 가운데 SCORE 창, 아랫단 양끝에 SPEED와 RATE, 앞변에 가는 청록 빛줄. 레일은 가는 그래파이트 띠에 청록 실선. 코드로 그림(예전 그림 에셋은 쓰지 않음) |
+| 수치 | SCORE·SPEED·RATE를 받침의 창 안에 표시. 왼쪽 점수판은 없고, 페이스메이커·판정 카운터를 켰을 때만 그 줄들이 왼쪽에 남음. MAX COMBO는 표시하지 않음 |
+| 재생 시간 | 좌측 상단 곡 정보 아래에 `현재 / 전체`와 진행 막대. 모든 기어 공통(곡 정보는 스킨의 영향을 받지 않음) |
+| 판정선 | 흰 심에 청록 빛 |
+| 단노트 | 직각 모서리 막대, 판정선에 닿는 변이 밝음. 스크래치는 빗금 홈 두 개 |
+| 롱노트 | 시작과 끝에 단노트 없음. 직각으로 닫힌 몸통 하나, 누르는 동안 안쪽에 빛줄기 |
+| 타격 효과 | 판정선 위 평평한 섬광과 얇은 고리 하나(코드로 그림) |
+| 게이지 | 오른쪽 레일 바깥 세로 막대, 이름 FEVER |
+
+코드: `deckArt.ts`(`standardPlate`, `deckReadouts`, `deckKeys`, `paintLitKey`, `judgeOf`), `TrackRenderer.ts`(`HudPlane.deck`, 켜지는 키캡), `tintArt.ts`(`flatNote`, `solidLong`, `flash`), `gearLights.ts`, `client/src/ui/Hud.ts`(`layDeck`, 재생 시간)와 `styles.css`(세션 1 담당 파일이지만 사용자 지시로 고침).
+
+남은 것: 콤보·판정 글꼴은 예전 그대로(굵은 장체, 기울임 없음). 시안의 기울임 장체는 묶여 있는 글꼴에 없어 넣지 않았습니다. 설정에서 스킨을 한 번에 고르는 화면은 없고 지금처럼 부품별로 고릅니다.
+
+## PRISM (1차 구현)
 
 스크린샷: `docs/screenshots/44-prism-7k.png`, `45-prism-6kfx.png`, `46-prism-4k-fever.png`.
 

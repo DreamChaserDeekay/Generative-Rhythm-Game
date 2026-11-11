@@ -1130,14 +1130,14 @@ function solidLong(lit: boolean): Paint {
     g.fillRect(0, 0, w, h);
     sides(g, w, h, 4, ink(1, 0.97));
     if (!lit) return;
-    const glow = g.createLinearGradient(a(15), 0, a(39), 0);
+    const glow = g.createLinearGradient(a(19), 0, a(35), 0);
     glow.addColorStop(0, ink(1, 1, 0));
-    glow.addColorStop(0.5, ink(1, 1, 0.8));
+    glow.addColorStop(0.5, ink(1, 1, 0.5));
     glow.addColorStop(1, ink(1, 1, 0));
     g.fillStyle = glow;
-    g.fillRect(a(15), 0, a(24), h);
+    g.fillRect(a(19), 0, a(16), h);
     g.fillStyle = ink(1, 1);
-    g.fillRect(a(25), 0, a(4), h);
+    g.fillRect(a(25.5), 0, a(3), h);
   };
 }
 
@@ -1843,7 +1843,7 @@ function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism
       g.fillStyle = white(a);
       roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
       g.fill();
-      const r = (9 + 13 * Math.sqrt(p)) * s;
+      const r = (7 + 9 * Math.sqrt(p)) * s;
       g.beginPath();
       g.arc(0, 0, r, 0, Math.PI * 2);
       g.lineWidth = (2.6 - 1.6 * p) * s;
