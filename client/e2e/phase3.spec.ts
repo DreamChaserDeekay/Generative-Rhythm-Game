@@ -205,15 +205,13 @@ test('a YouTube link as the background video', async ({ page }) => {
   for (const s of songs) await page.request.delete(`/api/songs/${s.id}/bga`);
 });
 
-test('the advanced tab: no user skins (the track has one look), the install hint with its Windows path', async ({ page }) => {
+test('no user skins (the track has one look)', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
   await expect(page.getByTestId('opt-skin')).toHaveCount(0);
-  await settingsTab(page, 'advanced');
   await expect(page.getByTestId('skin-settings')).toHaveCount(0);
-  await expect(page.locator('.install-hint')).toContainText('.venv\\Scripts\\pip');
   expect(errors).toEqual([]);
 });
 
@@ -440,7 +438,7 @@ test('note colours: a preset, a lane set by hue, typed in or dragged in a copy o
     ['user-2', '내 색 2'],
   ]);
   expect(saved.colorPresets[1].lanes['7K+1S']).toEqual(['#4f8dff', '#cfe2ff', '#4f8dff', '#cfe2ff', '#f4f4f4', '#ffe0c4', '#ff9a3c', '#ffe0c4']);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   await page.getByTestId('reset-all').click();
   await page.getByTestId('reset-all').click();
   await expect(page.getByTestId('reset-done')).toBeVisible();

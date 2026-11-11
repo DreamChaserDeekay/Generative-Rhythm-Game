@@ -81,8 +81,8 @@ const PIPS_MOST = 12;
 
 /**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
- * change it, Shift by a bigger step; Enter moves a choice on or flips a switch, and a click on a
- * switch flips it.
+ * change it, Shift by a bigger step; Enter moves a choice on or flips a switch. A click on the row
+ * only puts the cursor on it: a switch flips under the pointer on its 켬 / 끔 (or its arrows) alone.
  */
 export function OptionRow(
   props: RowProps & {
@@ -140,10 +140,6 @@ export function OptionRow(
       data-testid={props.testId}
       data-value={props.value}
       onKeyDown={onKeyDown}
-      onClick={(e) => {
-        // a switch flips under the pointer anywhere but on its arrows (they flip it themselves)
-        if (props.checked !== undefined && !(e.target as HTMLElement).closest('.opt-step')) props.onPress?.();
-      }}
       onFocus={tell}
     >
       <span className="opt-name">{props.label}</span>
@@ -163,7 +159,14 @@ export function OptionRow(
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
           ‹
         </button>
-        <b>{props.text}</b>
+        {props.checked === undefined ? (
+          <b>{props.text}</b>
+        ) : (
+          // a switch's 켬 / 끔 flips it under the pointer (the row around it only takes the cursor)
+          <b className="opt-flip" data-testid={props.testId ? `${props.testId}-flip` : undefined} onClick={() => props.onPress?.()}>
+            {props.text}
+          </b>
+        )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(1)}>
           ›
         </button>

@@ -16,7 +16,6 @@ import { shortDayText } from './format';
 import { lampClass, LampMark } from './lamps';
 import { ActionOption } from './optionRows';
 import type { OptionsEntry } from './PlayOptions';
-import { SectionEditor } from './SectionEditor';
 import { sectionLabel } from './sections';
 import { SongArt, useSketch } from './songArt';
 import { olderGenerator, recordHeadline, recordScore } from './songRecords';
@@ -101,7 +100,6 @@ interface Props {
   songOffsetKeys: string;
   onReanalyze: () => void;
   onRemoveSong: () => void;
-  onSectionsSaved: () => Promise<void>;
   /** The click-track sync test, on autoplay or played by hand. */
   onSyncTest: (byHand: boolean) => void;
   onCalibrate: (step: CalibrationStep) => void;
@@ -309,7 +307,6 @@ function ToolsPage(props: Props & { onHelp: (help: string) => void }) {
 /** 곡 설정: the song's analysis, its tempo and first beat, its own offset, its sections, and its removal. */
 function SongTools(props: Props & { song: Song; onHelp: (help: string) => void }) {
   const { song, onPatch, onHelp } = props;
-  const [editSections, setEditSections] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const ready = song.status === 'ready';
   // a second press within TWO_PRESS_MS, not the browser's confirm box (a pad cannot answer it)
@@ -382,16 +379,11 @@ function SongTools(props: Props & { song: Song; onHelp: (help: string) => void }
         ))}
         <span className="value num">{song.overrides.offsetShiftMs ? `${song.overrides.offsetShiftMs > 0 ? '+' : ''}${song.overrides.offsetShiftMs}ms` : '자동'}</span>
       </Line>
-      <Line label="구간" onHelp={onHelp} help="분석한 구간(인트로·벌스·후렴…)을 직접 고칩니다. 구간은 채보를 만드는 재료라, 고치면 채보를 새로 만듭니다.">
-        <span className="value" data-testid="sections-status">{song.sections ? '직접 고침' : '자동 분석'}</span>
-        <button className="small" data-testid="edit-sections" disabled={!ready} onClick={() => setEditSections((v) => !v)}>
-          {editSections ? '구간 편집 닫기' : '구간 편집'}
-        </button>
+      <Line label="분석 보기" onHelp={onHelp} help="분석한 파형 · 마디선 · 구간(인트로·벌스·후렴…)을 봅니다.">
         <button className="small" data-testid="toggle-analysis" disabled={!ready} onClick={() => setShowAnalysis((v) => !v)}>
           {showAnalysis ? '분석 보기 닫기' : '분석 보기'}
         </button>
       </Line>
-      {editSections && ready && <SectionEditor songId={song.id} onClose={() => setEditSections(false)} onSaved={props.onSectionsSaved} />}
       {showAnalysis && ready && <AnalysisView songId={song.id} />}
       <Line label="삭제" onHelp={onHelp} help="곡을 라이브러리에서 지웁니다. 이 곡의 기록도 함께 지워집니다.">
         <button className="small danger" data-testid="remove-song" {...removeSong.buttonProps} onClick={removeSong.press}>
