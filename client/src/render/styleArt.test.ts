@@ -81,8 +81,9 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds(arcade)).toEqual(['mecha/notes', 'mecha/long', 'mecha/side', ...cabinet]);
     expect(styleImageIds({ ...arcade, side: 'dots' })).toEqual(['mecha/notes', 'mecha/long', ...cabinet]);
     expect(styleImageIds({ ...arcade, note: 'flat' })).toEqual(cabinet);
-    // the track as it starts: the flat notes (drawn in code) on the standard gear
-    expect(styleImageIds(BASE_SKIN.style)).toEqual(['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog']);
+    // the track as it starts: the PRISM set, drawn in code alone
+    expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
+    expect(styleImageIds({ ...BASE_SKIN.style, deck: 'standard' })).toEqual(['standard/deck', 'standard/glow', 'standard/graphite', 'standard/jog']);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // the four hits of no set have flipbooks of their own, as the sets' hits do
     for (const hit of ['flash', 'flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
@@ -197,8 +198,10 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
-    for (const hit of HIT_STYLES) {
+    expect(HIT_STYLES).toEqual(['prism', 'flash', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    // PRISM's is drawn in code alone
+    expect(isArtHit('prism')).toBe(false);
+    for (const hit of HIT_STYLES.filter((h) => h !== 'prism')) {
       expect(isArtHit(hit), hit).toBe(true);
       const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
       for (const id of [hitBurst, hitHold]) {
@@ -323,6 +326,8 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
   rawglass: { deck: 'rawglass/deck' },
+  // drawn in code alone
+  prism: {},
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
@@ -341,12 +346,14 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   piano: { 'piano/medallion': 1 },
   // none: its glass is all its deck
   rawglass: {},
+  prism: {},
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
-describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
+// PRISM has no pictures: it is drawn in code alone
+describe.each(GEAR_STYLES.filter((gear) => gear !== 'prism').map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);

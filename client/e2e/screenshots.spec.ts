@@ -335,6 +335,26 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   }
 });
 
+test('play: the PRISM set, what a player starts with', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "PRISM set"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  const parts = { note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '44-prism-7k'],
+    ['6K+FX', { fever: 'OFF' }, '45-prism-6kfx'],
+    ['4K', {}, '46-prism-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    await autoplayFor(page, 14_200);
+    await shot(page, name);
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');

@@ -3,7 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
-import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, GEAR_JUDGE, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
+import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, GEAR_JUDGE, judgeOf, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -36,6 +36,8 @@ import {
   sheetOffset,
   SIDE_FLASH_LINE,
   SIDE_PICTURES,
+  PRISM_SIDE,
+  prismSideTap,
   sideDotsBody,
   sideDotsEnd,
   sideDotsTap,
@@ -50,6 +52,9 @@ import {
 } from './tintArt';
 
 const MISSED_COLOR = 0x4a5068;
+const WHITE = new THREE.Color(0xffffff);
+/** How far toward white a lane's colour goes on an effect sheet in colours of its own (see tinge). */
+const PLAIN_WHITE = 0.7;
 /** Long notes: a held one is lit like the sheets' `filter: brightness(1.22)`, a broken one dim. */
 const HOLD_BRIGHTNESS = { idle: 1, held: 1.22, missed: 1 } as const;
 const HOLD_OPACITY = { idle: 1, held: 1, missed: 0.4 } as const;
@@ -1018,6 +1023,15 @@ export class TrackRenderer {
     this.burst(lane, this.laneColors[lane], perfNow, TICK_SIZE, TICK_GAIN);
   }
 
+  /**
+   * An effect's colour: the lane's, or, on a sheet in colours of its own (EffectSheet.plain: PRISM's
+   * spectrum), white tinged with it, so the sheet's colours show.
+   */
+  private tinge(material: THREE.MeshBasicMaterial, color: number): void {
+    material.color.setHex(color);
+    if (this.hitSheet?.plain && material.map?.image === this.hitSheet.texture.image) material.color.lerp(WHITE, PLAIN_WHITE);
+  }
+
   /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
   private burst(lane: number, color: number, perfNow: number, size = 1, gain = 1): void {
     const burst = this.flipbook ? this.art.hitBurst : undefined;
@@ -1028,7 +1042,7 @@ export class TrackRenderer {
       h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8);
       this.hits.push(h);
     }
-    h.material.color.setHex(color);
+    this.tinge(h.material, color);
     h.start = perfNow;
     h.lane = lane;
     h.size = size;
@@ -1149,7 +1163,7 @@ export class TrackRenderer {
       if (span.near <= tailZ) continue;
       const state = n.broken ? 'missed' : held ? 'held' : 'idle';
       if (lane.over) this.placeSideLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
-      else this.placeLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state);
+      else this.placeLong(lane, span.near, tailZ, span.far, n.broken ? MISSED_COLOR : color, state, kind);
     }
     this.notePool.end();
     this.bodyPool.end();
@@ -1173,13 +1187,30 @@ export class TrackRenderer {
    * its real tail is still beyond the track's far end (`realTailZ` past `tailZ`) the body is open
    * there: the far clip cuts it, as no outline must show an end that is not there.
    */
-  private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed'): void {
+  private placeLong(lane: LaneGeom, headZ: number, tailZ: number, realTailZ: number, color: number, state: 'idle' | 'held' | 'missed', kind: NoteMark): void {
     if (state === 'held') this.heldFar[lane.index] = tailZ;
     // a side lane's long note of dots (SideStyle 'dots') is the side style's, not the note style's
     const dots = this.sideDots && lane.kind === 'side';
     const paint = dots ? DOTS_LONG : this.long;
     const width = lane.width * paint.width;
     const open = realTailZ < tailZ;
+    if (paint.headNote) {
+      // headed by the style's tap note (held: on the judge line, as a tap is at its time), the body
+      // running out from under its middle to a tail closed its own way
+      const depth = this.laneDepths[lane.index];
+      const headAt = state === 'held' ? headZ : headZ - depth / 2;
+      this.placeNote(lane.x, lane.width, headAt, depth, color, NOTE_HEIGHT, kind);
+      const end = open ? 0 : Math.max(0, Math.min(paint.endDepth * width, headAt - tailZ));
+      const body = this.bodyPool.next();
+      body.material = this.bodyMaterial(color, state, dots);
+      const far = tailZ + end;
+      body.visible = headAt > far;
+      body.scale.set(width, 1, Math.max(0.001, headAt - far));
+      body.position.set(lane.x, 0.02, (headAt + far) / 2);
+      this.setBodyUv(body, width * paint.tile, headAt, far, realTailZ);
+      if (end > 0) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false, dots);
+      return;
+    }
     const end = Math.min(paint.endDepth * width, (headZ - tailZ) / (open ? 1 : 2));
     const body = this.bodyPool.next();
     body.material = this.bodyMaterial(color, state, dots);
@@ -1278,9 +1309,13 @@ export class TrackRenderer {
       const cols = Math.max(8, Math.round((across / (key?.width ?? 1)) * DOTS_ACROSS));
       const paint = dots
         ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
-        : part === 'tap'
-          ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
-          : SIDE_PICTURES[part];
+        : this.style.note === 'prism' && part !== 'flash'
+          ? part === 'tap'
+            ? prismSideTap(SIDE_EDGE / this.sideNoteDepth)
+            : PRISM_SIDE[part]
+          : part === 'tap'
+            ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
+            : SIDE_PICTURES[part];
       texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
       this.sideTextures.set(part, texture);
@@ -1442,7 +1477,7 @@ export class TrackRenderer {
       const depth = sheet.size[1] * w * HOLD_SIZE * pulse * this.stretch;
       h.mesh.scale.set(across, 1, depth);
       h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (0.5 - sheet.centre));
-      h.material.color.setHex(this.laneColors[lane]);
+      this.tinge(h.material, this.laneColors[lane]);
       h.material.opacity = 0.75 * dim;
     });
   }
@@ -1606,7 +1641,7 @@ export class TrackRenderer {
       blending: THREE.AdditiveBlending,
       fog: false,
     };
-    const material = source === this.hitSheet?.texture ? tintMaterial(params) : lightMaterial(params, core);
+    const material = source !== this.hitSheet?.texture ? lightMaterial(params, core) : this.hitSheet.plain ? new THREE.MeshBasicMaterial(params) : tintMaterial(params);
     const mesh = new THREE.Mesh(this.flatGeometry, material);
     mesh.renderOrder = 10;
     mesh.visible = false;
@@ -1629,7 +1664,7 @@ export class TrackRenderer {
     if (shown === this.feverShown) return;
     this.feverShown = shown;
     for (const [m, idle, lit] of this.borderMaps) m.map = shown === null ? idle : lit;
-    this.judgeGlowMaterial.color.setHex(shown ?? hex(GEAR_JUDGE.glow));
+    this.judgeGlowMaterial.color.setHex(shown ?? hex(judgeOf(this.style.deck).glow));
   }
 
   /** A frame's look in FEVER (`lit`) shown through a band along `axis` that sweepBorders moves (SWEEP_SHARE of the frame long). */
@@ -1843,7 +1878,7 @@ export class TrackRenderer {
    */
   private buildJudgementLine(): THREE.Mesh {
     const { width } = this.geometry;
-    const j = GEAR_JUDGE;
+    const j = judgeOf(this.style.deck);
     const line = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ color: hex(j.line), transparent: true, depthWrite: false }));
     // between the rails: it never runs over the gear's edges
     line.scale.set(width, 1, j.height * PX);

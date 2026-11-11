@@ -93,8 +93,8 @@ function over(fg: string, alpha: number, bg: string): string {
 /** The track's type (기본's, 설정 → 기어 → 판정·콤보 글꼴). */
 export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#7cf7ff', outline: '#0b0c10', stroke: 6 };
 
-/** What a player starts with: the flat notes, the side notes as bars, the standard gear and the flash. */
-export const DEFAULT_PARTS: SkinParts = { note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' };
+/** What a player starts with, the PRISM set: its notes of cut glass, the side notes as bars (PRISM's: sheets of frosted glass), its gear and its hit. */
+export const DEFAULT_PARTS: SkinParts = { note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' };
 
 const NEAR = '#15171f';
 const FAR = '#0d0f14';

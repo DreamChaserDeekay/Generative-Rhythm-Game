@@ -79,6 +79,8 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
  * in code (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
+  // drawn in code alone
+  prism: {},
   standard: { deck: 'standard/deck', glow: 'standard/glow', frame: 'standard/graphite', jog: 'standard/jog' },
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
   receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },

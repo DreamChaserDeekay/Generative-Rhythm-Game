@@ -604,7 +604,64 @@ function rawGlassLights(): GearLightSet {
 }
 
 /** Each gear's lights. */
+/** PRISM: the lens breathing on the beat with a ring of light round it on the strong beats, a light running out along each light-guide every bar, the smoked glass lit from inside in FEVER. */
+function prismLights(): GearLightSet {
+  const lens = { x: 1024, y: 300, r: 70 };
+  const guide = (side: -1 | 1): GearLight => ({
+    shape: 'glow',
+    x: lens.x + side * 500,
+    y: lens.y,
+    w: 150,
+    h: 60,
+    colour: 0xeaf3ff,
+    level: (c, calm) => (calm ? 0 : 0.85 * Math.sin(Math.PI * frac(c.bar)) ** 2),
+    at: (c) => [lens.x + side * (120 + 760 * frac(c.bar)), lens.y],
+    mark: side < 0 ? 'guide.l' : 'guide.r',
+    grow: [1, 1],
+  });
+  return {
+    lights: [
+      {
+        shape: 'glow',
+        x: lens.x,
+        y: lens.y,
+        w: lens.r * 2.6,
+        h: lens.r * 2.6,
+        colour: 0x9fd0ff,
+        level: (c, calm) => (calm ? 0.25 + 0.2 * swell(c.beat, 4) : 0.2 + 0.7 * fade(frac(c.beat), 3.5)),
+        mark: 'lens',
+        grow: 1.1,
+      },
+      {
+        shape: 'ring',
+        x: lens.x,
+        y: lens.y,
+        w: lens.r * 2 * RING_REACH,
+        h: lens.r * 2 * RING_REACH,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.2 : 0.9 * fade(sinceTurn(c.beat, 0, 2), 3)),
+        mark: 'lens',
+        grow: RING_REACH,
+      },
+      guide(-1),
+      guide(1),
+      {
+        shape: 'wash',
+        x: 1024,
+        y: lens.y,
+        w: 1900,
+        h: 380,
+        colour: 0x8fc4ff,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.2 : 0.1 + 0.25 * fade(frac(c.beat), 3)),
+        mark: 'slab',
+        grow: 1,
+      },
+    ],
+  };
+}
+
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
+  prism: prismLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

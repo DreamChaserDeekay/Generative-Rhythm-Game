@@ -30,13 +30,15 @@
  *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
  *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
  *   the lanes.
+ * - PRISM (프리즘): satin black anodised aluminium, a slab of smoked glass with a round lens set in it,
+ *   glass light-guides along the lanes (prismPlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+export type GearStyle = 'prism' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -150,6 +152,16 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
  * lie between them, where a note let through runs on until the gear covers it.
  */
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
+
+/**
+ * The judge line's colours on a gear: GEAR_JUDGE's red, but PRISM's own, a white core in azure light
+ * (its scratch is a ruby: a red line would hide the gem's razor as it lands; all white, it would hide
+ * the white keys' notes). Its place and size are
+ * the same on every gear.
+ */
+export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
+  return style === 'prism' ? { ...GEAR_JUDGE, line: '#3f8cff', core: '#f2f8ff', glow: '#3f8cff' } : GEAR_JUDGE;
+}
 
 /** How deep the band of a gear's deck its things lie in looks (plane px across: drawn `stretch` times longer along the track). */
 const BAND = 96;
@@ -1674,7 +1686,149 @@ function rawGlassPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
 }
 
+/** PRISM's metal (satin black anodised aluminium) and the light in its glass. */
+const ANODISED = '#14161b';
+const PRISM_LIGHT = '#eaf3ff';
+/** White light split, red to violet (the PRISM hit's colours: tintArt.ts). */
+const PRISM_SPECTRUM = ['#ff4a5e', '#ff9a3c', '#ffe45c', '#63f28a', '#4fd8ff', '#5b8cff', '#b06bff'] as const;
+
+/** The spectrum across `x0`..`x1` at `alpha`, fading out at both ends. */
+function spectrum(g: CanvasRenderingContext2D, x0: number, x1: number, alpha: number): CanvasGradient {
+  const grad = g.createLinearGradient(x0, 0, x1, 0);
+  grad.addColorStop(0, shade(PRISM_SPECTRUM[0], 1, 0));
+  PRISM_SPECTRUM.forEach((c, i) => grad.addColorStop(0.1 + (0.8 * i) / (PRISM_SPECTRUM.length - 1), shade(c, 1, alpha)));
+  grad.addColorStop(1, shade(PRISM_SPECTRUM[6], 1, 0));
+  return grad;
+}
+
+/**
+ * PRISM: a deck of satin black anodised aluminium, brushed across, its front edge under the judge
+ * line a chamfer catching the light with a glass light-guide's white line along it; set in it a slab
+ * of smoked glass with a bright edge and a slant of reflection, and in the slab's middle a round lens
+ * in a machined ring; a hairline light-guide runs out from the lens to each side, the light in it
+ * split into its colours at its ends.
+ */
+function prismPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const metal = g.createLinearGradient(0, 0, 0, s.room);
+  metal.addColorStop(0, '#1d2026');
+  metal.addColorStop(0.5, ANODISED);
+  metal.addColorStop(1, '#0b0c10');
+  g.fillStyle = metal;
+  g.fillRect(0, 0, s.width, s.depth);
+  // brushed across: fine lines, lighter or darker
+  const rand = seeded(71);
+  for (let y = 0; y < s.depth; y += 0.9 * st) {
+    g.fillStyle = rand() < 0.5 ? white(0.012 + 0.03 * rand()) : black(0.05 + 0.1 * rand());
+    g.fillRect(0, y, s.width, 0.5 * st);
+  }
+  const lip = 3.4 * st;
+  const band = bandOf(s, lip);
+  if (band) {
+    const u = band.u;
+    // the slab of smoked glass, set flush: darker than the metal, the room's light slanting across it
+    const slab: Box = { x: s.width * 0.035, y: band.y + band.h * 0.08, w: s.width * 0.93, h: band.h * 0.84 };
+    g.save();
+    rounded(g, slab, 5, st);
+    g.clip();
+    const smoke = g.createLinearGradient(0, slab.y, 0, slab.y + slab.h);
+    smoke.addColorStop(0, '#2a3340');
+    smoke.addColorStop(0.3, '#10141b');
+    smoke.addColorStop(1, '#05070a');
+    g.fillStyle = smoke;
+    g.fillRect(slab.x, slab.y, slab.w, slab.h);
+    for (const [at, wide, a] of [[0.14, 0.09, 0.07], [0.27, 0.025, 0.05], [0.71, 0.14, 0.045]] as const) {
+      polygon(g, [
+        [slab.x + slab.w * at, slab.y],
+        [slab.x + slab.w * (at + wide), slab.y],
+        [slab.x + slab.w * (at + wide) - slab.h / st, slab.y + slab.h],
+        [slab.x + slab.w * at - slab.h / st, slab.y + slab.h],
+      ]);
+      g.fillStyle = white(a);
+      g.fill();
+    }
+    g.restore();
+    // its ground edge: bright along the far and left sides, dark along the near
+    rounded(g, slab, 5, st);
+    g.lineWidth = 1.1;
+    g.strokeStyle = shade(PRISM_LIGHT, 1, 0.55);
+    g.stroke();
+    g.fillStyle = black(0.6);
+    g.fillRect(slab.x + 5, slab.y + slab.h - 0.9 * st, slab.w - 10, 0.9 * st);
+    mark(s, 'slab', slab);
+    // the light-guides out from the lens: a hairline of white light, its ends split into the spectrum
+    const r = u * 0.3;
+    const gy = band.mid;
+    const gh = Math.max(1, 0.9 * st);
+    ([[-1, 'guide.l'], [1, 'guide.r']] as const).forEach(([side, name]) => {
+      const x0 = s.width / 2 + side * r * 1.7;
+      const x1 = s.width / 2 + side * slab.w * 0.42;
+      const [from, to] = [Math.min(x0, x1), Math.max(x0, x1)];
+      g.fillStyle = black(0.55);
+      g.fillRect(from, gy - gh * 1.6, to - from, gh * 3.2);
+      g.fillStyle = shade(PRISM_LIGHT, 1, 0.8);
+      g.fillRect(from, gy - gh / 2, to - from, gh);
+      const tip = (to - from) * 0.3;
+      g.fillStyle = spectrum(g, side < 0 ? from + tip : to - tip, side < 0 ? from - tip * 0.1 : to + tip * 0.1, 0.95);
+      g.fillRect(side < 0 ? from : to - tip, gy - gh, tip, gh * 2);
+      mark(s, name, { x: from, y: gy - gh * 4, w: to - from, h: gh * 8 });
+    });
+    // the lens: a machined ring, dark glass in it, the light caught along its far rim
+    const cx = s.width / 2;
+    g.fillStyle = black(0.5);
+    disc(g, cx, gy + r * 0.12 * st, r * 1.18, st);
+    g.fill();
+    const ring = g.createLinearGradient(0, gy - r * st, 0, gy + r * st);
+    ring.addColorStop(0, '#c9d2de');
+    ring.addColorStop(0.45, '#4a505b');
+    ring.addColorStop(1, '#15171c');
+    g.fillStyle = ring;
+    disc(g, cx, gy, r * 1.12, st);
+    g.fill();
+    g.fillStyle = '#07090c';
+    disc(g, cx, gy, r * 0.88, st);
+    g.fill();
+    const glass = g.createRadialGradient(cx - r * 0.25, gy - r * 0.3 * st, 0, cx, gy, r * 0.88);
+    glass.addColorStop(0, 'rgba(120,160,220,0.5)');
+    glass.addColorStop(0.5, 'rgba(40,60,100,0.3)');
+    glass.addColorStop(1, 'rgba(8,10,14,0)');
+    g.save();
+    g.translate(0, gy);
+    g.scale(1, st);
+    g.translate(0, -gy);
+    g.fillStyle = glass;
+    g.beginPath();
+    g.arc(cx, gy, r * 0.88, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = shade(PRISM_LIGHT, 1, 0.85);
+    g.lineWidth = Math.max(0.8, r * 0.05);
+    g.beginPath();
+    g.arc(cx, gy, r * 0.74, Math.PI * 1.12, Math.PI * 1.6);
+    g.stroke();
+    g.fillStyle = white(0.9);
+    g.beginPath();
+    g.arc(cx + r * 0.3, gy + r * 0.28, r * 0.06, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    mark(s, 'lens', { x: cx - r * 1.12, y: gy - r * 1.12 * st, w: 2.24 * r, h: 2.24 * r * st });
+  }
+  // the front edge: the metal's chamfer catching the light, the light-guide's white line under it, a dark seam
+  const edge = g.createLinearGradient(0, 0, 0, lip);
+  edge.addColorStop(0, '#07080b');
+  edge.addColorStop(0.3, '#8d97a6');
+  edge.addColorStop(0.55, '#2b2f37');
+  edge.addColorStop(0.62, PRISM_LIGHT);
+  edge.addColorStop(0.82, PRISM_LIGHT);
+  edge.addColorStop(1, '#3a4250');
+  g.fillStyle = edge;
+  g.fillRect(0, 0, s.width, lip);
+  g.fillStyle = black(0.6);
+  g.fillRect(0, lip, s.width, 0.8);
+  mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
+  prism: prismPlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -2188,6 +2342,63 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       }
       g.fillStyle = shade(BRASS, lit ? 1.35 : 1.1, lit ? 1 : 0.9);
       g.fillRect(w - 3.4 * k, 0, 1.1 * k, h);
+    },
+  }),
+  // PRISM: a rail of satin black anodised aluminium, its outer edge chamfered, and along the lanes a
+  // glass light-guide: clear glass with a hairline of white light in it (in FEVER the light split
+  // into the spectrum, running down the rail, and the glass lit)
+  prism: () => ({
+    body: ANODISED,
+    width: 20,
+    tile: 128,
+    height: 22,
+    // the rail's side: the light-guide seen through its edge, bright under its top, the metal below
+    face: (g, w, h, _k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, PRISM_LIGHT);
+      side.addColorStop(0.16, lit ? '#b9d6ff' : '#7f8da3');
+      side.addColorStop(0.34, '#252a33');
+      side.addColorStop(1, '#090a0d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      if (lit) {
+        g.fillStyle = spectrum(g, 0, w, 0.5);
+        g.fillRect(0, 0, w, h * 0.3);
+      }
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = ANODISED;
+      g.fillRect(0, 0, w, h);
+      const guide = 6.5 * k;
+      const x = w - guide;
+      const metal = g.createLinearGradient(0, 0, x, 0);
+      metal.addColorStop(0, '#050608');
+      metal.addColorStop(0.1, '#7c8696');
+      metal.addColorStop(0.2, '#23262d');
+      metal.addColorStop(0.7, ANODISED);
+      metal.addColorStop(1, '#0a0b0e');
+      g.fillStyle = metal;
+      g.fillRect(0, 0, x, h);
+      // the glass: clear, darker toward the metal, a hairline of light down it
+      const glass = g.createLinearGradient(x, 0, w, 0);
+      glass.addColorStop(0, '#0d1117');
+      glass.addColorStop(0.35, lit ? '#5f7ea8' : '#39424f');
+      glass.addColorStop(1, lit ? '#b9d6ff' : '#8996a8');
+      g.fillStyle = glass;
+      g.fillRect(x, 0, guide, h);
+      if (lit) {
+        // the spectrum down the tile and back (a tile mirrors at every other: it runs on)
+        const run = g.createLinearGradient(0, 0, 0, h);
+        PRISM_SPECTRUM.forEach((c, i) => run.addColorStop(i / (PRISM_SPECTRUM.length - 1), c));
+        g.fillStyle = run;
+        g.globalAlpha = 0.55;
+        g.fillRect(x, 0, guide, h);
+        g.globalAlpha = 1;
+      }
+      g.fillStyle = lit ? '#ffffff' : PRISM_LIGHT;
+      g.fillRect(x + guide * 0.42, 0, Math.max(1, 1.1 * k), h);
+      g.fillStyle = white(lit ? 0.9 : 0.6);
+      g.fillRect(w - Math.max(1, 0.7 * k), 0, Math.max(1, 0.7 * k), h);
     },
   }),
   // rails of the same raw glass along the lanes: a dark seam outside, a broken outer face in shade,
