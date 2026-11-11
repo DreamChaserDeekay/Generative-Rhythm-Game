@@ -1,8 +1,9 @@
 name: Mapperatorinator probe
 
-# What Mapperatorinator gives besides the notes, on real songs: its own timing, hitsounds and the
-# scroll speed pass (docs/MAPPERATORINATOR.md, "카메라"). Runs it on the runner's CPU on CC BY songs
-# (design-mockups/_src/music/manifest.json) and keeps the raw .osu files and how long each run took.
+# Mapperatorinator on real songs, on the runner's CPU: CC BY songs
+# (design-mockups/_src/music/manifest.json) with ten seconds of silence after them, mapped as they
+# are and stopped at the music's end (docs/MAPPERATORINATOR.md, "곡 끝의 무음"). Keeps the raw .osu
+# files and a report: the seconds of each run and the notes each put in the silence.
 # The songs and the .osu files stay in the run's artifacts; nothing is committed.
 on:
   workflow_dispatch:
@@ -17,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [v32-mini, v32]
-        song: [fighting_stance.mp3, path_of_the_neutron.mp3, newer_wave.mp3]
+        song: [fighting_stance.mp3, newer_wave.mp3]
     name: ${{ matrix.model }} ${{ matrix.song }}
     runs-on: windows-latest
     timeout-minutes: 350
@@ -48,10 +49,10 @@ jobs:
       - name: Set the runtime up
         working-directory: server
         run: python -m rhythm_server mapper setup
-      - name: Notes only, then notes and scroll speeds
+      - name: As it is, then stopped at the music's end
         working-directory: server
         run: |
-          python -m rhythm_server mapper probe --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 7K+1S --difficulty HARD
+          python -m rhythm_server mapper probe --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 7K+1S --difficulty HARD --pad 10
           cp "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/probe/worker-${{ matrix.model }}-${SONG%.mp3}.log" 2>/dev/null || true
       - uses: actions/upload-artifact@v5
         if: always()

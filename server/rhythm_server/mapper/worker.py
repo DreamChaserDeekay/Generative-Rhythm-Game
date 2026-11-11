@@ -12,7 +12,7 @@ needs them. docs/MAPPERATORINATOR.md.
 A request: {"id", "audio" (a WAV), "out" (a folder), "beatmap" (an .osu with the song's timing
 points, or null to let the model find the timing), "model" (an inference config: v32, v32-mini),
 "keycount", "difficulty" (star rating), "seed", "holdNoteRatio", "temperature", "precision",
-"device", "title", "artist", "sv" (true: the scroll speed pass too, one more pass over the song)}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
+"device", "title", "artist", "endTime" (ms: nothing is made past it), "sv" (true: the scroll speed pass too, one more pass over the song)}. The answer: {"id", "ok", "osu" (the made .osu), "seconds", "device",
 "precision", "encoder" ("fp32" when a fp16 model's encoder ran in fp32, see encoder_fp32)} or
 {"id", "ok": false, "error"}. Mapperatorinator's own prints go to stderr (the server keeps them in
 worker.log).
@@ -222,6 +222,10 @@ class Generator:
         args.parallel = bool(req.get("parallel", False))
         if args.parallel:
             args.max_batch_size = int(req.get("batchSize") or 8)
+        # the music's end (ms) when the song ends in a silence: no window is made past it, and
+        # nothing later is kept (Mapperatorinator's own end_time)
+        if req.get("endTime") is not None:
+            args.end_time = int(req["endTime"])
         args.use_server = False
         args.export_osz = False
         args.add_to_beatmap = False

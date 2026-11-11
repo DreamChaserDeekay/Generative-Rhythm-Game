@@ -101,16 +101,19 @@ def _mapper(args: argparse.Namespace) -> None:
 
 
 def _mapper_probe(mapper, args: argparse.Namespace) -> None:
-    """Mapperatorinator's raw .osu of an audio file, with the model's own timing: once with the notes
-    only and once with the scroll speed pass too (what it costs, and what a camera could read of
-    it). Writes <out>/<name>.map.osu, <name>.sv.osu and <name>.json (the seconds of each)."""
+    """Mapperatorinator's raw .osu of an audio file with `--pad` seconds of silence after it, with
+    the model's own timing: once as it is and once stopped at the music's end (mapper/silence.py).
+    Writes <out>/<name>.map.osu, <name>.end.osu and <name>.json: the seconds of each, the silences
+    found, and how many notes each run put past the music's end and in any silence."""
     import shutil
     import tempfile
 
+    import numpy as np
     import soundfile as sf
 
     from . import audio_io
     from .mapper import charts
+    from .mapper.silence import music_end, quiet_spans
 
     src = Path(args.audio)
     out = Path(args.out)
@@ -118,22 +121,32 @@ def _mapper_probe(mapper, args: argparse.Namespace) -> None:
     cfg = mapper.config()
     level = charts.target_level(args.mode, args.difficulty, None)
     pcm = audio_io.decode_audio(src)
-    report: dict = {"audio": src.name, "seconds": round(len(pcm) / 44100, 1), "model": cfg.get("model"), "mode": args.mode,
-                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg), "runs": {}}
+    pcm = np.concatenate([pcm, np.zeros((int(44100 * args.pad), *pcm.shape[1:]), dtype=pcm.dtype)])
+    duration = len(pcm) * 1000.0 / 44100
+    quiet = quiet_spans(pcm, 44100, cfg["silence"])
+    end = music_end(quiet, duration)
+    report: dict = {"audio": src.name, "seconds": round(duration / 1000, 1), "padSeconds": args.pad, "model": cfg.get("model"), "mode": args.mode,
+                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg), "quiet": quiet, "musicEndMs": end, "runs": {}}
     try:
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "song.wav"
             sf.write(wav, pcm, 44100, subtype="PCM_16")
-            for name, sv in (("map", False), ("sv", True)):
+            for name, end_ms in (("map", None), ("end", end)):
                 made = Path(tmp) / name
                 made.mkdir()
-                request = {**charts.request_for(args.mode, level, 1, cfg, wav, made, None, {"title": src.stem}), "sv": sv}
+                request = charts.request_for(args.mode, level, 1, cfg, wav, made, None, {"title": src.stem}, end_ms)
                 t = time.time()
                 try:
                     answer = mapper.service.generate(request, 3 * 3600.0)
                     shutil.copyfile(answer["osu"], out / f"{src.stem}.{name}.osu")
-                    report["runs"][name] = {"ok": True, "seconds": round(time.time() - t, 1), "worker": answer.get("seconds"),
-                                            "device": answer.get("device"), "precision": answer.get("precision")}
+                    notes = charts.notes_from_osu(Path(answer["osu"]).read_text(encoding="utf-8-sig"), charts.columns(args.mode))
+                    kept, dropped = charts.drop_silent(notes, [*quiet, (duration, float("inf"))], float(cfg["silence"]["marginMs"]))
+                    report["runs"][name] = {
+                        "ok": True, "seconds": round(time.time() - t, 1), "worker": answer.get("seconds"), "endTime": request["endTime"],
+                        "notes": len(notes), "lastNoteMs": max(n.get("endT", n["t"]) for n in notes) if notes else None,
+                        "afterMusicEnd": sum(1 for n in notes if end is not None and n["t"] > end + float(cfg["silence"]["marginMs"])),
+                        "inSilence": dropped,
+                    }
                 except Exception as e:  # noqa: BLE001  (the other run still counts)
                     report["runs"][name] = {"ok": False, "seconds": round(time.time() - t, 1), "error": str(e)}
                 print(json.dumps({name: report["runs"][name]}, ensure_ascii=False), file=sys.stderr, flush=True)
@@ -177,6 +190,7 @@ def main(argv: list[str] | None = None) -> None:
     mapper.add_argument("action", choices=["status", "setup", "generate", "probe"])
     mapper.add_argument("--audio", help="probe: 오디오 파일")
     mapper.add_argument("--out", default="mapper-probe", help="probe: .osu를 둘 폴더")
+    mapper.add_argument("--pad", type=float, default=10.0, help="probe: 곡 뒤에 붙일 무음(초)")
     mapper.add_argument("--seconds", type=float, default=30.0, help="generate: 합성 곡의 길이(초)")
     mapper.add_argument("--mode", default="7K+1S")
     mapper.add_argument("--difficulty", default="HARD")

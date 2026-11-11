@@ -192,7 +192,7 @@
 python -m rhythm_server mapper status      # 상태
 python -m rhythm_server mapper setup       # 설치 (설정 화면의 버튼과 같음)
 python -m rhythm_server mapper generate    # 합성 곡 30초로 채보 하나
-python -m rhythm_server mapper probe --audio song.mp3 --out probe   # 원본 .osu 둘(노트만 / SV까지)과 걸린 시간
+python -m rhythm_server mapper probe --audio song.mp3 --out probe   # 끝에 무음을 붙여 원본 .osu 둘(그대로 / 곡 끝에서 멈춤)과 무음 속 노트 수
 ```
 
 ## 카메라: Mapperatorinator 결과만으로 움직일 수 있나 (2026-11-11 확인)
