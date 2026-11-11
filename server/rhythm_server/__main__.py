@@ -1,4 +1,4 @@
-"""Command line: run the server, or analyze / generate / synthesize from the terminal."""
+"""Command line: run the server, or analyze / synthesize / try Mapperatorinator from the terminal."""
 
 from __future__ import annotations
 
@@ -47,22 +47,6 @@ def _analyze(args: argparse.Namespace) -> None:
     result = _analyze_file(Path(args.file))
     print(f"분석 완료 {time.time() - t:.1f}s · BPM {result['tempo']['bpm']} · 온셋 {len(result['onsets'])}", file=sys.stderr)
     out = json.dumps(result, ensure_ascii=False)
-    Path(args.output).write_text(out, encoding="utf-8") if args.output else print(out)
-
-
-def _generate(args: argparse.Namespace) -> None:
-    from .generator import generate_chart
-
-    analysis = json.loads(Path(args.file).read_text(encoding="utf-8")) if args.file.endswith(".json") else _analyze_file(Path(args.file))
-    t = time.time()
-    chart = generate_chart(analysis, args.mode, args.difficulty, args.level, args.seed, meta={"title": Path(args.file).stem})
-    m = chart["meta"]
-    print(
-        f"{m['keyMode']} {m['difficulty']} Lv.{m['level']} (rating {m['rating']}) · 노트 {m['noteCount']} · "
-        f"평균 {m['nps']['avg']} NPS · 최대 {m['nps']['peak']} NPS · {time.time() - t:.2f}s",
-        file=sys.stderr,
-    )
-    out = json.dumps(chart, ensure_ascii=False)
     Path(args.output).write_text(out, encoding="utf-8") if args.output else print(out)
 
 
@@ -181,14 +165,6 @@ def main(argv: list[str] | None = None) -> None:
     analyze.add_argument("file")
     analyze.add_argument("-o", "--output")
 
-    generate = sub.add_parser("generate", help="오디오(또는 분석 JSON) → 채보 JSON")
-    generate.add_argument("file")
-    generate.add_argument("--mode", default="4K")
-    generate.add_argument("--difficulty", default="NORMAL")
-    generate.add_argument("--level", type=int)
-    generate.add_argument("--seed", type=int)
-    generate.add_argument("-o", "--output")
-
     synth = sub.add_parser("synth", help="테스트용 합성 곡 WAV 만들기")
     synth.add_argument("-o", "--output", default="demo.wav")
     synth.add_argument("--bpm", type=float, default=128.0)
@@ -206,7 +182,7 @@ def main(argv: list[str] | None = None) -> None:
     mapper.add_argument("--difficulty", default="HARD")
 
     args = parser.parse_args(argv)
-    {"analyze": _analyze, "generate": _generate, "synth": _synth, "selftest": _selftest, "mapper": _mapper}.get(args.command or "serve", _serve)(args)
+    {"analyze": _analyze, "synth": _synth, "selftest": _selftest, "mapper": _mapper}.get(args.command or "serve", _serve)(args)
 
 
 if __name__ == "__main__":

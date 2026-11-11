@@ -22,7 +22,7 @@ import soundfile as sf
 from .. import audio_io
 from ..analysis.stems import STEM_NAMES
 from ..config import SAMPLE_RATE, load_config
-from ..generator.core import default_seed
+from ..chart.keysounds import default_seed
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS songs (
@@ -393,6 +393,24 @@ class Library:
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     # ---------- stems ----------
+    def mapper_timing_path(self, song_id: str) -> Path:
+        return self.song_dir(song_id) / "mapper_timing.json"
+
+    def mapper_timing(self, song_id: str, model: str) -> dict[str, Any] | None:
+        """The timing Mapperatorinator found for the song with this model (its first chart's), which
+        its other charts are made on; None before that chart."""
+        try:
+            kept = json.loads(self.mapper_timing_path(song_id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return kept.get("timing") if kept.get("model") == model else None
+
+    def save_mapper_timing(self, song_id: str, model: str, timing: dict[str, Any]) -> None:
+        path = self.mapper_timing_path(song_id)
+        tmp = path.with_suffix(".part")
+        tmp.write_text(json.dumps({"model": model, "timing": timing}, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+
     def stems_info(self, song_id: str) -> dict[str, Any] | None:
         p = self.stems_dir(song_id) / "stems.json"
         if not p.exists() or not all(self.stem_path(song_id, n).exists() for n in STEM_NAMES):

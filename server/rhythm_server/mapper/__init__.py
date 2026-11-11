@@ -1,9 +1,9 @@
-"""Mapperatorinator as the chart generator (this branch; docs/MAPPERATORINATOR.md).
+"""Mapperatorinator, the chart generator (docs/MAPPERATORINATOR.md).
 
 `Mapper` is what the server uses: whether Mapperatorinator can make charts here (its runtime is set
 up), the chart id and level a request gets, and the chart itself, made by the worker process in
-Mapperatorinator's own Python and turned into one of ours (charts.py). Without an NVIDIA GPU, or
-before the runtime is set up, the server makes charts with its own generator as before.
+Mapperatorinator's own Python and turned into one of ours (charts.py). There is no other generator:
+before the runtime is set up, or when a chart fails, the request is an error to try again on.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from ..generator.core import default_seed
+from ..chart.keysounds import default_seed
 from . import charts
 from .runtime import Runtime, mapper_config
 from .service import MapperError, MapperService
@@ -50,13 +50,16 @@ class Mapper:
 
     def generate(
         self, analysis: dict[str, Any], key_mode: str, difficulty: str, target_level: int | None, seed: int | None, meta: dict[str, Any],
-        audio_path: Path,
+        audio_path: Path, song_timing: Callable[[], dict[str, Any] | None] | None = None,
     ) -> dict[str, Any]:
+        """`song_timing`: asked when the chart's turn comes, for the timing the song's first chart
+        found (None: this is the first, and the model finds it)."""
         from .. import audio_io
         import soundfile as sf
 
         cfg = self.config()
         level, seed, cid = self.plan(analysis, key_mode, difficulty, target_level, seed)
+        timing = song_timing() if song_timing is not None else None
         jobs = self.runtime.root / "jobs"
         jobs.mkdir(parents=True, exist_ok=True)
         tmp = Path(tempfile.mkdtemp(prefix="chart-", dir=jobs))
@@ -65,9 +68,9 @@ class Mapper:
             wav = tmp / "song.wav"
             sf.write(wav, pcm, sr, subtype="PCM_16")
             beatmap = None
-            if cfg.get("useAppTiming", True):
+            if timing is not None:
                 beatmap = tmp / "timing.osu"
-                text = charts.timing_osu(analysis["timing"], len(charts.columns(key_mode)), wav.name, meta.get("title", ""), meta.get("artist", ""))
+                text = charts.timing_osu(timing, len(charts.columns(key_mode)), wav.name, meta.get("title", ""), meta.get("artist", ""))
                 beatmap.write_text(text, encoding="utf-8")
             out = tmp / "out"
             out.mkdir()
@@ -75,7 +78,7 @@ class Mapper:
             answer = self.service.generate(request, float(cfg.get("timeoutSeconds", 1800)))
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
             try:
-                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level)
+                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing)
             except ValueError as e:
                 raise MapperError(str(e)) from e
         finally:

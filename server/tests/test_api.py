@@ -88,7 +88,7 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert r.status_code == 201, r.text
     song = r.json()["song"]
     assert song["status"] == "ready"  # synchronous jobs in tests
-    assert abs(song["bpm"] - 128.0) < 0.05
+    assert song["bpm"] is None  # the song's BPM is its first chart's (the model's timing)
     assert song["title"] == "groove"
 
     # same file again -> same song, not duplicated
@@ -109,6 +109,7 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     chart = r.json()["chart"]
     assert not r.json()["cached"]
     assert chart["meta"]["songId"] == song["id"] and chart["notes"]
+    assert client.get(f"/api/songs/{song['id']}").json()["song"]["bpm"] == 128.0  # the stand-in model's timing
     cached = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "7K+1S", "difficulty": "HARD"}).json()
     assert cached["cached"] and cached["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
     fresh = client.post(f"/api/songs/{song['id']}/charts", json={"keyMode": "7K+1S", "difficulty": "HARD", "newSeed": True}).json()
@@ -137,42 +138,20 @@ def test_upload_analyze_generate_and_score(client: TestClient) -> None:
     assert after_best <= records[0]["lastPlayedAt"] <= time.time()
 
 
-def test_a_tier_the_song_has_no_chart_on_is_not_found(client: TestClient, monkeypatch) -> None:
-    """The top tier of a song too calm for it (difficulty.json songFit) is a 404, worked out once."""
-    import rhythm_server.generator.workers as chart_maker  # where the server makes its charts
-    from rhythm_server.config import difficulty_config
-
-    song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
-    fit = difficulty_config()["songFit"]
-    monkeypatch.setitem(fit, "from", 99.0)
-    monkeypatch.setitem(fit, "to", 100.0)
-    made = []
-    real = chart_maker.generate_chart
-    monkeypatch.setattr(chart_maker, "generate_chart", lambda *a: made.append(a[2]) or real(*a))
-    req = {"keyMode": "7K+1S", "difficulty": "MASTER", "brief": True}
-    for _ in range(2):
-        r = client.post(f"/api/songs/{song['id']}/charts", json=req)
-        assert r.status_code == 404 and "MASTER" in r.json()["detail"]
-    assert made == ["MASTER"]
-    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "targetLevel": 18}).status_code == 200
-    assert client.post(f"/api/songs/{song['id']}/charts", json={**req, "difficulty": "EXPERT"}).status_code == 200
-
-
 def test_brief_charts_and_the_records_of_a_chart(client: TestClient) -> None:
     song = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
     req = {"keyMode": "4K", "difficulty": "NORMAL"}
-    # the song select's levels: the meta alone, of the same (cached) chart
+    # the song select's levels: a brief does not make the chart (it is made when opened); it says
+    # which chart it would be and the level its tier aims at
     brief = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
-    assert "chart" not in brief and not brief["cached"] and "notes" not in brief["meta"]
-    # made for its brief only, it is not saved (looking at songs does not fill the disk)
+    assert "chart" not in brief and not brief["cached"] and "notes" not in brief["meta"] and brief["meta"]["predicted"] is True
     assert client.get(f"/api/charts/{brief['meta']['chartId']}").status_code == 404
-    again = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
-    assert again["cached"] and again["meta"] == brief["meta"]
-    # asked for whole: not made again, saved now
-    full = client.post(f"/api/songs/{song['id']}/charts", json=req).json()
-    assert full["cached"] and full["chart"]["meta"]["chartId"] == brief["meta"]["chartId"]
+    # asked for whole: made and saved; the old generator's options are taken and ignored
+    full = client.post(f"/api/songs/{song['id']}/charts", json={**req, "params": {"style": "stream", "density": 1.2}}).json()
+    assert not full["cached"] and full["chart"]["meta"]["chartId"] == brief["meta"]["chartId"]
     assert client.get(f"/api/charts/{brief['meta']['chartId']}").status_code == 200
-    assert full["chart"]["meta"]["level"] == brief["meta"]["level"] and full["chart"]["meta"]["noteCount"] == brief["meta"]["noteCount"]
+    again = client.post(f"/api/songs/{song['id']}/charts", json={**req, "brief": True}).json()
+    assert again["cached"] and again["meta"]["noteCount"] == full["chart"]["meta"]["noteCount"] and "predicted" not in again["meta"]
     other = client.post(f"/api/songs/{song['id']}/charts", json={**req, "newSeed": True}).json()["chart"]
 
     cid = full["chart"]["meta"]["chartId"]
@@ -319,14 +298,14 @@ def test_bpm_correction_triggers_reanalysis(client: TestClient) -> None:
     r = client.patch(f"/api/songs/{song['id']}", json={"bpm": 64.0, "title": "새 제목"})
     body = r.json()
     assert body["reanalyzing"] and body["song"]["title"] == "새 제목"
-    assert abs(body["song"]["bpm"] - 64.0) < 1e-6
+    assert body["song"]["overrides"]["bpm"] == 64.0
     r = client.patch(f"/api/songs/{song['id']}", json={"clearBpm": True})
-    assert abs(r.json()["song"]["bpm"] - 128.0) < 0.05
+    assert r.json()["reanalyzing"] and "bpm" not in r.json()["song"]["overrides"]
 
 
 def test_demo_song_and_errors(client: TestClient) -> None:
     demo = client.post("/api/songs/demo", json={"bpm": 140, "bars": 16}).json()["song"]
-    assert demo["status"] == "ready" and abs(demo["bpm"] - 140) < 0.05
+    assert demo["status"] == "ready" and demo["bpm"] is None
     assert client.post("/api/songs", files={"file": ("x.txt", b"nope", "text/plain")}).status_code == 415
     assert client.post("/api/songs", files={"file": ("bad.mp3", b"not audio", "audio/mpeg")}).status_code == 422
     assert client.get("/api/songs/does-not-exist").status_code == 404
@@ -379,7 +358,7 @@ def test_an_upload_starts_its_analysis_before_its_file_is_written(tmp_path) -> N
     from rhythm_server import audio_io
     from rhythm_server.analysis.analyzer import analyze
 
-    app = create_app(tmp_path / "data", client_dist=None, chart_workers=0)
+    app = create_app(tmp_path / "data", client_dist=None)
     queue = app.state.queue
     handed: list[bool] = []
     submit = queue.submit

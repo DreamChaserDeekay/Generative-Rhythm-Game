@@ -12,7 +12,7 @@ import re
 from collections import defaultdict
 from typing import Any
 
-from ..generator.tempo import TempoMap
+from ..chart.tempo import TempoMap
 from .common import (
     FormatError,
     ParsedChart,

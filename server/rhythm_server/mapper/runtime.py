@@ -49,13 +49,11 @@ NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 # the app keeps it): name -> allowed values (a tuple of choices, or (low, high) for a number; None
 # also allowed where the second item says so)
 USER_SETTINGS: dict[str, Any] = {
-    "enabled": bool,
     "model": ("v32", "v32-mini"),
     "precision": ("auto", "fp32", "fp16"),
     "starsScale": (0.5, 2.0, False),
     "holdNoteRatio": (0.0, 1.0, True),
     "temperature": (0.3, 1.5, True),
-    "useAppTiming": bool,
     # speed: hitsound tokens (two of a note's five), the window overlap (a 16.4 s window is
     # advanced by 1 - lookback - lookahead of itself), windows made independently in batches
     "hitsounds": bool,
@@ -65,6 +63,10 @@ USER_SETTINGS: dict[str, Any] = {
 }
 # the window must advance: so much of it at least
 MIN_STRIDE = 0.1
+# settings of earlier builds: "enabled" chose between this and the old generator (there is no other
+# now), "useAppTiming" between the app's beats and the model's (always the model's now). A screen
+# that still sends them is not refused, and one that still reads them finds what holds now.
+RETIRED_SETTINGS: dict[str, Any] = {"enabled": True, "useAppTiming": False}
 
 
 def settings_path() -> Path:
@@ -75,6 +77,8 @@ def check_settings(patch: dict[str, Any]) -> dict[str, Any]:
     """The settings of `patch` that are valid (ValueError for one that is not)."""
     out: dict[str, Any] = {}
     for key, value in patch.items():
+        if key in RETIRED_SETTINGS:
+            continue
         rule = USER_SETTINGS.get(key)
         if rule is None:
             raise ValueError(f"알 수 없는 설정: {key}")
@@ -129,6 +133,7 @@ def mapper_config() -> dict[str, Any]:
     folder), and GRG_MAPPER_ALLOW_CPU=1 (set up and run on the CPU: the desktop build's smoke test)
     and GRG_MAPPER_MODEL (another inference config, e.g. v32-mini) over both."""
     cfg = {"starsScale": 1.0, **load_config("mapper"), **user_settings()}
+    cfg.pop("enabled", None)
     if os.environ.get("GRG_MAPPER_ALLOW_CPU") == "1":
         cfg.update(allowCpu=True, requireNvidia=False)
     if os.environ.get("GRG_MAPPER_MODEL"):
@@ -139,7 +144,7 @@ def mapper_config() -> dict[str, Any]:
 def public_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """The settings the settings screen shows, as they are now."""
     cfg = cfg or mapper_config()
-    return {key: cfg.get(key) for key in USER_SETTINGS}
+    return {**RETIRED_SETTINGS, **{key: cfg.get(key) for key in USER_SETTINGS}}
 
 
 def home() -> Path:
@@ -251,18 +256,16 @@ class Runtime:
         cfg = mapper_config()
         gpus = self.gpus()
         state = self.state()
-        out: dict[str, Any] = {"enabled": bool(cfg.get("enabled", True)), "model": cfg.get("model", "v32"), "gpus": gpus, "home": str(self.root)}
+        out: dict[str, Any] = {"enabled": True, "model": cfg.get("model", "v32"), "gpus": gpus, "home": str(self.root)}
         with self._lock:
             installing = self._thread is not None and self._thread.is_alive()
             progress, error = self._progress, self._error
-        if not out["enabled"]:
-            out["state"] = "disabled"
-        elif installing:
+        if installing:
             out.update(state="installing", progress=progress)
         elif state is not None:
             out.update(state="ready", runtime=state)
         elif not gpus and cfg.get("requireNvidia", True) and not cfg.get("allowCpu", False):
-            out.update(state="unsupported", reason="NVIDIA GPU가 없어 Mapperatorinator를 쓸 수 없습니다. 기존 생성기로 채보를 만듭니다.")
+            out.update(state="unsupported", reason="NVIDIA GPU가 없어 AI 채보(Mapperatorinator)를 만들 수 없습니다.")
         elif error:
             out.update(state="failed", error=error)
         else:
@@ -270,7 +273,7 @@ class Runtime:
         return out
 
     def ready(self) -> bool:
-        return bool(mapper_config().get("enabled", True)) and self.state() is not None
+        return self.state() is not None
 
     # ---------- setup ----------
     def install(self) -> bool:
