@@ -2406,6 +2406,52 @@ p.hint {
   background: #141413;
 }
 
+/* AQUA (아쿠아): aqua labels and white digits in its squared slanted type; the gauge a bar in a white
+   frame whose top is cut at a slant, filling hot pink at its foot through to aqua at its top */
+.hud[data-gear='aqua'] {
+  --hud-label-colour: #22e0e6;
+  --hud-num-font: 'Chakra Petch', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(6, 23, 26, 0.8);
+  --plate-border: 1px solid rgba(34, 224, 230, 0.5);
+  --gauge-name-colour: #f4f7fa;
+}
+
+.hud[data-gear='aqua'] .hud-num {
+  font-style: italic;
+  font-weight: 700;
+}
+
+.hud[data-gear='aqua'] .hud-label {
+  font-family: 'Chakra Petch', var(--font-display);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.hud[data-gear='aqua'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='aqua'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: -3px -22%;
+  padding: 3px 22%;
+  background:
+    linear-gradient(#071a1d, #071a1d) content-box,
+    #f4f7fa;
+  clip-path: polygon(0 0, 100% 9px, 100% 100%, 0 100%);
+}
+
+.hud[data-gear='aqua'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #ff3f93 0%, #d77fc6 34%, #7fb9ea 68%, #22e0e6 100%);
+}
+
+.hud[data-gear='aqua'] .hud-gauge.survival .hud-gauge-fill {
+  background: #f4f7fa;
+}
+
 /* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
    each word three layers of the same letters: the outlined ones; over them a white copy (::before);
    over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
@@ -2626,6 +2672,43 @@ p.hint {
 
 .hud[data-fill='claude'] .g-break .hud-fill {
   --fill: linear-gradient(180deg, #efeee9 0 34%, #b0aea5 58%, #77756d 88%);
+}
+
+/* the aqua mecha skin's: white letters in an aqua outline; COMBO aqua, widely spaced; "MAX" white; its
+   percent aqua easing to hot pink across; lower ones aqua, a periwinkle, a steel; a break hot pink */
+.hud[data-fill='aqua'] {
+  --fill: linear-gradient(180deg, #ffffff 0 58%, #c4f5f7 100%);
+}
+
+.hud[data-fill='aqua'] .hud-combo-label {
+  margin-top: 0.1em;
+  letter-spacing: 0.14em;
+  margin-right: -0.14em;
+  --fill: linear-gradient(#22e0e6, #22e0e6);
+}
+
+.hud[data-fill='aqua'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='aqua'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #22e0e6 0%, #8fb4ee 50%, #ff3f93 100%);
+}
+
+.hud[data-fill='aqua'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e2fdfe 0 30%, #5fe6ea 88%);
+}
+
+.hud[data-fill='aqua'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #eef0ff 0 30%, #97a4f2 88%);
+}
+
+.hud[data-fill='aqua'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f2f5f7 0 30%, #9fb0bd 88%);
+}
+
+.hud[data-fill='aqua'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #ffe0ec 0 30%, #ff3f93 70%, #b8296a 100%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

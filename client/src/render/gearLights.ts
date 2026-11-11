@@ -679,6 +679,39 @@ function brandLights(colour: number): () => GearLightSet {
   });
 }
 
+/**
+ * AQUA: the white collar under its keys takes an aqua light on the beat and the mark's ring glows with
+ * it, both stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function aquaLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0x7ff3f6,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.6],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 400,
+        w: 220,
+        h: 220,
+        colour: 0x9ff6f8,
+        level: (c, calm) => (calm ? 0.12 + 0.12 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.46 : 0.3) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 1.6,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
@@ -688,6 +721,7 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   gemini: brandLights(0xc4b0ff),
   grok: brandLights(0xffffff),
   claude: brandLights(0xffc4a8),
+  aqua: aquaLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

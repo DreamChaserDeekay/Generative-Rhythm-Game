@@ -175,7 +175,8 @@ describe('the sky skin’s notes', () => {
     expect(LONG_OF.sky).toBe('sky');
     // a see-through band: no walls under it (the other long notes are slabs), as wide as the default skin's, brighter while held
     expect(LONG_PAINT.sky.flat).toBe(true);
-    for (const style of LONG_STYLES.filter((l) => l !== 'sky')) expect(LONG_PAINT[style].flat, style).toBeUndefined();
+    // (and the aqua mecha skin's light rail, see-through too)
+    for (const style of LONG_STYLES.filter((l) => l !== 'sky' && l !== 'aqua')) expect(LONG_PAINT[style].flat, style).toBeUndefined();
     expect(LONG_PAINT.sky.width).toBe(LONG_PAINT.solid.width);
     expect(LONG_PAINT.sky.held).toBeDefined();
     for (const part of [LONG_PAINT.sky.body, LONG_PAINT.sky.end, LONG_PAINT.sky.held!.body, LONG_PAINT.sky.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();

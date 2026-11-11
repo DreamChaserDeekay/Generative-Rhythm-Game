@@ -88,6 +88,7 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   gemini: {},
   grok: {},
   claude: {},
+  aqua: {},
   // drawn in code alone: its key caps light with the lanes and its deck houses the HUD's readouts
   standard: {},
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },

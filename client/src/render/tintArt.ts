@@ -114,16 +114,19 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
  * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
+ * AQUA (the aqua mecha skin's, 아쿠아) is a bar as well: a plate of armour with cut corners in a white rim (its long note a light rail with chevrons).
  */
-export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+/** The skins' notes that are bars (as deep in every lane as FLAT's). */
+const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
-export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'sky' || style === 'fire' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
+export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style) || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -1037,6 +1040,47 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
+ * AQUA's plate (the aqua mecha skin's, 아쿠아): a low plate of armour, its four corners cut at 45° on the
+ * screen: a white rim round the lane's colour, which is lighter toward its far edge, and a light edge
+ * along its near side (its timing). The scratch's is told from a key's by a white chevron pointing
+ * down the track.
+ */
+function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  const c = Math.min(u(8), w * 0.1);
+  polygon(g, chamferOutline(0, 0, w, h, c));
+  g.fillStyle = ink(0, 0.95);
+  g.fill();
+  const t = Math.max(1.5, u(3.4));
+  g.save();
+  polygon(g, chamferOutline(0, 0, w, h, c, t));
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, ink(1, 0.3));
+  face.addColorStop(0.5, tone(1));
+  face.addColorStop(1, tone(0.84));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  const edge = Math.max(2, u(7));
+  g.fillStyle = ink(1, 0.72);
+  g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
+  if (mark === 'scratch') {
+    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.32);
+    g.translate(w / 2, h * 0.44);
+    g.scale(1, NOTE_STRETCH);
+    g.beginPath();
+    g.moveTo(-r * 1.5, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r * 1.5, -r * 0.5);
+    g.lineWidth = Math.max(1.5, r * 0.5);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(0, 1);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
  * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
  * its walls): a gloss over its far half, lit along its left end and shaded along its
  * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
@@ -1184,6 +1228,7 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   gemini: logoNote('gemini'),
   grok: logoNote('grok'),
   claude: logoNote('claude'),
+  aqua: aquaNote,
   flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
@@ -1199,8 +1244,8 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'aqua' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'aqua', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
@@ -1212,6 +1257,7 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   gemini: 'ray',
   grok: 'rail',
   claude: 'solid',
+  aqua: 'aqua',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -1420,6 +1466,34 @@ function fireLong(lit: boolean): Paint {
   };
 }
 
+/**
+ * AQUA's long note: a light rail in the lane's colour, a darker see-through body between two bright
+ * edges, and (`marked`: the body, not its ends) a chevron a tile down its middle, pointing at the judge
+ * line; `lit` (held), the body and the chevrons brighter. Its ends are cut straight across (LONG_PAINT).
+ */
+function aquaLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? ink(0.88, 0.06, 0.88) : ink(0.6, 0, 0.74);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 5, ink(1, lit ? 0.9 : 0.7));
+    if (!marked) return;
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.scale(1, NOTE_STRETCH);
+    const r = a(9);
+    g.beginPath();
+    g.moveTo(-r, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r, -r * 0.5);
+    g.lineWidth = a(3.4);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(1, lit ? 1 : 0.66, lit ? 1 : 0.92);
+    g.stroke();
+    g.restore();
+  };
+}
+
 /** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
 function solidLong(lit: boolean): Paint {
   return (g, w, h) => {
@@ -1485,6 +1559,17 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     tile: 1,
     endDepth: 0.2,
     width: 0.8,
+  },
+  // the aqua mecha skin's: a light rail, a chevron a tile down its middle (held: brighter), each end the
+  // rail itself cut straight across, a bright rim along the cut; see-through, so it lies flat
+  aqua: {
+    body: aquaLong(false),
+    end: squareEnd(aquaLong(false, false), ink(1, 0.9), 3),
+    held: { body: aquaLong(true), end: squareEnd(aquaLong(true, false), ink(1, 1), 3) },
+    tile: 0.9,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
   },
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
   // inside with a line of light down its middle; each end the bar itself, square, a rim along it
@@ -1924,10 +2009,10 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   prism: 'prism',
   sky: 'sky',
@@ -1936,6 +2021,7 @@ const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   gemini: 'gemini',
   grok: 'grok',
   claude: 'claude',
+  aqua: 'aqua',
   flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
@@ -1981,6 +2067,8 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
   gemini: { w: 128, h: 112, cy: 78, reach: 40 },
   grok: { w: 128, h: 96, cy: 58, reach: 44 },
   claude: { w: 192, h: 128, cy: 96, reach: 56 },
+  // the aqua mecha skin's: a hexagon lying on the line and short dashes along it
+  aqua: { w: 160, h: 80, cy: 44, reach: 40 },
   flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1991,6 +2079,23 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
 export const EFFECT_FRAMES = 16;
 
 /**
+ * The skins' hits, each drawn by a painter of its own at a progress 0..1: light in colours of their own
+ * on nothing (EffectSheet.plain). The others are the sheets' (drawEffect).
+ */
+const SKIN_HITS: Partial<Record<DrawnHit, (g: CanvasRenderingContext2D, p: number) => void>> = {
+  prism: drawSpectrum,
+  sky: drawPuff,
+  fire: drawSparks,
+  gpt: drawTyping,
+  gemini: drawSparkles,
+  grok: drawCross,
+  claude: drawRays,
+  aqua: drawLockOn,
+};
+/** The hits drawn as the sheets drew them (tint pictures). */
+type SheetHit = 'flash' | 'flare' | 'bubbles' | 'grid';
+
+/**
  * The effect `style` as a 4×4 flipbook: frame f shows it at progress f/16 (the mockups' SVG
  * drawn on a canvas; the lane colour is the material's, white is lifted toward white).
  */
@@ -1999,7 +2104,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
-  const plain = style === 'prism' || style === 'sky' || style === 'fire' || style === 'gpt' || style === 'gemini' || style === 'grok' || style === 'claude';
+  const own = SKIN_HITS[style];
+  const plain = own !== undefined;
   // PRISM's shards, SKY's feathers and FIRE's sparks have hard edges: painted twice as fine, or they show their px on a wide lane
   const fine = plain ? 2 : 1;
   const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
@@ -2010,14 +2116,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
       g.beginPath();
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
-      if (style === 'prism') drawSpectrum(g, f / EFFECT_FRAMES);
-      else if (style === 'sky') drawPuff(g, f / EFFECT_FRAMES);
-      else if (style === 'fire') drawSparks(g, f / EFFECT_FRAMES);
-      else if (style === 'gpt') drawTyping(g, f / EFFECT_FRAMES);
-      else if (style === 'gemini') drawSparkles(g, f / EFFECT_FRAMES);
-      else if (style === 'grok') drawCross(g, f / EFFECT_FRAMES);
-      else if (style === 'claude') drawRays(g, f / EFFECT_FRAMES);
-      else drawEffect(g, style, f / EFFECT_FRAMES);
+      if (own) own(g, f / EFFECT_FRAMES);
+      else drawEffect(g, style as SheetHit, f / EFFECT_FRAMES);
       g.restore();
     }
   });
@@ -2401,13 +2501,80 @@ function drawRays(g: CanvasRenderingContext2D, p: number): void {
   }
 }
 
+/**
+ * AQUA's hit at progress `p`: a lock-on marker. A hexagon of aqua light snaps open round the hit, white
+ * at first, a thinner one inside it a moment later, and four short pink dashes fly out along the line,
+ * two each way. No sparks, no smoke.
+ */
+function drawLockOn(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  const flash = Math.max(0, 1 - 2.6 * p);
+  if (flash > 0) {
+    g.save();
+    g.scale(1.7, 0.6);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
+    core.addColorStop(0, `rgba(255,255,255,${0.95 * flash})`);
+    core.addColorStop(0.4, `rgba(120,240,246,${0.6 * flash})`);
+    core.addColorStop(1, 'rgba(34,224,230,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 22 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // a hexagon with a point to the left and one to the right, as flat as the track is seen
+  const hexagon = (r: number) => {
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const [x, y] = [Math.cos(a) * r, Math.sin(a) * r * 0.62];
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.closePath();
+  };
+  g.lineJoin = 'miter';
+  hexagon((12 + 21 * out) * s);
+  g.lineWidth = (3.2 - 1.9 * p) * s;
+  g.strokeStyle = `rgba(${p < 0.2 ? '235,255,255' : '70,232,238'},${Math.min(1, fade * 1.5)})`;
+  g.stroke();
+  const later = Math.max(0, p - 0.12) / 0.88;
+  if (later > 0) {
+    hexagon((7 + 16 * (1 - (1 - later) ** 3)) * s);
+    g.lineWidth = 1.4 * s;
+    g.strokeStyle = `rgba(150,244,248,${0.6 * (1 - later)})`;
+    g.stroke();
+  }
+  // the dashes: the angle each flies at (degrees from the line, negative up the track) and how far
+  g.lineCap = 'butt';
+  for (const [deg, far] of [
+    [-22, 48],
+    [22, 40],
+    [-158, 48],
+    [158, 40],
+  ]) {
+    const a = (deg * Math.PI) / 180;
+    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.8];
+    const head = (20 + far * 0.8 * out) * s;
+    const tail = head - 14 * s * (0.4 + 0.6 * fade);
+    g.beginPath();
+    g.moveTo(dx * tail, dy * tail);
+    g.lineTo(dx * head, dy * head);
+    g.lineWidth = (3 - 1.4 * p) * s;
+    g.strokeStyle = `rgba(255,63,147,${Math.min(1, fade * 1.6)})`;
+    g.stroke();
+  }
+}
+
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
 export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number): [number, number] {
   const f = Math.floor(frame);
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude'>, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: SheetHit, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);

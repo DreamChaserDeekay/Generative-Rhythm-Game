@@ -967,6 +967,255 @@ PICTURES["skin-claude"] = (
 )
 
 
+# Skins 5 to 11: each after one of the user's reference panels (a commercial game's panel skins the user showed in chat),
+# as close to its concept as words allow. The reference pictures are not sent and are not in the repository: what was seen
+# in each is written here in words only. Every one keeps this game's layout: the SCORE in the upper middle of the deck, the
+# SPEED and the RATE at its lower left and right, and where a reference has an emblem in the middle of its panel, the emblem
+# goes in the lower middle, between the two smaller readouts.
+EMBLEM_ROW = (
+    "Layout of the deck: the SCORE readout in the upper middle (the largest); in the lower row the SPEED readout at the left, "
+    "the RATE readout at the right, and the emblem described below in the middle between them. "
+)
+
+# Skin 5 (the reference: white armour plates with chamfers round a dark teal glass, aqua stripes, hot-pink outlines and hatch
+# marks, a white ring emblem with three notches, gloss white keys with two of them aqua, a slim gauge from aqua to pink).
+PICTURES["skin-aqua"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'AQUA MECHA': the console of a clean white sci-fi machine with aqua and hot-pink accents. Palette: gloss white "
+    "armour (#f4f7fa, shaded with pale blue-grey), a dark teal-black glass (#06171a to #0d2a2e) for the panels, ONE aqua "
+    "(#22e0e6) and ONE hot pink (#ff3f93), the pink only as thin outlines and small hatch marks. A crisp flat vector look "
+    "with 45-degree chamfered silhouettes; no rust, no dirt, no rivets, no sparkles. "
+    + EMBLEM_ROW +
+    "Deck: a panel of dark teal-black glass framed by white armour plates with chamfered corners: one white plate along its "
+    "far edge under the keys, stepping down at both ends, and a white wedge plate at each side edge pointing inward. A thin "
+    "hot-pink line runs round the outside of the white plates. On the glass, at the left and at the right, a small slanted "
+    "block of four or five aqua stripes like a vent, and a few short pink hatch strokes at the two near corners. The emblem: "
+    "a thick white ring with three small arrow-shaped notches cut in it at equal spacing (like a rotation mark) round a "
+    "solid pale disc, glowing softly aqua, with two faint concentric rings on the glass round it. The readouts are written "
+    "on the dark glass with NO boxes: small aqua labels in a wide squared sans-serif, the digits white and rounded; the "
+    "SCORE sits in a shallow dark window cut into the middle of the white far plate. "
+    "Key indicators: a row of glossy key caps like a piano's keys in a white frame whose two lower corners are chamfered: "
+    "gloss white caps, the caps of the light-blue lanes gloss aqua-blue; the pressed one glows aqua-white. "
+    "Side rails: slim white strips, each with a thin aqua hairline along its inner edge and a thin pink hairline along its "
+    "outer edge, plain all the way up. "
+    "Gauge: a slim bar along the outside of the right rail in a thin white frame whose top end is cut at a slant; its fill a "
+    "smooth gradient from hot pink at the bottom to aqua at the top, lit up to the gauge's level, dark glass above. "
+    "Judgment line: a thin white line in an aqua glow with a pink hairline just under it. "
+    "Notes: low armour plates with their four corners chamfered, in their lane colours, each with a thin white rim and a "
+    "brighter near edge; the far-left lane's pink note is the same plate with a small white chevron cut in its middle. "
+    "Long note: a long band in its lane's colour like a light rail, a darker see-through body between two bright edges with "
+    "a row of small chevrons down its middle pointing to the judgment line; its two ends cut straight across (no caps); the "
+    "held one is brighter. "
+    "Hit effect: a hexagonal ring of aqua light snapping open with four short pink dashes flying out to the sides, like a "
+    "lock-on marker; short, no sparks. "
+    "Combo number and 'COMBO': a wide squared technical sans-serif with cut corners and even strokes, slightly italic, white "
+    "with a thin aqua outline; 'COMBO' small, aqua, widely letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' "
+    "white, '100%' aqua easing to hot pink. ",
+)
+
+# Skin 6 (the reference: two matte slate panels, key caps embossed with plus and cross marks, a recessed slot with a dim blue
+# glow, readouts in dark pills that begin with one coloured letter, a brushed-aluminium gauge housing with an orange bar).
+PICTURES["skin-steel"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'GUNMETAL': a piece of professional audio hardware in dark slate grey. Palette: matte gunmetal and slate blue-grey "
+    "(#1b222b to #303a46), near-black seams, brushed aluminium (#aab2bb) only for the gauge's housing, ONE dim steel-blue "
+    "glow (#2f7fc0), and two tiny status colours, a green (#4fd13a) and a blue (#3b82f6), used only for the readouts' small "
+    "labels and one LED. Matte anodised metal with soft shallow bevels, very calm and dark; no carbon fibre, no stickers, no "
+    "screws everywhere, no sparkles. "
+    "Deck: two stacked matte slate panels divided by a dark horizontal seam. The far one is plain, with a shallow recessed "
+    "slot (a wide rounded trapezoid) at the middle of its far edge that glows dim steel-blue from inside. The near one is a "
+    "shade darker, with one thin engraved rule across it, a soft steel-blue glow at its right end and three small embossed "
+    "circles in a trefoil at its lower right corner. The readouts are in dark rounded capsule windows (pills) recessed into "
+    "the panels: each holds its small label in colour ('SCORE' blue, 'SPEED' and 'RATE' green), a small dot, then white "
+    "rounded digits; the SCORE pill in the middle of the far panel under the slot, the SPEED and RATE pills in the near "
+    "panel at the left and right. "
+    "Key indicators: a row of flush matte slate key caps divided by thin dark seams, each embossed with a small mark in its "
+    "middle: a plus sign on most, a cross (x) on the light-blue lanes' caps; the pressed one's mark glows steel-blue. "
+    "Side rails: thin dark slate strips with a fine lighter edge, plain all the way up. "
+    "Gauge: along the outside of the right rail a slim brushed-aluminium housing with rounded ends holding a bar that fills "
+    "from orange (#ff9a1f) at the bottom to red-orange (#f0452a) at the top, up to the gauge's level; one tiny green LED "
+    "under it. "
+    "Judgment line: a thin pale steel-blue line in a faint blue glow. "
+    "Notes: matte anodised bars with softly bevelled edges, like aluminium key caps, in their lane colours, each with a thin "
+    "lighter top face; the far-left lane's pink note is the same bar with a small cross engraved in its middle. "
+    "Long note: a long band of brushed metal tinted in its lane's colour with two thin bright edges and a dark groove down "
+    "its middle; its two ends cut straight across (no caps); the held one's groove glows. "
+    "Hit effect: a small plus-shaped flash (four short rays at right angles) with one thin square outline opening round it, "
+    "steel-blue and white; short, no sparks. "
+    "Combo number and 'COMBO': a clean rounded geometric sans-serif like hardware panel lettering, bold, white easing to a "
+    "pale steel grey at its foot with a thin dark outline; 'COMBO' small, grey, widely letter-spaced. Judgment text "
+    "'MAX 100%': the same type, 'MAX' white, '100%' steel-blue. ",
+)
+
+# Skin 7 (the reference: a white panel of cut paper with soft grey diagonal stripes, candy-coloured rounded capsules at its
+# corners, round embossed white buttons, a navy half dome with a rainbow capsule, readouts on white rounded cards, a pink gauge).
+PICTURES["skin-rainbow"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'RAINBOW POP': white cut paper with candy capsules in rainbow colours. Palette: white and very light grey "
+    "(#ffffff, #eceef2) with soft shadows, like layers of cut paper; a deep navy (#15155c) for digits and one dome; bright "
+    "candy colours only in rounded capsules: red (#ff4b4b), yellow (#ffe23a), green (#8be04a), sky blue (#45c8f5), violet "
+    "(#a66bf5), pink (#ff7ac3). Cheerful, clean and flat; no glitter, no sparkles, no characters. "
+    + EMBLEM_ROW +
+    "Deck: a white panel with soft pale-grey diagonal rounded stripes embossed in it, and a few short diagonal capsules "
+    "(bars with fully rounded ends) in the candy colours peeking in at its corners, all slanting the same way. The emblem: "
+    "a deep-navy half dome rising from the deck's near edge with one glossy upright capsule on it filled with a rainbow "
+    "(red at the top through yellow and green to blue at the bottom). The readouts are on white rounded cards with soft "
+    "shadows: small grey labels, the digits deep navy in a bold rounded sans-serif. "
+    "Key indicators: a row of round white embossed buttons, soft raised circles, one per lane, each with a small upright "
+    "pill-shaped slot in it; the pressed one's slot lights in a candy colour. "
+    "Side rails: thin white strips with a soft grey shadow, plain all the way up. "
+    "Gauge: a slim white capsule tube along the outside of the right rail holding a glossy magenta-pink (#ff4fd8) fill up to "
+    "the gauge's level. "
+    "Judgment line: a thin white line with a thin rainbow hairline just under it. "
+    "Notes: glossy candy bars with softly rounded corners in their lane colours, each with a soft white highlight along its "
+    "top; the far-left lane's pink note is the same bar with a small white ring in its middle. "
+    "Long note: a long glossy band in its lane's colour with a lighter stripe down its middle; its two ends cut straight "
+    "across (no caps); the held one is brighter. "
+    "Hit effect: a small burst of five or six short rounded capsules in the candy colours flying outward with one thin "
+    "white ring; short, no sparks. "
+    "Combo number and 'COMBO': a very rounded bold sans-serif like bubble letters, white with a thick deep-navy outline; "
+    "'COMBO' small, its letters each in a different candy colour, widely letter-spaced. Judgment text 'MAX 100%': the same "
+    "type, 'MAX' white with the navy outline, '100%' filled with the rainbow. ",
+)
+
+# Skin 8 (the reference: flat black with large dark-red diagonal bands, glowing red dot clusters, a white rectangle over a
+# red one like a glitch, white diagonal stripes, red chevrons, thin red orbit curves, outlined LCD digits, hairline rails).
+PICTURES["skin-noir"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'REDLINE': black and red cyber graphics, like a glitch poster. Palette: pure black, a deep dark red (#3a0508 to "
+    "#5c0a10) for large flat diagonal shapes, ONE bright red (#ff1a2b) for the marks that glow, white for a few small hard "
+    "accents, mid grey for the outlined digits. A flat 2D graphic: no metal, no bevels, no texture, no gradients except a "
+    "faint red glow round the bright red marks. "
+    "Deck: a flat black panel crossed by two or three large dark-red diagonal bands. Small flat graphic marks are scattered "
+    "on it: a cluster of bright-red dots in honeycomb rows at the lower left and another at the lower right; at the left "
+    "edge and at the right edge a white rectangle overlapping a red rectangle, offset like a glitch; a block of three white "
+    "diagonal stripes at the lower left corner; a row of three red chevrons; a few tiny white pixel glyphs and a faint dot "
+    "grid; one or two thin red curved lines (arcs of a long tilted ellipse) sweeping across the deck. The readouts have NO "
+    "boxes: each a small grey label in a wide sans-serif over digits drawn as OUTLINED squared numerals in light grey, like "
+    "an unlit LCD. "
+    "Key indicators: a row of thin dark slots with slanted ends (flat elongated hexagons), one per lane, outlined in dark "
+    "grey; the pressed one filled bright red and glowing. "
+    "Side rails: hairline-thin light-grey lines with a few tiny tick marks and small square nodes, nothing else. "
+    "Gauge: along the outside of the right rail one column of small red squares with no housing, lit bright red up to the "
+    "gauge's level, the topmost lit one white, the unlit ones a very dark red. "
+    "Judgment line: a thin bright red line with a white core. "
+    "Notes: flat hard-edged rectangles in their lane colours with NO bevel, each with one corner clipped off and a thin "
+    "black line inset along its far edge; the far-left lane's pink note is the same with a small white chevron. "
+    "Long note: a flat band in its lane's colour at lower brightness between two bright edge lines with a row of tiny dots "
+    "down its middle; its two ends cut straight across (no caps); the held one is brighter. "
+    "Hit effect: a glitch: two offset rectangles, one red and one white, flashing over the hit with three small squares "
+    "scattering; very short, no ring, no sparks. "
+    "Combo number and 'COMBO': a wide squared techno display type with cut corners, white, with a bright red copy of itself "
+    "offset a little to the right behind it like a glitch; 'COMBO' small, red, widely letter-spaced. Judgment text "
+    "'MAX 100%': the same type, 'MAX' white with the red offset, '100%' bright red. ",
+)
+
+# Skin 9 (the reference: a black armour panel with crimson-pink bars, the score and the combo in black windows whose ends
+# are cut to points with silver chamfer bars, gloss white and crimson key caps, small amber side lights, a yellow gauge).
+PICTURES["skin-magenta"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'CRIMSON MECHA': the console of a black fighting robot with crimson-pink armour lines. Palette: black and dark "
+    "charcoal armour (#0d0d10, #1c1c21), ONE crimson pink (#f0145a to #ff2d78), silver-white (#e9ecef) for chamfer bars and "
+    "key caps, and a small amber (#ffb21a) only for two tiny side lights and one thin line. Hard angular silhouettes "
+    "chamfered at 45 degrees, a clean vector look with flat shading; no rust, no dirt, no sparkles. "
+    "Deck: a black armour panel. In its upper middle the SCORE sits in a wide black window whose two ends are cut to points "
+    "(an elongated hexagon), with a silver chamfer bar along its far side that steps up in the middle and a crimson bar "
+    "along its near side. In the lower row the SPEED and the RATE sit in two smaller windows of the same shape at the left "
+    "and the right, each between thin crimson bars, with a silver trapezoid plate between them at the middle of the deck's "
+    "near edge. Crimson diagonal slashes at the deck's four corners, a small magenta square light near each lower corner, "
+    "and a thin amber line along the near edge at the left and the right. Labels and digits: a bold condensed sans-serif, "
+    "white. "
+    "Key indicators: a row of glossy square key caps with slightly rounded corners in a black frame: gloss white caps, the "
+    "caps of the light-blue lanes gloss crimson, and a small amber light at each end of the row; the pressed one glows. "
+    "Side rails: slim black strips, each with a thin crimson line along its inner edge, plain all the way up. "
+    "Gauge: a slim bar along the outside of the right rail in a thin crimson frame, its fill bright yellow (#ffe81a) up to "
+    "the gauge's level, dark above. "
+    "Judgment line: a thin white line in a crimson glow. "
+    "Notes: armour plates whose two short ends are cut to points (elongated hexagons) in their lane colours, each with a "
+    "bright near edge and a thin dark line inset; the far-left lane's pink note is the same plate with a small white "
+    "chevron. "
+    "Long note: a long band in its lane's colour, a darker middle between two bright side rails; its two ends cut straight "
+    "across (no caps); the held one is brighter. "
+    "Hit effect: a crimson-white flash with four thin angular shards flying out diagonally like an X and one thin hexagon "
+    "outline opening; short, no smoke. "
+    "Combo number and 'COMBO': a tall heavy condensed sans-serif, slightly italic, white easing to pale pink at its foot, "
+    "with a thick black outline and a thin crimson line round that; 'COMBO' small, white, condensed. Judgment text "
+    "'MAX 100%': the same type, 'MAX' white, '100%' crimson pink. ",
+)
+
+# Skin 10 (the reference: white line art glowing on near-black: an open ring emblem with two dots and a small trapezoid,
+# thin tilted orbits, tiny isometric bars, dot clusters, outlined digits, bracket-shaped key marks, a glow at the near edge).
+PICTURES["skin-wire"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'WHITE LINE': monochrome white line art on near-black, like the drawing of a small machine made of light. "
+    "Palette: near-black with a slight navy tint (#06080d to #0e1220), white lines with a soft white glow, a mid blue-grey "
+    "(#6b7386) for faint secondary lines, and NO other colour in the gear. Thin luminous outlines, almost no filled shapes; "
+    "quiet and technical; no sparkles, no lens flare. "
+    + EMBLEM_ROW +
+    "Deck: a near-black panel. The emblem, in white line: an open circle (about three quarters of a ring, with a gap), and "
+    "inside it two small dots side by side with a small upright trapezoid outline under them. One or two very thin tilted "
+    "ellipses sweep across the whole deck like orbits. A few tiny white bars drawn as little 3D blocks float at the deck's "
+    "left and right edges, and a small cluster of dots in honeycomb rows sits at the lower left and at the lower right. A "
+    "soft white glow rises from the middle of the deck's near edge. The readouts have NO boxes: small faint grey labels, the "
+    "digits drawn as OUTLINED rounded numerals in white; a small white chevron beside the SPEED readout and another beside "
+    "the RATE readout, both pointing inward. "
+    "Key indicators: a row of thin white outlines shaped like shallow trays (a trapezoid open at the top), one per lane; the "
+    "pressed one filled with white light. "
+    "Side rails: hairline white lines with a faint glow and a few tiny tick marks. "
+    "Gauge: along the outside of the right rail a thin outlined white tube holding one column of small white dashes lit up "
+    "to the gauge's level, the unlit ones faint. "
+    "Judgment line: a thin pure white line in a soft white glow. "
+    "Notes: bars in their lane colours drawn as a bright outline with a dimmer see-through fill of the same colour and a "
+    "white hairline along the near edge; the far-left lane's pink note is the same with a small chevron. "
+    "Long note: two thin parallel lines in its lane's colour with a faint see-through fill between them; its two ends cut "
+    "straight across (no caps); the held one's fill is brighter. "
+    "Hit effect: a thin white ring opening with four short tick marks round it and two small dots; short, no sparks. "
+    "Combo number and 'COMBO': wide rounded numerals drawn as thin white OUTLINES only (hollow), with a soft white glow; "
+    "'COMBO' small, thin, white, widely letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' hollow, '100%' solid "
+    "white. ",
+)
+
+# Skin 11 (the reference: a deep navy night sky with a star chart, navy key caps with cut corners and a small gold star on
+# each, a white four-pointed star with pale wings and an orbit, rows of moon phases, thin white digits, blue flowers and
+# ribbons outside the gear's edges).
+PICTURES["skin-astral"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN +
+    "Skin 'STARRY NIGHT': an elegant night sky in deep navy with pale moon-blue light and small gold stars. Palette: deep "
+    "navy (#0a1230 to #17265e), a pale moon blue (#a9c8ff), white, and ONE gold (#f2c14e) used only for small star marks. "
+    "Fine line ornament like a star chart or an astrolabe: delicate, elegant, calm. No characters, no lens flare. "
+    + EMBLEM_ROW +
+    "Deck: a deep navy panel with a faint star chart drawn on it in thin pale lines: two or three large circles and a "
+    "tilted ellipse with two small ring nodes on it, and tiny four-pointed stars scattered. The emblem: a white "
+    "four-pointed star with long thin points and a pair of small pale-blue feathered wings behind it, a short row of moon "
+    "phases (tiny crescents round one full disc) above it and another below. The readouts have NO boxes: tiny pale-blue "
+    "labels in letter-spaced capitals, the digits thin, elegant and white. At the gear's two outer edges near the bottom "
+    "ONLY, a small spray of pale-blue five-petal flowers with one thin ribbon, kept small and close to the gear: the gear "
+    "does not spread sideways. "
+    "Key indicators: a row of deep-navy bevelled key caps with cut corners (elongated octagons) and a thin pale rim, each "
+    "with a small gold four-pointed star in its middle; the pressed one's star glows gold-white. "
+    "Side rails: slim pale-blue lines, each with a white hairline, plain all the way up. "
+    "Gauge: a slim deep-navy capsule along the outside of the right rail holding one column of small pale-blue diamonds lit "
+    "up to the gauge's level, the topmost lit one gold, the unlit ones dim. "
+    "Judgment line: a thin white line in a soft moon-blue glow. "
+    "Notes: smooth bars with cut corners (elongated octagons, like the key caps) in their lane colours, each with a thin "
+    "pale rim and a tiny four-pointed star in its middle; the far-left lane's pink note is the same with a small crescent. "
+    "Long note: a long ribbon of soft light in its lane's colour with a thin white line down its middle; its two ends cut "
+    "straight across (no caps); the held one is brighter. "
+    "Hit effect: a four-pointed star of white light with long thin points, one thin ring and three tiny stars drifting "
+    "away; short, no sparks. "
+    "Combo number and 'COMBO': an elegant high-contrast serif typeface, white easing to pale moon blue at its foot with a "
+    "thin navy outline; 'COMBO' small gold capitals, widely letter-spaced. Judgment text 'MAX 100%': the same serif, 'MAX' "
+    "white, '100%' gold. ",
+)
+
+
 def generate(prompt: str, ref: Path | tuple[Path, ...] | None) -> tuple[bytes, dict]:
     # the pictures sent with the prompt, in the order the prompt speaks of them (one, several or none)
     parts: list[dict] = []

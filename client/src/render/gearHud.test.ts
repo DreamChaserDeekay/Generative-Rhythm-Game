@@ -43,7 +43,9 @@ describe('the HUD a gear brings', () => {
     expect([GEAR_TYPES.gpt.fill, GEAR_TYPES.gemini.fill, GEAR_TYPES.grok.fill, GEAR_TYPES.claude.fill]).toEqual([undefined, 'gemini', undefined, 'claude']);
     expect([GEAR_TYPES.grok.max, GEAR_TYPES.grok.split]).toEqual(['#ffffff', undefined]);
     for (const font of ['Pretendard Variable', 'Outfit', 'JetBrains Mono', 'Source Serif 4'] as const) expect(HUD_FONTS[font].italic, font).toBe(false);
-    for (const gear of GEAR_STYLES.filter((g) => !['prism', 'sky', 'fire', 'gemini', 'claude'].includes(g))) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
-    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
+    // the aqua mecha skin's squared and slanted, white in an aqua outline (the fill 'aqua')
+    expect([GEAR_TYPES.aqua.font, GEAR_TYPES.aqua.fill, GEAR_TYPES.aqua.split]).toEqual(['Chakra Petch', 'aqua', true]);
+    for (const gear of GEAR_STYLES.filter((g) => !['prism', 'sky', 'fire', 'gemini', 'claude', 'aqua'].includes(g))) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
+    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', aqua: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
   });
 });

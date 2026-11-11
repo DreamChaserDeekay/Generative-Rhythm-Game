@@ -55,13 +55,19 @@
  *   brackets); CLAUDE a page of cream paper with a terracotta band (warm-grey keys, the score in an ivory
  *   card, a ball of thread drawn by hand). Their notes are the company's mark and two stickers stand at
  *   their sides: pictures that come with the build (standees.ts; gptPlate, geminiPlate, grokPlate, claudePlate);
+ * - AQUA (아쿠아): the aqua mecha skin's gear, the console of a clean white machine: a row of gloss key
+ *   caps in a white frame (the blue lanes' aqua; the held lane's glows aqua), a white collar under it and
+ *   white shoulders cut at 45° over a deck of dark teal glass, the score in a white plate with cut
+ *   corners, aqua vents beside it, and in the lower row the speed, a white ring cut by three arrows and
+ *   the rate, pink hatch marks between them; rails of white with an aqua line inside and a pink one
+ *   outside (aquaPlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks: the skins' first (기본, 크리스털, 하늘, 파이어스타터, the four AI companies'), then the objects. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -193,6 +199,8 @@ export function judgeOf(style: GearStyle): { line: string; core: string; glow: s
   if (style === 'gemini') return { ...GEAR_JUDGE, line: GEMINI_VIOLET, core: '#ffffff', glow: '#6f8ff5' };
   if (style === 'grok') return { ...GEAR_JUDGE, line: '#ffffff', core: '#ffffff', glow: '#6a6a6a' };
   if (style === 'claude') return { ...GEAR_JUDGE, line: CLAUDE_CLAY, core: '#fff6ee', glow: CLAUDE_CLAY };
+  // AQUA's: white in its aqua
+  if (style === 'aqua') return { ...GEAR_JUDGE, line: '#19c9d2', core: '#ffffff', glow: AQUA_CYAN };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -513,8 +521,15 @@ const FIRE = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4, glow: 7 } as con
 /** The depths of the AI companies' decks (GPT, GEMINI, GROK, CLAUDE): the row of keys, the seam, the step with the score, the step with the speed and the rate. As deep in all as STANDARD's. */
 const BRAND = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
 
+/**
+ * The depths of AQUA's deck: its row of gloss key caps in their white frame, the white collar under it,
+ * the step with the score's plate, the step with the speed, the emblem and the rate. As deep in all as
+ * STANDARD's.
+ */
+const AQUA = { keys: 40, seam: 5, upper: 48, lower: 44, pad: 4 } as const;
+
 /** The steps of the decks that house the readouts. */
-const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND };
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND, aqua: AQUA };
 
 /**
  * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
@@ -1609,6 +1624,11 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
     // their keys, one to a lane (gptPlate and the others): the held one in its company's flat colour
     const st = s.stretch;
     return s.lanes.map((lane, i) => ({ lane: i, box: brandCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { ...BRAND_PRESS[style](i), stretch: st } }));
+  }
+  if (style === 'aqua') {
+    // its gloss caps, one to a lane (aquaPlate): the held one full of aqua light
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: aquaCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: AQUA_CYAN }));
   }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
@@ -2782,6 +2802,219 @@ function claudePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   });
 }
 
+// ---------- AQUA (the aqua mecha skin's gear, 아쿠아) ----------
+
+/** AQUA's two accents and its armour's white. */
+const AQUA_CYAN = '#22e0e6';
+const AQUA_PINK = '#ff3f93';
+const AQUA_WHITE = '#f4f7fa';
+
+/** A lane's key cap on AQUA's strip: as wide as the lane less a gap, inside the white frame. */
+const aquaCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 1.5, y: 4 * st, w: lane.width - 3, h: (AQUA.keys - 7) * st });
+
+/** White armour down a part from `y0` to `y1`: white, a pale blue-grey toward the player. */
+function armour(g: CanvasRenderingContext2D, y0: number, y1: number): CanvasGradient {
+  const c = g.createLinearGradient(0, y0, 0, y1);
+  c.addColorStop(0, '#ffffff');
+  c.addColorStop(0.55, '#eef2f6');
+  c.addColorStop(1, '#cdd6df');
+  return c;
+}
+
+/** `b` with its four corners cut at 45° on the screen, `cut` across, moved in by `inset`. */
+const chamfered = (b: Box, cut: number, st: number, inset = 0): [number, number][] =>
+  octagon({ x: b.x + inset, y: b.y + inset * st, w: b.w - 2 * inset, h: b.h - 2 * inset * st }, [Math.max(0, cut - inset * 0.41), Math.max(0, cut - inset * 0.41) * st]);
+
+/**
+ * AQUA (아쿠아): the console of a clean white machine with aqua and hot-pink accents, as wide as the
+ * track and no wider. Under the judge line a row of gloss key caps in a white frame, one to a lane:
+ * white, the blue lanes' aqua, the scratch's with a pink line (the held lane's cap fills with aqua
+ * light: deckKeys). Under it a white collar and, at the far corners, white shoulders cut at 45°, a
+ * pink line along their edges, over a deck of dark teal glass. The score is in a white plate with cut
+ * corners round a dark window, five slanting aqua stripes at each side of it, as vents. In the lower
+ * row the speed and the rate are written on the glass over an aqua line, and between them sits the
+ * machine's mark: a white ring cut by three arrows round a pale disc, in an aqua glow; three pink
+ * hatch strokes at each side of it. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function aquaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = AQUA.keys * st;
+  const top = kh + AQUA.seam * st;
+  const H = (AQUA.upper + AQUA.lower) * st;
+  // the glass
+  g.fillStyle = '#06171a';
+  g.fillRect(0, 0, W, s.depth);
+  const glass = g.createLinearGradient(0, top, 0, top + H);
+  glass.addColorStop(0, '#0e2d32');
+  glass.addColorStop(1, '#06171a');
+  g.fillStyle = glass;
+  g.fillRect(0, top, W, Math.min(H, s.depth - top));
+  // the key row: a white frame with a pink line along its far edge, the caps in a dark slot
+  g.fillStyle = armour(g, 0, kh);
+  g.fillRect(0, 0, W, kh);
+  g.fillStyle = AQUA_PINK;
+  g.fillRect(0, 0, W, Math.max(1, 1.1 * st));
+  const [first, last] = [s.lanes[0], s.lanes[s.lanes.length - 1]];
+  if (first && last) {
+    g.fillStyle = '#0a2227';
+    g.fillRect(first.left, 2.8 * st, last.left + last.width - first.left, kh - 4.6 * st);
+  }
+  for (const lane of s.lanes) {
+    const cap = aquaCap(lane, st);
+    const blue = lane.kind === 'other';
+    rounded(g, cap, 2.5, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, blue ? '#9df3f8' : '#ffffff');
+    face.addColorStop(0.55, blue ? '#2bc9df' : '#eef2f6');
+    face.addColorStop(1, blue ? '#1290b5' : '#bfcbd6');
+    g.fillStyle = face;
+    g.fill();
+    // the gloss over its far half
+    rounded(g, { x: cap.x + cap.w * 0.07, y: cap.y + 1.4 * st, w: cap.w * 0.86, h: cap.h * 0.4 }, 2, st);
+    g.fillStyle = white(blue ? 0.3 : 0.6);
+    g.fill();
+    if (lane.kind === 'scratch') {
+      g.fillStyle = AQUA_PINK;
+      g.fillRect(cap.x + cap.w * 0.2, cap.y + cap.h - 3.6 * st, cap.w * 0.6, 1.5 * st);
+    }
+  }
+  // the collar under the row
+  g.fillStyle = armour(g, kh - 3 * st, top);
+  g.fillRect(0, kh, W, AQUA.seam * st);
+  g.fillStyle = black(0.22);
+  g.fillRect(0, kh, W, Math.max(1, 0.7 * st));
+  mark(s, 'glow', { x: 0, y: kh, w: W, h: AQUA.seam * st });
+  const c = 6;
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    // a shoulder at the far corner, stepping down toward the gear's edge
+    const shoulder: [number, number][] = [
+      [x(0), top],
+      [x(W * 0.205), top],
+      [x(W * 0.205 - c), top + c * st],
+      [x(W * 0.075), top + c * st],
+      [x(W * 0.075 - c * 1.5), top + c * 2.5 * st],
+      [x(0), top + c * 2.5 * st],
+    ];
+    polygon(g, shoulder);
+    g.fillStyle = armour(g, top - 2 * st, top + c * 2.5 * st);
+    g.fill();
+    g.beginPath();
+    shoulder.slice(1).forEach(([px, py], i) => (i === 0 ? g.moveTo(px, py) : g.lineTo(px, py)));
+    g.lineWidth = 1.4;
+    g.lineJoin = 'miter';
+    g.strokeStyle = AQUA_PINK;
+    g.stroke();
+    // the vent: five aqua stripes slanting, fainter toward the deck's middle
+    const mid = top + AQUA.upper * 0.66 * st;
+    const tall = 13 * st;
+    for (let i = 0; i < 5; i++) {
+      const x0 = W * 0.062 + i * W * 0.027;
+      polygon(g, [
+        [x(x0 + 7), mid - tall / 2],
+        [x(x0 + 7 + W * 0.015), mid - tall / 2],
+        [x(x0 + W * 0.015), mid + tall / 2],
+        [x(x0), mid + tall / 2],
+      ]);
+      g.fillStyle = shade(AQUA_CYAN, 1, 0.95 - i * 0.12);
+      g.fill();
+    }
+  }
+  // the score's plate: white armour with cut corners in a pink line, a dark window in it
+  const windows = deckReadouts('aqua', s);
+  const score: Box = windows?.score ?? { x: W * 0.24, y: top + AQUA.pad * st, w: W * 0.52, h: (AQUA.upper - 2 * AQUA.pad) * st };
+  polygon(g, chamfered(score, 7, st));
+  g.fillStyle = armour(g, score.y, score.y + score.h);
+  g.fill();
+  g.lineWidth = 1.4;
+  g.strokeStyle = AQUA_PINK;
+  g.stroke();
+  polygon(g, chamfered(score, 7, st, 2.8));
+  const pane = g.createLinearGradient(0, score.y, 0, score.y + score.h);
+  pane.addColorStop(0, '#0b262b');
+  pane.addColorStop(1, '#051416');
+  g.fillStyle = pane;
+  g.fill();
+  g.fillStyle = shade(AQUA_CYAN, 1, 0.75);
+  g.fillRect(score.x + score.w * 0.32, score.y + score.h - 5.2 * st, score.w * 0.36, Math.max(1, 0.9 * st));
+  if (!windows) return;
+  const low = windows.speed.y + windows.speed.h / 2;
+  const v = windows.speed.h / st;
+  // the speed and the rate: written on the glass, an aqua line under each, longer toward the gear's edge
+  for (const [b, side] of [
+    [windows.speed, 0],
+    [windows.rate, 1],
+  ] as const) {
+    polygon(g, chamfered(b, 5, st));
+    g.fillStyle = shade(AQUA_CYAN, 1, 0.07);
+    g.fill();
+    g.fillStyle = shade(AQUA_CYAN, 1, 0.9);
+    g.fillRect(side === 0 ? b.x : b.x + b.w * 0.3, b.y + b.h - 1.3 * st, b.w * 0.7, 1.3 * st);
+  }
+  // the machine's mark: a white ring cut by three arrows round a pale disc, in an aqua glow
+  const R = Math.min(v * 0.48, W * 0.06);
+  mark(s, 'emblem', { x: W / 2 - R, y: low - R * st, w: 2 * R, h: 2 * R * st });
+  flatAt(g, W / 2, low, st, () => {
+    const halo = g.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 1.9);
+    halo.addColorStop(0, shade(AQUA_CYAN, 1, 0.36));
+    halo.addColorStop(1, shade(AQUA_CYAN, 1, 0));
+    g.fillStyle = halo;
+    g.beginPath();
+    g.arc(0, 0, R * 1.9, 0, Math.PI * 2);
+    g.fill();
+    for (const r of [1.4, 1.76]) {
+      g.beginPath();
+      g.arc(0, 0, R * r, 0, Math.PI * 2);
+      g.lineWidth = 1;
+      g.strokeStyle = shade(AQUA_CYAN, 1, 0.18);
+      g.stroke();
+    }
+    for (let i = 0; i < 3; i++) {
+      // an arc of the ring, an arrow's point at its end
+      const from = -Math.PI / 2 + (i * 2 * Math.PI) / 3 + 0.16;
+      const to = from + (2 * Math.PI) / 3 - 0.62;
+      g.beginPath();
+      g.arc(0, 0, R * 0.82, from, to);
+      g.lineWidth = R * 0.3;
+      g.lineCap = 'butt';
+      g.strokeStyle = AQUA_WHITE;
+      g.stroke();
+      const [ca, sa] = [Math.cos(to), Math.sin(to)];
+      polygon(g, [
+        [ca * R * 0.56, sa * R * 0.56],
+        [ca * R * 1.08, sa * R * 1.08],
+        [ca * R * 0.82 - sa * R * 0.3, sa * R * 0.82 + ca * R * 0.3],
+      ]);
+      g.fillStyle = AQUA_WHITE;
+      g.fill();
+    }
+    const core = g.createRadialGradient(0, -R * 0.1, 0, 0, 0, R * 0.44);
+    core.addColorStop(0, '#ffffff');
+    core.addColorStop(1, '#b9f4f7');
+    g.beginPath();
+    g.arc(0, 0, R * 0.44, 0, Math.PI * 2);
+    g.fillStyle = core;
+    g.fill();
+  });
+  // three pink hatch strokes at each side of the mark
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    const tall = 9 * st;
+    for (let i = 0; i < 3; i++) {
+      const x0 = W * 0.285 + i * W * 0.016;
+      polygon(g, [
+        [x(x0 + 5), low - tall / 2],
+        [x(x0 + 5 + W * 0.007), low - tall / 2],
+        [x(x0 + W * 0.007), low + tall / 2],
+        [x(x0), low + tall / 2],
+      ]);
+      g.fillStyle = AQUA_PINK;
+      g.fill();
+    }
+  }
+}
+
 // ---------- SKY (the sky skin's gear, 하늘) ----------
 
 /** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
@@ -3230,6 +3463,7 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   gemini: geminiPlate,
   grok: grokPlate,
   claude: claudePlate,
+  aqua: aquaPlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -3986,6 +4220,33 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = lit ? '#ffb89c' : CLAUDE_CLAY;
       g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
       g.fillStyle = black(0.45);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // AQUA: a strip of white armour, a pink line along its outer edge and an aqua one along the lanes (both lighter in FEVER)
+  aqua: () => ({
+    body: AQUA_WHITE,
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.6, '#c3ced8');
+      side.addColorStop(1, '#4d5d68');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#b6fdff' : AQUA_CYAN;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = AQUA_WHITE;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ff9cc8' : AQUA_PINK;
+      g.fillRect(1.2 * k, 0, 1.3 * k, h);
+      g.fillStyle = lit ? '#b6fdff' : AQUA_CYAN;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+      g.fillStyle = black(0.5);
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),

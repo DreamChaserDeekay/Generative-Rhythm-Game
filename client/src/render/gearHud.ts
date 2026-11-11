@@ -25,6 +25,8 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
  * GPT: a clean heavy sans in plain white, "MAX" white and its percent its green; GEMINI: a rounded geometric sans filled
  * blue through violet to pink across, "MAX" white (HudType.fill); GROK: heavy monospaced digits, all white in black;
  * CLAUDE: a bold old-style serif, cream easing to terracotta at its foot, "MAX" cream (HudType.fill);
+ * AQUA (아쿠아): a squared technical italic, white in an aqua outline, "MAX" white and its percent aqua easing
+ * to hot pink across (HudType.fill);
  * STANDARD: white condensed digits, "MAX" in white and its percent in the gear's cyan;
  * CABINET: red seven-segment digits, the judgement in heavy slanted letters, white outlined in red;
  * RECEIVER: amber seven-segment digits (a vacuum-fluorescent readout's), the judgement in a fine
@@ -43,6 +45,7 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
   gemini: { font: 'Outfit', size: 42, combo: 62, tracking: 0.01, max: '#8ab4f8', outline: '#131314', stroke: 5, split: true, comboColor: '#ffffff', fill: 'gemini' },
   grok: { font: 'JetBrains Mono', size: 37, combo: 56, tracking: 0, max: '#ffffff', outline: '#000000', stroke: 5, comboColor: '#ffffff' },
   claude: { font: 'Source Serif 4', size: 42, combo: 62, tracking: 0.01, max: '#f08a63', outline: '#141413', stroke: 5, split: true, comboColor: '#fff6ee', fill: 'claude' },
+  aqua: { font: 'Chakra Petch', size: 42, combo: 60, tracking: 0.02, max: '#22e0e6', outline: '#0a7f8a', stroke: 5, split: true, comboColor: '#ffffff', fill: 'aqua' },
   standard: { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#37e2ff', outline: '#0b0c10', stroke: 6, split: true },
   cabinet: { font: 'Exo 2', size: 44, combo: 58, tracking: 0.02, max: '#ffffff', outline: '#c8141c', stroke: 7, comboFont: 'DSEG7 Classic', comboColor: '#ff2a2a', comboOutline: '#140405' },
   receiver: { font: 'Barlow Condensed', size: 42, combo: 54, tracking: 0.1, max: '#fff1dc', outline: '#140d06', stroke: 5, comboFont: 'DSEG7 Classic', comboColor: '#ffb547' },
@@ -63,6 +66,7 @@ export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   gemini: 'FEVER',
   grok: 'FEVER',
   claude: 'FEVER',
+  aqua: 'FEVER',
   standard: 'FEVER',
   cabinet: 'GROOVE',
   receiver: 'SIGNAL',

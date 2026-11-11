@@ -106,6 +106,13 @@ test('the help names the picked gear only, and the default of a row whose value 
     await expect(picked).toContainText(`하단 양옆에는 ${words.split(' ')[0]} 콘 둘`);
     await expect(help).not.toContainText('그래파이트');
   }
+  // the gears of the skins after the reference panels
+  for (const [id, words] of [['aqua', '아쿠아 흰 테 안의 유광 키캡(파란 레인은 청록, 누르면 청록빛)']] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(gear).toHaveAttribute('data-value', id);
+    await expect(picked).toContainText(words);
+    await expect(help).not.toContainText('그래파이트');
+  }
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'cabinet');
   await expect(picked).toHaveText('오락실 기체 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구');

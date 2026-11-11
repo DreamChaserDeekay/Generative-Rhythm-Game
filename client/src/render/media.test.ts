@@ -60,7 +60,7 @@ describe('game media', () => {
 
   it('has the flipbooks of every hit effect a player picks', () => {
     // the skins' (PRISM's spectrum, SKY's puff of cloud, the default skin's FLASH) are drawn in code alone (tintArt.ts)
-    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flash'];
+    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'flash'];
     for (const hit of HIT_STYLES.filter((h) => drawn.includes(h))) expect(styleTextures({ ...BASE_SKIN.style, hit })).toEqual({});
     for (const hit of HIT_STYLES.filter((h) => !drawn.includes(h))) {
       const ids = Object.entries(styleTextures({ ...BASE_SKIN.style, hit }));

@@ -11,11 +11,12 @@
 | 하늘 (레퍼런스 2) | 기어 "하늘" · 노트 "하늘" · 타격 효과 "구름 깃털" | 구현 (시안 `r2-skin-sky-c3.jpg`) |
 | 파이어스타터 (스킨 3, 사용자 지정 컨셉) | 기어 "파이어스타터" · 노트 "파이어스타터" · 타격 효과 "불똥" | 구현 (시안 `r2-skin-fire-b.jpg`). 기어 양옆에 멤버들의 일러스트가 섬 |
 | GPT · Gemini · Grok · Claude (스킨 4, 사용자 지정: AI 회사 네 곳) | 각각 같은 이름의 기어 · 노트 · 타격 효과(입력 중 점 / 반짝임 / 펜 엑스 / 손 빛살) | 구현 (시안 `r2-skin-gpt2.jpg`, `-gemini`, `-grok`, `-claude`). 노트는 회사 로고 모양, 기어 하단 양옆에 그 회사의 콘 둘 |
-| 5~11 | | 시안 전 |
+| 아쿠아 (레퍼런스 5: 청록·분홍 메카) | 기어 "아쿠아" · 노트 "아쿠아" · 타격 효과 "록온" | 구현 (시안 `r2-skin-aqua.jpg`) |
+| 6~11 | | 시안 있음(`r2-skin-steel.jpg`, `-rainbow`, `-noir`, `-magenta`, `-wire`, `-astral`), 구현 전 |
 
 ## 스킨 고르기
 
-설정 → 기어의 첫 줄 "스킨"(기본 / 크리스털 / 하늘 / 파이어스타터 / GPT / Gemini / Grok / Claude)이 기어·노트·타격 효과를 함께 바꾸고 판정·콤보 글꼴을 "기어"로 돌려 놓습니다. 사이드 노트는 스킨에 들지 않으므로 고른 그대로 둡니다. 그 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 줄이 "직접 고름"으로 읽히고, 거기서 좌우로 한 번 움직이면 다시 스킨이 됩니다("직접 고름" 자체는 고르는 값이 아닙니다).
+설정 → 기어의 첫 줄 "스킨"(기본 / 크리스털 / 하늘 / 파이어스타터 / GPT / Gemini / Grok / Claude / 아쿠아)이 기어·노트·타격 효과를 함께 바꾸고 판정·콤보 글꼴을 "기어"로 돌려 놓습니다. 사이드 노트는 스킨에 들지 않으므로 고른 그대로 둡니다. 그 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 줄이 "직접 고름"으로 읽히고, 거기서 좌우로 한 번 움직이면 다시 스킨이 됩니다("직접 고름" 자체는 고르는 값이 아닙니다).
 
 스킨은 따로 저장하는 값이 아니라 부품의 묶음입니다. 저장되는 것은 지금까지와 같은 부품 넷과 글꼴 출처이고, 줄은 그 값에서 스킨을 읽어 냅니다(`render/skins.ts`의 `SKIN_PARTS`, `skinOf`, `withSkin`). 그래서 예전 설정도 그대로 읽히고, 새 스킨은 `SKIN_IDS`·`SKIN_PARTS`와 이름(`ui/optionRows.tsx`의 `SKIN_NAMES`)에 한 줄씩 더하면 됩니다. 노트와 타격 효과 목록의 순서도 스킨 순서(기본, 크리스털, 하늘, 그 밖)로 맞췄습니다. 설정 화면(`ui/SettingsScreen.tsx`, `ui/optionRows.tsx`)은 세션 1 담당 파일이지만 사용자 지시로 고쳤습니다.
 
@@ -137,6 +138,26 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 콘은 사용자가 채팅으로 준 8장입니다. 올려다보는 콘 넷은 네모 틀에 잘린 머리카락과 팔을 사용자의 지시로 Gemini에 보내 이어 그리고 배경(초록)을 뺐습니다(인터넷에서 원본은 찾지 못했습니다. 남의 그림을 이미지 모델에 보내지 않는다는 지침의, 이 콘에 한한 예외: `design-mockups/gear-concepts/PROVENANCE.md`). Claude의 것은 팔 모양 때문에 두 번 다시 그렸습니다. 로고는 공개 아이콘 꾸러미(npm `@lobehub/icons-static-svg`)에서 받아 흰 실루엣으로 바꿨습니다.
 
 코드: `render/standees.ts`(`STAGES`, `isNotePicture`, `keptFor`, `readNotePicture`, `standeeBoxes`의 `'stickers'`, `stickerCanvas`, `stickerShape`), `TrackRenderer.ts`(`loadNoteMark`, `dropNotePictures`, 스티커는 트랙 다음에 그리는 층), `tintArt.ts`(`LOGO_NOTES`, `setNoteEmblem`, `emblemBox`, `logoNote`, `drawTyping`, `drawSparkles`, `drawCross`, `drawRays`), `deckArt.ts`(`BRAND_GEARS`, `gptPlate`, `geminiPlate`, `grokPlate`, `claudePlate`, `BRAND_PRESS`, `deckKeys`의 `press`, `deckReadouts`, `judgeOf`, 레일), `gearLights.ts`(`brandLights`), `gearHud.ts`·`skins.ts`(글꼴, 스킨), `styles.css`(`.hud[data-gear='gpt']` 등, `.hud[data-fill='gemini']`, `'claude'`).
+
+## '아쿠아' 스킨 (레퍼런스 5)
+
+사용자가 보여 준 참고 패널 5(청록·분홍 메카)와 최대한 비슷한 컨셉입니다. 참고 그림은 저장소에 없고 이미지 모델에도 보내지 않았습니다: 본 것을 말로 적어 시안(`design-mockups/gear-concepts/r2-skin-aqua.jpg`)을 만들고 코드로 그렸습니다. 스크린샷: `docs/screenshots/63-aqua-7k.png`. 코드 안의 이름은 `aqua`.
+
+참고 패널에서 본 것: 유광 흰 건반 줄(두 칸은 청록)을 두른 흰 테, 그 아래 어두운 청록 유리판을 모서리를 45°로 깎은 흰 장갑판이 감쌈, 분홍 가는 테두리와 빗금, 양옆의 청록 빗금 블록, 가운데의 흰 고리 문장(화살표 셋으로 끊김), 아래 양쪽의 청록 라벨과 흰 숫자, 오른쪽의 청록→분홍 게이지.
+
+| 부분 | 내용 |
+|---|---|
+| 기어 | 폭은 트랙 폭 그대로. 판정선 아래 흰 테 안에 유광 키캡 한 줄(흰 건반은 흰색, 파란 건반은 청록, 스크래치는 분홍 줄 하나; 누르면 청록빛으로 참). 그 아래 흰 띠와 양 끝의 흰 어깨판(45° 모따기, 가장자리에 분홍 선), 받침은 어두운 청록 유리 |
+| 수치 | 윗단 가운데 SCORE는 모서리를 깎은 흰 판 안의 어두운 창(분홍 테), 양옆에 청록 빗금 다섯 줄(통풍구). 아랫단 양끝 SPEED · RATE는 상자 없이 유리 위에 쓰고 청록 밑줄, 그 사이 가운데에 문장: 화살표 셋으로 끊긴 흰 고리와 옅은 원판, 청록 빛. 문장 양옆에 분홍 빗금 셋. (참고 패널은 문장이 가운데이고 수치가 양옆이지만, 이 게임은 SCORE가 윗단 가운데라 문장을 아랫단 가운데로 옮겼습니다) |
+| 레일 · 판정선 | 흰 띠에 바깥쪽 분홍 줄, 레인 쪽 청록 줄 · 흰 선에 청록 빛 |
+| 노트 | 네 모서리를 깎은 장갑판: 흰 테 안에 레인 색, 앞변이 가장 밝음. 스크래치는 흰 갈매기표 하나. 막대 계열(깊이는 기본 노트와 같음) |
+| 롱노트 | 비치는 레일: 어두운 몸통, 밝은 두 변, 가운데에 판정선 쪽을 가리키는 갈매기표가 줄지어 있음. 끝은 수평으로 반듯하게. 누르는 동안 몸통과 갈매기표가 밝아짐 |
+| 타격 효과 | 록온: 청록 육각 고리가 판정선에 누워 열리고(처음은 흰빛), 안쪽에 가는 고리 하나, 분홍 짧은 선 넷이 판정선을 따라 좌우로 |
+| 글자 | 모서리가 각진 기울어진 글자(Chakra Petch Bold Italic), 흰색에 청록 외곽선. COMBO는 청록. MAX는 흰색, 퍼센트는 청록에서 분홍으로(가로), 낮을수록 청록·연보라·강철빛, 놓치면 분홍 |
+| 게이지 | 위 끝을 비스듬히 자른 흰 테 안의 막대: 아래는 분홍, 위로 갈수록 청록. 이름 FEVER |
+| 조명 | 키캡 아래 흰 띠와 문장이 박자마다 청록으로 빛남(FEVER에서 더 세게, 번쩍임 줄이기에서는 느린 숨) |
+
+코드: `render/deckArt.ts`(`aquaPlate`, `AQUA`, `aquaCap`, `GEAR_FRAMES.aqua`, `judgeOf`), `render/tintArt.ts`(`aquaNote`, `aquaLong`, `drawLockOn`, 스킨의 타격 효과를 한 표에 모은 `SKIN_HITS`), `render/gearHud.ts`(`GEAR_TYPES.aqua`), `render/gearLights.ts`(`aquaLights`), `styles.css`(`.hud[data-gear='aqua']`, `.hud[data-fill='aqua']`).
 
 ## '기본' 스킨
 
