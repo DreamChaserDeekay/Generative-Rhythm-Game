@@ -172,5 +172,73 @@
    "thoughtsTokenCount": 1680
   },
   "made": "2026-11-11"
+ },
+ "r2-screen": {
+  "concept": "PRISM",
+  "kind": "screen",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game. Redraw it as polished concept art in the same layout and camera, 16:9. KEEP exactly as they are: the lane layout, the falling glass bar notes, the blue judgment line and the position of every element. REDESIGN with far more character, all in one consistent crystal theme: (1) the control deck below the judgment line: now a rich sculpted crystal console, a large faceted gem set in a machined ring at the centre with light inside it, cut-crystal wings spreading to both sides with facet planes, inlaid hairline light-guides, small hexagonal gem studs, rainbow dispersion along the cut edges, engraved fine ornament; (2) the side rails: bevelled crystal rails with facets and a line of light, crystal end caps where they meet the deck; (3) the combo number and the word COMBO in the middle of the track: custom display lettering that looks cut from crystal, faceted bevelled glyphs with a bright edge and a thin spectral fringe; (4) the judgment text 'MAX 100%': the same crystal lettering family, sharper and smaller, with a small gem-cut underline; (5) the HUD around the track (song title plate top-left, SCORE / RATE / MAX COMBO / SPEED on the left, the gauge with its name and CLEAR mark on the right, the time): each set in a small chamfered glass plate with a hairline frame and a facet highlight, typography matching the crystal lettering, the gauge a column of cut crystal segments. Keep the texts the same words and numbers as in the screenshot, spelled correctly. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/44-prism-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1579,
+   "candidatesTokenCount": 1802,
+   "totalTokenCount": 4314,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 459
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 122
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 933
+  },
+  "made": "2026-11-11"
+ },
+ "r2-deck": {
+  "concept": "PRISM",
+  "kind": "deck",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A design sheet on a near-black background, 16:9: three different designs, stacked one above the other with generous spacing, of the 'gear bottom' of a PC rhythm game, the wide control deck that sits below the judgment line of a seven-lane note highway, each drawn as a wide trapezoid strip seen in perspective from above (wider at the bottom), with the ends of the two side rails joining it. Each must be unmistakably crystal, rich and sculpted, not a flat plate. Design A 'GEODE': a black anodised shell split open to show a bed of clear crystal points inside, lit from below, one large hexagonal gem in the centre. Design B 'CHANDELIER': a symmetrical console of cut-crystal wings with long facet planes fanning out from a central brilliant-cut gem in a machined ring, hairline light-guides, rainbow dispersion on the edges. Design C 'OPTICAL BENCH': a precision instrument, a row of triangular glass prisms and lenses on a black rail splitting a white beam into a spectrum that runs across the deck, engraved fine tick ornament. No text. Theme PRISM: cut crystal and light. Everything is made of faceted clear crystal, bevelled optical glass and satin black anodised aluminium, lit from inside by white light that splits into thin rainbow dispersion at cut edges; colours are ice white, cobalt and azure blue with small spectral accents. One consistent visual language across the gear, the lettering and the panels: 45-degree chamfered corners, facet lines, hairline light-guides, a hexagonal gem motif.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 353,
+   "candidatesTokenCount": 1742,
+   "totalTokenCount": 3549,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 353
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 62
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1454
+  },
+  "made": "2026-11-11"
  }
 }
