@@ -50,6 +50,24 @@
   font-display: block;
 }
 
+/* the gunmetal skin's: a rounded sans, heavy, as a hardware panel's lettering */
+@font-face {
+  font-family: 'M PLUS Rounded 1c';
+  src: url('./assets/fonts/MPLUSRounded1c-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: block;
+}
+
+/* the rainbow pop skin's: rounded bubble letters */
+@font-face {
+  font-family: 'Fredoka';
+  src: url('./assets/fonts/Fredoka-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 /* the AI companies' skins': a rounded geometric sans (Gemini), a monospace (Grok), an old-style serif (Claude); GPT's is the app's own sans */
 @font-face {
   font-family: 'Outfit';
@@ -2452,6 +2470,308 @@ p.hint {
   background: #f4f7fa;
 }
 
+/* STEEL (스틸): white digits in a rounded sans in dark capsules, the score's label blue and the others'
+   green; the gauge an orange bar, redder up it, in a brushed-aluminium housing */
+.hud[data-gear='steel'] {
+  --hud-label-colour: #4fd13a;
+  --hud-num-font: 'M PLUS Rounded 1c', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(18, 23, 29, 0.84);
+  --plate-border: 1px solid rgba(125, 139, 155, 0.5);
+  --gauge-name-colour: #d5dae0;
+}
+
+.hud[data-gear='steel'] .hud-num {
+  font-weight: 800;
+}
+
+.hud[data-gear='steel'] .hud-label {
+  font-family: 'M PLUS Rounded 1c', var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud[data-gear='steel'] .hud-score-label {
+  color: #5aa2ff;
+}
+
+.hud[data-gear='steel'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='steel'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -36%;
+  padding: var(--cell) 36%;
+  border-radius: 999px;
+  background:
+    linear-gradient(#10151b, #10151b) content-box,
+    linear-gradient(90deg, #6e7680 0%, #d5dae0 38%, #aab2bb 62%, #6e7680 100%);
+}
+
+.hud[data-gear='steel'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #ff9a1f 0%, #f77a25 55%, #f0452a 100%);
+}
+
+.hud[data-gear='steel'] .hud-gauge.survival .hud-gauge-fill {
+  background: #d5dae0;
+}
+
+/* RAINBOW (무지개): rounded bubble digits, deep navy on the deck's white cards and white beside the track;
+   the gauge a white tube filled glossy pink */
+.hud[data-gear='rainbow'] {
+  --hud-label-colour: #c9cce0;
+  --hud-num-font: 'Fredoka', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(21, 21, 92, 0.82);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.5);
+  --gauge-name-colour: #ffffff;
+}
+
+.hud[data-gear='rainbow'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='rainbow'] .hud-label {
+  font-family: 'Fredoka', var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.hud[data-gear='rainbow'] .on-deck .hud-label {
+  color: #8a8fa6;
+}
+
+.hud[data-gear='rainbow'] .on-deck .hud-num {
+  color: #15155c;
+}
+
+.hud[data-gear='rainbow'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='rainbow'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    linear-gradient(#e9ebf1, #e9ebf1) content-box,
+    #ffffff;
+  box-shadow: 0 0 0 1px rgba(21, 21, 92, 0.3);
+}
+
+.hud[data-gear='rainbow'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(90deg, #ff9be8 0%, #ff4fd8 42%, #de2cba 100%);
+}
+
+.hud[data-gear='rainbow'] .hud-gauge.survival .hud-gauge-fill {
+  background: #15155c;
+}
+
+/* NOIR (레드라인): light grey digits in a squared display type, the score's drawn as outlines on the deck; small grey
+   labels; the gauge one column of small red squares with no housing */
+.hud[data-gear='noir'] {
+  --hud-label-colour: #8a8f98;
+  --hud-num-font: 'Orbitron', var(--font-display);
+  --hud-num-colour: #e6e8ec;
+  --plate-bg: rgba(0, 0, 0, 0.8);
+  --plate-border: 1px solid rgba(255, 26, 43, 0.6);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='2' y='3' width='16' height='12'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='2' y='3' width='16' height='12' fill='%23ff1a2b' fill-opacity='0.2'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='noir'] .hud-num {
+  font-weight: 800;
+}
+
+.hud[data-gear='noir'] .on-deck .hud-score {
+  color: transparent;
+  -webkit-text-stroke: 1px #c9ccd2;
+}
+
+.hud[data-gear='noir'] .hud-label {
+  font-family: 'Orbitron', var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.hud[data-gear='noir'] .hud-gauge {
+  background: var(--dash-off) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='noir'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='noir'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #ff1a2b;
+}
+
+.hud[data-gear='noir'] .hud-gauge.survival .hud-gauge-fill {
+  background: #ffffff;
+}
+
+/* MAGENTA (크림슨): white digits and labels in its tall slanted type on black windows; the gauge a bright
+   yellow bar in a thin crimson frame */
+.hud[data-gear='magenta'] {
+  --hud-label-colour: #f4f6f9;
+  --hud-num-font: 'Barlow Condensed Italic', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(13, 13, 16, 0.84);
+  --plate-border: 1px solid rgba(240, 20, 90, 0.7);
+  --gauge-name-colour: #ffffff;
+}
+
+.hud[data-gear='magenta'] .hud-num {
+  font-style: italic;
+  font-weight: 800;
+}
+
+.hud[data-gear='magenta'] .hud-label {
+  font-family: 'Barlow Condensed Italic', var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud[data-gear='magenta'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='magenta'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: -3px -24%;
+  padding: 3px 24%;
+  background:
+    linear-gradient(#121214, #121214) content-box,
+    #f0145a;
+}
+
+.hud[data-gear='magenta'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #ffd21a 0%, #ffe81a 60%, #fff59a 100%);
+}
+
+.hud[data-gear='magenta'] .hud-gauge.survival .hud-gauge-fill {
+  background: #ffffff;
+}
+
+/* WIRE (화이트 라인): white digits in a rounded sans, the score's drawn as outlines on the deck; faint grey
+   labels, widely spaced; the gauge a thin white tube of small white dashes */
+.hud[data-gear='wire'] {
+  --hud-label-colour: #8b93a6;
+  --hud-num-font: 'Outfit', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(6, 8, 13, 0.82);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.7);
+  --gauge-name-colour: #ffffff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='3' y='6' width='14' height='6' rx='3'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='3' y='6' width='14' height='6' rx='3' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='wire'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='wire'] .on-deck .hud-score {
+  color: transparent;
+  -webkit-text-stroke: 1px #ffffff;
+}
+
+.hud[data-gear='wire'] .hud-label {
+  font-family: 'Outfit', var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.hud[data-gear='wire'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='wire'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -34%;
+  padding: var(--cell) 34%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    rgba(6, 8, 13, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.hud[data-gear='wire'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='wire'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: #ffffff;
+}
+
+.hud[data-gear='wire'] .hud-gauge.survival .hud-gauge-fill {
+  background: #a9b4cc;
+}
+
+/* ASTRAL (별밤): white roman capitals and digits under moon-blue labels; the gauge a deep navy capsule of
+   small diamonds, moon blue to the clear line and gold over it */
+.hud[data-gear='astral'] {
+  --hud-label-colour: #a9c8ff;
+  --hud-num-font: 'Cinzel', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(10, 18, 48, 0.84);
+  --plate-border: 1px solid rgba(169, 200, 255, 0.55);
+  --gauge-name-colour: #eaf1ff;
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cpath d='M10 2 L17 9 L10 16 L3 9 Z'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cpath d='M10 2 L17 9 L10 16 L3 9 Z' fill='%23a9c8ff' fill-opacity='0.18'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='astral'] .hud-num {
+  font-weight: 700;
+}
+
+.hud[data-gear='astral'] .hud-label {
+  font-family: 'Cinzel', var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.hud[data-gear='astral'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='astral'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -33%;
+  padding: var(--cell) 33%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #0a1230;
+  box-shadow: 0 0 0 1px rgba(169, 200, 255, 0.5);
+}
+
+.hud[data-gear='astral'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='astral'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background:
+    linear-gradient(#f2c14e, #f2c14e) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    linear-gradient(#a9c8ff, #a9c8ff) bottom / 100% var(--clear-at) no-repeat;
+}
+
+.hud[data-gear='astral'] .hud-gauge.survival .hud-gauge-fill {
+  background: #ffffff;
+}
+
 /* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
    each word three layers of the same letters: the outlined ones; over them a white copy (::before);
    over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
@@ -2709,6 +3029,251 @@ p.hint {
 
 .hud[data-fill='aqua'] .g-break .hud-fill {
   --fill: linear-gradient(180deg, #ffe0ec 0 30%, #ff3f93 70%, #b8296a 100%);
+}
+
+/* the gunmetal skin's: white easing to a pale steel at the letters' feet; COMBO grey, widely spaced; "MAX"
+   white; its percent steel blue; lower ones a green, an amber, a slate; a break a dull red */
+.hud[data-fill='steel'] {
+  --fill: linear-gradient(180deg, #ffffff 0 46%, #b9c4d0 100%);
+}
+
+.hud[data-fill='steel'] .hud-combo-label {
+  margin-top: 0.12em;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  --fill: linear-gradient(#9aa6b3, #9aa6b3);
+}
+
+.hud[data-fill='steel'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='steel'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #b4dafc 0 30%, #58aaf0 70%, #2f7fc0 100%);
+}
+
+.hud[data-fill='steel'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #dcf9d5 0 30%, #4fd13a 90%);
+}
+
+.hud[data-fill='steel'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #ffeccb 0 30%, #ff9a1f 90%);
+}
+
+.hud[data-fill='steel'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e6ebf0 0 30%, #8493a3 90%);
+}
+
+.hud[data-fill='steel'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #f8d8d2 0 30%, #f0452a 72%, #a32a18 100%);
+}
+
+/* the rainbow pop skin's: white letters in a thick navy outline; COMBO a candy colour a letter; "MAX"
+   white; its percent a rainbow across; lower ones sky blue, violet, grey; a break red */
+.hud[data-fill='rainbow'] {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='rainbow'] .hud-combo-label {
+  margin-top: 0.1em;
+  letter-spacing: 0.16em;
+  margin-right: -0.16em;
+  --fill: linear-gradient(90deg, #ff4b4b 0 23%, #ffe23a 23% 41%, #8be04a 41% 62%, #45c8f5 62% 80%, #a66bf5 80%);
+}
+
+.hud[data-fill='rainbow'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='rainbow'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(90deg, #ff4b4b 8%, #ffe23a 30%, #8be04a 50%, #45c8f5 70%, #a66bf5 92%);
+}
+
+.hud[data-fill='rainbow'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e2f6ff 0 30%, #45c8f5 90%);
+}
+
+.hud[data-fill='rainbow'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f1e7ff 0 30%, #a66bf5 90%);
+}
+
+.hud[data-fill='rainbow'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f2f3f7 0 30%, #a3a7b8 90%);
+}
+
+.hud[data-fill='rainbow'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #ffdede 0 30%, #ff4b4b 90%);
+}
+
+/* the black and red skin's: white letters, a red copy of them a little to the right behind, as a glitch;
+   COMBO red, widely spaced; "MAX" white; its percent red with the copy white; lower ones silver, rose,
+   grey; a break a dark grey */
+.hud[data-fill='noir'] {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='noir'] .hud-fill {
+  text-shadow: 0.07em 0 0 #ff1a2b;
+}
+
+.hud[data-fill='noir'] .hud-combo-label {
+  margin-top: 0.16em;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em;
+  --fill: linear-gradient(#ff1a2b, #ff1a2b);
+}
+
+.hud[data-fill='noir'] .hud-combo-label .hud-fill,
+.hud[data-fill='noir'] .hud-combo-label.hud-fill {
+  text-shadow: none;
+}
+
+.hud[data-fill='noir'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='noir'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#ff1a2b, #ff1a2b);
+  text-shadow: 0.07em 0 0 #ffffff;
+}
+
+.hud[data-fill='noir'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #ffffff 0 40%, #c9ccd2 100%);
+}
+
+.hud[data-fill='noir'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#ff8a93, #ff8a93);
+}
+
+.hud[data-fill='noir'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#8a8f98, #8a8f98);
+}
+
+.hud[data-fill='noir'] .g-break .hud-fill {
+  --fill: linear-gradient(#5d6169, #5d6169);
+  text-shadow: none;
+}
+
+/* the crimson mecha skin's: white easing to a pale pink at the letters' feet, a crimson edge under their
+   black outline; COMBO white; "MAX" white; its percent crimson; lower ones amber, silver, a dull rose; a
+   break grey */
+.hud[data-fill='magenta'] {
+  --fill: linear-gradient(180deg, #ffffff 0 46%, #ffc4d9 100%);
+}
+
+.hud[data-fill='magenta'] .hud-fill {
+  text-shadow: 0 0.07em 0 #f0145a;
+}
+
+.hud[data-fill='magenta'] .hud-combo-label {
+  margin-top: 0.08em;
+  font-size: calc(var(--label-size) * 1.3);
+  letter-spacing: 0.05em;
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='magenta'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='magenta'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #ffd3e2 0 26%, #ff2d78 62%, #c70f49 100%);
+}
+
+.hud[data-fill='magenta'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff2cf 0 30%, #ffb21a 90%);
+}
+
+.hud[data-fill='magenta'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f6f8fa 0 30%, #b4bcc7 90%);
+}
+
+.hud[data-fill='magenta'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e6d3da 0 30%, #a07f8c 90%);
+}
+
+.hud[data-fill='magenta'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #c2c6cd 0 30%, #5f646d 90%);
+  text-shadow: none;
+}
+
+/* the white line skin's: letters drawn as white outlines, the track's dark inside them; COMBO small and
+   white, widely spaced; "MAX" hollow; its percent solid white; lower ones a pale grey, a blue-grey, a
+   slate; a break hollow */
+.hud[data-fill='wire'] {
+  --fill: linear-gradient(#070a12, #070a12);
+}
+
+.hud[data-fill='wire'] .hud-fill::before {
+  color: #070a12;
+}
+
+.hud[data-fill='wire'] .hud-combo-label {
+  margin-top: 0.18em;
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='wire'] .hud-fill.hud-split {
+  --fill: linear-gradient(#070a12, #070a12);
+}
+
+.hud[data-fill='wire'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='wire'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#dfe6f5, #dfe6f5);
+}
+
+.hud[data-fill='wire'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#a9b4cc, #a9b4cc);
+}
+
+.hud[data-fill='wire'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(#6b7386, #6b7386);
+}
+
+.hud[data-fill='wire'] .g-break .hud-fill {
+  --fill: linear-gradient(#070a12, #070a12);
+}
+
+/* the starry night skin's: white easing to moon blue at the letters' feet; COMBO gold, widely spaced;
+   "MAX" white; its percent gold; lower ones moon blue, a lavender, a slate blue; a break a dusk grey */
+.hud[data-fill='astral'] {
+  --fill: linear-gradient(180deg, #ffffff 0 40%, #a9c8ff 100%);
+}
+
+.hud[data-fill='astral'] .hud-combo-label {
+  margin-top: 0.14em;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  --fill: linear-gradient(#f2c14e, #f2c14e);
+}
+
+.hud[data-fill='astral'] .hud-fill.hud-split {
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='astral'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff4d2 0 30%, #f2c14e 70%, #c9962a 100%);
+}
+
+.hud[data-fill='astral'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #edf3ff 0 30%, #a9c8ff 90%);
+}
+
+.hud[data-fill='astral'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #ebe2ff 0 30%, #9d8be0 90%);
+}
+
+.hud[data-fill='astral'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #d8deee 0 30%, #7f8bb0 90%);
+}
+
+.hud[data-fill='astral'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #c5cada 0 30%, #5b6482 90%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

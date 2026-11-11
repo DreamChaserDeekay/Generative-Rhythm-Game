@@ -470,11 +470,11 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 26; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['aqua', 'carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['aqua', 'astral', 'carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'magenta', 'noir', 'pearl', 'prism', 'rainbow', 'round', 'sky', 'star4', 'star5', 'steel', 'wire']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -644,7 +644,7 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
     await expect.poll(async () => (await stored()).parts).toEqual({ note: id, side: 'dots', deck: id, hit: id });
   }
   // the skins after the reference panels the user showed, each its own gear, notes and hit under one name
-  for (const [id, name, hit] of [['aqua', '아쿠아', '록온']] as const) {
+  for (const [id, name, hit] of [['aqua', '아쿠아', '록온'], ['steel', '스틸', '십자 섬광'], ['rainbow', '무지개', '색종이'], ['noir', '레드라인', '글리치'], ['magenta', '크림슨', '파편 섬광'], ['wire', '화이트 라인', '선 고리'], ['astral', '별밤', '별빛']] as const) {
     await page.keyboard.press('ArrowRight');
     await expect(skin).toHaveAttribute('data-value', id);
     await expect(skin).toContainText(name);

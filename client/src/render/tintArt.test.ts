@@ -115,6 +115,31 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
     return { g, calls };
   };
 
+  it('the notes of the skins after the reference panels are bars, each with a long note cut straight across and a mark on the scratch’s', () => {
+    const LONGS = { aqua: 'aqua', steel: 'steel', rainbow: 'rainbow', noir: 'noir', magenta: 'magenta', wire: 'wire', astral: 'sky' } as const;
+    for (const style of ['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'] as const) {
+      expect(isBarNote(style), style).toBe(true);
+      expect(isLogoNote(style), style).toBe(false);
+      expect(noteDepthOf(style, 0.7, 0.84, 1.54), style).toBe(0.7);
+      expect(laneDepthOf(style, 0.7, 1.6, 0.7), style).toBe(0.7);
+      expect(LONG_OF[style], style).toBe(LONGS[style]);
+      const long = LONG_PAINT[LONG_OF[style]];
+      // no cap at its ends: each end is a thin slice of the body with a rim along the cut
+      expect(long.endDepth, style).toBeLessThanOrEqual(0.2);
+      expect(long.held, style).toBeDefined();
+      for (const part of [long.body, long.end, long.held!.body, long.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
+      // the scratch's note is told from a key's by something drawn on it
+      const [key, scratch] = [recorder(), recorder()];
+      NOTE_PAINT[style](key.g, 96, 40, 'white');
+      NOTE_PAINT[style](scratch.g, 96, 40, 'scratch');
+      expect(key.calls.length, style).toBeGreaterThan(8);
+      expect(scratch.calls, style).not.toEqual(key.calls);
+      for (const mark of ['blue', 'gold', 'side'] as const) expect(() => NOTE_PAINT[style](recorder().g, 96, 40, mark)).not.toThrow();
+    }
+    // the see-through ones lie flat, with no walls under them
+    expect(['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire'].filter((l) => LONG_PAINT[l as 'aqua'].flat)).toEqual(['aqua', 'noir', 'wire']);
+  });
+
   it('are shapes and no bars, as deep as keeps the mark’s shape, each with a long note of a family', () => {
     expect([...LOGO_NOTES]).toEqual(['gpt', 'gemini', 'grok', 'claude']);
     for (const style of LOGO_NOTES) {
@@ -176,7 +201,7 @@ describe('the sky skin’s notes', () => {
     // a see-through band: no walls under it (the other long notes are slabs), as wide as the default skin's, brighter while held
     expect(LONG_PAINT.sky.flat).toBe(true);
     // (and the aqua mecha skin's light rail, see-through too)
-    for (const style of LONG_STYLES.filter((l) => l !== 'sky' && l !== 'aqua')) expect(LONG_PAINT[style].flat, style).toBeUndefined();
+    for (const style of LONG_STYLES.filter((l) => l !== 'sky' && l !== 'aqua' && l !== 'noir' && l !== 'wire')) expect(LONG_PAINT[style].flat, style).toBeUndefined();
     expect(LONG_PAINT.sky.width).toBe(LONG_PAINT.solid.width);
     expect(LONG_PAINT.sky.held).toBeDefined();
     for (const part of [LONG_PAINT.sky.body, LONG_PAINT.sky.end, LONG_PAINT.sky.held!.body, LONG_PAINT.sky.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();

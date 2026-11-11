@@ -41,15 +41,15 @@ describe('the track', () => {
 
   it('offers the note families with their long notes, the gears and the hits, the piano note no longer', () => {
     // the skins' notes first (the plain bar a player starts with, then the crystal skin's cut glass and the sky skin's soft bar), the bar in six finishes, then the shapes
-    expect(NOTE_STYLES).toEqual(['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
+    expect(NOTE_STYLES).toEqual(['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
     for (const note of NOTE_STYLES) expect(LONG_OF[note]).toBeDefined();
-    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
+    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
     // the piano set's hit stays
     expect(HIT_STYLES).toContain('piano');
   });
 
   it('picks a skin’s gear, notes and hit together, whatever the side notes, and reads the skin back from the parts', () => {
-    expect(SKIN_IDS).toEqual(['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua']);
+    expect(SKIN_IDS).toEqual(['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral']);
     // the default skin is what a player starts with; the crystal skin's parts are saved as 'prism', the sky skin's as 'sky'
     expect({ ...SKIN_PARTS.default, side: 'bar' }).toEqual(DEFAULT_PARTS);
     expect(SKIN_PARTS.crystal).toEqual({ note: 'prism', deck: 'prism', hit: 'prism' });
@@ -58,7 +58,7 @@ describe('the track', () => {
     // the four AI companies' skins: each its own gear, notes (the company's mark) and hit, under the company's name
     for (const id of ['gpt', 'gemini', 'grok', 'claude'] as const) expect(SKIN_PARTS[id]).toEqual({ note: id, deck: id, hit: id });
     // the skins after the user's reference panels: each its own gear, notes and hit under one name
-    for (const id of ['aqua'] as const) expect(SKIN_PARTS[id]).toEqual({ note: id, deck: id, hit: id });
+    for (const id of ['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'] as const) expect(SKIN_PARTS[id]).toEqual({ note: id, deck: id, hit: id });
     for (const id of SKIN_IDS) {
       // every part a skin names is one a player can pick
       expect(NOTE_STYLES).toContain(SKIN_PARTS[id].note);

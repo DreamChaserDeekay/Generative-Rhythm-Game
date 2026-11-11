@@ -128,7 +128,7 @@ describe('the decks of the gears a player picks', () => {
   });
 
   /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
-  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua'];
+  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'];
 
   it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, STANDARD’s and CRYSTAL’s key caps and SKY’s dashes)', () => {
     for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) {
@@ -323,6 +323,61 @@ describe('the decks of the gears a player picks', () => {
     const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
     paintDeck('sky', callRecorder().g, short);
     expect(short.marks.map((m) => m.name)).toEqual(['sky']);
+  });
+
+  it('the gears of the skins after the reference panels house the readouts where STANDARD does, with a key or a mark to a lane and marks for their lights', () => {
+    // what each marks for its lights, in the order its plate draws them
+    const MARKS: Record<string, string[]> = {
+      aqua: ['glow', 'emblem'],
+      steel: ['glow', 'side'],
+      rainbow: ['glow', 'emblem'],
+      noir: ['glow', 'dots'],
+      magenta: ['glow', 'lampL', 'lampR'],
+      wire: ['rise', 'glow', 'emblem'],
+      astral: ['glow', 'emblem'],
+    };
+    for (const gear of ['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'] as const) {
+      for (const [room, stretch, mode] of [
+        [155.55, 1.2, '7K+1S'],
+        [912, 3.25, '4K'],
+        [912, 3.25, '6K+FX'],
+      ] as [number, number, KeyModeId][]) {
+        const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+        const r = deckReadouts(gear, s)!;
+        // the score in the middle of the deck, the speed and the rate at its two ends, mirrored, all inside the gear
+        const std = deckReadouts('standard', s)!;
+        expect([r.score.x, r.score.w, r.speed.x, r.speed.w, r.rate.x, r.rate.w], gear).toEqual([std.score.x, std.score.w, std.speed.x, std.speed.w, std.rate.x, std.rate.w]);
+        expect(r.speed.x).toBeGreaterThan(0);
+        expect(r.rate.x + r.rate.w).toBeLessThan(s.width);
+        expect(r.score.y + r.score.h).toBeLessThanOrEqual(r.speed.y);
+        paintDeck(gear, callRecorder().g, s);
+        expect(s.marks.map((m) => m.name), gear).toEqual(MARKS[gear]);
+        for (const m of s.marks) {
+          expect(m.x, `${gear}.${m.name}`).toBeGreaterThanOrEqual(0);
+          expect(m.x + m.w, `${gear}.${m.name}`).toBeLessThanOrEqual(s.width + 1e-6);
+        }
+        // a key to a lane, inside its lane, over the readouts
+        const keys = deckKeys(gear, s, false);
+        expect(keys.map((k) => k.lane), gear).toEqual(s.lanes.map((_, lane) => lane));
+        keys.forEach((k, i) => {
+          expect(k.box.x, gear).toBeGreaterThanOrEqual(s.lanes[i].left);
+          expect(k.box.x + k.box.w, gear).toBeLessThanOrEqual(s.lanes[i].left + s.lanes[i].width);
+          expect(k.box.w, gear).toBeGreaterThan(0);
+          expect(k.box.y + k.box.h, gear).toBeLessThan(r.score.y);
+          expect(k.lit ?? k.press?.fill, gear).toMatch(/^#[0-9a-f]{6}$/);
+          expect(() => paintLitKey(callRecorder().g, 64, 64, k)).not.toThrow();
+        });
+      }
+      // a preview too small for the readouts: the plate is drawn without them
+      expect(deckReadouts(gear, spec(96, 1.1)), gear).toBeNull();
+      expect(() => paintDeck(gear, callRecorder().g, spec(96, 1.1))).not.toThrow();
+      // a judge line of its own, white at its core
+      expect(judgeOf(gear).core, gear).toBe('#ffffff');
+    }
+    // the rainbow skin's buttons light in six candy colours, lane after lane; the others in one
+    expect(deckKeys('rainbow', spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!.fill).slice(0, 7)).toEqual(['#ff4b4b', '#ffe23a', '#8be04a', '#45c8f5', '#a66bf5', '#ff7ac3', '#ff4b4b']);
+    expect(new Set(deckKeys('noir', spec(155.55, 1.2, '7K+1S'), false).map((k) => k.press!.fill))).toEqual(new Set(['#ff1a2b']));
+    expect(new Set(deckKeys('aqua', spec(155.55, 1.2, '7K+1S'), false).map((k) => k.lit))).toEqual(new Set(['#22e0e6']));
   });
 
   it('the four AI companies’ gears house the readouts as FIRE does, each key held in its company’s flat colour, and mark what lights under their keys', () => {

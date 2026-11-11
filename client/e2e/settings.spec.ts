@@ -107,7 +107,7 @@ test('the help names the picked gear only, and the default of a row whose value 
     await expect(help).not.toContainText('그래파이트');
   }
   // the gears of the skins after the reference panels
-  for (const [id, words] of [['aqua', '아쿠아 흰 테 안의 유광 키캡(파란 레인은 청록, 누르면 청록빛)']] as const) {
+  for (const [id, words] of [['aqua', '아쿠아 흰 테 안의 유광 키캡(파란 레인은 청록, 누르면 청록빛)'], ['steel', '스틸 더하기·엑스가 찍힌 무광 슬레이트 키캡(누르면 강철빛 파랑)'], ['rainbow', '무지개 둥근 흰 버튼(누르면 사탕색으로 켜짐)'], ['noir', '레드라인 가는 육각 칸(누르면 빨갛게 참)'], ['magenta', '크림슨 유광 키캡(흰 건반은 흰색, 파란 건반은 진분홍; 누르면 분홍빛)'], ['wire', '화이트 라인 흰 선으로 그린 쟁반 모양 칸(누르면 흰빛으로 참)'], ['astral', '별밤 금색 네 갈래 별이 박힌 모따기 남색 키캡(누르면 금빛)']] as const) {
     await page.keyboard.press('ArrowRight');
     await expect(gear).toHaveAttribute('data-value', id);
     await expect(picked).toContainText(words);

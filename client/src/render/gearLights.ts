@@ -712,6 +712,217 @@ function aquaLights(): GearLightSet {
   };
 }
 
+/**
+ * STEEL: the slot under its keys glows blue from inside on the beat, stronger in FEVER, when the light at
+ * the near panel's right end comes up too; a slow breath under 번쩍임 줄이기.
+ */
+function steelLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 540,
+        h: 40,
+        colour: 0x58aaf0,
+        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.55 : 0.36) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glow',
+        x: 1880,
+        y: 420,
+        w: 300,
+        h: 200,
+        colour: 0x2f7fc0,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.14 : 0.08 + 0.2 * fade(frac(c.beat), 3)),
+        mark: 'side',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * RAINBOW: the line under its buttons takes a pink light on the beat and the dome's capsule glows with it,
+ * both stronger in FEVER; a slow breath under 번쩍임 줄이기. Soft: the deck is white.
+ */
+function rainbowLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff7ac3,
+        level: (c, calm) => (calm ? 0.08 + 0.08 * swell(c.beat, 4) : 0.04 + (c.fever ? 0.34 : 0.22) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 420,
+        w: 260,
+        h: 200,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.36 : 0.24) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 1.2,
+      },
+    ],
+  };
+}
+
+/**
+ * NOIR: the red hairline under its slots flares on the beat, and in FEVER the cluster of dots at its far
+ * left glows with it; a slow breath under 번쩍임 줄이기.
+ */
+function noirLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff3a48,
+        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.56 : 0.38) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.5],
+      },
+      {
+        shape: 'glow',
+        x: 200,
+        y: 260,
+        w: 340,
+        h: 200,
+        colour: 0xff1a2b,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.16 : 0.08 + 0.3 * fade(frac(c.beat), 3)),
+        mark: 'dots',
+        grow: 1.2,
+      },
+    ],
+  };
+}
+
+/**
+ * MAGENTA: the crimson line under its keys flares on the beat and its two magenta lamps light in turn, a
+ * beat each (both together in FEVER); a slow breath under 번쩍임 줄이기.
+ */
+function magentaLights(): GearLightSet {
+  const lamp = (i: number): GearLight => ({
+    shape: 'glow',
+    x: i === 0 ? 614 : 1434,
+    y: 420,
+    w: 120,
+    h: 120,
+    colour: 0xff2fd0,
+    level: (c, calm) => (calm ? 0.2 * softTurn(c.beat, i, 2) : c.fever ? 0.1 + 0.6 * fade(frac(c.beat), 3) : 0.7 * fade(sinceTurn(c.beat, i, 2), 2.4)),
+    mark: i === 0 ? 'lampL' : 'lampR',
+    grow: 3.2,
+  });
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff4d86,
+        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.54 : 0.36) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.5],
+      },
+      lamp(0),
+      lamp(1),
+    ],
+  };
+}
+
+/**
+ * WIRE: the hairline under its trays brightens on the beat and the mark's ring glows with it; in FEVER the
+ * light rising from the deck's near edge comes up too; a slow breath under 번쩍임 줄이기.
+ */
+function wireLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 400,
+        w: 220,
+        h: 220,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.4 : 0.26) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 1.6,
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 440,
+        w: 1200,
+        h: 200,
+        colour: 0xdfe8ff,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.14 : 0.08 + 0.2 * fade(frac(c.beat), 3)),
+        mark: 'rise',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * ASTRAL: the star between its readouts shines on the beat and the hairline under its keys takes a gold
+ * light with it, both stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function astralLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xf6d98a,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.3) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glint',
+        x: 1024,
+        y: 400,
+        w: 260,
+        h: 260,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.14 + 0.14 * swell(c.beat, 4) : 0.08 + (c.fever ? 0.6 : 0.4) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 2.2,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
@@ -722,6 +933,12 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   grok: brandLights(0xffffff),
   claude: brandLights(0xffc4a8),
   aqua: aquaLights,
+  steel: steelLights,
+  rainbow: rainbowLights,
+  noir: noirLights,
+  magenta: magentaLights,
+  wire: wireLights,
+  astral: astralLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

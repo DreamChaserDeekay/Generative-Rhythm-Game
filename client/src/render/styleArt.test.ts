@@ -203,13 +203,13 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
     // the skins' (PRISM's, SKY's and FLASH, the default skin's) are drawn in code alone
     expect(isArtHit('prism')).toBe(false);
     expect(isArtHit('sky')).toBe(false);
     expect(isArtHit('fire')).toBe(false);
     expect(isArtHit('flash')).toBe(false);
-    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'flash'];
+    const drawn: readonly string[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flash'];
     for (const hit of drawn) expect(isArtHit(hit), hit).toBe(false);
     for (const hit of HIT_STYLES.filter((h) => !drawn.includes(h))) {
       expect(isArtHit(hit), hit).toBe(true);
@@ -348,6 +348,12 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   grok: {},
   claude: {},
   aqua: {},
+  steel: {},
+  rainbow: {},
+  noir: {},
+  magenta: {},
+  wire: {},
+  astral: {},
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
@@ -374,6 +380,12 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   grok: {},
   claude: {},
   aqua: {},
+  steel: {},
+  rainbow: {},
+  noir: {},
+  magenta: {},
+  wire: {},
+  astral: {},
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */
@@ -458,7 +470,7 @@ describe('the sky gear, drawn in code over a painting, a feather’s picture on 
 });
 
 // STANDARD and PRISM have no pictures: they are drawn in code alone (SKY's two have their own tests above)
-describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'standard'].includes(gear)).map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
+describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'standard'].includes(gear)).map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);

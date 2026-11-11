@@ -61,13 +61,44 @@
  *   corners, aqua vents beside it, and in the lower row the speed, a white ring cut by three arrows and
  *   the rate, pink hatch marks between them; rails of white with an aqua line inside and a pink one
  *   outside (aquaPlate);
+ * - STEEL (스틸): the gunmetal skin's gear, studio hardware in dark slate: a row of flush matte key caps
+ *   embossed with a plus or a cross (the held lane's lights steel blue), a slot glowing blue under them,
+ *   and two matte panels with the score, the speed and the rate in dark capsule windows; thin slate
+ *   rails (steelPlate);
+ * - RAINBOW (무지개): the rainbow pop skin's gear, white cut paper with candy capsules: a row of round
+ *   white buttons, each with a small slot (the held lane's lights in a candy colour), over a white deck
+ *   with soft grey stripes embossed in it and short slanting capsules in six candy colours at its
+ *   corners; the score, the speed and the rate on white cards, and a navy half dome with a rainbow
+ *   capsule in the lower middle; rails of white paper (rainbowPlate);
+ * - NOIR (레드라인): the black and red skin's gear, flat cyber graphics: a row of thin hexagonal slots
+ *   (the held lane's fills red) over a black deck crossed by dark-red slanting bands and thin red arcs,
+ *   with clusters of red dots, a white block over a red one, white slanting stripes, red chevrons and
+ *   pixel glyphs; the score, the speed and the rate written as outlined digits on black plates with
+ *   corner ticks; hairline rails with ticks (noirPlate);
+ * - MAGENTA (크림슨): the crimson mecha skin's gear, a black fighting machine's console: a row of gloss key
+ *   caps in a black frame (white, the blue lanes' crimson; the held lane's glows pink), a crimson line
+ *   with amber ends under it, and a deck of black armour: the score, the speed and the rate in black
+ *   windows whose ends are cut to points, the score's between a silver bar and a crimson one, crimson
+ *   slashes at its far corners, two magenta square lamps and a silver plate at its near edge; black
+ *   rails with a crimson line (magentaPlate);
+ * - WIRE (화이트 라인): the white line skin's gear, line art in white light on near-black: a strip of thin
+ *   outlines shaped as shallow trays (the held lane's fills white) over a deck with two thin tilted
+ *   orbits, a few small bars drawn as blocks and clusters of dots at its far corners, and a soft white
+ *   light rising from its near edge; the readouts written with no boxes, and between the two smaller
+ *   ones an open ring with two dots and a small trapezoid; hairline rails with ticks (wirePlate);
+ * - ASTRAL (별밤): the starry night skin's gear, a night sky in deep navy: a row of navy key caps with cut
+ *   corners in a pale rim, a small gold four-pointed star on each (the held lane's lights gold), over a
+ *   deck with a faint star chart (circles, a tilted orbit, tiny stars) and a few pale flowers at its far
+ *   corners; the readouts written with no boxes over a fine rule, and between the two smaller ones a
+ *   white four-pointed star with a pair of pale wings under a row of moon phases; navy rails with a
+ *   moon-blue line (astralPlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+export type GearStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks: the skins' first (기본, 크리스털, 하늘, 파이어스타터, the four AI companies'), then the objects. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -201,6 +232,18 @@ export function judgeOf(style: GearStyle): { line: string; core: string; glow: s
   if (style === 'claude') return { ...GEAR_JUDGE, line: CLAUDE_CLAY, core: '#fff6ee', glow: CLAUDE_CLAY };
   // AQUA's: white in its aqua
   if (style === 'aqua') return { ...GEAR_JUDGE, line: '#19c9d2', core: '#ffffff', glow: AQUA_CYAN };
+  // STEEL's: white in a steel blue
+  if (style === 'steel') return { ...GEAR_JUDGE, line: '#6fb2e8', core: '#ffffff', glow: STEEL_BLUE };
+  // RAINBOW's: white in a pink edge and a violet glow
+  if (style === 'rainbow') return { ...GEAR_JUDGE, line: '#ff8fd0', core: '#ffffff', glow: '#a66bf5' };
+  // NOIR's: white in its red
+  if (style === 'noir') return { ...GEAR_JUDGE, line: NOIR_RED, core: '#ffffff', glow: NOIR_RED };
+  // MAGENTA's: white in its crimson
+  if (style === 'magenta') return { ...GEAR_JUDGE, line: '#ff2d78', core: '#ffffff', glow: CRIMSON };
+  // WIRE's: bare white in a faint cool glow
+  if (style === 'wire') return { ...GEAR_JUDGE, line: '#ffffff', core: '#ffffff', glow: '#9fb4d8' };
+  // ASTRAL's: white in a moon blue
+  if (style === 'astral') return { ...GEAR_JUDGE, line: '#8fb4ff', core: '#ffffff', glow: '#7fa6f2' };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -528,8 +571,46 @@ const BRAND = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
  */
 const AQUA = { keys: 40, seam: 5, upper: 48, lower: 44, pad: 4 } as const;
 
+/**
+ * The depths of STEEL's deck: its row of flush key caps, the dark band with the glowing slot, the far
+ * panel with the score, the near panel with the speed and the rate. As deep in all as STANDARD's.
+ */
+const STEEL = { keys: 38, seam: 8, upper: 46, lower: 44, pad: 4 } as const;
+
+/**
+ * The depths of RAINBOW's deck: its row of round buttons, the soft line under it, the step with the
+ * score's card, the step with the speed's card, the dome and the rate's card. As deep in all as STANDARD's.
+ */
+const RAINBOW = { keys: 44, seam: 2, upper: 46, lower: 44, pad: 4 } as const;
+
+/**
+ * The depths of NOIR's deck: its strip of thin slots, the red hairline under it, the step with the
+ * score, the step with the speed and the rate. Shallower in all than STANDARD's: the deck's graphics
+ * run on under them.
+ */
+const NOIR = { keys: 28, seam: 2, upper: 46, lower: 42, pad: 4 } as const;
+
+/**
+ * The depths of MAGENTA's deck: its row of gloss key caps in their black frame, the band with the crimson
+ * line, the step with the score's window, the step with the speed's and the rate's. As deep in all as
+ * STANDARD's.
+ */
+const MAGENTA = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 5 } as const;
+
+/**
+ * The depths of WIRE's deck: its strip of tray outlines, the white hairline under it, the step with the
+ * score, the step with the speed, the mark and the rate. Shallower in all than STANDARD's.
+ */
+const WIRE = { keys: 26, seam: 2, upper: 46, lower: 44, pad: 4 } as const;
+
+/**
+ * The depths of ASTRAL's deck: its row of key caps, the pale hairline under it, the step with the score,
+ * the step with the speed, the star and the rate. As deep in all as STANDARD's.
+ */
+const ASTRAL = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4 } as const;
+
 /** The steps of the decks that house the readouts. */
-const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND, aqua: AQUA };
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE, gpt: BRAND, gemini: BRAND, grok: BRAND, claude: BRAND, aqua: AQUA, steel: STEEL, rainbow: RAINBOW, noir: NOIR, magenta: MAGENTA, wire: WIRE, astral: ASTRAL };
 
 /**
  * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
@@ -1629,6 +1710,36 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
     // its gloss caps, one to a lane (aquaPlate): the held one full of aqua light
     const st = s.stretch;
     return s.lanes.map((lane, i) => ({ lane: i, box: aquaCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: AQUA_CYAN }));
+  }
+  if (style === 'steel') {
+    // its flush caps, one to a lane (steelPlate): the held one lit steel blue
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: steelCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: STEEL_LIT }));
+  }
+  if (style === 'rainbow') {
+    // its round buttons, one to a lane (rainbowPlate): the held one a candy colour, lane after lane
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: popButton(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { fill: POP_CANDY[i % POP_CANDY.length], round: 99, stretch: st } }));
+  }
+  if (style === 'noir') {
+    // its slots, one to a lane (noirPlate): the held one full of red
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: noirSlot(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { fill: NOIR_RED, round: 1.5, stretch: st } }));
+  }
+  if (style === 'magenta') {
+    // its gloss caps, one to a lane (magentaPlate): the held one full of pink light
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: crimsonCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: CRIMSON_LIT }));
+  }
+  if (style === 'wire') {
+    // its trays, one to a lane (wirePlate): the held one full of white light
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: wireTray(lane, st), notch: { left: 0, right: 0, depth: 0 }, press: { fill: '#ffffff', round: 1, stretch: st } }));
+  }
+  if (style === 'astral') {
+    // its caps, one to a lane (astralPlate): the held one full of gold light
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: astralCap(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: '#f6d98a' }));
   }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
@@ -3015,6 +3126,974 @@ function aquaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
 }
 
+// ---------- STEEL (the gunmetal skin's gear, 스틸) ----------
+
+/** STEEL's one glow, and the same lit (a held key, the rails in FEVER). */
+const STEEL_BLUE = '#2f7fc0';
+const STEEL_LIT = '#58aaf0';
+
+/** A lane's key cap on STEEL's strip: as wide as the lane less a seam. */
+const steelCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 1, y: 2 * st, w: lane.width - 2, h: (STEEL.keys - 3) * st });
+
+/**
+ * STEEL (스틸): a piece of studio hardware in dark slate grey, as wide as the track and no wider. Under
+ * the judge line a row of flush matte key caps divided by thin seams, each embossed with a small mark:
+ * a plus, or a cross on the blue lanes' (the held lane's cap lights steel blue: deckKeys). Under it a
+ * dark band with a shallow slot in its middle that glows dim blue from inside, then two matte panels
+ * divided by a seam: the far one with the score in a dark capsule window, the near one a shade darker
+ * with the speed's and the rate's capsules at its ends, an engraved rule and three small embossed
+ * circles between them and a soft blue light at its right end. The HUD writes the readouts in the
+ * windows (deckReadouts).
+ */
+function steelPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = STEEL.keys * st;
+  const top = kh + STEEL.seam * st;
+  const upper = STEEL.upper * st;
+  g.fillStyle = '#12171d';
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) {
+    const cap = steelCap(lane, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#374250');
+    face.addColorStop(1, '#27303a');
+    g.fillStyle = face;
+    g.fillRect(cap.x, cap.y, cap.w, cap.h);
+    g.fillStyle = white(0.1);
+    g.fillRect(cap.x, cap.y, cap.w, Math.max(1, 0.8 * st));
+    g.fillStyle = black(0.35);
+    g.fillRect(cap.x, cap.y + cap.h - 1.2 * st, cap.w, 1.2 * st);
+    // its mark, embossed (a light copy a hair nearer under the dark one): a plus, a cross on the blue lanes'
+    const r = Math.min(lane.width * 0.12, 5.5);
+    for (const [shift, colour] of [
+      [0.9, white(0.16)],
+      [0, black(0.62)],
+    ] as const) {
+      flatAt(g, cap.x + cap.w / 2, cap.y + cap.h / 2 + shift * st, st, () => {
+        if (lane.kind === 'other') g.rotate(Math.PI / 4);
+        g.beginPath();
+        g.moveTo(-r, 0);
+        g.lineTo(r, 0);
+        g.moveTo(0, -r);
+        g.lineTo(0, r);
+        g.lineWidth = Math.max(1.2, r * 0.3);
+        g.lineCap = 'butt';
+        g.strokeStyle = colour;
+        g.stroke();
+      });
+    }
+  }
+  // the band under the row, a slot in its middle lit from inside
+  g.fillStyle = '#0c1015';
+  g.fillRect(0, kh, W, STEEL.seam * st);
+  polygon(g, [
+    [W * 0.37, kh + 1.2 * st],
+    [W * 0.63, kh + 1.2 * st],
+    [W * 0.615, top - 1.2 * st],
+    [W * 0.385, top - 1.2 * st],
+  ]);
+  const inside = g.createLinearGradient(0, kh, 0, top);
+  inside.addColorStop(0, '#05080c');
+  inside.addColorStop(1, shade(STEEL_BLUE, 0.92));
+  g.fillStyle = inside;
+  g.fill();
+  mark(s, 'glow', { x: W * 0.37, y: kh, w: W * 0.26, h: STEEL.seam * st });
+  // the two panels and the seam between them
+  const far = g.createLinearGradient(0, top, 0, top + upper);
+  far.addColorStop(0, '#2d3641');
+  far.addColorStop(1, '#252d37');
+  g.fillStyle = far;
+  g.fillRect(0, top, W, upper);
+  g.fillStyle = white(0.07);
+  g.fillRect(0, top, W, Math.max(1, 0.8 * st));
+  const near = g.createLinearGradient(0, top + upper, 0, top + upper + STEEL.lower * st);
+  near.addColorStop(0, '#20272f');
+  near.addColorStop(1, '#181e25');
+  g.fillStyle = near;
+  g.fillRect(0, top + upper, W, s.depth - top - upper);
+  g.fillStyle = black(0.6);
+  g.fillRect(0, top + upper - 0.7 * st, W, 1.4 * st);
+  g.fillStyle = white(0.06);
+  g.fillRect(0, top + upper + 0.7 * st, W, Math.max(1, 0.7 * st));
+  const windows = deckReadouts('steel', s);
+  const score: Box = windows?.score ?? { x: W * 0.24, y: top + STEEL.pad * st, w: W * 0.52, h: (STEEL.upper - 2 * STEEL.pad) * st };
+  well(g, score, score.h / (2 * st), st);
+  if (!windows) return;
+  const low = windows.speed.y + windows.speed.h / 2;
+  // a soft blue light at the near panel's right end
+  mark(s, 'side', { x: W * 0.78, y: top + upper, w: W * 0.22, h: STEEL.lower * st });
+  flatAt(g, W, low, st, () => {
+    const light = g.createRadialGradient(0, 0, 0, 0, 0, W * 0.2);
+    light.addColorStop(0, shade(STEEL_BLUE, 1, 0.34));
+    light.addColorStop(1, shade(STEEL_BLUE, 1, 0));
+    g.fillStyle = light;
+    g.beginPath();
+    g.arc(0, 0, W * 0.2, Math.PI / 2, Math.PI * 1.5);
+    g.fill();
+  });
+  for (const b of [windows.speed, windows.rate]) well(g, b, b.h / (2 * st), st);
+  // between them: an engraved rule and three small embossed circles
+  g.fillStyle = black(0.5);
+  g.fillRect(W * 0.27, low - 0.6 * st, W * 0.36, 1.2 * st);
+  g.fillStyle = white(0.07);
+  g.fillRect(W * 0.27, low + 0.6 * st, W * 0.36, Math.max(1, 0.8 * st));
+  for (const [dx, dy] of [
+    [0, -1],
+    [-0.87, 0.5],
+    [0.87, 0.5],
+  ]) {
+    disc(g, W * 0.69 + dx * 4.4, low + dy * 4.4 * st, 2.7, st);
+    g.fillStyle = black(0.45);
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = white(0.12);
+    g.stroke();
+  }
+}
+
+// ---------- RAINBOW (the rainbow pop skin's gear, 무지개) ----------
+
+/** RAINBOW's deep navy (its digits, its dome) and its six candy colours. */
+const POP_NAVY = '#15155c';
+const POP_CANDY = ['#ff4b4b', '#ffe23a', '#8be04a', '#45c8f5', '#a66bf5', '#ff7ac3'] as const;
+
+/** A lane's button on RAINBOW's strip, in the middle of its lane: round on the screen, the scratch's a pill as wide as its lane lets it be. */
+const popButton = (lane: DeckLane, st: number): Box => {
+  const d = Math.max(8, Math.min(lane.width - 6, RAINBOW.keys - 10));
+  const w = lane.kind === 'scratch' ? Math.max(d, lane.width - 10) : d;
+  return { x: lane.left + (lane.width - w) / 2, y: ((RAINBOW.keys - d) / 2) * st, w, h: d * st };
+};
+
+/**
+ * RAINBOW (무지개): white cut paper with candy capsules in rainbow colours, as wide as the track and no
+ * wider. Under the judge line a row of round white buttons, soft and raised, one to a lane, each with
+ * a small upright slot (the held lane's button lights in a candy colour: deckKeys). Under it a white
+ * deck with soft pale stripes embossed in it, all slanting one way, and short glossy capsules in the
+ * six candy colours at its far corners and beside its middle. The score, the speed and the rate are on
+ * white cards with a soft shadow; between the two smaller ones a deep-navy half dome rises from the
+ * deck's near edge, one upright capsule on it filled with a rainbow. The HUD writes the readouts in
+ * the windows (deckReadouts).
+ */
+function rainbowPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = RAINBOW.keys * st;
+  const top = kh + RAINBOW.seam * st;
+  const H = (RAINBOW.upper + RAINBOW.lower) * st;
+  const paper = g.createLinearGradient(0, 0, 0, top + H);
+  paper.addColorStop(0, '#ffffff');
+  paper.addColorStop(1, '#eceef3');
+  g.fillStyle = paper;
+  g.fillRect(0, 0, W, s.depth);
+  g.fillStyle = 'rgba(21,21,92,0.07)';
+  g.fillRect(0, kh, W, RAINBOW.seam * st);
+  mark(s, 'glow', { x: 0, y: kh - 2 * st, w: W, h: (RAINBOW.seam + 4) * st });
+  // the buttons
+  for (const lane of s.lanes) {
+    const b = popButton(lane, st);
+    const r = b.h / (2 * st);
+    rounded(g, { x: b.x + 1.4, y: b.y + 2 * st, w: b.w, h: b.h }, r, st);
+    g.fillStyle = 'rgba(21,21,92,0.17)';
+    g.fill();
+    rounded(g, b, r, st);
+    const face = g.createLinearGradient(0, b.y, 0, b.y + b.h);
+    face.addColorStop(0, '#ffffff');
+    face.addColorStop(1, '#e8ebf1');
+    g.fillStyle = face;
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(21,21,92,0.08)';
+    g.stroke();
+    // its slot
+    const slot: Box = { x: b.x + b.w / 2 - r * 0.2, y: b.y + b.h * 0.25, w: r * 0.4, h: b.h * 0.5 };
+    rounded(g, slot, r * 0.2, st);
+    g.fillStyle = '#d3d7e1';
+    g.fill();
+    rounded(g, { x: slot.x, y: slot.y, w: slot.w, h: slot.h * 0.4 }, r * 0.2, st);
+    g.fillStyle = 'rgba(21,21,92,0.12)';
+    g.fill();
+  }
+  // what is on the paper: pale stripes embossed in it and candy capsules, all slanting one way
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  const bar = (cx: number, cy: number, len: number, thick: number, fill: string, gloss: boolean) =>
+    flatAt(g, cx, cy, st, () => {
+      g.rotate(-0.62);
+      g.beginPath();
+      g.roundRect(-len / 2, -thick / 2, len, thick, thick / 2);
+      g.fillStyle = fill;
+      g.fill();
+      if (!gloss) return;
+      g.beginPath();
+      g.roundRect(-len / 2 + thick * 0.35, -thick * 0.32, len - thick * 0.7, thick * 0.22, thick * 0.11);
+      g.fillStyle = white(0.5);
+      g.fill();
+    });
+  for (const [x, y, len] of [
+    [0.12, 0.34, 0.2],
+    [0.25, 0.7, 0.24],
+    [0.42, 0.3, 0.18],
+    [0.6, 0.72, 0.22],
+    [0.75, 0.3, 0.18],
+    [0.9, 0.66, 0.2],
+  ]) bar(W * x, top + H * y, W * len, 12, 'rgba(21,21,92,0.055)', false);
+  for (const [x, y, len, c] of [
+    [0.035, 0.1, 0.07, 0],
+    [0.11, 0.3, 0.1, 1],
+    [0.19, 0.12, 0.055, 2],
+    [0.965, 0.1, 0.07, 5],
+    [0.89, 0.3, 0.1, 4],
+    [0.81, 0.12, 0.055, 3],
+    [0.31, 0.78, 0.07, 4],
+    [0.69, 0.78, 0.07, 1],
+  ]) bar(W * x, top + H * y, W * len, 11, POP_CANDY[c], true);
+  g.restore();
+  // the cards
+  const card = (b: Box) => {
+    const r = Math.min(9, b.h / (2 * st));
+    rounded(g, { x: b.x + 1.2, y: b.y + 2 * st, w: b.w, h: b.h }, r, st);
+    g.fillStyle = 'rgba(21,21,92,0.16)';
+    g.fill();
+    rounded(g, b, r, st);
+    g.fillStyle = '#ffffff';
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(21,21,92,0.1)';
+    g.stroke();
+  };
+  const windows = deckReadouts('rainbow', s);
+  card(windows?.score ?? { x: W * 0.24, y: top + RAINBOW.pad * st, w: W * 0.52, h: (RAINBOW.upper - 2 * RAINBOW.pad) * st });
+  if (!windows) return;
+  card(windows.speed);
+  card(windows.rate);
+  // the dome, rising from the deck's near edge, and the rainbow capsule on it
+  const R = Math.min(RAINBOW.lower * 0.86, W * 0.1);
+  mark(s, 'emblem', { x: W / 2 - R, y: top + H - R * st, w: 2 * R, h: R * st });
+  flatAt(g, W / 2, top + H, st, () => {
+    g.beginPath();
+    g.arc(0, 0, R, Math.PI, 2 * Math.PI);
+    g.closePath();
+    const dome = g.createLinearGradient(0, -R, 0, 0);
+    dome.addColorStop(0, '#26267e');
+    dome.addColorStop(1, POP_NAVY);
+    g.fillStyle = dome;
+    g.fill();
+    const [cw, ch] = [R * 0.3, R * 0.78];
+    g.beginPath();
+    g.roundRect(-cw / 2, -ch - R * 0.06, cw, ch, cw / 2);
+    const bow = g.createLinearGradient(0, -ch - R * 0.06, 0, -R * 0.06);
+    bow.addColorStop(0, POP_CANDY[0]);
+    bow.addColorStop(0.3, POP_CANDY[1]);
+    bow.addColorStop(0.55, POP_CANDY[2]);
+    bow.addColorStop(0.8, POP_CANDY[3]);
+    bow.addColorStop(1, POP_CANDY[4]);
+    g.fillStyle = bow;
+    g.fill();
+    g.beginPath();
+    g.roundRect(-cw * 0.3, -ch - R * 0.06 + cw * 0.3, cw * 0.2, ch * 0.5, cw * 0.1);
+    g.fillStyle = white(0.5);
+    g.fill();
+  });
+}
+
+// ---------- NOIR (the black and red skin's gear, 레드라인) ----------
+
+/** NOIR's one bright colour and the dark red of its large shapes. */
+const NOIR_RED = '#ff1a2b';
+const NOIR_DEEP = '#3a0508';
+
+/** A lane's slot on NOIR's strip: thin, across the lane's middle. */
+const noirSlot = (lane: DeckLane, st: number): Box => ({ x: lane.left + 4, y: (NOIR.keys / 2 - 5) * st, w: lane.width - 8, h: 10 * st });
+
+/**
+ * NOIR (레드라인): black and red cyber graphics, flat as a poster, as wide as the track and no wider.
+ * Under the judge line a strip of thin slots with slanted ends, one to a lane, outlined in grey (the
+ * held lane's fills red: deckKeys), and a red hairline. The deck is black, crossed by three dark-red
+ * slanting bands and two thin red arcs; on it small flat marks: a cluster of red dots and a faint dot
+ * grid at the far corners, a white block over a red one at each side, and between the two smaller
+ * readouts three white slanting stripes, three red chevrons, two pixel glyphs and another cluster of
+ * dots. The readouts have no boxes: black plates with corner ticks, where the HUD writes them as
+ * outlined digits (deckReadouts).
+ */
+function noirPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = NOIR.keys * st;
+  const top = kh + NOIR.seam * st;
+  const H = (NOIR.upper + NOIR.lower) * st;
+  g.fillStyle = '#000000';
+  g.fillRect(0, 0, W, s.depth);
+  // the bands and the arcs, on the deck under the strip
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  const E = H * 1.5;
+  for (const [a, b, c, d, fill] of [
+    [0.14, 0.4, 0.78, 0.52, NOIR_DEEP],
+    [0.46, 0.54, 0.92, 0.84, '#2a0406'],
+    [-0.1, 0.02, 0.4, 0.28, '#1c0304'],
+  ] as const) {
+    polygon(g, [
+      [W * a, top + E],
+      [W * b, top + E],
+      [W * c, top],
+      [W * d, top],
+    ]);
+    g.fillStyle = fill;
+    g.fill();
+  }
+  flatAt(g, W * 0.62, top + H * 0.9, st, () => {
+    g.beginPath();
+    g.ellipse(0, 0, W * 0.44, W * 0.16, -0.5, Math.PI * 0.9, Math.PI * 1.9);
+    g.lineWidth = 1.1;
+    g.strokeStyle = shade(NOIR_RED, 1, 0.85);
+    g.stroke();
+    g.beginPath();
+    g.ellipse(W * 0.03, W * 0.01, W * 0.5, W * 0.2, -0.5, Math.PI * 0.95, Math.PI * 1.8);
+    g.lineWidth = 0.9;
+    g.strokeStyle = shade(NOIR_RED, 1, 0.45);
+    g.stroke();
+  });
+  g.restore();
+  // the strip
+  for (const lane of s.lanes) {
+    const b = noirSlot(lane, st);
+    const cut = Math.min(5, b.w * 0.2);
+    const mid = b.y + b.h / 2;
+    polygon(g, [
+      [b.x + cut, b.y],
+      [b.x + b.w - cut, b.y],
+      [b.x + b.w, mid],
+      [b.x + b.w - cut, b.y + b.h],
+      [b.x + cut, b.y + b.h],
+      [b.x, mid],
+    ]);
+    g.fillStyle = '#0d0d0f';
+    g.fill();
+    g.lineWidth = 1.2;
+    g.strokeStyle = '#5a5d65';
+    g.stroke();
+  }
+  g.fillStyle = NOIR_RED;
+  g.fillRect(0, kh + 0.4 * st, W, Math.max(1, 1.1 * st));
+  mark(s, 'glow', { x: 0, y: kh - 2 * st, w: W, h: (NOIR.seam + 4) * st });
+  // rows of dots, every other row half a step along
+  const dots = (x0: number, y0: number, rows: number, cols: number, r: number, fill: string) => {
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols - (j % 2); i++) {
+        disc(g, x0 + (i + (j % 2) * 0.5) * r * 2.9, y0 + j * r * 2.5 * st, r, st);
+        g.fillStyle = fill;
+        g.fill();
+      }
+    }
+  };
+  const up = NOIR.upper * st;
+  dots(W * 0.045, top + up * 0.28, 3, 6, 2.2, NOIR_RED);
+  mark(s, 'dots', { x: W * 0.03, y: top + up * 0.2, w: W * 0.17, h: up * 0.42 });
+  dots(W * 0.81, top + up * 0.16, 4, 7, 0.8, white(0.22));
+  // a white block over a red one, offset as a glitch is
+  g.fillStyle = NOIR_RED;
+  g.fillRect(W * 0.83, top + up * 0.6, W * 0.12, 7 * st);
+  g.fillStyle = '#ffffff';
+  g.fillRect(W * 0.87, top + up * 0.6 - 4 * st, W * 0.11, 5 * st);
+  g.fillStyle = '#ffffff';
+  g.fillRect(W * 0.04, top + up * 0.8, W * 0.1, 4 * st);
+  g.fillStyle = NOIR_RED;
+  g.fillRect(W * 0.015, top + up * 0.7, W * 0.07, 5.5 * st);
+  // a readout's plate: black, a tick at each corner
+  const plate = (b: Box) => {
+    g.fillStyle = black(0.66);
+    g.fillRect(b.x, b.y, b.w, b.h);
+    g.fillStyle = '#8a8f98';
+    for (const [cx, cy, sx, sy] of [
+      [b.x, b.y, 1, 1],
+      [b.x + b.w, b.y, -1, 1],
+      [b.x, b.y + b.h, 1, -1],
+      [b.x + b.w, b.y + b.h, -1, -1],
+    ]) {
+      g.fillRect(Math.min(cx, cx + sx * 5), Math.min(cy, cy + sy * st), 5, st);
+      g.fillRect(Math.min(cx, cx + sx), Math.min(cy, cy + sy * 5 * st), 1, 5 * st);
+    }
+  };
+  const windows = deckReadouts('noir', s);
+  plate(windows?.score ?? { x: W * 0.24, y: top + NOIR.pad * st, w: W * 0.52, h: (NOIR.upper - 2 * NOIR.pad) * st });
+  if (!windows) return;
+  plate(windows.speed);
+  plate(windows.rate);
+  const low = windows.speed.y + windows.speed.h / 2;
+  const v = windows.speed.h / st;
+  for (let i = 0; i < 3; i++) {
+    const x0 = W * 0.27 + i * W * 0.03;
+    polygon(g, [
+      [x0 + v * 0.4, low - v * 0.3 * st],
+      [x0 + v * 0.4 + W * 0.016, low - v * 0.3 * st],
+      [x0 + W * 0.016, low + v * 0.3 * st],
+      [x0, low + v * 0.3 * st],
+    ]);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+  for (let i = 0; i < 3; i++) {
+    flatAt(g, W * 0.42 + i * W * 0.026, low, st, () => {
+      const r = v * 0.2;
+      g.beginPath();
+      g.moveTo(-r * 0.6, -r);
+      g.lineTo(r * 0.4, 0);
+      g.lineTo(-r * 0.6, r);
+      g.lineWidth = Math.max(1.5, r * 0.5);
+      g.lineJoin = 'miter';
+      g.strokeStyle = NOIR_RED;
+      g.stroke();
+    });
+  }
+  const glyph = (x0: number, y0: number, rows: readonly string[]) =>
+    rows.forEach((row, j) =>
+      [...row].forEach((bit, i) => {
+        if (bit !== '1') return;
+        g.fillStyle = white(0.9);
+        g.fillRect(x0 + i * 1.6, y0 + j * 1.6 * st, 1.6, 1.6 * st);
+      }),
+    );
+  glyph(W * 0.555, low - 4 * st, ['10101', '01110', '11011', '01110', '10101']);
+  glyph(W * 0.625, low - 2.4 * st, ['111', '101', '111']);
+  dots(W * 0.675, low - 3 * st, 3, 4, 1.9, NOIR_RED);
+}
+
+// ---------- MAGENTA (the crimson mecha skin's gear, 크림슨) ----------
+
+/** MAGENTA's one colour, the same lit (a held key, the rails in FEVER), and its lamps' magenta. */
+const CRIMSON = '#f0145a';
+const CRIMSON_LIT = '#ff5c95';
+const CRIMSON_LAMP = '#ff2fd0';
+
+/** A lane's key cap on MAGENTA's strip: as wide as the lane less a gap, inside the black frame. */
+const crimsonCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2, y: 4 * st, w: lane.width - 4, h: (MAGENTA.keys - 8) * st });
+
+/** `b` with its two ends cut to points at 45° on the screen (a long hexagon), moved in by `inset`. */
+function pointed(b: Box, st: number, inset = 0): [number, number][] {
+  const [x, y, w, h] = [b.x + inset * 1.4, b.y + inset * st, b.w - inset * 2.8, b.h - 2 * inset * st];
+  const cut = Math.min(w / 2, h / (2 * st));
+  return [
+    [x + cut, y],
+    [x + w - cut, y],
+    [x + w, y + h / 2],
+    [x + w - cut, y + h],
+    [x + cut, y + h],
+    [x, y + h / 2],
+  ];
+}
+
+/**
+ * MAGENTA (크림슨): the console of a black fighting machine with crimson armour lines, as wide as the
+ * track and no wider. Under the judge line a row of gloss key caps in a black frame, one to a lane:
+ * white, the blue lanes' crimson, the scratch's with a crimson line (the held lane's cap fills with
+ * pink light: deckKeys), and a band with a crimson line whose two ends are amber. The deck is black
+ * armour. The score is in a black window whose ends are cut to points, a silver bar along its far side
+ * stepping up in the middle and a crimson one along its near side, two crimson slashes at each far
+ * corner pointing at it. In the lower row the speed and the rate are in smaller windows of the same
+ * shape framed in crimson, an amber line under each; between them a magenta square lamp at each side
+ * of a silver plate that rises from the deck's near edge. The HUD writes the readouts in the windows
+ * (deckReadouts).
+ */
+function magentaPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = MAGENTA.keys * st;
+  const top = kh + MAGENTA.seam * st;
+  const H = (MAGENTA.upper + MAGENTA.lower) * st;
+  g.fillStyle = '#0d0d10';
+  g.fillRect(0, 0, W, s.depth);
+  const armourDark = g.createLinearGradient(0, top, 0, top + H);
+  armourDark.addColorStop(0, '#1e1e24');
+  armourDark.addColorStop(1, '#0d0d10');
+  g.fillStyle = armourDark;
+  g.fillRect(0, top, W, Math.min(H, s.depth - top));
+  // the key row
+  g.fillStyle = '#08080a';
+  g.fillRect(0, 0, W, kh);
+  for (const lane of s.lanes) {
+    const cap = crimsonCap(lane, st);
+    const red = lane.kind === 'other';
+    rounded(g, cap, 2.2, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, red ? '#ff5a90' : '#ffffff');
+    face.addColorStop(0.55, red ? '#e11356' : '#e9ecef');
+    face.addColorStop(1, red ? '#a50b3c' : '#b6bcc5');
+    g.fillStyle = face;
+    g.fill();
+    rounded(g, { x: cap.x + cap.w * 0.07, y: cap.y + 1.4 * st, w: cap.w * 0.86, h: cap.h * 0.4 }, 1.8, st);
+    g.fillStyle = white(red ? 0.24 : 0.55);
+    g.fill();
+    if (lane.kind === 'scratch') {
+      g.fillStyle = CRIMSON;
+      g.fillRect(cap.x + cap.w * 0.2, cap.y + cap.h - 3.6 * st, cap.w * 0.6, 1.5 * st);
+    }
+  }
+  // the band under it: a crimson line, amber at its two ends
+  g.fillStyle = '#1c1c21';
+  g.fillRect(0, kh, W, MAGENTA.seam * st);
+  g.fillStyle = CRIMSON;
+  g.fillRect(0, kh + 0.8 * st, W, 1.5 * st);
+  g.fillStyle = AMBER;
+  g.fillRect(0, kh + 0.8 * st, W * 0.05, 1.5 * st);
+  g.fillRect(W * 0.95, kh + 0.8 * st, W * 0.05, 1.5 * st);
+  mark(s, 'glow', { x: 0, y: kh, w: W, h: MAGENTA.seam * st });
+  // two crimson slashes at each far corner, leaning toward the score
+  const up = MAGENTA.upper * st;
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    for (const [x0, wide, k] of [
+      [0.03, 0.03, 1],
+      [0.09, 0.016, 0.72],
+    ]) {
+      polygon(g, [
+        [x(W * x0), top + up * 0.84],
+        [x(W * (x0 + wide)), top + up * 0.84],
+        [x(W * (x0 + wide) + 22), top + up * 0.16],
+        [x(W * x0 + 22), top + up * 0.16],
+      ]);
+      g.fillStyle = shade(CRIMSON, k);
+      g.fill();
+    }
+  }
+  const glassOf = (b: Box) => {
+    const glass = g.createLinearGradient(0, b.y, 0, b.y + b.h);
+    glass.addColorStop(0, '#18181c');
+    glass.addColorStop(1, '#060607');
+    return glass;
+  };
+  // the score's window: a silver bar along its far side, stepping up in the middle, a crimson one along its near side
+  const windows = deckReadouts('magenta', s);
+  const score: Box = windows?.score ?? { x: W * 0.24, y: top + MAGENTA.pad * st, w: W * 0.52, h: (MAGENTA.upper - 2 * MAGENTA.pad) * st };
+  const round: Box = { x: score.x - 4, y: score.y - 2.6 * st, w: score.w + 8, h: score.h + 5.2 * st };
+  for (const [from, to, fill] of [
+    [round.y, score.y + score.h / 2, armour(g, round.y, score.y + score.h / 2)],
+    [score.y + score.h / 2, round.y + round.h, CRIMSON],
+  ] as const) {
+    g.save();
+    g.beginPath();
+    g.rect(0, from, W, to - from);
+    g.clip();
+    polygon(g, pointed(round, st));
+    g.fillStyle = fill;
+    g.fill();
+    g.restore();
+  }
+  polygon(g, [
+    [W * 0.43, round.y + 0.2 * st],
+    [W * 0.446, round.y - 2.4 * st],
+    [W * 0.554, round.y - 2.4 * st],
+    [W * 0.57, round.y + 0.2 * st],
+  ]);
+  g.fillStyle = '#eef0f3';
+  g.fill();
+  polygon(g, pointed(score, st));
+  g.fillStyle = glassOf(score);
+  g.fill();
+  if (!windows) return;
+  for (const b of [windows.speed, windows.rate]) {
+    polygon(g, pointed({ x: b.x - 3, y: b.y - 1.8 * st, w: b.w + 6, h: b.h + 3.6 * st }, st));
+    g.fillStyle = CRIMSON;
+    g.fill();
+    polygon(g, pointed(b, st));
+    g.fillStyle = glassOf(b);
+    g.fill();
+    g.fillStyle = AMBER;
+    g.fillRect(b.x + b.w * 0.18, b.y + b.h + 3 * st, b.w * 0.64, Math.max(1, st));
+  }
+  const low = windows.speed.y + windows.speed.h / 2;
+  const v = windows.speed.h / st;
+  // a silver plate rising from the deck's near edge, a magenta lamp at each side of it
+  polygon(g, [
+    [W * 0.41, top + H],
+    [W * 0.59, top + H],
+    [W * 0.565, low - v * 0.22 * st],
+    [W * 0.435, low - v * 0.22 * st],
+  ]);
+  g.fillStyle = armour(g, low - v * 0.22 * st, top + H);
+  g.fill();
+  g.fillStyle = black(0.3);
+  g.fillRect(W * 0.45, low + v * 0.04 * st, W * 0.1, Math.max(1, st));
+  for (const side of [0, 1]) {
+    const r = Math.min(4.2, v * 0.16);
+    const lamp: Box = { x: (side === 0 ? W * 0.3 : W * 0.7) - r, y: low - r * st, w: 2 * r, h: 2 * r * st };
+    rounded(g, { x: lamp.x - 1.6, y: lamp.y - 1.6 * st, w: lamp.w + 3.2, h: lamp.h + 3.2 * st }, 1.6, st);
+    g.fillStyle = '#2a2a31';
+    g.fill();
+    rounded(g, lamp, 1, st);
+    g.fillStyle = CRIMSON_LAMP;
+    g.fill();
+    mark(s, side === 0 ? 'lampL' : 'lampR', lamp);
+  }
+}
+
+// ---------- WIRE (the white line skin's gear, 화이트 라인) ----------
+
+/** A lane's tray on WIRE's strip: a shallow outline across the lane's middle. */
+const wireTray = (lane: DeckLane, st: number): Box => ({ x: lane.left + 4, y: 6 * st, w: lane.width - 8, h: (WIRE.keys - 12) * st });
+
+/** Rows of dots from (x0, y0), every other row half a step along and one dot shorter: round on the screen. */
+function honeycomb(g: CanvasRenderingContext2D, st: number, x0: number, y0: number, rows: number, cols: number, r: number, fill: string): void {
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols - (j % 2); i++) {
+      disc(g, x0 + (i + (j % 2) * 0.5) * r * 2.9, y0 + j * r * 2.5 * st, r, st);
+      g.fillStyle = fill;
+      g.fill();
+    }
+  }
+}
+
+/**
+ * WIRE (화이트 라인): the drawing of a small machine in lines of white light on near-black, as wide as the
+ * track and no wider, and no colour but white. Under the judge line a strip of thin outlines shaped as
+ * shallow trays, one to a lane (the held lane's fills with white: deckKeys), and a white hairline. On
+ * the deck two thin tilted orbits sweep across, a soft white light rises from the middle of its near
+ * edge, and at each far corner float two small bars drawn as blocks over a cluster of dots. The
+ * readouts have no boxes: a faint rule under each. Between the two smaller ones, a chevron beside each
+ * pointing in, sits the mark: an open ring, two dots in it and a small upright trapezoid under them.
+ * The HUD writes the readouts in the windows (deckReadouts).
+ */
+function wirePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = WIRE.keys * st;
+  const top = kh + WIRE.seam * st;
+  const up = WIRE.upper * st;
+  const H = (WIRE.upper + WIRE.lower) * st;
+  const night = g.createLinearGradient(0, 0, 0, top + H);
+  night.addColorStop(0, '#0e1220');
+  night.addColorStop(1, '#06080d');
+  g.fillStyle = night;
+  g.fillRect(0, 0, W, s.depth);
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  // the light rising from the near edge, and the orbits
+  mark(s, 'rise', { x: W * 0.2, y: top + H * 0.55, w: W * 0.6, h: H * 0.45 });
+  flatAt(g, W / 2, top + H, st, () => {
+    const glow = g.createRadialGradient(0, 0, 0, 0, 0, W * 0.3);
+    glow.addColorStop(0, white(0.5));
+    glow.addColorStop(0.4, white(0.12));
+    glow.addColorStop(1, white(0));
+    g.fillStyle = glow;
+    g.beginPath();
+    g.arc(0, 0, W * 0.3, 0, Math.PI * 2);
+    g.fill();
+  });
+  flatAt(g, W / 2, top + H * 0.62, st, () => {
+    for (const [rx, ry, tilt, alpha] of [
+      [0.56, 0.2, -0.16, 0.5],
+      [0.44, 0.13, 0.22, 0.3],
+    ]) {
+      g.beginPath();
+      g.ellipse(0, 0, W * rx, W * ry, tilt, 0, Math.PI * 2);
+      g.lineWidth = 1;
+      g.strokeStyle = white(alpha);
+      g.stroke();
+    }
+  });
+  g.restore();
+  // the strip
+  for (const lane of s.lanes) {
+    const b = wireTray(lane, st);
+    const cut = Math.min(5, b.w * 0.16);
+    g.beginPath();
+    g.moveTo(b.x, b.y);
+    g.lineTo(b.x + cut, b.y + b.h);
+    g.lineTo(b.x + b.w - cut, b.y + b.h);
+    g.lineTo(b.x + b.w, b.y);
+    g.lineWidth = 1.3;
+    g.lineJoin = 'miter';
+    g.strokeStyle = white(0.85);
+    g.stroke();
+  }
+  g.fillStyle = white(0.9);
+  g.fillRect(0, kh + 0.4 * st, W, Math.max(1, st));
+  mark(s, 'glow', { x: 0, y: kh - 2 * st, w: W, h: (WIRE.seam + 4) * st });
+  // a small bar as a block: its top face and, under its near edge, its front
+  const block = (x: number, y: number, len: number, thick: number, lean: number) => {
+    const face: [number, number][] = [
+      [x, y],
+      [x + len, y - lean * st],
+      [x + len + thick * 0.5, y - lean * st + thick * st],
+      [x + thick * 0.5, y + thick * st],
+    ];
+    polygon(g, face);
+    g.fillStyle = white(0.9);
+    g.fill();
+    polygon(g, [face[3], face[2], [face[2][0], face[2][1] + thick * 0.7 * st], [face[3][0], face[3][1] + thick * 0.7 * st]]);
+    g.fillStyle = white(0.4);
+    g.fill();
+  };
+  block(W * 0.03, top + up * 0.46, W * 0.09, 3.2, 5);
+  block(W * 0.135, top + up * 0.24, W * 0.045, 2.6, 3);
+  block(W * 0.88, top + up * 0.3, W * 0.09, 3.2, -5);
+  block(W * 0.82, top + up * 0.58, W * 0.045, 2.6, -3);
+  honeycomb(g, st, W * 0.045, top + up * 0.72, 3, 5, 1.5, white(0.75));
+  honeycomb(g, st, W * 0.905, top + up * 0.72, 3, 5, 1.5, white(0.75));
+  // the readouts: a faint rule under each
+  const rule = (b: Box) => {
+    g.fillStyle = white(0.24);
+    g.fillRect(b.x + b.w * 0.1, b.y + b.h - 0.7 * st, b.w * 0.8, Math.max(1, 0.7 * st));
+  };
+  const windows = deckReadouts('wire', s);
+  rule(windows?.score ?? { x: W * 0.24, y: top + WIRE.pad * st, w: W * 0.52, h: (WIRE.upper - 2 * WIRE.pad) * st });
+  if (!windows) return;
+  rule(windows.speed);
+  rule(windows.rate);
+  const low = windows.speed.y + windows.speed.h / 2;
+  const v = windows.speed.h / st;
+  for (const side of [0, 1]) {
+    flatAt(g, side === 0 ? windows.speed.x + windows.speed.w + W * 0.022 : windows.rate.x - W * 0.022, low, st, () => {
+      const r = v * 0.2;
+      const d = side === 0 ? 1 : -1;
+      g.beginPath();
+      g.moveTo(-d * r * 0.5, -r);
+      g.lineTo(d * r * 0.5, 0);
+      g.lineTo(-d * r * 0.5, r);
+      g.lineWidth = Math.max(1.4, r * 0.34);
+      g.lineJoin = 'miter';
+      g.strokeStyle = white(0.95);
+      g.stroke();
+    });
+  }
+  // the mark: an open ring, two dots, a small upright trapezoid under them
+  const R = Math.min(v * 0.5, W * 0.055);
+  mark(s, 'emblem', { x: W / 2 - R, y: low - R * st, w: 2 * R, h: 2 * R * st });
+  flatAt(g, W / 2, low, st, () => {
+    g.beginPath();
+    g.arc(0, 0, R, -Math.PI * 0.1, Math.PI * 1.55);
+    g.lineWidth = Math.max(1.4, R * 0.12);
+    g.lineCap = 'round';
+    g.strokeStyle = white(0.95);
+    g.stroke();
+    for (const dx of [-0.34, 0.34]) {
+      g.beginPath();
+      g.arc(dx * R, -R * 0.24, R * 0.09, 0, Math.PI * 2);
+      g.fillStyle = '#ffffff';
+      g.fill();
+    }
+    g.beginPath();
+    g.moveTo(-R * 0.14, R * 0.08);
+    g.lineTo(R * 0.14, R * 0.08);
+    g.lineTo(R * 0.26, R * 0.5);
+    g.lineTo(-R * 0.26, R * 0.5);
+    g.closePath();
+    g.lineWidth = Math.max(1.2, R * 0.08);
+    g.lineJoin = 'miter';
+    g.stroke();
+  });
+}
+
+// ---------- ASTRAL (the starry night skin's gear, 별밤) ----------
+
+/** ASTRAL's light and its one accent, kept for small stars. */
+const MOON_BLUE = '#a9c8ff';
+const STAR_GOLD = '#f2c14e';
+
+/** A lane's key cap on ASTRAL's strip: as wide as the lane less a gap. */
+const astralCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2.5, y: 3.5 * st, w: lane.width - 5, h: (ASTRAL.keys - 7) * st });
+
+/**
+ * ASTRAL (별밤): a night sky in deep navy, pale moon blue and a little gold, as wide as the track and no
+ * wider. Under the judge line a row of navy key caps with cut corners in a pale rim, one to a lane,
+ * each with a small gold four-pointed star (the held lane's cap fills with gold light: deckKeys), and
+ * a pale hairline. The deck is the sky: a faint star chart drawn in thin lines (three circles, a
+ * tilted orbit with two ring nodes), tiny stars scattered, and at each far corner three small pale
+ * flowers on a thin ribbon. The readouts have no boxes: a fine rule under each, a small diamond at
+ * its ends. Between the two smaller ones stands a white four-pointed star with long points, a pair of
+ * pale wings behind it, and over it a row of moon phases. The HUD writes the readouts in the windows
+ * (deckReadouts).
+ */
+function astralPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  const kh = ASTRAL.keys * st;
+  const top = kh + ASTRAL.seam * st;
+  const up = ASTRAL.upper * st;
+  const H = (ASTRAL.upper + ASTRAL.lower) * st;
+  const night = g.createLinearGradient(0, 0, 0, top + H);
+  night.addColorStop(0, '#17265e');
+  night.addColorStop(1, '#0a1230');
+  g.fillStyle = night;
+  g.fillRect(0, 0, W, s.depth);
+  g.fillStyle = '#0b1434';
+  g.fillRect(0, 0, W, kh);
+  for (const lane of s.lanes) {
+    const cap = astralCap(lane, st);
+    polygon(g, octagon(cap, [3.2, 3.2 * st]));
+    g.fillStyle = shade(MOON_BLUE, 1, 0.78);
+    g.fill();
+    const inner: Box = { x: cap.x + 1.2, y: cap.y + 1.2 * st, w: cap.w - 2.4, h: cap.h - 2.4 * st };
+    polygon(g, octagon(inner, [2.6, 2.6 * st]));
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#2b448f');
+    face.addColorStop(1, '#16265c');
+    g.fillStyle = face;
+    g.fill();
+    g.fillStyle = white(0.12);
+    g.fillRect(inner.x + 2.6, inner.y, inner.w - 5.2, Math.max(1, st));
+    flatAt(g, cap.x + cap.w / 2, cap.y + cap.h / 2, st, () => {
+      sparkle(g, Math.min(6, lane.width * 0.11));
+      g.fillStyle = STAR_GOLD;
+      g.fill();
+    });
+  }
+  g.fillStyle = shade(MOON_BLUE, 1, 0.8);
+  g.fillRect(0, kh + 0.8 * st, W, Math.max(1, 0.9 * st));
+  mark(s, 'glow', { x: 0, y: kh - 2 * st, w: W, h: (ASTRAL.seam + 4) * st });
+  // the star chart and the stars, on the sky under the strip
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  flatAt(g, W / 2, top + H * 0.6, st, () => {
+    g.lineWidth = 1;
+    for (const [r, a] of [
+      [0.2, 0.22],
+      [0.34, 0.15],
+      [0.5, 0.1],
+    ]) {
+      g.beginPath();
+      g.arc(0, 0, W * r, 0, Math.PI * 2);
+      g.strokeStyle = shade(MOON_BLUE, 1, a);
+      g.stroke();
+    }
+    const tilt = -0.22;
+    g.beginPath();
+    g.ellipse(0, 0, W * 0.4, W * 0.1, tilt, 0, Math.PI * 2);
+    g.strokeStyle = shade(MOON_BLUE, 1, 0.36);
+    g.stroke();
+    for (const at of [0.5, 3.5]) {
+      const [ex, ey] = [Math.cos(at) * W * 0.4, Math.sin(at) * W * 0.1];
+      g.beginPath();
+      g.arc(ex * Math.cos(tilt) - ey * Math.sin(tilt), ex * Math.sin(tilt) + ey * Math.cos(tilt), 3, 0, Math.PI * 2);
+      g.fillStyle = '#101c48';
+      g.fill();
+      g.strokeStyle = shade(MOON_BLUE, 1, 0.75);
+      g.stroke();
+    }
+  });
+  const rand = seeded(11);
+  for (let i = 0; i < 26; i++) {
+    const [x, y, r, a] = [rand() * W, top + rand() * H, 1 + rand() * 1.8, 0.25 + rand() * 0.4];
+    flatAt(g, x, y, st, () => {
+      sparkle(g, r);
+      g.fillStyle = white(a);
+      g.fill();
+    });
+  }
+  g.restore();
+  // three small flowers on a ribbon at each far corner
+  const flower = (x: number, y: number, r: number, alpha: number) =>
+    flatAt(g, x, y, st, () => {
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        g.beginPath();
+        g.ellipse(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55, r * 0.5, r * 0.34, a, 0, Math.PI * 2);
+        g.fillStyle = shade('#cfe0ff', 1, alpha);
+        g.fill();
+      }
+      g.beginPath();
+      g.arc(0, 0, r * 0.2, 0, Math.PI * 2);
+      g.fillStyle = shade(STAR_GOLD, 1, alpha);
+      g.fill();
+    });
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    g.beginPath();
+    g.moveTo(x(W * 0.008), top + up * 0.16);
+    g.bezierCurveTo(x(W * 0.09), top + up * 0.28, x(W * 0.05), top + up * 0.8, x(W * 0.2), top + up * 0.94);
+    g.lineWidth = 1.2;
+    g.strokeStyle = shade(MOON_BLUE, 1, 0.5);
+    g.stroke();
+    flower(x(W * 0.055), top + up * 0.6, 7, 0.92);
+    flower(x(W * 0.12), top + up * 0.34, 5, 0.78);
+    flower(x(W * 0.165), top + up * 0.78, 4, 0.64);
+  }
+  // the readouts: a fine rule under each, a small diamond at its ends
+  const rule = (b: Box) => {
+    const y = b.y + b.h - st;
+    g.fillStyle = shade(MOON_BLUE, 1, 0.55);
+    g.fillRect(b.x + b.w * 0.08, y, b.w * 0.84, Math.max(1, 0.7 * st));
+    for (const ex of [b.x + b.w * 0.08, b.x + b.w * 0.92]) {
+      flatAt(g, ex, y + 0.35 * st, st, () => {
+        g.beginPath();
+        g.moveTo(0, -2.2);
+        g.lineTo(2.2, 0);
+        g.lineTo(0, 2.2);
+        g.lineTo(-2.2, 0);
+        g.closePath();
+        g.fillStyle = MOON_BLUE;
+        g.fill();
+      });
+    }
+  };
+  const windows = deckReadouts('astral', s);
+  rule(windows?.score ?? { x: W * 0.24, y: top + ASTRAL.pad * st, w: W * 0.52, h: (ASTRAL.upper - 2 * ASTRAL.pad) * st });
+  if (!windows) return;
+  rule(windows.speed);
+  rule(windows.rate);
+  const low = windows.speed.y + windows.speed.h / 2;
+  const v = windows.speed.h / st;
+  // the star: long points, a pair of wings behind it, a soft light round it
+  const R = Math.min(v * 0.56, W * 0.06);
+  mark(s, 'emblem', { x: W / 2 - R, y: low - R * st, w: 2 * R, h: 2 * R * st });
+  flatAt(g, W / 2, low + v * 0.06 * st, st, () => {
+    for (const d of [-1, 1]) {
+      for (const [len, lift, a] of [
+        [1.55, -0.42, 0.78],
+        [1.3, -0.12, 0.62],
+        [1, 0.14, 0.46],
+      ]) {
+        g.beginPath();
+        g.moveTo(d * R * 0.16, R * 0.06);
+        g.quadraticCurveTo(d * R * len * 0.6, R * (lift - 0.34), d * R * len, R * lift);
+        g.quadraticCurveTo(d * R * len * 0.6, R * (lift + 0.1), d * R * 0.16, R * 0.2);
+        g.closePath();
+        g.fillStyle = shade(MOON_BLUE, 1, a);
+        g.fill();
+      }
+    }
+    const halo = g.createRadialGradient(0, 0, 0, 0, 0, R * 1.2);
+    halo.addColorStop(0, white(0.34));
+    halo.addColorStop(1, white(0));
+    g.fillStyle = halo;
+    g.beginPath();
+    g.arc(0, 0, R * 1.2, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.moveTo(0, -R);
+    g.quadraticCurveTo(R * 0.1, -R * 0.1, R * 0.62, 0);
+    g.quadraticCurveTo(R * 0.1, R * 0.1, 0, R);
+    g.quadraticCurveTo(-R * 0.1, R * 0.1, -R * 0.62, 0);
+    g.quadraticCurveTo(-R * 0.1, -R * 0.1, 0, -R);
+    g.closePath();
+    g.fillStyle = '#ffffff';
+    g.fill();
+  });
+  // the moon's phases in a row over it: a full disc, crescents turned away from it at each side
+  for (const i of [-2, -1, 0, 1, 2]) {
+    flatAt(g, W / 2 + i * R * 0.44, top + up, st, () => {
+      const r = i === 0 ? R * 0.13 : R * 0.1;
+      g.beginPath();
+      g.arc(0, 0, r, 0, Math.PI * 2);
+      g.fillStyle = i === 0 ? '#ffffff' : MOON_BLUE;
+      g.fill();
+      if (i === 0) return;
+      g.beginPath();
+      g.arc(-Math.sign(i) * r * (Math.abs(i) === 1 ? 1 : 0.56), 0, r, 0, Math.PI * 2);
+      g.fillStyle = '#111d4b';
+      g.fill();
+    });
+  }
+}
+
 // ---------- SKY (the sky skin's gear, 하늘) ----------
 
 /** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
@@ -3464,6 +4543,12 @@ const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, 
   grok: grokPlate,
   claude: claudePlate,
   aqua: aquaPlate,
+  steel: steelPlate,
+  rainbow: rainbowPlate,
+  noir: noirPlate,
+  magenta: magentaPlate,
+  wire: wirePlate,
+  astral: astralPlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -4248,6 +5333,159 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
       g.fillStyle = black(0.5);
       g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // STEEL: a thin strip of dark slate, a lighter edge along the lanes (steel blue in FEVER)
+  steel: () => ({
+    body: '#232b35',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#4a5664');
+      side.addColorStop(1, '#161b22');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? STEEL_LIT : '#7d8b9b';
+      g.fillRect(0, 0, w, 1.1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#0c1015');
+      across.addColorStop(0.2, '#2a333e');
+      across.addColorStop(1, '#343e4a');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? STEEL_LIT : '#7d8b9b';
+      g.fillRect(w - 2.4 * k, 0, 1.2 * k, h);
+    },
+  }),
+  // RAINBOW: a strip of white paper, a soft grey shade along its outer edge; a pink line along the lanes in FEVER
+  rainbow: () => ({
+    body: '#f4f5f8',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.6, '#c9cdd8');
+      side.addColorStop(1, '#7c8194');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      if (!lit) return;
+      g.fillStyle = '#ff7ac3';
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#9da2b3');
+      across.addColorStop(0.22, '#e6e8ee');
+      across.addColorStop(1, '#ffffff');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ff7ac3' : 'rgba(21,21,92,0.1)';
+      g.fillRect(w - 3 * k, 0, 1.4 * k, h);
+    },
+  }),
+  // NOIR: black, one grey hairline along the lanes with a tick and a small node a tile (red in FEVER)
+  noir: () => ({
+    body: '#050505',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      g.fillStyle = '#060606';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? NOIR_RED : '#b9bcc2';
+      g.fillRect(0, 0, w, 1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#000000';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? NOIR_RED : '#b9bcc2';
+      g.fillRect(w - 2.2 * k, 0, 1 * k, h);
+      g.fillStyle = lit ? '#ff7f89' : '#8a8f98';
+      g.fillRect(w - 7 * k, h * 0.5, 4 * k, Math.max(1, h * 0.02));
+      g.fillRect(w - 3.6 * k, 0, 3.6 * k, Math.max(1, h * 0.045));
+    },
+  }),
+  // MAGENTA: a strip of black armour, a crimson line along the lanes (pink in FEVER)
+  magenta: () => ({
+    body: '#0d0d10',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#34343c');
+      side.addColorStop(1, '#08080a');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? CRIMSON_LIT : CRIMSON;
+      g.fillRect(0, h - 2.6 * k, w, 1.4 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#050506');
+      across.addColorStop(0.3, '#1c1c21');
+      across.addColorStop(1, '#131316');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? CRIMSON_LIT : CRIMSON;
+      g.fillRect(w - 3.4 * k, 0, 1.8 * k, h);
+    },
+  }),
+  // WIRE: near-black, a white hairline along the lanes, a fainter one outside it and a tick a tile (all brighter in FEVER)
+  wire: () => ({
+    body: '#06080d',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      g.fillStyle = '#070a10';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffffff' : white(0.85);
+      g.fillRect(0, 0, w, 1.1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      g.fillStyle = '#05070c';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = white(lit ? 0.55 : 0.28);
+      g.fillRect(w - 6.4 * k, 0, 0.8 * k, h);
+      g.fillRect(w - 6.4 * k, h * 0.5, 4 * k, Math.max(1, h * 0.02));
+      g.fillStyle = lit ? '#ffffff' : white(0.9);
+      g.fillRect(w - 2.4 * k, 0, 1.2 * k, h);
+    },
+  }),
+  // ASTRAL: a strip of deep navy, a moon-blue band and a white hairline along the lanes (the hairline gold in FEVER)
+  astral: () => ({
+    body: '#16245a',
+    width: 14,
+    tile: 40,
+    height: 12,
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#5a72bd');
+      side.addColorStop(0.5, '#22357a');
+      side.addColorStop(1, '#0a1230');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? STAR_GOLD : '#ffffff';
+      g.fillRect(0, 0, w, 1.1 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#060c22');
+      across.addColorStop(0.25, '#16245a');
+      across.addColorStop(1, '#22357a');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = shade(MOON_BLUE, 1, 0.7);
+      g.fillRect(w - 5.4 * k, 0, 2.4 * k, h);
+      g.fillStyle = lit ? STAR_GOLD : '#ffffff';
+      g.fillRect(w - 2.4 * k, 0, 1.1 * k, h);
     },
   }),
   // rails of the same raw glass along the lanes: a dark seam outside, a broken outer face in shade,
