@@ -476,5 +476,64 @@
    "thoughtsTokenCount": 2048
   },
   "made": "2026-11-11"
+ },
+ "r2-deck-build": {
+  "concept": "PRISM",
+  "kind": "deck-build",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A design sheet on a near-black background, 16:9: three different designs, stacked one above the other with generous spacing, of the 'gear bottom' of a PC rhythm game with a seven-lane note highway plus one wider lane at the far left, each drawn as a wide low trapezoid seen in perspective from above (wider at the bottom), the lower ends of the two side rails joining it. Design A 'KEY BLOCKS': eight separate crystal key pads in a row filling the deck, thin graphite gaps between them, a slim centre plate in front. Design B 'MONOLITH': one long crystal slab whose top is cut into eight shallow bevelled key facets, graphite shoulder blocks at both ends, a centre plate inset in its front face. Design C 'CONSOLE': a graphite console with eight inset crystal key pads, a hexagonal crystal dial in a ring at the left end (over the wider lane), a frosted glass panel with two indicator windows at the right end. No text. Construction, as commercial arcade-style rhythm game gears are built (do not copy any existing one): the gear is one designed object, not a decoration. Below the judgment line is a 'key deck': a row of key pads, exactly one per lane and aligned to the lanes (a wider pad for the wider far-left lane), each pad a block of crystal with a bevelled top like a real key cap; in front of the pads a slim centre name plate flanked by two small module panels with a few flush functional details (a slot, two small indicator windows, a seam). Angular chamfered panel cuts, layered plates, clean seams, a few tiny fasteners. The two side rails are slim glass light-guides in graphite channels that thicken into solid shoulder blocks where they meet the deck. Symmetrical, sturdy, engineered. Material: the gear is carved from thick blocks of clear and lightly frosted crystal glass, like a solid acrylic or quartz trophy block, set in a slim satin graphite frame. You see the glass's thickness: polished bevels, crisp facet edges, the darker edge seen through the block, soft light carried inside the glass and gathered along its edges. Calm studio lighting. STRICTLY NO glitter: no sparkles, no star glints, no lens flare, no bloom, no rainbow streaks, no light rays, no smoke. At most a faint cool tint (ice blue) inside the glass. Colours: clear glass, frost white, graphite, a little azure light.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 535,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2215,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 535
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ]
+  },
+  "made": "2026-11-11"
+ },
+ "r2-screen-build": {
+  "concept": "PRISM",
+  "kind": "screen-build",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game. Redraw it as clean concept art in the same layout and camera, 16:9. KEEP exactly as they are: the lane layout, the falling glass bar notes, the blue judgment line, the top-left song information (do not restyle it at all) and the position of every element. Redesign the gear (the deck below the judgment line and the two side rails) as described below. Also restyle, plainly: the combo number and 'COMBO' in a clean sharp italic sans-serif, white, no glass effect; 'MAX 100%' in the same typeface, 'MAX' white and '100%' soft azure; the left score block (SCORE, RATE, MAX COMBO, SPEED) and the right gauge each on a flat plate of frosted crystal glass with chamfered corners that is attached to the gear's side rail like a mounted panel; the gauge's name reads 'FEVER' (not LUMEN). Keep all other texts the same words and numbers as in the screenshot, spelled correctly. Construction, as commercial arcade-style rhythm game gears are built (do not copy any existing one): the gear is one designed object, not a decoration. Below the judgment line is a 'key deck': a row of key pads, exactly one per lane and aligned to the lanes (a wider pad for the wider far-left lane), each pad a block of crystal with a bevelled top like a real key cap; in front of the pads a slim centre name plate flanked by two small module panels with a few flush functional details (a slot, two small indicator windows, a seam). Angular chamfered panel cuts, layered plates, clean seams, a few tiny fasteners. The two side rails are slim glass light-guides in graphite channels that thicken into solid shoulder blocks where they meet the deck. Symmetrical, sturdy, engineered. Material: the gear is carved from thick blocks of clear and lightly frosted crystal glass, like a solid acrylic or quartz trophy block, set in a slim satin graphite frame. You see the glass's thickness: polished bevels, crisp facet edges, the darker edge seen through the block, soft light carried inside the glass and gathered along its edges. Calm studio lighting. STRICTLY NO glitter: no sparkles, no star glints, no lens flare, no bloom, no rainbow streaks, no light rays, no smoke. At most a faint cool tint (ice blue) inside the glass. Colours: clear glass, frost white, graphite, a little azure light.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/44-prism-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1678,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 5145,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 558
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1787
+  },
+  "made": "2026-11-11"
  }
 }
