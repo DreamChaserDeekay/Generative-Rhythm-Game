@@ -26,6 +26,9 @@ Three kinds of picture:
   receiver's brushed silver and walnut, the standard gear's brushed graphite, the keyboard's
   bead-blasted aluminium, the racing wheel's twill carbon, the orbital panel's grey paint; and the
   orbital frame's gold foil, cut from a generated texture (the renderer repeats it mirrored);
+- the sky skin's painting (assets-src/gears/sky/plate.jpg: a flat picture of a sky, made flat, with
+  nothing of the game in it), cut and sized here: the deck's code lays it under its strip of dashes and
+  writes the readouts over it (deckArt.ts: skyPlate);
 - objects, from the picked generations in assets-src/gears/<gear>/ (drawn top-down on a flat magenta
   ground, where they came from: assets-src/PROVENANCE.md): each is cut to the object and masked to its
   shape (a circle or a rounded rectangle, the ground keyed out of its edge), and the najeon frame's
@@ -459,6 +462,10 @@ def cut_flat(deck: np.ndarray, box: tuple[int, int, int, int], width: int) -> np
     return np.concatenate([rgb, ellipse_alpha(width, h)[..., None]], axis=2)
 
 
+# The share of the sky skin's painting cut off its top (plain sky).
+SKY_PLATE_TOP = 0.05
+
+
 def entry(textures: dict, gear: str, part: str, file: str, size: tuple[int, int]) -> None:
     textures[f"{gear}/{part}"] = {"file": f"gears/{gear}/{file}", "bundle": "gear", "size": [int(size[0]), int(size[1])]}
 
@@ -541,6 +548,18 @@ def main() -> None:
     sprite("orbital", "selector", neutral(cut_disc(load(SRC / "orbital" / "selector.jpg"), 512), 1.0))
     sprite("orbital", "toggle", neutral(cut_round_rect(load(SRC / "orbital" / "toggle.jpg"), 512, 0.05), 1.0))
     sprite("orbital", "button", neutral(cut_round_rect(load(SRC / "orbital" / "button.jpg"), 384, 0.1), 1.0))
+
+    # SKY: the painting of its deck's sky, less a strip of plain sky off its top (the deck then shows,
+    # on the usual cameras, the painting's upper half: the sky with a cloud standing at each end, the
+    # middle clear for the score; the sea of cloud under them shows only where the screen shows the
+    # deck deep), and mirrored, so the taller of its two clouds stands at the left as the skin's
+    # concept has it. Its strip of dashes, its readouts, its frame and its HUD are drawn in code
+    sky = load(SRC / "sky" / "plate.jpg")
+    sky = sky[round(sky.shape[0] * SKY_PLATE_TOP):, ::-1]
+    a = resize(sky, 2048, round(2048 * sky.shape[0] / sky.shape[1]))
+    save_webp(a, OUT / "sky" / "plate.webp")
+    entry(textures, "sky", "plate", "plate.webp", (a.shape[1], a.shape[0]))
+    report["sky/plate"] = [a.shape[1], a.shape[0]]
 
     # PIANO: lacquer and ivory drawn in code; its treble clef medallion, cut from its laid-flat deck (its brass is its own colour: no ground to take out)
     piano = decks["piano"]

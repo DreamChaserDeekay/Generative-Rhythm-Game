@@ -84,7 +84,8 @@ describe('the concept sets drawn from art', () => {
     // the track as it starts: the default skin, drawn in code alone (as the PRISM set is)
     expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
     expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual([]);
-    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual([]);
+    // the sky skin's too, but for one picture: the painting of its deck's sky
+    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/plate']);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // three hits of no set have flipbooks of their own, as the sets' hits do (FLASH is drawn in code alone)
     for (const hit of ['flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
@@ -334,7 +335,8 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   rawglass: { deck: 'rawglass/deck' },
   // drawn in code alone
   prism: {},
-  sky: {},
+  // drawn in code but for the painting of its deck's sky
+  sky: { plate: 'sky/plate' },
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
@@ -360,7 +362,57 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
 /** Whether two boxes on the canvas overlap (touching is not). */
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
-// STANDARD and PRISM have no pictures: they are drawn in code alone
+describe('the sky gear, drawn in code over one painting', () => {
+  const style = withParts(BASE_SKIN, { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' }).style;
+  const images = loaded(style);
+  const spec = (room: number, stretch: number): DeckSpec => ({ width: 8 * 73.65, depth: room + 60, room, stretch, lanes: [], sides: [] });
+
+  it('has the painting of its deck’s sky in the media, wide and no larger than a texture may be, and nothing else', () => {
+    expect(styleImageIds(style)).toEqual(['sky/plate']);
+    const t = manifest.textures['sky/plate'];
+    expect(t.file).toBe('gears/sky/plate.webp');
+    expect(t.size[0]).toBe(2048);
+    // wide: on the usual cameras the deck shows its upper half and a little more
+    expect(t.size[0] / t.size[1]).toBeGreaterThan(2);
+    expect(t.size[0] / t.size[1]).toBeLessThan(3);
+    expect(Object.keys(gearArtOf('sky', images))).toEqual(['plate']);
+    expect(artPartsOf(style, images)).toEqual(['gear']);
+    // not loaded (yet): the gear is drawn in code alone, and says so
+    expect(artPartsOf(style, {})).toEqual([]);
+  });
+
+  it('lays the painting under its strip of dashes, as wide as the deck and as long along the track as keeps it as painted; the deck deeper than it runs its last row on', () => {
+    const [pw, ph] = manifest.textures['sky/plate'].size;
+    for (const [room, stretch] of [
+      [155.55, 1.2],
+      [912, 3.25],
+    ]) {
+      const s = spec(room, stretch);
+      const { g, draws } = recorder();
+      platePaintOf(style, images)(g, s);
+      expect(draws.length).toBeGreaterThanOrEqual(1);
+      const [whole, ...more] = draws;
+      expect(whole.id).toBe('sky/plate');
+      // under the strip and its line (20 px of the sheets), across the whole deck
+      expect([whole.dx, whole.dw]).toEqual([0, s.width]);
+      expect(whole.dy).toBeCloseTo(20 * stretch, 6);
+      expect(whole.dh).toBeCloseTo((ph / pw) * s.width * stretch, 6);
+      // where the screen shows the deck deeper than the painting: its last row, down to the deck's end
+      const under = s.depth - whole.dy - whole.dh;
+      if (under > 0) {
+        expect(more).toHaveLength(1);
+        expect([more[0].sy, more[0].sh]).toEqual([ph - 1, 1]);
+        expect(more[0].dy + more[0].dh).toBeCloseTo(s.depth, 6);
+      } else expect(more).toHaveLength(0);
+    }
+    // without the painting nothing is drawn from a picture: the same sky in plain shapes
+    const plain = recorder();
+    platePaintOf(style, {})(plain.g, spec(155.55, 1.2));
+    expect(plain.draws).toEqual([]);
+  });
+});
+
+// STANDARD and PRISM have no pictures: they are drawn in code alone (SKY's one painting has its own tests above)
 describe.each(GEAR_STYLES.filter((gear) => gear !== 'prism' && gear !== 'sky' && gear !== 'standard').map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);

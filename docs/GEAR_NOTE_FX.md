@@ -49,7 +49,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 | 부분 | 내용 |
 |---|---|
-| 기어 | 폭은 트랙 폭 그대로. 판정선 아래 가는 남색 띠에 레인마다 짧은 표시선 하나(누른 레인의 것이 청록으로 켜짐), 흰 실선 아래로 받침 전체가 하늘: 위는 깊은 파랑, 플레이어 쪽으로 옅어지고, 양끝에 뭉게구름, 가운데(점수 자리)는 비워 두고 가는 흰 바람 줄 몇 가닥. 금속·유리 광택 없이 평평한 그림 |
+| 기어 | 폭은 트랙 폭 그대로. 판정선 아래 가는 남색 띠에 레인마다 짧은 표시선 하나(누른 레인의 것이 청록으로 켜짐), 흰 실선 아래로 받침 전체가 하늘: 위는 깊은 파랑, 플레이어 쪽으로 옅어지고, 양끝에 뭉게구름, 가운데(점수 자리)는 비워 두고 가는 흰 바람 줄 몇 가닥. 금속·유리 광택 없이 평평한 그림. **이 하늘과 구름은 Gemini로 뽑은 그림 한 장**(`client/public/media/gears/sky/plate.webp`)을 깔고, 그 위의 표시선·깃털·수치 자리는 코드로 그립니다. 그림을 읽지 못하면 같은 하늘을 코드의 단순한 모양으로 그립니다 |
 | 레일 | 하늘빛 유리의 가는 띠에 고도계 같은 눈금 |
 | 수치 | SCORE는 창 없이 하늘 위에 가는 흰 글씨로(위에 깃털, 아래에 실선 하나), SPEED·RATE는 양끝의 비치는 남색 알약 창에 기울인 흰 글씨로 |
 | 판정선 | 흰 심에 하늘빛 테(자리와 굵기는 모든 기어 공통) |
@@ -66,9 +66,15 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 레인 그림은 렌더러에 새로 넣은 층입니다(`deckArt.ts`의 `GEAR_FLOORS`, `TrackRenderer.buildTrack`): 바닥 위, 레인 색띠·구분선·노트 아래에 한 장을 깔고, 판정선 위치(LIFT)를 옮기면 그림도 선을 따라갑니다. 그림은 시작할 때 한 번 그리고 프레임마다 하는 일은 없습니다. 다른 스킨도 같은 표에 한 줄을 더하면 레인 그림을 가질 수 있습니다(지침: 받침과 노트보다 분명히 어두울 것).
 
-지금까지의 세 스킨은 **시안만 Gemini로 뽑고 게임 화면은 전부 코드로 그렸습니다**(Canvas 2D로 그려 텍스처로 올림). 그래서 키 모드·카메라·해상도가 달라져도 레인과 수치 자리에 맞춰 다시 그려집니다.
+**시안과 구현의 관계.** 기본·크리스털 스킨은 시안만 Gemini로 뽑고 게임 화면은 전부 코드로 그렸습니다(Canvas 2D로 그려 텍스처로 올림). 하늘 스킨도 처음에는 그랬는데, 코드로 그린 구름이 시안과 달라 **받침의 하늘·구름만 Gemini로 뽑은 그림**으로 바꿨습니다(예전 기어 아홉 개가 받침 그림을 쓰는 것과 같은 길: `assets-src/gears/sky/plate.jpg` → `scripts/assets/build_gears.py` → 매니페스트의 `sky/plate`, 출처는 `assets-src/PROVENANCE.md`). 나누는 기준은 이렇습니다.
 
-코드: `deckArt.ts`(`skyPlate`, `skyFloor`, `SKY_STRANDS`, `strand`, `cumulus`, `faintCumulus`, `feather`, `GEAR_FLOORS`, `deckReadouts`, `deckKeys`의 표시선, `paintLitKey`, `judgeOf`, 레일), `gearLights.ts`(`skyLights`), `gearHud.ts`(`GEAR_TYPES.sky`), `skins.ts`(`SKIN_PARTS.sky`, `HUD_FONTS.Nunito`), `tintArt.ts`(`skyBar`, `skyWings`, `skyLong`, `drawPuff`, `LongPaint.flat`), `TrackRenderer.ts`(레인 그림 층, 평평한 롱노트). 세션 1 담당 파일에서 고친 것(사용자 지시): `styles.css`(`.hud[data-gear='sky']`, `.hud[data-fill='sky']`, `@font-face 'Nunito'`), `ui/Hud.ts`(`cut` → `fill` 이름), `ui/optionRows.tsx`(이름), `ui/SettingsScreen.tsx`·`ui/settingsHelp.ts`(도움말). 글꼴 파일은 `client/src/assets/fonts/Nunito-ExtraBoldItalic.woff2`(라이선스 `client/public/licenses/fonts/OFL-Nunito.txt`).
+| 그림으로 넣기 좋은 것 | 코드로 남기는 것 |
+|---|---|
+| 배경처럼 깔리는 것: 받침의 그림, 레일·판의 재질, 받침 위의 장식(깃털 같은 사물 하나) | 레인·키 모드에 맞춰야 하는 것(레인마다의 키·표시선, 수치 창의 자리), 레인 색을 입히는 것(노트·롱노트), 프레임마다 움직이는 것(타격 효과의 16프레임), 글자(판정·콤보·수치) |
+
+그림은 한 번 뽑으면 고정이라 키 모드·카메라가 바뀌어도 어긋나지 않는 자리에만 씁니다. 레인의 곡선은 시안과 똑같은 자리를 지나야 해서 좌표로 그렸습니다.
+
+코드: `deckArt.ts`(`skyPlate`, `skyPainting`, `skyDrawn`, `skyFloor`, `SKY_STRANDS`, `strand`, `cumulus`, `faintCumulus`, `feather`, `GEAR_FLOORS`, `deckReadouts`, `deckKeys`의 표시선, `paintLitKey`, `judgeOf`, 레일), `gearLights.ts`(`skyLights`), `gearHud.ts`(`GEAR_TYPES.sky`), `skins.ts`(`SKIN_PARTS.sky`, `HUD_FONTS.Nunito`), `tintArt.ts`(`skyBar`, `skyWings`, `skyLong`, `drawPuff`, `LongPaint.flat`), `TrackRenderer.ts`(레인 그림 층, 평평한 롱노트). 세션 1 담당 파일에서 고친 것(사용자 지시): `styles.css`(`.hud[data-gear='sky']`, `.hud[data-fill='sky']`, `@font-face 'Nunito'`), `ui/Hud.ts`(`cut` → `fill` 이름), `ui/optionRows.tsx`(이름), `ui/SettingsScreen.tsx`·`ui/settingsHelp.ts`(도움말). 글꼴 파일은 `client/src/assets/fonts/Nunito-ExtraBoldItalic.woff2`(라이선스 `client/public/licenses/fonts/OFL-Nunito.txt`).
 
 ## '기본' 스킨
 
@@ -95,15 +101,16 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## 검사
 
-- `npx tsc --noEmit -p .` 통과, `npx vitest run` 459개 통과.
+- `npx tsc --noEmit -p .` 통과, `npx vitest run` 470개 통과(하늘 스킨까지).
 - e2e: `e2e/phase3.spec.ts`와 `e2e/hud.spec.ts` 19개 중 16개 통과(스킨 줄을 넣기 전). 크리스털 부품을 골라 플레이하는 테스트(글자의 겹, 받침 수치의 자리, 라벨 색까지 확인)를 포함합니다. 스킨 줄을 넣은 뒤에는 그 줄의 테스트(스킨 하나로 부품과 글꼴이 함께 바뀜, 사이드 노트 유지, 직접 고름)와 부품 선택 테스트, `e2e/settings.spec.ts` 10개를 다시 돌려 모두 통과했습니다(그 가운데 기어 도움말 테스트는 기대값이 1차 구현 때부터 지금의 기어 순서·문구와 어긋나 있어 이번에 맞췄습니다). 실패한 3개("stem keysound…", "a YouTube link…", "a long intro is skipped…")는 이 작업 전의 커밋에서도 같은 자리에서 실패하는 것으로, 렌더러와 무관합니다(첫째는 앞서 확인했고, 나머지 둘은 이번에 브랜치를 시작한 커밋 b8747dc에서 직접 돌려 확인).
+- 하늘 스킨: `e2e/phase3.spec.ts`와 `e2e/settings.spec.ts` 24개 중 22개 통과(스킨 줄이 세 스킨을 돌고, 하늘 스킨으로 플레이하면 글꼴·글자 채움·받침 수치·게이지 캡슐이 제 모양인지, 도움말이 하늘의 문구만 보여 주는지 확인). 실패 2개는 위의 스템·유튜브 테스트로 기준 커밋에서도 같습니다. 레인의 곡선은 시안과 게임 화면의 가는 선만 뽑아 겹쳐 보아 같은 자리를 지나는 것을 확인했습니다.
 - 화면 확인: 7K+1S · 6K+FX(반쪽 덮기) · 4K(FEVER), 카메라 SDVX · FLAT · LOW · PLANE, 설정의 기어 미리보기. LOW 카메라처럼 받침이 화면에 조금만 보이면 수치판을 그리지 않고 수치는 예전처럼 기어 왼쪽에 나옵니다.
 - 60fps: 이 환경은 소프트웨어 렌더러(SwiftShader)라 실제 PC의 프레임은 재지 못했습니다. 추가한 것은 프레임마다 그리는 양을 늘리지 않습니다(받침·키캡·효과 그림은 시작할 때 한 번 그리고, 글자의 겹은 글자가 바뀔 때만 다시 그립니다).
 
 ## 남은 것
 
 - **이미 저장된 설정은 바뀌지 않습니다.** 예전 빌드로 실행한 적이 있는 PC는 저장된 기어·노트·효과를 유지합니다. 설정 → 기어 → 스킨에서 원하는 스킨을 고르면 됩니다.
-- '하늘' 스킨의 받침 구름·깃털은 코드로 그린 단순한 모양이라 시안의 그림 같은 구름과는 다릅니다. 원하면 Gemini로 뽑은 그림을 받침·레인의 재료로 넣을 수 있습니다(예전 기어들이 받침 그림을 쓰는 것과 같은 방식. 키 줄·수치·글자·노트·효과는 레인과 색에 맞춰야 해서 코드로 남깁니다).
+- '하늘' 스킨의 깃털과 레인의 옅은 구름은 아직 코드로 그린 단순한 모양입니다. 받침 그림처럼 Gemini로 뽑아 넣을 수 있습니다. 기본·크리스털 스킨의 받침도 같은 방식으로 그림을 깔 수 있습니다(지금은 전부 코드).
 - 레인 그림의 세 가닥은 기본 카메라(SDVX)의 원근에 맞춘 것입니다. 다른 카메라에서는 같은 트랙 위 자리를 지나되 화면에서의 모양은 그 카메라대로 보입니다.
 - '기본' 스킨의 콤보·판정 글꼴은 예전 그대로입니다(굵은 장체, 기울임 없음).
 - 설정의 기어 미리보기에는 HUD가 없어 수치판·창이 빈 채로 보입니다.

@@ -81,7 +81,8 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
   // drawn in code alone
   prism: {},
-  sky: {},
+  // drawn in code but for the painting of its deck's sky
+  sky: { plate: 'sky/plate' },
   // drawn in code alone: its key caps light with the lanes and its deck houses the HUD's readouts
   standard: {},
   cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },

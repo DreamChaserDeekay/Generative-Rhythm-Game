@@ -675,6 +675,14 @@
         1024
       ]
     },
+    "sky/plate": {
+      "file": "gears/sky/plate.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        826
+      ]
+    },
     "standard/deck": {
       "file": "gears/standard/deck.webp",
       "bundle": "gear",

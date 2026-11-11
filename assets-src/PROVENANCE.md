@@ -1887,3 +1887,36 @@
 - `silver-a1`(16:31, 약 $0.059, 4,319,618바이트 · `3eb339183d1db7a5`) · `silver-a2`(16:31, 약 $0.067, 4,384,502바이트 · `72e0cba1b75d351f`): 둘째 시안 실버 글라스(은색 위 두꺼운 유리판에 베벨로 깎은 은도금 유리 막대 셋) · 받침의 네모를 빼고 처음부터 다시 디자인하라 해서 쓰지 않음(a2는 틀도 맞지 않음)
 - `mirror-a1`(16:05, 약 $0.058, 4,297,684바이트 · `d96b073f85483e86`) · `mirror-a2`(16:06, 약 $0.057, 4,344,918바이트 · `39018505bff38b41`): 첫 시안 베벨 미러(크롬 판에 베벨로 깎은 검은 거울 셋) · SG-701과 너무 다르다 해서 쓰지 않음(a2는 그 전에도 판정선 바로 아래 밝은 크롬 띠가 두 번째 판정선처럼 보여 빼 둠)
 - 비용: 쓴 2장 약 $0.122, 쓰지 않은 25장 약 $1.510, 합해 약 $1.632
+
+## 하늘 스킨의 받침 그림 (`gears/sky`, 2026-11-11)
+
+'하늘' 스킨(기어 · 노트 · 타격 효과 · 글자)은 코드로 그리지만, 받침의 하늘과 구름만은 그림 한 장을 깝니다. 사용자의 물음("에셋을 gemini로 뽑아서 그걸 적용시킬수는 없는거야?")에 따라, 코드로 그린 단순한 구름을 시안(`design-mockups/gear-concepts/r2-skin-sky-c3.jpg`)의 그림 같은 구름에 가깝게 하려고 넣었습니다. 그림이 없거나 읽지 못하면 받침은 예전처럼 코드로 그립니다(`deckArt.ts`의 `skyDrawn`). 키 표시선 · 수치 자리 · 깃털 · 레일 · 레인의 그림 · 노트 · 타격 효과 · 글자는 모두 코드입니다.
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 21:9 · 2K) · 사용자의 Google Cloud 프로젝트 · 약 $0.06(토큰 사용량으로 계산한 추정치: 글 554 · 그림 1680 · 생각 1142 토큰)
+- 기준 이미지: 없음. 글로만 설명했고, 사용자가 참고로 준 다른 게임의 스킨 그림이나 시안은 모델에 보내지 않았습니다. 프롬프트에 게임 · 회사 · 아티스트 이름이 없습니다.
+- 만드는 도구: `scripts/assets/make_sky_pictures.py plate` (받은 그대로는 `assets-src/gears/sky/_tries/`에 두고 저장소에는 넣지 않음)
+
+### `gears/sky/plate.jpg`
+
+- 용도: 하늘 기어 받침의 하늘 → `gears/sky/plate.webp` 2048×826(48,262바이트)
+- 날짜: 2026-11-11 07:50 UTC · 한 장을 받아 그대로 씀(`plate-1`) · 21:9 · 2K → 3168×1344 PNG 3,988,599바이트 · sha256 앞 16자리 `4f0ab4df783e515c`
+- 저장: 받은 그림 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 663,223바이트
+- 게임용으로: `scripts/assets/build_gears.py`가 위쪽 5%(빈 하늘)를 잘라 내고 좌우를 뒤집어(두 구름 가운데 키 큰 쪽이 시안처럼 왼쪽에 오도록) 2048×826으로 줄여 WebP(품질 90)로 저장합니다.
+- 게임에서: 키 표시선 띠 아래에 받침 폭 그대로, 카메라가 받침을 납작하게 보는 만큼 트랙 방향으로 늘여 깔아 그린 그대로 보이게 합니다(`deckArt.ts`의 `skyPainting`). 기본 카메라에서는 그림의 위쪽 절반 남짓(하늘과 양끝 구름의 윗부분, 가운데는 점수 자리로 비어 있음)이 보이고, 받침이 더 깊이 보이는 화면(평면 카메라, 설정의 미리보기)에서는 그 아래 구름 바다까지 보입니다. 그림보다 더 깊이 보이는 곳은 마지막 줄을 이어 그늘로 가라앉힙니다.
+- 프롬프트:
+
+  > A wide, flat 2D background painting of a clear daytime sky with white cumulus clouds, in the clean manner of a modern anime background painting: matte, soft cel shading, simple shapes, no photographic detail, no noise, no grain.
+  >
+  > It is used as a flat texture inside a game's interface, so it must be a straight-on, undistorted picture: no horizon line, no ground, no sea, no sun, no lens flare, no rays of light, no stars, no birds, no aircraft, no text.
+  >
+  > Composition, exactly:
+  > - The top fifth of the picture is plain clear sky, a deep clear blue (#2f7fd6), nothing in it.
+  > - Going down, the sky's blue eases lighter: a mid blue (#4d9ee6) across the middle of the picture, a pale sky blue (#8ccbf4) by two thirds of the way down.
+  > - Two large white cumulus clouds rise from the lower-left and lower-right corners. The left one fills the left quarter of the width; its highest billow, at the far left edge, reaches up to about 30% of the way down from the top. The right one fills the right quarter of the width; its highest billow, at the far right edge, reaches up to about 40% of the way down from the top. Both slope down toward the middle of the picture. Their tops are round and billowing, a bright clean white; their folds and undersides are shaded in a pale blue (#b9d8f2).
+  > - The middle half of the width is completely clear sky from the top of the picture down to 60% of its height: no cloud, no wisp, nothing there at all (white text is written there by the game).
+  > - Two or three small, distant clouds with flat bases sit low beside the two big ones, never in the middle.
+  > - Two or three very thin, faint white wind trails cross the whole width in long, gentle arcs, hairline thin, behind the clouds.
+  > - The bottom third of the picture is a continuous sea of white cloud seen from the side, its top edge billowing and joining the two big clouds; below its top edge it falls evenly into soft pale-blue shade toward the bottom edge of the picture.
+  >
+  > Colours: only these blues and white, the shading a pale blue; no yellow, no orange, no pink, no purple, no grey storm cloud. Calm, even light from the upper left. Edges crisp yet soft. No vignette, no frame, no border, no watermark, no text, no letters, no numbers.
+

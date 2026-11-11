@@ -2266,9 +2266,10 @@ function feather(g: CanvasRenderingContext2D, cx: number, cy: number, r: number,
  * deck is a window onto the sky: a deep clear blue easing lighter toward the player, cumulus low in it
  * and toward its two ends (its middle kept clear), thin white wind trails across it, and a feather over
  * the score. The score is written on the sky itself, a hairline under it; the speed and the rate in
- * two see-through pills (deckReadouts). A matte illustration: no sun, no rays, nothing glints.
+ * two see-through pills (deckReadouts). A matte illustration: no sun, no rays, nothing glints. The
+ * sky is its painting where that is loaded (`art.plate`), the same in plain shapes otherwise.
  */
-function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt = {}): void {
   const st = s.stretch;
   const W = s.width;
   // the strip and its dashes
@@ -2286,6 +2287,68 @@ function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
   const top = (SKY.keys + SKY.seam) * st;
   const H = (SKY.upper + SKY.lower) * st;
+  if (art.plate) skyPainting(g, s, art.plate, top);
+  else skyDrawn(g, s, top, H);
+  // the white line along the sky's far edge
+  g.fillStyle = white(0.92);
+  g.fillRect(0, kh, W, SKY.seam * st);
+  mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
+  const windows = deckReadouts('sky', s);
+  if (!windows) return;
+  // the feather over the score, and the hairline under it
+  const quill = Math.min(12, (windows.score.y - top) / st / 2.5);
+  const at = { x: W / 2, y: top + (windows.score.y - top) / 2 };
+  feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
+  mark(s, 'feather', { x: at.x - quill * 1.6, y: at.y - quill * 1.6 * st, w: quill * 3.2, h: quill * 3.2 * st });
+  const rule = g.createLinearGradient(W * 0.28, 0, W * 0.72, 0);
+  rule.addColorStop(0, white(0));
+  rule.addColorStop(0.2, white(0.75));
+  rule.addColorStop(0.8, white(0.75));
+  rule.addColorStop(1, white(0));
+  g.fillStyle = rule;
+  g.fillRect(W * 0.28, windows.score.y + windows.score.h + 1.5 * st, W * 0.44, Math.max(1, 0.8 * st));
+  // the speed's and the rate's pills: the sky seen through a darker glass (dark enough for white type
+  // where a cloud stands behind it), a white hairline round each
+  for (const pill of [windows.speed, windows.rate]) {
+    rounded(g, pill, pill.h / (2 * st), st);
+    g.fillStyle = 'rgba(12,38,84,0.64)';
+    g.fill();
+    g.lineWidth = 0.8;
+    g.strokeStyle = white(0.62);
+    g.stroke();
+  }
+}
+
+/**
+ * SKY's deck from its painting (a sky painted flat for it, a cloud standing at each end and the middle
+ * clear: scripts/assets/build_gears.py): under the strip, as wide as the deck and as much longer
+ * along the track as the camera flattens the deck, so it shows as it was painted; where the screen
+ * shows the deck deeper than the painting, its sea of cloud runs on and falls into shade.
+ */
+function skyPainting(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture, top: number): void {
+  const tall = (pic.height / pic.width) * s.width * s.stretch;
+  g.save();
+  g.beginPath();
+  g.rect(0, top, s.width, s.depth - top);
+  g.clip();
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(pic, 0, top, s.width, tall);
+  const under = s.depth - top - tall;
+  if (under > 0) {
+    g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, top + tall, s.width, under);
+    const fall = g.createLinearGradient(0, top + tall, 0, top + tall + Math.min(under, tall * 0.6));
+    fall.addColorStop(0, 'rgba(24,40,72,0)');
+    fall.addColorStop(1, 'rgba(24,40,72,0.94)');
+    g.fillStyle = fall;
+    g.fillRect(0, top + tall, s.width, under);
+  }
+  g.restore();
+}
+
+/** SKY's deck drawn in code (its painting not loaded): the same sky in plain shapes. */
+function skyDrawn(g: CanvasRenderingContext2D, s: DeckSpec, top: number, H: number): void {
+  const st = s.stretch;
+  const W = s.width;
   // the sky: over the readouts' steps, and paler on below them
   const sky = g.createLinearGradient(0, top, 0, top + H);
   SKY_BLUES.forEach((c, i) => sky.addColorStop(i / (SKY_BLUES.length - 1), c));
@@ -2326,33 +2389,6 @@ function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
     g.fillRect(0, top + H, W, s.depth - top - H);
   }
   g.restore();
-  // the white line along the sky's far edge
-  g.fillStyle = white(0.92);
-  g.fillRect(0, kh, W, SKY.seam * st);
-  mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
-  const windows = deckReadouts('sky', s);
-  if (!windows) return;
-  // the feather over the score, and the hairline under it
-  const quill = Math.min(12, (windows.score.y - top) / st / 2.5);
-  const at = { x: W / 2, y: top + (windows.score.y - top) / 2 };
-  feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
-  mark(s, 'feather', { x: at.x - quill * 1.6, y: at.y - quill * 1.6 * st, w: quill * 3.2, h: quill * 3.2 * st });
-  const rule = g.createLinearGradient(W * 0.28, 0, W * 0.72, 0);
-  rule.addColorStop(0, white(0));
-  rule.addColorStop(0.2, white(0.75));
-  rule.addColorStop(0.8, white(0.75));
-  rule.addColorStop(1, white(0));
-  g.fillStyle = rule;
-  g.fillRect(W * 0.28, windows.score.y + windows.score.h + 1.5 * st, W * 0.44, Math.max(1, 0.8 * st));
-  // the speed's and the rate's pills: the sky seen through a darker glass, a white hairline round each
-  for (const pill of [windows.speed, windows.rate]) {
-    rounded(g, pill, pill.h / (2 * st), st);
-    g.fillStyle = 'rgba(14,44,92,0.5)';
-    g.fill();
-    g.lineWidth = 0.8;
-    g.strokeStyle = white(0.62);
-    g.stroke();
-  }
 }
 
 /**
