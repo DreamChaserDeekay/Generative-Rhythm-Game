@@ -30,6 +30,7 @@ from ..difficulty.estimator import estimate
 from ..difficulty.patterns import pattern_summary
 from ..formats.common import drop_conflicts, measures, normalize_notes, structural_problems
 from ..formats.osu import OSU_WIDTH, _pairs, _sections, parse_osu
+from ..chart.camera_notes import camera_from_notes
 from ..chart.effects import camera_effects
 from ..chart.keysounds import keysound_meta, mark_sound_ends
 from ..chart.lanes import lane_infos
@@ -75,7 +76,7 @@ def stars_of(level: float, cfg: dict[str, Any]) -> float:
 
 # the settings a chart depends on: a chart id holds them, and so does the generator tag the song
 # select keeps its briefs under (a change of them makes other charts)
-CHART_SETTINGS = ("model", "holdNoteRatio", "temperature", "starsForLevel", "starsScale", "hitsounds", "lookback", "lookahead", "parallel")
+CHART_SETTINGS = ("model", "cameraFrom", "holdNoteRatio", "temperature", "starsForLevel", "starsScale", "hitsounds", "lookback", "lookahead", "parallel")
 
 
 def settings_tag(cfg: dict[str, Any]) -> str:
@@ -101,6 +102,7 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "lookback": float(cfg.get("lookback", 0.5)),
         "lookahead": float(cfg.get("lookahead", 0.4)),
         "parallel": bool(cfg.get("parallel", False)),
+        "camera": cfg.get("cameraFrom", "notes"),
     }
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
@@ -196,6 +198,26 @@ def notes_from_osu(text: str, lanes: list[int]) -> list[dict[str, Any]]:
     return notes
 
 
+def hits_from_osu(text: str) -> list[tuple[float, int, int]]:
+    """The hitsounds of an osu!mania file's objects as (time ms, hitsound bits, volume 0..100; 0:
+    none given): what the model heard as accents (whistle 2, finish 4, clap 8)."""
+    out: list[tuple[float, int, int]] = []
+    for line in _sections(text.lstrip("\ufeff")).get("HitObjects", []):
+        f = line.split(",")
+        if len(f) < 5:
+            continue
+        try:
+            sample = f[5].split(":") if len(f) > 5 else []
+            # a hold's sample follows its end time
+            if int(f[3]) & 128:
+                sample = sample[1:]
+            volume = int(sample[3]) if len(sample) > 3 and sample[3].strip() else 0
+            out.append((float(f[2]), int(f[4]), volume))
+        except ValueError:
+            continue
+    return out
+
+
 def attach_sources(notes: list[dict[str, Any]], onsets: list[dict[str, Any]]) -> None:
     """The stem of the analysed onset nearest each note (within SRC_TOLERANCE_MS): what the stem
     keysound mode plays for it."""
@@ -286,6 +308,7 @@ def make_chart(
                 "keycount": len(columns(key_mode)),
                 # "song": the timing of the song's first chart, given; "model": found for this chart
                 "timing": "song" if song_timing else "model",
+                "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
                 "seconds": info.get("seconds"),
                 "device": info.get("device"),
                 "precision": info.get("precision"),
@@ -295,7 +318,13 @@ def make_chart(
         },
         "timing": timing,
         "sections": sections,
-        "effects": camera_effects(sections, tempo, notes, lanes, analysis.get("onsets", []), []),
+        # the camera: from the chart's own notes and hitsounds (mapper.json cameraFrom "notes"), or
+        # from the analysed sections as before ("structure")
+        "effects": (
+            camera_effects(sections, tempo, notes, lanes, analysis.get("onsets", []), [])
+            if cfg.get("cameraFrom") == "structure"
+            else camera_from_notes(notes, timing, lanes, hits_from_osu(osu_text))
+        ),
         "notes": notes,
     }
 

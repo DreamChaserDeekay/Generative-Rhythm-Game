@@ -1,11 +1,9 @@
 {
-  "_comment": "Mapperatorinator (OliBomby/Mapperatorinator, MIT; weights OliBomby/Mapperatorinator-v32, MIT) makes the charts on this branch (docs/MAPPERATORINATOR.md). It runs in its own Python, set up on first use under the runtime folder: uv (from PyPI), Python 3.11, PyTorch with CUDA and Mapperatorinator's inference packages, its source (bundled with the app, else from GitHub at the pinned commit) and the weights (Hugging Face).",
-  "enabled": true,
+  "_comment": "Mapperatorinator (OliBomby/Mapperatorinator, MIT; weights OliBomby/Mapperatorinator-v32, MIT) makes the charts (docs/MAPPERATORINATOR.md). It runs in its own Python, set up on first use under the runtime folder: uv (from PyPI), Python 3.11, PyTorch with CUDA and Mapperatorinator's inference packages, its source (bundled with the app, else from GitHub at the pinned commit) and the weights (Hugging Face).",
   "model": "v32",
   "requireNvidia": true,
   "allowCpu": false,
   "precision": "auto",
-  "useAppTiming": true,
   "hitsounds": true,
   "lookback": 0.5,
   "lookahead": 0.4,
@@ -13,6 +11,20 @@
   "holdNoteRatio": null,
   "temperature": null,
   "timeoutSeconds": 1800,
+  "cameraFrom": "notes",
+  "camera": {
+    "_comment": "The camera's cues from a chart's own notes (server/rhythm_server/chart/camera_notes.py). cameraFrom: \"notes\" (this, no song analysis) or \"structure\" (the analysed sections, as before). Sections are cut where the notes per beat of the next windowBars bars differ from the last ones' by `change` (of the song's busy level: the topPercentile of its bars) at least, minBars apart (a busier section starts at the first bar within plateauSlack of its usual level); a section of busyEnergy or more among the sections is a busy one (it leans and pulses). Bars that each fill up by rampStep before a busy section, rampBars at most, are a build-up; so is a stream of streamBeats or more (hits no further apart than streamGapBeats) ending before the next section.",
+    "windowBars": 2,
+    "minBars": 2,
+    "change": 0.2,
+    "topPercentile": 90,
+    "plateauSlack": 0.1,
+    "busyEnergy": 0.7,
+    "rampBars": 4,
+    "rampStep": 0.05,
+    "streamBeats": 4,
+    "streamGapBeats": 0.26
+  },
   "starsForLevel": [[1, 1.0], [4, 1.8], [7, 2.6], [10, 3.4], [13, 4.3], [15, 5.0], [17, 5.7], [20, 7.0]],
   "runtime": {
     "python": "3.11",
