@@ -120,12 +120,9 @@ const METER_HEIGHT = 80;
 const METER_SWEEP = 48;
 /** The score panel's housing (a gear's): this far round its lines (screen px at 720p). */
 const PLATE_PAD = 8;
-/** The song's progress: a thin bar left of the gear, as long as the gauge right of it (screen px wide, and its gap to the panel). */
-const PROGRESS_WIDTH = 5;
 const PROGRESS_GAP = 12;
 /** Screen px between SPEED and the score panel, and between the panel (or the bar) and the time left over it. */
 const COLUMN_GAP = 18;
-const TIME_GAP = 8;
 /** Steps the progress bar moves in (one transform each). */
 const PROGRESS_STEPS = 500;
 /** Plane px per track unit (HUD_UNIT; kept here so the plane's sizes read as the sheets' px). */
@@ -358,8 +355,8 @@ export class Hud {
   private readonly fastCount: HTMLElement;
   private readonly slowCount: HTMLElement;
   private readonly panel: HTMLElement;
-  /** The panel's rows, from the bottom up. */
-  private readonly panelRows: HTMLElement[];
+  /** The panel's rows, from the bottom up (without those the gear's deck houses). */
+  private panelRows: HTMLElement[];
   private readonly gauge: HTMLElement;
   private readonly gaugeFill: HTMLElement;
   private readonly gaugeClear: HTMLElement;
@@ -376,10 +373,20 @@ export class Hud {
   private readonly speed: HTMLElement;
   private readonly speedNum: HTMLElement;
   private readonly bpm: HTMLElement;
-  private readonly progress: HTMLElement;
   private readonly progressFill: HTMLElement;
-  private readonly progressTime: HTMLElement;
+  /** The song's time under its plate: how far in, of how long, over a bar; `remaining` is kept (not shown) for what reads the time left. */
+  private readonly elapsed: HTMLElement;
+  private readonly total: HTMLElement;
   private readonly remaining: HTMLElement;
+  /** The score's and the rate's rows, which the gear's deck houses where it has windows for them (HudPlane.deck), with SPEED. */
+  private readonly scoreRow: HTMLElement;
+  private readonly rateRow: HTMLElement;
+  private readonly maxComboRow: HTMLElement;
+  /** The panel's rows as built, top down. */
+  private readonly allRows: HTMLElement[];
+  private onDeck = false;
+  private totalMs = 0;
+  private lastElapsed = -1;
   private readonly fever: HTMLElement;
   private readonly feverFill: HTMLElement;
   private readonly feverText: HTMLElement;
@@ -426,7 +433,7 @@ export class Hud {
    * The column left of the gear from the last layout: the plane, the panel's right edge and foot
    * over SPEED, the progress bar's right edge and top (plane px), and the screen's margins (px).
    */
-  private column: { h: readonly number[]; x: number; bottom: number; barX: number; barTop: number; margin: number; top: number } | null = null;
+  private column: { h: readonly number[]; x: number; bottom: number; margin: number; top: number } | null = null;
 
   constructor(root: HTMLElement, info: HudInfo, showErrorMs: boolean, reducedFlash = false) {
     this.root = root;
@@ -441,14 +448,13 @@ export class Hud {
     root.innerHTML = `
       <div class="hud-info">
         <div class="hud-head"><div class="hud-line"><span class="hud-name"><span class="hud-title"></span><span class="hud-artist"></span></span><span class="hud-tier"><span class="hud-diff"><span class="hud-diff-tier"></span><span class="hud-diff-level"></span></span><span class="hud-keymode"></span></span></div></div>
+        <div class="hud-time hud-progress-time" data-testid="hud-time"><span class="hud-elapsed" data-testid="hud-elapsed">0:00</span><span class="hud-total" data-testid="hud-total"></span><span class="hud-progress" data-testid="hud-progress"><i class="hud-progress-fill"></i></span><span class="hud-remaining" data-testid="hud-remaining" hidden></span></div>
       </div>
       <div class="hud-plane">
         <div class="hud-judge"><div class="hud-judge-pop"><div class="hud-judge-text"><span class="hud-judge-label"></span></div><i class="hud-judge-bar"></i><div class="hud-judge-sub"><span class="hud-judge-fs"></span><span class="hud-judge-ms"></span></div></div></div>
         <div class="hud-combo"><div class="hud-combo-num"></div><div class="hud-combo-label">COMBO</div></div>
         <div class="hud-fever" data-testid="hud-fever"><span class="hud-fever-text"></span><span class="hud-fever-bar"><i class="hud-fever-fill"></i></span></div>
         <div class="hud-speed"><span class="hud-label">SPEED</span><span class="hud-num hud-speed-num" data-testid="hud-speed"></span><span class="hud-label hud-bpm" data-testid="hud-bpm">BPM <b class="hud-bpm-num"></b></span></div>
-        <div class="hud-progress" data-testid="hud-progress"><i class="hud-progress-fill"></i></div>
-        <div class="hud-progress-time"><span class="hud-num hud-remaining" data-testid="hud-remaining"></span></div>
         <div class="hud-gauge"><i class="hud-gauge-fill"></i></div>
         <i class="hud-gauge-clear"></i>
         <div class="hud-gauge-clear-label"><span class="hud-label">CLEAR</span></div>
@@ -584,7 +590,11 @@ export class Hud {
     this.sub = q('.hud-rate');
     this.maxCombo = q('.hud-max-combo');
     this.panel = q('.hud-panel');
-    this.panelRows = ([...this.panel.children] as HTMLElement[]).reverse();
+    this.allRows = [...this.panel.children] as HTMLElement[];
+    this.panelRows = [...this.allRows].reverse();
+    this.scoreRow = this.score.parentElement as HTMLElement;
+    this.rateRow = this.sub.parentElement as HTMLElement;
+    this.maxComboRow = this.maxCombo.parentElement as HTMLElement;
 
     this.gauge = q('.hud-gauge');
     this.gauge.classList.toggle('survival', info.survivalGauge);
@@ -620,9 +630,9 @@ export class Hud {
     this.speedNum = q('.hud-speed-num');
     this.bpm = q('.hud-bpm-num');
     if (!info.showBpm) q('.hud-bpm').remove();
-    this.progress = q('.hud-progress');
     this.progressFill = q('.hud-progress-fill');
-    this.progressTime = q('.hud-progress-time');
+    this.elapsed = q('.hud-elapsed');
+    this.total = q('.hud-total');
     this.remaining = q('.hud-remaining');
 
     this.fever = q('.hud-fever');
@@ -803,22 +813,17 @@ export class Hud {
     this.place(this.gaugeValue, textX, foot, `translateY(-100%) scaleY(${v.stretch.toFixed(3)})`);
     this.sizeText(this.gaugeValue, v.k, 15, 30);
 
-    // left of the gear, as the gauge is right of it: the song's progress up the track
-    const pr = at(-right, foot, SIDE_ASPECT);
-    const barWidth = PROGRESS_WIDTH * pr.k;
-    this.place(this.progress, -right - barWidth, foot - length, '');
-    this.progress.style.width = px(barWidth);
-    this.progress.style.height = px(length);
-
-    // beside the progress a column standing on the judge line (under the line is the gear's own):
-    // SPEED, the score panel over it and the time left on top (fitPanel), each upright
-    const left = right + barWidth + PROGRESS_GAP * pr.k;
-    const speedTop = foot - this.stand(this.speed, p.h, -left, foot, hud, 15, 30);
+    // left of the gear a column standing on the judge line (under the line is the gear's own): SPEED
+    // and the score panel over it (fitPanel), each upright; the score, the rate and SPEED lie in the
+    // gear's deck where it has windows for them (layDeck), and the column keeps what is left
+    this.layDeck(p);
+    const left = right + PROGRESS_GAP * at(-right, foot, SIDE_ASPECT).k;
+    const speedTop = this.onDeck ? foot : foot - this.stand(this.speed, p.h, -left, foot, hud, 15, 30);
     const panelFoot = planeYAt(p.h, -left, planePoint(p.h, -left, speedTop)[1] - COLUMN_GAP * hud);
     // the column keeps under the song's plate, and on this side of the horizon (h[4] / h[7])
     const horizon = p.h[7] < 0 ? p.h[4] / p.h[7] : -Infinity;
     const top = Math.max(this.infoBottom, horizon) + SIDE_MARGIN * hud;
-    this.column = { h: p.h, x: -left, bottom: panelFoot, barX: -right, barTop: foot - length, margin: SIDE_MARGIN * hud, top };
+    this.column = { h: p.h, x: -left, bottom: panelFoot, margin: SIDE_MARGIN * hud, top };
     this.fitPanel();
     this.movePlane(p);
 
@@ -854,6 +859,11 @@ export class Hud {
       [this.slowCount, wider(this.slowCount, '00')],
     ];
     const rows = this.panelRows;
+    if (rows.length === 0) {
+      // every line is the deck's: no panel, no housing
+      this.panelPlate.style.display = 'none';
+      return;
+    }
     const cells = rows.flatMap((row) => ([...row.children] as HTMLElement[]).reverse());
     // measured on the track (upright on the screen its rows have no box of their own), from no layout
     this.panel.classList.remove('upright');
@@ -866,14 +876,12 @@ export class Hud {
       for (const el of els) this.sizeText(el, hud, PANEL_LABEL, PANEL_NUM);
       return [els, this.measureAll(els, samples)];
     };
-    this.sizeText(this.progressTime, hud, PANEL_LABEL, PANEL_NUM);
-    const timeTall = this.progressTime.offsetHeight + TIME_GAP * hud;
     const foot = planePoint(c.h, c.x, c.bottom)[1];
     const edgeAt = (sy: number) => planePoint(c.h, c.x, planeYAt(c.h, c.x, sy))[0];
     /** The share of its size the panel keeps: every line clear of the screen's edge, the column under the plate. */
     const share = (sizes: [number, number][], widest: number | null): number => {
       const tall = sizes.reduce((sum, [, ht]) => sum + ht, 0);
-      let k = Math.min(1, (foot - c.top - timeTall) / tall);
+      let k = Math.min(1, (foot - c.top) / tall);
       // a smaller panel lies lower, where the gear is wider: once more for the lines' new places
       for (let pass = 0; pass < 2; pass++) {
         let sy = foot;
@@ -895,7 +903,6 @@ export class Hud {
       widest = null;
       k = share(sizes, null);
     }
-    let timeFoot = c.barTop;
     if (k < PANEL_MIN_SHRINK) {
       // no room on the track at a readable size: upright on the screen, in two columns at full size
       this.panel.classList.remove('stacked');
@@ -919,17 +926,56 @@ export class Hud {
         left = Math.min(left, c.x - el.offsetWidth);
         y -= ht * k * u.k * u.stretch;
       });
-      timeFoot = Math.min(timeFoot, y);
       // the gear's housing lying under the lines
       this.panelPlate.style.display = '';
       this.place(this.panelPlate, left - pad, y - pad, '');
       this.panelPlate.style.width = `${Math.round((c.x - left + 2 * pad) * 100) / 100}px`;
       this.panelPlate.style.height = `${Math.round((c.bottom - y + 2 * pad) * 100) / 100}px`;
-      timeFoot = Math.min(timeFoot, y - pad);
     }
-    // the time left over the bar, or over the panel where that reaches higher; under the plate
-    const timeY = Math.max(planePoint(c.h, c.barX, timeFoot)[1] - TIME_GAP * hud, c.top + this.progressTime.offsetHeight);
-    this.stand(this.progressTime, c.h, c.barX, planeYAt(c.h, c.barX, timeY), hud, PANEL_LABEL, PANEL_NUM);
+  }
+
+  /**
+   * The score, SPEED and the rate in the windows of the gear's deck (HudPlane.deck), each upright in
+   * the middle of its window and no larger than the window lets it be; the panel left of the gear
+   * then keeps only what a player asked for beside them (the pacemaker, the judge counter): MAX COMBO
+   * goes, the combo standing on the track. A gear without windows leaves all of it in the column.
+   */
+  private layDeck(p: HudPlane): void {
+    const d = p.deck;
+    const on = d !== null;
+    if (on !== this.onDeck) {
+      this.onDeck = on;
+      const moved = [this.scoreRow, this.rateRow];
+      const kept = this.allRows.filter((row) => !on || (!moved.includes(row) && row !== this.maxComboRow));
+      this.panel.replaceChildren(...kept);
+      if (on) this.plane.append(...moved);
+      else this.maxComboRow.removeAttribute('style');
+      for (const el of [...moved, this.speed]) {
+        el.classList.toggle('on-deck', on);
+        el.removeAttribute('style');
+      }
+      this.panelRows = [...kept].reverse();
+    }
+    if (!d) return;
+    const hud = this.hudScale;
+    const lay = (el: HTMLElement, box: { x: number; y: number; w: number; h: number }, num: number) => {
+      const [cx, cy] = [box.x + box.w / 2, box.y + box.h / 2];
+      const u = uprightAt(p.h, cx, cy);
+      const { scale, aspect } = planeScale(p.h, cx, cy);
+      // its digits no taller than 56 % of the window as the screen shows it, nor than the HUD's size
+      const tall = Math.min(num * hud, 0.56 * box.h * scale * aspect * u.stretch);
+      let k = (tall / num) * u.k;
+      this.sizeText(el, k, PANEL_LABEL * (num / PANEL_NUM), num);
+      const wide = el.offsetWidth;
+      if (wide > box.w * 0.9) {
+        k *= (box.w * 0.9) / wide;
+        this.sizeText(el, k, PANEL_LABEL * (num / PANEL_NUM), num);
+      }
+      this.place(el, cx, cy, `translate(-50%, -50%) scaleY(${u.stretch.toFixed(3)})`);
+    };
+    lay(this.scoreRow, d.score, 30);
+    lay(this.speed, d.speed, 24);
+    lay(this.rateRow, d.rate, 24);
   }
 
   /**
@@ -1126,12 +1172,25 @@ export class Hud {
     const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * PROGRESS_STEPS);
     if (progress !== this.lastProgress) {
       this.lastProgress = progress;
-      this.progressFill.style.transform = `scaleY(${progress / PROGRESS_STEPS})`;
+      this.progressFill.style.transform = `scaleX(${progress / PROGRESS_STEPS})`;
     }
     const remaining = Math.ceil(Math.max(0, stats.remainingMs) / 1000 - 1e-6);
     if (remaining !== this.lastRemaining) {
       this.lastRemaining = remaining;
       this.remaining.textContent = clockText(remaining * 1000);
+    }
+    // how long the song is, from how far in it is and what is left (told once it has begun)
+    if (stats.progress > 0.002 && stats.progress < 0.995) {
+      const total = stats.remainingMs / (1 - stats.progress);
+      if (Math.abs(total - this.totalMs) > 1500) {
+        this.totalMs = total;
+        this.total.textContent = ` / ${clockText(total)}`;
+      }
+    }
+    const elapsed = Math.floor(Math.max(0, this.totalMs - Math.max(0, stats.remainingMs)) / 1000 + 1e-6);
+    if (elapsed !== this.lastElapsed) {
+      this.lastElapsed = elapsed;
+      this.elapsed.textContent = clockText(elapsed * 1000);
     }
     if (stats.bpm !== this.lastBpm) {
       this.lastBpm = stats.bpm;

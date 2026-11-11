@@ -127,8 +127,8 @@ describe('the decks of the gears a player picks', () => {
     sides: [],
   });
 
-  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys)', () => {
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) {
+  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys and STANDARD’s key caps)', () => {
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard')) {
       for (const [room, stretch] of [
         [96, 1.1],
         [320, 1.25],
@@ -221,8 +221,10 @@ describe('the decks of the gears a player picks', () => {
     // none under the side lanes with a place of their own, the key lanes' only; side lanes over the keys leave every key lane its key
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '4K+FX'), lanes: deckLanes('4K+FX') }, false).map((k) => k.lane)).toEqual([1, 2, 3, 4]);
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, false).map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5]);
+    // STANDARD's key caps light with their lanes, one over each key lane
+    expect(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#37e2ff']));
     // the other gears have no keys
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
   });
 
   it('PIANO’s key held down is shaded only inside its outline, round the black keys over its corners', () => {

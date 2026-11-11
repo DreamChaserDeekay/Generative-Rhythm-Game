@@ -172,23 +172,11 @@ const RING_REACH = 1 / 0.84;
 const ORANGE = 0xff8a24;
 const CYAN = 0x39d4ff;
 
-/** STANDARD: the jog disc's cyan ring breathing on the beat, the light strip under the name with a light running along it each bar, the speaker lit through its holes on the strong beats. */
+/** STANDARD: the light strip along the deck's front edge breathing on the beat, a light running along it each bar (in FEVER the strip stays lit). */
 function standardLights(): GearLightSet {
-  const strip = { x0: 756, x1: 1294, y: 308.5 };
+  const strip = { x0: 614, x1: 1434, y: 440 };
   return {
     lights: [
-      {
-        shape: 'ring',
-        x: 260.8,
-        y: 254.3,
-        w: 2 * 148.2 * RING_REACH,
-        h: 2 * 176.8 * RING_REACH,
-        arc: [-90, 170],
-        colour: CYAN,
-        level: (c, calm) => (calm ? 0.25 + 0.2 * swell(c.beat, 4) : 0.2 + 0.6 * fade(frac(c.beat), 3.5)),
-        mark: 'jog',
-        grow: RING_REACH,
-      },
       {
         shape: 'wash',
         x: (strip.x0 + strip.x1) / 2,
@@ -196,9 +184,9 @@ function standardLights(): GearLightSet {
         w: strip.x1 - strip.x0 + 24,
         h: 36,
         colour: CYAN,
-        level: (c, calm) => (calm ? 0.3 + 0.15 * swell(c.bar, 1) : 0.25 + 0.35 * fade(frac(c.beat), 3)),
+        level: (c, calm) => (c.fever ? 0.7 : calm ? 0.3 + 0.15 * swell(c.bar, 1) : 0.2 + 0.4 * fade(frac(c.beat), 3)),
         mark: 'strip',
-        grow: [1.04, 6],
+        grow: [1.04, 1],
       },
       {
         shape: 'glow',
@@ -209,19 +197,8 @@ function standardLights(): GearLightSet {
         colour: 0xc8f4ff,
         level: (c, calm) => (calm ? 0 : 0.8 * Math.sin(Math.PI * frac(c.bar)) ** 2),
         at: (c) => [strip.x0 + (strip.x1 - strip.x0) * frac(c.bar), strip.y],
-      },
-      {
-        shape: 'wash',
-        x: 1770,
-        y: 255,
-        w: 390,
-        h: 290,
-        colour: CYAN,
-        confined: true,
-        level: (c, calm) => (calm ? 0.15 + 0.25 * swell(c.beat, 4) : 0.08 + 0.75 * fade(sinceTurn(c.beat, 0, 2), 3)),
-        mark: 'grille',
-        grow: 0.96,
-        codeWell: { inside: ['grille'], outside: [] },
+        mark: 'strip',
+        grow: [1, 1],
       },
     ],
   };

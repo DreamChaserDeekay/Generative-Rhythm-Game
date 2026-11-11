@@ -1789,8 +1789,31 @@ p.hint {
   color: var(--text);
 }
 
-/* the song's progress left of the gear: a thin bar filled from the bottom (one transform per step) */
+/* the song's time under its plate: how far in, of how long, over a thin bar filled from the left (one
+   transform per step). The same on every gear: the plate is none of a skin's parts */
+.hud-time {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 0.4em;
+  row-gap: calc(5px * var(--hud-scale));
+  padding: calc(var(--sp-1) * var(--hud-scale)) calc(var(--sp-3) * var(--hud-scale)) calc(var(--sp-2) * var(--hud-scale));
+  min-width: calc(200px * var(--hud-scale));
+  font-family: var(--font-display);
+  font-size: calc(15px * var(--hud-scale));
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.hud-total {
+  color: var(--text-dim);
+}
+
 .hud-progress {
+  grid-column: 1 / -1;
+  position: relative;
+  display: block;
+  height: calc(3px * var(--hud-scale));
   overflow: hidden;
   background: var(--line);
   border-radius: 1px;
@@ -1799,14 +1822,30 @@ p.hint {
 .hud-progress-fill {
   position: absolute;
   inset: 0;
-  background: var(--text-dim);
-  transform-origin: 50% 100%;
-  transform: scaleY(0);
+  background: #37e2ff;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
 }
 
-.hud-progress-time {
-  text-align: right;
-  transform-origin: 100% 100%;
+/* the score, SPEED and the rate in the windows of the gear's deck (Hud.layDeck): each one line,
+   label then number, about the middle of its window */
+.hud-row.on-deck,
+.hud-speed.on-deck {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: calc(var(--label-gap) * 2);
+  white-space: nowrap;
+  text-align: center;
+  transform-origin: 50% 50%;
+}
+
+.hud-row.on-deck .hud-score {
+  font-size: calc(var(--num) * 1.1);
+}
+
+.hud-speed.on-deck .hud-bpm {
+  display: none;
 }
 
 .hud-gauge-value {

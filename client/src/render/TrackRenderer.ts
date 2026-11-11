@@ -3,7 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
-import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, GEAR_JUDGE, judgeOf, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
+import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -280,6 +280,8 @@ export interface HudPlane {
   sideOut: number;
   /** Where the track ends up it (plane y). */
   far: number;
+  /** The readouts the gear's deck houses: their windows, plane px (x from the track's middle, y from the judge line toward the camera); null where it houses none. */
+  deck: DeckReadouts | null;
 }
 
 /**
@@ -719,6 +721,8 @@ export class TrackRenderer {
   /** Where the note being placed lies (see noteSpan), kept to spare an object per note and frame. */
   private readonly extent: NoteSpan = { near: 0, far: 0 };
   private judgeZ = 0;
+  /** The deck's readout windows as it was last laid out (deck px), null where it houses none. */
+  private readouts: DeckReadouts | null = null;
   private firstLive = 0;
   private lastFrameMs = 0;
   private cssWidth = 1;
@@ -979,6 +983,16 @@ export class TrackRenderer {
     return this.borderLook.width;
   }
 
+  /** The deck's readout windows on the HUD's plane (see HudPlane.deck). */
+  private deckWindows(): DeckReadouts | null {
+    const r = this.readouts;
+    if (!r) return null;
+    const left = -this.geometry.width / 2 / PX;
+    const top = (this.deckTopZ - this.judgeZ) / PX;
+    const move = (b: { x: number; y: number; w: number; h: number }) => ({ x: left + b.x, y: top + b.y, w: b.w, h: b.h });
+    return { speed: move(r.speed), score: move(r.score), rate: move(r.rate) };
+  }
+
   private planeAs(camera: TrackCamera): HudPlane {
     const { width, length } = this.geometry;
     const railOuter = this.railPx * PX;
@@ -992,6 +1006,7 @@ export class TrackRenderer {
       halfWidth: width / 2 / PX,
       sideOut: (railOuter + lean) / PX,
       far: (-length - this.judgeZ) / PX,
+      deck: this.deckWindows(),
     };
   }
 
@@ -1366,7 +1381,12 @@ export class TrackRenderer {
       canvas.width = PRESS_KEY_PX[0];
       canvas.height = PRESS_KEY_PX[1];
       const share = { left: key.notch.left / key.box.w, right: key.notch.right / key.box.w, depth: key.notch.depth / key.box.h };
-      paintPressedKey(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, share);
+      const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+      if (key.lit) {
+        // a cap is about as deep as it is wide: its picture square
+        canvas.height = canvas.width;
+        paintLitKey(g, canvas.width, canvas.height, key.lit);
+      } else paintPressedKey(g, canvas.width, canvas.height, share);
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false });
@@ -1966,6 +1986,7 @@ export class TrackRenderer {
     this.planeVersion++;
     // round things on the deck look round, drawn longer along the track where the camera flattens it
     const stretch = deckStretch(Math.round(room / PX), (band) => 0.85 / this.trackAspect(top + STRETCH_TOP * PX + (band * PX) / 2));
+    this.readouts = deckReadouts(this.style.deck, { width: width / PX, room: room / PX, stretch });
     const painted = `${Math.round(room / PX)}|${stretch}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;

@@ -118,20 +118,20 @@ describe('settings', () => {
   });
 
   it('keeps the parts picked and draws the track with them', () => {
-    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' });
+    expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
     const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'prism' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'prism' });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
     // the track keeps its colours
     expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
     // the piano note taken out: the default notes, the piano hit kept
-    expect(sanitizeSettings({ parts: { note: 'piano', hit: 'piano' } as never }).parts).toMatchObject({ note: 'prism', hit: 'piano' });
+    expect(sanitizeSettings({ parts: { note: 'piano', hit: 'piano' } as never }).parts).toMatchObject({ note: 'flat', hit: 'piano' });
     // a gear colour an earlier version saved is dropped, and its gear, taken out, is the default one
     const old = sanitizeSettings({ parts: { deck: 'arcade', deckColour: 'white' } as never });
     expect(old.parts).not.toHaveProperty('deckColour');
-    expect(skinOf(old).style).toMatchObject({ deck: 'prism' });
+    expect(skinOf(old).style).toMatchObject({ deck: 'standard' });
     expect(skinOf(old).style).not.toHaveProperty('deckColour');
-    for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('prism');
+    for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
     for (const deck of ['standard', 'prism', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
   });
 

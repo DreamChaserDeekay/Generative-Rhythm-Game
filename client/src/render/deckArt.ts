@@ -154,13 +154,16 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
 
 /**
- * The judge line's colours on a gear: GEAR_JUDGE's red, but PRISM's own, a white core in azure light
+ * The judge line's colours on a gear: GEAR_JUDGE's red, but STANDARD's own (a white core in its cyan) and PRISM's, a white core in azure light
  * (its scratch is a ruby: a red line would hide the gem's razor as it lands; all white, it would hide
  * the white keys' notes). Its place and size are
  * the same on every gear.
  */
 export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
-  return style === 'prism' ? { ...GEAR_JUDGE, line: '#3f8cff', core: '#f2f8ff', glow: '#3f8cff' } : GEAR_JUDGE;
+  if (style === 'prism') return { ...GEAR_JUDGE, line: '#3f8cff', core: '#f2f8ff', glow: '#3f8cff' };
+  // STANDARD's: a white core in the gear's cyan
+  if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
+  return GEAR_JUDGE;
 }
 
 /** How deep the band of a gear's deck its things lie in looks (plane px across: drawn `stretch` times longer along the track). */
@@ -326,29 +329,6 @@ function eight(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: 
 
 const PLATE_SCALE = 0.5;
 
-/** A panel of small holes (a speaker's grille) filling box `b`, the holes `pitch` px apart across. */
-function grille(g: CanvasRenderingContext2D, b: Box, st: number, pitch: number): void {
-  const corner = Math.min(b.w, b.h / st) * 0.18;
-  rounded(g, b, corner, st);
-  g.fillStyle = '#0d0e12';
-  g.fill();
-  g.lineWidth = 1;
-  g.strokeStyle = white(0.1);
-  g.stroke();
-  recess(g, b, corner, st);
-  rounded(g, b, corner, st);
-  g.save();
-  g.clip();
-  g.fillStyle = black(0.75);
-  const r = pitch * 0.28;
-  for (let row = 0, y = b.y + pitch * st * 0.6; y < b.y + b.h - pitch * st * 0.3; row++, y += pitch * st * 0.87) {
-    for (let x = b.x + pitch * (row % 2 ? 1 : 0.5); x < b.x + b.w - pitch * 0.3; x += pitch) {
-      disc(g, x, y, r, st);
-      g.fill();
-    }
-  }
-  g.restore();
-}
 
 /**
  * An analogue meter (the receiver's): an amber-lit face in box `b`, its scale over the needle's
@@ -465,67 +445,113 @@ function brassCorner(g: CanvasRenderingContext2D, x: number, y: number, size: nu
   g.restore();
 }
 
-/** STANDARD: smoked glass in a graphite trim with its cyan line; the glass jog dial, the game's name over a cyan light strip, a speaker grille. */
-function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt): void {
+/** The depths of STANDARD's deck (plane px across, drawn `stretch` times longer along the track): its row of key caps, the seam under it, its upper step with the score, its lower step with the speed and the rate. */
+const STD = { keys: 44, seam: 3, upper: 46, lower: 44, pad: 4 } as const;
+
+/** The readouts a deck houses (the HUD writes them there): their windows, plane px from the deck's top-left corner. */
+export interface DeckReadouts {
+  speed: Box;
+  score: Box;
+  rate: Box;
+}
+
+/**
+ * Where STANDARD's deck has its readouts: the score in a wide window in the middle of its upper
+ * step, the speed and the rate in two pills at the ends of its lower step; null where the screen
+ * shows too little of the deck for them (a small preview) or the gear houses none.
+ */
+export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
+  if (style !== 'standard') return null;
   const st = s.stretch;
-  const glass = g.createLinearGradient(0, 0, 0, s.room);
-  glass.addColorStop(0, '#17191f');
-  glass.addColorStop(1, '#0c0d11');
-  g.fillStyle = glass;
-  g.fillRect(0, 0, s.width, s.depth);
-  // a faint sheen across the glass, slanting
-  const lean = s.room * 0.5;
-  for (const [x, w, a] of [
-    [0.12, 0.08, 0.025],
-    [0.62, 0.14, 0.02],
-  ] as [number, number, number][]) {
-    polygon(g, [
-      [x * s.width, 0],
-      [(x + w) * s.width, 0],
-      [(x + w) * s.width - lean, s.room],
-      [x * s.width - lean, s.room],
-    ]);
-    g.fillStyle = white(a);
-    g.fill();
-  }
-  // the graphite trim along its top, the cyan line along its foot
-  const trim = 5 * st;
-  g.fillStyle = '#2a2c31';
-  g.fillRect(0, 0, s.width, trim);
-  g.fillStyle = white(0.1);
-  g.fillRect(0, 0, s.width, 1);
-  g.fillStyle = shade(CYAN, 1, 0.55);
-  g.fillRect(0, trim - 1.2, s.width, 1.2);
-  const band = bandOf(s, trim);
-  if (!band) return;
-  const { y, h, u, mid } = band;
-  const jog = boxAt(s.width * 0.13, mid, u * 0.84, st);
-  thing(
-    g,
-    art.jog,
-    jog,
-    (b) =>
-      shadedDisc(g, b, [
-        [0, '#3a3d45'],
-        [1, '#101116'],
-      ]),
-    0.45,
-  );
-  mark(s, 'jog', { x: jog.x - 2, y: jog.y - 2 * st, w: jog.w + 4, h: jog.h + 4 * st });
-  g.beginPath();
-  g.ellipse(jog.x + jog.w / 2, jog.y + jog.h / 2, jog.w / 2 + 2, jog.h / 2 + 2 * st, 0, 0, Math.PI * 2);
-  g.lineWidth = 1.2;
-  g.strokeStyle = shade(CYAN, 1, 0.45);
-  g.stroke();
-  text(g, 'GENERATIVE RHYTHM', s.width / 2, y + h * 0.4, Math.max(9, u * 0.15), st, white(0.32), { tracking: 4 });
-  const strip: Box = { x: s.width * 0.37, y: y + h * 0.62, w: s.width * 0.26, h: 2.4 * st };
-  rounded(g, strip, 1.2, st);
-  g.fillStyle = shade(CYAN, 1, 0.6);
+  const top = (STD.keys + STD.seam) * st;
+  if (s.room < top + (STD.upper + STD.lower * 0.6) * st) return null;
+  const pad = STD.pad * st;
+  const upper: Box = { x: s.width * 0.24, y: top + pad, w: s.width * 0.52, h: STD.upper * st - 2 * pad };
+  const y = top + STD.upper * st + pad;
+  const h = Math.min(STD.lower * st, s.room - top - STD.upper * st) - 2 * pad;
+  const w = s.width * 0.2;
+  return { score: upper, speed: { x: s.width * 0.035, y, w, h }, rate: { x: s.width * 0.965 - w, y, w, h } };
+}
+
+/** A readout's window: a dark well with a hairline round it, `r` round at its corners. */
+function well(g: CanvasRenderingContext2D, b: Box, r: number, st: number): void {
+  rounded(g, b, r, st);
+  g.fillStyle = '#0a0b0e';
   g.fill();
-  mark(s, 'strip', strip);
-  const speaker = boxAt(s.width * 0.86, mid, s.width * 0.17, st, (u * 0.62) / (s.width * 0.17));
-  grille(g, speaker, st, Math.max(5, u * 0.075));
-  mark(s, 'grille', speaker);
+  g.lineWidth = 1;
+  g.strokeStyle = white(0.1);
+  g.stroke();
+  g.fillStyle = black(0.5);
+  g.fillRect(b.x + r, b.y, b.w - 2 * r, 1.2 * st);
+}
+
+/**
+ * STANDARD (기본): the house gear, matte graphite with one accent, as wide as the track and no wider.
+ * Under the judge line a row of low key caps, one to a lane, that light when their lane's key is held
+ * (deckKeys); under them two steps: the upper, its ends cut back, with the score's window in its
+ * middle; the lower with the speed's and the rate's pills at its ends and a cyan light strip along
+ * its front edge. The HUD writes the readouts in the windows (deckReadouts).
+ */
+function standardPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  g.fillStyle = '#111216';
+  g.fillRect(0, 0, s.width, s.depth);
+  // the key caps: a graphite cap in each lane, its top edge catching the light, its foot in shade
+  const kh = STD.keys * st;
+  for (const lane of s.lanes) {
+    const cap: Box = { x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: kh - 4 * st };
+    rounded(g, cap, 3, st);
+    const face = g.createLinearGradient(0, cap.y, 0, cap.y + cap.h);
+    face.addColorStop(0, '#4a4e58');
+    face.addColorStop(0.5, '#363940');
+    face.addColorStop(1, '#282a30');
+    g.fillStyle = face;
+    g.fill();
+    g.fillStyle = white(0.2);
+    g.fillRect(cap.x + 3, cap.y, cap.w - 6, Math.max(1, 0.9 * st));
+    g.fillStyle = black(0.5);
+    g.fillRect(cap.x + 3, cap.y + cap.h - 1.6 * st, cap.w - 6, 1.6 * st);
+  }
+  // the seam under the caps
+  g.fillStyle = '#050608';
+  g.fillRect(0, kh, s.width, STD.seam * st);
+  const top = kh + STD.seam * st;
+  // the upper step, its ends cut back so the lower one shows there
+  const lowerFill = g.createLinearGradient(0, top, 0, s.room);
+  lowerFill.addColorStop(0, '#1b1d22');
+  lowerFill.addColorStop(1, '#101115');
+  g.fillStyle = lowerFill;
+  g.fillRect(0, top, s.width, s.depth - top);
+  const uh = STD.upper * st;
+  const cut = s.width * 0.2;
+  const slope = Math.min(s.width * 0.035, uh / st);
+  polygon(g, [
+    [cut - slope, top],
+    [s.width - cut + slope, top],
+    [s.width - cut, top + uh],
+    [cut, top + uh],
+  ]);
+  const upperFill = g.createLinearGradient(0, top, 0, top + uh);
+  upperFill.addColorStop(0, '#2c2e35');
+  upperFill.addColorStop(1, '#22242a');
+  g.fillStyle = upperFill;
+  g.fill();
+  g.fillStyle = white(0.14);
+  g.fillRect(cut - slope, top, s.width - 2 * (cut - slope), Math.max(1, 0.8 * st));
+  g.fillStyle = black(0.55);
+  g.fillRect(cut, top + uh - 1.4 * st, s.width - 2 * cut, 1.4 * st);
+  const windows = deckReadouts('standard', s);
+  if (windows) {
+    well(g, windows.score, 4, st);
+    well(g, windows.speed, windows.speed.h / (2 * st), st);
+    well(g, windows.rate, windows.rate.h / (2 * st), st);
+  }
+  // the light strip along the front edge of what the screen shows
+  const strip: Box = { x: s.width * 0.3, y: Math.max(top + uh + 2 * st, s.room - 7 * st), w: s.width * 0.4, h: 1.6 * st };
+  rounded(g, strip, 0.8, st);
+  g.fillStyle = shade(CYAN, 1, 0.7);
+  g.fill();
+  mark(s, 'strip', { x: strip.x, y: strip.y - 4 * st, w: strip.w, h: strip.h + 8 * st });
 }
 
 /** One of the cabinet's acrylic buttons in box `b`: its picture, its dome tinted `tint` (the milky white is left as it is). */
@@ -1462,6 +1488,8 @@ export interface DeckKey {
   lane: number;
   box: Box;
   notch: { left: number; right: number; depth: number };
+  /** Lit in this colour while held (STANDARD's key caps), where the key does not go down in shade (PIANO's). */
+  lit?: string;
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1473,6 +1501,11 @@ const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
  * plate draws them in code.
  */
 export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
+  if (style === 'standard') {
+    // its key caps, one to a lane (see standardPlate)
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => ({ lane: i, box: { x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: (STD.keys - 4) * st }, notch: { left: 0, right: 0, depth: 0 }, lit: CYAN }));
+  }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
   // plane px down the deck for a px of the picture
@@ -1504,6 +1537,25 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  * shadow along its left edge, a dark gap opens along its right edge, and its far end slips into the
  * lip's shadow. Drawn once; the renderer shows it while the lane's key is held.
  */
+/**
+ * A key cap lit while held, painted over the cap (a `w` × `h` canvas over its box): the cap filled with
+ * `colour`'s light, brightest along its far edge, a rim of the colour round it. Drawn once; the
+ * renderer shows it while the lane's key is held.
+ */
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, colour: string): void {
+  g.beginPath();
+  g.roundRect(0, 0, w, h, Math.min(w, h) * 0.12);
+  const glow = g.createLinearGradient(0, 0, 0, h);
+  glow.addColorStop(0, shade(colour, 1.25, 0.95));
+  glow.addColorStop(0.5, shade(colour, 1, 0.75));
+  glow.addColorStop(1, shade(colour, 0.8, 0.6));
+  g.fillStyle = glow;
+  g.fill();
+  g.lineWidth = Math.max(2, w * 0.06);
+  g.strokeStyle = white(0.85);
+  g.stroke();
+}
+
 export function paintPressedKey(g: CanvasRenderingContext2D, w: number, h: number, notch: DeckKey['notch']): void {
   const [l, r, d] = [notch.left * w, w - notch.right * w, notch.depth * h];
   g.save();
@@ -2018,7 +2070,7 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
     body: '#2a2c31',
     width: 14,
     tile: 56,
-    height: 16,
+    height: 14,
     // brushed graphite along the track, the cyan light just under its top edge
     face: (g, w, h, k, lit) => {
       const rand = seeded(17);
@@ -2034,11 +2086,11 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = black(0.55);
       g.fillRect(0, 0, k, h);
       g.fillStyle = white(0.1);
-      g.fillRect(w - 4.5 * k, 0, k, h);
-      g.fillStyle = shade(CYAN, 1, lit ? 0.35 : 0.18);
-      g.fillRect(w - 3.6 * k, 0, 2.4 * k, h);
-      g.fillStyle = shade(CYAN, lit ? 1.15 : 1, lit ? 1 : 0.85);
-      g.fillRect(w - 3 * k, 0, 1.2 * k, h);
+      g.fillRect(w - 3.6 * k, 0, 0.8 * k, h);
+      g.fillStyle = shade(CYAN, 1, lit ? 0.35 : 0.14);
+      g.fillRect(w - 2.8 * k, 0, 1.8 * k, h);
+      g.fillStyle = shade(CYAN, lit ? 1.15 : 1, lit ? 1 : 0.8);
+      g.fillRect(w - 2.2 * k, 0, 0.7 * k, h);
     },
   }),
   // the cabinet's ABS side panel, a chrome trim along the lanes, an amber LED in its middle (lit in FEVER)

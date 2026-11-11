@@ -40,7 +40,7 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
 /** The name each gear prints by its gauge (STANDARD's plain gauge has none). */
 export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   prism: 'FEVER',
-  standard: null,
+  standard: 'FEVER',
   cabinet: 'GROOVE',
   receiver: 'SIGNAL',
   najeon: '흥',

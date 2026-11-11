@@ -886,39 +886,68 @@ function prismFrost(g: CanvasRenderingContext2D, w: number, h: number): void {
 
 const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : mark === 'side' ? prismFrost(g, w, h) : prismBar(g, w, h));
 
+/**
+ * FLAT (the default skin's): a bar with round ends, round on the screen, the top of a slab (the
+ * renderer draws its walls): a gloss over its far half, lit along its left end and shaded along its
+ * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
+ * by two slanted notches cut through it.
+ */
+function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  // ends round on the screen: the track is drawn NOTE_STRETCH times longer along
+  const ry = h / 2;
+  const rx = Math.min(ry / NOTE_STRETCH, w * 0.2);
+  g.save();
+  g.beginPath();
+  g.roundRect(0, 0, w, h, [{ x: rx, y: ry }]);
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, tone(1));
+  face.addColorStop(0.62, tone(0.96));
+  face.addColorStop(1, tone(0.82));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
+  gloss.addColorStop(0, ink(1, 0.62));
+  gloss.addColorStop(0.12, ink(1, 0.36));
+  gloss.addColorStop(1, ink(1, 0.36, 0));
+  g.fillStyle = gloss;
+  g.fillRect(0, 0, w, h * 0.55);
+  const edge = Math.min(0.2, u(7) / w);
+  const across = g.createLinearGradient(0, 0, w, 0);
+  across.addColorStop(0, ink(1, 0.3, 0.9));
+  across.addColorStop(edge, ink(1, 0.3, 0));
+  across.addColorStop(1 - edge, tone(0.7, 0));
+  across.addColorStop(1, tone(0.7, 0.7));
+  g.fillStyle = across;
+  g.fillRect(0, 0, w, h);
+  // the near edge, crisp
+  g.fillStyle = ink(1, 0.7);
+  g.fillRect(rx * 0.6, h - Math.max(2, u(5)), w - rx * 1.2, Math.max(2, u(5)));
+  if (mark === 'scratch') {
+    // two notches slanting through it, a third and two thirds along
+    const lean = (h / NOTE_STRETCH) * 0.8;
+    const wide = Math.max(3, (h / NOTE_STRETCH) * 0.32);
+    for (const at of [1 / 3, 2 / 3]) {
+      const x = w * at;
+      polygon(g, [
+        [x + lean / 2, 0],
+        [x + lean / 2 + wide, 0],
+        [x - lean / 2 + wide, h],
+        [x - lean / 2, h],
+      ]);
+      g.fillStyle = tone(0.38);
+      g.fill();
+      g.fillStyle = ink(1, 0.5);
+      g.fillRect(x - lean / 2 + wide, 0, Math.max(1, wide * 0.18), h);
+    }
+  }
+  g.restore();
+}
+
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   prism: prismNote,
-  flat: (g, w, h) => {
-    const u = unit(h);
-    roundRect(g, 0, 0, w, h, u(5));
-    // the top of a slab (the renderer draws its walls): a little deeper toward its near edge, where it
-    // rounds over into its wall
-    const face = g.createLinearGradient(0, 0, 0, h);
-    face.addColorStop(0, tone(1));
-    face.addColorStop(0.62, tone(0.96));
-    face.addColorStop(1, tone(0.8));
-    g.fillStyle = face;
-    g.fill();
-    g.save();
-    g.clip();
-    // a gloss over its far half, brightest at the lip of its far edge, where the light catches it
-    const gloss = g.createLinearGradient(0, 0, 0, h * 0.55);
-    gloss.addColorStop(0, ink(1, 0.62));
-    gloss.addColorStop(0.12, ink(1, 0.36));
-    gloss.addColorStop(1, ink(1, 0.36, 0));
-    g.fillStyle = gloss;
-    g.fillRect(0, 0, w, h * 0.55);
-    // lit along its left edge, the side the light comes from, and shaded along its right
-    const edge = Math.min(0.2, u(7) / w);
-    const across = g.createLinearGradient(0, 0, w, 0);
-    across.addColorStop(0, ink(1, 0.3, 0.9));
-    across.addColorStop(edge, ink(1, 0.3, 0));
-    across.addColorStop(1 - edge, tone(0.7, 0));
-    across.addColorStop(1, tone(0.7, 0.7));
-    g.fillStyle = across;
-    g.fillRect(0, 0, w, h);
-    g.restore();
-  },
+  flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
   glass: glassNote,
@@ -984,18 +1013,6 @@ function sides(g: CanvasRenderingContext2D, w: number, h: number, t: number, fil
   g.fillRect(w - a(t), 0, a(t), h);
 }
 
-/** An end: the body's own fill with a border `t` px along its outer edge and down its sides. */
-function squareEnd(fill: string, border: string, t: number, side = t): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    g.fillStyle = fill;
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = border;
-    g.fillRect(0, 0, w, a(t));
-    g.fillRect(0, 0, a(side), h);
-    g.fillRect(w - a(side), 0, a(side), h);
-  };
-}
 
 /** Bands down a body, [from, to, fill] in px of a 54 px body. */
 function stripes(g: CanvasRenderingContext2D, w: number, h: number, bands: [number, number, string][]): void {
@@ -1102,6 +1119,56 @@ function prismEnd(lit: boolean): Paint {
   };
 }
 
+/** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
+function solidLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const shade = g.createLinearGradient(0, 0, w, 0);
+    const k = lit ? 1.12 : 1;
+    shade.addColorStop(0, tone(1.12 * k, 0.92));
+    shade.addColorStop(0.3, tone(1.06 * k, 0.9));
+    shade.addColorStop(0.55, tone(k, 0.88));
+    shade.addColorStop(1, tone(0.78 * k, 0.9));
+    g.fillStyle = shade;
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 4, ink(1, 0.97));
+    if (!lit) return;
+    const glow = g.createLinearGradient(a(15), 0, a(39), 0);
+    glow.addColorStop(0, ink(1, 1, 0));
+    glow.addColorStop(0.5, ink(1, 1, 0.8));
+    glow.addColorStop(1, ink(1, 1, 0));
+    g.fillStyle = glow;
+    g.fillRect(a(15), 0, a(24), h);
+    g.fillStyle = ink(1, 1);
+    g.fillRect(a(25), 0, a(4), h);
+  };
+}
+
+/** An end: the body itself, its two outer corners (canvas top) cut at 45° on the screen, a rim in `border` along the cut. */
+function cutEnd(body: Paint, border: string): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const cx = Math.min(w * 0.22, h / NOTE_STRETCH);
+    const outline = (t: number): [number, number][] => [
+      [cx + t * 0.4, t * NOTE_STRETCH],
+      [w - cx - t * 0.4, t * NOTE_STRETCH],
+      [w - t, cx * NOTE_STRETCH],
+      [w - t, h + 1],
+      [t, h + 1],
+      [t, cx * NOTE_STRETCH],
+    ];
+    polygon(g, outline(0));
+    g.fillStyle = border;
+    g.fill();
+    g.save();
+    polygon(g, outline(a(4)));
+    g.clip();
+    g.clearRect(0, 0, w, h);
+    body(g, w, h);
+    g.restore();
+  };
+}
+
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   // a long triangular prism of glass as wide as its bar, the ridge of light down its middle (held:
   // white-hot, the glass bright from inside), each end closed by the prism's own end facet
@@ -1113,21 +1180,14 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     endDepth: 0.5 * NOTE_STRETCH * 0.55,
     width: 0.86,
   },
+  // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
+  // inside with a line of light down its middle; each end the bar itself, its outer corners cut
   solid: {
-    body: (g, w, h) => {
-      // a rounded bar lit from the left: a gloss down its left third, deeper toward its right
-      const shade = g.createLinearGradient(0, 0, w, 0);
-      shade.addColorStop(0, tone(1.12, 0.92));
-      shade.addColorStop(0.3, tone(1.06, 0.9));
-      shade.addColorStop(0.55, tone(1, 0.88));
-      shade.addColorStop(1, tone(0.78, 0.9));
-      g.fillStyle = shade;
-      g.fillRect(0, 0, w, h);
-      sides(g, w, h, 4, ink(1, 0.97));
-    },
-    end: squareEnd(tone(1, 0.88), ink(1, 0.97), 4),
+    body: solidLong(false),
+    end: cutEnd(solidLong(false), ink(1, 0.97)),
+    held: { body: solidLong(true), end: cutEnd(solidLong(true), ink(1, 1)) },
     tile: 1,
-    endDepth: 0.12,
+    endDepth: 0.2,
     width: 0.8,
   },
   rail: {
@@ -1646,7 +1706,7 @@ export interface EffectSheet {
 const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   // along the judge line and a little toward the gear: nothing of it rises up the track over the next notes
   prism: { w: 128, h: 64, cy: 26, reach: 56 },
-  flash: { w: 128, h: 192, cy: 104, reach: 84 },
+  flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
   // played out under the line only, toward the gear: the next notes above it stay clear
@@ -1789,22 +1849,25 @@ function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism
   };
   switch (style) {
     case 'flash': {
-      // a bright bar on the judge line, a line opening toward the gear, a short column of light
-      // (no line opening up the track: there it read as a note or a bar line)
-      const fill = white;
-      const fw = 66 * s;
-      const fh = (16 - 10 * p) * s;
-      const grad = g.createLinearGradient(0, 0, 0, -70 * s);
-      grad.addColorStop(0, fill(0.45 * a));
-      grad.addColorStop(1, fill(0));
-      g.fillStyle = grad;
-      g.fillRect(-fw / 2, -70 * s, fw, 70 * s);
-      g.fillStyle = fill(a);
+      // the default skin's: a flat bar of light across the lane on the judge line, brightest at once,
+      // and one thin ring opening about it; nothing rises up the track over the next notes
+      const fw = (46 + 10 * p) * s;
+      const fh = (9 - 6 * p) * s;
+      const glow = g.createLinearGradient(-fw, 0, fw, 0);
+      glow.addColorStop(0, colour(0));
+      glow.addColorStop(0.5, colour(0.55 * a));
+      glow.addColorStop(1, colour(0));
+      g.fillStyle = glow;
+      g.fillRect(-fw, -fh, 2 * fw, 2 * fh);
+      g.fillStyle = white(a);
       roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
       g.fill();
-      const lw = fw * (1.05 + 0.3 * p);
-      const d = (8 + 26 * p) * s;
-      line(-lw / 2, d, lw / 2, d, fill(0.8 * a), 3 * s);
+      const r = (9 + 13 * Math.sqrt(p)) * s;
+      g.beginPath();
+      g.arc(0, 0, r, 0, Math.PI * 2);
+      g.lineWidth = (2.6 - 1.6 * p) * s;
+      g.strokeStyle = p < 0.2 ? white(a) : colour(a);
+      g.stroke();
       break;
     }
     case 'flare': {
