@@ -288,15 +288,15 @@ describe('the decks of the gears a player picks', () => {
     expect(short.marks).toEqual([]);
   });
 
-  it('SKY writes the score on its sky under the feather, the speed and the rate in two pills, and marks the sky and the feather for its lights', () => {
+  it('SKY writes the score on its sky, the feather left of it on its line, the speed and the rate in two pills, and marks the sky and the feather for its lights', () => {
     for (const [room, stretch, mode] of [
       [155.55, 1.2, '7K+1S'],
       [912, 3.25, '4K'],
     ] as [number, number, KeyModeId][]) {
       const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
       const r = deckReadouts('sky', s)!;
-      // under the strip of dashes and its line (20 px of the sheets), room over it for the feather
-      expect(r.score.y).toBeGreaterThanOrEqual((20 + 24) * stretch);
+      // under the strip of dashes and its line (16 px of the sheets), in the lower part of its step
+      expect(r.score.y).toBeGreaterThanOrEqual((16 + 34) * stretch);
       expect(r.score.x + r.score.w / 2).toBeCloseTo(s.width / 2, 6);
       expect(r.speed.y).toBeGreaterThanOrEqual(r.score.y + r.score.h);
       expect(r.speed.y + r.speed.h).toBeLessThanOrEqual(room);
@@ -305,12 +305,18 @@ describe('the decks of the gears a player picks', () => {
       paintDeck('sky', callRecorder().g, s);
       expect(s.marks.map((m) => m.name)).toEqual(['sky', 'feather']);
       const [sky, feather] = s.marks;
-      // the sky from under the strip across the whole deck; the feather in its middle, over the score
+      // the sky from under the strip across the whole deck; the feather on the score's line, in the left part of
+      // the score's window: left of where the score's first letter stands, however long the score
       expect([sky.x, sky.w]).toEqual([0, s.width]);
-      expect(sky.y).toBeCloseTo(20 * stretch, 6);
-      expect(feather.x + feather.w / 2).toBeCloseTo(s.width / 2, 6);
-      expect(feather.y + feather.h / 2).toBeLessThan(r.score.y);
-      expect(feather.y + feather.h / 2).toBeGreaterThan(sky.y);
+      expect(sky.y).toBeCloseTo(16 * stretch, 6);
+      const [fx, fy] = [feather.x + feather.w / 2, feather.y + feather.h / 2];
+      expect(fx).toBeGreaterThan(r.score.x);
+      expect(fx).toBeLessThan(s.width * 0.34);
+      expect(fy).toBeGreaterThan(r.score.y);
+      expect(fy).toBeLessThan(r.score.y + r.score.h / 2);
+      // clear of the speed's pill below it and of the left cloud's end of the deck
+      expect(feather.y + feather.h).toBeLessThanOrEqual(r.speed.y + 1e-6);
+      expect(feather.x).toBeGreaterThan(r.speed.x + r.speed.w);
     }
     // too little of the deck on the screen: the strip and the sky alone
     expect(deckReadouts('sky', spec(96, 1.1))).toBeNull();

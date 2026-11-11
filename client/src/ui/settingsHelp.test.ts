@@ -16,7 +16,7 @@ describe('pickedHelp', () => {
     // the crystal skin's gear (saved as 'prism'), with commas of its own
     expect(pickedHelp(GEAR_HELP, GEARS, '크리스털')?.clause).toBe('레인마다 젖빛 크리스털 키캡(누르면 얼음빛), 넓은 면으로 깎은 옅은 빛깔의 받침에 박힌 사파이어빛 육각 판의 점수·속도·정확도, 레인을 따라 맑은 유리 테두리');
     // the sky skin's gear, whose name is the start of a colour's (하늘색) in other gears' words
-    expect(pickedHelp(GEAR_HELP, GEARS, '하늘')?.clause).toBe('레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 아래 쓴 점수와 비치는 알약 창의 속도·정확도, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
+    expect(pickedHelp(GEAR_HELP, GEARS, '하늘')?.clause).toBe('레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 옆에 쓴 점수와 비치는 알약 창의 속도·정확도, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
     // a gear in the middle of the list, with commas of its own
     expect(pickedHelp(GEAR_HELP, GEARS, '피아노')?.clause).toBe('흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
     // the last gear's words close the sentence: without its ending

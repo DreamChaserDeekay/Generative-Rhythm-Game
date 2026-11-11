@@ -602,7 +602,8 @@ function skyLights(): GearLightSet {
         w: 150,
         h: 150,
         colour: 0xffffff,
-        level: (c, calm) => (calm ? 0.2 + 0.15 * swell(c.beat, 4) : 0.12 + 0.5 * fade(frac(c.beat), 3)),
+        // a breath of light behind the feather on the beat: it is white on a bright sky, and a strong glow would blur it
+        level: (c, calm) => (calm ? 0.1 + 0.12 * swell(c.beat, 4) : 0.05 + 0.3 * fade(frac(c.beat), 3)),
         mark: 'feather',
         grow: 1.3,
       },

@@ -38,7 +38,7 @@
  * - SKY (하늘): the sky skin's gear: a thin navy strip with a dash to a lane (the held lane's lit cyan)
  *   over a deck that is a window onto the sky (a painting where it is loaded, the same in plain shapes
  *   otherwise): blue easing lighter toward the player, a cumulus at each end, thin white wind trails
- *   across it and a feather over the score, which is written on the sky itself; the speed and the rate
+ *   across it and a feather (a picture too) left of the score, which is written on the sky itself; the speed and the rate
  *   in two see-through pills; rails of pale glass with a white line; and its sky laid very faintly over
  *   the lanes with its wind trails and an altimeter's ticks along their edges (GEAR_FLOORS: skyPlate,
  *   skyFloor);
@@ -153,7 +153,7 @@ export type Picture = CanvasImageSource & { readonly width: number; readonly hei
  * A gear's pictures by part (render/styleArt.ts loads them): the materials of its plate and frame,
  * and the things on its deck. A part whose picture is missing is drawn in code.
  */
-export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion';
+export type GearPart = 'deck' | 'glow' | 'plate' | 'frame' | 'jog' | 'joystick' | 'button' | 'coin' | 'knob' | 'switch' | 'lid' | 'lock' | 'keycap' | 'brass' | 'rotary' | 'selector' | 'toggle' | 'medallion' | 'feather';
 export type GearArt = Partial<Record<GearPart, Picture>>;
 
 /**
@@ -476,12 +476,12 @@ const GEM_WINDOW = 0.45;
 
 /**
  * The depths of SKY's deck: a thin strip of key dashes, the white line under it, the step with the
- * feather and the score written under it, the step with the speed's and the rate's pills (`pill`:
+ * score written in its lower part (the feather beside it), the step with the speed's and the rate's pills (`pill`:
  * how far inside that step they lie). No deeper in all than STANDARD's: the default camera on a 16:9
  * screen shows hardly more of the deck, and a deck that does not fit loses its readouts to the panel
  * beside the gear (deckReadouts).
  */
-const SKY = { keys: 18, seam: 2, upper: 68, lower: 46, pad: 5, score: 36, pill: 8 } as const;
+const SKY = { keys: 14, seam: 2, upper: 72, lower: 46, pad: 5, score: 34, pill: 8 } as const;
 
 /** The steps of the decks that house the readouts. */
 const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY };
@@ -490,7 +490,7 @@ const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper:
  * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
  * the speed and the rate in two at the ends of the lower step (STANDARD's pills; CRYSTAL's long
  * hexagons, whose points lie outside the windows: gemPlate; SKY's score written on the sky in the
- * lower part of its step, under the feather, and its two see-through pills); null where the screen
+ * lower part of its step, the feather left of it, and its two see-through pills); null where the screen
  * shows too little of the deck for them (a small preview) or the gear houses none.
  */
 export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
@@ -2134,6 +2134,8 @@ function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
 
 // ---------- SKY (the sky skin's gear, 하늘) ----------
 
+/** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
+const SKY_FEATHER_X = 0.312;
 /** SKY's one accent, a held dash's light (its housings are a deep navy, #0c1c33: the strip here, the gauge's capsule in the HUD's styles). */
 const SKY_CYAN = '#3fe3e6';
 /** The deck's sky from its far edge to the foot of the readouts' steps. */
@@ -2268,10 +2270,11 @@ function feather(g: CanvasRenderingContext2D, cx: number, cy: number, r: number,
  * SKY (하늘): the sky skin's gear, as wide as the track and no wider. Under the judge line a thin navy
  * strip with a dash to a lane, the held lane's lit cyan (deckKeys); under it, past a white line, the
  * deck is a window onto the sky: a deep clear blue easing lighter toward the player, cumulus low in it
- * and toward its two ends (its middle kept clear), thin white wind trails across it, and a feather over
- * the score. The score is written on the sky itself, a hairline under it; the speed and the rate in
+ * and toward its two ends (its middle kept clear), thin white wind trails across it, and a feather left
+ * of the score. The score is written on the sky itself, a hairline under it; the speed and the rate in
  * two see-through pills (deckReadouts). A matte illustration: no sun, no rays, nothing glints. The
- * sky is its painting where that is loaded (`art.plate`), the same in plain shapes otherwise.
+ * sky is its painting where that is loaded (`art.plate`), the same in plain shapes otherwise; the
+ * feather its picture likewise (`art.feather`).
  */
 function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt = {}): void {
   const st = s.stretch;
@@ -2299,10 +2302,19 @@ function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt = {}): 
   mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
   const windows = deckReadouts('sky', s);
   if (!windows) return;
-  // the feather over the score, and the hairline under it
-  const quill = Math.min(12, (windows.score.y - top) / st / 2.5);
-  const at = { x: W / 2, y: top + (windows.score.y - top) / 2 };
-  feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
+  // the feather left of the score, on its line (its picture where that is loaded; drawn in code
+  // otherwise), and the hairline under the score. The score is written about the deck's middle
+  // (Hud.layDeck), so its first letter stands further left the longer it is: the feather stands
+  // where a seven-figure score still leaves it room (SKY_FEATHER_X), a little taller than the score's
+  // line, its foot clear of the hairline
+  const line = windows.score.h / st;
+  const side = line * 1.12;
+  const quill = side / 2.9;
+  const at = { x: W * SKY_FEATHER_X, y: windows.score.y + windows.score.h / 2 - line * 0.07 * st };
+  if (art.feather) {
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(art.feather, at.x - side / 2, at.y - (side * st) / 2, side, side * st);
+  } else feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
   mark(s, 'feather', { x: at.x - quill * 1.6, y: at.y - quill * 1.6 * st, w: quill * 3.2, h: quill * 3.2 * st });
   const rule = g.createLinearGradient(W * 0.28, 0, W * 0.72, 0);
   rule.addColorStop(0, white(0));
