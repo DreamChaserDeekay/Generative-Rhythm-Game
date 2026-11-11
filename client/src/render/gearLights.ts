@@ -623,10 +623,44 @@ function skyLights(): GearLightSet {
   };
 }
 
+/**
+ * FIRE: the light under its key caps flares with each beat (a slow breath under 번쩍임 줄이기), and in
+ * FEVER the lacquer itself glows a little hotter on the beat.
+ */
+function fireLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff6a2a,
+        level: (c, calm) => (calm ? 0.16 + 0.12 * swell(c.beat, 4) : 0.08 + 0.5 * fade(frac(c.beat), 3)),
+        mark: 'caps',
+        grow: [1, 1.6],
+      },
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 330,
+        w: 2048,
+        h: 420,
+        colour: 0xff5a3a,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.12 : 0.06 + 0.16 * fade(frac(c.beat), 3)),
+        mark: 'lacquer',
+        grow: 1,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
   sky: skyLights,
+  fire: fireLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

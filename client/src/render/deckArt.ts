@@ -42,13 +42,18 @@
  *   in two see-through pills; rails of pale glass with a white line; and its sky laid very faintly over
  *   the lanes with its wind trails and an altimeter's ticks along their edges (GEAR_FLOORS: skyPlate,
  *   skyFloor);
+ * - FIRE (파이어스타터): the Firestarter skin's gear, a pop group's comeback stage in gloss black, chrome
+ *   and one hot red: a row of polished chrome key caps (the held lane's glows orange-red) over a deck of
+ *   candy-red lacquer with black wedges cut into it, the score in a window of black glass in a chrome
+ *   bevel, the speed and the rate in two dark pills; rails of chrome with a red line; a white-hot judge
+ *   line (firePlate). Figures of the player's own stand at its two sides (standees.ts);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'prism' | 'sky' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+export type GearStyle = 'prism' | 'sky' | 'fire' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
 /** The gears a player picks: the skins' first (기본, 크리스털, 하늘), then the objects. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'fire', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -173,6 +178,8 @@ export function judgeOf(style: GearStyle): { line: string; core: string; glow: s
   if (style === 'prism') return { ...GEAR_JUDGE, line: CRYSTAL_LINE, core: '#ffffff', glow: CRYSTAL_ICE };
   // SKY's: a white line in a sky-blue glow, as a horizon
   if (style === 'sky') return { ...GEAR_JUDGE, line: '#6dbcf7', core: '#ffffff', glow: '#58aef0' };
+  // FIRE's: a white-hot wire in a red glow
+  if (style === 'fire') return { ...GEAR_JUDGE, line: '#ff3b2f', core: '#ffffff', glow: '#ff2b1f' };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -483,8 +490,15 @@ const GEM_WINDOW = 0.45;
  */
 const SKY = { keys: 14, seam: 2, upper: 72, lower: 46, pad: 5, score: 34, pill: 8 } as const;
 
+/**
+ * The depths of FIRE's deck: its row of chrome key caps (the light under them in its last `glow`), the
+ * chrome trim, the step with the score's window, the step with the speed's and the rate's pills. As
+ * deep in all as STANDARD's.
+ */
+const FIRE = { keys: 42, seam: 3, upper: 48, lower: 44, pad: 4, glow: 7 } as const;
+
 /** The steps of the decks that house the readouts. */
-const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY };
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY, fire: FIRE };
 
 /**
  * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
@@ -1533,6 +1547,8 @@ export interface DeckKey {
   gem?: number;
   /** A dash in the middle of its box (SKY's), this share of the box across and along: lit, the dash white in a glow of its colour. */
   dash?: [number, number];
+  /** A cap inside its box (FIRE's: shares of the box, x, y, w, h): lit, the cap glows as heated metal and its colour's light burns under its near edge. */
+  ember?: [number, number, number, number];
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1557,6 +1573,15 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
       const dash = dashBox(lane, st);
       const box: Box = { x: lane.left, y: 0, w: lane.width, h: SKY.keys * st };
       return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: SKY_CYAN, dash: [dash.w / box.w, dash.h / box.h] as [number, number] };
+    });
+  }
+  if (style === 'fire') {
+    // its chrome caps, one to a lane (firePlate): the held one's light is over the cap and under it
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => {
+      const cap = fireCap(lane, st);
+      const box: Box = { x: lane.left, y: 0, w: lane.width, h: FIRE.keys * st };
+      return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: FIRE_HOT, ember: [(cap.x - box.x) / box.w, cap.y / box.h, cap.w / box.w, cap.h / box.h] as [number, number, number, number] };
     });
   }
   if (style !== 'piano') return [];
@@ -1595,7 +1620,7 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  * its colour's light, brightest along its far edge, a rim of the colour round it; a cap cut as a gem
  * (CRYSTAL's) the same cut full of light. Drawn once; the renderer shows it while the lane's key is held.
  */
-export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash'>): void {
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash' | 'ember'>): void {
   if (key.gem) {
     g.save();
     g.scale(w / key.box.w, h / key.box.h);
@@ -1604,6 +1629,23 @@ export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, k
     return;
   }
   const colour = key.lit ?? '#ffffff';
+  if (key.ember) {
+    // the cap heated: white-hot along its near edge, its colour over the rest, and the light burning out from under that edge
+    const [cx, cy, cw, ch] = [key.ember[0] * w, key.ember[1] * h, key.ember[2] * w, key.ember[3] * h];
+    const heat = g.createLinearGradient(0, cy, 0, cy + ch);
+    heat.addColorStop(0, shade(colour, 1, 0.34));
+    heat.addColorStop(0.6, shade(colour, 1.1, 0.6));
+    heat.addColorStop(1, shade('#fff1d6', 1, 0.96));
+    g.fillStyle = heat;
+    g.fillRect(cx, cy, cw, ch);
+    const under = g.createLinearGradient(0, cy + ch, 0, h);
+    under.addColorStop(0, shade('#fff1d6', 1, 0.95));
+    under.addColorStop(0.35, shade(colour, 1.1, 0.85));
+    under.addColorStop(1, shade(colour, 1, 0));
+    g.fillStyle = under;
+    g.fillRect(cx - cw * 0.03, cy + ch, cw * 1.06, h - cy - ch);
+    return;
+  }
   if (key.dash) {
     // the dash white-hot in the middle of its cell, its colour's glow round it, melting away before the cell's edges
     const [dw, dh] = [key.dash[0] * w, Math.max(2, key.dash[1] * h * 1.25)];
@@ -2132,6 +2174,175 @@ function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
 }
 
+// ---------- FIRE (the Firestarter skin's gear, 파이어스타터) ----------
+
+/** FIRE's one colour, and the heat of what is lit on it (a held key's light, the light under the caps). */
+const FIRE_RED = '#e8112d';
+const FIRE_HOT = '#ff5a1f';
+
+/** Polished chrome down a strip from `y0` to `y1`: the sky in its upper half, the dark horizon, the floor's light below. */
+function chromeDown(g: CanvasRenderingContext2D, y0: number, y1: number): CanvasGradient {
+  const c = g.createLinearGradient(0, y0, 0, y1);
+  c.addColorStop(0, '#f6f8fa');
+  c.addColorStop(0.4, '#b4bcc7');
+  c.addColorStop(0.5, '#4f5661');
+  c.addColorStop(0.6, '#8d95a1');
+  c.addColorStop(1, '#e3e7ec');
+  return c;
+}
+
+/** A lane's key cap on FIRE's strip: as wide as the lane less a gap, the light's room left under it. */
+const fireCap = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2, y: 3 * st, w: lane.width - 4, h: (FIRE.keys - 3 - FIRE.glow) * st });
+
+/**
+ * FIRE (파이어스타터): a comeback stage in gloss black, chrome and one hot red, as wide as the track and no
+ * wider. Under the judge line a row of polished chrome key caps, one to a lane, each with one slant of
+ * light across it and a thin orange-red light burning under its near edge (the held lane's cap glows:
+ * deckKeys). Under them, past a chrome trim, a deck of candy-red lacquer with one soft straight
+ * reflection: black shoulders cut into its far corners point at the ends of the score's window, a pane
+ * of black glass in a chrome bevel whose ends slant inward, and two black blades run from under that
+ * window's corners to the deck's near edge; the speed and the rate are in two dark pills at the near
+ * corners. Nothing on it is a flame: the fire is its red and the light under the caps. The HUD writes
+ * the readouts in the windows (deckReadouts).
+ */
+function firePlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  g.fillStyle = '#08080a';
+  g.fillRect(0, 0, W, s.depth);
+  // the key caps
+  for (const lane of s.lanes) {
+    const cap = fireCap(lane, st);
+    g.fillStyle = chromeDown(g, cap.y - cap.h * 0.25, cap.y + cap.h * 1.1);
+    g.fillRect(cap.x, cap.y, cap.w, cap.h);
+    // one slant of light: the part over the cap's diagonal brighter, the part under it in shade
+    polygon(g, [
+      [cap.x, cap.y],
+      [cap.x + cap.w, cap.y],
+      [cap.x, cap.y + cap.h],
+    ]);
+    g.fillStyle = white(0.34);
+    g.fill();
+    polygon(g, [
+      [cap.x + cap.w, cap.y],
+      [cap.x + cap.w, cap.y + cap.h],
+      [cap.x, cap.y + cap.h],
+    ]);
+    g.fillStyle = black(0.2);
+    g.fill();
+    g.fillStyle = white(0.9);
+    g.fillRect(cap.x, cap.y, cap.w, Math.max(1, 0.8 * st));
+    g.fillStyle = black(0.55);
+    g.fillRect(cap.x, cap.y + cap.h - 1.2 * st, cap.w, 1.2 * st);
+    // the light under it
+    const under = g.createLinearGradient(0, cap.y + cap.h, 0, FIRE.keys * st);
+    under.addColorStop(0, shade(FIRE_HOT, 1.1, 0.9));
+    under.addColorStop(0.3, shade(FIRE_RED, 1, 0.55));
+    under.addColorStop(1, shade(FIRE_RED, 1, 0));
+    g.fillStyle = under;
+    g.fillRect(cap.x + cap.w * 0.06, cap.y + cap.h, cap.w * 0.88, FIRE.keys * st - cap.y - cap.h);
+  }
+  const kh = FIRE.keys * st;
+  mark(s, 'caps', { x: 0, y: kh - FIRE.glow * st, w: W, h: FIRE.glow * st });
+  // the chrome trim under the caps
+  g.fillStyle = chromeDown(g, kh, kh + FIRE.seam * st);
+  g.fillRect(0, kh, W, FIRE.seam * st);
+  const top = kh + FIRE.seam * st;
+  const H = (FIRE.upper + FIRE.lower) * st;
+  // the lacquer: a deep candy red, darker toward the player and toward its two sides
+  const red = g.createLinearGradient(0, top, 0, top + H);
+  red.addColorStop(0, '#d2122c');
+  red.addColorStop(0.5, '#b60e24');
+  red.addColorStop(1, '#8c0a1b');
+  g.fillStyle = red;
+  g.fillRect(0, top, W, s.depth - top);
+  const sides = g.createLinearGradient(0, 0, W, 0);
+  sides.addColorStop(0, black(0.3));
+  sides.addColorStop(0.16, black(0));
+  sides.addColorStop(0.84, black(0));
+  sides.addColorStop(1, black(0.3));
+  g.fillStyle = sides;
+  g.fillRect(0, top, W, s.depth - top);
+  // one soft straight reflection across it, slanting
+  polygon(g, [
+    [W * 0.12, top],
+    [W * 0.5, top],
+    [W * 0.36, top + H],
+    [W * -0.02, top + H],
+  ]);
+  g.fillStyle = white(0.07);
+  g.fill();
+  polygon(g, [
+    [W * 0.53, top],
+    [W * 0.56, top],
+    [W * 0.42, top + H],
+    [W * 0.39, top + H],
+  ]);
+  g.fillStyle = white(0.05);
+  g.fill();
+  mark(s, 'lacquer', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
+  const windows = deckReadouts('fire', s);
+  const score: Box = windows?.score ?? { x: W * 0.24, y: top + FIRE.pad * st, w: W * 0.52, h: (FIRE.upper - 2 * FIRE.pad) * st };
+  const cut = Math.min(W * 0.04, (score.h / st) * 1.1);
+  // the black shoulders at the far corners, their points at the ends of the score's window
+  for (const side of [0, 1]) {
+    const x = (u: number) => (side === 0 ? u : W - u);
+    polygon(g, [
+      [x(0), top],
+      [x(score.x - W * 0.012), top],
+      [x(0), top + H * 0.3],
+    ]);
+    g.fillStyle = '#0a0a0c';
+    g.fill();
+    // a blade from under the window's corner to the deck's near edge, wider as it comes
+    polygon(g, [
+      [x(score.x + cut + W * 0.006), score.y + score.h + 2 * st],
+      [x(W * 0.462), top + H],
+      [x(W * 0.39), top + H],
+    ]);
+    g.fill();
+  }
+  // the score's window: black glass in a chrome bevel, its two ends slanting inward toward the player
+  const pane = (inset: number): [number, number][] => [
+    [score.x + inset, score.y + inset * st],
+    [score.x + score.w - inset, score.y + inset * st],
+    [score.x + score.w - cut - inset * 0.6, score.y + score.h - inset * st],
+    [score.x + cut + inset * 0.6, score.y + score.h - inset * st],
+  ];
+  polygon(g, pane(0));
+  g.fillStyle = chromeDown(g, score.y, score.y + score.h);
+  g.fill();
+  polygon(g, pane(2));
+  const glass = g.createLinearGradient(0, score.y, 0, score.y + score.h);
+  glass.addColorStop(0, '#17181c');
+  glass.addColorStop(1, '#060607');
+  g.fillStyle = glass;
+  g.fill();
+  // one sheen on the glass, at its left
+  g.save();
+  polygon(g, pane(2));
+  g.clip();
+  polygon(g, [
+    [score.x + score.w * 0.04, score.y],
+    [score.x + score.w * 0.3, score.y],
+    [score.x + score.w * 0.2, score.y + score.h],
+    [score.x - score.w * 0.06, score.y + score.h],
+  ]);
+  g.fillStyle = white(0.07);
+  g.fill();
+  g.restore();
+  if (!windows) return;
+  // the speed's and the rate's pills: the lacquer seen through smoked glass
+  for (const b of [windows.speed, windows.rate]) {
+    rounded(g, b, b.h / (2 * st), st);
+    g.fillStyle = 'rgba(46,3,9,0.8)';
+    g.fill();
+    g.lineWidth = 1;
+    g.strokeStyle = black(0.45);
+    g.stroke();
+  }
+}
+
 // ---------- SKY (the sky skin's gear, 하늘) ----------
 
 /** Where SKY's feather stands across its deck (share of the deck's width): left of the score's first letter. */
@@ -2575,6 +2786,7 @@ function skyFloor(g: CanvasRenderingContext2D, w: number, h: number, st: number)
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
   prism: crystalPlate,
   sky: skyPlate,
+  fire: firePlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -3194,6 +3406,43 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = across;
       g.fillRect(0, 0, w, h);
       g.fillStyle = black(0.45);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // FIRE: a strip of polished chrome, a dark seam outside, its horizon's dark band down its middle and a
+  // red line along the lanes; in FEVER the red line burns orange-white
+  fire: () => ({
+    body: '#b4bcc7',
+    width: 16,
+    tile: 40,
+    height: 12,
+    // the strip's side: chrome under its top edge, dark at its foot
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#f6f8fa');
+      side.addColorStop(0.3, '#aab2bd');
+      side.addColorStop(0.7, '#4f5661');
+      side.addColorStop(1, '#17191d');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffb27a' : FIRE_RED;
+      g.fillRect(0, h - 2.4 * k, w, 1.2 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#15171b');
+      across.addColorStop(0.08, '#8d95a1');
+      across.addColorStop(0.3, '#f6f8fa');
+      across.addColorStop(0.46, '#b4bcc7');
+      across.addColorStop(0.54, '#4f5661');
+      across.addColorStop(0.64, '#9aa2ae');
+      across.addColorStop(0.84, '#e3e7ec');
+      across.addColorStop(1, '#cfd5dc');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? '#ffd9b0' : FIRE_RED;
+      g.fillRect(w - 2.6 * k, 0, 1.5 * k, h);
+      g.fillStyle = black(0.5);
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),

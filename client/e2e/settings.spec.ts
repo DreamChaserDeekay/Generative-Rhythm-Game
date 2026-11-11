@@ -89,6 +89,10 @@ test('the help names the picked gear only, and the default of a row whose value 
   await expect(gear).toHaveAttribute('data-value', 'sky');
   await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 구름 낀 하늘 받침에 깃털 옆에 쓴 점수와 비치는 알약 창의 속도·정확도, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
   await expect(help).not.toContainText('그래파이트');
+  // the Firestarter skin's gear after it
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'fire');
+  await expect(picked).toHaveText('파이어스타터 레인마다 크롬 키캡(누르면 주황빛으로 달아오름), 검은 쐐기가 파고든 빨간 래커 받침에 크롬 테 검은 유리 창의 점수와 어두운 알약 창의 속도·정확도, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 내 PC의 그림을 세우는 자리');
   await page.keyboard.press('ArrowRight');
   await expect(gear).toHaveAttribute('data-value', 'cabinet');
   await expect(picked).toHaveText('오락실 기체 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구');

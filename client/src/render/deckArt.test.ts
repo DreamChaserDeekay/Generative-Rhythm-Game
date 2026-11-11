@@ -128,7 +128,7 @@ describe('the decks of the gears a player picks', () => {
   });
 
   /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
-  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky'];
+  const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire'];
 
   it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, STANDARD’s and CRYSTAL’s key caps and SKY’s dashes)', () => {
     for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) {
@@ -323,6 +323,48 @@ describe('the decks of the gears a player picks', () => {
     const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
     paintDeck('sky', callRecorder().g, short);
     expect(short.marks.map((m) => m.name)).toEqual(['sky']);
+  });
+
+  it('FIRE houses the score in a window of black glass and the speed and the rate in two pills, its chrome caps glowing under their near edges, and marks that light and its lacquer', () => {
+    for (const [room, stretch, mode] of [
+      [155.55, 1.2, '7K+1S'],
+      [912, 3.25, '4K'],
+    ] as [number, number, KeyModeId][]) {
+      const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+      const r = deckReadouts('fire', s)!;
+      // under the caps and the chrome trim (45 px of the sheets), the score in the middle, the pills at the two ends under it
+      expect(r.score.y).toBeGreaterThanOrEqual(45 * stretch);
+      expect(r.score.x + r.score.w / 2).toBeCloseTo(s.width / 2, 6);
+      expect(r.speed.y).toBeGreaterThanOrEqual(r.score.y + r.score.h);
+      expect(r.speed.y + r.speed.h).toBeLessThanOrEqual(room);
+      expect(r.rate.x + r.rate.w).toBeCloseTo(s.width - r.speed.x, 6);
+      paintDeck('fire', callRecorder().g, s);
+      expect(s.marks.map((m) => m.name)).toEqual(['caps', 'lacquer']);
+      const [caps, lacquer] = s.marks;
+      // the light under the caps: a thin band across the deck at the foot of their row; the lacquer from under the trim
+      expect([caps.x, caps.w, lacquer.x, lacquer.w]).toEqual([0, s.width, 0, s.width]);
+      expect(caps.y + caps.h).toBeCloseTo(42 * stretch, 6);
+      expect(caps.h).toBeLessThan(10 * stretch);
+      expect(lacquer.y).toBeCloseTo(45 * stretch, 6);
+      // a cap to a lane, its light's room left under it: the held lane's cap glows as heated metal
+      const keys = deckKeys('fire', s, false);
+      expect(keys.map((k) => [k.lane, k.lit])).toEqual(s.lanes.map((_, lane) => [lane, '#ff5a1f']));
+      keys.forEach((k, i) => {
+        expect([k.box.x, k.box.y, k.box.w], `cap ${i}`).toEqual([s.lanes[i].left, 0, s.lanes[i].width]);
+        expect(k.box.h).toBeCloseTo(42 * stretch, 6);
+        const [, y, w, h] = k.ember!;
+        expect(w).toBeGreaterThan(0.9);
+        expect(y + h).toBeLessThan(0.9);
+      });
+    }
+    // as deep in all as the default gear's deck: where that one keeps its readouts, so does this
+    expect(deckReadouts('fire', spec(96, 1.1))).toBeNull();
+    expect(deckReadouts('fire', spec(155.55, 1.2))!.speed.y).toBeCloseTo(deckReadouts('standard', spec(155.55, 1.2))!.speed.y, 6);
+    // its judge line a white-hot wire in red
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(judgeOf('fire').line.slice(i, i + 2), 16));
+    expect(judgeOf('fire').core).toBe('#ffffff');
+    expect(r).toBeGreaterThan(220);
+    expect(Math.max(g, b)).toBeLessThan(90);
   });
 
   it('SKY lays its sky over the lanes as its picture has it: dark all the way, a faint bank of cloud on the line, three hairline trails; no other gear paints the lanes', () => {

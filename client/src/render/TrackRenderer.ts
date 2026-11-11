@@ -3,6 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
+import { readStandees, STAGE_SLOTS, standeeBoxes, standeeCanvas, watchStandees, type StageView } from './standees';
 import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
@@ -732,6 +733,21 @@ export class TrackRenderer {
   private lastFrameMs = 0;
   private cssWidth = 1;
   private cssHeight = 1;
+  /**
+   * The figures standing at the gear's two sides, where the gear has a stage (standees.ts): the
+   * player's own pictures, drawn on the screen's own plane before the track, so the gear covers
+   * what stands behind it. They move with the view (a chart's zoom and roll) as the gear does.
+   */
+  private readonly stageScene = new THREE.Scene();
+  private readonly stageCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
+  private readonly stageGroup = new THREE.Group();
+  private standees: { mesh: THREE.Mesh; aspect: number }[] = [];
+  private stageWatch: (() => void) | null = null;
+  private stageLoads = 0;
+  /** The view the figures were last placed for (hudVersion), and the screen and judge line of their resting places. */
+  private stagePlaced = -1;
+  private stageBase: { key: string; ends: [THREE.Vector2, THREE.Vector2] } | null = null;
+  private disposed = false;
 
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
     this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength, options.sideNotes);
@@ -788,6 +804,10 @@ export class TrackRenderer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
+    // the stage's figures are drawn first and the track over them (draw)
+    this.renderer.autoClear = false;
+    this.stageGroup.matrixAutoUpdate = false;
+    this.stageScene.add(this.stageGroup);
     this.setCamera(options.camera);
 
     this.buildTrack();
@@ -854,6 +874,10 @@ export class TrackRenderer {
       mesh.renderOrder = 2.3;
       return mesh;
     });
+    if (STAGE_SLOTS[this.style.deck]) {
+      void this.loadStandees();
+      this.stageWatch = watchStandees(() => void this.loadStandees());
+    }
   }
 
   setCamera(preset: CameraPreset): void {
@@ -1091,6 +1115,11 @@ export class TrackRenderer {
     this.sweepBorders(clock);
     this.shimmerJudge(clock);
     this.applyCameraFx(frame.camera);
+    this.renderer.clear();
+    if (this.standees.length > 0) {
+      if (this.stagePlaced !== this.planeVersion) this.placeStandees();
+      this.renderer.render(this.stageScene, this.stageCamera);
+    }
     this.renderer.render(this.scene, this.camera);
     if (this.staleMaterials.length > 0) {
       for (const m of this.staleMaterials) m.dispose();
@@ -1126,7 +1155,104 @@ export class TrackRenderer {
     this.frameView();
   }
 
+  /** Loads the pictures of the gear's stage (again whenever the player picks others). */
+  private async loadStandees(): Promise<void> {
+    const load = ++this.stageLoads;
+    const files = await readStandees(this.style.deck);
+    const pictures = await Promise.all(files.map((f) => createImageBitmap(f.blob).catch(() => null)));
+    if (this.disposed || load !== this.stageLoads) {
+      pictures.forEach((b) => b?.close());
+      return;
+    }
+    this.clearStandees();
+    for (const picture of pictures) {
+      if (!picture) continue;
+      const texture = new THREE.CanvasTexture(standeeCanvas(picture));
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      this.stageGroup.add(mesh);
+      this.standees.push({ mesh, aspect: picture.width / picture.height });
+      picture.close();
+    }
+    this.stagePlaced = -1;
+  }
+
+  private clearStandees(): void {
+    for (const { mesh } of this.standees) {
+      this.stageGroup.remove(mesh);
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.map?.dispose();
+      material.dispose();
+      mesh.geometry.dispose();
+    }
+    this.standees = [];
+  }
+
+  /** How many figures stand by the gear now (for tests and the settings). */
+  get standeeCount(): number {
+    return this.standees.filter((f) => f.mesh.visible).length;
+  }
+
+  /**
+   * Places the figures: where they stand while the view is at rest (standeeBoxes, from the gear's outer
+   * edges as the unzoomed, unrolled view shows them), then moved as the chart's zoom and roll move the
+   * gear on the screen (the judge line's two ends tell how: a turn, a size and a shift).
+   */
+  private placeStandees(): void {
+    this.stagePlaced = this.planeVersion;
+    const [W, H] = [this.cssWidth, this.cssHeight];
+    const point = (plane: HudPlane, x: number, y: number) => {
+      const h = plane.h;
+      const w = h[6] * x + h[7] * y + h[8];
+      return new THREE.Vector2((h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w);
+    };
+    const key = `${W}x${H}:${this.judgeZ}:${this.baseFov}:${this.standees.map((f) => f.aspect.toFixed(4)).join(',')}`;
+    if (this.stageBase?.key !== key) {
+      const rest = this.hudPlaneAt({ roll: 0, fovScale: 1 });
+      const out = rest.halfWidth + rest.sideOut;
+      // the gear's outer edges: at the judge line, and run on to the screen's bottom
+      const DOWN = 120;
+      const edges = ([-1, 1] as const).map((side) => {
+        const [a, b] = [point(rest, side * out, 0), point(rest, side * out, DOWN)];
+        const t = b.y !== a.y ? (H - a.y) / (b.y - a.y) : 0;
+        return { line: a.x, bottom: a.x + (b.x - a.x) * t, y: a.y };
+      });
+      const view: StageView = { width: W, height: H, lineY: edges[0].y, line: [edges[0].line, edges[1].line], bottom: [edges[0].bottom, edges[1].bottom] };
+      const boxes = standeeBoxes(this.standees.map((f) => f.aspect), view);
+      this.standees.forEach(({ mesh }, i) => {
+        const box = boxes[i];
+        mesh.visible = box !== null;
+        if (!box) return;
+        // the stage's plane is the screen's, its y up
+        mesh.position.set(box.x + box.w / 2, H - (box.y + box.h / 2), 0);
+        mesh.scale.set(box.w, box.h, 1);
+        mesh.renderOrder = box.front ? 2 : 1;
+      });
+      // how many stand (not shown: for tests)
+      this.renderer.domElement.dataset.stage = String(this.standeeCount);
+      this.stageCamera.right = W;
+      this.stageCamera.top = H;
+      this.stageCamera.updateProjectionMatrix();
+      this.stageBase = { key, ends: [point(rest, -rest.halfWidth, 0), point(rest, rest.halfWidth, 0)] };
+    }
+    // as the view moves the judge line's ends, so the figures
+    const now = this.hudPlane();
+    const [p0, p1] = this.stageBase.ends.map((p) => new THREE.Vector2(p.x, H - p.y));
+    const [q0, q1] = [point(now, -now.halfWidth, 0), point(now, now.halfWidth, 0)].map((p) => new THREE.Vector2(p.x, H - p.y));
+    const [from, to] = [p1.clone().sub(p0), q1.clone().sub(q0)];
+    const size = from.length() > 0 ? to.length() / from.length() : 1;
+    const turn = Math.atan2(to.y, to.x) - Math.atan2(from.y, from.x);
+    const [cos, sin] = [Math.cos(turn) * size, Math.sin(turn) * size];
+    // x' = q0 + R S (x - p0)
+    this.stageGroup.matrix.set(cos, -sin, 0, q0.x - (cos * p0.x - sin * p0.y), sin, cos, 0, q0.y - (sin * p0.x + cos * p0.y), 0, 0, 1, 0, 0, 0, 0, 1);
+    this.stageGroup.matrixWorldNeedsUpdate = true;
+  }
+
   dispose(): void {
+    this.disposed = true;
+    this.stageWatch?.();
+    this.clearStandees();
     this.gearLights.dispose();
     this.layPressKeys([], [], 0);
     this.scene.traverse((obj) => {

@@ -12,6 +12,7 @@ environment and never written.
 from __future__ import annotations
 
 import base64
+import fcntl
 import json
 import os
 import subprocess
@@ -684,6 +685,107 @@ PICTURES["skin-sky-c3"] = (
 )
 
 
+# Skin 3, FIRESTARTER: the user's concept for this one is a pop group's 2026 comeback (K/DA FIRESTARTER), told to the model
+# in words only: gloss black, polished chrome and one hot red, sharp silhouettes, fire as graphic shapes. No picture of
+# it is sent, and no logo, name or character of it is asked for. Three screens to choose from. The lanes may carry the
+# skin's picture very faintly (the strength the user set with the sky skin's c3).
+KEEP_SKIN_FAINT = KEEP_SKIN.replace(
+    "they belong to no skin, so leave them as dark and plain as in the screenshot, with their faint lane tints and hairline "
+    "dividers and nothing added on them",
+    "they stay the dark floor of the screenshot, near-black and clearly darker than the deck and than every note, with their "
+    "faint lane tints and hairline dividers; this skin may lay over them ONLY the very faint picture described below, at no "
+    "more than a third of the deck's brightness",
+)
+assert KEEP_SKIN_FAINT != KEEP_SKIN
+FIRE_LOOK = (
+    "Skin 'FIRESTARTER': the stage look of a pop group's comeback. Palette: gloss black (#0b0b0d), polished silver chrome "
+    "(#c9ced6, with the dark horizon band chrome has), ONE hot red (#e8112d), and an orange-white heat (#ff7a1a to #fff1d6) "
+    "only where something is lit or burning. Sharp silhouettes, clean reflective metal, fashionable and graphic like stage "
+    "graphics and album artwork. Fire appears ONLY as graphic shapes (thin pinstripe flame lines, small sharp sparks): NO "
+    "realistic flames, no smoke, no clouds of particles, no lens flare, no sparkles, no characters. "
+    "Side rails: slim strips of polished chrome, each with a red hairline along its inner edge, plain all the way up. "
+    "Gauge: a slim gloss-black capsule along the outside of the right rail holding one column of small slanted segments, lit "
+    "from the bottom up to the gauge's level: deep red at the bottom heating to orange, the topmost lit one orange-white; "
+    "the unlit ones dark. "
+    "Judgment line: a thin white-hot line in a red glow, like a heated wire. "
+    "Long note: a long band in its lane's colour like a tube of heated glass, as wide as its lane's note, with a thin "
+    "white-hot line down its middle; its two ends are simply cut (no tap-note caps) with a thin bright edge; the held one "
+    "burns brighter, an orange-white light running along it to the judgment line. "
+    "Hit effect: the strike of a lighter: a short white-hot flash on the line and five or six thin sharp sparks flying up and "
+    "outward, bright streaks with red tails, gone at once; no ring, no smoke. "
+)
+# The user's staging for this skin: the group's members stand at both sides of the gear. Their pictures are not made here
+# and none is sent: the concept shows blank silhouettes where the pictures will stand, so the tail that forbids people is
+# replaced for these three (a third entry in the tuple).
+FIRE_STAGE = (
+    "Staging: at each side of the gear stand TWO tall flat placeholder cut-outs, four in all, like blank standees: each a "
+    "plain dark-grey silhouette in the outline of a standing performer (a simple mannequin outline: no face, no hair detail, "
+    "no clothing detail, no features at all), about two-thirds of the screen's height, their feet at the bottom of the screen, "
+    "the inner one a little in front of the outer one and overlapping it slightly, each with a thin red rim light along one "
+    "side. They stand BESIDE the gear, never over the lanes or the deck, and behind the top-left song information and the "
+    "gauge's labels. They are placeholders for pictures added later, so keep them blank. "
+)
+FIRE_TAIL = (
+    " Original design: it must not resemble any existing game's interface. No logos, no watermark, no real or known "
+    "characters: the only figures are the four blank silhouettes."
+)
+PICTURES["skin-fire-a"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN_FAINT + FIRE_LOOK + FIRE_STAGE +
+    "This version, the most minimal: the deck is one panel of gloss black lacquer with one soft straight reflection, and "
+    "across its lower left runs a single pinstripe flame: three or four long licks drawn ONLY as thin chrome outlines, flat "
+    "on the lacquer like the pinstriping of a custom paint job. A thin red line runs along the deck's far edge. The readouts "
+    "have NO boxes: they are written straight on the black in polished-chrome digits, each with its small letter-spaced red "
+    "label ('SCORE', 'SPEED', 'RATE') beside it and a chrome hairline rule under it. The key indicators are a row of thin "
+    "short horizontal dashes, one per lane, dark red on a narrow black strip; the pressed lane's dash glows orange-white. "
+    "Notes: glossy lacquered bars with crisp square corners in their lane colours, each with a thin chrome edge along its near "
+    "side (the brightest part) and one thin straight highlight; the far-left lane's pink note is the same bar with a small "
+    "white double slash cut in its middle. The faint picture on the lanes: two or three thin red pinstripe flame lines "
+    "sweeping up the floor in long curves, barely brighter than the floor, and nothing else. "
+    "Combo number and 'COMBO': a heavy, wide italic sans-serif with sharply cut corners, filled as polished chrome (white at "
+    "the top, a dark horizon band across the middle, pale silver below) with a thin red outline; 'COMBO' small, widely "
+    "letter-spaced, red. Judgment text 'MAX 100%': the same type, 'MAX' chrome, '100%' orange-white easing to hot red. ",
+    FIRE_TAIL,
+)
+PICTURES["skin-fire-b"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN + FIRE_LOOK + FIRE_STAGE +
+    "This version, the boldest: the deck is a panel of candy-apple red lacquer with one soft straight reflection and a thin "
+    "chrome trim round it, and two long black wedges sweep in from its lower corners toward the centre, flat inlays with "
+    "sharp points. The readouts sit in three windows of black glass shaped as slanted parallelograms, each with a thin chrome "
+    "bevel, set flush in the red: digits chrome-white, small labels red; the SCORE window widest in the centre, the SPEED and "
+    "RATE windows smaller at the lower left and right. The key indicators are low key caps of polished chrome whose two short "
+    "ends are cut at a slant, one per lane; the pressed one glows hot orange-red from under its edges. "
+    "Notes: glossy bars whose two short ends are cut at a slant (slim parallelograms) in their lane colours, each with a thin "
+    "chrome edge along its near side; the far-left lane's pink note is the same shape with a small white double slash cut in "
+    "its middle; a long note's two ends are cut at the same slant. The lanes stay plain. "
+    "Combo number and 'COMBO': a tall, tight, condensed heavy italic sans-serif like a tour poster's, white-hot at the top "
+    "easing through orange to hot red at its foot, with a thin black outline and a chrome hairline round that; 'COMBO' small, "
+    "widely letter-spaced, chrome. Judgment text 'MAX 100%': the same type, 'MAX' chrome-white, '100%' orange easing to red. ",
+    FIRE_TAIL,
+)
+PICTURES["skin-fire-c"] = (
+    DEFAULT_SHOT,
+    KEEP_SKIN_FAINT + FIRE_LOOK + FIRE_STAGE +
+    "This version, dark and smouldering: the deck is matte soot-black metal with a very fine brushed grain, and its far edge, "
+    "just under the key indicators, BURNS: one thin irregular ember line across the whole width, orange-white at its core and "
+    "deep red at its fringe, like the glowing edge of burning paper, the black just below it very slightly greyed like ash. "
+    "Nothing else on the deck glows. The readouts are housed in three slim recessed windows with sharply chamfered corners, "
+    "each edged by a chrome hairline, their glass a dark red-black; digits orange-white like a heated filament, small labels "
+    "chrome silver; the SCORE window widest in the centre with a small flat chrome flame mark of two licks at its left, the "
+    "SPEED and RATE windows smaller at the lower left and right. The key indicators are a row of short chrome bars, one per "
+    "lane, on a narrow black strip; the pressed one glows orange-white. "
+    "Notes: flat matte bars with crisp square corners in their lane colours, each with a bright near edge and a thin dark red "
+    "line under it; the far-left lane's pink note is the same bar with a small white double slash cut in its middle. The "
+    "faint picture on the lanes: a red heat rising from the judgment line over the lowest fifth of the floor only, fading "
+    "to nothing above, barely there. "
+    "Combo number and 'COMBO': a heavy italic sans-serif with sharply cut corners, like stencilled steel: silver-white at the "
+    "top easing to an ember orange and hot red at its foot, with a thin black outline; 'COMBO' small, widely letter-spaced, "
+    "chrome silver. Judgment text 'MAX 100%': the same type, 'MAX' silver-white, '100%' orange-white easing to hot red. ",
+    FIRE_TAIL,
+)
+
+
 def generate(prompt: str, ref: Path | tuple[Path, ...] | None) -> tuple[bytes, dict]:
     # the pictures sent with the prompt, in the order the prompt speaks of them (one, several or none)
     parts: list[dict] = []
@@ -712,13 +814,15 @@ def main() -> None:
     record_file = RAW / "record.json"
     record = json.loads(record_file.read_text()) if record_file.exists() else {}
     only = set(sys.argv[1:])
-    for pid, (ref, prompt) in PICTURES.items():
+    for pid, entry in PICTURES.items():
+        ref, prompt = entry[:2]
+        tail = entry[2] if len(entry) > 2 else TAIL
         name = f"r2-{pid}"
         if only and pid not in only:
             continue
         if not only and (RAW / f"{name}.png").exists():
             continue
-        full = prompt + TAIL
+        full = prompt + tail
         try:
             png, usage = generate(full, ref)
         except Exception as e:  # one picture failing does not stop the others
@@ -728,8 +832,11 @@ def main() -> None:
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(RAW / f"{name}.png"), "-vf", "scale=1600:-2:flags=lanczos", "-q:v", "3", str(OUT / f"{name}.jpg")], check=True)
         # a skin's pictures are recorded under the skin's name (skin-sky-a: SKY), the earlier rounds under PRISM
         concept = pid.split("-")[1].upper() if pid.startswith("skin-") else "PRISM"
-        record[name] = {"concept": concept, "kind": pid, "model": MODEL, "prompt": full, "reference": [str(r.relative_to(ROOT.parent)) for r in ref] if isinstance(ref, tuple) else str(ref.relative_to(ROOT.parent)) if ref else None, "imageSize": "2K", "usage": usage, "made": MADE}
-        record_file.write_text(json.dumps(record, ensure_ascii=False, indent=1))
+        with open(record_file.with_suffix(".lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            record = json.loads(record_file.read_text()) if record_file.exists() else {}
+            record[name] = {"concept": concept, "kind": pid, "model": MODEL, "prompt": full, "reference": [str(r.relative_to(ROOT.parent)) for r in ref] if isinstance(ref, tuple) else str(ref.relative_to(ROOT.parent)) if ref else None, "imageSize": "2K", "usage": usage, "made": MADE}
+            record_file.write_text(json.dumps(record, ensure_ascii=False, indent=1))
         print("made:", name, usage.get("totalTokenCount"))
 
 

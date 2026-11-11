@@ -474,7 +474,7 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'flat', 'glass', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'fire', 'flat', 'glass', 'hairline', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -623,6 +623,12 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
   await expect(page.getByTestId('opt-deck-style')).toContainText('하늘');
   await expect(page.getByTestId('opt-hit-style')).toContainText('구름 깃털');
   await expect.poll(async () => (await stored()).parts).toEqual({ note: 'sky', side: 'dots', deck: 'sky', hit: 'sky' });
+  // the Firestarter skin after it
+  await page.keyboard.press('ArrowRight');
+  await expect(skin).toHaveAttribute('data-value', 'fire');
+  await expect(skin).toContainText('파이어스타터');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('불똥');
+  await expect.poll(async () => (await stored()).parts).toEqual({ note: 'fire', side: 'dots', deck: 'fire', hit: 'fire' });
   await page.keyboard.press('ArrowRight');
   await expect(skin).toHaveAttribute('data-value', 'default');
   // the lettering kept the track's own is no skin either; picking a skin gives it back to the gear
@@ -682,6 +688,80 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
     return { round: parseFloat(box.borderTopLeftRadius) > 100, ground: box.backgroundColor, cells: getComputedStyle(el).backgroundImage };
   });
   expect(capsule).toEqual({ round: true, ground: 'rgb(12, 28, 51)', cells: 'none' });
+  expect(errors).toEqual([]);
+});
+
+test('the Firestarter skin in play: drawn in code, its lettering tall and slanted in a heat of its own, and pictures picked on this PC standing at the gear’s two sides', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' } }));
+  });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await expect(page.getByTestId('opt-skin-set')).toHaveAttribute('data-value', 'fire');
+  // the gear has a stage: no picture comes with the game, and the row picks them from this PC (their order by name)
+  const pick = page.getByTestId('standee-pick');
+  await expect(pick).toContainText('양옆 그림 (0/4장)');
+  await expect(page.getByTestId('standee-clear')).toHaveCount(0);
+  const picture = async (colour: string) =>
+    Buffer.from(
+      (
+        await page.evaluate((fill) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 120;
+          canvas.height = 300;
+          const g = canvas.getContext('2d')!;
+          g.fillStyle = fill;
+          g.beginPath();
+          g.ellipse(60, 150, 50, 140, 0, 0, Math.PI * 2);
+          g.fill();
+          return canvas.toDataURL('image/png');
+        }, colour)
+      ).split(',')[1],
+      'base64',
+    );
+  await page.getByTestId('standee-files').setInputFiles([
+    { name: '2.png', mimeType: 'image/png', buffer: await picture('#c9ced6') },
+    { name: '1.png', mimeType: 'image/png', buffer: await picture('#e8112d') },
+    { name: '3.png', mimeType: 'image/png', buffer: await picture('#ff7a1a') },
+  ]);
+  await expect(pick).toContainText('양옆 그림 (3/4장)');
+  await expect(page.getByTestId('standee-clear')).toBeVisible();
+  // a gear with no stage has no such rows
+  await chooseSetting(page, 'opt-deck-style', 'standard');
+  await expect(page.getByTestId('standee-pick')).toHaveCount(0);
+  await chooseSetting(page, 'opt-skin-set', 'fire');
+  await expect(pick).toContainText('양옆 그림 (3/4장)');
+  await page.getByRole('button', { name: /완료/ }).click();
+  await tool(page, 'sync-auto');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
+  // drawn in code, as the default skin is
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // the three stand by the gear
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '3', { timeout: 30_000 });
+  const hud = page.locator('.hud');
+  await expect(hud).toHaveAttribute('data-gear', 'fire');
+  await expect(hud).toHaveAttribute('data-fill', 'fire');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-judge-label .hud-fill').first()).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => document.fonts.check("italic 800 40px 'Barlow Condensed Italic'"))).toBe(true);
+  const words = await page.locator('.hud-judge-label').evaluate((label) =>
+    [...label.querySelectorAll<HTMLElement>('.hud-fill')].map((word) => {
+      const fill = getComputedStyle(word, '::after');
+      return { text: word.textContent, carried: word.dataset.text, clip: fill.backgroundClip, image: fill.backgroundImage.slice(0, 15), face: getComputedStyle(word).fontFamily };
+    }),
+  );
+  expect(words.length).toBeGreaterThan(0);
+  for (const word of words) {
+    expect(word.carried).toBe(word.text);
+    expect(word.clip).toBe('text');
+    expect(word.image).toBe('linear-gradient');
+    expect(word.face).toContain('Barlow Condensed Italic');
+  }
+  // the score, SPEED and the rate on the deck
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
   expect(errors).toEqual([]);
 });
 

@@ -406,6 +406,86 @@ test('play: the sky skin', async ({ page }) => {
   }
 });
 
+test('play: the Firestarter skin', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "Firestarter skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // the figures at the gear's sides are the player's own pictures: here four plain stand-ins drawn on the spot
+  await page.evaluate(async () => {
+    const figure = (wide: number): Promise<Blob> => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 420;
+      canvas.height = 1000;
+      const g = canvas.getContext('2d')!;
+      const body = g.createLinearGradient(0, 0, 0, 1000);
+      body.addColorStop(0, '#5f6370');
+      body.addColorStop(1, '#30323a');
+      const c = 210;
+      const s = 118 * wide;
+      const shape = () => {
+        g.beginPath();
+        g.ellipse(c, 80, 52, 60, 0, 0, Math.PI * 2);
+        g.rect(c - 24, 130, 48, 46);
+        g.moveTo(c - s, 176);
+        g.lineTo(c + s, 176);
+        g.lineTo(c + s * 0.8, 560);
+        g.lineTo(c + s * 0.62, 985);
+        g.lineTo(c + 18, 985);
+        g.lineTo(c, 560);
+        g.lineTo(c - 18, 985);
+        g.lineTo(c - s * 0.62, 985);
+        g.lineTo(c - s * 0.8, 560);
+        g.closePath();
+        g.rect(c - s - 22, 190, 40, 370);
+        g.rect(c + s - 18, 190, 40, 370);
+      };
+      g.fillStyle = '#e8112d';
+      g.translate(-5, 0);
+      shape();
+      g.fill();
+      g.translate(5, 0);
+      g.fillStyle = body;
+      shape();
+      g.fill();
+      return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+    };
+    const kept = await Promise.all([1, 0.86, 0.9, 1.04].map(async (wide, i) => ({ name: `${i + 1}.png`, blob: await figure(wide) })));
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('grg.standees.v1', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('pictures');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('pictures', 'readwrite');
+        tx.objectStore('pictures').put(kept, 'fire');
+        tx.oncomplete = () => {
+          open.result.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+  const parts = { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '56-fire-7k'],
+    ['6K+FX', { fever: 'OFF' }, '57-fire-6kfx'],
+    ['4K', {}, '58-fire-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '4', { timeout: 30_000 });
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');

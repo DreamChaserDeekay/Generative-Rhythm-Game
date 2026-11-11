@@ -86,6 +86,25 @@ describe('the bars in a finish of their own', () => {
   });
 });
 
+describe('the Firestarter skin’s notes', () => {
+  /** A 2D context on which everything does nothing. */
+  const recorder = () => ({
+    g: new Proxy({} as Record<string | symbol, unknown>, { get: () => () => ({ addColorStop: () => undefined }), set: () => true }) as unknown as CanvasRenderingContext2D,
+  });
+
+  it('are bars as the default skin’s, with a long note of their own that is a slab cut straight across, and a hit drawn in code in colours of its own', () => {
+    expect(NOTE_STYLES.slice(0, 4)).toEqual(['flat', 'prism', 'sky', 'fire']);
+    expect(isBarNote('fire')).toBe(true);
+    expect(LONG_OF.fire).toBe('fire');
+    // a tube with thickness (walls under it), as wide as the default one, its ends as shallow: nothing slanted
+    expect(LONG_PAINT.fire.flat).toBeUndefined();
+    expect([LONG_PAINT.fire.width, LONG_PAINT.fire.endDepth, LONG_PAINT.fire.tile]).toEqual([LONG_PAINT.solid.width, LONG_PAINT.solid.endDepth, LONG_PAINT.solid.tile]);
+    expect(LONG_PAINT.fire.held).toBeDefined();
+    for (const part of [LONG_PAINT.fire.body, LONG_PAINT.fire.end, LONG_PAINT.fire.held!.body, LONG_PAINT.fire.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
+    for (const mark of ['white', 'blue', 'gold', 'scratch', 'side'] as const) expect(() => NOTE_PAINT.fire(recorder().g, 300, 96, mark)).not.toThrow();
+  });
+});
+
 describe('the sky skin’s notes', () => {
   /** A 2D context that records every call made on it (everything does nothing). */
   function recorder() {

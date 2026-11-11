@@ -43,6 +43,14 @@
 }
 
 @font-face {
+  font-family: 'Barlow Condensed Italic';
+  src: url('./assets/fonts/BarlowCondensed-ExtraBoldItalic.woff2') format('woff2');
+  font-weight: 800;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
   font-family: 'Nunito';
   src: url('./assets/fonts/Nunito-ExtraBoldItalic.woff2') format('woff2');
   font-weight: 800;
@@ -2104,6 +2112,61 @@ p.hint {
   background: #ff8f84;
 }
 
+/* FIRE (the Firestarter skin): red labels and chrome-white digits in its tall slanted type; the gauge a
+   gloss-black capsule of cells that heat up it, deep red at its foot through orange to orange-white */
+.hud[data-gear='fire'] {
+  --hud-label-colour: #ff4a55;
+  --hud-num-font: 'Barlow Condensed Italic', var(--font-display);
+  --hud-num-colour: #f4f6f9;
+  --plate-bg: rgba(10, 10, 12, 0.74);
+  --plate-border: 1px solid rgba(201, 206, 214, 0.5);
+  --gauge-name-colour: #f4f6f9;
+  /* a cell (a mask for the lit ones), and the same unlit, a dark ember */
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' fill='%23e8112d' fill-opacity='0.16'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='fire'] .hud-num {
+  font-style: italic;
+  font-weight: 800;
+}
+
+.hud[data-gear='fire'] .hud-label {
+  font-family: 'Barlow Condensed Italic', var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud[data-gear='fire'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='fire'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -30%;
+  padding: var(--cell) 30%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #0b0b0d;
+  box-shadow: 0 0 0 1px rgba(201, 206, 214, 0.4);
+}
+
+.hud[data-gear='fire'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='fire'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background: linear-gradient(to top, #8a0a1b 0%, #c4122a 24%, #e8112d 46%, #ff5a1f 68%, #ff9a3c 86%, #ffe2b8 100%);
+}
+
+.hud[data-gear='fire'] .hud-gauge.survival .hud-gauge-fill {
+  background: #d6dbe2;
+}
+
 /* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
    each word three layers of the same letters: the outlined ones; over them a white copy (::before);
    over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
@@ -2221,6 +2284,41 @@ p.hint {
 
 .hud[data-fill='sky'] .g-break .hud-fill {
   --fill: linear-gradient(180deg, #ffece2 0 40%, #ffa38e 60%, #f0696c 82%);
+}
+
+/* the Firestarter skin's: white-hot at the letters' tops easing through orange to red at their feet,
+   as metal out of a fire; COMBO the same heat a step cooler; "MAX" polished chrome (white, the dark
+   horizon across its middle, silver below); its percent the same heat, lower ones cooling to amber,
+   rose and ash; a break a cold steel */
+.hud[data-fill='fire'] {
+  --fill: linear-gradient(180deg, #fff6e0 0 28%, #ffc24a 48%, #ff7a1a 64%, #e8112d 88%);
+}
+
+.hud[data-fill='fire'] .hud-combo-label {
+  margin-top: 0.06em;
+  font-size: calc(var(--label-size) * 1.3);
+  letter-spacing: 0.05em;
+  --fill: linear-gradient(180deg, #ffd48a 0 22%, #ff7a1a 56%, #e8112d 90%);
+}
+
+.hud[data-fill='fire'] .hud-fill.hud-split {
+  --fill: linear-gradient(180deg, #ffffff 0 34%, #c9ced6 47%, #69707c 53%, #b4bcc7 62%, #f4f6f9 88%);
+}
+
+.hud[data-fill='fire'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff6dc 0 30%, #ffd166 54%, #e89a1e 86%);
+}
+
+.hud[data-fill='fire'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #fff0f1 0 30%, #ff9aa8 56%, #d9566e 86%);
+}
+
+.hud[data-fill='fire'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f4f6f9 0 30%, #b4bcc7 56%, #717985 86%);
+}
+
+.hud[data-fill='fire'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #e7eef6 0 30%, #8fa3b8 56%, #4c6078 86%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

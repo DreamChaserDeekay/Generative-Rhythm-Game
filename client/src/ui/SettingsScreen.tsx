@@ -53,6 +53,7 @@ import { arrowTarget, type NavStop } from './gridNav';
 import { ActionOption, Choice, CUSTOM_SKIN, DECK_NAMES, HUD_TYPE_CHOICES, NumberOption, OptionalNumberOption, PART_CHOICES, pct, skinChoices, Toggle } from './optionRows';
 import { RuleRow, type PlayRule } from './PlayOptions';
 import { GEAR_HELP, HUD_TYPE_HELP, pickedHelp } from './settingsHelp';
+import { StandeeRows } from './StandeeRows';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
 import { keyPairText, syncTestKeys } from './visualSync';
@@ -567,7 +568,7 @@ export function SettingsScreen({
             onChange={(v) => {
               if (v !== CUSTOM_SKIN) onSettingsChange({ ...settings, parts: withSkin(settings.parts, v), hudType: 'gear' });
             }}
-            help="기어, 노트, 타격 효과, 판정·콤보 글자를 한 벌로 한 번에 바꿉니다. 기본은 그래파이트 기어에 직각 막대 노트와 플래시, 크리스털은 크리스털 기어에 유리 막대 노트와 크리스털 분광, 면으로 깎은 글자, 하늘은 하늘 기어에 둥근 무광 막대 노트와 구름 깃털, 둥글고 기울어진 글자입니다. 사이드 노트와 화면 왼쪽 위의 곡 정보는 스킨과 상관없이 그대로이고, 레인도 어두운 바닥 그대로입니다(하늘은 받침의 하늘이 레인에 아주 옅게 깔립니다). 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 직접 고름으로 표시됩니다."
+            help="기어, 노트, 타격 효과, 판정·콤보 글자를 한 벌로 한 번에 바꿉니다. 기본은 그래파이트 기어에 직각 막대 노트와 플래시, 크리스털은 크리스털 기어에 유리 막대 노트와 크리스털 분광, 면으로 깎은 글자, 하늘은 하늘 기어에 둥근 무광 막대 노트와 구름 깃털, 둥글고 기울어진 글자, 파이어스타터는 크롬과 빨간 래커의 기어에 크롬 테를 두른 유광 막대 노트와 불똥, 달아오른 금속빛 글자입니다(기어 양옆에 내 그림을 세울 수 있습니다). 사이드 노트와 화면 왼쪽 위의 곡 정보는 스킨과 상관없이 그대로이고, 레인도 어두운 바닥 그대로입니다(하늘은 받침의 하늘이 레인에 아주 옅게 깔립니다). 아래의 기어·판정·콤보 글꼴·타격 효과나 노트 탭의 노트를 따로 바꾸면 직접 고름으로 표시됩니다."
           />
           <Choice
             {...row}
@@ -579,6 +580,7 @@ export function SettingsScreen({
             onChange={(v) => setPart('deck', v)}
             help={GEAR_HELP}
           />
+          <StandeeRows gear={settings.parts.deck} row={row} />
           <Choice
             {...row}
             label="판정·콤보 글꼴"
@@ -597,7 +599,7 @@ export function SettingsScreen({
             defaultValue={d.parts.hit}
             options={PART_CHOICES.hit}
             onChange={(v) => setPart('hit', v)}
-            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 플래시·플레어·거품·LED 그리드, 스킨의 것(크리스털 분광, 하늘의 구름 깃털)과 세트마다 하나(메카 섬광·클럽 링·크리스털 파편·네온 아크·피아노 음표)가 있고, 모두 판정선 위로는 짧게만 남아 내려오는 노트를 가리지 않습니다(LED 그리드는 판정선 아래에만). 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
+            help="노트를 치거나 롱노트를 누르고 있을 때의 효과 모양입니다. 플래시·플레어·거품·LED 그리드, 스킨의 것(크리스털 분광, 하늘의 구름 깃털, 파이어스타터의 불똥)과 세트마다 하나(메카 섬광·클럽 링·크리스털 파편·네온 아크·피아노 음표)가 있고, 모두 판정선 위로는 짧게만 남아 내려오는 노트를 가리지 않습니다(LED 그리드는 판정선 아래에만). 크기는 연출·배경 탭의 타격 효과 크기에서 정합니다."
           />
           <Choice
             {...row}
@@ -686,7 +688,7 @@ export function SettingsScreen({
             defaultValue={d.parts.note}
             options={PART_CHOICES.note}
             onChange={(v) => setPart('note', v)}
-            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(크리스털은 유리 삼각기둥, 하늘은 가운데 흰 줄이 난 비치는 띠, 메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 크리스털 스킨(크리스털·크리스털 분광, 기어도 크리스털), 하늘 스킨(하늘·구름 깃털, 기어도 하늘), 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 별 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크)."
+            help="노트 모양입니다. 롱노트는 고른 노트와 같은 계열(크리스털은 유리 삼각기둥, 하늘은 가운데 흰 줄이 난 비치는 띠, 파이어스타터는 가운데가 흰빛으로 달아오른 유리관, 메카 챔퍼는 레일, 원형은 캡슐, 별 (4각)은 프리즘, 별 (5각)은 네온관)로 시작과 끝에 단노트 없이 몸통의 끝 모양으로 닫습니다. 메카 챔퍼·원형·별은 건반마다 표식(흰 건반 ○, 파란 건반 △, 금색 건반 ◇, 스크래치 //)이 있어 색이 같아도 건반을 구분할 수 있습니다. 같은 컨셉의 타격 효과와 고르면 한 벌로 맞습니다: 크리스털 스킨(크리스털·크리스털 분광, 기어도 크리스털), 하늘 스킨(하늘·구름 깃털, 기어도 하늘), 파이어스타터 스킨(파이어스타터·불똥, 기어도 파이어스타터), 메카(메카 챔퍼·메카 섬광), 클럽(원형·클럽 링), 별 크리스털(별 (4각)·크리스털 파편), 네온(별 (5각)·네온 아크)."
           />
           <Choice
             {...row}

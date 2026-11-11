@@ -26,6 +26,8 @@ export const HUD_FONTS = {
   'Exo 2': { weight: 700, italic: true },
   // the sky skin's: rounded strokes, heavy and slanted
   Nunito: { weight: 800, italic: true },
+  // the Firestarter skin's: tall and tight, heavy and slanted (the family's own italic, under a name of its own)
+  'Barlow Condensed Italic': { weight: 800, italic: true },
   Cinzel: { weight: 700, italic: false },
   // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
   'DSEG7 Classic': { weight: 700, italic: false },
@@ -62,7 +64,7 @@ export interface HudType {
    * the sky skin's white easing to sky blue. The HUD writes each word so the styles can lay it
    * (Hud.ts: data-fill), and the judgements' colours are that fill's own.
    */
-  fill?: 'crystal' | 'sky';
+  fill?: 'crystal' | 'sky' | 'fire';
   /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
   comboFont?: HudFont;
   comboColor?: string;
@@ -109,13 +111,14 @@ export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, c
  * skin's parts, nor are the lanes or the song's plate. A skin is nothing saved: it is the parts it
  * sets (skinOf reads it back from them).
  */
-export type SkinId = 'default' | 'crystal' | 'sky';
-export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky'];
-/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash), 크리스털 (its parts are saved as 'prism') and 하늘. */
+export type SkinId = 'default' | 'crystal' | 'sky' | 'fire';
+export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky', 'fire'];
+/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash), 크리스털 (its parts are saved as 'prism'), 하늘 and 파이어스타터. */
 export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
   default: { note: 'flat', deck: 'standard', hit: 'flash' },
   crystal: { note: 'prism', deck: 'prism', hit: 'prism' },
   sky: { note: 'sky', deck: 'sky', hit: 'sky' },
+  fire: { note: 'fire', deck: 'fire', hit: 'fire' },
 };
 
 /**

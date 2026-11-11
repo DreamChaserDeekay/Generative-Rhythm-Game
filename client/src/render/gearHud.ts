@@ -19,6 +19,9 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
  * with one crack (HudType.fill);
  * SKY (하늘): a rounded, friendly italic, white easing to sky blue at its foot, in a thin navy outline;
  * "MAX" in white, its percent cyan, lower ones sky blue then periwinkle, a break a sunset coral (HudType.fill);
+ * FIRE (파이어스타터): a tall, tight italic as a tour poster's, white-hot at its top easing through orange
+ * to red at its foot in a black outline; "MAX" in chrome, its percent the same heat, lower ones cooling
+ * to amber, rose and ash, a break a cold steel (HudType.fill);
  * STANDARD: white condensed digits, "MAX" in white and its percent in the gear's cyan;
  * CABINET: red seven-segment digits, the judgement in heavy slanted letters, white outlined in red;
  * RECEIVER: amber seven-segment digits (a vacuum-fluorescent readout's), the judgement in a fine
@@ -32,6 +35,7 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
 export const GEAR_TYPES: Record<GearStyle, HudType> = {
   prism: { font: 'Exo 2', size: 42, combo: 60, tracking: 0.03, max: '#7cc8ff', outline: '#101a3d', stroke: 5, split: true, comboColor: '#ffffff', fill: 'crystal' },
   sky: { font: 'Nunito', size: 42, combo: 62, tracking: 0.02, max: '#3fe3e6', outline: '#0c1c33', stroke: 5, split: true, comboColor: '#ffffff', fill: 'sky' },
+  fire: { font: 'Barlow Condensed Italic', size: 48, combo: 70, tracking: 0.01, max: '#ff7a1a', outline: '#0b0b0d', stroke: 6, split: true, comboColor: '#ffffff', fill: 'fire' },
   standard: { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#37e2ff', outline: '#0b0c10', stroke: 6, split: true },
   cabinet: { font: 'Exo 2', size: 44, combo: 58, tracking: 0.02, max: '#ffffff', outline: '#c8141c', stroke: 7, comboFont: 'DSEG7 Classic', comboColor: '#ff2a2a', comboOutline: '#140405' },
   receiver: { font: 'Barlow Condensed', size: 42, combo: 54, tracking: 0.1, max: '#fff1dc', outline: '#140d06', stroke: 5, comboFont: 'DSEG7 Classic', comboColor: '#ffb547' },
@@ -47,6 +51,7 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
 export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   prism: 'FEVER',
   sky: 'FEVER',
+  fire: 'FEVER',
   standard: 'FEVER',
   cabinet: 'GROOVE',
   receiver: 'SIGNAL',
