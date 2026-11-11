@@ -263,6 +263,61 @@ PICTURES["pick-d"] = (
     "italic sans-serif, white, labels in pale azure. " ,
 )
 
+# ---------- skins (a skin: the gear, the notes, the hit effect, the combo and judgement lettering; not the side notes) ----------
+# The 'default' skin (기본), after the user's eleven reference panels and guidelines (docs/GEAR_NOTE_FX_RESEARCH.md 6, 7).
+BASE_SHOT = ROOT.parent / "docs" / "screenshots" / "03-play-7k.png"
+RULES = (
+    "Rules of this game's skins, all of which must hold. The gear (the frame of the note highway) is NO WIDER than the highway: its "
+    "bottom deck is exactly as wide as the track and does not spread sideways. The side rails are thin. The gear is a 3D object in "
+    "the track's perspective but with LOW relief and calm lighting: no sparkles, no glints, no bloom, no lens flare. Directly "
+    "under the judgment line: a thin row of eight key indicator cells aligned to the lanes (the far-left lane is wider), one lit as "
+    "if pressed. Under it the deck panel, which holds three readouts: 'SPEED 3.60' at the left, 'SCORE 180,233' in the centre "
+    "(largest), 'RATE 100.00%' at the right. There are NO score plates floating at the left of the track any more. The gauge "
+    "stays a thin vertical bar along the outside of the right rail, with '58%' and 'NORMAL' by it and the small label 'FEVER'. "
+    "Top-left song information stays exactly as in the screenshot (plain text, its red chip 'DJMAX MX Lv.12', '7K+1S', 'AUTO'), "
+    "and directly under it add the running time '0:27 / 0:41' with a thin horizontal progress bar about a third filled; remove "
+    "the old time readout beside the track. A long note has NO tap-note cap at its start or its end: it is one body closed its own "
+    "way, and the one being held is lit along its length with a light running inside it. "
+)
+BASE_LOOK = (
+    "Skin 'DEFAULT' (기본): the neutral house style. Matte graphite and near-black, white text, ONE accent colour, a cyan "
+    "(#37e2ff). Quiet, exact, a little technical, like well-made audio hardware; flat planes, fine seams, hairline accent lines, "
+    "small tick marks; nothing ornamental. Notes: plain rounded bars, white and light blue alternating, gold in the centre lane, "
+    "a pink bar with two slanted notches for the far-left turntable lane; each note's near edge crisp. Judgment line: a clean "
+    "white core in a thin cyan glow. Hit effect: a short flat flash across the lane on the line and one thin ring, cyan-white. "
+    "Combo: the number large in a condensed bold italic sans-serif, white with a thin dark outline, 'COMBO' small and "
+    "letter-spaced under it. Judgment text 'MAX 100%': same typeface, 'MAX' white, '100%' cyan. "
+)
+PICTURES["skin-default-a"] = (
+    BASE_SHOT,
+    "This is a screenshot of our PC rhythm game (a tilted camera looking down a note highway). Redraw it as clean concept art for a "
+    "new skin, 16:9, keeping the camera, the perspective, the lane layout and the notes' positions. " + RULES + BASE_LOOK +
+    "This version: the deck is one low graphite slab with a chamfered front edge; the three readouts sit in three flush recessed "
+    "windows with a hairline cyan line under each label; a small round dial detail at the far left of the deck under the wider "
+    "lane; the key indicator cells are dark with a small cyan dash, the lit one solid cyan. " + TAIL,
+)
+PICTURES["skin-default-b"] = (
+    BASE_SHOT,
+    "This is a screenshot of our PC rhythm game (a tilted camera looking down a note highway). Redraw it as clean concept art for a "
+    "new skin, 16:9, keeping the camera, the perspective, the lane layout and the notes' positions. " + RULES + BASE_LOOK +
+    "This version: the key indicator cells are low physical key caps in graphite with a thin lighter top edge, the lit one "
+    "glowing cyan from under its edges; the deck below is two stepped layers, the upper holding 'SCORE' in one wide window in the "
+    "centre, the lower holding 'SPEED' and 'RATE' as two small pills at its left and right ends; a single thin cyan light strip "
+    "runs across the deck's front edge; the rails each carry one hairline of cyan light. " + TAIL,
+)
+PICTURES["skin-default-parts"] = (
+    None,
+    "A clean design sheet on a near-black background, 16:9, for the 'DEFAULT' skin of a PC rhythm game; parts laid out in a tidy "
+    "grid with generous spacing, small thin labels are allowed. " + BASE_LOOK +
+    "Row one, the tap notes seen from the front-top: white, light blue, gold, and the pink turntable note. "
+    "Row two, a long note laid horizontally, WITHOUT any tap-note cap at either end (one body, its two ends closed by a short "
+    "chamfer of the same body): once idle, once held (brighter, a line of light running inside it, soft glow at the end that "
+    "touches the judgment line). Row three, the hit effect as a six-frame sequence from the first bright frame to nothing, and "
+    "the held long note's effect at the judgment line (a small steady flare with two short side streaks). Row four, the "
+    "lettering: the combo '128' with 'COMBO', and the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%', 'BREAK' (BREAK in a flat "
+    "red), 'FEVER x3' as a small flat badge. Row five, a segment of the judgment line, and one key indicator cell idle and lit. " + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
