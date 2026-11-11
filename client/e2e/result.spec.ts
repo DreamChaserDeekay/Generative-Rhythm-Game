@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { autoplay, escWhenLoaded, songInfo, tool } from './songSelect';
+import { songInfo, tool } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -88,71 +88,6 @@ test('on the result Enter continues, R plays the same lane order again and Shift
   expect(errors).toEqual([]);
 });
 
-test('a new pattern from the result keeps its tier; a failure is shown, a late one dropped', async ({ page }) => {
-  const errors = trackErrors(page);
-  await page.goto('/');
-  expect((await page.request.post('/api/songs/demo', { data: { bpm: 131, bars: 8, seed: 9 } })).ok()).toBe(true);
-  await expect
-    .poll(async () => {
-      const list = (await (await page.request.get('/api/songs')).json()).songs as { title: string; status: string }[];
-      return list.some((s) => s.title === 'Demo Groove 131' && s.status === 'ready');
-    }, { timeout: 60_000 })
-    .toBe(true);
-  await page.reload();
-  await page.getByTestId('song-item').filter({ hasText: 'Demo Groove 131' }).click();
-  await page.getByRole('button', { name: '4K', exact: true }).click();
-  await page.getByRole('button', { name: /NORMAL/ }).first().click();
-  const playToResult = async () => {
-    await autoplay(page);
-    await page.getByTestId('hint-enter').click();
-    await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
-  };
-  await playToResult();
-
-  // the server refuses: the result screen says so and stays
-  await page.route('**/api/songs/*/charts', (route) =>
-    route.request().method() === 'POST' ? route.fulfill({ status: 500, json: { detail: 'e2e refusal' } }) : route.fallback(),
-  );
-  await page.getByTestId('result-regenerate').click();
-  await expect(page.getByTestId('result-regenerate-error')).toContainText('새 패턴을 만들지 못했습니다');
-  await expect(page.getByTestId('result-screen')).toBeVisible();
-  await page.unroute('**/api/songs/*/charts');
-
-  // the new pattern is asked for on the chart's own tier (NORMAL), and played
-  const asked = page.waitForRequest((r) => isChartPost(r.method(), r.url()));
-  // Esc pauses once the play has loaded (while it loads, Esc leaves it), even the moment it has
-  await escWhenLoaded(page);
-  await page.getByTestId('result-regenerate').click();
-  const body = JSON.parse((await asked).postData() ?? '{}');
-  expect([body.difficulty, body.newSeed]).toEqual(['NORMAL', true]);
-  await expect(page.getByTestId('play-screen')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('pause-menu')).toBeVisible({ timeout: 30_000 });
-  await page.keyboard.press('KeyQ');
-
-  // the new pattern is kept as the difficulty's, as F5 on the song select keeps one
-  await expect(page.getByTestId('song-list')).toBeVisible();
-  await expect(page.locator('.difficulty.active')).toContainText('새 패턴');
-
-  // leaving while it is generating: the late pattern does not start a song (the Esc once the result
-  // takes keys: in its first moments it holds Esc off, and the late pattern would play)
-  await playToResult();
-  await settled(page);
-  await page.route('**/api/songs/*/charts', async (route) => {
-    if (route.request().method() !== 'POST') return route.fallback();
-    await new Promise((r) => setTimeout(r, 1500));
-    await route.continue();
-  });
-  const late = page.waitForResponse((r) => isChartPost(r.request().method(), r.url()));
-  await page.getByTestId('result-regenerate').click();
-  await expect(page.getByTestId('result-regenerate')).toBeDisabled();
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('song-list')).toBeVisible();
-  await late;
-  await page.waitForTimeout(500);
-  await expect(page.getByTestId('play-screen')).toHaveCount(0);
-  expect(errors).toEqual([]);
-});
-
 test('as the result shows itself, Enter, Space, Esc, the arrows, Tab and the lane keys only show it all; then Enter goes on', async ({ page }) => {
   const errors = trackErrors(page);
   // R is a lane's key here: pressed out of habit, it does not play again either
@@ -189,7 +124,7 @@ test('as the result shows itself, Enter, Space, Esc, the arrows, Tab and the lan
   await expect(page.getByTestId('result-details-panel')).toHaveCount(0);
   await expect(page.getByTestId('play-screen')).toHaveCount(0);
   // the main key is named at the end: Enter goes back (Esc too, not named twice)
-  await expect(page.getByTestId('hint-back')).toHaveText(/Enter.*선곡으로/);
+  await expect(page.getByTestId('result-back')).toHaveText(/Enter.*선곡으로/);
   await expect(page.locator('.hintbar')).not.toContainText('Esc');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('song-list')).toBeVisible();
@@ -285,7 +220,7 @@ test("a pad's X plays again on the same lane order; where X is a lane, held on f
   expect(await page.evaluate(() => (window as unknown as { __after: unknown }).__after)).toEqual({ settled: 'true', shown: true, playing: false });
   await expect(page.getByTestId('result-screen')).toBeVisible();
   // the pad works the menus: the hint and the buttons name its X and A
-  await expect(page.getByTestId('hint-retry')).toHaveText(/X\s*같은 배치로 다시/);
+  await expect(page.getByTestId('result-retry')).toHaveText(/X\s*같은 배치로 다시/);
   await expect(page.getByTestId('result-retry')).toHaveText('같은 배치로 다시 X');
   await expect(page.getByTestId('result-back')).toHaveText('선곡으로 A');
 
@@ -319,7 +254,7 @@ test("a controller's own 다시 하기 button plays again from the result, whose
   await press(3);
   await expect(page.getByTestId('result-retry')).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.dataset.input)).toBe('controller');
-  await expect(page.getByTestId('hint-retry')).toHaveText(/R\s*다시 하기/);
+  await expect(page.getByTestId('result-retry')).toHaveText(/R\s*다시 하기/);
   await expect(page.getByTestId('result-retry')).toHaveText('다시 하기 R');
   await press(9);
   await expect(page.getByTestId('play-screen')).toBeVisible();

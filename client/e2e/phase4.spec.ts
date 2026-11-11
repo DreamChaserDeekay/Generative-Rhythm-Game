@@ -303,7 +303,7 @@ test('a played run keeps its replay, and watching it gives the same result', asy
   await expect(page.getByTestId('save-state')).toBeVisible({ timeout: 10_000 });
   const score = await page.getByTestId('result-score').textContent();
   const rate = await page.getByTestId('result-rate').textContent();
-  await expect(page.getByTestId('result-regenerate')).toBeVisible();
+  await expect(page.getByTestId('result-regenerate')).toHaveCount(0);
   // the replay and the chart files are in the details (Space, once the result takes keys: a key in its
   // first 600 ms only shows it all, and the record can be saved sooner than that)
   await expect(async () => {
