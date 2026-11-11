@@ -173,6 +173,51 @@ PICTURES["screen-build"] = (
     "same words and numbers as in the screenshot, spelled correctly. " + BUILD + CRYSTAL,
 )
 
+# Fifth round: the user's pick is the first redraw (r2-screen); four things change. The deck follows what commercial gears do,
+# seen in their store screenshots (DJMAX RESPECT V, EZ2ON REBOOT : R; the ideas only, nothing of theirs is copied): the gear is
+# a flat graphic, not a 3D render; a row of key cells under the judge line; a thin strip, a chevron, a dark lower panel with
+# working-looking parts; its character from a few low-poly facets at its corners.
+PICK = RAW / "r2-screen.png"
+EDIT = (
+    "This is concept art of our PC rhythm game's play screen. Make a new version of it, 16:9, changing ONLY the four things below "
+    "and keeping everything else exactly as it is (the lanes, the notes, the judgment line, the judgment text 'MAX 100%', the "
+    "score plates on the left, the gauge on the right, the time, all positions). "
+    "(1) Top-left song information: remove its crystal plate, frame and sparkles completely. It becomes plain flat interface text "
+    "on the dark background: a small disc icon, 'Demo Groove 150', 'Generative Rhythm (합성 데모)', a flat red chip 'EXPERT Lv.9', "
+    "'7K+1S', and an outlined chip 'AUTO'. It does not belong to the crystal theme. "
+    "(2) The two crystal side rails: keep the cut-crystal material, but a little flatter and calmer: lower relief, fewer facets, "
+    "no star glints, no rainbow flares. "
+    "(4) The combo number '57' and the word 'COMBO': keep a cut-crystal look, but a little flatter and calmer: shallow bevel, no "
+    "glints, no rainbow fringe. "
+    "Also the small label over the gauge reads 'FEVER' instead of 'LUMEN'. "
+    "(3) The gear bottom (the big winged gem ornament below the judgment line): REMOVE it and design a new one. It must look like "
+    "the work of a professional UI designer at a rhythm game studio, a FLAT front-facing graphic, not a 3D render and not jewellery: "
+    "crisp vector edges, flat fills with at most one soft gradient each, no ornament, no engraving, no wings, no big gem, no sparkles, "
+    "no bloom, no lens flare. "
+)
+FLAT = (
+    "Material within that flat style: frosted and clear crystal glass in ice white, pale azure and graphite, the crystal shown by a "
+    "few flat facet planes of slightly different tone and one thin bright edge, as low-poly crystal. Restrained, minimal, exact. "
+)
+PICTURES["pick-a"] = (
+    PICK,
+    EDIT + "Its parts from top to bottom: directly under the judgment line a row of eight key cells aligned to the eight lanes "
+    "(the far-left one wider), each a dark frosted-glass tile with a small diamond mark in its middle, one of them lit ice-white "
+    "as if its key is pressed; under the row a thin bright strip; then a shallow V-shaped chevron band in two crystal tones (pale "
+    "azure on the left half, ice white on the right) meeting at the centre; then a dark graphite lower panel with a row of four "
+    "small square module slots, the first holding a small badge that reads 'SPEED 3.00', and fine diagonal hatch marks at both "
+    "ends. At the two lower outer corners a low-poly crystal shoulder of three flat triangular facets each. " + FLAT,
+)
+PICTURES["pick-b"] = (
+    PICK,
+    EDIT + "Its parts from top to bottom: directly under the judgment line a row of eight key cells aligned to the eight lanes "
+    "(the far-left one wider), each a clear crystal tile with a thin bright top edge, one of them lit pale azure as if its key is "
+    "pressed; under the row one long low slab of frosted crystal with chamfered ends, its face split by a single diagonal facet "
+    "line into a lighter and a darker plane; set flush in the slab's centre a small flat hexagon emblem of clear crystal with "
+    "three facets; a hairline of light along the slab's lower edge; left and right of the emblem two tiny flat indicator "
+    "windows. The side rails end in plain chamfered crystal blocks where they meet the slab. " + FLAT,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
