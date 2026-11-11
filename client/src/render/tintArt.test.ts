@@ -85,3 +85,67 @@ describe('the bars in a finish of their own', () => {
     }
   });
 });
+
+describe('the sky skin’s notes', () => {
+  /** A 2D context that records every call made on it (everything does nothing). */
+  function recorder() {
+    const calls: unknown[][] = [];
+    const g = new Proxy({} as Record<string | symbol, unknown>, {
+      get: (_, k) =>
+        (...a: unknown[]) => {
+          calls.push([String(k), ...a]);
+          return { addColorStop: () => undefined };
+        },
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    return { g, calls };
+  }
+
+  it('are bars as deep in every lane as the plain one, with a long note of their own lying flat', () => {
+    expect(NOTE_STYLES.slice(0, 3)).toEqual(['flat', 'prism', 'sky']);
+    expect(isBarNote('sky')).toBe(true);
+    expect(noteDepthOf('sky', 0.7, 0.84, 1.54)).toBe(0.7);
+    expect(laneDepthOf('sky', 0.7, 1.6, 0.7)).toBe(0.7);
+    expect(LONG_OF.sky).toBe('sky');
+    // a see-through band: no walls under it (the other long notes are slabs), as wide as the default skin's, brighter while held
+    expect(LONG_PAINT.sky.flat).toBe(true);
+    for (const style of LONG_STYLES.filter((l) => l !== 'sky')) expect(LONG_PAINT[style].flat, style).toBeUndefined();
+    expect(LONG_PAINT.sky.width).toBe(LONG_PAINT.solid.width);
+    expect(LONG_PAINT.sky.held).toBeDefined();
+    for (const part of [LONG_PAINT.sky.body, LONG_PAINT.sky.end, LONG_PAINT.sky.held!.body, LONG_PAINT.sky.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
+  });
+
+  it('have round corners, as round on the screen along the track as across it, and everything on them inside that outline', () => {
+    const { g, calls } = recorder();
+    NOTE_PAINT.sky(g, 300, 96, 'white');
+    const clip = calls.findIndex((c) => c[0] === 'clip');
+    // the outline: four quarter ellipses, 1.7 times as long along the track as across it
+    const corners = calls.slice(0, clip).filter((c) => c[0] === 'ellipse') as [string, number, number, number, number][];
+    expect(corners).toHaveLength(4);
+    for (const [, , , rx, ry] of corners) expect(ry / rx).toBeCloseTo(1.7, 6);
+    expect(new Set(corners.map(([, x]) => x)).size).toBe(2);
+    expect(calls.findIndex((c) => c[0] === 'fillRect' || c[0] === 'fill')).toBeGreaterThan(clip);
+    // every key's bar is the same picture (its lane's colour tells it apart)
+    for (const mark of ['blue', 'gold', 'side'] as const) {
+      const other = recorder();
+      NOTE_PAINT.sky(other.g, 300, 96, mark);
+      expect(other.calls, mark).toEqual(calls);
+    }
+  });
+
+  it('mark the scratch with a pair of wings over the same bar, one the mirror of the other', () => {
+    const key = recorder();
+    NOTE_PAINT.sky(key.g, 480, 96, 'white');
+    const scratch = recorder();
+    NOTE_PAINT.sky(scratch.g, 480, 96, 'scratch');
+    // the bar first, as a key's, then the wings
+    expect(scratch.calls.slice(0, key.calls.length)).toEqual(key.calls);
+    const wings = scratch.calls.slice(key.calls.length);
+    const flips = wings.filter((c) => c[0] === 'scale') as [string, number, number][];
+    expect(flips.map(([, x]) => x)).toEqual([-1, 1]);
+    for (const [, , y] of flips) expect(y).toBeCloseTo(1.7, 6);
+    // each wing a shade under it and the wing itself: one closed outline with its feathers' curves
+    expect(wings.filter((c) => c[0] === 'fill')).toHaveLength(4);
+    expect(wings.filter((c) => c[0] === 'quadraticCurveTo').length).toBeGreaterThanOrEqual(4 * 5);
+  });
+});

@@ -43,6 +43,14 @@
 }
 
 @font-face {
+  font-family: 'Nunito';
+  src: url('./assets/fonts/Nunito-ExtraBoldItalic.woff2') format('woff2');
+  font-weight: 800;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
   font-family: 'Exo 2';
   src: url('./assets/fonts/Exo2-BoldItalic.woff2') format('woff2');
   font-weight: 700;
@@ -2020,27 +2028,104 @@ p.hint {
     linear-gradient(var(--gauge-low), var(--gauge-low)) bottom / 100% var(--clear-at) no-repeat;
 }
 
-/* ---------- a type cut as a crystal is (HudType.cut; Hud.ts: data-cut, each word carrying data-text) ----------
+/* SKY (하늘): white rounded italic digits under sky-blue labels on deep navy glass; the readouts on
+   the deck written in thin white on the sky itself (the speed's and the rate's slanted, in their
+   pills); the gauge a deep navy capsule, a dash to a cell, sky blue to the clear line and cyan over it */
+.hud[data-gear='sky'] {
+  --hud-label-colour: #7fd3f7;
+  --hud-num-font: 'Nunito', var(--font-display);
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(12, 28, 51, 0.66);
+  --plate-border: 1px solid rgba(255, 255, 255, 0.42);
+  --gauge-low: #39b2e6;
+  --gauge-high: #3fe3e6;
+  --gauge-name-colour: #ffffff;
+  /* a cell's dash (a mask for the lit ones), and the same unlit, a faint cyan */
+  --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' rx='3.5'/%3E%3C/svg%3E");
+  --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' rx='3.5' fill='%233fe3e6' fill-opacity='0.18'/%3E%3C/svg%3E");
+}
+
+.hud[data-gear='sky'] .hud-num {
+  font-style: italic;
+  font-weight: 800;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-label {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: #ffffff;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-num {
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+.hud[data-gear='sky'] .on-deck .hud-score {
+  font-style: normal;
+  font-weight: 300;
+}
+
+/* white on the sky: a breath of the deck's deep blue under each letter keeps it off the clouds */
+.hud[data-gear='sky'] .hud-row.on-deck {
+  text-shadow: 0 0.05em 0.1em rgba(12, 44, 96, 0.5);
+}
+
+/* the capsule round the cells (a cell and a third of the gauge's width out all round) and the unlit dashes in it */
+.hud[data-gear='sky'] .hud-gauge {
+  background: none;
+}
+
+.hud[data-gear='sky'] .hud-gauge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--cell) * -1) -33%;
+  padding: var(--cell) 33%;
+  border-radius: 999px;
+  background:
+    var(--dash-off) bottom / 100% var(--cell) repeat-y content-box,
+    #0c1c33;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+.hud[data-gear='sky'] .hud-gauge .hud-gauge-fill {
+  -webkit-mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+  mask: var(--dash) bottom / 100% var(--cell) repeat-y;
+}
+
+.hud[data-gear='sky'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background:
+    linear-gradient(var(--gauge-high), var(--gauge-high)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    linear-gradient(var(--gauge-low), var(--gauge-low)) bottom / 100% var(--clear-at) no-repeat;
+}
+
+.hud[data-gear='sky'] .hud-gauge.survival .hud-gauge-fill {
+  background: #ff8f84;
+}
+
+/* ---------- a type with a fill of its own (HudType.fill; Hud.ts: data-fill, each word carrying data-text) ----------
    each word three layers of the same letters: the outlined ones; over them a white copy (::before);
-   over that the letters filled with flat planes cut at one angle (::after), set a hair lower, so the
-   white shows along the letters' top edges, a ground edge catching the light. Flat fills only: no
-   glow, no sparkle, nothing painted again but when the word changes. */
-.hud[data-cut] .hud-cut {
+   over that the letters filled with the type's own picture (::after: the crystal skin's flat planes
+   cut at one angle, the sky skin's white easing to sky blue), which a fill may set a hair lower
+   (--fill-rim), so the white shows along the letters' top edges, a ground edge catching the light.
+   Flat fills only: no glow, no sparkle, nothing painted again but when the word changes. */
+.hud[data-fill] .hud-fill {
   position: relative;
   color: var(--hud-outline);
   /* the planes' layer covers that much of the outline under the letters: the outline that much lower there */
-  text-shadow: 0 var(--cut-rim) 0 var(--hud-outline);
+  text-shadow: 0 var(--fill-rim, 0em) 0 var(--hud-outline);
 }
 
-.hud[data-cut] .hud-judge-label .hud-cut {
+.hud[data-fill] .hud-judge-label .hud-fill {
   display: inline-block;
 }
 
-.hud[data-cut] .hud-cut::before,
-.hud[data-cut] .hud-cut::after {
+.hud[data-fill] .hud-fill::before,
+.hud[data-fill] .hud-fill::after {
   content: attr(data-text);
   position: absolute;
-  /* wider than the word: slanted letters lean out of their box, and the planes are cut to the box */
+  /* wider than the word: slanted letters lean out of their box, and the fill is clipped to the box */
   left: -0.3em;
   right: -0.3em;
   top: -0.2em;
@@ -2050,14 +2135,14 @@ p.hint {
   pointer-events: none;
 }
 
-.hud[data-cut] .hud-cut::before {
+.hud[data-fill] .hud-fill::before {
   color: #ffffff;
 }
 
-.hud[data-cut] .hud-cut::after {
-  top: calc(-0.2em + var(--cut-rim));
+.hud[data-fill] .hud-fill::after {
+  top: calc(-0.2em + var(--fill-rim, 0em));
   color: transparent;
-  background: var(--cut-planes);
+  background: var(--fill);
   -webkit-background-clip: text;
   background-clip: text;
 }
@@ -2065,39 +2150,77 @@ p.hint {
 /* the crystal skin's: white, pale ice blue, a hairline of light, steel blue and a touch of lavender;
    the best judgement's percent ice blue to azure, lower ones steel blue, lavender, dusk; a break
    ruby, one crack across it */
-.hud[data-cut='crystal'] {
-  --cut-rim: 0.04em;
-  --cut-planes: linear-gradient(128deg, #ffffff 0 26%, #d9edff 26% 44%, #f7fbff 44% 47.5%, #b3d0ee 47.5% 69%, #c9c2ee 69% 86%, #e3def8 86%);
+.hud[data-fill='crystal'] {
+  --fill-rim: 0.04em;
+  --fill: linear-gradient(128deg, #ffffff 0 26%, #d9edff 26% 44%, #f7fbff 44% 47.5%, #b3d0ee 47.5% 69%, #c9c2ee 69% 86%, #e3def8 86%);
 }
 
-.hud[data-cut='crystal'] .hud-combo-label {
+.hud[data-fill='crystal'] .hud-combo-label {
   /* close under the digits, as one cut with them */
   margin-top: 0.12em;
   font-size: calc(var(--label-size) * 1.25);
   letter-spacing: 0.08em;
-  --cut-planes: linear-gradient(128deg, #d3ebff 0 31%, #f5faff 31% 35%, #a9c6e8 35% 63%, #c4bcec 63% 85%, #ddd7f6 85%);
+  --fill: linear-gradient(128deg, #d3ebff 0 31%, #f5faff 31% 35%, #a9c6e8 35% 63%, #c4bcec 63% 85%, #ddd7f6 85%);
 }
 
-.hud[data-cut='crystal'] .g-max .hud-cut:not(.hud-split) {
-  --cut-planes: linear-gradient(128deg, #c6edff 0 24%, #6ccaf7 24% 45%, #dcf4ff 45% 48.5%, #2aa1e6 48.5% 73%, #1589d1 73%);
+.hud[data-fill='crystal'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #c6edff 0 24%, #6ccaf7 24% 45%, #dcf4ff 45% 48.5%, #2aa1e6 48.5% 73%, #1589d1 73%);
 }
 
-.hud[data-cut='crystal'] .g-high .hud-cut:not(.hud-split) {
-  --cut-planes: linear-gradient(128deg, #d2e5f6 0 24%, #95badd 24% 45%, #e6f1fb 45% 48.5%, #7197c4 48.5% 73%, #5c81b2 73%);
+.hud[data-fill='crystal'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #d2e5f6 0 24%, #95badd 24% 45%, #e6f1fb 45% 48.5%, #7197c4 48.5% 73%, #5c81b2 73%);
 }
 
-.hud[data-cut='crystal'] .g-mid .hud-cut:not(.hud-split) {
-  --cut-planes: linear-gradient(128deg, #ece8fb 0 24%, #cbc3ee 24% 45%, #f4f1fd 45% 48.5%, #aea3dc 48.5% 73%, #9b90d1 73%);
+.hud[data-fill='crystal'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #ece8fb 0 24%, #cbc3ee 24% 45%, #f4f1fd 45% 48.5%, #aea3dc 48.5% 73%, #9b90d1 73%);
 }
 
-.hud[data-cut='crystal'] .g-low .hud-cut:not(.hud-split) {
-  --cut-planes: linear-gradient(128deg, #e8dde9 0 24%, #c3acc7 24% 45%, #f0e8f1 45% 48.5%, #a388a9 48.5% 73%, #8e7497 73%);
+.hud[data-fill='crystal'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(128deg, #e8dde9 0 24%, #c3acc7 24% 45%, #f0e8f1 45% 48.5%, #a388a9 48.5% 73%, #8e7497 73%);
 }
 
-.hud[data-cut='crystal'] .g-break .hud-cut {
-  --cut-planes:
+.hud[data-fill='crystal'] .g-break .hud-fill {
+  --fill:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M40 0 L37.5 34 L41.5 47 L38 100' fill='none' stroke='%2328060f' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat,
     linear-gradient(128deg, #ffa6b6 0 22%, #f25f7a 22% 45%, #ff93a6 45% 48.5%, #d02846 48.5% 74%, #a31636 74%);
+}
+
+/* the sky skin's: white easing to sky blue toward the letters' feet, nothing cut across them (no rim:
+   the fill lies square on the letters); COMBO thin and white, widely spaced; the best judgement's
+   percent cyan, lower ones sky blue, periwinkle, dusk; a break a soft sunset coral */
+.hud[data-fill='sky'] {
+  --fill: linear-gradient(180deg, #ffffff 0 44%, #d6edff 60%, #86c9f8 80%);
+}
+
+.hud[data-fill='sky'] .hud-combo-label {
+  margin-top: 0.3em;
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  /* the spacing after its last letter would set it off centre */
+  margin-right: -0.34em;
+  --fill: linear-gradient(#ffffff, #ffffff);
+}
+
+.hud[data-fill='sky'] .g-max .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e2fdff 0 40%, #6feaf0 60%, #1fc0dc 82%);
+}
+
+.hud[data-fill='sky'] .g-high .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #e6f4ff 0 40%, #84c8f8 60%, #3f9ce8 82%);
+}
+
+.hud[data-fill='sky'] .g-mid .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f3f3ff 0 40%, #bcc0f6 60%, #8d92e6 82%);
+}
+
+.hud[data-fill='sky'] .g-low .hud-fill:not(.hud-split) {
+  --fill: linear-gradient(180deg, #f4eef7 0 40%, #cbb8d9 60%, #a48bbd 82%);
+}
+
+.hud[data-fill='sky'] .g-break .hud-fill {
+  --fill: linear-gradient(180deg, #ffece2 0 40%, #ffa38e 60%, #f0696c 82%);
 }
 
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;

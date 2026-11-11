@@ -11,6 +11,7 @@ export const pct = (v: number) => `${Math.round(v * 100)}%`;
 /** The parts by name (설정 → 노트 and 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = {
   prism: '크리스털',
+  sky: '하늘',
   flat: '기본',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
@@ -26,6 +27,7 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<GearStyle, string> = {
   prism: '크리스털',
+  sky: '하늘',
   standard: '기본',
   cabinet: '오락실 기체',
   receiver: '빈티지 리시버',
@@ -38,6 +40,7 @@ export const DECK_NAMES: Record<GearStyle, string> = {
 };
 export const HIT_NAMES: Record<HitStyle, string> = {
   prism: '크리스털 분광',
+  sky: '구름 깃털',
   flash: '플래시',
   flare: '플레어',
   bubbles: '거품',
@@ -50,7 +53,7 @@ export const HIT_NAMES: Record<HitStyle, string> = {
 };
 
 /** The skins by name (설정 → 기어 → 스킨), and what the row reads while the parts are no skin's (picked one by one). */
-export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털' };
+export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털', sky: '하늘' };
 export const CUSTOM_SKIN = 'custom';
 export const CUSTOM_SKIN_NAME = '직접 고름';
 

@@ -59,9 +59,9 @@ describe('game media', () => {
   });
 
   it('has the flipbooks of every hit effect a player picks', () => {
-    // PRISM's (its spectrum) and FLASH (the default skin's) are drawn in code alone (tintArt.ts)
-    for (const hit of ['prism', 'flash'] as const) expect(styleTextures({ ...BASE_SKIN.style, hit })).toEqual({});
-    for (const hit of HIT_STYLES.filter((h) => h !== 'prism' && h !== 'flash')) {
+    // the skins' (PRISM's spectrum, SKY's puff of cloud, the default skin's FLASH) are drawn in code alone (tintArt.ts)
+    for (const hit of ['prism', 'sky', 'flash'] as const) expect(styleTextures({ ...BASE_SKIN.style, hit })).toEqual({});
+    for (const hit of HIT_STYLES.filter((h) => h !== 'prism' && h !== 'sky' && h !== 'flash')) {
       const ids = Object.entries(styleTextures({ ...BASE_SKIN.style, hit }));
       expect(ids.map(([slot]) => slot), hit).toEqual(['hitBurst', 'hitHold']);
       for (const [slot, id] of ids) expect(manifest.textures[id]?.flipbook, `${hit}.${slot} = ${id}`).toBeDefined();

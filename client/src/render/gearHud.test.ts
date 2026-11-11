@@ -33,8 +33,10 @@ describe('the HUD a gear brings', () => {
     // the moon's wide geometric capitals
     expect(GEAR_TYPES.rawglass.font).toBe('Orbitron');
     // the crystal skin's letters cut into flat planes (its styles colour the judgements), "MAX" apart from its percent; no other gear's
-    expect([GEAR_TYPES.prism.font, GEAR_TYPES.prism.cut, GEAR_TYPES.prism.split]).toEqual(['Exo 2', 'crystal', true]);
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'prism')) expect(GEAR_TYPES[gear].cut, gear).toBeUndefined();
-    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
+    expect([GEAR_TYPES.prism.font, GEAR_TYPES.prism.fill, GEAR_TYPES.prism.split]).toEqual(['Exo 2', 'crystal', true]);
+    // the sky skin's letters round and slanted, white easing to sky blue (its styles': the fill 'sky'), "MAX" apart from its percent
+    expect([GEAR_TYPES.sky.font, GEAR_TYPES.sky.fill, GEAR_TYPES.sky.split, HUD_FONTS.Nunito]).toEqual(['Nunito', 'sky', true, { weight: 800, italic: true }]);
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'prism' && g !== 'sky')) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
+    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
   });
 });

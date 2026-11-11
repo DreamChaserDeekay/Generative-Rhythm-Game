@@ -108,20 +108,21 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 
 /**
  * PRISM (the crystal skin's, 크리스털) is a bar of cut glass (its long note a long prism closed by its end
- * facets, its scratch a long hexagon), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
+ * facets, its scratch a long hexagon), SKY (the sky skin's, 하늘) a soft matte bar with round corners (its
+ * scratch marked with a pair of wings, its long note a see-through band), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
  */
-export type NoteStyle = 'prism' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
-export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
+export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'sky' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -876,6 +877,100 @@ function prismGem(g: CanvasRenderingContext2D, w: number, h: number): void {
 /** PRISM's notes: the gem on the scratch, a bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts: they stay the game's see-through bars). */
 const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : prismBar(g, w, h));
 
+// ---------- SKY (the sky skin's notes, 하늘): soft matte bars ----------
+
+/** A bar's outline with its corners round on the screen, `r` across (NOTE_STRETCH times that along). */
+function softOutline(g: CanvasRenderingContext2D, w: number, h: number, r: number): void {
+  const rx = Math.min(r, w / 2);
+  const ry = Math.min(r * NOTE_STRETCH, h / 2);
+  g.beginPath();
+  g.moveTo(rx, 0);
+  g.lineTo(w - rx, 0);
+  g.ellipse(w - rx, ry, rx, ry, 0, -Math.PI / 2, 0);
+  g.lineTo(w, h - ry);
+  g.ellipse(w - rx, h - ry, rx, ry, 0, 0, Math.PI / 2);
+  g.lineTo(rx, h);
+  g.ellipse(rx, h - ry, rx, ry, 0, Math.PI / 2, Math.PI);
+  g.lineTo(0, ry);
+  g.ellipse(rx, ry, rx, ry, 0, Math.PI, Math.PI * 1.5);
+  g.closePath();
+}
+
+/**
+ * SKY's bar: a soft matte bar, its corners round: the lane's colour even and a little pale, lighter
+ * over its far half as a pillow's top is, a touch deeper toward its near edge, and a soft line of
+ * light along that edge (its timing). Nothing on it glints: no gloss, no hard rim.
+ */
+function skyBar(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const u = unit(h);
+  g.save();
+  softOutline(g, w, h, u(7) / NOTE_STRETCH);
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, ink(1, 0.34));
+  face.addColorStop(0.5, ink(1, 0.18));
+  face.addColorStop(0.82, ink(1, 0.06));
+  face.addColorStop(1, tone(0.9));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  // its ends rounding away: a breath of shade at each
+  const ends = g.createLinearGradient(0, 0, w, 0);
+  const e = Math.min(0.14, u(9) / w);
+  ends.addColorStop(0, ink(1, 0.5, 0.35));
+  ends.addColorStop(e, ink(1, 0.5, 0));
+  ends.addColorStop(1 - e, tone(0.72, 0));
+  ends.addColorStop(1, tone(0.72, 0.4));
+  g.fillStyle = ends;
+  g.fillRect(0, 0, w, h);
+  // the near edge: a soft line of light, not a razor
+  const edge = g.createLinearGradient(0, h - u(11), 0, h);
+  edge.addColorStop(0, ink(1, 0.8, 0));
+  edge.addColorStop(0.55, ink(1, 0.8, 0.9));
+  edge.addColorStop(1, ink(1, 0.62, 0.95));
+  g.fillStyle = edge;
+  g.fillRect(0, h - u(11), w, u(11));
+  g.restore();
+}
+
+/** One wing of SKY's mark, opening to the right of (0, 0), `r` its half height: the arm along its top, three flight feathers falling from it, each shorter than the last. */
+function wing(g: CanvasRenderingContext2D, r: number): void {
+  g.beginPath();
+  g.moveTo(r * 0.12, r * 0.62);
+  // up the root and out along the arm to the tip
+  g.bezierCurveTo(r * 0.02, -r * 0.1, r * 0.55, -r * 0.85, r * 2.25, -r * 0.92);
+  // the feathers, tip first
+  g.quadraticCurveTo(r * 1.95, -r * 0.5, r * 1.42, -r * 0.34);
+  g.quadraticCurveTo(r * 1.7, -r * 0.22, r * 1.78, -r * 0.02);
+  g.quadraticCurveTo(r * 1.45, r * 0.12, r * 1.0, r * 0.12);
+  g.quadraticCurveTo(r * 1.22, r * 0.28, r * 1.24, r * 0.48);
+  g.quadraticCurveTo(r * 0.7, r * 0.72, r * 0.12, r * 0.62);
+  g.closePath();
+  g.fill();
+}
+
+/** SKY's scratch: the bar, and a pair of white wings opening from its middle. Told from a key's bar by the wings alone. */
+function skyWings(g: CanvasRenderingContext2D, w: number, h: number): void {
+  skyBar(g, w, h);
+  // as tall on the screen as most of the bar's depth, no wider than a third of the bar a wing
+  const r = Math.min((h / NOTE_STRETCH) * 0.36, w / 7);
+  for (const side of [-1, 1]) {
+    g.save();
+    g.translate(w / 2 + side * r * 0.1, h * 0.5);
+    g.scale(side, NOTE_STRETCH);
+    // a soft shade under the wing, then the wing
+    g.fillStyle = tone(0.62, 0.5);
+    g.translate(0, r * 0.12);
+    wing(g, r);
+    g.translate(0, -r * 0.12);
+    g.fillStyle = ink(1, 1);
+    wing(g, r);
+    g.restore();
+  }
+}
+
+/** SKY's notes: the wings on the scratch, the bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts). */
+const skyNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? skyWings(g, w, h) : skyBar(g, w, h));
+
 /**
  * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
  * its walls): a gloss over its far half, lit along its left end and shaded along its
@@ -934,6 +1029,7 @@ function flatNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 
 export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   prism: prismNote,
+  sky: skyNote,
   flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
@@ -949,12 +1045,13 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
   prism: 'prism',
+  sky: 'sky',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -988,6 +1085,8 @@ export interface LongPaint {
   endDepth: number;
   /** Share of the lane the body covers. */
   width: number;
+  /** It lies flat on the track, with no walls under it (a see-through band has no thickness to show; the others are slabs). */
+  flat?: boolean;
 }
 
 const across = (w: number) => (n: number) => (n * w) / 54;
@@ -1107,6 +1206,30 @@ function prismEnd(lit: boolean): Paint {
   };
 }
 
+/**
+ * SKY's long note: a see-through band of the lane's colour, even and matte (the lane's sky shows
+ * through it), a thin pale edge down each side and a soft white line down its middle; `lit` (held),
+ * the band brighter and the middle line white in a glow.
+ */
+function skyLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    // held, less of the lane shows through it: the key's beam behind it would wash it out
+    g.fillStyle = lit ? ink(0.9, 0.04, 0.8) : ink(0.96, 0.08, 0.5);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 2.5, ink(1, lit ? 0.85 : 0.7, lit ? 0.95 : 0.85));
+    const half = lit ? 9 : 7;
+    const glow = g.createLinearGradient(a(27 - half), 0, a(27 + half), 0);
+    glow.addColorStop(0, ink(1, 1, 0));
+    glow.addColorStop(0.5, ink(1, 1, lit ? 0.55 : 0.42));
+    glow.addColorStop(1, ink(1, 1, 0));
+    g.fillStyle = glow;
+    g.fillRect(a(27 - half), 0, a(2 * half), h);
+    g.fillStyle = ink(1, 1, lit ? 1 : 0.78);
+    g.fillRect(a(lit ? 25.5 : 26), 0, a(lit ? 3 : 2), h);
+  };
+}
+
 /** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
 function solidLong(lit: boolean): Paint {
   return (g, w, h) => {
@@ -1132,12 +1255,12 @@ function solidLong(lit: boolean): Paint {
   };
 }
 
-/** A square end: the body itself, a rim in `border` along its outer edge (canvas top) as down its sides. */
-function squareEnd(body: Paint, border: string): Paint {
+/** A square end: the body itself, a rim in `border` along its outer edge (canvas top) as down its sides, `t` px of a 54 px body. */
+function squareEnd(body: Paint, border: string, t = 4): Paint {
   return (g, w, h) => {
     body(g, w, h);
     g.fillStyle = border;
-    g.fillRect(0, 0, w, across(w)(4));
+    g.fillRect(0, 0, w, across(w)(t));
   };
 }
 
@@ -1151,6 +1274,17 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     tile: 1,
     endDepth: 0.5 * NOTE_STRETCH * 0.55,
     width: 0.86,
+  },
+  // the sky skin's: a see-through band, a soft white line down its middle (held: brighter, the line
+  // in a glow), each end the band itself, square, a thin white edge along it
+  sky: {
+    body: skyLong(false),
+    end: squareEnd(skyLong(false), ink(1, 0.9, 0.95), 3),
+    held: { body: skyLong(true), end: squareEnd(skyLong(true), ink(1, 1), 3) },
+    tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
   },
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
   // inside with a line of light down its middle; each end the bar itself, square, a rim along it
@@ -1590,12 +1724,13 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'prism' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'prism' | 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   prism: 'prism',
+  sky: 'sky',
   flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
@@ -1619,8 +1754,8 @@ export interface EffectSheet {
   /** How wide the effect gets while it is still bright (halfway through), in lane widths. */
   reach: number;
   /**
-   * Its picture is light in colours of its own on nothing (PRISM's spectrum), not a tint picture: it
-   * is added as it is, the lane's colour only tingeing it.
+   * Its picture is light in colours of its own on nothing (PRISM's spectrum, SKY's white puff), not a
+   * tint picture: it is added as it is, the lane's colour only tingeing it.
    */
   plain?: boolean;
 }
@@ -1632,6 +1767,8 @@ export interface EffectSheet {
 const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   // along the judge line and a little toward the gear: nothing of it rises up the track over the next notes
   prism: { w: 128, h: 64, cy: 26, reach: 44 },
+  // a ring of cloud lying on the line and a few feathers off it: low, as PRISM's
+  sky: { w: 128, h: 64, cy: 30, reach: 42 },
   flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1650,8 +1787,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
-  const plain = style === 'prism';
-  // PRISM's shards have hard edges: painted twice as fine, or they show their px on a wide lane
+  const plain = style === 'prism' || style === 'sky';
+  // PRISM's shards and SKY's feathers have hard edges: painted twice as fine, or they show their px on a wide lane
   const fine = plain ? 2 : 1;
   const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
     g.scale(fine, fine);
@@ -1662,6 +1799,7 @@ export function effectSheet(hit: HitStyle): EffectSheet {
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
       if (style === 'prism') drawSpectrum(g, f / EFFECT_FRAMES);
+      else if (style === 'sky') drawPuff(g, f / EFFECT_FRAMES);
       else drawEffect(g, style, f / EFFECT_FRAMES);
       g.restore();
     }
@@ -1766,13 +1904,77 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   g.fill();
 }
 
+/**
+ * SKY's hit (the sky skin's) at progress `p`, about the judge line's crossing of the lane: a soft
+ * white burst on the line at once, a ring of cloud opening round it (its puffs side by side, a
+ * scalloped ring; flat on the track: wide along the line, shallow across it) and thinning to nothing,
+ * and three small feathers drifting off it, turning as they go. White, a breath of sky blue at the
+ * puffs' edges; no wider than its lane until it has nearly gone (a chord's rings stand side by side),
+ * no further up the track than the ring itself (the next notes stay clear); all gone by its end.
+ */
+function drawPuff(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const a = Math.max(0, 1 - p);
+  const out = Math.sqrt(p);
+  const soft = (x: number, y: number, r: number, alpha: number) => {
+    if (r <= 0 || alpha <= 0) return;
+    const puff = g.createRadialGradient(x, y, 0, x, y, r);
+    puff.addColorStop(0, `rgba(255,255,255,${Math.min(1, alpha)})`);
+    puff.addColorStop(0.68, `rgba(246,251,255,${Math.min(1, alpha * 0.95)})`);
+    puff.addColorStop(1, 'rgba(170,214,250,0)');
+    g.fillStyle = puff;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  // the burst in the middle: a soft light in its first frames, gone by a third of the effect (the
+  // ring is a ring from the start: the lane shows through its middle)
+  const burst = Math.max(0, 1 - 3 * p);
+  g.save();
+  g.scale(1.5, 0.62);
+  soft(0, 0, 8 * s, 0.3 * burst);
+  g.restore();
+  // the ring of cloud, opening: about a lane wide and half as deep on the screen (the hit is drawn 1.8
+  // lanes to a lane), its band of puffs side by side, each a little off the round, the same every
+  // time; the lane shows through its middle from the first frame
+  const [rx, ry] = [(12.5 + 5 * out) * s, (6.6 + 2.6 * out) * s];
+  const puffs = 14;
+  for (let i = 0; i < puffs; i++) {
+    const at = ((i + 0.3 * Math.sin(i * 2.4)) / puffs) * Math.PI * 2;
+    const size = (4.1 - 0.9 * p) * (0.86 + 0.28 * Math.abs(Math.sin(i * 1.7 + 0.6))) * s;
+    soft(Math.cos(at) * rx, Math.sin(at) * ry, size, Math.min(1, 1.6 * a));
+  }
+  // the feathers: slim white vanes flying out, turning
+  const feathers: [number, number, number, number][] = [
+    // the angle it leaves at (degrees from the line, negative up the track), how far it goes, its length, its turn
+    [-150, 15, 7.5, -0.9],
+    [-28, 17, 8.5, 0.8],
+    [30, 13, 6.5, 1.1],
+  ];
+  for (const [deg, far, len, turn] of feathers) {
+    const angle = (deg * Math.PI) / 180;
+    const d = (18 + far * out) * s;
+    g.save();
+    g.translate(Math.cos(angle) * d, Math.sin(angle) * d * 0.55);
+    g.rotate(angle + Math.PI / 2 + turn * p);
+    const l = len * s * (0.75 + 0.25 * a);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, 1.7 * a)})`;
+    g.beginPath();
+    g.moveTo(0, -l);
+    g.bezierCurveTo(l * 0.4, -l * 0.5, l * 0.32, l * 0.35, l * 0.04, l * 0.75);
+    g.bezierCurveTo(-l * 0.24, l * 0.3, -l * 0.26, -l * 0.5, 0, -l);
+    g.fill();
+    g.restore();
+  }
+}
+
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
 export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number): [number, number] {
   const f = Math.floor(frame);
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism'>, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky'>, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);

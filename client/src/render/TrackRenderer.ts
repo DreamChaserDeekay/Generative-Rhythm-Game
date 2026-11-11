@@ -3,7 +3,7 @@ import type { CameraPreset, KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
-import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
+import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -30,6 +30,7 @@ import {
   judgeGlowTexture,
   lightMaterial,
   laneDepthOf,
+  NOTE_STRETCH,
   noteDepthOf,
   paintTexture,
   shadowReach,
@@ -119,6 +120,8 @@ const COVER_Y = 0.016;
 const DECK_Y = 0.022;
 /** The px of a deck key's shade when held down (deckArt.paintPressedKey), across and along. */
 const PRESS_KEY_PX = [64, 256] as const;
+/** The px of a gear's picture laid over the lanes (deckArt.GEAR_FLOORS), across and along the track. */
+const FLOOR_PICTURE_PX = [1024, 2048] as const;
 /** The px of a cut cap's picture when lit (deckArt.paintLitKey: CRYSTAL's), square. */
 const LIT_GEM_PX = 192;
 /** How fast a deck key held down comes back up once its lane's key is let go (ms to fall to 1/e). */
@@ -607,8 +610,8 @@ export class TrackRenderer {
   /** The view's framing before the chart's zoom and roll (see baseFrame): made again when the camera, the screen or LIFT changes. */
   private frame: CameraFrame | null = null;
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top). */
-  private readonly longSlab = slabGeometry(0, SLAB_LONG, 0);
+  /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top), or lying flat where its style has no thickness (LongPaint.flat). */
+  private readonly longSlab: THREE.BufferGeometry;
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
@@ -721,6 +724,8 @@ export class TrackRenderer {
   /** Where the note being placed lies (see noteSpan), kept to spare an object per note and frame. */
   private readonly extent: NoteSpan = { near: 0, far: 0 };
   private judgeZ = 0;
+  /** The gear's picture laid over the lanes, where it has one (deckArt.GEAR_FLOORS). */
+  private floorMap: THREE.Texture | null = null;
   /** The deck's readout windows as it was last laid out (deck px), null where it houses none. */
   private readouts: DeckReadouts | null = null;
   private firstLive = 0;
@@ -754,6 +759,7 @@ export class TrackRenderer {
     this.fitWidth = options.fitWidth ?? null;
     this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
     this.long = longPaintOf(this.style.note, this.images);
+    this.longSlab = this.long.flat ? slabGeometry(0, 0, 0, 0) : slabGeometry(0, SLAB_LONG, 0);
     const px = this.long.px ?? 64;
     const longPictures = (body: Paint, end: Paint) => {
       const b = this.own(paintTexture(px, Math.round(px * this.long.tile), body));
@@ -899,6 +905,8 @@ export class TrackRenderer {
     this.judgeZ = -c.lift * L;
     const travel = L + this.judgeZ;
     this.judgeGroup.position.z = this.judgeZ;
+    // the gear's picture on the lanes ends at the line (buildTrack)
+    if (this.floorMap) this.floorMap.offset.y = (this.judgeZ - TRACK_TAIL) / L;
     this.placeBeams();
 
     const suddenZ = this.judgeZ - travel * (1 - c.sudden);
@@ -1752,6 +1760,29 @@ export class TrackRenderer {
     const track = new THREE.Mesh(base, new THREE.MeshBasicMaterial({ vertexColors: true }));
     track.renderOrder = 0;
     this.scene.add(track);
+    // the gear's picture laid very faintly over the lanes (deckArt.GEAR_FLOORS), from the far end to the
+    // judge line and its last row on from there under the gear: over the floor, under the lanes' tints,
+    // the dividers and everything that moves
+    const floor = GEAR_FLOORS[this.style.deck];
+    if (floor) {
+      const canvas = document.createElement('canvas');
+      [canvas.width, canvas.height] = FLOOR_PICTURE_PX;
+      // round things in it are drawn longer along the track, as the notes' marks are (the picture's px
+      // are not square on the track, and the camera flattens it)
+      floor(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, (canvas.height / length / (canvas.width / width)) * NOTE_STRETCH);
+      const map = this.own(new THREE.CanvasTexture(canvas));
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.anisotropy = 8;
+      // the picture as long as the track, its last row at the judge line (setCovers: LIFT moves it) and on from there
+      map.repeat.set(1, (length + TRACK_TAIL) / length);
+      map.offset.set(0, -TRACK_TAIL / length);
+      this.floorMap = map;
+      const picture = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
+      picture.scale.set(width, 1, length + TRACK_TAIL);
+      picture.position.set(0, 0.003, (TRACK_TAIL - length) / 2);
+      picture.renderOrder = 0.5;
+      this.scene.add(picture);
+    }
 
     const strip = (x: number, w: number, color: number, opacity: number, order = 1) => {
       const mesh = this.flat(color, opacity, order);
@@ -2242,9 +2273,10 @@ function isGone(n: Readonly<SessionNote>, timeMs: number): boolean {
  * order) with no depth test: a slab reaches under the track, whose floor must not hide its walls, and
  * the notes are see-through, so they are drawn far to near and a nearer slab covers a farther one.
  * `crop`: the share of the picture, from its near edge, a wall layer takes (0: all of it); the rest
- * of a layer would only ever lie under the top.
+ * of a layer would only ever lie under the top. `slices`: how many copies make its walls (0: none,
+ * the picture alone lying flat: a see-through thing has no walls to show).
  */
-export function slabGeometry(top: number, depth: number, crop: number): THREE.BufferGeometry {
+export function slabGeometry(top: number, depth: number, crop: number, slices = SLAB_SLICES): THREE.BufferGeometry {
   const positions: number[] = [];
   const uvs: number[] = [];
   const colors: number[] = [];
@@ -2266,9 +2298,9 @@ export function slabGeometry(top: number, depth: number, crop: number): THREE.Bu
     }
     index.push(first, first + 2, first + 1, first + 2, first + 3, first + 1);
   };
-  for (let i = SLAB_SLICES; i >= 1; i--) {
-    const shade = WALL_TOP + ((WALL_FOOT - WALL_TOP) * (i - 1)) / Math.max(1, SLAB_SLICES - 1);
-    layer(top - (depth * i) / SLAB_SLICES, crop > 0 ? crop : 1, shade, WALL_LIT);
+  for (let i = slices; i >= 1; i--) {
+    const shade = WALL_TOP + ((WALL_FOOT - WALL_TOP) * (i - 1)) / Math.max(1, slices - 1);
+    layer(top - (depth * i) / slices, crop > 0 ? crop : 1, shade, WALL_LIT);
   }
   layer(top, 1, 1, 0);
   const geometry = new THREE.BufferGeometry();

@@ -25,12 +25,12 @@ describe('HUD lying on the track', () => {
     expect(judgementHtml('MAX 100%', true)).toBe('<span class="hud-split">MAX</span> 100%');
     expect(judgementHtml('BREAK', true)).toBe('BREAK');
     // a cut type (the crystal skin's): the styles lay the planes over each word from its data-text
-    expect(judgementHtml('MAX 100%', true, true)).toBe('<span class="hud-cut hud-split" data-text="MAX">MAX</span> <span class="hud-cut" data-text="100%">100%</span>');
-    expect(judgementHtml('MAX 100%', false, true)).toBe('<span class="hud-cut" data-text="MAX">MAX</span> <span class="hud-cut" data-text="100%">100%</span>');
-    expect(judgementHtml('BREAK', true, true)).toBe('<span class="hud-cut" data-text="BREAK">BREAK</span>');
+    expect(judgementHtml('MAX 100%', true, true)).toBe('<span class="hud-fill hud-split" data-text="MAX">MAX</span> <span class="hud-fill" data-text="100%">100%</span>');
+    expect(judgementHtml('MAX 100%', false, true)).toBe('<span class="hud-fill" data-text="MAX">MAX</span> <span class="hud-fill" data-text="100%">100%</span>');
+    expect(judgementHtml('BREAK', true, true)).toBe('<span class="hud-fill" data-text="BREAK">BREAK</span>');
     // a label is text, in the attribute too
     expect(judgementHtml('A<B "C"&', false)).toBe('A&lt;B &quot;C&quot;&amp;');
-    expect(judgementHtml('A<B "C"', false, true)).toBe('<span class="hud-cut" data-text="A&lt;B">A&lt;B</span> <span class="hud-cut" data-text="&quot;C&quot;">&quot;C&quot;</span>');
+    expect(judgementHtml('A<B "C"', false, true)).toBe('<span class="hud-fill" data-text="A&lt;B">A&lt;B</span> <span class="hud-fill" data-text="&quot;C&quot;">&quot;C&quot;</span>');
   });
 
   it('measures how large and how flattened the plane looks where text lies', () => {

@@ -35,13 +35,18 @@
  *   deck of broad flat facets in white, pale ice blue and pale lavender; set in it three long hexagons
  *   of sapphire glass, pointed as its gem note is, where the HUD writes the score, the speed and the
  *   rate (deckReadouts); its frame thin rails of clear glass (crystalPlate);
+ * - SKY (하늘): the sky skin's gear: a thin navy strip with a dash to a lane (the held lane's lit cyan)
+ *   over a deck that is a window onto the sky, blue easing lighter toward the player, cumulus low in
+ *   it, thin white wind trails across it and a feather over the score, which is written on the sky
+ *   itself; the speed and the rate in two see-through pills; rails of sky-tinted glass with an
+ *   altimeter's ticks; and the same sky laid very faintly over the lanes (GEAR_FLOORS: skyPlate, skyFloor);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
  */
-export type GearStyle = 'prism' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
-/** The gears a player picks. */
-export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
+export type GearStyle = 'prism' | 'sky' | 'standard' | 'cabinet' | 'receiver' | 'najeon' | 'keyboard' | 'racing' | 'orbital' | 'piano' | 'rawglass';
+/** The gears a player picks: the skins' first (기본, 크리스털, 하늘), then the objects. */
+export const GEAR_STYLES: GearStyle[] = ['standard', 'prism', 'sky', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'];
 /** What a lane over the deck is: the scratch, a white key or another key. */
 export type KeyKind = 'white' | 'other' | 'scratch';
 
@@ -157,13 +162,15 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
 
 /**
- * The judge line's colours on a gear: GEAR_JUDGE's red, but STANDARD's own (a white core in its cyan) and PRISM's, a white line edged in ice blue
+ * The judge line's colours on a gear: GEAR_JUDGE's red, but the skins' own: STANDARD's (a white core in its cyan), SKY's (in sky blue) and PRISM's, a white line edged in ice blue
  * (its scratch is a ruby: a red line would hide the gem's razor as it lands; white to its edges, it
  * would hide the white keys' notes). Its place and size are
  * the same on every gear.
  */
 export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
   if (style === 'prism') return { ...GEAR_JUDGE, line: CRYSTAL_LINE, core: '#ffffff', glow: CRYSTAL_ICE };
+  // SKY's: a white line in a sky-blue glow, as a horizon
+  if (style === 'sky') return { ...GEAR_JUDGE, line: '#6dbcf7', core: '#ffffff', glow: '#58aef0' };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -466,20 +473,35 @@ const gemPoint = (h: number, st: number) => (h / st) * 0.6;
 const GEM_WINDOW = 0.45;
 
 /**
- * Where STANDARD's deck and CRYSTAL's have their readouts: the score in a wide window in the middle
- * of the upper step, the speed and the rate in two at the ends of the lower step (STANDARD's pills;
- * CRYSTAL's long hexagons, whose points lie outside the windows: gemPlate); null where the screen
+ * The depths of SKY's deck: a thin strip of key dashes, the white line under it, the step with the
+ * feather and the score written under it, the step with the speed's and the rate's pills (`pill`:
+ * how far inside that step they lie).
+ */
+const SKY = { keys: 18, seam: 2, upper: 68, lower: 46, pad: 5, score: 36, pill: 8 } as const;
+
+/** The steps of the decks that house the readouts. */
+const DECK_STEPS: Partial<Record<GearStyle, { keys: number; seam: number; upper: number; lower: number; pad: number }>> = { standard: STD, prism: STD, sky: SKY };
+
+/**
+ * Where a skin's deck has its readouts: the score in a wide window in the middle of the upper step,
+ * the speed and the rate in two at the ends of the lower step (STANDARD's pills; CRYSTAL's long
+ * hexagons, whose points lie outside the windows: gemPlate; SKY's score written on the sky in the
+ * lower part of its step, under the feather, and its two see-through pills); null where the screen
  * shows too little of the deck for them (a small preview) or the gear houses none.
  */
 export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
-  if (style !== 'standard' && style !== 'prism') return null;
+  const d = DECK_STEPS[style];
+  if (!d) return null;
   const st = s.stretch;
-  const top = (STD.keys + STD.seam) * st;
-  if (s.room < top + (STD.upper + STD.lower * 0.6) * st) return null;
-  const pad = STD.pad * st;
-  const upper: Box = { x: s.width * 0.24, y: top + pad, w: s.width * 0.52, h: STD.upper * st - 2 * pad };
-  const y = top + STD.upper * st + pad;
-  const h = Math.min(STD.lower * st, s.room - top - STD.upper * st) - 2 * pad;
+  const top = (d.keys + d.seam) * st;
+  if (s.room < top + (d.upper + d.lower * 0.6) * st) return null;
+  const sky = style === 'sky';
+  const pad = (sky ? SKY.pill : d.pad) * st;
+  const upper: Box = sky
+    ? { x: s.width * 0.25, y: top + (d.upper - SKY.score - 2) * st, w: s.width * 0.5, h: SKY.score * st }
+    : { x: s.width * 0.24, y: top + d.pad * st, w: s.width * 0.52, h: d.upper * st - 2 * d.pad * st };
+  const y = top + d.upper * st + pad;
+  const h = Math.min(d.lower * st, s.room - top - d.upper * st) - 2 * pad;
   const w = s.width * 0.2;
   // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
   const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
@@ -1505,6 +1527,8 @@ export interface DeckKey {
   lit?: string;
   /** A cap cut as a gem (CRYSTAL's), drawn this many times longer along the track (DeckSpec.stretch): lit, it keeps its cut (crystalCap). */
   gem?: number;
+  /** A dash in the middle of its box (SKY's), this share of the box across and along: lit, the dash white in a glow of its colour. */
+  dash?: [number, number];
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1521,6 +1545,15 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
     const st = s.stretch;
     const gem = style === 'prism';
     return s.lanes.map((lane, i) => ({ lane: i, box: capBox(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: gem ? CRYSTAL_ICE : CYAN, ...(gem ? { gem: st } : {}) }));
+  }
+  if (style === 'sky') {
+    // its dashes, one to a lane (skyPlate): the lit one's light fills the lane's cell of the strip
+    const st = s.stretch;
+    return s.lanes.map((lane, i) => {
+      const dash = dashBox(lane, st);
+      const box: Box = { x: lane.left, y: 0, w: lane.width, h: SKY.keys * st };
+      return { lane: i, box, notch: { left: 0, right: 0, depth: 0 }, lit: SKY_CYAN, dash: [dash.w / box.w, dash.h / box.h] as [number, number] };
+    });
   }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
@@ -1558,7 +1591,7 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  * its colour's light, brightest along its far edge, a rim of the colour round it; a cap cut as a gem
  * (CRYSTAL's) the same cut full of light. Drawn once; the renderer shows it while the lane's key is held.
  */
-export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem'>): void {
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem' | 'dash'>): void {
   if (key.gem) {
     g.save();
     g.scale(w / key.box.w, h / key.box.h);
@@ -1567,6 +1600,31 @@ export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, k
     return;
   }
   const colour = key.lit ?? '#ffffff';
+  if (key.dash) {
+    // the dash white-hot in the middle of its cell, its colour's glow round it, melting away before the cell's edges
+    const [dw, dh] = [key.dash[0] * w, Math.max(2, key.dash[1] * h * 1.25)];
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.scale(1, h / w);
+    const glow = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.5);
+    glow.addColorStop(0, shade(colour, 1, 0.7));
+    glow.addColorStop(0.55, shade(colour, 1, 0.26));
+    glow.addColorStop(1, shade(colour, 1, 0));
+    g.fillStyle = glow;
+    g.beginPath();
+    g.arc(0, 0, w * 0.5, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    g.beginPath();
+    g.roundRect((w - dw) / 2, (h - dh) / 2, dw, dh, dh / 2);
+    g.fillStyle = shade(colour, 1.6, 1);
+    g.fill();
+    g.beginPath();
+    g.roundRect((w - dw * 0.82) / 2, (h - dh * 0.46) / 2, dw * 0.82, dh * 0.46, dh / 4);
+    g.fillStyle = white(0.95);
+    g.fill();
+    return;
+  }
   g.beginPath();
   g.roundRect(0, 0, w, h, Math.min(w, h) * 0.12);
   const glow = g.createLinearGradient(0, 0, 0, h);
@@ -2070,8 +2128,386 @@ function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   }
 }
 
+// ---------- SKY (the sky skin's gear, 하늘) ----------
+
+/** SKY's one accent, a held dash's light (its housings are a deep navy, #0c1c33: the strip here, the gauge's capsule in the HUD's styles). */
+const SKY_CYAN = '#3fe3e6';
+/** The deck's sky from its far edge to the foot of the readouts' steps. */
+const SKY_BLUES = ['#2f7fd6', '#4d9ee6', '#8ccbf4'] as const;
+
+/** The dash of a lane in SKY's strip: a short thin bar in the lane's middle. */
+const dashBox = (lane: DeckLane, st: number): Box => ({ x: lane.left + lane.width * 0.22, y: (SKY.keys / 2 - 1.6) * st, w: lane.width * 0.56, h: 3.2 * st });
+
+/** One soft puff of cloud about (x, y), `r` across (`st` times longer along the track, so it looks round), in `tone` at `alpha`, its edge melting away. */
+function puff(g: CanvasRenderingContext2D, x: number, y: number, r: number, st: number, tone: string, alpha: number): void {
+  g.save();
+  g.translate(x, y);
+  g.scale(1, st);
+  const soft = g.createRadialGradient(0, 0, 0, 0, 0, r);
+  soft.addColorStop(0, shade(tone, 1, alpha));
+  soft.addColorStop(0.62, shade(tone, 1, alpha * 0.94));
+  soft.addColorStop(1, shade(tone, 1, 0));
+  g.fillStyle = soft;
+  g.beginPath();
+  g.arc(0, 0, r, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+}
+
+/**
+ * A cumulus cloud standing on (cx, base), `r` its largest puff: puffs side by side along a flat base,
+ * the middle ones the tallest; a pale blue shade under them first, then their lit white tops, a little
+ * up and to the left (the light comes from there). Flat and soft: an illustration's cloud.
+ */
+function cumulus(g: CanvasRenderingContext2D, cx: number, base: number, r: number, st: number, rand: () => number, puffs = 6): void {
+  const row = cumulusRow(cx, r, rand, puffs);
+  for (const { x, size } of row) puff(g, x, base - size * 0.5 * st, size, st, CLOUD_SHADE, 0.92);
+  for (const { x, size } of row) puff(g, x - size * 0.1, base - size * 0.72 * st, size * 0.86, st, '#ffffff', 0.97);
+}
+
+/** A cloud's shade, under its lit white tops. */
+const CLOUD_SHADE = '#b9d8f2';
+
+/** A cumulus's puffs about `cx`, `r` its largest: side by side, the middle ones the tallest, each a little off its place. */
+function cumulusRow(cx: number, r: number, rand: () => number, puffs: number): { x: number; size: number }[] {
+  return Array.from({ length: puffs }, (_, i) => {
+    const t = puffs > 1 ? i / (puffs - 1) : 0.5;
+    const size = r * (0.5 + 0.5 * Math.sin(Math.PI * t)) * (0.85 + 0.3 * rand());
+    return { x: cx + (t - 0.5) * r * 0.62 * puffs + (rand() - 0.5) * r * 0.2, size };
+  });
+}
+
+/**
+ * A cumulus seen faintly, at `alpha` (cumulus's shape): its shade and its lit tops each one soft
+ * shape, evenly see-through. Puffs drawn see-through one by one would show every place two of them
+ * overlap; here each layer is one outline, filled once (as a shadow thrown from off the canvas: an
+ * even fill with a soft edge).
+ */
+function faintCumulus(g: CanvasRenderingContext2D, cx: number, base: number, r: number, st: number, rand: () => number, puffs: number, alpha: number): void {
+  const row = cumulusRow(cx, r, rand, puffs);
+  const away = 8192;
+  const layer = (tone: string, a: number, place: (p: { x: number; size: number }) => [number, number, number]) => {
+    g.save();
+    g.shadowColor = shade(tone, 1, a);
+    g.shadowBlur = r * 0.16;
+    g.shadowOffsetX = away;
+    g.fillStyle = '#000000';
+    g.beginPath();
+    for (const p of row) {
+      const [x, y, size] = place(p);
+      g.moveTo(x - away + size, y);
+      g.ellipse(x - away, y, size, size * st, 0, 0, Math.PI * 2);
+    }
+    g.fill();
+    g.restore();
+  };
+  layer(CLOUD_SHADE, 0.92 * alpha, ({ x, size }) => [x, base - size * 0.5 * st, size]);
+  layer('#ffffff', 0.97 * alpha, ({ x, size }) => [x - size * 0.1, base - size * 0.72 * st, size * 0.86]);
+}
+
+/** A thin white hairline from `a` through `via` to `b` (a quadratic curve), fading out at both its ends: a wind trail. */
+function trail(g: CanvasRenderingContext2D, a: [number, number], via: [number, number], b: [number, number], width: number, alpha: number): void {
+  const fade = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+  fade.addColorStop(0, white(0));
+  fade.addColorStop(0.18, white(alpha));
+  fade.addColorStop(0.82, white(alpha));
+  fade.addColorStop(1, white(0));
+  g.strokeStyle = fade;
+  g.lineWidth = width;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(a[0], a[1]);
+  g.quadraticCurveTo(via[0], via[1], b[0], b[1]);
+  g.stroke();
+}
+
+/** SKY's mark, a white feather `r` long about (cx, cy), leaning to the right: its vane, the shaft curving down out of it, two nicks in the vane's edge. */
+function feather(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, st: number, notch: string): void {
+  g.save();
+  g.translate(cx, cy);
+  g.scale(1, st);
+  g.rotate(0.56);
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.moveTo(0, -r);
+  g.bezierCurveTo(r * 0.6, -r * 0.62, r * 0.5, r * 0.2, r * 0.02, r * 0.52);
+  g.bezierCurveTo(-r * 0.46, r * 0.22, -r * 0.44, -r * 0.5, 0, -r);
+  g.fill();
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = Math.max(0.6, r * 0.075);
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(0, r * 0.2);
+  g.quadraticCurveTo(r * 0.02, r * 0.75, -r * 0.16, r * 1.12);
+  g.stroke();
+  // the nicks: the sky showing through
+  g.strokeStyle = notch;
+  g.lineWidth = Math.max(0.5, r * 0.06);
+  for (const [x, y] of [[r * 0.46, -r * 0.14], [-r * 0.4, 0], [r * 0.4, r * 0.16]] as const) {
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x * 0.3, y + r * 0.2);
+    g.stroke();
+  }
+  // the shaft, a faint line of shade up the vane
+  g.strokeStyle = notch;
+  g.globalAlpha = 0.45;
+  g.lineWidth = Math.max(0.4, r * 0.04);
+  g.beginPath();
+  g.moveTo(0, -r * 0.78);
+  g.lineTo(0, r * 0.3);
+  g.stroke();
+  g.restore();
+}
+
+/**
+ * SKY (하늘): the sky skin's gear, as wide as the track and no wider. Under the judge line a thin navy
+ * strip with a dash to a lane, the held lane's lit cyan (deckKeys); under it, past a white line, the
+ * deck is a window onto the sky: a deep clear blue easing lighter toward the player, cumulus low in it
+ * and toward its two ends (its middle kept clear), thin white wind trails across it, and a feather over
+ * the score. The score is written on the sky itself, a hairline under it; the speed and the rate in
+ * two see-through pills (deckReadouts). A matte illustration: no sun, no rays, nothing glints.
+ */
+function skyPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+  const st = s.stretch;
+  const W = s.width;
+  // the strip and its dashes
+  const kh = SKY.keys * st;
+  const strip = g.createLinearGradient(0, 0, 0, kh);
+  strip.addColorStop(0, '#14294a');
+  strip.addColorStop(1, '#0a1730');
+  g.fillStyle = strip;
+  g.fillRect(0, 0, W, kh);
+  g.fillStyle = 'rgba(160,196,232,0.82)';
+  for (const lane of s.lanes) {
+    const dash = dashBox(lane, st);
+    rounded(g, dash, dash.h / (2 * st), st);
+    g.fill();
+  }
+  const top = (SKY.keys + SKY.seam) * st;
+  const H = (SKY.upper + SKY.lower) * st;
+  // the sky: over the readouts' steps, and paler on below them
+  const sky = g.createLinearGradient(0, top, 0, top + H);
+  SKY_BLUES.forEach((c, i) => sky.addColorStop(i / (SKY_BLUES.length - 1), c));
+  g.fillStyle = sky;
+  g.fillRect(0, top, W, s.depth - top);
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  // the wind trails, behind the clouds
+  trail(g, [-0.02 * W, top + 0.4 * H], [0.42 * W, top + 0.02 * H], [1.02 * W, top + 0.32 * H], 0.8, 0.7);
+  trail(g, [0.08 * W, top + 0.98 * H], [0.5 * W, top + 0.44 * H], [1.02 * W, top + 0.6 * H], 0.8, 0.6);
+  trail(g, [-0.02 * W, top + 0.66 * H], [0.36 * W, top + 0.86 * H], [0.8 * W, top + 1.02 * H], 0.7, 0.45);
+  // the clouds: a cumulus standing at each end of the deck, smaller ones behind and beside them, the
+  // middle (the score's) kept clear (the same every time)
+  const rand = seeded(83);
+  const u = H / st / 110;
+  for (const [x, y, r, n] of [
+    [0.22, 0.62, 8, 4],
+    [0.8, 0.56, 7, 4],
+    [0.3, 1.04, 13, 4],
+    [0.71, 1.06, 12, 4],
+    [0.07, 1.1, 50, 4],
+    [0.93, 1.1, 43, 4],
+    [0.2, 1.12, 22, 4],
+    [0.81, 1.14, 20, 4],
+  ] as const) {
+    cumulus(g, x * W, top + y * H, r * u, st, rand, n);
+  }
+  // below the readouts a bank of cloud, falling into shade (a tall view shows a long way down the deck)
+  if (s.depth > top + H) {
+    const bank = g.createLinearGradient(0, top + H, 0, Math.min(s.depth, top + 2.2 * H));
+    bank.addColorStop(0, 'rgba(226,240,251,0)');
+    bank.addColorStop(0.25, 'rgba(226,240,251,0.85)');
+    bank.addColorStop(0.5, 'rgba(160,190,222,0.9)');
+    bank.addColorStop(1, 'rgba(24,40,72,0.94)');
+    g.fillStyle = bank;
+    g.fillRect(0, top + H, W, s.depth - top - H);
+  }
+  g.restore();
+  // the white line along the sky's far edge
+  g.fillStyle = white(0.92);
+  g.fillRect(0, kh, W, SKY.seam * st);
+  mark(s, 'sky', { x: 0, y: top, w: W, h: Math.min(s.depth - top, H) });
+  const windows = deckReadouts('sky', s);
+  if (!windows) return;
+  // the feather over the score, and the hairline under it
+  const quill = Math.min(12, (windows.score.y - top) / st / 2.5);
+  const at = { x: W / 2, y: top + (windows.score.y - top) / 2 };
+  feather(g, at.x, at.y, quill, st, SKY_BLUES[0]);
+  mark(s, 'feather', { x: at.x - quill * 1.6, y: at.y - quill * 1.6 * st, w: quill * 3.2, h: quill * 3.2 * st });
+  const rule = g.createLinearGradient(W * 0.28, 0, W * 0.72, 0);
+  rule.addColorStop(0, white(0));
+  rule.addColorStop(0.2, white(0.75));
+  rule.addColorStop(0.8, white(0.75));
+  rule.addColorStop(1, white(0));
+  g.fillStyle = rule;
+  g.fillRect(W * 0.28, windows.score.y + windows.score.h + 1.5 * st, W * 0.44, Math.max(1, 0.8 * st));
+  // the speed's and the rate's pills: the sky seen through a darker glass, a white hairline round each
+  for (const pill of [windows.speed, windows.rate]) {
+    rounded(g, pill, pill.h / (2 * st), st);
+    g.fillStyle = 'rgba(14,44,92,0.5)';
+    g.fill();
+    g.lineWidth = 0.8;
+    g.strokeStyle = white(0.62);
+    g.stroke();
+  }
+}
+
+/**
+ * A gear's picture laid over the lanes, from the track's far end (the canvas's top) to the judge line
+ * (its bottom): the deck's own, very faint, under the notes (docs/GEAR_NOTE_FX_RESEARCH.md 7: the
+ * lanes stay plainly darker than the deck and than every note). Painted see-through over the track's
+ * floor; none for a gear that leaves the lanes as they are. `st`: how many times longer along the
+ * track than across it a thing is drawn to look round by the judge line (the picture's px are not
+ * square on the track, and the camera flattens it).
+ */
+export type FloorPaint = (g: CanvasRenderingContext2D, w: number, h: number, st: number) => void;
+export const GEAR_FLOORS: Partial<Record<GearStyle, FloorPaint>> = {
+  sky: skyFloor,
+};
+
+/**
+ * SKY's wind trails over the lanes, as the skin's picture has them (design-mockups/gear-concepts/
+ * r2-skin-sky-c3.jpg): three strands rising from low by the left rail to the right in a long S,
+ * steep, then easing across the middle lanes, then steep again toward the right rail. The first and
+ * the last are the bright ones; the second runs close under the first, thinner, and leaves it to die
+ * out in the middle of the track. Each point is where a strand crosses the track: [share of the
+ * track's width from its left edge, track units up from the judge line] on a track SKY_TRACK units
+ * long. Read off the picture row by row (its lanes laid flat) and brought to the game's own view (the
+ * default camera's, measured off a grid drawn on the lanes): on the screen they lie where the
+ * picture has them.
+ */
+const SKY_STRANDS: readonly { alpha: number; width: number; points: readonly (readonly [number, number])[] }[] = [
+  {
+    alpha: 0.6,
+    width: 1,
+    // prettier-ignore
+    points: [[0.037, 2.21], [0.055, 2.99], [0.066, 3.37], [0.08, 3.86], [0.098, 4.34], [0.117, 4.83], [0.143, 5.31], [0.169, 5.8], [0.202, 6.28], [0.241, 6.77], [0.278, 7.26], [0.328, 7.74], [0.385, 8.23], [0.438, 8.72], [0.494, 9.21], [0.548, 9.69], [0.599, 10.18], [0.64, 10.67], [0.674, 11.16], [0.705, 11.65], [0.733, 12.14], [0.759, 12.63], [0.781, 13.12], [0.801, 13.61], [0.818, 14.1], [0.833, 14.6], [0.845, 15.09], [0.858, 15.68], [0.869, 16.37]],
+  },
+  {
+    alpha: 0.32,
+    width: 0.75,
+    // prettier-ignore
+    points: [[0.056, 2.4], [0.07, 2.99], [0.082, 3.37], [0.1, 3.86], [0.121, 4.34], [0.145, 4.83], [0.173, 5.31], [0.2, 5.8], [0.235, 6.28], [0.276, 6.77], [0.309, 7.26], [0.353, 7.74], [0.407, 8.23], [0.46, 8.72], [0.523, 9.21], [0.587, 9.84], [0.653, 10.52], [0.703, 11.01], [0.764, 11.41]],
+  },
+  {
+    alpha: 0.58,
+    width: 1,
+    // prettier-ignore
+    points: [[0.164, 2.4], [0.172, 2.99], [0.179, 3.37], [0.196, 3.86], [0.216, 4.34], [0.241, 4.83], [0.27, 5.31], [0.299, 5.8], [0.337, 6.28], [0.385, 6.77], [0.44, 7.26], [0.498, 7.74], [0.559, 8.23], [0.614, 8.72], [0.662, 9.21], [0.713, 9.69], [0.751, 10.18], [0.786, 10.67], [0.818, 11.16], [0.846, 11.65], [0.87, 12.14], [0.892, 12.63], [0.908, 13.12], [0.926, 13.61], [0.942, 14.1], [0.956, 14.69], [0.968, 15.48]],
+  },
+];
+const SKY_TRACK = 40;
+/**
+ * How far behind the judge line the default camera's eye is, in track units along the track (measured
+ * off the same grid): a thing `z` up the track shows 1 + z / SKY_EYE times smaller than at the line,
+ * and the track that much flatter again (the strands are drawn that much wider and longer, to look
+ * one hairline all the way).
+ */
+const SKY_EYE = 14.9;
+
+/** A smooth line through `points` (Catmull-Rom), `steps` points to each span. */
+function smoothed(points: readonly (readonly [number, number])[], steps: number): [number, number][] {
+  const out: [number, number][] = [];
+  const p = (i: number) => points[Math.min(points.length - 1, Math.max(0, i))];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const [a, b, c, d] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps;
+      const at = (n: 0 | 1) => 0.5 * (2 * b[n] + (c[n] - a[n]) * t + (2 * a[n] - 5 * b[n] + 4 * c[n] - d[n]) * t * t + (3 * b[n] - 3 * c[n] + d[n] - a[n]) * t * t * t);
+      out.push([at(0), at(1)]);
+    }
+  }
+  out.push([...points[points.length - 1]] as [number, number]);
+  return out;
+}
+
+/**
+ * One strand of SKY_STRANDS on the lanes' picture: a ribbon as thin on the screen all its way (drawn
+ * wider and, where it runs across the track, longer the further up the track it is), fading out at
+ * both its ends. `hair`: a hairline's width at the judge line, in the picture's px across.
+ */
+function strand(g: CanvasRenderingContext2D, w: number, h: number, st: number, s: (typeof SKY_STRANDS)[number], hair: number): void {
+  const line = smoothed(s.points, 4).map(([f, z]) => ({ x: f * w, y: h * (1 - z / SKY_TRACK), grow: 1 + z / SKY_EYE }));
+  const sides: [number, number][][] = [[], []];
+  line.forEach((p, i) => {
+    const [a, b] = [line[Math.max(0, i - 1)], line[Math.min(line.length - 1, i + 1)]];
+    // its direction as the screen shows it: the track's length flattened
+    const long = st * p.grow;
+    const [tx, ty] = [b.x - a.x, (b.y - a.y) / long];
+    const len = Math.hypot(tx, ty) || 1;
+    const half = (hair * s.width * p.grow) / 2;
+    const [nx, ny] = [(-ty / len) * half, (tx / len) * half * long];
+    sides[0].push([p.x + nx, p.y + ny]);
+    sides[1].push([p.x - nx, p.y - ny]);
+  });
+  const [first, last] = [line[0], line[line.length - 1]];
+  const fade = g.createLinearGradient(first.x, first.y, last.x, last.y);
+  fade.addColorStop(0, white(0));
+  fade.addColorStop(0.1, white(s.alpha));
+  fade.addColorStop(0.84, white(s.alpha));
+  fade.addColorStop(1, white(0));
+  g.fillStyle = fade;
+  g.beginPath();
+  sides[0].forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
+  for (let i = sides[1].length - 1; i >= 0; i--) g.lineTo(sides[1][i][0], sides[1][i][1]);
+  g.closePath();
+  g.fill();
+}
+
+/**
+ * SKY's lanes, as the skin's picture has them (r2-skin-sky-c3.jpg: the colours are read off its lanes
+ * laid flat): a deep navy from the far end down to a quarter of the way from the judge line, easing
+ * from there to a dim slate blue at the line (well under half the deck's brightness at its brightest),
+ * a low bank of cloud at its palest standing on the line under the middle lanes, and the three wind
+ * trails (SKY_STRANDS), still: nothing on it moves, and none of it is as bright as a note.
+ */
+function skyFloor(g: CanvasRenderingContext2D, w: number, h: number, st: number): void {
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  // by how far up the track (units of SKY_TRACK)
+  for (const [z, colour] of [
+    [40, '18,20,36'],
+    [21.5, '20,22,45'],
+    [11.7, '20,24,51'],
+    [8.7, '22,28,56'],
+    [6.8, '29,37,65'],
+    [4.8, '37,50,78'],
+    [3.4, '47,65,99'],
+    [2.5, '54,77,111'],
+    [1.7, '59,86,121'],
+    [1, '64,92,128'],
+    [0.4, '76,103,139'],
+    [0, '82,110,146'],
+  ] as const) {
+    sky.addColorStop(1 - z / SKY_TRACK, `rgba(${colour},0.92)`);
+  }
+  g.fillStyle = sky;
+  g.fillRect(0, 0, w, h);
+  // the bank of cloud standing on the line: a cumulus under the middle lanes, a lower one to its right,
+  // wisps toward the rails. The picture's last rows are left the plain sky: they are what shows on
+  // from the line to the gear
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, w, h - 3);
+  g.clip();
+  const rand = seeded(47);
+  for (const [x, r, n] of [
+    [0.46, 0.09, 5],
+    [0.7, 0.056, 4],
+    [0.13, 0.04, 3],
+    [0.9, 0.04, 3],
+  ] as const) {
+    faintCumulus(g, x * w, h + r * w * 0.25 * st, r * w, st, rand, n, 0.17);
+  }
+  g.restore();
+  for (const s of SKY_STRANDS) strand(g, w, h, st, s, Math.max(1.1, w / 440));
+}
+
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
   prism: crystalPlate,
+  sky: skyPlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -2655,6 +3091,48 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillStyle = shade(CRYSTAL_ICE, 1, lit ? 1 : 0.8);
       g.fillRect(w - 3.6 * k, 0, 0.9 * k, h);
       g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 0.8 * k, h);
+    },
+  }),
+  // SKY: a slim strip of sky-tinted glass, a dark seam outside, a white hairline along the lanes, and
+  // fine tick marks along it as on an altimeter's scale, a longer one in each tile (in FEVER the glass
+  // brighter and the hairline cyan)
+  sky: () => ({
+    body: '#6fb3e6',
+    width: 14,
+    tile: 40,
+    height: 14,
+    // the strip's side: the glass seen through its edge, white under its top, deep blue at its foot
+    face: (g, w, h, k, lit) => {
+      const side = g.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.2, lit ? '#b6e6ff' : '#93cdf4');
+      side.addColorStop(0.6, '#3d7cc0');
+      side.addColorStop(1, '#152c50');
+      g.fillStyle = side;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = lit ? SKY_CYAN : white(0.7);
+      g.fillRect(0, 2.2 * k, w, 0.9 * k);
+    },
+    paint: (g, w, h, k, lit) => {
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#0d2038');
+      across.addColorStop(0.1, '#3a78ba');
+      across.addColorStop(0.5, lit ? '#9bdcff' : '#74b6ea');
+      across.addColorStop(0.84, lit ? '#c8eeff' : '#a6d5f5');
+      across.addColorStop(0.9, lit ? SKY_CYAN : '#ffffff');
+      across.addColorStop(1, '#ffffff');
+      g.fillStyle = across;
+      g.fillRect(0, 0, w, h);
+      // the scale: five ticks to a tile, the middle one longer (a tile mirrors at every other: evenly on)
+      g.fillStyle = white(0.8);
+      const thick = Math.max(1, 0.7 * k);
+      for (let i = 0; i < 5; i++) {
+        const y = ((i + 0.5) * h) / 5 - thick / 2;
+        const long = i === 2;
+        g.fillRect(w * (long ? 0.16 : 0.42), y, w * (long ? 0.64 : 0.38), thick);
+      }
+      g.fillStyle = black(0.55);
       g.fillRect(0, 0, 0.8 * k, h);
     },
   }),

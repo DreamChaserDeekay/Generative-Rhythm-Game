@@ -84,6 +84,7 @@ describe('the concept sets drawn from art', () => {
     // the track as it starts: the default skin, drawn in code alone (as the PRISM set is)
     expect(styleImageIds(BASE_SKIN.style)).toEqual([]);
     expect(styleImageIds({ note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' })).toEqual([]);
+    expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual([]);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // three hits of no set have flipbooks of their own, as the sets' hits do (FLASH is drawn in code alone)
     for (const hit of ['flare', 'bubbles', 'grid', 'crystal'] as const) expect(styleTextures({ ...arcade, hit })).toEqual({ hitBurst: `${hit}/hitBurst`, hitHold: `${hit}/hitHold` });
@@ -199,11 +200,12 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['flash', 'prism', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
-    // PRISM's and FLASH (the default skin's) are drawn in code alone
+    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    // the skins' (PRISM's, SKY's and FLASH, the default skin's) are drawn in code alone
     expect(isArtHit('prism')).toBe(false);
+    expect(isArtHit('sky')).toBe(false);
     expect(isArtHit('flash')).toBe(false);
-    for (const hit of HIT_STYLES.filter((h) => h !== 'prism' && h !== 'flash')) {
+    for (const hit of HIT_STYLES.filter((h) => h !== 'prism' && h !== 'sky' && h !== 'flash')) {
       expect(isArtHit(hit), hit).toBe(true);
       const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
       for (const id of [hitBurst, hitHold]) {
@@ -332,6 +334,7 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   rawglass: { deck: 'rawglass/deck' },
   // drawn in code alone
   prism: {},
+  sky: {},
 };
 
 /** The things on each gear's deck drawn from pictures, and how many of each: none is a lane's (PIANO's keys are drawn in code). */
@@ -351,13 +354,14 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   // none: its glass is all its deck
   rawglass: {},
   prism: {},
+  sky: {},
 };
 
 /** Whether two boxes on the canvas overlap (touching is not). */
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
 // STANDARD and PRISM have no pictures: they are drawn in code alone
-describe.each(GEAR_STYLES.filter((gear) => gear !== 'prism' && gear !== 'standard').map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
+describe.each(GEAR_STYLES.filter((gear) => gear !== 'prism' && gear !== 'sky' && gear !== 'standard').map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);

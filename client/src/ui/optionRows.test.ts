@@ -29,6 +29,7 @@ describe('the skin row', () => {
     expect(skinChoices('default')).toEqual([
       ['default', '기본'],
       ['crystal', '크리스털'],
+      ['sky', '하늘'],
     ]);
     expect(skinChoices('crystal')).toEqual(skinChoices('default'));
     // picked part by part: the row reads 직접 고름, the last of its choices (a step either way lands on a skin)
@@ -41,8 +42,10 @@ describe('the skin row', () => {
   it('names a skin as its gear and its notes are named, and lists each part’s default first', () => {
     expect([SKIN_NAMES.default, DECK_NAMES.standard, NOTE_NAMES.flat]).toEqual(['기본', '기본', '기본']);
     expect([SKIN_NAMES.crystal, DECK_NAMES.prism, NOTE_NAMES.prism, HIT_NAMES.prism]).toEqual(['크리스털', '크리스털', '크리스털', '크리스털 분광']);
-    expect(PART_CHOICES.note.slice(0, 2).map(([id]) => id)).toEqual(['flat', 'prism']);
-    expect(PART_CHOICES.deck.slice(0, 2).map(([id]) => id)).toEqual(['standard', 'prism']);
-    expect(PART_CHOICES.hit.slice(0, 2).map(([id]) => id)).toEqual(['flash', 'prism']);
+    expect([SKIN_NAMES.sky, DECK_NAMES.sky, NOTE_NAMES.sky, HIT_NAMES.sky]).toEqual(['하늘', '하늘', '하늘', '구름 깃털']);
+    // the skins' parts lead each list, in the skins' order
+    expect(PART_CHOICES.note.slice(0, 3).map(([id]) => id)).toEqual(['flat', 'prism', 'sky']);
+    expect(PART_CHOICES.deck.slice(0, 3).map(([id]) => id)).toEqual(['standard', 'prism', 'sky']);
+    expect(PART_CHOICES.hit.slice(0, 3).map(([id]) => id)).toEqual(['flash', 'prism', 'sky']);
   });
 });

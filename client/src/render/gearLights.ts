@@ -588,9 +588,44 @@ function prismLights(): GearLightSet {
   return { lights: [plate('score', 1024, 240, 1000, 110), plate('speed', 330, 400, 400, 100), plate('rate', 1718, 400, 400, 100)] };
 }
 
+/**
+ * SKY: nothing glints. Its feather takes a soft white light on the beat (a slow breath under 번쩍임
+ * 줄이기), and in FEVER the sky itself brightens a little with each beat, as when a cloud lets the sun by.
+ */
+function skyLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 150,
+        w: 150,
+        h: 150,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.2 + 0.15 * swell(c.beat, 4) : 0.12 + 0.5 * fade(frac(c.beat), 3)),
+        mark: 'feather',
+        grow: 1.3,
+      },
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 330,
+        w: 2048,
+        h: 420,
+        colour: 0xcfeaff,
+        // a bright deck: the light it gets is soft, or it would wash out to white
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.1 : 0.05 + 0.12 * fade(frac(c.beat), 3)),
+        mark: 'sky',
+        grow: 1,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
+  sky: skyLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

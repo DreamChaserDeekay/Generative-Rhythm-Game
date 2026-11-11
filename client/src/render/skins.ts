@@ -24,6 +24,8 @@ export const HUD_FONTS = {
   'Chakra Petch': { weight: 700, italic: true },
   Orbitron: { weight: 800, italic: false },
   'Exo 2': { weight: 700, italic: true },
+  // the sky skin's: rounded strokes, heavy and slanted
+  Nunito: { weight: 800, italic: true },
   Cinzel: { weight: 700, italic: false },
   // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
   'DSEG7 Classic': { weight: 700, italic: false },
@@ -55,11 +57,12 @@ export interface HudType {
   /** A bar of this colour under the judgement. */
   bar?: string;
   /**
-   * The letters cut into flat planes, as a stone's facets (the crystal skin's): the HUD writes each
-   * word so its styles can lay the planes over it (Hud.ts: data-cut; styles.css: .hud-cut), and the
-   * judgements' colours are that cut's own.
+   * The letters' fill laid over them by the HUD's styles in layers, where one flat colour will not
+   * do (styles.css: .hud-fill): the crystal skin's flat planes cut at one angle, as a stone's facets;
+   * the sky skin's white easing to sky blue. The HUD writes each word so the styles can lay it
+   * (Hud.ts: data-fill), and the judgements' colours are that fill's own.
    */
-  cut?: 'crystal';
+  fill?: 'crystal' | 'sky';
   /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
   comboFont?: HudFont;
   comboColor?: string;
@@ -106,12 +109,13 @@ export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, c
  * skin's parts, nor are the lanes or the song's plate. A skin is nothing saved: it is the parts it
  * sets (skinOf reads it back from them).
  */
-export type SkinId = 'default' | 'crystal';
-export const SKIN_IDS: SkinId[] = ['default', 'crystal'];
-/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash) and 크리스털 (its parts are saved as 'prism'). */
+export type SkinId = 'default' | 'crystal' | 'sky';
+export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky'];
+/** Each skin's parts: 기본 (the plain notes, the standard gear, the flash), 크리스털 (its parts are saved as 'prism') and 하늘. */
 export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
   default: { note: 'flat', deck: 'standard', hit: 'flash' },
   crystal: { note: 'prism', deck: 'prism', hit: 'prism' },
+  sky: { note: 'sky', deck: 'sky', hit: 'sky' },
 };
 
 /**

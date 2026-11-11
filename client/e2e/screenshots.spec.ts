@@ -382,6 +382,30 @@ test('play: the crystal skin', async ({ page }) => {
   }
 });
 
+test('play: the sky skin', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "sky skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  const parts = { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '53-sky-7k'],
+    ['6K+FX', { fever: 'OFF' }, '54-sky-6kfx'],
+    ['4K', {}, '55-sky-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');
