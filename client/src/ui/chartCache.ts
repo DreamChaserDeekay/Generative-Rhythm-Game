@@ -159,6 +159,12 @@ export class ChartStore {
   private readonly pending = new Map<string, Promise<unknown>>();
   private readonly listeners = new Set<() => void>();
   private version = 0;
+  /**
+   * The charts the player asked the server to make and that are not back yet (Enter on a tier, a
+   * new pattern), by chart key. Kept here, not in the song select: the server goes on making them
+   * while another screen is up, and the plate still says so when the song select is back.
+   */
+  private readonly asked = new Set<string>();
 
   constructor(private readonly fetchers: Fetchers) {}
 
@@ -169,6 +175,24 @@ export class ChartStore {
 
   /** Changes with everything stored (React re-renders on it). */
   readonly getVersion = (): number => this.version;
+
+  /** Marks a chart asked for (on) or back (off). */
+  markMaking(key: string, on: boolean): void {
+    if (on === this.asked.has(key)) return;
+    if (on) this.asked.add(key);
+    else this.asked.delete(key);
+    this.changed();
+  }
+
+  /** The player asked for this chart and it is not back yet. */
+  isMaking(key: string): boolean {
+    return this.asked.has(key);
+  }
+
+  /** Some chart asked for is not back yet. */
+  get makingAny(): boolean {
+    return this.asked.size > 0;
+  }
 
   brief(key: string): ChartBrief | null {
     return this.briefs.get(key) ?? null;

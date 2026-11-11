@@ -154,18 +154,9 @@ export function SongSelectScreen(props: Props) {
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  // the charts this screen waits for the server to make, by chart key (Enter on a tier, F5): their
-  // plates say so (Mapperatorinator's take minutes: the server's own word, making or queued,
-  // replaces it as the briefs come in) and nothing else is marked
-  const [makingKeys, setMakingKeys] = useState<ReadonlySet<string>>(() => new Set());
-  const makingRef = useRef<Set<string>>(new Set());
-  const markMaking = (key: string, on: boolean) => {
-    const next = new Set(makingRef.current);
-    if (on) next.add(key);
-    else next.delete(key);
-    makingRef.current = next;
-    setMakingKeys(next);
-  };
+  // the charts the player asked the server to make (Enter on a tier, F5) are kept by the chart
+  // store, so their plates still say so after a visit to another screen (the server goes on)
+  const markMaking = (key: string, on: boolean) => chartStore.markMaking(key, on);
   // a word about a chart Mapperatorinator is making, or has made, under the song list
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -413,7 +404,7 @@ export function SongSelectScreen(props: Props) {
   // ask again every few seconds, so a chart made shows its level and notes
   const aiPending =
     selected !== null && ready && chartStore.aiCharts && prefetchKey !== null
-      ? makingKeys.size > 0 ||
+      ? chartStore.makingAny ||
         tiers.some((t) => {
           const b = chartStore.brief(tierChart(selected, t.id).key);
           return b?.predicted === true && (b.making === true || b.queued === true);
@@ -430,6 +421,16 @@ export function SongSelectScreen(props: Props) {
     }, AI_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [aiPending, prefetchKey]);
+  // On the song select again (after the settings, a play) or on another song: the server went on
+  // making charts meanwhile, so the plates of the charts not made yet ask once what became of them
+  // (being made, waiting, made); while one is made the round above goes on asking.
+  useEffect(() => {
+    if (!selected || !ready || !chartStore.aiCharts || prefetchKey === null) return;
+    for (const t of tiers) {
+      const { spec, key } = tierChart(selected, t.id);
+      if (spec && chartStore.brief(key)?.predicted) void chartStore.refreshBrief(spec);
+    }
+  }, [prefetchKey, health]);
 
   // The background video's shift in its sheet follows the song's saved one (not while it is being changed)
   useEffect(() => {
@@ -611,7 +612,7 @@ export function SongSelectScreen(props: Props) {
    */
   const makeAi = async (song: Song, tier: string, key: string, spec: ChartSpec) => {
     const name = `${song.title} ${tier}`;
-    if (makingRef.current.has(key)) {
+    if (chartStore.isMaking(key)) {
       setNotice(`${name} 채보는 만들고 있습니다. 다 되면 Enter로 플레이합니다.`);
       return;
     }
@@ -674,7 +675,7 @@ export function SongSelectScreen(props: Props) {
     // with Mapperatorinator (minutes) the screen stays free meanwhile, as for a chart asked for by Enter
     const ai = chartStore.aiCharts;
     if (ai) {
-      if (makingRef.current.has(plate)) return;
+      if (chartStore.isMaking(plate)) return;
       setNotice(`새 패턴을 만들고 있습니다: ${selected.title} ${difficulty} (곡 길이에 따라 1–3분).`);
     } else setBusy('새 패턴 만드는 중…');
     markMaking(plate, true);
@@ -1382,7 +1383,7 @@ export function SongSelectScreen(props: Props) {
       : entryFailed
         ? '채보를 만들지 못했습니다. Enter를 누르면 다시 만들고 이유를 알려 줍니다.'
         : entryBrief?.predicted
-          ? entryBrief.making || (entryChartKey !== null && makingKeys.has(entryChartKey))
+          ? entryBrief.making || (entryChartKey !== null && chartStore.isMaking(entryChartKey))
             ? '이 채보를 만들고 있습니다 (곡 길이에 따라 1–3분).'
             : entryBrief.queued
               ? '이 채보는 지금 만들고 있는 채보 다음에 만듭니다.'
@@ -1617,7 +1618,7 @@ export function SongSelectScreen(props: Props) {
                       record={record}
                       // with no play of its own, the best lamp of the tier's other charts, faint
                       other={brief && !record ? otherBest(recordsOn(selected, keyMode), t.id, brief.chartId) : null}
-                      generating={!savedEntry && makingKeys.has(key)}
+                      generating={!savedEntry && chartStore.isMaking(key)}
                       onPick={() => setDifficulty(t.id)}
                     />
                   );
@@ -1628,7 +1629,7 @@ export function SongSelectScreen(props: Props) {
               {savedOnMode.length > 0 && (
                 <section className="saved-charts" data-testid="saved-charts" aria-label="저장된 채보">
                   {savedOnMode.map((c) => (
-                    <SavedPlate key={c.chartId} chart={c} active={savedEntry?.chartId === c.chartId} record={recordOf(selected, c.chartId)} generating={makingKeys.has(savedChartKey(c.chartId))} onPick={() => pickEntry({ chartId: c.chartId })} />
+                    <SavedPlate key={c.chartId} chart={c} active={savedEntry?.chartId === c.chartId} record={recordOf(selected, c.chartId)} generating={chartStore.isMaking(savedChartKey(c.chartId))} onPick={() => pickEntry({ chartId: c.chartId })} />
                   ))}
                 </section>
               )}
