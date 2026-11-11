@@ -65,7 +65,7 @@ export const DECK_NAMES: Record<GearStyle, string> = {
 export const HIT_NAMES: Record<HitStyle, string> = {
   prism: '크리스털 분광',
   sky: '구름 깃털',
-  fire: '불꽃',
+  fire: '불꽃놀이',
   gpt: '물방울 왕관',
   gemini: '반짝임',
   grok: '엑스 섬광',

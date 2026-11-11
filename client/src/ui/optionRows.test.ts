@@ -55,7 +55,7 @@ describe('the skin row', () => {
     expect([SKIN_NAMES.default, DECK_NAMES.standard, NOTE_NAMES.flat]).toEqual(['기본', '기본', '기본']);
     expect([SKIN_NAMES.crystal, DECK_NAMES.prism, NOTE_NAMES.prism, HIT_NAMES.prism]).toEqual(['크리스털', '크리스털', '크리스털', '크리스털 분광']);
     expect([SKIN_NAMES.sky, DECK_NAMES.sky, NOTE_NAMES.sky, HIT_NAMES.sky]).toEqual(['하늘', '하늘', '하늘', '구름 깃털']);
-    expect([SKIN_NAMES.fire, DECK_NAMES.fire, NOTE_NAMES.fire, HIT_NAMES.fire]).toEqual(['파이어스타터', '파이어스타터', '파이어스타터', '불꽃']);
+    expect([SKIN_NAMES.fire, DECK_NAMES.fire, NOTE_NAMES.fire, HIT_NAMES.fire]).toEqual(['파이어스타터', '파이어스타터', '파이어스타터', '불꽃놀이']);
     for (const [id, name] of [['gpt', 'GPT'], ['gemini', 'Gemini'], ['grok', 'Grok'], ['claude', 'Claude']] as const) expect([SKIN_NAMES[id], DECK_NAMES[id], NOTE_NAMES[id]]).toEqual([name, name, name]);
     expect([HIT_NAMES.gpt, HIT_NAMES.gemini, HIT_NAMES.grok, HIT_NAMES.claude]).toEqual(['물방울 왕관', '반짝임', '엑스 섬광', '붓 빛살']);
     expect([SKIN_NAMES.aqua, DECK_NAMES.aqua, NOTE_NAMES.aqua, HIT_NAMES.aqua]).toEqual(['아쿠아', '아쿠아', '아쿠아', '록온']);

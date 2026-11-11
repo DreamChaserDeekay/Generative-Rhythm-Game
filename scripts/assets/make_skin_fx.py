@@ -173,13 +173,18 @@ FX = {
          "only a few small twinkling stars and specks of glitter are left, drifting outward and fading;",
          "almost nothing, the last one or two faint twinkles; frame 16 is black."],
     ),
+    # a firework, not a fire: the user's word on the first one (flame tongues in molten orange) was "it should feel like
+    # fireworks, and it looks like lava"
     "fire": (
-        "a fiery impact burst, white-hot at its core, molten orange and deep red toward its edges. It is light and fire only.",
-        ["a tiny white-hot point snaps open into a blinding star-shaped flash;",
-         "the flash blows outward into an irregular ring of licking flame tongues and thick, tapered sparks shooting out in all directions, the core still white;",
-         "the flame ring keeps expanding and tears apart into separate curling wisps of fire, the sparks fly further and stretch into thin streaks, glowing embers tumble, the core dims to orange;",
-         "only thin wisps, a few drifting embers and fading streaks are left, getting smaller and darker red;",
-         "almost nothing, the last two or three dying embers; frame 16 is black."],
+        "a FIREWORK shell bursting in a black night sky, as a firework looks in a short-exposure photograph: it is made ONLY of thin "
+        "straight streaks of light and tiny points of light. Crimson red and hot magenta-pink streaks with brilliant white-gold heads, "
+        "and gold glitter. There is NO flame, NO fire tongue, NO fireball, NO blob, NO cloud, NO smoke and NO lava anywhere: every "
+        "element is a fine line or a small sparkling dot, bright and crisp enough to read when the picture is shown small.",
+        ["a tiny white-gold point snaps open into a small blinding star with a first circle of very short thin streaks around it;",
+         "the shell bursts: sixty or more thin straight streaks shoot out radially in every direction and fill a round chrysanthemum, each streak with a brilliant white-gold bead at its head and a fine tapering crimson or hot-pink tail behind it, streaks of different lengths; the white core shrinks to a small glint;",
+         "the streaks reach their full length and their tails fade from the centre outward, so the middle of the burst is empty and black and the firework is a hollow sphere of bright heads; the heads slow down, begin to droop very slightly, and start to crackle, each breaking into a cluster of tiny twinkling gold and white glitter sparks;",
+         "only the crackling glitter is left, in a broken ring: tiny gold and white four-ray twinkles and pin-point sparks that blink on and off at different places in every frame, fewer and dimmer in each frame, a few of them falling a little;",
+         "almost nothing, the last two or three faint twinkles; frame 16 is black."],
     ),
 }
 
@@ -213,9 +218,11 @@ HOLD = {
     "sky": ("a small ball of warm sunlight in white, pale cyan and sky blue.",
             "a soft, bright, round white core with a sky-blue glow stays in the centre",
             "small wisps of white cloud curl and drift around the core, short soft sun rays turn slowly, and one or two tiny white feathers and sparkles float up and away in every frame"),
-    "fire": ("a small roaring flame, white-hot at its core, molten orange and deep red at its edges. It is light and fire only.",
-             "a white-hot core stays in the centre",
-             "tongues of orange flame lick outward in all directions with a different shape in every frame, and small glowing embers and short sparks fly off"),
+    "fire": ("the burning tip of a hand-held SPARKLER firework seen up close: a spray of thin sparks, made ONLY of fine straight lines and "
+             "tiny points of light, white-gold at the centre and crimson red and hot magenta-pink toward the ends. There is NO flame, NO "
+             "fire tongue, NO fireball, NO blob, NO smoke and NO lava anywhere.",
+             "a small brilliant white-gold core stays in the centre",
+             "dozens of hair-thin straight sparks spray out from it in all directions, many of them forking at their ends into two or three tiny branches as a sparkler's sparks do, with different directions and lengths in every frame, and tiny gold glitter points twinkle on and off around it"),
     "gpt": ("a bead of liquid light in emerald-teal green (#10a37f) and white, seen from above.",
             "a bright round white bead with a teal glow stays in the centre",
             "thin ripple rings pulse outward from the bead one after another, and small round droplets of teal light hop around it at different places in every frame"),

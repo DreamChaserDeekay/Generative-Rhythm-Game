@@ -2045,24 +2045,25 @@
 
 ### `styles/skinfx/fire_burst.jpg` · `fire_hold.jpg` (파이어스타터)
 
-- 치는 순간: 2026-11-11 14:06 UTC · PNG 3,603,055바이트 · sha256 앞 16자리 `4889d098a6893898` · 저장한 JPEG 362,901바이트 → `fx/fire_burst.webp` 1536×1536(127,524바이트), 9프레임 · 28.1fps
-- 누르는 동안: 2026-11-11 14:17 UTC · PNG 4,144,443바이트 · sha256 앞 16자리 `02e9dc3be826a192` · 저장한 JPEG 420,893바이트 → `fx/fire_hold.webp` 1024×1024(89,994바이트), 16프레임 · 24fps 반복
+- 치는 순간: 2026-11-11 15:56 UTC · PNG 4,030,333바이트 · sha256 앞 16자리 `aaa00b658bbb8bc4` · 저장한 JPEG 487,615바이트 → `fx/fire_burst.webp` 1536×1536(210,256바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 15:56 UTC · PNG 5,159,266바이트 · sha256 앞 16자리 `d860f482dd0fa855` · 저장한 JPEG 725,038바이트 → `fx/fire_hold.webp` 1024×1024(185,972바이트), 16프레임 · 24fps 반복
+- 두 번째 그림입니다. 처음 것(치는 순간 2026-11-11 14:06 UTC · sha256 앞 16자리 `4889d098a6893898`, 누르는 동안 14:17 UTC · `02e9dc3be826a192`)은 "a fiery impact burst, white-hot at its core, molten orange and deep red toward its edges"와 "a small roaring flame"으로 뽑은 녹은 주황색 불덩이와 불길이었고, 사용자가 "Firestarter는 불꽃놀이 느낌이 나야하는데 용암같다"고 해서 버렸습니다. 불꽃놀이로 프롬프트를 다시 써서 치는 순간 2장 · 누르는 동안 2장을 뽑았고, 치는 순간은 둘째 장(시작에 흰 섬광이 있고 반짝이가 네 갈래 별 모양), 누르는 동안은 첫째 장(불티가 가늘고 많아 스파클러에 더 가까움)을 골랐습니다.
 - 치는 순간의 효과와 움직임:
 
-  > THE EFFECT: a fiery impact burst, white-hot at its core, molten orange and deep red toward its edges. It is light and fire only.
+  > THE EFFECT: a FIREWORK shell bursting in a black night sky, as a firework looks in a short-exposure photograph: it is made ONLY of thin straight streaks of light and tiny points of light. Crimson red and hot magenta-pink streaks with brilliant white-gold heads, and gold glitter. There is NO flame, NO fire tongue, NO fireball, NO blob, NO cloud, NO smoke and NO lava anywhere: every element is a fine line or a small sparkling dot, bright and crisp enough to read when the picture is shown small.
   >
   > THE ANIMATION, one continuous motion across the 16 frames:
-  > - frames 1-2: a tiny white-hot point snaps open into a blinding star-shaped flash;
-  > - frames 3-5: the flash blows outward into an irregular ring of licking flame tongues and thick, tapered sparks shooting out in all directions, the core still white;
-  > - frames 6-10: the flame ring keeps expanding and tears apart into separate curling wisps of fire, the sparks fly further and stretch into thin streaks, glowing embers tumble, the core dims to orange;
-  > - frames 11-14: only thin wisps, a few drifting embers and fading streaks are left, getting smaller and darker red;
-  > - frames 15-16: almost nothing, the last two or three dying embers; frame 16 is black.
+  > - frames 1-2: a tiny white-gold point snaps open into a small blinding star with a first circle of very short thin streaks around it;
+  > - frames 3-5: the shell bursts: sixty or more thin straight streaks shoot out radially in every direction and fill a round chrysanthemum, each streak with a brilliant white-gold bead at its head and a fine tapering crimson or hot-pink tail behind it, streaks of different lengths; the white core shrinks to a small glint;
+  > - frames 6-10: the streaks reach their full length and their tails fade from the centre outward, so the middle of the burst is empty and black and the firework is a hollow sphere of bright heads; the heads slow down, begin to droop very slightly, and start to crackle, each breaking into a cluster of tiny twinkling gold and white glitter sparks;
+  > - frames 11-14: only the crackling glitter is left, in a broken ring: tiny gold and white four-ray twinkles and pin-point sparks that blink on and off at different places in every frame, fewer and dimmer in each frame, a few of them falling a little;
+  > - frames 15-16: almost nothing, the last two or three faint twinkles; frame 16 is black.
 
 - 누르는 동안의 효과와 움직임:
 
-  > THE EFFECT: a small roaring flame, white-hot at its core, molten orange and deep red at its edges. It is light and fire only.
+  > THE EFFECT: the burning tip of a hand-held SPARKLER firework seen up close: a spray of thin sparks, made ONLY of fine straight lines and tiny points of light, white-gold at the centre and crimson red and hot magenta-pink toward the ends. There is NO flame, NO fire tongue, NO fireball, NO blob, NO smoke and NO lava anywhere.
   >
-  > THE ANIMATION: in every frame a white-hot core stays in the centre, while tongues of orange flame lick outward in all directions with a different shape in every frame, and small glowing embers and short sparks fly off.
+  > THE ANIMATION: in every frame a small brilliant white-gold core stays in the centre, while dozens of hair-thin straight sparks spray out from it in all directions, many of them forking at their ends into two or three tiny branches as a sparkler's sparks do, with different directions and lengths in every frame, and tiny gold glitter points twinkle on and off around it.
 
 ### `styles/skinfx/gpt_burst.jpg` · `gpt_hold.jpg` (GPT)
 

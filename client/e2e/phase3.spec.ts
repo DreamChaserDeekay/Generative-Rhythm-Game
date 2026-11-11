@@ -639,7 +639,7 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
   await page.keyboard.press('ArrowRight');
   await expect(skin).toHaveAttribute('data-value', 'fire');
   await expect(skin).toContainText('파이어스타터');
-  await expect(page.getByTestId('opt-hit-style')).toContainText('불꽃');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('불꽃놀이');
   await expect.poll(async () => (await stored()).parts).toEqual({ note: 'fire', side: 'dots', deck: 'fire', hit: 'fire' });
   // the four AI companies' skins after it, each its own gear, notes and hit under the company's name
   for (const [id, name, hit] of [

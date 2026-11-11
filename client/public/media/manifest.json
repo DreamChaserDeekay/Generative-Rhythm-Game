@@ -371,12 +371,12 @@
       "flipbook": {
         "cols": 4,
         "rows": 4,
-        "frames": 9,
-        "fps": 28.1,
+        "frames": 11,
+        "fps": 34.4,
         "loop": false
       },
       "anchorY": 0.5,
-      "span": 0.82,
+      "span": 0.75,
       "plain": true
     },
     "fire/hitHold": {
