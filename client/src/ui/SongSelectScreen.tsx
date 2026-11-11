@@ -593,7 +593,7 @@ export function SongSelectScreen(props: Props) {
     }
     markMaking(key, true);
     setError(null);
-    setNotice(`AI 채보를 만들고 있습니다: ${name} (곡 길이에 따라 1–3분). 다른 채보는 그동안 플레이할 수 있습니다.`);
+    setNotice(`채보를 만들고 있습니다: ${name} (곡 길이에 따라 1–3분). 다른 채보는 그동안 플레이할 수 있습니다.`);
     try {
       const c = await chartStore.loadChart(spec, true);
       if (c) setNotice(`${name} 채보가 준비되었습니다 (레벨 ${c.meta.level}${aiMakingLabel(c.meta) ? `, ${aiMakingLabel(c.meta)}` : ''}). Enter로 플레이합니다.`);
@@ -651,7 +651,7 @@ export function SongSelectScreen(props: Props) {
     const ai = chartStore.aiCharts;
     if (ai) {
       if (makingRef.current.has(plate)) return;
-      setNotice(`AI가 새 패턴을 만들고 있습니다: ${selected.title} ${difficulty} (곡 길이에 따라 1–3분).`);
+      setNotice(`새 패턴을 만들고 있습니다: ${selected.title} ${difficulty} (곡 길이에 따라 1–3분).`);
     } else setBusy('새 패턴 만드는 중…');
     markMaking(plate, true);
     setError(null);
@@ -1338,10 +1338,10 @@ export function SongSelectScreen(props: Props) {
         ? '채보를 만들지 못했습니다. Enter를 누르면 다시 만들고 이유를 알려 줍니다.'
         : entryBrief?.predicted
           ? entryBrief.making || (entryChartKey !== null && makingKeys.has(entryChartKey))
-            ? 'AI가 이 채보를 만들고 있습니다 (곡 길이에 따라 1–3분).'
+            ? '이 채보를 만들고 있습니다 (곡 길이에 따라 1–3분).'
             : entryBrief.queued
-              ? 'AI 채보가 차례를 기다리고 있습니다.'
-              : 'AI 채보는 Enter를 누르면 만들기 시작합니다 (곡 길이에 따라 1–3분).'
+              ? '이 채보가 만들 차례를 기다리고 있습니다.'
+              : '이 채보는 Enter를 누르면 만들기 시작합니다 (곡 길이에 따라 1–3분).'
           : '채보를 계산하는 중…';
   const other = selected && entryBrief && !entryRecord ? otherBest(recordsOn(selected, keyMode), difficulty, entryBrief.chartId) : null;
   // an error, or what is being done: said by whichever part of the screen is in front (the song's
@@ -1855,10 +1855,6 @@ export function SongSelectScreen(props: Props) {
           songOffsetKeys={offsetKeysText(playKeysOf(settings))}
           onReanalyze={() => void reanalyze()}
           onRemoveSong={() => void remove()}
-          // the sections are part of what the charts are made of: the new chart comes by itself
-          onSectionsSaved={async () => {
-            await refresh();
-          }}
           onSyncTest={(byHand) => onPlay(syncTestRequest(keyMode, !byHand))}
           onCalibrate={props.onCalibrate}
           status={status}
@@ -2085,7 +2081,7 @@ function SongRow(props: { song: Song; d: number; reach: number; favorite: boolea
  * A difficulty of the song as a leaning plate: its name, the level of the chart Enter plays on it
  * (worked out as soon as the song is chosen) and that chart's lamp. The chosen one is filled with
  * its colour. Where the chart is not there yet, the lamp's place says why: being worked out, made
- * by the AI model when it is played, being made, waiting its turn, or not made.
+ * when it is played (nothing on the plate: every chart is made so), being made, waiting its turn, or not made.
  */
 function TierPlate(props: {
   tier: DifficultyTier;
@@ -2108,10 +2104,10 @@ function TierPlate(props: {
   // a tier Mapperatorinator has not made yet: being made, waiting its turn, or made when played
   const state = brief?.predicted
     ? brief.making || props.generating
-      ? ['생성 중', 'AI가 이 채보를 만들고 있습니다']
+      ? ['생성 중', '채보를 만들고 있습니다']
       : brief.queued
-        ? ['대기', 'AI 채보가 차례를 기다리고 있습니다']
-        : ['AI', 'AI 채보 · 플레이하면 만듭니다']
+        ? ['대기', '채보가 만들 차례를 기다리고 있습니다']
+        : ['', '플레이하면 채보를 만듭니다']
     : props.generating
       ? ['생성 중', '채보를 만들고 있습니다']
       : props.pending
@@ -2132,7 +2128,7 @@ function TierPlate(props: {
     >
       <span className="diff-in">
         <span className="diff-name">{t.label}</span>
-        {state ? <span className="diff-state">{state[0]}</span> : <Lamp lamp={record?.lamp ?? props.other?.lamp ?? null} faint={!record} />}
+        {state?.[0] ? <span className="diff-state">{state[0]}</span> : <Lamp lamp={record?.lamp ?? props.other?.lamp ?? null} faint={!record} />}
         <b className={`diff-level num ${level === null ? 'none' : ''} ${waiting ? 'level-pending' : ''}`} {...levelId}>
           {level ?? '–'}
         </b>

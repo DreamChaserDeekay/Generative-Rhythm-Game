@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type ServerChart, type Song } from '../api/client';
+import type { ServerChart, Song } from '../api/client';
 import type { KeysoundBank } from '../audio/keysounds';
 import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, padMenuKeysFor, patternKey, resetSettings, saveSettings, withEntry, withPattern, type Settings } from '../settings/settings';
+import { loadSettings, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
-import { GENERATION_PARAMS } from './chartCache';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
 import { PlayScreen } from './PlayScreen';
@@ -169,39 +168,6 @@ export function App() {
     window.addEventListener('beforeunload', ask);
     return () => window.removeEventListener('beforeunload', ask);
   }, [editor]);
-  // Every change of screen ends what an earlier screen started (a new pattern still generating).
-  const screenRun = useRef(0);
-  useEffect(() => {
-    screenRun.current++;
-  }, [screen]);
-  /**
-   * Result screen: the same key mode and tier with a new seed, played right
-   * away and kept as the tier's pattern (as F5 on the song select). Resolves with the error to
-   * show on the result screen, or null.
-   */
-  const regenerate = async (request: PlayRequest): Promise<string | null> => {
-    const meta = request.chart.meta;
-    if (!meta.songId || !meta.generator) return null;
-    const run = screenRun.current;
-    try {
-      const song = await api.song(meta.songId);
-      const { chart } = await api.generate(meta.songId, {
-        keyMode: meta.keyMode,
-        difficulty: meta.difficulty,
-        targetLevel: null,
-        newSeed: true,
-        params: GENERATION_PARAMS,
-      });
-      // the player left the result screen while it was generating
-      if (run !== screenRun.current) return null;
-      const seed = chart.meta.generator?.seed;
-      if (seed !== undefined) setSettings(withPattern(current.current, patternKey(song.id, meta.keyMode, meta.difficulty), seed));
-      play(buildPlayRequest(song, chart, settings, { autoPlay: request.autoPlay }));
-      return null;
-    } catch (e) {
-      return run === screenRun.current ? (e instanceof Error ? e.message : String(e)) : null;
-    }
-  };
   const testFromEditor = (chart: Chart, startMs: number) => {
     if (!editor) return;
     const endMs = Math.max(editor.song.durationMs, ...chart.notes.map((n) => n.endT ?? n.t)) + 1;
@@ -253,11 +219,6 @@ export function App() {
           }
           onBack={() => leavePlay(screen.request)}
           onWatchReplay={(replay) => play({ ...screen.request, replay, autoPlay: false, practice: undefined })}
-          onRegenerate={
-            screen.request.chart.meta.generator && !screen.request.practice && !screen.request.replay && !screen.request.fromEditor
-              ? () => regenerate(screen.request)
-              : undefined
-          }
         />
       );
     case 'calibration':

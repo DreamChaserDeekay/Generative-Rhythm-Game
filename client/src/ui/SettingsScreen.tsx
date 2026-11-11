@@ -1,6 +1,7 @@
 import mapperJson from '@config/mapper.json';
+import { createPortal } from 'react-dom';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { api, type BackendStatus, type MapperSettings, type MapperStatus } from '../api/client';
+import { api, type MapperSettings, type MapperStatus } from '../api/client';
 import { cameraConfig, enabledKeyModes, keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
 import { GamepadPoller, isPadCode, MENU_BUTTONS, MENU_PAD_CODE, padCodeLabel, suspendMenuBridges, type MenuButton, type PadEvent } from '../input/gamepad';
@@ -73,24 +74,22 @@ interface Props {
   onUndoReset: () => void;
 }
 
-export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'mapper' | 'advanced';
+export type SettingsTab = 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'mapper';
 
 /** The tabs in order: name and the line after it over the rows. */
 const TABS: [SettingsTab, string, string][] = [
-  ['play', '플레이', '다음 플레이부터 적용됩니다'],
+  ['play', '플레이', '다음 플레이부터 적용됩니다 · 맨 아래에 모두 초기화'],
   ['judge', '판정·싱크', '판정 기준과 입력·화면 지연 보정'],
   ['speed', '속도·커버', '움직이는 미리보기에 바로 보입니다'],
   ['gear', '기어', '움직이는 미리보기에 바로 보입니다'],
   ['notes', '노트', '모양과 레인마다의 색 · 미리보기에 바로 보입니다'],
-  ['fx', '연출·배경', '카메라 연출, 타격 효과와 플레이 배경'],
+  ['fx', '연출·배경', '화면 모드, 카메라 연출, 타격 효과와 플레이 배경'],
   ['sound', '소리', '음악과 효과음'],
   ['keys', '키 설정', '레인의 키와 플레이 중 키'],
   ['pad', '게임패드', '레인, 플레이 중 버튼, 전용 컨트롤러의 메뉴 버튼'],
-  ['mapper', 'AI 채보', '채보를 만드는 모델과 그 옵션'],
-  ['advanced', '고급', '화면 모드, 분석 백엔드와 초기화'],
+  ['mapper', '채보 생성기', '채보를 만드는 모델과 그 옵션'],
 ];
 
-const BACKEND_LABELS: Record<string, string> = { stems: '스템 분리', beats: '비트·다운비트', pitch: '음높이·음 길이', structure: '곡 구조' };
 const signedMs = (v: number) => `${v > 0 ? '+' : ''}${v}ms`;
 /** The gears by name, in the order their help texts go through them. */
 const GEAR_NAMES = PART_CHOICES.deck.map(([, name]) => name);
@@ -185,7 +184,7 @@ const CAPTURE_HINTS: Record<CaptureKind, KeyHint[]> = {
 /** Tabs with a number among their rows: Shift moves it by its bigger step. */
 const BIG_STEP_TABS: ReadonlySet<SettingsTab> = new Set(['judge', 'speed', 'gear', 'notes', 'fx', 'sound', 'pad', 'mapper']);
 /** Tabs with buttons among their rows (a preset kept or deleted, the mapper set up, the reset). */
-const BUTTON_TABS: ReadonlySet<SettingsTab> = new Set(['notes', 'mapper', 'advanced']);
+const BUTTON_TABS: ReadonlySet<SettingsTab> = new Set(['play', 'notes', 'mapper']);
 
 /** The keys of a tab (a pad's buttons beside them, shown while the pad works the menus). */
 function tabHints(tab: SettingsTab): KeyHint[] {
@@ -240,6 +239,9 @@ export function SettingsScreen({
   const [colorMode, setColorMode] = useState<KeyModeId>(settings.lastKeyMode);
   const [colorDraft, setColorDraft] = useState<number[] | null>(null);
   const rows = useRef<HTMLDivElement>(null);
+  /** The tab's name line and its rows: the arrows go through both (a tab's own button sits on its name's line). */
+  const main = useRef<HTMLElement>(null);
+  const [headAction, setHeadAction] = useState<HTMLDivElement | null>(null);
   /** What a key or pad control is being bound for in the 키 설정 or 게임패드 tab (the hints), or null. */
   const [capture, setCapture] = useState<CaptureKind | null>(null);
   /** The lane the arrows keep through a line of buttons between two of lanes (see arrowTarget). */
@@ -303,7 +305,7 @@ export function SettingsScreen({
       }
       const key = ARROWS[e.code];
       if (!key || e.defaultPrevented) return;
-      const root = rows.current;
+      const root = main.current;
       const at = document.activeElement;
       if (!root || !(at instanceof HTMLElement)) return;
       const stops = rowStops(root);
@@ -319,7 +321,7 @@ export function SettingsScreen({
         stops[next].scrollIntoView({ block: 'nearest' });
       } else if (at.closest('.settings-nav') && key === 'down') {
         e.preventDefault();
-        stops[0]?.focus();
+        (rows.current ? rowStops(rows.current)[0] : stops[0])?.focus();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -360,6 +362,7 @@ export function SettingsScreen({
             onChange={(v) => set('pauseOnBlur', v)}
             help="다른 창으로 옮기거나 창이 가려지면 플레이를 일시정지합니다 (오토·리플레이는 그대로 흐릅니다). 알림이나 실수로 누른 Windows 키에 판이 깨지지 않습니다."
           />
+          <ResetGroup onHelp={row.onHelp} undo={canUndoReset} onReset={onReset} onUndo={onUndoReset} />
         </>
       );
       break;
@@ -695,6 +698,7 @@ export function SettingsScreen({
     case 'fx':
       content = (
         <>
+          <DisplayModeRow {...row} settings={settings} onSettingsChange={onSettingsChange} />
           <NumberOption
             {...row}
             label="카메라 연출"
@@ -812,12 +816,7 @@ export function SettingsScreen({
       content = <GamepadPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onDefault={setHelpDefault} onCapture={setCapture} />;
       break;
     case 'mapper':
-      content = <MapperPanel onHelp={showHelp} onDefault={setHelpDefault} onRows={focusLateRows} />;
-      break;
-    case 'advanced':
-      content = (
-        <AdvancedPanel settings={settings} onSettingsChange={onSettingsChange} onHelp={showHelp} onDefault={setHelpDefault} undo={canUndoReset} onReset={onReset} onUndo={onUndoReset} />
-      );
+      content = <MapperPanel onHelp={showHelp} onDefault={setHelpDefault} onRows={focusLateRows} actionSlot={headAction} />;
       break;
   }
 
@@ -853,10 +852,12 @@ export function SettingsScreen({
             <kbd>E</kbd> 탭 이동
           </span>
         </nav>
-        <section className="settings-main" role="tabpanel" aria-label={heading}>
+        <section className="settings-main" role="tabpanel" aria-label={heading} ref={main}>
           <header className="settings-head">
             <h2>{heading}</h2>
             <span>{subtitle}</span>
+            {/* a tab's own button (채보 생성기: 설치 · 다시 설치), at the end of its name's line beside the preview */}
+            <div className="settings-head-action" ref={setHeadAction} />
           </header>
           <div className="settings-rows" ref={rows}>
             <Fragment key={tab}>{content}</Fragment>
@@ -1511,22 +1512,23 @@ function GamepadPanel({
   );
 }
 
-const MAPPER_STATE: Record<MapperStatus['state'], string> = {
-  disabled: '꺼짐',
-  unsupported: 'NVIDIA GPU 없음',
-  missing: '설치 안 됨',
-  installing: '설치 중',
-  failed: '설치 실패',
-  ready: '사용 중',
-};
-
 /**
- * Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md), as a tab of its own:
- * whether it makes the charts here, its setup (its own Python with CUDA PyTorch and the model, a
- * few GB, downloaded once) and its settings. Without an NVIDIA GPU, or before it is set up, charts
- * come from the built-in generator. `onRows` says the server has answered: there are rows now.
+ * Mapperatorinator, the chart generator (docs/MAPPERATORINATOR.md), as a tab of its own: its setup
+ * (its own Python with CUDA PyTorch and the model, a few GB, downloaded once) and its settings. Every
+ * chart is made by it. Its install button sits at the end of the tab's name line (`actionSlot`),
+ * beside the preview. `onRows` says the server has answered: there are rows now.
  */
-function MapperPanel({ onHelp, onDefault, onRows }: { onHelp: (help: string) => void; onDefault: (text: string | null) => void; onRows: () => void }) {
+function MapperPanel({
+  onHelp,
+  onDefault,
+  onRows,
+  actionSlot,
+}: {
+  onHelp: (help: string) => void;
+  onDefault: (text: string | null) => void;
+  onRows: () => void;
+  actionSlot: HTMLElement | null;
+}) {
   const [status, setStatus] = useState<MapperStatus | null>(null);
   /** The server did not answer: the tab says so in place of the generator's state. */
   const [unreachable, setUnreachable] = useState(false);
@@ -1569,21 +1571,29 @@ function MapperPanel({ onHelp, onDefault, onRows }: { onHelp: (help: string) => 
   if (status === null) return unreachable ? <p className="settings-note">분석 서버에 연결할 수 없습니다.</p> : null;
   const gpu = status.runtime?.gpu ?? status.gpus[0]?.name ?? null;
   const progress = status.progress ? `${status.progress.step} (${Math.round(status.progress.fraction * 100)}%)` : null;
+  const canInstall = status.state === 'missing' || status.state === 'failed' || status.state === 'ready';
   return (
     <div data-testid="mapper-status">
+      {canInstall &&
+        actionSlot &&
+        createPortal(
+          <button
+            type="button"
+            className="small"
+            data-testid="mapper-install"
+            onFocus={() => onHelp('PyTorch CUDA와 모델(약 4GB)을 내려받아 설치합니다. 설치한 뒤에는 다시 설치할 수 있습니다.')}
+            onClick={install}
+          >
+            {status.state === 'ready' ? '다시 설치' : status.state === 'failed' ? '다시 시도' : '설치 (약 4GB 내려받기)'}
+          </button>,
+          actionSlot,
+        )}
       <p className="settings-note">
-        이 빌드는 채보를 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)로 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와
-        모델, 약 4GB) 채보를 열 때마다 GPU로 만듭니다(곡 길이에 따라 1–3분). 설치 전이나 NVIDIA GPU가 없는 PC에서는 기존 생성기로 만듭니다.
+        채보는 Mapperatorinator(osu! 랭크 맵으로 학습한 AI)가 만듭니다. NVIDIA GPU가 있는 PC에서 한 번 설치하면(PyTorch CUDA와 모델, 약 4GB) 채보를 열
+        때마다 GPU로 만듭니다(곡 길이에 따라 1–3분).
       </p>
       <table className="backend-table pairs">
         <tbody>
-          <tr>
-            <td>상태</td>
-            <td className={status.state === 'ready' ? 'ok' : 'off'}>
-              {MAPPER_STATE[status.state]}
-              {progress ? ` · ${progress}` : ''}
-            </td>
-          </tr>
           <tr>
             <td>GPU</td>
             <td>{gpu ? `${gpu}${status.runtime?.device === 'cpu' ? ' (CPU로 실행)' : ''}` : '찾지 못함'}</td>
@@ -1594,24 +1604,14 @@ function MapperPanel({ onHelp, onDefault, onRows }: { onHelp: (help: string) => 
           </tr>
         </tbody>
       </table>
+      {status.state === 'installing' && <p className="settings-note" data-testid="mapper-installing">설치하는 중{progress ? `: ${progress}` : '…'}</p>}
+      {status.state === 'missing' && <p className="settings-note">아직 설치하지 않았습니다. 오른쪽 위의 설치를 누르세요.</p>}
       {status.reason && <p className="settings-note">{status.reason}</p>}
       {(status.error || error) && <p className="settings-note">설치 오류: {status.error ?? error} (자세한 기록: {status.home}\setup.log)</p>}
       {status.lastError && (
         <p className="settings-note">
-          마지막 실패({status.lastError.chart}): {status.lastError.error} — 그 채보는 기존 생성기로 만들었습니다.
+          마지막 실패({status.lastError.chart}): {status.lastError.error}
         </p>
-      )}
-      {(status.state === 'missing' || status.state === 'failed' || status.state === 'ready') && (
-        <div className="row">
-          <button
-            type="button"
-            data-testid="mapper-install"
-            onFocus={() => onHelp('PyTorch CUDA와 모델(약 4GB)을 내려받아 설치합니다. 설치한 뒤에는 다시 설치할 수 있습니다.')}
-            onClick={install}
-          >
-            {status.state === 'ready' ? '다시 설치' : status.state === 'failed' ? '다시 시도' : '설치 (약 4GB 내려받기)'}
-          </button>
-        </div>
       )}
       {status.settings && status.state !== 'unsupported' && (
         <MapperSettingsRows settings={status.settings} autoPrecision={autoPrecision(status)} onHelp={onHelp} onDefault={onDefault} onSaved={setStatus} onError={setError} />
@@ -1662,15 +1662,6 @@ function MapperSettingsRows({
   const remade = ' 바꾸면 이제부터 만드는 채보에 적용됩니다(이미 만든 채보는 그대로 남고, 다시 열면 새로 만듭니다).';
   return (
     <div className="mapper-settings" data-testid="mapper-settings">
-      <Toggle
-        {...row}
-        label="AI 채보 쓰기"
-        testId="mapper-enabled"
-        value={shown.enabled}
-        defaultValue={MAPPER_DEFAULTS.enabled}
-        onChange={(v) => change('enabled', v)}
-        help="끄면 Mapperatorinator를 쓰지 않고 기존 생성기로 채보를 만듭니다. 설치한 실행 환경은 그대로 남습니다."
-      />
       <Choice
         {...row}
         label="모델"
@@ -1700,7 +1691,7 @@ function MapperSettingsRows({
           ] as [MapperSettings['precision'], string][]
         }
         onChange={(v) => change('precision', v)}
-        help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요. 실패하면 그 채보는 기존 생성기로 만듭니다.`}
+        help={`자동은 GPU가 bf16을 지원하면 bf16, 아니면 fp32입니다${auto ? ` (이 PC에서는 ${auto})` : ''}. fp16은 RTX 20xx에서 몇 배 빠르지만, 이 모델은 bf16으로 학습되어 fp16으로는 수가 넘칠 수 있습니다. 그래서 fp16을 고르면 음악을 읽는 인코더는 fp32로 돌고 노트를 쓰는 디코더만 fp16으로 돕니다(시간은 거의 디코더가 씁니다). 이전 빌드의 fp16은 곡의 큰 소리 구간에서 채보가 망가졌습니다. fp16 채보가 이상하면 fp32로 두세요.`}
       />
       <NumberOption
         {...row}
@@ -1748,15 +1739,6 @@ function MapperSettingsRows({
       />
       <Toggle
         {...row}
-        label="앱의 박자 쓰기"
-        testId="mapper-timing"
-        value={shown.useAppTiming}
-        defaultValue={MAPPER_DEFAULTS.useAppTiming}
-        onChange={(v) => change('useAppTiming', v)}
-        help={`켜면 앱 분석기의 BPM · 마디선을 모델에 넘겨, 노트가 앱의 마디선에 맞고 모델의 박자 찾기 패스를 건너뛰어 빨리 만들어집니다. 끄면 모델이 곡 전체를 한 번 더 지나며 박자를 직접 찾아 시간이 더 들고, BPM · 마디선이 앱과 어긋날 수 있습니다. 이때 채보의 BPM은 모델이 만든 것이라 정밀도 문제가 BPM에도 미칩니다. 그런 채보는 채보 정보의 "AI 생성" 줄에 "모델 박자"가 붙습니다.${remade}`}
-      />
-      <Toggle
-        {...row}
         label="히트사운드 생성"
         testId="mapper-hitsounds"
         value={shown.hitsounds}
@@ -1799,36 +1781,65 @@ function MapperSettingsRows({
         value={shown.parallel}
         defaultValue={MAPPER_DEFAULTS.parallel}
         onChange={(v) => change('parallel', v)}
-        help={`창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다(모자라면 그 채보는 기존 생성기로). 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`}
+        help={`창들을 서로 독립적으로, 8개씩 묶어 GPU에서 한꺼번에 만듭니다. 몇 배 빠르지만 창 사이에 문맥이 없어 16초마다 패턴이 끊길 수 있고, GPU 메모리를 더 씁니다. 켜면 이전 문맥 · 앞 미리보기는 쓰이지 않습니다.${remade}`}
       />
     </div>
   );
 }
 
-/**
- * The window or full screen, the analysis backends (with how to install them), and a full reset: a
- * press arms it, a second within TWO_PRESS_MS resets (useTwoPress), and 되돌리기 brings the settings back.
- * (The chart generator's setup and settings are a tab of their own: MapperPanel.)
- */
-function AdvancedPanel({
+/** The window or full screen (설정 → 연출·배경). */
+function DisplayModeRow({
   settings,
   onSettingsChange,
   onHelp,
   onDefault,
-  undo,
-  onReset,
-  onUndo,
 }: {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onHelp: (help: string) => void;
   onDefault: (text: string | null) => void;
+}) {
+  const desktop = desktopShell() !== null;
+  return (
+    <Choice
+      onHelp={onHelp}
+      onDefault={onDefault}
+      label="화면 모드"
+      testId="opt-display-mode"
+      value={settings.displayMode}
+      defaultValue={DEFAULT_SETTINGS.displayMode}
+      options={
+        [
+          ['window', '창'],
+          ['fullscreen', '전체 화면'],
+        ] as [DisplayMode, string][]
+      }
+      onChange={(m) => onSettingsChange({ ...settings, displayMode: m })}
+      help={
+        desktop
+          ? '전체 화면은 작업 표시줄과 창 테두리 없이 게임만 보여 줍니다. 앱은 창의 크기·위치와 함께 기억하고, F11로도 바꿀 수 있습니다.'
+          : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
+      }
+    />
+  );
+}
+
+/**
+ * A full reset (설정 → 플레이, at the bottom): a press arms it, a second within TWO_PRESS_MS
+ * resets (useTwoPress), and 되돌리기 brings the settings back.
+ */
+function ResetGroup({
+  onHelp,
+  undo,
+  onReset,
+  onUndo,
+}: {
+  onHelp: (help: string) => void;
   /** A reset can be undone. */
   undo: boolean;
   onReset: () => void;
   onUndo: () => void;
 }) {
-  const [backends, setBackends] = useState<BackendStatus[] | null>(null);
   const reset = useTwoPress(onReset);
   // the undo gone (pressed, or its time up) with the focus on it: the focus goes back to the reset
   const resetButton = useRef<HTMLButtonElement>(null);
@@ -1837,91 +1848,33 @@ function AdvancedPanel({
     if (hadUndo.current && !undo && (document.activeElement === null || document.activeElement === document.body)) resetButton.current?.focus();
     hadUndo.current = undo;
   }, [undo]);
-  useEffect(() => {
-    api
-      .health()
-      .then((h) => setBackends(h.backends ?? []))
-      .catch(() => setBackends(null));
-  }, []);
-  const desktop = desktopShell() !== null;
   return (
-    <>
-      <Choice
-        onHelp={onHelp}
-        onDefault={onDefault}
-        label="화면 모드"
-        testId="opt-display-mode"
-        value={settings.displayMode}
-        defaultValue={DEFAULT_SETTINGS.displayMode}
-        options={
-          [
-            ['window', '창'],
-            ['fullscreen', '전체 화면'],
-          ] as [DisplayMode, string][]
-        }
-        onChange={(m) => onSettingsChange({ ...settings, displayMode: m })}
-        help={
-          desktop
-            ? '전체 화면은 작업 표시줄과 창 테두리 없이 게임만 보여 줍니다. 앱은 창의 크기·위치와 함께 기억하고, F11로도 바꿀 수 있습니다.'
-            : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
-        }
-      />
-      <div className="settings-group" data-testid="backend-status">
-        <h3>분석 백엔드</h3>
-        <p className="settings-note">
-          기본 분석(numpy·scipy)은 항상 동작합니다. 아래 ML 라이브러리를 서버에 설치하면 다음 분석부터 자동으로 쓰이고, 곡 정보의 &quot;다시 분석&quot;으로 기존 곡에도 적용할 수 있습니다.
-        </p>
-        {backends === null ? (
-          <p className="settings-note">분석 서버에 연결할 수 없습니다.</p>
-        ) : (
-          <table className="backend-table">
-            <tbody>
-              {backends.map((b) => (
-                <tr key={b.kind}>
-                  <td>{BACKEND_LABELS[b.kind] ?? b.kind}</td>
-                  <td>{b.name}</td>
-                  <td className={b.active ? 'ok' : 'off'}>{b.active ? `사용 중 (${b.version})` : b.installed ? '설치됨 · 꺼짐' : '설치 안 됨'}</td>
-                  <td className="hint">{b.license}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="settings-group" data-testid="reset-settings">
+      <h3>초기화</h3>
+      <div className="row">
+        <button
+          ref={resetButton}
+          className="danger"
+          data-testid="reset-all"
+          {...reset.buttonProps}
+          onFocus={() =>
+            onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 내 노트 색 프리셋, 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
+          }
+          onClick={reset.press}
+        >
+          {reset.armed ? '한 번 더 누르면 초기화' : '모두 초기화'}
+        </button>
+        {undo && (
+          <>
+            <span className="settings-status" role="status" data-testid="reset-done">
+              처음 값으로 되돌렸습니다.
+            </span>
+            <button className="small" data-testid="reset-undo" onClick={onUndo}>
+              되돌리기
+            </button>
+          </>
         )}
-        <pre className="install-hint">
-          {'cd server\n'}
-          {'.venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu\n'}
-          {'.venv/bin/pip install -e ".[ml]"     # demucs · beat-this (+ basic-pitch: Python 3.11)\n'}
-          {'# Windows: .venv/bin/pip 대신 .venv\\Scripts\\pip'}
-        </pre>
       </div>
-
-      <div className="settings-group" data-testid="reset-settings">
-        <h3>초기화</h3>
-        <div className="row">
-          <button
-            ref={resetButton}
-            className="danger"
-            data-testid="reset-all"
-            {...reset.buttonProps}
-            onFocus={() =>
-              onHelp('모든 설정을 처음 값으로 되돌립니다. 즐겨찾기와 곡마다 정한 것(패턴, 고른 채보, 곡 오프셋), 내 노트 색 프리셋, 기록과 곡은 그대로입니다. 3초 안에 두 번 누르면 초기화하고, 바로 되돌릴 수 있습니다.')
-            }
-            onClick={reset.press}
-          >
-            {reset.armed ? '한 번 더 누르면 초기화' : '모두 초기화'}
-          </button>
-          {undo && (
-            <>
-              <span className="settings-status" role="status" data-testid="reset-done">
-                처음 값으로 되돌렸습니다.
-              </span>
-              <button className="small" data-testid="reset-undo" onClick={onUndo}>
-                되돌리기
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }

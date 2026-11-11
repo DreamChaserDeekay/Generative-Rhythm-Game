@@ -128,7 +128,7 @@ export async function addFromMenu(page: Page, testId: 'demo-button' | 'upload-bu
 }
 
 /** Opens a tab of the settings (the settings are open). */
-export async function settingsTab(page: Page, tab: 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'mapper' | 'advanced') {
+export async function settingsTab(page: Page, tab: 'play' | 'judge' | 'speed' | 'gear' | 'notes' | 'fx' | 'sound' | 'keys' | 'pad' | 'mapper') {
   await page.getByTestId(`settings-tab-${tab}`).click();
   await expect(page.getByTestId(`settings-tab-${tab}`)).toHaveAttribute('aria-selected', 'true');
 }

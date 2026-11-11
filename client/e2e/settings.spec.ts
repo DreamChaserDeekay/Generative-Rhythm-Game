@@ -43,7 +43,7 @@ test('three columns: the tabs, the rows over the help of the row under the curso
   expect(side.y + side.height).toBeLessThanOrEqual((await box('.hintbar')).y);
   // the gear on the tabs that had none before, under the line with its key mode and the green number
   const head = page.locator('.settings-side-head');
-  for (const tab of ['judge', 'keys', 'pad', 'advanced', 'sound'] as const) {
+  for (const tab of ['judge', 'keys', 'pad', 'mapper', 'sound'] as const) {
     await settingsTab(page, tab);
     await expect(page.getByTestId('gear-preview')).toBeVisible();
     await expect(head).toContainText('미리보기');
@@ -114,7 +114,7 @@ test('the help names the picked gear only, and the default of a row whose value 
   expect(errors).toEqual([]);
 });
 
-test('AI 채보 is a tab of its own between 게임패드 and 고급: the generator’s state, its setup and its rows, the cursor on the first once the server has answered', async ({ page }) => {
+test('채보 생성기 is the last tab: its setup on its name line by the preview, its rows, the cursor on the first once the server has answered', async ({ page }) => {
   const errors = trackErrors(page);
   // a PC with the generator set up, as the server would report it (this one has no NVIDIA GPU)
   const settings: Record<string, unknown> = { enabled: true, model: 'v32', precision: 'auto', starsScale: 1, holdNoteRatio: null, temperature: null, useAppTiming: true, hitsounds: true, lookback: 0.5, lookahead: 0.4, parallel: false };
@@ -147,22 +147,31 @@ test('AI 채보 is a tab of its own between 게임패드 and 고급: the generat
     },
   );
   await openSettings(page);
-  await expect(page.locator('.settings-nav button')).toHaveText(['플레이', '판정·싱크', '속도·커버', '기어', '노트', '연출·배경', '소리', '키 설정', '게임패드', 'AI 채보', '고급']);
+  await expect(page.locator('.settings-nav button')).toHaveText(['플레이', '판정·싱크', '속도·커버', '기어', '노트', '연출·배경', '소리', '키 설정', '게임패드', '채보 생성기']);
   // E from 게임패드 (its tab clicked: the focus on it): the tab, and its first control once it is there
   await settingsTab(page, 'pad');
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.settings-head h2')).toHaveText('AI 채보');
-  await expect(page.getByTestId('mapper-status')).toContainText('사용 중');
+  await expect(page.locator('.settings-head h2')).toHaveText('채보 생성기');
+  // no state line (it is always in use), the GPU and the model
+  await expect(page.getByTestId('mapper-status')).not.toContainText('사용 중');
   await expect(page.getByTestId('mapper-status')).toContainText('E2E GPU');
-  await expect(page.getByTestId('mapper-install')).toHaveText('다시 설치');
-  await expect(page.getByTestId('mapper-install')).toBeFocused();
+  // the rows take the cursor; 다시 설치 is on the tab's name line, at its end beside the preview, ↑ from the first row
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
+  await expect(page.locator('[data-testid="mapper-settings"] .opt-name')).toHaveText(['모델', '연산 정밀도', '난이도 배율', '롱노트 비율', '다양성', '히트사운드 생성', '이전 문맥', '앞 미리보기', '병렬 생성']);
+  const install = page.getByTestId('mapper-install');
+  await expect(install).toHaveText('다시 설치');
+  await expect(page.locator('.settings-head [data-testid="mapper-install"]')).toBeVisible();
+  const [installBox, mainBox, sideBox] = [await install.boundingBox(), await page.locator('.settings-main').boundingBox(), await page.locator('.settings-side').boundingBox()];
+  expect(installBox!.x + installBox!.width).toBeGreaterThan(mainBox!.x + mainBox!.width - 24);
+  expect(installBox!.x + installBox!.width).toBeLessThanOrEqual(sideBox!.x);
+  await page.keyboard.press('ArrowUp');
+  await expect(install).toBeFocused();
   await expect(page.getByTestId('settings-help')).toContainText('PyTorch CUDA');
   await expect(page.locator('.hintbar')).toContainText('누르기');
-  // its rows as they were in 고급: ↓ into them, ←→ change one and the server keeps it
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByTestId('mapper-enabled')).toBeFocused();
-  await expect(page.locator('[data-testid="mapper-settings"] .opt-name')).toHaveText(['AI 채보 쓰기', '모델', '연산 정밀도', '난이도 배율', '롱노트 비율', '다양성', '앱의 박자 쓰기', '히트사운드 생성', '이전 문맥', '앞 미리보기', '병렬 생성']);
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
+  // ←→ change a row and the server keeps it
   await expect(page.getByTestId('mapper-precision')).toContainText('자동 (bf16)');
   const stars = page.getByTestId('mapper-stars');
   await stars.focus();
@@ -176,20 +185,18 @@ test('AI 채보 is a tab of its own between 게임패드 and 고급: the generat
   await page.keyboard.press('ArrowRight');
   await expect(page.getByTestId('mapper-holds')).toHaveAttribute('data-value', '0.2');
   await expect(page.locator('.help-default')).toHaveText('기본값 자동');
-  // the gear plays on beside it, and E goes on to 고급, which has the generator no more
+  // the gear plays on beside it, and E goes round to 플레이 (no 고급 any more), Q back
   await expect(page.getByTestId('gear-preview')).toBeVisible();
   await page.keyboard.press('KeyE');
-  await expect(page.getByTestId('settings-tab-advanced')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('opt-display-mode')).toBeFocused();
-  await expect(page.getByTestId('backend-status')).toBeVisible();
+  await expect(page.getByTestId('settings-tab-play')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('mapper-status')).toHaveCount(0);
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('mapper-install')).toBeFocused();
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
   expect(errors).toEqual([]);
 });
 
-test('AI 채보 on a PC without an NVIDIA GPU says so and has no rows; Q / E pass through it', async ({ page }) => {
+test('채보 생성기 on a PC without an NVIDIA GPU says so and has no rows; Q / E pass through it', async ({ page }) => {
   const errors = trackErrors(page);
   // as the server answers there: the built-in generator makes the charts, whatever the settings kept
   const status = {
@@ -204,11 +211,11 @@ test('AI 채보 on a PC without an NVIDIA GPU says so and has no rows; Q / E pas
   };
   await page.route((url) => url.pathname === '/api/mapper', (route) => route.fulfill({ json: status }));
   await openSettings(page);
-  await settingsTab(page, 'advanced');
-  await page.getByTestId('opt-display-mode').focus();
+  await settingsTab(page, 'play');
+  await page.getByTestId('opt-ruleset').focus();
   await page.keyboard.press('KeyQ');
   await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('mapper-status')).toContainText('NVIDIA GPU 없음');
+  await expect(page.getByTestId('mapper-status')).toContainText('찾지 못함');
   await expect(page.getByTestId('mapper-status')).toContainText('NVIDIA GPU가 없어');
   await expect(page.getByTestId('mapper-settings')).toHaveCount(0);
   await expect(page.getByTestId('mapper-install')).toHaveCount(0);
@@ -222,7 +229,7 @@ test('모두 초기화 takes a second press within 3 s, keeps the favourites, an
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5, inputOffsetMs: 12, favorites: ['00000000000000aa'], songOffsets: { '00000000000000aa': 7 } });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   const reset = page.getByTestId('reset-all');
   await reset.click();
   await expect(reset).toHaveText('한 번 더 누르면 초기화');
@@ -253,7 +260,7 @@ test('a held Enter on 모두 초기화 arms it once: its repeats are no second p
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5 });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   const reset = page.getByTestId('reset-all');
   await reset.focus();
   // held: the first keydown, then the key's repeats
@@ -281,14 +288,14 @@ test('a reset can be undone after leaving the settings, until its time is up', a
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5 });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   await page.getByTestId('reset-all').click();
   await page.getByTestId('reset-all').click();
   await expect.poll(async () => (await stored(page)).hiSpeed).toBe(4);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
   await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   await page.getByTestId('reset-undo').click();
   await expect.poll(async () => (await stored(page)).hiSpeed).toBe(6.5);
   await expect(page.getByTestId('reset-undo')).toHaveCount(0);
@@ -344,8 +351,8 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-judgement')).toBeFocused();
   await expect(help).toContainText('HARD JUDGEMENT');
-  // 고급 starts on 화면 모드 (Q / E still change the tab: the focus is in no text field)
-  await settingsTab(page, 'advanced');
+  // 연출·배경 starts on 화면 모드 (Q / E still change the tab: the focus is in no text field)
+  await settingsTab(page, 'fx');
   await page.keyboard.press('KeyQ');
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-display-mode')).toBeFocused();
@@ -358,7 +365,7 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
 test('화면 모드 puts the page in full screen with Esc kept for the game, and back; full screen left the setting follows', async ({ page }) => {
   const errors = trackErrors(page);
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'fx');
   const row = page.getByTestId('opt-display-mode');
   await row.focus();
   await page.keyboard.press('ArrowRight');
