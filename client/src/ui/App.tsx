@@ -5,7 +5,7 @@ import { menuMusic, PREVIEW_VOLUME } from '../audio/songPreview';
 import type { ReplayData } from '../engine/replay';
 import { GamepadMenuBridge, RESULT_PAD_KEYS, SELECT_PAD_KEYS, setPadMenuKeys, SHOULDER_KEYS } from '../input/gamepad';
 import type { Chart, StemName } from '../engine/types';
-import { loadSettings, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings } from '../settings/settings';
+import { loadSettings, padMenuKeysFor, resetSettings, saveSettings, withEntry, type Settings, type SettingsChange } from '../settings/settings';
 import { CalibrationScreen, type CalibrationStep } from './CalibrationScreen';
 import { EditorScreen, newEditorSession, type EditorSession } from './EditorScreen';
 import type { PlayOutcome } from './PlayController';
@@ -84,13 +84,18 @@ export function App() {
   const [practices, setPractices] = useState<Record<string, PracticeOptions>>({});
   const keepPractice = useCallback((key: string, p: PracticeOptions | null) => setPractices((all) => withEntry(all, key, p)), []);
 
-  const setSettings = useCallback((next: Settings) => {
-    setSettingsState(next);
-    saveSettings(next);
-  }, []);
-  // the settings as they are now, for what ends after an await (a new pattern)
+  // the settings as they are now: what ends after an await (a chart made in minutes, an import)
+  // changes these, not the ones of the screen that started it (left and come back to meanwhile)
   const current = useRef(settings);
   current.current = settings;
+  /** The settings from now on: as given, or `next` applied to the latest (see SettingsChange). */
+  const setSettings = useCallback((next: SettingsChange) => {
+    const value = typeof next === 'function' ? next(current.current) : next;
+    if (value === current.current) return;
+    current.current = value;
+    setSettingsState(value);
+    saveSettings(value);
+  }, []);
 
   // 모두 초기화 can be undone for a while from its last press, the settings left and come back to or not
   const [resetUndo, setResetUndo] = useState<{ before: Settings } | null>(null);

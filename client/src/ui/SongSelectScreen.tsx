@@ -26,6 +26,7 @@ import {
   withSongOffset,
   type Pattern,
   type Settings,
+  type SettingsChange,
   type SongFolder,
 } from '../settings/settings';
 import { failureReason } from './analysisError';
@@ -72,7 +73,8 @@ import { syncTestRequest } from './syncTestRequest';
 
 interface Props {
   settings: Settings;
-  onSettingsChange: (s: Settings) => void;
+  /** A change after an await gives a function of the latest settings (SettingsChange): this screen's may be old by then. */
+  onSettingsChange: (s: SettingsChange) => void;
   onPlay: (request: PlayRequest) => void;
   onCalibrate: (step: CalibrationStep) => void;
   onOpenSettings: () => void;
@@ -202,9 +204,6 @@ export function SongSelectScreen(props: Props) {
   // the charts and their levels as they come in (kept across the song select's visits)
   const chartsIn = useChartStore();
 
-  // the settings as they are now, for what ends after an await (an upload, an import)
-  const current = useRef(settings);
-  current.current = settings;
   const keyMode = settings.lastKeyMode;
   // the tier chosen last; a song without it plays the hardest tier it has under it (tierOn)
   const chosen = tierOf(settings.lastDifficulty).id;
@@ -397,7 +396,7 @@ export function SongSelectScreen(props: Props) {
         const c = tierChart(song, t.id);
         return c.chartId !== null && chartStore.failure(c.key) === 404;
       });
-      if (alive && gone.length > 0) onSettingsChange(gone.reduce((next, t) => withPattern(next, tierKey(song, t.id), null), current.current));
+      if (alive && gone.length > 0) onSettingsChange((latest) => gone.reduce((next, t) => withPattern(next, tierKey(song, t.id), null), latest));
     }, delay);
     return () => {
       alive = false;
@@ -462,13 +461,16 @@ export function SongSelectScreen(props: Props) {
   /**
    * Puts the cursor on a song just added (uploaded, imported, a demo): a search or the favourites
    * that would leave it out give way (the list goes back to every song), or the cursor could not
-   * stay on it. `next` is the settings to go on from (an import puts its key mode and chart there).
+   * stay on it. `change` is what to do to the settings besides (an import puts its key mode and
+   * chart there); it comes after an await, so it goes to the latest settings.
    */
-  const selectAdded = (song: Song, list: Song[] | null, next: Settings = current.current) => {
+  const selectAdded = (song: Song, list: Song[] | null, change: (s: Settings) => Settings = (s) => s) => {
     const added = list?.find((s) => s.id === song.id) ?? song;
     setQuery((q) => (`${added.title} ${added.artist}`.toLowerCase().includes(q.trim().toLowerCase()) ? q : ''));
-    const shown = inFolder(added, next.songFolder, new Set(next.favorites));
-    if (!shown || next !== current.current) onSettingsChange(shown ? next : { ...next, songFolder: 'all' });
+    onSettingsChange((latest) => {
+      const next = change(latest);
+      return inFolder(added, next.songFolder, new Set(next.favorites)) ? next : { ...next, songFolder: 'all' };
+    });
     onSelectSong(added.id);
   };
 
@@ -508,9 +510,9 @@ export function SongSelectScreen(props: Props) {
       const first = result.charts[0];
       if (result.songs.length > 0) {
         const song = result.songs.find((s) => s.id === first?.songId) ?? result.songs[0];
-        let next = current.current;
-        if (first && enabledKeyModes.includes(first.keyMode)) next = withChartPick({ ...next, lastKeyMode: first.keyMode }, chartPickKey(first.songId, first.keyMode), first.chartId);
-        selectAdded(song, list, next);
+        selectAdded(song, list, (latest) =>
+          first && enabledKeyModes.includes(first.keyMode) ? withChartPick({ ...latest, lastKeyMode: first.keyMode }, chartPickKey(first.songId, first.keyMode), first.chartId) : latest,
+        );
         await loadSaved(song.id);
       }
     } catch (e) {
@@ -559,7 +561,7 @@ export function SongSelectScreen(props: Props) {
   // (asked once more by its button: a second press, see useTwoPress)
   const deleteSaved = async (c: SavedChart) => {
     await api.deleteChart(c.chartId).catch((e: Error) => setError(e.message));
-    if (pickKey && chartPickOf(current.current, pickKey) === c.chartId) onSettingsChange(withChartPick(current.current, pickKey, null));
+    if (pickKey) onSettingsChange((latest) => (chartPickOf(latest, pickKey) === c.chartId ? withChartPick(latest, pickKey, null) : latest));
     await loadSaved(selected?.id ?? null);
     await refresh();
   };
@@ -682,7 +684,7 @@ export function SongSelectScreen(props: Props) {
       const seed = c.meta.generator?.seed;
       if (seed === undefined) return;
       chartStore.put(chartKey({ ...base, seed }), c);
-      onSettingsChange(withPattern(current.current, key, seed));
+      onSettingsChange((latest) => withPattern(latest, key, seed));
       if (ai) setNotice(`${selected.title} ${difficulty}의 새 패턴이 준비되었습니다 (레벨 ${c.meta.level}${aiMakingLabel(c.meta) ? `, ${aiMakingLabel(c.meta)}` : ''}). Enter로 플레이합니다.`);
     } catch (e) {
       if (ai) setNotice(null);
@@ -788,7 +790,7 @@ export function SongSelectScreen(props: Props) {
     try {
       await api.deleteSong(id);
       // what was kept for it goes with it (added again, it would come back with the same id)
-      onSettingsChange(withoutSong(current.current, id));
+      onSettingsChange((latest) => withoutSong(latest, id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -1383,7 +1385,7 @@ export function SongSelectScreen(props: Props) {
           ? entryBrief.making || (entryChartKey !== null && makingKeys.has(entryChartKey))
             ? '이 채보를 만들고 있습니다 (곡 길이에 따라 1–3분).'
             : entryBrief.queued
-              ? '이 채보가 만들 차례를 기다리고 있습니다.'
+              ? '이 채보는 지금 만들고 있는 채보 다음에 만듭니다.'
               : '이 채보는 Enter를 누르면 만들기 시작합니다 (곡 길이에 따라 1–3분).'
           : '채보를 계산하는 중…';
   const other = selected && entryBrief && !entryRecord ? otherBest(recordsOn(selected, keyMode), difficulty, entryBrief.chartId) : null;
@@ -2162,7 +2164,7 @@ function SongRow(props: { song: Song; d: number; reach: number; favorite: boolea
  * A difficulty of the song as a leaning plate: its name, the level of the chart Enter plays on it
  * (worked out as soon as the song is chosen) and that chart's lamp. The chosen one is filled with
  * its colour. Where the chart is not there yet, the lamp's place says why: being worked out, made
- * when it is played (nothing on the plate: every chart is made so), being made, waiting its turn, or not made.
+ * when it is played or waiting its turn (nothing on the plate: every chart is made so, and only the one being made says so), being made, or not made.
  */
 function TierPlate(props: {
   tier: DifficultyTier;
@@ -2187,7 +2189,8 @@ function TierPlate(props: {
     ? brief.making || props.generating
       ? ['생성 중', '채보를 만들고 있습니다']
       : brief.queued
-        ? ['대기', '채보가 만들 차례를 기다리고 있습니다']
+        ? // waiting behind the one being made: no word on its plate (only the one being made says so)
+          ['', '다른 채보를 만든 뒤에 만듭니다']
         : ['', '플레이하면 채보를 만듭니다']
     : props.generating
       ? ['생성 중', '채보를 만들고 있습니다']
