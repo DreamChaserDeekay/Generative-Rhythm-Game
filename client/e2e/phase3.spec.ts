@@ -468,16 +468,18 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await expect(page.getByTestId('settings-tab-notes')).toHaveText('노트');
   await expect(page.locator('.settings-rows .opt-name').first()).toHaveText('노트');
   await expect(page.getByTestId('opt-color-preset')).toBeVisible();
-  // the notes to pick: the plain bar, the bar in its six finishes and the four shapes, the piano note
-  // gone (its hit is the 기어 tab's still)
+  // the notes to pick: PRISM's cut glass (what a player starts with), the plain bar, the bar in its six
+  // finishes and the four shapes, the piano note gone (its hit is the 기어 tab's still)
+  await expect(page.getByTestId('opt-note-style')).toHaveAttribute('data-value', 'prism');
+  await expect(page.getByTestId('opt-note-style')).toContainText('프리즘');
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < 14; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'flat', 'glass', 'hairline', 'pearl', 'round', 'star4', 'star5']);
+  expect([...seen].sort()).toEqual(['carbon', 'chamfer', 'chrome', 'enamel', 'flat', 'glass', 'hairline', 'pearl', 'prism', 'round', 'star4', 'star5']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -499,8 +501,8 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await settingsTab(page, 'gear');
   for (const gone of ['opt-skin', 'opt-palette', 'opt-note-style', 'opt-side-style']) await expect(page.getByTestId(gone)).toHaveCount(0);
   for (const [id, value, name] of [
-    ['opt-deck-style', 'standard', '기본'],
-    ['opt-hit-style', 'flash', '플래시'],
+    ['opt-deck-style', 'prism', '프리즘'],
+    ['opt-hit-style', 'prism', '프리즘 분광'],
   ]) {
     await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
     await expect(page.getByTestId(id)).toContainText(name);
@@ -529,21 +531,23 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   // back to the defaults
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'notes');
-  await chooseSetting(page, 'opt-note-style', 'flat');
+  await chooseSetting(page, 'opt-note-style', 'prism');
   await chooseSetting(page, 'opt-side-style', 'bar');
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-deck-style', 'standard');
-  await chooseSetting(page, 'opt-hit-style', 'flash');
+  await chooseSetting(page, 'opt-deck-style', 'prism');
+  await chooseSetting(page, 'opt-hit-style', 'prism');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
+  // the PRISM set: its notes, its long note, its gear and its hit, all drawn in code
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
   expect(errors).toEqual([]);
 });
 
-test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the standard one, the cabinet drawn from its pictures, its HUD in its type or the track’s own', async ({ page }) => {
+test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the default one, the cabinet drawn from its pictures, its HUD in its type or the track’s own', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown>; hudType?: string });
-  // a track skin and a gear colour an earlier version saved are dropped, and its gear, taken out, opens as the standard one
+  // a track skin and a gear colour an earlier version saved are dropped, and its gear, taken out, opens as the default one (PRISM)
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ skin: 'arcade', parts: { deck: 'arcade', deckColour: 'red' } }));
   });
@@ -553,7 +557,7 @@ test('the mecha set on the arcade cabinet picked part by part: a gear taken out 
   await chooseSetting(page, 'opt-note-style', 'chamfer');
   await settingsTab(page, 'gear');
   // no gear colour to pick: each gear has one look
-  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'standard');
+  await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'prism');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await expect(page.getByText('기어 색', { exact: true })).toHaveCount(0);
   await chooseSetting(page, 'opt-deck-style', 'cabinet');

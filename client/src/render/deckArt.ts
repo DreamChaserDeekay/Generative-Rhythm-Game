@@ -1874,12 +1874,24 @@ export function deckFromPicture(style: GearStyle, spec: Pick<DeckSpec, 'stretch'
   return Boolean(art.deck) && spec.stretch <= DECK_PICTURE_FLATTEST && (PICTURE_ROWS[style]?.(spec) ?? true);
 }
 
-/** A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it (the picture's last row) where the screen shows more. */
+/**
+ * A gear's deck from its picture, as wide as the deck, from its top edge; the plate runs on below it
+ * (the picture's last row) where the screen shows more, and falls into shadow there over a fifth of
+ * the picture's depth: a tall, narrow view (the settings' preview) shows a long way below the picture,
+ * and its last row drawn out all that way read as the gear's foot stretched.
+ */
 function deckPicture(g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
   const depth = ((pic.height / pic.width) * s.width * s.stretch) / DECK_PICTURE_STRETCH;
   g.imageSmoothingQuality = 'high';
   g.drawImage(pic, 0, 0, s.width, depth);
-  if (depth < s.depth) g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, depth, s.width, s.depth - depth);
+  if (depth >= s.depth) return;
+  g.drawImage(pic, 0, pic.height - 1, pic.width, 1, 0, depth, s.width, s.depth - depth);
+  const fall = Math.min(s.depth - depth, depth * 0.2);
+  const shadow = g.createLinearGradient(0, depth, 0, depth + fall);
+  shadow.addColorStop(0, black(0));
+  shadow.addColorStop(1, black(0.92));
+  g.fillStyle = shadow;
+  g.fillRect(0, depth, s.width, s.depth - depth);
 }
 
 /**

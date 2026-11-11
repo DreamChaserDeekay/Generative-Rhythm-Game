@@ -350,8 +350,12 @@ test('play: the PRISM set, what a player starts with', async ({ page }) => {
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
     await selectShowcase(page, keyMode, 'EXPERT');
-    await autoplayFor(page, 14_200);
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(14_200);
     await shot(page, name);
+    await page.keyboard.press('Escape');
   }
 });
 

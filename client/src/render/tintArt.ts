@@ -1651,7 +1651,7 @@ export interface EffectSheet {
  */
 const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   // along the judge line and a little toward the gear: nothing of it rises up the track over the next notes
-  prism: { w: 160, h: 72, cy: 30, reach: 70 },
+  prism: { w: 128, h: 64, cy: 26, reach: 56 },
   flash: { w: 128, h: 192, cy: 104, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1715,7 +1715,7 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
     return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${Math.max(0, Math.min(1, alpha))})`;
   };
   // the hairline of the spectrum along the line, opening outward
-  const reach = (30 + 44 * Math.sqrt(p)) * s;
+  const reach = (22 + 34 * Math.sqrt(p)) * s;
   const line = g.createLinearGradient(-reach, 0, reach, 0);
   line.addColorStop(0, rgba(SPECTRUM[6], 0));
   SPECTRUM.forEach((c, i) => line.addColorStop(0.12 + (0.76 * i) / (SPECTRUM.length - 1), rgba(c, 0.85 * a)));
@@ -1725,12 +1725,12 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   // the shards: each a thin sliver flying out along its own line, its colour by where it points
   const shards: [number, number, number][] = [
     // angle from the line (degrees, positive toward the gear), length, colour
-    [-3, 20, 0], [4, 26, 1], [12, 18, 2], [-8, 15, 3], [21, 14, 4], [8, 22, 5], [30, 11, 6],
+    [-3, 16, 0], [4, 20, 1], [12, 14, 2], [-8, 12, 3], [21, 11, 4], [8, 17, 5], [30, 9, 6],
   ];
   for (const side of [-1, 1]) {
     shards.forEach(([deg, len, c], i) => {
       const angle = (deg * Math.PI) / 180;
-      const from = (14 + 30 * Math.sqrt(p) * (0.7 + 0.06 * i)) * s;
+      const from = (10 + 22 * Math.sqrt(p) * (0.7 + 0.06 * i)) * s;
       const l = len * s * (0.5 + 0.9 * a);
       const [dx, dy] = [side * Math.cos(angle), Math.sin(angle)];
       const [x0, y0] = [dx * from, dy * from];
@@ -1747,22 +1747,22 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
     });
   }
   // the flash: a white bar across the lane on the line, its glow, a hot diamond in its middle
-  const fw = 64 * s;
-  const fh = (15 - 11 * p) * s;
-  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 34 * s);
-  glow.addColorStop(0, `rgba(255,255,255,${0.7 * a * a})`);
+  const fw = 40 * s;
+  const fh = (9 - 6 * p) * s;
+  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
+  glow.addColorStop(0, `rgba(255,255,255,${0.5 * a * a})`);
   glow.addColorStop(1, 'rgba(255,255,255,0)');
   g.save();
   g.scale(1.5, 0.55);
   g.fillStyle = glow;
   g.beginPath();
-  g.arc(0, 0, 34 * s, 0, Math.PI * 2);
+  g.arc(0, 0, 22 * s, 0, Math.PI * 2);
   g.fill();
   g.restore();
   g.fillStyle = `rgba(255,255,255,${a})`;
   roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
   g.fill();
-  const r = (15 - 6 * p) * s;
+  const r = (10 - 4 * p) * s;
   polygon(g, [
     [-r * 2.2, 0],
     [0, -r * 0.5],
