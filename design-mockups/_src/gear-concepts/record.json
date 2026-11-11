@@ -1167,5 +1167,160 @@
    "thoughtsTokenCount": 1955
   },
   "made": "2026-11-11"
+ },
+ "r2-skin-sky-a": {
+  "concept": "SKY",
+  "kind": "skin-sky-a",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game with its default skin. Redraw it as clean concept art for a NEW SKIN, 16:9, keeping EXACTLY: the camera and perspective; the LANES (the dark floor of the note highway between the two rails, from the far end down to the judgment line: they belong to no skin, so leave them as dark and plain as in the screenshot, with their faint lane tints and hairline dividers and nothing added on them); where every note is; the top-left song information with its time and progress bar (do not restyle that block at all: it belongs to no skin); the place of the combo and of the judgment text; the gauge along the outside of the right rail with its small label 'FEVER' and '75%' and 'NORMAL' by it; a row of eight key indicators directly under the judgment line (one per lane, the far-left one wider, the pressed one lit); and the three readouts in the deck under them, all INSIDE the gear between its two rails: 'SCORE 266,881' in the centre (the largest), 'SPEED 3.00' at the lower left, 'RATE 100.00%' at the lower right, the same words and numbers, spelled correctly. The gear stays NO WIDER than the track and its bottom does not spread sideways. The gear is a 3D object in the track's perspective but with LOW relief and calm lighting: no sparkles, no glints, no bloom, no lens flare. A long note has NO tap-note cap at its start or its end. Restyle ONLY the gear (the rails, the key indicators, the deck and the way the readouts are housed), the notes' shape and material (they keep their lane colours: white, light blue, gold in the centre lane, pink in the far-left lane), the long note, the hit effect, the judgment line, the look of the gauge, and the combo and judgment lettering, as described. Skin 'SKY': a clear daytime sky. Palette: sky blue (#3b8fd6 to #8fd0f5), cloud white, a deep navy (#0c1c33) for the small housings, and ONE accent, a cyan (#3fe3e6). Airy, light and calm. Drawn as a clean matte illustration with soft gradients, not a photograph: no sun, no sun rays, no lens flare, no sparkles, no birds, no aircraft, no characters. Deck: the deck is a WINDOW ONTO THE SKY, a deep clear blue at its far edge easing to a lighter blue toward the near edge, with a few soft white cumulus clouds low in it (most of the cloud in the lower third and toward the lower left, the middle kept clear blue), and two or three thin white curved hairlines sweeping across it in long gentle arcs, like wind trails. A thin white line runs along the deck's far edge. Side rails: slim strips of sky-blue tinted glass, each with a white hairline along its inner edge and fine evenly spaced tick marks along it like an altimeter's scale (ticks only, no numerals), plain all the way up. Gauge: a slim deep-navy capsule along the outside of the right rail holding one column of small cyan dashes, lit from the bottom up to the gauge's level, the unlit ones dim. Judgment line: a thin white line in a soft sky-blue glow, like a horizon. Notes: smooth matte bars with softly rounded corners, like glazed ceramic, each with a thin lighter top face and its near edge the brightest; the far-left lane's pink note is the same bar with a small white chevron (a wing) cut in its middle. Long note: a long band of translucent light in its lane's colour, like a contrail, as wide as its lane's bar, a soft white line down its middle, its two ends simply cut square with a thin white edge (no bar caps); the held one is brighter, its white middle line glowing and a soft light running along it to the judgment line. Hit effect: a soft white ring opening on the line like a puff of cloud, with two or three tiny white feather-shaped slivers drifting sideways; short, no sparks. This version, the lightest: the readouts have NO boxes. They are written straight on the clear blue part of the sky in thin white digits, each with its small letter-spaced label ('SCORE', 'SPEED', 'RATE') beside it and a white hairline rule under it; a small white feather mark sits centred just above the SCORE readout. The key indicators are a row of thin short horizontal dashes, one per lane, pale blue-grey on a narrow deep-navy strip; the pressed lane's dash glows cyan-white. Combo number and 'COMBO': a light, wide, elegant italic sans-serif, large but with slender strokes, white easing to a pale sky blue at its foot, with a thin deep-navy outline so it reads over the lanes; 'COMBO' small and widely letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' white, '100%' cyan easing to sky blue.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/47-default-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 2277,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 6702,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 1157
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2745
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-b": {
+  "concept": "SKY",
+  "kind": "skin-sky-b",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is a screenshot of our PC rhythm game with its default skin. Redraw it as clean concept art for a NEW SKIN, 16:9, keeping EXACTLY: the camera and perspective; the LANES (the dark floor of the note highway between the two rails, from the far end down to the judgment line: they belong to no skin, so leave them as dark and plain as in the screenshot, with their faint lane tints and hairline dividers and nothing added on them); where every note is; the top-left song information with its time and progress bar (do not restyle that block at all: it belongs to no skin); the place of the combo and of the judgment text; the gauge along the outside of the right rail with its small label 'FEVER' and '75%' and 'NORMAL' by it; a row of eight key indicators directly under the judgment line (one per lane, the far-left one wider, the pressed one lit); and the three readouts in the deck under them, all INSIDE the gear between its two rails: 'SCORE 266,881' in the centre (the largest), 'SPEED 3.00' at the lower left, 'RATE 100.00%' at the lower right, the same words and numbers, spelled correctly. The gear stays NO WIDER than the track and its bottom does not spread sideways. The gear is a 3D object in the track's perspective but with LOW relief and calm lighting: no sparkles, no glints, no bloom, no lens flare. A long note has NO tap-note cap at its start or its end. Restyle ONLY the gear (the rails, the key indicators, the deck and the way the readouts are housed), the notes' shape and material (they keep their lane colours: white, light blue, gold in the centre lane, pink in the far-left lane), the long note, the hit effect, the judgment line, the look of the gauge, and the combo and judgment lettering, as described. Skin 'SKY': a clear daytime sky. Palette: sky blue (#3b8fd6 to #8fd0f5), cloud white, a deep navy (#0c1c33) for the small housings, and ONE accent, a cyan (#3fe3e6). Airy, light and calm. Drawn as a clean matte illustration with soft gradients, not a photograph: no sun, no sun rays, no lens flare, no sparkles, no birds, no aircraft, no characters. Deck: the deck is a WINDOW ONTO THE SKY, a deep clear blue at its far edge easing to a lighter blue toward the near edge, with a few soft white cumulus clouds low in it (most of the cloud in the lower third and toward the lower left, the middle kept clear blue), and two or three thin white curved hairlines sweeping across it in long gentle arcs, like wind trails. A thin white line runs along the deck's far edge. Side rails: slim strips of sky-blue tinted glass, each with a white hairline along its inner edge and fine evenly spaced tick marks along it like an altimeter's scale (ticks only, no numerals), plain all the way up. Gauge: a slim deep-navy capsule along the outside of the right rail holding one column of small cyan dashes, lit from the bottom up to the gauge's level, the unlit ones dim. Judgment line: a thin white line in a soft sky-blue glow, like a horizon. Notes: smooth matte bars with softly rounded corners, like glazed ceramic, each with a thin lighter top face and its near edge the brightest; the far-left lane's pink note is the same bar with a small white chevron (a wing) cut in its middle. Long note: a long band of translucent light in its lane's colour, like a contrail, as wide as its lane's bar, a soft white line down its middle, its two ends simply cut square with a thin white edge (no bar caps); the held one is brighter, its white middle line glowing and a soft light running along it to the judgment line. Hit effect: a soft white ring opening on the line like a puff of cloud, with two or three tiny white feather-shaped slivers drifting sideways; short, no sparks. This version, a little more solid: the sky in the deck is flatter and more graphic (two or three layered bands of stylised flat cloud along its near edge, the rest a clean blue gradient, the white wind-trail arcs kept). The readouts sit on three frosted cloud-white capsules with softly rounded ends, set flush in the sky, their digits deep navy and their small labels sky blue; the SCORE capsule widest in the centre, the SPEED and RATE capsules smaller at the lower left and right; a small navy feather mark at the left end of the SCORE capsule. The key indicators are low smooth key caps of matte cloud white with rounded corners, one per lane; the pressed one glows cyan from under its edges. Combo number and 'COMBO': a rounded, friendly but clean italic sans-serif of medium weight, white with a sky-blue lower third and a thin deep-navy outline; 'COMBO' small and letter-spaced. Judgment text 'MAX 100%': the same type, 'MAX' white, '100%' cyan easing to sky blue.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "docs/screenshots/47-default-7k.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 2302,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4389,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 1182
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 407
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-parts": {
+  "concept": "SKY",
+  "kind": "skin-sky-parts",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A clean design sheet on a near-black background, 16:9, for the 'SKY' skin of a PC rhythm game; parts in a tidy grid with generous spacing, small thin labels allowed. Skin 'SKY': a clear daytime sky. Palette: sky blue (#3b8fd6 to #8fd0f5), cloud white, a deep navy (#0c1c33) for the small housings, and ONE accent, a cyan (#3fe3e6). Airy, light and calm. Drawn as a clean matte illustration with soft gradients, not a photograph: no sun, no sun rays, no lens flare, no sparkles, no birds, no aircraft, no characters. Deck: the deck is a WINDOW ONTO THE SKY, a deep clear blue at its far edge easing to a lighter blue toward the near edge, with a few soft white cumulus clouds low in it (most of the cloud in the lower third and toward the lower left, the middle kept clear blue), and two or three thin white curved hairlines sweeping across it in long gentle arcs, like wind trails. A thin white line runs along the deck's far edge. Side rails: slim strips of sky-blue tinted glass, each with a white hairline along its inner edge and fine evenly spaced tick marks along it like an altimeter's scale (ticks only, no numerals), plain all the way up. Gauge: a slim deep-navy capsule along the outside of the right rail holding one column of small cyan dashes, lit from the bottom up to the gauge's level, the unlit ones dim. Judgment line: a thin white line in a soft sky-blue glow, like a horizon. Notes: smooth matte bars with softly rounded corners, like glazed ceramic, each with a thin lighter top face and its near edge the brightest; the far-left lane's pink note is the same bar with a small white chevron (a wing) cut in its middle. Long note: a long band of translucent light in its lane's colour, like a contrail, as wide as its lane's bar, a soft white line down its middle, its two ends simply cut square with a thin white edge (no bar caps); the held one is brighter, its white middle line glowing and a soft light running along it to the judgment line. Hit effect: a soft white ring opening on the line like a puff of cloud, with two or three tiny white feather-shaped slivers drifting sideways; short, no sparks. Row one, the tap notes seen from the front-top: cloud white, light blue, sunlight gold, and the pink note with the white chevron for the turntable lane. Row two, a long note laid horizontally with NO tap-note cap at either end: once idle, once held (brighter, its white middle line glowing). Row three, the hit effect as a six-frame sequence from the first bright frame to nothing, and the small steady effect shown where a held long note meets the judgment line. Row four, the lettering in TWO candidate typefaces, labelled 'A' and 'B', each showing the combo '128' with 'COMBO' and the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%' and 'BREAK': A is a light, wide, elegant italic sans-serif with slender strokes; B is a rounded italic sans-serif of medium weight; both white easing to sky blue with a thin deep-navy outline, '100%' cyan, '90%' sky blue, '50%' a pale periwinkle, 'BREAK' a soft sunset coral. Row five: a segment of the judgment line; a key indicator idle and lit, once as a thin dash and once as a low white key cap; a short piece of the side rail with its tick marks; the gauge capsule with its cyan dashes; a small feather mark.  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 866,
+   "candidatesTokenCount": 1826,
+   "totalTokenCount": 5028,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 866
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 146
+    }
+   ],
+   "thoughtsTokenCount": 2336
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-b2": {
+  "concept": "SKY",
+  "kind": "skin-sky-b2",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a sky skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY ONE thing and keeping everything else exactly as it is (the sky-glass side rails with their tick marks, the row of white key caps under the judgment line with the pressed ones lit cyan, the deck below them with its sky, its clouds and its three cloud-white readout capsules, the notes, the long note, the hit effect, the combo and judgment lettering, the gauge capsule, the top-left song information, all positions). The one change: the LANES, the floor of the note highway between the two rails from the far end down to the judgment line. They belong to no skin, so remove the blue sky gradient, the clouds and the white curved wind-trail lines from them completely and draw them as the game's plain floor: near-black (#0d0f14 to #15171f) all the way down to the judgment line, each lane only very faintly tinted by its key colour (a barely visible dark wine red in the far-left lane, dark slate blue and dark neutral alternating in the others, a faint dark amber in the centre lane), thin hairline dividers between lanes at about ten percent white, nothing else on the floor. The sky, the clouds and the wind trails appear ONLY in the deck below the key caps. The judgment line stays a thin white line in a soft sky-blue glow across the dark floor. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-sky-b.png",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1483,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3840,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 363
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 677
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-sky-parts2": {
+  "concept": "SKY",
+  "kind": "skin-sky-parts2",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A clean design sheet on a near-black background, 16:9, for the 'SKY' skin of a PC rhythm game; parts in a tidy grid of five rows with generous spacing, small thin labels allowed. Do NOT draw the note highway, a track or any tall perspective preview anywhere on the sheet: parts only. Skin 'SKY': a clear daytime sky. Palette: sky blue (#3b8fd6 to #8fd0f5), cloud white, a deep navy (#0c1c33) for the small housings, and ONE accent, a cyan (#3fe3e6). Airy, light and calm. Drawn as a clean matte illustration with soft gradients, not a photograph: no sun, no sun rays, no lens flare, no sparkles, no birds, no aircraft, no characters. Deck: the deck is a WINDOW ONTO THE SKY, a deep clear blue at its far edge easing to a lighter blue toward the near edge, with a few soft white cumulus clouds low in it (most of the cloud in the lower third and toward the lower left, the middle kept clear blue), and two or three thin white curved hairlines sweeping across it in long gentle arcs, like wind trails. A thin white line runs along the deck's far edge. Side rails: slim strips of sky-blue tinted glass, each with a white hairline along its inner edge and fine evenly spaced tick marks along it like an altimeter's scale (ticks only, no numerals), plain all the way up. Gauge: a slim deep-navy capsule along the outside of the right rail holding one column of small cyan dashes, lit from the bottom up to the gauge's level, the unlit ones dim. Judgment line: a thin white line in a soft sky-blue glow, like a horizon. Notes: smooth matte bars with softly rounded corners, like glazed ceramic, each with a thin lighter top face and its near edge the brightest; the far-left lane's pink note is the same bar with a small white chevron (a wing) cut in its middle. Long note: a long band of translucent light in its lane's colour, like a contrail, as wide as its lane's bar, a soft white line down its middle, its two ends simply cut square with a thin white edge (no bar caps); the held one is brighter, its white middle line glowing and a soft light running along it to the judgment line. Hit effect: a soft white ring opening on the line like a puff of cloud, with two or three tiny white feather-shaped slivers drifting sideways; short, no sparks. Row one, the tap notes seen from the front-top: cloud white, light blue, sunlight gold, and the pink note with the white chevron for the turntable lane. Row two, a long note laid horizontally with NO tap-note cap at either end: once idle, once held (brighter, its white middle line glowing). Row three, the hit effect as a six-frame sequence from the first bright frame to nothing, and the small steady effect shown where a held long note meets the judgment line. Row four, the lettering in TWO candidate typefaces, labelled 'A' and 'B', each showing the combo '128' with 'COMBO' and the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%' and 'BREAK': A is a light, wide, elegant italic sans-serif with slender strokes; B is a rounded italic sans-serif of medium weight; both white easing to sky blue with a thin deep-navy outline, '100%' cyan, '90%' sky blue, '50%' a pale periwinkle, 'BREAK' a soft sunset coral. Row five, the gear's parts: the DECK as one wide, short strip (about five times as wide as it is tall, seen from above) with its sky, low clouds, thin white arcs and feather mark, and the three readouts written on it, 'SCORE 266,881' in the centre, 'SPEED 3.00' at the left and 'RATE 100.00%' at the right; beside it a short piece of the side rail with its tick marks, the gauge capsule with its cyan dashes, a segment of the judgment line, and the key indicator in two candidate forms, each idle and lit: labelled 'DASH' (a thin short dash, lit cyan-white) and 'CAP' (a low white key cap, lit cyan from under its edges).  Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1009,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2689,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 1009
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ]
+  },
+  "made": "2026-11-11"
  }
 }
