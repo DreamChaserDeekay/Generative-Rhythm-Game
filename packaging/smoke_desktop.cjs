@@ -1,9 +1,10 @@
 // Launches a packaged desktop app with Playwright's Electron driver: waits for the game, checks its
-// media, analyzes a demo song, previews a chart, starts an autoplay (the default hit's flipbooks) and saves
-// screenshots along the way.
+// media, analyzes a demo song and saves screenshots along the way. Where Mapperatorinator's runtime is set
+// up (the workflow's CPU step leaves one in GRG_MAPPER_HOME; the runner has no NVIDIA GPU otherwise) it also
+// has a chart made, previews it and starts an autoplay (the default hit's flipbooks); else it checks that the
+// chart is refused with a reason.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
-// GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes; the structure
-// edition's allin1 takes longer on a CI runner).
+// GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes).
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -39,23 +40,43 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: analysisMs });
   await win.screenshot({ path: path.join(outDir, '1-song-select.png') });
-  // the chart's numbers are in the song info (I), which gets the default pattern's chart by itself
-  // (F5, the button that made the chart before, now makes a new pattern)
-  await win.getByTestId('hint-info').click();
-  await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
-  await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
-  console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
-  // a play needs an audio device for the song clock; take a picture whatever happens
-  try {
-    // the song info closed (its Esc hint), Shift+Enter plays the chart on autoplay
-    await win.getByTestId('hint-info').click();
-    await win.getByTestId('song-info').waitFor({ state: 'detached', timeout: 10000 });
-    await win.keyboard.press('Shift+Enter');
-    await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
-    await win.waitForTimeout(7000);
-    await win.screenshot({ path: path.join(outDir, '3-play.png') });
-  } catch (e) {
-    console.warn('play screenshot skipped:', e.message);
+  // Mapperatorinator is the only generator: the chart is asked of the server as the song select does
+  // on Enter (it answers when the chart is made: the model's timing pass and the notes, on the CPU here)
+  const made = await win.evaluate(async () => {
+    const health = await (await fetch('/api/health')).json();
+    const song = (await (await fetch('/api/songs')).json()).songs[0];
+    const res = await fetch(`/api/songs/${song.id}/charts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyMode: '7K+1S', difficulty: 'NORMAL' }),
+    });
+    const body = await res.json();
+    return { mapper: health.mapper && health.mapper.state, status: res.status, detail: body.detail, notes: body.chart && body.chart.meta.noteCount };
+  });
+  console.log('chart request:', JSON.stringify(made));
+  if (made.mapper !== 'ready') {
+    if (made.status !== 503 || !made.detail) throw new Error(`a chart without Mapperatorinator answered ${made.status}, not 503 with its reason`);
+    console.log('no Mapperatorinator runtime here: the chart was refused with its reason');
+  } else {
+    if (made.status !== 200 || !made.notes) throw new Error(`Mapperatorinator made no chart: ${JSON.stringify(made)}`);
+    // the screens are another matter than the build: a picture of the chart and of a play where they come up
+    try {
+      await win.getByTestId('hint-info').click();
+      await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
+      await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
+      console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
+      // the song info closed (its Esc hint), Shift+Enter plays the chart on autoplay (a play needs an
+      // audio device for the song clock)
+      await win.getByTestId('hint-info').click();
+      await win.getByTestId('song-info').waitFor({ state: 'detached', timeout: 10000 });
+      await win.keyboard.press('Shift+Enter');
+      await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
+      await win.waitForTimeout(7000);
+      await win.screenshot({ path: path.join(outDir, '3-play.png') });
+    } catch (e) {
+      console.warn('chart and play screenshots skipped:', e.message);
+      await win.screenshot({ path: path.join(outDir, '2-after-chart.png') }).catch(() => {});
+    }
   }
   await app.close();
   console.log('desktop smoke test: ok');

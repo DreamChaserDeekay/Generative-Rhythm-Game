@@ -4,9 +4,9 @@ the chorus's strong beats, and a lean towards the crowded hand or the climbing t
 
 from __future__ import annotations
 
-from rhythm_server.generator.effects import camera_effects
-from rhythm_server.generator.lanes import lane_infos
-from rhythm_server.generator.tempo import TempoMap
+from rhythm_server.chart.effects import camera_effects
+from rhythm_server.chart.lanes import lane_infos
+from rhythm_server.chart.tempo import TempoMap
 
 TEMPO = TempoMap({"offsetMs": 0.0, "tempoMap": [{"beat": 0, "bpm": 120.0}]})  # 500 ms a beat, 4 beats a bar
 

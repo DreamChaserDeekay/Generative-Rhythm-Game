@@ -132,10 +132,11 @@ export interface BackendStatus {
   license: string;
 }
 
-/** Mapperatorinator, this branch's chart generator (docs/MAPPERATORINATOR.md): its own Python, set up on first use. */
+/** Mapperatorinator, the chart generator (docs/MAPPERATORINATOR.md): its own Python, set up on first use. */
 export interface MapperStatus {
+  /** Always true (there is no other generator; kept for screens that read it). */
   enabled: boolean;
-  /** disabled · unsupported (no NVIDIA GPU) · missing (not set up) · installing · failed · ready */
+  /** unsupported (no NVIDIA GPU) · missing (not set up) · installing · failed · ready ("disabled" is no longer sent) */
   state: 'disabled' | 'unsupported' | 'missing' | 'installing' | 'failed' | 'ready';
   model: string;
   gpus: { name: string; memoryMB: number }[];
@@ -154,13 +155,14 @@ export interface MapperStatus {
     torch?: string;
     model?: string;
   };
-  /** The last chart Mapperatorinator failed on (the built-in generator made it). */
+  /** The last chart Mapperatorinator failed on (its request was answered with the error; asking again tries again). */
   lastError?: { chart: string; error: string; at: number } | null;
   /** The settings screen's settings (kept in the runtime folder). */
   settings?: MapperSettings;
 }
 
 export interface MapperSettings {
+  /** Retired: always true (sending it changes nothing). */
   enabled: boolean;
   model: 'v32' | 'v32-mini';
   precision: 'auto' | 'fp32' | 'fp16';
@@ -169,6 +171,7 @@ export interface MapperSettings {
   /** null: the model chooses. */
   holdNoteRatio: number | null;
   temperature: number | null;
+  /** Retired: always false, the timing is the model's (sending it changes nothing). */
   useAppTiming: boolean;
   /** Hitsound tokens (two of a note's five): off is faster. */
   hitsounds: boolean;

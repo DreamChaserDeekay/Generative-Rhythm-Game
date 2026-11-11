@@ -19,9 +19,10 @@ from rhythm_server.formats import FormatError, export_chart, export_formats, par
 from rhythm_server.formats.bms import export_bms
 from rhythm_server.formats.bmson import export_bmson
 from rhythm_server.formats.osu import export_osu
-from rhythm_server.generator import generate_chart
-from rhythm_server.generator.tempo import TempoMap
+from rhythm_server.chart.tempo import TempoMap
 from rhythm_server.synth import make_song
+
+from fakes import made_chart, on_grid
 
 SR = 44100
 
@@ -54,7 +55,7 @@ def test_tempo_map_stops_pause_the_beat_clock() -> None:
 
 @pytest.mark.parametrize("mode", ["4K", "6K+FX", "7K+1S", "8K"])
 def test_osu_export_round_trip(mode: str) -> None:
-    chart = generate_chart(analysis(), mode, "HARD", seed=4)
+    chart = made_chart(analysis(), mode, "HARD", 4)
     parsed = parse_osu(export_osu(chart, "song.ogg", preview_ms=1000), "x.osu")
     assert parsed.key_mode == mode and parsed.audio_file == "song.ogg"
     _same_notes(chart["notes"], parsed.notes, 0.5)  # osu! stores whole milliseconds
@@ -62,7 +63,7 @@ def test_osu_export_round_trip(mode: str) -> None:
 
 @pytest.mark.parametrize("mode", ["5K", "7K+1S"])
 def test_bms_and_bmson_export_round_trip(mode: str) -> None:
-    chart = generate_chart(analysis(), mode, "MASTER", seed=4)
+    chart = on_grid(made_chart(analysis(), mode, "MASTER", 4))
     text, ext = export_bms(chart, "song.ogg")
     assert ext == (".bme" if mode == "7K+1S" else ".bms")
     bms = parse_bms(text.encode("utf-8"), "x" + ext)
@@ -76,7 +77,7 @@ def test_bms_and_bmson_export_round_trip(mode: str) -> None:
 def test_export_formats_by_key_mode() -> None:
     assert export_formats("7K+1S") == ["osu", "bms", "bmson"]
     assert export_formats("4K") == ["osu"]
-    chart = generate_chart(analysis(), "4K", "NORMAL", seed=1)
+    chart = made_chart(analysis(), "4K", "NORMAL", 1)
     with pytest.raises(FormatError):
         export_chart(chart, "bms", "song.ogg")
     data, name, media = export_chart(chart, "osu", "노래.mp3", offset_ms=25)
@@ -275,7 +276,7 @@ def test_import_osz_uses_its_audio(client: TestClient, tmp_path: Path) -> None:
     buf = io.BytesIO()
     sf.write(buf, song.pcm, SR, format="WAV")
     a = analyze(song.pcm, SR, "sha256:osz", backends={})
-    chart = generate_chart(a, "4K", "HARD", seed=2)
+    chart = made_chart(a, "4K", "HARD", 2)
     osz = io.BytesIO()
     with zipfile.ZipFile(osz, "w") as zf:
         zf.writestr("audio.wav", buf.getvalue())
@@ -316,10 +317,10 @@ def test_charts_name_their_pictures() -> None:
     text = pkg["song_another.bme"].decode() + "#STAGEFILE stage.bmp\n#BANNER banner.png\n"
     assert parse_bms(text.encode(), "a.bme").images == ["stage.bmp", "banner.png"]
     assert parse_bms(pkg["song_another.bme"], "a.bme").images == []
-    chart = generate_chart(analysis(), "4K", "HARD", seed=2)
+    chart = made_chart(analysis(), "4K", "HARD", 2)
     osu = export_osu(chart, "audio.wav").replace("//Background and Video events", '//Background and Video events\n0,0,"bg 1.jpg",0,0')
     assert parse_osu(osu, "x.osu").images == ["bg 1.jpg"]
-    doc = export_bmson(generate_chart(analysis(), "7K+1S", "HARD", seed=2), "song.ogg")
+    doc = export_bmson(made_chart(analysis(), "7K+1S", "HARD", 2), "song.ogg")
     doc["info"].update(eyecatch_image="eye.png", banner_image="banner.png")
     assert parse_bmson(json.dumps(doc).encode(), "x.bmson").images == ["eye.png", "banner.png"]
 
@@ -347,7 +348,7 @@ def test_import_osz_takes_its_background_as_cover(client: TestClient) -> None:
     song = make_song(128.0, 8, seed=8, offset=0.4)
     buf = io.BytesIO()
     sf.write(buf, song.pcm, SR, format="WAV")
-    chart = generate_chart(analyze(song.pcm, SR, "sha256:osz-bg", backends={}), "4K", "HARD", seed=2)
+    chart = made_chart(analyze(song.pcm, SR, "sha256:osz-bg", backends={}), "4K", "HARD", 2)
     osu = export_osu(chart, "audio.wav").replace("//Background and Video events", '//Background and Video events\n0,0,"BG.jpg",0,0')
     osz = io.BytesIO()
     with zipfile.ZipFile(osz, "w") as zf:

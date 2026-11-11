@@ -1,6 +1,0 @@
-# PyTorch for the desktop ML edition, from the CPU wheel index
-# (pip install -r packaging/ml_torch.txt --index-url https://download.pytorch.org/whl/cpu).
-# torchaudio (beat_this needs it) is released only up to 2.11 on that index; its library loads only
-# with the torch it was built for, so the pair is pinned.
-torch==2.11.0
-torchaudio==2.11.1

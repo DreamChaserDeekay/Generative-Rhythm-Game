@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..generator.tempo import TempoMap
+from ..chart.tempo import TempoMap
 from .bms import LEAD_IN_MIN_MS
 from .common import FormatError, ParsedChart, choke_slices, difficulty_label, drop_conflicts, measures, meter_from_lengths
 

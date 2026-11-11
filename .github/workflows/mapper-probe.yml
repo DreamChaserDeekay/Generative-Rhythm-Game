@@ -1,0 +1,62 @@
+name: Mapperatorinator probe
+
+# What Mapperatorinator gives besides the notes, on real songs: its own timing, hitsounds and the
+# scroll speed pass (docs/MAPPERATORINATOR.md, "카메라"). Runs it on the runner's CPU on CC BY songs
+# (design-mockups/_src/music/manifest.json) and keeps the raw .osu files and how long each run took.
+# The songs and the .osu files stay in the run's artifacts; nothing is committed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/mapper-only]
+    paths:
+      - '.github/workflows/mapper-probe.yml'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [v32-mini, v32]
+        song: [fighting_stance.mp3, path_of_the_neutron.mp3, newer_wave.mp3]
+    name: ${{ matrix.model }} ${{ matrix.song }}
+    runs-on: windows-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        shell: bash
+    env:
+      GRG_MAPPER_ALLOW_CPU: '1'
+      GRG_MAPPER_MODEL: ${{ matrix.model }}
+      SONG: ${{ matrix.song }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install the server
+        run: |
+          python -m pip install -e ./server
+          echo "GRG_MAPPER_HOME=$RUNNER_TEMP/grg-mapper" >> "$GITHUB_ENV"
+      - name: Fetch the song
+        run: |
+          url=$(python -c "import json, os; print(next(s['download_url'] for s in json.load(open('design-mockups/_src/music/manifest.json', encoding='utf-8')) if s['file'] == os.environ['SONG']))" | tr -d '\r')
+          mkdir -p "$RUNNER_TEMP/song"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/song/$SONG" "$url"
+          ls -la "$RUNNER_TEMP/song"
+      - name: Set the runtime up
+        working-directory: server
+        run: python -m rhythm_server mapper setup
+      - name: Notes only, then notes and scroll speeds
+        working-directory: server
+        run: |
+          python -m rhythm_server mapper probe --audio "$RUNNER_TEMP/song/$SONG" --out "$RUNNER_TEMP/probe" --mode 7K+1S --difficulty HARD
+          cp "$GRG_MAPPER_HOME/worker.log" "$RUNNER_TEMP/probe/worker-${{ matrix.model }}-${SONG%.mp3}.log" 2>/dev/null || true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: mapper-probe-${{ matrix.model }}-${{ matrix.song }}
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: warn
+          retention-days: 30

@@ -12,7 +12,7 @@ from typing import Any
 from ..config import key_modes, level_table_for
 from ..difficulty.estimator import estimate
 from ..difficulty.patterns import pattern_summary
-from ..generator.tempo import TempoMap
+from ..chart.tempo import TempoMap
 
 FORMAT_VERSION = 1
 TIME_EPS = 1e-3

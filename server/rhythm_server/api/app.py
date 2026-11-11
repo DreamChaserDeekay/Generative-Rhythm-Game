@@ -12,7 +12,6 @@ import shutil
 import threading
 import time
 import zipfile
-from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -35,18 +34,16 @@ from ..formats import FormatError, assemble_chart, export_chart, export_formats
 from ..formats.common import ascii_text
 from ..formats.images import MAX_IMAGE_BYTES, MEDIA_TYPES, image_kind
 from ..formats.package import ARCHIVE_EXTENSIONS, IMPORT_EXTENSIONS, extract_archive, extract_images, safe_relpath
-from ..generator import GENERATOR_VERSION, GenerationError, TierNotMade, chart_id_for, default_seed
-from ..generator.sections import edited_analysis
+from ..chart.keysounds import keysound_meta
+from ..chart.sections import edited_analysis
+from ..difficulty.tiers import resolve_tier
 from .sketch import sketch_of
-from ..generator.core import keysound_meta
-from ..generator.params import resolve_params
-from ..generator.workers import AHEAD, BRIEF, WHOLE, ChartMaker, default_workers
 from ..synth import make_song
 from .imports import import_package
 from .jobs import AnalysisQueue
 from .library import BGA_EXTENSIONS, Library, SongNotFound
 from ..mapper import Mapper, MapperError
-from ..mapper.charts import MAPPER_VERSION, settings_tag
+from ..mapper.charts import MAPPER_VERSION, settings_tag, song_bpm
 from ..mapper.runtime import public_settings, save_settings
 from ..mapper.queue import BACKGROUND, OPENED, MapperQueue
 
@@ -164,44 +161,30 @@ def create_app(
     client_dist: Path | None = CLIENT_DIST,
     synchronous_jobs: bool = False,
     shutdown_token: str | None = None,
-    chart_workers: int | None = None,
     mapper: Mapper | None = None,
 ) -> FastAPI:
     """`shutdown_token`: the desktop app's, for POST /api/shutdown (a later launch stops the server
-    an earlier one left behind on its port); None: no such route. `chart_workers`: processes that
-    make charts (generator/workers.py); None: one per core but one (none with synchronous jobs, as
-    in the tests: their charts are made in the server's threads). `mapper`: Mapperatorinator, the
-    chart generator of this branch (docs/MAPPERATORINATOR.md); its charts are made once its runtime
-    is set up, the server's own generator's before that or without an NVIDIA GPU."""
+    an earlier one left behind on its port); None: no such route. `mapper`: Mapperatorinator, the
+    chart generator (docs/MAPPERATORINATOR.md); charts are made once its runtime is set up."""
     library = Library(root or data_dir())
     mapper = mapper or Mapper()
     # Mapperatorinator's charts, one at a time (one GPU): the one opened first, then the other
     # tiers of its key mode in the background
     mapper_queue = MapperQueue(mapper.generate)
-    # stems for keysounds are separated right after each analysis (ensure_stems is defined below);
-    # a song just analyzed has its charts made ahead (make_ahead, below)
-    queue = AnalysisQueue(
-        library,
-        synchronous=synchronous_jobs,
-        after_analysis=lambda song_id, pcm: ensure_stems(song_id, pcm),
-        on_ready=lambda song_id: make_ahead(song_id),
-    )
-    maker = ChartMaker(chart_workers if chart_workers is not None else 0 if synchronous_jobs else default_workers())
+    # stems for keysounds are separated right after each analysis (ensure_stems is defined below)
+    queue = AnalysisQueue(library, synchronous=synchronous_jobs, after_analysis=lambda song_id, pcm: ensure_stems(song_id, pcm))
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        maker.start()
         queue.resume_pending()
         yield
         queue.shutdown()
-        maker.close()
         mapper_queue.close()
         mapper.close()
 
     app = FastAPI(title="Generative Rhythm Game server", version=__version__, lifespan=lifespan)
     app.state.library = library
     app.state.queue = queue
-    app.state.charts = maker
     app.state.mapper = mapper
 
     def song_or_404(song_id: str) -> dict[str, Any]:
@@ -262,8 +245,9 @@ def create_app(
             "ok": True,
             "version": __version__,
             "analyzer": f"{ANALYZER_NAME}-{ANALYZER_VERSION}",
-            # charts known by their brief are told apart by this: Mapperatorinator's once it is set up
-            "generator": f"{GENERATOR_VERSION}+mapper-{MAPPER_VERSION}-{settings_tag(mapper.config())}" if mapper.active() else GENERATOR_VERSION,
+            # charts known by their brief are told apart by this ("+mapper-": how the client knows
+            # its charts are Mapperatorinator's, made when opened)
+            "generator": f"ai+mapper-{MAPPER_VERSION}-{settings_tag(mapper.config())}",
             "keyModes": keymodes["enabled"],
             "difficulties": difficulty_config()["order"],
             "formats": sorted(SUPPORTED_EXTENSIONS),
@@ -293,8 +277,8 @@ def create_app(
     @app.post("/api/mapper/install", status_code=202)
     def mapper_install() -> dict[str, Any]:
         status = mapper.runtime.status()
-        if status["state"] in ("disabled", "unsupported"):
-            raise HTTPException(409, status.get("reason") or "Mapperatorinator를 쓰지 않도록 설정되어 있습니다")
+        if status["state"] == "unsupported":
+            raise HTTPException(409, status.get("reason") or "NVIDIA GPU가 없습니다")
         mapper.runtime.install()
         return mapper_state()
 
@@ -535,26 +519,6 @@ def create_app(
             "beatsPerBar": int(analysis["timing"]["meter"][0]["beatsPerMeasure"]),
         }
 
-    # Charts made for their brief only (the song select's levels of the tiers not chosen) stay off
-    # the disk, which would otherwise fill with every song looked at: the last few whole ones (one
-    # asked for whole next is saved then, not made again) and the metas of more.
-    brief_charts: OrderedDict[str, dict[str, Any]] = OrderedDict()
-    brief_metas: OrderedDict[str, dict[str, Any]] = OrderedDict()
-    # tiers a song has no chart on (its top tier on a calm song): the generator's answer, worked out
-    # over a whole level fit, is kept so the song select's next visit does not make it again
-    not_made: OrderedDict[str, str] = OrderedDict()
-    # charts made ahead come in from the chart maker's thread
-    briefs_lock = threading.Lock()
-    # the key mode and options charts were last asked for whole (and the tier): a song analyzed
-    # next has that key mode's tiers made ahead
-    last_asked: dict[str, Any] = {}
-
-    def keep(cache: OrderedDict[str, Any], key: str, value: Any, size: int) -> None:
-        cache[key] = value
-        cache.move_to_end(key)
-        while len(cache) > size:
-            cache.popitem(last=False)
-
     def chart_analysis(song: dict[str, Any]) -> dict[str, Any] | None:
         """The analysis charts of the song are made from (with the user's sections)."""
         analysis = library.load_analysis(song["id"])
@@ -565,76 +529,29 @@ def create_app(
     def chart_meta(song: dict[str, Any]) -> dict[str, Any]:
         return {"songId": song["id"], "title": song["title"], "artist": song["artist"]}
 
-    def keep_made(chart_id: str, job: Any) -> None:
-        """A chart made ahead goes where a brief one would."""
-        try:
-            chart = job.result()
-        except TierNotMade as e:
-            with briefs_lock:
-                keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
-            return
-        except Exception:
-            return  # asked for, it is made again and the error answered then
-        with briefs_lock:
-            keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
-            keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
-
-    def make_tiers_ahead(
-        song: dict[str, Any], analysis: dict[str, Any], key_mode: str, options: dict[str, Any], tiers: list[str], chosen: str | None = None
-    ) -> None:
-        """Starts the default charts of `tiers` (their own seeds, no target level) that are not made
-        yet: the song select asks for them next (each tier's level on its plate). `chosen`: the
-        tier the player is likely to open, made as a chart to play (the others wait for it)."""
-        for tier in tiers:
-            try:
-                params = resolve_params(key_mode, tier, None, options)
-            except (ValueError, StopIteration):
-                return
-            seed = default_seed(analysis["audioHash"], key_mode, params.difficulty, params.target_level)
-            chart_id = chart_id_for(analysis, key_mode, params, seed)
-            with briefs_lock:
-                if chart_id in brief_metas or chart_id in not_made:
-                    continue
-            if library.chart_path(chart_id).exists():
-                continue
-            priority = WHOLE if tier == chosen else AHEAD
-            job, new = maker.job(chart_id, priority, (analysis, key_mode, tier, None, seed, options, chart_meta(song)))
-            if new:
-                job.add_done_callback(lambda j, c=chart_id: keep_made(c, j))
-
-    def make_ahead(song_id: str) -> None:
-        """A song just analyzed (none waiting after it): the tiers of the key mode charts were last
-        asked for in, so the song select finds them made; that tier first, alone (the player most
-        likely opens it), then the others."""
-        if not maker.parallel or not last_asked or queue.waiting(song_id) or mapper.active():
-            return
-        try:
-            song = library.get_song(song_id)
-            analysis = chart_analysis(song)
-        except SongNotFound:
-            return
-        if analysis is None:
-            return
-        order = list(difficulty_config()["order"])
-        first = last_asked["difficulty"]
-        tiers = [first] + [t for t in order if t != first] if first in order else order
-        make_tiers_ahead(song, analysis, last_asked["keyMode"], last_asked["params"], tiers, chosen=first)
-
     def queue_mapper(song: dict[str, Any], analysis: dict[str, Any], key_mode: str, tier: str, target: int | None, seed: int | None, priority: int) -> tuple[str, Any]:
         """Queues a Mapperatorinator chart (None for the job when it is saved already): its id and
         job. A made chart is saved by its job, whoever waits for it."""
         _, seed, chart_id = mapper.plan(analysis, key_mode, tier, target, seed)
         if library.chart_path(chart_id).exists():
             return chart_id, None
-        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(song["id"]))
+        sid, model = song["id"], str(mapper.config().get("model", "v32"))
+        # the song's timing is asked for when the chart's turn comes: its first chart has found it by then
+        args = (analysis, key_mode, tier, target, seed, chart_meta(song), library.audio_path(sid), lambda: library.mapper_timing(sid, model))
         job, new = mapper_queue.submit(chart_id, priority, args)
         if new:
-            def done(j: Any, sid: str = song["id"], label: str = f"{song['title']} {key_mode} {tier}") -> None:
+            def done(j: Any, label: str = f"{song['title']} {key_mode} {tier}") -> None:
                 if j.cancelled():
                     return
                 e = j.exception()
                 if e is None:
-                    library.save_chart(j.result(), sid)
+                    chart = j.result()
+                    library.save_chart(chart, sid)
+                    if chart["meta"]["generator"].get("timing") == "model":
+                        # the song's first chart: its timing is the song's from now on (the other
+                        # tiers are made on it), and the song list's BPM
+                        library.save_mapper_timing(sid, model, chart["timing"])
+                        library.update_song(sid, **{k: v for k, v in zip(("bpm", "bpm_min", "bpm_max"), song_bpm(chart["timing"], chart["meta"]["durationMs"]).values())})
                 else:
                     log.warning("Mapperatorinator could not make %s: %s", label, e)
                     mapper.last_error = {"chart": label, "error": str(e), "at": time.time()}
@@ -642,10 +559,32 @@ def create_app(
             job.add_done_callback(done)
         return chart_id, job
 
-    async def mapper_chart(song: dict[str, Any], analysis: dict[str, Any], req: ChartRequest, seed: int | None) -> dict[str, Any] | None:
-        """A chart by Mapperatorinator (None: it failed, and the server's own generator makes it).
-        A brief gets the level the tier aims at and whether it is being made or waits to be. A chart
-        opened is made first; then the other tiers of its key mode, in the background."""
+    def mapper_unavailable() -> str:
+        """Why Mapperatorinator cannot make a chart now (there is no other generator)."""
+        status = mapper.runtime.status()
+        return {
+            "unsupported": status.get("reason") or "NVIDIA GPU가 없어 AI 채보를 만들 수 없습니다.",
+            "installing": "AI 채보 실행 환경을 설치하는 중입니다. 설치가 끝난 뒤 다시 시도해 주세요.",
+            "failed": f"AI 채보 실행 환경 설치에 실패했습니다: {status.get('error')}. 설정에서 다시 설치해 주세요.",
+        }.get(status["state"], "AI 채보 실행 환경이 아직 설치되지 않았습니다. 설정 → AI 채보에서 설치해 주세요.")
+
+    @app.post("/api/songs/{song_id}/charts")
+    async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
+        """A chart by Mapperatorinator, the only generator (docs/MAPPERATORINATOR.md). `params` (the
+        old generator's options) is taken and ignored. A brief gets the level the tier aims at and
+        whether it is being made or waits to be. A chart opened is made first; then the other tiers
+        of its key mode, in the background. A chart it cannot make is an error to try again on."""
+        song = song_or_404(song_id)
+        if song["status"] != "ready":
+            raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
+        analysis = chart_analysis(song)
+        if analysis is None:
+            raise HTTPException(409, "분석 결과가 없습니다")
+        try:
+            resolve_tier(req.keyMode, req.difficulty, req.targetLevel)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        seed = random.SystemRandom().randrange(2**32) if req.newSeed else req.seed
         _, seed, chart_id = mapper.plan(analysis, req.keyMode, req.difficulty, req.targetLevel, seed)
         cached = library.load_chart(chart_id)
         if cached is not None:
@@ -655,94 +594,30 @@ def create_app(
             state = mapper_queue.state(chart_id)
             meta["making"], meta["queued"] = state == "making", state == "queued"
             return {"meta": meta, "cached": False}
+        if not mapper.active():
+            raise HTTPException(503, mapper_unavailable())
         _, job = queue_mapper(song, analysis, req.keyMode, req.difficulty, req.targetLevel, seed, OPENED)
         for tier in difficulty_config()["order"]:
             if tier != req.difficulty:
                 try:
                     queue_mapper(song, analysis, req.keyMode, tier, None, None, BACKGROUND)
-                except (ValueError, StopIteration):
+                except ValueError:
                     pass  # a tier this key mode does not have
         if job is None:  # saved meanwhile
             chart = library.load_chart(chart_id)
-            if chart is not None:
-                return {"chart": chart, "cached": True}
-            return None
+            if chart is None:
+                raise HTTPException(502, "만든 채보를 읽지 못했습니다. 다시 시도해 주세요.")
+            return {"chart": chart, "cached": True}
         try:
             chart = await asyncio.wrap_future(job)
         except MapperError as e:
-            mapper_failed[song["id"]] = str(e)
-            return None
+            raise HTTPException(502, f"AI 채보를 만들지 못했습니다: {e} — 다시 시도해 주세요.") from e
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001  (whatever broke, the player hears it and can try again)
+            log.exception("chart %s failed", chart_id)
+            raise HTTPException(502, f"AI 채보를 만들지 못했습니다: {type(e).__name__}: {e} — 다시 시도해 주세요.") from e
         return {"chart": chart, "cached": False}
-
-    # the last Mapperatorinator failure on a song (its chart came from the server's own generator)
-    mapper_failed: dict[str, str] = {}
-
-    @app.post("/api/songs/{song_id}/charts")
-    async def create_chart(song_id: str, req: ChartRequest) -> dict[str, Any]:
-        song = song_or_404(song_id)
-        if song["status"] != "ready":
-            raise HTTPException(409, "아직 분석이 끝나지 않았습니다")
-        analysis = chart_analysis(song)
-        if analysis is None:
-            raise HTTPException(409, "분석 결과가 없습니다")
-        try:
-            params = resolve_params(req.keyMode, req.difficulty, req.targetLevel, req.params)
-        except (ValueError, StopIteration) as e:
-            raise HTTPException(400, str(e)) from e
-        seed = req.seed
-        if req.newSeed:
-            seed = random.SystemRandom().randrange(2**32)
-        if mapper.active():
-            made = await mapper_chart(song, analysis, req, seed)
-            if made is not None:
-                return made
-        if seed is None:
-            seed = default_seed(analysis["audioHash"], req.keyMode, params.difficulty, params.target_level)
-        chart_id = chart_id_for(analysis, req.keyMode, params, seed)
-        cached = library.load_chart(chart_id)
-        if cached is not None:
-            return {"meta": cached["meta"], "cached": True} if req.brief else {"chart": cached, "cached": True}
-        with briefs_lock:
-            if req.brief and chart_id in brief_metas:
-                brief_metas.move_to_end(chart_id)
-                return {"meta": brief_metas[chart_id], "cached": True}
-            if chart_id in not_made:
-                raise HTTPException(404, not_made[chart_id])
-            chart = brief_charts.pop(chart_id, None)
-        made = chart is not None
-        if chart is None:
-            job, _ = maker.job(
-                chart_id, BRIEF if req.brief else WHOLE,
-                (analysis, req.keyMode, req.difficulty, req.targetLevel, seed, req.params, chart_meta(song)),
-            )
-            if maker.parallel:
-                # the song select asks for the other tiers next: they are made meanwhile, side by side
-                if not req.brief:
-                    last_asked.update(keyMode=req.keyMode, params=dict(req.params), difficulty=req.difficulty)
-                order = list(difficulty_config()["order"])
-                make_tiers_ahead(song, analysis, req.keyMode, req.params, [t for t in order if t != req.difficulty])
-            try:
-                chart = await asyncio.wrap_future(job)
-            except TierNotMade as e:
-                with briefs_lock:
-                    keep(not_made, chart_id, str(e), BRIEF_METAS_KEPT)
-                raise HTTPException(404, str(e)) from e
-            except GenerationError as e:
-                raise HTTPException(422, str(e)) from e
-            if not req.brief:
-                # a chart made ahead was kept as a brief one by its job: it is saved now instead
-                with briefs_lock:
-                    brief_charts.pop(chart_id, None)
-        if req.brief:
-            with briefs_lock:
-                keep(brief_charts, chart_id, chart, BRIEF_CHARTS_KEPT)
-                keep(brief_metas, chart_id, chart["meta"], BRIEF_METAS_KEPT)
-            return {"meta": chart["meta"], "cached": made}
-        library.save_chart(chart, song_id)
-        if mapper.active() and song_id in mapper_failed:
-            # Mapperatorinator failed on this chart: the server's own generator made it
-            return {"chart": chart, "cached": made, "notice": f"Mapperatorinator가 실패해 기존 생성기로 만들었습니다: {mapper_failed.pop(song_id)}"}
-        return {"chart": chart, "cached": made}
 
     @app.get("/api/charts/{chart_id}")
     def get_chart(chart_id: str) -> dict[str, Any]:

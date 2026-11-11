@@ -17,6 +17,7 @@ from ..formats.images import MAX_IMAGE_BYTES, ImageIndex, image_kind, image_stem
 from ..formats.keysounds import SoundIndex, build_sprite, decode_sounds, full_mix, normalizing_gain
 from ..formats.package import ChartGroup, scan_package
 from .jobs import AnalysisQueue
+from ..mapper.charts import song_bpm
 from .library import Library
 
 # imported charts get our difficulty name from the level we rate them at
@@ -166,6 +167,10 @@ def import_package(library: Library, queue: AnalysisQueue, root: Path, fetch_ima
                 continue
             library.save_chart(chart, song["id"])
             m = chart["meta"]
+            if song.get("bpm") is None:
+                # the song list's BPM: the chart's own (a generated chart's comes with its first AI chart)
+                bpm = song_bpm(chart["timing"], float(m.get("durationMs") or song.get("durationMs") or 0.0))
+                song.update(library.update_song(song["id"], bpm=bpm["bpm"], bpm_min=bpm["bpmMin"], bpm_max=bpm["bpmMax"]))
             charts.append({"chartId": m["chartId"], "songId": song["id"], "keyMode": m["keyMode"], "level": m["level"], "name": m.get("chartName", ""), "noteCount": m["noteCount"]})
     if not charts:
         raise FormatError("채보를 하나도 가져오지 못했습니다: " + "; ".join(warnings[:3]))

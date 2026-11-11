@@ -25,9 +25,9 @@ from rhythm_server.analysis.spectral import median_along
 from rhythm_server.analysis.stems import HOP, N_FFT, STEM_NAMES, _istft, separate
 from rhythm_server.api.app import create_app, youtube_video_id
 from rhythm_server.api.library import Library
-from rhythm_server.generator import generate_chart
-from rhythm_server.generator.lanes import lane_infos
 from rhythm_server.synth import INSTRUMENT_STEM, make_song
+
+from fakes import made_chart
 
 
 @lru_cache(maxsize=None)
@@ -361,128 +361,23 @@ def test_ml_helpers() -> None:
 # ---------- generation ----------
 
 
-def _chart_consistency(chart: dict, analysis: dict) -> float:
-    """Share of slots in repeated sections whose key lanes match the first occurrence."""
-    keys = {l.index for l in lane_infos(chart["meta"]["keyMode"]) if l.kind == "key"}
-    by_beat: dict[float, set[int]] = {}
-    for n in chart["notes"]:
-        if n["lane"] in keys:
-            by_beat.setdefault(round(n["beat"], 4), set()).add(n["lane"])
-    sections = sorted(analysis["sections"], key=lambda s: s["startBeat"])
-    first: dict[str, tuple[float, float]] = {}
-    same = total = 0
-    for k, s in enumerate(sections):
-        end = sections[k + 1]["startBeat"] if k + 1 < len(sections) else float("inf")
-        if s["group"] not in first:
-            first[s["group"]] = (s["startBeat"], end)
-            continue
-        ref_start, ref_end = first[s["group"]]
-        for beat, lanes in by_beat.items():
-            if s["startBeat"] <= beat < end and ref_start + beat - s["startBeat"] < ref_end:
-                ref = by_beat.get(round(ref_start + beat - s["startBeat"], 4))
-                if ref is not None and len(ref) == len(lanes):
-                    total += 1
-                    same += ref == lanes
-    return same / max(1, total)
-
-
-def test_repeated_sections_reuse_their_lane_patterns() -> None:
-    a = analysis_of()
-    assert len({s["group"] for s in a["sections"]}) < len(a["sections"])  # something repeats
-    for mode, diff in (("4K", "HARD"), ("7K+1S", "EXPERT")):
-        on = generate_chart(a, mode, diff, seed=11)
-        off = generate_chart(a, mode, diff, seed=11, overrides={"repeatConsistency": 0})
-        assert on["meta"]["repeatConsistency"] >= 0.9
-        assert off["meta"]["repeatConsistency"] is None
-        assert _chart_consistency(on, a) >= 0.85
-        assert _chart_consistency(on, a) > _chart_consistency(off, a) + 0.2
-
-
 def test_charts_carry_sources_camera_cues_and_a_keysound_stem() -> None:
     a = analysis_of()
-    chart = generate_chart(a, "6K", "HARD", seed=3)
-    assert all(n.get("src") in STEM_NAMES for n in chart["notes"])
+    chart = made_chart(a, "6K", "HARD", 3, count=400)
+    followed = [n for n in chart["notes"] if n.get("src")]
+    assert len(followed) > 0.9 * len(chart["notes"]) and all(n["src"] in STEM_NAMES for n in followed)
     keysound = chart["meta"]["keysound"]
-    assert keysound["stem"] in ("vocals", "other", "bass") and abs(sum(keysound["shares"].values()) - 1) < 0.01
+    assert keysound["stem"] in STEM_NAMES and abs(sum(keysound["shares"].values()) - 1) < 0.01
     effects = chart["effects"]
     assert effects and all(e["type"] in ("tilt", "zoom", "view") for e in effects)
-    chorus = [s for s in a["sections"] if s["energy"] >= 0.7]
-    assert any(e["type"] == "tilt" and e["beat"] == max(0, chorus[0]["startBeat"]) for e in effects)
     assert all(-1 <= e["value"] <= 1 for e in effects)
-
-
-def _tagged_analysis() -> dict:
-    """Hand-made analysis: kick-only hits on the beat, hat-only hits between them (120 BPM)."""
-    onsets = []
-    for i in range(256):
-        t = 500.0 + i * 250.0
-        kick = i % 2 == 0
-        onsets.append(
-            {
-                "t": t,
-                "strength": 1.0 if kick else 0.8,
-                "band": "low" if kick else "high",
-                "bands": [0.85, 0.1, 0.05] if kick else [0.05, 0.1, 0.85],
-                "pitch": None,
-                "harmonic": 0.1,
-                "sustainEnd": None,
-                "source": "drums",
-                "sources": [0.9, 0.04, 0.03, 0.03],
-            }
-        )
-    duration = 500.0 + 256 * 250.0 + 2000.0
-    return {
-        "audioHash": "sha256:tagged",
-        "analyzer": {"name": "core", "version": ANALYZER_VERSION},
-        "durationMs": duration,
-        "timing": {"offsetMs": 500.0, "tempoMap": [{"beat": 0, "bpm": 120.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]},
-        "onsets": onsets,
-        "sections": [],
-        "energy": {"frameMs": 100, "values": [0.8] * int(duration / 100)},
-        "overrides": {},
-    }
-
-
-def test_instrument_mapping_puts_kicks_left_and_hats_right() -> None:
-    a = _tagged_analysis()
-
-    def drums(mode: str, tier: str, level: int | None, mapping: float, seed: int = 2) -> tuple[list, list[int], list[int]]:
-        chart = generate_chart(a, mode, tier, level, seed=seed, overrides={"instrumentMapping": mapping})
-        lanes = lane_infos(mode)
-        keys = [n for n in chart["notes"] if lanes[n["lane"]].kind == "key"]
-        return lanes, [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 0], [n["lane"] for n in keys if round(n["beat"] * 2) % 2 == 1]
-
-    def spread(*chart: object) -> float:
-        lanes, kicks, hats = drums(*chart)  # type: ignore[arg-type]
-        return float(np.mean([lanes[l].pos for l in hats]) - np.mean([lanes[l].pos for l in kicks]))
-
-    # (below skill 0.35, whose drums keep their fixed places)
-    for chart in (("7K+1S", "NORMAL", None), ("8K", "NORMAL", None)):
-        assert spread(*chart, 1.0) > 0.25, chart
-        assert spread(*chart, 1.0) > spread(*chart, 0.0) + 0.2, chart
-    # From skill 0.35 the generator draws each chart's drum keys from the spread of human BMS
-    # charts (generator 0.9.23, roles.drawnHomes): kicks need not be left, but each drum keeps a key
-    # of its own. (The lopsided-bar feedback of 0.9.25 moves some single hats to the hand a bar
-    # leans to; over the held-out charts the same-sound lane share still rises a little, PATTERN_DESIGN
-    # 47. On this song the hats also repeat on the off-beats, so how firmly they keep their key with
-    # the mapping off or on goes either way by seed.)
-    def home(lanes_used: list[int]) -> tuple[int, float]:
-        lane, n = Counter(lanes_used).most_common(1)[0]
-        return lane, n / len(lanes_used)
-
-    shares = []
-    for seed in range(4):
-        _, kicks, hats = drums("7K+1S", "HARD", None, 1.0, seed)
-        assert home(kicks)[0] != home(hats)[0], seed
-        shares.append(home(hats)[1])
-    assert float(np.mean(shares)) > 0.35, shares  # one key of the seven would hold 0.14
 
 
 def test_old_analyses_without_stems_still_generate() -> None:
     a = dict(analysis_of())
     a["onsets"] = [{k: v for k, v in o.items() if k not in ("source", "sources")} for o in a["onsets"]]
     a["sections"] = [{k: v for k, v in s.items() if k not in ("stems", "leader")} for s in a["sections"]]
-    chart = generate_chart(a, "4K", "NORMAL", seed=1)
+    chart = made_chart(a, "4K", "NORMAL", 1)
     assert chart["notes"] and "src" not in chart["notes"][0]
     assert chart["meta"]["keysound"] is None
 
