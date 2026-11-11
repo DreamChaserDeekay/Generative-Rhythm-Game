@@ -386,6 +386,34 @@ PICTURES["skin-crystal-b2"] = (
     "ruby gem. The judgment line stays a thin white line with a soft ice-blue edge across the dark floor." + TAIL,
 )
 
+# CRYSTAL: the deck's readouts in the skin's own manner, unlike the default skin's windows and pills.
+READOUT_EDIT = (
+    "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the three "
+    "readouts in the gear's bottom deck (SCORE 266,881, SPEED 3.00, RATE 100.00%) and keeping everything else exactly as it is "
+    "(the dark lanes, the rails, the row of crystal key caps, the notes, the lettering in the track, the gauge, the top-left song "
+    "information, the faceted deck itself, all positions). At present the readouts are a rounded rectangle and two pills, which is "
+    "the default skin's manner. Redesign them so they belong to the crystal: flat, low-poly, crisp, no sparkles, no glints, no "
+    "bloom; the numbers must stay large enough and high-contrast enough to read at a glance; same words and numbers, spelled "
+    "correctly. "
+)
+PICTURES["skin-crystal-b3"] = (
+    RAW / "r2-skin-crystal-b2.png",
+    READOUT_EDIT + "Design: the deck reads as one cut gem seen from above, and the readouts are engraved on its facets. SCORE sits "
+    "on the gem's table facet in the centre, a long hexagon with pointed left and right ends, of deep clear sapphire-navy "
+    "crystal with a thin bright bevel all round; its label 'SCORE' small in ice blue above the number, the number large in white. "
+    "SPEED and RATE sit on two crown facets left and right of the table, each a slanted parallelogram of the same deep crystal "
+    "leaning outward along the facet lines, label over number. Thin bright facet lines run from the table's corners to the "
+    "deck's corners. The lettering is the skin's italic geometric type." + TAIL,
+)
+PICTURES["skin-crystal-b4"] = (
+    RAW / "r2-skin-crystal-b2.png",
+    READOUT_EDIT + "Design: no dark plates at all. The readouts are cut into the pale crystal itself, as engraving filled with deep "
+    "navy: the SCORE number large and centred on a broad pale facet with a fine double line under it and a small diamond mark "
+    "at each end of the line, its label 'SCORE' small and letter-spaced above; SPEED at the left and RATE at the right each on a "
+    "triangular facet, the label small above the number, with one fine line under. All digits deep navy on the pale crystal, "
+    "the skin's italic geometric type." + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
