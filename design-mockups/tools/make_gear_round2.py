@@ -371,6 +371,21 @@ PICTURES["skin-crystal-parts"] = (
     "badge. Row five: a segment of the judgment line, one key cap idle and one lit, a short piece of the side rail. " + TAIL,
 )
 
+# CRYSTAL, version B with the lanes left alone: the lanes (the highway's floor) belong to no skin.
+PICTURES["skin-crystal-b2"] = (
+    RAW / "r2-skin-crystal-b.png",
+    "This is concept art of a skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY ONE thing and keeping "
+    "everything else exactly as it is (the crystal side rails, the row of crystal key caps, the faceted crystal deck with its "
+    "SCORE, SPEED and RATE plates, the notes, the long note, the hit effect, the combo and judgment lettering, the gauge, the "
+    "top-left song information, all positions). The one change: the LANES, the floor of the note highway between the two rails "
+    "from the far end down to the judgment line. They belong to no skin, so remove every pastel facet, colour plane and "
+    "iridescence from them and draw them as the game's plain floor: near-black (#0d0f14 to #15171f), each lane only very "
+    "faintly tinted by its key colour (a barely visible dark wine red in the far-left lane, dark slate blue and dark neutral "
+    "alternating in the others, a faint dark amber in the centre lane), thin hairline dividers between lanes at about ten "
+    "percent white, nothing else on the floor. The notes then stand out clearly on it: ice-white, cobalt blue, amber and the "
+    "ruby gem. The judgment line stays a thin white line with a soft ice-blue edge across the dark floor." + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []
