@@ -1996,6 +1996,110 @@ p.hint {
   outline: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+/* PRISM (크리스털): sapphire plates rimmed in light, white digits under ice-blue labels, the gauge a
+   bar of ice-blue glass (no cells: its light fills it), deeper under the clear line */
+.hud[data-gear='prism'] {
+  --hud-label-colour: #7cc8ff;
+  --hud-num-colour: #ffffff;
+  --plate-bg: rgba(27, 42, 92, 0.72);
+  --plate-border: 1px solid rgba(213, 230, 248, 0.5);
+  --gauge-off: rgba(124, 200, 255, 0.14);
+  --gauge-low: #5aa9e0;
+  --gauge-high: #c9edff;
+  --gauge-name-colour: #eaf4ff;
+}
+
+.hud[data-gear='prism'] .hud-gauge {
+  outline: 1px solid rgba(213, 230, 248, 0.45);
+  background: var(--gauge-off);
+}
+
+.hud[data-gear='prism'] .hud-gauge:not(.survival) .hud-gauge-fill {
+  background:
+    linear-gradient(var(--gauge-high), var(--gauge-high)) top / 100% calc(100% - var(--clear-at)) no-repeat,
+    linear-gradient(var(--gauge-low), var(--gauge-low)) bottom / 100% var(--clear-at) no-repeat;
+}
+
+/* ---------- a type cut as a crystal is (HudType.cut; Hud.ts: data-cut, each word carrying data-text) ----------
+   each word three layers of the same letters: the outlined ones; over them a white copy (::before);
+   over that the letters filled with flat planes cut at one angle (::after), set a hair lower, so the
+   white shows along the letters' top edges, a ground edge catching the light. Flat fills only: no
+   glow, no sparkle, nothing painted again but when the word changes. */
+.hud[data-cut] .hud-cut {
+  position: relative;
+  color: var(--hud-outline);
+  /* the planes' layer covers that much of the outline under the letters: the outline that much lower there */
+  text-shadow: 0 var(--cut-rim) 0 var(--hud-outline);
+}
+
+.hud[data-cut] .hud-judge-label .hud-cut {
+  display: inline-block;
+}
+
+.hud[data-cut] .hud-cut::before,
+.hud[data-cut] .hud-cut::after {
+  content: attr(data-text);
+  position: absolute;
+  /* wider than the word: slanted letters lean out of their box, and the planes are cut to the box */
+  left: -0.3em;
+  right: -0.3em;
+  top: -0.2em;
+  padding: 0.2em 0.3em;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  pointer-events: none;
+}
+
+.hud[data-cut] .hud-cut::before {
+  color: #ffffff;
+}
+
+.hud[data-cut] .hud-cut::after {
+  top: calc(-0.2em + var(--cut-rim));
+  color: transparent;
+  background: var(--cut-planes);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* the crystal skin's: white, pale ice blue, a hairline of light, steel blue and a touch of lavender;
+   the best judgement's percent ice blue to azure, lower ones steel blue, lavender, dusk; a break
+   ruby, one crack across it */
+.hud[data-cut='crystal'] {
+  --cut-rim: 0.04em;
+  --cut-planes: linear-gradient(128deg, #ffffff 0 26%, #d9edff 26% 44%, #f7fbff 44% 47.5%, #b3d0ee 47.5% 69%, #c9c2ee 69% 86%, #e3def8 86%);
+}
+
+.hud[data-cut='crystal'] .hud-combo-label {
+  /* close under the digits, as one cut with them */
+  margin-top: 0.12em;
+  font-size: calc(var(--label-size) * 1.25);
+  letter-spacing: 0.08em;
+  --cut-planes: linear-gradient(128deg, #d3ebff 0 31%, #f5faff 31% 35%, #a9c6e8 35% 63%, #c4bcec 63% 85%, #ddd7f6 85%);
+}
+
+.hud[data-cut='crystal'] .g-max .hud-cut:not(.hud-split) {
+  --cut-planes: linear-gradient(128deg, #c6edff 0 24%, #6ccaf7 24% 45%, #dcf4ff 45% 48.5%, #2aa1e6 48.5% 73%, #1589d1 73%);
+}
+
+.hud[data-cut='crystal'] .g-high .hud-cut:not(.hud-split) {
+  --cut-planes: linear-gradient(128deg, #d2e5f6 0 24%, #95badd 24% 45%, #e6f1fb 45% 48.5%, #7197c4 48.5% 73%, #5c81b2 73%);
+}
+
+.hud[data-cut='crystal'] .g-mid .hud-cut:not(.hud-split) {
+  --cut-planes: linear-gradient(128deg, #ece8fb 0 24%, #cbc3ee 24% 45%, #f4f1fd 45% 48.5%, #aea3dc 48.5% 73%, #9b90d1 73%);
+}
+
+.hud[data-cut='crystal'] .g-low .hud-cut:not(.hud-split) {
+  --cut-planes: linear-gradient(128deg, #e8dde9 0 24%, #c3acc7 24% 45%, #f0e8f1 45% 48.5%, #a388a9 48.5% 73%, #8e7497 73%);
+}
+
+.hud[data-cut='crystal'] .g-break .hud-cut {
+  --cut-planes:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M40 0 L37.5 34 L41.5 47 L38 100' fill='none' stroke='%2328060f' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat,
+    linear-gradient(128deg, #ffa6b6 0 22%, #f25f7a 22% 45%, #ff93a6 45% 48.5%, #d02846 48.5% 74%, #a31636 74%);
+}
+
 /* CABINET: a smoked acrylic plate bolted on, red seven-segment digits, white silk-screened labels;
    the gauge a slot of LED cells, green to yellow to red up it, named GROOVE */
 .hud[data-gear='cabinet'] {

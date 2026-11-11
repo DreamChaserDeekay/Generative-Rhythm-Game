@@ -36,8 +36,6 @@ import {
   sheetOffset,
   SIDE_FLASH_LINE,
   SIDE_PICTURES,
-  PRISM_SIDE,
-  prismSideTap,
   sideDotsBody,
   sideDotsEnd,
   sideDotsTap,
@@ -121,6 +119,8 @@ const COVER_Y = 0.016;
 const DECK_Y = 0.022;
 /** The px of a deck key's shade when held down (deckArt.paintPressedKey), across and along. */
 const PRESS_KEY_PX = [64, 256] as const;
+/** The px of a cut cap's picture when lit (deckArt.paintLitKey: CRYSTAL's), square. */
+const LIT_GEM_PX = 192;
 /** How fast a deck key held down comes back up once its lane's key is let go (ms to fall to 1/e). */
 export const KEY_RISE_MS = 40;
 
@@ -1307,13 +1307,9 @@ export class TrackRenderer {
       const cols = Math.max(8, Math.round((across / (key?.width ?? 1)) * DOTS_ACROSS));
       const paint = dots
         ? { tap: sideDotsTap(SIDE_EDGE / this.sideNoteDepth, cols), body: sideDotsBody(cols), end: sideDotsEnd(cols) }[part as Exclude<SidePart, 'flash'>]
-        : this.style.note === 'prism' && part !== 'flash'
-          ? part === 'tap'
-            ? prismSideTap(SIDE_EDGE / this.sideNoteDepth)
-            : PRISM_SIDE[part]
-          : part === 'tap'
-            ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
-            : SIDE_PICTURES[part];
+        : part === 'tap'
+          ? sideTapPaintOf(this.style.note, this.images, SIDE_EDGE / this.sideNoteDepth)
+          : SIDE_PICTURES[part];
       texture = this.own(paintTexture(w, h, paint));
       if (part === 'body') texture.wrapT = THREE.RepeatWrapping;
       this.sideTextures.set(part, texture);
@@ -1383,9 +1379,10 @@ export class TrackRenderer {
       const share = { left: key.notch.left / key.box.w, right: key.notch.right / key.box.w, depth: key.notch.depth / key.box.h };
       const g = canvas.getContext('2d') as CanvasRenderingContext2D;
       if (key.lit) {
-        // a cap is about as deep as it is wide: its picture square
+        // a cap is about as deep as it is wide: its picture square (a cut one finer: its ridges are hairlines)
+        if (key.gem) canvas.width = LIT_GEM_PX;
         canvas.height = canvas.width;
-        paintLitKey(g, canvas.width, canvas.height, key.lit);
+        paintLitKey(g, canvas.width, canvas.height, key);
       } else paintPressedKey(g, canvas.width, canvas.height, share);
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;

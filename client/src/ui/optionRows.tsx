@@ -10,7 +10,7 @@ export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** The parts by name (설정 → 노트 and 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = {
-  prism: '프리즘',
+  prism: '크리스털',
   flat: '기본',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
@@ -25,7 +25,7 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
 };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<GearStyle, string> = {
-  prism: '프리즘',
+  prism: '크리스털',
   standard: '기본',
   cabinet: '오락실 기체',
   receiver: '빈티지 리시버',
@@ -37,7 +37,7 @@ export const DECK_NAMES: Record<GearStyle, string> = {
   rawglass: '달',
 };
 export const HIT_NAMES: Record<HitStyle, string> = {
-  prism: '프리즘 분광',
+  prism: '크리스털 분광',
   flash: '플래시',
   flare: '플레어',
   bubbles: '거품',

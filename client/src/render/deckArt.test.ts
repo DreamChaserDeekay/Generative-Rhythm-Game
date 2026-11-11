@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyModes } from '../engine/config';
 import type { KeyModeId } from '../engine/types';
-import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, paintBorder, paintDeck, paintFace, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type Picture } from './deckArt';
+import { blackKeyAfter, DECK_PICTURE_FLATTEST, deckFromPicture, deckKeys, deckReadouts, GEAR_JUDGE, GEAR_STYLES, gearBorderLook, judgeOf, paintBorder, paintDeck, paintFace, paintLitKey, paintPressedKey, shadowOf, type DeckMark, type DeckSpec, type KeyKind, type Picture } from './deckArt';
 import { computeTrackGeometry, type SideNotes } from './layout';
 import { KEY_RISE_MS, notesEndZ, pressLevel } from './TrackRenderer';
 
@@ -127,8 +127,8 @@ describe('the decks of the gears a player picks', () => {
     sides: [],
   });
 
-  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys and STANDARD’s key caps)', () => {
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard')) {
+  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, and STANDARD’s and CRYSTAL’s key caps)', () => {
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard' && g !== 'prism')) {
       for (const [room, stretch] of [
         [96, 1.1],
         [320, 1.25],
@@ -223,8 +223,78 @@ describe('the decks of the gears a player picks', () => {
     expect(deckKeys('piano', { ...spec(155.55, 1.2, '6K+FX'), lanes: deckLanes('6K+FX', 'half') }, false).map((k) => k.lane)).toEqual([0, 1, 2, 3, 4, 5]);
     // STANDARD's key caps light with their lanes, one over each key lane
     expect(deckKeys('standard', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#37e2ff']));
+    // CRYSTAL's (saved as 'prism') too, in its ice blue, each keeping its cut when lit (drawn as much longer along the track as the deck is)
+    expect(deckKeys('prism', spec(155.55, 1.2, '7K+1S'), false).map((k) => [k.lane, k.lit, k.gem])).toEqual([0, 1, 2, 3, 4, 5, 6, 7].map((lane) => [lane, '#7cc8ff', 1.2]));
+    expect(deckKeys('prism', spec(155.55, 1.2, '4K'), false).map((k) => k.box)).toEqual(deckKeys('standard', spec(155.55, 1.2, '4K'), false).map((k) => k.box));
     // the other gears have no keys
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && g !== 'standard' && g !== 'prism')) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
+  });
+
+  it('STANDARD and CRYSTAL house the score, the speed and the rate on their decks, CRYSTAL’s on long hexagons that stay on the deck', () => {
+    for (const gear of ['standard', 'prism'] as const) {
+      for (const [room, stretch] of [
+        [155.55, 1.2],
+        [912, 3.25],
+      ]) {
+        const s = spec(room, stretch);
+        const r = deckReadouts(gear, s)!;
+        // under the caps and their seam, the score over the other two, which mirror each other
+        expect(r.score.y, gear).toBeGreaterThanOrEqual(47 * stretch);
+        expect(r.score.x + r.score.w / 2, gear).toBeCloseTo(s.width / 2, 6);
+        expect(r.speed.y, gear).toBeGreaterThanOrEqual(r.score.y + r.score.h);
+        expect(r.speed.y + r.speed.h, gear).toBeLessThanOrEqual(room);
+        expect(r.rate.x + r.rate.w, gear).toBeCloseTo(s.width - r.speed.x, 6);
+        expect([r.rate.y, r.rate.w, r.rate.h], gear).toEqual([r.speed.y, r.speed.w, r.speed.h]);
+      }
+      // too little of the deck on the screen (a small preview): none
+      expect(deckReadouts(gear, spec(96, 1.1)), gear).toBeNull();
+    }
+    // the other gears house none
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'standard' && g !== 'prism')) expect(deckReadouts(gear, spec(912, 3.25)), gear).toBeNull();
+    // CRYSTAL's hexagons have their points outside the windows, so its side windows start further in
+    expect(deckReadouts('prism', spec(155.55, 1.2))!.speed.x).toBeGreaterThan(deckReadouts('standard', spec(155.55, 1.2))!.speed.x);
+    for (const [room, stretch, mode] of [
+      [155.55, 1.2, '7K+1S'],
+      [912, 3.25, '4K'],
+    ] as [number, number, KeyModeId][]) {
+      // each window marked for the light its sapphire takes, and nothing of the deck drawn off it
+      const s = { ...spec(room, stretch, mode), marks: [] as DeckMark[] };
+      const { g, calls } = callRecorder();
+      paintDeck('prism', g, s);
+      expect(s.marks.map((m) => m.name)).toEqual(['plate.score', 'plate.speed', 'plate.rate']);
+      const xs = calls.filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo').map((c) => c[1] as number);
+      expect(xs.length).toBeGreaterThan(100);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...xs)).toBeLessThanOrEqual(s.width);
+    }
+    // a deck too short for them: the caps and the facets alone, no marks
+    const short = { ...spec(96, 1.1), marks: [] as DeckMark[] };
+    paintDeck('prism', callRecorder().g, short);
+    expect(short.marks).toEqual([]);
+  });
+
+  it('lights a held cap in its gear’s manner: STANDARD’s a rounded glow, CRYSTAL’s keeping its cut', () => {
+    const [plain] = deckKeys('standard', spec(155.55, 1.2), false);
+    const [gem] = deckKeys('prism', spec(155.55, 1.2), false);
+    const a = callRecorder();
+    paintLitKey(a.g, 64, 64, plain);
+    expect(a.calls.some((c) => c[0] === 'roundRect')).toBe(true);
+    expect(a.calls.some((c) => c[0] === 'lineTo')).toBe(false);
+    const b = callRecorder();
+    paintLitKey(b.g, 192, 192, gem);
+    expect(b.calls.some((c) => c[0] === 'roundRect')).toBe(false);
+    // drawn in the cap's own px, laid over the whole picture
+    const scale = b.calls.find((c) => c[0] === 'scale') as number[];
+    expect(scale[1]).toBeCloseTo(192 / gem.box.w, 5);
+    expect(scale[2]).toBeCloseTo(192 / gem.box.h, 5);
+    const points = b.calls.filter((c) => c[0] === 'moveTo' || c[0] === 'lineTo') as [string, number, number][];
+    expect(points.length).toBeGreaterThan(40);
+    for (const [, x, y] of points) {
+      expect(x).toBeGreaterThanOrEqual(-1e-6);
+      expect(x).toBeLessThanOrEqual(gem.box.w + 1e-6);
+      expect(y).toBeGreaterThanOrEqual(-1e-6);
+      expect(y).toBeLessThanOrEqual(gem.box.h + 1e-6);
+    }
   });
 
   it('PIANO’s key held down is shaded only inside its outline, round the black keys over its corners', () => {
@@ -302,5 +372,15 @@ describe('the decks of the gears a player picks', () => {
     expect(GEAR_JUDGE.height).toBeGreaterThanOrEqual(8);
     // the lanes run on between the line and the deck, a strip several times the line's depth
     expect(GEAR_JUDGE.gap).toBeGreaterThan(2 * GEAR_JUDGE.height);
+    // STANDARD's and CRYSTAL's in their own colours (a white core in cyan, in ice blue), where and as thick as every gear's
+    for (const gear of GEAR_STYLES) {
+      const j = judgeOf(gear);
+      expect([j.height, j.blur, j.gap], gear).toEqual([GEAR_JUDGE.height, GEAR_JUDGE.blur, GEAR_JUDGE.gap]);
+      if (gear !== 'standard' && gear !== 'prism') expect(j, gear).toBe(GEAR_JUDGE);
+    }
+    expect([judgeOf('standard').core, judgeOf('prism').core]).toEqual(['#ffffff', '#ffffff']);
+    // CRYSTAL's edge is blue enough for a white note's edge to show on it
+    const [cr, , cb] = [1, 3, 5].map((i) => parseInt(judgeOf('prism').line.slice(i, i + 2), 16));
+    expect(cb - cr).toBeGreaterThan(120);
   });
 });

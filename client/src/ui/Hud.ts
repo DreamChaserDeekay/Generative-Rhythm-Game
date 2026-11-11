@@ -281,12 +281,17 @@ function meterSvg(name: string, clear: number | null): string {
   </svg>`;
 }
 
-/** "MAX 100%" with its first word in white (a split type), else the whole label in the judgement's colour. */
-function judgementHtml(label: string, split: boolean): string {
-  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+/**
+ * "MAX 100%" with its first word in white (a split type), else the whole label in the judgement's
+ * colour; in a cut type (HudType.cut) each word in a span that carries its text, for the planes its
+ * styles lay over it (.hud-cut).
+ */
+export function judgementHtml(label: string, split: boolean, cut = false): string {
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const word = (t: string, cls = '') => (cut ? `<span class="hud-cut${cls && ` ${cls}`}" data-text="${esc(t)}">${esc(t)}</span>` : cls ? `<span class="${cls}">${esc(t)}</span>` : esc(t));
   const space = label.indexOf(' ');
-  if (!split || space < 0) return esc(label);
-  return `<span class="hud-split">${esc(label.slice(0, space))}</span> ${esc(label.slice(space + 1))}`;
+  if (!split || space < 0) return cut ? label.split(' ').map((t) => word(t)).join(' ') : esc(label);
+  return `${word(label.slice(0, space), 'hud-split')} ${cut ? label.slice(space + 1).split(' ').map((t) => word(t)).join(' ') : esc(label.slice(space + 1))}`;
 }
 
 /**
@@ -551,6 +556,14 @@ export class Hud {
     this.comboBox = q('.hud-combo');
     this.comboBox.style.opacity = this.judgeOpacity;
     this.comboNum = q('.hud-combo-num');
+    if (t.cut) {
+      // a cut type: the combo and its label carry their text as the judgement's words do (judgementHtml)
+      root.dataset.cut = t.cut;
+      this.comboNum.classList.add('hud-cut');
+      const label = q('.hud-combo-label');
+      label.classList.add('hud-cut');
+      label.dataset.text = label.textContent ?? '';
+    }
     this.judgeBox = q('.hud-judge');
     this.judgePop = q('.hud-judge-pop');
     this.judgeLabel = q('.hud-judge-label');
@@ -962,8 +975,9 @@ export class Hud {
       const [cx, cy] = [box.x + box.w / 2, box.y + box.h / 2];
       const u = uprightAt(p.h, cx, cy);
       const { scale, aspect } = planeScale(p.h, cx, cy);
-      // its digits no taller than 56 % of the window as the screen shows it, nor than the HUD's size
-      const tall = Math.min(num * hud, 0.56 * box.h * scale * aspect * u.stretch);
+      // its type no taller than four fifths of the window as the screen shows it (however flat the
+      // camera lays the deck: `aspect`), nor than the HUD's size
+      const tall = Math.min(num * hud, 0.8 * box.h * scale * aspect);
       let k = (tall / num) * u.k;
       this.sizeText(el, k, PANEL_LABEL * (num / PANEL_NUM), num);
       const wide = el.offsetWidth;
@@ -1052,7 +1066,7 @@ export class Hud {
 
   showJudge(e: JudgeEvent, perfNow: number): void {
     this.judgeAt = perfNow;
-    this.judgeLabel.innerHTML = judgementHtml(e.label, Boolean(this.type.split));
+    this.judgeLabel.innerHTML = judgementHtml(e.label, Boolean(this.type.split), Boolean(this.type.cut));
     this.judgeLabel.className = `hud-judge-label ${e.cls}`;
     // FAST / SLOW off the best judgement, the error in whole ms (exact ones in a neutral colour)
     const error = e.isBreak ? null : e.errorMs;
@@ -1074,6 +1088,7 @@ export class Hud {
     this.lastCombo = combo;
     const text = combo >= 2 ? String(combo) : '';
     this.comboNum.textContent = text;
+    if (this.type.cut) this.comboNum.dataset.text = text;
     this.comboBox.style.visibility = combo >= 2 ? 'visible' : 'hidden';
     if (rose && this.bumpCombo) {
       // a transform animation: runs on the compositor, no layout per hit

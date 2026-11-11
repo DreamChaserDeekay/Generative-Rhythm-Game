@@ -358,25 +358,25 @@ test('play: the default skin, what a player starts with', async ({ page }) => {
   }
 });
 
-test('play: the PRISM set', async ({ page }) => {
+test('play: the crystal skin', async ({ page }) => {
   test.setTimeout(420_000);
-  // also runs on its own (-g "PRISM set"): makes the showcase song when it is missing
+  // (its parts are saved as 'prism') also runs on its own (-g "crystal skin"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   const parts = { note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' };
   // the keys and the scratch; the side notes over half the keys; four keys in FEVER
   for (const [keyMode, more, name] of [
-    ['7K+1S', { fever: 'OFF' }, '44-prism-7k'],
-    ['6K+FX', { fever: 'OFF' }, '45-prism-6kfx'],
-    ['4K', {}, '46-prism-4k-fever'],
+    ['7K+1S', { fever: 'OFF' }, '50-crystal-7k'],
+    ['6K+FX', { fever: 'OFF' }, '51-crystal-6kfx'],
+    ['4K', {}, '52-crystal-4k-fever'],
   ] as const) {
     await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
     await selectShowcase(page, keyMode, 'EXPERT');
     // Shift+Enter starts the play in AUTO
     await autoplay(page);
     await expect(page.getByTestId('play-screen')).toBeVisible();
-    await page.waitForTimeout(14_200);
+    await page.waitForTimeout(18_000);
     await shot(page, name);
     await page.keyboard.press('Escape');
   }

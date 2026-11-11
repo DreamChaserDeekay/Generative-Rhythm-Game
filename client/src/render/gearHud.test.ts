@@ -32,6 +32,9 @@ describe('the HUD a gear brings', () => {
     expect([GEAR_TYPES.piano.font, HUD_FONTS['Bodoni Moda'].italic, GEAR_TYPES.piano.bar]).toEqual(['Bodoni Moda', true, '#c9a45c']);
     // the moon's wide geometric capitals
     expect(GEAR_TYPES.rawglass.font).toBe('Orbitron');
+    // the crystal skin's letters cut into flat planes (its styles colour the judgements), "MAX" apart from its percent; no other gear's
+    expect([GEAR_TYPES.prism.font, GEAR_TYPES.prism.cut, GEAR_TYPES.prism.split]).toEqual(['Exo 2', 'crystal', true]);
+    for (const gear of GEAR_STYLES.filter((g) => g !== 'prism')) expect(GEAR_TYPES[gear].cut, gear).toBeUndefined();
     expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
   });
 });

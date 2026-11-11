@@ -536,7 +536,7 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   // the default skin: its notes, its long note, its gear and its hit, all drawn in code
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'flat solid bar standard flash');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
-  // and the PRISM set, picked part by part, drawn in code too
+  // and the crystal skin (its parts saved as 'prism'), picked part by part, drawn in code too
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.keyboard.press('KeyQ');
@@ -544,14 +544,40 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'notes');
   await chooseSetting(page, 'opt-note-style', 'prism');
-  await expect(page.getByTestId('opt-note-style')).toContainText('프리즘');
+  await expect(page.getByTestId('opt-note-style')).toContainText('크리스털');
   await settingsTab(page, 'gear');
   await chooseSetting(page, 'opt-deck-style', 'prism');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('크리스털');
   await chooseSetting(page, 'opt-hit-style', 'prism');
+  await expect(page.getByTestId('opt-hit-style')).toContainText('크리스털 분광');
   await page.getByRole('button', { name: /완료/ }).click();
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'prism prism bar prism prism');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear');
+  // its HUD: the gauge named FEVER, the letters cut into planes (each word carries its text for them)
+  await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'prism');
+  await expect(page.locator('.hud')).toHaveAttribute('data-cut', 'crystal');
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FEVER');
+  await expect(page.locator('.hud-combo-label')).toHaveAttribute('data-text', 'COMBO');
+  await expect(page.locator('.hud-judge-label .hud-cut').first()).toBeVisible({ timeout: 30_000 });
+  const cut = await page.locator('.hud-judge-label').evaluate((label) =>
+    [...label.querySelectorAll<HTMLElement>('.hud-cut')].map((word) => {
+      const planes = getComputedStyle(word, '::after');
+      return { text: word.textContent, carried: word.dataset.text, clip: planes.backgroundClip, image: planes.backgroundImage.slice(0, 15), fill: planes.color };
+    }),
+  );
+  expect(cut.length).toBeGreaterThan(0);
+  for (const word of cut) {
+    expect(word.carried).toBe(word.text);
+    expect(word.clip).toBe('text');
+    expect(word.image).toMatch(/^(linear-gradient|url)/);
+    expect(word.fill).toBe('rgba(0, 0, 0, 0)');
+  }
+  await expect.poll(() => page.locator('.hud-combo-num').evaluate((el) => (el as HTMLElement).dataset.text === el.textContent && el.textContent !== '')).toBe(true);
+  // its deck houses the score, SPEED and the rate as the default one does, on its own plates
+  const [speed, score, rate] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate'].map((sel) => page.locator(sel).boundingBox()));
+  expect(speed && score && rate && speed.x >= 0 && speed.x < score.x && score.x < rate.x && rate.x + rate.width <= 1280 && score.y > 360 && score.y + score.height <= 720).toBe(true);
+  expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(124, 200, 255)');
   expect(errors).toEqual([]);
 });
 

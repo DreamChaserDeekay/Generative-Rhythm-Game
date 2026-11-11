@@ -30,8 +30,11 @@
  *   clef medallion under the scratch lane (a plain one under a side lane); a white key goes down
  *   while its lane's key is held; its frame the piano's rim, black lacquer with a brass line along
  *   the lanes.
- * - PRISM (프리즘): satin black anodised aluminium, a slab of smoked glass with a round lens set in it,
- *   glass light-guides along the lanes (prismPlate);
+ * - PRISM (크리스털): the crystal skin's gear, as wide as the track and no wider: a row of frosted
+ *   crystal key caps, one to a lane, cut as emeralds are (the held one lit ice blue: deckKeys), over a
+ *   deck of broad flat facets in white, pale ice blue and pale lavender; set in it three long hexagons
+ *   of sapphire glass, pointed as its gem note is, where the HUD writes the score, the speed and the
+ *   rate (deckReadouts); its frame thin rails of clear glass (crystalPlate);
  * - RAWGLASS (달): a slab of raw glass in the silvers of a mirror's bevels with nothing set
  *   in it, its top broken into flat crystal facets that catch the light, grey where it is thick and
  *   white where the light comes through; its frame rails of the same glass.
@@ -154,13 +157,13 @@ export type GearArt = Partial<Record<GearPart, Picture>>;
 export const GEAR_JUDGE = { line: '#ff2b3b', core: '#ffd2d6', glow: '#ff2b3b', height: 16, blur: 22, gap: 40 } as const;
 
 /**
- * The judge line's colours on a gear: GEAR_JUDGE's red, but STANDARD's own (a white core in its cyan) and PRISM's, a white core in azure light
- * (its scratch is a ruby: a red line would hide the gem's razor as it lands; all white, it would hide
- * the white keys' notes). Its place and size are
+ * The judge line's colours on a gear: GEAR_JUDGE's red, but STANDARD's own (a white core in its cyan) and PRISM's, a white line edged in ice blue
+ * (its scratch is a ruby: a red line would hide the gem's razor as it lands; white to its edges, it
+ * would hide the white keys' notes). Its place and size are
  * the same on every gear.
  */
 export function judgeOf(style: GearStyle): { line: string; core: string; glow: string; height: number; blur: number; gap: number } {
-  if (style === 'prism') return { ...GEAR_JUDGE, line: '#3f8cff', core: '#f2f8ff', glow: '#3f8cff' };
+  if (style === 'prism') return { ...GEAR_JUDGE, line: CRYSTAL_LINE, core: '#ffffff', glow: CRYSTAL_ICE };
   // STANDARD's: a white core in the gear's cyan
   if (style === 'standard') return { ...GEAR_JUDGE, line: '#2bc4e4', core: '#ffffff', glow: CYAN };
   return GEAR_JUDGE;
@@ -445,7 +448,10 @@ function brassCorner(g: CanvasRenderingContext2D, x: number, y: number, size: nu
   g.restore();
 }
 
-/** The depths of STANDARD's deck (plane px across, drawn `stretch` times longer along the track): its row of key caps, the seam under it, its upper step with the score, its lower step with the speed and the rate. */
+/**
+ * The depths of STANDARD's deck, and CRYSTAL's (plane px across, drawn `stretch` times longer along the track): its row of key caps, the seam
+ * under it, its upper step with the score, its lower step with the speed and the rate.
+ */
 const STD = { keys: 44, seam: 3, upper: 46, lower: 44, pad: 4 } as const;
 
 /** The readouts a deck houses (the HUD writes them there): their windows, plane px from the deck's top-left corner. */
@@ -455,13 +461,18 @@ export interface DeckReadouts {
   rate: Box;
 }
 
+/** How long each point of CRYSTAL's readout plates is for a window `h` deep (plane px across), and how far into it the window reaches. */
+const gemPoint = (h: number, st: number) => (h / st) * 0.6;
+const GEM_WINDOW = 0.45;
+
 /**
- * Where STANDARD's deck has its readouts: the score in a wide window in the middle of its upper
- * step, the speed and the rate in two pills at the ends of its lower step; null where the screen
+ * Where STANDARD's deck and CRYSTAL's have their readouts: the score in a wide window in the middle
+ * of the upper step, the speed and the rate in two at the ends of the lower step (STANDARD's pills;
+ * CRYSTAL's long hexagons, whose points lie outside the windows: gemPlate); null where the screen
  * shows too little of the deck for them (a small preview) or the gear houses none.
  */
 export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>): DeckReadouts | null {
-  if (style !== 'standard') return null;
+  if (style !== 'standard' && style !== 'prism') return null;
   const st = s.stretch;
   const top = (STD.keys + STD.seam) * st;
   if (s.room < top + (STD.upper + STD.lower * 0.6) * st) return null;
@@ -470,7 +481,9 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
   const y = top + STD.upper * st + pad;
   const h = Math.min(STD.lower * st, s.room - top - STD.upper * st) - 2 * pad;
   const w = s.width * 0.2;
-  return { score: upper, speed: { x: s.width * 0.035, y, w, h }, rate: { x: s.width * 0.965 - w, y, w, h } };
+  // a hexagon's point outside its window: the plates start as far from the deck's edges as STANDARD's pills
+  const edge = s.width * (style === 'prism' ? 0.03 : 0.035) + (style === 'prism' ? gemPoint(h, st) * (1 - GEM_WINDOW) : 0);
+  return { score: upper, speed: { x: edge, y, w, h }, rate: { x: s.width - edge - w, y, w, h } };
 }
 
 /** A readout's window: a dark well with a hairline round it, `r` round at its corners. */
@@ -1488,8 +1501,10 @@ export interface DeckKey {
   lane: number;
   box: Box;
   notch: { left: number; right: number; depth: number };
-  /** Lit in this colour while held (STANDARD's key caps), where the key does not go down in shade (PIANO's). */
+  /** Lit in this colour while held (STANDARD's key caps, CRYSTAL's), where the key does not go down in shade (PIANO's). */
   lit?: string;
+  /** A cap cut as a gem (CRYSTAL's), drawn this many times longer along the track (DeckSpec.stretch): lit, it keeps its cut (crystalCap). */
+  gem?: number;
 }
 
 /** Where PIANO's deck picture has its keys (px of the picture, `width` across): the white keys from under the lip, the black keys' near ends (build_gears.py lays it flat). */
@@ -1501,10 +1516,11 @@ const PIANO_PICTURE_KEYS = { width: 2048, top: 26, blackEnd: 299 } as const;
  * plate draws them in code.
  */
 export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): DeckKey[] {
-  if (style === 'standard') {
-    // its key caps, one to a lane (see standardPlate)
+  if (style === 'standard' || style === 'prism') {
+    // its key caps, one to a lane (see standardPlate, crystalPlate)
     const st = s.stretch;
-    return s.lanes.map((lane, i) => ({ lane: i, box: { x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: (STD.keys - 4) * st }, notch: { left: 0, right: 0, depth: 0 }, lit: CYAN }));
+    const gem = style === 'prism';
+    return s.lanes.map((lane, i) => ({ lane: i, box: capBox(lane, st), notch: { left: 0, right: 0, depth: 0 }, lit: gem ? CRYSTAL_ICE : CYAN, ...(gem ? { gem: st } : {}) }));
   }
   if (style !== 'piano') return [];
   const { top: plateTop, whites, blacks } = pianoKeyboard(s);
@@ -1539,10 +1555,18 @@ export function deckKeys(style: GearStyle, s: DeckSpec, pictured: boolean): Deck
  */
 /**
  * A key cap lit while held, painted over the cap (a `w` × `h` canvas over its box): the cap filled with
- * `colour`'s light, brightest along its far edge, a rim of the colour round it. Drawn once; the
- * renderer shows it while the lane's key is held.
+ * its colour's light, brightest along its far edge, a rim of the colour round it; a cap cut as a gem
+ * (CRYSTAL's) the same cut full of light. Drawn once; the renderer shows it while the lane's key is held.
  */
-export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, colour: string): void {
+export function paintLitKey(g: CanvasRenderingContext2D, w: number, h: number, key: Pick<DeckKey, 'box' | 'lit' | 'gem'>): void {
+  if (key.gem) {
+    g.save();
+    g.scale(w / key.box.w, h / key.box.h);
+    crystalCap(g, { x: 0, y: 0, w: key.box.w, h: key.box.h }, key.gem, true);
+    g.restore();
+    return;
+  }
+  const colour = key.lit ?? '#ffffff';
   g.beginPath();
   g.roundRect(0, 0, w, h, Math.min(w, h) * 0.12);
   const glow = g.createLinearGradient(0, 0, 0, h);
@@ -1738,149 +1762,316 @@ function rawGlassPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
 }
 
-/** PRISM's metal (satin black anodised aluminium) and the light in its glass. */
-const ANODISED = '#14161b';
-const PRISM_LIGHT = '#eaf3ff';
-/** White light split, red to violet (the PRISM hit's colours: tintArt.ts). */
-const PRISM_SPECTRUM = ['#ff4a5e', '#ff9a3c', '#ffe45c', '#63f28a', '#4fd8ff', '#5b8cff', '#b06bff'] as const;
+// ---------- CRYSTAL (the crystal skin's gear; its parts are saved as 'prism') ----------
 
-/** The spectrum across `x0`..`x1` at `alpha`, fading out at both ends. */
-function spectrum(g: CanvasRenderingContext2D, x0: number, x1: number, alpha: number): CanvasGradient {
-  const grad = g.createLinearGradient(x0, 0, x1, 0);
-  grad.addColorStop(0, shade(PRISM_SPECTRUM[0], 1, 0));
-  PRISM_SPECTRUM.forEach((c, i) => grad.addColorStop(0.1 + (0.8 * i) / (PRISM_SPECTRUM.length - 1), shade(c, 1, alpha)));
-  grad.addColorStop(1, shade(PRISM_SPECTRUM[6], 1, 0));
-  return grad;
+/** CRYSTAL's ice blue (a held cap's light, its labels, the judge line's glow) and the judge line's edge, a little deeper so the white notes show on it. */
+const CRYSTAL_ICE = '#7cc8ff';
+const CRYSTAL_LINE = '#58b4ff';
+/** White light split into pastels, rose to violet (the light running down CRYSTAL's rails in FEVER). */
+const CRYSTAL_PASTELS = ['#ffc4dd', '#ffe2bd', '#fff5c4', '#c8f4d8', '#bfe9ff', '#c5d3ff', '#dccaff'] as const;
+
+/** A rectangle with its corners cut off (`cut` across and along): from its far edge's left end, clockwise. */
+function octagon(b: Box, cut: readonly [number, number]): [number, number][] {
+  const [cx, cy] = cut;
+  return [
+    [b.x + cx, b.y],
+    [b.x + b.w - cx, b.y],
+    [b.x + b.w, b.y + cy],
+    [b.x + b.w, b.y + b.h - cy],
+    [b.x + b.w - cx, b.y + b.h],
+    [b.x + cx, b.y + b.h],
+    [b.x, b.y + b.h - cy],
+    [b.x, b.y + cy],
+  ];
+}
+
+/** A crystal cap's tones: its table from far to near, the bevel round it (far, right, near, left, then the corners from the far left round), its front face from its top down, and the ridges of its cut. */
+interface CapTones {
+  table: readonly [string, string];
+  bevel: readonly [string, string, string, string];
+  corner: readonly [string, string, string, string];
+  front: readonly [string, string];
+  ridge: string;
+}
+const CAP_IDLE: CapTones = {
+  table: ['#f4f7fb', '#dce4f0'],
+  bevel: ['#ffffff', '#bdc9dc', '#98a6bf', '#e9eff8'],
+  corner: ['#f7fafd', '#d6dfec', '#a6b3c9', '#c4cfe1'],
+  front: ['#7b88a1', '#4c576e'],
+  ridge: 'rgba(255,255,255,0.7)',
+};
+const CAP_LIT: CapTones = {
+  table: ['#d6f2ff', '#8ad0fc'],
+  bevel: ['#f4fcff', '#62b3ec', '#4a9ad9', '#c8ecff'],
+  corner: ['#e6f8ff', '#8ccdf6', '#57a6e2', '#9ad6f9'],
+  front: ['#4189cb', '#28609e'],
+  ridge: 'rgba(255,255,255,0.9)',
+};
+
+/** The box of a key cap over `lane`: STANDARD's and CRYSTAL's rows, a little inside the lane. */
+const capBox = (lane: DeckLane, st: number): Box => ({ x: lane.left + 2, y: 2 * st, w: lane.width - 4, h: (STD.keys - 4) * st });
+
+/**
+ * One of CRYSTAL's key caps in box `b`: a block of frosted crystal cut as an emerald is, its corners
+ * cut off; its table frosted, the bevel round it catching the light along its far and left sides and
+ * in shade along its right and near ones, and under its near edge the block's front face, so it
+ * stands up out of the deck. `lit`: the cap while its key is held, the same cut full of ice-blue
+ * light, its table crossed corner to corner by two facet lines.
+ */
+function crystalCap(g: CanvasRenderingContext2D, b: Box, st: number, lit: boolean): void {
+  const t = lit ? CAP_LIT : CAP_IDLE;
+  const front = Math.min(5 * st, b.h * 0.14);
+  const top: Box = { x: b.x, y: b.y, w: b.w, h: b.h - front };
+  const cut: [number, number] = [Math.min(5, top.w * 0.16), Math.min(5 * st, top.h * 0.22)];
+  const rim: [number, number] = [Math.min(4.5, top.w * 0.14), Math.min(4.5 * st, top.h * 0.2)];
+  const o = octagon(top, cut);
+  const i = octagon({ x: top.x + rim[0], y: top.y + rim[1], w: top.w - 2 * rim[0], h: top.h - 2 * rim[1] }, [cut[0] * 0.55, cut[1] * 0.55]);
+  const down = ([x, y]: [number, number]): [number, number] => [x, y + front];
+  // the front face under the near edge, its cut corners turned from the light
+  polygon(g, [o[6], o[5], o[4], o[3], down(o[3]), down(o[4]), down(o[5]), down(o[6])]);
+  const face = g.createLinearGradient(0, top.y + top.h - cut[1], 0, b.y + b.h);
+  face.addColorStop(0, t.front[0]);
+  face.addColorStop(1, t.front[1]);
+  g.fillStyle = face;
+  g.fill();
+  polygon(g, [o[3], o[4], down(o[4]), down(o[3])]);
+  g.fillStyle = black(0.22);
+  g.fill();
+  polygon(g, [o[6], o[5], down(o[5]), down(o[6])]);
+  g.fillStyle = white(0.1);
+  g.fill();
+  // the bevel: four planes and the four cut corners between them
+  const quad = (a: number, c: number, tone: string) => {
+    polygon(g, [o[a], o[c], i[c], i[a]]);
+    g.fillStyle = tone;
+    g.fill();
+  };
+  quad(0, 1, t.bevel[0]);
+  quad(2, 3, t.bevel[1]);
+  quad(4, 5, t.bevel[2]);
+  quad(6, 7, t.bevel[3]);
+  quad(7, 0, t.corner[0]);
+  quad(1, 2, t.corner[1]);
+  quad(3, 4, t.corner[2]);
+  quad(5, 6, t.corner[3]);
+  // the table
+  const table: Box = { x: top.x + rim[0], y: top.y + rim[1], w: top.w - 2 * rim[0], h: top.h - 2 * rim[1] };
+  polygon(g, i);
+  const frost = g.createLinearGradient(0, table.y, 0, table.y + table.h);
+  frost.addColorStop(0, t.table[0]);
+  frost.addColorStop(1, t.table[1]);
+  g.fillStyle = frost;
+  g.fill();
+  g.save();
+  polygon(g, i);
+  g.clip();
+  if (lit) {
+    // two facet lines corner to corner: the far plane lighter, the near one deeper
+    const [cx, cy] = [table.x + table.w / 2, table.y + table.h / 2];
+    polygon(g, [[table.x, table.y], [table.x + table.w, table.y], [cx, cy]]);
+    g.fillStyle = white(0.3);
+    g.fill();
+    polygon(g, [[table.x, table.y + table.h], [table.x + table.w, table.y + table.h], [cx, cy]]);
+    g.fillStyle = 'rgba(40,110,190,0.22)';
+    g.fill();
+    polygon(g, [[table.x + table.w, table.y], [table.x + table.w, table.y + table.h], [cx, cy]]);
+    g.fillStyle = 'rgba(40,110,190,0.1)';
+    g.fill();
+    g.lineWidth = 0.7;
+    g.strokeStyle = white(0.75);
+    g.beginPath();
+    g.moveTo(table.x, table.y);
+    g.lineTo(table.x + table.w, table.y + table.h);
+    g.moveTo(table.x + table.w, table.y);
+    g.lineTo(table.x, table.y + table.h);
+    g.stroke();
+  } else {
+    // frosted: one soft slant of light, no glint
+    const lean = table.h / st;
+    polygon(g, [
+      [table.x + table.w * 0.16 + lean * 0.5, table.y],
+      [table.x + table.w * 0.46 + lean * 0.5, table.y],
+      [table.x + table.w * 0.46 - lean * 0.5, table.y + table.h],
+      [table.x + table.w * 0.16 - lean * 0.5, table.y + table.h],
+    ]);
+    g.fillStyle = white(0.34);
+    g.fill();
+  }
+  g.restore();
+  // the ridges of the cut: round the table, and from its corners out
+  g.lineWidth = 0.7;
+  g.strokeStyle = t.ridge;
+  polygon(g, i);
+  g.stroke();
+  g.beginPath();
+  for (let n = 0; n < 8; n++) {
+    g.moveTo(o[n][0], o[n][1]);
+    g.lineTo(i[n][0], i[n][1]);
+  }
+  g.globalAlpha = 0.55;
+  g.stroke();
+  g.globalAlpha = 1;
 }
 
 /**
- * PRISM: a deck of satin black anodised aluminium, brushed across, its front edge under the judge
- * line a chamfer catching the light with a glass light-guide's white line along it; set in it a slab
- * of smoked glass with a bright edge and a slant of reflection, and in the slab's middle a round lens
- * in a machined ring; a hairline light-guide runs out from the lens to each side, the light in it
- * split into its colours at its ends.
+ * One of CRYSTAL's readout plates round the window `b`: a long hexagon, pointed at both ends as the
+ * skin's gem note is (its points outside the window: gemPoint), of deep sapphire glass, set in the
+ * deck: a dark hairline where it meets the deck, a thin bevelled rim catching the light along its far
+ * side, and one facet line inside it, with the short ridges of its points.
  */
-function prismPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
+function gemPlate(g: CanvasRenderingContext2D, b: Box, st: number): void {
+  const point = gemPoint(b.h, st);
+  const [x0, x1] = [b.x - point * (1 - GEM_WINDOW), b.x + b.w + point * (1 - GEM_WINDOW)];
+  const [yt, yb, yc] = [b.y, b.y + b.h, b.y + b.h / 2];
+  // half its depth as the screen shows it, and the hexagon `d` px inside its outline all round
+  const hh = b.h / (2 * st);
+  const sin = hh / Math.hypot(point, hh);
+  const hexagon = (d: number): [number, number][] => {
+    const tip = d / sin;
+    const run = (point * (hh - d)) / hh;
+    return [
+      [x0 + tip, yc],
+      [x0 + tip + run, yt + d * st],
+      [x1 - tip - run, yt + d * st],
+      [x1 - tip, yc],
+      [x1 - tip - run, yb - d * st],
+      [x0 + tip + run, yb - d * st],
+    ];
+  };
+  // where it meets the deck
+  polygon(g, hexagon(-1));
+  g.fillStyle = 'rgba(16,26,60,0.55)';
+  g.fill();
+  // the rim: lit along the far side, in shade along the near
+  polygon(g, hexagon(0));
+  const rim = g.createLinearGradient(0, yt, 0, yb);
+  rim.addColorStop(0, '#ffffff');
+  rim.addColorStop(0.45, '#d5e6f8');
+  rim.addColorStop(0.55, '#a9bfdf');
+  rim.addColorStop(1, '#7f95bd');
+  g.fillStyle = rim;
+  g.fill();
+  // the sapphire
+  const body = hexagon(2);
+  polygon(g, body);
+  const glass = g.createLinearGradient(0, yt, 0, yb);
+  glass.addColorStop(0, '#2a4a9a');
+  glass.addColorStop(0.5, '#1f3577');
+  glass.addColorStop(1, '#172553');
+  g.fillStyle = glass;
+  g.fill();
+  // its far half a flat plane a little lighter
+  g.save();
+  polygon(g, body);
+  g.clip();
+  g.fillStyle = 'rgba(120,170,255,0.09)';
+  g.fillRect(x0, yt, x1 - x0, b.h / 2);
+  g.restore();
+  // the facet line inside, and the ridges of the points
+  const inner = hexagon(5);
+  g.lineWidth = 0.8;
+  g.strokeStyle = 'rgba(124,170,240,0.6)';
+  polygon(g, inner);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(body[0][0], body[0][1]);
+  g.lineTo(inner[0][0], inner[0][1]);
+  g.moveTo(body[3][0], body[3][1]);
+  g.lineTo(inner[3][0], inner[3][1]);
+  g.stroke();
+}
+
+/** CRYSTAL's facets: the left half's, each by its corners (shares of the deck's width, and of the readouts' two steps down from under the caps) and its tone there and mirrored on the right, a shade deeper (the light comes from the left). */
+const CRYSTAL_FACETS: readonly { at: readonly (readonly [number, number])[]; tones: readonly [string, string] }[] = [
+  // beside the score's plate: two planes meeting on a ridge from the far corner
+  { at: [[0, 0], [0.2, 0], [0, 0.56]], tones: ['#e7ddf1', '#d9d0ea'] },
+  { at: [[0.2, 0], [0.31, 0.5], [0, 0.56]], tones: ['#d3d1ee', '#c6c5e7'] },
+  // under the plate (they show at its points and along its edges)
+  { at: [[0.2, 0], [0.5, 0], [0.31, 0.5]], tones: ['#cfe6f8', '#c2dbf2'] },
+  { at: [[0.5, 0], [0.5, 0.62], [0.31, 0.5]], tones: ['#f4f7fb', '#e9eff7'] },
+  // the near step: the plane the speed's (the rate's) plate lies in, and two meeting on the deck's middle
+  { at: [[0, 0.56], [0.31, 0.5], [0.26, 1], [0, 1]], tones: ['#eef2f9', '#e1e9f4'] },
+  { at: [[0.31, 0.5], [0.5, 0.62], [0.4, 1], [0.26, 1]], tones: ['#d4daf2', '#c8d0ec'] },
+  { at: [[0.5, 0.62], [0.5, 1], [0.4, 1]], tones: ['#e6ebf8', '#dae2f3'] },
+];
+
+/**
+ * CRYSTAL (크리스털): the crystal skin's gear, as wide as the track and no wider. Under the judge line
+ * a row of frosted crystal key caps, one to a lane (crystalCap), the held one lit ice blue (deckKeys);
+ * under them the deck, cut as a stone's crown is into a few broad flat facets, white, pale ice blue
+ * and pale lavender, a hairline of light along each ridge and the faintest wash of pastels over them
+ * (no glints, and no light moves on them: the notes are the brightest things on the screen); set in
+ * it the three readout plates (gemPlate), where the HUD writes the score, the speed and the rate
+ * (deckReadouts), the only parts of it that light with the music.
+ */
+function crystalPlate(g: CanvasRenderingContext2D, s: DeckSpec): void {
   const st = s.stretch;
-  const metal = g.createLinearGradient(0, 0, 0, s.room);
-  metal.addColorStop(0, '#1d2026');
-  metal.addColorStop(0.5, ANODISED);
-  metal.addColorStop(1, '#0b0c10');
-  g.fillStyle = metal;
-  g.fillRect(0, 0, s.width, s.depth);
-  // brushed across: fine lines, lighter or darker
-  const rand = seeded(71);
-  for (let y = 0; y < s.depth; y += 0.9 * st) {
-    g.fillStyle = rand() < 0.5 ? white(0.012 + 0.03 * rand()) : black(0.05 + 0.1 * rand());
-    g.fillRect(0, y, s.width, 0.5 * st);
-  }
-  const lip = 3.4 * st;
-  const band = bandOf(s, lip);
-  if (band) {
-    const u = band.u;
-    // the slab of smoked glass, set flush: darker than the metal, the room's light slanting across it
-    const slab: Box = { x: s.width * 0.035, y: band.y + band.h * 0.08, w: s.width * 0.93, h: band.h * 0.84 };
-    g.save();
-    rounded(g, slab, 5, st);
-    g.clip();
-    const smoke = g.createLinearGradient(0, slab.y, 0, slab.y + slab.h);
-    smoke.addColorStop(0, '#2a3340');
-    smoke.addColorStop(0.3, '#10141b');
-    smoke.addColorStop(1, '#05070a');
-    g.fillStyle = smoke;
-    g.fillRect(slab.x, slab.y, slab.w, slab.h);
-    for (const [at, wide, a] of [[0.14, 0.09, 0.07], [0.27, 0.025, 0.05], [0.71, 0.14, 0.045]] as const) {
-      polygon(g, [
-        [slab.x + slab.w * at, slab.y],
-        [slab.x + slab.w * (at + wide), slab.y],
-        [slab.x + slab.w * (at + wide) - slab.h / st, slab.y + slab.h],
-        [slab.x + slab.w * at - slab.h / st, slab.y + slab.h],
-      ]);
-      g.fillStyle = white(a);
+  const W = s.width;
+  // the bed the caps stand in: dark, so each cap's cut shows
+  g.fillStyle = '#0b0f1c';
+  g.fillRect(0, 0, W, s.depth);
+  for (const lane of s.lanes) crystalCap(g, capBox(lane, st), st, false);
+  const top = (STD.keys + STD.seam) * st;
+  // the facets over the readouts' two steps; below them (a tall view shows a long way down the deck)
+  // one plain plane, a ridge between
+  const H = (STD.upper + STD.lower) * st;
+  g.save();
+  g.beginPath();
+  g.rect(0, top, W, s.depth - top);
+  g.clip();
+  g.fillStyle = '#d3d9ea';
+  g.fillRect(0, top + H, W, Math.max(0, s.depth - top - H));
+  g.lineWidth = 0.8;
+  g.lineJoin = 'round';
+  for (const side of [0, 1] as const) {
+    for (const facet of CRYSTAL_FACETS) {
+      polygon(
+        g,
+        facet.at.map(([u, v]): [number, number] => [(side ? 1 - u : u) * W, top + v * H]),
+      );
+      g.fillStyle = facet.tones[side];
       g.fill();
+      g.strokeStyle = white(0.75);
+      g.stroke();
     }
-    g.restore();
-    // its ground edge: bright along the far and left sides, dark along the near
-    rounded(g, slab, 5, st);
-    g.lineWidth = 1.1;
-    g.strokeStyle = shade(PRISM_LIGHT, 1, 0.55);
-    g.stroke();
-    g.fillStyle = black(0.6);
-    g.fillRect(slab.x + 5, slab.y + slab.h - 0.9 * st, slab.w - 10, 0.9 * st);
-    mark(s, 'slab', slab);
-    // the light-guides out from the lens: a hairline of white light, its ends split into the spectrum
-    const r = u * 0.3;
-    const gy = band.mid;
-    const gh = Math.max(1, 0.9 * st);
-    ([[-1, 'guide.l'], [1, 'guide.r']] as const).forEach(([side, name]) => {
-      const x0 = s.width / 2 + side * r * 1.7;
-      const x1 = s.width / 2 + side * slab.w * 0.42;
-      const [from, to] = [Math.min(x0, x1), Math.max(x0, x1)];
-      g.fillStyle = black(0.55);
-      g.fillRect(from, gy - gh * 1.6, to - from, gh * 3.2);
-      g.fillStyle = shade(PRISM_LIGHT, 1, 0.8);
-      g.fillRect(from, gy - gh / 2, to - from, gh);
-      const tip = (to - from) * 0.3;
-      g.fillStyle = spectrum(g, side < 0 ? from + tip : to - tip, side < 0 ? from - tip * 0.1 : to + tip * 0.1, 0.95);
-      g.fillRect(side < 0 ? from : to - tip, gy - gh, tip, gh * 2);
-      mark(s, name, { x: from, y: gy - gh * 4, w: to - from, h: gh * 8 });
-    });
-    // the lens: a machined ring, dark glass in it, the light caught along its far rim
-    const cx = s.width / 2;
-    g.fillStyle = black(0.5);
-    disc(g, cx, gy + r * 0.12 * st, r * 1.18, st);
-    g.fill();
-    const ring = g.createLinearGradient(0, gy - r * st, 0, gy + r * st);
-    ring.addColorStop(0, '#c9d2de');
-    ring.addColorStop(0.45, '#4a505b');
-    ring.addColorStop(1, '#15171c');
-    g.fillStyle = ring;
-    disc(g, cx, gy, r * 1.12, st);
-    g.fill();
-    g.fillStyle = '#07090c';
-    disc(g, cx, gy, r * 0.88, st);
-    g.fill();
-    const glass = g.createRadialGradient(cx - r * 0.25, gy - r * 0.3 * st, 0, cx, gy, r * 0.88);
-    glass.addColorStop(0, 'rgba(120,160,220,0.5)');
-    glass.addColorStop(0.5, 'rgba(40,60,100,0.3)');
-    glass.addColorStop(1, 'rgba(8,10,14,0)');
-    g.save();
-    g.translate(0, gy);
-    g.scale(1, st);
-    g.translate(0, -gy);
-    g.fillStyle = glass;
-    g.beginPath();
-    g.arc(cx, gy, r * 0.88, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = shade(PRISM_LIGHT, 1, 0.85);
-    g.lineWidth = Math.max(0.8, r * 0.05);
-    g.beginPath();
-    g.arc(cx, gy, r * 0.74, Math.PI * 1.12, Math.PI * 1.6);
-    g.stroke();
-    g.fillStyle = white(0.9);
-    g.beginPath();
-    g.arc(cx + r * 0.3, gy + r * 0.28, r * 0.06, 0, Math.PI * 2);
-    g.fill();
-    g.restore();
-    mark(s, 'lens', { x: cx - r * 1.12, y: gy - r * 1.12 * st, w: 2.24 * r, h: 2.24 * r * st });
   }
-  // the front edge: the metal's chamfer catching the light, the light-guide's white line under it, a dark seam
-  const edge = g.createLinearGradient(0, 0, 0, lip);
-  edge.addColorStop(0, '#07080b');
-  edge.addColorStop(0.3, '#8d97a6');
-  edge.addColorStop(0.55, '#2b2f37');
-  edge.addColorStop(0.62, PRISM_LIGHT);
-  edge.addColorStop(0.82, PRISM_LIGHT);
-  edge.addColorStop(1, '#3a4250');
-  g.fillStyle = edge;
-  g.fillRect(0, 0, s.width, lip);
-  g.fillStyle = black(0.6);
-  g.fillRect(0, lip, s.width, 0.8);
-  mark(s, 'lip', { x: 0, y: 0, w: s.width, h: lip });
+  // the faintest wash of pastels across them: rose, ice, violet
+  const wash = g.createLinearGradient(0, top, W, top + H);
+  wash.addColorStop(0, 'rgba(255,170,212,0.13)');
+  wash.addColorStop(0.28, 'rgba(255,255,255,0)');
+  wash.addColorStop(0.5, 'rgba(140,222,255,0.12)');
+  wash.addColorStop(0.72, 'rgba(255,255,255,0)');
+  wash.addColorStop(1, 'rgba(186,160,255,0.13)');
+  g.fillStyle = wash;
+  g.fillRect(0, top, W, s.depth - top);
+  // that plane falls into shade
+  if (s.depth > top + H) {
+    const fall = g.createLinearGradient(0, top + H, 0, Math.min(s.depth, top + 2.2 * H));
+    fall.addColorStop(0, 'rgba(14,20,44,0.06)');
+    fall.addColorStop(1, 'rgba(14,20,44,0.78)');
+    g.fillStyle = fall;
+    g.fillRect(0, top + H, W, s.depth - top - H);
+  }
+  g.restore();
+  // its far edge under the caps: their shadow on it, then the ground edge catching the light
+  const shadow = g.createLinearGradient(0, top, 0, top + 5 * st);
+  shadow.addColorStop(0, 'rgba(20,28,58,0.4)');
+  shadow.addColorStop(1, 'rgba(20,28,58,0)');
+  g.fillStyle = shadow;
+  g.fillRect(0, top, W, 5 * st);
+  g.fillStyle = white(0.9);
+  g.fillRect(0, top, W, Math.max(1, 0.8 * st));
+  const windows = deckReadouts('prism', s);
+  if (!windows) return;
+  for (const name of ['score', 'speed', 'rate'] as const) {
+    gemPlate(g, windows[name], st);
+    // the sapphire takes light from inside (gearLights.ts)
+    mark(s, `plate.${name}`, windows[name]);
+  }
 }
 
 const GEAR_PLATES: Record<GearStyle, (g: CanvasRenderingContext2D, s: DeckSpec, art: GearArt) => void> = {
-  prism: prismPlate,
+  prism: crystalPlate,
   standard: standardPlate,
   cabinet: cabinetPlate,
   receiver: receiverPlate,
@@ -2408,61 +2599,63 @@ const GEAR_FRAMES: Record<GearStyle, (art: GearArt) => SideLook> = {
       g.fillRect(w - 3.4 * k, 0, 1.1 * k, h);
     },
   }),
-  // PRISM: a rail of satin black anodised aluminium, its outer edge chamfered, and along the lanes a
-  // glass light-guide: clear glass with a hairline of white light in it (in FEVER the light split
-  // into the spectrum, running down the rail, and the glass lit)
+  // CRYSTAL: a thin rail of clear glass: a dark seam outside, its outer face in shade, a white ridge,
+  // its top a clear pale plane with one slant of light in each tile, and its ground inner edge the
+  // brightest, an ice-blue hairline in it (in FEVER the glass takes the ice-blue light and pastels
+  // run down it)
   prism: () => ({
-    body: ANODISED,
-    width: 20,
+    body: '#c7d4e6',
+    width: 16,
     tile: 128,
-    height: 22,
-    // the rail's side: the light-guide seen through its edge, bright under its top, the metal below
-    face: (g, w, h, _k, lit) => {
+    height: 16,
+    // the rail's side: clear glass seen through its cut edge, white under its ridge, the ice-blue line, grey at its foot
+    face: (g, w, h, k, lit) => {
       const side = g.createLinearGradient(0, 0, 0, h);
-      side.addColorStop(0, PRISM_LIGHT);
-      side.addColorStop(0.16, lit ? '#b9d6ff' : '#7f8da3');
-      side.addColorStop(0.34, '#252a33');
-      side.addColorStop(1, '#090a0d');
+      side.addColorStop(0, '#ffffff');
+      side.addColorStop(0.2, lit ? '#c4e8ff' : '#dfe8f3');
+      side.addColorStop(0.6, lit ? '#86bfea' : '#a3b3ca');
+      side.addColorStop(1, '#4b576d');
       g.fillStyle = side;
       g.fillRect(0, 0, w, h);
-      if (lit) {
-        g.fillStyle = spectrum(g, 0, w, 0.5);
-        g.fillRect(0, 0, w, h * 0.3);
-      }
+      g.fillStyle = shade(CRYSTAL_ICE, 1, lit ? 0.95 : 0.55);
+      g.fillRect(0, 2.4 * k, w, 0.9 * k);
     },
     paint: (g, w, h, k, lit) => {
-      g.fillStyle = ANODISED;
+      const across = g.createLinearGradient(0, 0, w, 0);
+      across.addColorStop(0, '#2c3548');
+      across.addColorStop(0.07, '#7f8da7');
+      across.addColorStop(0.24, '#b4c1d6');
+      across.addColorStop(0.27, '#ffffff');
+      across.addColorStop(0.32, '#e6eef8');
+      across.addColorStop(0.7, lit ? '#cdeaff' : '#d9e4f1');
+      across.addColorStop(0.88, '#f2f7fc');
+      across.addColorStop(0.92, '#ffffff');
+      across.addColorStop(1, '#ffffff');
+      g.fillStyle = across;
       g.fillRect(0, 0, w, h);
-      const guide = 6.5 * k;
-      const x = w - guide;
-      const metal = g.createLinearGradient(0, 0, x, 0);
-      metal.addColorStop(0, '#050608');
-      metal.addColorStop(0.1, '#7c8696');
-      metal.addColorStop(0.2, '#23262d');
-      metal.addColorStop(0.7, ANODISED);
-      metal.addColorStop(1, '#0a0b0e');
-      g.fillStyle = metal;
-      g.fillRect(0, 0, x, h);
-      // the glass: clear, darker toward the metal, a hairline of light down it
-      const glass = g.createLinearGradient(x, 0, w, 0);
-      glass.addColorStop(0, '#0d1117');
-      glass.addColorStop(0.35, lit ? '#5f7ea8' : '#39424f');
-      glass.addColorStop(1, lit ? '#b9d6ff' : '#8996a8');
-      g.fillStyle = glass;
-      g.fillRect(x, 0, guide, h);
+      // one slant of light across its top in each tile
+      const [x0, x1] = [w * 0.32, w * 0.86];
+      polygon(g, [
+        [x0, h * 0.34],
+        [x1, h * 0.26],
+        [x1, h * 0.31],
+        [x0, h * 0.39],
+      ]);
+      g.fillStyle = white(0.55);
+      g.fill();
       if (lit) {
-        // the spectrum down the tile and back (a tile mirrors at every other: it runs on)
+        // pastels down the tile and back (a tile mirrors at every other: they run on)
         const run = g.createLinearGradient(0, 0, 0, h);
-        PRISM_SPECTRUM.forEach((c, i) => run.addColorStop(i / (PRISM_SPECTRUM.length - 1), c));
+        CRYSTAL_PASTELS.forEach((c, i) => run.addColorStop(i / (CRYSTAL_PASTELS.length - 1), c));
         g.fillStyle = run;
-        g.globalAlpha = 0.55;
-        g.fillRect(x, 0, guide, h);
+        g.globalAlpha = 0.5;
+        g.fillRect(x0, 0, x1 - x0, h);
         g.globalAlpha = 1;
       }
-      g.fillStyle = lit ? '#ffffff' : PRISM_LIGHT;
-      g.fillRect(x + guide * 0.42, 0, Math.max(1, 1.1 * k), h);
-      g.fillStyle = white(lit ? 0.9 : 0.6);
-      g.fillRect(w - Math.max(1, 0.7 * k), 0, Math.max(1, 0.7 * k), h);
+      g.fillStyle = shade(CRYSTAL_ICE, 1, lit ? 1 : 0.8);
+      g.fillRect(w - 3.6 * k, 0, 0.9 * k, h);
+      g.fillStyle = black(0.6);
+      g.fillRect(0, 0, 0.8 * k, h);
     },
   }),
   // rails of the same raw glass along the lanes: a dark seam outside, a broken outer face in shade,

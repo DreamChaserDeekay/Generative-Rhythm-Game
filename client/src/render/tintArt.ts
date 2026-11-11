@@ -107,8 +107,8 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 // ---------- notes, seen from above (canvas top = the far edge) ----------
 
 /**
- * PRISM is a bar of cut glass (the gear PRISM's set: its long note a long prism closed by its end
- * facets, its scratch a long hexagon), FLAT is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
+ * PRISM (the crystal skin's, 크리스털) is a bar of cut glass (its long note a long prism closed by its end
+ * facets, its scratch a long hexagon), FLAT (the default skin's) is a plain bar, and so are the materials (MATERIAL_NOTES): the same bar in another finish,
  * each with a long note of its own (LONG_OF). The others are families, each with its own long
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be.
@@ -717,7 +717,7 @@ function carbonWeave(g: CanvasRenderingContext2D, w: number, h: number, c: numbe
 }
 
 
-// ---------- PRISM: bars of cut glass ----------
+// ---------- PRISM (the crystal skin's notes, 크리스털): bars of cut glass ----------
 
 /**
  * A bar of cut glass seen from above, its corners cut: bevels all round a flat table in the lane's
@@ -873,18 +873,8 @@ function prismGem(g: CanvasRenderingContext2D, w: number, h: number): void {
   g.restore();
 }
 
-/** PRISM's note of a side lane of its own: a strip of frosted glass, see-through between two lines of light along its edges. */
-function prismFrost(g: CanvasRenderingContext2D, w: number, h: number): void {
-  const line = Math.max(2, h * 0.16);
-  g.fillStyle = ink(1, 0.12, 0.5);
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = ink(1, 0.55);
-  g.fillRect(0, 0, w, line);
-  g.fillStyle = ink(1, 0.9);
-  g.fillRect(0, h - line, w, line);
-}
-
-const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : mark === 'side' ? prismFrost(g, w, h) : prismBar(g, w, h));
+/** PRISM's notes: the gem on the scratch, a bar on a key and in a side lane of its own (side notes laid over the keys are none of a skin's parts: they stay the game's see-through bars). */
+const prismNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? prismGem(g, w, h) : prismBar(g, w, h));
 
 /**
  * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
@@ -1052,17 +1042,18 @@ const RAY: [number, number, string][] = [
  * PRISM's long note across (px of a 54 px body, [from, to, fill]): a long triangular prism of glass
  * seen from above, as wide as its bar: a facet either side of the ridge down its middle, the left
  * one catching the light and the right one in shade, a rim of light down each edge; `lit` (held)
- * the glass bright from inside.
+ * the glass a little brighter from inside, still glass (a wide lane's is a large thing on the screen:
+ * white from edge to edge, it would hide the notes coming down beside it).
  */
 const prismFacets = (lit: boolean): [number, number, string][] => [
   [0, 54, tone(0.35, 0.95)],
-  [2, 6, ink(1, lit ? 0.9 : 0.7)],
-  [6, 26, lit ? ink(1, 0.5, 0.95) : ink(1, 0.22, 0.9)],
-  [28, 48, lit ? ink(1, 0.2, 0.92) : tone(0.7, 0.88)],
-  [48, 52, lit ? ink(1, 0.6) : tone(1.1)],
+  [2, 6, ink(1, lit ? 0.85 : 0.7)],
+  [6, 26, lit ? ink(1, 0.32, 0.92) : ink(1, 0.22, 0.9)],
+  [28, 48, lit ? tone(0.88, 0.9) : tone(0.7, 0.88)],
+  [48, 52, lit ? ink(1, 0.4) : tone(1.1)],
 ];
 
-/** PRISM's long note: its two facets, their glass deeper toward the ridge, and the ridge a line of light (held: white-hot in a glow). */
+/** PRISM's long note: its two facets, their glass deeper toward the ridge, and the ridge a line of light (held: white in a narrow glow). */
 function prismLong(lit: boolean): Paint {
   return (g, w, h) => {
     const a = across(w);
@@ -1071,20 +1062,20 @@ function prismLong(lit: boolean): Paint {
     for (const [from, to] of [[6, 26], [48, 28]]) {
       const deep = g.createLinearGradient(a(from), 0, a(to), 0);
       deep.addColorStop(0, tone(0.4, 0));
-      deep.addColorStop(1, tone(0.4, lit ? 0.12 : 0.3));
+      deep.addColorStop(1, tone(0.4, lit ? 0.2 : 0.3));
       g.fillStyle = deep;
       g.fillRect(a(Math.min(from, to)), 0, a(Math.abs(to - from)), h);
     }
     if (lit) {
-      const glow = g.createLinearGradient(a(17), 0, a(37), 0);
+      const glow = g.createLinearGradient(a(20), 0, a(34), 0);
       glow.addColorStop(0, ink(1, 1, 0));
-      glow.addColorStop(0.5, ink(1, 1, 0.75));
+      glow.addColorStop(0.5, ink(1, 1, 0.6));
       glow.addColorStop(1, ink(1, 1, 0));
       g.fillStyle = glow;
-      g.fillRect(a(17), 0, a(20), h);
+      g.fillRect(a(20), 0, a(14), h);
     }
     g.fillStyle = ink(1, lit ? 1 : 0.85);
-    g.fillRect(a(lit ? 25 : 26), 0, a(lit ? 4 : 2), h);
+    g.fillRect(a(lit ? 25.5 : 26), 0, a(lit ? 3 : 2), h);
   };
 }
 
@@ -1506,52 +1497,6 @@ export const SIDE_PICTURES: Record<Exclude<SidePart, 'tap'>, Paint> = {
   },
 };
 
-/**
- * PRISM's side notes laid over half the keys: a sheet of frosted glass, fainter than the bars'
- * (a soft grain in it, so it reads as a sheet lying under the notes and not as light), between two
- * hairlines of light along its edges; a long one's body fainter still between lines down its sides,
- * its head and end a band of light with a hairline in it.
- */
-export function prismSideTap(edge: number): Paint {
-  return (g, w, h) => {
-    const band = Math.max(2, Math.round(h * edge));
-    const hair = Math.max(1, Math.round(band * 0.4));
-    frost(g, w, h, 0.34);
-    g.fillStyle = ink(1, 0.15, 0.7);
-    g.fillRect(0, 0, w, band);
-    g.fillRect(0, h - band, w, band);
-    g.fillStyle = ink(1, 0.85);
-    g.fillRect(0, band - hair, w, hair);
-    g.fillRect(0, h - band, w, hair);
-  };
-}
-
-/** Frosted glass over a picture: its colour at `alpha`, a grain of lighter flecks in it (the same every time). */
-function frost(g: CanvasRenderingContext2D, w: number, h: number, alpha: number): void {
-  g.fillStyle = ink(1, 0.05, alpha);
-  g.fillRect(0, 0, w, h);
-  const rand = seeded(29);
-  g.fillStyle = ink(1, 0.5, alpha * 0.5);
-  for (let i = 0; i < (w * h) / 90; i++) g.fillRect(Math.floor(rand() * w), Math.floor(rand() * h), 2, 1);
-}
-
-export const PRISM_SIDE: Record<Exclude<SidePart, 'tap' | 'flash'>, Paint> = {
-  body: (g, w, h) => {
-    const side = Math.max(2, Math.round(w * 0.006));
-    g.fillStyle = ink(1, 0.05, 0.16);
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = ink(1, 0.7, 0.95);
-    g.fillRect(0, 0, side, h);
-    g.fillRect(w - side, 0, side, h);
-  },
-  end: (g, w, h) => {
-    g.fillStyle = ink(1, 0.15, 0.7);
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = ink(1, 0.85);
-    g.fillRect(0, 0, w, Math.max(1, Math.round(h * 0.3)));
-  },
-};
-
 // ---------- side notes as an LED panel's dots ----------
 
 /**
@@ -1686,7 +1631,7 @@ export interface EffectSheet {
  */
 const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number }> = {
   // along the judge line and a little toward the gear: nothing of it rises up the track over the next notes
-  prism: { w: 128, h: 64, cy: 26, reach: 56 },
+  prism: { w: 128, h: 64, cy: 26, reach: 44 },
   flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1706,7 +1651,10 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cols = 4;
   const rows = 4;
   const plain = style === 'prism';
-  const texture = (plain ? colourTexture : paintTexture)(cell.w * cols, cell.h * rows, (g) => {
+  // PRISM's shards have hard edges: painted twice as fine, or they show their px on a wide lane
+  const fine = plain ? 2 : 1;
+  const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
+    g.scale(fine, fine);
     for (let f = 0; f < EFFECT_FRAMES; f++) {
       g.save();
       g.translate((f % cols) * cell.w + cell.w / 2, Math.floor(f / cols) * cell.h + cell.cy);
@@ -1733,14 +1681,15 @@ function colourTexture(w: number, h: number, paint: Paint): THREE.CanvasTexture 
   return texture;
 }
 
-/** White light split by a prism, red to violet. */
-const SPECTRUM = ['#ff4a5e', '#ff9a3c', '#ffe45c', '#63f28a', '#4fd8ff', '#5b8cff', '#b06bff'] as const;
+/** White light split by a crystal into pastels, rose to violet. */
+const SPECTRUM = ['#ff9dbb', '#ffc59c', '#fff0a8', '#a9f0c6', '#a6e4ff', '#aabeff', '#d1aeff'] as const;
 
 /**
- * PRISM's hit at progress `p`, about the judge line's crossing of the lane: a white flash on the line
- * at once (its brightest is its first frame), then the light split: thin shards in the spectrum's
- * colours flying out both ways along the line, a few a little toward the gear, none up the track,
- * and a hairline of the spectrum opening along the line; all gone by its end.
+ * PRISM's hit (the crystal skin's) at progress `p`, about the judge line's crossing of the lane: a
+ * white flash on the line at once, a four-pointed star (its brightest is its first frame), then the
+ * light split: a few flat shards in pastels flying out both ways along the line, some a little toward
+ * the gear and some a little up the track (no further than the star's own point: the next notes stay
+ * clear), and a hairline of the pastels opening along the line; all gone by its end.
  */
 function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   const s = 64 / 60;
@@ -1750,7 +1699,7 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
     return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${Math.max(0, Math.min(1, alpha))})`;
   };
   // the hairline of the spectrum along the line, opening outward
-  const reach = (22 + 34 * Math.sqrt(p)) * s;
+  const reach = (18 + 22 * Math.sqrt(p)) * s;
   const line = g.createLinearGradient(-reach, 0, reach, 0);
   line.addColorStop(0, rgba(SPECTRUM[6], 0));
   SPECTRUM.forEach((c, i) => line.addColorStop(0.12 + (0.76 * i) / (SPECTRUM.length - 1), rgba(c, 0.85 * a)));
@@ -1760,17 +1709,17 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   // the shards: each a thin sliver flying out along its own line, its colour by where it points
   const shards: [number, number, number][] = [
     // angle from the line (degrees, positive toward the gear), length, colour
-    [-3, 16, 0], [4, 20, 1], [12, 14, 2], [-8, 12, 3], [21, 11, 4], [8, 17, 5], [30, 9, 6],
+    [-4, 12, 0], [9, 14, 4], [-19, 9, 2], [24, 9, 6], [-11, 11, 5],
   ];
   for (const side of [-1, 1]) {
     shards.forEach(([deg, len, c], i) => {
       const angle = (deg * Math.PI) / 180;
-      const from = (10 + 22 * Math.sqrt(p) * (0.7 + 0.06 * i)) * s;
+      const from = (8 + 15 * Math.sqrt(p) * (0.7 + 0.08 * i)) * s;
       const l = len * s * (0.5 + 0.9 * a);
       const [dx, dy] = [side * Math.cos(angle), Math.sin(angle)];
       const [x0, y0] = [dx * from, dy * from];
       const [x1, y1] = [dx * (from + l), dy * (from + l)];
-      const half = (2.2 - 1.2 * p) * s;
+      const half = (2.4 - 1.3 * p) * s;
       polygon(g, [
         [x0, y0],
         [(x0 + x1) / 2 - dy * half, (y0 + y1) / 2 + dx * half * side],
@@ -1782,10 +1731,10 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
     });
   }
   // the flash: a white bar across the lane on the line, its glow, a hot diamond in its middle
-  const fw = 40 * s;
-  const fh = (9 - 6 * p) * s;
+  const fw = 36 * s;
+  const fh = (8 - 5.5 * p) * s;
   const glow = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
-  glow.addColorStop(0, `rgba(255,255,255,${0.5 * a * a})`);
+  glow.addColorStop(0, `rgba(255,255,255,${0.4 * a * a})`);
   glow.addColorStop(1, 'rgba(255,255,255,0)');
   g.save();
   g.scale(1.5, 0.55);
@@ -1797,12 +1746,19 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   g.fillStyle = `rgba(255,255,255,${a})`;
   roundRect(g, -fw / 2, -fh / 2, fw, fh, 2 * s);
   g.fill();
-  const r = (10 - 4 * p) * s;
+  // the star: long points along the line, short ones across it, drawn in as it fades
+  const r = (8.5 - 3.5 * p) * s;
+  const waist = r * 0.22;
+  const up = r * (1.1 - 0.9 * p);
   polygon(g, [
     [-r * 2.2, 0],
-    [0, -r * 0.5],
+    [-waist, -waist * 0.5],
+    [0, -up],
+    [waist, -waist * 0.5],
     [r * 2.2, 0],
-    [0, r * 0.5],
+    [waist, waist * 0.5],
+    [0, up * 0.8],
+    [-waist, waist * 0.5],
   ]);
   g.fillStyle = `rgba(255,255,255,${Math.min(1, 1.4 * a)})`;
   g.fill();

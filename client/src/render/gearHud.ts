@@ -13,7 +13,10 @@ export type HudTypeSource = 'gear' | 'skin';
 export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
 
 /**
- * PRISM: slanted geometric digits in white, "MAX" in white and its percent in the cool blue of its glass;
+ * PRISM (크리스털): slanted geometric letters cut into flat planes at one angle, white, pale ice blue,
+ * steel blue and a touch of lavender, a ground edge of white along their tops and a thin navy outline;
+ * "MAX" in the white planes, its percent in ice blue, lower ones steel blue then lavender, a break ruby
+ * with one crack (HudType.cut);
  * STANDARD: white condensed digits, "MAX" in white and its percent in the gear's cyan;
  * CABINET: red seven-segment digits, the judgement in heavy slanted letters, white outlined in red;
  * RECEIVER: amber seven-segment digits (a vacuum-fluorescent readout's), the judgement in a fine
@@ -25,7 +28,7 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
  * geometric capitals in white, "MAX" white and its percent silver, outlined in gunmetal.
  */
 export const GEAR_TYPES: Record<GearStyle, HudType> = {
-  prism: { font: 'Exo 2', size: 42, combo: 60, tracking: 0.04, max: '#bfe0ff', outline: '#0a0c11', stroke: 6, split: true, comboColor: '#ffffff' },
+  prism: { font: 'Exo 2', size: 42, combo: 60, tracking: 0.03, max: '#7cc8ff', outline: '#101a3d', stroke: 5, split: true, comboColor: '#ffffff', cut: 'crystal' },
   standard: { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#37e2ff', outline: '#0b0c10', stroke: 6, split: true },
   cabinet: { font: 'Exo 2', size: 44, combo: 58, tracking: 0.02, max: '#ffffff', outline: '#c8141c', stroke: 7, comboFont: 'DSEG7 Classic', comboColor: '#ff2a2a', comboOutline: '#140405' },
   receiver: { font: 'Barlow Condensed', size: 42, combo: 54, tracking: 0.1, max: '#fff1dc', outline: '#140d06', stroke: 5, comboFont: 'DSEG7 Classic', comboColor: '#ffb547' },

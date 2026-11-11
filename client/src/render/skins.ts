@@ -53,6 +53,12 @@ export interface HudType {
   split?: boolean;
   /** A bar of this colour under the judgement. */
   bar?: string;
+  /**
+   * The letters cut into flat planes, as a stone's facets (the crystal skin's): the HUD writes each
+   * word so its styles can lay the planes over it (Hud.ts: data-cut; styles.css: .hud-cut), and the
+   * judgements' colours are that cut's own.
+   */
+  cut?: 'crystal';
   /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
   comboFont?: HudFont;
   comboColor?: string;
