@@ -445,6 +445,65 @@ PICTURES["skin-crystal-b6"] = (
     "the outline a little way in, as on a cut gem's table. Flat and crisp: no sparkles, no glints, no bloom." + TAIL,
 )
 
+# CRYSTAL: a little of the crystal in the combo and the judgement lettering, two strengths.
+TYPE_EDIT = (
+    "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the lettering that "
+    "stands in the track: the combo number '83' with the word 'COMBO' under it, and the judgment text 'MAX 100%' (the small '0ms' "
+    "under it stays plain white). Keep everything else exactly as it is: the same words and numbers, the same places and sizes "
+    "of that lettering, its italic geometric letterforms, the dark lanes, the rails, the key caps, the notes, the deck with its "
+    "three hexagonal readout plates, the gauge and the top-left song information. The change is the SURFACE of those letters "
+    "only: give them a little of the skin's cut crystal. It must stay perfectly legible at a glance and calm: NO sparkles, NO "
+    "star glints, NO lens flare, NO bloom, NO rainbow fringe, no heavy 3D extrusion, no drop of legibility. "
+)
+PICTURES["skin-crystal-c1"] = (
+    RAW / "r2-skin-crystal-b6.png",
+    TYPE_EDIT + "Strength: SUBTLE. The letters stay flat. Each glyph is cut by one or two straight facet lines into two or three "
+    "planes of slightly different tone (white, very pale ice blue, pale blue), like a flat vector drawing of cut glass, with a "
+    "thin crisp bright edge along the top-left of each stroke and a thin dark navy outline for contrast against the lanes. '83' "
+    "and 'COMBO' in white to pale ice blue; 'MAX' in white to pale ice blue, '100%' in ice blue to a slightly deeper sky blue." + TAIL,
+)
+PICTURES["skin-crystal-c2"] = (
+    RAW / "r2-skin-crystal-b6.png",
+    TYPE_EDIT + "Strength: A LITTLE MORE. The letters read as thin slabs of cut glass: a narrow shallow bevel runs round each "
+    "glyph (lighter on its top-left edges, a shade deeper on its bottom-right ones), the face inside the bevel is a clear pale "
+    "crystal with two or three broad facet planes of slightly different tone and a faint cool gradient from white at the top to "
+    "ice blue at the bottom; a thin dark navy outline keeps them clear of the lanes. Low relief only. '83' and 'COMBO' in white to "
+    "pale ice blue; 'MAX' in white to pale ice blue, '100%' in ice blue to a slightly deeper sky blue." + TAIL,
+)
+
+# CRYSTAL lettering again: the second strength plain to see at the screen's size (the first try of it barely differed and lost
+# the hit effect), and the lettering alone, large, in the strengths side by side. The facets are those a flat fill can carry in
+# the game: planes of tone split by straight lines at one angle across a word, a light along its top edges, a dark outline.
+PICTURES["skin-crystal-c3"] = (
+    RAW / "r2-skin-crystal-b6.png",
+    TYPE_EDIT + "Also keep the hit effect (the white burst with its few pastel shards on the judgment line) exactly as it is. "
+    "Strength: MODERATE, plain to see at normal viewing size without zooming in. Each word looks cut from one sheet of frosted "
+    "crystal: its glyphs are filled with three or four flat planes of clearly different tone (pure white, pale ice blue, light "
+    "steel blue, a little soft lavender) split by crisp straight diagonal lines that run at the same angle across the whole "
+    "word, as the facets of a cut gem do; a thin bright highlight follows the top edges of the strokes; a thin dark navy outline "
+    "keeps the letters clear of the lanes. No extrusion, low relief. '83' and 'COMBO' in whites and pale ice blues; 'MAX' in "
+    "whites and pale ice blues, '100%' in ice blue, sky blue and a deeper azure plane." + TAIL,
+)
+PICTURES["skin-crystal-type"] = (
+    None,
+    "A lettering design sheet on a dark slate background (#14161d), 16:9, for the 'CRYSTAL' skin of a PC rhythm game. It shows the "
+    "same in-game lettering in THREE strengths of crystal texture, in three columns of equal width with a thin label over each "
+    "column: 'FLAT', 'SUBTLE', 'MODERATE'. Each column holds, top to bottom, drawn large and identical in size and layout across "
+    "the columns: the combo '83' with the word 'COMBO' under it; then the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%' and "
+    "'BREAK'. The typeface in all columns is the same bold italic geometric sans-serif, with a thin dark navy outline. "
+    "Column FLAT: plain flat fills, no texture: '83', 'COMBO' and 'MAX' white; '100%' sky blue, '90%' a lighter blue, '50%' pale "
+    "lavender; 'BREAK' flat rose red. "
+    "Column SUBTLE: the same colours, but each word is cut by ONE crisp straight diagonal line into two flat planes of slightly "
+    "different tone (for white: pure white and very pale ice blue), with a thin bright highlight along the top edges of the "
+    "strokes. Barely there. "
+    "Column MODERATE: each word is cut by crisp straight diagonal lines at one shared angle into three or four flat planes of "
+    "clearly different tone (for white: pure white, pale ice blue, light steel blue, a touch of soft lavender; for the blues: "
+    "ice blue, sky blue, a deeper azure; for BREAK: rose, ruby and a dark garnet plane with one fine crack line), with a thin "
+    "bright highlight along the top edges of the strokes, like letters cut from a sheet of frosted crystal. "
+    "Everything is flat and crisp, vector-like: NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow, no 3D "
+    "extrusion. All words spelled exactly as given." + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []

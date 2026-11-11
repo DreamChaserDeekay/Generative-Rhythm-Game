@@ -1039,5 +1039,133 @@
    "thoughtsTokenCount": 426
   },
   "made": "2026-11-11"
+ },
+ "r2-skin-crystal-c1": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-c1",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the lettering that stands in the track: the combo number '83' with the word 'COMBO' under it, and the judgment text 'MAX 100%' (the small '0ms' under it stays plain white). Keep everything else exactly as it is: the same words and numbers, the same places and sizes of that lettering, its italic geometric letterforms, the dark lanes, the rails, the key caps, the notes, the deck with its three hexagonal readout plates, the gauge and the top-left song information. The change is the SURFACE of those letters only: give them a little of the skin's cut crystal. It must stay perfectly legible at a glance and calm: NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow fringe, no heavy 3D extrusion, no drop of legibility. Strength: SUBTLE. The letters stay flat. Each glyph is cut by one or two straight facet lines into two or three planes of slightly different tone (white, very pale ice blue, pale blue), like a flat vector drawing of cut glass, with a thin crisp bright edge along the top-left of each stroke and a thin dark navy outline for contrast against the lanes. '83' and 'COMBO' in white to pale ice blue; 'MAX' in white to pale ice blue, '100%' in ice blue to a slightly deeper sky blue. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-crystal-b6.png (r2-skin-crystal-b6.jpg의 원본)",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1494,
+   "candidatesTokenCount": 1816,
+   "totalTokenCount": 3569,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 374
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 136
+    }
+   ],
+   "thoughtsTokenCount": 259
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-crystal-c2": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-c2",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the lettering that stands in the track: the combo number '83' with the word 'COMBO' under it, and the judgment text 'MAX 100%' (the small '0ms' under it stays plain white). Keep everything else exactly as it is: the same words and numbers, the same places and sizes of that lettering, its italic geometric letterforms, the dark lanes, the rails, the key caps, the notes, the deck with its three hexagonal readout plates, the gauge and the top-left song information. The change is the SURFACE of those letters only: give them a little of the skin's cut crystal. It must stay perfectly legible at a glance and calm: NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow fringe, no heavy 3D extrusion, no drop of legibility. Strength: A LITTLE MORE. The letters read as thin slabs of cut glass: a narrow shallow bevel runs round each glyph (lighter on its top-left edges, a shade deeper on its bottom-right ones), the face inside the bevel is a clear pale crystal with two or three broad facet planes of slightly different tone and a faint cool gradient from white at the top to ice blue at the bottom; a thin dark navy outline keeps them clear of the lanes. Low relief only. '83' and 'COMBO' in white to pale ice blue; 'MAX' in white to pale ice blue, '100%' in ice blue to a slightly deeper sky blue. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-crystal-b6.png (r2-skin-crystal-b6.jpg의 원본)",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1515,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4449,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 395
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1254
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-crystal-c3": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-c3",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the lettering that stands in the track: the combo number '83' with the word 'COMBO' under it, and the judgment text 'MAX 100%' (the small '0ms' under it stays plain white). Keep everything else exactly as it is: the same words and numbers, the same places and sizes of that lettering, its italic geometric letterforms, the dark lanes, the rails, the key caps, the notes, the deck with its three hexagonal readout plates, the gauge and the top-left song information. The change is the SURFACE of those letters only: give them a little of the skin's cut crystal. It must stay perfectly legible at a glance and calm: NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow fringe, no heavy 3D extrusion, no drop of legibility. Also keep the hit effect (the white burst with its few pastel shards on the judgment line) exactly as it is. Strength: MODERATE, plain to see at normal viewing size without zooming in. Each word looks cut from one sheet of frosted crystal: its glyphs are filled with three or four flat planes of clearly different tone (pure white, pale ice blue, light steel blue, a little soft lavender) split by crisp straight diagonal lines that run at the same angle across the whole word, as the facets of a cut gem do; a thin bright highlight follows the top edges of the strokes; a thin dark navy outline keeps the letters clear of the lanes. No extrusion, low relief. '83' and 'COMBO' in whites and pale ice blues; 'MAX' in whites and pale ice blues, '100%' in ice blue, sky blue and a deeper azure plane. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-crystal-b6.png (r2-skin-crystal-b6.jpg의 원본)",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1560,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4050,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 440
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 810
+  },
+  "made": "2026-11-11"
+ },
+ "r2-skin-crystal-type": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-type",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "A lettering design sheet on a dark slate background (#14161d), 16:9, for the 'CRYSTAL' skin of a PC rhythm game. It shows the same in-game lettering in THREE strengths of crystal texture, in three columns of equal width with a thin label over each column: 'FLAT', 'SUBTLE', 'MODERATE'. Each column holds, top to bottom, drawn large and identical in size and layout across the columns: the combo '83' with the word 'COMBO' under it; then the judgment texts 'MAX 100%', 'MAX 90%', 'MAX 50%' and 'BREAK'. The typeface in all columns is the same bold italic geometric sans-serif, with a thin dark navy outline. Column FLAT: plain flat fills, no texture: '83', 'COMBO' and 'MAX' white; '100%' sky blue, '90%' a lighter blue, '50%' pale lavender; 'BREAK' flat rose red. Column SUBTLE: the same colours, but each word is cut by ONE crisp straight diagonal line into two flat planes of slightly different tone (for white: pure white and very pale ice blue), with a thin bright highlight along the top edges of the strokes. Barely there. Column MODERATE: each word is cut by crisp straight diagonal lines at one shared angle into three or four flat planes of clearly different tone (for white: pure white, pale ice blue, light steel blue, a touch of soft lavender; for the blues: ice blue, sky blue, a deeper azure; for BREAK: rose, ruby and a dark garnet plane with one fine crack line), with a thin bright highlight along the top edges of the strokes, like letters cut from a sheet of frosted crystal. Everything is flat and crisp, vector-like: NO sparkles, NO star glints, NO lens flare, NO bloom, NO rainbow, no 3D extrusion. All words spelled exactly as given. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": null,
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 468,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4103,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 468
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1955
+  },
+  "made": "2026-11-11"
  }
 }
