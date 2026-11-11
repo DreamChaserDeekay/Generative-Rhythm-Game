@@ -1731,16 +1731,18 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
     });
   }
   // the flash: a white bar across the lane on the line, its glow, a hot diamond in its middle
-  const fw = 36 * s;
-  const fh = (8 - 5.5 * p) * s;
-  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
+  // (the hit is drawn 1.8 lanes to a lane: the bar and the star stay inside their own lane, so a
+  // chord's flashes stand side by side and do not run into one bar of white)
+  const fw = 24 * s;
+  const fh = (7 - 5 * p) * s;
+  const glow = g.createRadialGradient(0, 0, 0, 0, 0, 16 * s);
   glow.addColorStop(0, `rgba(255,255,255,${0.4 * a * a})`);
   glow.addColorStop(1, 'rgba(255,255,255,0)');
   g.save();
-  g.scale(1.5, 0.55);
+  g.scale(1.4, 0.6);
   g.fillStyle = glow;
   g.beginPath();
-  g.arc(0, 0, 22 * s, 0, Math.PI * 2);
+  g.arc(0, 0, 16 * s, 0, Math.PI * 2);
   g.fill();
   g.restore();
   g.fillStyle = `rgba(255,255,255,${a})`;
@@ -1748,14 +1750,14 @@ function drawSpectrum(g: CanvasRenderingContext2D, p: number): void {
   g.fill();
   // the star: long points along the line, short ones across it, drawn in as it fades
   const r = (8.5 - 3.5 * p) * s;
-  const waist = r * 0.22;
-  const up = r * (1.1 - 0.9 * p);
+  const waist = r * 0.24;
+  const up = r * (1.15 - 0.9 * p);
   polygon(g, [
-    [-r * 2.2, 0],
+    [-r * 1.7, 0],
     [-waist, -waist * 0.5],
     [0, -up],
     [waist, -waist * 0.5],
-    [r * 2.2, 0],
+    [r * 1.7, 0],
     [waist, waist * 0.5],
     [0, up * 0.8],
     [-waist, waist * 0.5],

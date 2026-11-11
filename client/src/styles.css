@@ -2004,8 +2004,8 @@ p.hint {
   --plate-bg: rgba(27, 42, 92, 0.72);
   --plate-border: 1px solid rgba(213, 230, 248, 0.5);
   --gauge-off: rgba(124, 200, 255, 0.14);
-  --gauge-low: #5aa9e0;
-  --gauge-high: #c9edff;
+  --gauge-low: #7cc2ee;
+  --gauge-high: #d8f1ff;
   --gauge-name-colour: #eaf4ff;
 }
 
