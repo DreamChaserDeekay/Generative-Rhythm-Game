@@ -414,6 +414,20 @@ PICTURES["skin-crystal-b4"] = (
     "the skin's italic geometric type." + TAIL,
 )
 
+# CRYSTAL: the readouts keep version B2's plates (their shapes and places), filled and lettered as B3's were.
+PICTURES["skin-crystal-b5"] = (
+    RAW / "r2-skin-crystal-b2.png",
+    "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the inside of the "
+    "three readout plates in the gear's bottom deck and keeping everything else exactly as it is, including the plates' shapes, "
+    "sizes and places (the rounded SCORE plate in the centre, the SPEED pill at the lower left, the RATE pill at the lower "
+    "right), their thin bright bevelled rims, the pale faceted crystal deck round them, the dark lanes, the rails, the key caps, "
+    "the notes, the lettering in the track, the gauge and the top-left song information. The change: fill each plate with deep "
+    "clear sapphire-navy crystal (a dark blue, about #1b2a5c to #24408a, with one soft diagonal facet a little lighter), and "
+    "write on it in the skin's italic geometric type: the labels 'SCORE', 'SPEED', 'RATE' in ice blue (#7cc8ff), the numbers "
+    "'266,881', '3.00', '100.00%' in white. Label and number side by side on one line as now. Flat and crisp: no sparkles, no "
+    "glints, no bloom." + TAIL,
+)
+
 
 def generate(prompt: str, ref: Path | None) -> tuple[bytes, dict]:
     parts: list[dict] = []

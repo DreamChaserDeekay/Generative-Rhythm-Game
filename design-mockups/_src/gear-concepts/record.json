@@ -971,5 +971,37 @@
    "thoughtsTokenCount": 357
   },
   "made": "2026-11-11"
+ },
+ "r2-skin-crystal-b5": {
+  "concept": "PRISM",
+  "kind": "skin-crystal-b5",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "This is concept art of a crystal skin for our PC rhythm game. Make a new version of it, 16:9, changing ONLY the inside of the three readout plates in the gear's bottom deck and keeping everything else exactly as it is, including the plates' shapes, sizes and places (the rounded SCORE plate in the centre, the SPEED pill at the lower left, the RATE pill at the lower right), their thin bright bevelled rims, the pale faceted crystal deck round them, the dark lanes, the rails, the key caps, the notes, the lettering in the track, the gauge and the top-left song information. The change: fill each plate with deep clear sapphire-navy crystal (a dark blue, about #1b2a5c to #24408a, with one soft diagonal facet a little lighter), and write on it in the skin's italic geometric type: the labels 'SCORE', 'SPEED', 'RATE' in ice blue (#7cc8ff), the numbers '266,881', '3.00', '100.00%' in white. Label and number side by side on one line as now. Flat and crisp: no sparkles, no glints, no bloom. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people. Original design: it must not resemble any existing game's interface. No logos, no watermark, no characters, no people.",
+  "reference": "design-mockups/_src/gear-concepts/r2-skin-crystal-b2.png (r2-skin-crystal-b2.jpg의 원본)",
+  "imageSize": "2K",
+  "usage": {
+   "promptTokenCount": 1434,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 4086,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 314
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 972
+  },
+  "made": "2026-11-11"
  }
 }
