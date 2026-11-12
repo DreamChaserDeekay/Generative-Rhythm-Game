@@ -11,6 +11,15 @@
   "holdNoteRatio": null,
   "temperature": null,
   "timeoutSeconds": 1800,
+  "silence": {
+    "_comment": "Silences of the song's audio (server/rhythm_server/mapper/silence.py): a stretch of minMs or more under the song's loud level by belowLoudDb (or under floorDb dBFS), measured in frames of frameMs. Mapperatorinator is asked to stop at the music's end plus endPadMs when the song ends in one, and a note more than marginMs into a silence is dropped (a hold reaching into one ends there).",
+    "frameMs": 50,
+    "belowLoudDb": 45,
+    "floorDb": -60,
+    "minMs": 1000,
+    "marginMs": 100,
+    "endPadMs": 200
+  },
   "cameraFrom": "notes",
   "camera": {
     "_comment": "The camera's cues from a chart's own notes (server/rhythm_server/chart/camera_notes.py). cameraFrom: \"notes\" (this, no song analysis) or \"structure\" (the analysed sections, as before). Sections are cut where the notes per beat of the next windowBars bars differ from the last ones' by `change` (of the song's busy level: the topPercentile of its bars) at least, minBars apart (a busier section starts at the first bar within plateauSlack of its usual level); a section of busyEnergy or more among the sections is a busy one (it leans and pulses). Bars that each fill up by rampStep before a busy section, rampBars at most, are a build-up; so is a stream of streamBeats or more (hits no further apart than streamGapBeats) ending before the next section.",

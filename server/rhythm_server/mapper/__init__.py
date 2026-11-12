@@ -17,6 +17,7 @@ from ..chart.keysounds import default_seed
 from . import charts
 from .runtime import Runtime, mapper_config
 from .service import MapperError, MapperService
+from .silence import music_end, quiet_spans
 
 __all__ = ["Mapper", "MapperError", "Runtime", "mapper_config"]
 
@@ -74,11 +75,12 @@ class Mapper:
                 beatmap.write_text(text, encoding="utf-8")
             out = tmp / "out"
             out.mkdir()
-            request = charts.request_for(key_mode, level, seed, cfg, wav, out, beatmap, meta)
+            quiet = quiet_spans(pcm, sr, cfg["silence"]) if cfg.get("silence") else []
+            request = charts.request_for(key_mode, level, seed, cfg, wav, out, beatmap, meta, music_end(quiet, len(pcm) * 1000.0 / sr))
             answer = self.service.generate(request, float(cfg.get("timeoutSeconds", 1800)))
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
             try:
-                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing)
+                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing, quiet)
             except ValueError as e:
                 raise MapperError(str(e)) from e
         finally:

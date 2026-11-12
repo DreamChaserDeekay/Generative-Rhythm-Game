@@ -81,7 +81,16 @@ export interface CameraConfig {
   presets: Record<string, CameraPreset>;
   default: string;
   /** Strength of the chart's camera cues (see render/cameraFx.ts). */
-  fx: { maxTiltDeg: number; zoomDepth: number; viewDepth: number };
+  fx: {
+    maxTiltDeg: number;
+    zoomDepth: number;
+    viewDepth: number;
+    maxDiveDeg: number;
+    swingAttack: number;
+    anticipation: { from: number; depth: number; beats: number };
+    player: { comboEvery: number; comboPulse: number; comboMs: number; missCalmMs: number; missEaseMs: number; missBackMs: number };
+    inertia: Record<'roll' | 'zoom' | 'dive', { hz: number; damping: number }>;
+  };
 }
 
 export const judgementConfig = judgementJson as unknown as JudgementConfig;

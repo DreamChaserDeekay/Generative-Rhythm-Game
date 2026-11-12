@@ -198,6 +198,34 @@ def notes_from_osu(text: str, lanes: list[int]) -> list[dict[str, Any]]:
     return notes
 
 
+def drop_silent(notes: list[dict[str, Any]], quiet: list[tuple[float, float]], margin_ms: float) -> tuple[list[dict[str, Any]], int]:
+    """The notes without those in a silence of the song (`quiet`: (start, end) ms spans; a note up
+    to `margin_ms` into one stays: its sound began before), and how many were dropped. A hold that
+    reaches into a silence ends where the silence starts (a tap when too short for a hold)."""
+    if not quiet:
+        return notes, 0
+    starts = [a for a, _ in quiet]
+
+    def span_at(t: float) -> tuple[float, float] | None:
+        k = bisect.bisect_right(starts, t) - 1
+        return quiet[k] if k >= 0 and t < quiet[k][1] else None
+
+    kept: list[dict[str, Any]] = []
+    for n in notes:
+        span = span_at(float(n["t"]))
+        if span is not None and float(n["t"]) > span[0] + margin_ms:
+            continue
+        if n.get("type") == "hold":
+            # the first silence the hold reaches into
+            k = bisect.bisect_right(starts, float(n["t"]))
+            inside = span_at(float(n["endT"])) or (quiet[k] if k < len(quiet) and quiet[k][0] < float(n["endT"]) else None)
+            if inside is not None and float(n["endT"]) > inside[0] + margin_ms:
+                end = inside[0] + margin_ms
+                n = {**n, "endT": end} if end - float(n["t"]) >= MIN_HOLD_MS else {k2: v for k2, v in n.items() if k2 != "endT"} | {"type": "tap"}
+        kept.append(n)
+    return kept, len(notes) - len(kept)
+
+
 def hits_from_osu(text: str) -> list[tuple[float, int, int]]:
     """The hitsounds of an osu!mania file's objects as (time ms, hitsound bits, volume 0..100; 0:
     none given): what the model heard as accents (whistle 2, finish 4, clap 8)."""
@@ -250,15 +278,19 @@ def predicted_meta(
 def make_chart(
     analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
     osu_text: str, info: dict[str, Any], target_level: int | None = None, song_timing: dict[str, Any] | None = None,
+    quiet: list[tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """One of our charts from the .osu Mapperatorinator made (`target_level`: the level asked for,
     None for a tier's default chart; `song_timing`: the timing it was given, None when it found
-    its own)."""
+    its own; `quiet`: the song's silences, whose notes are dropped)."""
     params = resolve_tier(key_mode, difficulty, level)
     lanes = lane_infos(key_mode)
     timing = song_timing or parse_osu(osu_text).timing
     tempo = TempoMap(timing)
     notes = notes_from_osu(osu_text, columns(key_mode))
+    duration = float(analysis["durationMs"])
+    # nothing is played in a silence, nor past the song's end
+    notes, silent = drop_silent(notes, [*(quiet or []), (duration, float("inf"))], float((cfg.get("silence") or {}).get("marginMs", 100.0)))
     if not notes:
         raise ValueError("Mapperatorinator가 만든 채보에 노트가 없습니다")
     attach_sources(notes, analysis.get("onsets", []))
@@ -267,7 +299,6 @@ def make_chart(
     if problems:
         raise ValueError("채보 구조 오류: " + "; ".join(problems[:5]))
     mark_sound_ends(notes, analysis)
-    duration = float(analysis["durationMs"])
     last = max(n.get("endT", n["t"]) for n in notes)
     est = estimate(notes, key_mode, len(lanes), max(duration, last + 1.0), params.min_jack_ms, params.level_table, params.level_factor)
     sections = chart_sections(analysis, tempo)
@@ -309,6 +340,8 @@ def make_chart(
                 # "song": the timing of the song's first chart, given; "model": found for this chart
                 "timing": "song" if song_timing else "model",
                 "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
+                # notes the model put in a silence of the song (or past its end), dropped
+                "silentDropped": silent,
                 "seconds": info.get("seconds"),
                 "device": info.get("device"),
                 "precision": info.get("precision"),
@@ -330,9 +363,12 @@ def make_chart(
 
 
 def request_for(
-    key_mode: str, level: int, seed: int, cfg: dict[str, Any], audio: Path, out: Path, beatmap: Path | None, meta: dict[str, Any]
+    key_mode: str, level: int, seed: int, cfg: dict[str, Any], audio: Path, out: Path, beatmap: Path | None, meta: dict[str, Any],
+    end_ms: float | None = None,
 ) -> dict[str, Any]:
+    """`end_ms`: where the music ends when the song ends in a silence (the model stops there)."""
     return {
+        "endTime": None if end_ms is None else int(round(end_ms + float((cfg.get("silence") or {}).get("endPadMs", 200.0)))),
         "audio": str(audio), "out": str(out), "beatmap": str(beatmap) if beatmap else None, "model": cfg.get("model", "v32"),
         "keycount": len(columns(key_mode)), "difficulty": stars_of(level, cfg), "seed": int(seed),
         "holdNoteRatio": cfg.get("holdNoteRatio"), "temperature": cfg.get("temperature"),

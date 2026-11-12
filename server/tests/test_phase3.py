@@ -369,7 +369,7 @@ def test_charts_carry_sources_camera_cues_and_a_keysound_stem() -> None:
     keysound = chart["meta"]["keysound"]
     assert keysound["stem"] in STEM_NAMES and abs(sum(keysound["shares"].values()) - 1) < 0.01
     effects = chart["effects"]
-    assert effects and all(e["type"] in ("tilt", "zoom", "view") for e in effects)
+    assert effects and all(e["type"] in ("zoom", "view", "swing", "dive") for e in effects)
     assert all(-1 <= e["value"] <= 1 for e in effects)
 
 

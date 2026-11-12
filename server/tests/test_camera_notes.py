@@ -46,7 +46,7 @@ def test_sections_follow_the_density_of_the_notes() -> None:
     assert sections_from_notes([], TIMING) == []
 
 
-def test_the_camera_widens_in_a_break_closes_in_on_a_build_up_and_leans_where_it_is_busy() -> None:
+def test_the_camera_widens_in_a_break_closes_in_on_a_build_up_and_swings_where_it_is_busy() -> None:
     cues = camera_from_notes(_song(), TIMING, lane_infos("6K"))
     assert cues == sorted(cues, key=lambda e: (e["t"], e["type"]))
     views = [(e["beat"], e["value"]) for e in cues if e["type"] == "view"]
@@ -54,9 +54,12 @@ def test_the_camera_widens_in_a_break_closes_in_on_a_build_up_and_leans_where_it
     assert any(v > 0 and 48.0 <= b < 56.0 for b, v in views)  # closing in as the bars fill up
     assert any(b == 56.0 and v == 0.0 for b, v in views)  # let go where the busy part lands
     assert any(e["type"] == "zoom" and e["beat"] == 56.0 and e["value"] >= 0.5 for e in cues)  # the landing
-    lean = [e for e in cues if e["type"] == "tilt" and 56.0 <= e["beat"] < 88.0]
-    assert lean and lean[0]["value"] > 0  # towards the crowded right hand
-    assert any(e["type"] == "tilt" and e["beat"] == 88.0 and e["value"] == 0.0 for e in cues)  # level again
+    swings = [e for e in cues if e["type"] == "swing"]
+    assert [e["beat"] for e in swings] == [56.0, 72.0]  # the head of each four-bar phrase of the busy part
+    assert swings[0]["value"] < 0 and swings[1]["value"] < 0  # away from the crowded right hand, both phrases
+    assert 0.5 < abs(swings[0]["value"]) < 1.0  # eight notes a second: a little smaller
+    assert [(e["beat"], e["value"]) for e in cues if e["type"] == "dive"] == [(56.0, 1.0), (88.0, 0.0)]
+    assert not [e for e in cues if e["type"] == "tilt"]
     assert all(-1.0 <= e["value"] <= 1.0 for e in cues)
 
 

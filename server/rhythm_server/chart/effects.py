@@ -1,12 +1,20 @@
-"""SDVX-style camera cues from the song structure (instruments.json `effects`, docs/PATTERN_DESIGN.md 63):
+"""SDVX-style camera cues from the song's sections (instruments.json `effects`, docs/MAPPERATORINATOR.md
+"카메라 워크"):
 
-- `zoom`: a pulse where the energy jumps (a chorus, a drop) and, smaller, on the strong beats of a
-  chorus or drop;
-- `view`: a held zoom level: wider (negative) through a breakdown or a quiet passage, closing in bar
-  by bar through a build-up (positive: a pre-chorus before a chorus or drop, or a roll of a bar or
-  more ending within two bars of the next section) and let go at once where the next section lands;
-- `tilt`: the track leans in high-energy sections towards the hand the notes crowd on, else the
-  way the tune climbs (right) or falls (left), and levels where the energy drops.
+- `zoom`: a pulse. The largest where the energy jumps or a build-up lands (a chorus, a drop); a
+  middle one at the head of every phrase (phraseBars) of a busy section; small ones on the
+  strongest beats of the busiest sections only. So not every beat is an accent;
+- `view`: a held zoom level: wider (negative), slowly, through a breakdown or a quiet passage;
+  closing in bar by bar through a build-up (positive) and let go at once where the next section lands;
+- `swing`: the track leans at the head of every phrase of a high-energy section and comes back
+  level within the bar, away from the hand the notes crowd on (the crowded side is the one being
+  read), else the other way from the last swing. It is a move, not a state: a lean that was held
+  through a section stopped being seen after two seconds and only made the lanes harder to read;
+- `dive`: the camera held lower through a high-energy section (the notes come in faster);
+- the phrase and beat pulses and the swings are smaller where the notes are dense (`dense`): the
+  camera moves most where there is the least to read.
+
+`tilt` (a lean held through a section) is what charts made before had; the client still plays it.
 """
 
 from __future__ import annotations
@@ -77,7 +85,7 @@ def camera_effects(
 ) -> list[dict[str, Any]]:
     """`rolls` are the song's drum rolls as (first hit, last hit) beats."""
     cfg = load_config("instruments")["effects"]
-    vcfg, pcfg, tcfg = cfg["view"], cfg["beatPulse"], cfg["tiltFollow"]
+    vcfg, pcfg, tcfg, mcfg = cfg["view"], cfg["beatPulse"], cfg["tiltFollow"], cfg["motion"]
     secs = sorted(sections, key=lambda s: s["startBeat"])
     notes = notes or []
     onsets = onsets or []
@@ -88,9 +96,20 @@ def camera_effects(
     quiet = _quiet(secs, vcfg)
     out: list[dict[str, Any]] = []
     prev: float | None = None
-    tilted = False
-    direction = -1  # with nothing to follow the first lean goes right, then the leans alternate
+    diving = False
+    direction = -1  # with nothing to follow the first swing goes right, then the swings alternate
     view = 0.0
+    phrase = float(mcfg["phraseBars"] * bpb)
+    times = np.array(sorted(float(n["t"]) for n in notes))
+
+    def calm(beat: float) -> float:
+        """What a swing or a small pulse at `beat` is scaled by: 1 where the bar from there is
+        easy to read, down to 1 - dense.reduce where it holds dense.to notes a second or more."""
+        dense = mcfg["dense"]
+        lo, hi = tempo.beat_to_ms(beat), tempo.beat_to_ms(beat + bpb)
+        nps = float(np.searchsorted(times, hi) - np.searchsorted(times, lo)) / max(1e-3, (hi - lo) / 1000.0)
+        return 1.0 - dense["reduce"] * min(1.0, max(0.0, (nps - dense["from"]) / (dense["to"] - dense["from"])))
+
     for i, sec in enumerate(secs):
         start = max(0.0, float(sec["startBeat"]))
         end = float(secs[i + 1]["startBeat"]) if i + 1 < len(secs) else float(sec.get("endBeat", start + bpb))
@@ -110,7 +129,7 @@ def camera_effects(
         if ramp is not None and end - ramp >= bpb:
             if quiet[i] and i > 0 and ramp > start and view != vcfg["quiet"]:
                 view = vcfg["quiet"]
-                out.append(_cue(tempo, start, "view", view, vcfg["easeBeats"]))
+                out.append(_cue(tempo, start, "view", view, vcfg["quietEaseBeats"]))
             bars = max(1, int(round((end - ramp) / bpb)))
             for k in range(bars):
                 view = vcfg["buildUp"] * (k + 1) / bars
@@ -118,12 +137,23 @@ def camera_effects(
         elif quiet[i] and i > 0:
             if view != vcfg["quiet"]:
                 view = vcfg["quiet"]
-                out.append(_cue(tempo, start, "view", view, vcfg["easeBeats"]))
+                out.append(_cue(tempo, start, "view", view, vcfg["quietEaseBeats"]))
         elif view != 0.0:
             out.append(_cue(tempo, start, "view", 0.0, vcfg["releaseBeats"] if view > 0 else vcfg["easeBeats"]))
             view = 0.0
-        # small zooms on the strong beats of a chorus or drop
-        if label in HIGHLIGHT and onsets:
+        high = energy >= cfg["highEnergy"]
+        # the heads of the section's phrases (the section's own start has its landing, if any)
+        heads = []
+        b = start
+        while b < end - 1e-6:
+            heads.append(b)
+            b += phrase
+        if label in HIGHLIGHT or high:
+            for b in heads:
+                if b > start or not (jump or landing):
+                    out.append(_cue(tempo, b, "zoom", mcfg["phrasePulse"] * calm(b), cfg["zoomBeats"]))
+        # small zooms on the strongest beats of the busiest sections
+        if label in HIGHLIGHT and onsets and energy >= pcfg["minEnergy"]:
             lo, hi = tempo.beat_to_ms(start), tempo.beat_to_ms(end)
             on_beat = []
             for o in onsets:
@@ -135,28 +165,21 @@ def camera_effects(
                 floor = float(np.percentile([s for _, s in on_beat], pcfg["strongPercentile"]))
                 last = -1e9
                 for b, s in sorted(on_beat):
-                    if s >= floor and b - last >= pcfg["minGapBeats"]:
-                        out.append(_cue(tempo, b, "zoom", pcfg["value"] * min(1.0, 0.5 + 0.5 * energy), pcfg["durationBeats"]))
+                    if s >= floor and b - last >= pcfg["minGapBeats"] and all(abs(b - h) > 0.5 for h in heads):
+                        out.append(_cue(tempo, b, "zoom", pcfg["value"] * min(1.0, 0.5 + 0.5 * energy) * calm(b), pcfg["durationBeats"]))
                         last = b
-        # the lean: towards the crowded hand or the climbing tune, held at least spanBars bars
-        if energy >= cfg["highEnergy"]:
-            span = tcfg["spanBars"] * bpb
-            b = start
-            first = True
-            while b < end - 1e-6:
-                d = _direction(tempo.beat_to_ms(b), tempo.beat_to_ms(min(end, b + span)), notes, lane_pos, melody, tcfg, bar_ms)
-                if first:
-                    direction = d or -direction  # nothing to follow: the other way from the last lean
-                    out.append(_cue(tempo, b, "tilt", direction * energy, cfg["tiltBeats"]))
-                elif d and d != direction:
-                    direction = d
-                    out.append(_cue(tempo, b, "tilt", direction * energy, cfg["tiltBeats"]))
-                first = False
-                b += span
-            tilted = True
-        elif tilted:
-            out.append(_cue(tempo, start, "tilt", 0.0, cfg["tiltBeats"]))
-            tilted = False
+        # the swing at every phrase head: away from the crowded hand, else the other way from the last
+        if high:
+            for b in heads:
+                d = _direction(tempo.beat_to_ms(b), tempo.beat_to_ms(min(end, b + phrase)), notes, lane_pos, melody, tcfg, bar_ms)
+                direction = -d if d else -direction
+                out.append(_cue(tempo, b, "swing", direction * energy * calm(b), mcfg["swingBeats"]))
+            if not diving:
+                out.append(_cue(tempo, start, "dive", 1.0, mcfg["diveBeats"]))
+                diving = True
+        elif diving:
+            out.append(_cue(tempo, start, "dive", 0.0, mcfg["diveBeats"]))
+            diving = False
         prev = energy
     out.sort(key=lambda e: (e["t"], e["type"]))
     return out

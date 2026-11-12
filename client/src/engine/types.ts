@@ -39,11 +39,13 @@ export interface ChartBgmEvent {
 /**
  * SDVX-style camera cue: `tilt` eases the track to `value` (-1..1), `zoom` is a pulse (0..1),
  * `view` eases to a held zoom level (-1 wider .. 1 closer, 0 normal).
+ * `swing` leans the track (-1 .. 1) and brings it back level within its duration.
+ * `dive` eases to a held camera height (0 normal .. 1 lowest, toward the track about the judge line).
  */
 export interface ChartEffect {
   beat: number;
   t: number;
-  type: 'tilt' | 'zoom' | 'view';
+  type: 'tilt' | 'zoom' | 'view' | 'swing' | 'dive';
   value: number;
   durationBeats: number;
 }
