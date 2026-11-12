@@ -62,6 +62,18 @@
 
 코드: `scripts/assets/make_skin_panels.py`(프롬프트 · 배치 안내 그림 · 생성), `scripts/assets/build_skin_panels.py`(게임용 그림과 표시창 자리 측정 → `client/public/media/panels/`, `client/src/render/deckPanels.json`), `deckArt.ts`(`DECK_PANELS`, `panelPainting`, `deckReadouts`의 `panel`, 코드 그림의 창은 `plateWindows`), `styleArt.ts`의 `GEAR_PICTURES`(`<gear>/panel`), `TrackRenderer.ts`(`panelled`, `HudPlane.deck.panel`), `Hud.ts`(`data-panel`), `styles.css`(`.hud[data-panel]`). 출처와 프롬프트: `assets-src/PROVENANCE.md`.
 
+## 하단을 담백하게, 수치 자리는 기어마다 (2026-11-12, 크리스털부터)
+
+사용자 요청(2026-11-12, 위의 하단 그림들을 본 뒤): "각 기어의 하단 영역을 다시 생성해볼거야", "레퍼런스의 크리스탈 질감은 살리면서, 현재 날개나 하단 동그라미 같은 화려한 장식은 지양해야 해", "지금은 score랑 speed를 보여주는 영역이 기어마다 모두 똑같은데, 기어 별로 특징을 잘 살려서 해당 항목은 기어 하단 영역 내에서 자유롭게 배치해도 돼. 단, 게임 플레이 하면서 충분히 볼 수 있도록 가시성은 살려야 해". 2D로 하나, 기존 입체 기어(오락실 기체 · 리시버 · 커스텀 키보드)처럼 3D 렌더로도 하나 뽑아 보라는 요청도 함께였습니다.
+
+- **새 구성**(`make_skin_panels.py`의 `WINDOWS`에 든 기어): 날개 · 둥근 문장 · 보석 장식 없이 그 기어의 재질 한 덩어리이고, **SCORE와 SPEED가 저마다 제 창**을 가집니다. 창의 자리는 기어마다 다르게 잡습니다. 다만 어느 카메라에서나 보이도록 두 창 모두 그림의 위쪽 30% 안에 둡니다(강한 원근 카메라가 그만큼만 보여 줍니다).
+- **크리스털**(1번, 지금은 이것만 새 구성): 크게 깎은 크리스털 한 덩어리(큰 면 몇 장, 날카로운 모서리, 얼음빛 흰색 · 옅은 파랑 · 연보라의 홀로그램 빛). SCORE는 왼쪽 가운데의 넓은 짙은 사파이어 면(폭의 47%), SPEED는 오른쪽의 작은 면(폭의 19%)입니다. 두 줄로 쌓지 않고 옆으로 놓아서 창이 깊어졌고, SCORE 숫자가 예전보다 큽니다. 나머지 14개 기어는 아직 앞 절의 구성(표시창 · 날개 · 문장) 그대로입니다.
+- **문장 조명**: 문장이 없는 새 구성의 기어는 받침의 문장 자리 조명(`emblem`)을 켜지 않습니다.
+- **레퍼런스 그림**: 사용자는 레퍼런스 그림을 Gemini에 같이 보내라고 했지만, 이 세션에서는 사용자 파일을 밖으로 보내는 명령이 권한 검사에 막혀 보내지 못했습니다. 크리스털의 새 그림은 레퍼런스 1번의 크리스털을 말로 옮겨(큰 면 몇 장으로 깎은 한 덩어리) 뽑은 것입니다.
+- **3D 렌더판**(시험만 함, 게임에는 아직 넣지 않음): 새 2D 그림을 깐 실제 게임 화면(기본 카메라)의 아래쪽을 Gemini에 주고 하단만 입체로 다시 그리게 한 뒤, 보정용 점 그림으로 구한 카메라 변환으로 평면에 펴서 깔아 보았습니다(유리 두께와 모서리 굴절이 살아남). 기본 카메라 시점의 그림이라 평면 · 약한 원근 카메라에는 2D 그림이 따로 필요하고, Gemini가 화면 구도를 자주 바꿔서 여러 장을 뽑아야 합니다(자리 표시만 깐 화면을 준 4장은 모두 구도가 바뀌었고, 2D 그림을 깐 화면을 준 2장 가운데 1장이 구도를 지켰습니다). 2D만 쓸지, 3D를 함께 쓸지는 사용자가 정합니다.
+
+코드: `make_skin_panels.py`의 `WINDOWS` · `MATERIALS` · `window_guide()`(창 둘만 검게 그린 배치 안내), `build_skin_panels.py`(창 둘을 따로 재서 `deckPanels.json`에 `score` · `speed`로 적음; 예전 구성은 `glass` 하나), `deckArt.ts`의 `DeckPanel`(`glass` 또는 `score` · `speed`) · `deckReadouts` · `panelPainting`.
+
 ## RATE는 판정 글자 아래에 (2026-11-11)
 
 사용자 요청: "RATE는 잘 안보이니까 판정 아래에 작게 표시하도록 위치를 변경해", "판정선 아래가 아니라 MAX 100% 같은 판정 아래에". RATE는 기어 하단과 왼쪽 열에서 빠지고, 트랙 가운데 판정 글자(와 FAST/SLOW · 오차 막대) 바로 아래에 작은 한 줄(라벨 11px · 숫자 17px, 720p 기준, 어두운 외곽선)로 항상 떠 있습니다(`Hud.ts`의 `RATE_NUM` · `RATE_LABEL` · `RATE_GAP`, `styles.css`의 `.hud-row.under-judge`). 기어 하단에는 SCORE와 SPEED만 남습니다.

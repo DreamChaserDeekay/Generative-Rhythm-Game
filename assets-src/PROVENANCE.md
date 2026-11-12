@@ -2346,16 +2346,25 @@
 
 ### `gears/panels/prism.jpg` (크리스털)
 
-- 2026-11-11 14:32 UTC · PNG 5,368,373바이트 · sha256 앞 16자리 `e824e39800f7d11f` · 저장한 JPEG 541,516바이트 → `panels/prism.webp` 2048×869(246,662바이트) · 표시창 유리: 가로 27.3~72.8%, 세로 4.8~36.6%
-- 스킨별 문구:
+- 2026-11-12 00:30 UTC · PNG 4,345,844바이트 · sha256 앞 16자리 `e5f969fd93c40721` · 저장한 JPEG 254,763바이트 → `panels/prism.webp` 2048×869(73,632바이트) · SCORE 창: 가로 12.8~59.3%, 세로 6.7~26.5% · SPEED 창: 가로 69~88.4%, 세로 9.4~22.4%
+- 두 번째 그림입니다. 처음 것(2026-11-11 14:32 UTC · sha256 앞 16자리 `e824e39800f7d11f`: 표시창 양옆의 수정 날개와 사파이어, 가운데 둥근 크리스털 문장)은 사용자가 "레퍼런스의 크리스탈 질감은 살리면서, 현재 날개나 하단 동그라미 같은 화려한 장식은 지양해야 해", SCORE · SPEED는 "기어 하단 영역 내에서 자유롭게 배치해도 돼. 단, … 가시성은 살려야 해"라고 해서 바꿨습니다(2026-11-12). 같은 프롬프트로 2장을 뽑아 첫 장(면을 가르는 긴 사선이 뚜렷한 쪽)을 골랐고, 다른 한 장(sha256 앞 16자리 `1e705ab0e59efcde`)은 쓰지 않았습니다.
+- 같이 보낸 그림: 배치 안내 한 장뿐(`make_skin_panels.py`의 `window_guide()`: 회색 바탕에 창 둘을 검게). 사용자는 레퍼런스 그림도 같이 보내라고 했지만 이 세션의 권한 검사가 사용자 파일을 밖으로 보내는 명령을 막아 보내지 못했고, 레퍼런스 1번의 크리스털은 프롬프트에 말로 옮겼습니다(THE MATERIAL 문단).
+- 프롬프트 전문(이 구성의 기어는 스킨별 문구가 아니라 전문이 제 것입니다):
 
-  > CONCEPT: cut crystal and light: faceted clear crystal planes in ice white, pale lavender and pale blue, deep sapphire-blue gem insets with silver bezels, thin silver edges, fine rainbow dispersion (a hairline spectrum) where facets meet, the feel of jewellery.
+  > One picture comes with this request: a LAYOUT GUIDE only (never copy its grey): its two black shapes are where two READOUT WINDOWS go. Your picture has the same proportions as the guide.
   >
-  > DISPLAY BAY: It is a plate of deep sapphire-blue glass (#16245a), dark and even.
+  > PAINT: the surface of the lower panel of our own rhythm game's gear (the wide control deck that lies under the note lanes), made of cut crystal, as production game art at the finish level of a top commercial rhythm game. It is used as a flat texture laid on the deck, so it must be a strictly top-down, orthographic, undistorted picture that fills the whole 21:9 frame edge to edge: no perspective, no horizon, no camera angle, no vignette, no frame or border round the picture, no background behind the crystal (the crystal covers everything).
   >
-  > WINGS: fans of long crystal facets radiating from the bay, a brilliant-cut sapphire gem in a silver ring on each wing, small hexagonal crystal studs, hairline light guides with rainbow glints.
+  > THE MATERIAL: one solid block of CUT CRYSTAL, like a big piece of optical glass or a rough-cut gemstone seen in a studio render: one mass cut into a few LARGE planar facets at hard, irregular angles (big triangles and trapezoids, not small sparkly ones); razor-sharp bright edges where facets meet; translucent ice-white, pale periwinkle blue and pale blue-violet glass with soft holographic gradients and refractions inside it, so that you look down into the stone and see its inner planes; some facets mirror-bright and nearly white, some clear and pale, a few darker blue. Cool, clean and luminous.
   >
-  > LOWER BODY: a large brilliant-cut crystal medallion in the centre under the display bay, wide facet planes spreading from it like a chandelier, a few small gem studs.
+  > DESIGN, exactly:
+  > - The whole panel is ONE slab of that cut crystal. Its beauty is only in its facets, its sharp edges and the light inside it. It is deliberately PLAIN and bold: NO wings, NO fans of crystal spikes, NO round medallion or emblem, NO rosette, NO gems set in metal rings, NO studs, NO filigree, NO metal ornament, NO symmetry. A few large facets cut at different angles, asymmetric, with a handful of long diagonal cut lines running across the slab.
+  > - READOUT WINDOWS (the two black shapes of the guide): the larger one (left of centre, in the upper part) is the SCORE window and the smaller one (at the right) is the SPEED window. In your picture each is ONE flat, polished facet of the same crystal, of deep sapphire-blue glass (#141f52), dark and even, exactly at the guide's place and size, with the same cut corners, edged by one thin bright bevel line like a cut facet's edge. The game writes white numbers on them, so the inside of both must stay completely empty and even: no text, no digits, no icons, no reflections, no gradients, no facet lines crossing them.
+  > - The TOP EDGE of the picture is where the panel meets a row of white crystal key caps; players see the upper third of the picture most, so the finest cutting is there, around the two windows. The lower two thirds are the same slab continuing toward the player with larger, calmer facets, growing gradually darker and plainer toward the bottom edge; the bottom tenth is almost plain.
+  > - Colours: ice white, pale blue, pale lavender-blue, with deeper blue in the shadowed facets; hairline rainbow dispersion only where a few facets meet. Bright but not blown out: the two dark windows must stand out clearly against it.
+  > - Keep the outer 3 % at the left and right edges calm (the game's rails cover them).
+  >
+  > No text, no letters, no numbers, no labels, no logos, no watermark, no stars, no people. Crisp, clean, high-resolution; even, soft lighting from the top edge; no strong cast shadows.
 
 ### `gears/panels/sky.jpg` (하늘)
 

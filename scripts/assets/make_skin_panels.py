@@ -1,16 +1,23 @@
 """Makes the skins' deck panels with the image model: for each gear one painting of its deck's lower part, flat and
-seen from straight above, 21:9: a wide dark display in its top middle (the game writes the score and the speed on
-it), a decorated wing at each side of it, an emblem under it, and the rest of the panel below. What comes back is
-kept in assets-src/gears/panels/_tries/ (not in the repository) with a record of its prompt; the one picked is stored
-as assets-src/gears/panels/<gear>.jpg and built into the game's media by build_skin_panels.py.
+seen from straight above, 21:9. What comes back is kept in assets-src/gears/panels/_tries/ (not in the repository)
+with a record of its prompt; the one picked is stored as assets-src/gears/panels/<gear>.jpg and built into the
+game's media by build_skin_panels.py.
+
+Two layouts. The first panels have a wide dark display in their top middle (the game writes the score and the speed
+on it), a decorated wing at each side of it, an emblem under it, and the rest of the panel below. The user then asked
+for plainer panels (2026-11-12: keep the material, no wings and no round emblem, and the score and the speed where
+they suit each gear, as long as they read well in play): a gear in WINDOWS is one plain mass of its material with a
+window of its own for the score and another for the speed.
 
     GOOGLE_API_KEY=... python scripts/assets/make_skin_panels.py make <refs dir> <gear> [...]
     python scripts/assets/make_skin_panels.py pick <gear> <try number>
 
-Two pictures go with each prompt, both this project's own: image 1 is the gear's deck as the game draws it in code,
-flat (<refs dir>/flat-<gear>.png: client/src/render/deckArt.ts paintDeck at stretch 1 for 7K+1S, 3 px to a unit), for
-its colours, materials and motifs; image 2 is a layout guide drawn here (guide()): where the display, the wings and
-the emblem go. No picture of another game, none of the pictures a player sent as a reference, and no logo is sent.
+Two pictures go with each prompt of the first layout, both this project's own: image 1 is the gear's deck as the
+game draws it in code, flat (<refs dir>/flat-<gear>.png: client/src/render/deckArt.ts paintDeck at stretch 1 for
+7K+1S, 3 px to a unit), for its colours, materials and motifs; image 2 is a layout guide drawn here (guide()): where
+the display, the wings and the emblem go. A gear in WINDOWS has one picture with its prompt, the guide of its two
+windows (window_guide()). No picture of another game, none of the pictures a player sent as a reference (the
+reference a gear follows is described in words), and no logo is sent.
 Each try costs money: it runs only for the gears named. Needs Pillow.
 """
 
@@ -247,7 +254,72 @@ BAYS = {
 }
 
 
+#: the gears whose panel is one plain mass with a window each for the score and the speed: where the two windows are
+#: (left, top, right, bottom, shares of the picture). Every camera shows the picture's top 30 %: the windows are in it
+WINDOWS = {
+    "prism": ((0.105, 0.05, 0.615, 0.275), (0.675, 0.075, 0.895, 0.25)),
+}
+
+#: the material of each of those gears (the crystal as the user's reference picture 1 has it, in words: a block cut
+#: into a few large facets)
+MATERIALS = {
+    "prism": (
+        "THE MATERIAL: one solid block of CUT CRYSTAL, like a big piece of optical glass or a rough-cut gemstone seen in a "
+        "studio render: one mass cut into a few LARGE planar facets at hard, irregular angles (big triangles and trapezoids, "
+        "not small sparkly ones); razor-sharp bright edges where facets meet; translucent ice-white, pale periwinkle blue and "
+        "pale blue-violet glass with soft holographic gradients and refractions inside it, so that you look down into the stone "
+        "and see its inner planes; some facets mirror-bright and nearly white, some clear and pale, a few darker blue. Cool, "
+        "clean and luminous."
+    ),
+}
+
+WINDOW_HEAD = (
+    "One picture comes with this request: a LAYOUT GUIDE only (never copy its grey): its two black shapes are where two "
+    "READOUT WINDOWS go. Your picture has the same proportions as the guide.\n\nPAINT: the surface of the lower panel of our "
+    "own rhythm game's gear (the wide control deck that lies under the note lanes), made of cut crystal, as production game "
+    "art at the finish level of a top commercial rhythm game. It is used as a flat texture laid on the deck, so it must be "
+    "a strictly top-down, orthographic, undistorted picture that fills the whole 21:9 frame edge to edge: no perspective, "
+    "no horizon, no camera angle, no vignette, no frame or border round the picture, no background behind the crystal (the "
+    "crystal covers everything).\n\n"
+)
+WINDOW_REST = (
+    "\n\nDESIGN, exactly:\n- The whole panel is ONE slab of that cut crystal. Its beauty is only in its facets, its sharp "
+    "edges and the light inside it. It is deliberately PLAIN and bold: NO wings, NO fans of crystal spikes, NO round "
+    "medallion or emblem, NO rosette, NO gems set in metal rings, NO studs, NO filigree, NO metal ornament, NO symmetry. A "
+    "few large facets cut at different angles, asymmetric, with a handful of long diagonal cut lines running across the "
+    "slab.\n- READOUT WINDOWS (the two black shapes of the guide): the larger one (left of centre, in the upper part) is the "
+    "SCORE window and the smaller one (at the right) is the SPEED window. In your picture each is ONE flat, polished facet "
+    "of the same crystal, of deep sapphire-blue glass (#141f52), dark and even, exactly at the guide's place and size, with "
+    "the same cut corners, edged by one thin bright bevel line like a cut facet's edge. The game writes white numbers on "
+    "them, so the inside of both must stay completely empty and even: no text, no digits, no icons, no reflections, no "
+    "gradients, no facet lines crossing them.\n- The TOP EDGE of the picture is where the panel meets a row of white crystal "
+    "key caps; players see the upper third of the picture most, so the finest cutting is there, around the two windows. The "
+    "lower two thirds are the same slab continuing toward the player with larger, calmer facets, growing gradually darker "
+    "and plainer toward the bottom edge; the bottom tenth is almost plain.\n- Colours: ice white, pale blue, pale "
+    "lavender-blue, with deeper blue in the shadowed facets; hairline rainbow dispersion only where a few facets meet. "
+    "Bright but not blown out: the two dark windows must stand out clearly against it.\n- Keep the outer 3 % at the left and "
+    "right edges calm (the game's rails cover them).\n\nNo text, no letters, no numbers, no labels, no logos, no watermark, "
+    "no stars, no people. Crisp, clean, high-resolution; even, soft lighting from the top edge; no strong cast shadows."
+)
+
+
+def window_guide(gear: str) -> bytes:
+    """The layout guide of a gear with two windows (PNG): each window black, an emerald cut (its corners cut off), on plain grey."""
+    w, h = 2016, 864
+    image = Image.new("RGB", (w, h), (112, 112, 112))
+    d = ImageDraw.Draw(image)
+    for box in WINDOWS[gear]:
+        l, t, r, b = box[0] * w, box[1] * h, box[2] * w, box[3] * h
+        k = (b - t) * 0.22
+        d.polygon([(l + k, t), (r - k, t), (r, t + k), (r, b - k), (r - k, b), (l + k, b), (l, b - k), (l, t + k)], fill=(0, 0, 0))
+    out = io.BytesIO()
+    image.save(out, "PNG")
+    return out.getvalue()
+
+
 def prompt_of(gear: str) -> str:
+    if gear in WINDOWS:
+        return WINDOW_HEAD + MATERIALS[gear] + WINDOW_REST
     concept, wings, body = PLATES[gear]
     return HEAD + concept + LAYOUT.format(wings=wings, body=body, bay=BAYS[gear]) + TAIL
 
@@ -302,6 +374,9 @@ def make(refs: Path, gears: list[str]) -> None:
     for gear in gears:
         n = 1 + sum(1 for k in record() if k.startswith(f"{gear}-"))
         prompt = prompt_of(gear)
+        if gear in WINDOWS:
+            windows(gear, n, prompt)
+            continue
         flat = (refs / f"flat-{gear}.png").read_bytes()
         try:
             png, usage = generate(prompt, [flat, layout])
@@ -314,6 +389,23 @@ def make(refs: Path, gears: list[str]) -> None:
         rec[key] = {"model": MODEL, "aspect": "21:9", "size": "2K", "pictures": [f"flat-{gear}.png (the deck as the game draws it in code)", "guide.png (the layout)"], "flat_sha256": hashlib.sha256(flat).hexdigest(), "prompt": prompt, "made": time.strftime("%Y-%m-%d %H:%M:%S %z"), "bytes": len(png), "sha256": hashlib.sha256(png).hexdigest(), "usage": usage}
         keep(rec)
         print("made:", key, len(png), usage.get("totalTokenCount"))
+
+
+def windows(gear: str, n: int, prompt: str) -> None:
+    """One try of a gear with two windows: its guide alone goes with the prompt."""
+    layout = window_guide(gear)
+    (TRIES / f"guide-{gear}.png").write_bytes(layout)
+    try:
+        png, usage = generate(prompt, [layout])
+    except Exception as e:
+        print("failed:", gear, str(e)[:300])
+        return
+    key = f"{gear}-{n}"
+    (TRIES / f"{key}.png").write_bytes(png)
+    rec = record()
+    rec[key] = {"model": MODEL, "aspect": "21:9", "size": "2K", "pictures": [f"guide-{gear}.png (the layout of its two windows)"], "prompt": prompt, "made": time.strftime("%Y-%m-%d %H:%M:%S %z"), "bytes": len(png), "sha256": hashlib.sha256(png).hexdigest(), "usage": usage}
+    keep(rec)
+    print("made:", key, len(png), usage.get("totalTokenCount"))
 
 
 def pick(gear: str, n: int) -> None:
