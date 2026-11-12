@@ -475,6 +475,8 @@ export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' |
 }
 
 const frameLine = new THREE.Vector3();
+/** The track's cross axis: a dive circles the judge line along it. */
+const DIVE_AXIS = new THREE.Vector3(1, 0, 0);
 const frameAxis = new THREE.Vector3();
 
 /** Height on the screen (0 top … 1 bottom) where `camera` shows the middle of the track at `z`. */
@@ -509,7 +511,8 @@ export function baseFrame(camera: TrackCamera, fov: number, lineZ = 0): CameraFr
  * Frames `camera` (its world matrices up to date, in its preset's pose) for a `width`×`height`
  * screen: the view moves up or down, the perspective unchanged, until the (unlifted) judge line
  * sits at JUDGE_LINE_Y of the height at `fov` (`base`). A chart's zoom (`fovScale`) and roll then
- * turn the track about the middle of the judge line at `lineZ`, which stays where it is.
+ * turn the track about the middle of the judge line at `lineZ`, which stays where it is; its dive
+ * (`pitch`) brings the camera down toward the track about the line.
  */
 export function frameCamera(
   camera: TrackCamera,
@@ -520,7 +523,16 @@ export function frameCamera(
   height: number,
   lineZ = 0,
   base: CameraFrame = baseFrame(camera, fov, lineZ),
+  pitch = 0,
 ): void {
+  if (pitch !== 0) {
+    // a dive: the camera circles the judge line itself (the track's cross axis through it) toward
+    // the track, so every point of the line stays where it is and the track beyond it lies flatter
+    const pivot = frameLine.set(0, 0, lineZ);
+    camera.position.sub(pivot).applyAxisAngle(DIVE_AXIS, pitch).add(pivot);
+    camera.rotateOnWorldAxis(DIVE_AXIS, pitch);
+    camera.updateMatrixWorld();
+  }
   // zoomed in, the picture grows about the middle of the view: it moves again so that the line is
   // where it was (a narrower field of view scales every height from the middle by the same factor)
   const grow = Math.tan(THREE.MathUtils.degToRad(fov) / 2) / Math.tan(THREE.MathUtils.degToRad(fov * fovScale) / 2);
@@ -609,7 +621,7 @@ export class TrackRenderer {
   private readonly basePosition = new THREE.Vector3();
   private readonly baseQuaternion = new THREE.Quaternion();
   private baseFov = 40;
-  private readonly appliedFx = { roll: 0, fovScale: 1 };
+  private readonly appliedFx = { roll: 0, fovScale: 1, pitch: 0 };
   /** The view's framing before the chart's zoom and roll (see baseFrame): made again when the camera, the screen or LIFT changes. */
   private frame: CameraFrame | null = null;
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -891,6 +903,7 @@ export class TrackRenderer {
     this.baseQuaternion.copy(camera.quaternion);
     this.appliedFx.roll = 0;
     this.appliedFx.fovScale = 1;
+    this.appliedFx.pitch = 0;
     this.frame = null;
     const far = new THREE.Vector3(0, 0, -this.geometry.length).distanceTo(camera.position);
     const mid = new THREE.Vector3(0, 0, fogStartZ(preset, this.geometry.length)).distanceTo(camera.position);
@@ -949,7 +962,7 @@ export class TrackRenderer {
     this.span(this.hiddenEdge, hiddenZ - 0.06, hiddenZ + 0.06, c.hidden > 0);
     // a chart's zoom and roll turn about the (lifted) judge line
     this.frame = null;
-    if (this.appliedFx.roll !== 0 || this.appliedFx.fovScale !== 1) this.frameView();
+    if (this.appliedFx.roll !== 0 || this.appliedFx.fovScale !== 1 || this.appliedFx.pitch !== 0) this.frameView();
     this.layoutDeck();
   }
 
@@ -977,8 +990,8 @@ export class TrackRenderer {
     this.camera.quaternion.copy(this.baseQuaternion);
     this.camera.updateMatrixWorld();
     if (!this.frame) this.frame = this.unzoomedFrame();
-    const { fovScale, roll } = this.appliedFx;
-    frameCamera(this.camera, this.baseFov, fovScale, roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame);
+    const { fovScale, roll, pitch } = this.appliedFx;
+    frameCamera(this.camera, this.baseFov, fovScale, roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame, pitch);
   }
 
   /**
@@ -1008,7 +1021,7 @@ export class TrackRenderer {
   hudPlaneAt(fx: CameraPoseFx): HudPlane {
     if (!this.frame) this.frameView();
     const camera = poseCamera(this.pose, this.aspect);
-    frameCamera(camera, this.baseFov, fx.fovScale, fx.roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame!);
+    frameCamera(camera, this.baseFov, fx.fovScale, fx.roll, this.cssWidth, this.cssHeight, this.judgeZ, this.frame!, fx.pitch ?? 0);
     return this.planeAs(camera);
   }
 
@@ -1151,9 +1164,11 @@ export class TrackRenderer {
   private applyCameraFx(fx: CameraPoseFx | undefined): void {
     const roll = fx?.roll ?? 0;
     const fovScale = fx?.fovScale ?? 1;
-    if (roll === this.appliedFx.roll && fovScale === this.appliedFx.fovScale) return;
+    const pitch = fx?.pitch ?? 0;
+    if (roll === this.appliedFx.roll && fovScale === this.appliedFx.fovScale && pitch === this.appliedFx.pitch) return;
     this.appliedFx.roll = roll;
     this.appliedFx.fovScale = fovScale;
+    this.appliedFx.pitch = pitch;
     this.planeVersion++;
     // the view is framed again (from the kept framing): the zoomed or rolled track keeps the judge line where it is
     this.frameView();

@@ -734,7 +734,7 @@ export class PlayController {
           keyDown: (lane) => session.isKeyDown(lane),
           barTimes: this.barTimes,
           fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-          camera: this.cameraFx.enabled ? this.cameraFx.at(songNow) : undefined,
+          camera: this.cameraFx.enabled ? this.cameraFx.follow(songNow) : undefined,
         },
         perfNow,
       );
@@ -884,6 +884,9 @@ export class PlayController {
     if (e.type === 'judge') {
       if (e.kind !== 'tail' && e.errorMs !== null) this.pressJudged = e.noteIndex;
       this.hud.showJudge(e, now);
+      // the camera answers the play: level for a moment after a miss, a pulse every hundred combo
+      if (e.isBreak) this.cameraFx.miss();
+      else this.cameraFx.combo(e.combo);
       if (!e.isBreak) this.renderer.hitEffect(e.lane, GRADE_COLORS[e.cls] ?? 0xffffff, now);
       if (this.stemVoices && !this.setup.request.autoPlay && e.kind !== 'tail' && e.errorMs !== null) {
         // a hit plays its slice of the stem right away; a missed note leaves it silent, and a press
@@ -894,6 +897,7 @@ export class PlayController {
       }
     } else if (e.type === 'tick') {
       this.hud.setCombo(e.combo);
+      this.cameraFx.combo(e.combo);
       this.renderer.holdTick(e.lane, now);
     } else if (e.type === 'key' && e.down && this.settings.hitSound && !this.voices && !this.stemVoices) {
       this.engine.playHitSound();

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { cameraConfig } from '../engine/config';
 import type { ChartEffect, ChartTiming } from '../engine/types';
-import { CameraFx, MAX_TILT_DEG, VIEW_DEPTH, ZOOM_DEPTH } from './cameraFx';
+import { ANTICIPATION, CameraFx, MAX_DIVE_DEG, MAX_TILT_DEG, overshoot, PLAYER, SWING_ATTACK, VIEW_DEPTH, ZOOM_DEPTH } from './cameraFx';
 import { cameraPose, JUDGE_LINE_Y } from './layout';
 import { baseFrame, frameCamera, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
 
@@ -27,7 +27,7 @@ describe('CameraFx', () => {
 
   it('pulses the zoom and lets it decay', () => {
     const fx = new CameraFx(effects, timing, 1);
-    expect(fx.at(3999).fovScale).toBe(1);
+    expect(fx.at(3700).fovScale).toBe(1);
     expect(fx.at(4000).fovScale).toBeCloseTo(1 - ZOOM_DEPTH, 9);
     expect(fx.at(4500).fovScale).toBeCloseTo(1 - ZOOM_DEPTH * 0.25, 9);
     expect(fx.at(5000).fovScale).toBe(1);
@@ -37,8 +37,10 @@ describe('CameraFx', () => {
     expect(deg(new CameraFx(effects, timing, 0.5).at(6000).roll)).toBeCloseTo(MAX_TILT_DEG / 2, 6);
     const off = new CameraFx(effects, timing, 0);
     expect(off.enabled).toBe(false);
-    expect(off.at(6000)).toEqual({ roll: 0, fovScale: 1 });
-    expect(new CameraFx([], timing, 1).enabled).toBe(false);
+    expect(off.at(6000)).toEqual({ roll: 0, fovScale: 1, pitch: 0 });
+    expect(off.follow(6000)).toEqual({ roll: 0, fovScale: 1, pitch: 0 });
+    // a chart with no cues still has the play's own (the combo pulse)
+    expect(new CameraFx([], timing, 1).enabled).toBe(true);
   });
 
   it('holds a wider view through a quiet passage and closes in through a build-up', () => {
@@ -54,14 +56,20 @@ describe('CameraFx', () => {
     expect(fx.at(1000).fovScale).toBeCloseTo(1 + VIEW_DEPTH, 9); // wider and held
     expect(fx.at(3999).fovScale).toBeCloseTo(1 + VIEW_DEPTH, 9);
     expect(fx.at(6000).fovScale).toBeCloseTo(1 - VIEW_DEPTH * 0.5, 9);
-    expect(fx.at(7999).fovScale).toBeCloseTo(1 - VIEW_DEPTH, 6); // closest just before the drop
+    expect(fx.at(7700).fovScale).toBeCloseTo(1 - VIEW_DEPTH * (0.5 + 0.5 * (0.85 * 0.85 * (3 - 2 * 0.85))), 6); // closing in
+    // the breath before the drop: the view opens by a share of the pulse to come, on top of the hold
+    expect(fx.at(7999).fovScale).toBeCloseTo((1 + ZOOM_DEPTH * ANTICIPATION.depth) * (1 - VIEW_DEPTH), 4);
     expect(fx.at(8125).fovScale).toBeCloseTo(1 - ZOOM_DEPTH * (1 - 0.125 / 1) ** 2, 9); // let go: only the pulse
     expect(fx.at(9500).fovScale).toBe(1);
     expect(new CameraFx(views, timing, 0.5).at(1000).fovScale).toBeCloseTo(1 + VIEW_DEPTH / 2, 9);
     // the plate's pose counts the closest view with the strongest pulse, and no frame goes past it
     const peak = fx.peak();
-    expect(peak.fovScale).toBeCloseTo((1 - ZOOM_DEPTH) * (1 - VIEW_DEPTH), 9);
+    const over = overshoot(cameraConfig.fx.inertia.zoom.damping);
+    expect(peak.fovScale).toBeCloseTo(1 - (1 - (1 - ZOOM_DEPTH) * (1 - VIEW_DEPTH)) * (1 + over), 9);
     for (let t = 0; t < 10000; t += 50) expect(fx.at(t).fovScale).toBeGreaterThanOrEqual(peak.fovScale - 1e-12);
+    // nor does the camera that follows it with inertia
+    const play = new CameraFx(views, timing, 1);
+    for (let t = 0; t < 10000; t += 16) expect(play.follow(t).fovScale).toBeGreaterThanOrEqual(peak.fovScale - 1e-9);
   });
 
   it('names its peak toward the screen\'s top left: the deepest counter-clockwise tilt and zoom together', () => {
@@ -72,8 +80,10 @@ describe('CameraFx', () => {
       { beat: 16, t: 8000, type: 'zoom', value: 0.25, durationBeats: 1 },
     ];
     const peak = new CameraFx(cues, timing, 0.6).peak();
-    expect(deg(peak.roll)).toBeCloseTo(-0.8 * MAX_TILT_DEG * 0.6, 9);
-    expect(peak.fovScale).toBeCloseTo(1 - ZOOM_DEPTH * 0.6 * 0.5, 9);
+    const rollOver = 1 + overshoot(cameraConfig.fx.inertia.roll.damping);
+    expect(deg(peak.roll)).toBeCloseTo(-0.8 * MAX_TILT_DEG * 0.6 * rollOver, 9);
+    // the strongest pulse the play can show: the chart's, or the combo's
+    expect(peak.fovScale).toBeCloseTo(1 - ZOOM_DEPTH * 0.6 * Math.max(0.5, PLAYER.comboPulse) * (1 + overshoot(cameraConfig.fx.inertia.zoom.damping)), 9);
     // no frame of the play goes past it
     const fx = new CameraFx(cues, timing, 0.6);
     for (let t = 0; t < 10000; t += 50) {
@@ -82,7 +92,83 @@ describe('CameraFx', () => {
     }
     // a chart that only tilts clockwise never turns the track toward the plate
     expect(new CameraFx(effects, timing, 1).peak().roll).toBe(0);
-    expect(new CameraFx(cues, timing, 0).peak()).toEqual({ roll: 0, fovScale: 1 });
+    expect(new CameraFx(cues, timing, 0).peak()).toEqual({ roll: 0, fovScale: 1, pitch: 0 });
+  });
+
+  it('swings: leans at the head of a phrase and is level again within it', () => {
+    const fx = new CameraFx([{ beat: 8, t: 4000, type: 'swing', value: -1, durationBeats: 4 }], timing, 1);
+    const attack = 2000 * SWING_ATTACK;
+    expect(fx.at(3999).roll).toBe(0);
+    expect(deg(fx.at(4000 + attack).roll)).toBeCloseTo(-MAX_TILT_DEG, 6); // fully over
+    expect(Math.abs(deg(fx.at(4000 + attack + (2000 - attack) / 2).roll))).toBeCloseTo(MAX_TILT_DEG / 2, 6); // on its way back
+    expect(fx.at(6000).roll).toBeCloseTo(0, 9);
+    expect(fx.at(9000).roll).toBeCloseTo(0, 9); // nothing is held
+    expect(deg(fx.peak().roll)).toBeLessThanOrEqual(-MAX_TILT_DEG);
+  });
+
+  it('opens the view just before a large pulse, and not before a small one', () => {
+    const big = new CameraFx([{ beat: 8, t: 4000, type: 'zoom', value: 1, durationBeats: 2 }], timing, 1);
+    const lead = 500 * ANTICIPATION.beats;
+    expect(big.at(4000 - lead - 1).fovScale).toBe(1);
+    expect(big.at(4000 - 1).fovScale).toBeCloseTo(1 + ZOOM_DEPTH * ANTICIPATION.depth, 4); // wider: the breath
+    expect(big.at(4000).fovScale).toBeCloseTo(1 - ZOOM_DEPTH, 9); // then the pulse
+    const small = new CameraFx([{ beat: 8, t: 4000, type: 'zoom', value: ANTICIPATION.from - 0.1, durationBeats: 1 }], timing, 1);
+    expect(small.at(3999).fovScale).toBe(1);
+  });
+
+  it('holds the camera lower through a dive', () => {
+    const cues: ChartEffect[] = [
+      { beat: 8, t: 4000, type: 'dive', value: 1, durationBeats: 4 },
+      { beat: 24, t: 12000, type: 'dive', value: 0, durationBeats: 4 },
+    ];
+    const fx = new CameraFx(cues, timing, 0.5);
+    expect(fx.at(3000).pitch).toBe(0);
+    expect(deg(fx.at(6000).pitch!)).toBeCloseTo(MAX_DIVE_DEG / 2, 6);
+    expect(deg(fx.at(11000).pitch!)).toBeCloseTo(MAX_DIVE_DEG / 2, 6);
+    expect(fx.at(14000).pitch).toBeCloseTo(0, 9);
+    expect(deg(fx.peak().pitch!)).toBeCloseTo(MAX_DIVE_DEG / 2, 6);
+  });
+
+  it('follows its cues with inertia: late to start, a little past where it stops, then settled', () => {
+    const fx = new CameraFx(effects, timing, 1); // a tilt of 1 eased in from 4000 to 5000 and held
+    const max = (MAX_TILT_DEG * Math.PI) / 180;
+    let peak = 0;
+    for (let t = 3000; t <= 9000; t += 16) {
+      const roll = fx.follow(t).roll;
+      if (t > 4100 && t < 4500) expect(roll).toBeLessThan(fx.at(t).roll); // behind its target on the way
+      peak = Math.max(peak, roll);
+    }
+    expect(peak).toBeGreaterThan(max * 1.005); // ran past it
+    expect(peak).toBeLessThan(max * (1 + overshoot(cameraConfig.fx.inertia.roll.damping)) + 1e-9);
+    expect(fx.follow(9016).roll).toBeCloseTo(max, 3); // and came to rest on it
+    // the same at any frame rate
+    const slow = new CameraFx(effects, timing, 1);
+    for (let t = 3000; t <= 9000; t += 33) slow.follow(t);
+    expect(slow.follow(9016).roll).toBeCloseTo(max, 3);
+    // a jump in time (a seek, a restart) puts the camera where it belongs at once
+    expect(fx.follow(3000)).toEqual(fx.at(3000));
+    expect(fx.follow(8000).roll).toBeCloseTo(fx.at(8000).roll, 12);
+  });
+
+  it('answers the play: a pulse every hundred combo, level for a moment after a miss', () => {
+    const fx = new CameraFx(effects, timing, 1);
+    fx.follow(6000);
+    fx.combo(99);
+    expect(fx.at(6000).fovScale).toBe(1);
+    fx.combo(PLAYER.comboEvery);
+    expect(fx.at(6000).fovScale).toBeCloseTo(1 - ZOOM_DEPTH * PLAYER.comboPulse, 9);
+    expect(fx.at(6000 + PLAYER.comboMs).fovScale).toBe(1);
+    fx.combo(0); // a broken combo is no milestone
+    expect(fx.at(6000 + PLAYER.comboMs).fovScale).toBe(1);
+    // a miss at 7000: the held tilt lets go, stays level, and comes back
+    fx.follow(7000);
+    const before = fx.at(7000).roll;
+    fx.miss();
+    expect(before).toBeGreaterThan(0);
+    expect(fx.at(7000 + PLAYER.missEaseMs).roll).toBeCloseTo(0, 9);
+    expect(fx.at(7000 + PLAYER.missCalmMs - 1).roll).toBeCloseTo(0, 9);
+    expect(fx.at(7000 + PLAYER.missCalmMs + PLAYER.missBackMs).roll).toBeCloseTo(before, 9);
+    expect(fx.at(6900).roll).toBeCloseTo(before, 9); // (what came before the miss is as it was)
   });
 });
 
@@ -99,6 +185,19 @@ describe('the camera framed for the judge line', () => {
     const v = new THREE.Vector3(x, 0, z).project(camera);
     return new THREE.Vector2(((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H);
   };
+
+  it('keeps the whole judge line in its place through a dive, the track beyond it lying flatter', () => {
+    for (const id of Object.keys(cameraConfig.presets)) {
+      const pose = cameraPose(cameraConfig.presets[id]);
+      const still = poseCamera(pose, W / H);
+      frameCamera(still, pose.fov, 1, 0, W, H);
+      const dived = poseCamera(pose, W / H);
+      frameCamera(dived, pose.fov, 1, 0, W, H, 0, baseFrame(poseCamera(pose, W / H), pose.fov, 0), (MAX_DIVE_DEG * Math.PI) / 180);
+      for (const x of [-4, 0, 4]) expect(px(dived, x, 0).distanceTo(px(still, x, 0)), id).toBeLessThan(0.01);
+      // the far end comes down the screen: the camera is nearer the track's plane
+      expect(px(dived, 0, -cameraConfig.trackLength).y, id).toBeGreaterThan(px(still, 0, -cameraConfig.trackLength).y + 1);
+    }
+  });
 
   it('keeps the judge line in its place through a zoom and a roll, turning the track about its middle', () => {
     const half = cameraConfig.trackWidth / 2;
