@@ -7,13 +7,10 @@ client/src/render/deckPanels.json.
 
 A panel is the painting of a gear's lower part, under its row of keys: one picture from the image model
 (scripts/assets/make_skin_panels.py; where each came from: assets-src/PROVENANCE.md), flat and seen from straight
-above, 21:9. The first panels have a wide dark display in their top middle, a decorated wing at each side of it, an
-emblem under it and the rest of the panel below; the game lays a panel across the deck from under the keys
-(client/src/render/deckArt.ts: panelPainting) and writes the score and the speed on its display, so the build
-measures the display's glass in each picture: the even, dark rectangle about the picture's top middle, as shares of
-the picture (left, top, right, bottom: "glass" in the table). A gear in make_skin_panels.WINDOWS has a window of its
-own for the score and another for the speed instead, each where its prompt's layout put it: the build measures both
-("score" and "speed" in the table), each the even, dark rectangle about the middle of the window as it was asked for.
+above, 21:9, with a wide dark display in its top middle, a decorated wing at each side of it, an emblem under it and
+the rest of the panel below. The game lays it across the deck from under the keys (client/src/render/deckArt.ts:
+panelPainting) and writes the score and the speed on its display, so the build measures the display's glass in each
+picture: the even, dark rectangle about the picture's top middle, as shares of the picture (left, top, right, bottom).
 Needs Pillow and numpy.
 """
 
@@ -25,8 +22,6 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-
-from make_skin_panels import WINDOWS
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "gears" / "panels"
@@ -51,18 +46,17 @@ GLASS: dict[str, list[float]] = {
 FULL = 0.9
 
 
-def glass(image: Image.Image, seed: tuple[float, float] = SEED, start: tuple[int, int] = (12, 5)) -> list[float]:
-    """A display's glass: the rectangle of even tone about `seed`, grown a row or a column at a time while the new
-    one is glass almost all the way along (its frame, a brighter or busier line, ends it). It starts as `start` px
-    (of a picture 512 across) to each side of the seed: less for a small window."""
+def glass(image: Image.Image) -> list[float]:
+    """The display's glass: the rectangle of even tone about SEED, grown a row or a column at a time while the new
+    one is glass almost all the way along (its frame, a brighter or busier line, ends it)."""
     small = image.convert("L").resize((512, round(512 * image.height / image.width)), Image.LANCZOS)
     v = np.asarray(small, dtype=np.float32) / 255
     h, w = v.shape
-    cx, cy = round(seed[0] * w), round(seed[1] * h)
-    patch = v[cy - start[1] - 7:cy + start[1] + 8, cx - 5 * start[0]:cx + 5 * start[0] + 1]
+    cx, cy = round(SEED[0] * w), round(SEED[1] * h)
+    patch = v[cy - 12:cy + 13, cx - 60:cx + 61]
     # glass: as dark as its darker part, or of its middle tone (a sheen drawn across it is one or the other)
     ok = (v < float(np.percentile(patch, 20)) + EVEN) | (np.abs(v - float(np.median(patch))) < 0.075)
-    x0, x1, y0, y1 = cx - start[0], cx + start[0], cy - start[1], cy + start[1]
+    x0, x1, y0, y1 = cx - 12, cx + 12, cy - 5, cy + 5
     grown = True
     while grown:
         grown = False
@@ -99,12 +93,7 @@ def main() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         image.save(path, "WEBP", quality=90, method=6)
         textures[f"{gear}/panel"] = {"file": f"{FOLDER}/{gear}.webp", "bundle": "gear", "size": [image.width, image.height]}
-        if gear in WINDOWS:
-            # a window each: about the middle of where the prompt's layout has it
-            score, speed = (glass(image, ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2), (8, 3)) for box in WINDOWS[gear])
-            table[gear] = {"size": [image.width, image.height], "score": score, "speed": speed}
-        else:
-            table[gear] = {"size": [image.width, image.height], "glass": GLASS.get(gear) or glass(image)}
+        table[gear] = {"size": [image.width, image.height], "glass": GLASS.get(gear) or glass(image)}
         print(f"{gear}: {path.stat().st_size // 1024} KB", table[gear])
     table_file.write_text(json.dumps({g: table[g] for g in GEARS if g in table}, indent=2) + "\n", encoding="utf-8")
     if opts.out:

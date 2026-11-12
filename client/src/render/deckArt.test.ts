@@ -657,8 +657,8 @@ describe('the decks of the gears a player picks', () => {
     expect(notesEndZ(0.5, 0.6)).toBe(0.6);
   });
 
-  it('lays a skin’s panel under its keys: a painting with a display in its top middle (the score written across the glass and SPEED under it) or with a window for each', () => {
-    // every skin's gear has one (scripts/assets/build_skin_panels.py measures each display's glass, or the two windows)
+  it('lays a skin’s panel under its keys: a painting with a display in its top middle, the score written across the glass and SPEED under it', () => {
+    // every skin's gear has one (scripts/assets/build_skin_panels.py measures each display's glass)
     expect(Object.keys(DECK_PANELS).sort()).toEqual([...SKIN_GEARS].sort());
     // the rooms and stretches of the four cameras (SDVX, FLAT, PLANE, LOW)
     const cameras: [number, number][] = [
@@ -669,45 +669,10 @@ describe('the decks of the gears a player picks', () => {
     ];
     for (const gear of SKIN_GEARS as GearStyle[]) {
       const panel = DECK_PANELS[gear]!;
-      // 21:9, as wide as a texture may be
+      const [left, far, right, near] = panel.glass;
+      // 21:9, as wide as a texture may be; its display about its middle, over a third of the deck across, in its upper two fifths
       expect(panel.size[0], gear).toBe(2048);
       expect(panel.size[0] / panel.size[1], gear).toBeCloseTo(21 / 9, 1);
-      if (panel.score && panel.speed) {
-        // a window each, where the gear's own layout has them (the user's word: free in the lower gear, as long as
-        // they read in play): both in the picture's top 30 % (every camera shows that much), apart, inside the rails,
-        // the score's the larger and no smaller than a display's score row was
-        const [score, speed] = [panel.score, panel.speed];
-        expect(panel.glass, gear).toBeUndefined();
-        for (const [left, far, right, near] of [score, speed]) {
-          expect([left > 0.03, right < 0.97, far > 0, near < 0.3], gear).toEqual([true, true, true, true]);
-          expect(near - far, gear).toBeGreaterThan(0.11);
-        }
-        expect(score[2] <= speed[0] || speed[2] <= score[0] || score[3] <= speed[1] || speed[3] <= score[1], gear).toBe(true);
-        expect(score[2] - score[0], gear).toBeGreaterThan(0.4);
-        expect(speed[2] - speed[0], gear).toBeGreaterThan(0.15);
-        for (const [room, stretch] of cameras) {
-          const s = spec(room, stretch);
-          const r = deckReadouts(gear, s, true)!;
-          const top = plateWindows(gear, s)!.score.y - 0; // (the code windows start a step under the keys: the picture starts at the keys' seam)
-          const tall = (panel.size[1] / panel.size[0]) * s.width * stretch;
-          for (const [box, [left, far, right, near]] of [[r.score, score], [r.speed, speed]] as const) {
-            expect(box.x, gear).toBeCloseTo(left * s.width, 6);
-            expect(box.w, gear).toBeCloseTo((right - left) * s.width, 6);
-            expect(box.h, gear).toBeCloseTo((near - far) * tall, 6);
-            expect(box.y, gear).toBeLessThan(top + far * tall + 1e-6);
-            expect(box.y, gear).toBeGreaterThan(far * tall);
-            expect(box.y + box.h, gear).toBeLessThanOrEqual(room);
-            expect(box.h, gear).toBeGreaterThan(14 * stretch);
-          }
-          expect(r.score.w * r.score.h, gear).toBeGreaterThan(r.speed.w * r.speed.h);
-          const windows = plateWindows(gear, s)!;
-          expect(deckReadouts(gear, s)).toEqual({ score: windows.score, speed: windows.speed });
-        }
-        expect(deckReadouts(gear, spec(60, 1.1), true), gear).toBeNull();
-        continue;
-      }
-      // one display: about the picture's middle, over a third of the deck across, in its upper two fifths
-      const [left, far, right, near] = panel.glass!;
       expect((left + right) / 2, gear).toBeCloseTo(0.5, 2);
       expect(right - left, gear).toBeGreaterThan(0.34);
       expect([far > 0, near < 0.42, near - far > 0.2], gear).toEqual([true, true, true]);
@@ -758,24 +723,12 @@ describe('the decks of the gears a player picks', () => {
       expect(emblem).toHaveLength(1);
       expect(emblem[0].x + emblem[0].w / 2).toBeCloseTo(s.width / 2, 6);
       expect(emblem[0].h / emblem[0].w).toBeCloseTo(stretch, 6);
-      expect(emblem[0].y).toBeGreaterThan(top + DECK_PANELS.aqua!.glass![3] * tall);
+      expect(emblem[0].y).toBeGreaterThan(top + DECK_PANELS.aqua!.glass[3] * tall);
       for (const m of s.marks.filter((x) => x.name !== 'emblem')) expect(m.y).toBeLessThan(top);
       // without the picture the plate is all there is: no picture drawn
       const plain = callRecorder();
       paintDeck('aqua', plain.g, { ...spec(room, stretch), marks: [] });
       expect(plain.calls.filter((c) => c[0] === 'drawImage')).toEqual([]);
-      // a panel with a window each is one plain mass: it has no emblem, so no light is marked under its keys
-      const windowed = (SKIN_GEARS as GearStyle[]).filter((gear) => DECK_PANELS[gear]!.score);
-      expect(windowed.length).toBeGreaterThan(0);
-      for (const gear of windowed) {
-        const w = { ...spec(room, stretch), marks: [] as DeckMark[] };
-        const rec = callRecorder();
-        paintDeck(gear, rec.g, w, { panel: pic });
-        expect(rec.calls.filter((c) => c[0] === 'drawImage' && c[1] === pic).length, gear).toBeGreaterThan(0);
-        expect(w.marks.filter((m) => m.name === 'emblem'), gear).toEqual([]);
-        const keysEnd = rec.calls.filter((c) => c[0] === 'drawImage' && c[1] === pic)[0][3] as number;
-        for (const m of w.marks) expect(m.y, gear).toBeLessThan(keysEnd);
-      }
     }
   });
 

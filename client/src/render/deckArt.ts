@@ -664,15 +664,12 @@ export function plateWindows(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
 
 /**
  * A skin's panel: the painting its deck's lower part is, under its row of keys (one picture from the image model,
- * scripts/assets/build_skin_panels.py): the picture's size (px) and where the readouts are written on it (shares of the
- * picture: left, top, right, bottom): either one display's glass (`glass`: the score across its upper part, SPEED
- * under it in the middle) or a window of its own for each (`score`, `speed`: a gear lays them out as suits it).
+ * scripts/assets/build_skin_panels.py): the picture's size (px) and where its display's glass is in it (shares of the
+ * picture: left, top, right, bottom). The score and SPEED are written on that glass.
  */
 export interface DeckPanel {
   size: readonly [number, number];
-  glass?: readonly [number, number, number, number];
-  score?: readonly [number, number, number, number];
-  speed?: readonly [number, number, number, number];
+  glass: readonly [number, number, number, number];
 }
 export const DECK_PANELS = deckPanels as unknown as Readonly<Partial<Record<GearStyle, DeckPanel>>>;
 
@@ -688,9 +685,9 @@ const PANEL_ROWS = 36;
 const PANEL_EMBLEM = { y: 0.595, r: 0.2 } as const;
 
 /**
- * Where a skin's deck has its readouts: on its panel where the panel is laid (`panel`: its picture loaded), in the
- * two windows the panel has for them, or on its one display (the score across the glass's upper part and SPEED
- * under it in the middle); otherwise in the windows its plate draws in code (plateWindows). Null where the screen shows too little of the deck for them (a small
+ * Where a skin's deck has its readouts: on its panel's display where the panel is laid (`panel`: its picture
+ * loaded), the score across the glass's upper part and SPEED under it in the middle; otherwise in the windows
+ * its plate draws in code (plateWindows). Null where the screen shows too little of the deck for them (a small
  * preview) or the gear houses none.
  */
 export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room' | 'stretch'>, panel = false): DeckReadouts | null {
@@ -702,18 +699,8 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
   }
   const top = (d.keys + d.seam) * s.stretch;
   const tall = panelDepth(picture.size, s);
-  const at = ([left, far, right, near]: readonly [number, number, number, number]): Box => ({ x: left * s.width, y: top + far * tall, w: (right - left) * s.width, h: (near - far) * tall });
-  if (picture.score && picture.speed) {
-    // a window each: as deep as the screen shows it (a low camera shows less of the deck), none where that is too little to read
-    const shown = (b: Box): Box | null => {
-      const h = Math.min(b.h, s.room - b.y);
-      return h < (PANEL_ROWS / 2) * s.stretch ? null : { ...b, h };
-    };
-    const [score, speed] = [shown(at(picture.score)), shown(at(picture.speed))];
-    return score && speed ? { score, speed } : null;
-  }
-  if (!picture.glass) return null;
-  const glass = at(picture.glass);
+  const [left, far, right, near] = picture.glass;
+  const glass: Box = { x: left * s.width, y: top + far * tall, w: (right - left) * s.width, h: (near - far) * tall };
   // the two rows fill the glass but for a margin at its edges and between them, the score's the deeper; a screen that
   // shows less of the deck than the glass (a low camera) has them in the part of the glass it shows
   const [edge, gap] = [glass.h * 0.05, glass.h * 0.04];
@@ -728,8 +715,7 @@ export function deckReadouts(style: GearStyle, s: Pick<DeckSpec, 'width' | 'room
 /**
  * Lays a skin's panel over what its plate drew in code under its keys: the picture across the deck, and on a
  * camera that shows more of the deck than the picture, its last row run on into shade. The lights of what the plate
- * drew there go with it (their marks), and the emblem of a panel with one display (it has one under the display)
- * takes the mark `emblem`; a panel with a window for each readout has no emblem.
+ * drew there go with it (their marks), and the panel's emblem takes the mark `emblem`.
  */
 function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpec, pic: Picture): void {
   const d = DECK_STEPS[style];
@@ -756,7 +742,6 @@ function panelPainting(style: GearStyle, g: CanvasRenderingContext2D, s: DeckSpe
   const kept = s.marks.filter((m) => m.y < top);
   s.marks.length = 0;
   s.marks.push(...kept);
-  if (!DECK_PANELS[style]?.glass) return;
   const r = tall * PANEL_EMBLEM.r;
   mark(s, 'emblem', { x: s.width / 2 - r / s.stretch, y: top + tall * PANEL_EMBLEM.y - r, w: (2 * r) / s.stretch, h: 2 * r });
 }
