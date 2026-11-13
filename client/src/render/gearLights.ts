@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { DeckMark, GearStyle } from './deckArt';
+import { context2d } from './paintCanvas';
 
 /**
  * The gears' lights that move with the music: glows laid over a gear's deck where its parts light (a
@@ -504,7 +505,7 @@ function lightTexture(shape: LightShape): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = LIGHT_PX;
   canvas.height = LIGHT_PX;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   const img = g.createImageData(LIGHT_PX, LIGHT_PX);
   for (let py = 0; py < LIGHT_PX; py++) {
     for (let px = 0; px < LIGHT_PX; px++) {
