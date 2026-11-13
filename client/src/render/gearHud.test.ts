@@ -16,22 +16,12 @@ describe('the HUD a gear brings', () => {
     for (const gear of GEAR_STYLES) {
       const t = GEAR_TYPES[gear];
       expect(HUD_FONTS[t.font], gear).toBeDefined();
-      if (t.comboFont) expect(HUD_FONTS[t.comboFont], gear).toBeDefined();
-      for (const colour of [t.max, t.outline, t.comboColor, t.comboOutline]) if (colour !== undefined) expect(colour, gear).toMatch(/^#[0-9a-f]{6}$/i);
+      for (const colour of [t.max, t.outline, t.comboColor]) if (colour !== undefined) expect(colour, gear).toMatch(/^#[0-9a-f]{6}$/i);
     }
-    // the cabinet's and the receiver's readouts in seven segments, the najeon's in gold serif
-    expect([GEAR_TYPES.cabinet.comboFont, GEAR_TYPES.receiver.comboFont]).toEqual(['DSEG7 Classic', 'DSEG7 Classic']);
-    expect(GEAR_TYPES.najeon.font).toBe('Cinzel');
     // "MAX" in white, its percent in the standard gear's cyan
     expect(GEAR_TYPES.standard.split).toBe(true);
-    // the keyboard's OLED pixels and the orbital panel's stencil over its green seven segments; the
-    // keyboard's and the racing wheel's judgements over a bar in their accent
-    expect([GEAR_TYPES.keyboard.font, GEAR_TYPES.orbital.font, GEAR_TYPES.orbital.comboFont]).toEqual(['Silkscreen', 'Saira Stencil One', 'DSEG7 Classic']);
-    expect([GEAR_TYPES.keyboard.bar, GEAR_TYPES.racing.bar]).toEqual(['#ff8a1e', '#e3242b']);
     // the piano's a Didone's bold italic, as a score prints its dynamics, over a brass bar
     expect([GEAR_TYPES.piano.font, HUD_FONTS['Bodoni Moda'].italic, GEAR_TYPES.piano.bar]).toEqual(['Bodoni Moda', true, '#c9a45c']);
-    // the moon's wide geometric capitals
-    expect(GEAR_TYPES.rawglass.font).toBe('Orbitron');
     // the crystal skin's letters cut into flat planes (its styles colour the judgements), "MAX" apart from its percent; no other gear's
     expect([GEAR_TYPES.prism.font, GEAR_TYPES.prism.fill, GEAR_TYPES.prism.split]).toEqual(['Exo 2', 'crystal', true]);
     // the sky skin's letters round and slanted, white easing to sky blue (its styles': the fill 'sky'), "MAX" apart from its percent
@@ -46,6 +36,6 @@ describe('the HUD a gear brings', () => {
     // the aqua mecha skin's squared and slanted, white in an aqua outline (the fill 'aqua')
     expect([GEAR_TYPES.aqua.font, GEAR_TYPES.aqua.fill, GEAR_TYPES.aqua.split]).toEqual(['Chakra Petch', 'aqua', true]);
     for (const gear of GEAR_STYLES.filter((g) => !['prism', 'sky', 'fire', 'gemini', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'].includes(g))) expect(GEAR_TYPES[gear].fill, gear).toBeUndefined();
-    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', aqua: 'FEVER', steel: 'FEVER', noir: 'FEVER', wire: 'FEVER', astral: 'FEVER', cabinet: 'GROOVE', receiver: 'SIGNAL', najeon: '흥', keyboard: 'CHARGE', racing: 'FUEL', orbital: 'O2', piano: 'FORTE', rawglass: 'CLARITY' });
+    expect(GAUGE_NAMES).toEqual({ standard: 'FEVER', prism: 'FEVER', sky: 'FEVER', fire: 'FEVER', gpt: 'FEVER', gemini: 'FEVER', grok: 'FEVER', claude: 'FEVER', aqua: 'FEVER', steel: 'FEVER', noir: 'FEVER', wire: 'FEVER', astral: 'FEVER', piano: 'FORTE' });
   });
 });

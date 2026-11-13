@@ -302,7 +302,7 @@ test('play: background video and camera effects', async ({ page }) => {
 async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
   await watchSources(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
-  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
+  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'piano', hit: 'club' } });
   await selectShowcase(page, '6K+FX', 'EXPERT');
   const notes = await showcaseChart(page, '6K+FX', 'EXPERT');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
@@ -333,12 +333,12 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   // each set's notes and hit, on a gear that suits them (FEVER off: its tint would cover the lanes' colours)
   for (const [parts, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }, '28-set-mecha'],
-    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'club' }, '29-set-club'],
+    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'mecha' }, '28-set-mecha'],
+    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'club' }, '29-set-club'],
     [{ note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
     [{ note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
-    // the piano set's notes are gone: its hit with the plain notes
-    [{ note: 'flat', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-hit-piano'],
+    // the piano set's notes are gone: its hit with the plain notes, on the piano
+    [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'EXPERT');
@@ -494,10 +494,10 @@ test('play: the bar in its finishes', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // a finish on a gear of the same make: chrome bevels on the raw glass in its silvers, carbon on the racing wheel
+  // two of the finishes, on the default gear
   for (const [parts, name] of [
-    [{ note: 'chrome', side: 'bar', deck: 'rawglass', hit: 'flash' }, '42-note-chrome'],
-    [{ note: 'carbon', side: 'bar', deck: 'racing', hit: 'flash' }, '43-note-carbon'],
+    [{ note: 'chrome', side: 'bar', deck: 'standard', hit: 'flash' }, '42-note-chrome'],
+    [{ note: 'carbon', side: 'bar', deck: 'standard', hit: 'flash' }, '43-note-carbon'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'ELITE');
@@ -512,10 +512,10 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [parts, keyMode, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'flash' }, '7K+1S', '22-hit-flash'],
-    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'flare' }, '8K', '23-hit-flare'],
+    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'flare' }, '8K', '23-hit-flare'],
     [{ note: 'star4', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
-    [{ note: 'star5', side: 'dots', deck: 'najeon', hit: 'grid' }, '6K+FX', '25-hit-grid'],
+    [{ note: 'star5', side: 'dots', deck: 'piano', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
     await settings(page, { lastKeyMode: keyMode, parts, hiSpeed: 3, fever: 'OFF' });
@@ -529,22 +529,15 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   }
 });
 
-test('play: the gears a player picks, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
-  // also runs on its own (-g "gears a player picks"): makes the showcase song when it is missing
+test('play: the default gear and the piano, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
+  // also runs on its own (-g "default gear and the piano"): makes the showcase song when it is missing
   test.setTimeout(300_000);
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [deck, name] of [
     ['standard', '33-gear-standard'],
-    ['cabinet', '34-gear-cabinet'],
-    ['receiver', '35-gear-receiver'],
-    ['najeon', '36-gear-najeon'],
-    ['keyboard', '37-gear-keyboard'],
-    ['racing', '38-gear-racing'],
-    ['orbital', '39-gear-orbital'],
     ['piano', '40-gear-piano'],
-    ['rawglass', '41-gear-rawglass'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'EXPERT');
@@ -616,7 +609,7 @@ test('settings and calibration', async ({ page }) => {
   await shot(page, '10-settings');
   // the 기어 tab: a gear in the preview
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-deck-style', 'najeon');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
   await page.getByTestId('opt-deck-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '11-settings-gear');

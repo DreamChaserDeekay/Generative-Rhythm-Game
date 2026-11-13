@@ -961,7 +961,7 @@ export class TrackRenderer {
     this.hiddenEdge = this.flat(edgeColor, 0.9, 9.2, { fog: false });
     for (const m of [this.suddenCover, this.hiddenCover, this.liftCover, this.suddenEdge, this.hiddenEdge]) m.scale.x = coverWidth;
     this.deck = this.buildDeck();
-    this.gearLights = new GearLightLayer(GEAR_LIGHTS[this.style.deck](), this.flatGeometry, this.reducedFlash, gearArtOf(this.style.deck, this.images).glow);
+    this.gearLights = new GearLightLayer(GEAR_LIGHTS[this.style.deck](), this.flatGeometry, this.reducedFlash);
     this.scene.add(this.gearLights.group);
     this.buildJudgeShine();
     this.setCovers(options.covers);

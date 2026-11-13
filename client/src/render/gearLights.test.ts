@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GEAR_STYLES, paintDeck, PANEL_MARKS, type DeckMark, type DeckSpec } from './deckArt';
-import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, sinceTurn, softTurn, spectrumBars, type BeatClock } from './gearLights';
+import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, type BeatClock } from './gearLights';
 
 /** The deck pictures' rows (2048 across, the SDVX 16:9 room: build_gears.py). */
 const PICTURE_ROWS = 541;
@@ -42,40 +42,6 @@ describe('the beat clock', () => {
     expect(beatClock(3000, []).bar).toBeCloseTo(1.5, 9);
     expect(beatClock(0, [], true).fever).toBe(true);
     expect(beatClock(0, []).fever).toBe(false);
-  });
-
-  it('lights each of n in turn: one a beat (or every few), and under 번쩍임 줄이기 a smooth rise and fall about its turn', () => {
-    for (let beat = 0; beat < 12; beat++) {
-      expect(sinceTurn(beat, beat % 4, 4)).toBe(0);
-      expect(sinceTurn(beat + 0.5, beat % 4, 4)).toBeCloseTo(0.5, 9);
-      expect(sinceTurn(beat, (beat + 1) % 4, 4)).toBe(3);
-      expect(softTurn(beat, beat % 4, 4)).toBeCloseTo(1, 9);
-    }
-    let last = softTurn(0, 0, 4, 2);
-    for (let t = 0; t < 40; t += 1 / 60) {
-      const now = softTurn(t, 0, 4, 2);
-      expect(Math.abs(now - last)).toBeLessThan(0.05);
-      last = now;
-    }
-  });
-
-  it('jumps the screen’s bars on the eighths, every bar on the screen and every peak marker over its bar', () => {
-    for (let t = 0; t < 6.4; t += 0.05) {
-      for (const calm of [false, true]) {
-        const { heights, peaks } = spectrumBars(at(t), calm, 22, 7);
-        expect(heights).toHaveLength(22);
-        heights.forEach((h, i) => {
-          expect(h).toBeGreaterThanOrEqual(0);
-          expect(h).toBeLessThanOrEqual(7);
-          if (peaks[i] >= 0) {
-            expect(peaks[i]).toBeGreaterThanOrEqual(h);
-            expect(peaks[i]).toBeLessThan(7);
-          }
-        });
-      }
-    }
-    // they move
-    expect(spectrumBars(at(0.1), false, 22, 7).heights).not.toEqual(spectrumBars(at(0.35), false, 22, 7).heights);
   });
 });
 
@@ -127,9 +93,7 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear’s lights'
         expect(l.mark, `${l.shape} at ${l.x}`).toBeDefined();
         // a part only the panel's picture has (the right row of teeth on NOIR's board)
         expect(names.has(l.mark!) || painted.includes(l.mark!), `${l.mark} at ${room}`).toBe(true);
-        for (const w of [...(l.codeWell?.inside ?? []), ...(l.codeWell?.outside ?? [])]) expect(names.has(w), `${w} at ${room}`).toBe(true);
       }
-      if (set.screen?.mark) expect(names.has(set.screen.mark)).toBe(true);
       for (const m of marks) {
         expect(m.w, m.name).toBeGreaterThan(0);
         expect(m.h, m.name).toBeGreaterThan(0);

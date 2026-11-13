@@ -36,11 +36,6 @@ export const HUD_FONTS = {
   // the gunmetal skin's: a rounded sans, heavy, as a hardware panel's lettering
   'M PLUS Rounded 1c': { weight: 800, italic: false },
   Cinzel: { weight: 700, italic: false },
-  // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
-  'DSEG7 Classic': { weight: 700, italic: false },
-  // the custom keyboard's OLED pixels, the orbital panel's stencil
-  Silkscreen: { weight: 400, italic: false },
-  'Saira Stencil One': { weight: 400, italic: false },
   // the piano's: a score's dynamics, a Didone in bold italic
   'Bodoni Moda': { weight: 700, italic: true },
 } as const;
@@ -72,10 +67,8 @@ export interface HudType {
    * (Hud.ts: data-fill), and the judgements' colours are that fill's own.
    */
   fill?: 'crystal' | 'sky' | 'fire' | 'gemini' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral';
-  /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
-  comboFont?: HudFont;
+  /** The combo in a colour of its own; else white. */
   comboColor?: string;
-  comboOutline?: string;
 }
 
 /**

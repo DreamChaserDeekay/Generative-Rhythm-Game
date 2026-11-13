@@ -11,7 +11,7 @@ describe('pickedHelp', () => {
       intro: '트랙을 담는 기어입니다. 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지·점수판의 모양과 숫자 글꼴이 함께 바뀝니다.',
       clause: '그래파이트에 레인마다 낮은 키캡(누르면 하늘색 불), 그 아래 아무 꾸밈 없는 무광 판과 앞쪽의 하늘색 불빛 띠 한 줄',
       outro:
-        '누른 레인은 키빔과 타격 효과로 보입니다. 받침의 버튼·노브·창 같은 부품에는 박자에 맞춰 불이 들어오고, 마디마다 테두리를 따라 빛이 지나가며, 피버 때는 테두리의 불빛이 다 켜집니다. 판정선은 어느 기어에서나 같은 자리의 굵은 선(기본·크리스털·하늘 기어는 흰 심에 저마다의 푸른 선, 나머지는 붉은 선)으로 레이저처럼 조금씩 일렁이고, 받침은 그보다 조금 아래에서 시작합니다.',
+        '누른 레인은 키빔과 타격 효과로 보입니다. 받침의 불빛 띠·마크·메달 같은 부품에는 박자에 맞춰 불이 들어오고, 마디마다 테두리를 따라 빛이 지나가며, 피버 때는 테두리의 불빛이 다 켜집니다. 판정선은 어느 기어에서나 같은 자리의 굵은 선(기본·크리스털·하늘 기어는 흰 심에 저마다의 푸른 선, 나머지는 붉은 선)으로 레이저처럼 조금씩 일렁이고, 받침은 그보다 조금 아래에서 시작합니다.',
     });
     // the crystal skin's gear (saved as 'prism'), with commas of its own
     expect(pickedHelp(GEAR_HELP, GEARS, '크리스털')?.clause).toBe('레인마다 젖빛 크리스털 키캡(누르면 얼음빛), 통째로 깎은 수정 덩어리 받침, 레인을 따라 맑은 유리 테두리');
@@ -20,20 +20,21 @@ describe('pickedHelp', () => {
     // the Firestarter skin's gear
     expect(pickedHelp(GEAR_HELP, GEARS, '파이어스타터')?.clause).toBe('레인마다 크롬 키캡(누르면 주황빛으로 달아오름)과 그 위의 멤버 문장, 분홍 조명의 무대에 네 멤버의 실루엣과 FIRESTARTER 글자가 선 받침, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 멤버들의 일러스트');
     // a gear in the middle of the list, with commas of its own
-    expect(pickedHelp(GEAR_HELP, GEARS, '피아노')?.clause).toBe('흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
+    expect(pickedHelp(GEAR_HELP, GEARS, '별밤')?.clause).toBe('금색 네 갈래 별이 박힌 모따기 남색 키캡(누르면 금빛)과 밤 호수의 수면 받침에 뜬 날개 단 흰 네 갈래 별, 달의 위상, 물에 뜬 파란 꽃, 달빛 줄의 남색 테두리');
     // the last gear's words close the sentence: without its ending
-    expect(pickedHelp(GEAR_HELP, GEARS, '달')?.clause).toBe('깨뜨린 은빛 크리스털 유리 덩어리 한 장(곧은 결정 면 사이로 유리 속의 결이 비침)과 같은 유리의 테두리');
+    expect(pickedHelp(GEAR_HELP, GEARS, '피아노')?.clause).toBe('흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
   });
 
   it('cuts the judgement and combo type help the same way', () => {
-    expect(pickedHelp(HUD_TYPE_HELP, GEARS, '오락실 기체')).toEqual({
+    // (the last gear's words close the sentence: without its ending)
+    expect(pickedHelp(HUD_TYPE_HELP, GEARS, '피아노')).toEqual({
       intro: '판정과 콤보를 쓰는 글꼴과 색입니다. 기어를 따르면',
-      clause: '빨간 7세그 콤보와 굵은 이탤릭 판정',
+      clause: '악보의 셈여림 글씨 같은 굵은 이탤릭 세리프',
       outro: '기본은 기어와 상관없이 흰 장체에 MAX를 하늘색으로 씁니다.',
     });
     // the first 기본 is the gear's (in the list), the one after the list the row's own value
     expect(pickedHelp(HUD_TYPE_HELP, GEARS, '기본')?.clause).toBe('흰 장체(MAX는 흰색, 퍼센트는 하늘색)');
-    expect(pickedHelp(HUD_TYPE_HELP, GEARS, '달')?.clause).toBe('넓은 기하 글꼴(MAX는 흰색, 퍼센트는 은색)');
+    expect(pickedHelp(HUD_TYPE_HELP, GEARS, '별밤')?.clause).toBe('우아한 로마자 대문자(흰색에서 발끝은 달빛 파랑, COMBO는 금색, MAX는 흰색, 퍼센트는 금색, 낮을수록 달빛 파랑·연보라·회청색, 놓치면 어두운 회청색)');
     expect(pickedHelp(HUD_TYPE_HELP, GEARS, '하늘')?.clause).toBe('둥글고 기울어진 굵은 글자(흰색에서 발끝으로 하늘색, MAX는 흰색, 퍼센트는 청록에서 낮을수록 하늘색·연보라, 놓치면 산호색)');
     expect(pickedHelp(HUD_TYPE_HELP, GEARS, '파이어스타터')?.clause).toBe('좁고 키 큰 기울어진 굵은 글자(위는 흰빛에서 주황을 지나 발끝은 빨강, MAX는 크롬, 퍼센트는 낮을수록 호박색·장밋빛·잿빛, 놓치면 차가운 강철색)');
     expect(pickedHelp(HUD_TYPE_HELP, GEARS, '크리스털')?.clause).toBe('비스듬한 면으로 깎은 기울어진 글자(MAX는 흰 면, 퍼센트는 얼음빛에서 낮을수록 강철빛·연보라, 놓치면 금 간 루비색)');
@@ -62,8 +63,8 @@ describe('pickedHelp', () => {
   it('leaves a text without such a list whole, and one that does not name the picked value', () => {
     expect(pickedHelp('트랙의 폭입니다.', GEARS, '기본')).toBeNull();
     // two names are no list
-    expect(pickedHelp('기본은 비치는 막대로, 달은 점으로 그립니다.', GEARS, '기본')).toBeNull();
+    expect(pickedHelp('기본은 비치는 막대로, 피아노는 점으로 그립니다.', GEARS, '기본')).toBeNull();
     expect(pickedHelp(GEAR_HELP, GEARS, '없는 기어')).toBeNull();
-    expect(pickedHelp(GEAR_HELP, GEARS.slice(0, 5), '달')).toBeNull();
+    expect(pickedHelp(GEAR_HELP, GEARS.slice(0, 5), '피아노')).toBeNull();
   });
 });

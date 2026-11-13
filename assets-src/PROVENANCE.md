@@ -1167,6 +1167,8 @@
 
 ## 기어 (`gears/`, 2026-11)
 
+(2026-11-13: 이 절의 기어 가운데 오락실 기체 · 빈티지 리시버 · 나전칠기 · 커스텀 키보드 · 레이싱 휠 · 우주선 계기판과 아래의 달을 사용자의 결정으로 게임에서 뺐습니다. 기록은 그대로 두었습니다: 맨 끝의 [없앤 기어](#없앤-기어-오락실-기체--빈티지-리시버--나전칠기--커스텀-키보드--레이싱-휠--우주선-계기판--달-2026-11-13).)
+
 세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더")과 2026-11-06에 더한 피아노(아래 "피아노 기어") · 달(아래 "달 기어"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
@@ -1314,7 +1316,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the turntable of an arcade rhythm-game cabinet: a round black rubber slip mat with fine concentric grooves on a polished silver platter, a ring of small strobe dots around the platter's edge, a small silver spindle in the centre, inside a thin black outer ring. No tonearm. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/joystick.jpg`
+### `gears/cabinet/joystick.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 조이스틱(받침 왼쪽) → `gears/cabinet/joystick.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1325,7 +1327,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the joystick of an arcade cabinet's control panel: a glossy red ball top on a short black shaft, seen from straight above so that the ball hides the shaft, sitting in the middle of a round black plastic dust washer, a thin polished chrome ring around the washer's edge. A perfect circle overall. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/coin.jpg`
+### `gears/cabinet/coin.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 동전 투입구(받침 오른쪽) → `gears/cabinet/coin.png` 558×384
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1336,7 +1338,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the coin entry of an arcade cabinet set into its control panel: a horizontal brushed stainless steel plate about 1.7 times as wide as it is tall, softly rounded corners, a small screw in each corner; on it two coin slots side by side, each a narrow vertical slot with a small square coin-return button glowing amber beside it. No currency symbols. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/button.jpg`
+### `gears/cabinet/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 아크릴 버튼(여섯) → `gears/cabinet/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1347,7 +1349,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one large round convex arcade push button: a translucent milky-white acrylic dome, unlit, inside a polished chrome bezel ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/receiver/knob.jpg`
+### `gears/receiver/knob.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 튜닝 노브와 볼륨 노브 → `gears/receiver/knob.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
@@ -1358,7 +1360,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the big tuning knob of a 1970s stereo receiver: a knurled aluminium knob with a polished top face of fine concentric machining rings and a shallow finger dimple near its edge, around it a thin flywheel ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/receiver/switch.jpg`
+### `gears/receiver/switch.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 피아노 키 셀렉터 스위치(다섯) → `gears/receiver/switch.png` 320×368
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
@@ -1369,7 +1371,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one piano-key style push switch of a 1970s stereo receiver: a rectangular brushed silver aluminium key, two units wide and three units long (the long side runs up and down the image), softly rounded corners, a fine bevel along its edges; near its top end a small round lamp window of clear glass in a thin black bezel, unlit. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/band.jpg`
+### `gears/najeon/band.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 측면 기둥과 받침의 자개 당초문 → `gears/najeon/band.png` 128×2048
 - 크기 · 기준 이미지: 9:16 · 2K · `najeon-a1.png`
@@ -1391,7 +1393,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one rounded-rectangle mother-of-pearl inlay tablet, a little taller than wide, cut from abalone shell with natural layered patterns, iridescent white with soft pink, green and blue sheens, polished, with a very thin brass rim. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/lid.jpg`
+### `gears/najeon/lid.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 학 문양 칠기 뚜껑(받침 양쪽에 둘, 오른쪽은 뒤집어 학이 가운데를 향함) → `gears/najeon/lid.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
@@ -1402,7 +1404,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a round black lacquer lid inlaid with a mother-of-pearl crane in flight among small clouds, edged with a thin polished brass ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/lock.jpg`
+### `gears/najeon/lock.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 황동 앞바탕(받침 가운데의 자물쇠 판) → `gears/najeon/lock.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
@@ -1498,7 +1500,7 @@
   >
   > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
 
-### `gears/keyboard/knob.jpg`
+### `gears/keyboard/knob.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 볼륨 노브(받침 왼쪽) → `gears/keyboard/knob.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
@@ -1509,7 +1511,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the volume knob of a premium custom mechanical keyboard: a knurled, bead-blasted dark charcoal aluminium rotary knob whose polished top face shows fine concentric machining rings, set in a thin ring of soft warm orange light around its base. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/keyboard/keycap.jpg`
+### `gears/keyboard/keycap.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 방향키 캡(역T자로 넷) → `gears/keyboard/keycap.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
@@ -1520,7 +1522,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one sculpted thick PBT keycap of a custom mechanical keyboard, warm off-white ivory, square, with a gently concave dished top, softly rounded corners, crisp edges and a fine matte texture; blank, with no legend. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/keyboard/brass.jpg`
+### `gears/keyboard/brass.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 황동 명판(OLED 창 아래, 'TKL-08'은 코드로 새김) → `gears/keyboard/brass.png` 912×192
 - 크기 · 기준 이미지: 16:9 · 2K · `keyboard-a2.png`
@@ -1531,7 +1533,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a small rectangular weight plate of a custom keyboard case: brushed polished brass, about four and a half times as wide as it is tall, with a fine bevel along its edges and one tiny hex screw near each end; blank, with no engraving. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/racing/rotary.jpg`
+### `gears/racing/rotary.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 로터리(받침 왼쪽의 큰 것과 오른쪽의 작은 것) → `gears/racing/rotary.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
@@ -1542,7 +1544,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the big rotary selector of a racing car's steering wheel: a knurled black anodised aluminium knob with one white pointer line on its top face, inside a ring of evenly spaced small white tick marks on a black carbon-fibre disc. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/racing/button.jpg`
+### `gears/racing/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 고무 버튼(넷) → `gears/racing/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
@@ -1553,7 +1555,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one round push button of a racing car's steering wheel: a matte black soft-touch rubber cap, slightly domed, inside a thin glossy white plastic ring, in a black bezel. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/selector.jpg`
+### `gears/orbital/selector.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 보호 덮개 셀렉터(받침 왼쪽) → `gears/orbital/selector.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1564,7 +1566,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded rotary selector switch of a spacecraft instrument panel: a black fluted knob with a white pointer line, between two short U-shaped polished steel guard bars that stand on its left and right, on a small round light-grey base plate with four tiny screws. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/toggle.jpg`
+### `gears/orbital/toggle.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 보호 덮개 토글(PWR · COMM · NAV 셋) → `gears/orbital/toggle.png` 495×512
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1575,7 +1577,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded toggle switch of a spacecraft instrument panel: a short chrome bat-handle toggle lever on a round black base, between two polished steel guard rails on its left and right, the rails joined by a small bar at the bottom. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/button.jpg`
+### `gears/orbital/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 사각 버튼(ARM · ABORT) → `gears/orbital/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1586,7 +1588,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one square lighted pushbutton of a spacecraft instrument panel: a white translucent square face, unlit, inside a black square bezel with slightly rounded corners and a thin metal edge. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/foil.jpg`
+### `gears/orbital/foil.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판 테두리의 금박 단열재 → `gears/orbital/foil.png` 128×768
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1630,7 +1632,7 @@
 
   > the round smoked-glass jog disc at the left stands a little proud of the glass inside its thin cyan light ring, its rim and edge visible from this angle; the 'GENERATIVE RHYTHM' lettering is printed flat on the glass in one single line of thin light-grey letters, with no shadow, no outline, no second copy and no raised edge, so it reads cleanly; the cyan light strip under it is set into the glass; the speaker grille at the right is sunk into the panel, its holes showing depth.
 
-### `gears/cabinet/deck.jpg`
+### `gears/cabinet/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체의 받침 전체 → `gears/cabinet/deck.webp` 2048×541(115,892바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 오락실 기체를 얹은 실제 화면의 아래쪽(위)
@@ -1646,7 +1648,7 @@
 
   > the joystick at the left stands up from the middle of the round mark image 1 has there, on a short black shaft with its dust washer; it is short enough that its whole red ball top stays inside the deck, below the chrome moulding, with dark panel showing between the ball and the deck's top edge; the six convex acrylic push buttons (red, amber and milky white) stand up from the panel in chrome bezels; the two amber start buttons stand up a little; the two small smoked credit windows with dim red seven-segment digits are sunk into the panel; the silk-screened 'GRG-2000' stays flat; the metal coin entry plate at the right is fixed on the panel with its two coin slots sunk into it.
 
-### `gears/receiver/deck.jpg`
+### `gears/receiver/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 받침 전체 → `gears/receiver/deck.webp` 2048×541(66,180바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 빈티지 리시버를 얹은 실제 화면의 아래쪽(위)
@@ -1661,7 +1663,7 @@
 
   > the large knurled aluminium tuning knob at the left stands up out of the plate, its top face and the knurled side that faces the camera both visible; the long black-glass tuning dial window with its warm amber backlight, fine tick marks and thin red pointer is sunk into the plate; the five silver piano-key selector switches under it stand up from the plate, their tops and the faces toward the camera visible; the two small VU meters with amber faces are sunk behind glass; the small aluminium volume knob near the right end stands up; the engraved label 'STEREO RECEIVER SR-7' stays flat.
 
-### `gears/najeon/deck.jpg`
+### `gears/najeon/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 받침 전체 → `gears/najeon/deck.webp` 2048×541(68,698바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 나전칠기를 얹은 실제 화면의 아래쪽(위)
@@ -1676,7 +1678,7 @@
 
   > the brass corner fittings at the top corners stand slightly proud with their pins; the two round lacquer lids with the mother-of-pearl crane are slightly domed and stand a little out of the lacquer, their brass rims catching the light; the round brass lock plate in the middle stands out with its small vertical latch; the iridescent mother-of-pearl vines between thin gold lines stay inlaid flush in the lacquer.
 
-### `gears/keyboard/deck.jpg`
+### `gears/keyboard/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 받침 전체 → `gears/keyboard/deck.webp` 2048×541(235,678바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 커스텀 키보드를 얹은 실제 화면의 아래쪽(위)
@@ -1691,7 +1693,7 @@
 
   > the knurled volume knob at the left stands up inside its orange light ring, its knurled side visible from this angle; the black OLED window with its white bar graph is sunk into the case; the small brass name plate 'TKL-08' is fixed on the case, standing a hair proud; the three tiny lock lights are set into the case; the four arrow-key keycaps (an inverted T, the up key orange, the others ivory) stand tall with their sculpted sides and the small arrow legends on their tops.
 
-### `gears/racing/deck.jpg`
+### `gears/racing/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 받침 전체 → `gears/racing/deck.webp` 2048×541(89,808바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 레이싱 휠을 얹은 실제 화면의 아래쪽(위)
@@ -1706,7 +1708,7 @@
 
   > the row of small round shift lights across the top (the five green ones lit, then red, then blue) sits in small bezels; the big rotary switch at the left and the small one at the right stand up, their knurled sides and tick rings visible; the four rubber push buttons with yellow, blue, white and green rings stand up from the carbon; the black dash LCD in the middle, showing an idle lap timer, is sunk into the panel.
 
-### `gears/orbital/deck.jpg`
+### `gears/orbital/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 받침 전체 → `gears/orbital/deck.webp` 2048×541(87,992바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 우주선 계기판을 얹은 실제 화면의 아래쪽(위)
@@ -1826,13 +1828,13 @@
 - `piano-e1`(13:42 KST, 약 $0.064, PNG 4,405,872바이트): 위 프롬프트 그대로 · 역시 틀을 다시 잡음
 - 비용: 쓴 1장 약 $0.066, 시안 2장 약 $0.130, 쓰지 않은 시도 3장 약 $0.186, 합해 약 $0.382
 
-## 달 기어 (`gears/rawglass`, 2026-11-06)
+## 달 기어 (`gears/rawglass`, 2026-11-06; 2026-11-13에 지움, 기록만 남김)
 
 사용자가 참고로 준 다른 게임 노트의 컨셉(사방을 비스듬히 깎은 은빛 거울 유리)에서 시작해, 사용자와 시안을 주고받으며 새로 디자인한 아홉째 기어입니다(그 게임의 그림이나 이름은 쓰지 않음). 크롬 판에 검은 거울 셋을 박은 첫 시안(`mirror-*`)에는 "SG-701 이랑 너무 다른데, 유리질감의 은색 기어 컨셉으로 만들어줘", 은색 판에 은도금 유리 막대 셋을 박은 둘째 시안(`silver-a*`)에는 "기어 하단에 네모 들은 넣지 마. 기어 디자인을 처음부터 하고, 첨부 이미지처럼 유리 '결정' 질감이 느껴지도록"(청록색 유리 덩어리 사진을 함께 줌), 그 사진처럼 청록색으로 칠한 셋째 시안(`rawglass-*`)에는 "SG-701 색깔로 바꿔줘", 은빛으로 칠한 넷째 시안(`silver-s3a`)에는 "이 시안을 기반으로 유리 결정 질감을 리얼하게 표현해줘"라고 했고, 그렇게 다시 칠한 그림(`flat-r*`)을 보고는 넷째 시안의 후보 넷 가운데 마지막(`silver-s2b`)을 골라 "곡선들만 안보이도록 처리하고 입체감만 좀더", 이어서 "곡선만 지워주고 선명하게 하는건 빼줘"라고 해, `silver-s2b`에서 곡선만 지운 그림을 실었습니다. 이름은 사용자가 "기어 명칭은 '달'로 해주고"라고 해 달로 정했습니다(코드의 id는 재료를 따라 `rawglass`).
 
 받침에는 아무것도 박지 않은, 깨뜨린 은빛 크리스털 유리 덩어리 한 장입니다(곧은 결정 면 사이로 유리 속의 결과 기포가 비침). 테두리 · HUD는 코드이고, 글꼴은 이미 넣은 Orbitron입니다. 평면 카메라의 받침은 같은 결정 면을 코드로 그립니다(`deckArt.ts`의 `rawGlassPlate`). 같은 날 더한 질감 노트 여섯(크롬 베벨 · 헤어라인 · 유리 · 에나멜 · 펄 · 카본)은 생성한 그림 없이 코드로 그립니다(`tintArt.ts`).
 
-### `gears/rawglass/deck.jpg`
+### `gears/rawglass/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 달의 받침 전체 → `gears/rawglass/deck.webp` 2048×541(93,160바이트)
 - 만든 방법: 아래 `silver-s2b`를 받침 평면으로 펼친 그림(2048×541)에서 곡선이 있던 자리(그 그림이 다시 칠한 코드 받침의 조개껍데기 모양 단면 셋, 테두리와 그 안의 물결선: 같은 코드로 다시 그린 마스크를 7px 굵게)만, 곡선을 빼고 다시 칠한 `edit-2`를 펼친 그림 위에 되맞춘 것(ECC, 아핀, 상관 0.74)의 같은 자리로 바꿔 경계에서 색을 맞춰 이음(OpenCV `seamlessClone`, Poisson). 기준 화면에서 누르고 있던 롱노트의 빛이 위 끝(x 600–900, 위에서 12px까지)에 남긴 하늘색 번짐은 줄마다 양옆 색을 곧게 이어 지움. 나머지 픽셀은 `silver-s2b` 그대로이고, 선명하게 하거나 대비를 바꾸지 않음
@@ -2715,3 +2717,24 @@
   - 오른쪽의 장치 윗부분: 1차는 일러스트의 위 가장자리에 잘린 위쪽 장치를 길게 솟은 발톱 모양으로 이어 그렸고, 그림을 본 사용자가 "카이사 어깨 장치가 너무 크게 그려졌는데, 카이사 어깨 장치 다른 이미지들 확인해보고 다시 그려줘"라고 했습니다. 장치가 온전히 보이는 그림을 찾아보니(같은 일러스트에서 머리 옆에 있는 다른 장치, League of Legends 위키의 인게임 모델 그림 `Kai'Sa KDAFIRESTARTER (Base).png`, 콘셉트 아트 `KDA FIRESTARTER Group Concept 01 ~ 05`) 장치는 수정을 감싼 낮고 둥근 껍데기에 작은 볏이 하나 있는 모양이었습니다(일러스트의 다른 판 `Loading` · `Centered`도 같은 자리에서 잘려 있음). 그래서 발톱을 일러스트의 위 가장자리에서 잘라 내고, 장치 둘레만 자른 누끼(800×800)에 앞의 두 그림을 참고로 붙여 "낮고 둥근 덮개로 닫으라"고 한 1회를 받아 캔버스의 그 구역(x 300 ~ 820, y 530 ~ 680)에만 썼습니다. 참고로 보낸 것은 Riot Games의 그림 둘(일러스트의 조각, 인게임 모델 그림)입니다.
 - 그림별 기록(생성마다 프롬프트 전문, 보낸 그림과 결과의 sha256, 토큰, 합성에 쓴 값): `assets-src/stage/fire/1-left.json` · `2-right.json`. 스크립트: `scripts/assets/stage_cutout/`(순서는 그 폴더의 README). 옮긴 스크립트로 같은 입력에서 게임의 두 그림이 그대로 다시 나오는 것을 확인했습니다(PNG의 sha256 일치; 불꽃을 더한 왼쪽 그림은 옮긴 스크립트로 만들었습니다). 일러스트 원본과 모델이 돌려준 그림은 저장소에 없습니다.
 - 사용자의 곡 · 채보는 생성에 쓰지 않았습니다.
+
+## 없앤 기어: 오락실 기체 · 빈티지 리시버 · 나전칠기 · 커스텀 키보드 · 레이싱 휠 · 우주선 계기판 · 달 (2026-11-13)
+
+사용자가 "예전 기존 스킨 중 피아노만 빼고 나머지는 삭제해줘."라고 해서(2026-11-13), 스킨의 기어가 아닌 예전 기어 여덟 가운데 피아노만 남기고 일곱을 게임에서 뺐습니다(받침 · 키캡 · 레일 · 판정선 · 조명 · HUD의 글자와 차림 · 설정 항목까지). 예전 노트(크롬 베벨 등)와 예전 타격 효과(플레어 · 메카 섬광 등)는 사용자의 결정으로 그대로 둡니다("예전 노트랑 타격효과는 유지해줘."). 생성 기록은 위의 [기어](#기어-gears-2026-11) 절(그 안의 "기어 셋 더" · "받침 그림")과 [달 기어](#달-기어-gearsrawglass-2026-11-06-2026-11-13에-지움-기록만-남김) 절에 그대로 있고(지운 그림의 제목에 "2026-11-13에 지움, 기록만 남김"이라고 적음), 거기 적힌 장수와 비용 합계도 만든 때 그대로입니다.
+
+| 지운 파일 | 무엇 |
+|---|---|
+| `assets-src/gears/cabinet/` (`button.jpg` · `coin.jpg` · `joystick.jpg` · `deck.jpg` · `deck.json`) | 오락실 기체의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/receiver/` (`knob.jpg` · `switch.jpg` · `deck.jpg` · `deck.json`) | 빈티지 리시버의 부위 그림 둘, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/najeon/` (`band.jpg` · `lid.jpg` · `lock.jpg` · `deck.jpg` · `deck.json`) | 나전칠기의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/keyboard/` (`knob.jpg` · `keycap.jpg` · `brass.jpg` · `deck.jpg` · `deck.json`) | 커스텀 키보드의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/racing/` (`rotary.jpg` · `button.jpg` · `deck.jpg` · `deck.json`) | 레이싱 휠의 부위 그림 둘, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/orbital/` (`selector.jpg` · `toggle.jpg` · `button.jpg` · `foil.jpg` · `deck.jpg` · `deck.json`) | 우주선 계기판의 부위 그림 넷, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/rawglass/` (`deck.jpg` · `deck.json`) | 달 기어의 받침 그림과 그 맞춤 값 |
+| `client/public/media/gears/cabinet/` · `receiver/` · `najeon/` · `keyboard/` · `racing/` · `orbital/` · `rawglass/` | 그 게임용 파일 32개: 부위 그림(PNG), 받침 그림(`deck.webp`), 빛 마스크(`glow.png`: 커스텀 키보드 · 나전칠기), `build_gears.py`가 잡음으로 만들던 재질(`abs` · `silver` · `walnut` · `alu` · `carbon` · `paint`). 매니페스트의 해당 항목도 뺌 |
+| `client/src/assets/fonts/DSEG7Classic-Bold.woff2` · `Silkscreen-Regular.woff2` · `SairaStencilOne-Regular.woff2` · `NotoSerifKR-Bold-subset.woff2`, `client/public/licenses/fonts/OFL-DSEG.txt` · `OFL-Silkscreen.txt` · `OFL-SairaStencilOne.txt` · `OFL-NotoSerifKR.txt` | 지운 기어만 쓰던 글꼴 넷(7세그 숫자, 픽셀 글꼴, 스텐실, 나전칠기 게이지의 "흥" 한 글자)과 그 라이선스 문서. 남은 기어도 쓰는 글꼴(Exo 2 · Chakra Petch · Orbitron · Cinzel · Barlow Condensed)은 그대로 |
+| `docs/screenshots/34-gear-cabinet.png` · `35-gear-receiver.png` · `36-gear-najeon.png` · `37-gear-keyboard.png` · `38-gear-racing.png` · `39-gear-orbital.png` · `41-gear-rawglass.png` | 일곱 기어의 스크린샷 |
+
+- `scripts/assets/build_gears.py`에서 일곱 기어의 빌드 단계와 그 기어들만 쓰던 코드(잡음으로 만들던 재질: 엠보싱 ABS · 비드 블라스트 알루미늄 · 트윌 카본 · 회색 도장 · 월넛, 부위 그림을 모양대로 자르는 단계, 나전칠기 · 커스텀 키보드의 빛 마스크)를 뺐습니다. 고친 스크립트를 저장소 밖 사본에서 돌려 남은 기어의 파일 9개와 매니페스트가 저장소의 것과 똑같이 나오는 것을 확인했습니다.
+- 게임 쪽에서는 그 기어들만 쓰던 것도 함께 뺐습니다: 받침의 OLED 화면과 빛 마스크, 바늘 미터(빈티지 리시버의 게이지), 콤보만 다른 글꼴로 쓰는 기능.
+- 저장된 설정이 지운 기어를 가리키면 기본 기어로 열립니다.

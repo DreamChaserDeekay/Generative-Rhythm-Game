@@ -118,10 +118,8 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
         'mecha/notes': entry('styles/mecha/notes.png', [1024, 1024]),
         'mecha/long': entry('styles/mecha/long.png', [512, 256]),
         'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
-        'cabinet/abs': entry('gears/cabinet/abs.webp', [512, 512]),
-        'cabinet/joystick': entry('gears/cabinet/joystick.png', [512, 512]),
-        'cabinet/button': entry('gears/cabinet/button.png', [384, 384]),
-        'cabinet/coin': entry('gears/cabinet/coin.png', [558, 384]),
+        'piano/deck': entry('gears/piano/deck.webp', [2048, 541]),
+        'piano/medallion': entry('gears/piano/medallion.png', [256, 265]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -138,10 +136,10 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
         return { width, height } as unknown as ArtImage;
       },
     };
-    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
+    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'piano' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
-    expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/coin.png', 'gears/cabinet/joystick.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/coin', 'cabinet/joystick', 'mecha/notes']);
+    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'gears/piano/medallion.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/notes', 'piano/deck', 'piano/medallion']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // no pictures without a way to decode them, and nothing for parts the manifest has none of

@@ -87,10 +87,9 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
 
 /**
  * The gears' pictures (manifest ids) by part: the whole deck painted in the camera's perspective (on
- * the perspective cameras), the materials of the plate and the frame, and the things on the deck
- * (the deck drawn in code: the plane camera's, or where the deck's picture is missing), and where its
- * lights may shine from inside a part (glow: gearLights.ts). A part whose picture is missing is drawn
- * in code (deckArt.ts).
+ * the perspective cameras) and the things on the deck (the deck drawn in code: the plane camera's,
+ * or where the deck's picture is missing). A part whose picture is missing is drawn in code
+ * (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
   // the skins' gears: the row of keys drawn in code (it follows the lanes), the lower part a painting (panel: the
@@ -111,14 +110,7 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   astral: { panel: 'astral/panel' },
   // the default skin's gear, as the skins': its key caps light with the lanes and its panel's display houses the HUD's readouts
   standard: { panel: 'standard/panel' },
-  cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
-  receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
-  najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
-  keyboard: { deck: 'keyboard/deck', glow: 'keyboard/glow', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
-  racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
-  orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
-  rawglass: { deck: 'rawglass/deck' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */

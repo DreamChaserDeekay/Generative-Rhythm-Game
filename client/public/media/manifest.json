@@ -160,46 +160,6 @@
       "anchorY": 0.5,
       "span": 1.375
     },
-    "cabinet/abs": {
-      "file": "gears/cabinet/abs.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "cabinet/button": {
-      "file": "gears/cabinet/button.png",
-      "bundle": "gear",
-      "size": [
-        384,
-        384
-      ]
-    },
-    "cabinet/coin": {
-      "file": "gears/cabinet/coin.png",
-      "bundle": "gear",
-      "size": [
-        558,
-        384
-      ]
-    },
-    "cabinet/deck": {
-      "file": "gears/cabinet/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "cabinet/joystick": {
-      "file": "gears/cabinet/joystick.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
     "claude/hitBurst": {
       "file": "fx/claude_burst.webp",
       "bundle": "effects",
@@ -651,54 +611,6 @@
         876
       ]
     },
-    "keyboard/alu": {
-      "file": "gears/keyboard/alu.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "keyboard/brass": {
-      "file": "gears/keyboard/brass.png",
-      "bundle": "gear",
-      "size": [
-        912,
-        192
-      ]
-    },
-    "keyboard/deck": {
-      "file": "gears/keyboard/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "keyboard/glow": {
-      "file": "gears/keyboard/glow.png",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "keyboard/keycap": {
-      "file": "gears/keyboard/keycap.png",
-      "bundle": "gear",
-      "size": [
-        384,
-        384
-      ]
-    },
-    "keyboard/knob": {
-      "file": "gears/keyboard/knob.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
     "mecha/hitBurst": {
       "file": "styles/mecha/hit_burst.png",
       "bundle": "effects",
@@ -754,46 +666,6 @@
       "bundle": "notes",
       "size": [
         1024,
-        512
-      ]
-    },
-    "najeon/band": {
-      "file": "gears/najeon/band.png",
-      "bundle": "gear",
-      "size": [
-        128,
-        2048
-      ]
-    },
-    "najeon/deck": {
-      "file": "gears/najeon/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "najeon/glow": {
-      "file": "gears/najeon/glow.png",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "najeon/lid": {
-      "file": "gears/najeon/lid.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "najeon/lock": {
-      "file": "gears/najeon/lock.png",
-      "bundle": "gear",
-      "size": [
-        512,
         512
       ]
     },
@@ -900,54 +772,6 @@
         876
       ]
     },
-    "orbital/button": {
-      "file": "gears/orbital/button.png",
-      "bundle": "gear",
-      "size": [
-        384,
-        384
-      ]
-    },
-    "orbital/deck": {
-      "file": "gears/orbital/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "orbital/foil": {
-      "file": "gears/orbital/foil.png",
-      "bundle": "gear",
-      "size": [
-        128,
-        768
-      ]
-    },
-    "orbital/paint": {
-      "file": "gears/orbital/paint.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "orbital/selector": {
-      "file": "gears/orbital/selector.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "orbital/toggle": {
-      "file": "gears/orbital/toggle.png",
-      "bundle": "gear",
-      "size": [
-        495,
-        512
-      ]
-    },
     "piano/deck": {
       "file": "gears/piano/deck.webp",
       "bundle": "gear",
@@ -1041,86 +865,6 @@
       "size": [
         2048,
         869
-      ]
-    },
-    "racing/button": {
-      "file": "gears/racing/button.png",
-      "bundle": "gear",
-      "size": [
-        384,
-        384
-      ]
-    },
-    "racing/carbon": {
-      "file": "gears/racing/carbon.png",
-      "bundle": "gear",
-      "size": [
-        256,
-        256
-      ]
-    },
-    "racing/deck": {
-      "file": "gears/racing/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "racing/rotary": {
-      "file": "gears/racing/rotary.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "rawglass/deck": {
-      "file": "gears/rawglass/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "receiver/deck": {
-      "file": "gears/receiver/deck.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        541
-      ]
-    },
-    "receiver/knob": {
-      "file": "gears/receiver/knob.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "receiver/silver": {
-      "file": "gears/receiver/silver.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        512
-      ]
-    },
-    "receiver/switch": {
-      "file": "gears/receiver/switch.png",
-      "bundle": "gear",
-      "size": [
-        320,
-        368
-      ]
-    },
-    "receiver/walnut": {
-      "file": "gears/receiver/walnut.png",
-      "bundle": "gear",
-      "size": [
-        512,
-        1024
       ]
     },
     "sky/feather": {

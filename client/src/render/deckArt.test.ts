@@ -108,7 +108,7 @@ describe('the track’s borders in a gear’s frame', () => {
     expect(plain.x - plain.far * 2).toBeGreaterThan(0);
     expect(plain.y).toBeGreaterThan(0);
     expect(plain.blur).toBeGreaterThan(0);
-    // drawn mirrored (the najeon's right lid): still down and to the right on the screen, as far
+    // drawn mirrored: still down and to the right on the screen, as far
     const mirrored = shadowOf({ a: -2, b: 0, c: 0, d: 2 }, box, 1)!;
     expect(mirrored.x + mirrored.far * 2).toBeCloseTo(plain.x - plain.far * 2, 9);
     expect(mirrored.y).toBeCloseTo(plain.y, 9);
@@ -132,24 +132,6 @@ describe('the decks of the gears a player picks', () => {
 
   /** The skins' gears: each with a key or a dash to a lane, the readouts on its deck and a judge line of its own. */
   const SKIN_GEARS: readonly string[] = ['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'];
-
-  it('is the same object whatever the key mode: nothing on it stands for a lane (but PIANO’s keys, STANDARD’s and CRYSTAL’s key caps and SKY’s dashes)', () => {
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) {
-      for (const [room, stretch] of [
-        [96, 1.1],
-        [320, 1.25],
-        [912, 3.25],
-      ]) {
-        const [first, ...rest] = (['4K', '7K+1S', '8K', '6K+FX'] as KeyModeId[]).map((mode) => {
-          const { g, calls } = callRecorder();
-          paintDeck(gear, g, spec(room, stretch, mode));
-          return calls;
-        });
-        expect(first.length, gear).toBeGreaterThan(50);
-        for (const calls of rest) expect(calls, gear).toEqual(first);
-      }
-    }
-  });
 
   it('PIANO: a white key under each key lane, the black keys of an octave between them from a C, a cheek block under the scratch and the side lanes', () => {
     const blackAfter = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter(blackKeyAfter);
@@ -244,8 +226,6 @@ describe('the decks of the gears a player picks', () => {
       expect(k.dash![0]).toBeLessThan(0.8);
       expect(k.dash![1]).toBeLessThan(0.3);
     });
-    // the other gears have no keys
-    for (const gear of GEAR_STYLES.filter((g) => g !== 'piano' && !SKIN_GEARS.includes(g))) for (const mode of ['4K', '7K+1S', '8K'] as KeyModeId[]) expect(deckKeys(gear, spec(155.55, 1.2, mode), true)).toEqual([]);
   });
 
   it('STANDARD and CRYSTAL house the score, the speed and the rate on their decks, CRYSTAL’s on long hexagons that stay on the deck', () => {
@@ -711,8 +691,8 @@ describe('the decks of the gears a player picks', () => {
     }
     expect(panelSpan('prism', spec(208, 1.3))).toEqual({ top: 47 * 1.3, tall: (869 / 2048) * 8 * 73.65 * 1.3 });
     // a gear that is no skin's has no panel
-    expect(panelSpan('cabinet', spec(208, 1.3))).toBeNull();
-    expect(deckReadouts('cabinet', spec(208, 1.3), true)).toBeNull();
+    expect(panelSpan('piano', spec(208, 1.3))).toBeNull();
+    expect(deckReadouts('piano', spec(208, 1.3), true)).toBeNull();
   });
 
   it('presses a skin’s panel to what the screen shows of the deck, so that all of its picture is in view on every camera', () => {
