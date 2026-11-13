@@ -902,6 +902,8 @@ export class TrackRenderer {
    * it while it is out, and the flare of its lighting.
    */
   private stageLanes: { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] | null = null;
+  /** The light that rises along a lane as it comes on (setLaneLight); a plain fade without it. */
+  private laneLight: THREE.Texture | null = null;
   /** The lanes of a failed play as pieces that crack and drop away, made when first drawn. */
   private shards: { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] | null = null;
   /** The picture of the cracks over the lanes, when one was given (setCracks); without it they are drawn in code (crackCanvas). */
@@ -1334,6 +1336,24 @@ export class TrackRenderer {
    * lights, the judge line as far as it is drawn from its middle, and a failed play's lanes cracked and
    * dropping away. Without one the track is put back as it plays, once.
    */
+  /**
+   * The light that rises along a lane as it comes on at a play's start: a picture of grey light on black
+   * (endArt), its bottom at the judge line, added in the lane's colour. It may come while the lanes are
+   * already lit: they take it at once.
+   */
+  setLaneLight(picture: HTMLImageElement): void {
+    if (this.disposed || this.laneLight) return;
+    const texture = this.own(new THREE.Texture(picture));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    this.laneLight = texture;
+    for (const s of this.stageLanes ?? []) {
+      const material = s.flare.material as THREE.MeshBasicMaterial;
+      material.map = texture;
+      material.needsUpdate = true;
+    }
+  }
+
   private drawStage(stage: StageFrame | undefined): void {
     if (!stage) {
       if (!this.staged) return;
@@ -1390,7 +1410,7 @@ export class TrackRenderer {
   /** The dark and the flare of each lane with a floor: over its floor, tint, dividers, bar lines and key beam, under the notes. */
   private buildStageLanes(): { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] {
     const { length, lanes } = this.geometry;
-    const fade = this.own(linearFadeTexture());
+    const fade = this.laneLight ?? this.own(linearFadeTexture());
     return lanes
       .filter((lane) => !lane.over)
       .map((lane) => {

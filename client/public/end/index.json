@@ -32,6 +32,28 @@
     0.1497,
     0.7434
    ]
+  },
+  "autoplay": {
+   "file": "words-autoplay.webp",
+   "size": [
+    1146,
+    320
+   ],
+   "band": [
+    0.1272,
+    0.8871
+   ]
+  },
+  "practice": {
+   "file": "words-practice.webp",
+   "size": [
+    1133,
+    320
+   ],
+   "band": [
+    0.224,
+    0.7884
+   ]
   }
  },
  "seals": {
@@ -92,6 +114,13 @@
   "size": [
    1024,
    1835
+  ]
+ },
+ "lane": {
+  "file": "lane-light.webp",
+  "size": [
+   256,
+   1024
   ]
  }
 }

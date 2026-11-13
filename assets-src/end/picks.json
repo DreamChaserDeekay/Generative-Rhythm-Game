@@ -33,6 +33,40 @@
    2048
   ]
  },
+ "lane-light": {
+  "try": 2,
+  "tries": 2,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "9:16",
+  "size": "2K",
+  "prompt": "A texture for a game VFX artist: a COLUMN OF LIGHT rising from the floor, as when one lane of a rhythm game's track lights up. Seen straight from the front, perfectly flat, with no perspective, on pure black (#000000).\n\nAt the very BOTTOM edge of the picture lies a bright, white-hot horizontal band of light that spans the picture's whole width. From it the light rises upward and fills the whole width of the picture, out to the left and right edges (a wide column, not a thin beam): it is made of many fine vertical streaks and rays of different lengths and brightness, softly glowing between them, with a few small bright motes drifting up among them. The light is brightest at the bottom and fades smoothly upward, and the top quarter of the picture is black.\n\nWhite and grey light only, with no colour at all, because the game colours it itself. Nothing else is in the picture: no floor, no objects, no figures, no frame, no text.",
+  "made": "2026-11-13 12:55:34 +0000",
+  "bytes": 3699023,
+  "sha256": "77b0a49a909e08aea1cbeb36806086e49f9fbdc834a5f0668935dd0ab61eff13",
+  "usage": {
+   "promptTokenCount": 213,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2999,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 213
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1106
+  },
+  "stored": [
+   1143,
+   2048
+  ]
+ },
  "ring": {
   "try": 1,
   "tries": 1,
@@ -279,6 +313,40 @@
    2048
   ]
  },
+ "words-autoplay": {
+  "try": 2,
+  "tries": 2,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "21:9",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\nTHE WORDS: exactly \"AUTO PLAY\" on ONE line, all capitals, spelled A-U-T-O, a space, P-L-A-Y. Nothing else is written anywhere in the picture.\n\nLETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\nMATERIAL AND COLOUR: brushed silver steel lit from inside, cool pale silver-white (#e6ecf5) with a faint lilac tint in the bevels only, and one thin bright line of light running along the top edge of every letter. A soft, cool white glow surrounds it. Calm and cool: no sparkles, no streak of light, no flames.\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no characters, no icons, no second line of text, no small print, no watermark.",
+  "made": "2026-11-13 12:55:13 +0000",
+  "bytes": 3712534,
+  "sha256": "37c06ac6f721e649065a12a21ebd7701a68705a0b7c1d0c68b15b5c165d7d451",
+  "usage": {
+   "promptTokenCount": 353,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2302,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 353
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 269
+  },
+  "stored": [
+   2048,
+   869
+  ]
+ },
  "words-failed": {
   "try": 1,
   "tries": 1,
@@ -379,6 +447,40 @@
     }
    ],
    "thoughtsTokenCount": 890
+  },
+  "stored": [
+   2048,
+   869
+  ]
+ },
+ "words-practice": {
+  "try": 1,
+  "tries": 2,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "21:9",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\nTHE WORDS: exactly \"PRACTICE END\" on ONE line, all capitals, spelled P-R-A-C-T-I-C-E, a space, E-N-D. Nothing else is written anywhere in the picture.\n\nLETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\nMATERIAL AND COLOUR: frosted glass lit from inside, soft mint green (#7fe3c4) with white highlights on the bevels and a slightly deeper green in their shading. A soft mint glow surrounds it. Calm and clean: no sparkles, no streak of light, no flames.\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no characters, no icons, no second line of text, no small print, no watermark.",
+  "made": "2026-11-13 12:55:16 +0000",
+  "bytes": 3772540,
+  "sha256": "e518a64ecebae505dec1ee0c41a4b08ebc420f734b6fc8446e719d07d733e5d7",
+  "usage": {
+   "promptTokenCount": 345,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3223,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 345
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1198
   },
   "stored": [
    2048,

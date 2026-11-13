@@ -73,6 +73,19 @@ WORDS = {
         "is missing here and there, and a few small shards and embers fall below the word. Heavy and defeated: no sparkles, no "
         "streak of light, only a dim red glow around it. The word must still read at a glance.",
     ),
+    # a play that earns no lamp (autoplay, the end of a practice): calm, nothing won
+    "words-autoplay": (
+        "AUTO PLAY", "A-U-T-O, a space, P-L-A-Y",
+        "MATERIAL AND COLOUR: brushed silver steel lit from inside, cool pale silver-white (#e6ecf5) with a faint lilac tint in "
+        "the bevels only, and one thin bright line of light running along the top edge of every letter. A soft, cool white glow "
+        "surrounds it. Calm and cool: no sparkles, no streak of light, no flames.",
+    ),
+    "words-practice": (
+        "PRACTICE END", "P-R-A-C-T-I-C-E, a space, E-N-D",
+        "MATERIAL AND COLOUR: frosted glass lit from inside, soft mint green (#7fe3c4) with white highlights on the bevels and a "
+        "slightly deeper green in their shading. A soft mint glow surrounds it. Calm and clean: no sparkles, no streak of light, "
+        "no flames.",
+    ),
 }
 
 
@@ -181,12 +194,27 @@ CRACKS = (
     "Nothing else is in the picture: no surface, no glass texture, no reflections, no shards, no dust, no objects, no text."
 )
 
+# ---------- the light of a lane coming on (the start) ----------
+
+LANE_LIGHT = (
+    "A texture for a game VFX artist: a COLUMN OF LIGHT rising from the floor, as when one lane of a rhythm game's track lights up. "
+    "Seen straight from the front, perfectly flat, with no perspective, on pure black (#000000).\n\n"
+    "At the very BOTTOM edge of the picture lies a bright, white-hot horizontal band of light that spans the picture's whole width. "
+    "From it the light rises upward and fills the whole width of the picture, out to the left and right edges (a wide column, not a "
+    "thin beam): it is made of many fine vertical streaks and rays of different lengths and brightness, softly glowing between them, "
+    "with a few small bright motes drifting up among them. The light is brightest at the bottom and fades smoothly upward, and the "
+    "top quarter of the picture is black.\n\n"
+    "White and grey light only, with no colour at all, because the game colours it itself. Nothing else is in the picture: no floor, "
+    "no objects, no figures, no frame, no text."
+)
+
 #: name -> (the prompt, the aspect ratio asked for)
 ALL: dict[str, tuple[str, str]] = {
     **{name: (words_prompt(name), "21:9") for name in WORDS},
     **{name: (SEAL_HEAD + shape + SEAL_TAIL, "1:1") for name, shape in SEALS.items()},
     **{name: (sheet_prompt(name), "1:1") for name in SHEETS},
     "cracks": (CRACKS, "9:16"),
+    "lane-light": (LANE_LIGHT, "9:16"),
 }
 
 

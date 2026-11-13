@@ -3,7 +3,7 @@ import type { GearStyle } from '../render/deckArt';
 import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
-import { loadEndArt, wordsBox, type EndArt } from './endArt';
+import { AIDED_WORDS, loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
 import { token } from './theme';
@@ -1270,7 +1270,7 @@ export class Hud {
     this.lamp.dataset.lamp = kind;
     this.lamp.setAttribute('aria-label', text);
     this.lampText.textContent = worded ? text : '';
-    this.lamp.className = `hud-lamp show ${kind} lamp-${kind} ${worded ? 'worded' : 'sealed'}${crashed ? ' crashed' : ''}${this.pictureLamp(kind) ? ' pictured' : ''}`;
+    this.lamp.className = `hud-lamp show ${kind} lamp-${kind} ${worded ? 'worded' : 'sealed'}${crashed ? ' crashed' : ''}${this.pictureLamp(kind, text) ? ' pictured' : ''}`;
     this.root.classList.add('ended');
     if (combo && combo.width > 0 && this.comboNum.textContent) this.flyCombo(combo);
     else this.lamp.classList.add('at-once');
@@ -1278,11 +1278,12 @@ export class Hud {
 
   /**
    * The lamp's picture from the end's pictures (endArt), where there is one: its words as lettering sized by
-   * the letters in it, or its seal. False: the styles draw the lamp (the words as type, the seal as its mark).
+   * the letters in it (a play without a lamp: the words it ends with, `text`), or its seal. False: the styles
+   * draw the lamp (the words as type, the seal as its mark).
    */
-  private pictureLamp(kind: string): boolean {
+  private pictureLamp(kind: string, text: string): boolean {
     const art = this.endArt;
-    const [words, seal] = [art?.index.words[kind], art?.index.seals[kind]];
+    const [words, seal] = [art?.index.words[kind === 'aided' ? (AIDED_WORDS[text] ?? '') : kind], art?.index.seals[kind]];
     const style = this.lamp.style;
     for (const name of ['--art', '--art-w', '--art-h', '--art-lift']) style.removeProperty(name);
     if (!art || (!words && !seal)) return false;

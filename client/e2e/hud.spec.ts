@@ -362,6 +362,9 @@ test('a long intro on a chart the test serves: the start shows, Enter skips to t
   // the play ends with the lights out and its words, and the result follows
   await expect(page.locator('.hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 60_000 });
   await expect(page.getByTestId('hud-lamp')).toHaveCount(0);
+  // its words are the lettering among the end's pictures, as an earned lamp's are
+  await expect(page.locator('.hud-lamp')).toHaveClass(/pictured/);
+  expect(await page.locator('.hud-lamp .hud-lamp-art').evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/end\/words-autoplay\.webp/);
   await expect(stage(page)).toHaveAttribute('data-stage', 'end');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
   expect(errors).toEqual([]);
