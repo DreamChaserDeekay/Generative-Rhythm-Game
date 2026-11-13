@@ -10,8 +10,11 @@ for (const type of ['webglcontextlost', 'webglcontextrestored']) {
     type,
     (event) => {
       const canvas = event.target;
-      // which canvas (the play's is play-canvas) and how far its play was (data-stage: intro, play, end, …)
-      ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), stage: String(canvas?.dataset?.stage ?? '') });
+      // which canvas (the play's is play-canvas), what the page keeps on it for this log (its data-
+      // attributes: the stage of the play, the song's time, the skin, what the renderer holds) and
+      // the kind of video behind the play, should there be one (ui/PlayBackground's elements)
+      const bga = document.querySelector('.bg-youtube') ? 'youtube' : document.querySelector('.bg-video') ? 'file' : 'none';
+      ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), about: { ...canvas?.dataset, bga } });
     },
     true,
   );

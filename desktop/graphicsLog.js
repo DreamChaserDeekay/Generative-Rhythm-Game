@@ -66,11 +66,27 @@ function goneFields(details) {
 }
 
 const word = (value) => (typeof value === 'string' ? value.replace(/[^\w -]/g, '').slice(0, 40) : '');
+/** How much of what the page says of its canvas is written down: so many values, each so long. */
+const PAGE_VALUES = 16;
+const PAGE_VALUE_LENGTH = 120;
 
-/** What the page tells of a WebGL canvas (preload.js), cleaned; null when it is nothing of the kind. */
+/**
+ * What the page tells of a WebGL canvas (preload.js), cleaned; null when it is nothing of the kind.
+ * `about` is what the page keeps on the canvas for this log (its data- attributes: the stage of the
+ * play, the song's time, the skin, what the renderer holds, …) and the kind of background video:
+ * written down as it comes, a line's worth of it.
+ */
 function pageRecord(raw) {
   if (!raw || typeof raw !== 'object' || !PAGE_EVENTS.includes(raw.type)) return null;
-  return { type: raw.type, canvas: word(raw.canvas), stage: word(raw.stage) };
+  const about = {};
+  const told = raw.about && typeof raw.about === 'object' ? Object.entries(raw.about) : [];
+  for (const [key, value] of told) {
+    if (Object.keys(about).length >= PAGE_VALUES) break;
+    if (!/^[A-Za-z][A-Za-z0-9]{0,23}$/.test(key) || typeof value !== 'string' || value === '') continue;
+    // (one line: nothing that ends it, nothing that is not text)
+    about[key] = value.replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, ' ').slice(0, PAGE_VALUE_LENGTH);
+  }
+  return { type: raw.type, canvas: word(raw.canvas), about };
 }
 
 /** The server's answer to what chart it is making (GET /api/mapper/queue), as { ok, body } or { ok: false, error }. */
@@ -215,7 +231,8 @@ function graphicsWatch(io) {
     },
     childGone(details) {
       log('child-process-gone', goneFields(details));
-      if (details && details.type === 'GPU') lost('none');
+      // (a GPU process that ended as it should, one Chromium started to ask the card something, is no loss)
+      if (details && details.type === 'GPU' && details.reason !== 'clean-exit') lost('none');
     },
     renderGone: (details) => log('render-process-gone', goneFields(details)),
     page(raw) {
@@ -223,10 +240,10 @@ function graphicsWatch(io) {
       if (!record || !pageMayWrite()) return;
       if (record.type === 'webglcontextlost') {
         lostAt = ms();
-        log(record.type, { canvas: record.canvas, stage: record.stage });
+        log(record.type, { canvas: record.canvas, ...record.about });
         lost('lost');
       } else {
-        log(record.type, { canvas: record.canvas, stage: record.stage, afterMs: lostAt === null ? undefined : ms() - lostAt });
+        log(record.type, { canvas: record.canvas, afterMs: lostAt === null ? undefined : ms() - lostAt, ...record.about });
         back();
       }
     },

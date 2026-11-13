@@ -95,9 +95,23 @@ test('a process that went: its type, reason and exit code, a Windows code in hex
 });
 
 test('the page is taken at its word only for a WebGL canvas losing or getting back its context', () => {
-  assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' }), { type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' });
-  assert.deepEqual(pageRecord({ type: 'webglcontextrestored', canvas: 'a b\n<script>', stage: 5, more: 'x'.repeat(999) }), { type: 'webglcontextrestored', canvas: 'a bscript', stage: '' });
+  assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210', bga: 'youtube' } }), {
+    type: 'webglcontextlost',
+    canvas: 'play-canvas',
+    about: { stage: 'play', songMs: '83210', bga: 'youtube' },
+  });
+  // what it says of the canvas is written down as it comes, a line's worth of it: text values under plain names
+  const told = pageRecord({
+    type: 'webglcontextrestored',
+    canvas: 'a b\n<script>',
+    more: 'x'.repeat(999),
+    about: { stage: 'end', gfx: 'tex=112 geo=45\nprog=18', 'bad key': 'x', __proto__x: 'y', count: 5, empty: '', long: 'y'.repeat(999), title: '하늘 기어' },
+  });
+  assert.deepEqual(told, { type: 'webglcontextrestored', canvas: 'a bscript', about: { stage: 'end', gfx: 'tex=112 geo=45 prog=18', long: 'y'.repeat(120), title: '하늘 기어' } });
+  const many = pageRecord({ type: 'webglcontextlost', canvas: 'c', about: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, 'v'])) });
+  assert.equal(Object.keys(many.about).length, 16);
   assert.equal(pageRecord({ type: 'webglcontextlost', canvas: 'x'.repeat(500) }).canvas.length, 40);
+  assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'c', about: 'play' }).about, {});
   for (const not of [null, 'webglcontextlost', {}, { type: 'click' }, { type: 'contextlost' }]) assert.equal(pageRecord(not), null);
 });
 
@@ -124,20 +138,20 @@ test('of the GPU features, the ones that say whether the graphics card still dra
 test('the GPU process gone in play: the server asked once, the window pictured a second after the page’s graphics are back', async () => {
   const w = world();
   w.watch.childGone(GPU_GONE);
-  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' });
+  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210' } });
   await w.advance(0);
   assert.equal(w.asked, 1);
   await w.advance(840);
-  w.watch.page({ type: 'webglcontextrestored', canvas: 'play-canvas', stage: 'play' });
+  w.watch.page({ type: 'webglcontextrestored', canvas: 'play-canvas', about: { stage: 'play', songMs: '84050' } });
   await w.advance(SETTLE_MS - 1);
   assert.deepEqual(w.shots, []);
   await w.advance(1);
   assert.deepEqual(w.shots, ['graphics-lost-20261113-210406.jpg']);
   assert.deepEqual(w.events(), [
     'child-process-gone  type=GPU reason=crashed exitCode=-1073741819 exitHex=0xC0000005 name="GPU Process"',
-    'webglcontextlost  canvas=play-canvas stage=play',
+    'webglcontextlost  canvas=play-canvas stage=play songMs=83210',
     'server  making=c0ffee waiting=3',
-    'webglcontextrestored  canvas=play-canvas stage=play afterMs=840',
+    'webglcontextrestored  canvas=play-canvas afterMs=840 stage=play songMs=84050',
     'gpu-features  gpu_compositing=enabled webgl=enabled webgl2=enabled 2d_canvas=enabled rasterization=enabled',
     'picture  file=graphics-lost-20261113-210406.jpg webgl=back',
   ]);
@@ -148,7 +162,7 @@ test('the GPU process gone in play: the server asked once, the window pictured a
 
 test('graphics that do not come back: the window is pictured all the same, and the line says so', async () => {
   const w = world();
-  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' });
+  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210' } });
   await w.advance(GIVE_UP_MS - 1);
   assert.deepEqual(w.shots, []);
   await w.advance(1);
@@ -168,7 +182,7 @@ test('losses that keep coming: every one is written down, the server and the win
   assert.deepEqual([w.asked, w.shots.length], [1, 1]);
   // within the quiet time after a picture: lines only
   w.watch.childGone(GPU_GONE);
-  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' });
+  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210' } });
   await w.advance(QUIET_MS - 1);
   assert.deepEqual([w.asked, w.shots.length], [1, 1]);
   assert.equal(w.events().filter((e) => e.startsWith('child-process-gone')).length, 2);
@@ -181,10 +195,10 @@ test('losses that keep coming: every one is written down, the server and the win
 
 test('graphics lost again and again before the picture: it is taken at twice the wait at the latest', async () => {
   const w = world();
-  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', stage: 'play' });
+  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210' } });
   for (let i = 0; i < 30; i++) {
     await w.advance(500);
-    w.watch.page({ type: i % 2 ? 'webglcontextlost' : 'webglcontextrestored', canvas: 'play-canvas', stage: 'play' });
+    w.watch.page({ type: i % 2 ? 'webglcontextlost' : 'webglcontextrestored', canvas: 'play-canvas', about: { stage: 'play' } });
     if (w.shots.length) break;
   }
   await w.advance(GIVE_UP_MS * 2);
@@ -214,6 +228,11 @@ test('a server that does not answer and a window that cannot be pictured are lin
 
 test('other processes and the page’s own process: a line each, nothing followed up', async () => {
   const w = world();
+  // (a GPU process Chromium started to ask the card something, ended as it should: no loss)
+  w.watch.childGone({ type: 'GPU', reason: 'clean-exit', exitCode: 0, name: 'GPU Process' });
+  await w.advance(GIVE_UP_MS * 2);
+  assert.deepEqual([w.asked, w.shots.length, w.lines.length], [0, 0, 1]);
+  w.lines.length = 0;
   w.watch.childGone({ type: 'Utility', reason: 'crashed', exitCode: 1, serviceName: 'audio.mojom.AudioService', name: 'Audio Service' });
   w.watch.renderGone({ reason: 'oom', exitCode: -536870904 });
   w.watch.started({ app: '0.1.0', os: 'win32 10.0.26100' });
@@ -253,13 +272,13 @@ test('the GPU features are written down when they change, not every time Chromiu
 
 test('a page that writes without end fills no disk: its lines stop for the minute, and it is said once', async () => {
   const w = world();
-  for (let i = 0; i < PAGE_LINES_PER_MINUTE * 3; i++) w.watch.page({ type: 'webglcontextrestored', canvas: 'x', stage: '' });
+  for (let i = 0; i < PAGE_LINES_PER_MINUTE * 3; i++) w.watch.page({ type: 'webglcontextrestored', canvas: 'x', about: {} });
   assert.equal(w.lines.length, PAGE_LINES_PER_MINUTE + 1);
   assert.equal(w.events().at(-1), 'page  dropped="too many lines this minute"');
   w.watch.page({ type: 'click' });
   assert.equal(w.lines.length, PAGE_LINES_PER_MINUTE + 1);
   await w.advance(60_000);
-  w.watch.page({ type: 'webglcontextrestored', canvas: 'x', stage: '' });
+  w.watch.page({ type: 'webglcontextrestored', canvas: 'x', about: {} });
   assert.equal(w.lines.length, PAGE_LINES_PER_MINUTE + 2);
 });
 
