@@ -221,6 +221,14 @@ const DECK_PICTURE = 2;
  */
 const DECK_STEP = 16;
 const DECK_SETTLE_FRAMES = 20;
+/** How often the canvas is told what the renderer holds (tell). */
+const TELL_EVERY_MS = 1000;
+/**
+ * The hit effects' quads, made when the renderer is built: so many a lane. An effect lasts 0.4 s at
+ * most, so three a lane are not used up but by a run no hand plays; should they be, the one that began
+ * first gives way.
+ */
+const HITS_PER_LANE = 3;
 /** Round things on the deck are drawn up to this much longer along the track than across it (see deckStretch). */
 const MAX_DECK_STRETCH = 3.5;
 /** The most the perspective cameras flatten the deck (about 1.3; the plane camera flattens it far more). */
@@ -879,6 +887,8 @@ export class TrackRenderer {
   private readouts: DeckReadouts | null = null;
   private firstLive = 0;
   private lastFrameMs = 0;
+  /** When the canvas was last told what the renderer holds (tell). */
+  private toldAt = -Infinity;
   private cssWidth = 1;
   private cssHeight = 1;
   /**
@@ -969,6 +979,8 @@ export class TrackRenderer {
     };
     this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : options.hitEffectSize === 'large' ? LARGE_HIT : 1);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // (for the desktop app's log of a lost graphics process, with what tell keeps here)
+    canvas.dataset.skin = `${this.style.deck}/${this.style.note}/${this.style.hit}`;
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
     // the stage's figures are drawn first and the track over them (draw)
@@ -1041,9 +1053,53 @@ export class TrackRenderer {
       mesh.renderOrder = 2.3;
       return mesh;
     });
+    this.primeHits();
     // the build's pictures: what stands by the gear, and the mark the notes are cut in (standees.ts)
     if (STAGES[this.style.deck]) void this.loadStandees();
     if (isLogoNote(this.style.note)) void this.loadNoteMark();
+  }
+
+  /** The hit effects' quads, all of them (see HITS_PER_LANE): none where the hit is off or has no picture. */
+  private primeHits(): void {
+    const burst = this.flipbook ? this.art.hitBurst : undefined;
+    const source = burst?.texture ?? this.hitSheet?.texture;
+    if (this.hit === 'none' || !source) return;
+    for (let i = this.geometry.lanes.length * HITS_PER_LANE; i > 0; i--) {
+      const h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8);
+      h.mesh.visible = false;
+      this.hits.push(h);
+    }
+  }
+
+  /**
+   * Has the graphics card take, before the first frame is drawn, every picture the track can show and
+   * every program it is drawn with. Left to itself the renderer hands a picture over the first time it
+   * is drawn, and compiles a program the first time a thing of its kind is: the hit effect's sheet at
+   * the first note hit, a long note's and its effect's at the first long note, in the middle of the
+   * song. One of each pooled thing is made for it (hidden), so that its kind is there to be compiled.
+   */
+  private warm(): void {
+    for (const pool of [this.notePool, this.bodyPool, this.endPool, this.barPool, this.sideBodyPool, this.sidePool]) pool.prime();
+    const seen = new Set<THREE.Texture>();
+    const take = (texture: THREE.Texture | null | undefined) => {
+      const image = texture?.image as { complete?: boolean; width?: number } | null | undefined;
+      // (a picture still loading is handed over when it is drawn, as before)
+      if (!texture || seen.has(texture) || !image || image.complete === false || !image.width) return;
+      seen.add(texture);
+      this.renderer.initTexture(texture);
+    };
+    for (const scene of [this.scene, this.stageScene]) {
+      scene.traverse((object) => {
+        const material = (object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const m of Array.isArray(material) ? material : material ? [material] : []) {
+          take((m as THREE.MeshBasicMaterial).map);
+          take((m as THREE.MeshBasicMaterial).alphaMap);
+        }
+      });
+    }
+    for (const texture of this.ownedTextures) take(texture);
+    this.renderer.compile(this.scene, this.camera);
+    this.renderer.compile(this.stageScene, this.stageCamera);
   }
 
   setCamera(preset: CameraPreset): void {
@@ -1281,14 +1337,12 @@ export class TrackRenderer {
 
   /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
   private burst(lane: number, color: number, perfNow: number, size = 1, gain = 1): void {
-    const burst = this.flipbook ? this.art.hitBurst : undefined;
-    let h = this.hits.find((x) => !x.mesh.visible && x.texture.image === (burst?.texture.image ?? this.hitSheet?.texture.image));
-    if (!h) {
-      const source = burst?.texture ?? this.hitSheet?.texture;
-      if (!source) return;
-      h = this.effectQuad(source, burst ? burst.spec.flipbook ?? null : this.hitSheet, 0.8);
-      this.hits.push(h);
-    }
+    // one of the quads made with the renderer (primeHits): a free one, else the one that began first.
+    // None is made here: a quad's copy of the sheet marks the sheet changed, and the whole of it
+    // (1536 px a side) went to the graphics card again for every quad a denser passage called for
+    let h = this.hits.find((x) => !x.mesh.visible);
+    if (!h) h = this.hits.reduce<EffectQuad | undefined>((first, x) => (!first || x.start < first.start ? x : first), undefined);
+    if (!h) return;
     this.tinge(h.material, color);
     h.start = perfNow;
     h.lane = lane;
@@ -1299,6 +1353,7 @@ export class TrackRenderer {
   }
 
   render(frame: TrackFrame, perfNow: number): void {
+    if (this.lastFrameMs === 0) this.warm();
     const dt = this.lastFrameMs > 0 ? Math.min(100, perfNow - this.lastFrameMs) : 16;
     this.lastFrameMs = perfNow;
     if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
@@ -1329,6 +1384,33 @@ export class TrackRenderer {
       for (const m of this.staleMaterials) m.dispose();
       this.staleMaterials.length = 0;
     }
+    if (perfNow - this.toldAt >= TELL_EVERY_MS) this.tell(frame, perfNow);
+  }
+
+  /**
+   * Keeps on the canvas, once a second, where the song is and what the renderer holds: the desktop app
+   * writes the canvas's data- attributes down when its WebGL context is lost (desktop/preload.js,
+   * graphics.log), so that a loss that comes at the same place of a song every time can be told from
+   * what was on the track then. Two attributes a second, nothing drawn.
+   */
+  private tell(frame: TrackFrame, perfNow: number): void {
+    this.toldAt = perfNow;
+    const { memory, render, programs } = this.renderer.info;
+    const fx = this.appliedFx;
+    const data = this.renderer.domElement.dataset;
+    data.songMs = String(Math.round(frame.timeMs));
+    data.gfx = [
+      `tex=${memory.textures}`,
+      `geo=${memory.geometries}`,
+      `prog=${programs?.length ?? 0}`,
+      `calls=${render.calls}`,
+      `tri=${render.triangles}`,
+      `fever=${frame.fever.active ? 1 : 0}`,
+      `roll=${fx.roll.toFixed(2)}`,
+      `fov=${fx.fovScale.toFixed(2)}`,
+      `pitch=${fx.pitch.toFixed(2)}`,
+      `px=${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
+    ].join(' ');
   }
 
   /**
@@ -3007,6 +3089,15 @@ class MeshPool {
   constructor(scene: THREE.Scene, factory: () => THREE.Mesh) {
     this.scene = scene;
     this.factory = factory;
+  }
+
+  /** Makes the pool's first mesh, should it have none, and leaves it hidden: its kind is in the scene then, to be compiled before it is needed. */
+  prime(): void {
+    if (this.meshes.length > 0) return;
+    const mesh = this.factory();
+    mesh.visible = false;
+    this.scene.add(mesh);
+    this.meshes.push(mesh);
   }
 
   begin(): void {

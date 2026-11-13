@@ -230,7 +230,7 @@ server/          로컬 분석 서버 (Python, FastAPI)
 config/          서버·클라이언트 공용 튜닝 값
 assets-src/      생성한 게임 그림의 원본(내려받은 그대로)과 출처 PROVENANCE.md
 scripts/assets/  원본 → client/public/media(그림·플립북·manifest.json) 후처리(컨셉 세트·타격 효과는 build_styles.py: assets-src/styles → media/styles, 기어는 build_gears.py: assets-src/gears → media/gears)
-desktop/         Electron 셸: main.js(서버를 첫 실행의 포트에 띄우고 창을 연다), windowState.js(창 크기·위치·최대화·전체 화면과 포트·종료 토큰을 사용자 데이터 폴더의 desktop-state.json에; node 테스트), preload.js(페이지에 grgDesktop: 전체 화면 켜기·끄기와 알림), graphicsLog.js(그래픽이 끊긴 기록: 사라진 프로세스와 까닭, 페이지의 WebGL 컨텍스트가 끊기고 돌아온 때, 그때 서버가 채보를 만들고 있었는지, 끊긴 뒤의 창 사진을 사용자 데이터 폴더의 graphics.log에; node 테스트)
+desktop/         Electron 셸: main.js(서버를 첫 실행의 포트에 띄우고 창을 연다), windowState.js(창 크기·위치·최대화·전체 화면과 포트·종료 토큰을 사용자 데이터 폴더의 desktop-state.json에; node 테스트), preload.js(페이지에 grgDesktop: 전체 화면 켜기·끄기와 알림), graphicsLog.js(그래픽이 끊긴 기록: 사라진 프로세스와 까닭, 페이지의 WebGL 컨텍스트가 끊기고 돌아온 때와 그 순간의 플레이(곡 시간 · 스킨 · 배경 영상 · 렌더러가 쥔 것: 페이지가 캔버스의 data- 속성에 적어 둔 것), 그때 서버가 채보를 만들고 있었는지와 모델이 올라가 있었는지, 그래픽 메모리 사용량, 끊긴 뒤의 창 사진을 사용자 데이터 폴더의 graphics.log에; node 테스트)
 packaging/       PyInstaller 스펙, 서버 진입점, 데스크톱 빌드 스크립트, 설치 확인 스크립트(smoke_server.ps1 · smoke_desktop.cjs)
 .github/workflows/desktop-windows.yml  Windows 설치 파일 빌드 → 서버 확인 → 무인 설치 → 설치된 앱 실행 확인 → Artifacts
 docs/            PROMPT · ARCHITECTURE · GENERATION · PATTERN_DESIGN(패턴 생성 설계안) · CHART_FORMAT · TESTING(집에서 테스트하기) · screenshots
