@@ -91,7 +91,6 @@ const TOAST_MS = 1400;
 /** The HUD is drawn for a 720px-high screen and grows with it, up to this much. */
 const BASE_HEIGHT = 720;
 const MAX_SCALE = 1.5;
-/** Every combo step punches the number: it starts larger and a little lower, then settles back. */
 /** The letters of a lamp's words stand this tall in their picture as it is shown (em of the lamp's type: endArt.wordsBox). */
 const WORDS_CAP_EM = 1;
 
@@ -118,6 +117,7 @@ export function lampSpark(i: number, count = LAMP_SPARKS): { dx: number; dy: num
   return { dx: side * Math.cos(angle) * reach, dy: Math.sin(angle) * reach * 0.8, delayMs: Math.round(hash(3) * 70) };
 }
 
+/** Every combo step punches the number: it starts larger and a little lower, then settles back. */
 const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
 const COMBO_BUMP_MS = 150;
 /**
@@ -435,7 +435,6 @@ export class Hud {
   /** undefined: not written yet (null is a pace with nothing to compare, shown as a dash). */
   private lastPace: number | null | undefined = undefined;
   private lastGauge = -1;
-  /** null: not written yet ('' is no READY, a value shown too). */
   private lastFever = '';
   private lastProgress = -1;
   private lastRemaining = -1;
