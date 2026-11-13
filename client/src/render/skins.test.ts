@@ -31,10 +31,10 @@ describe('the track', () => {
     expect(withParts(BASE_SKIN, DEFAULT_PARTS).style).toMatchObject({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
     expect(withParts(BASE_SKIN, { ...DEFAULT_PARTS, note: 'round' }).style).toMatchObject({ note: 'round', deck: 'standard', hit: 'flash' });
     // a gear has one look: no colourway rides on the style
-    expect(withParts(BASE_SKIN, { ...DEFAULT_PARTS, deck: 'cabinet' }).style).not.toHaveProperty('deckColour');
-    const picked = withParts(BASE_SKIN, { note: 'star4', side: 'dots', deck: 'receiver', hit: 'grid' });
+    expect(withParts(BASE_SKIN, { ...DEFAULT_PARTS, deck: 'piano' }).style).not.toHaveProperty('deckColour');
+    const picked = withParts(BASE_SKIN, { note: 'star4', side: 'dots', deck: 'piano', hit: 'grid' });
     expect(picked.colors).toBe(BASE_SKIN.colors);
-    expect(picked.style).toEqual({ note: 'star4', side: 'dots', deck: 'receiver', hit: 'grid' });
+    expect(picked.style).toEqual({ note: 'star4', side: 'dots', deck: 'piano', hit: 'grid' });
     // the track itself is left as it was
     expect(BASE_SKIN.style.note).toBe('flat');
   });
@@ -43,7 +43,8 @@ describe('the track', () => {
     // the skins' notes first (the plain bar a player starts with, then the crystal skin's cut glass and the sky skin's soft bar), the bar in six finishes, then the shapes
     expect(NOTE_STYLES).toEqual(['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
     for (const note of NOTE_STYLES) expect(LONG_OF[note]).toBeDefined();
-    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
+    // the skins' gears, then the piano
+    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'piano']);
     // the piano set's hit stays
     expect(HIT_STYLES).toContain('piano');
   });
@@ -77,15 +78,15 @@ describe('the track', () => {
     // one part changed, and it is no skin
     expect(skinOf({ ...DEFAULT_PARTS, hit: 'prism' })).toBeNull();
     expect(skinOf({ ...withSkin(DEFAULT_PARTS, 'crystal'), deck: 'standard' })).toBeNull();
-    expect(skinOf({ note: 'star4', side: 'bar', deck: 'receiver', hit: 'grid' })).toBeNull();
+    expect(skinOf({ note: 'star4', side: 'bar', deck: 'piano', hit: 'grid' })).toBeNull();
   });
 
   it('keeps the picked parts it knows and the defaults for the rest', () => {
     expect(sanitizeParts(undefined)).toEqual(DEFAULT_PARTS);
     expect(DEFAULT_PARTS.deck).toBe('standard');
-    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'najeon', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'najeon', hit: 'grid' });
+    expect(sanitizeParts({ note: 'star4', side: 'dots', deck: 'piano', hit: 'grid' })).toEqual({ note: 'star4', side: 'dots', deck: 'piano', hit: 'grid' });
     // an earlier version's gear colour is dropped: each gear has one look
-    expect(sanitizeParts({ deck: 'receiver', deckColour: 'red', hit: 'mecha' })).toEqual({ ...DEFAULT_PARTS, deck: 'receiver', hit: 'mecha' });
+    expect(sanitizeParts({ deck: 'piano', deckColour: 'red', hit: 'mecha' })).toEqual({ ...DEFAULT_PARTS, deck: 'piano', hit: 'mecha' });
     // the piano note taken out: the flat notes, its hit kept
     expect(sanitizeParts({ note: 'piano', hit: 'piano' })).toEqual({ ...DEFAULT_PARTS, hit: 'piano' });
     // what earlier versions kept: a long note picked, the skin's own, and the old skins' own styles (gone)
@@ -111,9 +112,28 @@ describe('the track', () => {
       expect(parts, gone).toEqual({ ...DEFAULT_PARTS, side: 'dots' });
       expect(skinOf(parts), gone).toBe('default');
       // one part of it picked among others: that part alone goes back, the others stay
-      expect(sanitizeParts({ note: gone, side: 'bar', deck: 'cabinet', hit: 'grid' }), gone).toEqual({ note: DEFAULT_PARTS.note, side: 'bar', deck: 'cabinet', hit: 'grid' });
+      expect(sanitizeParts({ note: gone, side: 'bar', deck: 'piano', hit: 'grid' }), gone).toEqual({ note: DEFAULT_PARTS.note, side: 'bar', deck: 'piano', hit: 'grid' });
       expect(sanitizeParts({ note: 'steel', side: 'bar', deck: gone, hit: 'noir' }), gone).toEqual({ note: 'steel', side: 'bar', deck: DEFAULT_PARTS.deck, hit: 'noir' });
       expect(sanitizeParts({ note: 'round', side: 'dots', deck: 'piano', hit: gone }), gone).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: DEFAULT_PARTS.hit });
     }
+  });
+
+  it('reads the seven gears taken out (saved as cabinet, receiver, najeon, keyboard, racing, orbital, rawglass) as the default gear, the piano as it is', () => {
+    for (const gone of ['cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'rawglass']) {
+      // no longer offered
+      expect(GEAR_STYLES as string[], gone).not.toContain(gone);
+      // a player who had the gear on: the default gear, the notes, side notes and hit as picked
+      expect(sanitizeParts({ note: 'round', side: 'dots', deck: gone, hit: 'club' }), gone).toEqual({ note: 'round', side: 'dots', deck: DEFAULT_PARTS.deck, hit: 'club' });
+      expect(sanitizeParts({ note: 'chrome', side: 'bar', deck: gone, hit: 'flare' }), gone).toEqual({ note: 'chrome', side: 'bar', deck: 'standard', hit: 'flare' });
+      // with the parts a player starts with otherwise, that is the default skin
+      const parts = sanitizeParts({ deck: gone });
+      expect(parts, gone).toEqual(DEFAULT_PARTS);
+      expect(skinOf(parts), gone).toBe('default');
+      // a gear colour an earlier version saved with it goes too
+      expect(sanitizeParts({ deck: gone, deckColour: 'red', hit: 'mecha' }), gone).toEqual({ ...DEFAULT_PARTS, hit: 'mecha' });
+    }
+    // the old gear that stays
+    expect(GEAR_STYLES).toContain('piano');
+    expect(sanitizeParts({ note: 'round', side: 'dots', deck: 'piano', hit: 'club' })).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: 'club' });
   });
 });

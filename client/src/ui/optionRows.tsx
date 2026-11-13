@@ -49,14 +49,7 @@ export const DECK_NAMES: Record<GearStyle, string> = {
   wire: '화이트 라인',
   astral: '별밤',
   standard: '기본',
-  cabinet: '오락실 기체',
-  receiver: '빈티지 리시버',
-  najeon: '나전칠기',
-  keyboard: '커스텀 키보드',
-  racing: '레이싱 휠',
-  orbital: '우주선 계기판',
   piano: '피아노',
-  rawglass: '달',
 };
 export const HIT_NAMES: Record<HitStyle, string> = {
   prism: '크리스털 분광',

@@ -76,7 +76,7 @@ test('the help names the picked gear only, and the default of a row whose value 
   await expect(picked).toHaveText('기본 그래파이트에 레인마다 낮은 키캡(누르면 하늘색 불), 그 아래 아무 꾸밈 없는 무광 판과 앞쪽의 하늘색 불빛 띠 한 줄');
   await expect(picked.locator('b')).toHaveText('기본');
   await expect(help).toContainText('받침은 그보다 조금 아래에서 시작합니다.');
-  await expect(help).not.toContainText('오락실 기체');
+  await expect(help).not.toContainText('피아노');
   await expect(was).toHaveCount(0);
   // another gear: its words, and the default named under the help (the crystal skin's gear comes after the default one)
   await page.keyboard.press('ArrowRight');
@@ -114,14 +114,15 @@ test('the help names the picked gear only, and the default of a row whose value 
     await expect(help).not.toContainText('그래파이트');
   }
   await page.keyboard.press('ArrowRight');
-  await expect(gear).toHaveAttribute('data-value', 'cabinet');
-  await expect(picked).toHaveText('오락실 기체 검은 플라스틱·크롬에 조이스틱·아크릴 버튼·동전 투입구');
+  // the piano after the skins' gears, the last of the list
+  await expect(gear).toHaveAttribute('data-value', 'piano');
+  await expect(picked).toHaveText('피아노 흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
   await expect(help).not.toContainText('그래파이트');
   await expect(was).toHaveText('기본값 기본');
   // the judgement and combo type's help is cut to the gear picked too (the row's own default is 기어)
   await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('opt-hud-type')).toBeFocused();
-  await expect(picked).toHaveText('오락실 기체 빨간 7세그 콤보와 굵은 이탤릭 판정');
+  await expect(picked).toHaveText('피아노 악보의 셈여림 글씨 같은 굵은 이탤릭 세리프');
   await expect(help).toContainText('기본은 기어와 상관없이');
   await expect(was).toHaveCount(0);
   await page.keyboard.press('ArrowRight');

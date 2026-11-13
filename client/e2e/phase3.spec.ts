@@ -516,18 +516,18 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
     await expect(page.getByTestId(id)).toHaveAttribute('data-value', value);
     await expect(page.getByTestId(id)).toContainText(name);
   }
-  await chooseSetting(page, 'opt-deck-style', 'receiver');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
   await chooseSetting(page, 'opt-hit-style', 'grid');
   await expect(page.getByTestId('gear-preview')).toBeVisible();
   const kept = await stored();
-  expect(kept).toMatchObject({ parts: { note: 'round', side: 'dots', deck: 'receiver', hit: 'grid' } });
+  expect(kept).toMatchObject({ parts: { note: 'round', side: 'dots', deck: 'piano', hit: 'grid' } });
   expect(kept).not.toHaveProperty('skin');
   await page.getByRole('button', { name: /완료/ }).click();
 
   await tool(page, 'sync-auto');
   await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots receiver grid');
-  // the LED grid drawn from its flipbooks, the receiver from its pictures
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'round capsule dots piano grid');
+  // the LED grid drawn from its flipbooks, the piano from its pictures
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long gear hit');
   await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(2500);
@@ -806,7 +806,7 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   expect(errors).toEqual([]);
 });
 
-test('the mecha set on the arcade cabinet picked part by part: a gear taken out opens as the standard one, the cabinet drawn from its pictures, its HUD in its type or the track’s own', async ({ page }) => {
+test('the mecha set on the piano picked part by part: a gear taken out opens as the standard one, the piano drawn from its pictures, its HUD in its type or the track’s own', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown>; hudType?: string });
   // a track skin and a gear colour an earlier version saved are dropped, and its gear, taken out, opens as the standard one
@@ -822,28 +822,28 @@ test('the mecha set on the arcade cabinet picked part by part: a gear taken out 
   await expect(page.getByTestId('opt-deck-style')).toHaveAttribute('data-value', 'standard');
   await expect(page.getByTestId('opt-deck-colour')).toHaveCount(0);
   await expect(page.getByText('기어 색', { exact: true })).toHaveCount(0);
-  await chooseSetting(page, 'opt-deck-style', 'cabinet');
-  await expect(page.getByTestId('opt-deck-style')).toContainText('오락실 기체');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('피아노');
   await chooseSetting(page, 'opt-hit-style', 'mecha');
   await expect(page.getByTestId('opt-hit-style')).toContainText('메카 섬광');
   // the judgement and combo follow the gear unless the track's own (기본) are kept
   await expect(page.getByTestId('opt-hud-type')).toHaveAttribute('data-value', 'gear');
-  expect((await stored()).parts).toEqual({ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' });
+  expect((await stored()).parts).toEqual({ note: 'chamfer', side: 'bar', deck: 'piano', hit: 'mecha' });
   await page.getByRole('button', { name: /완료/ }).click();
 
-  const play = async (comboFont: RegExp) => {
+  const play = async (comboType: RegExp) => {
     await tool(page, 'sync-auto');
     await expect(page.getByTestId('play-screen')).toBeVisible();
-    await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar cabinet mecha');
-    // the notes, long notes, side notes and hit drawn from the mecha set's art, the cabinet from its pictures
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'chamfer rail bar piano mecha');
+    // the notes, long notes, side notes and hit drawn from the mecha set's art, the piano from its pictures
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
-    // the HUD beside the track is the cabinet's: its gauge named GROOVE, its readouts in seven segments
-    await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'cabinet');
-    await expect(page.locator('.hud-gauge-name')).toHaveText('GROOVE');
+    // the HUD beside the track is the piano's: its gauge named FORTE, its readouts in its Didone's italic
+    await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'piano');
+    await expect(page.locator('.hud-gauge-name')).toHaveText('FORTE');
     await expect(page.locator('.hud-panel-plate')).toBeVisible();
-    expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/DSEG7 Classic/);
-    expect(await page.locator('.hud-combo-num').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(comboFont);
+    expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/Bodoni Moda/);
+    expect(await page.locator('.hud-combo-num').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(comboType);
     await page.waitForTimeout(2500);
     await page.screenshot({ path: 'test-results/play-mecha.png' });
     await page.keyboard.press('Escape');
@@ -851,7 +851,7 @@ test('the mecha set on the arcade cabinet picked part by part: a gear taken out 
     await page.keyboard.press('KeyQ');
     await expect(page.getByTestId('song-list')).toBeVisible();
   };
-  await play(/DSEG7 Classic/);
+  await play(/Bodoni Moda/);
   // the track's own type for the judgement and combo (기본), the gear's HUD otherwise as it was
   await page.getByTestId('open-settings').click();
   await settingsTab(page, 'gear');
@@ -867,10 +867,10 @@ test('the club, crystal and neon sets and the piano hit picked part by part, eac
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
   for (const [note, deck, hit, hitName, style] of [
-    ['round', 'receiver', 'club', '클럽 링', 'round capsule bar receiver club'],
+    ['round', 'piano', 'club', '클럽 링', 'round capsule bar piano club'],
     ['star4', 'standard', 'crystal', '크리스털 파편', 'star4 ray bar standard crystal'],
-    ['star5', 'najeon', 'neon', '네온 아크', 'star5 ray bar najeon neon'],
-    ['chamfer', 'cabinet', 'piano', '피아노 음표', 'chamfer rail bar cabinet piano'],
+    ['star5', 'noir', 'neon', '네온 아크', 'star5 ray bar noir neon'],
+    ['chamfer', 'piano', 'piano', '피아노 음표', 'chamfer rail bar piano piano'],
   ] as const) {
     await page.goto('/');
     await page.getByTestId('open-settings').click();
@@ -891,10 +891,9 @@ test('the club, crystal and neon sets and the piano hit picked part by part, eac
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'notes long side gear hit');
     await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
-    // the receiver's gauge is a needle meter (its name on the meter); the others' a column of cells, named
-    await expect(page.getByTestId('hud-meter')).toHaveCount(deck === 'receiver' ? 1 : 0);
-    await expect(page.locator('.hud-gauge')).toHaveCount(deck === 'receiver' ? 0 : 1);
-    await expect(page.locator('.hud-gauge-name')).toHaveCount(deck === 'receiver' ? 0 : 1);
+    // its gauge a column of cells, named
+    await expect(page.locator('.hud-gauge')).toHaveCount(1);
+    await expect(page.locator('.hud-gauge-name')).toHaveCount(1);
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `test-results/play-${hit}.png` });
     await page.keyboard.press('Escape');
@@ -938,42 +937,34 @@ test('the bar in six finishes picked by name in the notes tab, each with a long 
   expect(errors).toEqual([]);
 });
 
-test('the custom keyboard, the racing wheel, the orbital panel, the piano and the moon picked by name: drawn from their pictures in play, the HUD dressed for each', async ({ page }) => {
+test('the piano picked by name: drawn from its pictures in play, the HUD dressed for it', async ({ page }) => {
   const errors = trackErrors(page);
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as { parts?: Record<string, unknown> });
-  for (const [deck, name, gauge, judgeFont, numFont] of [
-    ['keyboard', '커스텀 키보드', 'CHARGE', /Silkscreen/, /Silkscreen/],
-    ['racing', '레이싱 휠', 'FUEL', /Chakra Petch/, /Chakra Petch/],
-    ['orbital', '우주선 계기판', 'O2', /Saira Stencil One/, /DSEG7 Classic/],
-    ['piano', '피아노', 'FORTE', /Bodoni Moda/, /Bodoni Moda/],
-    ['rawglass', '달', 'CLARITY', /Orbitron/, /Orbitron/],
-  ] as const) {
-    await page.goto('/');
-    await page.getByTestId('open-settings').click();
-    await settingsTab(page, 'gear');
-    await chooseSetting(page, 'opt-deck-style', deck);
-    await expect(page.getByTestId('opt-deck-style')).toContainText(name);
-    expect((await stored()).parts).toMatchObject({ deck });
-    await page.getByRole('button', { name: /완료/ }).click();
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await settingsTab(page, 'gear');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
+  await expect(page.getByTestId('opt-deck-style')).toContainText('피아노');
+  expect((await stored()).parts).toMatchObject({ deck: 'piano' });
+  await page.getByRole('button', { name: /완료/ }).click();
 
-    await tool(page, 'sync-auto');
-    await expect(page.getByTestId('play-screen')).toBeVisible();
-    // the gear drawn from its pictures (with the default notes, drawn in code, and the flash hit's flipbooks)
-    await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', /\bgear\b/);
-    await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
-    // the HUD beside the track is the gear's: its gauge named, its panel's housing, its digits and type
-    await expect(page.locator('.hud')).toHaveAttribute('data-gear', deck);
-    await expect(page.locator('.hud-gauge')).toHaveCount(1);
-    await expect(page.locator('.hud-gauge-name')).toHaveText(gauge);
-    await expect(page.locator('.hud-panel-plate')).toBeVisible();
-    expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(numFont);
-    expect(await page.locator('.hud').evaluate((el) => getComputedStyle(el).getPropertyValue('--hud-font'))).toMatch(judgeFont);
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `test-results/play-gear-${deck}.png` });
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('pause-menu')).toBeVisible();
-    await page.keyboard.press('KeyQ');
-    await expect(page.getByTestId('song-list')).toBeVisible();
-  }
+  await tool(page, 'sync-auto');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  // the gear drawn from its pictures (with the default notes, drawn in code, and the flash hit's flipbooks)
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', /\bgear\b/);
+  await expect(page.locator('.play-overlay')).toHaveCount(0, { timeout: 30_000 });
+  // the HUD beside the track is the gear's: its gauge named, its panel's housing, its digits and type
+  await expect(page.locator('.hud')).toHaveAttribute('data-gear', 'piano');
+  await expect(page.locator('.hud-gauge')).toHaveCount(1);
+  await expect(page.locator('.hud-gauge-name')).toHaveText('FORTE');
+  await expect(page.locator('.hud-panel-plate')).toBeVisible();
+  expect(await page.locator('.hud-score').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/Bodoni Moda/);
+  expect(await page.locator('.hud').evaluate((el) => getComputedStyle(el).getPropertyValue('--hud-font'))).toMatch(/Bodoni Moda/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'test-results/play-gear-piano.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pause-menu')).toBeVisible();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('song-list')).toBeVisible();
   expect(errors).toEqual([]);
 });

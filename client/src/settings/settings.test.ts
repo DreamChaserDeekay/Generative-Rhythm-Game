@@ -121,9 +121,9 @@ describe('settings', () => {
 
   it('keeps the parts picked and draws the track with them', () => {
     expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
-    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
+    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'piano', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
     // the track keeps its colours
     expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
     // the piano note taken out: the default notes, the piano hit kept
@@ -134,7 +134,36 @@ describe('settings', () => {
     expect(skinOf(old).style).toMatchObject({ deck: 'standard' });
     expect(skinOf(old).style).not.toHaveProperty('deckColour');
     for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
-    for (const deck of ['standard', 'prism', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+    for (const deck of ['standard', 'prism', 'piano'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+  });
+
+  it('starts a player whose saved settings have a gear that was taken out (the seven old gears but the piano) on the default gear, the rest of the settings as saved', () => {
+    // the browser's storage, as a map
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      for (const gone of ['cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'rawglass']) {
+        // as the version that had the gear saved it: picked part by part with notes and a hit of other sets, the lettering the gear's
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: 'round', side: 'dots', deck: gone, hit: 'club' } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: 'round', side: 'dots', deck: gone, hit: 'club' });
+        const s = loadSettings();
+        // the gear alone is the default one: the notes, the side notes and the hit as picked
+        expect(s.parts, gone).toEqual({ note: 'round', side: 'dots', deck: 'standard', hit: 'club' });
+        expect(skinOf(s).style, gone).toEqual({ note: 'round', side: 'dots', deck: DEFAULT_SETTINGS.parts.deck, hit: 'club' });
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        // saved again, it is the default gear that is kept
+        saveSettings(s);
+        expect(JSON.parse([...items.values()][0]).parts.deck, gone).toBe('standard');
+        // the gear picked with nothing else changed: the default skin
+        expect(sanitizeSettings({ parts: { deck: gone } as never }).parts, gone).toEqual(DEFAULT_SETTINGS.parts);
+      }
+      expect(items.size).toBe(1);
+      // the piano, the old gear that stays, opens as saved
+      saveSettings({ ...DEFAULT_SETTINGS, parts: { note: 'round', side: 'dots', deck: 'piano', hit: 'club' } });
+      expect(loadSettings().parts).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: 'club' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('starts a player whose saved settings have a skin that was taken out (rainbow, magenta) on the default skin, the rest of the settings as saved', () => {
