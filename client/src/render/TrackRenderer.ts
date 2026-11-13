@@ -1578,8 +1578,8 @@ export class TrackRenderer {
         mesh.scale.set(box.w, box.h, 1);
         mesh.renderOrder = box.front ? 2 : 1;
       });
-      // how many stand (not shown: for tests)
-      this.renderer.domElement.dataset.stage = String(this.standeeCount);
+      // how many stand (not shown: for tests; the canvas's data-stage is the play's own, see PlayController)
+      this.renderer.domElement.dataset.standees = String(this.standeeCount);
       this.stageCamera.right = W;
       this.stageCamera.top = H;
       this.stageCamera.updateProjectionMatrix();
