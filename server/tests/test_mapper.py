@@ -245,14 +245,16 @@ def test_the_queue_says_what_it_is_making_and_how_many_wait() -> None:
     q.close()
 
 
-def test_the_server_tells_what_chart_is_being_made(mapped: TestClient) -> None:
-    idle = {"making": None, "waiting": 0}
-    assert mapped.get("/api/mapper/queue").json() == idle
+def test_the_server_tells_what_chart_is_being_made_and_whether_the_model_is_loaded(mapped: TestClient) -> None:
+    # before the first chart: nothing made, and no worker holding the model
+    assert mapped.get("/api/mapper/queue").json() == {"making": None, "waiting": 0, "loaded": False}
     sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
     assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).status_code == 200
     # the other four tiers follow in the background: named here until the last is made
     seen = mapped.get("/api/mapper/queue").json()
-    assert set(seen) == {"making", "waiting"} and 0 <= seen["waiting"] <= 4
+    assert set(seen) == {"making", "waiting", "loaded"} and 0 <= seen["waiting"] <= 4 and seen["loaded"] is True
+    # and with nothing left to make the worker stays up, the model with it
+    idle = {"making": None, "waiting": 0, "loaded": True}
     _wait_for(lambda: mapped.get("/api/mapper/queue").json() == idle, 30)
     assert mapped.get("/api/mapper/queue").json() == idle
 

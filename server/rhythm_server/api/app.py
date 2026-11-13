@@ -276,9 +276,11 @@ def create_app(
 
     @app.get("/api/mapper/queue")
     def mapper_queue_state() -> dict[str, Any]:
-        """The chart being made now and how many wait. The model works on the GPU the game is
-        drawn with: the desktop app notes this down when its graphics are lost (desktop/main.js)."""
-        return mapper_queue.snapshot()
+        """The chart being made now, how many wait, and whether the model is loaded (the worker
+        keeps it, a few GB of the GPU's memory, from its first chart on). The model works on the GPU
+        the game is drawn with: the desktop app notes this down when its graphics are lost
+        (desktop/main.js)."""
+        return {**mapper_queue.snapshot(), "loaded": mapper.service.loaded()}
 
     @app.post("/api/mapper/install", status_code=202)
     def mapper_install() -> dict[str, Any]:
