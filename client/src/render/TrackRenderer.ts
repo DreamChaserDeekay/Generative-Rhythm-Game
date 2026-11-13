@@ -3,6 +3,7 @@ import { cameraConfig, type CameraPreset, type KeyModeConfig } from '../engine/c
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
+import type { StageFrame } from './stageFx';
 import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
 import { DECK_GAP, DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, type FloorView, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
@@ -254,6 +255,19 @@ interface DeckLayout {
   shown: number;
 }
 
+/** The flare of a lane as it lights (stageFx): its colour over its length, this strong at the judge line when it comes on. */
+const STAGE_FLARE = 0.38;
+/**
+ * A lane of a failed play that has let go (stageFx): it drops this far under the track, its far end dipping and
+ * the whole of it rolling about its length by up to these angles (radians), and fades over the last share of its drop.
+ */
+const SHARD_DROP = 16;
+const SHARD_DIP = 0.2;
+const SHARD_ROLL = 0.42;
+const SHARD_FADE = 0.3;
+/** The picture of the cracks over the lanes (px across and along the track). */
+const CRACK_PX = [512, 2048] as const;
+
 export interface FeverFrame {
   active: boolean;
   multiplier: number;
@@ -272,6 +286,8 @@ export interface TrackFrame {
   fever: FeverFrame;
   /** Camera tilt and zoom from the chart's effects (absent = neutral camera). */
   camera?: CameraPoseFx;
+  /** A play's start or end as it shows on the track (absent: the track as it plays). */
+  stage?: StageFrame;
 }
 
 /** Plane px per track unit of the HUD lying on the track: the approved sheets' px. */
@@ -881,6 +897,20 @@ export class TrackRenderer {
   private stageBase: { key: string; ends: [THREE.Vector2, THREE.Vector2] } | null = null;
   private disposed = false;
 
+  /**
+   * What a play's start and end lay over each lane with a floor (stageFx), made when first drawn: the dark over
+   * it while it is out, and the flare of its lighting.
+   */
+  private stageLanes: { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] | null = null;
+  /** The lanes of a failed play as pieces that crack and drop away, made when first drawn. */
+  private shards: { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] | null = null;
+  /** A piece's colour as it lets go (the floor's) and once it has turned (lighter). */
+  private shardColors: [THREE.Color, THREE.Color] = [new THREE.Color(), new THREE.Color()];
+  /** The last frame drew a start or an end: the next one without it puts the track back as it plays. */
+  private staged = false;
+  /** How far each lane has dropped away in this frame (a failed play's; null: none has): what is on a dropped lane is not drawn. */
+  private gone: readonly number[] | null = null;
+
   constructor(canvas: HTMLCanvasElement, options: TrackRendererOptions) {
     this.geometry = computeTrackGeometry(options.mode, options.trackWidth, options.trackLength, options.sideNotes);
     this.skin = options.skin;
@@ -1251,6 +1281,7 @@ export class TrackRenderer {
     const dt = this.lastFrameMs > 0 ? Math.min(100, perfNow - this.lastFrameMs) : 16;
     this.lastFrameMs = perfNow;
     if (this.deckPending && (!this.deckPictured || ++this.deckWait >= DECK_SETTLE_FRAMES)) this.paintDeckPicture(this.deckPending);
+    this.gone = frame.stage && frame.stage.crack > 0 ? frame.stage.drop : null;
     this.drawNotes(frame);
     this.drawFlows(frame);
     this.drawBars(frame);
@@ -1263,6 +1294,7 @@ export class TrackRenderer {
     this.gearLights.update(clock);
     this.sweepBorders(clock);
     this.shimmerJudge(clock);
+    this.drawStage(frame.stage);
     this.applyCameraFx(frame.camera);
     this.renderer.clear();
     // what stands by the gear: figures behind it (drawn first), stickers over its near corners (drawn last)
@@ -1293,6 +1325,118 @@ export class TrackRenderer {
       cache.forEach((m) => this.staleMaterials.push(m));
       cache.clear();
     }
+  }
+
+  /**
+   * A play's start or end on the track (stageFx): each lane's floor dark while it is out and flaring as it
+   * lights, the judge line as far as it is drawn from its middle, and a failed play's lanes cracked and
+   * dropping away. Without one the track is put back as it plays, once.
+   */
+  private drawStage(stage: StageFrame | undefined): void {
+    if (!stage) {
+      if (!this.staged) return;
+      this.staged = false;
+      for (const s of this.stageLanes ?? []) s.shade.visible = s.flare.visible = false;
+      for (const s of this.shards ?? []) s.piece.visible = false;
+      this.judgeGroup.visible = true;
+      this.judgeGroup.scale.x = 1;
+      return;
+    }
+    this.staged = true;
+    const length = this.geometry.length;
+    for (const s of (this.stageLanes ??= this.buildStageLanes())) {
+      const dark = stage.dark[s.lane] ?? 0;
+      s.shade.visible = dark > 0.004;
+      (s.shade.material as THREE.MeshBasicMaterial).opacity = dark;
+      const flare = (stage.flare[s.lane] ?? 0) * STAGE_FLARE;
+      s.flare.visible = flare > 0.004;
+      (s.flare.material as THREE.MeshBasicMaterial).opacity = flare;
+      // from the judge line, wherever 판정선 위치 has it
+      s.flare.position.z = this.judgeZ - length / 2;
+    }
+    this.judgeGroup.visible = stage.line > 0.004;
+    this.judgeGroup.scale.x = Math.max(stage.line, 0.004);
+    if (stage.crack <= 0) {
+      for (const s of this.shards ?? []) s.piece.visible = false;
+      return;
+    }
+    for (const s of (this.shards ??= this.buildShards())) {
+      const drop = stage.drop[s.lane] ?? 0;
+      const left = Math.min(1, (1 - drop) / SHARD_FADE);
+      s.piece.visible = drop < 1;
+      // the cracks lie on the lane until it lets go; then the piece shows, in the lane's place at first
+      s.cracks.opacity = stage.crack * left;
+      s.body.opacity = drop > 0 ? left : 0;
+      // the piece is the lane's own colour as it lets go, and catches the light as it turns
+      const turned = Math.min(1, drop * 8);
+      s.body.color.copy(this.shardColors[0]).lerp(this.shardColors[1], turned);
+      s.rim.opacity = s.body.opacity * turned;
+      s.piece.position.y = 0.008 - drop * SHARD_DROP;
+      s.piece.rotation.set(-drop * SHARD_DIP, 0, drop * s.roll);
+    }
+  }
+
+  /** The dark and the flare of each lane with a floor: over its floor, tint, dividers, bar lines and key beam, under the notes. */
+  private buildStageLanes(): { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] {
+    const { length, lanes } = this.geometry;
+    const fade = this.own(linearFadeTexture());
+    return lanes
+      .filter((lane) => !lane.over)
+      .map((lane) => {
+        const shade = this.flat(0x000000, 0, 2.6);
+        shade.scale.set(lane.width, 1, length + TRACK_TAIL);
+        shade.position.set(lane.x, 0.007, (TRACK_TAIL - length) / 2);
+        shade.visible = false;
+        const flare = new THREE.Mesh(
+          this.flatGeometry,
+          new THREE.MeshBasicMaterial({ map: fade, color: this.laneColors[lane.index], transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+        );
+        flare.scale.set(lane.width, 1, length);
+        flare.position.set(lane.x, 0.0075, this.judgeZ - length / 2);
+        flare.renderOrder = 2.65;
+        flare.visible = false;
+        this.scene.add(flare);
+        return { lane: lane.index, shade, flare };
+      });
+  }
+
+  /**
+   * The lanes with a floor as pieces of the track, each with its share of one picture of cracks: drawn over the
+   * lane and the black left in its place whatever lies in the depth buffer (a piece drops under the track, which
+   * would hide it), and under the notes of the lanes still standing.
+   */
+  private buildShards(): { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] {
+    const { width, length, lanes } = this.geometry;
+    const picture = this.own(new THREE.CanvasTexture(crackCanvas(CRACK_PX[0], CRACK_PX[1])));
+    picture.colorSpace = THREE.SRGBColorSpace;
+    // a piece shows against the black it leaves: the floor's colour, lighter as it turns away, its two long edges lit
+    const floor = new THREE.Color(hex(this.skin.colors.trackNear)).lerp(new THREE.Color(hex(this.skin.colors.trackFar)), 0.4);
+    this.shardColors = [floor, floor.clone().lerp(WHITE, 0.16)];
+    const edges = this.own(gradientTexture([[0, 'rgba(255,255,255,0.85)'], [0.07, 'rgba(255,255,255,0)'], [0.93, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0.85)']]));
+    return lanes
+      .filter((lane) => !lane.over)
+      .map((lane, i) => {
+        const map = this.own(picture.clone());
+        map.repeat.set(lane.width / width, 1);
+        map.offset.set((lane.x - lane.width / 2) / width + 0.5, 0);
+        map.needsUpdate = true;
+        const body = new THREE.MeshBasicMaterial({ color: floor, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+        const rim = new THREE.MeshBasicMaterial({ map: edges, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+        const cracks = new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+        // it turns about its end at the judge line: the far end dips, one edge goes first
+        const piece = new THREE.Group();
+        [body, rim, cracks].forEach((material, k) => {
+          const mesh = new THREE.Mesh(this.flatGeometry, material);
+          mesh.scale.set(lane.width, 1, length + TRACK_TAIL);
+          mesh.position.set(0, k * 0.001, (TRACK_TAIL - length) / 2);
+          mesh.renderOrder = 2.7 + k * 0.01;
+          piece.add(mesh);
+        });
+        piece.position.set(lane.x, 0.008, 0);
+        piece.visible = false;
+        this.scene.add(piece);
+        return { lane: lane.index, piece, body, rim, cracks, roll: (i % 2 === 0 ? 1 : -1) * SHARD_ROLL * (0.6 + 0.1 * ((i * 7) % 5)) };
+      });
   }
 
   private applyCameraFx(fx: CameraPoseFx | undefined): void {
@@ -1482,6 +1626,8 @@ export class TrackRenderer {
       const n = notes[i];
       // in view once its near edge passes the far end (the far clip cuts the rest)
       if (scroll.distance(n.t, timeMs) > scroll.travel + this.noteReach) break;
+      // a lane that has dropped away takes its notes with it
+      if (this.gone && this.gone[n.lane] > 0) continue;
       const lane = this.geometry.lanes[n.lane];
       const color = this.laneColors[n.lane];
       const height = lane.kind === 'side' ? SIDE_NOTE_HEIGHT : NOTE_HEIGHT;
@@ -2735,6 +2881,55 @@ function radialTexture(): THREE.Texture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+/**
+ * Cracks over the lanes, the picture's top at the track's far end: breaks running across the track, more of them
+ * toward the judge line where the track is seen largest, each a jagged line with branches, dark with a light
+ * core so that they show on a dark floor and on a light one. The same every time.
+ */
+export function crackCanvas(w: number, h: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  let seed = 0x2f6e2b1;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+  const lines: { points: [number, number][]; width: number }[] = [];
+  const run = (x: number, y: number, angle: number, length: number, width: number, depth: number): void => {
+    const points: [number, number][] = [[x, y]];
+    const steps = Math.max(3, Math.round(length / 56));
+    for (let i = 0; i < steps; i++) {
+      // straight for a while, then a sharp turn
+      angle += random() < 0.3 ? (random() < 0.5 ? 1 : -1) * (0.5 + random() * 0.7) : (random() - 0.5) * 0.4;
+      x += (Math.cos(angle) * length) / steps;
+      y += (Math.sin(angle) * length) / steps;
+      points.push([x, y]);
+      if (depth > 0 && random() < 0.27) run(x, y, angle + (random() < 0.5 ? 1 : -1) * (0.5 + random() * 0.7), length * 0.5, width * 0.6, depth - 1);
+    }
+    lines.push({ points, width });
+  };
+  const breaks = 9;
+  for (let k = 0; k < breaks; k++) {
+    const y = h * (1 - ((k + random()) / breaks) ** 1.5);
+    const fromLeft = random() < 0.5;
+    run(fromLeft ? -0.05 * w : 1.05 * w, y, fromLeft ? (random() - 0.5) * 0.7 : Math.PI + (random() - 0.5) * 0.7, w * (0.7 + random() * 0.6), 1, 2);
+  }
+  g.lineJoin = 'miter';
+  g.lineCap = 'butt';
+  for (const [style, breadth] of [['rgba(0,0,0,0.88)', 8], ['rgba(255,255,255,0.92)', 3]] as const) {
+    g.strokeStyle = style;
+    for (const line of lines) {
+      g.lineWidth = breadth * line.width;
+      g.beginPath();
+      line.points.forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)));
+      g.stroke();
+    }
+  }
+  return canvas;
 }
 
 /** Fades from opaque at the judgement line to transparent at the far end (canvas top maps to -z). */
