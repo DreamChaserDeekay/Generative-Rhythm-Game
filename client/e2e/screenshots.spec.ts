@@ -438,7 +438,7 @@ test('play: the Firestarter skin', async ({ page }) => {
     await autoplay(page);
     await expect(page.getByTestId('play-screen')).toBeVisible();
     // the build's two pictures stand at the gear's sides
-    await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
     await page.waitForTimeout(18_000);
     await shot(page, name);
     await page.keyboard.press('Escape');
@@ -463,7 +463,7 @@ test('play: the AI companies’ skins', async ({ page }) => {
     // Shift+Enter starts the play in AUTO
     await autoplay(page);
     await expect(page.getByTestId('play-screen')).toBeVisible();
-    await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
     await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
     await page.waitForTimeout(18_000);
     await shot(page, name);

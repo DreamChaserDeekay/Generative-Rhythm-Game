@@ -770,7 +770,7 @@ test('an AI company’s skin in play: the build’s two stickers over the gear�
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'gemini gemini bar gemini gemini');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   // the two stickers by the gear, and the mark in the notes
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'gemini');
@@ -798,7 +798,7 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   // drawn in code, as the default skin is
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
   // the two stand by the gear, one a side
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-stage', '2', { timeout: 30_000 });
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
   const hud = page.locator('.hud');
   await expect(hud).toHaveAttribute('data-gear', 'fire');
   await expect(hud).toHaveAttribute('data-fill', 'fire');

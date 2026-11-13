@@ -2,17 +2,26 @@
  * The pictures of a play's end, made with the image model (client/public/end/, built by
  * scripts/assets/build_end_fx.py: change them together): the lettering of the lamps that show their words,
  * the seal of each clear lamp, the frames of the shockwave that runs out from a seal and of the sparks where
- * a hard clear's two halves close (each a row of frames), and the cracks over the lanes of a play that
- * fails halfway. Where they cannot be read the end is drawn as the styles and the renderer draw it.
+ * a hard clear's two halves close (each a row of frames), the cracks over the lanes of a play that fails
+ * halfway, and the light that rises along a lane as it comes on at a play's start. Where they cannot be read
+ * the start and the end are drawn as the styles and the renderer draw them.
  */
 export interface EndArtIndex {
-  /** By lamp class (lamps.LAMP_CLASS): px, and where its letters stand in it (top and bottom, shares of its height). */
+  /**
+   * By lamp class (lamps.LAMP_CLASS), and for a play without a lamp by how it was played (AIDED_WORDS): px, and
+   * where its letters stand in it (top and bottom, shares of its height).
+   */
   words: Record<string, { file: string; size: [number, number]; band: [number, number] }>;
   seals: Record<string, { file: string; size: [number, number] }>;
   ring: { file: string; size: [number, number]; frames: number };
   sparks: { file: string; size: [number, number]; frames: number };
   cracks: { file: string; size: [number, number] };
+  /** Grey light on black, its bottom at the judge line (TrackRenderer.setLaneLight). */
+  lane: { file: string; size: [number, number] };
 }
+
+/** The words a play without a lamp ends with (PlayController), and the picture of them in the index's words. */
+export const AIDED_WORDS: Readonly<Record<string, string>> = { 'AUTO PLAY': 'autoplay', 'PRACTICE END': 'practice' };
 
 export interface EndArt {
   index: EndArtIndex;
@@ -20,6 +29,8 @@ export interface EndArt {
   url(file: string): string;
   /** The cracks, loaded. */
   cracks: HTMLImageElement;
+  /** The lane's light, loaded. */
+  lane: HTMLImageElement;
 }
 
 /**
@@ -48,7 +59,8 @@ export function isEndArtIndex(v: unknown): v is EndArtIndex {
     Object.values(o.seals).every(picture) &&
     row(o.ring) &&
     row(o.sparks) &&
-    picture(o.cracks)
+    picture(o.cracks) &&
+    picture(o.lane)
   );
 }
 
@@ -73,8 +85,8 @@ export function loadEndArt(): Promise<EndArt | null> {
           im.src = endUrl(file);
         });
       const shown = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks].map((p) => p.file);
-      const [cracks] = await Promise.all([image(index.cracks.file), ...shown.map(image)]);
-      return { index, url: endUrl, cracks };
+      const [cracks, lane] = await Promise.all([image(index.cracks.file), image(index.lane.file), ...shown.map(image)]);
+      return { index, url: endUrl, cracks, lane };
     } catch {
       return null;
     }

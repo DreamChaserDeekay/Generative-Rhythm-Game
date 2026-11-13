@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { isEndArtIndex, wordsBox } from './endArt';
+import { AIDED_WORDS, isEndArtIndex, wordsBox } from './endArt';
 import { LAMP_CLASS } from './lamps';
 
 const MEDIA = new URL('../../public/end/', import.meta.url);
@@ -10,16 +10,23 @@ describe('the pictures of a play\'s end', () => {
   it('are listed as the game reads them, and every file listed is there', () => {
     expect(isEndArtIndex(index)).toBe(true);
     if (!isEndArtIndex(index)) return;
-    const files = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks, index.cracks].map((p) => p.file);
+    const files = [...Object.values(index.words), ...Object.values(index.seals), index.ring, index.sparks, index.cracks, index.lane].map((p) => p.file);
     expect(new Set(files).size).toBe(files.length);
     for (const file of files) expect(existsSync(new URL(file, MEDIA)), file).toBe(true);
   });
 
   it('give every lamp its words or its seal: the lamps that show words their lettering, the clears a seal', () => {
     if (!isEndArtIndex(index)) throw new Error('no index');
-    expect(Object.keys(index.words).sort()).toEqual(['failed', 'maxcombo', 'perfect']);
+    expect(Object.keys(index.words).sort()).toEqual(['autoplay', 'failed', 'maxcombo', 'perfect', 'practice']);
     expect(Object.keys(index.seals).sort()).toEqual(['assist', 'clear', 'easy', 'exhard', 'hard']);
     for (const lamp of Object.values(LAMP_CLASS)) expect(lamp in index.words || lamp in index.seals, lamp).toBe(true);
+    // a play without a lamp: the words of how it was played
+    for (const words of Object.values(AIDED_WORDS)) expect(words in index.words, words).toBe(true);
+  });
+
+  it('light a lane from its bottom: a column of light far longer than it is wide', () => {
+    if (!isEndArtIndex(index)) throw new Error('no index');
+    expect(index.lane.size[1]).toBeGreaterThan(2 * index.lane.size[0]);
   });
 
   it('say where the letters stand in each picture of words, and lay each sheet\'s frames in one row', () => {
@@ -47,6 +54,7 @@ describe('the pictures of a play\'s end', () => {
     expect(isEndArtIndex({ ...index, ring: { ...index.ring, frames: 0 } })).toBe(false);
     expect(isEndArtIndex({ ...index, words: { perfect: { file: 'x.webp', size: [1, 1] } } })).toBe(false);
     expect(isEndArtIndex({ ...index, cracks: undefined })).toBe(false);
+    expect(isEndArtIndex({ ...index, lane: undefined })).toBe(false);
   });
 });
 

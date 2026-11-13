@@ -8,14 +8,16 @@ Each source is one picture from the image model on black (scripts/assets/make_en
 assets-src/PROVENANCE.md): the lettering of the lamps that show their words (`words-<lamp>.jpg`), the seal of each clear
 lamp (`seal-<lamp>.jpg`), the frame-by-frame sheets (16 frames in a 4 x 4 grid, read row by row) of the shockwave that
 runs out from a seal as it is stamped (`ring.jpg`) and of the sparks where a hard clear's two halves close
-(`sparks.jpg`), and the cracks over the lanes of a play that fails halfway (`cracks.jpg`).
+(`sparks.jpg`), the cracks over the lanes of a play that fails halfway (`cracks.jpg`), and the light that rises along
+a lane as it comes on at a play's start (`lane-light.jpg`, the renderer's).
 
 What is done to a picture: its black is made black (the model's is not quite, and JPEG adds noise) and then nothing:
 the picture becomes as opaque as it is bright, in colours such that over black it looks exactly as it did, so its glow
 lies on the screen as light and what is dark in it lets the screen through. Words and seals are cut to what is drawn
 and made the game's size. A sheet's frames fade toward the edges of their cells, the frames after the effect has gone
 are dropped, and the rest are laid in one row (the styles play them left to right). The shockwave is kept as white:
-the game gives it the lamp's colour.
+the game gives it the lamp's colour. The lane's light is kept as grey light on black with no transparency: the renderer
+adds it onto the lane in the lane's colour, its bottom at the judge line.
 Needs Pillow and numpy.
 """
 
@@ -32,14 +34,23 @@ ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "assets-src" / "end"
 OUT = ROOT / "client" / "public" / "end"
 
-#: lamp class (client/src/ui/lamps.tsx) -> the picture of its words
-WORDS = {"perfect": "words-perfect", "maxcombo": "words-maxcombo", "failed": "words-failed"}
+#: lamp class (client/src/ui/lamps.tsx) -> the picture of its words; a play without a lamp (`aided`) shows the words of
+#: how it was played: autoplay's or a practice's end
+WORDS = {
+    "perfect": "words-perfect",
+    "maxcombo": "words-maxcombo",
+    "failed": "words-failed",
+    "autoplay": "words-autoplay",
+    "practice": "words-practice",
+}
 SEALS = ["clear", "easy", "assist", "hard", "exhard"]
 #: px: the words' height, a seal's side, a frame of a sheet, the cracks' width
 WORDS_HEIGHT = 320
 SEAL_PX = 512
 CELL = 384
 CRACKS_WIDTH = 1024
+#: px: the lane's light (it is stretched over a lane, far longer than it is wide)
+LANE_SIZE = (256, 1024)
 GRID = 4
 #: how much more opaque than bright a picture is: words and seals are solid where they are half bright or more
 SOLID = 2.0
@@ -146,6 +157,13 @@ def cracks(src: Path, out: Path) -> dict:
     return {"file": "cracks.webp", "size": list(image.size)}
 
 
+def lane_light(src: Path, out: Path) -> dict:
+    a = load(src / "lane-light.jpg")
+    grey = Image.fromarray(np.clip(np.rint(a.max(axis=2) * 255), 0, 255).astype(np.uint8), "L").resize(LANE_SIZE, Image.LANCZOS)
+    grey.save(out / "lane-light.webp", "WEBP", quality=QUALITY, method=6)
+    return {"file": "lane-light.webp", "size": list(grey.size)}
+
+
 def build(src: Path, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     index = {
@@ -154,6 +172,7 @@ def build(src: Path, out: Path) -> dict:
         "ring": sheet(src, out, "ring", True),
         "sparks": sheet(src, out, "sparks", False),
         "cracks": cracks(src, out),
+        "lane": lane_light(src, out),
     }
     (out / "index.json").write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8")
     return index
