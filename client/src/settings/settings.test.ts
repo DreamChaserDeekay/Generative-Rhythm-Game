@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   activeCovers,
   bindingLabel,
@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   greenNumber,
   liftShare,
+  loadSettings,
   MAX_JUDGE_LINE,
   MIN_JUDGE_LINE,
   laneColorsOf,
@@ -21,6 +22,7 @@ import {
   rebindKey,
   resetSettings,
   sanitizeSettings,
+  saveSettings,
   skinOf,
   secondBindingsFor,
   songOffsetOf,
@@ -133,6 +135,29 @@ describe('settings', () => {
     expect(skinOf(old).style).not.toHaveProperty('deckColour');
     for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
     for (const deck of ['standard', 'prism', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+  });
+
+  it('starts a player whose saved settings have a skin that was taken out (rainbow, magenta) on the default skin, the rest of the settings as saved', () => {
+    // the browser's storage, as a map
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      for (const gone of ['rainbow', 'magenta']) {
+        // as the version that had the skin saved it: its notes, its gear and its hit, the lettering the gear's
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: gone, side: 'dots', deck: gone, hit: gone } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: gone, hit: gone });
+        const s = loadSettings();
+        // each part the default one (the side notes are none of a skin's parts: as picked)
+        expect(s.parts, gone).toEqual({ ...DEFAULT_SETTINGS.parts, side: 'dots' });
+        expect(skinOf(s).style, gone).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        // one of its parts picked among others: that part alone is the default one
+        expect(sanitizeSettings({ parts: { note: 'star4', side: 'bar', deck: gone, hit: 'grid' } as never }).parts, gone).toEqual({ note: 'star4', side: 'bar', deck: 'standard', hit: 'grid' });
+      }
+      expect(items.size).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {

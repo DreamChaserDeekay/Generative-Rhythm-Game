@@ -1,6 +1,131 @@
 {
   "version": 1,
   "textures": {
+    "aqua/hitBurst": {
+      "file": "fx/aqua_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 9,
+        "fps": 28.1,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.94,
+      "plain": true
+    },
+    "aqua/hitHold": {
+      "file": "fx/aqua_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.67,
+      "cored": true,
+      "plain": true
+    },
+    "aqua/panel": {
+      "file": "panels/aqua.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
+    "astral/hitBurst": {
+      "file": "fx/astral_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 10,
+        "fps": 31.2,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.83,
+      "plain": true
+    },
+    "astral/hitHold": {
+      "file": "fx/astral_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 15,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "astral/panel": {
+      "file": "panels/astral.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
+    "basic/hitBurst": {
+      "file": "fx/basic_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 9,
+        "fps": 28.1,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.81
+    },
+    "basic/hitHold": {
+      "file": "fx/basic_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.71,
+      "cored": true
+    },
     "bubbles/hitBurst": {
       "file": "styles/hits/bubbles_burst.png",
       "bundle": "effects",
@@ -73,6 +198,51 @@
       "size": [
         512,
         512
+      ]
+    },
+    "claude/hitBurst": {
+      "file": "fx/claude_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 9,
+        "fps": 28.1,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.93,
+      "plain": true
+    },
+    "claude/hitHold": {
+      "file": "fx/claude_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.62,
+      "cored": true,
+      "plain": true
+    },
+    "claude/panel": {
+      "file": "panels/claude.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
       ]
     },
     "club/hitBurst": {
@@ -191,6 +361,59 @@
         512
       ]
     },
+    "fire/crests": {
+      "file": "gears/fire/crests.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        256
+      ]
+    },
+    "fire/hitBurst": {
+      "file": "fx/fire_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 11,
+        "fps": 34.4,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.75,
+      "plain": true
+    },
+    "fire/hitHold": {
+      "file": "fx/fire_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "fire/panel": {
+      "file": "panels/fire.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
     "flare/hitBurst": {
       "file": "styles/hits/flare_burst.png",
       "bundle": "effects",
@@ -259,6 +482,96 @@
       "anchorY": 0.5,
       "span": 1.375
     },
+    "gemini/hitBurst": {
+      "file": "fx/gemini_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 10,
+        "fps": 31.2,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.84,
+      "plain": true
+    },
+    "gemini/hitHold": {
+      "file": "fx/gemini_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.65,
+      "cored": true,
+      "plain": true
+    },
+    "gemini/panel": {
+      "file": "panels/gemini.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
+    "gpt/hitBurst": {
+      "file": "fx/gpt_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 11,
+        "fps": 34.4,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.75,
+      "plain": true
+    },
+    "gpt/hitHold": {
+      "file": "fx/gpt_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 13,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "gpt/panel": {
+      "file": "panels/gpt.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
     "grid/hitBurst": {
       "file": "styles/hits/grid_burst.png",
       "bundle": "effects",
@@ -292,6 +605,51 @@
       },
       "anchorY": 0.5,
       "span": 1.375
+    },
+    "grok/hitBurst": {
+      "file": "fx/grok_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 11,
+        "fps": 34.4,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.85,
+      "plain": true
+    },
+    "grok/hitHold": {
+      "file": "fx/grok_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.64,
+      "cored": true,
+      "plain": true
+    },
+    "grok/panel": {
+      "file": "panels/grok.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
     },
     "keyboard/alu": {
       "file": "gears/keyboard/alu.png",
@@ -497,6 +855,51 @@
         512
       ]
     },
+    "noir/hitBurst": {
+      "file": "fx/noir_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 10,
+        "fps": 31.2,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 1.2,
+      "plain": true
+    },
+    "noir/hitHold": {
+      "file": "fx/noir_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 13,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "noir/panel": {
+      "file": "panels/noir.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
     "orbital/button": {
       "file": "gears/orbital/button.png",
       "bundle": "gear",
@@ -595,6 +998,51 @@
         265
       ]
     },
+    "prism/hitBurst": {
+      "file": "fx/prism_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 11,
+        "fps": 34.4,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.8,
+      "plain": true
+    },
+    "prism/hitHold": {
+      "file": "fx/prism_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.68,
+      "cored": true,
+      "plain": true
+    },
+    "prism/panel": {
+      "file": "panels/prism.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        869
+      ]
+    },
     "racing/button": {
       "file": "gears/racing/button.png",
       "bundle": "gear",
@@ -683,6 +1131,51 @@
         256
       ]
     },
+    "sky/hitBurst": {
+      "file": "fx/sky_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 12,
+        "fps": 37.5,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.75,
+      "plain": true
+    },
+    "sky/hitHold": {
+      "file": "fx/sky_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "sky/panel": {
+      "file": "panels/sky.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        977
+      ]
+    },
     "sky/plate": {
       "file": "gears/sky/plate.webp",
       "bundle": "gear",
@@ -721,6 +1214,104 @@
       "size": [
         512,
         512
+      ]
+    },
+    "standard/panel": {
+      "file": "panels/standard.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
+    "steel/hitBurst": {
+      "file": "fx/steel_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 9,
+        "fps": 28.1,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.77,
+      "plain": true
+    },
+    "steel/hitHold": {
+      "file": "fx/steel_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.61,
+      "cored": true,
+      "plain": true
+    },
+    "steel/panel": {
+      "file": "panels/steel.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
+      ]
+    },
+    "wire/hitBurst": {
+      "file": "fx/wire_burst.webp",
+      "bundle": "effects",
+      "size": [
+        1536,
+        1536
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 11,
+        "fps": 34.4,
+        "loop": false
+      },
+      "anchorY": 0.5,
+      "span": 0.79,
+      "plain": true
+    },
+    "wire/hitHold": {
+      "file": "fx/wire_hold.webp",
+      "bundle": "effects",
+      "size": [
+        1024,
+        1024
+      ],
+      "flipbook": {
+        "cols": 4,
+        "rows": 4,
+        "frames": 16,
+        "fps": 24,
+        "loop": true
+      },
+      "anchorY": 0.5,
+      "span": 0.6,
+      "cored": true,
+      "plain": true
+    },
+    "wire/panel": {
+      "file": "panels/wire.webp",
+      "bundle": "gear",
+      "size": [
+        2048,
+        876
       ]
     }
   },

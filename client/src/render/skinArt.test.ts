@@ -22,6 +22,9 @@ describe('media manifest', () => {
     // what the game reads no more (the old texture sets' tiling and sizes) is left out
     expect(parseMediaTexture({ ...NOTE, tile: 2.4, gain: 2, scale: 1.7 })).toEqual(NOTE);
     expect(parseMediaTexture({ ...burst, flipbook: { ...BOOK, loop: 'yes' } })?.flipbook?.loop).toBe(false);
+    // a flipbook in colours of its own, and a hold flipbook with a core of its own: said with true, and nothing else
+    expect(parseMediaTexture({ ...burst, plain: true, cored: true })).toEqual({ ...burst, plain: true, cored: true });
+    expect(parseMediaTexture({ ...burst, plain: 'yes', cored: 1 })).toEqual(burst);
   });
 
   it('rejects paths that leave /media/, odd sizes and bad numbers', () => {

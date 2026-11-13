@@ -1,0 +1,373 @@
+{
+ "picture": "client/public/stage/fire/2-right.webp",
+ "who": "Kai'Sa with her two pods (above) and Akali (below)",
+ "size": [
+  891,
+  1126
+ ],
+ "sha256 of the picture (PNG, before the WebP)": "04b7fc50f8abb97bb061457f22c88c32b329d7a7ce22fbb331778ab073b419a3",
+ "sha256 of the WebP": "7d020dc0fe40cf9d289015fc5b5d73e988cb3dcb7688cd68007e131c4e2ba318",
+ "made": "2026-11-13",
+ "asked": [
+  "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+  "the user, 2026-11-13, on seeing the picture: \"카이사 어깨 장치가 너무 크게 그려졌는데, 카이사 어깨 장치 다른 이미지들 확인해보고 다시 그려줘\""
+ ],
+ "illustration": {
+  "what": "the K/DA FIRESTARTER skins' group illustration (Riot Games)",
+  "file": "Ahri_KDAFIRESTARTERSkin_HD.jpg",
+  "size": [
+   7000,
+   4136
+  ],
+  "sha256": "4e5a0efcb409583e3232a8a17c68714537d7dbfa456c47059647165675995464",
+  "from": "League of Legends wiki (wiki.leagueoflegends.com)",
+  "in the repository": false
+ },
+ "canvas": {
+  "file": "2-right-canvas.png (not in the repository)",
+  "size": [
+   1802,
+   2252
+  ],
+  "sha256": "e9cc03e0c8880cb9d63e291d30c352bf0a8db42e0928983afa0d859c35850c71",
+  "what": "this side's crop of the illustration at twice the picture's size, flat green above its top edge (canvas.py)",
+  "the picture in it (px)": [
+   0,
+   0,
+   1782,
+   2252
+  ],
+  "the illustration's top edge (px down)": 644,
+  "canvas px to a px of the illustration": 0.52125
+ },
+ "steps": [
+  "canvas.py",
+  "cutout.py (the image model)",
+  "register.py",
+  "compose.py (writes the figure on green)",
+  "mend.py (the image model)",
+  "register.py <piece> m1 cut-1",
+  "compose.py <piece> 1 --mend m1 200,1480,640,772 --cut 0,0,1802,644 --crop pod 250,470,800,800 (writes the pod's crop, its claw cut away)",
+  "podcap.py (the image model)",
+  "register.py <piece> p1 pod",
+  "compose.py <piece> 1 --mend m1 200,1480,640,772 --cut 0,0,1802,644 --mend p1@pod 300,530,520,150",
+  "put.py"
+ ],
+ "composition": {
+  "try": "1",
+  "fit": [
+   [
+    0.9745,
+    2.39
+   ],
+   [
+    0.9748,
+    4.32
+   ],
+   [
+    0.9839,
+    1.12
+   ]
+  ],
+  "T": [
+   26.0,
+   46.0
+  ],
+  "rim": 3,
+  "reach": 9,
+  "fade": 0.05,
+  "steps": [
+   {
+    "mend": "m1",
+    "made from": "cut-1",
+    "box": [
+     200,
+     1480,
+     640,
+     772
+    ],
+    "fit": [
+     [
+      0.972,
+      2.07
+     ],
+     [
+      0.9694,
+      5.24
+     ],
+     [
+      0.98,
+      1.91
+     ]
+    ],
+    "join": 44
+   },
+   {
+    "cut": [
+     [
+      0,
+      0,
+      1802,
+      644
+     ]
+    ]
+   },
+   {
+    "mend": "p1",
+    "made from": "pod",
+    "box": [
+     300,
+     530,
+     520,
+     150
+    ],
+    "fit": [
+     [
+      0.9754,
+      0.79
+     ],
+     [
+      0.9744,
+      6.12
+     ],
+     [
+      0.9794,
+      2.96
+     ]
+    ],
+    "join": 44
+   }
+  ],
+  "final": {
+   "size": [
+    891,
+    1126
+   ],
+   "from_illustration": 0.66
+  },
+  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge; and the top of the upper pod, which the first cut-out had drawn on as a long claw, is cut away at the illustration's top edge and painted again as a low dome (podcap.py), taken inside one box of the canvas"
+ },
+ "generations": [
+  {
+   "step": "cut-out, try 1",
+   "used": true,
+   "note": "used, but for its pod's top: the upper pod's top, which the illustration's top edge cuts, it painted on above it as a long claw (the user: too big), and that part is cut away again. Where the other pair stood in front of the standing woman it left green: a notch at her waist (mended below)",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 04:26:42 +0000",
+   "bytes": 4407439,
+   "sha256": "f976b94dd83406da09dfb6ad32367c8e9b1ef45c25c9b28f81880c89b0d56a3f",
+   "pictures sent": [
+    "2-right-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 e9cc03e0c8880cb9d63e291d30c352bf0a8db42e0928983afa0d859c35850c71)"
+   ],
+   "usage": {
+    "promptTokenCount": 1711,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5097,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 591
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1706
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The silver-haired woman in the dark red dress who stands in the upper middle (her hair in a bun, her head leaning to one side): all of her. Her head, her hair, her dress with its silver ornaments, her arms and her pale sleeve, her legs, AND HER TWO FLOATING SHOULDER PODS: the two large claw-shaped pods of silver and dark metal with a glowing pink-violet crystal in them, one hovering over her at the upper left and one beside her head at the right. The pods are part of her and must stay whole.\n2. The woman crouching at the lower right in the wide pale hat, with pale pink hair and a mask over her eyes, a blade in her hand: all of her. Her hat, her hair, her mask, her body, her arms and gloves, the blade she holds and the weapon on her back, her legs.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every flame (also the pink and orange flames round the crouching woman), and the two other figures at the left (the blonde woman in the red suit with the orange sunglasses, and the fox-eared woman above her, with her hand and her flames). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the pod at the upper left is cut by the illustration's top edge. Paint its missing top up into the green band, in exactly the illustration's style: it is the same kind of pod as the one beside her head, a closed claw of silver and dark metal that ends in a point. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "cut-out, try 2",
+   "used": false,
+   "note": "not used: asked to make the two whole where the removed figure and the flames hid them, the model composed the picture anew (both women and the pods moved and redrawn, the crouching woman given a whole lower body)",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 04:35:24 +0000",
+   "bytes": 4879319,
+   "sha256": "a065c8aadc22af0c1b0bbacb36d842f677f29cd9e84dafd0e6443ddab637e76b",
+   "pictures sent": [
+    "2-right-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 e9cc03e0c8880cb9d63e291d30c352bf0a8db42e0928983afa0d859c35850c71)"
+   ],
+   "usage": {
+    "promptTokenCount": 1907,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5496,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 787
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1909
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The silver-haired woman in the dark red dress who stands in the upper middle (her hair in a bun, her head leaning to one side): all of her. Her head, her hair, her dress with its silver ornaments, her arms and her pale sleeve, her legs, AND HER TWO FLOATING SHOULDER PODS: the two large claw-shaped pods of silver and dark metal with a glowing pink-violet crystal in them, one hovering over her at the upper left and one beside her head at the right. The pods are part of her and must stay whole.\n2. The woman crouching at the lower right in the wide pale hat, with pale pink hair and a mask over her eyes, a blade in her hand: all of her. Her hat, her hair, her mask, her body, her arms and gloves, the blade she holds and the weapon on her back, her legs.\nAdd NOTHING to the two that is not in the picture: no horns, no new ornaments, no new weapons, no new limbs.\nKeep the LIGHT on them as it is painted: the warm fire light on their skin, their hair, the metal and the clothes stays exactly as it is. Do not neutralise, darken or recolour them.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every flame (also the pink and orange flames round the crouching woman), and the two other figures at the left (the blonde woman in the red suit with the orange sunglasses, and the fox-eared woman above her, with her hand and her flames). None of that may remain, not even faintly.\n\nMAKE THE TWO WHOLE where something that is removed hid a part of them, painting only what must be there, plainly, in exactly the illustration's style:\n- The silver-haired woman's hip and the top of her thigh, at her lower left, are hidden behind the blonde woman's spiked shoulder. With that shoulder removed, continue her dark red dress and her leg there, so that her body runs unbroken from her waist down to her legs, with no notch and no straight cut in it.\n- Where flames lay over the crouching woman (her shoulder and her back), continue her body and her clothes there.\n\nCOMPLETE what the illustration's top edge cut off: the pod at the upper left is cut by the illustration's top edge. Paint its missing top up into the green band, in exactly the illustration's style: it is the same kind of pod as the one beside her head, a closed claw of silver and dark metal that ends in a point. Keep it compact: it does not rise higher than the middle of the green band. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "cut-out, try 3",
+   "used": false,
+   "note": "not used: the first request with \"add nothing\" and \"keep the light\": places kept, but the hair went from warm to cool silver, the upper pod lost its glowing crystal, and the hidden lower body was invented",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 04:38:20 +0000",
+   "bytes": 4483117,
+   "sha256": "42cb746921b0f3c70db4d4dcacee266eecab5d15df73450e7583a2590a1c5f0e",
+   "pictures sent": [
+    "2-right-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 e9cc03e0c8880cb9d63e291d30c352bf0a8db42e0928983afa0d859c35850c71)"
+   ],
+   "usage": {
+    "promptTokenCount": 1800,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 4993,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 680
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1513
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The silver-haired woman in the dark red dress who stands in the upper middle (her hair in a bun, her head leaning to one side): all of her. Her head, her hair, her dress with its silver ornaments, her arms and her pale sleeve, her legs, AND HER TWO FLOATING SHOULDER PODS: the two large claw-shaped pods of silver and dark metal with a glowing pink-violet crystal in them, one hovering over her at the upper left and one beside her head at the right. The pods are part of her and must stay whole.\n2. The woman crouching at the lower right in the wide pale hat, with pale pink hair and a mask over her eyes, a blade in her hand: all of her. Her hat, her hair, her mask, her body, her arms and gloves, the blade she holds and the weapon on her back, her legs.\nAdd NOTHING to the two that is not in the picture: no horns, no new ornaments, no new weapons, no new limbs.\nKeep the LIGHT on them as it is painted: the warm fire light on their skin, their hair, the metal and the clothes stays exactly as it is. Do not neutralise, darken or recolour them.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every flame (also the pink and orange flames round the crouching woman), and the two other figures at the left (the blonde woman in the red suit with the orange sunglasses, and the fox-eared woman above her, with her hand and her flames). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the pod at the upper left is cut by the illustration's top edge. Paint its missing top up into the green band, in exactly the illustration's style: it is the same kind of pod as the one beside her head, a closed claw of silver and dark metal that ends in a point. Keep it compact: it does not rise higher than the middle of the green band. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "mending, try 1",
+   "used": true,
+   "note": "used inside one box of the canvas only (x 200..840, y 1480..2252): the standing woman's hip, the end of her sleeve and her skirt, which the other pair's spiked shoulder hid in the illustration, painted on the cut-out itself. The request said no hand; the model ended the sleeve in a hand, and it was kept",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13T04:42:03Z",
+   "bytes": 4538163,
+   "sha256": "202a592781d92a34903506dce7f1307c4d16060e24c6fe046cac36bf6eebf953",
+   "pictures sent": [
+    {
+     "file": "2-right-cut-1.png (the figure on flat green over the whole canvas, written by compose.py; not in the repository)",
+     "sha256": "6183af4efcf2f47c82f6a677b072bdbdfddee4ead535fad0e5f43d36d7b3b812"
+    }
+   ],
+   "usage": {
+    "promptTokenCount": 1433,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 4543,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 313
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1430
+   },
+   "prompt": "The picture is a cut-out of two painted characters on flat pure green (#00FF00): a silver-haired woman in a dark red dress standing in the upper middle (two metal pods float by her), and a woman in a wide pale hat crouching at the lower right.\n\nThe standing woman is not whole. Another figure stood in front of her and was removed, and where it stood a NOTCH is cut out of her at her lower left: under her waist her body ends in a straight horizontal cut, and beside it a straight diagonal cut runs down along her thigh. Green fills the notch.\n\nMEND ONLY THAT. Paint the part of her the notch removed, in exactly the painting's style, colours and light: her dark red dress continues from her waist down over her hip, and her thigh continues down to her legs below, so that her body runs unbroken from her waist to her legs with a natural outline at her left side, and no straight cut is left. Her pale sleeve, which ends at the cut, continues a little and ends naturally. Keep it plain: no new ornaments, no new objects, no hand.\n\nEVERYTHING ELSE STAYS EXACTLY AS IT IS, pixel for pixel: the two women, their faces, their hair, the two pods, the hat, the blade, every colour, and the flat green round them. Do not move, scale, redraw, relight or sharpen anything. The same framing and the same proportions as the picture given. No text, no watermark."
+  },
+  {
+   "step": "the pod's top, try 1",
+   "used": true,
+   "note": "used inside one box of the canvas only (x 300..820, y 530..680): the top of the upper pod as a low dome with one small crest. Asked with two pictures of her pods whole: the other pod of the same illustration, and the skin's in-game model (the wiki's \"Kai'Sa KDAFIRESTARTER (Base).png\"), which show a compact rounded shell",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "1:1",
+   "size": "2K",
+   "result": [
+    2048,
+    2048
+   ],
+   "made": "2026-11-13 05:20:00 +0000",
+   "bytes": 4506152,
+   "sha256": "67be2318732582fe6fb0eac50d9fe093e1b633bd6364e531ccb335b2f5fd0764",
+   "pictures sent": [
+    "2-right-pod.png (the figure on green, the pod cut flat at the illustration's top edge; sha256 c2e6588b7e769d19167a2da58b7f384ced20d2fabfc5d04d356212a83da69839)",
+    "the other pod, whole: px (5350, 600, 6150, 1600) of Ahri_KDAFIRESTARTERSkin_HD.jpg (sha256 760bdd5285d73783dd33c3bb18b1fa3587809681176a50ceda8c3c027f69ae5f)",
+    "the in-game model: KaiSa_KDAFIRESTARTER_Base.png on grey, three times its size (sha256 a26994c0c38bc241fac32b2f2954739de0021fb522dd9d05c560daf35f0dff8e)"
+   ],
+   "usage": {
+    "promptTokenCount": 3786,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6321,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 426
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 855
+   },
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the picture you edit: a cut-out, on flat pure green (#00FF00), of a painted character: a silver-haired woman in a dark red dress, and above her at the left one of her two floating shoulder pods: a shell of silver and dark violet metal with a glowing pink crystal set in it, its claws hanging down. The pod is CUT STRAIGHT ACROSS ITS TOP by a flat horizontal cut: the top of its shell is missing.\n\nIMAGE 2 is the other pod of the same painting, whole: the same kind of object seen from another side. Its shell is a rounded dome that closes smoothly, with one small pointed crest on it.\nIMAGE 3 is the same character's 3D game model: her two shoulder pods are compact, low, rounded shells with the crystal on top, hardly taller than they are wide.\n\nMEND ONLY THE POD'S TOP in image 1: paint the missing top of its shell above the straight cut, in exactly the painting's style, colours and light, as the same object as in images 2 and 3. The dark violet and silver shell closes over the crystal in a LOW, ROUNDED DOME: its outline runs on smoothly from the pod's two sides and meets over its middle; at most one small pointed crest on it, as in image 2. Keep it compact and low: the dome is much lower than the pod is wide, and it ends well below the picture's top edge, with green above it. NO long horn, NO tall claw, NO blade rising from it, no second crystal, nothing else new.\n\nEVERYTHING ELSE STAYS EXACTLY AS IT IS, pixel for pixel: the pod below the cut with its crystal and its claws, the woman, her hair, every colour, and the flat green round them. Do not move, scale, redraw, relight or sharpen anything. The same framing and the same proportions as image 1. No text, no watermark."
+  }
+ ],
+ "references looked at for the pod": [
+  "the other pod of the same illustration (beside her head, whole)",
+  "Kai'Sa KDAFIRESTARTER (Base).png: the in-game model (League of Legends wiki)",
+  "Kai'Sa KDAFIRESTARTERLoading.jpg and its Special Edition, Kai'Sa KDAFIRESTARTERCentered.jpg (the same illustration's crops: the upper pod is cut by their top edges too)",
+  "KDA FIRESTARTER Group Concept 01-05.jpg (concept art: the pods as rounded shells behind her shoulders)"
+ ]
+}

@@ -17,6 +17,11 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
   gemini: 'Gemini',
   grok: 'Grok',
   claude: 'Claude',
+  aqua: '아쿠아',
+  steel: '스틸',
+  noir: '레드라인',
+  wire: '화이트 라인',
+  astral: '별밤',
   flat: '기본',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
@@ -38,6 +43,11 @@ export const DECK_NAMES: Record<GearStyle, string> = {
   gemini: 'Gemini',
   grok: 'Grok',
   claude: 'Claude',
+  aqua: '아쿠아',
+  steel: '스틸',
+  noir: '레드라인',
+  wire: '화이트 라인',
+  astral: '별밤',
   standard: '기본',
   cabinet: '오락실 기체',
   receiver: '빈티지 리시버',
@@ -51,11 +61,16 @@ export const DECK_NAMES: Record<GearStyle, string> = {
 export const HIT_NAMES: Record<HitStyle, string> = {
   prism: '크리스털 분광',
   sky: '구름 깃털',
-  fire: '불똥',
-  gpt: '입력 중 점',
+  fire: '불꽃놀이',
+  gpt: '물방울 왕관',
   gemini: '반짝임',
-  grok: '펜 엑스',
-  claude: '손 빛살',
+  grok: '엑스 섬광',
+  claude: '붓 빛살',
+  aqua: '록온',
+  steel: '십자 섬광',
+  noir: '글리치',
+  wire: '선 불꽃',
+  astral: '별빛',
   flash: '플래시',
   flare: '플레어',
   bubbles: '거품',
@@ -68,7 +83,7 @@ export const HIT_NAMES: Record<HitStyle, string> = {
 };
 
 /** The skins by name (설정 → 기어 → 스킨), and what the row reads while the parts are no skin's (picked one by one). */
-export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털', sky: '하늘', fire: '파이어스타터', gpt: 'GPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude' };
+export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털', sky: '하늘', fire: '파이어스타터', gpt: 'GPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude', aqua: '아쿠아', steel: '스틸', noir: '레드라인', wire: '화이트 라인', astral: '별밤' };
 export const CUSTOM_SKIN = 'custom';
 export const CUSTOM_SKIN_NAME = '직접 고름';
 

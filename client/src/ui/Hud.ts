@@ -129,6 +129,24 @@ const PROGRESS_STEPS = 500;
 const UNIT = 73.65;
 /** Space between the gear and what stands beside it (plane px), and between the score panel and the screen's edge (screen px). */
 const SIDE_GAP = 22;
+/** The numbers written on the gear's deck: the score's and the two smaller ones' size (screen px at 720p), where their windows have the room. */
+const DECK_SCORE = 34;
+const DECK_SMALL = 27;
+/**
+ * What stands at the gear's right (FEVER, the gauge and its name) stands this much further out (screen
+ * px at 720p): the gear's frame rises over the lanes and leans out on the screen, and a word set
+ * against it would lie on it.
+ */
+const RIGHT_OUT = 12;
+/** Screen px (at 720p) between the gauge's far end and its name over it. */
+const GAUGE_NAME_GAP = 16;
+/**
+ * The rate under the judgement: its number's and its label's size and the gap over it (screen px at 720p). Small: it is
+ * read at a glance between notes, and the judgement over it is the larger word.
+ */
+const RATE_NUM = 17;
+const RATE_LABEL = 11;
+const RATE_GAP = 7;
 const SIDE_MARGIN = 16;
 /**
  * Where the room beside the gear is narrower than the song's plate's widest part, the plate shrinks,
@@ -603,10 +621,13 @@ export class Hud {
     this.sub = q('.hud-rate');
     this.maxCombo = q('.hud-max-combo');
     this.panel = q('.hud-panel');
-    this.allRows = [...this.panel.children] as HTMLElement[];
-    this.panelRows = [...this.allRows].reverse();
     this.scoreRow = this.score.parentElement as HTMLElement;
     this.rateRow = this.sub.parentElement as HTMLElement;
+    // the rate stands on the track under the judgement (layoutPlane): the column and the deck have no row for it
+    this.rateRow.classList.add('under-judge');
+    this.plane.append(this.rateRow);
+    this.allRows = [...this.panel.children] as HTMLElement[];
+    this.panelRows = [...this.allRows].reverse();
     this.maxComboRow = this.maxCombo.parentElement as HTMLElement;
 
     this.gauge = q('.hud-gauge');
@@ -729,6 +750,8 @@ export class Hud {
    * the track where the camera flattens it. `judgeAt` and `comboAt` are plane px up the track.
    */
   layoutPlane(p: HudPlane, judgeAt: number, comboAt: number): void {
+    // as high on the screen as the default camera has them, whichever camera this is
+    [judgeAt, comboAt] = [p.like(judgeAt), p.like(comboAt)];
     const t = this.type;
     const hud = this.hudScale;
     const px = (v: number) => `${Math.round(v * 100) / 100}px`;
@@ -752,20 +775,22 @@ export class Hud {
     this.judgeSub.style.fontSize = px(sub * jk);
     this.judgeSub.style.setProperty('--ms-size', px(Math.max(MS_MIN, sub * MS_SHARE) * jk));
     this.judgeSub.style.setProperty('--sub-stroke', px(Math.max(3, sub * 0.16) * jk));
+    // under the judgement and its FAST / SLOW (measured as they show at their largest), drawn longer as they are:
+    // the timing error bar where a player has it, then the rate
+    const [, tall] = this.measure(
+      this.judgeBox,
+      [
+        [this.judgeLabel, 'MAX 100%'],
+        [this.judgeFastSlow, 'FAST'],
+        [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
+      ],
+      () => undefined,
+    );
+    const below = -judgeAt + (tall * j.stretch) / 2;
+    const e = at(0, below, TEXT_ASPECT);
+    let under = below;
     const eb = this.errorBar;
     if (eb) {
-      // under the judgement and its FAST / SLOW (measured as they show at their largest), drawn longer as they are
-      const [, tall] = this.measure(
-        this.judgeBox,
-        [
-          [this.judgeLabel, 'MAX 100%'],
-          [this.judgeFastSlow, 'FAST'],
-          [this.judgeMs, this.showErrorMs ? '+00ms' : ''],
-        ],
-        () => undefined,
-      );
-      const below = -judgeAt + (tall * j.stretch) / 2;
-      const e = at(0, below, TEXT_ASPECT);
       const width = Math.min(ERROR_BAR_WIDTH * e.k, 2 * p.halfWidth - 24);
       this.place(eb.el, 0, below + ERROR_BAR_GAP * e.k * e.stretch, `translateX(-50%) scaleY(${e.stretch.toFixed(3)})`);
       eb.el.style.width = px(width);
@@ -776,7 +801,10 @@ export class Hud {
       // the hits shown so far keep their place across the new width
       eb.errors.forEach((ms, i) => (eb.ticks[i].style.transform = errorShift(eb, ms)));
       eb.mean.style.transform = errorShift(eb, eb.meanMs);
+      under = below + (ERROR_BAR_GAP + ERROR_BAR_HEIGHT) * e.k * e.stretch;
     }
+    this.place(this.rateRow, 0, under + RATE_GAP * e.k * e.stretch, `translateX(-50%) scaleY(${e.stretch.toFixed(3)})`);
+    this.sizeText(this.rateRow, e.k, RATE_LABEL, RATE_NUM);
     const c = at(0, -comboAt, TEXT_ASPECT);
     this.place(this.comboBox, 0, -comboAt, `translate(-50%, -50%) scaleY(${c.stretch.toFixed(3)})`);
     this.comboNum.style.fontSize = px(t.combo * c.k);
@@ -785,9 +813,13 @@ export class Hud {
     this.comboBox.style.setProperty('--label-stroke', px(Math.max(3, t.stroke - 2) * c.k));
 
     // beside the gear, on the same plane: FEVER level with the combo, the gauge and SPEED standing on the judge line
-    const right = p.halfWidth + p.sideOut + SIDE_GAP;
-    const foot = -GAUGE_FROM * UNIT;
-    const length = GAUGE_LENGTH * UNIT;
+    const side = p.halfWidth + p.sideOut + SIDE_GAP;
+    // the gauge from as high to as high on the screen as the default camera has it (a camera that lays the track
+    // flatter would show the same length of track far shorter)
+    const foot = -p.like(GAUGE_FROM * UNIT);
+    const length = p.like((GAUGE_FROM + GAUGE_LENGTH) * UNIT) + foot;
+    // the right side's stand a little further out than the left's (RIGHT_OUT)
+    const right = side + RIGHT_OUT * at(side, foot, SIDE_ASPECT).k;
     const f = at(right, -comboAt, SIDE_ASPECT);
     this.place(this.fever, right, -comboAt, `translateY(-50%) scaleY(${f.stretch.toFixed(3)})`);
     this.fever.style.fontSize = px(20 * f.k);
@@ -815,10 +847,11 @@ export class Hud {
       const cl = at(cx, clearAt, SIDE_ASPECT);
       this.place(this.gaugeClearLabel, cx, clearAt, `translateY(-50%) scaleY(${cl.stretch.toFixed(3)})`);
       this.sizeText(this.gaugeClearLabel, cl.k, 15, 30);
-      // the gear's name for the gauge over its far end
-      const top = foot - length - 8 * g.k;
-      const n = at(right + width / 2, top, SIDE_ASPECT);
-      this.place(this.gaugeName, right + width / 2, top, `translate(-50%, -100%) scaleY(${n.stretch.toFixed(3)})`);
+      // the gear's name for the gauge over its far end, a gap between them, starting at the gauge's
+      // left edge (centred on the gauge, a name wider than it would reach over the gear's frame)
+      const top = foot - length - GAUGE_NAME_GAP * g.k;
+      const n = at(right, top, SIDE_ASPECT);
+      this.place(this.gaugeName, right, top, `translate(0, -100%) scaleY(${n.stretch.toFixed(3)})`);
       this.gaugeName.style.fontSize = px(18 * n.k);
     }
     const textX = right + width + 14 * g.k;
@@ -830,7 +863,7 @@ export class Hud {
     // and the score panel over it (fitPanel), each upright; the score, the rate and SPEED lie in the
     // gear's deck where it has windows for them (layDeck), and the column keeps what is left
     this.layDeck(p);
-    const left = right + PROGRESS_GAP * at(-right, foot, SIDE_ASPECT).k;
+    const left = side + PROGRESS_GAP * at(-side, foot, SIDE_ASPECT).k;
     const speedTop = this.onDeck ? foot : foot - this.stand(this.speed, p.h, -left, foot, hud, 15, 30);
     const panelFoot = planeYAt(p.h, -left, planePoint(p.h, -left, speedTop)[1] - COLUMN_GAP * hud);
     // the column keeps under the song's plate, and on this side of the horizon (h[4] / h[7])
@@ -956,9 +989,11 @@ export class Hud {
   private layDeck(p: HudPlane): void {
     const d = p.deck;
     const on = d !== null;
+    // on a panel's display the readouts are light on its dark glass, whatever the gear's windows drawn in code take
+    this.root.toggleAttribute('data-panel', Boolean(d?.panel));
     if (on !== this.onDeck) {
       this.onDeck = on;
-      const moved = [this.scoreRow, this.rateRow];
+      const moved = [this.scoreRow];
       const kept = this.allRows.filter((row) => !on || (!moved.includes(row) && row !== this.maxComboRow));
       this.panel.replaceChildren(...kept);
       if (on) this.plane.append(...moved);
@@ -975,9 +1010,10 @@ export class Hud {
       const [cx, cy] = [box.x + box.w / 2, box.y + box.h / 2];
       const u = uprightAt(p.h, cx, cy);
       const { scale, aspect } = planeScale(p.h, cx, cy);
-      // its type no taller than four fifths of the window as the screen shows it (however flat the
-      // camera lays the deck: `aspect`), nor than the HUD's size
-      const tall = Math.min(num * hud, 0.8 * box.h * scale * aspect);
+      // its type's size no more than the window's depth as the screen shows it (however flat the camera
+      // lays the deck: `aspect`; digits and capitals are seven tenths of their size tall, so they stand
+      // clear of the window's edges), nor than the HUD's size
+      const tall = Math.min(num * hud, box.h * scale * aspect);
       let k = (tall / num) * u.k;
       this.sizeText(el, k, PANEL_LABEL * (num / PANEL_NUM), num);
       const wide = el.offsetWidth;
@@ -987,9 +1023,8 @@ export class Hud {
       }
       this.place(el, cx, cy, `translate(-50%, -50%) scaleY(${u.stretch.toFixed(3)})`);
     };
-    lay(this.scoreRow, d.score, 30);
-    lay(this.speed, d.speed, 24);
-    lay(this.rateRow, d.rate, 24);
+    lay(this.scoreRow, d.score, DECK_SCORE);
+    lay(this.speed, d.speed, DECK_SMALL);
   }
 
   /**

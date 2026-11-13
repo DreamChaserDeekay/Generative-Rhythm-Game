@@ -114,16 +114,19 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
  * note: CHAMFER a machined plate with cut corners, ROUND a coin, STAR4 a compass star stretched along
  * the judge line, STAR5 a five-pointed star; each as wide as its lane lets a note be. GPT, GEMINI, GROK and
  * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
+ * AQUA (the aqua mecha skin's, 아쿠아) is a bar as well: a plate of armour with cut corners in a white rim (its long note a light rail with chevrons).
  */
-export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+/** The skins' notes that are bars (as deep in every lane as FLAT's). */
+const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
-export const isBarNote = (style: NoteStyle): boolean => style === 'prism' || style === 'sky' || style === 'fire' || style === 'flat' || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
+export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style) || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
 /**
  * The lane a note is drawn for: its key's colour, the scratch or a side lane. The families mark
@@ -1037,6 +1040,220 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
+ * AQUA's plate (the aqua mecha skin's, 아쿠아): a low plate of armour, its four corners cut at 45° on the
+ * screen: a white rim round the lane's colour, which is lighter toward its far edge, and a light edge
+ * along its near side (its timing). The scratch's is told from a key's by a white chevron pointing
+ * down the track.
+ */
+function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  const c = Math.min(u(8), w * 0.1);
+  polygon(g, chamferOutline(0, 0, w, h, c));
+  g.fillStyle = ink(0, 0.95);
+  g.fill();
+  const t = Math.max(1.5, u(3.4));
+  g.save();
+  polygon(g, chamferOutline(0, 0, w, h, c, t));
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, ink(1, 0.3));
+  face.addColorStop(0.5, tone(1));
+  face.addColorStop(1, tone(0.84));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  const edge = Math.max(2, u(7));
+  g.fillStyle = ink(1, 0.72);
+  g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
+  if (mark === 'scratch') {
+    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.32);
+    g.translate(w / 2, h * 0.44);
+    g.scale(1, NOTE_STRETCH);
+    g.beginPath();
+    g.moveTo(-r * 1.5, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r * 1.5, -r * 0.5);
+    g.lineWidth = Math.max(1.5, r * 0.5);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(0, 1);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * STEEL's bar (the gunmetal skin's, 스틸): a matte anodised key cap in the lane's colour: a flat top
+ * face inside a soft bevel, lighter along its far side and its left, darker along its right and its
+ * near side, and a bright line where the face meets the near bevel (its timing). The scratch's is told
+ * from a key's by a cross engraved in its middle.
+ */
+function steelNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  g.save();
+  softOutline(g, w, h, u(4) / NOTE_STRETCH);
+  g.clip();
+  g.fillStyle = tone(0.7);
+  g.fillRect(0, 0, w, h);
+  const b = Math.max(2, u(5));
+  g.fillStyle = ink(1, 0.24);
+  g.fillRect(0, 0, w, b * NOTE_STRETCH * 0.8);
+  g.fillStyle = tone(0.5);
+  g.fillRect(0, h - b * NOTE_STRETCH, w, b * NOTE_STRETCH);
+  g.fillStyle = ink(1, 0.12);
+  g.fillRect(0, 0, b, h);
+  g.fillStyle = tone(0.58);
+  g.fillRect(w - b, 0, b, h);
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, tone(1.04));
+  face.addColorStop(1, tone(0.92));
+  g.fillStyle = face;
+  g.fillRect(b, b * NOTE_STRETCH * 0.8, w - 2 * b, h - b * NOTE_STRETCH * 1.8);
+  const edge = Math.max(2, u(4));
+  g.fillStyle = ink(1, 0.66);
+  g.fillRect(b, h - b * NOTE_STRETCH - edge, w - 2 * b, edge);
+  if (mark === 'scratch') {
+    const r = Math.min(w * 0.06, (h / NOTE_STRETCH) * 0.26);
+    g.translate(w / 2, h * 0.44);
+    g.scale(1, NOTE_STRETCH);
+    g.rotate(Math.PI / 4);
+    g.beginPath();
+    g.moveTo(-r, 0);
+    g.lineTo(r, 0);
+    g.moveTo(0, -r);
+    g.lineTo(0, r);
+    g.lineWidth = Math.max(1.5, r * 0.36);
+    g.strokeStyle = tone(0.4);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * NOIR's bar (the black and red skin's, 레드라인): a flat hard-edged block of the lane's colour, no bevel
+ * and no gloss, its far right corner clipped off; a thin black line inset along its far edge and a
+ * brighter band along its near side (its timing). The scratch's is told from a key's by a white chevron.
+ */
+function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  const c = Math.min(u(10), w * 0.12);
+  g.save();
+  polygon(g, [
+    [0, 0],
+    [w - c, 0],
+    [w, c * NOTE_STRETCH],
+    [w, h],
+    [0, h],
+  ]);
+  g.clip();
+  g.fillStyle = tone(1);
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = ink(0, 0, 0.9);
+  g.fillRect(u(4), u(4) * NOTE_STRETCH, Math.max(1, w - c - u(8)), Math.max(1.5, u(2.4)));
+  const edge = Math.max(2, u(9));
+  g.fillStyle = ink(1, 0.62);
+  g.fillRect(0, h - edge, w, edge);
+  if (mark === 'scratch') {
+    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.3);
+    g.translate(w / 2, h * 0.46);
+    g.scale(1, NOTE_STRETCH);
+    g.beginPath();
+    g.moveTo(-r * 1.5, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r * 1.5, -r * 0.5);
+    g.lineWidth = Math.max(1.5, r * 0.5);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(0, 1);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * WIRE's bar (the white line skin's, 화이트 라인): a bar drawn in line: its far edge and its two ends a bright
+ * line of the lane's colour, the colour dimmer and see-through inside them, and a white line along its
+ * near side (its timing). The scratch's is told from a key's by a chevron.
+ */
+function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, w, h);
+  g.clip();
+  g.fillStyle = ink(0.66, 0, 0.8);
+  g.fillRect(0, 0, w, h);
+  const t = Math.max(1.5, u(3.2));
+  g.fillStyle = ink(1, 0.3);
+  g.fillRect(0, 0, w, t * NOTE_STRETCH);
+  g.fillRect(0, 0, t, h);
+  g.fillRect(w - t, 0, t, h);
+  const edge = Math.max(2, u(7));
+  g.fillStyle = ink(0, 1);
+  g.fillRect(0, h - edge, w, edge);
+  if (mark === 'scratch') {
+    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.28);
+    g.translate(w / 2, h * 0.42);
+    g.scale(1, NOTE_STRETCH);
+    g.beginPath();
+    g.moveTo(-r * 1.5, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r * 1.5, -r * 0.5);
+    g.lineWidth = Math.max(1.5, r * 0.44);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(1, 0.7);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/**
+ * ASTRAL's bar (the starry night skin's, 별밤): a smooth bar with cut corners, as its gear's key caps: a
+ * pale rim round the lane's colour, lighter toward its far edge, a light edge along its near side (its
+ * timing), and a tiny white four-pointed star in its middle. The scratch's has a crescent there.
+ */
+function astralNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
+  const u = unit(h);
+  const c = Math.min(u(7), w * 0.09);
+  polygon(g, chamferOutline(0, 0, w, h, c));
+  g.fillStyle = ink(1, 0.64);
+  g.fill();
+  const t = Math.max(1.2, u(2.6));
+  g.save();
+  polygon(g, chamferOutline(0, 0, w, h, c, t));
+  g.clip();
+  const face = g.createLinearGradient(0, 0, 0, h);
+  face.addColorStop(0, ink(1, 0.2));
+  face.addColorStop(0.5, tone(0.98));
+  face.addColorStop(1, tone(0.8));
+  g.fillStyle = face;
+  g.fillRect(0, 0, w, h);
+  const edge = Math.max(2, u(6));
+  g.fillStyle = ink(1, 0.62);
+  g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
+  g.translate(w / 2, h * 0.45);
+  g.scale(1, NOTE_STRETCH);
+  const r = Math.min(w * 0.07, (h / NOTE_STRETCH) * 0.3);
+  g.beginPath();
+  if (mark === 'scratch') {
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.moveTo(r * 0.45 + r * 0.82, -r * 0.1);
+    g.arc(r * 0.45, -r * 0.1, r * 0.82, 0, Math.PI * 2, true);
+  } else {
+    const k = 0.2;
+    g.moveTo(0, -r);
+    g.lineTo(r * k, -r * k);
+    g.lineTo(r, 0);
+    g.lineTo(r * k, r * k);
+    g.lineTo(0, r);
+    g.lineTo(-r * k, r * k);
+    g.lineTo(-r, 0);
+    g.lineTo(-r * k, -r * k);
+    g.closePath();
+  }
+  g.fillStyle = ink(0, 0.96);
+  g.fill('evenodd');
+  g.restore();
+}
+
+/**
  * FLAT (the default skin's): a plain bar with square corners, the top of a slab (the renderer draws
  * its walls): a gloss over its far half, lit along its left end and shaded along its
  * right, a crisp light edge along its near side (its timing). The scratch's is told from a key's
@@ -1184,6 +1401,11 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   gemini: logoNote('gemini'),
   grok: logoNote('grok'),
   claude: logoNote('claude'),
+  aqua: aquaNote,
+  steel: steelNote,
+  noir: noirNote,
+  wire: wireNote,
+  astral: astralNote,
   flat: flatNote,
   chrome: chromeNote,
   hairline: hairlineNote,
@@ -1199,19 +1421,24 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
   prism: 'prism',
   sky: 'sky',
   fire: 'fire',
-  // the marks' long notes are plain bands of the families': a capsule, a band of light, a rail, a slab
-  gpt: 'capsule',
-  gemini: 'ray',
-  grok: 'rail',
-  claude: 'solid',
+  // the marks' long notes are each company's own: typing dots, sparkles on a band of light, a slash between two lines, a stitched paper ribbon
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
+  aqua: 'aqua',
+  steel: 'steel',
+  noir: 'noir',
+  wire: 'wire',
+  astral: 'sky',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -1420,6 +1647,187 @@ function fireLong(lit: boolean): Paint {
   };
 }
 
+/**
+ * AQUA's long note: a light rail in the lane's colour, a darker see-through body between two bright
+ * edges, and (`marked`: the body, not its ends) a chevron a tile down its middle, pointing at the judge
+ * line; `lit` (held), the body and the chevrons brighter. Its ends are cut straight across (LONG_PAINT).
+ */
+function aquaLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? ink(0.88, 0.06, 0.88) : ink(0.6, 0, 0.74);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 5, ink(1, lit ? 0.9 : 0.7));
+    if (!marked) return;
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.scale(1, NOTE_STRETCH);
+    const r = a(9);
+    g.beginPath();
+    g.moveTo(-r, -r * 0.5);
+    g.lineTo(0, r * 0.5);
+    g.lineTo(r, -r * 0.5);
+    g.lineWidth = a(3.4);
+    g.lineJoin = 'miter';
+    g.strokeStyle = ink(1, lit ? 1 : 0.66, lit ? 1 : 0.92);
+    g.stroke();
+    g.restore();
+  };
+}
+
+/**
+ * STEEL's long note: a band of matte metal in the lane's colour, a thin bright edge down each side and a
+ * dark groove down its middle; `lit` (held), the groove full of light.
+ */
+function steelLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    stripes(g, w, h, [
+      [0, 54, tone(lit ? 0.86 : 0.74)],
+      [2.5, 9, tone(lit ? 1.08 : 0.96)],
+      [45, 51.5, tone(lit ? 0.7 : 0.6)],
+      [0, 2.5, ink(1, 0.62)],
+      [51.5, 54, ink(1, 0.4)],
+      [22, 32, tone(0.3)],
+      [24, 30, lit ? ink(1, 0.92) : tone(0.42)],
+    ]);
+  };
+}
+
+/**
+ * NOIR's long note: a flat band of the lane's colour at lower brightness between two bright edge lines,
+ * and (`marked`: the body, not its ends) a small square a tile down its middle; `lit` (held), the band
+ * and the squares brighter. Its ends are cut straight across (LONG_PAINT).
+ */
+function noirLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? ink(0.9, 0.05, 0.9) : ink(0.55, 0, 0.82);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.85 : 0.6));
+    if (!marked) return;
+    const d = a(3.6);
+    g.fillStyle = ink(1, lit ? 0.95 : 0.6);
+    g.fillRect(w / 2 - d / 2, h / 2 - (d * NOTE_STRETCH) / 2, d, d * NOTE_STRETCH);
+  };
+}
+
+/**
+ * WIRE's long note: two thin parallel lines of the lane's colour, the colour faint and see-through
+ * between them; `lit` (held), the lines white-bright and the fill stronger.
+ */
+function wireLong(lit: boolean): Paint {
+  return (g, w, h) => {
+    g.fillStyle = lit ? ink(0.82, 0.05, 0.68) : ink(0.5, 0, 0.42);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 2.6, ink(1, lit ? 0.9 : 0.45));
+  };
+}
+
+/**
+ * GPT's long note: a message being written, drawn out: a soft band of the lane's colour, lighter down its
+ * middle, a pale rim down each side, and (`marked`: the body, not its ends) three dots in a row a tile, as
+ * someone typing; `lit` (held), brighter, the dots white. Its ends are cut straight across (LONG_PAINT).
+ */
+function typingLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const k = lit ? 1.16 : 1;
+    const soft = g.createLinearGradient(0, 0, w, 0);
+    soft.addColorStop(0, tone(0.56 * k));
+    soft.addColorStop(0.5, tone(0.86 * k));
+    soft.addColorStop(1, tone(0.56 * k));
+    g.fillStyle = soft;
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.85 : 0.6));
+    if (!marked) return;
+    g.fillStyle = ink(1, lit ? 1 : 0.82);
+    for (const x of [-10.5, 0, 10.5]) {
+      g.beginPath();
+      g.ellipse(w / 2 + a(x), h / 2, a(3), a(3) * NOTE_STRETCH, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  };
+}
+
+/**
+ * GEMINI's long note: a band of light in the lane's colour, see-through, brightest down its middle between two
+ * thin edges, and (`marked`) a four-pointed sparkle a tile on its middle, a small one after it off to one side;
+ * `lit` (held), brighter, the sparkles white. Its ends are cut straight across (LONG_PAINT).
+ */
+function sparkleLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? ink(0.9, 0.05, 0.62) : ink(0.72, 0, 0.44);
+    g.fillRect(0, 0, w, h);
+    const beam = g.createLinearGradient(a(9), 0, a(45), 0);
+    beam.addColorStop(0, ink(1, 0.3, 0));
+    beam.addColorStop(0.5, ink(1, lit ? 0.55 : 0.35, lit ? 0.7 : 0.5));
+    beam.addColorStop(1, ink(1, 0.3, 0));
+    g.fillStyle = beam;
+    g.fillRect(a(9), 0, a(36), h);
+    sides(g, w, h, 2.5, ink(1, lit ? 0.9 : 0.62, lit ? 0.95 : 0.85));
+    if (!marked) return;
+    // as tall on the screen as it is wide: drawn NOTE_STRETCH times longer along the note
+    const star = (x: number, y: number, r: number, fill: string) => {
+      g.save();
+      g.translate(x, y);
+      g.scale(1, NOTE_STRETCH);
+      sparkleAt(g, 0, 0, r);
+      g.fillStyle = fill;
+      g.fill();
+      g.restore();
+    };
+    star(w / 2, h * 0.34, a(11.5), ink(1, lit ? 1 : 0.88));
+    star(w / 2 + a(11), h * 0.8, a(5), ink(1, lit ? 0.95 : 0.7, 0.92));
+  };
+}
+
+/**
+ * GROK's long note: black between two thin lines of the lane's colour, and (`marked`) one slash a tile across
+ * its middle, a stroke of its mark; `lit` (held), the lines and the slash white-bright. Its ends are cut straight
+ * across (LONG_PAINT).
+ */
+function slashLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    g.fillStyle = lit ? tone(0.3, 0.92) : tone(0.12, 0.9);
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.92 : 0.4));
+    if (!marked) return;
+    // leaning to the right, as tall on the screen as it is wide
+    const r = a(8.5);
+    g.beginPath();
+    g.moveTo(w / 2 - r, h / 2 + r * NOTE_STRETCH);
+    g.lineTo(w / 2 + r, h / 2 - r * NOTE_STRETCH);
+    g.lineWidth = a(3.4);
+    g.lineCap = 'butt';
+    g.strokeStyle = ink(1, lit ? 1 : 0.55);
+    g.stroke();
+  };
+}
+
+/**
+ * CLAUDE's long note: a ribbon of paper in the lane's colour, matte, lit from its left, a hem folded down each
+ * side (a dark line just inside each edge) and (`marked`) a seam stitched down its middle, one stitch a tile;
+ * `lit` (held), lighter, the stitches white. Its ends are cut straight across (LONG_PAINT).
+ */
+function ribbonLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const k = lit ? 1.14 : 1;
+    stripes(g, w, h, [
+      [0, 54, tone(0.86 * k)],
+      [0, 5.5, tone(1.06 * k)],
+      [48.5, 54, tone(0.7 * k)],
+      [5.5, 7, tone(0.46)],
+      [47, 48.5, tone(0.46)],
+    ]);
+    if (!marked) return;
+    g.fillStyle = ink(1, lit ? 1 : 0.74);
+    g.fillRect(a(25.3), h * 0.18, a(3.4), h * 0.64);
+  };
+}
+
 /** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
 function solidLong(lit: boolean): Paint {
   return (g, w, h) => {
@@ -1485,6 +1893,91 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     tile: 1,
     endDepth: 0.2,
     width: 0.8,
+  },
+  // GPT's: a soft band, three typing dots in a row a tile (held: brighter, the dots white), each end cut straight across
+  gpt: {
+    body: typingLong(false),
+    end: squareEnd(typingLong(false, false), ink(1, 0.85), 3),
+    held: { body: typingLong(true), end: squareEnd(typingLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 1.3,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // Gemini's: a see-through band of light, a four-pointed sparkle and a small one a tile (held: brighter), each end
+  // cut straight across; flat, with no walls
+  gemini: {
+    body: sparkleLong(false),
+    end: squareEnd(sparkleLong(false, false), ink(1, 0.9, 0.95), 3),
+    held: { body: sparkleLong(true), end: squareEnd(sparkleLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 1.7,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // Grok's: black between two thin lines, a slash a tile (held: white-bright), each end cut straight across; flat, with no walls
+  grok: {
+    body: slashLong(false),
+    end: squareEnd(slashLong(false, false), ink(1, 0.85), 3),
+    held: { body: slashLong(true), end: squareEnd(slashLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 0.9,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // Claude's: a paper ribbon with a hem down each side, a seam stitched down its middle (held: lighter, the stitches
+  // white), each end cut straight across
+  claude: {
+    body: ribbonLong(false),
+    end: squareEnd(ribbonLong(false, false), ink(1, 0.85), 3),
+    held: { body: ribbonLong(true), end: squareEnd(ribbonLong(true, false), ink(1, 1), 3) },
+    px: 128,
+    tile: 0.5,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // the aqua mecha skin's: a light rail, a chevron a tile down its middle (held: brighter), each end the
+  // rail itself cut straight across, a bright rim along the cut; see-through, so it lies flat
+  aqua: {
+    body: aquaLong(false),
+    end: squareEnd(aquaLong(false, false), ink(1, 0.9), 3),
+    held: { body: aquaLong(true), end: squareEnd(aquaLong(true, false), ink(1, 1), 3) },
+    tile: 0.9,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // the gunmetal skin's: matte metal with a groove down its middle (held: the groove lit), each end cut straight across
+  steel: {
+    body: steelLong(false),
+    end: squareEnd(steelLong(false), ink(1, 0.8), 3),
+    held: { body: steelLong(true), end: squareEnd(steelLong(true), ink(1, 1), 3) },
+    tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+  },
+  // the black and red skin's: a flat band between two bright lines, small squares down its middle (held:
+  // brighter), each end cut straight across; flat, with no walls
+  noir: {
+    body: noirLong(false),
+    end: squareEnd(noirLong(false, false), ink(1, 0.85), 3),
+    held: { body: noirLong(true), end: squareEnd(noirLong(true, false), ink(1, 1), 3) },
+    tile: 0.45,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
+  },
+  // the white line skin's: two thin lines, faint between them (held: brighter), each end cut straight across; flat, with no walls
+  wire: {
+    body: wireLong(false),
+    end: squareEnd(wireLong(false), ink(1, 0.9), 2.6),
+    held: { body: wireLong(true), end: squareEnd(wireLong(true), ink(1, 1), 2.6) },
+    tile: 1,
+    endDepth: 0.2,
+    width: 0.8,
+    flat: true,
   },
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
   // inside with a line of light down its middle; each end the bar itself, square, a rim along it
@@ -1924,10 +2417,10 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   prism: 'prism',
   sky: 'sky',
@@ -1936,6 +2429,11 @@ const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   gemini: 'gemini',
   grok: 'grok',
   claude: 'claude',
+  aqua: 'aqua',
+  steel: 'steel',
+  noir: 'noir',
+  wire: 'wire',
+  astral: 'astral',
   flash: 'flash',
   flare: 'flare',
   bubbles: 'bubbles',
@@ -1976,11 +2474,21 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
   sky: { w: 128, h: 64, cy: 30, reach: 42 },
   // a flash on the line and thin sparks off it, most of them up the track a little way: thin enough that the next notes read through them
   fire: { w: 224, h: 160, cy: 116, reach: 64 },
-  // the AI companies': small and close over the line (typing dots and a ring; sparkles; a pen's cross and a ring; a burst of short strokes)
+  // the AI companies': small and close over the line (typing dots and a ring; sparkles; an X that glints and bursts; a burst of short strokes)
   gpt: { w: 128, h: 96, cy: 62, reach: 40 },
   gemini: { w: 128, h: 112, cy: 78, reach: 40 },
-  grok: { w: 128, h: 96, cy: 58, reach: 44 },
+  grok: { w: 144, h: 112, cy: 76, reach: 46 },
   claude: { w: 192, h: 128, cy: 96, reach: 56 },
+  // the aqua mecha skin's: a hexagon lying on the line and short dashes along it
+  aqua: { w: 160, h: 80, cy: 44, reach: 40 },
+  // the gunmetal skin's: a plus and a square lying on the line
+  steel: { w: 128, h: 96, cy: 54, reach: 40 },
+  // the black and red skin's: two blocks on the line and small squares off it, up the track a little way
+  noir: { w: 160, h: 112, cy: 82, reach: 50 },
+  // the white line skin's: a ring lying on the line, ticks round it and a dot at each side
+  wire: { w: 160, h: 96, cy: 52, reach: 46 },
+  // the starry night skin's: a ring on the line, a long star over it and tiny stars up the track a little way
+  astral: { w: 160, h: 128, cy: 92, reach: 48 },
   flash: { w: 160, h: 96, cy: 48, reach: 84 },
   flare: { w: 384, h: 128, cy: 64, reach: 216 },
   bubbles: { w: 160, h: 160, cy: 80, reach: 75 },
@@ -1989,6 +2497,29 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
 };
 
 export const EFFECT_FRAMES = 16;
+/** Where GROK's X stops being whole and flies apart (its hit's progress, 0..1). */
+const X_BURSTS = 0.34;
+
+/**
+ * The skins' hits, each drawn by a painter of its own at a progress 0..1: light in colours of their own
+ * on nothing (EffectSheet.plain). The others are the sheets' (drawEffect).
+ */
+const SKIN_HITS: Partial<Record<DrawnHit, (g: CanvasRenderingContext2D, p: number) => void>> = {
+  prism: drawSpectrum,
+  sky: drawPuff,
+  fire: drawSparks,
+  gpt: drawTyping,
+  gemini: drawSparkles,
+  grok: drawXBurst,
+  claude: drawRays,
+  aqua: drawLockOn,
+  steel: drawPlus,
+  noir: drawGlitch,
+  wire: drawRingTicks,
+  astral: drawStarlight,
+};
+/** The hits drawn as the sheets drew them (tint pictures). */
+type SheetHit = 'flash' | 'flare' | 'bubbles' | 'grid';
 
 /**
  * The effect `style` as a 4×4 flipbook: frame f shows it at progress f/16 (the mockups' SVG
@@ -1999,7 +2530,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
   const cell = CELLS[style];
   const cols = 4;
   const rows = 4;
-  const plain = style === 'prism' || style === 'sky' || style === 'fire' || style === 'gpt' || style === 'gemini' || style === 'grok' || style === 'claude';
+  const own = SKIN_HITS[style];
+  const plain = own !== undefined;
   // PRISM's shards, SKY's feathers and FIRE's sparks have hard edges: painted twice as fine, or they show their px on a wide lane
   const fine = plain ? 2 : 1;
   const texture = (plain ? colourTexture : paintTexture)(cell.w * cols * fine, cell.h * rows * fine, (g) => {
@@ -2010,14 +2542,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
       g.beginPath();
       g.rect(-cell.w / 2, -cell.cy, cell.w, cell.h);
       g.clip();
-      if (style === 'prism') drawSpectrum(g, f / EFFECT_FRAMES);
-      else if (style === 'sky') drawPuff(g, f / EFFECT_FRAMES);
-      else if (style === 'fire') drawSparks(g, f / EFFECT_FRAMES);
-      else if (style === 'gpt') drawTyping(g, f / EFFECT_FRAMES);
-      else if (style === 'gemini') drawSparkles(g, f / EFFECT_FRAMES);
-      else if (style === 'grok') drawCross(g, f / EFFECT_FRAMES);
-      else if (style === 'claude') drawRays(g, f / EFFECT_FRAMES);
-      else drawEffect(g, style, f / EFFECT_FRAMES);
+      if (own) own(g, f / EFFECT_FRAMES);
+      else drawEffect(g, style as SheetHit, f / EFFECT_FRAMES);
       g.restore();
     }
   });
@@ -2328,36 +2854,92 @@ function drawSparkles(g: CanvasRenderingContext2D, p: number): void {
 }
 
 /**
- * GROK's hit at progress `p`: a cross drawn fast with a pen, two thin white strokes crossing at a slant
- * over the hit, and one thin white ring opening round them. No colour, no glow.
+ * GROK's hit at progress `p`: an X that pops, glints and bursts. Two strokes crossing at a slant over the hit, one
+ * heavy and one thin, land larger than they stay over a short white flash; a four-pointed glint opens and closes
+ * on the heavy stroke's far tip; then the X flies apart, its four arms out along their own lines and small
+ * sparkles between them, while one thin ring opens on the line. All white.
  */
-function drawCross(g: CanvasRenderingContext2D, p: number): void {
+function drawXBurst(g: CanvasRenderingContext2D, p: number): void {
   const s = 64 / 60;
   const out = 1 - (1 - p) ** 3;
   const fade = Math.max(0, 1 - p) ** 1.1;
+  // the flash it lands on
+  const flash = Math.max(0, 1 - p / 0.24);
+  if (flash > 0) {
+    g.save();
+    g.scale(1.5, 0.62);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 28 * s);
+    core.addColorStop(0, `rgba(255,255,255,${0.9 * flash})`);
+    core.addColorStop(0.45, `rgba(255,255,255,${0.35 * flash})`);
+    core.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 28 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // the ring on the line
   g.save();
   g.scale(1, 0.62);
   g.beginPath();
-  g.arc(0, 0, (12 + 30 * out) * s, 0, Math.PI * 2);
-  g.lineWidth = (2 - 1.2 * p) * s;
-  g.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
+  g.arc(0, 0, (10 + 36 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (2.2 - 1.4 * p) * s;
+  g.strokeStyle = `rgba(255,255,255,${0.85 * fade})`;
   g.stroke();
   g.restore();
-  // each stroke drawn from one end to the other in the effect's first quarter (the second a moment after the first)
-  const reach = 26 * s;
+  // the X, a little up the track from the line: larger than it stays as it lands, whole for a moment, then apart
+  const cy = -14 * s;
+  const pop = p < 0.1 ? 0.5 + (p / 0.1) * 0.8 : p < 0.24 ? 1.3 - ((p - 0.1) / 0.14) * 0.3 : 1;
+  const apart = Math.max(0, (p - X_BURSTS) / (1 - X_BURSTS));
+  const fly = 1 - (1 - apart) ** 2.4;
+  const arm = 19 * s * pop;
+  const alpha = Math.max(0, 1 - apart) ** 1.2;
   g.lineCap = 'butt';
-  g.lineWidth = (2.4 - 1.2 * p) * s;
-  g.strokeStyle = `rgba(255,255,255,${Math.min(1, fade * 1.6)})`;
-  [1, -1].forEach((dir, i) => {
-    const t = Math.min(1, Math.max(0, (p - i * 0.07) / 0.2));
-    if (t <= 0) return;
-    const [x0, y0] = [-dir * reach, -reach * 0.72 - 6 * s];
-    const [x1, y1] = [dir * reach, reach * 0.72 - 6 * s];
+  // each arm's way out from the middle and its stroke: the heavy stroke runs from the upper left to the lower right
+  const arms: [number, number, boolean][] = [
+    [-1, -1, true],
+    [1, 1, true],
+    [1, -1, false],
+    [-1, 1, false],
+  ];
+  for (const [dx, dy, heavy] of arms) {
+    // the track is seen from above its near end: what runs up it is drawn a little shorter than what runs along the line
+    const [ux, uy] = [dx * Math.SQRT1_2, dy * Math.SQRT1_2 * 0.9];
+    const from = apart > 0 ? (2 + 24 * fly) * s : 0;
+    const to = from + arm * (1 - 0.5 * apart);
     g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    g.moveTo(ux * from, cy + uy * from);
+    g.lineTo(ux * to, cy + uy * to);
+    g.lineWidth = (heavy ? 7 : 2.6) * s * pop * (1 - 0.45 * apart);
+    g.strokeStyle = `rgba(255,255,255,${alpha})`;
     g.stroke();
-  });
+  }
+  // the glint on the heavy stroke's upper tip, open and shut between the landing and the burst
+  const glint = Math.sin(Math.min(1, Math.max(0, (p - 0.08) / 0.36)) * Math.PI);
+  if (glint > 0.01) {
+    const tip = arm * Math.SQRT1_2 * 0.92;
+    sparkleAt(g, -tip, cy - tip * 0.9, 15 * s * glint);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, glint * 1.5)})`;
+    g.fill();
+  }
+  if (apart <= 0) return;
+  // the sparkles thrown out between the arms: the angle each flies at (degrees from the line, negative up the track), how far, its size
+  const sparks: [number, number, number][] = [
+    [-90, 30, 6.5],
+    [-8, 38, 5.5],
+    [-172, 38, 5.5],
+    [-124, 42, 3.6],
+    [-56, 42, 3.6],
+    [84, 12, 3.2],
+  ];
+  for (const [deg, far, r] of sparks) {
+    const angle = (deg * Math.PI) / 180;
+    const d = (8 + far * fly) * s;
+    const size = Math.sin(Math.min(1, apart * 1.6) * Math.PI * 0.5) * (1 - 0.45 * apart);
+    sparkleAt(g, Math.cos(angle) * d, cy + Math.sin(angle) * d * 0.86, r * s * size);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, (1 - apart) * 1.9)})`;
+    g.fill();
+  }
 }
 
 /**
@@ -2401,13 +2983,249 @@ function drawRays(g: CanvasRenderingContext2D, p: number): void {
   }
 }
 
+/**
+ * AQUA's hit at progress `p`: a lock-on marker. A hexagon of aqua light snaps open round the hit, white
+ * at first, a thinner one inside it a moment later, and four short pink dashes fly out along the line,
+ * two each way. No sparks, no smoke.
+ */
+function drawLockOn(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  const flash = Math.max(0, 1 - 2.6 * p);
+  if (flash > 0) {
+    g.save();
+    g.scale(1.7, 0.6);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
+    core.addColorStop(0, `rgba(255,255,255,${0.95 * flash})`);
+    core.addColorStop(0.4, `rgba(120,240,246,${0.6 * flash})`);
+    core.addColorStop(1, 'rgba(34,224,230,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 22 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // a hexagon with a point to the left and one to the right, as flat as the track is seen
+  const hexagon = (r: number) => {
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const [x, y] = [Math.cos(a) * r, Math.sin(a) * r * 0.62];
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.closePath();
+  };
+  g.lineJoin = 'miter';
+  hexagon((12 + 21 * out) * s);
+  g.lineWidth = (3.2 - 1.9 * p) * s;
+  g.strokeStyle = `rgba(${p < 0.2 ? '235,255,255' : '70,232,238'},${Math.min(1, fade * 1.5)})`;
+  g.stroke();
+  const later = Math.max(0, p - 0.12) / 0.88;
+  if (later > 0) {
+    hexagon((7 + 16 * (1 - (1 - later) ** 3)) * s);
+    g.lineWidth = 1.4 * s;
+    g.strokeStyle = `rgba(150,244,248,${0.6 * (1 - later)})`;
+    g.stroke();
+  }
+  // the dashes: the angle each flies at (degrees from the line, negative up the track) and how far
+  g.lineCap = 'butt';
+  for (const [deg, far] of [
+    [-22, 48],
+    [22, 40],
+    [-158, 48],
+    [158, 40],
+  ]) {
+    const a = (deg * Math.PI) / 180;
+    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.8];
+    const head = (20 + far * 0.8 * out) * s;
+    const tail = head - 14 * s * (0.4 + 0.6 * fade);
+    g.beginPath();
+    g.moveTo(dx * tail, dy * tail);
+    g.lineTo(dx * head, dy * head);
+    g.lineWidth = (3 - 1.4 * p) * s;
+    g.strokeStyle = `rgba(255,63,147,${Math.min(1, fade * 1.6)})`;
+    g.stroke();
+  }
+}
+
+/**
+ * STEEL's hit at progress `p`: a plus of light, four short rays at right angles from the hit, white with
+ * steel-blue ends, and one thin square outline opening round it. Short; no sparks.
+ */
+function drawPlus(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.2;
+  const flash = Math.max(0, 1 - 3 * p);
+  if (flash > 0) {
+    g.save();
+    g.scale(1.4, 0.62);
+    const core = g.createRadialGradient(0, 0, 0, 0, 0, 16 * s);
+    core.addColorStop(0, `rgba(255,255,255,${0.9 * flash})`);
+    core.addColorStop(1, 'rgba(88,170,240,0)');
+    g.fillStyle = core;
+    g.beginPath();
+    g.arc(0, 0, 16 * s, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  // the square, as flat as the track is seen
+  const r = (10 + 20 * out) * s;
+  g.beginPath();
+  g.rect(-r, -r * 0.62, 2 * r, 2 * r * 0.62);
+  g.lineWidth = (2.2 - 1.2 * p) * s;
+  g.strokeStyle = `rgba(120,184,240,${0.9 * fade})`;
+  g.stroke();
+  const [from, to] = [(3 + 10 * out) * s, (10 + 26 * out) * s];
+  g.lineCap = 'butt';
+  for (const [dx, dy] of [
+    [1, 0],
+    [-1, 0],
+    [0, -1],
+    [0, 1],
+  ]) {
+    const k = dy === 0 ? 1 : 0.7;
+    const ray = g.createLinearGradient(dx * from, dy * from * k, dx * to, dy * to * k);
+    ray.addColorStop(0, `rgba(255,255,255,${Math.min(1, fade * 1.6)})`);
+    ray.addColorStop(1, `rgba(88,170,240,${0.25 * fade})`);
+    g.beginPath();
+    g.moveTo(dx * from, dy * from * k);
+    g.lineTo(dx * to, dy * to * k);
+    g.lineWidth = (3.2 - 1.6 * p) * s;
+    g.strokeStyle = ray;
+    g.stroke();
+  }
+}
+
+/**
+ * NOIR's hit at progress `p`: a glitch. Two blocks, a red one and a white one, flash over the hit a
+ * little apart and jump sideways in steps, small squares scatter up the track and a red line runs out
+ * along the judge line. Over in a moment; no ring, no sparks.
+ */
+function drawGlitch(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 2.4;
+  const fade = Math.max(0, 1 - p);
+  g.fillStyle = `rgba(255,26,43,${0.8 * fade ** 2})`;
+  g.fillRect(-(30 + 20 * out) * s, -0.8 * s, (60 + 40 * out) * s, 1.6 * s);
+  if (p < 0.62) {
+    // it does not ease: it jumps, a step an eighth of the effect long
+    const jump = [0, 5, -4, 3, -2, 4, 0, 0][Math.floor(p * 8)] * s;
+    const [wide, tall] = [(34 - 22 * p) * s, (9 - 4 * p) * s];
+    g.fillStyle = `rgba(255,26,43,${Math.min(1, fade * 1.5)})`;
+    g.fillRect(-wide / 2 + jump + 5 * s, -tall / 2 - 3 * s, wide, tall);
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, fade * 1.6)})`;
+    g.fillRect(-wide / 2 - jump, -tall / 2 + 2 * s, wide * 0.86, tall * 0.8);
+  }
+  // the squares: the angle each flies at (degrees from the line, negative up the track), how far, its size, its colour
+  for (const [deg, far, size, rgb] of [
+    [-150, 44, 5, '255,26,43'],
+    [-95, 52, 4, '255,255,255'],
+    [-35, 46, 5, '255,26,43'],
+    [-170, 30, 3, '255,255,255'],
+    [-20, 30, 3, '255,255,255'],
+  ] as const) {
+    const a = (deg * Math.PI) / 180;
+    const d = (10 + far * out) * s;
+    const z = size * s * (0.6 + 0.4 * fade);
+    g.fillStyle = `rgba(${rgb},${Math.min(1, fade * 1.5)})`;
+    g.fillRect(Math.cos(a) * d - z / 2, Math.sin(a) * 0.86 * d - z / 2, z, z);
+  }
+}
+
+/**
+ * WIRE's hit at progress `p`: line and nothing else. One thin white ring opens on the line, four short
+ * ticks round it, and a small dot at each side of it along the line. No colour, no glow.
+ */
+function drawRingTicks(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  const r = (11 + 25 * out) * s;
+  g.save();
+  g.scale(1, 0.62);
+  g.strokeStyle = `rgba(255,255,255,${0.95 * fade})`;
+  g.beginPath();
+  g.arc(0, 0, r, 0, Math.PI * 2);
+  g.lineWidth = (1.9 - 0.9 * p) * s;
+  g.stroke();
+  g.lineCap = 'butt';
+  g.lineWidth = 1.6 * s;
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    const [c, sn] = [Math.cos(a), Math.sin(a)];
+    g.beginPath();
+    g.moveTo(c * (r + 4 * s), sn * (r + 4 * s));
+    g.lineTo(c * (r + 11 * s), sn * (r + 11 * s));
+    g.stroke();
+  }
+  g.restore();
+  for (const dx of [-1, 1]) {
+    g.beginPath();
+    g.arc(dx * (r + 15 * s), 0, 1.8 * s, 0, Math.PI * 2);
+    g.fillStyle = `rgba(255,255,255,${fade})`;
+    g.fill();
+  }
+}
+
+/**
+ * ASTRAL's hit at progress `p`: starlight. A four-pointed star of white light with long thin points
+ * opens on the hit and fades, one thin ring of moon blue opens on the line, and three tiny gold stars
+ * drift away up the track. No sparks.
+ */
+function drawStarlight(g: CanvasRenderingContext2D, p: number): void {
+  const s = 64 / 60;
+  const out = 1 - (1 - p) ** 3;
+  const fade = Math.max(0, 1 - p) ** 1.1;
+  g.save();
+  g.scale(1, 0.62);
+  g.beginPath();
+  g.arc(0, 0, (10 + 24 * out) * s, 0, Math.PI * 2);
+  g.lineWidth = (1.8 - 0.9 * p) * s;
+  g.strokeStyle = `rgba(169,200,255,${0.9 * fade})`;
+  g.stroke();
+  g.restore();
+  const halo = g.createRadialGradient(0, 0, 0, 0, 0, 20 * s);
+  halo.addColorStop(0, `rgba(255,255,255,${0.7 * fade ** 2})`);
+  halo.addColorStop(1, 'rgba(169,200,255,0)');
+  g.fillStyle = halo;
+  g.beginPath();
+  g.arc(0, 0, 20 * s, 0, Math.PI * 2);
+  g.fill();
+  // the star: full size in the effect's first fifth, then thinning; its upright points the longer, the near one the shortest
+  const r = (13 + 22 * Math.min(1, p / 0.18)) * s * (1 - 0.3 * p);
+  g.beginPath();
+  g.moveTo(0, -r * 0.8);
+  g.quadraticCurveTo(r * 0.06, -r * 0.06, r * 1.1, 0);
+  g.quadraticCurveTo(r * 0.06, r * 0.06, 0, r * 0.5);
+  g.quadraticCurveTo(-r * 0.06, r * 0.06, -r * 1.1, 0);
+  g.quadraticCurveTo(-r * 0.06, -r * 0.06, 0, -r * 0.8);
+  g.closePath();
+  g.fillStyle = `rgba(255,255,255,${Math.min(1, fade * 1.5)})`;
+  g.fill();
+  // where each tiny star is (px from the hit, up the track negative), its size and when it starts
+  for (const [x, y, size, from] of [
+    [-24, -22, 5, 0.05],
+    [22, -30, 4, 0.14],
+    [32, -8, 3.4, 0.22],
+  ]) {
+    const t = (p - from) / (1 - from);
+    if (t <= 0 || t >= 1) continue;
+    sparkleAt(g, x * s * (0.8 + 0.5 * t), y * s * (0.8 + 0.5 * t), size * s * Math.sin(Math.min(1, t * 1.8) * Math.PI * 0.5) * (1 - 0.4 * t));
+    g.fillStyle = `rgba(242,193,78,${Math.min(1, (1 - t) * 1.8)})`;
+    g.fill();
+  }
+}
+
 /** Offset of `frame` in a cols×rows sheet (texture v runs up; frame 0 is the top-left cell). */
 export function sheetOffset(sheet: Pick<EffectSheet, 'cols' | 'rows'>, frame: number): [number, number] {
   const f = Math.floor(frame);
   return [(f % sheet.cols) / sheet.cols, 1 - (Math.floor(f / sheet.cols) + 1) / sheet.rows];
 }
 
-function drawEffect(g: CanvasRenderingContext2D, style: Exclude<DrawnHit, 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude'>, p: number): void {
+function drawEffect(g: CanvasRenderingContext2D, style: SheetHit, p: number): void {
   const s = 64 / 60;
   const a = Math.max(0, 1 - p);
   const colour = (alpha: number) => tone(1, alpha);

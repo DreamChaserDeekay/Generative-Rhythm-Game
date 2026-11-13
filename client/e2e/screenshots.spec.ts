@@ -105,8 +105,8 @@ async function levelsKnown(page: Page): Promise<void> {
 }
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
 }
@@ -134,19 +134,26 @@ async function watchSources(page: Page): Promise<void> {
 
 const startsSoFar = (page: Page) => page.evaluate(() => (window as unknown as { __starts: unknown[] }).__starts.length);
 
+/** The play that was started is on the screen and its loading card has gone. */
+async function playShown(page: Page): Promise<void> {
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+}
+
 /** Starts the play and waits for its loading card to go. */
 async function startPlay(page: Page): Promise<number> {
   const before = await startsSoFar(page);
   await page.getByTestId('hint-enter').click();
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+  await playShown(page);
   return before;
 }
 
 /** Autoplay until the song heard is `ms` in (the song's sources are the first long ones the play starts). */
 async function autoplayAt(page: Page, ms: number): Promise<void> {
+  const before = await startsSoFar(page);
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  const before = await startPlay(page);
+  await playShown(page);
   await page.waitForFunction(
     ({ before, ms }) => {
       type Start = { when: number; offset: number; length: number; ctx: AudioContext };
@@ -346,8 +353,9 @@ test('play: the default skin, what a player starts with', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // its key deck with the score, SPEED and the rate in it, the song's time under its plate: the keys
-  // and the scratch; the side notes over half the keys; four keys in FEVER
+  // its row of keys over the plain panel with its light strip, the score, MAX COMBO and SPEED beside the
+  // gear and the rate under the judgement: the keys and the scratch; the side notes over half the keys;
+  // four keys in FEVER
   for (const [keyMode, more, name] of [
     ['7K+1S', { fever: 'OFF' }, '47-default-7k'],
     ['6K+FX', { fever: 'OFF' }, '48-default-6kfx'],
@@ -463,6 +471,24 @@ test('play: the AI companies’ skins', async ({ page }) => {
   }
 });
 
+test('play: the skins after the reference panels', async ({ page }) => {
+  test.setTimeout(600_000);
+  // also runs on its own (-g "reference panels"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  for (const [skin, name] of [['aqua', '63-aqua-7k'], ['steel', '64-steel-7k'], ['noir', '66-noir-7k'], ['wire', '68-wire-7k'], ['astral', '69-astral-7k']] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');
@@ -474,7 +500,7 @@ test('play: the bar in its finishes', async ({ page }) => {
     [{ note: 'carbon', side: 'bar', deck: 'racing', hit: 'flash' }, '43-note-carbon'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await selectShowcase(page, '7K+1S', 'ELITE');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }

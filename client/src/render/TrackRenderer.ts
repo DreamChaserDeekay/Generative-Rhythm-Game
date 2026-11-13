@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import type { CameraPreset, KeyModeConfig } from '../engine/config';
+import { cameraConfig, type CameraPreset, type KeyModeConfig } from '../engine/config';
 import type { ScrollModel } from '../engine/scroll';
 import type { SessionNote } from '../engine/session';
 import type { CameraPoseFx } from './cameraFx';
 import { readNotePicture, readStandees, STAGES, standeeBoxes, standeeCanvas, stickerCanvas, stickerShape, type StageView, type StickerShape } from './standees';
-import { DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
+import { DECK_GAP, DECK_PICTURE_STRETCH, deckFromPicture, deckKeys, deckReadouts, GEAR_FLOORS, GEAR_JUDGE, judgeOf, paintLitKey, type DeckReadouts, type DeckMark, type FloorView, paintBorder, paintFace, type DeckSpec, type KeyKind, paintPressedKey, type DeckKey, type SideLook } from './deckArt';
 import {
   cameraPose,
   computeTrackGeometry,
@@ -125,6 +125,8 @@ const DECK_Y = 0.022;
 const PRESS_KEY_PX = [64, 256] as const;
 /** The px of a gear's picture laid over the lanes (deckArt.GEAR_FLOORS), across and along the track. */
 const FLOOR_PICTURE_PX = [1024, 2048] as const;
+/** That picture's rows are moved for another camera than the default one this many at a time (paintFloor). */
+const FLOOR_BAND = 16;
 /** The px of a cut cap's picture when lit (deckArt.paintLitKey: CRYSTAL's), square. */
 const LIT_GEM_PX = 192;
 /** How fast a deck key held down comes back up once its lane's key is let go (ms to fall to 1/e). */
@@ -192,11 +194,10 @@ const TICK_GAP_MS = 180;
 const TICK_SIZE = 0.72;
 const TICK_GAIN = 0.55;
 /**
- * The light flowing down a held long note into the judge line (drawFlows): how far up the note it
- * reaches, how fast it runs (track units a second), how long one run of its picture is, and its
- * share of the note's width.
+ * The light flowing down a held long note into the judge line (drawFlows), from the note's far end
+ * (or the track's, where the note reaches past it): how fast it runs (track units a second), how long
+ * one run of its picture is, and its share of the note's width.
  */
-const FLOW_REACH = 7;
 const FLOW_SPEED = 12;
 const FLOW_TILE = 3.2;
 const FLOW_WIDTH = 0.8;
@@ -249,6 +250,8 @@ interface DeckLayout {
   room: number;
   depth: number;
   stretch: number;
+  /** How much of the deck the screen shows (track units, from its top edge to the screen's bottom edge): DeckSpec.shown. */
+  shown: number;
 }
 
 export interface FeverFrame {
@@ -287,8 +290,18 @@ export interface HudPlane {
   /** Where the track ends up it (plane y). */
   far: number;
   /** The readouts the gear's deck houses: their windows, plane px (x from the track's middle, y from the judge line toward the camera); null where it houses none. */
-  deck: DeckReadouts | null;
+  deck: (DeckReadouts & { /** They lie on the display of the deck's panel (a painting), not in windows drawn in code. */ panel: boolean }) | null;
+  /**
+   * Where up the track (plane px from the judge line) this camera shows what the default camera (SDVX) shows `up`
+   * plane px up it: at the same share of the way, on the screen, from the judge line to the top of the lanes (see
+   * likeCamera). The combo, the judgement and the gauge are laid there, so they stand as high on the screen and
+   * the gauge is as long on it whichever camera is picked.
+   */
+  like: (up: number) => number;
 }
+
+/** The camera the HUD's heights over the track are measured on (HudPlane.like): the default one. */
+const HUD_CAMERA: CameraPreset = cameraConfig.presets[cameraConfig.default];
 
 /**
  * The homography of the HUD's plane (HUD_UNIT plane px to a track unit, from the middle of the judge
@@ -452,10 +465,10 @@ export function poseCamera(pose: CameraPose, aspect: number): TrackCamera {
 
 /**
  * A preview's field of view for `camera` (in its preset's pose, its world matrices up to date): the
- * judge line spans `fitWidth` of the width, and the whole track lies above it down from
- * FIT_TRACK_END_Y of the height, whichever needs the wider view.
+ * judge line (at `lineY` of the height) spans `fitWidth` of the width, and the whole track lies above
+ * it down from FIT_TRACK_END_Y of the height, whichever needs the wider view.
  */
-export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' | 'length'>, fitWidth: number): number {
+export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' | 'length'>, fitWidth: number, lineY = JUDGE_LINE_Y): number {
   const half = track.width / 2;
   // a point of the track as the field of view measures it: up and across the view per unit away
   // from the eye, or per unit of the plane camera's depth (its rays are parallel)
@@ -470,7 +483,7 @@ export function fitFov(camera: TrackCamera, track: Pick<TrackGeometry, 'width' |
   // top, and the notes would seem to start halfway down
   const [line, end] = [view(0, 0), view(0, -track.length)];
   const rise = end.y - line.y;
-  const tanHalf = Math.max(spread / (2 * fitWidth * camera.aspect), rise / (2 * (JUDGE_LINE_Y - FIT_TRACK_END_Y)));
+  const tanHalf = Math.max(spread / (2 * fitWidth * camera.aspect), rise / (2 * (lineY - FIT_TRACK_END_Y)));
   return THREE.MathUtils.radToDeg(2 * Math.atan(tanHalf));
 }
 
@@ -486,8 +499,9 @@ function lineScreenY(camera: THREE.Camera, z: number): number {
 
 /**
  * A camera's framing before a chart's zoom and roll (see baseFrame): how far the view moves (a
- * share of the height) to put the (unlifted) judge line at JUDGE_LINE_Y, and the height on the
- * screen where the judge line, LIFT included, then lies.
+ * share of the height) to put the (unlifted) judge line at the camera's height for it (JUDGE_LINE_Y,
+ * or the preset's own: CameraPose.lineY), and the height on the screen where the judge line, LIFT
+ * included, then lies.
  */
 export interface CameraFrame {
   shift: number;
@@ -496,14 +510,15 @@ export interface CameraFrame {
 
 /**
  * The framing of `camera` (its world matrices up to date, in its preset's pose) at `fov`, with the
- * judge line at `lineZ` (LIFT raises it). It changes only with the camera, the screen and LIFT,
- * so the renderer keeps it while a chart's zoom and roll move the view frame by frame.
+ * judge line at `lineZ` (LIFT raises it) and the unlifted line at `lineY` of the height. It changes
+ * only with the camera, the screen and LIFT, so the renderer keeps it while a chart's zoom and roll
+ * move the view frame by frame.
  */
-export function baseFrame(camera: TrackCamera, fov: number, lineZ = 0): CameraFrame {
+export function baseFrame(camera: TrackCamera, fov: number, lineZ = 0, lineY = JUDGE_LINE_Y): CameraFrame {
   camera.fov = fov;
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
-  const shift = lineScreenY(camera, 0) - JUDGE_LINE_Y;
+  const shift = lineScreenY(camera, 0) - lineY;
   return { shift, lineY: lineScreenY(camera, lineZ) - shift };
 }
 
@@ -554,6 +569,99 @@ export function frameCamera(
     camera.rotateOnAxis(axis, roll);
   }
   camera.updateMatrixWorld();
+}
+
+/** How tall a small square lying on the track at `z` looks for its width on a `width`×`height` screen, as `camera` shows it. */
+export function trackAspectOf(camera: THREE.Camera, z: number, width: number, height: number): number {
+  camera.updateMatrixWorld();
+  const a = new THREE.Vector3(-0.25, 0, z).project(camera);
+  const b = new THREE.Vector3(0.25, 0, z).project(camera);
+  const c = new THREE.Vector3(0, 0, z - 0.25).project(camera);
+  const d = new THREE.Vector3(0, 0, z + 0.25).project(camera);
+  const across = Math.abs(b.x - a.x) * width;
+  const along = Math.abs(d.y - c.y) * height;
+  return across > 1e-6 ? along / across : 1;
+}
+
+/** Where the bottom edge of the screen meets the track (z) as `camera` shows it: no further toward the camera than TRACK_TAIL. */
+export function screenBottomZOf(camera: THREE.Camera): number {
+  camera.updateMatrixWorld();
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(0, -1), camera);
+  const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+  return hit ? Math.min(hit.z, TRACK_TAIL) : TRACK_TAIL;
+}
+
+/**
+ * Where up the track a camera in `pose` shows what the `reference` camera shows `up` plane px up it (HudPlane.like):
+ * at the same share of the way, on the screen, from the judge line (at `lineZ`) to the top of the lanes as the
+ * screen shows them (their far end, `length` up the track, or the screen's own top). Both cameras as they frame
+ * the track on a screen of `aspect` without a chart's zoom and roll, this one at `fov` (a preview fitted to its
+ * box has its own). The reference camera itself gives `up` back.
+ */
+export function likeCamera(reference: CameraPose, pose: CameraPose, fov: number, aspect: number, lineZ: number, length: number): (up: number) => number {
+  const same = (['position', 'target'] as const).every((k) => reference[k].every((v, i) => v === pose[k][i]));
+  if (same && reference.fov === fov && reference.orthographic === pose.orthographic && reference.lineY === pose.lineY) return (up) => up;
+  // the height on the screen (a share of it, 0 its top) of a point of the track's middle, on a camera in its pose
+  const heights = (of: CameraPose, at: number) => {
+    const camera = poseCamera(of, aspect);
+    const frame = baseFrame(camera, at, lineZ, of.lineY);
+    return (z: number) => lineScreenY(camera, z) - frame.shift;
+  };
+  const [ref, own] = [heights(reference, reference.fov), heights(pose, fov)];
+  // from the judge line to the top of the lanes as the screen shows them: their far end, or the screen's own top
+  const span = (y: (z: number) => number) => [y(lineZ), Math.max(0, y(-length))] as const;
+  const [refLine, refTop] = span(ref);
+  const [line, top] = span(own);
+  return (up) => {
+    const share = (refLine - ref(lineZ - up * PX)) / Math.max(refLine - refTop, 1e-6);
+    const height = line - share * (line - top);
+    // the track rises on the screen all the way up it: halve the way to where it is at that height
+    let [near, far] = [lineZ, -length];
+    for (let i = 0; i < 40; i++) {
+      const mid = (near + far) / 2;
+      if (own(mid) > height) near = mid;
+      else far = mid;
+    }
+    return (lineZ - (near + far) / 2) / PX;
+  };
+}
+
+/**
+ * How a camera in `pose` shows the lanes next to how the `reference` camera does, for a gear's picture laid over
+ * them (deckArt.FloorView): where the reference camera shows what this one shows a share of the way up the lanes
+ * (likeCamera, the other way round), how much less the track narrows for it there, and how much taller for their
+ * width at the judge line (at `lineZ`) the reference camera shows the lanes. Both cameras as they frame the track
+ * on a screen of `aspect` without a chart's zoom and roll, this one at `fov`. Null for the reference camera itself.
+ */
+export function floorViewOf(reference: CameraPose, pose: CameraPose, fov: number, aspect: number, lineZ: number, track: Pick<TrackGeometry, 'width' | 'length'>): FloorView | null {
+  const same = (['position', 'target'] as const).every((k) => reference[k].every((v, i) => v === pose[k][i]));
+  if (same && reference.fov === fov && reference.orthographic === pose.orthographic && reference.lineY === pose.lineY) return null;
+  const { width, length } = track;
+  // a camera's lanes on the screen: from the judge line to their top (their far end, or the screen's own top), a
+  // share of the screen's height, and how wide the track is at `z`, in screen heights
+  const lanes = (of: CameraPose, at: number) => {
+    const camera = poseCamera(of, aspect);
+    const frame = baseFrame(camera, at, lineZ, of.lineY);
+    const y = (z: number) => lineScreenY(camera, z) - frame.shift;
+    const p = new THREE.Vector3();
+    const wide = (z: number) => {
+      const right = p.set(width / 2, 0, z).project(camera).x;
+      return ((right - p.set(-width / 2, 0, z).project(camera).x) / 2) * aspect;
+    };
+    return { tall: y(lineZ) - Math.max(0, y(-length)), wide };
+  };
+  const [ref, own] = [lanes(reference, reference.fov), lanes(pose, fov)];
+  const there = likeCamera(reference, pose, fov, aspect, lineZ, length);
+  const back = likeCamera({ ...pose, fov }, reference, reference.fov, aspect, lineZ, length);
+  return {
+    asDefault: (up) => (back((up * length) / PX) * PX) / length,
+    spread: (up) => {
+      const z = up * length;
+      return ref.wide(lineZ - z) / ref.wide(lineZ) / (own.wide(lineZ - there(z / PX) * PX) / own.wide(lineZ));
+    },
+    aspect: ref.tall / ref.wide(lineZ) / (own.tall / own.wide(lineZ)),
+  };
 }
 
 /**
@@ -627,6 +735,12 @@ export class TrackRenderer {
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top), or lying flat where its style has no thickness (LongPaint.flat). */
   private readonly longSlab: THREE.BufferGeometry;
+  /**
+   * A long note's far end is its top alone: a slab's walls there would be drawn over the body next to
+   * it (the wall that faces the camera at that end is inside the note), and the note would look as if
+   * a second piece lay on it.
+   */
+  private readonly longTop = slabGeometry(0, 0, 0, 0);
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
@@ -741,6 +855,9 @@ export class TrackRenderer {
   private judgeZ = 0;
   /** The gear's picture laid over the lanes, where it has one (deckArt.GEAR_FLOORS). */
   private floorMap: THREE.Texture | null = null;
+  /** That picture's canvas, and the camera, the field of view and the LIFT it is painted for (paintFloor). */
+  private floorCanvas: HTMLCanvasElement | null = null;
+  private floorPainted = '';
   /** The deck's readout windows as it was last laid out (deck px), null where it houses none. */
   private readouts: DeckReadouts | null = null;
   private firstLive = 0;
@@ -921,6 +1038,7 @@ export class TrackRenderer {
     }
     this.frameView();
     this.scene.fog = new THREE.Fog(hex(this.skin?.colors.fog ?? '#060a1a'), mid, far);
+    this.paintFloor();
     if (this.deck) this.layoutDeck();
   }
 
@@ -946,6 +1064,7 @@ export class TrackRenderer {
     this.judgeGroup.position.z = this.judgeZ;
     // the gear's picture on the lanes ends at the line (buildTrack)
     if (this.floorMap) this.floorMap.offset.y = (this.judgeZ - TRACK_TAIL) / L;
+    this.paintFloor();
     this.placeBeams();
 
     const suddenZ = this.judgeZ - travel * (1 - c.sudden);
@@ -975,6 +1094,7 @@ export class TrackRenderer {
     this.camera.aspect = this.aspect;
     this.frame = null;
     this.frameView();
+    this.paintFloor();
     this.layoutDeck();
   }
 
@@ -999,8 +1119,8 @@ export class TrackRenderer {
    * field of view that makes the judge line span that share of the width with the whole track above it.
    */
   private unzoomedFrame(): CameraFrame {
-    if (this.fitWidth !== null) this.baseFov = fitFov(this.camera, this.geometry, this.fitWidth);
-    return baseFrame(this.camera, this.baseFov, this.judgeZ);
+    if (this.fitWidth !== null) this.baseFov = fitFov(this.camera, this.geometry, this.fitWidth, this.pose.lineY);
+    return baseFrame(this.camera, this.baseFov, this.judgeZ, this.pose.lineY);
   }
 
   /** Changes whenever the HUD lying on the track has to move (see hudPlane). */
@@ -1030,14 +1150,19 @@ export class TrackRenderer {
     return this.borderLook.width;
   }
 
+  /** Whether the gear's deck is laid with its panel (the painting of its lower part: deckArt.DECK_PANELS), its picture loaded. */
+  private get panelled(): boolean {
+    return Boolean(gearArtOf(this.style.deck, this.images).panel);
+  }
+
   /** The deck's readout windows on the HUD's plane (see HudPlane.deck). */
-  private deckWindows(): DeckReadouts | null {
+  private deckWindows(): HudPlane['deck'] {
     const r = this.readouts;
     if (!r) return null;
     const left = -this.geometry.width / 2 / PX;
     const top = (this.deckTopZ - this.judgeZ) / PX;
     const move = (b: { x: number; y: number; w: number; h: number }) => ({ x: left + b.x, y: top + b.y, w: b.w, h: b.h });
-    return { speed: move(r.speed), score: move(r.score), rate: move(r.rate) };
+    return { speed: move(r.speed), score: move(r.score), panel: this.panelled };
   }
 
   private planeAs(camera: TrackCamera): HudPlane {
@@ -1054,7 +1179,13 @@ export class TrackRenderer {
       sideOut: (railOuter + lean) / PX,
       far: (-length - this.judgeZ) / PX,
       deck: this.deckWindows(),
+      like: this.likeDefault(),
     };
+  }
+
+  /** See HudPlane.like. */
+  private likeDefault(): (up: number) => number {
+    return likeCamera(cameraPose(HUD_CAMERA), this.pose, this.baseFov, this.aspect, this.judgeZ, this.geometry.length);
   }
 
   /** Forget per-run state before replaying a chart. */
@@ -1086,12 +1217,15 @@ export class TrackRenderer {
   }
 
   /**
-   * An effect's colour: the lane's, or, on a sheet in colours of its own (EffectSheet.plain: PRISM's
-   * spectrum), white tinged with it, so the sheet's colours show.
+   * An effect's colour: the lane's; on a code sheet in colours of its own (EffectSheet.plain), white tinged
+   * with it, so the sheet's colours show; on a flipbook in colours of its own (MediaTexture.plain: the skins'
+   * hits), white, the flipbook's colours as they are.
    */
   private tinge(material: THREE.MeshBasicMaterial, color: number): void {
     material.color.setHex(color);
-    if (this.hitSheet?.plain && material.map?.image === this.hitSheet.texture.image) material.color.lerp(WHITE, PLAIN_WHITE);
+    const image = material.map?.image;
+    if (this.hitSheet?.plain && image === this.hitSheet.texture.image) material.color.lerp(WHITE, PLAIN_WHITE);
+    else if (HIT_SLOTS.some((slot) => this.art[slot]?.spec.plain && this.art[slot]?.texture.image === image)) material.color.copy(WHITE);
   }
 
   /** A burst on the judge line of a lane, `size` and `gain` shares of a hit's (in the middle of a side lane's half). */
@@ -1324,6 +1458,8 @@ export class TrackRenderer {
     for (const m of this.staleMaterials) m.dispose();
     (this.deck.material as THREE.MeshBasicMaterial).map?.dispose();
     this.flatGeometry.dispose();
+    this.longSlab.dispose();
+    this.longTop.dispose();
     this.glowTexture.dispose();
     this.ownedTextures.forEach((t) => t.dispose());
     disposeSkinArt(this.artSource);
@@ -1419,6 +1555,7 @@ export class TrackRenderer {
   private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean, dots: boolean): void {
     const cap = this.endPool.next();
     cap.material = this.endMaterial(color, state, dots);
+    cap.geometry = head ? this.longSlab : this.longTop;
     cap.scale.set(width, 1, end);
     cap.rotation.y = head ? Math.PI : 0;
     cap.position.set(x, 0.021, z);
@@ -1638,7 +1775,7 @@ export class TrackRenderer {
         const size = w * CORE_SIZE * FX_SCALE * flash * this.fxFit.core * (this.art.hitBurst?.spec.span ?? 1) * swell;
         core.mesh.scale.set(size, 1, size * this.stretch);
         core.mesh.position.set(g.x, 0.029, this.judgeZ + size * this.stretch * ((this.art.hitBurst?.spec.anchorY ?? 0.5) - 0.5));
-        core.material.color.setHex(this.laneColors[lane]);
+        this.tinge(core.material, this.laneColors[lane]);
         core.material.opacity = dim * (0.85 + 0.15 * kick);
       }
       if (sparks?.spec.flipbook) {
@@ -1653,7 +1790,7 @@ export class TrackRenderer {
         const anchor = sparks.spec.anchorY ?? 0.15;
         h.mesh.scale.set(size, 1, depth);
         h.mesh.position.set(g.x, 0.03, this.judgeZ + depth * (anchor - 0.5));
-        h.material.color.setHex(this.laneColors[lane]);
+        this.tinge(h.material, this.laneColors[lane]);
         h.material.opacity = dim;
         return;
       }
@@ -1675,15 +1812,15 @@ export class TrackRenderer {
   }
 
   /**
-   * The light flowing down each held long note into the judge line: from the line up the note's body
-   * (FLOW_REACH at most, fading out up it), running toward the line faster than the notes scroll.
+   * The light flowing down each held long note into the judge line: from the line all the way up the
+   * note's body (fading out toward its far end), running toward the line faster than the notes scroll.
    */
   private drawFlows(frame: TrackFrame): void {
     this.flows.forEach((mesh, lane) => {
       const far = this.heldFar[lane];
       const g = this.geometry.lanes[lane];
       const near = this.judgeZ;
-      const top = far === null ? near : Math.max(far, near - FLOW_REACH);
+      const top = far === null ? near : far;
       mesh.visible = near - top > 0.05;
       if (!mesh.visible) return;
       mesh.scale.set(g.width * this.long.width * FLOW_WIDTH, 1, near - top);
@@ -1707,9 +1844,10 @@ export class TrackRenderer {
     const pos = geometry.getAttribute('position');
     const colors = new Float32Array(pos.count * 4);
     for (let i = 0; i < pos.count; i++) {
-      // 1 at the line, none at the far end
+      // 1 at the line, none at the far end, and still half as bright a quarter of the way down from it:
+      // the light shows up the whole note, however long it is
       const near = pos.getZ(i) + 0.5;
-      colors.set([1, 1, 1, near * near * (3 - 2 * near)], i * 4);
+      colors.set([1, 1, 1, Math.sqrt(near)], i * 4);
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
     const material = lightMaterial({ map: this.flowTexture, transparent: true, depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false }, 0.9);
@@ -1947,13 +2085,9 @@ export class TrackRenderer {
     // the gear's picture laid very faintly over the lanes (deckArt.GEAR_FLOORS), from the far end to the
     // judge line and its last row on from there under the gear: over the floor, under the lanes' tints,
     // the dividers and everything that moves
-    const floor = GEAR_FLOORS[this.style.deck];
-    if (floor) {
+    if (GEAR_FLOORS[this.style.deck]) {
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = FLOOR_PICTURE_PX;
-      // round things in it are drawn longer along the track, as the notes' marks are (the picture's px
-      // are not square on the track, and the camera flattens it)
-      floor(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, (canvas.height / length / (canvas.width / width)) * NOTE_STRETCH);
       const map = this.own(new THREE.CanvasTexture(canvas));
       map.colorSpace = THREE.SRGBColorSpace;
       map.anisotropy = 8;
@@ -1961,6 +2095,9 @@ export class TrackRenderer {
       map.repeat.set(1, (length + TRACK_TAIL) / length);
       map.offset.set(0, -TRACK_TAIL / length);
       this.floorMap = map;
+      this.floorCanvas = canvas;
+      this.floorPainted = '';
+      this.paintFloor();
       const picture = new THREE.Mesh(this.flatGeometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
       picture.scale.set(width, 1, length + TRACK_TAIL);
       picture.position.set(0, 0.003, (TRACK_TAIL - length) / 2);
@@ -1987,6 +2124,43 @@ export class TrackRenderer {
       strip(floorLanes[i].x - floorLanes[i].width / 2, sideEdge ? 0.05 : 0.025, divider, 0.9);
     }
     this.buildRails();
+  }
+
+  /**
+   * Paints the gear's picture over the lanes (deckArt.GEAR_FLOORS) for the camera as it frames them: as the default
+   * camera needs it, and for another one its rows then moved to where that camera shows them as far up the lanes
+   * (deckArt.FloorView, floorViewOf), so the picture fills the lanes alike whichever camera is picked. Painted
+   * again only when the camera, a preview's field of view or LIFT changes: nothing is done frame by frame.
+   */
+  private paintFloor(): void {
+    const floor = GEAR_FLOORS[this.style.deck];
+    const [canvas, map] = [this.floorCanvas, this.floorMap];
+    if (!floor || !canvas || !map) return;
+    const painted = JSON.stringify([this.pose, this.baseFov, this.judgeZ]);
+    if (painted === this.floorPainted) return;
+    this.floorPainted = painted;
+    const { width, length } = this.geometry;
+    const [w, h] = [canvas.width, canvas.height];
+    // round things in it are drawn longer along the track, as the notes' marks are (the picture's px
+    // are not square on the track, and the camera flattens it)
+    const st = (h / length / (w / width)) * NOTE_STRETCH;
+    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+    g.clearRect(0, 0, w, h);
+    const view = floorViewOf(cameraPose(HUD_CAMERA), this.pose, this.baseFov, this.aspect, this.judgeZ, this.geometry);
+    if (!view) floor(g, w, h, st);
+    else {
+      const source = document.createElement('canvas');
+      [source.width, source.height] = [w, h];
+      floor(source.getContext('2d') as CanvasRenderingContext2D, w, h, st, view);
+      // the row of the default camera's picture that comes to lie at this picture's row `y`
+      const from = (y: number) => h * (1 - view.asDefault(1 - y / h));
+      g.imageSmoothingQuality = 'high';
+      for (let y = 0; y < h; y += FLOOR_BAND) {
+        const [top, end] = [from(y), from(y + FLOOR_BAND)];
+        g.drawImage(source, 0, top, w, Math.max(end - top, 0.01), 0, y, w, FLOOR_BAND);
+      }
+    }
+    map.needsUpdate = true;
   }
 
   /**
@@ -2081,9 +2255,15 @@ export class TrackRenderer {
     this.scene.add(strip);
   }
 
-  /** How far under the middle of the judge line the deck starts (plane px): 3 px under the line (judgeFit times, as the line is), then the gap where the lanes run on (GEAR_JUDGE.gap). */
+  /**
+   * How far under the middle of the unlifted judge line the deck starts (plane px): 3 px under the line
+   * (judgeFit times, as the line is), then the gap where the lanes run on (DECK_GAP). A line lowered
+   * further than that gap (판정선 위치 under −12 %) takes the deck down with it, so the line is on the
+   * gear and never under it: at −20 % (GEAR_JUDGE.gap) the deck is where it always was at that setting.
+   */
   private get deckOffset(): number {
-    return (GEAR_JUDGE.height / 2 + 3) * this.judgeFit + GEAR_JUDGE.gap;
+    const lowered = Math.min(GEAR_JUDGE.gap, Math.max(0, this.judgeZ / PX));
+    return (GEAR_JUDGE.height / 2 + 3) * this.judgeFit + Math.max(DECK_GAP, lowered);
   }
 
   /**
@@ -2149,7 +2329,8 @@ export class TrackRenderer {
       if (source) this.holds.push(this.effectQuad(source, hold ? hold.spec.flipbook ?? null : this.hitSheet, 0.7));
       this.bands.push(source && lane.over ? this.flashQuad() : null);
       const burst = this.art.hitBurst;
-      if (hold?.spec.flipbook && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
+      // (a hold flipbook with a core of its own takes none of the burst's)
+      if (hold?.spec.flipbook && !hold.spec.cored && burst?.spec.flipbook) this.holdCores.push(this.effectQuad(burst.texture, burst.spec.flipbook, 0.8));
       this.tickAt.push(-Infinity);
       this.tickBurstAt.push(-Infinity);
       this.heldFar.push(null);
@@ -2198,11 +2379,12 @@ export class TrackRenderer {
     this.planeVersion++;
     // round things on the deck look round, drawn longer along the track where the camera flattens it
     const stretch = deckStretch(Math.round(room / PX), (band) => 0.85 / this.trackAspect(top + STRETCH_TOP * PX + (band * PX) / 2));
-    this.readouts = deckReadouts(this.style.deck, { width: width / PX, room: room / PX, stretch });
-    const painted = `${Math.round(room / PX)}|${stretch}`;
+    this.readouts = deckReadouts(this.style.deck, { width: width / PX, room: room / PX, stretch, shown: shown / PX }, this.panelled);
+    // a skin's panel is laid as deep as the screen shows the deck (deckArt.panelSpan): to half a px
+    const painted = `${Math.round(room / PX)}|${stretch}|${Math.round((shown / PX) * 2)}`;
     if (painted !== this.deckPainted) {
       this.deckPainted = painted;
-      this.deckPending = { room, depth, stretch };
+      this.deckPending = { room, depth, stretch, shown };
       this.deckWait = 0;
     }
     // effects lying on the track are drawn longer where the camera flattens it
@@ -2264,6 +2446,7 @@ export class TrackRenderer {
       room: d.room / PX,
       depth: d.depth / PX,
       stretch: d.stretch,
+      shown: d.shown / PX,
       lanes: lanes.filter((l) => !l.over).map((l) => ({ left: left(l), width: l.width / PX, kind: keyKind(l), ...(l.kind === 'side' ? { side: true } : {}) })),
       sides: lanes.filter((l) => l.over).map((l) => ({ left: left(l), width: l.width / PX })),
       marks,
@@ -2297,23 +2480,12 @@ export class TrackRenderer {
 
   /** How tall a small square lying on the track at `z` looks for its width on the screen. */
   private trackAspect(z: number): number {
-    this.camera.updateMatrixWorld();
-    const a = new THREE.Vector3(-0.25, 0, z).project(this.camera);
-    const b = new THREE.Vector3(0.25, 0, z).project(this.camera);
-    const c = new THREE.Vector3(0, 0, z - 0.25).project(this.camera);
-    const d = new THREE.Vector3(0, 0, z + 0.25).project(this.camera);
-    const across = Math.abs(b.x - a.x) * this.cssWidth;
-    const along = Math.abs(d.y - c.y) * this.cssHeight;
-    return across > 1e-6 ? along / across : 1;
+    return trackAspectOf(this.camera, z, this.cssWidth, this.cssHeight);
   }
 
   /** Where the bottom edge of the screen meets the track (z), without the chart's camera effects. */
   private screenBottomZ(): number {
-    this.camera.updateMatrixWorld();
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(0, -1), this.camera);
-    const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
-    return hit ? Math.min(hit.z, TRACK_TAIL) : TRACK_TAIL;
+    return screenBottomZOf(this.camera);
   }
 
   /** A flat (XZ) quad added to the scene. */

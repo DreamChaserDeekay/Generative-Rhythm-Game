@@ -22,6 +22,13 @@ export interface MediaTexture {
   anchorY?: number;
   /** Hit flipbooks: how much larger a frame is than the effect drawn in it (room all round the whole effect). */
   span?: number;
+  /**
+   * Hit flipbooks: light in colours of its own, added to the screen as it is (the skins' hits, drawn frame by frame:
+   * scripts/assets/build_skin_fx.py); without it the light is white and takes the lane's colour.
+   */
+  plain?: boolean;
+  /** A hold flipbook with a core of its own: no frame of the burst glows under it. */
+  cored?: boolean;
 }
 
 /** "Reduce flashing" for the textured hit effects. */
@@ -77,6 +84,8 @@ export function parseMediaTexture(raw: unknown): MediaTexture | null {
     if (typeof raw.anchorY !== 'number' || !(raw.anchorY >= 0 && raw.anchorY <= 1)) return null;
     out.anchorY = raw.anchorY;
   }
+  if (raw.plain === true) out.plain = true;
+  if (raw.cored === true) out.cored = true;
   if (raw.flipbook !== undefined) {
     const b = raw.flipbook;
     if (!isObject(b) || !count(b.cols, 16) || !count(b.rows, 16) || !count(b.frames, (b.cols as number) * (b.rows as number)) || !positive(b.fps)) return null;

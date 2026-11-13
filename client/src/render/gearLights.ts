@@ -10,7 +10,9 @@ import type { DeckMark, GearStyle } from './deckArt';
  *
  * Each light is placed where the deck's picture shows its part (the deck picture's px:
  * DECK_PICTURE_PX across, its rows as many: scripts/assets/build_gears.py) and, on a deck drawn in
- * code (the plane camera's), on the box its plate marked for the part (deckArt.ts: DeckSpec.marks).
+ * code (the plane camera's, and every skin's), on the box its plate marked for the part (deckArt.ts:
+ * DeckSpec.marks): under a skin's row of keys that is its panel's picture, which marks its own parts
+ * (deckArt.ts: PANEL_MARKS).
  */
 
 /** How many px across the decks' pictures are (build_gears.py's deck_flat). */
@@ -679,6 +681,185 @@ function brandLights(colour: number): () => GearLightSet {
   });
 }
 
+/**
+ * AQUA: the white collar under its keys takes an aqua light on the beat and the mark's ring glows with
+ * it, both stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function aquaLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0x7ff3f6,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.6],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 400,
+        w: 220,
+        h: 220,
+        colour: 0x9ff6f8,
+        level: (c, calm) => (calm ? 0.12 + 0.12 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.46 : 0.3) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 1.6,
+      },
+    ],
+  };
+}
+
+/**
+ * STEEL: the slot under its keys glows blue from inside on the beat, stronger in FEVER, when the light at
+ * the near panel's right end comes up too; a slow breath under 번쩍임 줄이기.
+ */
+function steelLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 540,
+        h: 40,
+        colour: 0x58aaf0,
+        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.55 : 0.36) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glow',
+        x: 1880,
+        y: 420,
+        w: 300,
+        h: 200,
+        colour: 0x2f7fc0,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.14 : 0.08 + 0.2 * fade(frac(c.beat), 3)),
+        mark: 'side',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * NOIR: the red hairline under its slots flares on the beat, and in FEVER the two rows of teeth on its board
+ * glow with it, the left one and the right one (its panel's picture has both: deckArt.PANEL_MARKS; its plate
+ * drawn in code has a cluster of dots at its far left only); a slow breath under 번쩍임 줄이기.
+ */
+function noirLights(): GearLightSet {
+  const teeth = (x: number, mark: string): GearLight => ({
+    shape: 'glow',
+    x,
+    y: 260,
+    w: 340,
+    h: 200,
+    colour: 0xff1a2b,
+    level: (c, calm) => (!c.fever ? 0 : calm ? 0.16 : 0.08 + 0.3 * fade(frac(c.beat), 3)),
+    mark,
+    grow: 1.2,
+  });
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xff3a48,
+        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.56 : 0.38) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.5],
+      },
+      teeth(200, 'dots'),
+      teeth(1848, 'dots.1'),
+    ],
+  };
+}
+
+/**
+ * WIRE: the hairline under its trays brightens on the beat and the mark's ring glows with it; in FEVER the
+ * light rising from the deck's near edge comes up too; a slow breath under 번쩍임 줄이기.
+ */
+function wireLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.34) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 400,
+        w: 220,
+        h: 220,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.4 : 0.26) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 1.6,
+      },
+      {
+        shape: 'glow',
+        x: 1024,
+        y: 440,
+        w: 1200,
+        h: 200,
+        colour: 0xdfe8ff,
+        level: (c, calm) => (!c.fever ? 0 : calm ? 0.14 : 0.08 + 0.2 * fade(frac(c.beat), 3)),
+        mark: 'rise',
+        grow: 1,
+      },
+    ],
+  };
+}
+
+/**
+ * ASTRAL: the star between its readouts shines on the beat and the hairline under its keys takes a gold
+ * light with it, both stronger in FEVER; a slow breath under 번쩍임 줄이기.
+ */
+function astralLights(): GearLightSet {
+  return {
+    lights: [
+      {
+        shape: 'wash',
+        x: 1024,
+        y: 110,
+        w: 2048,
+        h: 40,
+        colour: 0xf6d98a,
+        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.5 : 0.3) * fade(frac(c.beat), 3)),
+        mark: 'glow',
+        grow: [1, 1.4],
+      },
+      {
+        shape: 'glint',
+        x: 1024,
+        y: 400,
+        w: 260,
+        h: 260,
+        colour: 0xffffff,
+        level: (c, calm) => (calm ? 0.14 + 0.14 * swell(c.beat, 4) : 0.08 + (c.fever ? 0.6 : 0.4) * fade(frac(c.beat), 3)),
+        mark: 'emblem',
+        grow: 2.2,
+      },
+    ],
+  };
+}
+
 /** Each gear's lights. */
 export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   prism: prismLights,
@@ -688,6 +869,11 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   gemini: brandLights(0xc4b0ff),
   grok: brandLights(0xffffff),
   claude: brandLights(0xffc4a8),
+  aqua: aquaLights,
+  steel: steelLights,
+  noir: noirLights,
+  wire: wireLights,
+  astral: astralLights,
   standard: standardLights,
   cabinet: cabinetLights,
   receiver: receiverLights,

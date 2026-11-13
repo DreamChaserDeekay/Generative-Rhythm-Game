@@ -41,15 +41,15 @@ describe('the track', () => {
 
   it('offers the note families with their long notes, the gears and the hits, the piano note no longer', () => {
     // the skins' notes first (the plain bar a player starts with, then the crystal skin's cut glass and the sky skin's soft bar), the bar in six finishes, then the shapes
-    expect(NOTE_STYLES).toEqual(['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
+    expect(NOTE_STYLES).toEqual(['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon', 'chamfer', 'round', 'star4', 'star5']);
     for (const note of NOTE_STYLES) expect(LONG_OF[note]).toBeDefined();
-    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
+    expect(GEAR_STYLES).toEqual(['standard', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass']);
     // the piano set's hit stays
     expect(HIT_STYLES).toContain('piano');
   });
 
   it('picks a skin’s gear, notes and hit together, whatever the side notes, and reads the skin back from the parts', () => {
-    expect(SKIN_IDS).toEqual(['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude']);
+    expect(SKIN_IDS).toEqual(['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral']);
     // the default skin is what a player starts with; the crystal skin's parts are saved as 'prism', the sky skin's as 'sky'
     expect({ ...SKIN_PARTS.default, side: 'bar' }).toEqual(DEFAULT_PARTS);
     expect(SKIN_PARTS.crystal).toEqual({ note: 'prism', deck: 'prism', hit: 'prism' });
@@ -57,6 +57,8 @@ describe('the track', () => {
     expect(SKIN_PARTS.fire).toEqual({ note: 'fire', deck: 'fire', hit: 'fire' });
     // the four AI companies' skins: each its own gear, notes (the company's mark) and hit, under the company's name
     for (const id of ['gpt', 'gemini', 'grok', 'claude'] as const) expect(SKIN_PARTS[id]).toEqual({ note: id, deck: id, hit: id });
+    // the skins after the user's reference panels: each its own gear, notes and hit under one name
+    for (const id of ['aqua', 'steel', 'noir', 'wire', 'astral'] as const) expect(SKIN_PARTS[id]).toEqual({ note: id, deck: id, hit: id });
     for (const id of SKIN_IDS) {
       // every part a skin names is one a player can pick
       expect(NOTE_STYLES).toContain(SKIN_PARTS[id].note);
@@ -94,5 +96,24 @@ describe('the track', () => {
     // the gears and hits taken out: the defaults (the five sets' gears among them: the default one)
     for (const deck of ['hazard', 'candy', 'jewel', 'mono', 'concrete', 'avionics', 'cassette', 'arcade', 'mixer', 'crystal', 'neon', 'grand']) expect(sanitizeParts({ deck }).deck).toBe(DEFAULT_PARTS.deck);
     for (const hit of ['star', 'bomb', 'hex', 'shards', 'wave', 'spark', 'shutter']) expect(sanitizeParts({ hit }).hit).toBe(DEFAULT_PARTS.hit);
+  });
+
+  it('reads the parts of the two skins taken out (saved as rainbow and magenta) as the default ones', () => {
+    for (const gone of ['rainbow', 'magenta']) {
+      // no longer offered: no note, gear or hit of that name, and no skin
+      expect(NOTE_STYLES as string[], gone).not.toContain(gone);
+      expect(GEAR_STYLES as string[], gone).not.toContain(gone);
+      expect(HIT_STYLES as string[], gone).not.toContain(gone);
+      expect(SKIN_IDS as string[], gone).not.toContain(gone);
+      // a player who had the skin on: each of its three parts the default one, which is the default skin (the side notes,
+      // none of a skin's parts, stay as picked)
+      const parts = sanitizeParts({ note: gone, side: 'dots', deck: gone, hit: gone });
+      expect(parts, gone).toEqual({ ...DEFAULT_PARTS, side: 'dots' });
+      expect(skinOf(parts), gone).toBe('default');
+      // one part of it picked among others: that part alone goes back, the others stay
+      expect(sanitizeParts({ note: gone, side: 'bar', deck: 'cabinet', hit: 'grid' }), gone).toEqual({ note: DEFAULT_PARTS.note, side: 'bar', deck: 'cabinet', hit: 'grid' });
+      expect(sanitizeParts({ note: 'steel', side: 'bar', deck: gone, hit: 'noir' }), gone).toEqual({ note: 'steel', side: 'bar', deck: DEFAULT_PARTS.deck, hit: 'noir' });
+      expect(sanitizeParts({ note: 'round', side: 'dots', deck: 'piano', hit: gone }), gone).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: DEFAULT_PARTS.hit });
+    }
   });
 });
