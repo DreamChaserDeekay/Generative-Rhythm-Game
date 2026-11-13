@@ -59,6 +59,11 @@ class MapperQueue:
                 return "making"
             return "queued" if chart_id in self._jobs else None
 
+    def snapshot(self) -> dict[str, Any]:
+        """The chart being made now (its id, or None) and how many wait their turn."""
+        with self._cond:
+            return {"making": self.making, "waiting": sum(1 for chart_id in self._jobs if chart_id != self.making)}
+
     def _work(self) -> None:
         while True:
             with self._cond:

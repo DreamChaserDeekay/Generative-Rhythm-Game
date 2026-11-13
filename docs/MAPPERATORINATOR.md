@@ -180,7 +180,7 @@
 | `server/rhythm_server/mapper/queue.py` | 채보를 하나씩, 연 채보 먼저 |
 | `server/rhythm_server/chart/` | 채보가 공통으로 쓰는 것: 템포 맵, 레인, 키음 표시, 카메라 연출(`effects.py` 구간 기반, `camera_notes.py` 노트 기반) |
 | `server/rhythm_server/difficulty/` | 레벨 측정(`estimator.py`), 티어의 레벨 범위(`tiers.py`), 패턴 요약 |
-| `server/rhythm_server/api/app.py` | 채보 요청(`POST /api/songs/{id}/charts`), `/api/mapper`, `/api/mapper/install` |
+| `server/rhythm_server/api/app.py` | 채보 요청(`POST /api/songs/{id}/charts`), `/api/mapper`, `/api/mapper/install`, `/api/mapper/queue`(지금 만드는 채보의 id, 기다리는 수, 모델이 올라가 있는지: 데스크톱 앱이 그래픽이 끊긴 때에 적어 둔다) |
 | `.github/workflows/mapper-probe.yml` | CC BY 곡으로 모델의 원본 `.osu`를 받아 보는 실험(수동 실행) |
 | `client/src/ui/SettingsScreen.tsx` | 설정 화면 "AI 채보" |
 | `client/src/ui/SongSelectScreen.tsx` | 티어 칸의 "AI · 열면 만듦" |

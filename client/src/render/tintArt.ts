@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { context2d } from './paintCanvas';
+import { context2d, type PaintCanvas, paintCanvas, type PaintTexture } from './paintCanvas';
 
 /**
  * The parts' pictures drawn in code, in "tint" form: red is how much of the part's colour shows (0 dark
@@ -19,8 +19,8 @@ export function tone(k: number, alpha = 1): string {
   return k <= 1 ? ink(k, 0, alpha) : ink(1, Math.min(0.7, (k - 1) * 1.6), alpha);
 }
 
-export function paintTexture(w: number, h: number, paint: Paint): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+export function paintTexture(w: number, h: number, paint: Paint): PaintTexture {
+  const canvas = paintCanvas();
   canvas.width = w;
   canvas.height = h;
   const g = context2d(canvas);
@@ -1351,8 +1351,8 @@ export function emblemBox(w: number, h: number, aspect: number): { x: number; y:
 }
 
 /** `picture`'s outline filled with `fill`, on a canvas of its own `w` × `h`. */
-function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRenderingContext2D) => string | CanvasGradient): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
+function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRenderingContext2D) => string | CanvasGradient): PaintCanvas {
+  const canvas = paintCanvas();
   canvas.width = Math.max(1, Math.round(w));
   canvas.height = Math.max(1, Math.round(h));
   const g = context2d(canvas);
@@ -2447,7 +2447,7 @@ const DRAWN_AS: Record<HitStyle, DrawnHit> = {
 };
 
 export interface EffectSheet {
-  texture: THREE.CanvasTexture;
+  texture: PaintTexture;
   cols: number;
   rows: number;
   frames: number;
@@ -2552,8 +2552,8 @@ export function effectSheet(hit: HitStyle): EffectSheet {
 }
 
 /** A picture in colours of its own (sRGB) on nothing, for light that is added as it is (EffectSheet.plain). */
-function colourTexture(w: number, h: number, paint: Paint): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+function colourTexture(w: number, h: number, paint: Paint): PaintTexture {
+  const canvas = paintCanvas();
   canvas.width = w;
   canvas.height = h;
   paint(context2d(canvas), w, h);
@@ -3339,7 +3339,7 @@ export const shadowReach = (blur: number) => blur * 1.5;
  * The judge line's glow, its box-shadow at `alpha` spreading above and below the line, as wide as the
  * line (the canvas spans the line and the reach above and below it, 1 px a px).
  */
-export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number): THREE.CanvasTexture {
+export function judgeGlowTexture(width: number, height: number, blur: number, alpha: number): PaintTexture {
   const reach = shadowReach(blur);
   const w = Math.ceil(width);
   const h = Math.ceil(height + 2 * reach);
@@ -3358,8 +3358,8 @@ export function judgeGlowTexture(width: number, height: number, blur: number, al
 }
 
 /** A plain picture in real colours (a wall's shade on the lanes): `stops` across it. */
-export function gradientTexture(stops: [number, string][]): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+export function gradientTexture(stops: [number, string][]): PaintTexture {
+  const canvas = paintCanvas();
   canvas.width = 64;
   canvas.height = 4;
   const g = context2d(canvas);

@@ -92,6 +92,12 @@ class MapperService:
             finally:
                 self.busy = False
 
+    def loaded(self) -> bool:
+        """Whether the worker process is up: from its first chart on it keeps the model, a few GB of
+        the GPU's memory, until the server stops."""
+        proc = self._proc
+        return proc is not None and proc.poll() is None
+
     def _stop(self) -> None:
         proc, self._proc = self._proc, None
         if proc is None:
