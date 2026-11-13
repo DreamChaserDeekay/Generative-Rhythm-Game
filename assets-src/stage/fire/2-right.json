@@ -5,10 +5,13 @@
   891,
   1126
  ],
- "sha256 of the picture (PNG, before the WebP)": "0a5afb98466759b73baba9f4b404e0647056c6b56a8c18efbf4032f64b4f6eca",
- "sha256 of the WebP": "b6a432a9bb072caa0f6cbf4b54e3a11aeb823d06ad84e5e50a4ac2995acce151",
+ "sha256 of the picture (PNG, before the WebP)": "04b7fc50f8abb97bb061457f22c88c32b329d7a7ce22fbb331778ab073b419a3",
+ "sha256 of the WebP": "7d020dc0fe40cf9d289015fc5b5d73e988cb3dcb7688cd68007e131c4e2ba318",
  "made": "2026-11-13",
- "asked": "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+ "asked": [
+  "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+  "the user, 2026-11-13, on seeing the picture: \"카이사 어깨 장치가 너무 크게 그려졌는데, 카이사 어깨 장치 다른 이미지들 확인해보고 다시 그려줘\""
+ ],
  "illustration": {
   "what": "the K/DA FIRESTARTER skins' group illustration (Riot Games)",
   "file": "Ahri_KDAFIRESTARTERSkin_HD.jpg",
@@ -44,7 +47,10 @@
   "compose.py (writes the figure on green)",
   "mend.py (the image model)",
   "register.py <piece> m1 cut-1",
-  "compose.py --mend m1 200,1480,640,772",
+  "compose.py <piece> 1 --mend m1 200,1480,640,772 --cut 0,0,1802,644 --crop pod 250,470,800,800 (writes the pod's crop, its claw cut away)",
+  "podcap.py (the image model)",
+  "register.py <piece> p1 pod",
+  "compose.py <piece> 1 --mend m1 200,1480,640,772 --cut 0,0,1802,644 --mend p1@pod 300,530,520,150",
   "put.py"
  ],
  "composition": {
@@ -70,45 +76,82 @@
   "rim": 3,
   "reach": 9,
   "fade": 0.05,
-  "cut": [],
-  "mend": {
-   "try": "m1",
-   "box": [
-    200,
-    1480,
-    640,
-    772
-   ],
-   "fit": [
-    [
-     0.972,
-     2.07
+  "steps": [
+   {
+    "mend": "m1",
+    "made from": "cut-1",
+    "box": [
+     200,
+     1480,
+     640,
+     772
     ],
-    [
-     0.9694,
-     5.24
+    "fit": [
+     [
+      0.972,
+      2.07
+     ],
+     [
+      0.9694,
+      5.24
+     ],
+     [
+      0.98,
+      1.91
+     ]
     ],
-    [
-     0.98,
-     1.91
+    "join": 44
+   },
+   {
+    "cut": [
+     [
+      0,
+      0,
+      1802,
+      644
+     ]
     ]
-   ],
-   "join": 44
-  },
+   },
+   {
+    "mend": "p1",
+    "made from": "pod",
+    "box": [
+     300,
+     530,
+     520,
+     150
+    ],
+    "fit": [
+     [
+      0.9754,
+      0.79
+     ],
+     [
+      0.9744,
+      6.12
+     ],
+     [
+      0.9794,
+      2.96
+     ]
+    ],
+    "join": 44
+   }
+  ],
   "final": {
    "size": [
     891,
     1126
    ],
-   "from_illustration": 0.645
+   "from_illustration": 0.66
   },
-  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge"
+  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge; and the top of the upper pod, which the first cut-out had drawn on as a long claw, is cut away at the illustration's top edge and painted again as a low dome (podcap.py), taken inside one box of the canvas"
  },
  "generations": [
   {
    "step": "cut-out, try 1",
    "used": true,
-   "note": "used: the upper pod's top, which the illustration's top edge cuts, is painted on above it. Where the other pair stood in front of the standing woman it left green: a notch at her waist (mended below)",
+   "note": "used, but for its pod's top: the upper pod's top, which the illustration's top edge cuts, it painted on above it as a long claw (the user: too big), and that part is cut away again. Where the other pair stood in front of the standing woman it left green: a notch at her waist (mended below)",
    "model": "gemini-nano-banana-2.1",
    "aspect": "4:5",
    "size": "2K",
@@ -275,6 +318,56 @@
     "thoughtsTokenCount": 1430
    },
    "prompt": "The picture is a cut-out of two painted characters on flat pure green (#00FF00): a silver-haired woman in a dark red dress standing in the upper middle (two metal pods float by her), and a woman in a wide pale hat crouching at the lower right.\n\nThe standing woman is not whole. Another figure stood in front of her and was removed, and where it stood a NOTCH is cut out of her at her lower left: under her waist her body ends in a straight horizontal cut, and beside it a straight diagonal cut runs down along her thigh. Green fills the notch.\n\nMEND ONLY THAT. Paint the part of her the notch removed, in exactly the painting's style, colours and light: her dark red dress continues from her waist down over her hip, and her thigh continues down to her legs below, so that her body runs unbroken from her waist to her legs with a natural outline at her left side, and no straight cut is left. Her pale sleeve, which ends at the cut, continues a little and ends naturally. Keep it plain: no new ornaments, no new objects, no hand.\n\nEVERYTHING ELSE STAYS EXACTLY AS IT IS, pixel for pixel: the two women, their faces, their hair, the two pods, the hat, the blade, every colour, and the flat green round them. Do not move, scale, redraw, relight or sharpen anything. The same framing and the same proportions as the picture given. No text, no watermark."
+  },
+  {
+   "step": "the pod's top, try 1",
+   "used": true,
+   "note": "used inside one box of the canvas only (x 300..820, y 530..680): the top of the upper pod as a low dome with one small crest. Asked with two pictures of her pods whole: the other pod of the same illustration, and the skin's in-game model (the wiki's \"Kai'Sa KDAFIRESTARTER (Base).png\"), which show a compact rounded shell",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "1:1",
+   "size": "2K",
+   "result": [
+    2048,
+    2048
+   ],
+   "made": "2026-11-13 05:20:00 +0000",
+   "bytes": 4506152,
+   "sha256": "67be2318732582fe6fb0eac50d9fe093e1b633bd6364e531ccb335b2f5fd0764",
+   "pictures sent": [
+    "2-right-pod.png (the figure on green, the pod cut flat at the illustration's top edge; sha256 c2e6588b7e769d19167a2da58b7f384ced20d2fabfc5d04d356212a83da69839)",
+    "the other pod, whole: px (5350, 600, 6150, 1600) of Ahri_KDAFIRESTARTERSkin_HD.jpg (sha256 760bdd5285d73783dd33c3bb18b1fa3587809681176a50ceda8c3c027f69ae5f)",
+    "the in-game model: KaiSa_KDAFIRESTARTER_Base.png on grey, three times its size (sha256 a26994c0c38bc241fac32b2f2954739de0021fb522dd9d05c560daf35f0dff8e)"
+   ],
+   "usage": {
+    "promptTokenCount": 3786,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6321,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 426
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 855
+   },
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the picture you edit: a cut-out, on flat pure green (#00FF00), of a painted character: a silver-haired woman in a dark red dress, and above her at the left one of her two floating shoulder pods: a shell of silver and dark violet metal with a glowing pink crystal set in it, its claws hanging down. The pod is CUT STRAIGHT ACROSS ITS TOP by a flat horizontal cut: the top of its shell is missing.\n\nIMAGE 2 is the other pod of the same painting, whole: the same kind of object seen from another side. Its shell is a rounded dome that closes smoothly, with one small pointed crest on it.\nIMAGE 3 is the same character's 3D game model: her two shoulder pods are compact, low, rounded shells with the crystal on top, hardly taller than they are wide.\n\nMEND ONLY THE POD'S TOP in image 1: paint the missing top of its shell above the straight cut, in exactly the painting's style, colours and light, as the same object as in images 2 and 3. The dark violet and silver shell closes over the crystal in a LOW, ROUNDED DOME: its outline runs on smoothly from the pod's two sides and meets over its middle; at most one small pointed crest on it, as in image 2. Keep it compact and low: the dome is much lower than the pod is wide, and it ends well below the picture's top edge, with green above it. NO long horn, NO tall claw, NO blade rising from it, no second crystal, nothing else new.\n\nEVERYTHING ELSE STAYS EXACTLY AS IT IS, pixel for pixel: the pod below the cut with its crystal and its claws, the woman, her hair, every colour, and the flat green round them. Do not move, scale, redraw, relight or sharpen anything. The same framing and the same proportions as image 1. No text, no watermark."
   }
+ ],
+ "references looked at for the pod": [
+  "the other pod of the same illustration (beside her head, whole)",
+  "Kai'Sa KDAFIRESTARTER (Base).png: the in-game model (League of Legends wiki)",
+  "Kai'Sa KDAFIRESTARTERLoading.jpg and its Special Edition, Kai'Sa KDAFIRESTARTERCentered.jpg (the same illustration's crops: the upper pod is cut by their top edges too)",
+  "KDA FIRESTARTER Group Concept 01-05.jpg (concept art: the pods as rounded shells behind her shoulders)"
  ]
 }

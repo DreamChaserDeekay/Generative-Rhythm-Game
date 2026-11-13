@@ -2,11 +2,15 @@
 model made of it, the model's px where the illustration has none (above its top edge) or where the model took away something
 that lay over a character, and nothing else.
 
-    python3 compose.py <work dir> <piece> <try> [--mend <try of the mending> x,y,w,h] [--add <another try> x,y,w,h ...] [--cut x,y,w,h ...]
+    python3 compose.py <work dir> <piece> <try> [--mend <try of the mending>[@<its picture>] x,y,w,h] [--cut x,y,w,h ...]
+                       [--crop <name> x,y,w,h] [--add <another try> x,y,w,h ...]
 
-`--mend`: a part of a character that a removed figure hid, painted by the model on the cut-out itself (mend.py): taken inside
-that box of the canvas only. `--add`: what another cut-out of the same canvas kept and this one did not (a flame the user asked
-for back), taken inside those boxes of the canvas only. `--cut`: a box of the canvas left out of the picture.
+The options are applied in the order they are given.
+`--mend`: a part of a character painted by the model on the cut-out itself (mend.py, podcap.py): taken inside that box of the
+canvas only. The mending was made from the whole figure on green (<piece>-cut-<try>.png), or, named after `@`, from a crop of
+it written by `--crop`. `--cut`: boxes of the canvas emptied (a part the model painted that is painted again). `--crop`: writes
+the figure as it is at that point, on green, cut to that box: <piece>-<name>.png and where it lies (.json). `--add`: what
+another cut-out of the same canvas kept and this one did not (a flame the user asked for back), taken inside those boxes only.
 Writes <piece>-final.png (the picture, RGBA, the size the game has it), <piece>-cut-<try>.png (the figure on green over the
 whole canvas: what a mending request is given) and views."""
 import json, os, sys
@@ -19,19 +23,28 @@ from laid import laid, key
 import geom
 
 name, n = sys.argv[2], sys.argv[3]
-cuts, mend, add = [], None, None
+ops = []
 rest = sys.argv[4:]
+
+
+def boxes_of(rest):
+    out = []
+    while rest and not rest[0].startswith('--'):
+        out.append(tuple(int(v) for v in rest.pop(0).split(',')))
+    return out
+
+
 while rest:
     flag = rest.pop(0)
     if flag == '--mend':
-        mend = (rest.pop(0), tuple(int(v) for v in rest.pop(0).split(',')))
+        m_try, _, m_ref = rest.pop(0).partition('@')
+        ops.append(('mend', m_try, m_ref, boxes_of(rest)[0]))
     elif flag == '--add':
-        add = (rest.pop(0), [])
-        while rest and not rest[0].startswith('--'):
-            add[1].append(tuple(int(v) for v in rest.pop(0).split(',')))
+        ops.append(('add', rest.pop(0), boxes_of(rest)))
     elif flag == '--cut':
-        while rest and not rest[0].startswith('--'):
-            cuts.append(tuple(int(v) for v in rest.pop(0).split(',')))
+        ops.append(('cut', boxes_of(rest)))
+    elif flag == '--crop':
+        ops.append(('crop', rest.pop(0), boxes_of(rest)[0]))
     else:
         raise SystemExit('unknown ' + flag)
 
@@ -121,8 +134,6 @@ px0, _, px1, _ = L['picture']
 yy, xx = np.mgrid[0:H, 0:W]
 
 al, f, parts, specks = figure(b)
-for x, y, w, h in cuts:
-    al[y:y + h, x:x + w] = 0
 inside = ndi.binary_erosion(al > 0.98, iterations=10)
 inside[:top + 12] = False
 f, D, fit, agreeing = matched(f, a, inside)
@@ -134,7 +145,7 @@ w_rim = np.clip((RIM + 4 - ndi.distance_transform_edt(al > 0.5)) / 4, 0, 1)
 w = np.maximum(np.maximum(ramp(D), w_rim), np.clip((top + 20 - yy) / 16, 0, 1))
 w[:top] = 1
 c, recoloured, thin_px = outlined(a * (1 - w[..., None]) + f * w[..., None], al, f)
-record = {'try': n, 'fit': fit, 'T': [T1, T2], 'rim': RIM, 'reach': REACH, 'fade': FADE, 'cut': cuts}
+record = {'try': n, 'fit': fit, 'T': [T1, T2], 'rim': RIM, 'reach': REACH, 'fade': FADE, 'steps': []}
 
 # the figure on flat green over the whole canvas, as a request to mend it is given it
 tight = np.clip((al - 0.1) / 0.86, 0, 1)[..., None]
@@ -142,61 +153,85 @@ on_green = np.empty_like(c); on_green[:] = (0, 255, 0)
 Image.fromarray(np.clip(on_green * (1 - tight) + c * tight, 0, 255).astype(np.uint8)).save(f'{S}/work/{name}-cut-{n}.png')
 
 mended = np.zeros((H, W), np.float32)
-if mend:
-    m_try, (bx, by, bw, bh) = mend
-    _, b2 = laid(S, name, m_try, ref=f'cut-{n}')
-    al2, f2, _, _ = figure(b2)
-    both = ndi.binary_erosion((al > 0.98) & (al2 > 0.98), iterations=10)
-    f2, D2, fit2, agreeing2 = matched(f2, c, both)
-    # inside the box: the mending's px where the figure had none, and where the mending changed it
-    box = np.zeros((H, W), np.float32); box[by:by + bh, bx:bx + bw] = 1
-    box = np.minimum(ndi.gaussian_filter(box, 10), box)
-    w2 = np.maximum(ramp(D2), ndi.gaussian_filter((al < 0.98).astype(np.float32), 1.5) > 0.02)
-    # and the figure's own px go over into the mending's little by little toward the part it added, so that no line shows where
-    # the figure was cut (the mending painted that place again too, in one piece with what it added)
-    added = ndi.binary_opening((al2 > 0.5) & (al < 0.5) & (box > 0.5), iterations=3)
-    t = np.clip(1 - ndi.distance_transform_edt(~added) / JOIN, 0, 1)
-    w2 = np.maximum(w2, t * t * (3 - 2 * t)) * box
-    c = c * (1 - w2[..., None]) + f2 * w2[..., None]
-    grown = np.maximum(al, al2 * (box > 0.5))
-    mended = np.maximum(w2 * grown, 0)
-    print('mending', m_try, 'fit', fit2, 'agreeing px', agreeing2, '| px added to the figure', int(((grown > 0.5) & ~(al > 0.5)).sum()), 'px of the figure repainted', int(((w2 > 0.5) & (al > 0.5)).sum()))
-    al = grown
-    record['mend'] = {'try': m_try, 'box': [bx, by, bw, bh], 'fit': fit2, 'join': JOIN}
-
-own = f * (1 - mended[..., None]) + f2 * mended[..., None] if mend else f
-whose = np.maximum(w, mended)
-gained = np.zeros((H, W), np.float32)
+own = f
+whose = w
 halo_a, halo_c = np.zeros((H, W), np.float32), np.zeros((H, W, 3), np.float32)
-if add:
-    a_try, boxes = add
-    _, b3 = laid(S, name, a_try)
-    al3, _, _, _ = figure(b3)
-    # a flame glows, and on the green its glow is painted in yellow-greens that the key takes for figure: only px in which red is
-    # no weaker than green count (the flame itself), so the halo of the screen's own colour is left out
-    warm = np.clip(1 - (b3[..., 1] - b3[..., 0] - WARM[0]) / WARM[1], 0, 1)
-    al3 = ndi.gaussian_filter(al3 * warm, 0.8)
-    box = np.zeros((H, W), np.float32)
-    for x, y, bw, bh in boxes:
-        box[y:y + bh, x:x + bw] = 1
-    box = np.minimum(ndi.gaussian_filter(box, 6), box)
-    # inside the boxes: what it has and this figure has not (not the slivers where its outline merely runs a px wider)
-    new = ndi.binary_dilation(ndi.binary_opening((al3 > 0.5) & (al < 0.5) & (box > 0.5), iterations=2), iterations=4)
-    gained = np.clip(al3 - al, 0, 1) * box * new
-    # its colours are the illustration's own px: the flame as it is painted
-    c = c * (1 - gained[..., None]) + a * gained[..., None]
-    grown = np.maximum(al, al3 * box * new)
-    print('added from try', a_try, '| px added to the figure', int(((grown > 0.5) & ~(al > 0.5)).sum()))
-    al = grown
-    own = own * (1 - gained[..., None]) + a * gained[..., None]
-    whose = whose * (1 - gained)
-    record['add'] = {'try': a_try, 'boxes': [list(b) for b in boxes], 'warm': list(WARM), 'bloom': list(BLOOM), 'bloom tint': list(BLOOM_TINT)}
-    # the light it sheds: its own colour, spread and warmed, under the figure
-    wide = ndi.gaussian_filter(gained, BLOOM[0])
-    near = np.stack([ndi.gaussian_filter(a[..., k] * gained, BLOOM[0]) for k in range(3)], -1) / np.maximum(wide, 1e-4)[..., None]
-    halo_c = np.clip(near * np.array(BLOOM_TINT, np.float32), 0, 255)
-    halo_a = np.clip(wide * BLOOM[1] / max(float(wide.max()), 1e-4), 0, 1) * (wide > 0.004)
-if mend or add:
+again = False
+for op in ops:
+    if op[0] == 'mend':
+        _, m_try, m_ref, (bx, by, bw, bh) = op
+        _, b2 = laid(S, name, m_try, ref=m_ref or f'cut-{n}')
+        if m_ref:
+            # made from a crop of the figure: laid in its place on a canvas of green
+            ox, oy, ow, oh = json.load(open(f'{S}/work/{name}-{m_ref}.json'))['box']
+            whole = np.empty((H, W, 3), np.float32); whole[:] = (0, 255, 0)
+            whole[oy:oy + oh, ox:ox + ow] = b2
+            b2 = whole
+        al2, f2, _, _ = figure(b2)
+        both = ndi.binary_erosion((al > 0.98) & (al2 > 0.98), iterations=10)
+        f2, D2, fit2, agreeing2 = matched(f2, c, both)
+        # inside the box: the mending's px where the figure had none, and where the mending changed it
+        box = np.zeros((H, W), np.float32); box[by:by + bh, bx:bx + bw] = 1
+        box = np.minimum(ndi.gaussian_filter(box, 10), box)
+        w2 = np.maximum(ramp(D2), ndi.gaussian_filter((al < 0.98).astype(np.float32), 1.5) > 0.02)
+        # and the figure's own px go over into the mending's little by little toward the part it added, so that no line shows where
+        # the figure was cut (the mending painted that place again too, in one piece with what it added)
+        added = ndi.binary_opening((al2 > 0.5) & (al < 0.5) & (box > 0.5), iterations=3)
+        t = np.clip(1 - ndi.distance_transform_edt(~added) / JOIN, 0, 1)
+        w2 = np.maximum(w2, t * t * (3 - 2 * t)) * box
+        c = c * (1 - w2[..., None]) + f2 * w2[..., None]
+        # inside the box the mending's outline is the figure's: also where it took a little of the figure away
+        grown = np.where(box > 0.5, al2, al)
+        part = np.maximum(w2 * grown, 0)
+        print('mending', m_try, m_ref, 'fit', fit2, 'agreeing px', agreeing2, '| px added to the figure', int(((grown > 0.5) & ~(al > 0.5)).sum()), 'px of the figure repainted', int(((w2 > 0.5) & (al > 0.5)).sum()))
+        al = grown
+        own = own * (1 - part[..., None]) + f2 * part[..., None]
+        mended = np.maximum(mended, part)
+        whose = np.maximum(whose, part)
+        again = True
+        record['steps'].append({'mend': m_try, 'made from': m_ref or f'cut-{n}', 'box': [bx, by, bw, bh], 'fit': fit2, 'join': JOIN})
+    elif op[0] == 'cut':
+        for x, y, bw, bh in op[1]:
+            al[y:y + bh, x:x + bw] = 0
+            mended[y:y + bh, x:x + bw] = 0
+        record['steps'].append({'cut': [list(b) for b in op[1]]})
+    elif op[0] == 'crop':
+        _, tag, (x, y, bw, bh) = op
+        shown, _, _ = outlined(c, al, own)
+        tight = np.clip((al - 0.1) / 0.86, 0, 1)[..., None]
+        Image.fromarray(np.clip(on_green * (1 - tight) + shown * tight, 0, 255).astype(np.uint8)[y:y + bh, x:x + bw]).save(f'{S}/work/{name}-{tag}.png')
+        json.dump({'box': [x, y, bw, bh]}, open(f'{S}/work/{name}-{tag}.json', 'w'))
+        record['steps'].append({'crop': tag, 'box': [x, y, bw, bh]})
+    elif op[0] == 'add':
+        _, a_try, boxes = op
+        _, b3 = laid(S, name, a_try)
+        al3, _, _, _ = figure(b3)
+        # a flame glows, and on the green its glow is painted in yellow-greens that the key takes for figure: only px in which red is
+        # no weaker than green count (the flame itself), so the halo of the screen's own colour is left out
+        warm = np.clip(1 - (b3[..., 1] - b3[..., 0] - WARM[0]) / WARM[1], 0, 1)
+        al3 = ndi.gaussian_filter(al3 * warm, 0.8)
+        box = np.zeros((H, W), np.float32)
+        for x, y, bw, bh in boxes:
+            box[y:y + bh, x:x + bw] = 1
+        box = np.minimum(ndi.gaussian_filter(box, 6), box)
+        # inside the boxes: what it has and this figure has not (not the slivers where its outline merely runs a px wider)
+        new = ndi.binary_dilation(ndi.binary_opening((al3 > 0.5) & (al < 0.5) & (box > 0.5), iterations=2), iterations=4)
+        gained = np.clip(al3 - al, 0, 1) * box * new
+        # its colours are the illustration's own px: the flame as it is painted
+        c = c * (1 - gained[..., None]) + a * gained[..., None]
+        grown = np.maximum(al, al3 * box * new)
+        print('added from try', a_try, '| px added to the figure', int(((grown > 0.5) & ~(al > 0.5)).sum()))
+        al = grown
+        own = own * (1 - gained[..., None]) + a * gained[..., None]
+        whose = whose * (1 - gained)
+        again = True
+        record['steps'].append({'add': a_try, 'boxes': [list(b) for b in boxes], 'warm': list(WARM), 'bloom': list(BLOOM), 'bloom tint': list(BLOOM_TINT)})
+        # the light it sheds: its own colour, spread and warmed, under the figure
+        wide = ndi.gaussian_filter(gained, BLOOM[0])
+        near = np.stack([ndi.gaussian_filter(a[..., k] * gained, BLOOM[0]) for k in range(3)], -1) / np.maximum(wide, 1e-4)[..., None]
+        halo_c = np.clip(near * np.array(BLOOM_TINT, np.float32), 0, 255)
+        halo_a = np.clip(wide * BLOOM[1] / max(float(wide.max()), 1e-4), 0, 1) * (wide > 0.004)
+if again:
     c, recoloured, thin_px = outlined(c, al, own)
 whose = np.where(yy < top, 1.0, whose)
 print('outline px recoloured from inside', recoloured, 'thin parts with the cut-out\'s own colour', thin_px)
