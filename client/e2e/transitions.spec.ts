@@ -28,26 +28,21 @@ test('the start card gives way into the track once the play has started (the pla
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
   await expect(page.getByTestId('play-loading-leaving')).toHaveAttribute('inert', '');
   // its jacket flies toward the far end of the track: up the screen and small
-  const fly = await page.locator('[data-testid="play-loading-leaving"] .loading-jacket').evaluate((el) => {
-    const a = el.getAnimations()[0];
-    const frames = a?.effect instanceof KeyframeEffect ? a.effect.getKeyframes() : [];
-    return String(frames[frames.length - 1]?.transform ?? '');
-  });
-  expect(fly).toMatch(/translate\(-?[\d.]+px, -[\d.]+px\) scale\(0\.06\)/);
-  // gone within the second
-  await expect(page.getByTestId('play-loading-leaving')).toHaveCount(0, { timeout: 1500 });
+  // (where it goes is left on it: the flight may be over before this reads it)
+  await expect(page.locator('[data-testid="play-loading-leaving"] .loading-jacket')).toHaveAttribute('data-into', /^translate\(-?[\d.]+px, -[\d.]+px\) scale\(0\.06\)$/);
+  // gone soon after (0.7 s; software rendering here runs its frames late)
+  await expect(page.getByTestId('play-loading-leaving')).toHaveCount(0, { timeout: 3000 });
 
   // the end: the HUD's lamp, then the result whose stamp comes over from it
   await putHudLamp(page, 'perfect');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   const line = page.locator('.result-lamp-line');
   await expect(line).toHaveAttribute('data-flown', 'perfect');
-  const from = await line.locator('.lamp-text').evaluate((el) => {
-    const a = el.getAnimations()[0];
-    const frames = a?.effect instanceof KeyframeEffect ? a.effect.getKeyframes() : [];
-    return String(frames[0]?.transform ?? '');
-  });
-  expect(from).toMatch(/^translate\(/);
+  // (where it came from is left on it: the flight may be over before this reads it)
+  await expect(line.locator('.lamp-text')).toHaveAttribute('data-stamp-from', /^translate\(-?[\d.]+px, -?[\d.]+px\) scale\([\d.]+\)$/);
+  // flown once, from the lamp: the dev server's StrictMode runs the effect twice, and a second
+  // flight measured mid-air would start where the stamp already is
+  expect(await line.locator('.lamp-text').getAttribute('data-stamp-from')).not.toBe('translate(0px, 0px) scale(1)');
   expect(errors).toEqual([]);
 });
 

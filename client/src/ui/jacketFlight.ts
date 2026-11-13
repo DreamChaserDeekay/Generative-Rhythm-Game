@@ -66,6 +66,9 @@ export function intoTrackTransform(from: Box, to: { x: number; y: number }, scal
  * `done` comes when it is over, at once for a player who asked for less motion.
  */
 export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | null, done: () => void): void {
+  // once (an effect run twice in development must not start it again from where it is)
+  if (card.dataset.leaving !== undefined) return;
+  card.dataset.leaving = '';
   const jacket = card.querySelector<HTMLElement>('.loading-jacket');
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   if (reduced || typeof card.animate !== 'function') {
@@ -81,6 +84,8 @@ export function flyIntoTrack(card: HTMLElement, to: { x: number; y: number } | n
   const melt = card.animate([{ backgroundColor: ground }, { backgroundColor: clear }], { duration: INTO_TRACK_MS - 100, delay: 100, easing: 'ease-in-out', fill: 'forwards' });
   if (jacket && to) {
     const from = jacket.getBoundingClientRect();
+    // where it goes, left on it (data-into)
+    jacket.dataset.into = intoTrackTransform(from, to);
     jacket.animate(
       [
         { transformOrigin: '50% 50%', transform: 'none', opacity: 1 },
@@ -127,14 +132,22 @@ export function stampTransform(from: Box, to: Box): string {
   return `translate(${n(dx)}px, ${n(dy)}px) scale(${n(from.height / to.height)})`;
 }
 
-/** Sends `stamp`, laid out in its place, over from `from` and down into it. Nothing moves for a player who asked for less motion. */
+/**
+ * Sends `stamp`, laid out in its place, over from `from` and down into it, once: a second call
+ * (React's StrictMode runs an effect twice in development) would measure it in flight and start it
+ * from where it is. Where it came from is left on it (data-stamp-from). Nothing moves for a player
+ * who asked for less motion.
+ */
 export function flyStamp(stamp: HTMLElement, from: Box): void {
+  if (stamp.dataset.stampFrom !== undefined) return;
   const to = stamp.getBoundingClientRect();
   if (to.width <= 0 || to.height <= 0 || typeof stamp.animate !== 'function') return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const start = stampTransform(from, to);
+  stamp.dataset.stampFrom = start;
   stamp.animate(
     [
-      { transformOrigin: '50% 50%', transform: stampTransform(from, to) },
+      { transformOrigin: '50% 50%', transform: start },
       { transformOrigin: '50% 50%', transform: 'scale(1.08)', offset: 0.8 },
       { transformOrigin: '50% 50%', transform: 'none' },
     ],
