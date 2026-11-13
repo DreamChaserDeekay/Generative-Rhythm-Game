@@ -36,15 +36,15 @@ test('a new pattern that ends while the settings are open keeps what was changed
   await page.keyboard.press('F10');
   await expect(page.getByTestId('settings-screen')).toBeVisible();
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-deck-style', 'cabinet');
-  await expect.poll(async () => (await stored(page)).parts?.deck).toBe('cabinet');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
+  await expect.poll(async () => (await stored(page)).parts?.deck).toBe('piano');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
 
   // the pattern comes: it is kept as the tier's, and the gear stays
   release();
   await expect.poll(async () => Object.values((await stored(page)).patterns ?? {}), { timeout: 15_000 }).toContain(4242);
-  expect((await stored(page)).parts?.deck).toBe('cabinet');
+  expect((await stored(page)).parts?.deck).toBe('piano');
   expect(errors).toEqual([]);
 });
 
