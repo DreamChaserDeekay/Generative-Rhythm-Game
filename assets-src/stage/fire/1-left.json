@@ -1,0 +1,170 @@
+{
+ "picture": "client/public/stage/fire/1-left.webp",
+ "who": "Ahri (above) and Evelynn (below)",
+ "size": [
+  867,
+  1126
+ ],
+ "sha256 of the picture (PNG, before the WebP)": "a6e7e7c79258de54ee029e3909040a085126fe85ec0d1034f52f8b93c30ab4f2",
+ "sha256 of the WebP": "1da89423043850f134c9a7865b44ed1ff138c47acb06f6cd8f8a498f5927df67",
+ "made": "2026-11-13",
+ "asked": "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+ "illustration": {
+  "what": "the K/DA FIRESTARTER skins' group illustration (Riot Games)",
+  "file": "Ahri_KDAFIRESTARTERSkin_HD.jpg",
+  "size": [
+   7000,
+   4136
+  ],
+  "sha256": "4e5a0efcb409583e3232a8a17c68714537d7dbfa456c47059647165675995464",
+  "from": "League of Legends wiki (wiki.leagueoflegends.com)",
+  "in the repository": false
+ },
+ "canvas": {
+  "file": "1-left-canvas.png (not in the repository)",
+  "size": [
+   1802,
+   2252
+  ],
+  "sha256": "a70e163fe5e5b7d159c5cd9d86788c195903724c7553c079230337f1b80e8a49",
+  "what": "this side's crop of the illustration at twice the picture's size, flat green above its top edge (canvas.py)",
+  "the picture in it (px)": [
+   68,
+   0,
+   1802,
+   2252
+  ],
+  "the illustration's top edge (px down)": 858,
+  "canvas px to a px of the illustration": 0.48462
+ },
+ "steps": [
+  "canvas.py",
+  "cutout.py (the image model)",
+  "register.py",
+  "compose.py",
+  "put.py"
+ ],
+ "composition": {
+  "try": "2",
+  "fit": [
+   [
+    0.9923,
+    -0.33
+   ],
+   [
+    0.9945,
+    2.88
+   ],
+   [
+    0.9972,
+    0.09
+   ]
+  ],
+  "T": [
+   26.0,
+   46.0
+  ],
+  "rim": 3,
+  "reach": 9,
+  "fade": 0.05,
+  "cut": [],
+  "final": {
+   "size": [
+    867,
+    1126
+   ],
+   "from_illustration": 0.847
+  },
+  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge"
+ },
+ "generations": [
+  {
+   "step": "cut-out, try 1",
+   "used": false,
+   "note": "not used: the request named two small horns on the blonde woman and whip-like lashers, which the illustration's crop does not show, and the model painted them; it also took the warm fire light off the two (the orange of the silver top among it)",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 04:22:48 +0000",
+   "bytes": 4993869,
+   "sha256": "910255d316f0b155ee58f4ab4a73ad7fb09977f8f0d47c177b975f706b20e6fb",
+   "pictures sent": [
+    "1-left-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 a70e163fe5e5b7d159c5cd9d86788c195903724c7553c079230337f1b80e8a49)"
+   ],
+   "usage": {
+    "promptTokenCount": 1725,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 4779,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 605
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1374
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The fox-eared woman at the top (a dark bob with orange tips, a silver top): all of her. Her head and BOTH pointed fox ears, her hair, her body, both arms and hands, her legs in dark trousers, and ALL of her big fox TAILS: the large feathery tails in crimson, magenta and pink that fan out behind her toward the upper left, every one of them.\n2. The blonde woman with the orange sunglasses and the red suit, in front of her: all of her. Her head, her hair, the two small dark horns on her head, the sunglasses, the earrings, the red jacket with its silver collar and spiked shoulders, both arms, the red gloves with their long silver claws, her crossed legs in dark trousers, and the dark red whip-like lashers that are hers (the long dark red tendrils at the left and the lower left).\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every flame and fire wisp (also the yellow flame curls beside the fox-eared woman and at her raised hand), the silver pyramid and the seat the two sit on, and the other figure at the right edge (the silver-haired woman in the dark red dress, with the metal pods that float by her). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the tips of the fox ears and the upper parts of the fox tails were cut by the illustration's top edge. Paint their missing parts up into the green band, in exactly the illustration's style, so that the ears end in their points and every tail ends in its own curled, feathery tip. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "cut-out, try 2",
+   "used": true,
+   "note": "used: the request names only what the crop shows, forbids additions and keeps the light as painted. The fox ears' tips and the tails' upper parts, which the illustration's top edge cuts, are painted on above it",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 04:35:08 +0000",
+   "bytes": 4797978,
+   "sha256": "b9f8cfb64d42b8f155a739e0e75887cf5dbef74d8cbc4dcb90a2ab2f55dccecd",
+   "pictures sent": [
+    "1-left-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 a70e163fe5e5b7d159c5cd9d86788c195903724c7553c079230337f1b80e8a49)"
+   ],
+   "usage": {
+    "promptTokenCount": 1833,
+    "candidatesTokenCount": 1746,
+    "totalTokenCount": 4491,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 713
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 66
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 912
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The fox-eared woman at the top (a dark bob with orange tips, a silver top): all of her. Her head and BOTH pointed fox ears, her hair, her body, both arms and hands with their long nails, her legs in dark trousers, and ALL of her big fox TAILS: the large feathery tails in crimson, magenta and pink, with their glowing orange tips, that fan out behind her toward the upper left, every one of them.\n2. The blonde woman with the orange sunglasses and the red suit, in front of her: all of her. Her head, her hair with its silver hair clip, the sunglasses, the earrings, the red jacket with its silver collar and spiked shoulders, both arms, the red gloves with their long silver claws, her crossed legs.\nAdd NOTHING to the two that is not in the picture: no horns, no whips, no tendrils, no new ornaments, no new limbs.\nKeep the LIGHT on them as it is painted: the warm orange and yellow fire light on their skin, their hair, the metal and the clothes stays exactly as it is (the orange reflections on the silver top too). Do not neutralise, darken or recolour them.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every separate flame and fire wisp in the air (the yellow flame curls in the air beside the fox-eared woman and over her raised hand), the silver pyramid and the seat the two sit on, and the other figure at the right edge (the silver-haired woman in the dark red dress, with the metal pods that float by her). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the tips of the fox ears and the upper parts of the fox tails were cut by the illustration's top edge. Paint their missing parts up into the green band, in exactly the illustration's style, so that the ears end in their points and every tail ends in its own curled, feathery tip. Keep the completed tails compact: they curl over and end soon, none of them rising higher than the middle of the green band, and none touching the canvas's top or right edge. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  }
+ ]
+}

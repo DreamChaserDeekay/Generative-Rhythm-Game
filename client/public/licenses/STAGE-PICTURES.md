@@ -4,7 +4,13 @@
 
 ## `stage/fire/` (파이어스타터 스킨)
 
-- `1-left.webp`, `2-right.webp`: League of Legends의 K/DA FIRESTARTER 스킨 일러스트(Riot Games)를 두 조각으로 나누고, 인물 둘레의 배경만 옅게 남겨 가장자리를 흐린 것. 일러스트는 League of Legends 위키(wiki.leagueoflegends.com)에서 받았습니다.
+- `1-left.webp`(아리 · 이블린), `2-right.webp`(카이사 · 아칼리): League of Legends의 K/DA FIRESTARTER 스킨 일러스트(Riot Games)를 두 조각으로 나누고, 인물만 남기고 배경을 뺀 것입니다(2026-11-13, 사용자: "캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해"). 일러스트는 League of Legends 위키(wiki.leagueoflegends.com)에서 받았습니다. 2026-11-11부터 그때까지는 같은 두 조각에 인물 둘레의 배경을 옅게 남기고 가장자리를 흐린 판이었습니다.
+- 인물의 화소는 대부분 일러스트 그대로입니다(왼쪽 약 85 %, 오른쪽 약 65 %). 나머지는 이미지 모델(Gemini)이 그린 것입니다:
+  - 일러스트의 위 가장자리에 잘려 있던 **아리의 귀 끝과 꼬리 윗부분**, **카이사의 위쪽 장치 윗부분**(받은 고해상도 일러스트가 거기서 끝납니다).
+  - 일러스트에서 이블린의 어깨에 가려 있던 **카이사의 허리 아래**(엉덩이, 소매 끝과 손, 치마). 한쪽에 두 사람씩만 남기니 그 자리가 비어서 이어 그리게 했습니다. 기본 카메라에서는 거의 기어 뒤에 있습니다.
+  - 인물 위에 걸쳐 있던 불꽃 · 빛 번짐을 뺀 자리(아칼리의 어깨 등)와 윤곽선 둘레 몇 px.
+- 뺀 것: 방 · 조명 · 연기 · 불티 · 불꽃, 은색 피라미드와 의자, 그리고 반대쪽 두 사람.
+- 생성마다의 프롬프트 전문과 보낸 그림 · 결과의 해시는 `assets-src/stage/fire/1-left.json` · `2-right.json`, 만든 스크립트는 `scripts/assets/stage_cutout/`에 있습니다. 일러스트 원본과 모델이 돌려준 그림은 저장소에 없습니다.
 - Generative Rhythm was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
 
 ## `stage/gpt/`, `stage/gemini/`, `stage/grok/`, `stage/claude/`
