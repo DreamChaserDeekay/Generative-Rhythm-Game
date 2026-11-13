@@ -3,6 +3,7 @@ import type { GearStyle } from '../render/deckArt';
 import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
+import { context2d } from '../render/paintCanvas';
 import { AIDED_WORDS, loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
@@ -331,7 +332,8 @@ function jacketOf(jacket: HudJacket): HTMLCanvasElement {
   canvas.height = side;
   const image = new Image();
   image.onload = () => {
-    const g = canvas.getContext('2d');
+    // drawn once: kept in memory, so that a lost graphics process does not leave the jacket blank
+    const g = context2d(canvas) as CanvasRenderingContext2D | null;
     const cut = Math.min(image.naturalWidth, image.naturalHeight);
     if (!g || cut <= 0) return showDisc();
     g.imageSmoothingQuality = 'high';

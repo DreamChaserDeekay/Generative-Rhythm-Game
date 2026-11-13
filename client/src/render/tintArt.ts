@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { context2d } from './paintCanvas';
 
 /**
  * The parts' pictures drawn in code, in "tint" form: red is how much of the part's colour shows (0 dark
@@ -22,7 +23,7 @@ export function paintTexture(w: number, h: number, paint: Paint): THREE.CanvasTe
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   paint(g, w, h);
   const texture = new THREE.CanvasTexture(canvas);
   // the channels are amounts, not colours: no sRGB decoding. Premultiplied, so a filtered edge keeps
@@ -1354,7 +1355,7 @@ function outlineOf(picture: Emblem, w: number, h: number, fill: (g: CanvasRender
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(w));
   canvas.height = Math.max(1, Math.round(h));
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   g.imageSmoothingQuality = 'high';
   g.drawImage(picture, 0, 0, canvas.width, canvas.height);
   g.globalCompositeOperation = 'source-in';
@@ -2555,7 +2556,7 @@ function colourTexture(w: number, h: number, paint: Paint): THREE.CanvasTexture 
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  paint(canvas.getContext('2d') as CanvasRenderingContext2D, w, h);
+  paint(context2d(canvas), w, h);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -3361,7 +3362,7 @@ export function gradientTexture(stops: [number, string][]): THREE.CanvasTexture 
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 4;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   const grad = g.createLinearGradient(0, 0, canvas.width, 0);
   for (const [at, colour] of stops) grad.addColorStop(at, colour);
   g.fillStyle = grad;

@@ -53,6 +53,7 @@ import {
   type Paint,
   type SidePart,
 } from './tintArt';
+import { context2d } from './paintCanvas';
 
 const MISSED_COLOR = 0x4a5068;
 const WHITE = new THREE.Color(0xffffff);
@@ -78,7 +79,7 @@ function borderTexture(look: SideLook, railPx: number, tilePx: number, side: -1 
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(2, Math.round(railPx * BORDER_SCALE));
   canvas.height = Math.max(2, Math.round(tilePx * BORDER_SCALE));
-  paintBorder(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
+  paintBorder(context2d(canvas), canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapT = THREE.MirroredRepeatWrapping;
@@ -1900,7 +1901,7 @@ export class TrackRenderer {
       canvas.width = PRESS_KEY_PX[0];
       canvas.height = PRESS_KEY_PX[1];
       const share = { left: key.notch.left / key.box.w, right: key.notch.right / key.box.w, depth: key.notch.depth / key.box.h };
-      const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+      const g = context2d(canvas);
       if (key.lit) {
         // a cap is about as deep as it is wide: its picture square (a cut one finer: its ridges are hairlines)
         if (key.gem) canvas.width = LIT_GEM_PX;
@@ -2338,14 +2339,14 @@ export class TrackRenderer {
     // round things in it are drawn longer along the track, as the notes' marks are (the picture's px
     // are not square on the track, and the camera flattens it)
     const st = (h / length / (w / width)) * NOTE_STRETCH;
-    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+    const g = context2d(canvas);
     g.clearRect(0, 0, w, h);
     const view = floorViewOf(cameraPose(HUD_CAMERA), this.pose, this.baseFov, this.aspect, this.judgeZ, this.geometry);
     if (!view) floor(g, w, h, st);
     else {
       const source = document.createElement('canvas');
       [source.width, source.height] = [w, h];
-      floor(source.getContext('2d') as CanvasRenderingContext2D, w, h, st, view);
+      floor(context2d(source), w, h, st, view);
       // the row of the default camera's picture that comes to lie at this picture's row `y`
       const from = (y: number) => h * (1 - view.asDefault(1 - y / h));
       g.imageSmoothingQuality = 'high';
@@ -2414,7 +2415,7 @@ export class TrackRenderer {
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(2, Math.round(tile * BORDER_SCALE));
       canvas.height = Math.max(2, Math.round((lift / PX) * BORDER_SCALE));
-      paintFace(canvas.getContext('2d') as CanvasRenderingContext2D, canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
+      paintFace(context2d(canvas), canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.wrapS = THREE.MirroredRepeatWrapping;
@@ -2630,7 +2631,7 @@ export class TrackRenderer {
     canvas.width = Math.round((width / PX) * scale);
     canvas.height = Math.round((d.depth / PX) * scale);
     // opaque to its last px (the deck is drawn without blending, see buildDeck)
-    const g = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
+    const g = context2d(canvas, { alpha: false });
     g.scale(scale, scale);
     const left = (l: LaneGeom) => (l.x - l.width / 2 + width / 2) / PX;
     // where a gear's plate drawn in code puts the parts its lights shine on
@@ -2858,7 +2859,7 @@ function bandTexture(axis: 'u' | 'v'): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = axis === 'u' ? 256 : 4;
   canvas.height = axis === 'u' ? 4 : 256;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = context2d(canvas);
   const g = axis === 'u' ? ctx.createLinearGradient(0, 0, 256, 0) : ctx.createLinearGradient(0, 0, 0, 256);
   for (let i = 0; i <= 16; i++) {
     const t = i / 16;
@@ -2881,7 +2882,7 @@ function flowTexture(): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = context2d(canvas);
   const image = ctx.createImageData(w, h);
   // each streak's head (share of a run, from its near end), its tail's length and its brightness
   const streaks = [
@@ -2919,7 +2920,7 @@ function radialTexture(): THREE.Texture {
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = context2d(canvas);
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   g.addColorStop(0, 'rgba(255,255,255,1)');
   g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
@@ -2940,7 +2941,7 @@ export function crackCanvas(w: number, h: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   let seed = 0x2f6e2b1;
   const random = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -2985,7 +2986,7 @@ function linearFadeTexture(): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = 4;
   canvas.height = 128;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = context2d(canvas);
   const g = ctx.createLinearGradient(0, 0, 0, 128);
   g.addColorStop(0, 'rgba(255,255,255,0)');
   g.addColorStop(1, 'rgba(255,255,255,1)');

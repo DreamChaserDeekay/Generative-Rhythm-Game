@@ -7,6 +7,7 @@
  * coins for notes.
  */
 import { BRAND_GEARS, type GearStyle } from './deckArt';
+import { context2d } from './paintCanvas';
 
 /**
  * What stands by a gear: 'figures' tall beside it and behind it (파이어스타터: up to four, or one piece
@@ -269,7 +270,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
   const cut = document.createElement('canvas');
   cut.width = w;
   cut.height = h;
-  const c = cut.getContext('2d') as CanvasRenderingContext2D;
+  const c = context2d(cut);
   c.imageSmoothingQuality = 'high';
   c.drawImage(picture, 0, 0, w, h);
   const alphaAt = (x: number, y: number) => c.getImageData(Math.min(w - 1, Math.max(0, Math.round(x))), Math.min(h - 1, Math.max(0, Math.round(y))), 1, 1).data[3];
@@ -284,7 +285,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
   const white = document.createElement('canvas');
   white.width = w + 2 * room;
   white.height = h + room;
-  const o = white.getContext('2d') as CanvasRenderingContext2D;
+  const o = context2d(white);
   for (let i = 0; i < 20; i++) {
     const a = (i / 20) * Math.PI * 2;
     o.drawImage(cut, room + Math.cos(a) * rim, room + Math.sin(a) * rim);
@@ -295,7 +296,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
   const canvas = document.createElement('canvas');
   canvas.width = white.width;
   canvas.height = white.height;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   g.shadowColor = 'rgba(0,0,0,0.5)';
   g.shadowBlur = rim * 1.6;
   g.shadowOffsetY = rim * 0.6;
@@ -308,7 +309,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
 /** A sticker's outline read off its picture (its shadow left out): see StickerShape. */
 export function stickerShape(canvas: HTMLCanvasElement, bands = 40): StickerShape {
   const { width: w, height: h } = canvas;
-  const data = (canvas.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, w, h).data;
+  const data = context2d(canvas).getImageData(0, 0, w, h).data;
   const shape: StickerShape = { left: [], right: [] };
   for (let k = 0; k < bands; k++) {
     let [from, to] = [w, -1];
@@ -336,7 +337,7 @@ export function standeeCanvas(picture: CanvasImageSource & { width: number; heig
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const g = context2d(canvas);
   g.imageSmoothingQuality = 'high';
   g.drawImage(picture, 0, 0, w, h);
   const alphaAt = (x: number, y: number) => g.getImageData(Math.min(w - 1, Math.max(0, Math.round(x))), Math.min(h - 1, Math.max(0, Math.round(y))), 1, 1).data[3];
