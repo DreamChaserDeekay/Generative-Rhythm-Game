@@ -199,8 +199,10 @@ test('a long intro is skipped with Enter (again after a retry, which shows the s
   await page.keyboard.press('Enter');
   await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
   // the play ends with its lamp in the middle of the screen, where the result's takes over from
-  await expect(page.getByTestId('hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 90_000 });
-  await expect(page.getByTestId('hud-lamp')).toHaveText('AUTO PLAY');
+  await expect(page.locator('.hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 90_000 });
+  await expect(page.locator('.hud-lamp')).toHaveText('AUTO PLAY');
+  // a play without a lamp leaves the result's stamp nothing to start from
+  await expect(page.getByTestId('hud-lamp')).toHaveCount(0);
   await expect(stage(page)).toHaveAttribute('data-stage', 'end');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
@@ -220,9 +222,10 @@ test('a play\'s start and end on the track: the lanes light, autoplay ends with 
   await expect(stage(page)).toHaveAttribute('data-stage', 'intro', { timeout: 30_000 });
   await expect(page.getByTestId('hud-ready')).toHaveCount(0);
   await expect(stage(page)).toHaveAttribute('data-stage', 'play', { timeout: 10_000 });
-  // no lamp until the play ends
-  await expect(page.getByTestId('hud-lamp')).not.toHaveAttribute('data-lamp');
-  await expect(page.getByTestId('hud-lamp')).toBeHidden();
+  // no lamp until the play ends, and nothing named for one
+  await expect(page.locator('.hud-lamp')).not.toHaveAttribute('data-lamp');
+  await expect(page.locator('.hud-lamp')).toBeHidden();
+  await expect(page.getByTestId('hud-lamp')).toHaveCount(0);
   // the gauge at nothing: the track cracks, everything but the lamp loses its colour, FAILED breaks up
   await expect(stage(page)).toHaveAttribute('data-stage', 'fail', { timeout: 40_000 });
   await expect(stage(page)).toHaveClass(/stage-failed/);
@@ -357,7 +360,8 @@ test('a long intro on a chart the test serves: the start shows, Enter skips to t
   await page.keyboard.press('Enter');
   await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
   // the play ends with the lights out and its words, and the result follows
-  await expect(page.getByTestId('hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 60_000 });
+  await expect(page.locator('.hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 60_000 });
+  await expect(page.getByTestId('hud-lamp')).toHaveCount(0);
   await expect(stage(page)).toHaveAttribute('data-stage', 'end');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
   expect(errors).toEqual([]);

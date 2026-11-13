@@ -489,7 +489,7 @@ export class Hud {
       <div class="hud-toast" data-testid="hud-toast"></div>
       <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
       <div class="hud-lamp-fly" aria-hidden="true"></div>
-      <div class="hud-lamp" data-testid="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
+      <div class="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
     q('.hud-artist').textContent = info.artist;
@@ -1256,11 +1256,17 @@ export class Hud {
    * one and a play without a lamp show their words: a full combo's after the combo's number has flown to the
    * middle, a failed play's sinking, or breaking up when it failed halfway (`crashed`). The element stays where
    * it is, as large as what it ends with, until the HUD is reset or disposed.
+   *
+   * Only a lamp the play earned is named data-testid="hud-lamp": the result screen sends its stamp over from
+   * where that one stands (jacketFlight), and a play without a lamp (autoplay, a practice's end) gives it
+   * nothing to start from, though its words show as well.
    */
   showLamp(text: string, kind: string, crashed = false): void {
     const worded = WORDED_LAMPS.has(kind);
     // where the combo's number is, before it leaves with the judgement
     const combo = kind === 'maxcombo' && !this.still ? this.comboNum.getBoundingClientRect() : null;
+    if (kind === 'aided') this.lamp.removeAttribute('data-testid');
+    else this.lamp.dataset.testid = 'hud-lamp';
     this.lamp.dataset.lamp = kind;
     this.lamp.setAttribute('aria-label', text);
     this.lampText.textContent = worded ? text : '';
@@ -1328,6 +1334,7 @@ export class Hud {
     this.comboFlight?.cancel();
     this.comboFlight = null;
     this.lamp.className = 'hud-lamp';
+    this.lamp.removeAttribute('data-testid');
     delete this.lamp.dataset.lamp;
     this.lamp.removeAttribute('aria-label');
     this.lampText.textContent = '';
