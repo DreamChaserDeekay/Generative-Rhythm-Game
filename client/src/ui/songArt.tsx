@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Song, type SongSketch } from '../api/client';
+import { context2d, keepPainted, paintCanvas } from '../render/paintCanvas';
 import { token } from './theme';
 import { uiScale } from './uiScale';
 
@@ -55,7 +56,7 @@ export function drawDisc(canvas: HTMLCanvasElement, size: number, colour: string
   const dpr = Math.min(4, (window.devicePixelRatio || 1) * uiScale());
   canvas.width = Math.round(size * dpr);
   canvas.height = Math.round(size * dpr);
-  const g = canvas.getContext('2d');
+  const g = context2d(canvas) as CanvasRenderingContext2D | null;
   if (!g) return;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const surface = token('--surface');
@@ -125,7 +126,9 @@ const side = (size: number) => ({ width: `${size / 16}rem`, height: `${size / 16
 export function Disc({ size, stem = null, className = '', fit = false }: { size: number; stem?: string | null; className?: string; fit?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    if (canvas.current) drawDisc(canvas.current, size, token(stem ? stemToken(stem) : '--text-dim'));
+    const c = canvas.current;
+    // (drawn again whenever the browser hands the canvas back empty: a lost graphics process)
+    return c ? keepPainted(c, () => drawDisc(c, size, token(stem ? stemToken(stem) : '--text-dim'))) : undefined;
   }, [size, stem]);
   return <canvas ref={canvas} className={`song-art ${className}`} style={fit ? undefined : side(size)} aria-hidden="true" />;
 }
@@ -156,7 +159,7 @@ export function Backdrop({ song }: { song: Song | null }) {
   useEffect(() => {
     const c = canvas.current;
     if (!c || !song) return;
-    const small = c.getContext('2d');
+    const small = context2d(c) as CanvasRenderingContext2D | null;
     if (!small) return;
     let alive = true;
     const paint = (source: CanvasImageSource) => {
@@ -166,17 +169,18 @@ export function Backdrop({ song }: { song: Song | null }) {
       small.drawImage(source, 0, 0, c.width, c.height);
       setDrawn(song.id);
     };
-    if (song.hasCover) {
-      const img = new Image();
-      img.onload = () => paint(img);
-      img.src = api.coverUrl(song);
-    } else if (sketch) {
-      // a disc cover tints the screen evenly in its colour (its round shape stretched would be a blob)
-      const lead = leadingStem(sketch);
-      const field = document.createElement('canvas');
-      field.width = field.height = 4;
-      const g = field.getContext('2d');
-      if (g) {
+    // (again whenever the browser hands the canvas back empty: a lost graphics process)
+    const stop = keepPainted(c, () => {
+      if (song.hasCover) {
+        const img = new Image();
+        img.onload = () => paint(img);
+        img.src = api.coverUrl(song);
+      } else if (sketch) {
+        // a disc cover tints the screen evenly in its colour (its round shape stretched would be a blob)
+        const lead = leadingStem(sketch);
+        const field = paintCanvas();
+        field.width = field.height = 4;
+        const g = context2d(field);
         g.fillStyle = token('--surface');
         g.fillRect(0, 0, 4, 4);
         g.globalAlpha = 0.45;
@@ -184,9 +188,10 @@ export function Backdrop({ song }: { song: Song | null }) {
         g.fillRect(0, 0, 4, 4);
         paint(field);
       }
-    }
+    });
     return () => {
       alive = false;
+      stop();
     };
   }, [song?.id, song?.hasCover, song?.coverAt, sketch]);
   return (

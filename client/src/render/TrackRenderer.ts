@@ -53,7 +53,7 @@ import {
   type Paint,
   type SidePart,
 } from './tintArt';
-import { context2d } from './paintCanvas';
+import { context2d, type PaintCanvas, paintCanvas, type PaintTexture } from './paintCanvas';
 
 const MISSED_COLOR = 0x4a5068;
 const WHITE = new THREE.Color(0xffffff);
@@ -75,8 +75,8 @@ const BORDER_SCALE = 4;
  * it, mirrored at every other so that a grain runs on without a seam (mipmapped: far up the track it
  * is a px or two); `lit`, as it looks in FEVER.
  */
-function borderTexture(look: SideLook, railPx: number, tilePx: number, side: -1 | 1, lit = false): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+function borderTexture(look: SideLook, railPx: number, tilePx: number, side: -1 | 1, lit = false): PaintTexture {
+  const canvas = paintCanvas();
   canvas.width = Math.max(2, Math.round(railPx * BORDER_SCALE));
   canvas.height = Math.max(2, Math.round(tilePx * BORDER_SCALE));
   paintBorder(context2d(canvas), canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
@@ -843,7 +843,7 @@ export class TrackRenderer {
   /** The gear's lights over its deck (gearLights.ts), and where its deck's top is (z). */
   private readonly gearLights: GearLightLayer;
   /** The gear's keys that go down with their lanes (PIANO's): a shade over each, shown while its lane's key is held. */
-  private pressKeys: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; texture: THREE.CanvasTexture; lane: number; level: number }[] = [];
+  private pressKeys: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; texture: PaintTexture; lane: number; level: number }[] = [];
   private deckTopZ = 0;
   /** A hot spot running along the judge line, and its glow's own opacity (the shimmer is about it). */
   private readonly judgeShines: THREE.Mesh[] = [];
@@ -873,7 +873,7 @@ export class TrackRenderer {
   /** The gear's picture laid over the lanes, where it has one (deckArt.GEAR_FLOORS). */
   private floorMap: THREE.Texture | null = null;
   /** That picture's canvas, and the camera, the field of view and the LIFT it is painted for (paintFloor). */
-  private floorCanvas: HTMLCanvasElement | null = null;
+  private floorCanvas: PaintCanvas | null = null;
   private floorPainted = '';
   /** The deck's readout windows as it was last laid out (deck px), null where it houses none. */
   private readouts: DeckReadouts | null = null;
@@ -1897,7 +1897,7 @@ export class TrackRenderer {
       k.texture.dispose();
     }
     this.pressKeys = keys.map((key) => {
-      const canvas = document.createElement('canvas');
+      const canvas = paintCanvas();
       canvas.width = PRESS_KEY_PX[0];
       canvas.height = PRESS_KEY_PX[1];
       const share = { left: key.notch.left / key.box.w, right: key.notch.right / key.box.w, depth: key.notch.depth / key.box.h };
@@ -2281,7 +2281,7 @@ export class TrackRenderer {
     // judge line and its last row on from there under the gear: over the floor, under the lanes' tints,
     // the dividers and everything that moves
     if (GEAR_FLOORS[this.style.deck]) {
-      const canvas = document.createElement('canvas');
+      const canvas = paintCanvas();
       [canvas.width, canvas.height] = FLOOR_PICTURE_PX;
       const map = this.own(new THREE.CanvasTexture(canvas));
       map.colorSpace = THREE.SRGBColorSpace;
@@ -2344,7 +2344,7 @@ export class TrackRenderer {
     const view = floorViewOf(cameraPose(HUD_CAMERA), this.pose, this.baseFov, this.aspect, this.judgeZ, this.geometry);
     if (!view) floor(g, w, h, st);
     else {
-      const source = document.createElement('canvas');
+      const source = paintCanvas();
       [source.width, source.height] = [w, h];
       floor(context2d(source), w, h, st, view);
       // the row of the default camera's picture that comes to lie at this picture's row `y`
@@ -2411,8 +2411,8 @@ export class TrackRenderer {
   private buildWall(look: SideLook, side: -1 | 1, lift: number, tile: number, z: number): void {
     const { width, length } = this.geometry;
     const along = length + TRACK_TAIL;
-    const faceTexture = (lit: boolean): THREE.CanvasTexture => {
-      const canvas = document.createElement('canvas');
+    const faceTexture = (lit: boolean): PaintTexture => {
+      const canvas = paintCanvas();
       canvas.width = Math.max(2, Math.round(tile * BORDER_SCALE));
       canvas.height = Math.max(2, Math.round((lift / PX) * BORDER_SCALE));
       paintFace(context2d(canvas), canvas.width, canvas.height, look, side, BORDER_SCALE, lit);
@@ -2626,7 +2626,7 @@ export class TrackRenderer {
   private paintDeckPicture(d: DeckLayout): void {
     this.deckPending = null;
     const { width, lanes } = this.geometry;
-    const canvas = document.createElement('canvas');
+    const canvas = paintCanvas();
     const scale = Math.min(DECK_PICTURE, 2048 / (width / PX), 2048 / (d.depth / PX));
     canvas.width = Math.round((width / PX) * scale);
     canvas.height = Math.round((d.depth / PX) * scale);
@@ -2855,8 +2855,8 @@ export function slabGeometry(top: number, depth: number, crop: number, slices = 
  * A soft band of light across a gear frame's sweep: grey levels (an alpha map reads the green), dark
  * at both ends so the texture's clamped edge shows nothing, along v (a frame's top) or u (a wall's face).
  */
-function bandTexture(axis: 'u' | 'v'): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+function bandTexture(axis: 'u' | 'v'): PaintTexture {
+  const canvas = paintCanvas();
   canvas.width = axis === 'u' ? 256 : 4;
   canvas.height = axis === 'u' ? 4 : 256;
   const ctx = context2d(canvas);
@@ -2879,7 +2879,7 @@ function bandTexture(axis: 'u' | 'v'): THREE.CanvasTexture {
  */
 function flowTexture(): THREE.Texture {
   const [w, h] = [32, 256];
-  const canvas = document.createElement('canvas');
+  const canvas = paintCanvas();
   canvas.width = w;
   canvas.height = h;
   const ctx = context2d(canvas);
@@ -2918,7 +2918,7 @@ function flowTexture(): THREE.Texture {
 
 function radialTexture(): THREE.Texture {
   const size = 128;
-  const canvas = document.createElement('canvas');
+  const canvas = paintCanvas();
   canvas.width = canvas.height = size;
   const ctx = context2d(canvas);
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
@@ -2937,8 +2937,8 @@ function radialTexture(): THREE.Texture {
  * toward the judge line where the track is seen largest, each a jagged line with branches, dark with a light
  * core so that they show on a dark floor and on a light one. The same every time.
  */
-export function crackCanvas(w: number, h: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
+export function crackCanvas(w: number, h: number): PaintCanvas {
+  const canvas = paintCanvas();
   canvas.width = w;
   canvas.height = h;
   const g = context2d(canvas);
@@ -2983,7 +2983,7 @@ export function crackCanvas(w: number, h: number): HTMLCanvasElement {
 
 /** Fades from opaque at the judgement line to transparent at the far end (canvas top maps to -z). */
 function linearFadeTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
+  const canvas = paintCanvas();
   canvas.width = 4;
   canvas.height = 128;
   const ctx = context2d(canvas);

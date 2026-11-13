@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type AnalysisResult } from '../api/client';
+import { context2d, whenRestored } from '../render/paintCanvas';
 import { canvasFont, token } from './theme';
 
 const PX_PER_SECOND = 60;
@@ -12,6 +13,8 @@ export function AnalysisView({ songId }: { songId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** How many times the browser handed the canvas back empty (a lost graphics process): it is drawn again. */
+  const [wiped, setWiped] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -34,7 +37,7 @@ export function AnalysisView({ songId }: { songId: string }) {
     canvas.height = HEIGHT * dpr;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${HEIGHT}px`;
-    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+    const ctx = context2d(canvas);
     ctx.scale(dpr, dpr);
     const x = (ms: number) => (ms / 1000) * PX_PER_SECOND;
 
@@ -70,7 +73,8 @@ export function AnalysisView({ songId }: { songId: string }) {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-  }, [analysis]);
+    return whenRestored(canvas, () => setWiped((n) => n + 1));
+  }, [analysis, wiped]);
 
   if (error) return <p className="error">{error}</p>;
   if (!analysis) return <p className="hint">분석 결과를 불러오는 중…</p>;

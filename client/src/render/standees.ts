@@ -7,7 +7,7 @@
  * coins for notes.
  */
 import { BRAND_GEARS, type GearStyle } from './deckArt';
-import { context2d } from './paintCanvas';
+import { context2d, paintCanvas, type PaintCanvas } from './paintCanvas';
 
 /**
  * What stands by a gear: 'figures' tall beside it and behind it (파이어스타터: up to four, or one piece
@@ -261,13 +261,13 @@ const STICKER_PX = 640;
  * for the rim is left at its top and its two sides; none at its foot, which stands on the screen's
  * bottom edge.
  */
-export function stickerCanvas(picture: CanvasImageSource & { width: number; height: number }): HTMLCanvasElement {
+export function stickerCanvas(picture: CanvasImageSource & { width: number; height: number }): PaintCanvas {
   const k = Math.min(1, STICKER_PX / picture.height);
   const [w, h] = [Math.max(1, Math.round(picture.width * k)), Math.max(1, Math.round(picture.height * k))];
   const rim = Math.max(2, Math.round(h * 0.022));
   const room = rim * 3;
   // the picture itself, a square one cut round at its corners
-  const cut = document.createElement('canvas');
+  const cut = paintCanvas();
   cut.width = w;
   cut.height = h;
   const c = context2d(cut);
@@ -282,7 +282,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
     c.globalCompositeOperation = 'source-over';
   }
   // its outline in white, spread round itself by the rim
-  const white = document.createElement('canvas');
+  const white = paintCanvas();
   white.width = w + 2 * room;
   white.height = h + room;
   const o = context2d(white);
@@ -293,7 +293,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
   o.globalCompositeOperation = 'source-in';
   o.fillStyle = '#ffffff';
   o.fillRect(0, 0, white.width, white.height);
-  const canvas = document.createElement('canvas');
+  const canvas = paintCanvas();
   canvas.width = white.width;
   canvas.height = white.height;
   const g = context2d(canvas);
@@ -307,7 +307,7 @@ export function stickerCanvas(picture: CanvasImageSource & { width: number; heig
 }
 
 /** A sticker's outline read off its picture (its shadow left out): see StickerShape. */
-export function stickerShape(canvas: HTMLCanvasElement, bands = 40): StickerShape {
+export function stickerShape(canvas: PaintCanvas, bands = 40): StickerShape {
   const { width: w, height: h } = canvas;
   const data = context2d(canvas).getImageData(0, 0, w, h).data;
   const shape: StickerShape = { left: [], right: [] };
@@ -331,10 +331,10 @@ export function stickerShape(canvas: HTMLCanvasElement, bands = 40): StickerShap
  * with no see-through part (a photograph, not a cut-out) also fades at its top and its two sides, so
  * it stands as a soft-edged banner and not as a hard rectangle.
  */
-export function standeeCanvas(picture: CanvasImageSource & { width: number; height: number }): HTMLCanvasElement {
+export function standeeCanvas(picture: CanvasImageSource & { width: number; height: number }): PaintCanvas {
   const k = Math.min(1, STANDEE_PX / picture.height);
   const [w, h] = [Math.max(1, Math.round(picture.width * k)), Math.max(1, Math.round(picture.height * k))];
-  const canvas = document.createElement('canvas');
+  const canvas = paintCanvas();
   canvas.width = w;
   canvas.height = h;
   const g = context2d(canvas);

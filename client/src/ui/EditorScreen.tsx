@@ -8,6 +8,7 @@ import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
 import { hexString } from '../render/noteColors';
+import { whenRestored } from '../render/paintCanvas';
 import { bindingsFor, keyLabel, laneColorsOf, secondBindingsFor, type Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -176,6 +177,9 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     lay();
     const observer = new ResizeObserver(lay);
     observer.observe(canvas);
+    // the view is drawn when something changes, not every frame: laid out and drawn again when the
+    // browser hands its canvas back empty (a lost graphics process, see render/paintCanvas)
+    const stopRestoring = whenRestored(canvas, lay);
     let alive = true;
     if (song.status === 'ready') {
       api
@@ -191,6 +195,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     return () => {
       alive = false;
       observer.disconnect();
+      stopRestoring();
       viewRef.current = null;
     };
     // the canvas lives as long as the screen

@@ -3,6 +3,7 @@ import { keyModes } from '../engine/config';
 import { TempoMap } from '../engine/tempo';
 import type { Chart } from '../engine/types';
 import { LANE_COLORS } from '../render/palette';
+import { context2d, whenRestored } from '../render/paintCanvas';
 import { pointText } from './format';
 import { rangePoints, sectionRange, stepRange } from './practiceRange';
 import { groupColor, sectionLabel } from './sections';
@@ -33,6 +34,8 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(600);
   const [drag, setDrag] = useState<[number, number] | null>(null);
+  /** How many times the browser handed the map's canvas back empty (a lost graphics process): it is drawn again. */
+  const [wiped, setWiped] = useState(0);
   const duration = Math.max(1, chart.meta.durationMs ?? Math.max(...chart.notes.map((n) => n.endT ?? n.t), 1));
   const bars = useMemo(() => new TempoMap(chart.timing).barLines(duration), [chart, duration]);
   // where a segment picked by key starts and ends, and the sections it can take whole
@@ -65,7 +68,7 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
     const dpr = Math.min(4, (window.devicePixelRatio || 1) * uiScale());
     canvas.width = width * dpr;
     canvas.height = HEIGHT * dpr;
-    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+    const ctx = context2d(canvas);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const text = token('--text');
     ctx.fillStyle = token('--bg');
@@ -126,7 +129,8 @@ export function ChartMinimap({ chart, selection, onSelect, onHelp }: Props) {
       ctx.lineWidth = 2;
       ctx.strokeRect(x(a) + 1, 1, Math.max(2, x(b) - x(a) - 2), HEIGHT - 2);
     }
-  }, [chart, width, duration, bars, shown?.[0], shown?.[1]]);
+    return whenRestored(canvas, () => setWiped((n) => n + 1));
+  }, [chart, width, duration, bars, shown?.[0], shown?.[1], wiped]);
 
   const timeAt = (e: PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();

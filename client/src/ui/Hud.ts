@@ -3,7 +3,7 @@ import type { GearStyle } from '../render/deckArt';
 import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
-import { context2d } from '../render/paintCanvas';
+import { context2d, keepPainted } from '../render/paintCanvas';
 import { AIDED_WORDS, loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
@@ -307,7 +307,8 @@ export function judgementHtml(label: string, split: boolean, filled = false): st
 /**
  * The song's jacket for its plate, drawn once into a small canvas: its picture cut to a square
  * (the picture itself may be thousands of pixels wide, and is let go), or its disc where it has
- * none or the picture does not load. Never a broken picture.
+ * none or the picture does not load. Never a broken picture. Drawn again whenever the browser hands
+ * the canvas back empty (a lost graphics process, see render/paintCanvas).
  */
 function jacketOf(jacket: HudJacket): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
@@ -323,24 +324,23 @@ function jacketOf(jacket: HudJacket): HTMLCanvasElement {
       () => undefined,
     );
   };
-  if (!jacket.coverUrl) {
-    showDisc();
-    return canvas;
-  }
-  const side = Math.round(JACKET_SIDE * Math.min(2, window.devicePixelRatio || 1));
-  canvas.width = side;
-  canvas.height = side;
-  const image = new Image();
-  image.onload = () => {
-    // drawn once: kept in memory, so that a lost graphics process does not leave the jacket blank
-    const g = context2d(canvas) as CanvasRenderingContext2D | null;
-    const cut = Math.min(image.naturalWidth, image.naturalHeight);
-    if (!g || cut <= 0) return showDisc();
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(image, (image.naturalWidth - cut) / 2, (image.naturalHeight - cut) / 2, cut, cut, 0, 0, side, side);
+  const showCover = (url: string) => {
+    const side = Math.round(JACKET_SIDE * Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = side;
+    canvas.height = side;
+    const image = new Image();
+    image.onload = () => {
+      const g = context2d(canvas) as CanvasRenderingContext2D | null;
+      const cut = Math.min(image.naturalWidth, image.naturalHeight);
+      if (!g || cut <= 0) return showDisc();
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(image, (image.naturalWidth - cut) / 2, (image.naturalHeight - cut) / 2, cut, cut, 0, 0, side, side);
+    };
+    image.onerror = showDisc;
+    image.src = url;
   };
-  image.onerror = showDisc;
-  image.src = jacket.coverUrl;
+  const { coverUrl } = jacket;
+  keepPainted(canvas, coverUrl ? () => showCover(coverUrl) : showDisc);
   return canvas;
 }
 

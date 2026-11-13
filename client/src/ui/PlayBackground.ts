@@ -1,3 +1,4 @@
+import { context2d, whenRestored } from '../render/paintCanvas';
 import { token } from './theme';
 import { YouTubeBackground } from './youtubeBga';
 
@@ -78,7 +79,12 @@ export class PlayBackground {
       cover.width = COVER_PX;
       cover.height = COVER_PX;
       const image = new Image();
-      image.onload = () => cover.getContext('2d')?.drawImage(image, 0, 0, COVER_PX, COVER_PX);
+      const paint = () => {
+        if (image.complete && image.naturalWidth > 0) context2d(cover).drawImage(image, 0, 0, COVER_PX, COVER_PX);
+      };
+      image.onload = paint;
+      // (again whenever the browser hands the canvas back empty: a lost graphics process)
+      whenRestored(cover, paint);
       image.src = options.coverUrl;
       this.root.appendChild(cover);
     }
@@ -108,6 +114,7 @@ export class PlayBackground {
       canvas.className = 'bg-visualizer';
       this.root.appendChild(canvas);
       this.canvas = canvas;
+      // drawn afresh many times a second while the song plays: on the graphics card, and by itself again after it was lost
       this.ctx = canvas.getContext('2d');
     }
     const dim = document.createElement('div');
