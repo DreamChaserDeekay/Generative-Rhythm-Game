@@ -1,8 +1,9 @@
 """Asks the image model for a cut-out of a pair of the group illustration's characters on flat green, the parts its top edge cut
-completed above it.   python3 -I cutout.py <work dir> <1-left|2-right> <try>
+completed above it.   python3 -I cutout.py <work dir> <1-left|2-right> <try> [flames]
 
-The prompts here are those of the two tries whose cut-outs the game's pictures were made of (the left pair's second, the right
-pair's first). The other tries' prompts, whole, are in the records (assets-src/stage/fire/<piece>.json)."""
+The prompts here are those of the tries the game's pictures were made of: the left pair's second and the right pair's first
+(the figures), and the left pair's third, asked with `flames` (two of the fox-eared woman's flames kept: only they are taken
+from it). The other tries' prompts, whole, are in the records (assets-src/stage/fire/<piece>.json)."""
 import base64, hashlib, io, json, os, sys, time, urllib.request, urllib.error
 
 S = sys.argv[1]
@@ -67,6 +68,40 @@ KEEP = {
         "one beside her head, a closed claw of silver and dark metal that ends in a point. Add nothing else.\n"
         "\n"
     ),
+    # the left pair once more with two of the fox-eared woman's flames kept (the user, 2026-11-13: "아리 어깨랑 손가락하트 위에 있는
+    # 불꽃은 살려줘"): of this try only the two flames are taken (compose.py --add)
+    '1-left+flames': (
+        "KEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, "
+        "restyle, relight, sharpen, move or scale anything that is kept):\n"
+        "1. The fox-eared woman at the top (a dark bob with orange tips, a silver top): all of her. Her head and BOTH pointed "
+        "fox ears, her hair, her body, both arms and hands with their long nails, her legs in dark trousers, and ALL of her "
+        "big fox TAILS: the large feathery tails in crimson, magenta and pink, with their glowing orange tips, that fan out "
+        "behind her toward the upper left, every one of them.\n"
+        "2. The blonde woman with the orange sunglasses and the red suit, in front of her: all of her. Her head, her hair with "
+        "its silver hair clip, the sunglasses, the earrings, the red jacket with its silver collar and spiked shoulders, both "
+        "arms, the red gloves with their long silver claws, her crossed legs.\n"
+        "3. The two small FLAMES that are the fox-eared woman's own: the curl of yellow-orange flame that floats in the air "
+        "just above her shoulder, at the left of her head, and the heart-shaped yellow-orange flame that floats just above her "
+        "raised hand, over the little heart she makes with her fingers. Keep both exactly as painted: the same places, the "
+        "same shapes, the same glowing yellow, with the few sparks round them.\n"
+        "Add NOTHING to the two that is not in the picture: no horns, no whips, no tendrils, no new ornaments, no new limbs.\n"
+        "Keep the LIGHT on them as it is painted: the warm orange and yellow fire light on their skin, their hair, the metal "
+        "and the clothes stays exactly as it is (the orange reflections on the silver top too). Do not neutralise, darken or "
+        "recolour them.\n"
+        "\n"
+        "REPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the "
+        "haze, smoke, embers and sparks, every other flame and fire wisp, the silver pyramid and the seat the two sit on, and "
+        "the other figure at the right edge (the silver-haired woman in the dark red dress, with the metal pods that float by "
+        "her). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave "
+        "green there: do not invent what was hidden.\n"
+        "\n"
+        "COMPLETE what the illustration's top edge cut off: the tips of the fox ears and the upper parts of the fox tails were "
+        "cut by the illustration's top edge. Paint their missing parts up into the green band, in exactly the illustration's "
+        "style, so that the ears end in their points and every tail ends in its own curled, feathery tip. Keep the completed "
+        "tails compact: they curl over and end soon, none of them rising higher than the middle of the green band, and none "
+        "touching the canvas's top or right edge. Add nothing else.\n"
+        "\n"
+    ),
 }
 TAIL = (
     "THE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one "
@@ -105,12 +140,13 @@ def generate(prompt, pictures, aspect):
 
 if __name__ == "__main__":
     name, n = sys.argv[2], sys.argv[3]
+    variant = sys.argv[4] if len(sys.argv) > 4 else ''
     canvas = open(f'{S}/work/{name}-canvas.png', 'rb').read()
-    prompt = HEAD + KEEP[name] + TAIL
+    prompt = HEAD + KEEP[name + ('+' + variant if variant else '')] + TAIL
     png, usage = generate(prompt, [("image/png", canvas)], "4:5")
     out = f'{S}/work/{name}-try-{n}'
     open(out + '.png', 'wb').write(png)
-    json.dump({"model": MODEL, "aspect": "4:5", "size": "2K", "piece": name, "prompt": prompt, "made": time.strftime("%Y-%m-%d %H:%M:%S %z", time.gmtime()),
+    json.dump({"model": MODEL, "aspect": "4:5", "size": "2K", "piece": name, "variant": variant, "prompt": prompt, "made": time.strftime("%Y-%m-%d %H:%M:%S %z", time.gmtime()),
                "bytes": len(png), "sha256": hashlib.sha256(png).hexdigest(), "usage": usage,
                "pictures": [f"{name}-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 {hashlib.sha256(canvas).hexdigest()})"]},
               open(out + '.json', 'w'), indent=1, ensure_ascii=False)

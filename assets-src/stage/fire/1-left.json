@@ -5,10 +5,13 @@
   867,
   1126
  ],
- "sha256 of the picture (PNG, before the WebP)": "a6e7e7c79258de54ee029e3909040a085126fe85ec0d1034f52f8b93c30ab4f2",
- "sha256 of the WebP": "1da89423043850f134c9a7865b44ed1ff138c47acb06f6cd8f8a498f5927df67",
+ "sha256 of the picture (PNG, before the WebP)": "7a3a73f6adaac7a6cacb5139e4da975c08845a45265a7eb23fadd4f0c9b71766",
+ "sha256 of the WebP": "09529f4031a0aff1b188f776c8cf3e7cc58cdd892a828d568f3a8cf90e24ef9a",
  "made": "2026-11-13",
- "asked": "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+ "asked": [
+  "the user, 2026-11-13: \"KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해\"",
+  "the user, 2026-11-13, on seeing the picture: \"아리 어깨랑 손가락하트 위에 있는 불꽃은 살려줘\""
+ ],
  "illustration": {
   "what": "the K/DA FIRESTARTER skins' group illustration (Riot Games)",
   "file": "Ahri_KDAFIRESTARTERSkin_HD.jpg",
@@ -41,7 +44,9 @@
   "canvas.py",
   "cutout.py (the image model)",
   "register.py",
-  "compose.py",
+  "cutout.py <piece> 3 flames (the image model)",
+  "register.py <piece> 3",
+  "compose.py <piece> 2 --add 3 640,1020,250,200 1150,1080,210,250",
   "put.py"
  ],
  "composition": {
@@ -68,14 +73,44 @@
   "reach": 9,
   "fade": 0.05,
   "cut": [],
+  "add": {
+   "try": "3",
+   "boxes": [
+    [
+     640,
+     1020,
+     250,
+     200
+    ],
+    [
+     1150,
+     1080,
+     210,
+     250
+    ]
+   ],
+   "warm": [
+    0.0,
+    120.0
+   ],
+   "bloom": [
+    14.0,
+    0.6
+   ],
+   "bloom tint": [
+    1.0,
+    0.62,
+    0.24
+   ]
+  },
   "final": {
    "size": [
     867,
     1126
    ],
-   "from_illustration": 0.847
+   "from_illustration": 0.848
   },
-  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge"
+  "what": "the illustration's own px inside the cut-out's matte; the model's px above the illustration's top edge, within a few px of the outline before it is recoloured from inside, and where the two differ (something that lay over a character was taken away); the outline recoloured from inside the figure; a short fade at the picture's outer edge; and the two flames the user asked for back (the curl over the fox-eared woman's shoulder, the heart over her raised hand): where they are and how far they reach is taken from the third cut-out, which keeps them (inside two boxes of the canvas, and only px in which red is no weaker than green: on the green their glow comes back in yellow-greens), their colours are the illustration's own px, and under the figure lies their own colour spread wide and warmed (the illustration has them in a haze of orange against a bright wall, which goes with the wall)"
  },
  "generations": [
   {
@@ -165,6 +200,90 @@
     "thoughtsTokenCount": 912
    },
    "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The fox-eared woman at the top (a dark bob with orange tips, a silver top): all of her. Her head and BOTH pointed fox ears, her hair, her body, both arms and hands with their long nails, her legs in dark trousers, and ALL of her big fox TAILS: the large feathery tails in crimson, magenta and pink, with their glowing orange tips, that fan out behind her toward the upper left, every one of them.\n2. The blonde woman with the orange sunglasses and the red suit, in front of her: all of her. Her head, her hair with its silver hair clip, the sunglasses, the earrings, the red jacket with its silver collar and spiked shoulders, both arms, the red gloves with their long silver claws, her crossed legs.\nAdd NOTHING to the two that is not in the picture: no horns, no whips, no tendrils, no new ornaments, no new limbs.\nKeep the LIGHT on them as it is painted: the warm orange and yellow fire light on their skin, their hair, the metal and the clothes stays exactly as it is (the orange reflections on the silver top too). Do not neutralise, darken or recolour them.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every separate flame and fire wisp in the air (the yellow flame curls in the air beside the fox-eared woman and over her raised hand), the silver pyramid and the seat the two sit on, and the other figure at the right edge (the silver-haired woman in the dark red dress, with the metal pods that float by her). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the tips of the fox ears and the upper parts of the fox tails were cut by the illustration's top edge. Paint their missing parts up into the green band, in exactly the illustration's style, so that the ears end in their points and every tail ends in its own curled, feathery tip. Keep the completed tails compact: they curl over and end soon, none of them rising higher than the middle of the green band, and none touching the canvas's top or right edge. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "cut-out, try 3 (the two flames kept)",
+   "used": true,
+   "note": "used for the two flames only: the request of the second try with the two flames among what is kept. Their outlines are taken from it inside two boxes of the canvas; nothing else of it is used",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 05:04:27 +0000",
+   "bytes": 4792727,
+   "sha256": "93254f2ddc5c0ec9459bb22ba360b16c62880b332f36d49142387e94da48efdd",
+   "pictures sent": [
+    "1-left-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 a70e163fe5e5b7d159c5cd9d86788c195903724c7553c079230337f1b80e8a49)"
+   ],
+   "usage": {
+    "promptTokenCount": 1907,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 4222,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 787
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 635
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a clean CUT-OUT of two of its characters on flat pure green, as a compositing artist prepares a character layer.\n\nKEEP, exactly as painted (same place, same size, same pose, same faces, same colours, same brushwork: do not redraw, restyle, relight, sharpen, move or scale anything that is kept):\n1. The fox-eared woman at the top (a dark bob with orange tips, a silver top): all of her. Her head and BOTH pointed fox ears, her hair, her body, both arms and hands with their long nails, her legs in dark trousers, and ALL of her big fox TAILS: the large feathery tails in crimson, magenta and pink, with their glowing orange tips, that fan out behind her toward the upper left, every one of them.\n2. The blonde woman with the orange sunglasses and the red suit, in front of her: all of her. Her head, her hair with its silver hair clip, the sunglasses, the earrings, the red jacket with its silver collar and spiked shoulders, both arms, the red gloves with their long silver claws, her crossed legs.\n3. The two small FLAMES that are the fox-eared woman's own: the curl of yellow-orange flame that floats in the air just above her shoulder, at the left of her head, and the heart-shaped yellow-orange flame that floats just above her raised hand, over the little heart she makes with her fingers. Keep both exactly as painted: the same places, the same shapes, the same glowing yellow, with the few sparks round them.\nAdd NOTHING to the two that is not in the picture: no horns, no whips, no tendrils, no new ornaments, no new limbs.\nKeep the LIGHT on them as it is painted: the warm orange and yellow fire light on their skin, their hair, the metal and the clothes stays exactly as it is (the orange reflections on the silver top too). Do not neutralise, darken or recolour them.\n\nREPLACE WITH FLAT PURE GREEN (#00FF00), completely: everything else. The room and its lights, the pale glow and the haze, smoke, embers and sparks, every other flame and fire wisp, the silver pyramid and the seat the two sit on, and the other figure at the right edge (the silver-haired woman in the dark red dress, with the metal pods that float by her). None of that may remain, not even faintly. Where a kept woman is hidden behind something that is removed, leave green there: do not invent what was hidden.\n\nCOMPLETE what the illustration's top edge cut off: the tips of the fox ears and the upper parts of the fox tails were cut by the illustration's top edge. Paint their missing parts up into the green band, in exactly the illustration's style, so that the ears end in their points and every tail ends in its own curled, feathery tip. Keep the completed tails compact: they curl over and end soon, none of them rising higher than the middle of the green band, and none touching the canvas's top or right edge. Add nothing else.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two women exactly where they are in it, on one perfectly flat, uniform pure green (#00FF00): no gradient, no shadow, no glow, no outline and no haze round them, and no green light on them. Crisp, clean edges, also round the hair, the fur and the claws. No text, no watermark."
+  },
+  {
+   "step": "the two flames alone on black, try 1",
+   "used": false,
+   "note": "not used: asked for the two flames alone on black, to take them as light, the model drew the flame over the shoulder anew (larger, another shape, another place)",
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "4:5",
+   "size": "2K",
+   "result": [
+    1856,
+    2304
+   ],
+   "made": "2026-11-13 05:09:37 +0000",
+   "bytes": 976903,
+   "sha256": "e8a9a11b3fdb141cea6e634acdffa8140d7e6d87dfd582b0d9e5e35510f3e0cc",
+   "pictures sent": [
+    "1-left-canvas.png (the group illustration's crop for this side on its working canvas, green above its top edge; sha256 a70e163fe5e5b7d159c5cd9d86788c195903724c7553c079230337f1b80e8a49)"
+   ],
+   "usage": {
+    "promptTokenCount": 1459,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 3798,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 339
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 659
+   },
+   "prompt": "The picture that comes with this request is a crop of a painted illustration laid on a taller canvas: the band of flat pure green (#00FF00) above the illustration is empty canvas.\n\nMake it a picture of TWO OF ITS FLAMES ALONE on pure black, as a compositing artist prepares a layer of light that is added over a dark scene.\n\nKEEP, exactly as painted (same place, same size, same shape, same colours: do not redraw, restyle, move or scale them):\n1. The curl of yellow-orange flame that floats in the air just above the fox-eared woman's shoulder, at the left of her head.\n2. The heart-shaped yellow-orange flame that floats just above her raised hand, over the little heart she makes with her fingers.\nKeep each flame's own soft glow: it fades smoothly out into the black in the flame's own warm yellow and orange, as light does. The few tiny sparks right beside the two may stay.\n\nREPLACE WITH PURE BLACK (#000000), completely: everything else. The two women (also the hair, the shoulder and the hand next to the flames), the fox tails, the room, its lights and its pale glow, every other flame, and the green band above. None of that may remain, not even faintly, and none of the room's light: outside the two flames and their own glow the picture is flat pure black.\n\nTHE RESULT: the same framing and the same proportions as the picture given, the two flames exactly where they are in it. No text, no watermark."
   }
  ]
 }
