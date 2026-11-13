@@ -38,6 +38,7 @@ import {
   tapeStopTime,
   type IntroPlan,
   type StageFrame,
+  type StagePose,
 } from '../render/stageFx';
 import { hudTypeFor } from '../render/gearHud';
 import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
@@ -285,6 +286,9 @@ export class PlayController {
   private ending: { at: number; songMs: number; failed: boolean; text: string; kind: string; lampAt: number; shown: boolean; wave: number } | null = null;
   /** What the canvas says of it (data-stage; not shown). */
   private stageName = '';
+  /** The camera's pose by the chart's cues in the last frame, and what a start or an end added to it (null: nothing). */
+  private chartPose: CameraPoseFx | null = null;
+  private stagedPose: StagePose | null = null;
   private loops = 0;
   /** What the last loop of a looped practice came to (leaving shows it). */
   private lastLoop: PlayOutcome | null = null;
@@ -668,13 +672,15 @@ export class PlayController {
   private cameraAt(songNow: number, perfNow: number): CameraPoseFx | undefined {
     if (!this.cameraFx.enabled) return undefined;
     const pose = this.cameraFx.follow(songNow);
-    let add = null;
+    this.chartPose = pose;
+    let add: StagePose | null = null;
     if (this.ending) add = this.ending.failed ? null : exitPose(perfNow - this.ending.at, this.cameraStrength);
     else if (this.entry > 0) {
       const ms = (songNow - this.runFromMs) / this.rate;
       if (ms > ENTRY_OVER_MS) this.entry = 0;
       else add = entryPose(ms, this.entry);
     }
+    this.stagedPose = add;
     return add ? { roll: pose.roll, fovScale: pose.fovScale * add.fovScale, pitch: (pose.pitch ?? 0) + add.pitch } : pose;
   }
 
@@ -835,11 +841,17 @@ export class PlayController {
     this.placeHud();
   }
 
-  /** Lays the HUD on the track as the camera shows it now (its parts sized for the screen where they lie). */
+  /**
+   * Lays the HUD on the track as the camera shows it now (its parts sized for the screen where they lie):
+   * by the chart's cues alone, without the way in of a start or the way out of an end, which pass. It is
+   * then moved to where the camera has the track at this moment.
+   */
   private placeHud(): void {
     const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
     const { travel } = this.scroll;
-    this.hud.layoutPlane(this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
+    const staged = this.stagedPose !== null;
+    this.hud.layoutPlane(staged && this.chartPose ? this.renderer.hudPlaneAt(this.chartPose) : this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
+    if (staged) this.hud.movePlane(this.renderer.hudPlane());
     this.hudVersion = this.renderer.hudVersion;
   }
 
