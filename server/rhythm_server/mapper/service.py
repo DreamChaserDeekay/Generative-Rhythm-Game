@@ -1,5 +1,8 @@
 """The worker process (worker.py in Mapperatorinator's Python), one at a time: the model stays loaded
-between charts, and charts wait their turn (one GPU, a few GB of memory)."""
+between charts, and charts wait their turn (one GPU, a few GB of memory). When no chart has been
+made for idleUnloadSeconds (config/mapper.json), the worker is let go, and with it the model and the
+GPU's memory it held: the game plays on a card of its own, and the next chart starts the worker
+again (the model loads anew, some seconds)."""
 
 from __future__ import annotations
 
@@ -12,9 +15,13 @@ import threading
 import time
 from typing import Any
 
-from .runtime import NO_WINDOW, Runtime, worker_script
+from .runtime import NO_WINDOW, Runtime, mapper_config, worker_script
 
 log = logging.getLogger("rhythm_server.mapper")
+
+#: Seconds without a chart before the worker is let go, where config/mapper.json does not say
+#: (idleUnloadSeconds; 0 keeps it until the server stops).
+DEFAULT_IDLE_UNLOAD_S = 120.0
 
 
 class MapperError(RuntimeError):
@@ -22,13 +29,19 @@ class MapperError(RuntimeError):
 
 
 class MapperService:
-    def __init__(self, runtime: Runtime):
+    def __init__(self, runtime: Runtime, idle_unload_s: float | None = None):
+        """`idle_unload_s`: seconds without a chart before the worker is let go (None: config's
+        idleUnloadSeconds, read as each chart ends, so a changed setting holds from the next)."""
         self.runtime = runtime
         self._lock = threading.Lock()
         self._proc: subprocess.Popen[bytes] | None = None
         self._answers: queue.SimpleQueue[str | None] = queue.SimpleQueue()
         self._ids = itertools.count(1)
         self.busy = False
+        self._idle_unload_s = idle_unload_s
+        self._idle_timer: threading.Timer | None = None
+        # when the last chart ended (time.monotonic): what an idle timer was armed for
+        self._used_at = 0.0
 
     def _start(self) -> subprocess.Popen[bytes]:
         if self._proc is not None and self._proc.poll() is None:
@@ -59,6 +72,7 @@ class MapperService:
         """Sends one request and waits for its answer; the worker is restarted when it died or took
         too long."""
         with self._lock:
+            self._cancel_idle()
             self.busy = True
             try:
                 proc = self._start()
@@ -91,12 +105,53 @@ class MapperService:
                 return answer
             finally:
                 self.busy = False
+                self._used_at = time.monotonic()
+                self._arm_idle()
 
     def loaded(self) -> bool:
-        """Whether the worker process is up: from its first chart on it keeps the model, a few GB of
-        the GPU's memory, until the server stops."""
+        """Whether the worker process is up: from a chart on it keeps the model, a few GB of the
+        GPU's memory, until no chart has been made for idleUnloadSeconds."""
         proc = self._proc
         return proc is not None and proc.poll() is None
+
+    def idle_unload_s(self) -> float:
+        """Seconds without a chart before the worker is let go (0: never)."""
+        if self._idle_unload_s is not None:
+            return max(0.0, self._idle_unload_s)
+        try:
+            return max(0.0, float(mapper_config().get("idleUnloadSeconds", DEFAULT_IDLE_UNLOAD_S)))
+        except (TypeError, ValueError):
+            return DEFAULT_IDLE_UNLOAD_S
+
+    def _arm_idle(self) -> None:
+        """(holding the lock) Lets the worker go once no chart comes for idle_unload_s seconds."""
+        self._cancel_idle()
+        wait = self.idle_unload_s()
+        if wait <= 0 or self._proc is None:
+            return
+        timer = threading.Timer(wait, self._unload_if_idle, args=(self._used_at,))
+        timer.name = "mapper-idle"
+        timer.daemon = True
+        self._idle_timer = timer
+        timer.start()
+
+    def _cancel_idle(self) -> None:
+        timer, self._idle_timer = self._idle_timer, None
+        if timer is not None:
+            timer.cancel()
+
+    def _unload_if_idle(self, used_at: float) -> None:
+        # a chart being made holds the lock, and arms the timer again as it ends
+        if not self._lock.acquire(blocking=False):
+            return
+        try:
+            if self.busy or self._used_at != used_at or self._proc is None:
+                return  # used since this timer was armed, or already gone
+            log.info("Mapperatorinator: no chart for %.0f s, the worker lets the model and its GPU memory go", time.monotonic() - used_at)
+            self._idle_timer = None
+            self._stop()
+        finally:
+            self._lock.release()
 
     def _stop(self) -> None:
         proc, self._proc = self._proc, None
@@ -114,4 +169,5 @@ class MapperService:
 
     def close(self) -> None:
         with self._lock:
+            self._cancel_idle()
             self._stop()

@@ -346,3 +346,45 @@ def test_fp16_encoder_stand_in_routes_the_encoder_precompute(monkeypatch):
     # patched once: a second call keeps the first wrapper
     worker._patch_precompute(server, processor, "fp16")
     assert len(calls) == 2 and processor.precompute_encoder_outputs(other, "f", {}).tag == "hidden"
+
+
+def test_the_worker_lets_the_model_go_when_no_chart_comes_and_starts_again_for_the_next(tmp_path) -> None:
+    """The worker keeps the model on the GPU between charts; once no chart has come for its idle
+    time it ends, and the game has the card's memory to itself (config: idleUnloadSeconds)."""
+    from rhythm_server.mapper.service import MapperError, MapperService
+
+    svc = MapperService(Runtime(), idle_unload_s=1.0)
+    ask = lambda **extra: svc.generate({"keycount": 4, "out": str(tmp_path), **extra}, 30)  # noqa: E731
+    try:
+        assert ask()["ok"] and svc.loaded()
+        # a timer armed before the last chart, or one that fires while a chart is made, leaves it
+        svc._unload_if_idle(svc._used_at - 1.0)
+        assert svc.loaded()
+        with svc._lock:
+            svc._unload_if_idle(svc._used_at)
+        assert svc.loaded()
+        _wait_for(lambda: not svc.loaded(), 15)
+        assert not svc.loaded()
+        # the next chart starts the worker again; a chart that fails counts as a use too
+        with pytest.raises(MapperError, match="CUDA out of memory"):
+            ask(seed=13)
+        assert svc.loaded()
+        _wait_for(lambda: not svc.loaded(), 15)
+        assert not svc.loaded()
+        assert ask()["ok"] and svc.loaded()
+    finally:
+        svc.close()
+    assert not svc.loaded() and svc._idle_timer is None
+
+
+def test_with_no_idle_time_the_worker_keeps_the_model_and_the_config_lets_go_after_two_minutes(tmp_path) -> None:
+    from rhythm_server.mapper.service import MapperService
+
+    assert MapperService(Runtime()).idle_unload_s() == 120.0  # config/mapper.json idleUnloadSeconds
+    svc = MapperService(Runtime(), idle_unload_s=0)
+    try:
+        assert svc.generate({"keycount": 4, "out": str(tmp_path)}, 30)["ok"]
+        time.sleep(0.5)
+        assert svc.loaded() and svc._idle_timer is None
+    finally:
+        svc.close()
