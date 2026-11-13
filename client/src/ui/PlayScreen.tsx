@@ -12,6 +12,7 @@ import { padPlayOf, skinOf, songOffsetOf, type Settings } from '../settings/sett
 import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
 import { loadHudFont } from './Hud';
+import { leaveLampOrigin } from './jacketFlight';
 import { LoadingCard } from './LoadingCard';
 import { PlayController, type PlayOutcome } from './PlayController';
 import { practicePrerollMs } from './practiceLead';
@@ -42,6 +43,8 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // the start card giving way once the play has started: where its jacket goes (the track's far end, px)
+  const [cardLeaving, setCardLeaving] = useState<{ to: { x: number; y: number } | null } | null>(null);
   // set with the controller, and read by the loading's Esc at the key: the effect that lets go of
   // that key runs only after the next paint, and an Esc meanwhile belongs to the play (it pauses)
   const started = useRef(false);
@@ -90,10 +93,23 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
         }
         controller = new PlayController(
           { request, buffer, stems, keysounds, bufferPlacement, settings, canvas: canvasRef.current, hudRoot: hudRef.current, bgRoot: bgRef.current, art, bestReplay },
-          { onFinish, onPauseChange: setPaused, onSettingsChange },
+          {
+            // the HUD's lamp is read where it stands before the result takes the screen: its stamp comes over from there
+            onFinish: (outcome) => {
+              if (hudRef.current) leaveLampOrigin(hudRef.current);
+              onFinish(outcome);
+            },
+            onPauseChange: setPaused,
+            onSettingsChange,
+          },
         );
         controllerRef.current = controller;
         started.current = true;
+        // the card stays over the play a moment longer: its jacket goes into the track's far end
+        const box = canvasRef.current.getBoundingClientRect();
+        const end = controller.trackEndOnScreen();
+        const to = box.width > 0 && Number.isFinite(end.x) && Number.isFinite(end.y) ? { x: box.left + end.x * box.width, y: box.top + end.y * box.height } : null;
+        setCardLeaving({ to });
         setLoading(false);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -110,8 +126,10 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
   // Leaving a looped practice shows its last loop's result (never recorded), as a run that ends does.
   const leave = useCallback(() => {
     const last = controllerRef.current?.lastLoopOutcome() ?? null;
-    if (last) onFinish(last);
-    else onQuit();
+    if (last) {
+      if (hudRef.current) leaveLampOrigin(hudRef.current);
+      onFinish(last);
+    } else onQuit();
   }, [onFinish, onQuit]);
 
   // The pause menu: R and Q, and ↑↓ between its buttons as in the other menus (a pad's d-pad
@@ -175,7 +193,17 @@ export function PlayScreen({ request, settings, onSettingsChange, onFinish, onQu
       <div ref={bgRef} className="play-bg" data-testid="play-bg" />
       <canvas ref={canvasRef} className="play-canvas" />
       <div ref={hudRef} className="hud" />
-      {loading && !error && <LoadingCard request={request} settings={settings} text={loadingText} onCancel={onQuit} />}
+      {/* (one element from loading to gone: the card is not drawn anew as it gives way) */}
+      {((loading && !error) || (!loading && cardLeaving)) && (
+        <LoadingCard
+          request={request}
+          settings={settings}
+          text={loadingText}
+          onCancel={onQuit}
+          leaving={loading ? null : cardLeaving}
+          onGone={() => setCardLeaving(null)}
+        />
+      )}
       {error && (
         <div className="play-overlay">
           <div className="play-sheet">

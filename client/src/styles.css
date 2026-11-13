@@ -996,6 +996,11 @@ p.hint {
   background: var(--bg);
 }
 
+/* giving way to the play under it: no click lands on it */
+.play-loading.leaving {
+  pointer-events: none;
+}
+
 .loading-card,
 .loading-status {
   width: min(56rem, calc(100% - 2 * var(--gutter)));
@@ -3552,6 +3557,26 @@ p.hint {
   color: var(--on-accent);
   background: var(--accent);
   transform: skewX(var(--skew));
+}
+
+/* NEW RECORD: the lamp's colour, landing a moment after the stamp */
+.record-tag.new-record {
+  color: var(--on-accent);
+  background: var(--lamp-maxcombo);
+  animation: record-pop var(--motion-screen) ease-out;
+}
+
+@keyframes record-pop {
+  from {
+    opacity: 0;
+    transform: skewX(var(--skew)) scale(1.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-tag.new-record {
+    animation: none;
+  }
 }
 
 .record-tag > span {

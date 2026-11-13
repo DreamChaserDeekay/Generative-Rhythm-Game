@@ -1123,6 +1123,22 @@ export class TrackRenderer {
     return baseFrame(this.camera, this.baseFov, this.judgeZ, this.pose.lineY);
   }
 
+  /**
+   * Where the far end of the track (the middle of its end) stands on the screen in the preset's own
+   * framing, with no chart's zoom, roll or dive and no entrance move: shares of the width and height
+   * (0 left / top). Read only: the play's start card sends its jacket there.
+   */
+  trackEndOnScreen(): { x: number; y: number } {
+    const camera = poseCamera(this.pose, this.aspect);
+    camera.position.copy(this.basePosition);
+    camera.quaternion.copy(this.baseQuaternion);
+    camera.updateMatrixWorld();
+    const frame = baseFrame(camera, this.baseFov, this.judgeZ, this.pose.lineY);
+    frameCamera(camera, this.baseFov, 1, 0, this.cssWidth, this.cssHeight, this.judgeZ, frame);
+    const end = new THREE.Vector3(0, 0, -this.geometry.length).project(camera);
+    return { x: (end.x + 1) / 2, y: (1 - end.y) / 2 };
+  }
+
   /** Changes whenever the HUD lying on the track has to move (see hudPlane). */
   get hudVersion(): number {
     return this.planeVersion;

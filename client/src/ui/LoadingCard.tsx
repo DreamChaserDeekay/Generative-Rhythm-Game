@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { difficultyTiers } from '../engine/config';
 import type { Chart, StemName } from '../engine/types';
 import { STEM_NAMES } from '../engine/types';
 import { bindingsFor, keyLabel, secondBindingsFor, songOffsetOf, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { speedText } from './format';
-import { flyJacket, takeJacketOrigin } from './jacketFlight';
+import { flyIntoTrack, flyJacket, takeJacketOrigin } from './jacketFlight';
 import { playedSettings, playModeLabel, ruleChips } from './playRules';
 import { Backdrop, Disc, SongArt, stemToken } from './songArt';
 import { uiScale } from './uiScale';
@@ -40,9 +40,25 @@ function laneStems(chart: Chart): (StemName | null)[] {
  * tempo, notes, length and the speed it scrolls at, the rules it runs on where they are not the
  * defaults), the loading under them, and at the foot of the screen the keys that play its lanes,
  * each over the colour of the instrument the lane follows most. Started from the song select, the
- * jacket comes over from where it stood there (jacketFlight.ts).
+ * jacket comes over from where it stood there (jacketFlight.ts). Once the play has started under it,
+ * it gives way (`leaving`): its jacket goes off into the track's far end (`leaving.to`, px on the
+ * screen; null: it only fades) and its colour melts into the play's, then `onGone`.
  */
-export function LoadingCard({ request, settings, text, onCancel }: { request: PlayRequest; settings: Settings; text: string; onCancel: () => void }) {
+export function LoadingCard({
+  request,
+  settings,
+  text,
+  onCancel,
+  leaving = null,
+  onGone,
+}: {
+  request: PlayRequest;
+  settings: Settings;
+  text: string;
+  onCancel: () => void;
+  leaving?: { to: { x: number; y: number } | null } | null;
+  onGone?: () => void;
+}) {
   const { chart, song } = request;
   const m = chart.meta;
   const tier = difficultyTiers.find((t) => t.id === m.difficulty);
@@ -65,9 +81,23 @@ export function LoadingCard({ request, settings, text, onCancel }: { request: Pl
     const jacket = card.current?.querySelector<HTMLElement>('.loading-jacket');
     if (from && jacket) flyJacket(jacket, from, [...(card.current?.querySelectorAll<HTMLElement>('.loading-text, .loading-status, .loading-keys') ?? [])]);
   }, []);
+  // giving way: nothing of it takes a key or a click any more (the play has them), once
+  const left = useRef(false);
+  useEffect(() => {
+    const el = card.current;
+    if (!leaving || !el || left.current) return;
+    left.current = true;
+    el.setAttribute('inert', '');
+    flyIntoTrack(el, leaving.to, () => onGone?.());
+  }, [leaving, onGone]);
 
   return (
-    <div ref={card} className="play-overlay play-loading" data-testid="play-loading">
+    <div
+      ref={card}
+      className={`play-overlay play-loading${leaving ? ' leaving' : ''}`}
+      data-testid={leaving ? 'play-loading-leaving' : 'play-loading'}
+      aria-hidden={leaving ? true : undefined}
+    >
       {song && <Backdrop song={song} />}
       <div className="loading-card">
         <div className="loading-jacket">
