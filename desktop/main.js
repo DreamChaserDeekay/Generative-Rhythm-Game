@@ -4,14 +4,14 @@
 // The window opens as it was left (size, place, maximized, full screen), on the home port (the
 // game's settings are kept in that origin's storage).
 const { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } = require('electron');
-const { spawn, spawnSync } = require('node:child_process');
+const { execFile, spawn, spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { LOG_NAME, appendLine, featureFields, graphicsWatch, pruneShots } = require('./graphicsLog');
+const { LOG_NAME, appendLine, featureFields, graphicsWatch, memoryFields, pruneShots } = require('./graphicsLog');
 const { PORT_MIN, restoredBounds, sanitizeState, usablePort, windowState, workAreasOf } = require('./windowState');
 
 // generous: on a first launch antivirus scanners look at every DLL of the bundled server
@@ -234,6 +234,19 @@ function serverJson(pathname) {
   });
 }
 
+/**
+ * How full the NVIDIA cards' memory is, as nvidia-smi tells (it comes with the driver), as { ok: true,
+ * text } or { ok: false, error }: never rejects. The game shares the card with what else runs on it:
+ * the chart model above all, which keeps a few GB once it has made a chart.
+ */
+function cardMemory() {
+  return new Promise((resolve) => {
+    execFile('nvidia-smi', ['--query-gpu=memory.used,memory.total,utilization.gpu', '--format=csv,noheader,nounits'], { timeout: 4000, windowsHide: true }, (error, stdout) => {
+      resolve(error ? { ok: false, error: error.code === 'ENOENT' ? 'no nvidia-smi' : String(error.code || error.message).slice(0, 60) } : { ok: true, text: String(stdout) });
+    });
+  });
+}
+
 /** A picture of the window as it is now, saved beside the logs under `name` (the newest few are kept). */
 async function pictureWindow(name) {
   const [win] = BrowserWindow.getAllWindows();
@@ -267,6 +280,7 @@ const graphics = graphicsWatch({
     return () => clearTimeout(timer);
   },
   queue: () => serverJson('/api/mapper/queue'),
+  memory: cardMemory,
   features: () => app.getGPUFeatureStatus(),
   shot: pictureWindow,
 });
@@ -276,15 +290,22 @@ async function noteStart() {
   const hex = (n) => Number(n).toString(16).padStart(4, '0');
   const gpu = await within(app.getGPUInfo('basic'), 5000).catch(() => null);
   const mapper = await serverJson('/api/mapper');
+  const memory = memoryFields(await cardMemory());
   graphics.started({
     app: app.getVersion(),
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     os: `${process.platform} ${os.release()}`,
-    // vendor:device of each card, the one in use starred; NVIDIA's by name with their memory (the server lists them)
-    cards: Array.isArray(gpu?.gpuDevice) ? gpu.gpuDevice.map((d) => `${hex(d.vendorId)}:${hex(d.deviceId)}${d.active ? '*' : ''}`) : undefined,
+    // vendor:device of each card, the one in use starred, with its name and driver where Chromium knows
+    // them; NVIDIA's by name with their memory (the server lists them)
+    cards: Array.isArray(gpu?.gpuDevice)
+      ? gpu.gpuDevice.map((d) => [`${hex(d.vendorId)}:${hex(d.deviceId)}${d.active ? '*' : ''}`, d.deviceString, d.driverVersion && `driver ${d.driverVersion}`].filter(Boolean).join(' '))
+      : undefined,
+    gl: typeof gpu?.auxAttributes?.glRenderer === 'string' ? gpu.auxAttributes.glRenderer : undefined,
     nvidia: mapper.ok && Array.isArray(mapper.body?.gpus) ? mapper.body.gpus.map((g) => `${g.name} ${g.memoryMB}MB`) : undefined,
     mapper: mapper.ok ? mapper.body?.state : undefined,
+    // (how full the cards' memory is as the app starts; left out where it cannot be read)
+    vram: Array.isArray(memory.vram) ? memory.vram : undefined,
     ...featureFields(app.getGPUFeatureStatus()),
   });
 }

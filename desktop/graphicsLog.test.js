@@ -14,6 +14,7 @@ const {
   featureFields,
   goneFields,
   graphicsWatch,
+  memoryFields,
   pageRecord,
   pruneShots,
   queueFields,
@@ -33,7 +34,8 @@ function world() {
     lines: [],
     asked: 0,
     shots: [],
-    answer: { ok: true, body: { making: 'c0ffee', waiting: 3 } },
+    answer: { ok: true, body: { making: 'c0ffee', waiting: 3, loaded: true } },
+    smi: { ok: true, text: '7421, 8192, 97\r\n' },
     features: { gpu_compositing: 'enabled', webgl: 'enabled', webgl2: 'enabled', '2d_canvas': 'enabled', rasterization: 'enabled', video_decode: 'enabled' },
     shotFails: null,
     /** The clock goes on `ms`: the timers due are run, and what they started is let finish. */
@@ -62,6 +64,7 @@ function world() {
       w.asked += 1;
       return w.answer;
     },
+    memory: async () => w.smi,
     features: () => w.features,
     shot: async (name) => {
       if (w.shotFails) throw new Error(w.shotFails);
@@ -115,13 +118,23 @@ test('the page is taken at its word only for a WebGL canvas losing or getting ba
   for (const not of [null, 'webglcontextlost', {}, { type: 'click' }, { type: 'contextlost' }]) assert.equal(pageRecord(not), null);
 });
 
-test('what the server was making: a chart’s id, none, or unknown with the reason', () => {
-  assert.deepEqual(queueFields({ ok: true, body: { making: 'c0ffee', waiting: 3 } }), { making: 'c0ffee', waiting: 3 });
-  assert.deepEqual(queueFields({ ok: true, body: { making: null, waiting: 0 } }), { making: 'none', waiting: 0 });
+test('what the server was making: a chart’s id, none, or unknown with the reason; and whether the model was loaded', () => {
+  assert.deepEqual(queueFields({ ok: true, body: { making: 'c0ffee', waiting: 3, loaded: true } }), { making: 'c0ffee', waiting: 3, loaded: 'yes' });
+  assert.deepEqual(queueFields({ ok: true, body: { making: null, waiting: 0, loaded: false } }), { making: 'none', waiting: 0, loaded: 'no' });
+  // (a server that does not say: left out)
+  assert.deepEqual(queueFields({ ok: true, body: { making: null, waiting: 0 } }), { making: 'none', waiting: 0, loaded: undefined });
   assert.deepEqual(queueFields({ ok: false, error: 'HTTP 404' }), { making: 'unknown', why: 'HTTP 404' });
   // a server of an older build answers its page, or something else
   assert.deepEqual(queueFields({ ok: true, body: { detail: 'Not Found' } }), { making: 'unknown', why: 'no answer' });
   assert.deepEqual(queueFields(undefined), { making: 'unknown', why: 'no answer' });
+});
+
+test('how full the graphics card’s memory is, a card a line of nvidia-smi’s; unknown where there is none', () => {
+  assert.deepEqual(memoryFields({ ok: true, text: '7421, 8192, 97\n' }), { vram: ['7421/8192MB 97%'] });
+  assert.deepEqual(memoryFields({ ok: true, text: '512, 12288, 3\r\n9000, 24564, [N/A]\r\n' }), { vram: ['512/12288MB 3%', '9000/24564MB'] });
+  assert.deepEqual(memoryFields({ ok: false, error: 'ENOENT' }), { vram: 'unknown', why: 'ENOENT' });
+  assert.deepEqual(memoryFields({ ok: true, text: 'NVIDIA-SMI has failed because it could not communicate with the driver.' }), { vram: 'unknown', why: 'not read' });
+  assert.deepEqual(memoryFields(undefined), { vram: 'unknown', why: 'no answer' });
 });
 
 test('of the GPU features, the ones that say whether the graphics card still draws the game', () => {
@@ -150,7 +163,8 @@ test('the GPU process gone in play: the server asked once, the window pictured a
   assert.deepEqual(w.events(), [
     'child-process-gone  type=GPU reason=crashed exitCode=-1073741819 exitHex=0xC0000005 name="GPU Process"',
     'webglcontextlost  canvas=play-canvas stage=play songMs=83210',
-    'server  making=c0ffee waiting=3',
+    'server  making=c0ffee waiting=3 loaded=yes',
+    'gpu-memory  vram="7421/8192MB 97%"',
     'webglcontextrestored  canvas=play-canvas afterMs=840 stage=play songMs=84050',
     'gpu-features  gpu_compositing=enabled webgl=enabled webgl2=enabled 2d_canvas=enabled rasterization=enabled',
     'picture  file=graphics-lost-20261113-210406.jpg webgl=back',
@@ -209,12 +223,14 @@ test('graphics lost again and again before the picture: it is taken at twice the
 test('a server that does not answer and a window that cannot be pictured are lines, not errors', async () => {
   const w = world();
   w.answer = { ok: false, error: 'ECONNREFUSED' };
+  w.smi = { ok: false, error: 'ENOENT' };
   w.shotFails = 'empty';
   w.watch.childGone(GPU_GONE);
   await w.advance(0);
   await w.advance(GIVE_UP_MS);
   assert.deepEqual(w.events().slice(1), [
     'server  making=unknown why=ECONNREFUSED',
+    'gpu-memory  vram=unknown why=ENOENT',
     'gpu-features  gpu_compositing=enabled webgl=enabled webgl2=enabled 2d_canvas=enabled rasterization=enabled',
     'picture  failed=empty webgl=none',
   ]);

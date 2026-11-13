@@ -89,11 +89,35 @@ function pageRecord(raw) {
   return { type: raw.type, canvas: word(raw.canvas), about };
 }
 
-/** The server's answer to what chart it is making (GET /api/mapper/queue), as { ok, body } or { ok: false, error }. */
+/**
+ * The server's answer to what chart it is making (GET /api/mapper/queue), as { ok, body } or
+ * { ok: false, error }: the chart being made, how many wait, and whether the model is loaded (it
+ * keeps a few GB of the GPU's memory from its first chart on, made or not).
+ */
 function queueFields(answer) {
   const body = answer && answer.ok ? answer.body : null;
   if (!body || typeof body !== 'object' || !('making' in body)) return { making: 'unknown', why: (answer && answer.error) || 'no answer' };
-  return { making: typeof body.making === 'string' ? body.making : 'none', waiting: Number.isInteger(body.waiting) ? body.waiting : undefined };
+  return {
+    making: typeof body.making === 'string' ? body.making : 'none',
+    waiting: Number.isInteger(body.waiting) ? body.waiting : undefined,
+    loaded: typeof body.loaded === 'boolean' ? (body.loaded ? 'yes' : 'no') : undefined,
+  };
+}
+
+/**
+ * How full the graphics cards' memory is, from nvidia-smi's answer (--query-gpu=memory.used,memory.total,
+ * utilization.gpu --format=csv,noheader,nounits: a line a card), as { ok, text } or { ok: false, error }:
+ * "7421/8192MB 97%" a card. A PC without an NVIDIA card has no nvidia-smi: unknown, with the reason.
+ */
+function memoryFields(answer) {
+  if (!answer || !answer.ok || typeof answer.text !== 'string') return { vram: 'unknown', why: (answer && answer.error) || 'no answer' };
+  const cards = answer.text
+    .split(/\r?\n/)
+    .map((line) => line.split(',').map((part) => Number(part.trim())))
+    .filter((n) => n.length >= 2 && Number.isFinite(n[0]) && Number.isFinite(n[1]) && n[1] > 0)
+    .slice(0, 4)
+    .map(([used, total, load]) => `${used}/${total}MB${Number.isFinite(load) ? ` ${load}%` : ''}`);
+  return cards.length ? { vram: cards } : { vram: 'unknown', why: 'not read' };
 }
 
 function featureFields(status) {
@@ -132,11 +156,13 @@ function appendLine(file, line, maxBytes = MAX_LOG_BYTES) {
  * The log of one run of the app. `io` is the world it works in:
  *   write(line), now() → Date, later(fn, ms) → a way to call it off,
  *   queue() → Promise of the server's answer ({ ok, body } | { ok: false, error }),
+ *   memory() → Promise of nvidia-smi's answer ({ ok, text } | { ok: false, error }),
  *   features() → Chromium's GPU feature status,
  *   shot(name) → Promise of the file a picture of the window was saved as.
  * A loss (the GPU process gone, or a WebGL canvas of the page losing its context) is written down
- * as it comes; the first of a run of them also asks the server what it is making, and pictures the
- * window once the page's graphics are back (or did not come back).
+ * as it comes; the first of a run of them also asks the server what it is making and how full the
+ * graphics card's memory is, and pictures the window once the page's graphics are back (or did not
+ * come back).
  */
 function graphicsWatch(io) {
   /** The loss being followed up: { webgl: 'none' | 'lost' | 'back', until, off, picturing } */
@@ -191,6 +217,12 @@ function graphicsWatch(io) {
       .then(
         (answer) => log('server', queueFields(answer)),
         (e) => log('server', queueFields({ ok: false, error: String((e && e.message) || e) })),
+      );
+    Promise.resolve()
+      .then(() => io.memory())
+      .then(
+        (answer) => log('gpu-memory', memoryFields(answer)),
+        (e) => log('gpu-memory', memoryFields({ ok: false, error: String((e && e.message) || e) })),
       );
   };
 
@@ -264,6 +296,7 @@ module.exports = {
   featureFields,
   goneFields,
   graphicsWatch,
+  memoryFields,
   pageRecord,
   pruneShots,
   queueFields,

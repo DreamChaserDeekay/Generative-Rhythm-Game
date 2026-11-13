@@ -14,7 +14,10 @@ for (const type of ['webglcontextlost', 'webglcontextrestored']) {
       // attributes: the stage of the play, the song's time, the skin, what the renderer holds) and
       // the kind of video behind the play, should there be one (ui/PlayBackground's elements)
       const bga = document.querySelector('.bg-youtube') ? 'youtube' : document.querySelector('.bg-video') ? 'file' : 'none';
-      ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), about: { ...canvas?.dataset, bga } });
+      // and what the play's HUD shows of the song: its title, its tier and key mode, how far into it the play is
+      const shown = (selector) => document.querySelector(selector)?.textContent?.trim() ?? '';
+      const about = { ...canvas?.dataset, bga, song: shown('.hud-title'), tier: shown('.hud-diff'), mode: shown('.hud-keymode'), at: shown('.hud-elapsed') };
+      ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), about });
     },
     true,
   );
