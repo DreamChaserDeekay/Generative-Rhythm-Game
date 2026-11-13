@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseSetting, playOptions, settingsTab, songInfo } from './songSelect';
+import { pickDemoSong, serveChart } from './servedChart';
+import { autoplay, chooseSetting, playOptions, settingsTab, songInfo } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -186,13 +187,20 @@ test('a play that starts after the window was left during its loading starts pau
 test('a practice run gives three seconds before its first note every loop, and shows its start only the first time', async ({ page }) => {
   const errors = trackErrors(page);
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
-  await demoSong(page);
+  // a chart of the test's own (no chart is made where there is no GPU): its first note is at beat 2
+  await serveChart(page, 2, 30);
+  await pickDemoSong(page);
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await playOptions(page);
-  await page.getByTestId('autoplay-toggle').check();
-  await page.getByTestId('practice-toggle').check();
+  // a row is turned with ← → (a click only puts the cursor on it, and Enter plays); practice loads the chart
+  // first where it is not loaded yet, so the switch turns a moment after
+  await page.getByTestId('practice-toggle').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('practice-toggle')).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
-  await play(page);
+  await autoplay(page);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
   const t0 = await page.evaluate(() => performance.now());
   // the lanes light and the judge line is drawn (named on the canvas), with no word
   const stage = page.locator('canvas[data-stage]');

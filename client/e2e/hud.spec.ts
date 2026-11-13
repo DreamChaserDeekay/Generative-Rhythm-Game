@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { pickDemoSong, serveChart } from './servedChart';
 import { autoplay, chooseSetting, settingsTab, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
@@ -314,5 +315,50 @@ test('the timing error bar: on from 판정·싱크, under the judgement, as wide
   await page.keyboard.press('F2');
   expect(await shown()).toBe(0);
   expect(await bar.getAttribute('data-mean-ms')).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('a long intro on a chart the test serves: the start shows, Enter skips to the notes with nothing of it shown again, and a retry shows it again', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4 }));
+  });
+  // the first note is at beat 26 of the demo song, 10.9 s in
+  await serveChart(page, 26, 31);
+  await pickDemoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await autoplay(page);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
+
+  // the lanes light and the judge line is drawn as the play starts; the notes are far off, so the skip is offered
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
+  await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 10_000 }).toBe('1');
+  // what the track shows from here on, written down as it changes
+  await page.evaluate(() => {
+    const log: string[] = [];
+    (window as unknown as { __stages: string[] }).__stages = log;
+    const canvas = document.querySelector('canvas[data-stage]') as HTMLCanvasElement;
+    new MutationObserver(() => log.push(canvas.dataset.stage ?? '')).observe(canvas, { attributes: true, attributeFilter: ['data-stage'] });
+  });
+  const stages = () => page.evaluate(() => (window as unknown as { __stages: string[] }).__stages.slice());
+  await page.keyboard.press('Enter');
+  await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
+  // autoplay hits the first note soon after: the skip went to a moment before it, and the start was not shown again
+  await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 8000 }).toBeGreaterThan(0);
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play');
+  expect((await stages()).filter((s) => s === 'intro')).toEqual([]);
+
+  // a retry starts the song over: the start shows again, and the skip with it
+  await page.keyboard.press('F2');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
+  expect(await stages()).toContain('intro');
+  await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 10_000 }).toBe('1');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
+  // the play ends with the lights out and its words, and the result follows
+  await expect(page.getByTestId('hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 60_000 });
+  await expect(stage(page)).toHaveAttribute('data-stage', 'end');
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
   expect(errors).toEqual([]);
 });
