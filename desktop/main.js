@@ -9,13 +9,17 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
+const { LOG_NAME, appendLine, featureFields, graphicsWatch, pruneShots } = require('./graphicsLog');
 const { PORT_MIN, restoredBounds, sanitizeState, usablePort, windowState, workAreasOf } = require('./windowState');
 
 // generous: on a first launch antivirus scanners look at every DLL of the bundled server
 const HEALTH_TIMEOUT_MS = 120_000;
 /** How long the home port is waited for while a server left on it stops (or one just quit lets it go). */
 const HOME_WAIT_MS = 4000;
+/** A picture of the window kept beside the logs is no wider than this (a 4K window's would be several MB). */
+const SHOT_MAX_WIDTH = 1920;
 const isWindows = process.platform === 'win32';
 
 // keep timers and audio steady when the window is in the background, allow audio before a click
@@ -27,6 +31,10 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 // game's own local page (see will-navigate below) and, inside it, YouTube's embedded player for
 // background videos (see will-frame-navigate), so arbitrary pages never reach that renderer.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// After a second loss of the graphics process within a few seconds Chromium gives a page no WebGL
+// context back until the app is restarted: the track would stay empty for the rest of the play.
+// The window shows the game only, so it is given back every time.
+app.disableDomainBlockingFor3DAPIs();
 
 // YouTube's embedded player and the Google services it loads (video, ads, sign-in check)
 const YOUTUBE_FRAME_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|googlevideo\.com|google\.com|doubleclick\.net|googlesyndication\.com|googleapis\.com|gstatic\.com)$/;
@@ -198,6 +206,89 @@ function fromGame(event) {
   return gameOrigin !== null && url.startsWith(`${gameOrigin}/`);
 }
 
+const within = (promise, ms) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+
+/** The server's JSON answer to a GET, as { ok: true, body } or { ok: false, error }: never rejects. */
+function serverJson(pathname) {
+  return new Promise((resolve) => {
+    if (gameOrigin === null) {
+      resolve({ ok: false, error: 'no server' });
+      return;
+    }
+    const req = http.get({ host: '127.0.0.1', port: Number(new URL(gameOrigin).port), path: pathname, timeout: 3000 }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        if (text.length < 65536) text += chunk;
+      });
+      res.on('end', () => {
+        try {
+          resolve(res.statusCode === 200 ? { ok: true, body: JSON.parse(text) } : { ok: false, error: `HTTP ${res.statusCode}` });
+        } catch {
+          resolve({ ok: false, error: 'not JSON' });
+        }
+      });
+    });
+    req.on('error', (e) => resolve({ ok: false, error: e.code || e.message }));
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+  });
+}
+
+/** A picture of the window as it is now, saved beside the logs under `name` (the newest few are kept). */
+async function pictureWindow(name) {
+  const [win] = BrowserWindow.getAllWindows();
+  if (!win || win.isDestroyed()) throw new Error('no window');
+  let image = await within(win.webContents.capturePage(), 5000);
+  if (image.isEmpty()) throw new Error('an empty picture');
+  if (image.getSize().width > SHOT_MAX_WIDTH) image = image.resize({ width: SHOT_MAX_WIDTH });
+  const dir = app.getPath('userData');
+  fs.writeFileSync(path.join(dir, name), image.toJPEG(85));
+  pruneShots(dir);
+  return name;
+}
+
+/**
+ * What is written down when the graphics are lost (graphicsLog.js), in graphics.log beside
+ * server.log: the process that went and why, what the page's WebGL canvases went through
+ * (preload.js tells), whether the server was making a chart then (its model works on the same
+ * GPU), and a picture of the window once the graphics are back, or did not come back.
+ */
+const graphics = graphicsWatch({
+  write(line) {
+    try {
+      appendLine(path.join(app.getPath('userData'), LOG_NAME), line);
+    } catch (e) {
+      console.error('could not write the graphics log:', e);
+    }
+  },
+  now: () => new Date(),
+  later(fn, ms) {
+    const timer = setTimeout(fn, ms);
+    return () => clearTimeout(timer);
+  },
+  queue: () => serverJson('/api/mapper/queue'),
+  features: () => app.getGPUFeatureStatus(),
+  shot: pictureWindow,
+});
+
+/** The first line of a run: the versions, the graphics cards, and whether they draw the game. */
+async function noteStart() {
+  const hex = (n) => Number(n).toString(16).padStart(4, '0');
+  const gpu = await within(app.getGPUInfo('basic'), 5000).catch(() => null);
+  const mapper = await serverJson('/api/mapper');
+  graphics.started({
+    app: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    os: `${process.platform} ${os.release()}`,
+    // vendor:device of each card, the one in use starred; NVIDIA's by name with their memory (the server lists them)
+    cards: Array.isArray(gpu?.gpuDevice) ? gpu.gpuDevice.map((d) => `${hex(d.vendorId)}:${hex(d.deviceId)}${d.active ? '*' : ''}`) : undefined,
+    nvidia: mapper.ok && Array.isArray(mapper.body?.gpus) ? mapper.body.gpus.map((g) => `${g.name} ${g.memoryMB}MB`) : undefined,
+    mapper: mapper.ok ? mapper.body?.state : undefined,
+    ...featureFields(app.getGPUFeatureStatus()),
+  });
+}
+
 /**
  * Keeps the window's state as it changes (its size and place a moment after a drag ends) and
  * tells the page when it goes into or out of full screen (the settings' 화면 모드 follows F11).
@@ -291,6 +382,7 @@ async function createWindow() {
     const message = String(e instanceof Error ? e.message : e).replace(/</g, '&lt;');
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<body style="background:#05070f;color:#ff8fa3;font:16px sans-serif;padding:40px">${message}<br><br>로그: ${path.join(app.getPath('userData'), 'server.log')}</body>`)}`);
   }
+  void noteStart().catch((e) => console.error('could not note the start in the graphics log:', e));
   // the page holds the window over unsaved edits (the chart editor's beforeunload): the player picks
   // here, as Electron otherwise keeps the window open without a word (the same event for a close
   // and a reload, so the button names neither)
@@ -341,6 +433,11 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     }
   });
+  // a process of the app gone under it (the GPU's above all: the game's graphics with it): written down
+  app.on('child-process-gone', (_event, details) => graphics.childGone(details));
+  app.on('render-process-gone', (_event, _contents, details) => graphics.renderGone(details));
+  // (how the game is drawn after it: by the graphics card still, or in software from then on)
+  app.on('gpu-info-update', () => graphics.featuresMayHaveChanged());
   app.whenReady().then(() => {
     state = readState();
     // the settings' 화면 모드: the window of the page that asks
@@ -353,6 +450,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('grg:is-full-screen', (event) => {
       const win = BrowserWindow.fromWebContents(event.sender);
       return Boolean(win && fromGame(event) && win.isFullScreen());
+    });
+    // a WebGL canvas of the game losing its context, or getting it back (preload.js)
+    ipcMain.on('grg:graphics', (event, record) => {
+      if (fromGame(event)) graphics.page(record);
     });
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([

@@ -3,6 +3,7 @@
 // up (the workflow's CPU step leaves one in GRG_MAPPER_HOME; the runner has no NVIDIA GPU otherwise) it also
 // has a chart made, previews it and starts an autoplay (the default hit's flipbooks); else it checks that the
 // chart is refused with a reason.
+// Last, it kills the app's GPU process and prints what the app wrote down of it (graphics.log): informational.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
 // GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes).
 const fs = require('node:fs');
@@ -12,6 +13,35 @@ const path = require('node:path');
 const [clientDir, exe, outDir] = process.argv.slice(2);
 const analysisMs = Number(process.env.GRG_SMOKE_ANALYSIS_MS) || 180000;
 const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/playwright'));
+
+/**
+ * The app's GPU process is killed, as a driver reset or a crash of it takes it away: the app writes it
+ * down in graphics.log beside server.log, with a picture of the window afterwards (desktop/graphicsLog.js).
+ * Informational: what it wrote is printed and copied beside the screenshots, and nothing here fails the
+ * test (a runner has no graphics card, and how its software one takes the kill is not the build's matter).
+ */
+async function graphicsLoss(app, win) {
+  const userData = await app.evaluate(({ app: a }) => a.getPath('userData'));
+  const logFile = path.join(userData, 'graphics.log');
+  const log = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '');
+  const until = async (ok, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (ok()) return true;
+    return false;
+  };
+  if (!(await until(() => /  start  /.test(log()), 15000))) console.warn('graphics.log: no start line');
+  const before = log().length;
+  const gpu = await app.evaluate(({ app: a }) => a.getAppMetrics().filter((m) => m.type === 'GPU').map((m) => m.pid));
+  if (!gpu.length) {
+    console.log('graphics-loss check: the app has no GPU process here');
+  } else {
+    await app.evaluate((_electron, pid) => process.kill(pid), gpu[0]);
+    const pictured = await until(() => /  picture  /.test(log().slice(before)), 20000);
+    console.log(`graphics-loss check: the GPU process (${gpu[0]}) was killed; ${pictured ? 'the app wrote it down and pictured its window' : 'no picture line within 20 s'}`);
+    await win.screenshot({ path: path.join(outDir, '4-after-graphics-loss.png') }).catch(() => {});
+  }
+  console.log(`--- graphics.log\n${log()}`);
+  for (const name of fs.readdirSync(userData).filter((n) => /^graphics(-lost-.*\.jpg|\.log)$/.test(n))) fs.copyFileSync(path.join(userData, name), path.join(outDir, `desktop-${name}`));
+}
 
 (async () => {
   fs.mkdirSync(outDir, { recursive: true });
@@ -78,6 +108,7 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
       await win.screenshot({ path: path.join(outDir, '2-after-chart.png') }).catch(() => {});
     }
   }
+  await graphicsLoss(app, win).catch((e) => console.warn('graphics-loss check skipped:', e.message));
   await app.close();
   console.log('desktop smoke test: ok');
 })().catch((e) => {
