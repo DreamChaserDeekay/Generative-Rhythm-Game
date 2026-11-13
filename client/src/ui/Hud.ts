@@ -3,6 +3,7 @@ import type { GearStyle } from '../render/deckArt';
 import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
+import { loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
 import { token } from './theme';
@@ -91,6 +92,9 @@ const TOAST_MS = 1400;
 const BASE_HEIGHT = 720;
 const MAX_SCALE = 1.5;
 /** Every combo step punches the number: it starts larger and a little lower, then settles back. */
+/** The letters of a lamp's words stand this tall in their picture as it is shown (em of the lamp's type: endArt.wordsBox). */
+const WORDS_CAP_EM = 1;
+
 /** The lamps shown at a play's end with their words; the others are their mark alone, struck like a seal. */
 const WORDED_LAMPS = new Set(['perfect', 'maxcombo', 'failed', 'aided']);
 /** A full combo: the combo's number flies to the middle over this long before its words show (styles.css: lamp-words-late). */
@@ -400,6 +404,8 @@ export class Hud {
   private readonly lamp: HTMLElement;
   private readonly lampText: HTMLElement;
   private readonly lampFly: HTMLElement;
+  /** The end's pictures, once they are loaded (null: the styles draw the lamp). */
+  private endArt: EndArt | null = null;
   /** The flight of the combo's number to the middle at a full combo's end. */
   private comboFlight: Animation | null = null;
   /** 동작 줄이기 (prefers-reduced-motion): nothing flies; the styles leave their own motion out as well. */
@@ -484,7 +490,7 @@ export class Hud {
       <div class="hud-toast" data-testid="hud-toast"></div>
       <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
       <div class="hud-lamp-fly" aria-hidden="true"></div>
-      <div class="hud-lamp" data-testid="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span></div>`;
+      <div class="hud-lamp" data-testid="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
     q('.hud-artist').textContent = info.artist;
@@ -658,6 +664,15 @@ export class Hud {
       sparks.append(spark);
     }
     this.still = typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+    // the end's pictures: loaded while the song plays, long before they are shown
+    void loadEndArt().then((art) => {
+      if (!art) return;
+      this.endArt = art;
+      this.root.style.setProperty('--end-ring', `url("${art.url(art.index.ring.file)}")`);
+      this.root.style.setProperty('--end-ring-frames', String(art.index.ring.frames));
+      this.root.style.setProperty('--end-sparks', `url("${art.url(art.index.sparks.file)}")`);
+      this.root.style.setProperty('--end-sparks-frames', String(art.index.sparks.frames));
+    });
     this.skip = q('.hud-skip');
     q('.hud-skip kbd').textContent = info.skipKey;
     this.toast = q('.hud-toast');
@@ -1250,10 +1265,30 @@ export class Hud {
     this.lamp.dataset.lamp = kind;
     this.lamp.setAttribute('aria-label', text);
     this.lampText.textContent = worded ? text : '';
-    this.lamp.className = `hud-lamp show ${kind} lamp-${kind} ${worded ? 'worded' : 'sealed'}${crashed ? ' crashed' : ''}`;
+    this.lamp.className = `hud-lamp show ${kind} lamp-${kind} ${worded ? 'worded' : 'sealed'}${crashed ? ' crashed' : ''}${this.pictureLamp(kind) ? ' pictured' : ''}`;
     this.root.classList.add('ended');
     if (combo && combo.width > 0 && this.comboNum.textContent) this.flyCombo(combo);
     else this.lamp.classList.add('at-once');
+  }
+
+  /**
+   * The lamp's picture from the end's pictures (endArt), where there is one: its words as lettering sized by
+   * the letters in it, or its seal. False: the styles draw the lamp (the words as type, the seal as its mark).
+   */
+  private pictureLamp(kind: string): boolean {
+    const art = this.endArt;
+    const [words, seal] = [art?.index.words[kind], art?.index.seals[kind]];
+    const style = this.lamp.style;
+    for (const name of ['--art', '--art-w', '--art-h', '--art-lift']) style.removeProperty(name);
+    if (!art || (!words && !seal)) return false;
+    style.setProperty('--art', `url("${art.url((words ?? seal)!.file)}")`);
+    if (words) {
+      const box = wordsBox(words.size, words.band, WORDS_CAP_EM);
+      style.setProperty('--art-w', `${box.width.toFixed(3)}em`);
+      style.setProperty('--art-h', `${box.height.toFixed(3)}em`);
+      style.setProperty('--art-lift', `${box.lift.toFixed(3)}em`);
+    }
+    return true;
   }
 
   /** The combo's number, from where it stood (`from`) to the middle of the lamp, where the words take its place. */

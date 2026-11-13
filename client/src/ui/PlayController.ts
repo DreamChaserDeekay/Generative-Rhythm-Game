@@ -66,6 +66,7 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
+import { loadEndArt } from './endArt';
 import { coverText, judgeLineText, speedText } from './format';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
@@ -390,6 +391,8 @@ export class PlayController {
     this.bpmChanges = tempo.bpmChanges();
     this.still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     this.cameraStrength = this.still ? 0 : Math.min(1, Math.max(0, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1)));
+    // the cracks of a play that fails halfway, where this one can: the end's picture of them
+    if (this.gaugeRule().failAtZero) void loadEndArt().then((art) => art && this.renderer.setCracks(art.cracks));
     this.lit = lightOrder(this.renderer.geometry.lanes);
     this.falls = fallOrder(this.lit);
     this.stage = litFrame(this.renderer.geometry.lanes.length);

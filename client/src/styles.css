@@ -3235,24 +3235,24 @@ p.hint {
 
 @keyframes lamp-break {
   0% { opacity: 0; }
-  5% { opacity: 1; transform: translate(-0.3em, 0.04em) skewX(-18deg); clip-path: inset(8% 0 58% 0); text-shadow: 0.09em 0 #19f0ff, -0.09em 0 #ff2bd1; }
-  14% { opacity: 1; transform: translate(0.22em, -0.03em) skewX(10deg); clip-path: inset(52% 0 12% 0); text-shadow: 0.09em 0 #19f0ff, -0.09em 0 #ff2bd1; }
-  23% { opacity: 1; transform: translate(-0.1em, 0); clip-path: inset(0 0 0 0); text-shadow: -0.06em 0 #19f0ff, 0.06em 0 #ff2bd1; }
-  31% { opacity: 1; transform: translate(0.16em, 0.02em); clip-path: inset(30% 0 34% 0); text-shadow: -0.06em 0 #19f0ff, 0.06em 0 #ff2bd1; }
-  40% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); text-shadow: none; }
-  52% { opacity: 1; transform: translate(-0.2em, 0) skewX(-8deg); clip-path: inset(64% 0 4% 0); text-shadow: 0.07em 0 #19f0ff, -0.07em 0 #ff2bd1; }
-  61% { opacity: 1; transform: translate(0.06em, 0); clip-path: inset(0 0 46% 0); text-shadow: 0.07em 0 #19f0ff, -0.07em 0 #ff2bd1; }
-  72% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); text-shadow: 0.03em 0 #19f0ff, -0.03em 0 #ff2bd1; }
-  86% { opacity: 1; transform: translate(-0.04em, 0); clip-path: inset(40% 0 40% 0); text-shadow: none; }
-  100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); text-shadow: none; }
+  5% { opacity: 1; transform: translate(-0.3em, 0.04em) skewX(-18deg); clip-path: inset(8% 0 58% 0); filter: drop-shadow(0.09em 0 0 #19f0ff) drop-shadow(-0.09em 0 0 #ff2bd1); }
+  14% { opacity: 1; transform: translate(0.22em, -0.03em) skewX(10deg); clip-path: inset(52% 0 12% 0); filter: drop-shadow(0.09em 0 0 #19f0ff) drop-shadow(-0.09em 0 0 #ff2bd1); }
+  23% { opacity: 1; transform: translate(-0.1em, 0); clip-path: inset(0 0 0 0); filter: drop-shadow(-0.06em 0 0 #19f0ff) drop-shadow(0.06em 0 0 #ff2bd1); }
+  31% { opacity: 1; transform: translate(0.16em, 0.02em); clip-path: inset(30% 0 34% 0); filter: drop-shadow(-0.06em 0 0 #19f0ff) drop-shadow(0.06em 0 0 #ff2bd1); }
+  40% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); filter: none; }
+  52% { opacity: 1; transform: translate(-0.2em, 0) skewX(-8deg); clip-path: inset(64% 0 4% 0); filter: drop-shadow(0.07em 0 0 #19f0ff) drop-shadow(-0.07em 0 0 #ff2bd1); }
+  61% { opacity: 1; transform: translate(0.06em, 0); clip-path: inset(0 0 46% 0); filter: drop-shadow(0.07em 0 0 #19f0ff) drop-shadow(-0.07em 0 0 #ff2bd1); }
+  72% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); filter: drop-shadow(0.03em 0 0 #19f0ff) drop-shadow(-0.03em 0 0 #ff2bd1); }
+  86% { opacity: 1; transform: translate(-0.04em, 0); clip-path: inset(40% 0 40% 0); filter: none; }
+  100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); filter: none; }
 }
 
 @keyframes lamp-twitch {
-  0%, 9%, 100% { transform: none; clip-path: inset(0 0 0 0); text-shadow: none; }
-  3% { transform: translate(0.08em, 0); clip-path: inset(18% 0 52% 0); text-shadow: -0.05em 0 #19f0ff, 0.05em 0 #ff2bd1; }
-  6% { transform: translate(-0.05em, 0); clip-path: inset(60% 0 14% 0); text-shadow: -0.05em 0 #19f0ff, 0.05em 0 #ff2bd1; }
-  55% { transform: translate(-0.06em, 0) skewX(-6deg); clip-path: inset(0 0 0 0); text-shadow: 0.04em 0 #19f0ff, -0.04em 0 #ff2bd1; }
-  58% { transform: none; clip-path: inset(0 0 0 0); text-shadow: none; }
+  0%, 9%, 100% { transform: none; clip-path: inset(0 0 0 0); filter: none; }
+  3% { transform: translate(0.08em, 0); clip-path: inset(18% 0 52% 0); filter: drop-shadow(-0.05em 0 0 #19f0ff) drop-shadow(0.05em 0 0 #ff2bd1); }
+  6% { transform: translate(-0.05em, 0); clip-path: inset(60% 0 14% 0); filter: drop-shadow(-0.05em 0 0 #19f0ff) drop-shadow(0.05em 0 0 #ff2bd1); }
+  55% { transform: translate(-0.06em, 0) skewX(-6deg); clip-path: inset(0 0 0 0); filter: drop-shadow(0.04em 0 0 #19f0ff) drop-shadow(-0.04em 0 0 #ff2bd1); }
+  58% { transform: none; clip-path: inset(0 0 0 0); filter: none; }
 }
 
 /* a clear's seal, as large as the words' line: the lamp's mark in the middle of a stamp's two rims */
@@ -3455,6 +3455,109 @@ p.hint {
   4% { opacity: 1; transform: scale(1.5, 1); }
   70% { opacity: 1; }
   100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 0.5em)) scale(0.4, 1); }
+}
+
+/* ---- the end's pictures (endArt; Hud.showLamp marks the lamp .pictured): what the image model drew takes
+   the place of what is drawn above, moved as it is. Without them the lamp stays as above. ---- */
+.hud-lamp-art {
+  display: none;
+}
+
+/* its words stay for what reads them; the lettering shows them */
+.hud-lamp.pictured.worded .hud-lamp-text {
+  position: absolute;
+  opacity: 0;
+  animation: none;
+}
+
+.hud-lamp.pictured.worded .hud-lamp-art {
+  display: block;
+  width: var(--art-w);
+  height: var(--art-h);
+  /* the letters' middle on the lamp's (the picture's glow reaches further down than up) */
+  translate: 0 calc(-1 * var(--art-lift));
+  background: var(--art) center / 100% 100% no-repeat;
+  filter: drop-shadow(0 0.03em 0.1em rgba(0, 0, 0, 0.75));
+  animation: lamp-words 0.36s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+
+.hud-lamp.pictured.maxcombo:not(.at-once) .hud-lamp-art {
+  animation: lamp-words-late 0.4s 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.3) both;
+}
+
+.hud-lamp.pictured.failed .hud-lamp-art {
+  transform-origin: 30% 50%;
+  animation: lamp-sink 1.5s cubic-bezier(0.35, 0, 0.3, 1) both;
+}
+
+.hud-lamp.pictured.failed.crashed .hud-lamp-art {
+  transform-origin: 50% 50%;
+  animation: lamp-break 0.85s steps(1, end) both, lamp-twitch 1.7s 0.85s steps(1, end) infinite;
+}
+
+/* the seal: the picture whole in each half */
+.hud-lamp.pictured.sealed .hud-lamp-seal {
+  width: 3em;
+  height: 3em;
+  filter: drop-shadow(0 0.03em 0.12em rgba(0, 0, 0, 0.75));
+}
+
+.hud-lamp.pictured.sealed .hud-lamp-mark {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: var(--art) center / contain no-repeat;
+}
+
+.hud-lamp.pictured.sealed .hud-lamp-mark::after {
+  display: none;
+}
+
+/* the shockwave: its frames one after another (a row of them, shown through as the lamp's colour) */
+.hud-lamp.pictured.sealed:not(.hard, .exhard) .hud-lamp-ring {
+  width: 10em;
+  height: 10em;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--lamp) 70%, #fff);
+  -webkit-mask: var(--end-ring) 0 0 / calc(var(--end-ring-frames) * 100%) 100% no-repeat;
+  mask: var(--end-ring) 0 0 / calc(var(--end-ring-frames) * 100%) 100% no-repeat;
+  animation: lamp-frames-mask 0.6s 0.2s steps(var(--end-ring-frames), jump-none) both, lamp-shown 0.01s 0.2s both;
+}
+
+.hud-lamp.pictured .hud-lamp-ring::after {
+  display: none;
+}
+
+/* the sparks of a hard clear's halves meeting: the same way, in their own colours */
+.hud-lamp.pictured.hard .hud-lamp-sparks,
+.hud-lamp.pictured.exhard .hud-lamp-sparks {
+  width: 11em;
+  height: 11em;
+  background: var(--end-sparks) 0 0 / calc(var(--end-sparks-frames) * 100%) 100% no-repeat;
+  animation: lamp-frames 0.5s 0.28s steps(var(--end-sparks-frames), jump-none) both, lamp-shown 0.01s 0.28s both;
+}
+
+.hud-lamp.pictured .hud-lamp-sparks i,
+.hud-lamp.pictured .hud-lamp-sparks::before {
+  display: none;
+}
+
+@keyframes lamp-frames {
+  from { background-position: 0% 0; }
+  to { background-position: 100% 0; }
+}
+
+@keyframes lamp-frames-mask {
+  from { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+}
+
+@keyframes lamp-shown {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* a play that ends failed, its gauge short of the line: what is left of it runs out, red (Hud.drainGauge) */

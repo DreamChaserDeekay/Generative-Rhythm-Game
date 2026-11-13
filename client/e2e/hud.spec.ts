@@ -230,6 +230,9 @@ test('a play\'s start and end on the track: the lanes light, autoplay ends with 
   await expect(lamp).toHaveText('FAILED');
   await expect(lamp).toHaveClass(/crashed/);
   await expect(lamp).toBeVisible();
+  // its word is the lettering among the end's pictures (client/public/end), the type left for what reads it
+  await expect(lamp).toHaveClass(/pictured/);
+  expect(await lamp.locator('.hud-lamp-art').evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/end\/words-failed\.webp/);
   // in the middle of the screen, over the lanes
   const box = await lamp.boundingBox();
   expect(box && Math.abs(box.x + box.width / 2 - 640)).toBeLessThan(4);

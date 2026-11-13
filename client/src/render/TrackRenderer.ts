@@ -904,6 +904,8 @@ export class TrackRenderer {
   private stageLanes: { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] | null = null;
   /** The lanes of a failed play as pieces that crack and drop away, made when first drawn. */
   private shards: { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] | null = null;
+  /** The picture of the cracks over the lanes, when one was given (setCracks); without it they are drawn in code (crackCanvas). */
+  private crackPicture: HTMLImageElement | null = null;
   /** A piece's colour as it lets go (the floor's) and once it has turned (lighter). */
   private shardColors: [THREE.Color, THREE.Color] = [new THREE.Color(), new THREE.Color()];
   /** The last frame drew a start or an end: the next one without it puts the track back as it plays. */
@@ -1376,6 +1378,15 @@ export class TrackRenderer {
     }
   }
 
+  /**
+   * The picture of the cracks that run over the lanes of a play that fails halfway (its top at the track's far
+   * end, light on nothing): given before any lane cracks, it is what the lanes show; later, or never, the cracks
+   * drawn in code stay.
+   */
+  setCracks(picture: HTMLImageElement): void {
+    if (!this.disposed && !this.shards) this.crackPicture = picture;
+  }
+
   /** The dark and the flare of each lane with a floor: over its floor, tint, dividers, bar lines and key beam, under the notes. */
   private buildStageLanes(): { lane: number; shade: THREE.Mesh; flare: THREE.Mesh }[] {
     const { length, lanes } = this.geometry;
@@ -1407,8 +1418,9 @@ export class TrackRenderer {
    */
   private buildShards(): { lane: number; piece: THREE.Group; body: THREE.MeshBasicMaterial; rim: THREE.MeshBasicMaterial; cracks: THREE.MeshBasicMaterial; roll: number }[] {
     const { width, length, lanes } = this.geometry;
-    const picture = this.own(new THREE.CanvasTexture(crackCanvas(CRACK_PX[0], CRACK_PX[1])));
+    const picture = this.own(this.crackPicture ? new THREE.Texture(this.crackPicture) : new THREE.CanvasTexture(crackCanvas(CRACK_PX[0], CRACK_PX[1])));
     picture.colorSpace = THREE.SRGBColorSpace;
+    picture.needsUpdate = true;
     // a piece shows against the black it leaves: the floor's colour, lighter as it turns away, its two long edges lit
     const floor = new THREE.Color(hex(this.skin.colors.trackNear)).lerp(new THREE.Color(hex(this.skin.colors.trackFar)), 0.4);
     this.shardColors = [floor, floor.clone().lerp(WHITE, 0.16)];

@@ -1,0 +1,388 @@
+{
+ "cracks": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "9:16",
+  "size": "2K",
+  "prompt": "A texture for a game VFX artist: FRACTURE CRACKS, as when a thick sheet of dark glass is shattered by several blows. Only the cracks themselves are drawn, as lines of white and pale ice-blue light on pure black (#000000), seen straight from above, perfectly flat, with no perspective.\n\nFive or six points of impact are spread over the whole picture. From each a web of cracks runs out: long main cracks, straight for a stretch and then turning at a sharp angle, that cross the whole picture and join the cracks of the other impacts; thinner cracks branching off them; fine hairline cracks between; and close round each point of impact a small dense spider's web of ring-shaped and radial cracks. The main cracks are bold, with a white-hot core and a thin soft glow; the hairlines are very fine. The cracks cover the picture evenly from edge to edge and run off all four edges.\n\nNothing else is in the picture: no surface, no glass texture, no reflections, no shards, no dust, no objects, no text.",
+  "made": "2026-11-13 08:38:36 +0000",
+  "bytes": 5029756,
+  "sha256": "fd668f81b05fb0979c280203cc8aa6fdc3ec7854d0403a708306d74975eb1c98",
+  "usage": {
+   "promptTokenCount": 227,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2737,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 227
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 830
+  },
+  "stored": [
+   1143,
+   2048
+  ]
+ },
+ "ring": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks.\n\nLAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom (frame 1 top-left, frame 16 bottom-right). Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell and stays inside its cell with black space around it; nothing touches a cell edge.\n\nTHE EFFECT: the SHOCKWAVE of a heavy seal being stamped down at the centre of the cell, seen flat from the front. The seal itself is NOT drawn: only the ring of force and light that runs out from where it lands. Every element is white and grey light only, with no colour at all, because the game colours it itself.\n\nTHE ANIMATION, one continuous motion across the 16 frames:\n- frames 1-2: a small blinding round flash at the centre with a thin bright ring just leaving it;\n- frames 3-5: the ring is a thick, bright, perfectly circular shockwave running outward fast, with short radial streaks and specks of dust thrown ahead of it;\n- frames 6-10: the ring has grown to most of the cell and is thinner, it breaks into separate arcs, a second, fainter, thinner ring follows it inside, and the specks fly on outward;\n- frames 11-14: only thin broken arcs near the edge of the effect and a few specks are left, fading;\n- frames 15-16: almost nothing, the last faint arc; frame 16 is black.\n\nEvery frame is a different drawing of the same event a moment later: shapes change, break up and travel outward, they are not one picture scaled up. Painterly, energetic, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.",
+  "made": "2026-11-13 08:38:45 +0000",
+  "bytes": 3960939,
+  "sha256": "9128937b57ca8eed11533ad474a1ba3db6329e0bf5101ae83571eeb001f013b3",
+  "usage": {
+   "promptTokenCount": 477,
+   "candidatesTokenCount": 1834,
+   "totalTokenCount": 4576,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 477
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 154
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 2265
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "seal-assist": {
+  "try": 2,
+  "tries": 2,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000): everything round the emblem, out to the four corners of the picture, is black.\n\nSHAPE: a ROUND medal. From the outside in: a thin outer ring carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled ring; a black gap; and in the very centre the emblem's mark: a circle of which only the TOP-RIGHT QUARTER is solid and glowing (a pie slice from twelve o'clock to three o'clock); the other three quarters are empty (black inside the circle's thin outline).\n\nCOLOUR: violet (#8c7dff) with white highlights.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
+  "made": "2026-11-13 08:40:55 +0000",
+  "bytes": 4682928,
+  "sha256": "54503f29017b452006ffb1637cbbde8b6abc3c688b735b3f2a54c240aa6209e4",
+  "usage": {
+   "promptTokenCount": 332,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2973,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 332
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 961
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "seal-clear": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000).\n\nSHAPE: a ROUND medal. From the outside in: a thin outer ring carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled ring; a black gap; and in the very centre the emblem's mark: a solid, slightly domed, glowing DISC (a filled circle).\n\nCOLOUR: azure blue (#3d9bff) with white highlights.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
+  "made": "2026-11-13 08:37:46 +0000",
+  "bytes": 4731961,
+  "sha256": "3b93e2dca95941d1cf8ece1d00d446aa0c57ae276564d76ba3b95a8d89a7c880",
+  "usage": {
+   "promptTokenCount": 283,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2784,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 283
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 821
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "seal-easy": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000).\n\nSHAPE: a ROUND medal. From the outside in: a thin outer ring carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled ring; a black gap; and in the very centre the emblem's mark: a circle whose RIGHT HALF is solid and glowing and whose LEFT HALF is empty (black inside its thin outline), split by a straight vertical line, like a half moon.\n\nCOLOUR: fresh light green (#b6e36f) with white highlights.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
+  "made": "2026-11-13 08:38:08 +0000",
+  "bytes": 4392092,
+  "sha256": "aac54ce8b47f9f53fd523188f196c3980e544b88f684965e499c1c7ffc2cf928",
+  "usage": {
+   "promptTokenCount": 306,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3346,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 306
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1360
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "seal-exhard": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000).\n\nSHAPE: a SQUARE medal with sharp right-angled corners (not round, not a diamond: its edges are horizontal and vertical). From the outside in: a thin outer square frame carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled square frame; a black gap; and in the very centre the emblem's mark: a smaller solid glowing SQUARE set inside one more thin square frame of its own, and a small bevelled stud at each of the medal's four corners.\n\nCOLOUR: electric yellow (#f2f550) with white highlights and a little gold in its shading.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
+  "made": "2026-11-13 08:38:09 +0000",
+  "bytes": 4020075,
+  "sha256": "0abaf2e0276ed9701abe9a1f0a4666223ef3f394d161ad44c4ebdae0fd5bfe89",
+  "usage": {
+   "promptTokenCount": 332,
+   "candidatesTokenCount": 1732,
+   "totalTokenCount": 3342,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 332
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 52
+    }
+   ],
+   "thoughtsTokenCount": 1278
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "seal-hard": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: a CLEAR SEAL, the emblem that is stamped onto the screen when the player clears a song, at the finish level of a top commercial arcade rhythm game. ONE emblem seen perfectly flat from the front, centred, filling about 70% of the square picture, on pure black (#000000).\n\nSHAPE: a SQUARE medal with sharp right-angled corners (not round, not a diamond: its edges are horizontal and vertical). From the outside in: a thin outer square frame carrying fine, evenly spaced engraved tick marks all the way round; a black gap; a thick bevelled square frame; a black gap; and in the very centre the emblem's mark: a solid, slightly domed, glowing SQUARE.\n\nCOLOUR: brilliant white and bright silver, with only a faint cool blue in its shading.\n\nIt is made of polished crystal glass and metal lit from inside: bright faces with crisp bevels, a white rim light, thin engraved lines, and a soft glow of its own colour around it. Nothing on it is dark except the thin engraved lines and the gaps between its rings, which are black. Perfectly symmetric left to right and top to bottom. NO letters, NO numbers, NO text and NO signs of any alphabet anywhere on it. No ribbon, no laurel, no star, no crown, no wings, no gem, no characters, no hands, no ground, no reflection, no second emblem.",
+  "made": "2026-11-13 08:38:09 +0000",
+  "bytes": 4129690,
+  "sha256": "790e63d61ecfd1b9d3d6dc0e1fa2def72abaace78f0f483db10707122b6bb627",
+  "usage": {
+   "promptTokenCount": 305,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3087,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 305
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1102
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "sparks": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "1:1",
+  "size": "2K",
+  "prompt": "A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks.\n\nLAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom (frame 1 top-left, frame 16 bottom-right). Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell and stays inside its cell with black space around it; nothing touches a cell edge.\n\nTHE EFFECT: the CLASH of two heavy metal halves, one from above and one from below, slamming shut on each other along a HORIZONTAL seam through the centre of the cell. The halves themselves are NOT drawn: only the light and the sparks of the clash. White-hot at the core, cooling to gold and orange.\n\nTHE ANIMATION, one continuous motion across the 16 frames:\n- frames 1-2: a blinding thin horizontal line of white light across the centre, about half as wide as the cell, with a hot star-shaped glint at its middle;\n- frames 3-5: the line flares and showers of white-hot sparks spray out sideways, to the left and to the right along the seam, as long thin streaks, a few of them thrown up and down;\n- frames 6-10: the line has faded to a thin glow, the sparks fly further on slightly falling, curved paths, some split in two, cooling from white to gold and orange;\n- frames 11-14: only a few fading sparks are left, falling;\n- frames 15-16: almost nothing, the last one or two dying sparks; frame 16 is black.\n\nEvery frame is a different drawing of the same event a moment later: shapes change, break up and travel outward, they are not one picture scaled up. Painterly, energetic, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.",
+  "made": "2026-11-13 08:39:23 +0000",
+  "bytes": 1403988,
+  "sha256": "140d52c870cac54a6de1dcd81981a3ea0326883c5c265487054de02a4ba847bc",
+  "usage": {
+   "promptTokenCount": 483,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 3434,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 483
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 1271
+  },
+  "stored": [
+   2048,
+   2048
+  ]
+ },
+ "words-failed": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "21:9",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\nTHE WORDS: exactly \"FAILED\" on ONE line, all capitals, spelled F-A-I-L-E-D. Nothing else is written anywhere in the picture.\n\nLETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\nMATERIAL AND COLOUR: red-hot signal red (#ff2e2e) with brighter orange-white light where it is broken. The letters are BROKEN: cracks run through every one of them, some chunks are split off and sit slightly displaced or tilted, a corner is missing here and there, and a few small shards and embers fall below the word. Heavy and defeated: no sparkles, no streak of light, only a dim red glow around it. The word must still read at a glance.\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no characters, no icons, no second line of text, no small print, no watermark.",
+  "made": "2026-11-13 08:37:49 +0000",
+  "bytes": 3817628,
+  "sha256": "704f0aa843b6aa0b5ce4fdd27cbf5c3d65141d5c191528d559a91e290879e22a",
+  "usage": {
+   "promptTokenCount": 373,
+   "candidatesTokenCount": 1748,
+   "totalTokenCount": 2995,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 373
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 68
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 874
+  },
+  "stored": [
+   2048,
+   869
+  ]
+ },
+ "words-maxcombo": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "21:9",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\nTHE WORDS: exactly \"MAX COMBO\" on ONE line, all capitals, spelled M-A-X, a space, C-O-M-B-O. Nothing else is written anywhere in the picture.\n\nLETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\nMATERIAL AND COLOUR: polished gold lit from inside, pale warm gold (#ffe7a3) with white highlights and a little amber depth in the bevels only. A thin streak of white light crosses the whole word, a soft golden glow surrounds it, and a few tiny four-point sparkles sit on its corners.\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no characters, no icons, no second line of text, no small print, no watermark.",
+  "made": "2026-11-13 08:37:48 +0000",
+  "bytes": 3672634,
+  "sha256": "5938d4b5e3bae2b1595694e535d36096cb213ed48ba1be60e9eaaa3be270de5c",
+  "usage": {
+   "promptTokenCount": 344,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2926,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 344
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 902
+  },
+  "stored": [
+   2048,
+   869
+  ]
+ },
+ "words-perfect": {
+  "try": 1,
+  "tries": 1,
+  "model": "gemini-nano-banana-2.1",
+  "aspect": "21:9",
+  "size": "2K",
+  "prompt": "Game UI art for a commercial PC rhythm game: the lettering that appears in the middle of the screen when a song ends, at the finish level of a top commercial arcade rhythm game's result banners (crisp, luxurious, high-energy).\n\nTHE WORDS: exactly \"PERFECT PLAY\" on ONE line, all capitals, spelled P-E-R-F-E-C-T, a space, P-L-A-Y. Nothing else is written anywhere in the picture.\n\nLETTERING: heavy, wide sans-serif capitals with sharp chamfered corners, slanted forward about 10 degrees, tightly spaced, all the same height on a perfectly even baseline. Each letter is a solid three-dimensional body with a crisp bevelled edge; its front face is bright and evenly lit (never dark, never hollow, never an outline only).\n\nMATERIAL AND COLOUR: cut crystal lit from inside, icy cyan (#7cf7ff) with white-hot highlights, and fine prismatic glints (a thin spectrum of colours) along the bevels as on a cut diamond. A thin streak of white light crosses the whole word, a soft cyan glow surrounds it, and a few tiny four-point sparkles sit on its corners.\n\nBACKGROUND AND LAYOUT: pure black (#000000) everywhere. The words are centred, perfectly horizontal, seen flat from the front with no perspective, and fill about 80% of the picture's width with black margin on every side; nothing touches the picture's edges. Nothing else is in the picture: no frame, no plate, no ribbon, no underline, no ground, no reflection, no characters, no icons, no second line of text, no small print, no watermark.",
+  "made": "2026-11-13 08:37:49 +0000",
+  "bytes": 3966386,
+  "sha256": "55b889b1d811377f4f5f3ab5f15fbcbdfb89db5e66e72109539a9eb705f2c804",
+  "usage": {
+   "promptTokenCount": 363,
+   "candidatesTokenCount": 1680,
+   "totalTokenCount": 2933,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 363
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1680
+    }
+   ],
+   "thoughtsTokenCount": 890
+  },
+  "stored": [
+   2048,
+   869
+  ]
+ }
+}
