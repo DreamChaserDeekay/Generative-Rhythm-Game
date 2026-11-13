@@ -2,6 +2,7 @@ import { api } from '../api/client';
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { BufferPlacement } from '../audio/AudioEngine';
 import { KeysoundVoices, type KeysoundBank } from '../audio/keysounds';
+import { MUFFLED_CUTOFF_HZ } from '../audio/songPreview';
 import { emptyPressNote, planStemKeysounds, StemKeysoundVoices, type StemKeysoundPlan } from '../audio/stemKeysounds';
 import { AutoPlayer } from '../engine/autoplay';
 import { cameraConfig, gaugeRules, judgementConfig, keyModes, sideLanesOf } from '../engine/config';
@@ -17,10 +18,28 @@ import { GamepadPoller, padCodeLabel, type PadEvent } from '../input/gamepad';
 import { InputManager } from '../input/InputManager';
 import { PadPlayControls, type PadPlayAction } from '../input/padPlay';
 import { laneTakes, playActionsOf, type PlayAction } from '../input/playKeys';
-import { CameraFx } from '../render/cameraFx';
+import { CameraFx, type CameraPoseFx } from '../render/cameraFx';
 import { hexString } from '../render/noteColors';
 import { GRADE_COLORS } from '../render/palette';
 import type { SkinArt } from '../render/skinArt';
+import {
+  entryPose,
+  entryShare,
+  exitPose,
+  failFrame,
+  fallOrder,
+  introEnd,
+  introFrame,
+  lightOrder,
+  litFrame,
+  outroFrame,
+  planIntro,
+  resumeLine,
+  tapeStopTime,
+  type IntroPlan,
+  type StageFrame,
+  type StagePose,
+} from '../render/stageFx';
 import { hudTypeFor } from '../render/gearHud';
 import { HUD_UNIT, TrackRenderer } from '../render/TrackRenderer';
 import { LONG_OF } from '../render/tintArt';
@@ -47,6 +66,7 @@ import {
 } from '../settings/settings';
 import type { PlayRequest, PracticeOptions } from './App';
 import { difficultyChip } from './difficultyChip';
+import { loadEndArt } from './endArt';
 import { coverText, judgeLineText, speedText } from './format';
 import { Hud } from './Hud';
 import { LAMP_CLASS } from './lamps';
@@ -123,15 +143,31 @@ const FIRST_NOTE_DELAY_MS = 3000;
 const RESUME_LEAD_IN_MS = 1500;
 const END_AFTER_LAST_NOTE_MS = 1500;
 const PRACTICE_END_MS = 900;
-const BANNER_MS = 1800;
-const FAIL_FADE_MS = 700;
-/** The song fades out under the end banner instead of stopping dead. */
-const END_FADE_MS = 1500;
-/** READY shows this long before the first note comes into sight, and over a resume's rewind. */
-const READY_MS = 1500;
-/** A first note more than this far off (real ms) can be skipped to: up to this long before it (or READY). */
+/**
+ * An end (real ms from where it begins): the lanes go out and the song goes out muffled over MUFFLE_MS, the
+ * lamp shows LAMP_AT_MS in, and the result follows END_MS in. A play that earns no lamp (practice, autoplay)
+ * shows its words at once and ends AIDED_END_MS in, as it always did.
+ */
+const LAMP_AT_MS = 480;
+const END_MS = 2500;
+const AIDED_END_MS = 1800;
+const MUFFLE_MS = 1900;
+/**
+ * A play that fails halfway: the song runs down over TAPE_MS as the notes come to a standstill, FAILED shows
+ * FAIL_LAMP_AT_MS in, and the result follows FAIL_END_MS in (the lanes have dropped away by then).
+ */
+const TAPE_MS = 1300;
+const FAIL_LAMP_AT_MS = 420;
+const FAIL_END_MS = 2900;
+/** An all-perfect play's end: the hit's effect on each lane in turn across the track and back, this far apart. */
+const WAVE_STEP_MS = 70;
+const WAVE_PASSES = 2;
+/** A start is over for the camera this long after the run began (its spring is at rest long before). */
+const ENTRY_OVER_MS = 6000;
+/** A first note more than this far off (real ms) can be skipped to: up to this long before it, and SKIP_SIGHT_MS before it comes into sight. */
 const SKIP_MIN_MS = 5000;
 const SKIP_LEAD_MS = 2500;
+const SKIP_SIGHT_MS = 1500;
 /** What a press moves SPEED or the song offset (ms) by, per function. */
 const STEPS: Partial<Record<PlayAction, number>> = {
   speedDown: -0.1,
@@ -151,6 +187,9 @@ const KEYSOUND_LOOKAHEAD_MS = 120;
 /** An empty press plays the lane's next note if it is at most this far ahead (BMS). */
 /** Judgement text and combo distance up the track, as shares of the travel distance. */
 const HUD_POSITIONS = { low: [0.08, 0.36], mid: [0.16, 0.42], high: [0.32, 0.56] } as const;
+
+/** No start to show: every lane lit, the judge line whole. */
+const NO_INTRO: IntroPlan = { laneAt: [], lineFrom: -Infinity, lineTo: -Infinity };
 
 /** Wires audio, input, judgement, rendering and HUD together for one play (or practice loop). */
 export class PlayController {
@@ -216,12 +255,41 @@ export class PlayController {
   private redrawPaused = false;
   private finishAtPerf = 0;
   /** Song times: where the run starts (its progress), when the first note comes into sight below
-   * SUDDEN+, where READY starts, where a skip lands (null: none) and where a resume's rewind ends. */
+   * SUDDEN+, where a skip lands (null: none) and where a resume's rewind ends. */
   private runStartMs = 0;
   private firstInSight = 0;
-  private readyFrom = 0;
   private skipTo: number | null = null;
   private resumeUntil = -Infinity;
+  private readonly tempo: TempoMap;
+  /**
+   * The run's start and end as the track shows them (stageFx; only drawn): the lanes with a floor from the
+   * middle outward and in the order a failed play drops them, the frame handed to the renderer, this run's
+   * start (its plan, the song time it is over at, the song time the run began at, how much of the camera's
+   * way in it has), and the next start left out (a practice loop's next round).
+   */
+  private readonly lit: number[];
+  private readonly falls: number[];
+  private readonly stage: StageFrame;
+  private intro: IntroPlan = { laneAt: [], lineFrom: -Infinity, lineTo: -Infinity };
+  private introOver = -Infinity;
+  private runFromMs = 0;
+  private entry = 0;
+  private quietStart = false;
+  /** How far the camera moves for a start and an end: the settings' 카메라 연출 (as the chart's cues), none under 동작 줄이기. */
+  private readonly cameraStrength: number;
+  /** 동작 줄이기 (prefers-reduced-motion): nothing runs in turn or moves. */
+  private readonly still: boolean;
+  /**
+   * The end under way: when it began (real ms, and the song time), whether the play failed halfway, the
+   * lamp it shows (its words and class) from when, whether it shows yet, and the next lane of an all-perfect
+   * play's wave.
+   */
+  private ending: { at: number; songMs: number; failed: boolean; text: string; kind: string; lampAt: number; shown: boolean; wave: number } | null = null;
+  /** What the canvas says of it (data-stage; not shown). */
+  private stageName = '';
+  /** The camera's pose by the chart's cues in the last frame, and what a start or an end added to it (null: nothing). */
+  private chartPose: CameraPoseFx | null = null;
+  private stagedPose: StagePose | null = null;
   private loops = 0;
   /** What the last loop of a looped practice came to (leaving shows it). */
   private lastLoop: PlayOutcome | null = null;
@@ -318,8 +386,16 @@ export class PlayController {
     const audioMs = setup.buffer ? originMs + setup.buffer.duration * 1000 * this.rate : 0;
     this.durationMs = Math.max(audioMs, request.chart.meta.durationMs ?? 0, this.lastNoteEndMs);
     const tempo = new TempoMap(this.chart.timing);
+    this.tempo = tempo;
     this.barTimes = tempo.barLines(this.durationMs);
     this.bpmChanges = tempo.bpmChanges();
+    this.still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    this.cameraStrength = this.still ? 0 : Math.min(1, Math.max(0, settings.cameraFx * (settings.reducedFlash ? 0.5 : 1)));
+    // the cracks of a play that fails halfway, where this one can: the end's picture of them
+    if (this.gaugeRule().failAtZero) void loadEndArt().then((art) => art && this.renderer.setCracks(art.cracks));
+    this.lit = lightOrder(this.renderer.geometry.lanes);
+    this.falls = fallOrder(this.lit);
+    this.stage = litFrame(this.renderer.geometry.lanes.length);
     this.pacer = pacerFor(settings, request, setup.bestReplay ?? null);
 
     const gauge = this.gaugeRule();
@@ -401,7 +477,7 @@ export class PlayController {
     if (this.state !== 'paused') return;
     const at = this.engine.songTimeAtPerf(performance.now());
     this.engine.start(at, RESUME_LEAD_IN_MS);
-    // the song rewinds a little: READY until it is back where it stopped
+    // the song rewinds a little: the judge line is drawn again until it is back where it stopped
     this.resumeUntil = at;
     // autoplay keysounds already past were cancelled by the pause; continue from here
     this.nextAutoKeysound = this.session.notes.findIndex((n) => n.t >= at);
@@ -427,6 +503,8 @@ export class PlayController {
     window.removeEventListener('blur', this.onLeave);
     document.removeEventListener('visibilitychange', this.onLeave);
     this.resizeObserver.disconnect();
+    this.failedLook(false);
+    delete this.setup.canvas.dataset.stage;
     this.renderer.dispose();
     this.hud.dispose();
     this.background.dispose();
@@ -516,7 +594,7 @@ export class PlayController {
     this.engine.setSfxVolume(settings.sfxVolume);
     if (this.practice) {
       // time to get ready before the first note, and before it comes into sight (silence where the
-      // song has no music that early); READY shows all along (rebuildScroll)
+      // song has no music that early)
       const from = practiceRunStart(this.firstNoteMs, this.firstInSight, this.rate);
       this.engine.start(from, 0);
       this.runStartMs = from;
@@ -527,6 +605,86 @@ export class PlayController {
     this.resumeUntil = -Infinity;
     this.bpmAt = 0;
     this.state = 'running';
+    this.planStart();
+  }
+
+  /**
+   * The start this run shows, from where the song time is now to where its first note comes into sight: the
+   * lanes lighting on the beat and the judge line drawn (stageFx.planIntro), the camera coming down. None for
+   * a practice loop's next round (it would come round every few seconds) nor under 동작 줄이기.
+   */
+  private planStart(): void {
+    const quiet = this.quietStart || this.still;
+    this.quietStart = false;
+    this.ending = null;
+    this.failedLook(false);
+    const lanes = this.renderer.geometry.lanes.length;
+    this.runFromMs = this.engine.songTimeAtPerf(performance.now());
+    const room = (this.firstInSight - this.runFromMs) / this.rate;
+    this.intro = planIntro(quiet ? [] : this.lit, lanes, this.runFromMs, this.firstInSight, this.rate, this.tempo);
+    this.introOver = introEnd(this.intro, this.rate);
+    this.entry = quiet ? 0 : this.cameraStrength * entryShare(room);
+  }
+
+  /** A play that failed halfway loses its colour: the track, what is behind it and the HUD but its lamp (styles.css: stage-failed). */
+  private failedLook(on: boolean): void {
+    this.setup.canvas.classList.toggle('stage-failed', on);
+    this.setup.bgRoot.classList.toggle('stage-failed', on);
+    this.hud.setFailed(on);
+  }
+
+  /**
+   * What the track shows of the run's start or end at this moment (undefined: the track as it plays), and
+   * its name on the canvas (data-stage: intro, resume, end, fail, or play).
+   */
+  private stageAt(songNow: number, perfNow: number): StageFrame | undefined {
+    const stage = this.stage;
+    let name = 'play';
+    if (this.ending) {
+      const ms = perfNow - this.ending.at;
+      if (this.ending.failed) failFrame(stage, this.falls, ms, this.still);
+      else outroFrame(stage, this.lit, ms, this.still);
+      name = this.ending.failed ? 'fail' : 'end';
+    } else {
+      const starting = songNow < this.introOver;
+      const resuming = songNow < this.resumeUntil;
+      if (!starting && !resuming) {
+        this.name(name);
+        return undefined;
+      }
+      if (starting) introFrame(stage, this.intro, songNow, this.rate, this.settings.reducedFlash);
+      else introFrame(stage, NO_INTRO, songNow, this.rate);
+      if (resuming) stage.line = Math.min(stage.line, resumeLine(this.resumeUntil - RESUME_LEAD_IN_MS * this.rate, this.resumeUntil, songNow));
+      // the start counts as over once the judge line is whole (its last flares fade a little longer)
+      name = resuming ? 'resume' : songNow < this.intro.lineTo ? 'intro' : 'play';
+    }
+    this.name(name);
+    return stage;
+  }
+
+  private name(stage: string): void {
+    if (stage === this.stageName) return;
+    this.stageName = stage;
+    this.setup.canvas.dataset.stage = stage;
+  }
+
+  /**
+   * The camera: the chart's cues and the play's own, as it follows them, with the way in of a start and the
+   * way out of an end added (stageFx). It does not move at all with 카메라 연출 at 0.
+   */
+  private cameraAt(songNow: number, perfNow: number): CameraPoseFx | undefined {
+    if (!this.cameraFx.enabled) return undefined;
+    const pose = this.cameraFx.follow(songNow);
+    this.chartPose = pose;
+    let add: StagePose | null = null;
+    if (this.ending) add = this.ending.failed ? null : exitPose(perfNow - this.ending.at, this.cameraStrength);
+    else if (this.entry > 0) {
+      const ms = (songNow - this.runFromMs) / this.rate;
+      if (ms > ENTRY_OVER_MS) this.entry = 0;
+      else add = entryPose(ms, this.entry);
+    }
+    this.stagedPose = add;
+    return add ? { roll: pose.roll, fovScale: pose.fovScale * add.fovScale, pitch: (pose.pitch ?? 0) + add.pitch } : pose;
   }
 
   private teardownRun(): void {
@@ -647,15 +805,14 @@ export class PlayController {
   }
 
   /**
-   * When the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); READY
-   * shows just before, and a skip lands before READY (and a little before the note at least).
+   * When the first note comes into sight at the SUDDEN+ edge (drawn the visual offset early); a skip
+   * lands a while before that (and a little before the note at least).
    */
   private placeFirstNote(): void {
     const covers = activeCovers(this.settings);
     this.firstInSight = this.scroll.timeAt(this.firstNoteMs, this.scroll.travel * (1 - covers.sudden)) - this.visualOffset();
     // a practice run is lead-in until then (see begin)
-    this.readyFrom = this.practice ? -Infinity : this.firstInSight - READY_MS * this.rate;
-    this.skipTo = this.practice ? null : Math.min(this.readyFrom, this.firstNoteMs - SKIP_LEAD_MS * this.rate);
+    this.skipTo = this.practice ? null : Math.min(this.firstInSight - SKIP_SIGHT_MS * this.rate, this.firstNoteMs - SKIP_LEAD_MS * this.rate);
   }
 
   /** The intro can be skipped: the first note is more than SKIP_MIN_MS away and the skip lands ahead. */
@@ -687,11 +844,17 @@ export class PlayController {
     this.placeHud();
   }
 
-  /** Lays the HUD on the track as the camera shows it now (its parts sized for the screen where they lie). */
+  /**
+   * Lays the HUD on the track as the camera shows it now (its parts sized for the screen where they lie):
+   * by the chart's cues alone, without the way in of a start or the way out of an end, which pass. It is
+   * then moved to where the camera has the track at this moment.
+   */
   private placeHud(): void {
     const [judge, combo] = HUD_POSITIONS[this.settings.judgePosition];
     const { travel } = this.scroll;
-    this.hud.layoutPlane(this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
+    const staged = this.stagedPose !== null;
+    this.hud.layoutPlane(staged && this.chartPose ? this.renderer.hudPlaneAt(this.chartPose) : this.renderer.hudPlane(), travel * judge * HUD_UNIT, travel * combo * HUD_UNIT);
+    if (staged) this.hud.movePlane(this.renderer.hudPlane());
     this.hudVersion = this.renderer.hudVersion;
   }
 
@@ -719,22 +882,30 @@ export class PlayController {
       const tail = (this.practice ? PRACTICE_END_MS : END_AFTER_LAST_NOTE_MS) * this.rate;
       if (session.finished && judgeNow > this.lastNoteEndMs + tail) this.beginEnding(perfNow, false);
     }
-    if (this.state === 'ending' && perfNow >= this.finishAtPerf) this.finish();
+    if (this.state === 'ending' && this.ending) {
+      if (!this.ending.shown && perfNow >= this.ending.lampAt) this.showLamp();
+      this.wave(perfNow);
+      if (perfNow >= this.finishAtPerf) this.finish();
+    }
 
     // A paused picture stays still and is drawn again only after a change (under the pause menu's
     // former backdrop blur, drawing it every frame ran at a few frames per second without a GPU).
     if (this.state !== 'paused' || this.redrawPaused) {
       this.redrawPaused = false;
+      // a play that failed halfway: the notes run down to a standstill with the song, and no key is held any more
+      const failed = this.ending?.failed ?? false;
+      const drawMs = this.ending && failed ? tapeStopTime(this.ending.songMs, perfNow - this.ending.at, TAPE_MS, this.rate) : songNow;
       this.renderer.render(
         {
-          timeMs: songNow + this.visualOffset(),
+          timeMs: drawMs + this.visualOffset(),
           scroll: this.scroll,
           notes: session.notes,
-          heldNote: (lane) => session.heldNoteIndex(lane),
-          keyDown: (lane) => session.isKeyDown(lane),
+          heldNote: (lane) => (failed ? null : session.heldNoteIndex(lane)),
+          keyDown: (lane) => !failed && session.isKeyDown(lane),
           barTimes: this.barTimes,
           fever: { active: session.fever.active, multiplier: session.fever.multiplier, remaining: session.fever.remaining(judgeNow) },
-          camera: this.cameraFx.enabled ? this.cameraFx.follow(songNow) : undefined,
+          camera: this.cameraAt(songNow, perfNow),
+          stage: this.stageAt(songNow, perfNow),
         },
         perfNow,
       );
@@ -744,13 +915,13 @@ export class PlayController {
         this.hud.movePlane(this.renderer.hudPlane());
       }
     }
-    this.background.update(songNow, this.state === 'running' || this.state === 'ending', perfNow);
+    // (what is behind a play that failed halfway stands still with it)
+    this.background.update(songNow, this.state === 'running' || (this.state === 'ending' && !this.ending?.failed), perfNow);
     this.hud.update(perfNow, {
       score: this.scoreValue(),
       sub: this.subValue(),
       maxCombo: session.maxCombo,
       gauge: session.gauge.value,
-      ready: this.state !== 'paused' && ((songNow >= this.readyFrom && songNow < this.firstInSight) || songNow < this.resumeUntil) ? 'READY' : '',
       fever: {
         gauge: session.fever.gauge,
         active: session.fever.active,
@@ -828,20 +999,68 @@ export class PlayController {
       const result = this.session.result();
       this.loops++;
       this.lastLoop = { result, chart: this.chart, placement: this.placement, practice: this.practice, loop: this.loops, replay: null, offsets: this.playOffsets() };
+      // the next round starts as it is: no start's show every few seconds
+      this.quietStart = true;
       this.restart();
       this.hud.showToast(`LOOP ${this.loops} · RATE ${(Math.floor(result.rate * 100) / 100).toFixed(2)}% · FAST ${result.fast} · SLOW ${result.slow}`, perfNow);
       return;
     }
     this.state = 'ending';
-    this.finishAtPerf = perfNow + BANNER_MS;
     this.input.detach();
-    // the song fades under the banner (quickly on a failure) instead of stopping dead
-    this.engine.fadeOut(failed ? FAIL_FADE_MS : END_FADE_MS);
     const lamp = this.session.result().lamp;
-    // autoplay and practice earn no lamp: a plain banner
-    if (this.practice) this.hud.showBanner('PRACTICE END', 'aided');
-    else if (this.setup.request.autoPlay) this.hud.showBanner('AUTO PLAY', 'aided');
-    else this.hud.showBanner(lamp, LAMP_CLASS[lamp]);
+    // autoplay and practice earn no lamp: plain words
+    const aided = this.practice ? 'PRACTICE END' : this.setup.request.autoPlay ? 'AUTO PLAY' : null;
+    const lampAt = perfNow + (failed ? FAIL_LAMP_AT_MS : aided ? 0 : LAMP_AT_MS);
+    this.ending = { at: perfNow, songMs: this.engine.songTimeAtPerf(perfNow), failed, text: aided ?? lamp, kind: aided ? 'aided' : LAMP_CLASS[lamp], lampAt, shown: false, wave: 0 };
+    this.finishAtPerf = perfNow + (failed ? FAIL_END_MS : aided ? AIDED_END_MS : END_MS);
+    if (failed) {
+      // the song runs down like a tape and everything loses its colour; the keysounds end with it
+      this.voices?.stopAll();
+      this.stemVoices?.stopAll();
+      this.engine.tapeStop(TAPE_MS);
+      this.failedLook(true);
+    } else {
+      // the lanes go out (stageAt) and the song goes out muffled instead of stopping dead
+      this.engine.muffleOut(MUFFLE_MS, MUFFLED_CUTOFF_HZ);
+    }
+    if (lampAt <= perfNow) this.showLamp();
+  }
+
+  /**
+   * The end's lamp in the middle of the screen (Hud.showLamp). A play that ends failed with its gauge short
+   * of the line has what is left of the gauge run out; one that failed halfway has its letters break up.
+   */
+  private showLamp(): void {
+    const e = this.ending;
+    if (!e || e.shown) return;
+    e.shown = true;
+    this.hud.showLamp(e.text, e.kind, e.failed);
+    if (e.kind === 'failed' && !e.failed) this.hud.drainGauge();
+  }
+
+  /**
+   * An all-perfect play's end: the hit's effect runs over the lanes like a wave, across the track and back,
+   * as large as 타격 효과 크기 has it (none with it off: Renderer.hitEffect).
+   */
+  private wave(perfNow: number): void {
+    const e = this.ending;
+    if (!e || e.kind !== 'perfect' || !e.shown || this.still) return;
+    const lanes = this.acrossLanes;
+    const total = lanes.length * WAVE_PASSES;
+    while (e.wave < total && perfNow >= e.lampAt + e.wave * WAVE_STEP_MS) {
+      const pass = Math.floor(e.wave / lanes.length);
+      const k = e.wave % lanes.length;
+      const lane = lanes[pass % 2 === 0 ? k : lanes.length - 1 - k];
+      // in the best judgement's colour, as every hit of such a play was
+      this.renderer.hitEffect(lane, GRADE_COLORS['g-max'], perfNow);
+      e.wave++;
+    }
+  }
+
+  /** The lanes with a floor of their own, from the left of the track to its right. */
+  private get acrossLanes(): number[] {
+    const lanes = this.renderer.geometry.lanes;
+    return [...this.lit].sort((a, b) => lanes[a].x - lanes[b].x);
   }
 
   /** The judgement offsets of this play as they are now (a replay's as it kept them). */
@@ -855,6 +1074,8 @@ export class PlayController {
   }
 
   private finish(): void {
+    // the lamp is where the result's takes over from, however soon the end was skipped
+    this.showLamp();
     this.state = 'done';
     this.engine.stop();
     const result = this.session.result();
@@ -1058,6 +1279,11 @@ export class PlayController {
         if (this.state !== 'done') this.restart();
         return true;
       case 'skip':
+        // over an end: straight on to the result
+        if (this.state === 'ending') {
+          this.finishAtPerf = 0;
+          return true;
+        }
         if (!this.canSkip(this.engine.songTimeAtPerf(performance.now()))) return false;
         this.skipIntro();
         return true;

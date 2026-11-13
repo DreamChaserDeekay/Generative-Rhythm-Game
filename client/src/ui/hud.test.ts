@@ -3,7 +3,7 @@ import { cameraConfig } from '../engine/config';
 import { MAX_TILT_DEG, ZOOM_DEPTH } from '../render/cameraFx';
 import { cameraPose } from '../render/layout';
 import { frameCamera, HUD_UNIT, planeHomography, poseCamera } from '../render/TrackRenderer';
-import { type ErrorBar, errorBarAt, gaugeCells, gaugeShown, infoRoom, judgementHtml, markError, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
+import { type ErrorBar, errorBarAt, gaugeCells, gaugeShown, infoRoom, judgementHtml, lampSpark, markError, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
 
 /** Where a homography (row-major 3×3) puts a plane point on the screen. */
 const project = (h: number[], x: number, y: number) => {
@@ -189,5 +189,24 @@ describe('HUD lying on the track', () => {
     expect(stretchFor(0.35, 0.7)).toBeCloseTo(2, 9);
     expect(stretchFor(0.1, 0.7)).toBe(2.6);
     expect(stretchFor(0.2, 0.7, 1.8)).toBe(1.8);
+  });
+});
+
+describe('the sparks of a hard clear\'s seal closing', () => {
+  it('fly out along the seam both ways, each a little up or down, soon after the halves meet, the same every time', () => {
+    const sparks = Array.from({ length: 22 }, (_, i) => lampSpark(i, 22));
+    // every other one to the other side
+    sparks.forEach((s, i) => expect(Math.sign(s.dx)).toBe(i % 2 === 0 ? 1 : -1));
+    for (const s of sparks) {
+      // out of the seal (1.7 em wide), no further than a few of its widths, more along the seam than off it
+      expect(Math.abs(s.dx)).toBeGreaterThan(0.6);
+      expect(Math.abs(s.dx)).toBeLessThanOrEqual(3.4);
+      expect(Math.abs(s.dy)).toBeLessThan(Math.abs(s.dx));
+      expect(s.delayMs).toBeGreaterThanOrEqual(0);
+      expect(s.delayMs).toBeLessThanOrEqual(70);
+    }
+    // no two the same way
+    expect(new Set(sparks.map((s) => `${s.dx.toFixed(2)},${s.dy.toFixed(2)}`)).size).toBe(22);
+    expect(Array.from({ length: 22 }, (_, i) => lampSpark(i, 22))).toEqual(sparks);
   });
 });

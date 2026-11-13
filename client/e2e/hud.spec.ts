@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { pickDemoSong, serveChart } from './servedChart';
 import { autoplay, chooseSetting, settingsTab, tool } from './songSelect';
 
 const venvPython = process.platform === 'win32' ? '../server/.venv/Scripts/python.exe' : '../server/.venv/bin/python';
@@ -22,6 +23,8 @@ function trackErrors(page: Page): string[] {
 
 const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('grg.settings.v1') ?? '{}') as Record<string, unknown>);
 const opacity = (page: Page, testId: string) => page.getByTestId(testId).evaluate((el) => getComputedStyle(el).opacity);
+/** The play's canvas, which names what the track shows of a start or an end (data-stage: intro, resume, play, end, fail). */
+const stage = (page: Page) => page.locator('canvas[data-stage]');
 
 test('the play HUD: how the play runs, the time left, SPEED and covers named once under the judge line, the pause menu on ↑↓, a retry from nothing', async ({ page }) => {
   const errors = trackErrors(page);
@@ -55,7 +58,7 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
   await page.keyboard.press('PageDown');
   await expect(page.getByTestId('hud-toast')).toHaveText('노트 등장 위치 2.5%');
 
-  // paused, ↑↓ move through the menu and leave SPEED alone; Enter resumes, READY over the rewind
+  // paused, ↑↓ move through the menu and leave SPEED alone; Enter resumes, the judge line drawn again over the rewind
   await page.keyboard.press('Escape');
   const menu = page.getByTestId('pause-menu');
   await expect(menu.getByRole('button', { name: /계속하기/ })).toBeFocused();
@@ -70,8 +73,10 @@ test('the play HUD: how the play runs, the time left, SPEED and covers named onc
   expect(await stored(page)).toMatchObject({ hiSpeed: 4.1, sudden: 0.025, coversOn: true });
   await page.keyboard.press('Enter');
   await expect(menu).toHaveCount(0);
-  await expect(page.getByTestId('hud-ready')).toHaveText('READY');
-  await expect(page.getByTestId('hud-ready')).toHaveText('', { timeout: 5000 });
+  // (what the track shows of it is named on the canvas; no word tells of it)
+  await expect(stage(page)).toHaveAttribute('data-stage', 'resume');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play', { timeout: 5000 });
+  await expect(page.getByTestId('hud-ready')).toHaveCount(0);
 
   // a retry starts from nothing: no combo or judgement of the run before
   await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 20_000 }).toBeGreaterThan(4);
@@ -144,7 +149,7 @@ test('a very wide gear on a narrow window: no room beside it, so the score panel
   expect(panel && panel.x < 100 && panel.y + panel.height > 720 - 100).toBe(true);
 });
 
-test('a long intro is skipped with Enter (again after a retry while READY shows), the rules that are not the defaults show while it loads, and judging is unchanged', async ({ page }) => {
+test('a long intro is skipped with Enter (again after a retry, which shows the start again), the rules that are not the defaults show while it loads, and judging is unchanged', async ({ page }) => {
   const errors = trackErrors(page);
   mkdirSync('test-results', { recursive: true });
   const body = 'test-results/e2e-intro-body.wav';
@@ -170,27 +175,74 @@ test('a long intro is skipped with Enter (again after a retry while READY shows)
   await expect(page.getByTestId('loading-rules')).toHaveText(/MAX JUDGEMENT.*배치\s*미러.*점수 규칙\s*EX-SCORE.*게이지\s*HARD/, { timeout: 60_000 });
   await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
 
-  // the first note is about 14 s away: Enter skips to a moment before it (READY then)
+  // the first note is about 14 s away: the lanes light and the judge line is drawn as the play starts,
+  // and Enter skips to a moment before the note
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
   await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 10_000 }).toBe('1');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play', { timeout: 10_000 });
   const left = (await page.getByTestId('hud-remaining').textContent()) ?? '';
   await page.keyboard.press('Enter');
   await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
   const seconds = (t: string) => Number(t.split(':')[0]) * 60 + Number(t.split(':')[1]);
   await expect.poll(async () => seconds(left) - seconds((await page.getByTestId('hud-remaining').textContent()) ?? '')).toBeGreaterThan(8);
-  await expect(page.getByTestId('hud-ready')).toHaveText('READY', { timeout: 5000 });
+  // no word before the notes come, and nothing of the start shown a second time
+  await expect(page.getByTestId('hud-ready')).toHaveCount(0);
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play');
   // no best yet to follow: the pacemaker's row says so with a dash instead of going missing
   await expect(page.locator('.hud-pace-label')).toHaveText('vs BEST');
   await expect(page.getByTestId('hud-pace')).toHaveText('—');
 
-  // a retry while READY shows starts the intro over: no READY of the run before over its skip hint
+  // a retry starts the intro over: the start shows again, and its skip hint
   await page.keyboard.press('F2');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
   await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 5000 }).toBe('1');
-  await expect(page.getByTestId('hud-ready')).toHaveText('');
-  expect(await page.getByTestId('hud-ready').evaluate((el) => (el as HTMLElement).style.opacity)).toBe('0');
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('hud-ready')).toHaveText('READY', { timeout: 5000 });
+  await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
+  // the play ends with its lamp in the middle of the screen, where the result's takes over from
+  await expect(page.getByTestId('hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 90_000 });
+  await expect(page.getByTestId('hud-lamp')).toHaveText('AUTO PLAY');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'end');
   await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'PERFECT PLAY');
+  expect(errors).toEqual([]);
+});
+
+test('a play\'s start and end on the track: the lanes light, autoplay ends with its words, a play that fails halfway breaks up and Enter goes straight on to the result', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4, gaugeType: 'HARD' }));
+  });
+  await page.goto('/');
+  // by hand, with no key pressed: the HARD gauge runs out
+  await tool(page, 'sync-play');
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  // the start: the lanes light one by one and the judge line is drawn, with no word
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro', { timeout: 30_000 });
+  await expect(page.getByTestId('hud-ready')).toHaveCount(0);
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play', { timeout: 10_000 });
+  // no lamp until the play ends
+  await expect(page.getByTestId('hud-lamp')).not.toHaveAttribute('data-lamp');
+  await expect(page.getByTestId('hud-lamp')).toBeHidden();
+  // the gauge at nothing: the track cracks, everything but the lamp loses its colour, FAILED breaks up
+  await expect(stage(page)).toHaveAttribute('data-stage', 'fail', { timeout: 40_000 });
+  await expect(stage(page)).toHaveClass(/stage-failed/);
+  const lamp = page.getByTestId('hud-lamp');
+  await expect(lamp).toHaveAttribute('data-lamp', 'failed');
+  await expect(lamp).toHaveText('FAILED');
+  await expect(lamp).toHaveClass(/crashed/);
+  await expect(lamp).toBeVisible();
+  // its word is the lettering among the end's pictures (client/public/end), the type left for what reads it
+  await expect(lamp).toHaveClass(/pictured/);
+  expect(await lamp.locator('.hud-lamp-art').evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/end\/words-failed\.webp/);
+  // in the middle of the screen, over the lanes
+  const box = await lamp.boundingBox();
+  expect(box && Math.abs(box.x + box.width / 2 - 640)).toBeLessThan(4);
+  expect(box && box.y + box.height / 2).toBeGreaterThan(720 * 0.3);
+  expect(box && box.y + box.height / 2).toBeLessThan(720 * 0.5);
+  // Enter does not wait for the end to play out
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 1500 });
+  await expect(page.getByTestId('result-lamp')).toHaveAttribute('data-lamp', 'FAILED');
   expect(errors).toEqual([]);
 });
 
@@ -263,5 +315,50 @@ test('the timing error bar: on from 판정·싱크, under the judgement, as wide
   await page.keyboard.press('F2');
   expect(await shown()).toBe(0);
   expect(await bar.getAttribute('data-mean-ms')).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('a long intro on a chart the test serves: the start shows, Enter skips to the notes with nothing of it shown again, and a retry shows it again', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ lastKeyMode: '4K', hiSpeed: 4 }));
+  });
+  // the first note is at beat 26 of the demo song, 10.9 s in
+  await serveChart(page, 26, 31);
+  await pickDemoSong(page);
+  await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
+  await autoplay(page);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
+
+  // the lanes light and the judge line is drawn as the play starts; the notes are far off, so the skip is offered
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
+  await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 10_000 }).toBe('1');
+  // what the track shows from here on, written down as it changes
+  await page.evaluate(() => {
+    const log: string[] = [];
+    (window as unknown as { __stages: string[] }).__stages = log;
+    const canvas = document.querySelector('canvas[data-stage]') as HTMLCanvasElement;
+    new MutationObserver(() => log.push(canvas.dataset.stage ?? '')).observe(canvas, { attributes: true, attributeFilter: ['data-stage'] });
+  });
+  const stages = () => page.evaluate(() => (window as unknown as { __stages: string[] }).__stages.slice());
+  await page.keyboard.press('Enter');
+  await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
+  // autoplay hits the first note soon after: the skip went to a moment before it, and the start was not shown again
+  await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 8000 }).toBeGreaterThan(0);
+  await expect(stage(page)).toHaveAttribute('data-stage', 'play');
+  expect((await stages()).filter((s) => s === 'intro')).toEqual([]);
+
+  // a retry starts the song over: the start shows again, and the skip with it
+  await page.keyboard.press('F2');
+  await expect(stage(page)).toHaveAttribute('data-stage', 'intro');
+  expect(await stages()).toContain('intro');
+  await expect.poll(() => opacity(page, 'hud-skip'), { timeout: 10_000 }).toBe('1');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => opacity(page, 'hud-skip')).toBe('0');
+  // the play ends with the lights out and its words, and the result follows
+  await expect(page.getByTestId('hud-lamp')).toHaveAttribute('data-lamp', 'aided', { timeout: 60_000 });
+  await expect(stage(page)).toHaveAttribute('data-stage', 'end');
+  await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
   expect(errors).toEqual([]);
 });

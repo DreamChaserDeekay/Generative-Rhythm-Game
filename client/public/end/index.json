@@ -1,0 +1,97 @@
+{
+ "words": {
+  "perfect": {
+   "file": "words-perfect.webp",
+   "size": [
+    1094,
+    320
+   ],
+   "band": [
+    0.2034,
+    0.8052
+   ]
+  },
+  "maxcombo": {
+   "file": "words-maxcombo.webp",
+   "size": [
+    1244,
+    320
+   ],
+   "band": [
+    0.1605,
+    0.8415
+   ]
+  },
+  "failed": {
+   "file": "words-failed.webp",
+   "size": [
+    912,
+    320
+   ],
+   "band": [
+    0.1497,
+    0.7434
+   ]
+  }
+ },
+ "seals": {
+  "clear": {
+   "file": "seal-clear.webp",
+   "size": [
+    512,
+    512
+   ]
+  },
+  "easy": {
+   "file": "seal-easy.webp",
+   "size": [
+    512,
+    512
+   ]
+  },
+  "assist": {
+   "file": "seal-assist.webp",
+   "size": [
+    512,
+    512
+   ]
+  },
+  "hard": {
+   "file": "seal-hard.webp",
+   "size": [
+    512,
+    512
+   ]
+  },
+  "exhard": {
+   "file": "seal-exhard.webp",
+   "size": [
+    512,
+    512
+   ]
+  }
+ },
+ "ring": {
+  "file": "ring.webp",
+  "size": [
+   4608,
+   384
+  ],
+  "frames": 12
+ },
+ "sparks": {
+  "file": "sparks.webp",
+  "size": [
+   3840,
+   384
+  ],
+  "frames": 10
+ },
+ "cracks": {
+  "file": "cracks.webp",
+  "size": [
+   1024,
+   1835
+  ]
+ }
+}

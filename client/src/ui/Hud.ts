@@ -3,6 +3,7 @@ import type { GearStyle } from '../render/deckArt';
 import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
+import { loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
 import { token } from './theme';
@@ -71,7 +72,6 @@ export interface HudStats {
   sub: string;
   maxCombo: number;
   gauge: number;
-  ready: string;
   fever: { gauge: number; active: boolean; multiplier: number; remaining: number; ready: boolean };
   pace: number | null;
   /** 0..1 of the way from the run's start to its last note, and the real ms left until that note. */
@@ -91,6 +91,32 @@ const TOAST_MS = 1400;
 /** The HUD is drawn for a 720px-high screen and grows with it, up to this much. */
 const BASE_HEIGHT = 720;
 const MAX_SCALE = 1.5;
+/** The letters of a lamp's words stand this tall in their picture as it is shown (em of the lamp's type: endArt.wordsBox). */
+const WORDS_CAP_EM = 1;
+
+/** The lamps shown at a play's end with their words; the others are their mark alone, struck like a seal. */
+const WORDED_LAMPS = new Set(['perfect', 'maxcombo', 'failed', 'aided']);
+/** A full combo: the combo's number flies to the middle over this long before its words show (styles.css: lamp-words-late). */
+export const COMBO_FLIGHT_MS = 420;
+/** The sparks of a hard clear's two halves closing: how many, and how far they fly (em of the seal). */
+const LAMP_SPARKS = 22;
+const SPARK_REACH = [1.4, 3.4] as const;
+
+/**
+ * Where a spark of a seal closing flies to (em): out along the seam both ways, a little up or down, the same
+ * every time; and how long after the halves meet it starts (ms).
+ */
+export function lampSpark(i: number, count = LAMP_SPARKS): { dx: number; dy: number; delayMs: number } {
+  const hash = (k: number) => {
+    const v = Math.sin((i + 1) * 78.233 + k * 37.719) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const side = i % 2 === 0 ? 1 : -1;
+  const angle = (hash(1) - 0.5) * 1.3;
+  const reach = SPARK_REACH[0] + (SPARK_REACH[1] - SPARK_REACH[0]) * hash(2) * (0.6 + (0.4 * i) / count);
+  return { dx: side * Math.cos(angle) * reach, dy: Math.sin(angle) * reach * 0.8, delayMs: Math.round(hash(3) * 70) };
+}
+
 /** Every combo step punches the number: it starts larger and a little lower, then settles back. */
 const COMBO_BUMP: Keyframe[] = [{ transform: 'translateY(8%) scale(1.25)' }, { transform: 'none' }];
 const COMBO_BUMP_MS = 150;
@@ -375,8 +401,15 @@ export class Hud {
   private readonly fever: HTMLElement;
   private readonly feverFill: HTMLElement;
   private readonly feverText: HTMLElement;
-  private readonly banner: HTMLElement;
-  private readonly ready: HTMLElement;
+  private readonly lamp: HTMLElement;
+  private readonly lampText: HTMLElement;
+  private readonly lampFly: HTMLElement;
+  /** The end's pictures, once they are loaded (null: the styles draw the lamp). */
+  private endArt: EndArt | null = null;
+  /** The flight of the combo's number to the middle at a full combo's end. */
+  private comboFlight: Animation | null = null;
+  /** 동작 줄이기 (prefers-reduced-motion): nothing flies; the styles leave their own motion out as well. */
+  private readonly still: boolean;
   private readonly skip: HTMLElement;
   private readonly toast: HTMLElement;
   private readonly syncVisual: HTMLElement | null = null;
@@ -402,8 +435,6 @@ export class Hud {
   /** undefined: not written yet (null is a pace with nothing to compare, shown as a dash). */
   private lastPace: number | null | undefined = undefined;
   private lastGauge = -1;
-  /** null: not written yet ('' is no READY, a value shown too). */
-  private lastReady: string | null = null;
   private lastFever = '';
   private lastProgress = -1;
   private lastRemaining = -1;
@@ -456,9 +487,9 @@ export class Hud {
         </div>
       </div>
       <div class="hud-toast" data-testid="hud-toast"></div>
-      <div class="hud-ready" data-testid="hud-ready"></div>
       <div class="hud-skip" data-testid="hud-skip"><kbd></kbd> 건너뛰기</div>
-      <div class="hud-banner" data-testid="hud-banner"></div>`;
+      <div class="hud-lamp-fly" aria-hidden="true"></div>
+      <div class="hud-lamp" data-testid="hud-lamp"><i class="hud-lamp-ring"></i><span class="hud-lamp-seal"><i class="hud-lamp-half top"><i class="hud-lamp-mark"></i></i><i class="hud-lamp-half bottom"><i class="hud-lamp-mark"></i></i></span><span class="hud-lamp-sparks"></span><span class="hud-lamp-text"></span><i class="hud-lamp-art"></i></div>`;
     const q = (sel: string) => root.querySelector(sel) as HTMLElement;
     q('.hud-title').textContent = info.title;
     q('.hud-artist').textContent = info.artist;
@@ -619,8 +650,28 @@ export class Hud {
     this.fever.style.display = info.feverEnabled ? '' : 'none';
     this.feverFill = q('.hud-fever-fill');
     this.feverText = q('.hud-fever-text');
-    this.banner = q('.hud-banner');
-    this.ready = q('.hud-ready');
+    this.lamp = q('.hud-lamp');
+    this.lampText = q('.hud-lamp-text');
+    this.lampFly = q('.hud-lamp-fly');
+    const sparks = q('.hud-lamp-sparks');
+    for (let i = 0; i < LAMP_SPARKS; i++) {
+      const { dx, dy, delayMs } = lampSpark(i);
+      const spark = document.createElement('i');
+      spark.style.setProperty('--dx', `${dx.toFixed(2)}em`);
+      spark.style.setProperty('--dy', `${dy.toFixed(2)}em`);
+      spark.style.setProperty('--wait', `${delayMs}ms`);
+      sparks.append(spark);
+    }
+    this.still = typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+    // the end's pictures: loaded while the song plays, long before they are shown
+    void loadEndArt().then((art) => {
+      if (!art) return;
+      this.endArt = art;
+      this.root.style.setProperty('--end-ring', `url("${art.url(art.index.ring.file)}")`);
+      this.root.style.setProperty('--end-ring-frames', String(art.index.ring.frames));
+      this.root.style.setProperty('--end-sparks', `url("${art.url(art.index.sparks.file)}")`);
+      this.root.style.setProperty('--end-sparks-frames', String(art.index.sparks.frames));
+    });
     this.skip = q('.hud-skip');
     q('.hud-skip kbd').textContent = info.skipKey;
     this.toast = q('.hud-toast');
@@ -1096,13 +1147,12 @@ export class Hud {
       eb.meanMs = 0;
       delete eb.el.dataset.meanMs;
     }
-    this.hideBanner();
+    this.hideLamp();
     this.lastScore = -1;
     this.lastSub = '';
     this.lastMaxCombo = -1;
     this.lastPace = undefined;
     this.lastGauge = -1;
-    this.lastReady = null;
     this.lastFever = '';
     this.lastProgress = -1;
     this.lastRemaining = -1;
@@ -1182,11 +1232,6 @@ export class Hud {
       this.lastBpm = stats.bpm;
       this.bpm.textContent = String(stats.bpm);
     }
-    if (stats.ready !== this.lastReady) {
-      this.lastReady = stats.ready;
-      this.ready.textContent = stats.ready;
-      this.ready.style.opacity = stats.ready ? '1' : '0';
-    }
     if (stats.skip !== this.lastSkip) {
       this.lastSkip = stats.skip;
       this.skip.style.opacity = stats.skip ? '1' : '0';
@@ -1203,16 +1248,91 @@ export class Hud {
     }
   }
 
-  /** The end of a play: its lamp in the middle, the judgement and the combo out of its way. */
-  showBanner(text: string, kind: string): void {
-    this.banner.textContent = text;
-    this.banner.className = `hud-banner show ${kind}`;
+  /**
+   * The end of a play: its lamp in the middle of the screen, the judgement and the combo out of its way.
+   * `kind` is the lamp's class (lamps.LAMP_CLASS; `aided`: a play that earns none), kept on data-lamp. A clear
+   * shows no word: its mark alone, struck like a seal with a ring running out from it, or for a hard clear its
+   * two halves closing on each other with sparks along the seam. A full combo, an all-perfect play, a failed
+   * one and a play without a lamp show their words: a full combo's after the combo's number has flown to the
+   * middle, a failed play's sinking, or breaking up when it failed halfway (`crashed`). The element stays where
+   * it is, as large as what it ends with, until the HUD is reset or disposed.
+   */
+  showLamp(text: string, kind: string, crashed = false): void {
+    const worded = WORDED_LAMPS.has(kind);
+    // where the combo's number is, before it leaves with the judgement
+    const combo = kind === 'maxcombo' && !this.still ? this.comboNum.getBoundingClientRect() : null;
+    this.lamp.dataset.lamp = kind;
+    this.lamp.setAttribute('aria-label', text);
+    this.lampText.textContent = worded ? text : '';
+    this.lamp.className = `hud-lamp show ${kind} lamp-${kind} ${worded ? 'worded' : 'sealed'}${crashed ? ' crashed' : ''}${this.pictureLamp(kind) ? ' pictured' : ''}`;
     this.root.classList.add('ended');
+    if (combo && combo.width > 0 && this.comboNum.textContent) this.flyCombo(combo);
+    else this.lamp.classList.add('at-once');
   }
 
-  hideBanner(): void {
-    this.banner.className = 'hud-banner';
-    this.root.classList.remove('ended');
+  /**
+   * The lamp's picture from the end's pictures (endArt), where there is one: its words as lettering sized by
+   * the letters in it, or its seal. False: the styles draw the lamp (the words as type, the seal as its mark).
+   */
+  private pictureLamp(kind: string): boolean {
+    const art = this.endArt;
+    const [words, seal] = [art?.index.words[kind], art?.index.seals[kind]];
+    const style = this.lamp.style;
+    for (const name of ['--art', '--art-w', '--art-h', '--art-lift']) style.removeProperty(name);
+    if (!art || (!words && !seal)) return false;
+    style.setProperty('--art', `url("${art.url((words ?? seal)!.file)}")`);
+    if (words) {
+      const box = wordsBox(words.size, words.band, WORDS_CAP_EM);
+      style.setProperty('--art-w', `${box.width.toFixed(3)}em`);
+      style.setProperty('--art-h', `${box.height.toFixed(3)}em`);
+      style.setProperty('--art-lift', `${box.lift.toFixed(3)}em`);
+    }
+    return true;
+  }
+
+  /** The combo's number, from where it stood (`from`) to the middle of the lamp, where the words take its place. */
+  private flyCombo(from: DOMRect): void {
+    const root = this.root.getBoundingClientRect();
+    const to = this.lamp.getBoundingClientRect();
+    const fly = this.lampFly;
+    fly.textContent = this.comboNum.textContent;
+    fly.style.color = getComputedStyle(this.comboNum).color;
+    fly.style.fontSize = `${from.height}px`;
+    fly.style.left = `${from.left + from.width / 2 - root.left}px`;
+    fly.style.top = `${from.top + from.height / 2 - root.top}px`;
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    const grow = Math.min(2.2, Math.max(1, (to.height * 0.9) / Math.max(1, from.height)));
+    this.comboFlight?.cancel();
+    this.comboFlight = fly.animate(
+      [
+        { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${grow})`, opacity: 1, offset: 0.82 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${grow * 1.25})`, opacity: 0 },
+      ],
+      { duration: COMBO_FLIGHT_MS / 0.82, easing: 'cubic-bezier(0.5, 0, 0.2, 1)', fill: 'both' },
+    );
+  }
+
+  /** A play that ends failed with its gauge short of the line: what is left of the gauge runs out, red. */
+  drainGauge(): void {
+    this.gauge.classList.add('drain');
+  }
+
+  /** The whole HUD but the lamp loses its colour (a play that failed halfway). */
+  setFailed(on: boolean): void {
+    this.root.classList.toggle('failed', on);
+  }
+
+  hideLamp(): void {
+    this.comboFlight?.cancel();
+    this.comboFlight = null;
+    this.lamp.className = 'hud-lamp';
+    delete this.lamp.dataset.lamp;
+    this.lamp.removeAttribute('aria-label');
+    this.lampText.textContent = '';
+    this.gauge.classList.remove('drain');
+    this.root.classList.remove('ended', 'failed');
   }
 
   dispose(): void {

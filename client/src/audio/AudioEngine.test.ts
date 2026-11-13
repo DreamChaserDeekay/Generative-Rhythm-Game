@@ -127,3 +127,179 @@ describe('AudioEngine output', () => {
     expect(bus.gain.value).toBeCloseTo(0.6, 10);
   });
 });
+
+/** An AudioParam that writes down what is scheduled on it. */
+class LoggedParam {
+  value = 1;
+  readonly log: [string, ...number[]][] = [];
+  setValueAtTime(v: number, t: number) {
+    this.log.push(['set', v, t]);
+  }
+  linearRampToValueAtTime(v: number, t: number) {
+    this.log.push(['line', v, t]);
+  }
+  exponentialRampToValueAtTime(v: number, t: number) {
+    this.log.push(['exp', v, t]);
+  }
+  cancelScheduledValues(t: number) {
+    this.log.push(['cancel', t]);
+  }
+}
+
+class Wired extends FakeNode {
+  disconnect() {
+    this.out.length = 0;
+  }
+}
+
+class WiredGain extends Wired {
+  readonly gain = new LoggedParam();
+  constructor() {
+    super('gain');
+  }
+}
+
+class FakeSource extends Wired {
+  buffer: unknown = null;
+  readonly playbackRate = new LoggedParam();
+  startedAt: number | null = null;
+  stopAt: number | null = null;
+  constructor() {
+    super('source');
+  }
+  start(when: number) {
+    this.startedAt = when;
+  }
+  stop(when?: number) {
+    this.stopAt = when ?? 0;
+  }
+}
+
+class FakeFilter extends Wired {
+  type = '';
+  readonly frequency = new LoggedParam();
+  constructor() {
+    super('filter');
+  }
+}
+
+/** A context that plays buffers: time stands at 10 s. */
+class PlayingContext {
+  readonly currentTime = 10;
+  readonly destination = new FakeNode('destination');
+  readonly nodes: FakeNode[] = [];
+  private add<T extends FakeNode>(node: T): T {
+    this.nodes.push(node);
+    return node;
+  }
+  createGain() {
+    return this.add(new WiredGain());
+  }
+  createAnalyser() {
+    return this.add(Object.assign(new FakeNode('analyser'), { fftSize: 0, smoothingTimeConstant: 0 }));
+  }
+  createWaveShaper() {
+    return this.add(new FakeShaper());
+  }
+  createBufferSource() {
+    return this.add(new FakeSource());
+  }
+  createBiquadFilter() {
+    return this.add(new FakeFilter());
+  }
+}
+
+describe('AudioEngine: how a song goes out', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const buffer = { duration: 60, length: 60 * 48000 } as unknown as AudioBuffer;
+
+  function playing(cuts: { buffer: AudioBuffer; ranges: [number, number][] }[] = []) {
+    vi.stubGlobal('AudioContext', PlayingContext);
+    const e = new AudioEngine();
+    const ctx = e.ctx as unknown as PlayingContext;
+    e.setBuffer(buffer, { originMs: 0, rate: 1 }, cuts);
+    e.start(0, 0);
+    const sources = ctx.nodes.filter((n): n is FakeSource => n instanceof FakeSource);
+    const sourceGain = sources[0].out[0] as WiredGain;
+    const music = (e.keysoundBus as unknown as FakeNode).out[0] as WiredGain;
+    return { e, ctx, sources, sourceGain, music };
+  }
+
+  it('plays the song straight into the music volume, with no filter in its way', () => {
+    const { ctx, sourceGain, music } = playing();
+    expect(sourceGain.out).toEqual([music]);
+    expect(ctx.nodes.some((n) => n instanceof FakeFilter)).toBe(false);
+  });
+
+  it('muffles it out at an end: a low-pass comes down to the cutoff and on while it fades, then it stops', () => {
+    const { e, ctx, sources, sourceGain, music } = playing();
+    e.muffleOut(2000, 800);
+    const filter = ctx.nodes.find((n): n is FakeFilter => n instanceof FakeFilter) as FakeFilter;
+    expect(filter.type).toBe('lowpass');
+    // the song now reaches the music volume through the filter alone
+    expect(sourceGain.out).toEqual([filter]);
+    expect(filter.out).toEqual([music]);
+    // open, down to the cutoff in the first part, lower still by the end
+    expect(filter.frequency.log[0]).toEqual(['set', 18000, 10]);
+    expect(filter.frequency.log[1][0]).toBe('exp');
+    expect(filter.frequency.log[1][1]).toBe(800);
+    expect(filter.frequency.log[1][2]).toBeGreaterThan(10);
+    expect(filter.frequency.log[1][2]).toBeLessThan(11);
+    expect(filter.frequency.log[2]).toEqual(['exp', 220, 12]);
+    // its level holds at first and is silent as it ends
+    expect(sourceGain.gain.log[0]).toEqual(['set', 1, 10]);
+    expect(sourceGain.gain.log[1]).toEqual(['line', 1, 10.5]);
+    expect(sourceGain.gain.log[2]).toEqual(['line', 0, 12]);
+    expect(sources[0].stopAt).toBeCloseTo(12.05, 6);
+    // a second call changes nothing
+    e.muffleOut(500, 800);
+    expect(ctx.nodes.filter((n) => n instanceof FakeFilter)).toHaveLength(1);
+    // and the next start is the song as it is again
+    e.start(0, 0);
+    expect(filter.out).toEqual([]);
+    const again = ctx.nodes.filter((n): n is FakeSource => n instanceof FakeSource).at(-1) as FakeSource;
+    expect(again.out[0].out).toEqual([music]);
+  });
+
+  it('runs it down like a tape at a failed play: slower and lower to a standstill, silent as it stops', () => {
+    const { e, sources, sourceGain } = playing();
+    e.tapeStop(1300);
+    expect(sources[0].playbackRate.log).toEqual([
+      ['set', 1, 10],
+      ['line', 0.001, 11.3],
+    ]);
+    expect(sourceGain.gain.log[0]).toEqual(['set', 1, 10]);
+    expect(sourceGain.gain.log[1][0]).toBe('line');
+    expect(sourceGain.gain.log[1][1]).toBe(1);
+    expect(sourceGain.gain.log[2]).toEqual(['line', 0, 11.3]);
+    expect(sources[0].stopAt).toBeCloseTo(11.35, 6);
+  });
+
+  it('brings the stems left to the keysounds back into the mix as it runs down, and runs them down with it', () => {
+    const { e, sources } = playing([{ buffer, ranges: [[5000, 9000]] }]);
+    expect(sources).toHaveLength(2);
+    const cut = sources[1].out[0] as WiredGain;
+    const scheduled = cut.gain.log.length;
+    expect(scheduled).toBeGreaterThan(0);
+    e.tapeStop(1300);
+    const after = cut.gain.log.slice(scheduled);
+    expect(after[0]).toEqual(['cancel', 10]);
+    expect(after.at(-1)?.[0]).toBe('line');
+    expect(after.at(-1)?.[1]).toBe(0);
+    expect(sources[1].playbackRate.log).toEqual(sources[0].playbackRate.log);
+    expect(sources[1].stopAt).toBeCloseTo(11.35, 6);
+  });
+
+  it('does nothing of either with no song playing', () => {
+    vi.stubGlobal('AudioContext', PlayingContext);
+    const e = new AudioEngine();
+    const ctx = e.ctx as unknown as PlayingContext;
+    const before = ctx.nodes.length;
+    e.muffleOut(2000, 800);
+    e.tapeStop(1300);
+    expect(ctx.nodes).toHaveLength(before);
+  });
+});

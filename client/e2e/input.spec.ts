@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseSetting, playOptions, settingsTab, songInfo } from './songSelect';
+import { pickDemoSong, serveChart } from './servedChart';
+import { autoplay, chooseSetting, playOptions, settingsTab, songInfo } from './songSelect';
 
 function trackErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -183,43 +184,62 @@ test('a play that starts after the window was left during its loading starts pau
   expect(errors).toEqual([]);
 });
 
-test('a practice run gives three seconds and READY before its first note, every loop', async ({ page }) => {
+test('a practice run gives three seconds before its first note every loop, and shows its start only the first time', async ({ page }) => {
   const errors = trackErrors(page);
   await startWith(page, { lastKeyMode: '4K', hiSpeed: 4 });
-  await demoSong(page);
+  // a chart of the test's own (no chart is made where there is no GPU): its first note is at beat 2
+  await serveChart(page, 2, 30);
+  await pickDemoSong(page);
   await expect(page.getByTestId('chart-level')).toBeVisible({ timeout: 30_000 });
   await playOptions(page);
-  await page.getByTestId('autoplay-toggle').check();
-  await page.getByTestId('practice-toggle').check();
+  // a row is turned with ← → (a click only puts the cursor on it, and Enter plays); practice loads the chart
+  // first where it is not loaded yet, so the switch turns a moment after
+  await page.getByTestId('practice-toggle').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('practice-toggle')).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
-  await play(page);
+  await autoplay(page);
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 60_000 });
   const t0 = await page.evaluate(() => performance.now());
-  await expect(page.getByTestId('hud-ready')).toHaveText('READY');
+  // the lanes light and the judge line is drawn (named on the canvas), with no word
+  const stage = page.locator('canvas[data-stage]');
+  await expect(stage).toHaveAttribute('data-stage', 'intro');
+  await expect(page.getByTestId('hud-ready')).toHaveCount(0);
   // autoplay hits the first note on time: not before the lead-in is over
   await expect.poll(async () => Number((await page.locator('.hud-combo-num').textContent()) || 0), { timeout: 20_000 }).toBeGreaterThan(0);
   const t1 = await page.evaluate(() => performance.now());
   expect(t1 - t0).toBeGreaterThan(2500);
-  await expect(page.getByTestId('hud-ready')).toHaveText('');
-  // the next loop starts over with READY (written down as it happens: it shows under two seconds)
+  await expect(stage).toHaveAttribute('data-stage', 'play');
+  // the next loop starts as it is, three seconds before its first note again (written down as it happens)
   await page.evaluate(() => {
     const log: string[] = [];
     (window as unknown as { __hud: string[] }).__hud = log;
-    for (const id of ['hud-toast', 'hud-ready']) {
-      const el = document.querySelector(`[data-testid="${id}"]`) as HTMLElement;
-      new MutationObserver(() => log.push(`${id}:${el.textContent}`)).observe(el, { childList: true, characterData: true, subtree: true });
-    }
+    const watch = (el: Element, line: () => string, attribute?: string) =>
+      new MutationObserver(() => log.push(`${line()}@${Math.round(performance.now())}`)).observe(
+        el,
+        attribute ? { attributes: true, attributeFilter: [attribute] } : { childList: true, characterData: true, subtree: true },
+      );
+    const toast = document.querySelector('[data-testid="hud-toast"]') as HTMLElement;
+    const combo = document.querySelector('.hud-combo-num') as HTMLElement;
+    const canvas = document.querySelector('canvas[data-stage]') as HTMLCanvasElement;
+    watch(toast, () => `toast:${toast.textContent}`);
+    watch(combo, () => `combo:${combo.textContent}`);
+    watch(canvas, () => `stage:${canvas.dataset.stage}`, 'data-stage');
   });
-  await expect
-    .poll(
-      () =>
-        page.evaluate(() => {
-          const log = (window as unknown as { __hud: string[] }).__hud;
-          const at = log.findIndex((line) => line.includes('LOOP 1 · RATE'));
-          return at >= 0 && log.slice(at).includes('hud-ready:READY');
-        }),
-      { timeout: 60_000 },
-    )
-    .toBe(true);
+  const nextLoop = () =>
+    page.evaluate(() => {
+      const log = (window as unknown as { __hud: string[] }).__hud;
+      const at = log.findIndex((line) => line.includes('LOOP 1 · RATE'));
+      const hit = at < 0 ? undefined : log.slice(at).find((line) => /^combo:[1-9]/.test(line));
+      if (!hit) return null;
+      const ms = (line: string) => Number(line.split('@')[1]);
+      return { lead: ms(hit) - ms(log[at]), stages: log.slice(at).filter((line) => line.startsWith('stage:')).map((line) => line.split('@')[0]) };
+    });
+  await expect.poll(async () => (await nextLoop()) !== null, { timeout: 60_000 }).toBe(true);
+  const loop = await nextLoop();
+  expect(loop?.lead).toBeGreaterThan(2500);
+  expect(loop?.stages).not.toContain('stage:intro');
   expect(errors).toEqual([]);
 });
 
