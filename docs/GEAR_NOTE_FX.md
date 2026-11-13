@@ -364,7 +364,7 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
   | `child-process-gone` | 앱의 프로세스 하나가 사라짐: `type`(GPU가 그래픽 프로세스), `reason`(crashed, killed, oom …), `exitCode`(Windows의 큰 값은 `exitHex`도) |
   | `render-process-gone` | 게임 페이지의 프로세스가 사라짐: `reason`, `exitCode` |
   | `webglcontextlost` / `webglcontextrestored` | 페이지의 WebGL 캔버스가 컨텍스트를 잃음 / 돌려받음: 어느 캔버스(`play-canvas`가 플레이), 돌아오기까지 걸린 시간(`afterMs`), 그리고 그 순간의 플레이: 곡 제목 · 난이도 · 키 모드(`song`, `tier`, `mode`), 곡의 어디였는지(`songMs`는 곡 시간 ms, `at`은 화면의 경과 시간), 단계(`stage`), 스킨(`skin`: 기어/노트/타격), 배경 영상 종류(`bga`: none · file · youtube), 렌더러가 쥔 것(`gfx`: 텍스처 · 지오메트리 · 프로그램 수, 드로 콜, FEVER 여부, 카메라의 기울기 · 줌 · 숙임, 캔버스 픽셀 크기). 그래픽 프로세스가 죽지 않고 컨텍스트만 끊긴 경우도 이 줄로 남습니다. 값들은 페이지가 캔버스의 `data-` 속성에 1초에 한 번 적어 두는 것(`TrackRenderer.tell`)과 HUD에 보이는 글자를 `preload.js`가 읽은 것입니다 |
-  | `server` | 끊긴 그때 서버가 채보를 만들고 있었는지: `making`(만드는 채보의 id, 없으면 none), `waiting`(기다리는 수), `loaded`(채보 모델이 올라가 있는지: 한 번 만들면 앱을 끌 때까지 그래픽 메모리 몇 GB를 쥐고 있음). 서버의 `GET /api/mapper/queue` |
+  | `server` | 끊긴 그때 서버가 채보를 만들고 있었는지: `making`(만드는 채보의 id, 없으면 none), `waiting`(기다리는 수), `loaded`(채보 모델이 올라가 있는지: 채보를 만든 뒤 2분 동안(`idleUnloadSeconds`) 그래픽 메모리 몇 GB를 쥐고 있음). 서버의 `GET /api/mapper/queue` |
   | `gpu-memory` | 끊긴 그때 그래픽 카드의 메모리가 얼마나 차 있었는지(`vram`: 카드마다 `쓴 양/전체MB 사용률%`). 드라이버에 딸려 오는 `nvidia-smi`의 답이고, NVIDIA 카드가 없으면 unknown |
   | `gpu-features` | 게임을 그리는 방식이 바뀌었을 때(소프트웨어로 넘어감 등)와 사진을 찍을 때 |
   | `picture` | 끊긴 뒤의 창을 찍은 사진의 파일 이름(`graphics-lost-날짜-시각.jpg`, 같은 폴더, 최근 5장만 둠)과 그때 WebGL이 돌아와 있었는지(`webgl=back` / `lost` / `none`) |

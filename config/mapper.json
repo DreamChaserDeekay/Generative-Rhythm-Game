@@ -11,6 +11,7 @@
   "holdNoteRatio": null,
   "temperature": null,
   "timeoutSeconds": 1800,
+  "idleUnloadSeconds": 120,
   "silence": {
     "_comment": "Silences of the song's audio (server/rhythm_server/mapper/silence.py): a stretch of minMs or more under the song's loud level by belowLoudDb (or under floorDb dBFS), measured in frames of frameMs. Mapperatorinator is asked to stop at the music's end plus endPadMs when the song ends in one, and a note more than marginMs into a silence is dropped (a hold reaching into one ends there).",
     "frameMs": 50,
