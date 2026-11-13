@@ -220,6 +220,43 @@ def test_the_queue_makes_the_opened_chart_first_then_the_background_ones() -> No
     q.close()
 
 
+def _wait_for(done, seconds: float = 5) -> None:
+    deadline = time.time() + seconds
+    while not done() and time.time() < deadline:
+        time.sleep(0.01)
+
+
+def test_the_queue_says_what_it_is_making_and_how_many_wait() -> None:
+    from rhythm_server.mapper.queue import BACKGROUND, OPENED, MapperQueue
+
+    idle = {"making": None, "waiting": 0}
+    gate = threading.Event()
+    q = MapperQueue(lambda name: gate.wait(5) and {"name": name})
+    assert q.snapshot() == idle
+    first, _ = q.submit("first", OPENED, ("first",))
+    _wait_for(lambda: q.state("first") == "making")
+    q.submit("bg1", BACKGROUND, ("bg1",))
+    last, _ = q.submit("bg2", BACKGROUND, ("bg2",))
+    assert q.snapshot() == {"making": "first", "waiting": 2}
+    gate.set()
+    assert first.result(5) and last.result(5)
+    _wait_for(lambda: q.snapshot() == idle)
+    assert q.snapshot() == idle
+    q.close()
+
+
+def test_the_server_tells_what_chart_is_being_made(mapped: TestClient) -> None:
+    idle = {"making": None, "waiting": 0}
+    assert mapped.get("/api/mapper/queue").json() == idle
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).status_code == 200
+    # the other four tiers follow in the background: named here until the last is made
+    seen = mapped.get("/api/mapper/queue").json()
+    assert set(seen) == {"making", "waiting"} and 0 <= seen["waiting"] <= 4
+    _wait_for(lambda: mapped.get("/api/mapper/queue").json() == idle, 30)
+    assert mapped.get("/api/mapper/queue").json() == idle
+
+
 def test_the_settings_screen_settings_are_kept_and_make_other_charts(mapped: TestClient) -> None:
     before = mapped.get("/api/mapper").json()
     assert before["settings"]["starsScale"] == 1.0 and before["settings"]["model"] == "v32"
