@@ -53,6 +53,12 @@ export type Pattern = number | string;
 /** Opacities of the judgement and the combo (notes behind them show through). */
 export const JUDGEMENT_OPACITIES: readonly number[] = [1, 0.7, 0.4];
 
+/**
+ * A change of the settings: the new settings, or what to do to the latest ones. Whatever ends after
+ * an await gives the latter, so a change made meanwhile (on another screen) is kept.
+ */
+export type SettingsChange = Settings | ((latest: Settings) => Settings);
+
 export interface Settings {
   judgementMode: JudgementModeId;
   /** 1.0 = a note takes BASE_VISIBLE_MS from the track end to the (unlifted) judgement line. */
