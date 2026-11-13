@@ -1,0 +1,107 @@
+{
+ "gear": "gemini",
+ "name": "Gemini",
+ "picture": "gemini.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "a9fe124fff668018b28aa7d1a15d42069a04f45f8e9c84fbadf32d73431f21fe",
+ "chosen": "chosen/gemini.png (2048 x 876): the user's choice ('이대로 확정'), draft 6",
+ "steps": [
+  "p4/gemini-d1/try-1.png: draft 3-A (p6/layout-gemini4.py or its like, p4/gen15.py): the spark, the crowned 3D Gemini wordmark on gradient smooth metal",
+  "p4/gemini-e1/try-3.png: draft 4-A, that render changed by the image model (p4/gen16.py): the four marbles gone, the colours paler, the banana at the lower right (chosen/gemini-things-generation.png, .json)",
+  "p4/tools.py flat gemini-e1 3 -> chosen/gemini-things-flat.png: the things (the spark, the crown, the wordmark, the banana) are this picture's own pixels",
+  "p6/reground.py gemini-e1:3 gemini-h1 70 45 -> p4/gemini-h1/ground-1.png (chosen/gemini-drawn-ground.png): the drawn ground, pale blue > lavender > pink with slanted bands of light",
+  "p4/gen18.py gemini-h1 2 gloss -> chosen/gemini-metal-generation.png (.json): the drawn ground repainted by the image model as a sheet of smooth semi-gloss metal (a flat texture; nothing lies on it)",
+  "p6/reground.py gemini-e1:3 gemini-h4 70 45 ground=p4/gemini-h1/metal-2.png mirror=0.3 -> chosen/gemini.png: the things laid on the metal (its broad colours brought to the drawn ground's lightness), the logo 300 px left of where draft 4-A had it (the wordmark's middle 70 px right of the panel's middle) and 45 px up, the banana where it was, each thing mirrored faintly in the metal"
+ ],
+ "sources": {
+  "spark and wordmark": "the Gemini symbol and wordmark (ai/dl, p4/refs/gemini-spark.jpg, p4/refs/gemini-logo.png), given to the image model as design references",
+  "crown, banana": "made by the image model (the banana for the image model's nickname)",
+  "colours": "the user's reference picture (a pastel blue, violet and pink Gemini logo), one step and then another step paler at the user's word"
+ },
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "21:9",
+   "size": "2K",
+   "finish": "gloss",
+   "prompt": "One picture comes with this request. IMAGE 1 is a flat COLOUR PLAN of a surface: very pale pastel colours that run from pale sky blue at the left through pale lavender in the middle to pale pink at the right, crossed by a few soft slanted bands of lighter colour.\n\nRepaint image 1 as a straight-on, orthographic, top-down studio photograph of ONE flat sheet of smooth metal that fills the whole picture edge to edge: pastel-tinted POLISHED METAL with a smooth semi-gloss finish, like a polished, pastel-anodised aluminium panel of a premium hi-fi device: smooth, clearly reflective, the lights mirrored in it softly but distinctly; still not a chrome mirror.\n\nKEEP from image 1: its colours and their lightness at every place (it is PALE: do not make it darker, greyer or more saturated), the run of blue, lavender and pink from left to right, and the places and the slant of the lighter bands. The picture must look the same along its whole height: the top of the picture is not brighter, darker or differently coloured than the bottom.\n\nMAKE IT METAL: the lighter slanted bands are the reflections of long studio strip lights in the metal. Each has a brighter, cleaner core and soft edges and runs unbroken from the top edge of the picture to the bottom edge, as wide and as bright at the top as at the bottom. Between the reflections lies the metal's own colour, a touch deeper. Over all of it the smooth, directional sheen of real metal and an extremely fine, even metallic grain (the micro-sparkle of bead-blasted anodised aluminium) that is visible only close up. Photorealistic, like a product photograph of a material sample.\n\nIt is a texture: no objects, no text, no letters, no logos, no scratches, no dents, no seams, no screws, no holes, no edges or corners of the sheet, no border, no frame, no vignette, no dark corners, no horizon, no perspective, no cast shadows, no hot spot of light.",
+   "made": "2026-11-12 08:10:49 +0000",
+   "bytes": 5778144,
+   "sha256": "f389e9be5533ffc6e47ebd992eddd4dae6b44db8ccf696e44a1566f8e0ebd687",
+   "usage": {
+    "promptTokenCount": 1550,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 3671,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 430
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 441
+   },
+   "pictures": [
+    "p4/gemini-h1/ground-1.png (the drawn ground: this project's own picture)"
+   ],
+   "record": "gemini-metal-generation.json"
+  },
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "gemini-e1",
+   "prompt": "Two pictures come with this request.\n\nIMAGE 1 is the FINISHED PICTURE you change: the lower part of a frame of our own rhythm game's play screen. Its lower panel (under the row of key caps, between the two side rails) is a slab of smooth polished metal coloured in a gradient, blue at the left, violet in the middle, pink at the right, and on it lie, from left to right: four glass marbles (blue, red, yellow, green); a four-pointed star emblem of glossy glass in blue, red, yellow and green; and the word Gemini in thick glossy black letters with a small gold crown on its capital G.\n\nIMAGE 2 is a FLAT LAYOUT DRAWING of the same frame as it must be after the change. It shows where things lie, how large they are, and how light the slab's colours must be: a paler slab; no marbles; the emblem and the crowned word; and a banana near the panel's near right corner.\n\nMake these changes to image 1, and NO others:\n\nA. THE FOUR MARBLES GO. Remove the four glass marbles left of the emblem completely, with their shadows and the pools of coloured light they throw, leaving bare, smooth metal where they were.\n\nB. THE METAL BECOMES PALER. Keep the slab the same smooth polished metal with the same clean sheen and the same gradient from left to right, but make its colours clearly lighter and softer, pastel, as light as image 2 shows them: a pale sky blue at the left, a pale lilac in the middle, a pale rose pink at the right. It must be this light over the WHOLE slab, also toward the camera: no deep violet, no dusky or dark area and no grey patch anywhere on it. It must still read as polished METAL, not as flat paint: the broad, soft, bright highlights that glide over the slab in image 1 stay.\n\nC. A BANANA IS ADDED. Near the panel's near right corner, exactly where image 2 has it and as large: one small ripe banana as a solid three-dimensional thing lying flat on the metal: smooth and glossy, a clean bright yellow, gently curved, with a short stem at one end and a small dark tip at the other, like a perfect little banana in a product render; a short, soft shadow under it. Only one banana; do not peel it, do not add a sticker or a face.\n\nKeep everything else of image 1 EXACTLY as it is: the framing, the camera, the zoom and the crop (your picture must overlay image 1 pixel for pixel); the lanes, the notes, the judge line and the flash on it, the row of key caps, the rails and the dark background; the emblem of glossy glass; the word Gemini in glossy black letters, every letter's shape; the gold crown with its four gems on the G, all three unchanged in place and size. The shadows stay short and tight, tinted by the metal: no grey haze and no dark halo round the word or round anything else. No other text, letters or numbers, no other logos, no watermark.",
+   "made": "2026-11-12 07:46:20 +0000",
+   "bytes": 4387733,
+   "sha256": "d4579ba7d67d157f74a2ff6cd14ca1c48c4c30e342c1987820a48bc4600a661e",
+   "usage": {
+    "promptTokenCount": 2901,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5596,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 661
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 2240
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1015
+   },
+   "pictures": [
+    "p4/gemini-d1/try-1.png (draft 3-A's render, the picture changed)",
+    "p4/gemini-e1/tmpl-crop.png (the layout drawing of the changed panel in this game's own frame)"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "gemini-things-generation.json"
+  }
+ ]
+}

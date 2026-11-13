@@ -10,7 +10,9 @@ import type { DeckMark, GearStyle } from './deckArt';
  *
  * Each light is placed where the deck's picture shows its part (the deck picture's px:
  * DECK_PICTURE_PX across, its rows as many: scripts/assets/build_gears.py) and, on a deck drawn in
- * code (the plane camera's), on the box its plate marked for the part (deckArt.ts: DeckSpec.marks).
+ * code (the plane camera's, and every skin's), on the box its plate marked for the part (deckArt.ts:
+ * DeckSpec.marks): under a skin's row of keys that is its panel's picture, which marks its own parts
+ * (deckArt.ts: PANEL_MARKS).
  */
 
 /** How many px across the decks' pictures are (build_gears.py's deck_flat). */
@@ -746,43 +748,22 @@ function steelLights(): GearLightSet {
 }
 
 /**
- * RAINBOW: the line under its buttons takes a pink light on the beat and the dome's capsule glows with it,
- * both stronger in FEVER; a slow breath under 번쩍임 줄이기. Soft: the deck is white.
- */
-function rainbowLights(): GearLightSet {
-  return {
-    lights: [
-      {
-        shape: 'wash',
-        x: 1024,
-        y: 110,
-        w: 2048,
-        h: 40,
-        colour: 0xff7ac3,
-        level: (c, calm) => (calm ? 0.08 + 0.08 * swell(c.beat, 4) : 0.04 + (c.fever ? 0.34 : 0.22) * fade(frac(c.beat), 3)),
-        mark: 'glow',
-        grow: [1, 1.4],
-      },
-      {
-        shape: 'glow',
-        x: 1024,
-        y: 420,
-        w: 260,
-        h: 200,
-        colour: 0xffffff,
-        level: (c, calm) => (calm ? 0.1 + 0.1 * swell(c.beat, 4) : 0.05 + (c.fever ? 0.36 : 0.24) * fade(frac(c.beat), 3)),
-        mark: 'emblem',
-        grow: 1.2,
-      },
-    ],
-  };
-}
-
-/**
- * NOIR: the red hairline under its slots flares on the beat, and in FEVER the cluster of dots at its far
- * left glows with it; a slow breath under 번쩍임 줄이기.
+ * NOIR: the red hairline under its slots flares on the beat, and in FEVER the two rows of teeth on its board
+ * glow with it, the left one and the right one (its panel's picture has both: deckArt.PANEL_MARKS; its plate
+ * drawn in code has a cluster of dots at its far left only); a slow breath under 번쩍임 줄이기.
  */
 function noirLights(): GearLightSet {
+  const teeth = (x: number, mark: string): GearLight => ({
+    shape: 'glow',
+    x,
+    y: 260,
+    w: 340,
+    h: 200,
+    colour: 0xff1a2b,
+    level: (c, calm) => (!c.fever ? 0 : calm ? 0.16 : 0.08 + 0.3 * fade(frac(c.beat), 3)),
+    mark,
+    grow: 1.2,
+  });
   return {
     lights: [
       {
@@ -796,52 +777,8 @@ function noirLights(): GearLightSet {
         mark: 'glow',
         grow: [1, 1.5],
       },
-      {
-        shape: 'glow',
-        x: 200,
-        y: 260,
-        w: 340,
-        h: 200,
-        colour: 0xff1a2b,
-        level: (c, calm) => (!c.fever ? 0 : calm ? 0.16 : 0.08 + 0.3 * fade(frac(c.beat), 3)),
-        mark: 'dots',
-        grow: 1.2,
-      },
-    ],
-  };
-}
-
-/**
- * MAGENTA: the crimson line under its keys flares on the beat and its two magenta lamps light in turn, a
- * beat each (both together in FEVER); a slow breath under 번쩍임 줄이기.
- */
-function magentaLights(): GearLightSet {
-  const lamp = (i: number): GearLight => ({
-    shape: 'glow',
-    x: i === 0 ? 614 : 1434,
-    y: 420,
-    w: 120,
-    h: 120,
-    colour: 0xff2fd0,
-    level: (c, calm) => (calm ? 0.2 * softTurn(c.beat, i, 2) : c.fever ? 0.1 + 0.6 * fade(frac(c.beat), 3) : 0.7 * fade(sinceTurn(c.beat, i, 2), 2.4)),
-    mark: i === 0 ? 'lampL' : 'lampR',
-    grow: 3.2,
-  });
-  return {
-    lights: [
-      {
-        shape: 'wash',
-        x: 1024,
-        y: 110,
-        w: 2048,
-        h: 40,
-        colour: 0xff4d86,
-        level: (c, calm) => (calm ? 0.12 + 0.1 * swell(c.beat, 4) : 0.06 + (c.fever ? 0.54 : 0.36) * fade(frac(c.beat), 3)),
-        mark: 'glow',
-        grow: [1, 1.5],
-      },
-      lamp(0),
-      lamp(1),
+      teeth(200, 'dots'),
+      teeth(1848, 'dots.1'),
     ],
   };
 }
@@ -934,9 +871,7 @@ export const GEAR_LIGHTS: Record<GearStyle, () => GearLightSet> = {
   claude: brandLights(0xffc4a8),
   aqua: aquaLights,
   steel: steelLights,
-  rainbow: rainbowLights,
   noir: noirLights,
-  magenta: magentaLights,
   wire: wireLights,
   astral: astralLights,
   standard: standardLights,

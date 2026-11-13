@@ -116,15 +116,15 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
  * CLAUDE (the four AI companies' skins) are the company's mark itself, a picture that comes with the build (LOGO_NOTES).
  * AQUA (the aqua mecha skin's, 아쿠아) is a bar as well: a plate of armour with cut corners in a white rim (its long note a light rail with chevrons).
  */
-export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
+export type NoteStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flat' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'chamfer' | 'round' | 'star4' | 'star5';
 /**
  * The bars in a finish of their own (the bar's shape, FLAT's): mirror chrome cut with bevels,
  * brushed hairline metal, clear glass, glossy enamel, satin pearl, woven carbon.
  */
 export const MATERIAL_NOTES = ['chrome', 'hairline', 'glass', 'enamel', 'pearl', 'carbon'] as const satisfies readonly NoteStyle[];
-export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
+export const NOTE_STYLES: NoteStyle[] = ['flat', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', ...MATERIAL_NOTES, 'chamfer', 'round', 'star4', 'star5'];
 /** The skins' notes that are bars (as deep in every lane as FLAT's). */
-const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'];
+const SKIN_BARS: readonly NoteStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 /** Whether a note style is a bar (FLAT's shape: the materials' too), as deep in every lane. */
 export const isBarNote = (style: NoteStyle): boolean => style === 'flat' || SKIN_BARS.includes(style) || (MATERIAL_NOTES as readonly NoteStyle[]).includes(style);
 
@@ -1128,43 +1128,6 @@ function steelNote(g: CanvasRenderingContext2D, w: number, h: number, mark: Note
 }
 
 /**
- * RAINBOW's bar (the rainbow pop skin's, 무지개): a glossy candy bar in the lane's colour, its corners
- * round: lighter over its far half, one soft white gloss along that side, and a light edge along its
- * near side (its timing). The scratch's is told from a key's by a white ring in its middle.
- */
-function rainbowNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
-  const u = unit(h);
-  g.save();
-  softOutline(g, w, h, u(12) / NOTE_STRETCH);
-  g.clip();
-  const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, ink(1, 0.22));
-  face.addColorStop(0.5, tone(1));
-  face.addColorStop(1, tone(0.82));
-  g.fillStyle = face;
-  g.fillRect(0, 0, w, h);
-  const gloss = Math.max(2, h * 0.2);
-  g.beginPath();
-  g.roundRect(u(9), h * 0.13, Math.max(1, w - 2 * u(9)), gloss, gloss / 2);
-  g.fillStyle = ink(1, 0.78, 0.85);
-  g.fill();
-  const edge = Math.max(2, u(5));
-  g.fillStyle = ink(1, 0.5);
-  g.fillRect(0, h - edge, w, edge);
-  if (mark === 'scratch') {
-    const r = Math.min(w * 0.06, (h / NOTE_STRETCH) * 0.24);
-    g.translate(w / 2, h * 0.56);
-    g.scale(1, NOTE_STRETCH);
-    g.beginPath();
-    g.arc(0, 0, r, 0, Math.PI * 2);
-    g.lineWidth = Math.max(1.5, r * 0.5);
-    g.strokeStyle = ink(0, 1);
-    g.stroke();
-  }
-  g.restore();
-}
-
-/**
  * NOIR's bar (the black and red skin's, 레드라인): a flat hard-edged block of the lane's colour, no bevel
  * and no gloss, its far right corner clipped off; a thin black line inset along its far edge and a
  * brighter band along its near side (its timing). The scratch's is told from a key's by a white chevron.
@@ -1191,57 +1154,6 @@ function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   if (mark === 'scratch') {
     const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.3);
     g.translate(w / 2, h * 0.46);
-    g.scale(1, NOTE_STRETCH);
-    g.beginPath();
-    g.moveTo(-r * 1.5, -r * 0.5);
-    g.lineTo(0, r * 0.5);
-    g.lineTo(r * 1.5, -r * 0.5);
-    g.lineWidth = Math.max(1.5, r * 0.5);
-    g.lineJoin = 'miter';
-    g.strokeStyle = ink(0, 1);
-    g.stroke();
-  }
-  g.restore();
-}
-
-/**
- * MAGENTA's plate (the crimson mecha skin's, 크림슨): a plate of armour whose two short ends are cut to
- * points (a long hexagon on the screen): the lane's colour in a dark rim, lighter toward its far edge,
- * one thin dark line across it and a light edge along its near side (its timing). The scratch's is
- * told from a key's by a white chevron.
- */
-function magentaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
-  const u = unit(h);
-  const cut = Math.min(w * 0.16, h / (2 * NOTE_STRETCH));
-  const hexagon = (t: number): [number, number][] => [
-    [cut + t * 0.6, t * NOTE_STRETCH],
-    [w - cut - t * 0.6, t * NOTE_STRETCH],
-    [w - t * 1.4, h / 2],
-    [w - cut - t * 0.6, h - t * NOTE_STRETCH],
-    [cut + t * 0.6, h - t * NOTE_STRETCH],
-    [t * 1.4, h / 2],
-  ];
-  polygon(g, hexagon(0));
-  g.fillStyle = tone(0.34);
-  g.fill();
-  const t = Math.max(1.5, u(3));
-  g.save();
-  polygon(g, hexagon(t));
-  g.clip();
-  const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, ink(1, 0.3));
-  face.addColorStop(0.5, tone(1));
-  face.addColorStop(1, tone(0.82));
-  g.fillStyle = face;
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = tone(0.56);
-  g.fillRect(0, h * 0.3, w, Math.max(1, u(1.8)));
-  const edge = Math.max(2, u(7));
-  g.fillStyle = ink(1, 0.72);
-  g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
-  if (mark === 'scratch') {
-    const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.3);
-    g.translate(w / 2, h * 0.5);
     g.scale(1, NOTE_STRETCH);
     g.beginPath();
     g.moveTo(-r * 1.5, -r * 0.5);
@@ -1491,9 +1403,7 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
   claude: logoNote('claude'),
   aqua: aquaNote,
   steel: steelNote,
-  rainbow: rainbowNote,
   noir: noirNote,
-  magenta: magentaNote,
   wire: wireNote,
   astral: astralNote,
   flat: flatNote,
@@ -1511,8 +1421,8 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
@@ -1526,9 +1436,7 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   claude: 'claude',
   aqua: 'aqua',
   steel: 'steel',
-  rainbow: 'rainbow',
   noir: 'noir',
-  magenta: 'magenta',
   wire: 'wire',
   astral: 'sky',
   flat: 'solid',
@@ -1786,27 +1694,6 @@ function steelLong(lit: boolean): Paint {
 }
 
 /**
- * RAINBOW's long note: a long glossy band in the lane's colour, round as a candy stick is (darker toward
- * its two sides), a lighter stripe down its middle; `lit` (held), brighter all over.
- */
-function candyLong(lit: boolean): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    const k = lit ? 1.12 : 1;
-    const round = g.createLinearGradient(0, 0, w, 0);
-    round.addColorStop(0, tone(0.7 * k));
-    round.addColorStop(0.2, tone(k));
-    round.addColorStop(0.5, tone(1.08 * k));
-    round.addColorStop(0.8, tone(0.96 * k));
-    round.addColorStop(1, tone(0.68 * k));
-    g.fillStyle = round;
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = ink(1, lit ? 0.8 : 0.52, lit ? 0.95 : 0.8);
-    g.fillRect(a(21), 0, a(12), h);
-  };
-}
-
-/**
  * NOIR's long note: a flat band of the lane's colour at lower brightness between two bright edge lines,
  * and (`marked`: the body, not its ends) a small square a tile down its middle; `lit` (held), the band
  * and the squares brighter. Its ends are cut straight across (LONG_PAINT).
@@ -1821,22 +1708,6 @@ function noirLong(lit: boolean, marked = true): Paint {
     const d = a(3.6);
     g.fillStyle = ink(1, lit ? 0.95 : 0.6);
     g.fillRect(w / 2 - d / 2, h / 2 - (d * NOTE_STRETCH) / 2, d, d * NOTE_STRETCH);
-  };
-}
-
-/**
- * MAGENTA's long note: a rail of armour in the lane's colour, a darker middle between two bright side
- * rails in a dark rim; `lit` (held), brighter, a line of light down its middle.
- */
-function plateLong(lit: boolean): Paint {
-  return (g, w, h) => {
-    stripes(g, w, h, [
-      [0, 54, tone(0.34)],
-      [2.5, 10, tone(lit ? 1.3 : 1.16)],
-      [44, 51.5, tone(lit ? 1.08 : 0.96)],
-      [10, 44, tone(lit ? 0.84 : 0.6)],
-      ...(lit ? ([[25, 29, ink(1, 0.88)]] as [number, number, string][]) : []),
-    ]);
   };
 }
 
@@ -2087,15 +1958,6 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     endDepth: 0.2,
     width: 0.8,
   },
-  // the rainbow pop skin's: a glossy candy stick, a lighter stripe down its middle (held: brighter), each end cut straight across
-  rainbow: {
-    body: candyLong(false),
-    end: squareEnd(candyLong(false), ink(1, 0.85), 3),
-    held: { body: candyLong(true), end: squareEnd(candyLong(true), ink(1, 1), 3) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-  },
   // the black and red skin's: a flat band between two bright lines, small squares down its middle (held:
   // brighter), each end cut straight across; flat, with no walls
   noir: {
@@ -2106,16 +1968,6 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
     endDepth: 0.2,
     width: 0.8,
     flat: true,
-  },
-  // the crimson mecha skin's: a rail of armour, darker between its two bright sides (held: a line of light down
-  // its middle), each end cut straight across
-  magenta: {
-    body: plateLong(false),
-    end: squareEnd(plateLong(false), ink(1, 0.85), 3),
-    held: { body: plateLong(true), end: squareEnd(plateLong(true), ink(1, 1), 3) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.84,
   },
   // the white line skin's: two thin lines, faint between them (held: brighter), each end cut straight across; flat, with no walls
   wire: {
@@ -2565,10 +2417,10 @@ export function sideDotsEnd(cols: number): Paint {
  * GRID, and the sets' MECHA, CLUB, CRYSTAL, NEON and PIANO. Until they load, or when they cannot,
  * they are drawn here: the four as themselves, a set's as FLASH.
  */
-export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
-export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
+export type HitStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid' | 'mecha' | 'club' | 'crystal' | 'neon' | 'piano';
+export const HIT_STYLES: HitStyle[] = ['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano'];
 /** The hits drawn in code. */
-type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid';
+type DrawnHit = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'flash' | 'flare' | 'bubbles' | 'grid';
 const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   prism: 'prism',
   sky: 'sky',
@@ -2579,9 +2431,7 @@ const DRAWN_AS: Record<HitStyle, DrawnHit> = {
   claude: 'claude',
   aqua: 'aqua',
   steel: 'steel',
-  rainbow: 'rainbow',
   noir: 'noir',
-  magenta: 'magenta',
   wire: 'wire',
   astral: 'astral',
   flash: 'flash',
@@ -2633,12 +2483,8 @@ const CELLS: Record<DrawnHit, { w: number; h: number; cy: number; reach: number 
   aqua: { w: 160, h: 80, cy: 44, reach: 40 },
   // the gunmetal skin's: a plus and a square lying on the line
   steel: { w: 128, h: 96, cy: 54, reach: 40 },
-  // the rainbow pop skin's: a ring on the line and candy bits off it, most of them up the track a little way
-  rainbow: { w: 160, h: 128, cy: 96, reach: 52 },
   // the black and red skin's: two blocks on the line and small squares off it, up the track a little way
   noir: { w: 160, h: 112, cy: 82, reach: 50 },
-  // the crimson mecha skin's: a flash and a hexagon on the line, four shards off it as an X
-  magenta: { w: 192, h: 144, cy: 100, reach: 58 },
   // the white line skin's: a ring lying on the line, ticks round it and a dot at each side
   wire: { w: 160, h: 96, cy: 52, reach: 46 },
   // the starry night skin's: a ring on the line, a long star over it and tiny stars up the track a little way
@@ -2668,9 +2514,7 @@ const SKIN_HITS: Partial<Record<DrawnHit, (g: CanvasRenderingContext2D, p: numbe
   claude: drawRays,
   aqua: drawLockOn,
   steel: drawPlus,
-  rainbow: drawConfetti,
   noir: drawGlitch,
-  magenta: drawShards,
   wire: drawRingTicks,
   astral: drawStarlight,
 };
@@ -3256,46 +3100,6 @@ function drawPlus(g: CanvasRenderingContext2D, p: number): void {
 }
 
 /**
- * RAINBOW's hit at progress `p`: confetti. Six short round-ended bits in the candy colours fly out from
- * the hit, most of them up the track a little way, and one thin white ring opens on the line. No sparks.
- */
-function drawConfetti(g: CanvasRenderingContext2D, p: number): void {
-  const s = 64 / 60;
-  const out = 1 - (1 - p) ** 2.6;
-  const fade = Math.max(0, 1 - p) ** 0.9;
-  g.save();
-  g.scale(1, 0.62);
-  g.beginPath();
-  g.arc(0, 0, (10 + 24 * out) * s, 0, Math.PI * 2);
-  g.lineWidth = (2.4 - 1.4 * p) * s;
-  g.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
-  g.stroke();
-  g.restore();
-  // the angle a bit flies at (degrees from the line, negative up the track), how far, how long, its colour
-  const bits: [number, number, number, string][] = [
-    [-160, 40, 13, '255,75,75'],
-    [-128, 50, 16, '255,226,58'],
-    [-98, 44, 13, '139,224,74'],
-    [-70, 52, 16, '69,200,245'],
-    [-42, 44, 13, '166,107,245'],
-    [-16, 38, 12, '255,122,195'],
-  ];
-  g.lineCap = 'round';
-  for (const [deg, far, len, rgb] of bits) {
-    const a = (deg * Math.PI) / 180;
-    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.86];
-    const head = (12 + far * out) * s;
-    const tail = head - len * s * (0.55 + 0.45 * fade);
-    g.beginPath();
-    g.moveTo(dx * tail, dy * tail);
-    g.lineTo(dx * head, dy * head);
-    g.lineWidth = 5.4 * s * (0.6 + 0.4 * fade);
-    g.strokeStyle = `rgba(${rgb},${Math.min(1, fade * 1.6)})`;
-    g.stroke();
-  }
-}
-
-/**
  * NOIR's hit at progress `p`: a glitch. Two blocks, a red one and a white one, flash over the hit a
  * little apart and jump sideways in steps, small squares scatter up the track and a red line runs out
  * along the judge line. Over in a moment; no ring, no sparks.
@@ -3328,71 +3132,6 @@ function drawGlitch(g: CanvasRenderingContext2D, p: number): void {
     const z = size * s * (0.6 + 0.4 * fade);
     g.fillStyle = `rgba(${rgb},${Math.min(1, fade * 1.5)})`;
     g.fillRect(Math.cos(a) * d - z / 2, Math.sin(a) * 0.86 * d - z / 2, z, z);
-  }
-}
-
-/**
- * MAGENTA's hit at progress `p`: a crimson-white flash on the line, four thin shards of armour flying out
- * of it as an X (the two up the track the longer), and one thin hexagon opening round it. No smoke.
- */
-function drawShards(g: CanvasRenderingContext2D, p: number): void {
-  const s = 64 / 60;
-  const out = 1 - (1 - p) ** 3;
-  const fade = Math.max(0, 1 - p) ** 1.1;
-  const flash = Math.max(0, 1 - 2.4 * p);
-  if (flash > 0) {
-    g.save();
-    g.scale(1.7, 0.6);
-    const core = g.createRadialGradient(0, 0, 0, 0, 0, 22 * s);
-    core.addColorStop(0, `rgba(255,255,255,${0.95 * flash})`);
-    core.addColorStop(0.4, `rgba(255,92,149,${0.65 * flash})`);
-    core.addColorStop(1, 'rgba(240,20,90,0)');
-    g.fillStyle = core;
-    g.beginPath();
-    g.arc(0, 0, 22 * s, 0, Math.PI * 2);
-    g.fill();
-    g.restore();
-  }
-  const r = (12 + 22 * out) * s;
-  g.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = (i * Math.PI) / 3;
-    const [x, y] = [Math.cos(a) * r, Math.sin(a) * r * 0.62];
-    if (i === 0) g.moveTo(x, y);
-    else g.lineTo(x, y);
-  }
-  g.closePath();
-  g.lineWidth = (2.2 - 1.2 * p) * s;
-  g.lineJoin = 'miter';
-  g.strokeStyle = `rgba(255,92,149,${0.85 * fade})`;
-  g.stroke();
-  // the shards: the angle each flies at (degrees from the line, negative up the track), how far, how long
-  for (const [deg, far, len] of [
-    [-42, 58, 40],
-    [-138, 58, 40],
-    [24, 38, 24],
-    [156, 38, 24],
-  ]) {
-    const a = (deg * Math.PI) / 180;
-    const [dx, dy] = [Math.cos(a), Math.sin(a) * 0.86];
-    const head = (10 + far * out) * s;
-    const tail = Math.max(5 * s, head - len * s * (0.4 + 0.6 * fade));
-    const [x0, y0, x1, y1] = [dx * tail, dy * tail, dx * head, dy * head];
-    const wide = (5 - 2.4 * p) * s;
-    const [nx, ny] = [(-dy * wide) / 2, (dx * wide) / 2];
-    const [mx, my] = [x0 + (x1 - x0) * 0.6, y0 + (y1 - y0) * 0.6];
-    const shard = g.createLinearGradient(x0, y0, x1, y1);
-    shard.addColorStop(0, 'rgba(240,20,90,0)');
-    shard.addColorStop(0.4, `rgba(255,45,120,${Math.min(1, 1.8 * fade)})`);
-    shard.addColorStop(1, `rgba(255,255,255,${Math.min(1, 2.2 * fade)})`);
-    g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(mx + nx, my + ny);
-    g.lineTo(x1, y1);
-    g.lineTo(mx - nx, my - ny);
-    g.closePath();
-    g.fillStyle = shard;
-    g.fill();
   }
 }
 

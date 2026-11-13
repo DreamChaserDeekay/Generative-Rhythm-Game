@@ -4,7 +4,7 @@
   "trackLength": 40.0,
   "judgeLineY": 0.72,
   "presets": {
-    "PLANE": { "label": "평면", "projection": "orthographic", "height": 92.55, "distance": 351.8, "lookAhead": 15, "fov": 2.193, "fogStart": 0.835 },
+    "PLANE": { "label": "평면", "projection": "orthographic", "height": 92.55, "distance": 351.8, "lookAhead": 15, "fov": 2.193, "fogStart": 0.835, "judgeLineY": 0.755 },
     "FLAT": { "label": "약한 원근", "height": 15.547, "distance": 20.54, "lookAhead": 7.482, "fov": 33.3 },
     "SDVX": { "label": "SDVX", "height": 8.124, "distance": 11.016, "lookAhead": 6.228, "fov": 40 },
     "LOW": { "label": "강한 원근", "height": 5.571, "distance": 6.673, "lookAhead": 6.731, "fov": 55 }

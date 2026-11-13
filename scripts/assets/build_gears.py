@@ -30,6 +30,8 @@ Three kinds of picture:
   straight on, with nothing of the game in it), sized here: the deck's code lays it under its strip
   of dashes and writes the readouts over it (deckArt.ts: skyPlate); and its feather (feather.jpg, on
   the magenta ground the objects are drawn on), keyed off its ground;
+- the fire skin's crests (assets-src/gears/fire/crests.png: a strip of four square cells with its own
+  alpha), as it is: its key caps carry them in turn (deckArt.ts: firePlate);
 - objects, from the picked generations in assets-src/gears/<gear>/ (drawn top-down on a flat magenta
   ground, where they came from: assets-src/PROVENANCE.md): each is cut to the object and masked to its
   shape (a circle or a rounded rectangle, the ground keyed out of its edge), and the najeon frame's
@@ -587,6 +589,16 @@ def main() -> None:
     save_rgba(a, OUT / "sky" / "feather.png")
     entry(textures, "sky", "feather", "feather.png", (a.shape[1], a.shape[0]))
     report["sky/feather"] = [a.shape[1], a.shape[0]]
+
+    # FIRE: the crests its key caps carry, the group's four members' in their order from the left: one strip of four
+    # square cells with its own alpha, as it is (assets-src/gears/fire/crests.png: cut from the skin's official crest
+    # pictures and painted again in black chrome, scripts/assets/deck_panels). The rest of its deck is drawn in code,
+    # over its panel (build_skin_panels.py)
+    crests = Image.open(SRC / "fire" / "crests.png").convert("RGBA")
+    (OUT / "fire").mkdir(parents=True, exist_ok=True)
+    crests.save(OUT / "fire" / "crests.png", optimize=True)
+    entry(textures, "fire", "crests", "crests.png", crests.size)
+    report["fire/crests"] = list(crests.size)
 
     # PIANO: lacquer and ivory drawn in code; its treble clef medallion, cut from its laid-flat deck (its brass is its own colour: no ground to take out)
     piano = decks["piano"]

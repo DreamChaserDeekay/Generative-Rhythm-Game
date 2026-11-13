@@ -43,7 +43,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "astral/hitBurst": {
@@ -88,7 +88,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "basic/hitBurst": {
@@ -242,7 +242,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "club/hitBurst": {
@@ -361,6 +361,14 @@
         512
       ]
     },
+    "fire/crests": {
+      "file": "gears/fire/crests.png",
+      "bundle": "gear",
+      "size": [
+        1024,
+        256
+      ]
+    },
     "fire/hitBurst": {
       "file": "fx/fire_burst.webp",
       "bundle": "effects",
@@ -403,7 +411,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "flare/hitBurst": {
@@ -516,7 +524,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "gpt/hitBurst": {
@@ -561,7 +569,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "grid/hitBurst": {
@@ -640,7 +648,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "keyboard/alu": {
@@ -689,51 +697,6 @@
       "size": [
         512,
         512
-      ]
-    },
-    "magenta/hitBurst": {
-      "file": "fx/magenta_burst.webp",
-      "bundle": "effects",
-      "size": [
-        1536,
-        1536
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 10,
-        "fps": 31.2,
-        "loop": false
-      },
-      "anchorY": 0.5,
-      "span": 0.79,
-      "plain": true
-    },
-    "magenta/hitHold": {
-      "file": "fx/magenta_hold.webp",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 16,
-        "fps": 24,
-        "loop": true
-      },
-      "anchorY": 0.5,
-      "span": 0.6,
-      "cored": true,
-      "plain": true
-    },
-    "magenta/panel": {
-      "file": "panels/magenta.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        869
       ]
     },
     "mecha/hitBurst": {
@@ -934,7 +897,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "orbital/button": {
@@ -1112,51 +1075,6 @@
         512
       ]
     },
-    "rainbow/hitBurst": {
-      "file": "fx/rainbow_burst.webp",
-      "bundle": "effects",
-      "size": [
-        1536,
-        1536
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 12,
-        "fps": 37.5,
-        "loop": false
-      },
-      "anchorY": 0.5,
-      "span": 0.83,
-      "plain": true
-    },
-    "rainbow/hitHold": {
-      "file": "fx/rainbow_hold.webp",
-      "bundle": "effects",
-      "size": [
-        1024,
-        1024
-      ],
-      "flipbook": {
-        "cols": 4,
-        "rows": 4,
-        "frames": 15,
-        "fps": 24,
-        "loop": true
-      },
-      "anchorY": 0.5,
-      "span": 0.6,
-      "cored": true,
-      "plain": true
-    },
-    "rainbow/panel": {
-      "file": "panels/rainbow.webp",
-      "bundle": "gear",
-      "size": [
-        2048,
-        869
-      ]
-    },
     "rawglass/deck": {
       "file": "gears/rawglass/deck.webp",
       "bundle": "gear",
@@ -1255,7 +1173,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        977
       ]
     },
     "sky/plate": {
@@ -1303,7 +1221,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "steel/hitBurst": {
@@ -1348,7 +1266,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     },
     "wire/hitBurst": {
@@ -1393,7 +1311,7 @@
       "bundle": "gear",
       "size": [
         2048,
-        869
+        876
       ]
     }
   },

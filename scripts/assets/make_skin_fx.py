@@ -128,15 +128,6 @@ FX = {
          "only a few fading sparks and thin broken arcs are left, getting shorter and darker blue;",
          "almost nothing, the last one or two dying sparks; frame 16 is black."],
     ),
-    "rainbow": (
-        "a joyful candy-coloured confetti pop: glossy confetti pieces, curled streamers, small stars and round dots in bright red, orange, "
-        "yellow, green, sky blue, purple and pink, around a white pop flash.",
-        ["a tiny white point snaps open into a bright white pop flash with short rays, a few coloured dots at its edge;",
-         "confetti bursts out of the flash in all directions: glossy rectangular pieces, curled streamers, small five-pointed stars and round dots in every colour, the flash already shrinking;",
-         "the pieces fly further, tumbling and turning so they show different sides, the streamers uncurl, small sparkles twinkle between them, the flash is gone;",
-         "only a few small pieces, one streamer and a star are left, drifting outward and fading;",
-         "almost nothing, the last one or two small pieces; frame 16 is black."],
-    ),
     "noir": (
         "a digital glitch burst in pure red (#ff1a2b) and white on black: horizontal slices, blocky pixels and torn scanlines, like a "
         "corrupted video signal. Only red, white and black.",
@@ -145,15 +136,6 @@ FX = {
          "the slices break up further into small rectangles, the pixel blocks fly outward and split into smaller pixels, some flicker as hollow outlines, with thin red scanlines between them;",
          "only a few small pixels and short red dashes are left, scattered wide, getting smaller and dimmer;",
          "almost nothing, the last one or two pixels; frame 16 is black."],
-    ),
-    "magenta": (
-        "a razor-sharp burst of blade-like light in crimson (#f0145a) and hot pink with a white core: angular shards and splinters, the feel "
-        "of a sword slash.",
-        ["two thin white slashes of light cross at the centre as a sharp X-shaped flash with a crimson glow;",
-         "the flash blows outward into long, angular, blade-like shards of crimson and pink light pointing away from the centre in all directions, with triangular splinters and a few white sparks between them;",
-         "the shards detach and fly outward, spinning and narrowing, the splinters scatter further, thin curved pink slash arcs sweep around the centre, the core dims to crimson;",
-         "only a few thin shards, small splinters and fading arcs are left, getting smaller and darker crimson;",
-         "almost nothing, the last one or two faint splinters; frame 16 is black."],
     ),
     "wire": (
         "an elegant firework sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled "
@@ -241,15 +223,9 @@ HOLD = {
     "steel": ("a white-hot welding point in icy steel blue (#58aaf0).",
               "a small blinding white core with a cross-shaped flare of four thin rays stays in the centre",
               "the rays flicker in length, and a steady spray of small white and steel-blue metal sparks flies off in all directions as thin streaks, different in every frame"),
-    "rainbow": ("a small fizzing sparkle of candy colours: bright red, orange, yellow, green, sky blue, purple and pink around white.",
-                "a bright white sparkling core stays in the centre",
-                "tiny confetti pieces, round dots and small five-pointed stars in every colour pop out around it and tumble, at different places in every frame"),
     "noir": ("a small digital glitch in pure red (#ff1a2b) and white on black, like a corrupted video signal. Only red, white and black.",
              "a short bright white horizontal bar stays in the centre",
              "red and white horizontal slices jitter left and right above and below it, different in every frame, and small red pixel blocks flicker on and off around it"),
-    "magenta": ("a small core of blade-like light in crimson (#f0145a) and hot pink with a white centre.",
-                "a white-hot core with a crimson glow stays in the centre",
-                "sharp, thin, blade-like spikes of crimson and pink light stab outward from it at different angles and lengths in every frame, with tiny triangular splinters flying off"),
     "wire": ("a small star sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled shapes, pure white, monochrome.",
              "a small line-drawn star stays in the centre",
              "its pen strokes are redrawn at slightly different lengths and angles in every frame so that it shimmers, a thin hand-drawn circle wobbles around it, and tiny line-drawn four-point twinkles appear and vanish near it"),
@@ -270,9 +246,7 @@ HITS = {
     "claude": "claude",
     "aqua": "aqua",
     "steel": "steel",
-    "rainbow": "rainbow",
     "noir": "noir",
-    "magenta": "magenta",
     "wire": "wire",
     "astral": "astral",
 }

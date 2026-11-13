@@ -353,8 +353,9 @@ test('play: the default skin, what a player starts with', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // its key deck with the score, SPEED and the rate in it, the song's time under its plate: the keys
-  // and the scratch; the side notes over half the keys; four keys in FEVER
+  // its row of keys over the plain panel with its light strip, the score, MAX COMBO and SPEED beside the
+  // gear and the rate under the judgement: the keys and the scratch; the side notes over half the keys;
+  // four keys in FEVER
   for (const [keyMode, more, name] of [
     ['7K+1S', { fever: 'OFF' }, '47-default-7k'],
     ['6K+FX', { fever: 'OFF' }, '48-default-6kfx'],
@@ -476,7 +477,7 @@ test('play: the skins after the reference panels', async ({ page }) => {
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  for (const [skin, name] of [['aqua', '63-aqua-7k'], ['steel', '64-steel-7k'], ['rainbow', '65-rainbow-7k'], ['noir', '66-noir-7k'], ['magenta', '67-magenta-7k'], ['wire', '68-wire-7k'], ['astral', '69-astral-7k']] as const) {
+  for (const [skin, name] of [['aqua', '63-aqua-7k'], ['steel', '64-steel-7k'], ['noir', '66-noir-7k'], ['wire', '68-wire-7k'], ['astral', '69-astral-7k']] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'EXPERT');
     // Shift+Enter starts the play in AUTO

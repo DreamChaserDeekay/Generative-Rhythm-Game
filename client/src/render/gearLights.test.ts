@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEAR_STYLES, paintDeck, type DeckMark, type DeckSpec } from './deckArt';
+import { GEAR_STYLES, paintDeck, PANEL_MARKS, type DeckMark, type DeckSpec } from './deckArt';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, sinceTurn, softTurn, spectrumBars, type BeatClock } from './gearLights';
 
 /** The deck pictures' rows (2048 across, the SDVX 16:9 room: build_gears.py). */
@@ -113,7 +113,8 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear’s lights'
     expect(moved).toBe(true);
   });
 
-  it('find their parts on its deck drawn in code (the plane camera’s), all but the ones that move over its picture', () => {
+  it('find their parts on its deck drawn in code (the plane camera’s) or, a skin’s, in its panel’s picture, all but the ones that move over its picture', () => {
+    const painted = Object.keys(PANEL_MARKS[gear] ?? {});
     for (const [room, stretch] of [
       [912, 3.25],
       [192, 1.25],
@@ -124,7 +125,8 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear’s lights'
       for (const l of set.lights) {
         if (l.at) continue;
         expect(l.mark, `${l.shape} at ${l.x}`).toBeDefined();
-        expect(names.has(l.mark!), `${l.mark} at ${room}`).toBe(true);
+        // a part only the panel's picture has (the right row of teeth on NOIR's board)
+        expect(names.has(l.mark!) || painted.includes(l.mark!), `${l.mark} at ${room}`).toBe(true);
         for (const w of [...(l.codeWell?.inside ?? []), ...(l.codeWell?.outside ?? [])]) expect(names.has(w), `${w} at ${room}`).toBe(true);
       }
       if (set.screen?.mark) expect(names.has(set.screen.mark)).toBe(true);
@@ -133,5 +135,9 @@ describe.each(GEAR_STYLES.map((gear) => ({ gear })))('the $gear gear’s lights'
         expect(m.h, m.name).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('light every part its panel’s picture marks for them, each part one light’s', () => {
+    for (const name of Object.keys(PANEL_MARKS[gear] ?? {})) expect(set.lights.filter((l) => l.mark === name), name).toHaveLength(1);
   });
 });

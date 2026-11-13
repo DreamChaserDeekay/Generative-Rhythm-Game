@@ -71,6 +71,13 @@ export interface CameraPreset {
   fov: number;
   /** Share of the track's length up it where the floor's fog starts (default 0.55, see fogStartZ). */
   fogStart?: number;
+  /**
+   * Where the judge line sits with this camera (a share of the screen's height from the top), where not at the
+   * config's judgeLineY. The plane camera's gear sits lower: parallel rays show a skin's panel under the keys
+   * less deep than the eye cameras do, and at the common height the screen would show the deck past the
+   * panel's end.
+   */
+  judgeLineY?: number;
 }
 
 export interface CameraConfig {

@@ -750,6 +750,8 @@ export class Hud {
    * the track where the camera flattens it. `judgeAt` and `comboAt` are plane px up the track.
    */
   layoutPlane(p: HudPlane, judgeAt: number, comboAt: number): void {
+    // as high on the screen as the default camera has them, whichever camera this is
+    [judgeAt, comboAt] = [p.like(judgeAt), p.like(comboAt)];
     const t = this.type;
     const hud = this.hudScale;
     const px = (v: number) => `${Math.round(v * 100) / 100}px`;
@@ -812,8 +814,10 @@ export class Hud {
 
     // beside the gear, on the same plane: FEVER level with the combo, the gauge and SPEED standing on the judge line
     const side = p.halfWidth + p.sideOut + SIDE_GAP;
-    const foot = -GAUGE_FROM * UNIT;
-    const length = GAUGE_LENGTH * UNIT;
+    // the gauge from as high to as high on the screen as the default camera has it (a camera that lays the track
+    // flatter would show the same length of track far shorter)
+    const foot = -p.like(GAUGE_FROM * UNIT);
+    const length = p.like((GAUGE_FROM + GAUGE_LENGTH) * UNIT) + foot;
     // the right side's stand a little further out than the left's (RIGHT_OUT)
     const right = side + RIGHT_OUT * at(side, foot, SIDE_ASPECT).k;
     const f = at(right, -comboAt, SIDE_ASPECT);

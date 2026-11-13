@@ -88,8 +88,9 @@ describe('the concept sets drawn from art', () => {
     // the sky skin's too, with the two pictures its deck drawn in code lays where its panel is missing: an older
     // painting of its sky and the feather over its score
     expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/panel', 'sky/plate', 'sky/feather']);
-    // the Firestarter skin's parts are drawn in code too (the figures at its sides come with the build)
-    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual(['fire/panel']);
+    // the Firestarter skin's parts are drawn in code too, but for its panel and the crests its key caps carry (the
+    // figures at its sides come with the build)
+    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual(['fire/panel', 'fire/crests']);
     expect(styleTextures(arcade)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // three hits of no set have flipbooks of their own, as the sets' hits do; the default skin's FLASH plays "basic"
     expect(styleTextures(BASE_SKIN.style)).toEqual({ hitBurst: 'basic/hitBurst', hitHold: 'basic/hitHold' });
@@ -206,12 +207,12 @@ function deckSpec(room: number, stretch = 1.3): DeckSpec {
 
 describe('the hits drawn from art', () => {
   it('plays every hit a player picks from flipbooks in the media: once on a hit, looping while held, whole about the judge line', () => {
-    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
+    expect(HIT_STYLES).toEqual(['flash', 'prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flare', 'bubbles', 'grid', 'mecha', 'club', 'crystal', 'neon', 'piano']);
     for (const hit of HIT_STYLES) expect(isArtHit(hit), hit).toBe(true);
     // the skins' hits are animations drawn frame by frame (scripts/assets/build_skin_fx.py): light in colours of their
     // own, added as it is; the default skin's FLASH is white light the lane colours ("basic": "flash" is an older sheet
     // nothing plays)
-    const skins: readonly HitStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'flash'];
+    const skins: readonly HitStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'flash'];
     for (const hit of skins) {
       const name = hit === 'flash' ? 'basic' : hit;
       const { hitBurst, hitHold } = styleTextures({ ...arcade, hit });
@@ -365,16 +366,15 @@ const GEAR_PICTURES: Record<GearStyle, Record<string, string>> = {
   prism: {},
   // drawn in code but for the painting of its deck's sky and the feather over its score
   sky: { plate: 'sky/plate', feather: 'sky/feather' },
-  fire: {},
+  // drawn in code but for the crests its key caps carry
+  fire: { crests: 'fire/crests' },
   gpt: {},
   gemini: {},
   grok: {},
   claude: {},
   aqua: {},
   steel: {},
-  rainbow: {},
   noir: {},
-  magenta: {},
   wire: {},
   astral: {},
 };
@@ -404,9 +404,7 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
   claude: {},
   aqua: {},
   steel: {},
-  rainbow: {},
   noir: {},
-  magenta: {},
   wire: {},
   astral: {},
 };
@@ -415,6 +413,22 @@ const THINGS: Record<GearStyle, Record<string, number>> = {
 const overlap = (p: { x: number; y: number; w: number; h: number }, q: typeof p) => p.x < q.x + q.w - 1e-6 && q.x < p.x + p.w - 1e-6 && p.y < q.y + q.h - 1e-6 && q.y < p.y + p.h - 1e-6;
 
 // (where its panel is missing: with it, the panel lies over both, as on every skin's deck)
+describe('the fire gear, drawn in code, the crests on its key caps a picture', () => {
+  const style = withParts(BASE_SKIN, { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' }).style;
+
+  it('has the strip of its four crests in the media, four square cells, beside its panel', () => {
+    expect(styleImageIds(style)).toEqual(['fire/panel', 'fire/crests']);
+    const crests = manifest.textures['fire/crests'];
+    expect(crests.file).toBe('gears/fire/crests.png');
+    expect(crests.size).toEqual([1024, 256]);
+    expect(Object.keys(gearArtOf('fire', loaded(style)))).toEqual(['panel', 'crests']);
+    expect(artPartsOf(style, loaded(style))).toEqual(['gear']);
+    // not loaded (yet): its caps are bare, and the gear is drawn in code alone
+    expect(Object.keys(gearArtOf('fire', {}))).toEqual([]);
+    expect(artPartsOf(style, {})).toEqual([]);
+  });
+});
+
 describe('the sky gear, drawn in code over a painting, a feather’s picture on it', () => {
   const style = withParts(BASE_SKIN, { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' }).style;
   const images = Object.fromEntries(Object.entries(loaded(style)).filter(([id]) => id !== 'sky/panel'));
@@ -496,7 +510,7 @@ describe('the sky gear, drawn in code over a painting, a feather’s picture on 
 });
 
 // STANDARD and PRISM have no pictures: they are drawn in code alone (SKY's two have their own tests above)
-describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral', 'standard'].includes(gear)).map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
+describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'standard'].includes(gear)).map((gear) => ({ gear })))('the $gear gear drawn from its pictures', ({ gear }) => {
   const style = withParts(BASE_SKIN, { note: 'flat', side: 'bar', deck: gear, hit: 'flash' }).style;
   const images = loaded(style);
   const ids = Object.values(GEAR_PICTURES[gear]);

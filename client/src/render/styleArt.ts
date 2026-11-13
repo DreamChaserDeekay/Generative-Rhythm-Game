@@ -60,9 +60,7 @@ const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
   claude: 'claude',
   aqua: 'aqua',
   steel: 'steel',
-  rainbow: 'rainbow',
   noir: 'noir',
-  magenta: 'magenta',
   wire: 'wire',
   astral: 'astral',
   flare: 'flare',
@@ -100,16 +98,15 @@ const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>
   prism: { panel: 'prism/panel' },
   // (the sky skin's deck in code lays an older painting of its sky and a feather over its score)
   sky: { panel: 'sky/panel', plate: 'sky/plate', feather: 'sky/feather' },
-  fire: { panel: 'fire/panel' },
+  // (its key caps carry the four members' crests in their order, one strip of four cells)
+  fire: { panel: 'fire/panel', crests: 'fire/crests' },
   gpt: { panel: 'gpt/panel' },
   gemini: { panel: 'gemini/panel' },
   grok: { panel: 'grok/panel' },
   claude: { panel: 'claude/panel' },
   aqua: { panel: 'aqua/panel' },
   steel: { panel: 'steel/panel' },
-  rainbow: { panel: 'rainbow/panel' },
   noir: { panel: 'noir/panel' },
-  magenta: { panel: 'magenta/panel' },
   wire: { panel: 'wire/panel' },
   astral: { panel: 'astral/panel' },
   // the default skin's gear, as the skins': its key caps light with the lanes and its panel's display houses the HUD's readouts

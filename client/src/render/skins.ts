@@ -35,8 +35,6 @@ export const HUD_FONTS = {
   'Source Serif 4': { weight: 700, italic: false },
   // the gunmetal skin's: a rounded sans, heavy, as a hardware panel's lettering
   'M PLUS Rounded 1c': { weight: 800, italic: false },
-  // the rainbow pop skin's: rounded bubble letters
-  'Fredoka': { weight: 700, italic: false },
   Cinzel: { weight: 700, italic: false },
   // seven-segment digits (the arcade cabinet's, the receiver's and the orbital panel's readouts)
   'DSEG7 Classic': { weight: 700, italic: false },
@@ -73,7 +71,7 @@ export interface HudType {
    * the sky skin's white easing to sky blue. The HUD writes each word so the styles can lay it
    * (Hud.ts: data-fill), and the judgements' colours are that fill's own.
    */
-  fill?: 'crystal' | 'sky' | 'fire' | 'gemini' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral';
+  fill?: 'crystal' | 'sky' | 'fire' | 'gemini' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral';
   /** The combo in a font, a colour and an outline of its own (a gear's readout digits); else in the judgement's font, white, outlined as it is. */
   comboFont?: HudFont;
   comboColor?: string;
@@ -120,8 +118,8 @@ export const DEFAULT_HUD_TYPE: HudType = { font: 'Barlow Condensed', size: 44, c
  * skin's parts, nor are the lanes or the song's plate. A skin is nothing saved: it is the parts it
  * sets (skinOf reads it back from them).
  */
-export type SkinId = 'default' | 'crystal' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'rainbow' | 'noir' | 'magenta' | 'wire' | 'astral';
-export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'];
+export type SkinId = 'default' | 'crystal' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral';
+export const SKIN_IDS: SkinId[] = ['default', 'crystal', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral'];
 /** Each skin's parts: 기본 (the plain notes, the standard gear, the flash), 크리스털 (its parts are saved as 'prism'), 하늘, 파이어스타터, the four AI companies' (GPT, Gemini, Grok, Claude), and 아쿠아. */
 export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
   default: { note: 'flat', deck: 'standard', hit: 'flash' },
@@ -134,9 +132,7 @@ export const SKIN_PARTS: Record<SkinId, Omit<SkinParts, 'side'>> = {
   claude: { note: 'claude', deck: 'claude', hit: 'claude' },
   aqua: { note: 'aqua', deck: 'aqua', hit: 'aqua' },
   steel: { note: 'steel', deck: 'steel', hit: 'steel' },
-  rainbow: { note: 'rainbow', deck: 'rainbow', hit: 'rainbow' },
   noir: { note: 'noir', deck: 'noir', hit: 'noir' },
-  magenta: { note: 'magenta', deck: 'magenta', hit: 'magenta' },
   wire: { note: 'wire', deck: 'wire', hit: 'wire' },
   astral: { note: 'astral', deck: 'astral', hit: 'astral' },
 };

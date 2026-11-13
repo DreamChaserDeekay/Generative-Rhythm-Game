@@ -59,15 +59,6 @@
   font-display: block;
 }
 
-/* the rainbow pop skin's: rounded bubble letters */
-@font-face {
-  font-family: 'Fredoka';
-  src: url('./assets/fonts/Fredoka-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: block;
-}
-
 /* the AI companies' skins': a rounded geometric sans (Gemini), a monospace (Grok), an old-style serif (Claude); GPT's is the app's own sans */
 @font-face {
   font-family: 'Outfit';
@@ -1914,11 +1905,11 @@ p.hint {
    label then number, about the middle of its window */
 /* (the gears whose windows drawn in code are white write dark in them: on the display of their deck's panel, a
    painting with dark glass, they write in their own light colours as beside the track) */
-.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude'], [data-gear='rainbow']) .on-deck .hud-label {
+.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude']) .on-deck .hud-label {
   color: var(--hud-label-colour, var(--text-dim));
 }
 
-.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude'], [data-gear='rainbow']) .on-deck .hud-num {
+.hud[data-panel]:is([data-gear='gpt'], [data-gear='claude']) .on-deck .hud-num {
   color: var(--hud-num-colour, var(--text));
 }
 
@@ -2046,7 +2037,10 @@ p.hint {
 /* ---------- the HUD beside the track as the picked gear prints it (Hud.ts: data-gear) ----------
    the gauge's cells, the score panel's housing (.hud-panel-plate, lying on the track under its
    lines; the panel's own plate where it stands on the screen), the readouts' digits and the
-   labels' colour, the gauge's name. Flat fills and lines only: nothing redrawn while playing. */
+   labels' colour, the gauge's name. Flat fills and lines only: nothing redrawn while playing.
+   Only an object gear has a housing (--plate-bg, --plate-border): a skin's score, MAX COMBO and
+   SPEED stand beside its gear on nothing (where the panel has no room there and stands at the
+   screen's lower left, over whatever is there, it keeps the plain plate of .hud-panel.upright). */
 .hud-panel-plate,
 .hud-gauge-name {
   display: none;
@@ -2055,13 +2049,13 @@ p.hint {
 .hud[data-gear] .hud-panel-plate {
   display: block;
   box-sizing: border-box;
-  background: var(--plate-bg);
-  border: var(--plate-border);
+  background: var(--plate-bg, none);
+  border: var(--plate-border, none);
 }
 
 .hud[data-gear] .hud-panel.upright {
-  background: var(--plate-bg);
-  border: var(--plate-border);
+  background: var(--plate-bg, color-mix(in srgb, var(--bg) 72%, transparent));
+  border: var(--plate-border, none);
 }
 
 .hud[data-gear] .hud-gauge-name {
@@ -2078,8 +2072,6 @@ p.hint {
 .hud[data-gear='standard'] {
   --hud-label-colour: #37e2ff;
   --hud-num-colour: #f3f5f9;
-  --plate-bg: rgba(12, 14, 18, 0.6);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.12);
   --gauge-off: rgba(55, 226, 255, 0.13);
   --gauge-low: #1aa6c4;
   --gauge-high: #8ff6ff;
@@ -2094,8 +2086,6 @@ p.hint {
 .hud[data-gear='prism'] {
   --hud-label-colour: #7cc8ff;
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(27, 42, 92, 0.72);
-  --plate-border: 1px solid rgba(213, 230, 248, 0.5);
   --gauge-off: rgba(124, 200, 255, 0.14);
   --gauge-low: #7cc2ee;
   --gauge-high: #d8f1ff;
@@ -2120,8 +2110,6 @@ p.hint {
   --hud-label-colour: #7fd3f7;
   --hud-num-font: 'Nunito', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(12, 28, 51, 0.66);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.42);
   --gauge-low: #39b2e6;
   --gauge-high: #3fe3e6;
   --gauge-name-colour: #ffffff;
@@ -2195,8 +2183,6 @@ p.hint {
   --hud-label-colour: #ff4a55;
   --hud-num-font: 'Barlow Condensed Italic', var(--font-display);
   --hud-num-colour: #f4f6f9;
-  --plate-bg: rgba(10, 10, 12, 0.74);
-  --plate-border: 1px solid rgba(201, 206, 214, 0.5);
   --gauge-name-colour: #f4f6f9;
   /* a cell (a mask for the lit ones), and the same unlit, a dark ember */
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12'/%3E%3C/svg%3E");
@@ -2252,8 +2238,6 @@ p.hint {
   --hud-label-colour: #b4b4b4;
   --hud-num-font: 'Pretendard Variable', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(33, 33, 33, 0.78);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.2);
   --gauge-name-colour: #ffffff;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='4' fill='%23b4b4b4' fill-opacity='0.55'/%3E%3C/svg%3E");
@@ -2306,8 +2290,6 @@ p.hint {
   --hud-label-colour: #9aa0a6;
   --hud-num-font: 'Outfit', var(--font-display);
   --hud-num-colour: #e3e3e3;
-  --plate-bg: rgba(19, 19, 20, 0.8);
-  --plate-border: 1px solid rgba(155, 114, 203, 0.5);
   --gauge-name-colour: #e3e3e3;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cellipse cx='10' cy='9' rx='6.4' ry='5.6' fill='%23e3e3e3' fill-opacity='0.14'/%3E%3C/svg%3E");
@@ -2352,8 +2334,6 @@ p.hint {
   --hud-label-colour: #8b8b8b;
   --hud-num-font: 'JetBrains Mono', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(0, 0, 0, 0.84);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.7);
   --gauge-name-colour: #ffffff;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='4' width='20' height='10' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
@@ -2404,8 +2384,6 @@ p.hint {
   --hud-label-colour: #e08a6a;
   --hud-num-font: 'Source Serif 4', var(--font-display);
   --hud-num-colour: #faf9f5;
-  --plate-bg: rgba(20, 20, 19, 0.78);
-  --plate-border: 1px solid rgba(217, 119, 87, 0.55);
   --gauge-name-colour: #faf9f5;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect y='3' width='20' height='12' rx='3' fill='%23b0aea5' fill-opacity='0.6'/%3E%3C/svg%3E");
@@ -2464,8 +2442,6 @@ p.hint {
   --hud-label-colour: #22e0e6;
   --hud-num-font: 'Chakra Petch', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(6, 23, 26, 0.8);
-  --plate-border: 1px solid rgba(34, 224, 230, 0.5);
   --gauge-name-colour: #f4f7fa;
 }
 
@@ -2510,8 +2486,6 @@ p.hint {
   --hud-label-colour: #4fd13a;
   --hud-num-font: 'M PLUS Rounded 1c', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(18, 23, 29, 0.84);
-  --plate-border: 1px solid rgba(125, 139, 155, 0.5);
   --gauge-name-colour: #d5dae0;
 }
 
@@ -2552,67 +2526,12 @@ p.hint {
   background: #d5dae0;
 }
 
-/* RAINBOW (무지개): rounded bubble digits, deep navy on the deck's white cards and white beside the track;
-   the gauge a white tube filled glossy pink */
-.hud[data-gear='rainbow'] {
-  --hud-label-colour: #c9cce0;
-  --hud-num-font: 'Fredoka', var(--font-display);
-  --hud-num-colour: #ffffff;
-  --plate-bg: rgba(21, 21, 92, 0.82);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.5);
-  --gauge-name-colour: #ffffff;
-}
-
-.hud[data-gear='rainbow'] .hud-num {
-  font-weight: 700;
-}
-
-.hud[data-gear='rainbow'] .hud-label {
-  font-family: 'Fredoka', var(--font-display);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.hud[data-gear='rainbow'] .on-deck .hud-label {
-  color: #8a8fa6;
-}
-
-.hud[data-gear='rainbow'] .on-deck .hud-num {
-  color: #15155c;
-}
-
-.hud[data-gear='rainbow'] .hud-gauge {
-  background: none;
-}
-
-.hud[data-gear='rainbow'] .hud-gauge::before {
-  content: '';
-  position: absolute;
-  inset: calc(var(--cell) * -1) -30%;
-  padding: var(--cell) 30%;
-  border-radius: 999px;
-  background:
-    linear-gradient(#e9ebf1, #e9ebf1) content-box,
-    #ffffff;
-  box-shadow: 0 0 0 1px rgba(21, 21, 92, 0.3);
-}
-
-.hud[data-gear='rainbow'] .hud-gauge:not(.survival) .hud-gauge-fill {
-  background: linear-gradient(90deg, #ff9be8 0%, #ff4fd8 42%, #de2cba 100%);
-}
-
-.hud[data-gear='rainbow'] .hud-gauge.survival .hud-gauge-fill {
-  background: #15155c;
-}
-
 /* NOIR (레드라인): light grey digits in a squared display type, the score's drawn as outlines on the deck; small grey
    labels; the gauge one column of small red squares with no housing */
 .hud[data-gear='noir'] {
   --hud-label-colour: #8a8f98;
   --hud-num-font: 'Orbitron', var(--font-display);
   --hud-num-colour: #e6e8ec;
-  --plate-bg: rgba(0, 0, 0, 0.8);
-  --plate-border: 1px solid rgba(255, 26, 43, 0.6);
   --gauge-name-colour: #ffffff;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='2' y='3' width='16' height='12'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='2' y='3' width='16' height='12' fill='%23ff1a2b' fill-opacity='0.2'/%3E%3C/svg%3E");
@@ -2650,59 +2569,12 @@ p.hint {
   background: #ffffff;
 }
 
-/* MAGENTA (크림슨): white digits and labels in its tall slanted type on black windows; the gauge a bright
-   yellow bar in a thin crimson frame */
-.hud[data-gear='magenta'] {
-  --hud-label-colour: #f4f6f9;
-  --hud-num-font: 'Barlow Condensed Italic', var(--font-display);
-  --hud-num-colour: #ffffff;
-  --plate-bg: rgba(13, 13, 16, 0.84);
-  --plate-border: 1px solid rgba(240, 20, 90, 0.7);
-  --gauge-name-colour: #ffffff;
-}
-
-.hud[data-gear='magenta'] .hud-num {
-  font-style: italic;
-  font-weight: 800;
-}
-
-.hud[data-gear='magenta'] .hud-label {
-  font-family: 'Barlow Condensed Italic', var(--font-display);
-  font-style: italic;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-.hud[data-gear='magenta'] .hud-gauge {
-  background: none;
-}
-
-.hud[data-gear='magenta'] .hud-gauge::before {
-  content: '';
-  position: absolute;
-  inset: -3px -24%;
-  padding: 3px 24%;
-  background:
-    linear-gradient(#121214, #121214) content-box,
-    #f0145a;
-}
-
-.hud[data-gear='magenta'] .hud-gauge:not(.survival) .hud-gauge-fill {
-  background: linear-gradient(to top, #ffd21a 0%, #ffe81a 60%, #fff59a 100%);
-}
-
-.hud[data-gear='magenta'] .hud-gauge.survival .hud-gauge-fill {
-  background: #ffffff;
-}
-
 /* WIRE (화이트 라인): white digits in a rounded sans, the score's drawn as outlines on the deck; faint grey
    labels, widely spaced; the gauge a thin white tube of small white dashes */
 .hud[data-gear='wire'] {
   --hud-label-colour: #8b93a6;
   --hud-num-font: 'Outfit', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(6, 8, 13, 0.82);
-  --plate-border: 1px solid rgba(255, 255, 255, 0.7);
   --gauge-name-colour: #ffffff;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='3' y='6' width='14' height='6' rx='3'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Crect x='3' y='6' width='14' height='6' rx='3' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
@@ -2758,8 +2630,6 @@ p.hint {
   --hud-label-colour: #a9c8ff;
   --hud-num-font: 'Cinzel', var(--font-display);
   --hud-num-colour: #ffffff;
-  --plate-bg: rgba(10, 18, 48, 0.84);
-  --plate-border: 1px solid rgba(169, 200, 255, 0.55);
   --gauge-name-colour: #eaf1ff;
   --dash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cpath d='M10 2 L17 9 L10 16 L3 9 Z'/%3E%3C/svg%3E");
   --dash-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 18' preserveAspectRatio='none'%3E%3Cpath d='M10 2 L17 9 L10 16 L3 9 Z' fill='%23a9c8ff' fill-opacity='0.18'/%3E%3C/svg%3E");
@@ -3102,43 +2972,6 @@ p.hint {
   --fill: linear-gradient(180deg, #f8d8d2 0 30%, #f0452a 72%, #a32a18 100%);
 }
 
-/* the rainbow pop skin's: white letters in a thick navy outline; COMBO a candy colour a letter; "MAX"
-   white; its percent a rainbow across; lower ones sky blue, violet, grey; a break red */
-.hud[data-fill='rainbow'] {
-  --fill: linear-gradient(#ffffff, #ffffff);
-}
-
-.hud[data-fill='rainbow'] .hud-combo-label {
-  margin-top: 0.1em;
-  letter-spacing: 0.16em;
-  margin-right: -0.16em;
-  --fill: linear-gradient(90deg, #ff4b4b 0 23%, #ffe23a 23% 41%, #8be04a 41% 62%, #45c8f5 62% 80%, #a66bf5 80%);
-}
-
-.hud[data-fill='rainbow'] .hud-fill.hud-split {
-  --fill: linear-gradient(#ffffff, #ffffff);
-}
-
-.hud[data-fill='rainbow'] .g-max .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(90deg, #ff4b4b 8%, #ffe23a 30%, #8be04a 50%, #45c8f5 70%, #a66bf5 92%);
-}
-
-.hud[data-fill='rainbow'] .g-high .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #e2f6ff 0 30%, #45c8f5 90%);
-}
-
-.hud[data-fill='rainbow'] .g-mid .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #f1e7ff 0 30%, #a66bf5 90%);
-}
-
-.hud[data-fill='rainbow'] .g-low .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #f2f3f7 0 30%, #a3a7b8 90%);
-}
-
-.hud[data-fill='rainbow'] .g-break .hud-fill {
-  --fill: linear-gradient(180deg, #ffdede 0 30%, #ff4b4b 90%);
-}
-
 /* the black and red skin's: white letters, a red copy of them a little to the right behind, as a glitch;
    COMBO red, widely spaced; "MAX" white; its percent red with the copy white; lower ones silver, rose,
    grey; a break a dark grey */
@@ -3185,49 +3018,6 @@ p.hint {
 
 .hud[data-fill='noir'] .g-break .hud-fill {
   --fill: linear-gradient(#5d6169, #5d6169);
-  text-shadow: none;
-}
-
-/* the crimson mecha skin's: white easing to a pale pink at the letters' feet, a crimson edge under their
-   black outline; COMBO white; "MAX" white; its percent crimson; lower ones amber, silver, a dull rose; a
-   break grey */
-.hud[data-fill='magenta'] {
-  --fill: linear-gradient(180deg, #ffffff 0 46%, #ffc4d9 100%);
-}
-
-.hud[data-fill='magenta'] .hud-fill {
-  text-shadow: 0 0.07em 0 #f0145a;
-}
-
-.hud[data-fill='magenta'] .hud-combo-label {
-  margin-top: 0.08em;
-  font-size: calc(var(--label-size) * 1.3);
-  letter-spacing: 0.05em;
-  --fill: linear-gradient(#ffffff, #ffffff);
-}
-
-.hud[data-fill='magenta'] .hud-fill.hud-split {
-  --fill: linear-gradient(#ffffff, #ffffff);
-}
-
-.hud[data-fill='magenta'] .g-max .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #ffd3e2 0 26%, #ff2d78 62%, #c70f49 100%);
-}
-
-.hud[data-fill='magenta'] .g-high .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #fff2cf 0 30%, #ffb21a 90%);
-}
-
-.hud[data-fill='magenta'] .g-mid .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #f6f8fa 0 30%, #b4bcc7 90%);
-}
-
-.hud[data-fill='magenta'] .g-low .hud-fill:not(.hud-split) {
-  --fill: linear-gradient(180deg, #e6d3da 0 30%, #a07f8c 90%);
-}
-
-.hud[data-fill='magenta'] .g-break .hud-fill {
-  --fill: linear-gradient(180deg, #c2c6cd 0 30%, #5f646d 90%);
   text-shadow: none;
 }
 

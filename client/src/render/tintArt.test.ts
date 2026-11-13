@@ -116,8 +116,8 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
   };
 
   it('the notes of the skins after the reference panels are bars, each with a long note cut straight across and a mark on the scratch’s', () => {
-    const LONGS = { aqua: 'aqua', steel: 'steel', rainbow: 'rainbow', noir: 'noir', magenta: 'magenta', wire: 'wire', astral: 'sky' } as const;
-    for (const style of ['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire', 'astral'] as const) {
+    const LONGS = { aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'sky' } as const;
+    for (const style of ['aqua', 'steel', 'noir', 'wire', 'astral'] as const) {
       expect(isBarNote(style), style).toBe(true);
       expect(isLogoNote(style), style).toBe(false);
       expect(noteDepthOf(style, 0.7, 0.84, 1.54), style).toBe(0.7);
@@ -137,7 +137,7 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
       for (const mark of ['blue', 'gold', 'side'] as const) expect(() => NOTE_PAINT[style](recorder().g, 96, 40, mark)).not.toThrow();
     }
     // the see-through ones lie flat, with no walls under them
-    expect(['aqua', 'steel', 'rainbow', 'noir', 'magenta', 'wire'].filter((l) => LONG_PAINT[l as 'aqua'].flat)).toEqual(['aqua', 'noir', 'wire']);
+    expect(['aqua', 'steel', 'noir', 'wire'].filter((l) => LONG_PAINT[l as 'aqua'].flat)).toEqual(['aqua', 'noir', 'wire']);
   });
 
   it('are shapes and no bars, as deep as keeps the mark’s shape, each with a long note of a family', () => {

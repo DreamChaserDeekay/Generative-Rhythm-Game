@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { cameraConfig, keyModes } from '../engine/config';
 import { ScrollModel } from '../engine/scroll';
 import { visibleTimeMs } from '../settings/settings';
+import { DECK_GAP, DECK_PANELS, GEAR_JUDGE, panelSpan, type GearStyle } from './deckArt';
 import { cameraPose, computeTrackGeometry, fogStartZ, JUDGE_LINE_Y, noteSpan } from './layout';
-import { baseFrame, deckStretch, FIT_TRACK_END_Y, fitFov, frameCamera, LINE_Y, NOTE_Y, PlaneCamera, poseCamera, type TrackCamera } from './TrackRenderer';
+import { baseFrame, deckStretch, FIT_TRACK_END_Y, fitFov, floorViewOf, frameCamera, HUD_UNIT, likeCamera, LINE_Y, NOTE_Y, PlaneCamera, poseCamera, screenBottomZOf, trackAspectOf, type TrackCamera } from './TrackRenderer';
 
 function presetCamera(presetId: string, aspect: number): TrackCamera {
   return poseCamera(cameraPose(cameraConfig.presets[presetId]), aspect);
@@ -199,7 +200,7 @@ describe('track layout', () => {
     expect(at(-cameraConfig.trackLength)).toBeLessThan(Math.sin(down));
   });
 
-  it('lays the judge line on the notes, so a tap\'s middle is on it at its time and it sits at JUDGE_LINE_Y', () => {
+  it('lays the judge line on the notes, so a tap\'s middle is on it at its time and it sits at the camera\'s height for it', () => {
     const [W, H] = [1280, 720];
     expect(LINE_Y).toBeGreaterThan(NOTE_Y);
     for (const id of Object.keys(cameraConfig.presets)) {
@@ -207,15 +208,151 @@ describe('track layout', () => {
         const lineZ = -lift * cameraConfig.trackLength;
         const pose = cameraPose(cameraConfig.presets[id]);
         const camera = poseCamera(pose, W / H);
-        const base = baseFrame(camera, pose.fov, lineZ);
+        const base = baseFrame(camera, pose.fov, lineZ, pose.lineY);
         frameCamera(camera, pose.fov, 1, 0, W, H, lineZ, base);
         const row = (y: number) => ((1 - new THREE.Vector3(0, y, lineZ).project(camera).y) / 2) * H;
         expect(Math.abs(row(LINE_Y) - row(NOTE_Y))).toBeLessThan(0.1);
         // where the framing puts the (lifted) line
         expect(Math.abs(row(LINE_Y) - base.lineY * H)).toBeLessThan(1);
-        if (lift === 0) expect(Math.abs(row(LINE_Y) - JUDGE_LINE_Y * H)).toBeLessThan(1);
+        // JUDGE_LINE_Y of the height, but for the plane camera, whose gear sits lower (its preset's own height)
+        expect(pose.lineY, id).toBe(id === 'PLANE' ? cameraConfig.presets.PLANE.judgeLineY : JUDGE_LINE_Y);
+        if (lift === 0) expect(Math.abs(row(LINE_Y) - pose.lineY * H)).toBeLessThan(1);
       }
     }
+    expect(cameraConfig.presets.PLANE.judgeLineY).toBeGreaterThan(JUDGE_LINE_Y);
+    // a frame asked for with no height of its own has the common one
+    const camera = presetCamera('PLANE', W / H);
+    frameCamera(camera, cameraConfig.presets.PLANE.fov, 1, 0, W, H);
+    expect((1 - new THREE.Vector3(0, 0, 0).project(camera).y) / 2).toBeCloseTo(JUDGE_LINE_Y, 9);
+  });
+
+  /**
+   * What a 16:9 play shows of the deck under the judge line with a preset's camera, as TrackRenderer.layoutDeck lays
+   * it (plane px): from the deck's top edge (under the line and the gap the lanes run on in, the line as deep on the
+   * screen in every camera) down to the bottom of the screen, and how much longer along the track the deck is drawn.
+   */
+  function deckShown(id: string, [W, H] = [1280, 720]): { shown: number; stretch: number; px: number } {
+    const pose = cameraPose(cameraConfig.presets[id]);
+    const camera = poseCamera(pose, W / H);
+    frameCamera(camera, pose.fov, 1, 0, W, H, 0, baseFrame(camera, pose.fov, 0, pose.lineY));
+    const flat = (z: number) => trackAspectOf(camera, z, W, H);
+    const fit = Math.max(1, Math.round((0.85 / flat(0) / 1.3) * 20) / 20);
+    const top = (GEAR_JUDGE.height / 2 + 3) * fit + DECK_GAP;
+    const shown = screenBottomZOf(camera) * HUD_UNIT - top;
+    const stretch = deckStretch(Math.floor(shown / 16) * 16, (band) => 0.85 / flat((top + 8 + band / 2) / HUD_UNIT));
+    // screen px to a plane px along the track, at the bottom of the screen
+    const row = (z: number) => ((1 - new THREE.Vector3(0, 0, z).project(camera).y) / 2) * H;
+    const px = (row((top + shown) / HUD_UNIT) - row((top + shown - 20) / HUD_UNIT)) / 20;
+    return { shown, stretch, px };
+  }
+
+  it('sets the plane camera\'s gear lower than the others\', down to where the screen shows a skin\'s panel to its end and no deck under it', () => {
+    const width = cameraConfig.trackWidth * HUD_UNIT;
+    const end = (gear: GearStyle, stretch: number) => {
+      const span = panelSpan(gear, { width, stretch })!;
+      return span.top + span.tall;
+    };
+    // parallel rays show the deck under the keys less deep than the eye cameras do: with its line at the common
+    // height the plane camera showed about 23 px (of 720) of deck past the panel's end, the panel's last row run on
+    for (const size of [
+      [1280, 720],
+      [1920, 1080],
+      [1280, 960],
+    ] as [number, number][]) {
+      const plane = deckShown('PLANE', size);
+      expect(plane.stretch).toBe(3.45);
+      // the crystal's panel (and every skin's whose row of keys is as deep, or a px or two less) to its end: the
+      // screen cuts it there, by no more than 3 px of a 720 px screen (the panel is pressed that much: panelSpan)
+      for (const gear of ['prism', 'standard', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'astral'] as GearStyle[]) {
+        expect(plane.shown, gear).toBeLessThanOrEqual(end(gear, plane.stretch));
+        expect((end(gear, plane.stretch) - plane.shown) * plane.px * (720 / size[1]), gear).toBeLessThan(3);
+        expect(panelSpan(gear, { width, stretch: plane.stretch, shown: plane.shown })!.tall / panelSpan(gear, { width, stretch: plane.stretch })!.tall, gear).toBeGreaterThan(0.98);
+      }
+      // the two whose row of keys is shallower by a third end a little above the screen's bottom edge: their last row
+      // runs on under them, for no more than 9 px of a 720 px screen
+      for (const gear of ['noir', 'wire'] as GearStyle[]) {
+        const under = (plane.shown - end(gear, plane.stretch)) * plane.px * (720 / size[1]);
+        expect(under, gear).toBeGreaterThan(0);
+        expect(under, gear).toBeLessThan(9);
+      }
+    }
+    // the eye cameras show less of the deck than the panel is deep
+    for (const id of ['SDVX', 'LOW', 'FLAT']) expect(deckShown(id).shown, id).toBeLessThan(end('prism', deckShown(id).stretch));
+    // the panels are as deep for their width, to a hundredth, but the sky's: its strip of dashes is a third as deep as
+    // the others' rows of keys, and its picture as much deeper
+    for (const [gear, panel] of Object.entries(DECK_PANELS)) expect(panel!.size, gear).toEqual([2048, gear === 'sky' ? 977 : gear === 'prism' ? 869 : 876]);
+  });
+
+  it('finds where another camera shows what the default one shows so far up the track: the same share of the way from the judge line to the top of the lanes', () => {
+    const L = cameraConfig.trackLength;
+    const reference = cameraPose(cameraConfig.presets[cameraConfig.default]);
+    const [W, H] = [1280, 720];
+    const heights = (id: string, lineZ: number) => {
+      const pose = cameraPose(cameraConfig.presets[id]);
+      const camera = poseCamera(pose, W / H);
+      frameCamera(camera, pose.fov, 1, 0, W, H, lineZ, baseFrame(camera, pose.fov, lineZ, pose.lineY));
+      const y = (z: number) => (1 - new THREE.Vector3(0, 0, z).project(camera).y) / 2;
+      // how far up the way from the line to the top of the lanes on the screen (their far end, or the screen's top)
+      return (up: number) => (y(lineZ) - y(lineZ - up / HUD_UNIT)) / (y(lineZ) - Math.max(0, y(-L)));
+    };
+    for (const lineZ of [0, -4]) {
+      for (const id of Object.keys(cameraConfig.presets)) {
+        const pose = cameraPose(cameraConfig.presets[id]);
+        const like = likeCamera(reference, pose, pose.fov, W / H, lineZ, L);
+        const [own, ref] = [heights(id, lineZ), heights(cameraConfig.default, lineZ)];
+        let last = 0;
+        for (const up of [120, 600, 1100, 1500, 2200]) {
+          // the default camera gives the height back; the others the same share of the way on the screen
+          if (id === cameraConfig.default) expect(like(up)).toBe(up);
+          expect(own(like(up)), `${id} ${up}`).toBeCloseTo(ref(up), 6);
+          expect(like(up)).toBeGreaterThan(last);
+          last = like(up);
+        }
+        // the judge line is the judge line
+        expect(like(0)).toBeCloseTo(0, 6);
+      }
+    }
+    // a flatter camera shows the same height further up the track: the plane camera's combo lies well past SDVX's
+    const plane = cameraPose(cameraConfig.presets.PLANE);
+    expect(likeCamera(reference, plane, plane.fov, W / H, 0, L)(400)).toBeGreaterThan(800);
+    // a preview fitted to its box (its own field of view) is measured as it is framed, the default camera's too
+    const fitted = likeCamera(reference, reference, reference.fov * 1.4, W / H, 0, L);
+    expect(fitted(400)).not.toBe(400);
+    expect(fitted(400)).toBeGreaterThan(0);
+  });
+
+  it('tells a gear’s picture over the lanes how another camera shows them: where the default camera shows the same share of the way up, how much less the track narrows there, how much taller the lanes are', () => {
+    const L = cameraConfig.trackLength;
+    const reference = cameraPose(cameraConfig.presets[cameraConfig.default]);
+    const track = { width: 8, length: L };
+    // the default camera needs none: its picture is painted as it is
+    expect(floorViewOf(reference, reference, reference.fov, 16 / 9, 0, track)).toBeNull();
+    for (const id of Object.keys(cameraConfig.presets).filter((k) => k !== cameraConfig.default)) {
+      const pose = cameraPose(cameraConfig.presets[id]);
+      for (const lineZ of [0, -4]) {
+        const view = floorViewOf(reference, pose, pose.fov, 16 / 9, lineZ, track)!;
+        expect(view, id).not.toBeNull();
+        // the judge line is the judge line, and further up this camera's lanes is further up the default one's
+        expect(view.asDefault(0)).toBeCloseTo(0, 6);
+        let last = 0;
+        for (const up of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+          expect(view.asDefault(up), `${id} ${up}`).toBeGreaterThan(last);
+          last = view.asDefault(up);
+          expect(view.spread(up), `${id} ${up}`).toBeGreaterThan(0);
+        }
+        // there and back: the row the default camera shows as high comes to lie where this camera shows it as high
+        const there = likeCamera(reference, pose, pose.fov, 16 / 9, lineZ, L);
+        for (const up of [0.05, 0.1, 0.2]) expect(view.asDefault(there(up * L * HUD_UNIT) / HUD_UNIT / L), `${id} ${up}`).toBeCloseTo(up, 4);
+        // by the judge line the two cameras show the track as wide for its width there
+        expect(view.spread(0)).toBeCloseTo(1, 6);
+        expect(view.aspect).toBeGreaterThan(0);
+      }
+    }
+    // the plane camera does not narrow the track with the distance, the default one does: a line far up the lanes is painted narrower
+    const plane = cameraPose(cameraConfig.presets.PLANE);
+    expect(floorViewOf(reference, plane, plane.fov, 16 / 9, 0, track)!.spread(0.8)).toBeLessThan(1);
+    // a preview fitted to its box (the default camera at its own field of view) is another view than the default one's
+    expect(floorViewOf(reference, reference, reference.fov * 1.4, 16 / 9, 0, track)).not.toBeNull();
   });
 
   it('lines a long note up with taps at its start and end, at any speed and note depth', () => {

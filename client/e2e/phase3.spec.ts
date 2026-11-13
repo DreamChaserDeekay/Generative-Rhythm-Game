@@ -32,8 +32,9 @@ function trackErrors(page: Page): string[] {
 }
 
 /**
- * Where a skin's gear has its readouts (1280x720): the score and SPEED on the deck, under the judge line and on the
- * screen; the rate small under the judgement, on the track's middle, over the judge line.
+ * Where a skin's gear has its readouts (1280x720): the score and SPEED beside the gear (its lower part is a picture
+ * with no display for them), in the screen's lower half and on the screen; the rate small under the judgement, on the
+ * track's middle, over the judge line.
  */
 async function readoutsInPlace(page: Page): Promise<void> {
   const [speed, score, rate, judge] = await Promise.all(['.hud-speed', '.hud-score', '.hud-rate', '.hud-judge'].map((sel) => page.locator(sel).boundingBox()));
@@ -483,11 +484,11 @@ test('notes and side notes picked in the 노트 tab, gear and hit effect in the 
   const notes = page.getByTestId('opt-note-style');
   await notes.focus();
   const seen = new Set<string>();
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 24; i++) {
     seen.add((await notes.getAttribute('data-value')) ?? '');
     await page.keyboard.press('ArrowRight');
   }
-  expect([...seen].sort()).toEqual(['aqua', 'astral', 'carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'magenta', 'noir', 'pearl', 'prism', 'rainbow', 'round', 'sky', 'star4', 'star5', 'steel', 'wire']);
+  expect([...seen].sort()).toEqual(['aqua', 'astral', 'carbon', 'chamfer', 'chrome', 'claude', 'enamel', 'fire', 'flat', 'gemini', 'glass', 'gpt', 'grok', 'hairline', 'noir', 'pearl', 'prism', 'round', 'sky', 'star4', 'star5', 'steel', 'wire']);
   await chooseSetting(page, 'opt-note-style', 'flat');
   for (const [id, value, name] of [
     ['opt-note-style', 'flat', '기본'],
@@ -656,7 +657,7 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
     await expect.poll(async () => (await stored()).parts).toEqual({ note: id, side: 'dots', deck: id, hit: id });
   }
   // the skins after the reference panels the user showed, each its own gear, notes and hit under one name
-  for (const [id, name, hit] of [['aqua', '아쿠아', '록온'], ['steel', '스틸', '십자 섬광'], ['rainbow', '무지개', '색종이'], ['noir', '레드라인', '글리치'], ['magenta', '크림슨', '파편 섬광'], ['wire', '화이트 라인', '선 불꽃'], ['astral', '별밤', '별빛']] as const) {
+  for (const [id, name, hit] of [['aqua', '아쿠아', '록온'], ['steel', '스틸', '십자 섬광'], ['noir', '레드라인', '글리치'], ['wire', '화이트 라인', '선 불꽃'], ['astral', '별밤', '별빛']] as const) {
     await page.keyboard.press('ArrowRight');
     await expect(skin).toHaveAttribute('data-value', id);
     await expect(skin).toContainText(name);
@@ -680,7 +681,7 @@ test('a skin picked in one row of the 기어 tab: its gear, its notes, its hit a
   expect(errors).toEqual([]);
 });
 
-test('the sky skin in play: its notes, gear and hit drawn in code, the lettering round and slanted in its own fill, the readouts on the deck’s sky, the gauge in its capsule', async ({ page }) => {
+test('the sky skin in play: its notes, gear and hit drawn in code, the lettering round and slanted in its own fill, the readouts beside the gear in its sky blue, the gauge in its capsule', async ({ page }) => {
   const errors = trackErrors(page);
   await page.addInitScript(() => {
     if (!localStorage.getItem('grg.settings.v1')) localStorage.setItem('grg.settings.v1', JSON.stringify({ parts: { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' } }));
@@ -714,9 +715,11 @@ test('the sky skin in play: its notes, gear and hit drawn in code, the lettering
     expect(word.image).toBe('linear-gradient');
     expect(word.face).toContain('Nunito');
   }
-  // the score and SPEED on the deck, written in white on its sky, the rate under the judgement; the gauge's cells inside a capsule
+  // the score and SPEED beside the gear, their labels in the gear's sky blue (they were white while they stood on a
+  // display on its deck), the rate under the judgement; the gauge's cells inside a capsule
   await readoutsInPlace(page);
-  expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  expect(await page.locator('.hud-score-label').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(127, 211, 247)');
+  await expect(hud).not.toHaveAttribute('data-panel');
   const capsule = await page.locator('.hud-gauge').evaluate((el) => {
     const box = getComputedStyle(el, '::before');
     return { round: parseFloat(box.borderTopLeftRadius) > 100, ground: box.backgroundColor, cells: getComputedStyle(el).backgroundImage };

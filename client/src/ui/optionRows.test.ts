@@ -37,9 +37,7 @@ describe('the skin row', () => {
       ['claude', 'Claude'],
       ['aqua', '아쿠아'],
       ['steel', '스틸'],
-      ['rainbow', '무지개'],
       ['noir', '레드라인'],
-      ['magenta', '크림슨'],
       ['wire', '화이트 라인'],
       ['astral', '별밤'],
     ]);
@@ -60,9 +58,7 @@ describe('the skin row', () => {
     expect([HIT_NAMES.gpt, HIT_NAMES.gemini, HIT_NAMES.grok, HIT_NAMES.claude]).toEqual(['물방울 왕관', '반짝임', '엑스 섬광', '붓 빛살']);
     expect([SKIN_NAMES.aqua, DECK_NAMES.aqua, NOTE_NAMES.aqua, HIT_NAMES.aqua]).toEqual(['아쿠아', '아쿠아', '아쿠아', '록온']);
     expect([SKIN_NAMES.steel, DECK_NAMES.steel, NOTE_NAMES.steel, HIT_NAMES.steel]).toEqual(['스틸', '스틸', '스틸', '십자 섬광']);
-    expect([SKIN_NAMES.rainbow, DECK_NAMES.rainbow, NOTE_NAMES.rainbow, HIT_NAMES.rainbow]).toEqual(['무지개', '무지개', '무지개', '색종이']);
     expect([SKIN_NAMES.noir, DECK_NAMES.noir, NOTE_NAMES.noir, HIT_NAMES.noir]).toEqual(['레드라인', '레드라인', '레드라인', '글리치']);
-    expect([SKIN_NAMES.magenta, DECK_NAMES.magenta, NOTE_NAMES.magenta, HIT_NAMES.magenta]).toEqual(['크림슨', '크림슨', '크림슨', '파편 섬광']);
     expect([SKIN_NAMES.wire, DECK_NAMES.wire, NOTE_NAMES.wire, HIT_NAMES.wire]).toEqual(['화이트 라인', '화이트 라인', '화이트 라인', '선 불꽃']);
     expect([SKIN_NAMES.astral, DECK_NAMES.astral, NOTE_NAMES.astral, HIT_NAMES.astral]).toEqual(['별밤', '별밤', '별밤', '별빛']);
     // the skins' parts lead each list, in the skins' order

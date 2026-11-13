@@ -1,0 +1,146 @@
+{
+ "gear": "claude",
+ "name": "Claude",
+ "picture": "claude.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "f051ec106d484681729093941a5e6893862ec7d6ad4d5301999559a34db21834",
+ "chosen": "chosen/claude.png (2048 x 876): the user's choice ('이대로 확정'), draft 5",
+ "steps": [
+  "p4/claude-b1/try-1.png: the render of draft 2-B (p6/layout-claude2.py, p4/gen10.py)",
+  "p4/claude-c1/try-1.png: that render changed by the image model (p6/layout-claude3.py, p6/synth.py, p4/gen11.py): the sun large in the far left corner, a quarter of it on the sheet; its painted strokes only there; the black speed lines gone",
+  "p4/tools.py flat claude-c1 1 -> the paper (chosen/claude-paper.png)",
+  "p6/letter.py claude-e1 1 claude/letter/try-1.png 1024 438 1107 0.92 1.25 1a1816: the hand lettering (p4/gen12.py) printed on the bare paper only",
+  "p6/print.py claude-e1 1 claude/png/pelican-paper.png: the pelican printed over it into the box of parts.json, its light read from the paper before the lettering"
+ ],
+ "sources": {
+  "pelican": "Simon Willison's Weblog, 2026-11-09, 'llm-anthropic 0.31': the picture its post shows for the prompt 'Generate an SVG of a pelican riding a bicycle' (https://simonwillison.net/2026/Nov/9/llm-anthropic/ ; the SVG from https://gist.github.com/simonw/bcd1a1bf38b929b0bbbae2e38b808e97). Its scenery was taken out; it is drawn 1.25 times deeper.",
+  "spark": "the Claude symbol (ai/dl/lobe-claude-color.svg)",
+  "mascot": "the Claude Code icon's creature, Clawd (claude/dl2/lobe-claudecode-color.svg), given to the image model as the design reference",
+  "lettering": "new hand lettering by the image model (no official handwritten wordmark was found)"
+ },
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "claude-b1",
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Note lanes run away from the camera, a glowing judge line crosses them, under it lies a row of eight key caps, and under that row, between the two side rails, lies the gear's lower panel: a wide slab that runs from the key caps down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING: a sheet of ivory paper, and drawn flat on it: (a) near the panel's far left corner (just under the key caps, at the left) an orange starburst emblem with a ring of short yellow and orange strokes round it; (b) left of the middle a few black speed lines and small round puffs; (c) at the right a small orange blocky creature with two black eyes. The wide blank space between (b) and (c) is empty on purpose. The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE for the emblem: a hand-cut starburst of uneven rays (a spark). Reproduce its shape faithfully: the same number of rays, the same uneven lengths and widths, the same blunt ends. IMAGE 3 is the DESIGN REFERENCE for the creature, a pixel-art mascot: one wide orange block of a body with two tall black eyes, a stubby arm sticking out at each side, and four short legs. Copy nothing else of images 2 and 3.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the row of key caps, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the judge line and the flash on it, the row of key caps, the rails, the dark background.\n\nThe panel becomes ONE SHEET OF THICK IVORY PAPER seen exactly from this camera, as a photorealistic 3D render at the finish of a commercial console game: a warm off-white (close to #FAF9F5), matte, heavy cotton paper like watercolour paper or letterpress card, with a fine even grain and a few soft fibres. It is lit by soft, even daylight; only round the emblem a faint warm glow lies on the paper. There are NO beams, NO shafts and NO stripes of light across the sheet, and no dark band or vignette along any edge: apart from that faint glow the whole sheet is evenly lit. No gloss, no creases, no folds, no torn edges, no stains, no ruled lines.\n\nEverything on the sheet keeps exactly the place and the size the layout drawing gives it; do not move, enlarge or shrink anything, and add nothing.\n\n1. THE EMBLEM, near the panel's far left corner: the emblem of image 2 as ONE SOLID THREE-DIMENSIONAL OBJECT lying flat on the paper, foreshortened by the camera exactly as in image 1: cut from a slab of fired terracotta clay about as thick as a finger, with softly rounded edges, matte, in the warm clay orange of the layout drawing (close to #D97757), with a short soft shadow under its edges. Do not stand it upright and do not turn it toward the viewer. It is the sun of this picture.\n\n2. THE SUN'S RAYS, PAINTED: round the emblem, the ring of short strokes of the layout drawing, PAINTED ON THE PAPER in gouache: about a dozen separate dabs of a dry, flat brush, golden yellow and warm orange by turns, each one single short stroke pointing away from the emblem, with ragged bristle ends and streaks of bare paper showing through the paint, like the rays in a child's painting of a smiling sun. Clear paper between the strokes, and between the strokes and the emblem. They are flat paint on the paper, not light and not objects, and they are SHORT: none is longer than the layout drawing shows, and none runs on across the sheet.\n\n3. THE SPEED MARKS, DRAWN BY HAND: left of the middle, where the layout drawing has them: a few speed lines one above the other, and by the lowest of them two or three small puffs of dust, drawn on the paper by hand with a black brush pen in a loose, warm, slightly wobbly line (the friendly hand-drawn illustration style of a thoughtful tech brand: confident uneven strokes of changing width, round ends, a little dry-brush texture); the largest puff is filled flat with clay orange. They are the trail of something that has just sped off to the right. Flat ink on the paper, nothing three-dimensional.\n\n4. THE MASCOT, at the right: the creature of image 3 as ONE SOLID THREE-DIMENSIONAL TOY FIGURE: chunky and blocky with softly rounded edges, matte clay orange (close to #D97757) like a moulded vinyl or clay toy, two tall glossy black eyes set into its face, a stubby arm at each side, four short legs. It lies flat on the paper on its back, like a thick moulded figurine laid on the sheet, its head toward the key caps and its feet toward the camera, foreshortened by the camera exactly as in image 1 (do not stand it upright on the table and do not turn it toward the viewer). It is RUNNING to the right, cute and eager: its body leans a little to the right as in the layout drawing, its four legs are mid-stride (two stretched, two tucked up), its arms swing; a soft shadow lies under it. Keep its design: one wide block of a body, no mouth, no nose, no antennae, no tail, no extra limbs.\n\nThe wide space between the speed marks and the mascot stays EMPTY paper (a drawing of a cyclist is printed there later): nothing lies on it and nothing is drawn or written on it.\n\nThe top edge of the panel under the key caps is a thin bevelled lip. Everything stays inside the rails; nothing rises over the rails or above the key caps, and the panel runs on down past the bottom edge of the image (no front edge is seen). No text, no letters, no numbers, no other logos, no watermark, no people, no hands, and nothing over the lanes. Colours: ivory; warm clay orange for the emblem and the mascot; golden yellow and orange paint for the rays; black ink for the speed marks.",
+   "made": "2026-11-12 06:47:54 +0000",
+   "bytes": 4683908,
+   "sha256": "9ea16bd19ab669db94dfe6fe04f0b1a2e427045cb2e2891e4aab09efbe5677ea",
+   "usage": {
+    "promptTokenCount": 4815,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 8377,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 1455
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1882
+   },
+   "pictures": [
+    "p4/claude-b1/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows, the corner stickers off, the panel a flat layout drawing)",
+    "p4/refs/claude-spark.jpg",
+    "p4/refs/claude-clawd.jpg"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "claude-generation-base.json"
+  },
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "claude-c1",
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the FINISHED PICTURE you change: the lower part of a frame of our own rhythm game's play screen. Its lower panel (under the row of key caps, between the two side rails) is a sheet of ivory paper with these things on it: near its far left corner a starburst emblem of terracotta clay with a ring of short yellow and orange brush strokes painted round it; left of the middle six black speed lines one above the other and, under them, a few small puffs of dust; at the right a terracotta toy creature with two black eyes.\n\nIMAGE 2 is a FLAT LAYOUT DRAWING of the same frame as it must be after the change. It shows where things lie and how large they are: the emblem very large and set into the panel's far left corner so that only a quarter of it is on the sheet, six short strokes round that quarter, no black lines; the puffs and the creature where they already are.\n\nIMAGE 3 is the design reference for the emblem (a hand-cut starburst of uneven rays).\n\nMake these three changes to image 1, and NO others:\n\nA. THE EMBLEM MOVES INTO THE CORNER AND GROWS. Take the emblem and its ring of strokes away from where they are now, leaving bare ivory paper with its grain there. Put the emblem, the same object of the same fired terracotta clay, into the panel's far left corner exactly as image 2 shows: much larger, its middle exactly at the corner where the left rail meets the row of key caps, so that ONLY ITS LOWER RIGHT QUARTER lies on the sheet, the rest being cut off by the edge under the key caps and by the left rail: a quarter of the starburst, a fan of thick clay rays of uneven length reaching out from the corner, as far as in image 2. It lies flat on the paper, foreshortened as the sheet is, about as thick as two fingers, with softly rounded edges, matte, with a short soft shadow under its edges.\n\nB. THE PAINTED RAYS, ONLY AT THAT CORNER. Round the quarter emblem, beyond the tips of its rays, paint the short strokes of image 2: about six separate dabs of a dry, flat brush in golden yellow and warm orange gouache by turns, in the same manner as the strokes of image 1 (ragged bristle ends, streaks of bare paper showing through), each pointing away from the corner, with clear paper between them. No such strokes anywhere else on the sheet. A faint warm glow lies on the paper at that corner only. No beams, shafts or stripes of light.\n\nC. THE BLACK LINES GO. Remove all six black straight speed lines completely, leaving bare ivory paper with its grain where they were. KEEP the small puffs of dust under them exactly as they are.\n\nKeep everything else of image 1 EXACTLY as it is: the framing, the camera, the zoom and the crop (your picture must overlay image 1 pixel for pixel); the lanes, the notes, the judge line and the flash on it, the row of key caps, the rails and the dark background; the paper with its grain and its even light; the toy creature at the right with its shadow, unchanged in place, size, shape and colour; the puffs of dust; and the wide empty space between the puffs and the creature, which stays empty (a drawing is printed there later). No text, no letters, no numbers, no other logos, no watermark.",
+   "made": "2026-11-12 06:56:09 +0000",
+   "bytes": 4710279,
+   "sha256": "f2ed0f4f2546e774a29816f6d584d565499d49c384f15ffa39885fe462ff60f7",
+   "usage": {
+    "promptTokenCount": 4098,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6921,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 738
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 1143
+   },
+   "pictures": [
+    "p4/claude-b1/try-1.png (draft 2-B's render, the picture changed)",
+    "p4/claude-c1/tmpl-crop.png (the layout drawing of the changed panel in this game's own frame)",
+    "p4/refs/claude-spark.jpg"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "claude-generation.json"
+  },
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "21:9",
+   "size": "2K",
+   "prompt": "The single word Claude, written by hand, once, with a broad round brush pen in solid black ink on a plain, pure white ground.\n\nExactly six letters, spelled C-l-a-u-d-e: a capital C followed by lowercase l, a, u, d, e. Nothing else is written.\n\nWarm, friendly, confident handwriting, not calligraphy and not a typeface: upright, rounded letters, not joined or only loosely joined, slightly uneven in size and on a slightly uneven baseline; thick strokes of gently changing width with round ends and a little dry-brush texture where a stroke ends, like the hand-drawn illustrations of a thoughtful, friendly tech brand. Each letter is clear and easy to read.\n\nThe word is large: it fills the width of the picture with a small even margin, and sits in the middle. Flat artwork: a pure white background with no paper texture, no shadow, no gradient, no underline, no flourish, no dots or splashes, no frame, no signature, no other marks.",
+   "made": "2026-11-12 07:01:46 +0000",
+   "bytes": 4655825,
+   "sha256": "0c9d99d0dc9305a324e0539e478b155a29950c51c7505156554b742474ede62e",
+   "usage": {
+    "promptTokenCount": 214,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 2526,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 214
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 632
+   },
+   "pictures": [],
+   "record": "claude-lettering.json"
+  }
+ ]
+}

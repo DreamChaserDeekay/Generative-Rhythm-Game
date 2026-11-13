@@ -29,12 +29,8 @@ export const HUD_TYPE_SOURCES: HudTypeSource[] = ['gear', 'skin'];
  * to hot pink across (HudType.fill);
  * STEEL (스틸): a rounded sans as a panel's lettering, white easing to a pale steel at its foot, "MAX" white
  * and its percent steel blue (HudType.fill);
- * RAINBOW (무지개): rounded bubble letters, white in a thick navy outline, COMBO a candy colour a letter,
- * "MAX" white and its percent a rainbow across (HudType.fill);
  * NOIR (레드라인): a wide squared display type, white with a red copy of itself a little to its right, "MAX"
  * white and its percent red (HudType.fill);
- * MAGENTA (크림슨): a tall, tight italic, white easing to a pale pink at its foot over a crimson edge, "MAX"
- * white and its percent crimson (HudType.fill);
  * WIRE (화이트 라인): rounded letters drawn as thin white outlines, hollow, "MAX" hollow and its percent solid
  * white (HudType.fill);
  * ASTRAL (별밤): elegant roman capitals, white easing to moon blue at their foot, COMBO gold, "MAX" white and its
@@ -59,9 +55,7 @@ export const GEAR_TYPES: Record<GearStyle, HudType> = {
   claude: { font: 'Source Serif 4', size: 42, combo: 62, tracking: 0.01, max: '#f08a63', outline: '#141413', stroke: 5, split: true, comboColor: '#fff6ee', fill: 'claude' },
   aqua: { font: 'Chakra Petch', size: 42, combo: 60, tracking: 0.02, max: '#22e0e6', outline: '#0a7f8a', stroke: 5, split: true, comboColor: '#ffffff', fill: 'aqua' },
   steel: { font: 'M PLUS Rounded 1c', size: 40, combo: 60, tracking: 0.02, max: '#58aaf0', outline: '#10151b', stroke: 5, split: true, comboColor: '#ffffff', fill: 'steel' },
-  rainbow: { font: 'Fredoka', size: 42, combo: 62, tracking: 0.01, max: '#ff7ac3', outline: '#15155c', stroke: 7, split: true, comboColor: '#ffffff', fill: 'rainbow' },
   noir: { font: 'Orbitron', size: 36, combo: 54, tracking: 0.06, max: '#ff1a2b', outline: '#000000', stroke: 5, split: true, comboColor: '#ffffff', fill: 'noir' },
-  magenta: { font: 'Barlow Condensed Italic', size: 48, combo: 70, tracking: 0.01, max: '#ff2d78', outline: '#0b0b0d', stroke: 6, split: true, comboColor: '#ffffff', fill: 'magenta' },
   wire: { font: 'Outfit', size: 42, combo: 62, tracking: 0.04, max: '#ffffff', outline: '#ffffff', stroke: 3, split: true, comboColor: '#ffffff', fill: 'wire' },
   astral: { font: 'Cinzel', size: 40, combo: 60, tracking: 0.05, max: '#f2c14e', outline: '#0a1230', stroke: 5, split: true, comboColor: '#ffffff', fill: 'astral' },
   standard: { font: 'Barlow Condensed', size: 44, combo: 64, tracking: 0.04, max: '#37e2ff', outline: '#0b0c10', stroke: 6, split: true },
@@ -86,9 +80,7 @@ export const GAUGE_NAMES: Record<GearStyle, string | null> = {
   claude: 'FEVER',
   aqua: 'FEVER',
   steel: 'FEVER',
-  rainbow: 'FEVER',
   noir: 'FEVER',
-  magenta: 'FEVER',
   wire: 'FEVER',
   astral: 'FEVER',
   standard: 'FEVER',

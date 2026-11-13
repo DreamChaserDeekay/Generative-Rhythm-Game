@@ -61,10 +61,8 @@ HITS: dict[str, dict] = {
     "claude": {},
     "aqua": {},
     "steel": {},
-    "rainbow": {},
     # its light is thin (slices and pixels): drawn larger than its measure says
     "noir": {"span": 1.2},
-    "magenta": {},
     "wire": {},
     "astral": {},
 }
