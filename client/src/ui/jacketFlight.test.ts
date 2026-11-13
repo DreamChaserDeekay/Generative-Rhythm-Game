@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { flightTransform, setJacketOrigin, takeJacketOrigin } from './jacketFlight';
+import { flightTransform, intoTrackTransform, leaveLampOrigin, setJacketOrigin, stampTransform, takeJacketOrigin, takeLampOrigin } from './jacketFlight';
 
 const rect = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, x: left, y: top, right: left + width, bottom: top + height }) as DOMRect;
 
@@ -70,5 +70,47 @@ describe('the jacket from the song select to the start card', () => {
     const m = /translate\((.+)px, (.+)px\) scale\((.+), (.+)\)/.exec(flightTransform(from, to))?.slice(1).map(Number) ?? [];
     expect([to.left + m[0], to.top + m[1]]).toEqual([from.left, from.top]);
     expect([to.left + m[0] + to.width * m[2], to.top + m[1] + to.height * m[3]]).toEqual([from.left + from.width, from.top + from.height]);
+  });
+});
+
+describe('the start card into the track', () => {
+  it('takes the jacket from its middle to the far end of the track, small', () => {
+    // a 300 px jacket whose middle is at (450, 300), to a point at (640, 80)
+    expect(intoTrackTransform(rect(300, 150, 300, 300), { x: 640, y: 80 })).toBe('translate(190px, -220px) scale(0.06)');
+  });
+});
+
+describe("the play's lamp to the result's stamp", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    takeLampOrigin();
+  });
+
+  /** A HUD holding (or not) the end show's lamp at `box`. */
+  const hud = (box: DOMRect | null, lamp = 'hard') =>
+    ({
+      querySelector: () => (box ? { getBoundingClientRect: () => box, dataset: { lamp } } : null),
+    }) as unknown as ParentNode;
+
+  it('gives the lamp the play ended on, where it stood, once', () => {
+    const at = clock();
+    leaveLampOrigin(hud(rect(440, 300, 400, 80), 'exhard'));
+    at(300);
+    expect(takeLampOrigin()).toEqual({ rect: rect(440, 300, 400, 80), lamp: 'exhard' });
+    expect(takeLampOrigin()).toBeNull();
+  });
+
+  it('gives none for a play that ended without one, or long ago', () => {
+    const at = clock();
+    leaveLampOrigin(hud(null));
+    expect(takeLampOrigin()).toBeNull();
+    leaveLampOrigin(hud(rect(440, 300, 400, 80)));
+    at(5000);
+    expect(takeLampOrigin()).toBeNull();
+  });
+
+  it('draws the stamp over the lamp, middle on middle, in its own proportions', () => {
+    // a 200 × 40 stamp at (700, 100) drawn over a lamp 80 high whose middle is at (640, 340)
+    expect(stampTransform(rect(440, 300, 400, 80), rect(700, 100, 200, 40))).toBe('translate(-160px, 220px) scale(2)');
   });
 });

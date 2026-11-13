@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, EXPORT_LABELS, exportFormats, type ScoreRecord } from '../api/client';
 import { gaugeRules, judgementConfig, type GaugeRule } from '../engine/config';
 import type { ReplayData } from '../engine/replay';
@@ -9,6 +9,7 @@ import { padCodeOf } from '../input/gamepad';
 import { bindingsFor, padBindingsFor, secondBindingsFor, songOffsetOf, withSongOffset, type Settings } from '../settings/settings';
 import type { PlayRequest } from './App';
 import { difficultyChip } from './difficultyChip';
+import { flyStamp, takeLampOrigin } from './jacketFlight';
 import { LampMark, lampClass } from './lamps';
 import type { PlayOutcome } from './PlayController';
 import { playbackRateText, playedSettings, playModeLabel } from './playRules';
@@ -103,6 +104,13 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
   const endMs = practice ? practice.endMs : Math.max(meta.durationMs ?? 0, ...chart.notes.map((n) => n.endT ?? n.t), 1);
 
   const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  // where the play's own lamp stood as it ended (its end show): the stamp comes over from there
+  const [lampFrom] = useState(() => takeLampOrigin());
+  const lampLine = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const stamp = lampLine.current?.querySelector<HTMLElement>('.lamp-text');
+    if (lampFrom && stamp) flyStamp(stamp, lampFrom.rect);
+  }, []);
   const [settled, setSettled] = useState(reduced);
   const settle = useCallback(() => setSettled(true), []);
   const [guardUntil] = useState(() => performance.now() + (reduced ? MIN_GUARD_MS : Math.max(MIN_GUARD_MS, REVEAL_MS)));
@@ -283,7 +291,8 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
     .join(' · ');
   const recorded = save && 'change' in save && settled ? save.change : null;
   const modeLabel = judgementConfig.modes[played.judgementMode].label;
-  const recordTag = recorded && (recorded.newBest ? '최고 기록 갱신' : firstTag(recorded.first, played.judgementMode, rules.label));
+  // a better headline than the best before (a better grade comes with it): NEW RECORD on the stamp
+  const recordTag = recorded && (recorded.newBest ? 'NEW RECORD' : firstTag(recorded.first, played.judgementMode, rules.label));
   // RANDOM and its kin: R plays the same lane order again, Shift+R draws a new one. A retry plays
   // on the settings' placement (a replay was played on its recording's).
   const randomPlacement = !request.fromEditor && settings.placement !== 'OFF' && settings.placement !== 'MIRROR';
@@ -500,7 +509,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
               </section>
 
               <section className="result-outcome">
-                <p className={`result-lamp-line ${settled ? '' : 'stamp'}`}>
+                <p ref={lampLine} className={`result-lamp-line ${settled || lampFrom ? '' : 'stamp'}`} data-flown={lampFrom ? lampFrom.lamp || 'yes' : undefined}>
                   {lamp('result-lamp')}
                   {/* the record's lines keep their place from the start, so nothing moves when they show */}
                   {recording && (
@@ -537,7 +546,7 @@ export function ResultScreen({ request, outcome, settings, onSettingsChange, onR
                 </div>
                 <div className="result-record">
                   {recordTag && (
-                    <span className="record-tag" data-testid="record-tag">
+                    <span className={`record-tag${recorded?.newBest ? ' new-record' : ''}`} data-testid="record-tag">
                       <span>{recordTag}</span>
                     </span>
                   )}

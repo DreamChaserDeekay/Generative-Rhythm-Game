@@ -811,6 +811,11 @@ export class PlayController {
     return `${what} · ${formatMs(p.startMs)}–${formatMs(p.endMs)}${p.loop ? ` · LOOP ${this.loops + 1}` : ''}`;
   }
 
+  /** Where the far end of the track stands on the screen, in the camera's own framing (shares of the width and height). */
+  trackEndOnScreen(): { x: number; y: number } {
+    return this.renderer.trackEndOnScreen();
+  }
+
   /** The result of the last loop a looped practice finished (null: none yet, or no such practice). */
   lastLoopOutcome(): PlayOutcome | null {
     return this.lastLoop;

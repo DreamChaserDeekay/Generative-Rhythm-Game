@@ -564,7 +564,7 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
   // then a good one, a little late
   await playByHand(page, notes, keys, { meanMs: 9, sdMs: 16, missRate: 0.012, seed: 20261022 });
   await expect(result).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
-  await expect(page.getByTestId('record-tag')).toHaveText('최고 기록 갱신');
+  await expect(page.getByTestId('record-tag')).toHaveText('NEW RECORD');
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
   await page.getByTestId('result-details').click();
