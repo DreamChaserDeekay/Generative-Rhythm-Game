@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, MATERIAL_NOTES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf } from './tintArt';
+import { emblemBox, isBarNote, isLogoNote, laneDepthOf, LOGO_NOTES, LONG_OF, LONG_PAINT, LONG_STYLES, MATERIAL_NOTES, NOTE_PAINT, NOTE_STYLES, noteDepthOf, noteEmblemOf, noteThicknessOf, shapedEnd } from './tintArt';
 
 describe('the note families’ depth along the track', () => {
   const bar = 0.7;
@@ -68,14 +68,16 @@ describe('the bars in a finish of their own', () => {
     for (const style of ['chamfer', 'round', 'star4', 'star5'] as const) expect(isBarNote(style)).toBe(false);
   });
 
-  it('are painted inside the bar’s own outline, and the same every time (their grain does not change)', () => {
+  it('are painted inside an outline of their own, and the same every time (their grain does not change)', () => {
+    // the rounded box (FLAT's), the mirror's cut corners, the enamel's pill (its ends round on the screen)
+    const OUTLINE = { chrome: 'lineTo', hairline: 'roundRect', glass: 'roundRect', enamel: 'ellipse', pearl: 'roundRect', carbon: 'roundRect' } as const;
     for (const style of MATERIAL_NOTES) {
       const first = recorder();
       NOTE_PAINT[style](first.g, 300, 96, 'white');
-      // the bar's outline (FLAT's rounded box) is the clip of everything drawn
+      // the outline is the clip of everything drawn
       const clip = first.calls.findIndex((c) => c[0] === 'clip');
-      expect(first.calls.findIndex((c) => c[0] === 'roundRect'), style).toBeLessThan(clip);
-      expect(first.calls.slice(0, clip).find((c) => c[0] === 'roundRect'), style).toEqual(['roundRect', 0, 0, 300, 96, [expect.any(Number)]].slice(0, 5).concat([expect.anything()]));
+      expect(first.calls.slice(0, clip).some((c) => c[0] === OUTLINE[style]), style).toBe(true);
+      if (OUTLINE[style] === 'roundRect') expect(first.calls.slice(0, clip).find((c) => c[0] === 'roundRect')!.slice(1, 5), style).toEqual([0, 0, 300, 96]);
       expect(first.calls.findIndex((c) => c[0] === 'fillRect' || c[0] === 'fill'), style).toBeGreaterThan(clip);
       const again = recorder();
       NOTE_PAINT[style](again.g, 300, 96, 'blue');
@@ -96,8 +98,7 @@ describe('the Firestarter skin’s notes', () => {
     expect(NOTE_STYLES.slice(0, 4)).toEqual(['flat', 'prism', 'sky', 'fire']);
     expect(isBarNote('fire')).toBe(true);
     expect(LONG_OF.fire).toBe('fire');
-    // a tube with thickness (walls under it), as wide as the default one, its ends as shallow: nothing slanted
-    expect(LONG_PAINT.fire.flat).toBeUndefined();
+    // a tube as wide as the default one, its ends as shallow: nothing slanted
     expect([LONG_PAINT.fire.width, LONG_PAINT.fire.endDepth, LONG_PAINT.fire.tile]).toEqual([LONG_PAINT.solid.width, LONG_PAINT.solid.endDepth, LONG_PAINT.solid.tile]);
     expect(LONG_PAINT.fire.held).toBeDefined();
     for (const part of [LONG_PAINT.fire.body, LONG_PAINT.fire.end, LONG_PAINT.fire.held!.body, LONG_PAINT.fire.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
@@ -116,7 +117,7 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
   };
 
   it('the notes of the skins after the reference panels are bars, each with a long note cut straight across and a mark on the scratch’s', () => {
-    const LONGS = { aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'sky' } as const;
+    const LONGS = { aqua: 'aqua', steel: 'steel', noir: 'noir', wire: 'wire', astral: 'astral' } as const;
     for (const style of ['aqua', 'steel', 'noir', 'wire', 'astral'] as const) {
       expect(isBarNote(style), style).toBe(true);
       expect(isLogoNote(style), style).toBe(false);
@@ -136,8 +137,6 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
       expect(scratch.calls, style).not.toEqual(key.calls);
       for (const mark of ['blue', 'gold', 'side'] as const) expect(() => NOTE_PAINT[style](recorder().g, 96, 40, mark)).not.toThrow();
     }
-    // the see-through ones lie flat, with no walls under them
-    expect(['aqua', 'steel', 'noir', 'wire'].filter((l) => LONG_PAINT[l as 'aqua'].flat)).toEqual(['aqua', 'noir', 'wire']);
   });
 
   it('are shapes and no bars, as deep as keeps the mark’s shape, each with a long note of a family', () => {
@@ -161,11 +160,11 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
         paint(r.g, 128, Math.round(128 * long.tile));
         return r.calls.length;
       };
-      // the body draws its mark over the band, the end the band and its rim alone
-      expect(calls(long.body), style).toBeGreaterThan(calls(long.end) - 2);
+      // the body draws its mark over the band; the band alone (its ends run on with it: shapedEnd) draws less
+      expect(long.plain, style).toBeDefined();
+      expect(calls(long.body), style).toBeGreaterThan(calls(long.plain!.idle));
       for (const part of [long.body, long.end, long.held!.body, long.held!.end]) expect(() => part(recorder().g, 128, 64), style).not.toThrow();
     }
-    expect(LOGO_NOTES.filter((style) => LONG_PAINT[LONG_OF[style]].flat)).toEqual(['gemini', 'grok']);
     expect(isLogoNote('round')).toBe(false);
   });
 
@@ -208,16 +207,14 @@ describe('the sky skin’s notes', () => {
     return { g, calls };
   }
 
-  it('are bars as deep in every lane as the plain one, with a long note of their own lying flat', () => {
+  it('are bars as deep in every lane as the plain one, with a long note of their own', () => {
     expect(NOTE_STYLES.slice(0, 3)).toEqual(['flat', 'prism', 'sky']);
     expect(isBarNote('sky')).toBe(true);
     expect(noteDepthOf('sky', 0.7, 0.84, 1.54)).toBe(0.7);
     expect(laneDepthOf('sky', 0.7, 1.6, 0.7)).toBe(0.7);
     expect(LONG_OF.sky).toBe('sky');
-    // a see-through band: no walls under it (the other long notes are slabs), as wide as the default skin's, brighter while held
-    expect(LONG_PAINT.sky.flat).toBe(true);
-    // (and the aqua mecha skin's light rail, see-through too)
-    for (const style of LONG_STYLES.filter((l) => !['sky', 'aqua', 'noir', 'wire', 'gemini', 'grok'].includes(l))) expect(LONG_PAINT[style].flat, style).toBeUndefined();
+    // a see-through band as wide as the default skin's, brighter while held; a slab as every long note is (the renderer
+    // copies only its two long edges under it for its walls, so what shows through it is not darkened)
     expect(LONG_PAINT.sky.width).toBe(LONG_PAINT.solid.width);
     expect(LONG_PAINT.sky.held).toBeDefined();
     for (const part of [LONG_PAINT.sky.body, LONG_PAINT.sky.end, LONG_PAINT.sky.held!.body, LONG_PAINT.sky.held!.end]) expect(() => part(recorder().g, 64, 64)).not.toThrow();
@@ -255,5 +252,40 @@ describe('the sky skin’s notes', () => {
     // each wing a shade under it and the wing itself: one closed outline with its feathers' curves
     expect(wings.filter((c) => c[0] === 'fill')).toHaveLength(4);
     expect(wings.filter((c) => c[0] === 'quadraticCurveTo').length).toBeGreaterThanOrEqual(4 * 5);
+  });
+});
+
+describe('the notes told apart by their build', () => {
+  it('makes each style’s notes as thick as its look: the pillow and the wire low, the key cap and the cut glass high', () => {
+    expect(noteThicknessOf('flat')).toBe(1);
+    for (const style of NOTE_STYLES) {
+      expect(noteThicknessOf(style), style).toBeGreaterThan(0.3);
+      expect(noteThicknessOf(style), style).toBeLessThan(2);
+    }
+    expect(noteThicknessOf('sky')).toBeLessThan(1);
+    expect(noteThicknessOf('wire')).toBeLessThan(noteThicknessOf('sky'));
+    expect(noteThicknessOf('steel')).toBeGreaterThan(noteThicknessOf('prism'));
+  });
+
+  it('gives every long note’s body and ends a picture that draws, idle and held', () => {
+    const g = new Proxy({} as Record<string | symbol, unknown>, { get: () => () => ({ addColorStop: () => undefined }), set: () => true }) as unknown as CanvasRenderingContext2D;
+    for (const style of LONG_STYLES) {
+      const long = LONG_PAINT[style];
+      for (const part of [long.body, long.end, long.held?.body, long.held?.end, long.plain?.idle, long.plain?.held]) if (part) expect(() => part(g, 64, 32), style).not.toThrow();
+    }
+  });
+
+  it('cuts an end in a tap’s outline: the tap drawn twice the end’s depth (its outer half shows), the body running into it from its inner edge', () => {
+    const taps: number[][] = [];
+    const necks: number[][] = [];
+    const g = new Proxy({} as Record<string | symbol, unknown>, { get: () => () => undefined, set: () => true }) as unknown as CanvasRenderingContext2D;
+    shapedEnd(
+      (_, w, h) => taps.push([w, h]),
+      (_, w, h) => necks.push([w, h]),
+      0.8,
+    )(g, 100, 40);
+    expect(taps).toEqual([[100, 80]]);
+    expect(necks.length).toBeGreaterThan(1);
+    for (const n of necks) expect(n).toEqual([80, 40]);
   });
 });

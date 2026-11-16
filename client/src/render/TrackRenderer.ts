@@ -35,6 +35,7 @@ import {
   laneDepthOf,
   NOTE_STRETCH,
   noteDepthOf,
+  noteThicknessOf,
   paintTexture,
   setNoteEmblem,
   shadowReach,
@@ -102,8 +103,12 @@ const PICTURE_LIFT = 0.05;
  * SLAB_SLICES copies of the picture.
  */
 const SLAB_DEPTH = 0.45;
-const SLAB_LONG = 0.09;
 const SLAB_SLICES = 7;
+/**
+ * A long note's ends: the share of their picture, from its outer edge, their walls take (the rest only
+ * ever lies under their top, or under the body next to them).
+ */
+const END_WALL = 0.6;
 /**
  * A slab's walls: how bright just under its top edge (catching the light) and at its foot, how much
  * lighter on the side the light comes from (the left) and darker on the other, and the share of a
@@ -780,14 +785,16 @@ export class TrackRenderer {
   /** The view's framing before the chart's zoom and roll (see baseFrame): made again when the camera, the screen or LIFT changes. */
   private frame: CameraFrame | null = null;
   private readonly flatGeometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  /** A long note's body and ends as slabs (scaled 1 high: SLAB_LONG thick under the top), or lying flat where its style has no thickness (LongPaint.flat). */
-  private readonly longSlab: THREE.BufferGeometry;
   /**
-   * A long note's far end is its top alone: a slab's walls there would be drawn over the body next to
-   * it (the wall that faces the camera at that end is inside the note), and the note would look as if
-   * a second piece lay on it.
+   * A long note's body as a slab (scaled 1 high) as thick as its taps: its walls copies of its picture's
+   * two long edges only (longBodyGeometry), so a see-through body is not darkened by copies under it.
    */
-  private readonly longTop = slabGeometry(0, 0, 0, 0);
+  private readonly longBodyShape: THREE.BufferGeometry;
+  /**
+   * A long note's ends as slabs as thick as the body, their walls taking the outer part of their picture
+   * (END_WALL): the head's show in front of it, the tail's beyond it, and none is drawn over the body.
+   */
+  private readonly longEndShape: THREE.BufferGeometry;
   /** Far plane hides what SUDDEN+ covers; near plane hides HIDDEN+ and everything under LIFT. */
   private readonly farClip = new THREE.Plane(new THREE.Vector3(0, 0, 1), FAR_AWAY);
   private readonly nearClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), FAR_AWAY);
@@ -813,6 +820,8 @@ export class TrackRenderer {
   private readonly longEnd: THREE.Texture;
   /** The long note's pictures while held, where its style has its own (drawn from art). */
   private readonly longHeld: { body: THREE.Texture; end: THREE.Texture } | null = null;
+  /** How wide a long note's ends are for its body (their outline may reach past it: a star's points). */
+  private readonly longEndWidth: number;
   /** The pictures the style's parts draw from (styleArt.ts), and the paints made with them. */
   private readonly images: StyleImages;
   private readonly notePaint: NotePaint;
@@ -965,7 +974,8 @@ export class TrackRenderer {
     this.borderLook = borderLookOf(this.style, this.images);
     this.laneColors = options.laneColors?.length === options.mode.lanes.length ? [...options.laneColors] : laneColorsFor(options.skin, options.mode);
     // the notes' pictures laid on the track as slabs, their tops just above it (a mesh is lifted half its height)
-    this.noteGeometry = slabGeometry(PICTURE_LIFT - 0.5, SLAB_DEPTH, WALL_CROP);
+    const thick = noteThicknessOf(this.style.note);
+    this.noteGeometry = slabGeometry(PICTURE_LIFT - 0.5, SLAB_DEPTH * thick, WALL_CROP);
     this.barDepth = NOTE_DEPTH;
     this.noteDepth = this.barDepth;
     this.laneDepths = this.lanesDeep(this.barDepth);
@@ -976,12 +986,17 @@ export class TrackRenderer {
     this.fitWidth = options.fitWidth ?? null;
     this.beamLength = BEAM_LENGTH * (options.keyBeamLength ?? 1);
     this.long = longPaintOf(this.style.note, this.images);
-    this.longSlab = this.long.flat ? slabGeometry(0, 0, 0, 0) : slabGeometry(0, SLAB_LONG, 0);
+    // as thick as a tap of the style
+    const longThick = NOTE_HEIGHT * SLAB_DEPTH * thick;
+    this.longBodyShape = longBodyGeometry(longThick, this.long.wall ?? LONG_WALL);
+    this.longEndShape = endSlabGeometry(longThick, END_WALL);
+    this.longEndWidth = this.long.endWidth ?? 1;
     const px = this.long.px ?? 64;
+    const endPx = Math.round(px * this.longEndWidth);
     const longPictures = (body: Paint, end: Paint) => {
       const b = this.own(paintTexture(px, Math.round(px * this.long.tile), body));
       b.wrapT = THREE.RepeatWrapping;
-      return { body: b, end: this.own(paintTexture(px, Math.max(4, Math.round(px * this.long.endDepth)), end)) };
+      return { body: b, end: this.own(paintTexture(endPx, Math.max(4, Math.round(px * this.long.endDepth)), end)) };
     };
     ({ body: this.longBody, end: this.longEnd } = longPictures(this.long.body, this.long.end));
     if (this.long.held) this.longHeld = longPictures(this.long.held.body, this.long.held.end);
@@ -1044,12 +1059,12 @@ export class TrackRenderer {
     });
     this.bodyPool = new MeshPool(this.scene, () => {
       // each body has its own UVs: the picture repeats along the note
-      const mesh = new THREE.Mesh(this.longSlab.clone(), this.bodyMaterial(this.laneColors[0], 'idle'));
+      const mesh = new THREE.Mesh(this.longBodyShape.clone(), this.bodyMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3;
       return mesh;
     });
     this.endPool = new MeshPool(this.scene, () => {
-      const mesh = new THREE.Mesh(this.longSlab, this.endMaterial(this.laneColors[0], 'idle'));
+      const mesh = new THREE.Mesh(this.longEndShape, this.endMaterial(this.laneColors[0], 'idle'));
       mesh.renderOrder = 3.1;
       return mesh;
     });
@@ -1657,6 +1672,9 @@ export class TrackRenderer {
     setNoteEmblem(style, picture);
     this.renderer.domElement.dataset.mark = picture ? '1' : '0';
     this.dropNotePictures();
+    // the long note's ends are cut in the mark's outline too: painted again into the textures they have
+    repaint(this.longEnd, this.long.end);
+    if (this.longHeld && this.long.held) repaint(this.longHeld.end, this.long.held.end);
   }
 
   /** Drops the notes' pictures and what was made of them: they are painted again when next shown. */
@@ -1763,8 +1781,8 @@ export class TrackRenderer {
     for (const m of this.staleMaterials) m.dispose();
     (this.deck.material as THREE.MeshBasicMaterial).map?.dispose();
     this.flatGeometry.dispose();
-    this.longSlab.dispose();
-    this.longTop.dispose();
+    this.longBodyShape.dispose();
+    this.longEndShape.dispose();
     this.glowTexture.dispose();
     this.ownedTextures.forEach((t) => t.dispose());
     disposeSkinArt(this.artSource);
@@ -1854,17 +1872,21 @@ export class TrackRenderer {
     body.position.set(lane.x, 0.02, (near + far) / 2);
     this.setBodyUv(body, width * paint.tile, near, far, realTailZ);
     if (end <= 0) return;
-    this.placeLongEnd(lane.x, width, headZ - end / 2, end, color, state, true, dots);
-    if (!open) this.placeLongEnd(lane.x, width, tailZ + end / 2, end, color, state, false, dots);
+    const capWidth = dots ? width : width * this.longEndWidth;
+    this.placeLongEnd(lane.x, capWidth, headZ - end / 2, end, color, state, true, dots);
+    if (!open) this.placeLongEnd(lane.x, capWidth, tailZ + end / 2, end, color, state, false, dots);
   }
 
-  /** One end of a long note, `end` deep at `z`; the picture's top is its outer edge (`head`: toward the camera). */
+  /**
+   * One end of a long note, `end` deep at `z`; the picture's top is its outer edge. The head is the
+   * picture mirrored along the track (its outer edge toward the camera, its left still on the left, lit
+   * as the body is), drawn over the body; the tail is drawn under it, so the body covers its walls.
+   */
   private placeLongEnd(x: number, width: number, z: number, end: number, color: number, state: 'idle' | 'held' | 'missed', head: boolean, dots: boolean): void {
     const cap = this.endPool.next();
     cap.material = this.endMaterial(color, state, dots);
-    cap.geometry = head ? this.longSlab : this.longTop;
-    cap.scale.set(width, 1, end);
-    cap.rotation.y = head ? Math.PI : 0;
+    cap.scale.set(width, 1, head ? -end : end);
+    cap.renderOrder = head ? 3.1 : 2.95;
     cap.position.set(x, 0.021, z);
   }
 
@@ -1958,12 +1980,12 @@ export class TrackRenderer {
     const vNear = (nearZ - tailZ) / tile;
     const vFar = (farZ - tailZ) / tile;
     const uv = mesh.geometry.getAttribute('uv') as THREE.BufferAttribute;
-    // PlaneGeometry(1, 1) laid flat, and each layer of a slab: vertices 0 and 1 are its far edge, 2 and 3 its near edge
+    // PlaneGeometry(1, 1) laid flat, and each quad of a body's slab: vertices 0 and 1 are its far edge, 2 and 3 its near edge (its u is its own)
     for (let q = 0; q < uv.count; q += 4) {
-      uv.setXY(q, 0, vFar);
-      uv.setXY(q + 1, 1, vFar);
-      uv.setXY(q + 2, 0, vNear);
-      uv.setXY(q + 3, 1, vNear);
+      uv.setY(q, vFar);
+      uv.setY(q + 1, vFar);
+      uv.setY(q + 2, vNear);
+      uv.setY(q + 3, vNear);
     }
     uv.needsUpdate = true;
   }
@@ -2949,7 +2971,8 @@ export class TrackRenderer {
     if (!m) {
       const map = dots ? this.dotsLongTextures().end : state === 'held' && this.longHeld ? this.longHeld.end : this.longEnd;
       m = tintMaterial(
-        { color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false },
+        // both sides: the head is its picture mirrored (placeLongEnd)
+        { color, map, transparent: true, opacity: HOLD_OPACITY[state], depthWrite: false, depthTest: false, vertexColors: true, clippingPlanes: this.clipPlanes, fog: false, side: THREE.DoubleSide },
         { gain: HOLD_BRIGHTNESS[state] },
       );
       this.endMaterials.set(key, m);
@@ -3018,6 +3041,79 @@ export function slabGeometry(top: number, depth: number, crop: number, slices = 
   geometry.setIndex(index);
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/** The share of a long note's body, from each long edge, its walls take (LongPaint.wall). */
+const LONG_WALL = 0.12;
+
+/** One wall layer's quad: x from x0 to x1 at height y, z from zFar to zNear, its picture u0…u1 and v vFar…vNear, shaded. */
+function quad(out: { positions: number[]; uvs: number[]; colors: number[]; index: number[] }, x0: number, x1: number, y: number, zFar: number, zNear: number, u0: number, u1: number, vFar: number, vNear: number, shade: number, lit: number): void {
+  const first = out.positions.length / 3;
+  for (const [x, z, u, v] of [
+    [x0, zFar, u0, vFar],
+    [x1, zFar, u1, vFar],
+    [x0, zNear, u0, vNear],
+    [x1, zNear, u1, vNear],
+  ]) {
+    out.positions.push(x, y, z);
+    out.uvs.push(u, v);
+    const c = Math.min(1, shade * (1 - 2 * x * lit));
+    out.colors.push(c, c, c);
+  }
+  out.index.push(first, first + 2, first + 1, first + 2, first + 3, first + 1);
+}
+
+function built(out: { positions: number[]; uvs: number[]; colors: number[]; index: number[] }): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(out.positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(out.uvs, 2));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(out.colors, 3));
+  geometry.setIndex(out.index);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+const wallShade = (i: number, slices: number) => WALL_TOP + ((WALL_FOOT - WALL_TOP) * (i - 1)) / Math.max(1, slices - 1);
+
+/**
+ * A long note's body as a slab `depth` thick under its top (at 0; scaled 1 high): its picture on top and,
+ * under it, SLAB_SLICES copies of its two long edges (`edge` of its width each), lower and darker, which
+ * show past the top's side as its wall. Only the edges are copied: a see-through body keeps its light
+ * (copies of all of it would stack under it), and the body's ends are hidden by the long note's ends.
+ * Every quad's UVs run far to near as flatGeometry's (vertices 0 and 1 far), so the body's picture is
+ * scrolled by setting their v alone.
+ */
+export function longBodyGeometry(depth: number, edge: number, slices = SLAB_SLICES): THREE.BufferGeometry {
+  const out = { positions: [], uvs: [], colors: [], index: [] };
+  for (let i = slices; i >= 1; i--) {
+    const [y, shade] = [-(depth * i) / slices, wallShade(i, slices)];
+    quad(out, -0.5, -0.5 + edge, y, -0.5, 0.5, 0, edge, 1, 0, shade, WALL_LIT);
+    quad(out, 0.5 - edge, 0.5, y, -0.5, 0.5, 1 - edge, 1, 1, 0, shade, WALL_LIT);
+  }
+  quad(out, -0.5, 0.5, 0, -0.5, 0.5, 0, 1, 1, 0, 1, 0);
+  return built(out);
+}
+
+/**
+ * A long note's end as a slab `depth` thick under its top (at 0): its picture on top (its outer edge, the
+ * picture's top, at the far side: z -0.5) and SLAB_SLICES copies of its outer `outer` under it, which
+ * show past its outline as its walls.
+ */
+export function endSlabGeometry(depth: number, outer: number, slices = SLAB_SLICES): THREE.BufferGeometry {
+  const out = { positions: [], uvs: [], colors: [], index: [] };
+  for (let i = slices; i >= 1; i--) quad(out, -0.5, 0.5, -(depth * i) / slices, -0.5, -0.5 + outer, 0, 1, 1, 1 - outer, wallShade(i, slices), WALL_LIT);
+  quad(out, -0.5, 0.5, 0, -0.5, 0.5, 0, 1, 1, 0, 1, 0);
+  return built(out);
+}
+
+/** Paints a canvas texture's picture again into its own canvas (no new canvas, nothing new on the card: the same texture is sent again). */
+function repaint(texture: THREE.Texture, paint: Paint): void {
+  const canvas = texture.image as HTMLCanvasElement | OffscreenCanvas | null;
+  if (!canvas || !('getContext' in canvas)) return;
+  const g = context2d(canvas as never);
+  g.clearRect(0, 0, canvas.width, canvas.height);
+  paint(g, canvas.width, canvas.height);
+  texture.needsUpdate = true;
 }
 
 /**

@@ -5,6 +5,8 @@ import {
   LONG_OF,
   LONG_PAINT,
   NOTE_PAINT,
+  NOTE_SHAPE,
+  shapedEnd,
   NOTE_STRETCH,
   noteMark,
   sideTap,
@@ -375,7 +377,31 @@ export function longPaintOf(style: NoteStyle, images: StyleImages): LongPaint {
   const code = LONG_PAINT[LONG_OF[style]];
   const set = setOf(style);
   const long = set && images[artId(set, 'long')];
-  return set && long ? artLong(long, LONG_END[set], code.width) : code;
+  const paint = set && long ? artLong(long, LONG_END[set], code.width) : code;
+  return SHAPED_ENDS.includes(style) ? withTapEnds(style, paint, images) : paint;
+}
+
+/** The note styles whose taps are no bar (the coin, the stars, the AI companies' marks): their long notes' ends are cut in the tap's outline. */
+export const SHAPED_ENDS: readonly NoteStyle[] = ['round', 'star4', 'star5', 'gpt', 'gemini', 'grok', 'claude'];
+
+/**
+ * `long` with its ends cut in the outline of the style's tap (shapedEnd): each end the outer half of the
+ * tap as it is drawn (from art where its picture loaded, the mark where it is given), as wide as the tap
+ * and half as deep as it looks at the judge line, the body running on into it.
+ */
+function withTapEnds(style: NoteStyle, long: LongPaint, images: StyleImages): LongPaint {
+  const tap = notePaintOf(style, images);
+  const shape = noteShapeOf(style, images) ?? NOTE_SHAPE[style] ?? 1;
+  const endWidth = noteWidthOf(style) / long.width;
+  const share = 1 / endWidth;
+  const plain = long.plain ?? { idle: long.body, held: long.held?.body ?? long.body };
+  return {
+    ...long,
+    end: shapedEnd(tap, plain.idle, share),
+    held: { body: long.held?.body ?? long.body, end: shapedEnd(tap, plain.held, share) },
+    endDepth: 0.5 * NOTE_STRETCH * shape * endWidth,
+    endWidth,
+  };
 }
 
 /**

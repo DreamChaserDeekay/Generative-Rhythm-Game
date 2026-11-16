@@ -169,7 +169,7 @@ export const NOTE_STRETCH = 1.7;
  * How tall the coin and the stars look for their width at the judge line (the bars keep a fixed
  * depth): the coin round, the five-pointed star as drawn, the compass star wide.
  */
-const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95, gpt: 1, gemini: 1, grok: 1, claude: 1 };
+export const NOTE_SHAPE: Partial<Record<NoteStyle, number>> = { round: 1, star4: 1, star5: 0.95, gpt: 1, gemini: 1, grok: 1, claude: 1 };
 
 /**
  * How deep a note of `style` is along the track: a bar `base` deep; the coin and the stars as deep
@@ -190,6 +190,26 @@ export function noteDepthOf(style: NoteStyle, base: number, width: number, flatt
 export function laneDepthOf(style: NoteStyle, depth: number, share: number, base: number): number {
   return isBarNote(style) ? depth : Math.min(base * 3, depth * share);
 }
+
+/**
+ * How thick a note of the style is, for the plain bar's (1): its walls (the renderer's slab) and its long
+ * note's, so a style is told apart by its build too: the sky's soft pillow and the line skin's wire low,
+ * the steel key cap and the crystal's cut glass high.
+ */
+const NOTE_THICKNESS: Partial<Record<NoteStyle, number>> = {
+  sky: 0.6,
+  wire: 0.4,
+  noir: 0.7,
+  hairline: 0.75,
+  carbon: 0.8,
+  steel: 1.55,
+  prism: 1.35,
+  chrome: 1.2,
+  enamel: 1.25,
+  glass: 1.15,
+  fire: 1.1,
+};
+export const noteThicknessOf = (style: NoteStyle): number => NOTE_THICKNESS[style] ?? 1;
 
 /** Sizes in the mockups are px on a note 51.5 px deep: `u(n)` turns them into px of this picture. */
 const unit = (h: number) => (n: number) => (n * h) / 51.5;
@@ -498,15 +518,18 @@ function slant(g: CanvasRenderingContext2D, x: number, w: number, lean: number, 
 }
 
 /**
- * CHROME: mirror-polished metal in the lane's colour, cut with bevels all round as a bevelled mirror
+ * CHROME: mirror-polished metal in the lane's colour, its corners cut and bevels all round as a bevelled mirror
  * is: its far and left bevels catching the light, the right one in half shade, the near one dark;
  * the flat mirror between them shows the room it faces, a bright horizon across it, a glint slanting
  * over it.
  */
 function chromeNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
-  barClip(g, w, h);
-  const [bx, by] = [Math.min(w * 0.08, u(11)), Math.min(h * 0.24, u(12))];
+  // its corners cut as a bevelled mirror's are
+  g.save();
+  polygon(g, chamferOutline(0, 0, w, h, Math.min(w * 0.06, u(7) / NOTE_STRETCH)));
+  g.clip();
+  const [bx, by] = [Math.min(w * 0.1, u(14)), Math.min(h * 0.28, u(14))];
   const [ix0, iy0, ix1, iy1] = [bx, by, w - bx, h - by];
   const facet = (points: [number, number][], fill: string) => {
     polygon(g, points);
@@ -549,11 +572,12 @@ function chromeNote(g: CanvasRenderingContext2D, w: number, h: number): void {
     ],
     tone(0.38),
   );
+  // the room it faces, hard: bright sky over a dark floor, a sharp horizon between
   const mirror = g.createLinearGradient(0, iy0, 0, iy1);
-  mirror.addColorStop(0, ink(1, 0.62));
-  mirror.addColorStop(0.44, ink(1, 0.3));
-  mirror.addColorStop(0.5, tone(0.62));
-  mirror.addColorStop(1, ink(1, 0.2));
+  mirror.addColorStop(0, ink(1, 0.9));
+  mirror.addColorStop(0.46, ink(1, 0.45));
+  mirror.addColorStop(0.5, tone(0.25));
+  mirror.addColorStop(1, tone(0.75));
   g.fillStyle = mirror;
   g.fillRect(ix0, iy0, ix1 - ix0, iy1 - iy0);
   g.fillStyle = ink(1, 0.92);
@@ -590,18 +614,20 @@ function hairlineNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const line = Math.max(1, u(0.7));
   for (let y = 0; y < h; y += line) {
     for (let i = 0, n = 2 + Math.floor(rand() * 3); i < n; i++) {
-      const [x, len, light, a] = [rand() * w - w * 0.1, w * (0.25 + rand() * 0.7), rand() < 0.5, 0.08 + rand() * 0.18];
+      const [x, len, light, a] = [rand() * w - w * 0.1, w * (0.25 + rand() * 0.7), rand() < 0.5, 0.16 + rand() * 0.3];
       g.fillStyle = light ? ink(1, 0.55, a) : tone(0.5, a);
       g.fillRect(x, y, len, line);
     }
   }
+  // the light standing across the brushing in two hard bands, as brushed metal shows it
   const sheen = g.createLinearGradient(0, 0, w, 0);
-  sheen.addColorStop(0.12, ink(1, 0.5, 0));
-  sheen.addColorStop(0.3, ink(1, 0.5, 0.55));
-  sheen.addColorStop(0.48, ink(1, 0.5, 0));
-  sheen.addColorStop(0.7, ink(1, 0.35, 0));
-  sheen.addColorStop(0.8, ink(1, 0.35, 0.3));
-  sheen.addColorStop(0.9, ink(1, 0.35, 0));
+  sheen.addColorStop(0.16, ink(1, 0.7, 0));
+  sheen.addColorStop(0.27, ink(1, 0.8, 0.85));
+  sheen.addColorStop(0.38, ink(1, 0.7, 0));
+  sheen.addColorStop(0.5, tone(0.4, 0.35));
+  sheen.addColorStop(0.66, ink(1, 0.6, 0));
+  sheen.addColorStop(0.74, ink(1, 0.6, 0.55));
+  sheen.addColorStop(0.82, ink(1, 0.6, 0));
   g.fillStyle = sheen;
   g.fillRect(0, 0, w, h);
   g.fillStyle = ink(1, 0.85, 0.9);
@@ -612,81 +638,104 @@ function hairlineNote(g: CanvasRenderingContext2D, w: number, h: number): void {
 }
 
 /**
- * GLASS: clear glass in the lane's colour, the track showing through it: deeper toward its near
- * edge, a glint slanting across it, a bright rim all round where its edges catch the light and a
- * faint one inside.
+ * GLASS: clear glass in the lane's colour, the track showing through most of it: only faintly tinted,
+ * deeper toward its near edge, two strong glints slanting across it, a thick bright rim all round where its
+ * edges catch the light and a fine one inside: told from the solid bars by what shows through it.
  */
 function glassNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   barClip(g, w, h);
   const body = g.createLinearGradient(0, 0, 0, h);
-  body.addColorStop(0, ink(1, 0.25, 0.32));
-  body.addColorStop(0.55, ink(0.95, 0.05, 0.4));
-  body.addColorStop(1, ink(0.7, 0, 0.55));
+  body.addColorStop(0, ink(1, 0.3, 0.16));
+  body.addColorStop(0.55, ink(0.95, 0.05, 0.22));
+  body.addColorStop(1, ink(0.8, 0, 0.42));
   g.fillStyle = body;
   g.fillRect(0, 0, w, h);
-  slant(g, w * 0.18, w * 0.1, h * 0.6, h, ink(1, 0.8, 0.35));
-  slant(g, w * 0.32, w * 0.025, h * 0.6, h, ink(1, 0.8, 0.22));
+  slant(g, w * 0.16, w * 0.12, h * 0.7, h, ink(1, 0.9, 0.5));
+  slant(g, w * 0.33, w * 0.03, h * 0.7, h, ink(1, 0.9, 0.4));
+  slant(g, w * 0.7, w * 0.05, h * 0.7, h, ink(1, 0.9, 0.22));
   roundRect(g, 0, 0, w, h, u(5));
-  g.lineWidth = Math.max(2, u(5));
-  g.strokeStyle = ink(1, 0.75, 0.95);
+  g.lineWidth = Math.max(3, u(7));
+  g.strokeStyle = ink(1, 0.8, 0.95);
   g.stroke();
-  roundRect(g, u(5), u(5), w - u(10), h - u(10), u(3));
+  roundRect(g, u(6), u(6), w - u(12), h - u(12), u(3));
   g.lineWidth = Math.max(1, u(1.2));
-  g.strokeStyle = ink(1, 0.6, 0.35);
+  g.strokeStyle = ink(1, 0.7, 0.5);
   g.stroke();
   g.restore();
 }
 
 /**
- * ENAMEL: deep glossy enamel in the lane's colour, darker toward its near edge and its ends as it
- * rounds over; a crisp reflection of a window across its far third, a thin rim of light along its
- * near edge.
+ * ENAMEL: a pill of deep glossy enamel in the lane's colour, its ends fully round on the screen, darker
+ * toward its near edge and its ends as it rounds over; a crisp reflection of a window across its far third,
+ * a thin rim of light along its near edge.
  */
 function enamelNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
-  barClip(g, w, h);
+  const r = Math.min(w / 2, h / NOTE_STRETCH / 2);
+  g.save();
+  softOutline(g, w, h, r);
+  g.clip();
   const body = g.createLinearGradient(0, 0, 0, h);
-  body.addColorStop(0, tone(1));
-  body.addColorStop(0.7, tone(0.82));
-  body.addColorStop(1, tone(0.55));
+  body.addColorStop(0, tone(0.95));
+  body.addColorStop(0.7, tone(0.78));
+  body.addColorStop(1, tone(0.5));
   g.fillStyle = body;
   g.fillRect(0, 0, w, h);
   const ends = g.createLinearGradient(0, 0, w, 0);
-  ends.addColorStop(0, tone(0.5, 0.7));
-  ends.addColorStop(0.08, tone(0.5, 0));
-  ends.addColorStop(0.92, tone(0.5, 0));
-  ends.addColorStop(1, tone(0.45, 0.8));
+  const e = Math.min(0.2, (r * 1.2) / w);
+  ends.addColorStop(0, tone(0.4, 0.8));
+  ends.addColorStop(e, tone(0.5, 0));
+  ends.addColorStop(1 - e, tone(0.5, 0));
+  ends.addColorStop(1, tone(0.35, 0.85));
   g.fillStyle = ends;
   g.fillRect(0, 0, w, h);
-  const win = { x: u(7), y: u(3.5), w: w - u(14), h: h * 0.34 };
-  roundRect(g, win.x, win.y, win.w, win.h, u(4));
+  const win = { x: r * 0.8, y: u(4), w: w - r * 1.6, h: h * 0.3 };
+  roundRect(g, win.x, win.y, win.w, win.h, Math.min(win.h / 2, u(5)));
   const glare = g.createLinearGradient(0, win.y, 0, win.y + win.h);
-  glare.addColorStop(0, ink(1, 0.92, 0.95));
-  glare.addColorStop(0.5, ink(1, 0.75, 0.55));
+  glare.addColorStop(0, ink(1, 1, 1));
+  glare.addColorStop(0.5, ink(1, 0.85, 0.65));
   glare.addColorStop(1, ink(1, 0.6, 0));
   g.fillStyle = glare;
   g.fill();
-  g.fillStyle = ink(1, 0.5, 0.55);
-  g.fillRect(u(6), h - u(5.5), w - u(12), Math.max(1, u(1.6)));
+  g.fillStyle = ink(1, 0.5, 0.6);
+  g.fillRect(r * 0.6, h - u(5.5), w - r * 1.2, Math.max(1, u(1.6)));
   g.restore();
 }
 
 /**
- * PEARL: a satin pearl glaze, the lane's colour soft and pale: a broad soft sheen over its far half,
- * two pearly glows across it, gently shaded toward its near edge.
+ * PEARL: a satin pearl glaze, the lane's colour soft and pale, its corners well rounded: a broad soft
+ * sheen over its far half, a round pearly orb glowing at its left with a sharp glint in it, two softer
+ * glows across it, gently shaded toward its near edge.
  */
 function pearlNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   barClip(g, w, h);
   const sheen = g.createLinearGradient(0, 0, 0, h);
-  sheen.addColorStop(0, ink(1, 0.7));
-  sheen.addColorStop(0.45, ink(1, 0.42));
-  sheen.addColorStop(1, ink(0.78, 0.18));
+  sheen.addColorStop(0, ink(1, 0.78));
+  sheen.addColorStop(0.45, ink(1, 0.5));
+  sheen.addColorStop(1, ink(0.78, 0.2));
   g.fillStyle = sheen;
   g.fillRect(0, 0, w, h);
+  // concentric satin rings, as nacre is laid
+  g.save();
+  g.translate(w * 0.24, h * 0.4);
+  g.scale(1, NOTE_STRETCH);
+  for (let i = 3; i >= 1; i--) {
+    g.beginPath();
+    g.arc(0, 0, (h / NOTE_STRETCH) * 0.32 * i, 0, Math.PI * 2);
+    g.lineWidth = Math.max(1, (h / NOTE_STRETCH) * 0.05);
+    g.strokeStyle = ink(1, 0.95, 0.22);
+    g.stroke();
+  }
+  const orb = g.createRadialGradient(0, 0, 0, 0, 0, (h / NOTE_STRETCH) * 0.36);
+  orb.addColorStop(0, ink(1, 1, 1));
+  orb.addColorStop(0.35, ink(1, 0.95, 0.8));
+  orb.addColorStop(1, ink(1, 0.9, 0));
+  g.fillStyle = orb;
+  g.fillRect(-w, -h, 2 * w, 2 * h);
+  g.restore();
   for (const [cx, cy, r, lift, a] of [
-    [0.26, 0.3, 0.32, 0.95, 0.8],
-    [0.68, 0.6, 0.3, 0.85, 0.55],
+    [0.62, 0.6, 0.3, 0.85, 0.55],
     [0.9, 0.25, 0.14, 0.9, 0.45],
   ]) {
     g.save();
@@ -703,40 +752,40 @@ function pearlNote(g: CanvasRenderingContext2D, w: number, h: number): void {
 }
 
 /**
- * CARBON: woven carbon fibre under a clear coat, in the lane's colour faintly, the colour itself in a
- * stripe across its middle and at its ends: the twill's tows catching the light in steps, the clear
- * coat's gloss along its far edge.
+ * CARBON: woven carbon fibre under a clear coat, low and dark: the twill's tows large and catching the light
+ * in steps (the only bar with a pattern all over it), the lane's colour in a thin stripe across its middle
+ * and down its ends, the clear coat's gloss along its far edge and a bright line along its near edge (its timing).
  */
 function carbonNote(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   barClip(g, w, h);
-  carbonWeave(g, w, h, Math.max(3, u(4.5)));
-  g.fillStyle = tone(1);
-  g.fillRect(0, h * 0.4, w, h * 0.2);
-  g.fillRect(0, 0, Math.max(2, u(3)), h);
-  g.fillRect(w - Math.max(2, u(3)), 0, Math.max(2, u(3)), h);
-  g.fillStyle = ink(1, 0.45);
-  g.fillRect(0, h * 0.4, w, Math.max(1, u(1)));
-  const gloss = g.createLinearGradient(0, 0, 0, h * 0.32);
-  gloss.addColorStop(0, ink(1, 0.6, 0.38));
+  carbonWeave(g, w, h, Math.max(4, u(8)));
+  g.fillStyle = tone(1.05);
+  g.fillRect(0, h * 0.45, w, h * 0.1);
+  g.fillRect(0, 0, Math.max(2, u(4)), h);
+  g.fillRect(w - Math.max(2, u(4)), 0, Math.max(2, u(4)), h);
+  const gloss = g.createLinearGradient(0, 0, 0, h * 0.35);
+  gloss.addColorStop(0, ink(1, 0.6, 0.45));
   gloss.addColorStop(1, ink(1, 0.6, 0));
   g.fillStyle = gloss;
-  g.fillRect(0, 0, w, h * 0.32);
+  g.fillRect(0, 0, w, h * 0.35);
+  g.fillStyle = ink(1, 0.6);
+  g.fillRect(0, h - Math.max(2, u(4)), w, Math.max(2, u(4)));
   g.restore();
 }
 
 /** A 2/2 twill of carbon tows `c` px square over the picture: each lit along its own run, across or along, in steps. */
 function carbonWeave(g: CanvasRenderingContext2D, w: number, h: number, c: number): void {
-  g.fillStyle = tone(0.1);
+  g.fillStyle = tone(0.08);
   g.fillRect(0, 0, w, h);
   for (let j = 0; j * c < h; j++) {
     for (let i = 0; i * c < w; i++) {
       const [x, y] = [i * c, j * c];
       const across = (i + j) % 4 < 2;
       const grad = across ? g.createLinearGradient(0, y, 0, y + c) : g.createLinearGradient(x, 0, x + c, 0);
-      grad.addColorStop(0, tone(0.1));
-      grad.addColorStop(0.5, across ? ink(0.32, 0.1) : ink(0.24, 0.05));
-      grad.addColorStop(1, tone(0.1));
+      grad.addColorStop(0, tone(0.08));
+      grad.addColorStop(0.5, across ? ink(0.5, 0.2) : ink(0.3, 0.06));
+      grad.addColorStop(1, tone(0.08));
       g.fillStyle = grad;
       g.fillRect(x, y, c, c);
     }
@@ -923,31 +972,38 @@ function softOutline(g: CanvasRenderingContext2D, w: number, h: number, r: numbe
 }
 
 /**
- * SKY's bar: a soft matte bar, its corners round: the lane's colour even and a little pale, lighter
- * over its far half as a pillow's top is, a touch deeper toward its near edge, and a soft line of
- * light along that edge (its timing). Nothing on it glints: no gloss, no hard rim.
+ * SKY's bar: a soft matte pillow, its ends fully round on the screen (a stadium: no other bar has its
+ * outline), low (NOTE_THICKNESS): the lane's colour even and a little pale, a puff of white along its far
+ * edge as a cloud's top, a touch deeper toward its near edge, and a soft line of light along that edge
+ * (its timing). Nothing on it glints: no gloss, no hard rim.
  */
 function skyBar(g: CanvasRenderingContext2D, w: number, h: number): void {
   const u = unit(h);
   g.save();
-  softOutline(g, w, h, u(7) / NOTE_STRETCH);
+  softOutline(g, w, h, h / NOTE_STRETCH / 2);
   g.clip();
   const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, ink(1, 0.34));
+  face.addColorStop(0, ink(1, 0.42));
   face.addColorStop(0.5, ink(1, 0.18));
   face.addColorStop(0.82, ink(1, 0.06));
   face.addColorStop(1, tone(0.9));
   g.fillStyle = face;
   g.fillRect(0, 0, w, h);
-  // its ends rounding away: a breath of shade at each
-  const ends = g.createLinearGradient(0, 0, w, 0);
-  const e = Math.min(0.14, u(9) / w);
-  ends.addColorStop(0, ink(1, 0.5, 0.35));
-  ends.addColorStop(e, ink(1, 0.5, 0));
-  ends.addColorStop(1 - e, tone(0.72, 0));
-  ends.addColorStop(1, tone(0.72, 0.4));
-  g.fillStyle = ends;
-  g.fillRect(0, 0, w, h);
+  // puffs of white along its far edge, round on the screen
+  const r = (h / NOTE_STRETCH) * 0.3;
+  const rand = seeded(5);
+  for (let x = r * 1.6; x < w - r; x += r * (1.3 + rand() * 0.5)) {
+    const rr = r * (0.7 + rand() * 0.45);
+    const puff = g.createRadialGradient(0, 0, 0, 0, 0, rr);
+    puff.addColorStop(0, ink(1, 0.85, 0.75));
+    puff.addColorStop(1, ink(1, 0.85, 0));
+    g.save();
+    g.translate(x, h * 0.22);
+    g.scale(1, NOTE_STRETCH);
+    g.fillStyle = puff;
+    g.fillRect(-rr, -rr, 2 * rr, 2 * rr);
+    g.restore();
+  }
   // the near edge: a soft line of light, not a razor
   const edge = g.createLinearGradient(0, h - u(11), 0, h);
   edge.addColorStop(0, ink(1, 0.8, 0));
@@ -1000,42 +1056,53 @@ const skyNote: NotePaint = (g, w, h, mark) => (mark === 'scratch' ? skyWings(g, 
 // ---------- FIRE (the Firestarter skin's notes, 파이어스타터): lacquered bars in a chrome lip ----------
 
 /**
- * FIRE's bar: a bar of gloss lacquer in the lane's colour, square at its corners, one slant of light
- * across it, in a thin chrome frame: a hairline down each end and a lip of polished chrome along its
- * near edge, the brightest thing on it (its timing). The scratch's is told from a key's by a white
- * double slash through its middle.
+ * FIRE's bar (the Firestarter skin's, 파이어스타터): an ember: tongues of flame rising off its far edge (the
+ * only bar whose far edge is not straight), the lacquer white-hot along its near side and cooling to the
+ * colour's deep shade toward the flames' tips, sparks over it, and the chrome lip along its near edge, the
+ * brightest thing on it (its timing). The scratch's is told from a key's by a white double slash.
  */
 function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
+  const lip = Math.max(3, u(9));
+  const top = h * 0.36;
+  // the outline: a straight near edge and ends, flames along the far edge
+  const rand = seeded(17);
+  const tongue = Math.max(4, (h / NOTE_STRETCH) * 0.55);
+  const outline: [number, number][] = [[0, h], [0, top]];
+  for (let x = 0; x < w; ) {
+    const wide = tongue * (0.7 + rand() * 0.7);
+    const tip = top * (rand() * 0.55);
+    const next = Math.min(w, x + wide);
+    outline.push([x + (next - x) * 0.55, tip], [next, top * (0.55 + rand() * 0.35)]);
+    x = next;
+  }
+  outline.push([w, top], [w, h]);
   g.save();
-  g.beginPath();
-  g.rect(0, 0, w, h);
+  polygon(g, outline);
   g.clip();
-  const lip = Math.max(3, u(10));
-  const face = g.createLinearGradient(0, 0, 0, h - lip);
-  face.addColorStop(0, ink(1, 0.2));
-  face.addColorStop(0.45, tone(1));
-  face.addColorStop(1, tone(0.84));
-  g.fillStyle = face;
+  const heat = g.createLinearGradient(0, 0, 0, h - lip);
+  heat.addColorStop(0, tone(0.55, 0.85));
+  heat.addColorStop(0.35, tone(0.85));
+  heat.addColorStop(0.7, tone(1.1));
+  heat.addColorStop(1, ink(1, 0.75));
+  g.fillStyle = heat;
   g.fillRect(0, 0, w, h);
-  // one slant of light across the lacquer
-  const lean = (h / NOTE_STRETCH) * 0.9;
-  polygon(g, [
-    [w * 0.1 + lean, 0],
-    [w * 0.34 + lean, 0],
-    [w * 0.34, h - lip],
-    [w * 0.1, h - lip],
-  ]);
-  g.fillStyle = ink(1, 0.5, 0.5);
-  g.fill();
+  // sparks
+  for (let i = 0; i < Math.max(3, w / (tongue * 1.4)); i++) {
+    const [x, y, r] = [rand() * w, top * (0.4 + rand() * 1.2), Math.max(0.8, u(1.2) * (0.6 + rand()))];
+    g.fillStyle = ink(1, 1, 0.85);
+    g.beginPath();
+    g.ellipse(x, y, r, r * NOTE_STRETCH, 0, 0, Math.PI * 2);
+    g.fill();
+  }
   if (mark === 'scratch') {
-    // the double slash, white, through the middle
+    const lean = (h / NOTE_STRETCH) * 0.9;
     const wide = Math.max(3, (h / NOTE_STRETCH) * 0.3);
     for (const at of [-0.75, 0.75]) {
       const x = w / 2 + at * wide * 1.5;
       polygon(g, [
-        [x + lean / 2 - wide / 2, 0],
-        [x + lean / 2 + wide / 2, 0],
+        [x + lean / 2 - wide / 2, top * 0.6],
+        [x + lean / 2 + wide / 2, top * 0.6],
         [x - lean / 2 + wide / 2, h - lip],
         [x - lean / 2 - wide / 2, h - lip],
       ]);
@@ -1043,12 +1110,7 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
       g.fill();
     }
   }
-  // the chrome: a hairline down each end, the lip along the near edge
-  const end = Math.max(1.5, u(3));
-  g.fillStyle = ink(0, 0.86);
-  g.fillRect(0, 0, end, h);
-  g.fillStyle = ink(0, 0.62);
-  g.fillRect(w - end, 0, end, h);
+  // the chrome lip along the near edge
   g.fillStyle = tone(0.3);
   g.fillRect(0, h - lip - Math.max(1, u(1.4)), w, Math.max(1, u(1.4)));
   const chrome = g.createLinearGradient(0, h - lip, 0, h);
@@ -1062,10 +1124,10 @@ function fireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
- * AQUA's plate (the aqua mecha skin's, 아쿠아): a low plate of armour, its four corners cut at 45° on the
- * screen: a white rim round the lane's colour, which is lighter toward its far edge, and a light edge
- * along its near side (its timing). The scratch's is told from a key's by a white chevron pointing
- * down the track.
+ * AQUA's plate (the aqua mecha skin's, 아쿠아): a plate of clear water-blue gloss, its four corners cut at 45°
+ * on the screen in a white rim: a wet highlight across its far half (a bright window), two bubbles rising
+ * in it, and a light edge along its near side (its timing). The scratch's is told from a key's by a white
+ * chevron pointing down the track.
  */
 function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
@@ -1078,17 +1140,45 @@ function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   polygon(g, chamferOutline(0, 0, w, h, c, t));
   g.clip();
   const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, ink(1, 0.3));
-  face.addColorStop(0.5, tone(1));
-  face.addColorStop(1, tone(0.84));
+  face.addColorStop(0, tone(0.7));
+  face.addColorStop(0.5, tone(0.95));
+  face.addColorStop(1, tone(1.15));
   g.fillStyle = face;
   g.fillRect(0, 0, w, h);
+  // the wet highlight: a bright window across its far half, fading down
+  const win = { x: c + u(2), y: t * NOTE_STRETCH + u(2), w: w * 0.62, h: h * 0.3 };
+  roundRect(g, win.x, win.y, win.w, win.h, Math.min(win.h / 2, u(6)));
+  const glare = g.createLinearGradient(0, win.y, 0, win.y + win.h);
+  glare.addColorStop(0, ink(1, 1, 0.9));
+  glare.addColorStop(1, ink(1, 0.8, 0.15));
+  g.fillStyle = glare;
+  g.fill();
+  // bubbles
+  for (const [bx, by, br] of [
+    [0.8, 0.42, 0.16],
+    [0.88, 0.26, 0.09],
+  ]) {
+    const r = (h / NOTE_STRETCH) * br;
+    g.save();
+    g.translate(w * bx, h * by);
+    g.scale(1, NOTE_STRETCH);
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.lineWidth = Math.max(1, r * 0.28);
+    g.strokeStyle = ink(1, 1, 0.85);
+    g.stroke();
+    g.fillStyle = ink(1, 1, 0.9);
+    g.beginPath();
+    g.arc(-r * 0.35, -r * 0.35, r * 0.25, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
   const edge = Math.max(2, u(7));
   g.fillStyle = ink(1, 0.72);
   g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
   if (mark === 'scratch') {
     const r = Math.min(w * 0.08, (h / NOTE_STRETCH) * 0.32);
-    g.translate(w / 2, h * 0.44);
+    g.translate(w / 2, h * 0.5);
     g.scale(1, NOTE_STRETCH);
     g.beginPath();
     g.moveTo(-r * 1.5, -r * 0.5);
@@ -1103,60 +1193,90 @@ function aquaNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
- * STEEL's bar (the gunmetal skin's, 스틸): a matte anodised key cap in the lane's colour: a flat top
- * face inside a soft bevel, lighter along its far side and its left, darker along its right and its
- * near side, and a bright line where the face meets the near bevel (its timing). The scratch's is told
- * from a key's by a cross engraved in its middle.
+ * STEEL's bar (the gunmetal skin's, 스틸): a thick machined key cap of brushed metal in the lane's colour
+ * (the thickest bar: NOTE_THICKNESS): fine brushing across it, a deep bevel lighter along its far side
+ * and its left and darker along its right and near side, a hex bolt at each end, and a bright line where
+ * the face meets the near bevel (its timing). The scratch's is told from a key's by a cross engraved in
+ * its middle.
  */
 function steelNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
   g.save();
   softOutline(g, w, h, u(4) / NOTE_STRETCH);
   g.clip();
-  g.fillStyle = tone(0.7);
+  g.fillStyle = tone(0.55);
   g.fillRect(0, 0, w, h);
-  const b = Math.max(2, u(5));
-  g.fillStyle = ink(1, 0.24);
+  const b = Math.max(2, u(6));
+  g.fillStyle = ink(1, 0.3);
   g.fillRect(0, 0, w, b * NOTE_STRETCH * 0.8);
-  g.fillStyle = tone(0.5);
+  g.fillStyle = tone(0.38);
   g.fillRect(0, h - b * NOTE_STRETCH, w, b * NOTE_STRETCH);
-  g.fillStyle = ink(1, 0.12);
+  g.fillStyle = ink(1, 0.15);
   g.fillRect(0, 0, b, h);
-  g.fillStyle = tone(0.58);
+  g.fillStyle = tone(0.45);
   g.fillRect(w - b, 0, b, h);
-  const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, tone(1.04));
-  face.addColorStop(1, tone(0.92));
+  const [fx, fy, fw, fh] = [b, b * NOTE_STRETCH * 0.8, w - 2 * b, h - b * NOTE_STRETCH * 1.8];
+  const face = g.createLinearGradient(0, fy, 0, fy + fh);
+  face.addColorStop(0, tone(0.98));
+  face.addColorStop(1, tone(0.78));
   g.fillStyle = face;
-  g.fillRect(b, b * NOTE_STRETCH * 0.8, w - 2 * b, h - b * NOTE_STRETCH * 1.8);
+  g.fillRect(fx, fy, fw, fh);
+  // the brushing across it
+  const rand = seeded(31);
+  for (let y = fy; y < fy + fh; y += Math.max(1, u(1.1))) {
+    g.fillStyle = rand() < 0.5 ? ink(1, 0.5, 0.12 + rand() * 0.2) : tone(0.5, 0.12 + rand() * 0.2);
+    g.fillRect(fx, y, fw, Math.max(1, u(0.6)));
+  }
+  // a hex bolt at each end
+  const r = Math.min((fh / NOTE_STRETCH) * 0.3, fw * 0.06);
+  for (const x of [fx + r * 2, fx + fw - r * 2]) {
+    g.save();
+    g.translate(x, fy + fh / 2);
+    g.scale(1, NOTE_STRETCH);
+    polygon(
+      g,
+      [0, 1, 2, 3, 4, 5].map((i) => [Math.cos((i * Math.PI) / 3 + Math.PI / 6) * r, Math.sin((i * Math.PI) / 3 + Math.PI / 6) * r] as [number, number]),
+    );
+    g.fillStyle = tone(0.4);
+    g.fill();
+    g.lineWidth = Math.max(1, r * 0.2);
+    g.strokeStyle = ink(1, 0.55);
+    g.stroke();
+    g.fillStyle = tone(0.25);
+    g.beginPath();
+    g.arc(0, 0, r * 0.4, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
   const edge = Math.max(2, u(4));
   g.fillStyle = ink(1, 0.66);
   g.fillRect(b, h - b * NOTE_STRETCH - edge, w - 2 * b, edge);
   if (mark === 'scratch') {
-    const r = Math.min(w * 0.06, (h / NOTE_STRETCH) * 0.26);
+    const rr = Math.min(w * 0.06, (h / NOTE_STRETCH) * 0.26);
     g.translate(w / 2, h * 0.44);
     g.scale(1, NOTE_STRETCH);
     g.rotate(Math.PI / 4);
     g.beginPath();
-    g.moveTo(-r, 0);
-    g.lineTo(r, 0);
-    g.moveTo(0, -r);
-    g.lineTo(0, r);
-    g.lineWidth = Math.max(1.5, r * 0.36);
-    g.strokeStyle = tone(0.4);
+    g.moveTo(-rr, 0);
+    g.lineTo(rr, 0);
+    g.moveTo(0, -rr);
+    g.lineTo(0, rr);
+    g.lineWidth = Math.max(1.5, rr * 0.36);
+    g.strokeStyle = tone(0.3);
     g.stroke();
   }
   g.restore();
 }
 
 /**
- * NOIR's bar (the black and red skin's, 레드라인): a flat hard-edged block of the lane's colour, no bevel
- * and no gloss, its far right corner clipped off; a thin black line inset along its far edge and a
- * brighter band along its near side (its timing). The scratch's is told from a key's by a white chevron.
+ * NOIR's bar (the black and red skin's, 레드라인): a flat hard-edged block of the lane's colour, low, no bevel
+ * and no gloss, its far right corner clipped off, black hazard stripes slanting across both its ends, a
+ * thin black line inset along its far edge and a brighter band along its near side (its timing). The
+ * scratch's is told from a key's by a white chevron.
  */
 function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
-  const c = Math.min(u(10), w * 0.12);
+  const c = Math.min(u(12), w * 0.14);
   g.save();
   polygon(g, [
     [0, 0],
@@ -1168,8 +1288,23 @@ function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   g.clip();
   g.fillStyle = tone(1);
   g.fillRect(0, 0, w, h);
+  // the hazard stripes at each end
+  const lean = (h / NOTE_STRETCH) * 0.8;
+  const band = Math.max(2, (h / NOTE_STRETCH) * 0.24);
+  const zone = Math.min(w * 0.2, (h / NOTE_STRETCH) * 1.4);
+  for (const [x0, x1] of [
+    [0, zone],
+    [w - zone, w],
+  ]) {
+    g.save();
+    g.beginPath();
+    g.rect(x0, 0, x1 - x0, h);
+    g.clip();
+    for (let x = x0 - lean; x < x1 + lean; x += band * 2) slant(g, x + lean, band, lean, h, ink(0, 0, 0.88));
+    g.restore();
+  }
   g.fillStyle = ink(0, 0, 0.9);
-  g.fillRect(u(4), u(4) * NOTE_STRETCH, Math.max(1, w - c - u(8)), Math.max(1.5, u(2.4)));
+  g.fillRect(zone, u(4) * NOTE_STRETCH, Math.max(1, w - 2 * zone), Math.max(1.5, u(2.4)));
   const edge = Math.max(2, u(9));
   g.fillStyle = ink(1, 0.62);
   g.fillRect(0, h - edge, w, edge);
@@ -1190,9 +1325,10 @@ function noirNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
- * WIRE's bar (the white line skin's, 화이트 라인): a bar drawn in line: its far edge and its two ends a bright
- * line of the lane's colour, the colour dimmer and see-through inside them, and a white line along its
- * near side (its timing). The scratch's is told from a key's by a chevron.
+ * WIRE's bar (the white line skin's, 화이트 라인): a bar drawn in line, hollow and low: its outline a bright line
+ * of the lane's colour, the inside all but see-through, a white bracket at each corner standing off the
+ * outline as a drawing's crop marks, and a white line along its near side (its timing). The scratch's is
+ * told from a key's by a chevron.
  */
 function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
@@ -1200,13 +1336,31 @@ function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
   g.beginPath();
   g.rect(0, 0, w, h);
   g.clip();
-  g.fillStyle = ink(0.66, 0, 0.8);
+  g.fillStyle = ink(0.7, 0, 0.22);
   g.fillRect(0, 0, w, h);
-  const t = Math.max(1.5, u(3.2));
-  g.fillStyle = ink(1, 0.3);
-  g.fillRect(0, 0, w, t * NOTE_STRETCH);
+  const t = Math.max(1.5, u(3));
+  const ts = t * NOTE_STRETCH;
+  g.fillStyle = ink(1, 0.35);
+  g.fillRect(0, 0, w, ts);
   g.fillRect(0, 0, t, h);
   g.fillRect(w - t, 0, t, h);
+  // a fine inner line
+  g.fillStyle = ink(1, 0.6, 0.6);
+  const i = t * 2.6;
+  g.fillRect(i, i * NOTE_STRETCH, w - 2 * i, Math.max(1, u(1)));
+  g.fillRect(i, i * NOTE_STRETCH, Math.max(1, u(1)), h - i * NOTE_STRETCH * 2);
+  g.fillRect(w - i - Math.max(1, u(1)), i * NOTE_STRETCH, Math.max(1, u(1)), h - i * NOTE_STRETCH * 2);
+  // the crop marks at its corners
+  const arm = Math.min(w * 0.12, (h / NOTE_STRETCH) * 0.7);
+  g.fillStyle = ink(0, 1);
+  for (const [x, sx] of [
+    [0, 1],
+    [w, -1],
+  ]) {
+    g.fillRect(sx > 0 ? x : x - arm, 0, arm, ts * 1.3);
+    g.fillRect(sx > 0 ? x : x - t * 1.3, 0, t * 1.3, arm * NOTE_STRETCH);
+    g.fillRect(sx > 0 ? x : x - t * 1.3, h - arm * NOTE_STRETCH, t * 1.3, arm * NOTE_STRETCH);
+  }
   const edge = Math.max(2, u(7));
   g.fillStyle = ink(0, 1);
   g.fillRect(0, h - edge, w, edge);
@@ -1227,32 +1381,41 @@ function wireNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteM
 }
 
 /**
- * ASTRAL's bar (the starry night skin's, 별밤): a smooth bar with cut corners, as its gear's key caps: a
- * pale rim round the lane's colour, lighter toward its far edge, a light edge along its near side (its
- * timing), and a tiny white four-pointed star in its middle. The scratch's has a crescent there.
+ * ASTRAL's bar (the starry night skin's, 별밤): a bar with cut corners, as its gear's key caps, the night in
+ * the lane's colour: a pale gold rim round a deep face lighter toward its near side, small stars scattered
+ * over it, a light edge along its near side (its timing), and a white four-pointed star in its middle.
+ * The scratch's has a crescent there.
  */
 function astralNote(g: CanvasRenderingContext2D, w: number, h: number, mark: NoteMark): void {
   const u = unit(h);
-  const c = Math.min(u(7), w * 0.09);
+  const c = Math.min(u(9), w * 0.1);
   polygon(g, chamferOutline(0, 0, w, h, c));
-  g.fillStyle = ink(1, 0.64);
+  g.fillStyle = ink(1, 0.72);
   g.fill();
   const t = Math.max(1.2, u(2.6));
   g.save();
   polygon(g, chamferOutline(0, 0, w, h, c, t));
   g.clip();
   const face = g.createLinearGradient(0, 0, 0, h);
-  face.addColorStop(0, ink(1, 0.2));
-  face.addColorStop(0.5, tone(0.98));
-  face.addColorStop(1, tone(0.8));
+  face.addColorStop(0, tone(0.42));
+  face.addColorStop(0.6, tone(0.62));
+  face.addColorStop(1, tone(0.9));
   g.fillStyle = face;
   g.fillRect(0, 0, w, h);
+  const rand = seeded(13);
+  for (let i = 0; i < Math.max(6, w / u(9)); i++) {
+    const [x, y, r] = [rand() * w, h * (0.12 + rand() * 0.6), Math.max(0.7, u(0.9) * (0.6 + rand() * 0.9))];
+    g.fillStyle = ink(1, 1, 0.55 + rand() * 0.45);
+    g.beginPath();
+    g.ellipse(x, y, r, r * NOTE_STRETCH, 0, 0, Math.PI * 2);
+    g.fill();
+  }
   const edge = Math.max(2, u(6));
   g.fillStyle = ink(1, 0.62);
   g.fillRect(0, h - t * NOTE_STRETCH - edge, w, edge);
   g.translate(w / 2, h * 0.45);
   g.scale(1, NOTE_STRETCH);
-  const r = Math.min(w * 0.07, (h / NOTE_STRETCH) * 0.3);
+  const r = Math.min(w * 0.09, (h / NOTE_STRETCH) * 0.36);
   g.beginPath();
   if (mark === 'scratch') {
     g.arc(0, 0, r, 0, Math.PI * 2);
@@ -1443,8 +1606,8 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
@@ -1460,7 +1623,7 @@ export const LONG_OF: Record<NoteStyle, LongStyle> = {
   steel: 'steel',
   noir: 'noir',
   wire: 'wire',
-  astral: 'sky',
+  astral: 'astral',
   flat: 'solid',
   chrome: 'chrome',
   hairline: 'hairline',
@@ -1494,8 +1657,12 @@ export interface LongPaint {
   endDepth: number;
   /** Share of the lane the body covers. */
   width: number;
-  /** It lies flat on the track, with no walls under it (a see-through band has no thickness to show; the others are slabs). */
-  flat?: boolean;
+  /** How wide its ends are for its body (default 1): an end cut in a note's outline may reach past the body (a star's points). */
+  endWidth?: number;
+  /** The share of its body, from each long edge, its walls are copies of (default: the renderer's). */
+  wall?: number;
+  /** Its body without the marks drawn a tile down it (the dots, the sparkles…), idle and held: what an end cut in a tap's outline runs on with (shapedEnd). */
+  plain?: { idle: Paint; held: Paint };
 }
 
 const across = (w: number) => (n: number) => (n * w) / 54;
@@ -1698,11 +1865,12 @@ function aquaLong(lit: boolean, marked = true): Paint {
 }
 
 /**
- * STEEL's long note: a band of matte metal in the lane's colour, a thin bright edge down each side and a
- * dark groove down its middle; `lit` (held), the groove full of light.
+ * STEEL's long note: a band of matte metal in the lane's colour, a thin bright edge down each side, a
+ * dark groove down its middle and (`marked`) a rivet either side a tile; `lit` (held), the groove full of light.
  */
-function steelLong(lit: boolean): Paint {
+function steelLong(lit: boolean, marked = true): Paint {
   return (g, w, h) => {
+    const a = across(w);
     stripes(g, w, h, [
       [0, 54, tone(lit ? 0.86 : 0.74)],
       [2.5, 9, tone(lit ? 1.08 : 0.96)],
@@ -1712,6 +1880,18 @@ function steelLong(lit: boolean): Paint {
       [22, 32, tone(0.3)],
       [24, 30, lit ? ink(1, 0.92) : tone(0.42)],
     ]);
+    if (!marked) return;
+    // a rivet on each side a tile
+    for (const x of [6, 48]) {
+      g.fillStyle = tone(0.35);
+      g.beginPath();
+      g.ellipse(a(x), h / 2, a(2.4), a(2.4) * NOTE_STRETCH, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = ink(1, 0.6);
+      g.beginPath();
+      g.ellipse(a(x) - a(0.6), h / 2 - a(0.6) * NOTE_STRETCH, a(1.1), a(1.1) * NOTE_STRETCH, 0, 0, Math.PI * 2);
+      g.fill();
+    }
   };
 }
 
@@ -1875,144 +2055,235 @@ function solidLong(lit: boolean): Paint {
   };
 }
 
-/** A square end: the body itself, a rim in `border` along its outer edge (canvas top) as down its sides, `t` px of a 54 px body. */
-function squareEnd(body: Paint, border: string, t = 4): Paint {
-  return (g, w, h) => {
+/**
+ * What makes a long note's body read as a solid bar, as its taps do (their slabs): a dark line where
+ * each long edge meets the track, a bevel down its left catching the light and one down its right in
+ * shade, a soft sheen down its left third and the face rounding off toward its right. Sizes are px of a
+ * 54 px body; `alpha` lowers it all on a see-through body (its edges stay solid enough to read).
+ */
+interface Relief {
+  bevel?: number;
+  lit?: number;
+  shade?: number;
+  sheen?: number;
+  alpha?: number;
+}
+
+function relief(g: CanvasRenderingContext2D, w: number, h: number, { bevel = 5, lit = 0.62, shade = 0.42, sheen = 0.3, alpha = 1 }: Relief = {}): void {
+  const a = across(w);
+  const line = 1.3;
+  // the face rounding off toward its right
+  const round = g.createLinearGradient(0, 0, w, 0);
+  round.addColorStop(0.45, tone(0.4, 0));
+  round.addColorStop(1, tone(0.4, 0.28 * alpha));
+  g.fillStyle = round;
+  g.fillRect(0, 0, w, h);
+  // the sheen down its left third
+  if (sheen > 0) {
+    const s = g.createLinearGradient(a(10), 0, a(24), 0);
+    s.addColorStop(0, ink(1, 0.9, 0));
+    s.addColorStop(0.5, ink(1, 0.9, sheen * alpha));
+    s.addColorStop(1, ink(1, 0.9, 0));
+    g.fillStyle = s;
+    g.fillRect(a(10), 0, a(14), h);
+  }
+  // the bevels: lit on the left, in shade on the right
+  const left = g.createLinearGradient(a(line), 0, a(line + bevel), 0);
+  left.addColorStop(0, ink(1, lit, 0.95 * alpha));
+  left.addColorStop(1, ink(1, lit * 0.6, 0.2 * alpha));
+  g.fillStyle = left;
+  g.fillRect(a(line), 0, a(bevel), h);
+  const right = g.createLinearGradient(a(54 - line - bevel), 0, a(54 - line), 0);
+  right.addColorStop(0, tone(shade, 0.15 * alpha));
+  right.addColorStop(1, tone(shade * 0.8, 0.92 * alpha));
+  g.fillStyle = right;
+  g.fillRect(a(54 - line - bevel), 0, a(bevel), h);
+  // where it meets the track
+  g.fillStyle = tone(0.16, Math.max(0.6, alpha));
+  g.fillRect(0, 0, a(line), h);
+  g.fillRect(w - a(line), 0, a(line), h);
+}
+
+/** `body` with relief over it. */
+const raised =
+  (body: Paint, look?: Relief): Paint =>
+  (g, w, h) => {
     body(g, w, h);
-    g.fillStyle = border;
-    g.fillRect(0, 0, w, across(w)(t));
+    relief(g, w, h, look);
+  };
+
+/** How a long note's end is cut, as its taps' corners are: square, rounded, or cut at 45° on the screen. */
+type Corner = 'square' | 'round' | 'cut';
+
+/** An end's outline (canvas top its outer edge, its sides running on to the body), its corners `r` across, its outer edge moved in by `t`. */
+function endOutline(g: CanvasRenderingContext2D, w: number, h: number, corner: Corner, r: number, t: number): void {
+  const st = NOTE_STRETCH;
+  g.beginPath();
+  if (corner === 'round') {
+    const ry = r * st;
+    g.moveTo(0, h + 1);
+    g.lineTo(0, t + ry);
+    g.ellipse(r, t + ry, r, ry, 0, Math.PI, Math.PI * 1.5);
+    g.lineTo(w - r, t);
+    g.ellipse(w - r, t + ry, r, ry, 0, Math.PI * 1.5, Math.PI * 2);
+    g.lineTo(w, h + 1);
+  } else if (corner === 'cut') {
+    g.moveTo(0, h + 1);
+    g.lineTo(0, t + r * st);
+    g.lineTo(r, t);
+    g.lineTo(w - r, t);
+    g.lineTo(w, t + r * st);
+    g.lineTo(w, h + 1);
+  } else g.rect(0, t, w, h + 1 - t);
+  g.closePath();
+}
+
+/**
+ * A bar's long note's end: the body itself in the outline of its taps' corners, a rim in `rim` along its
+ * outer edge (canvas top) and a lip of light inside it, so its edge reads as the rounded-over end of the
+ * same piece, not as a note laid on it. `t` px of a 54 px body.
+ */
+function barEnd(body: Paint, rim: string, corner: Corner = 'square', t = 3, r = 8): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const rr = corner === 'square' ? 0 : Math.min(a(r), w / 2, h / NOTE_STRETCH);
+    endOutline(g, w, h, corner, rr, 0);
+    g.fillStyle = rim;
+    g.fill();
+    g.save();
+    endOutline(g, w, h, corner, rr, a(t));
+    g.clip();
+    body(g, w, h);
+    const lip = g.createLinearGradient(0, a(t), 0, a(t) + a(6) * NOTE_STRETCH);
+    lip.addColorStop(0, ink(1, 0.85, 0.7));
+    lip.addColorStop(1, ink(1, 0.85, 0));
+    g.fillStyle = lip;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  };
+}
+
+/**
+ * A long note's end cut in its tap's outline (the stars', the coin's, the AI companies' marks): the outer
+ * half of the tap, as the tap is drawn (its walls the renderer's), its middle on the end's inner edge, and
+ * the body (`neck`: as wide as `share` of the end) running on into it and fading out toward its outer
+ * edge, so the end is the body's own end widening into the note's outline: one piece with the body,
+ * not one more note lying on it.
+ */
+export function shapedEnd(tap: NotePaint, neck: Paint, share: number): Paint {
+  return (g, w, h) => {
+    tap(g, w, 2 * h, 'white');
+    const bw = w * share;
+    const x0 = (w - bw) / 2;
+    const [from, solid] = [h * 0.5, h * 0.84];
+    const steps = 6;
+    const slice = (y0: number, y1: number, alpha: number) => {
+      g.save();
+      g.beginPath();
+      g.rect(x0, y0, bw, y1 - y0);
+      g.clip();
+      g.globalAlpha = alpha;
+      g.translate(x0, 0);
+      neck(g, bw, h);
+      g.restore();
+    };
+    for (let i = 0; i < steps; i++) slice(from + ((solid - from) * i) / steps, from + ((solid - from) * (i + 1)) / steps + 0.5, (i + 1) / (steps + 1));
+    slice(solid, h, 1);
+  };
+}
+
+/**
+ * ASTRAL's long note (the starry night skin's): a band of night in the lane's colour, deep, small stars
+ * scattered over it (`marked`: the body, not its ends) and a pale gold rim down each side; `lit` (held),
+ * brighter, the stars white.
+ */
+function astralLong(lit: boolean, marked = true): Paint {
+  return (g, w, h) => {
+    const a = across(w);
+    const night = g.createLinearGradient(0, 0, w, 0);
+    night.addColorStop(0, tone(lit ? 0.85 : 0.62));
+    night.addColorStop(0.5, tone(lit ? 0.7 : 0.44));
+    night.addColorStop(1, tone(lit ? 0.6 : 0.36));
+    g.fillStyle = night;
+    g.fillRect(0, 0, w, h);
+    sides(g, w, h, 3, ink(1, lit ? 0.95 : 0.78));
+    if (!marked) return;
+    const rand = seeded(7);
+    for (let i = 0; i < 9; i++) {
+      const [x, y, r] = [a(8 + rand() * 38), rand() * h, a(0.8 + rand() * 1.3)];
+      g.fillStyle = ink(1, 1, lit ? 1 : 0.55 + rand() * 0.4);
+      g.beginPath();
+      g.ellipse(x, y, r, r * NOTE_STRETCH, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.save();
+    g.translate(w / 2, h * 0.5);
+    g.scale(1, NOTE_STRETCH);
+    sparkleAt(g, 0, 0, a(6));
+    g.fillStyle = ink(1, 1, lit ? 1 : 0.9);
+    g.fill();
+    g.restore();
+  };
+}
+
+/** A long note of a bar's: its body with relief, its ends `corner`ed as its taps, a rim of `rim` (held: `rimHeld`) along them. */
+function barLong(body: (lit: boolean, marked?: boolean) => Paint, o: { rim: string; rimHeld?: string; corner?: Corner; t?: number; r?: number; relief?: Relief; tile?: number; width?: number; px?: number }): LongPaint {
+  const look = (lit: boolean, marked: boolean) => raised(body(lit, marked), o.relief);
+  const end = (lit: boolean) => barEnd(look(lit, false), lit ? (o.rimHeld ?? ink(1, 1)) : o.rim, o.corner, o.t, o.r);
+  return {
+    body: look(false, true),
+    end: end(false),
+    held: { body: look(true, true), end: end(true) },
+    plain: { idle: look(false, false), held: look(true, false) },
+    tile: o.tile ?? 1,
+    endDepth: 0.2,
+    width: o.width ?? 0.8,
+    ...(o.px ? { px: o.px } : {}),
   };
 }
 
 export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   // a long triangular prism of glass as wide as its bar, the ridge of light down its middle (held:
-  // white-hot, the glass bright from inside), each end closed by the prism's own end facet
+  // white-hot, the glass bright from inside), each end closed by the prism's own end facet; its facets are its relief
   prism: {
-    body: prismLong(false),
+    body: raised(prismLong(false), { sheen: 0, bevel: 3 }),
     end: prismEnd(false),
-    held: { body: prismLong(true), end: prismEnd(true) },
+    held: { body: raised(prismLong(true), { sheen: 0, bevel: 3 }), end: prismEnd(true) },
     tile: 1,
     endDepth: 0.5 * NOTE_STRETCH * 0.55,
     width: 0.86,
   },
-  // the sky skin's: a see-through band, a soft white line down its middle (held: brighter, the line
-  // in a glow), each end the band itself, square, a thin white edge along it
-  sky: {
-    body: skyLong(false),
-    end: squareEnd(skyLong(false), ink(1, 0.9, 0.95), 3),
-    held: { body: skyLong(true), end: squareEnd(skyLong(true), ink(1, 1), 3) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
-  // the Firestarter skin's: a tube of heated glass, a white-hot wire down its middle (held: brighter,
-  // the wire in a glow), each end the tube itself cut straight across, a bright rim along the cut
-  fire: {
-    body: fireLong(false),
-    end: squareEnd(fireLong(false), ink(1, 0.92), 3),
-    held: { body: fireLong(true), end: squareEnd(fireLong(true), ink(1, 1), 3) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-  },
-  // GPT's: a soft band, three typing dots in a row a tile (held: brighter, the dots white), each end cut straight across
-  gpt: {
-    body: typingLong(false),
-    end: squareEnd(typingLong(false, false), ink(1, 0.85), 3),
-    held: { body: typingLong(true), end: squareEnd(typingLong(true, false), ink(1, 1), 3) },
-    px: 128,
-    tile: 1.3,
-    endDepth: 0.2,
-    width: 0.8,
-  },
-  // Gemini's: a see-through band of light, a four-pointed sparkle and a small one a tile (held: brighter), each end
-  // cut straight across; flat, with no walls
-  gemini: {
-    body: sparkleLong(false),
-    end: squareEnd(sparkleLong(false, false), ink(1, 0.9, 0.95), 3),
-    held: { body: sparkleLong(true), end: squareEnd(sparkleLong(true, false), ink(1, 1), 3) },
-    px: 128,
-    tile: 1.7,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
-  // Grok's: black between two thin lines, a slash a tile (held: white-bright), each end cut straight across; flat, with no walls
-  grok: {
-    body: slashLong(false),
-    end: squareEnd(slashLong(false, false), ink(1, 0.85), 3),
-    held: { body: slashLong(true), end: squareEnd(slashLong(true, false), ink(1, 1), 3) },
-    px: 128,
-    tile: 0.9,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
-  // Claude's: a paper ribbon with a hem down each side, a seam stitched down its middle (held: lighter, the stitches
-  // white), each end cut straight across
-  claude: {
-    body: ribbonLong(false),
-    end: squareEnd(ribbonLong(false, false), ink(1, 0.85), 3),
-    held: { body: ribbonLong(true), end: squareEnd(ribbonLong(true, false), ink(1, 1), 3) },
-    px: 128,
-    tile: 0.5,
-    endDepth: 0.2,
-    width: 0.8,
-  },
-  // the aqua mecha skin's: a light rail, a chevron a tile down its middle (held: brighter), each end the
-  // rail itself cut straight across, a bright rim along the cut; see-through, so it lies flat
-  aqua: {
-    body: aquaLong(false),
-    end: squareEnd(aquaLong(false, false), ink(1, 0.9), 3),
-    held: { body: aquaLong(true), end: squareEnd(aquaLong(true, false), ink(1, 1), 3) },
-    tile: 0.9,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
-  // the gunmetal skin's: matte metal with a groove down its middle (held: the groove lit), each end cut straight across
-  steel: {
-    body: steelLong(false),
-    end: squareEnd(steelLong(false), ink(1, 0.8), 3),
-    held: { body: steelLong(true), end: squareEnd(steelLong(true), ink(1, 1), 3) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-  },
-  // the black and red skin's: a flat band between two bright lines, small squares down its middle (held:
-  // brighter), each end cut straight across; flat, with no walls
-  noir: {
-    body: noirLong(false),
-    end: squareEnd(noirLong(false, false), ink(1, 0.85), 3),
-    held: { body: noirLong(true), end: squareEnd(noirLong(true, false), ink(1, 1), 3) },
-    tile: 0.45,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
-  // the white line skin's: two thin lines, faint between them (held: brighter), each end cut straight across; flat, with no walls
-  wire: {
-    body: wireLong(false),
-    end: squareEnd(wireLong(false), ink(1, 0.9), 2.6),
-    held: { body: wireLong(true), end: squareEnd(wireLong(true), ink(1, 1), 2.6) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-    flat: true,
-  },
+  // the sky skin's: a soft see-through pillow, a soft white line down its middle (held: brighter, the line
+  // in a glow), its ends round as its bars' corners are
+  sky: barLong(skyLong, { rim: ink(1, 0.9, 0.95), corner: 'round', r: 12, relief: { alpha: 0.75, lit: 0.8, shade: 0.6, sheen: 0.18, bevel: 7 } }),
+  // the Firestarter skin's: a tube of heated glass, a white-hot wire down its middle (held: brighter, the
+  // wire in a glow), each end the tube itself cut straight across (the user's: no slanted cut), a bright rim along the cut
+  fire: barLong(fireLong, { rim: ink(1, 0.92), relief: { sheen: 0.12, bevel: 4 } }),
+  // the marks' long notes: their ends are cut in their taps' outline where the mark is loaded (styleArt's longPaintOf);
+  // these, cut straight across, are the ends of the bodies drawn alone
+  // GPT's: a soft band, three typing dots in a row a tile (held: brighter, the dots white)
+  gpt: barLong(typingLong, { rim: ink(1, 0.85), corner: 'round', r: 10, px: 128, tile: 1.3 }),
+  // Gemini's: a see-through band of light, a four-pointed sparkle and a small one a tile (held: brighter)
+  gemini: barLong(sparkleLong, { rim: ink(1, 0.9, 0.95), corner: 'round', r: 10, px: 128, tile: 1.7, relief: { alpha: 0.75, sheen: 0.2 } }),
+  // Grok's: black between two thin lines, a slash a tile (held: white-bright)
+  grok: barLong(slashLong, { rim: ink(1, 0.85), corner: 'cut', px: 128, tile: 0.9, relief: { lit: 0.5, shade: 0.2, sheen: 0.12 } }),
+  // Claude's: a paper ribbon with a hem down each side, a seam stitched down its middle (held: lighter, the stitches white)
+  claude: barLong(ribbonLong, { rim: ink(1, 0.85), corner: 'round', r: 10, px: 128, tile: 0.5, relief: { sheen: 0.1 } }),
+  // the aqua mecha skin's: a rail of clear water, a chevron a tile down its middle (held: brighter), its ends cut as its plates' corners
+  aqua: barLong(aquaLong, { rim: ink(1, 0.9), corner: 'cut', relief: { alpha: 0.85, lit: 0.85, sheen: 0.45, bevel: 4 }, tile: 0.9 }),
+  // the gunmetal skin's: thick metal with a groove down its middle and rivets down its sides (held: the groove lit), its ends rounded as its key caps
+  steel: barLong(steelLong, { rim: ink(1, 0.75), corner: 'round', r: 6, relief: { bevel: 7, lit: 0.5, shade: 0.3, sheen: 0.15 }, tile: 0.8 }),
+  // the black and red skin's: a band between two bright lines, small squares down its middle (held: brighter), hard ends cut at the corners
+  noir: barLong(noirLong, { rim: ink(1, 0.85), corner: 'cut', r: 6, relief: { alpha: 0.8, sheen: 0, bevel: 3, lit: 0.5 }, tile: 0.45 }),
+  // the white line skin's: two thin lines, faint between them (held: brighter): a hollow rail of light
+  wire: barLong((lit) => wireLong(lit), { rim: ink(1, 0.9), t: 2.6, relief: { alpha: 0.55, sheen: 0, bevel: 3, lit: 0.9 } }),
+  // the starry night skin's: a band of night with stars on it and a pale gold rim, its ends cut as its key caps' corners
+  astral: barLong(astralLong, { rim: ink(1, 0.8), corner: 'cut', r: 7, relief: { sheen: 0.18 }, tile: 1.4 }),
   // the default skin's: a bar lit from the left, a rim of light down each side; held, bright from
   // inside with a line of light down its middle; each end the bar itself, square, a rim along it
-  solid: {
-    body: solidLong(false),
-    end: squareEnd(solidLong(false), ink(1, 0.97)),
-    held: { body: solidLong(true), end: squareEnd(solidLong(true), ink(1, 1)) },
-    tile: 1,
-    endDepth: 0.2,
-    width: 0.8,
-  },
+  solid: barLong((lit) => solidLong(lit), { rim: ink(1, 0.97), t: 4 }),
   rail: {
-    body: (g, w, h) => stripes(g, w, h, RAIL),
+    body: raised((g, w, h) => stripes(g, w, h, RAIL), { sheen: 0, bevel: 3 }),
     // the rail's own end: its corners cut as the plate's are, a bright rim along it
     end: (g, w, h) => {
       const a = across(w);
@@ -2116,6 +2387,7 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
       stripes(g, w, h, RAY);
       g.restore();
     },
+    plain: { idle: (g, w, h) => stripes(g, w, h, RAY), held: (g, w, h) => stripes(g, w, h, RAY) },
     tile: 3,
     endDepth: 0.5 * NOTE_STRETCH,
     width: 0.9,
@@ -2123,26 +2395,12 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   ...materialLongs(),
 };
 
-/** A material's long note: its body down the note, closed at each end by `rim` across its outer edge `t` px (of a 54 px body) deep. */
-function materialLong(body: Paint, rim: string, t: number): LongPaint {
-  return {
-    body,
-    end: (g, w, h) => {
-      body(g, w, h);
-      g.fillStyle = rim;
-      g.fillRect(0, 0, w, across(w)(t));
-    },
-    tile: 1,
-    endDepth: 0.12,
-    width: 0.82,
-  };
-}
-
-/** The materials' long notes: their finish down a bar as wide as FLAT's (canvas top = farther, across = the lane). */
+/** The materials' long notes: their finish down a bar as wide as FLAT's (canvas top = farther, across = the lane), each with the relief and the ends of its taps. */
 function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
+  const finish = (body: Paint, rim: string, t: number, corner: Corner, look: Relief, r = 8) => barLong(() => body, { rim, rimHeld: rim, t, corner, r, relief: look, width: 0.82 });
   return {
     // bevels down both edges, the left lit, the right in half shade; the mirror between, a bright line down it
-    chrome: materialLong(
+    chrome: finish(
       (g, w, h) => {
         const a = across(w);
         g.fillStyle = tone(0.3);
@@ -2162,9 +2420,12 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       ink(1, 0.85),
       5,
+      'cut',
+      { sheen: 0, bevel: 2 },
+      10,
     ),
     // hairlines down its length, the light across them a band down its left third
-    hairline: materialLong(
+    hairline: finish(
       (g, w, h) => {
         g.fillStyle = tone(0.8);
         g.fillRect(0, 0, w, h);
@@ -2185,12 +2446,14 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       ink(1, 0.85, 0.9),
       4,
+      'square',
+      { sheen: 0, bevel: 3 },
     ),
     // the track showing through it, bright down its edges where they catch the light
-    glass: materialLong(
+    glass: finish(
       (g, w, h) => {
         const a = across(w);
-        g.fillStyle = ink(0.95, 0.1, 0.36);
+        g.fillStyle = ink(0.95, 0.1, 0.32);
         g.fillRect(0, 0, w, h);
         g.fillStyle = ink(1, 0.75, 0.9);
         g.fillRect(0, 0, a(3.5), h);
@@ -2203,9 +2466,12 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       ink(1, 0.8, 0.95),
       4,
+      'round',
+      { alpha: 0.6, sheen: 0.35, lit: 0.9 },
+      5,
     ),
-    // a glossy rod: deep colour, a crisp highlight down its left third, darker toward its right
-    enamel: materialLong(
+    // a glossy rod: deep colour, a crisp highlight down its left third, darker toward its right; round ends as its pills
+    enamel: finish(
       (g, w, h) => {
         const rod = g.createLinearGradient(0, 0, w, 0);
         rod.addColorStop(0, tone(0.55));
@@ -2220,9 +2486,12 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       ink(1, 0.7),
       4,
+      'round',
+      { sheen: 0, bevel: 3 },
+      26,
     ),
     // satin: pale, a soft sheen down its left half
-    pearl: materialLong(
+    pearl: finish(
       (g, w, h) => {
         const satin = g.createLinearGradient(0, 0, w, 0);
         satin.addColorStop(0, ink(0.9, 0.32));
@@ -2234,9 +2503,12 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       ink(1, 0.85),
       4,
+      'round',
+      { sheen: 0.2, lit: 0.85, shade: 0.6 },
+      12,
     ),
     // the weave down its length (eight tows across a tile), the lane's colour down its edges and its middle
-    carbon: materialLong(
+    carbon: finish(
       (g, w, h) => {
         const a = across(w);
         carbonWeave(g, w, h, w / 8);
@@ -2253,6 +2525,8 @@ function materialLongs(): Record<(typeof MATERIAL_NOTES)[number], LongPaint> {
       },
       tone(1.3),
       4,
+      'square',
+      { sheen: 0, bevel: 3 },
     ),
   };
 }
