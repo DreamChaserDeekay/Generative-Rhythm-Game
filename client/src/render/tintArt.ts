@@ -1606,19 +1606,20 @@ export const NOTE_PAINT: Record<NoteStyle, NotePaint> = {
 
 // ---------- long notes: a body repeated along the note, and its two ends ----------
 
-export type LongStyle = 'prism' | 'sky' | 'fire' | 'gpt' | 'gemini' | 'grok' | 'claude' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
-export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'gpt', 'gemini', 'grok', 'claude', 'aqua', 'steel', 'noir', 'wire', 'astral', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
+export type LongStyle = 'prism' | 'sky' | 'fire' | 'aqua' | 'steel' | 'noir' | 'wire' | 'astral' | 'solid' | 'chrome' | 'hairline' | 'glass' | 'enamel' | 'pearl' | 'carbon' | 'rail' | 'capsule' | 'ray';
+export const LONG_STYLES: LongStyle[] = ['prism', 'sky', 'fire', 'aqua', 'steel', 'noir', 'wire', 'astral', 'solid', ...MATERIAL_NOTES, 'rail', 'capsule', 'ray'];
 
 /** The long note of each note style's family (each material its own). */
 export const LONG_OF: Record<NoteStyle, LongStyle> = {
   prism: 'prism',
   sky: 'sky',
   fire: 'fire',
-  // the marks' long notes are each company's own: typing dots, sparkles on a band of light, a slash between two lines, a stitched paper ribbon
-  gpt: 'gpt',
-  gemini: 'gemini',
-  grok: 'grok',
-  claude: 'claude',
+  // the marks' long notes are the coin's (the user's, 2026-11-16: a long note with a tap's mark stuck on its
+  // ends looked awkward); the renderer draws ROUND's long note for them, from art where it loaded (styleArt's longPaintOf)
+  gpt: 'capsule',
+  gemini: 'capsule',
+  grok: 'capsule',
+  claude: 'capsule',
   aqua: 'aqua',
   steel: 'steel',
   noir: 'noir',
@@ -1925,111 +1926,6 @@ function wireLong(lit: boolean): Paint {
   };
 }
 
-/**
- * GPT's long note: a message being written, drawn out: a soft band of the lane's colour, lighter down its
- * middle, a pale rim down each side, and (`marked`: the body, not its ends) three dots in a row a tile, as
- * someone typing; `lit` (held), brighter, the dots white. Its ends are cut straight across (LONG_PAINT).
- */
-function typingLong(lit: boolean, marked = true): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    const k = lit ? 1.16 : 1;
-    const soft = g.createLinearGradient(0, 0, w, 0);
-    soft.addColorStop(0, tone(0.56 * k));
-    soft.addColorStop(0.5, tone(0.86 * k));
-    soft.addColorStop(1, tone(0.56 * k));
-    g.fillStyle = soft;
-    g.fillRect(0, 0, w, h);
-    sides(g, w, h, 3, ink(1, lit ? 0.85 : 0.6));
-    if (!marked) return;
-    g.fillStyle = ink(1, lit ? 1 : 0.82);
-    for (const x of [-10.5, 0, 10.5]) {
-      g.beginPath();
-      g.ellipse(w / 2 + a(x), h / 2, a(3), a(3) * NOTE_STRETCH, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-  };
-}
-
-/**
- * GEMINI's long note: a band of light in the lane's colour, see-through, brightest down its middle between two
- * thin edges, and (`marked`) a four-pointed sparkle a tile on its middle, a small one after it off to one side;
- * `lit` (held), brighter, the sparkles white. Its ends are cut straight across (LONG_PAINT).
- */
-function sparkleLong(lit: boolean, marked = true): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    g.fillStyle = lit ? ink(0.9, 0.05, 0.62) : ink(0.72, 0, 0.44);
-    g.fillRect(0, 0, w, h);
-    const beam = g.createLinearGradient(a(9), 0, a(45), 0);
-    beam.addColorStop(0, ink(1, 0.3, 0));
-    beam.addColorStop(0.5, ink(1, lit ? 0.55 : 0.35, lit ? 0.7 : 0.5));
-    beam.addColorStop(1, ink(1, 0.3, 0));
-    g.fillStyle = beam;
-    g.fillRect(a(9), 0, a(36), h);
-    sides(g, w, h, 2.5, ink(1, lit ? 0.9 : 0.62, lit ? 0.95 : 0.85));
-    if (!marked) return;
-    // as tall on the screen as it is wide: drawn NOTE_STRETCH times longer along the note
-    const star = (x: number, y: number, r: number, fill: string) => {
-      g.save();
-      g.translate(x, y);
-      g.scale(1, NOTE_STRETCH);
-      sparkleAt(g, 0, 0, r);
-      g.fillStyle = fill;
-      g.fill();
-      g.restore();
-    };
-    star(w / 2, h * 0.34, a(11.5), ink(1, lit ? 1 : 0.88));
-    star(w / 2 + a(11), h * 0.8, a(5), ink(1, lit ? 0.95 : 0.7, 0.92));
-  };
-}
-
-/**
- * GROK's long note: black between two thin lines of the lane's colour, and (`marked`) one slash a tile across
- * its middle, a stroke of its mark; `lit` (held), the lines and the slash white-bright. Its ends are cut straight
- * across (LONG_PAINT).
- */
-function slashLong(lit: boolean, marked = true): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    g.fillStyle = lit ? tone(0.3, 0.92) : tone(0.12, 0.9);
-    g.fillRect(0, 0, w, h);
-    sides(g, w, h, 3, ink(1, lit ? 0.92 : 0.4));
-    if (!marked) return;
-    // leaning to the right, as tall on the screen as it is wide
-    const r = a(8.5);
-    g.beginPath();
-    g.moveTo(w / 2 - r, h / 2 + r * NOTE_STRETCH);
-    g.lineTo(w / 2 + r, h / 2 - r * NOTE_STRETCH);
-    g.lineWidth = a(3.4);
-    g.lineCap = 'butt';
-    g.strokeStyle = ink(1, lit ? 1 : 0.55);
-    g.stroke();
-  };
-}
-
-/**
- * CLAUDE's long note: a ribbon of paper in the lane's colour, matte, lit from its left, a hem folded down each
- * side (a dark line just inside each edge) and (`marked`) a seam stitched down its middle, one stitch a tile;
- * `lit` (held), lighter, the stitches white. Its ends are cut straight across (LONG_PAINT).
- */
-function ribbonLong(lit: boolean, marked = true): Paint {
-  return (g, w, h) => {
-    const a = across(w);
-    const k = lit ? 1.14 : 1;
-    stripes(g, w, h, [
-      [0, 54, tone(0.86 * k)],
-      [0, 5.5, tone(1.06 * k)],
-      [48.5, 54, tone(0.7 * k)],
-      [5.5, 7, tone(0.46)],
-      [47, 48.5, tone(0.46)],
-    ]);
-    if (!marked) return;
-    g.fillStyle = ink(1, lit ? 1 : 0.74);
-    g.fillRect(a(25.3), h * 0.18, a(3.4), h * 0.64);
-  };
-}
-
 /** SOLID's body (the default skin's long note): the lane's colour, a gloss down its left third, deeper toward its right; `lit` (held), brighter, a line of light down its middle in a glow. */
 function solidLong(lit: boolean): Paint {
   return (g, w, h) => {
@@ -2259,16 +2155,6 @@ export const LONG_PAINT: Record<LongStyle, LongPaint> = {
   // the Firestarter skin's: a tube of heated glass, a white-hot wire down its middle (held: brighter, the
   // wire in a glow), each end the tube itself cut straight across (the user's: no slanted cut), a bright rim along the cut
   fire: barLong(fireLong, { rim: ink(1, 0.92), relief: { sheen: 0.12, bevel: 4 } }),
-  // the marks' long notes: their ends are cut in their taps' outline where the mark is loaded (styleArt's longPaintOf);
-  // these, cut straight across, are the ends of the bodies drawn alone
-  // GPT's: a soft band, three typing dots in a row a tile (held: brighter, the dots white)
-  gpt: barLong(typingLong, { rim: ink(1, 0.85), corner: 'round', r: 10, px: 128, tile: 1.3 }),
-  // Gemini's: a see-through band of light, a four-pointed sparkle and a small one a tile (held: brighter)
-  gemini: barLong(sparkleLong, { rim: ink(1, 0.9, 0.95), corner: 'round', r: 10, px: 128, tile: 1.7, relief: { alpha: 0.75, sheen: 0.2 } }),
-  // Grok's: black between two thin lines, a slash a tile (held: white-bright)
-  grok: barLong(slashLong, { rim: ink(1, 0.85), corner: 'cut', px: 128, tile: 0.9, relief: { lit: 0.5, shade: 0.2, sheen: 0.12 } }),
-  // Claude's: a paper ribbon with a hem down each side, a seam stitched down its middle (held: lighter, the stitches white)
-  claude: barLong(ribbonLong, { rim: ink(1, 0.85), corner: 'round', r: 10, px: 128, tile: 0.5, relief: { sheen: 0.1 } }),
   // the aqua mecha skin's: a rail of clear water, a chevron a tile down its middle (held: brighter), its ends cut as its plates' corners
   aqua: barLong(aquaLong, { rim: ink(1, 0.9), corner: 'cut', relief: { alpha: 0.85, lit: 0.85, sheen: 0.45, bevel: 4 }, tile: 0.9 }),
   // the gunmetal skin's: thick metal with a groove down its middle and rivets down its sides (held: the groove lit), its ends rounded as its key caps

@@ -4,6 +4,7 @@ import {
   ink,
   LONG_OF,
   LONG_PAINT,
+  isLogoNote,
   NOTE_PAINT,
   NOTE_SHAPE,
   shapedEnd,
@@ -120,6 +121,8 @@ export function styleImageIds(style: SkinStyle): string[] {
   const ids: string[] = [];
   const notes = setOf(style.note);
   if (notes) ids.push(artId(notes, 'notes'), artId(notes, 'long'), ...(style.side === 'dots' ? [] : [artId(notes, 'side')]));
+  // the AI companies' marks play the coin's long note: its pictures (the record for its ends)
+  else if (isLogoNote(style.note)) ids.push(artId('club', 'notes'), artId('club', 'long'));
   ids.push(...Object.values(GEAR_PICTURES[style.deck]));
   return ids;
 }
@@ -377,12 +380,14 @@ export function longPaintOf(style: NoteStyle, images: StyleImages): LongPaint {
   const code = LONG_PAINT[LONG_OF[style]];
   const set = setOf(style);
   const long = set && images[artId(set, 'long')];
+  // the AI companies' marks play the coin's long note, as the coin's own (its ends the record's)
+  if (isLogoNote(style)) return longPaintOf('round', images);
   const paint = set && long ? artLong(long, LONG_END[set], code.width) : code;
   return SHAPED_ENDS.includes(style) ? withTapEnds(style, paint, images) : paint;
 }
 
-/** The note styles whose taps are no bar (the coin, the stars, the AI companies' marks): their long notes' ends are cut in the tap's outline. */
-export const SHAPED_ENDS: readonly NoteStyle[] = ['round', 'star4', 'star5', 'gpt', 'gemini', 'grok', 'claude'];
+/** The note styles whose taps are no bar (the coin, the stars): their long notes' ends are cut in the tap's outline. The AI companies' marks play the coin's. */
+export const SHAPED_ENDS: readonly NoteStyle[] = ['round', 'star4', 'star5'];
 
 /**
  * `long` with its ends cut in the outline of the style's tap (shapedEnd): each end the outer half of the
@@ -440,7 +445,7 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
     if (images[artId(set, 'notes')]) parts.push('notes');
     if (images[artId(set, 'long')]) parts.push('long');
     if (images[artId(set, 'side')] && style.side !== 'dots') parts.push('side');
-  }
+  } else if (isLogoNote(style.note) && images[artId('club', 'long')]) parts.push('long');
   if (Object.keys(gearArtOf(style.deck, images)).length === Object.keys(GEAR_PICTURES[style.deck]).length) parts.push('gear');
   return parts;
 }

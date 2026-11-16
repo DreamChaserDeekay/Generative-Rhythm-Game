@@ -148,23 +148,8 @@ describe('the AI companies’ notes: the company’s mark, a picture the player 
       expect(noteDepthOf(style, 0.7, 0.9, 1.7)).toBeCloseTo(0.9 * 1.7, 6);
       expect(noteDepthOf(style, 0.7, 2, 1.7)).toBeCloseTo(2.1, 6);
     }
-    // each company's own long note, its mark a tile down the body and none on its ends (cut straight across); the
-    // band of light and the two lines lie flat, the soft band and the paper ribbon are slabs
-    expect([LONG_OF.gpt, LONG_OF.gemini, LONG_OF.grok, LONG_OF.claude]).toEqual(['gpt', 'gemini', 'grok', 'claude']);
-    for (const style of LOGO_NOTES) {
-      const long = LONG_PAINT[LONG_OF[style]];
-      expect([long.endDepth, long.width, long.px], style).toEqual([0.2, 0.8, 128]);
-      expect(long.held, style).toBeDefined();
-      const calls = (paint: (g: CanvasRenderingContext2D, w: number, h: number) => void) => {
-        const r = recorder();
-        paint(r.g, 128, Math.round(128 * long.tile));
-        return r.calls.length;
-      };
-      // the body draws its mark over the band; the band alone (its ends run on with it: shapedEnd) draws less
-      expect(long.plain, style).toBeDefined();
-      expect(calls(long.body), style).toBeGreaterThan(calls(long.plain!.idle));
-      for (const part of [long.body, long.end, long.held!.body, long.held!.end]) expect(() => part(recorder().g, 128, 64), style).not.toThrow();
-    }
+    // the coin's long note (the user's: a body with the mark stuck on its ends looked awkward)
+    for (const style of LOGO_NOTES) expect(LONG_OF[style], style).toBe(LONG_OF.round);
     expect(isLogoNote('round')).toBe(false);
   });
 

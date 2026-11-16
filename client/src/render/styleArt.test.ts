@@ -593,3 +593,18 @@ describe.each(GEAR_STYLES.filter((gear) => !['prism', 'sky', 'fire', 'gpt', 'gem
     expect(look.body).toMatch(/^#[0-9a-f]{6}$/i);
   });
 });
+
+describe('the AI companies’ long notes', () => {
+  it('are the coin’s, drawn from the record’s pictures as the coin’s are, which their skins load for it', () => {
+    const club = { 'club/notes': { id: 'club/notes', width: 1024, height: 1024 }, 'club/long': { id: 'club/long', width: 512, height: 256 } } as never;
+    for (const note of ['gpt', 'gemini', 'grok', 'claude'] as const) {
+      const style = withParts(BASE_SKIN, { note, side: 'bar', deck: note, hit: note }).style;
+      expect(styleImageIds(style), note).toEqual(expect.arrayContaining(['club/notes', 'club/long']));
+      expect(styleImageIds(style), note).not.toContain('club/side');
+      const [mine, coin] = [longPaintOf(note, club), longPaintOf('round', club)];
+      expect([mine.width, mine.tile, mine.endDepth, mine.endWidth, mine.px], note).toEqual([coin.width, coin.tile, coin.endDepth, coin.endWidth, coin.px]);
+      // without the pictures, the coin's long note in code
+      expect(longPaintOf(note, {}).body, note).toBe(longPaintOf('round', {}).body);
+    }
+  });
+});
