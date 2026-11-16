@@ -19,6 +19,7 @@ import {
   type TrackGeometry,
 } from './layout';
 import { FEVER_COLORS } from './palette';
+import { activeTrail, setActiveTrail, Trail } from './trail';
 import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, type Flipbook, type MediaEffects, type SkinArt } from './skinArt';
 import { hex, laneColorsFor, type Skin, type SkinStyle } from './skins';
 import { beatClock, DECK_PICTURE_PX, GEAR_LIGHTS, GearLightLayer, type BeatClock } from './gearLights';
@@ -241,6 +242,8 @@ const DECK_STEP = 16;
 const DECK_SETTLE_FRAMES = 20;
 /** How often the canvas is told what the renderer holds (tell). */
 const TELL_EVERY_MS = 1000;
+/** While a chart's camera move goes on, its pose is noted on the trail this often (trace). */
+const CAMERA_TOLD_MS = 400;
 /**
  * The hit effects' quads, made when the renderer is built: so many a lane. An effect lasts 0.4 s at
  * most, so three a lane are not used up but by a run no hand plays; should they be, the one that began
@@ -913,6 +916,8 @@ export class TrackRenderer {
   private lastFrameMs = 0;
   /** When the canvas was last told what the renderer holds (tell). */
   private toldAt = -Infinity;
+  /** What the track did in its last seconds (trail.ts): put on the canvas when it loses its WebGL context. */
+  private readonly trail = new Trail();
   private cssWidth = 1;
   private cssHeight = 1;
   /**
@@ -1003,8 +1008,13 @@ export class TrackRenderer {
     };
     this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : options.hitEffectSize === 'large' ? LARGE_HIT : 1);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // (a frame's draw calls are counted over all of its scenes: tell, trace)
+    this.renderer.info.autoReset = false;
     // (for the desktop app's log of a lost graphics process, with what tell keeps here)
     canvas.dataset.skin = `${this.style.deck}/${this.style.note}/${this.style.hit}`;
+    setActiveTrail(this.trail);
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.localClippingEnabled = true;
     // the stage's figures are drawn first and the track over them (draw)
@@ -1106,6 +1116,7 @@ export class TrackRenderer {
    * song. One of each pooled thing is made for it (hidden), so that its kind is there to be compiled.
    */
   private warm(): void {
+    this.trail.note('warm');
     for (const pool of [this.notePool, this.bodyPool, this.endPool, this.barPool, this.sideBodyPool, this.sidePool]) pool.prime();
     const seen = new Set<THREE.Texture>();
     const take = (texture: THREE.Texture | null | undefined) => {
@@ -1206,6 +1217,7 @@ export class TrackRenderer {
   resize(cssWidth: number, cssHeight: number): void {
     this.cssWidth = Math.max(1, cssWidth);
     this.cssHeight = Math.max(1, cssHeight);
+    this.trail.note(`resize ${Math.round(cssWidth)}x${Math.round(cssHeight)}`);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.cssWidth, this.cssHeight, false);
     this.aspect = this.cssWidth / this.cssHeight;
@@ -1334,6 +1346,7 @@ export class TrackRenderer {
   /** A hit on the judge line of a lane, in `color`. */
   hitEffect(lane: number, color: number, perfNow: number): void {
     if (this.hit === 'none') return;
+    this.trail.tally('hits', perfNow);
     // a side lane laid over the keys: the band of light across its half, and a burst as wide as the half in the middle of it
     if (this.geometry.lanes[lane].over) this.sideFlash(lane, color, perfNow);
     else this.lineFlash(lane, color, perfNow);
@@ -1383,6 +1396,8 @@ export class TrackRenderer {
   }
 
   render(frame: TrackFrame, perfNow: number): void {
+    this.trail.frame(perfNow);
+    this.renderer.info.reset();
     if (this.lastFrameMs === 0) this.warm();
     const dt = this.lastFrameMs > 0 ? Math.min(100, perfNow - this.lastFrameMs) : 16;
     this.lastFrameMs = perfNow;
@@ -1411,11 +1426,51 @@ export class TrackRenderer {
     this.renderer.render(this.scene, this.camera);
     if (over) this.renderer.render(this.stageScene, this.stageCamera);
     if (this.staleMaterials.length > 0) {
+      this.trail.note(`materials:dispose ${this.staleMaterials.length}`, perfNow);
       for (const m of this.staleMaterials) m.dispose();
       this.staleMaterials.length = 0;
     }
+    this.trace(frame, perfNow);
     if (perfNow - this.toldAt >= TELL_EVERY_MS) this.tell(frame, perfNow);
   }
+
+  /**
+   * Notes on the trail what is other in this frame than in the last (trail.ts): the FEVER, the stage's show, a
+   * chart's camera move, what the renderer holds (a picture handed to the card, a program built), how much it
+   * drew, the canvas's size. A dozen comparisons a frame, nothing drawn; told only if the graphics are lost.
+   */
+  private trace(frame: TrackFrame, perfNow: number): void {
+    const t = this.trail;
+    const { memory, render, programs } = this.renderer.info;
+    const canvas = this.renderer.domElement;
+    t.watch('fever', frame.fever.active ? `x${frame.fever.multiplier}` : 'off', perfNow);
+    t.watch('stage', !frame.stage ? 'play' : frame.stage.crack > 0 ? 'fail' : 'show', perfNow);
+    const fx = this.appliedFx;
+    const moved = fx.roll !== 0 || fx.fovScale !== 1 || fx.pitch !== 0;
+    t.watch('cam', moved ? 'moved' : 'rest', perfNow);
+    if (moved) t.sample('cam', `roll=${fx.roll.toFixed(2)} fov=${fx.fovScale.toFixed(2)} pitch=${fx.pitch.toFixed(2)}`, CAMERA_TOLD_MS, perfNow);
+    t.watch('tex', memory.textures, perfNow);
+    t.watch('geo', memory.geometries, perfNow);
+    t.watch('prog', programs?.length ?? 0, perfNow);
+    t.level('calls', render.calls, perfNow);
+    t.watch('px', `${canvas.width}x${canvas.height}`, perfNow);
+  }
+
+  /**
+   * The canvas lost its WebGL context (the graphics process went, or the driver took the context away): what
+   * the track did in the seconds before is put on the canvas, where the desktop app reads it for its log
+   * (desktop/preload.js reads the canvas's data- attributes a moment after the loss).
+   */
+  private readonly onContextLost = (): void => {
+    const now = performance.now();
+    const heap = (performance as Performance & { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
+    const data = this.renderer.domElement.dataset;
+    data.trailFrames = [this.trail.frames(now), heap ? `heapMB=${Math.round(heap / 1048576)}` : '', `page=${document.visibilityState}`, `focus=${document.hasFocus() ? 1 : 0}`].filter(Boolean).join(' ');
+    data.trailEvents = this.trail.told(now);
+    this.trail.note('context:lost', now);
+  };
+
+  private readonly onContextRestored = (): void => this.trail.note('context:restored');
 
   /**
    * Keeps on the canvas, once a second, where the song is and what the renderer holds: the desktop app
@@ -1749,6 +1804,9 @@ export class TrackRenderer {
 
   dispose(): void {
     this.disposed = true;
+    if (activeTrail() === this.trail) setActiveTrail(null);
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
+    this.renderer.domElement.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.clearStandees();
     this.gearLights.dispose();
     this.layPressKeys([], [], 0);
@@ -2503,6 +2561,7 @@ export class TrackRenderer {
     const painted = JSON.stringify([this.pose, this.baseFov, this.judgeZ]);
     if (painted === this.floorPainted) return;
     this.floorPainted = painted;
+    this.trail.note('floor:paint');
     const { width, length } = this.geometry;
     const [w, h] = [canvas.width, canvas.height];
     // round things in it are drawn longer along the track, as the notes' marks are (the picture's px
@@ -2794,6 +2853,7 @@ export class TrackRenderer {
   /** The deck's picture: the gear's plate for `room` of it on the screen. */
   private paintDeckPicture(d: DeckLayout): void {
     this.deckPending = null;
+    this.trail.note('deck:paint');
     const { width, lanes } = this.geometry;
     const canvas = paintCanvas();
     const scale = Math.min(DECK_PICTURE, 2048 / (width / PX), 2048 / (d.depth / PX));

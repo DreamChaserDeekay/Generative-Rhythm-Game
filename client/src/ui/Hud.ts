@@ -4,6 +4,7 @@ import { GAUGE_NAMES } from '../render/gearHud';
 import type { HudPlane } from '../render/TrackRenderer';
 import { HUD_FONTS, type HudFont, type HudType } from '../render/skins';
 import { context2d, keepPainted } from '../render/paintCanvas';
+import { activeTrail, noteTrail } from '../render/trail';
 import { AIDED_WORDS, loadEndArt, wordsBox, type EndArt } from './endArt';
 import { clockText, errorKind, errorText, speedText } from './format';
 import { drawDisc, stemToken } from './songArt';
@@ -697,6 +698,8 @@ export class Hud {
    * (INFO_NAME_ROOM) the artist gives way and the difficulty stands under the title.
    */
   fit(p: HudPlane): void {
+    // (what the HUD does now and then is noted on the track's trail, told should the graphics be lost: render/trail.ts)
+    noteTrail('hud:fit');
     this.screenHeight = this.root.clientHeight;
     const scale = Math.round(Math.min(MAX_SCALE, Math.max(1, this.screenHeight / BASE_HEIGHT)) * 100) / 100;
     if (scale !== this.hudScale) {
@@ -890,6 +893,7 @@ export class Hud {
    * progress bar, or over the panel where that reaches higher).
    */
   private fitPanel(): void {
+    noteTrail('hud:panel');
     const c = this.column;
     if (!c) return;
     const hud = this.hudScale;
@@ -1163,6 +1167,7 @@ export class Hud {
 
   /** Short message under the judge line (hi-speed, covers, practice). */
   showToast(text: string, perfNow: number): void {
+    noteTrail('hud:toast');
     this.toastAt = perfNow;
     this.toast.textContent = text;
     this.toast.style.opacity = '1';
@@ -1173,6 +1178,7 @@ export class Hud {
    * and every shown value written again at the next update.
    */
   reset(): void {
+    noteTrail('hud:reset');
     this.comboBump?.cancel();
     this.comboBump = null;
     this.judgeBump?.cancel();
@@ -1246,7 +1252,9 @@ export class Hud {
       const cells = gaugeCells(gauge);
       this.gaugeFill.style.clipPath = `inset(${(100 * (GAUGE_CELLS - cells)) / GAUGE_CELLS}% 0 0 0)`;
       this.gaugeNum.textContent = `${gauge}%`;
-      this.gaugeValue.classList.toggle('cleared', !this.survival && stats.gauge >= this.gaugeClearShare * 100);
+      const cleared = !this.survival && stats.gauge >= this.gaugeClearShare * 100;
+      this.gaugeValue.classList.toggle('cleared', cleared);
+      activeTrail()?.watch('hud:cleared', cleared ? 1 : 0);
     }
     const progress = Math.round(Math.min(1, Math.max(0, stats.progress)) * PROGRESS_STEPS);
     if (progress !== this.lastProgress) {
@@ -1278,6 +1286,7 @@ export class Hud {
     if (stats.skip !== this.lastSkip) {
       this.lastSkip = stats.skip;
       this.skip.style.opacity = stats.skip ? '1' : '0';
+      activeTrail()?.watch('hud:skip', stats.skip ? 1 : 0);
     }
     const f = stats.fever;
     const fill = f.active ? f.remaining : f.gauge;
@@ -1288,6 +1297,7 @@ export class Hud {
       this.feverText.textContent = text;
       this.feverFill.style.transform = `scaleX(${Math.round(fill * 1000) / 1000})`;
       this.fever.className = `hud-fever ${f.active ? `active x${f.multiplier}` : f.ready ? 'ready' : ''}`;
+      activeTrail()?.watch('hud:fever', f.active ? `x${f.multiplier}` : f.ready ? 'ready' : 'idle');
     }
   }
 
@@ -1305,6 +1315,7 @@ export class Hud {
    * nothing to start from, though its words show as well.
    */
   showLamp(text: string, kind: string, crashed = false): void {
+    noteTrail(`hud:lamp ${kind}`);
     const worded = WORDED_LAMPS.has(kind);
     // where the combo's number is, before it leaves with the judgement
     const combo = kind === 'maxcombo' && !this.still ? this.comboNum.getBoundingClientRect() : null;
@@ -1366,11 +1377,13 @@ export class Hud {
 
   /** A play that ends failed with its gauge short of the line: what is left of the gauge runs out, red. */
   drainGauge(): void {
+    noteTrail('hud:drain');
     this.gauge.classList.add('drain');
   }
 
   /** The whole HUD but the lamp loses its colour (a play that failed halfway). */
   setFailed(on: boolean): void {
+    activeTrail()?.watch('hud:failed', on ? 1 : 0);
     this.root.classList.toggle('failed', on);
   }
 

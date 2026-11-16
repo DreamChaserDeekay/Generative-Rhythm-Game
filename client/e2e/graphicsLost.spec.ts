@@ -104,6 +104,13 @@ for (const mode of MODES) {
 
       await loseGraphics(browser, page, 'canvas.play-canvas');
 
+      // what the track did in its last seconds is on the canvas for the desktop app's log (render/trail.ts):
+      // its frames (how many, the usual one's length, the last ones) and what happened in them
+      const trail = await page.locator('canvas.play-canvas').evaluate((canvas) => ({ ...(canvas as HTMLCanvasElement).dataset }));
+      expect(trail.trailFrames).toMatch(/^n=\d+ med=[\d.]+ max=[\d.]+ .*last=[\d.,]+ ago=[\d.]+ .*page=visible focus=[01]$/);
+      expect(Number(/^n=(\d+)/.exec(trail.trailFrames ?? '')?.[1])).toBeGreaterThan(30);
+      expect(typeof trail.trailEvents).toBe('string');
+
       // the play went on meanwhile, and the track is drawn again as it was: not a black deck under bare lanes
       await expect.poll(async () => (await trackBrightness(page)).deck, { timeout: 10_000 }).toBeGreaterThan(before.deck * 0.75);
       const after = await trackBrightness(page);
