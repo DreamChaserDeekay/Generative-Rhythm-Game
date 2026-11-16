@@ -12,7 +12,7 @@
   "temperature": null,
   "timeoutSeconds": 1800,
   "idleUnloadSeconds": 120,
-  "timingCheck": false,
+  "timingCheck": true,
   "scratchColumn": {
     "_comment": "Which of the model's 8 columns goes on 7K+1S's scratch, by model: the one it leaves nearly empty (v32 its last, 4-10 % of the notes on the runner; v32-mini its first). The others go in order on the keys (server/rhythm_server/mapper/charts.py column_lanes).",
     "v32": "last",

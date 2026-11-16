@@ -175,13 +175,19 @@ def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: st
 
 
 # A tempo of the model's timing is believed where the song's onsets follow its grid about as well as
-# they follow the tempo before it, run on (TIMING_MARGIN less at most); none outside these bounds
+# they follow the tempo before it, run on (TIMING_MARGIN less at most). None outside these bounds,
+# nor slower or faster than these shares of the tempo that holds longest
 TEMPO_MIN_BPM, TEMPO_MAX_BPM = 30.0, 400.0
+TEMPO_MIN_SHARE, TEMPO_MAX_SHARE = 0.4, 2.5
 TIMING_MARGIN = 0.1
 # fewer onsets than this under a tempo: nothing to judge it by, it stays (within the bounds)
 TIMING_MIN_ONSETS = 8
 # an onset is on a grid within this of one of its sixteenths (and a sixth of a sixteenth at most)
 TIMING_TOL_MS = 20.0
+# the timing changes only for tempos taken out over this long in all (ms), by the bounds or with
+# the old grid fitting the onsets this much better (TIMING_GAIN); smaller ones leave it as it was
+TIMING_SPAN_MS = 4000.0
+TIMING_GAIN = 0.25
 
 
 def grid_fit(onsets: list[float], start: float, beat_len: float) -> float:
@@ -193,18 +199,58 @@ def grid_fit(onsets: list[float], start: float, beat_len: float) -> float:
     return on / len(onsets) - 2.0 * tol / sub
 
 
+def _spans(reds: list[tuple[float, float, int]], duration_ms: float) -> list[tuple[float, float, int]]:
+    """Each red line's (start, end, its index): until the next red line, or the song's end."""
+    return [(t, reds[i + 1][0] if i + 1 < len(reds) else float(duration_ms), i) for i, (t, _, _) in enumerate(reds)]
+
+
+def onset_lag(reds: list[tuple[float, float, int]], onsets: list[dict[str, Any]], duration_ms: float) -> float:
+    """How late the song's onsets lie after the timing's grid, in ms: where the stronger half of them
+    falls in the sixteenths of the tempo held longest (counted from each red line, where the bars
+    start again), as a circular mean. The analysis's onsets came 18-33 ms after the model's grid on
+    the runner's 24 timings; at 180 BPM a sixteenth is 83 ms, so a median would fold near 41 ms."""
+    held: dict[float, float] = {}
+    for start, end, i in _spans(reds, duration_ms):
+        held[round(reds[i][1], 6)] = held.get(round(reds[i][1], 6), 0.0) + max(0.0, end - start)
+    if not held:
+        return 0.0
+    main = max(held, key=lambda k: held[k])
+    strengths = sorted(float(o.get("strength", 1.0)) for o in onsets if "t" in o)
+    floor = strengths[len(strengths) // 2] if strengths else 0.0
+    times = sorted(float(o["t"]) for o in onsets if "t" in o and float(o.get("strength", 1.0)) >= floor)
+    c = s = 0.0
+    sub = main / 4.0
+    for start, end, i in _spans(reds, duration_ms):
+        if round(reds[i][1], 6) != main:
+            continue
+        for t in times[bisect.bisect_left(times, start):bisect.bisect_left(times, end)]:
+            angle = 2.0 * math.pi * ((t - start) / sub)
+            c, s = c + math.cos(angle), s + math.sin(angle)
+    if c == 0.0 and s == 0.0:
+        return 0.0
+    return math.atan2(s, c) / (2.0 * math.pi) * sub
+
+
 def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duration_ms: float) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The timing without the tempos the song does not follow, the tempo before each running on.
     Mapperatorinator's timing pass can lose the beat late in a song (6.5-67 BPM from 226.7 s in one
     song, 2.9 and 29.5 BPM from 160 s in another; 2 of 20 runs on the runner,
-    docs/MAPPERATORINATOR.md), and a song's first chart's timing serves all its charts. A real change stays: its own grid
-    fits the onsets after it better than the old one run on (176 -> 185 BPM at 103.6 s).
-    Returns the timing (the same object when nothing is taken out) and what was taken out."""
+    docs/MAPPERATORINATOR.md), and a song's first chart's timing serves all its charts. The onsets
+    are judged with their lag behind the grid taken out (onset_lag); a real change stays (its own
+    grid fits the onsets after it better than the old one run on: 176 -> 185 BPM at 103.6 s), and
+    so does a timing whose lost stretches are short or barely worse (TIMING_SPAN_MS, TIMING_GAIN).
+    Returns the timing (the same object when it stays) and what was taken out of it."""
     # red lines at one time: the last holds, as in osu!
     reds = list({round(t, 3): (t, beat_len, meter) for t, beat_len, meter in timing_red_lines(timing)}.values())
     if len(reds) < 2:
         return timing, []
-    times = sorted(float(o["t"]) for o in onsets if "t" in o)
+    lag = onset_lag(reds, onsets, duration_ms)
+    times = sorted(float(o["t"]) - lag for o in onsets if "t" in o)
+    held: dict[float, float] = {}
+    for start, end, i in _spans(reds, duration_ms):
+        held[reds[i][1]] = held.get(reds[i][1], 0.0) + max(0.0, end - start)
+    main_bpm = 60000.0 / max(held, key=lambda k: held[k])
+    low, high = max(TEMPO_MIN_BPM, TEMPO_MIN_SHARE * main_bpm), min(TEMPO_MAX_BPM, TEMPO_MAX_SHARE * main_bpm)
     kept = [reds[0]]
     dropped: list[dict[str, Any]] = []
     lost = False  # the tempo of the red line before was taken out
@@ -220,21 +266,24 @@ def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duratio
             j += 1
         end = reds[j][0] if j < len(reds) else float(duration_ms)
         bpm = 60000.0 / beat_len
-        why = None
-        if not TEMPO_MIN_BPM <= bpm <= TEMPO_MAX_BPM:
+        why, gain = None, None
+        if not low <= bpm <= high:
             why = "bounds"
         else:
             under = times[bisect.bisect_left(times, t):bisect.bisect_left(times, end)]
             if len(under) >= TIMING_MIN_ONSETS:
                 prev_t, prev_len, _ = kept[-1]
-                if grid_fit(under, t, beat_len) + TIMING_MARGIN < grid_fit(under, prev_t, prev_len):
+                gain = grid_fit(under, prev_t, prev_len) - grid_fit(under, t, beat_len)
+                if gain > TIMING_MARGIN:
                     why = "onsets"
         lost = why is not None
         if lost:
-            dropped.append({"ms": round(t, 1), "bpm": round(bpm, 3), "why": why})
+            dropped.append({"ms": round(t, 1), "bpm": round(bpm, 3), "why": why, "spanMs": round(end - t, 1),
+                            **({"gain": round(gain, 3)} if gain is not None else {})})
         else:
             kept.append((t, beat_len, meter))
-    if not dropped:
+    clear = sum(d["spanMs"] for d in dropped if d["why"] == "bounds" or d.get("gain", 0.0) >= TIMING_GAIN)
+    if not dropped or clear < TIMING_SPAN_MS:
         return timing, []
     return timing_from_reds(kept), dropped
 
