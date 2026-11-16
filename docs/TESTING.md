@@ -30,7 +30,7 @@ Artifacts는 30일 동안 보관됩니다. 기한이 지났거나 새로 만들�
 | 프로그램 | `%LOCALAPPDATA%\Programs\Generative Rhythm` |
 | 라이브러리(곡·채보·기록·리플레이) | `%APPDATA%\Generative Rhythm\library` |
 | 분석 서버 로그 | `%APPDATA%\Generative Rhythm\server.log` |
-| 그래픽이 끊긴 기록과 그때의 창 사진 | `%APPDATA%\Generative Rhythm\graphics.log`, `graphics-lost-날짜-시각.jpg`(최근 5장) |
+| 그래픽이 끊긴 기록과 그때의 창 사진 | `%APPDATA%\Generative Rhythm\graphics.log`, `graphics-lost-날짜-시각.jpg`(최근 5장). 2026-11-16부터 같은 폴더에 Chromium 자체 로그 `chromium.log`(지난 실행은 `chromium.log.1`)와 크래시 덤프 `Crashpad\reports\*.dmp`도 남는다(어디로도 보내지 않음) |
 
 - 탐색기 주소창에 위 경로를 그대로 붙여 넣으면 열립니다.
 - 처음부터 다시 해 보려면 앱을 끄고 `library` 폴더를 지우세요.

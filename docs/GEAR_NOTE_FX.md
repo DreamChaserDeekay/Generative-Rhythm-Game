@@ -501,6 +501,84 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 - **고친 것**(`TrackRenderer`): 타격 효과의 사각형을 렌더러를 만들 때 레인마다 셋씩 미리 만듭니다(`primeHits`, `HITS_PER_LANE`. 효과 하나가 0.4초 이하라 사람이 치는 속도로는 다 쓰이지 않고, 다 쓰이면 가장 먼저 시작한 것이 자리를 내줍니다). 그리고 첫 프레임을 그리기 전에 트랙이 보여 줄 그림을 모두 올리고 프로그램을 모두 컴파일합니다(`warm`: 풀마다 하나씩 숨긴 채 만들어 그 종류가 장면에 있게 한 뒤 `renderer.initTexture` · `renderer.compile`). 그 뒤로는 곡 중간에 올라가는 큰 그림도, 컴파일되는 프로그램도 없습니다. 올린 양은 한 판에 84MB에서 30MB로 줄었습니다. 화면은 전과 같습니다.
 - 소프트웨어 렌더러라 프레임 시간은 실제 PC와 다릅니다(표의 수는 모두 개수와 바이트입니다). 측정 스크립트는 저장소에 넣지 않았습니다.
 
+## 기어 사라짐 재발: 원인을 잡는 기록과 그래픽 호환 모드 (2026-11-16)
+
+사용자 PC(RTX 2060, 드라이버 32.0.16.1714, Windows 10 19045)에서 플레이 중 **모니터 화면 전체가 깜빡인 뒤 기어가 사라졌다가 1–2초 만에 돌아오는** 일이 다시 났습니다. 뮤비가 있는 곡과 없는 곡 모두에서, 곡의 같은 자리에서 납니다(FIRESTARTER 6K EXPERT 2:08, THE ULTIMACY 6K EXPERT 0:57 · 1:47).
+
+그때의 `graphics.log`가 말해 준 것: 세 번 모두 **앱의 GPU 프로세스가 죽었습니다**(`child-process-gone type=GPU reason=crashed exitHex=0x80000003`). 그래픽 메모리는 6GB 중 0.7GB만 쓰고 있었고(`gpu-memory`), 서버는 채보를 만들고 있지 않았고 모델도 올라가 있지 않았습니다(`server making=none loaded=no`). 즉 메모리 부족도, 채보 모델과 카드를 나눠 쓴 탓도 아닙니다. `0x80000003`은 프로세스가 "여기서 멈춘다"는 명령으로 스스로 선 것(Chromium이 점검에 걸려 멈추거나, 드라이버가 그렇게 하는 것)인데, **어디서** 멈췄는지는 그 로그에 없었습니다. 그래서 다음 한 번의 끊김으로 원인이 갈리도록 기록을 늘리고, 그 사이 피해 갈 길(그래픽 호환 모드)을 넣었습니다. **기본값은 그대로입니다.**
+
+앱이 드라이버의 초기화나 GPU 프로세스의 죽음 자체를 막을 수는 없습니다. 할 수 있는 것은 (1) 원인을 찾아 그 경로를 피하거나 고치는 것, (2) 끊긴 뒤 빨리 돌아오게 하는 것입니다.
+
+### 끊길 때 남는 것 (`graphics.log`)
+
+끊긴 첫 줄들(`child-process-gone`, `webglcontextlost`, `server`, `gpu-memory`) 뒤에 이제 다음이 이어집니다. 값이 없으면 그 값만 빠지고, 읽지 못하면 `why=`로 이유가 남습니다.
+
+| 줄 | 내용 | 무엇을 가려 주나 |
+| --- | --- | --- |
+| `gpu-config when=start` · `when=after-loss` | Chromium이 그리는 방식: ANGLE 렌더러 문자열(`gl`: 카드 · Direct3D11/OpenGL/11on12 · 드라이버 버전), `display`, Skia 백엔드(`skia`), DirectComposition(`dcomp`)과 오버레이 평면(`overlays`, `planes`), 게임 페이지가 실제로 받는 WebGL 렌더러(`webgl`), GPU 프로세스 번호 | 모드가 실제로 적용됐는지, 끊긴 뒤 다른 방식(소프트웨어)으로 떨어졌는지 |
+| `gpu-status` | Chromium의 GPU 기능 상태 전부(`skia_graphite` 포함) | 위와 같음 |
+| `screens` | 모니터의 해상도 · 주사율 · 색 깊이 · HDR 색 공간, 창이 전체 화면인지 · 포커스가 있는지 | 화면 전체 깜빡임과 화면 모드의 관계 |
+| `windows` (시작 때 한 번) | 레지스트리: 하드웨어 가속 GPU 스케줄링(`HwSchMode`), 드라이버 제한 시간(`TdrDelay` 등), 오버레이 끄기(`OverlayTestMode`), 게임 바(`GameDVR`, `FSEBehavior`) | Windows 쪽 설정 탓인지 |
+| `child-process-gone`의 `pid` · `workingSetMB` · `privateMB` | 죽기 전 마지막으로 본 GPU 프로세스의 메모리 | GPU 프로세스 자체의 메모리가 불어난 것인지 |
+| `window before=…` | 끊기기 전 15초 동안 창과 모니터가 한 일(포커스 잃음, 전체 화면 전환, 모니터 모드 바뀜) | 깜빡임이 끊김보다 먼저인지 |
+| `screen what=…` (언제든) | 모니터가 바뀔 때마다 한 줄 | 드라이버가 모니터를 다시 잡았는지 |
+| `chromium` | Chromium 자체 로그(`chromium.log`)에서 끊기기 10초 전부터의 줄 | GPU 프로세스가 죽기 전에 한 말(Direct3D 장치를 잃은 이유 코드 등) |
+| `driver-event` | Windows 시스템 로그에서 지난 2분의 그래픽 드라이버 이벤트(`Display 4101` = Windows가 응답 없는 드라이버를 초기화함, `nvlddmkm` = NVIDIA 드라이버의 오류) | **드라이버가 초기화됐는지**(있으면 드라이버 쪽, `found=none`이면 앱의 프로세스만 죽은 것) |
+| `crash-event` | Windows 응용 프로그램 로그의 크래시 이벤트 | 어느 모듈에서 죽었는지(덤프가 없을 때) |
+| `crash-dump` · `crash-stack` · `crash-module` | Crashpad가 남긴 덤프에서 읽은 것: 멈춘 명령의 위치(`모듈+0x오프셋`), 그 스레드의 스택에 있던 돌아갈 주소들, 모듈의 버전과 심볼 식별자 | **어디서 멈췄는지.** `nv…dll` 안이면 드라이버, 앱 실행 파일 안이면 Chromium의 어느 함수인지까지 |
+| `page-frames` · `page-events` | 끊기기 직전 3초의 게임(아래) | 게임이 그 자리에서 무언가 했는지 |
+
+- `chromium.log`(같은 폴더, 지난 실행은 `chromium.log.1`)는 Chromium의 경고와 오류만 받습니다. 16MB를 넘으면 비웁니다.
+- 크래시 덤프는 Electron의 Crashpad를 **어디로도 보내지 않게** 켜서 `Crashpad/reports/*.dmp`에 남깁니다. 앱은 덤프에서 위의 몇 줄만 읽어 로그에 옮깁니다(`desktop/crashDump.js`).
+- `crash-stack`의 오프셋은 Electron이 공개한 심볼로 이름이 됩니다: `crash-module` 줄의 `pdb`와 `id`로 `https://symbols.electronjs.org/<pdb>/<id>/electron.exe.sym`을 받아 `scripts/crash_symbols.py`에 넘깁니다(344MB를 흘려 읽어 13초). 빌드 #409의 러너에서 일부러 낸 크래시 `Generative Rhythm.exe+0x81ff4c0`이 `gl::Crash() ui/gl/gl_utils.cc:53`으로 풀리는 것을 확인했습니다.
+
+### 끊기기 직전 3초 (`client/src/render/trail.ts`)
+
+렌더러가 프레임마다 시각을 적고, 지난 프레임과 달라진 것을 적어 둡니다: FEVER(켜짐 · 배수), 시작 · 종료 연출, 채보의 카메라 연출(시작 · 끝과 그 사이 0.4초마다의 기울기 · 줌 · 숙임), 렌더러가 쥔 텍스처 · 지오메트리 · 프로그램 수의 변화(그림이 새로 올라가거나 셰이더가 새로 만들어진 순간), 그리기 호출 수가 크게 바뀐 때, 캔버스 크기, 받침 · 바닥 그림을 다시 그린 때, 머티리얼을 버린 때. HUD는 가끔 하는 일(배치 다시 계산, 램프, FEVER 표시 상태, 게이지 클리어선)을 적습니다. 캔버스가 WebGL 컨텍스트를 잃는 순간 두 줄로 캔버스에 올리고(`data-trail-frames`, `data-trail-events`), 데스크톱 앱이 `page-frames` · `page-events`로 옮겨 적습니다.
+
+- `page-frames`: `n`(3초 동안의 프레임 수) `med` · `max`(보통 · 가장 긴 프레임, ms) `long=-2104:41.7,…`(긴 프레임: 몇 ms 전에 몇 ms짜리) `last=…`(마지막 40프레임의 길이) `ago`(마지막 프레임을 그린 지) `hits`(타격 효과 수) `heapMB` `page` `focus`.
+- `page-events`: `-2100 fever:off>x2; -35 tex:41>42; …`(몇 ms 전에 무엇이).
+- 프레임마다 비교 열두어 번이고 그리는 것은 없습니다. 그래픽이 끊기지 않으면 페이지 밖으로 나가지 않습니다.
+
+### 그래픽 호환 모드 (설정 → 연출·배경, 데스크톱 앱만)
+
+Chromium이 화면을 그리는 방식을 바꿔 드라이버가 걸리는 경로를 피해 보는 설정입니다. Chromium의 스위치는 실행 중에 바꿀 수 없어 **앱을 다시 시작해야 적용**되고, 그래서 게임 설정이 아니라 창이 `desktop-state.json`에 기억합니다(`desktop/graphicsMode.js`).
+
+| 모드 | 스위치 | 무엇이 달라지나 |
+| --- | --- | --- |
+| 기본 | (없음) | ANGLE이 Direct3D 11로 그리고 DirectComposition으로 화면에 올림 |
+| DirectComposition 끄기 | `--disable-direct-composition` | Direct3D 11로 그리되 화면에 올릴 때 DirectComposition과 앱의 오버레이를 쓰지 않음 |
+| OpenGL | `--use-angle=gl` | 그래픽 카드의 OpenGL 드라이버로 그림 |
+| Direct3D 11on12 | `--use-angle=d3d11on12` | Direct3D 12 드라이버 위에서 그림 |
+
+- 설정에서 고르면 "다시 시작해서 적용" 줄이 나타나고, 누르면 앱이 닫혔다가 그 모드로 열립니다. 지금 실행 중인 모드와 다시 시작하면 될 모드를 도움말이 말합니다.
+- **되돌리기**: 모드로 연 앱이 끝까지 뜨지 못한 채 두 번 이어서 끝나면 세 번째에는 기본으로 엽니다. 뜬 뒤 6초에 게임이 WebGL을 받지 못했거나, 20초에 소프트웨어로 그려지고 있거나, 그 전에 GPU 프로세스가 두 번 끊기면 기본으로 되돌리고 알림 창으로 다시 시작을 권합니다. 20초를 넘기면 그 모드는 "떴다"고 보고 더 세지 않습니다. 되돌린 사실과 이유는 `graphics.log`의 `graphics-mode` 줄과 설정의 도움말에 남습니다.
+- 어느 모드가 실제로 적용됐는지는 `start`의 `mode=` · `switches=`와 `gpu-config`의 `gl=` · `display=` · `dcomp=` · `webgl=`이 말합니다.
+- 테스트용: 환경 변수 `GRG_GRAPHICS_MODE`는 그 실행만 그 모드로 엽니다(기억하지 않고 되돌리지도 않음).
+
+### 끊긴 뒤 빨리 돌아오기 (`TrackRenderer.recover` · `adopt`)
+
+브라우저는 WebGL 컨텍스트를 잃은 캔버스에 **1초 뒤에야** 새 컨텍스트를 줍니다(Chromium에 고정된 대기라 줄일 수 없음). 그 뒤에야 그림과 셰이더를 다시 올리므로 기어가 1–2초 비었습니다. 컨텍스트를 가진 적 없는 새 캔버스는 그래픽 프로세스가 다시 뜨는 대로(0.1초 안팎) 컨텍스트를 받을 수 있어서, 이제 이렇게 합니다.
+
+1. 트랙의 캔버스가 컨텍스트를 잃으면 50ms마다 새 캔버스로 WebGL 컨텍스트를 받아 봅니다(최대 4초).
+2. 받으면 그 캔버스를 원래 캔버스 바로 위에 같은 크기로 겹쳐 놓고(`canvas.track-canvas`, 포인터는 통과), 그 위에 렌더러를 새로 만들어 **모든 그림과 프로그램을 한 번에 다시 올린 뒤**(`warm`) 거기에 계속 그립니다. 원래 캔버스는 자리(배치 · `data-` 속성 · 클래스)만 지키고, 실패한 플레이의 흑백 처리 같은 클래스는 새 캔버스가 따라갑니다.
+3. 새 컨텍스트를 4초 안에 못 받거나 브라우저가 먼저 돌려주면 예전 경로(원래 캔버스의 복구)로 돌아옵니다. 두 번째 끊김에서는 새 캔버스가 또 다른 새 캔버스로 바뀝니다.
+
+`graphics.log`에는 돌아온 줄이 `webglcontextrestored canvas=track-canvas … recoveredMs=… recovered="context=… warm=…" how=canvas`로 남습니다(`recoveredMs`: 끊긴 때부터 다시 그린 두 번째 프레임까지, `context`: 새 컨텍스트를 받기까지, `warm`: 다시 올리는 데 든 시간).
+
+측정(이 환경, 그래픽 카드 없이 소프트웨어로 그림): 데스크톱 앱에서 플레이 중 GPU 프로세스를 크래시시키면 새 컨텍스트 0.09초, 다시 올리기 0.07–0.08초. e2e에서는 0.3–1.0초(다른 테스트와 CPU를 나눠 쓸 때 긴 쪽). 실제 그래픽 카드에서의 시간은 사용자 PC의 로그(`recoveredMs`)가 말해 줍니다. **끊김 자체가 없어지는 것은 아닙니다**: 비는 시간이 짧아질 뿐입니다.
+
+### 사용자가 정하지 않아 채워 넣은 것
+
+- 모드의 이름과 도움말 문구, 설정에서의 자리(화면 모드 바로 아래).
+- 되돌리는 기준(두 번 연속 실패, 6초 · 20초, GPU 프로세스 두 번).
+- Crashpad를 켠 것(보내지 않고 PC에만 남김)과 `chromium.log`를 남기는 것.
+- 조정 세션이 제안한 "플레이 중 한 번 끊기면 다른 모드를 써 보라고 안내"는 넣지 않았습니다(사용자가 정하지 않은 화면).
+
+### 코드
+
+`desktop/graphicsMode.js`(모드와 되돌리기), `desktop/crashDump.js`(덤프 요약), `desktop/graphicsLog.js`(줄을 만드는 함수와 끊김을 따라가는 `graphicsWatch`), `desktop/main.js`(스위치 · Chromium 로그 · Crashpad · 레지스트리와 이벤트 로그 읽기 · 설정용 IPC), `desktop/preload.js`, `desktop/windowState.js`(모드를 함께 기억), `client/src/ui/graphicsMode.ts`와 `SettingsScreen.tsx`의 `GraphicsModeRows`, `client/src/render/trail.ts`와 `TrackRenderer.ts`의 `trace` · `onContextLost`, `client/src/ui/Hud.ts`의 `noteTrail`, `packaging/smoke_desktop.cjs`(모드마다 한 번 띄우고 한 번은 GPU 프로세스를 크래시), `scripts/crash_symbols.py`.
+
 ## 검사
 
 - `npx tsc --noEmit -p .` 통과, `npx vitest run` 498개 통과(GPT·Gemini·Grok·Claude 스킨까지).
@@ -516,6 +594,9 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 - 2026-11-13(위의 것을 올린 뒤): e2e `graphicsLost` · `hud` · `phase3` · `settings` · `input` · `transitions` 51개 중 43개 통과. 실패 8개는 이 변경 전의 실행에서도 같은 8개로(`hud.spec.ts:152`, `input.spec.ts:81 · 157 · 246 · 302 · 579`, `phase3.spec.ts:79 · 170`), 이 환경에 NVIDIA GPU가 없어 채보를 만들지 못해 플레이 전에 멈추는 것들입니다. Windows 빌드 #390의 스모크 테스트에서 설치된 앱의 GPU 프로세스를 죽인 결과: `graphics.log`에 `start`(카드 `1414:008c`, 소프트웨어로 그림) · `child-process-gone type=GPU reason=killed exitCode=1` · `server making=… waiting=3` · `gpu-features` · `picture` 줄이 남고 사진이 저장됨(스모크의 채보 미리보기 단계가 이 변경 전부터 건너뛰어져 플레이 중이 아니라 선곡 화면에서 죽인 것).
 - 2026-11-13(끊긴 순간의 플레이를 로그에, 곡 중간에 올라가던 것): `npx tsc --noEmit -p .` 통과, `npx vitest run` 60개 파일 548개 통과, `node --test`(`desktop/`) 19개 통과, `pytest tests/test_mapper.py` 13개 통과. 위 표의 측정(하늘 · 파이어스타터 · 기본 기어). 앱(Electron 44)을 띄워 플레이 중 GPU 프로세스를 두 번 죽여, 끊긴 줄에 곡 시간 · 스킨 · 배경 영상 · 렌더러 수치가 실리는 것을 확인. 올린 뒤의 e2e(`graphicsLost` · `hud` · `phase3` · `settings` · `input` · `transitions`): 51개 중 43개 통과, 실패 8개는 앞의 실행과 같은 테스트(유튜브 배경 테스트 하나는 이번에는 더 뒤의 줄, 채보 미리보기를 기다리는 곳에서 멈춤: 채보를 만들 수 없는 환경이라 어느 쪽이든 통과할 수 없는 테스트). Windows 빌드 #391 성공, 그 스모크의 `graphics.log`에 카드 이름과 드라이버 버전(`Microsoft Basic Render Driver driver 10.0.26100.33648`), `server making=… waiting=3 loaded=yes`, `gpu-memory vram=unknown why="no nvidia-smi"`(러너에는 NVIDIA 카드가 없음)가 남음.
 - 2026-11-16(타격감): `npx tsc --noEmit -p .` 통과, `npx vitest run` 60개 파일 551개 통과(새 테스트: `peak` · `tone` 읽기, 시작 프레임, 두 프레임 섞기, 매니페스트의 타격 시트마다 `peak`가 있고 0.15 ~ 0.4초에 끝나는지). 시트 22장을 `flipbook_light.py`로 재서 모두 첫 프레임 100 %. 화면으로 본 것(렌더러에 시각을 직접 넣어 맞힌 뒤 0 · 16 · 33 · 66 · 133 ms를 전 · 후 코드로 찍음): 4K에서 기본 · Claude · GPT · 파이어스타터 · 크리스털 · 아쿠아 · 하늘 · 네온 · LED 그리드 · 피아노 음표, 번쩍임 줄이기, 롱노트를 누르는 동안. e2e(`calibration` · `graphicsLost` · `hud` · `input` · `phase1` · `phase3` · `settings` · `transitions` 59개, 1 · 2 · 4번을 올린 뒤): 49개 통과. 실패 10개 가운데 8개는 전과 같은 것(이 환경에 NVIDIA GPU가 없어 채보를 못 만듦)이고, 나머지 둘(`calibration.spec.ts:234`: 선곡 화면의 `add-menu`를 기다림, `phase1.spec.ts:9`: 올린 곡의 BPM이 "-")은 이 변경 전의 커밋(`a21ba97`)에서도 같은 줄에서 실패합니다(따로 체크아웃해 돌림). 5번(시트)을 넣은 뒤에는 단위 테스트와 화면 확인, 그리고 e2e `calibration` · `graphicsLost` · `hud` · `settings` · `transitions` 32개를 다시 돌려 30개 통과(실패 둘은 위의 `calibration.spec.ts:234`와 GPU가 없어 못 도는 `hud.spec.ts:152`). Windows 빌드 #403(1 · 2 · 4번) · #404(5번까지) 성공. 실제 PC의 프레임 시간은 재지 못했습니다(소프트웨어 렌더러). 판정 글자(6번): 새 e2e `hud.spec.ts` "the judgement shows whole in the frame of its hit…"가 플레이 중 화면 프레임마다 판정 상자의 투명도와 전환을 적어, 처음 보이는 프레임에 다 보이고(전환 0초) 네 노트 사이에 꺼지지 않으며 사라질 때는 0.15초 전환인 것을 확인합니다(고치기 전 코드로 돌리면 첫 프레임에서 실패). 그 뒤 e2e `hud` · `transitions` · `calibration` 19개 중 17개 통과(실패 둘은 위와 같은 `calibration.spec.ts:234` · `hud.spec.ts:152`), Windows 빌드 #405 성공.
+- 2026-11-16(기어 사라짐 재발: 기록 · 그래픽 호환 모드 · 직전 3초): `node --test`(`desktop/`) 37개 통과(새 테스트: 모드와 되돌리기, 덤프 요약(직접 만든 덤프와 잘린 · 깨진 덤프), 구성 · 레지스트리 · 이벤트 로그 · Chromium 로그 줄, 끊김 한 번에 남는 줄들), `npx tsc --noEmit -p .` 통과, `npx vitest run` 62개 파일 559개 통과(새 테스트: `trail`, `graphicsMode`). e2e `graphicsMode` 3개 통과(설정 항목: 가짜 데스크톱 창으로), `graphicsLost` 4개 통과(끊긴 캔버스에 직전 3초가 남는지 포함). 이 환경에서 앱(Electron 44)을 띄워: 모드 넷을 각각 실행해 `start` · `gpu-config` 줄 확인, 기억된 모드가 20초 뒤 확정되거나(여기서는 소프트웨어라) 되돌려지는 것, 두 번 실패한 모드가 세 번째에 기본으로 열리는 것, GPU 프로세스를 크래시시켜 `chromium` · `crash-dump` · `crash-stack` 줄이 남는 것을 확인. Windows 빌드 #409(https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43854303944) 성공, 그 러너(Microsoft Basic Render Driver, 소프트웨어로 그림)의 스모크에서: 기본 · DirectComposition 끄기 · OpenGL은 모두 앱이 뜨고 WebGL이 SwiftShader로 됨(러너에 쓸 수 있는 카드와 OpenGL 드라이버가 없어 Chromium이 소프트웨어로 떨어짐: OpenGL 스위치가 실제 카드에서 OpenGL로 가는지는 러너로는 확인 불가), Direct3D 11on12는 `gl="ANGLE (Microsoft, Microsoft Basic Render Driver … Direct3D11on12 …)" display=ANGLE_D3D11on12 dcomp=yes`로 **스위치가 적용됨**(다만 러너의 소프트웨어 어댑터에서는 WebGL을 주지 않아 `webgl=none`: 앱이라면 6초 뒤 기본으로 되돌리는 경우). 일부러 낸 GPU 크래시에서 `crash-dump file=Crashpad/reports/….dmp code=0xC0000005 at="Generative Rhythm.exe+0x81ff4c0"`과 `crash-module … id=205ABBCBDFD937F14C4C44205044422E1 pdb=electron.exe.pdb`가 남았고, 그 오프셋이 Electron의 공개 심볼로 `gl::Crash()`로 풀림. 그 빌드에서 `crash-stack`이 비어 나온 것(Windows 덤프는 레지스터 뒤에 확장 영역이 붙어 크기가 다름)은 고쳐 다음 빌드에 들어감.
+- 2026-11-16(Windows 빌드 #410, https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43856627110, 성공): 러너의 스모크에서 **세 스위치가 Chromium 152에서 모두 먹는 것**을 확인. OpenGL 모드는 GPU 프로세스가 ANGLE의 OpenGL 백엔드를 시도한 줄이 `chromium.log`에 남음(`OpenGL 3.2 or higher is needed by the GL backend`: 러너에는 OpenGL 드라이버가 없어 실패하고 SwiftShader로 떨어짐. 실제 카드에서는 OpenGL로 감). Direct3D 11on12는 `display=ANGLE_D3D11on12 dcomp=yes`. 여기에 `--disable-direct-composition`을 더한 실행은 `dcomp=no`(그 스위치가 DirectComposition을 끄는 것). **GPU 프로세스 자신의 줄이 Windows에서도 `chromium.log`에 들어옴**(위의 줄들, `WebGL2 blocklisted` 등). 러너가 남긴 덤프를 받아 앱의 읽기 코드로 다시 읽으니 스택 24개가 나오고, 공개 심볼로 `gl::Crash()` ← `viz::mojom::GpuServiceStubDispatch::Accept` ← `mojo::InterfaceEndpointClient::HandleIncomingMessage` ← `mojo::internal::MultiplexRouter::Accept`로 읽힘(스택을 훑은 것이라 사이에 예전 호출의 흔적도 섞임).
+- 2026-11-16(끊긴 뒤 빨리 돌아오기): `npx tsc --noEmit -p .` 통과, `npx vitest run` 62개 파일 559개 통과, `node --test` 37개 통과. e2e `graphicsLost` 4개 통과(끊긴 뒤 트랙이 새 캔버스 `canvas.track-canvas`에 그려지고 원래 캔버스와 같은 자리인지, 새 컨텍스트를 브라우저의 1초 대기 전에 받는지, 두 번째 끊김에서도 새 캔버스가 하나인지). 데스크톱 앱에서 플레이 중 GPU 프로세스를 크래시시켜 `webglcontextrestored canvas=track-canvas afterMs=754 recoveredMs=234 recovered="context=90 warm=72" how=canvas`와 `picture … webgl=back` 줄 확인. 올린 뒤의 e2e(`settings` · `settingsLatest` · `hud` · `graphicsLost` · `graphicsMode` · `transitions` · `phase3` · `input`): 58개 중 50개 통과, 실패 8개는 앞의 실행들과 같은 테스트(`hud.spec.ts:152`, `input.spec.ts:81 · 157 · 246 · 302 · 579`, `phase3.spec.ts:79 · 170`: 이 환경에 NVIDIA GPU가 없어 채보를 만들지 못하는 것들). Windows 빌드 #411(https://github.com/DreamChaserDeekay/Generative-Rhythm-Game/actions/runs/43859311057) 성공: 러너에 설치된 앱이 일부러 낸 GPU 크래시에서 `crash-dump … at="Generative Rhythm.exe+0x81ff4c0"`, `crash-stack frames=…`(24개, `KERNELBASE.dll` 포함), `crash-module` 두 줄을 남김. 모드별 실행 결과는 #410과 같음.
 - 화면 확인: 7K+1S · 6K+FX(반쪽 덮기) · 4K(FEVER), 카메라 SDVX · FLAT · LOW · PLANE, 설정의 기어 미리보기. LOW 카메라처럼 받침이 화면에 조금만 보이면 수치판을 그리지 않고 수치는 예전처럼 기어 왼쪽에 나옵니다.
 - 60fps: 이 환경은 소프트웨어 렌더러(SwiftShader)라 실제 PC의 프레임은 재지 못했습니다. 추가한 것은 프레임마다 그리는 양을 늘리지 않습니다(받침·키캡·효과 그림은 시작할 때 한 번 그리고, 글자의 겹은 글자가 바뀔 때만 다시 그립니다).
 - 2026-11-16(노트 스킨: 입체 롱노트, 모양 노트의 롱노트 끝, 막대 단노트 구별): `npx tsc --noEmit -p .` 통과, `npx vitest run` 60개 파일 556개 통과(새 테스트: 몸통 판의 옆면이 양쪽 가장자리 띠만 겹치는지, 끝 판의 벽이 바깥쪽만인지, 스타일별 두께, 모든 롱노트 그림이 그려지는지, `shapedEnd`가 단노트를 두 배 깊이로 그리고 몸통을 잇는지, 그림 세트의 롱노트 끝이 단노트 그림의 바깥 반인지. 고친 기대값: `flat` 항목 삭제, 별밤의 롱노트 'astral', 재질 노트의 윤곽이 크롬은 깎은 모서리 · 에나멜은 알약). e2e `graphicsLost` · `hud` · `phase3` · `settings` · `transitions` 42개 중 39개 통과, 실패 3개(`hud.spec.ts:152`, `phase3.spec.ts:79 · 170`)는 위 기록대로 이 변경 전에도 이 환경(NVIDIA GPU · 바깥 네트워크 없음)에서 실패하는 것. 화면으로 본 것(렌더러로 직접 찍음, `design-mockups/note-skins/`): 23개 스타일 × 4K SDVX(단노트 · 롱노트 · 누르는 중 · 놓침), 7K+1S SDVX 1920×1080의 단노트, 판정선 확대, 플레이 화면 9장(SDVX · LOW · PLANE × 4K · 6K · 6K+FX 사이드 레인 · 7K+1S).
@@ -524,6 +605,10 @@ PRISM 1차 구현에서 바뀐 것: 기어(검은 아노다이징 알루미늄·
 
 ## 남은 것
 
+- **기어 사라짐 재발(2026-11-16)의 원인은 아직 모릅니다.** 다음에 끊기면 `graphics.log`의 `crash-dump` · `crash-stack`(어디서 멈췄는지), `driver-event`(드라이버가 초기화됐는지), `chromium`(GPU 프로세스가 한 말), `page-events`(게임이 직전에 한 일)가 가려 줍니다. 그 로그가 와야 고칠 곳이 정해집니다.
+- 그래픽 호환 모드가 사용자 PC(실제 그래픽 카드)에서 무엇으로 그려지는지, 그 모드에서 끊김이 사라지는지는 사용자 PC에서만 알 수 있습니다. 러너는 소프트웨어로 그려서 OpenGL 모드와 DirectComposition 끄기가 실제 카드에서 내는 차이는 확인하지 못했습니다.
+- 끊긴 뒤 새 캔버스로 돌아오는 시간이 실제 그래픽 카드에서 얼마인지는 사용자 PC의 `recoveredMs`로 처음 알게 됩니다(여기서는 소프트웨어로만 쟀음). 끊김이 없어지는 것은 아닙니다.
+- 끊긴 뒤에는 트랙이 원래 캔버스가 아니라 그 위의 새 캔버스(`canvas.track-canvas`)에 그려집니다. 원래 캔버스의 픽셀을 읽는 코드가 생기면 그 뒤로는 빈 그림을 읽게 됩니다(지금은 그런 코드가 없음).
 - 사용자 PC에서 그래픽 프로세스가 왜 끊겼는지는 아직 모릅니다(위 "원인은 아직 모릅니다"). 이제 끊기면 `graphics.log`와 사진이 남고, 기어는 끊긴 뒤에도 돌아옵니다. 사용자가 해 보기로 한 것: 배경 영상을 끄고 같은 곡을 쳐 보기.
 - 빌드의 스모크 테스트(`packaging/smoke_desktop.cjs`)는 채보 미리보기를 기다리는 단계가 이 작업 전부터 시간 초과로 건너뛰어져 플레이까지 가지 못합니다(#388에서도 같음). 고치면 Windows 러너에서 플레이 중의 끊김까지 볼 수 있습니다(이 작업의 범위 밖).
 - 그래픽 프로세스가 짧은 사이에 세 번 죽으면 Chromium은 그 뒤로 게임을 소프트웨어로 그립니다(앱을 다시 켤 때까지). 그림은 남지만 느려집니다. 이 규칙은 바꾸지 않았습니다.

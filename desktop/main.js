@@ -3,7 +3,7 @@
 // every OS: the game relies on AudioContext.getOutputTimestamp() and outputLatency for sync.
 // The window opens as it was left (size, place, maximized, full screen), on the home port (the
 // game's settings are kept in that origin's storage).
-const { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, powerMonitor, screen, shell } = require('electron');
 const { execFile, spawn, spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -11,7 +11,9 @@ const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { LOG_NAME, appendLine, featureFields, graphicsWatch, memoryFields, pruneShots } = require('./graphicsLog');
+const { MAX_DUMP_BYTES, dumpSummary } = require('./crashDump');
+const { LOG_NAME, REGISTRY_KEYS, appendLine, featureFields, graphicsWatch, memoryFields, pruneShots } = require('./graphicsLog');
+const { CONFIRM_MS, EARLY_LOSSES, MODES, MODE_IDS, NO_WEBGL_MS, confirmed, drawnByCard, givenUp, picked, startPlan } = require('./graphicsMode');
 const { PORT_MIN, restoredBounds, sanitizeState, usablePort, windowState, workAreasOf } = require('./windowState');
 
 // generous: on a first launch antivirus scanners look at every DLL of the bundled server
@@ -20,6 +22,15 @@ const HEALTH_TIMEOUT_MS = 120_000;
 const HOME_WAIT_MS = 4000;
 /** A picture of the window kept beside the logs is no wider than this (a 4K window's would be several MB). */
 const SHOT_MAX_WIDTH = 1920;
+/** Chromium's own log beside the app's (the processes' warnings and errors), and how much of its end is read after a loss. */
+const CHROMIUM_LOG = 'chromium.log';
+const CHROMIUM_TAIL_BYTES = 128 * 1024;
+/** Past this size Chromium's log is emptied (a driver that warns on every frame must not fill the disk). */
+const CHROMIUM_LOG_MAX_BYTES = 16 * 1024 * 1024;
+/** How often the GPU process is looked at (its memory, for the line written should it go). */
+const GPU_SAMPLE_MS = 5000;
+/** The graphics compatibility modes as the app's own messages name them (the settings name them the same). */
+const MODE_LABELS = { default: '기본', 'no-dcomp': 'DirectComposition 끄기', gl: 'OpenGL', d3d11on12: 'Direct3D 11on12' };
 const isWindows = process.platform === 'win32';
 
 // keep timers and audio steady when the window is in the background, allow audio before a click
@@ -42,6 +53,8 @@ const YOUTUBE_FRAME_HOSTS = /(^|\.)(youtube\.com|youtube-nocookie\.com|googlevid
 let server = null;
 let quitting = false;
 let gameOrigin = null;
+/** The game's window (the app has the one; a test may open others). */
+let gameWindow = null;
 /** What is kept between launches (windowState.js), read when the app is ready. */
 let state = sanitizeState(null);
 
@@ -65,6 +78,79 @@ function writeState() {
     fs.renameSync(`${file}.tmp`, file);
   } catch (e) {
     console.error('could not keep the window state:', e);
+  }
+}
+
+/**
+ * Chromium's own log goes to chromium.log beside the app's: what its processes warn of and fail at, the
+ * GPU process among them (a lost Direct3D device and the reason the driver gave are written there and
+ * nowhere else). Set before the app is ready: the switches for the window's own process and for the GPU
+ * process's leave to write the file, the environment for the processes started from here on, which read
+ * the file's name from it. The last run's log is kept as chromium.log.1.
+ */
+function keepChromiumLog() {
+  const file = path.join(app.getPath('userData'), CHROMIUM_LOG);
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (fs.existsSync(file)) fs.renameSync(file, `${file}.1`);
+  } catch {
+    // held by a process an earlier run left: this run's lines are added to it
+  }
+  process.env.ELECTRON_ENABLE_LOGGING = 'file';
+  process.env.ELECTRON_LOG_FILE = file;
+  app.commandLine.appendSwitch('enable-logging', 'file');
+  app.commandLine.appendSwitch('log-file', file);
+  // warnings and errors (0 for everything, a test's)
+  app.commandLine.appendSwitch('log-level', /^[0-3]$/.test(process.env.GRG_CHROMIUM_LOG_LEVEL ?? '') ? process.env.GRG_CHROMIUM_LOG_LEVEL : '1');
+}
+
+/** The end of Chromium's log, as text; emptied first should it have grown past all use. */
+function chromiumTail() {
+  const file = path.join(app.getPath('userData'), CHROMIUM_LOG);
+  const { size } = fs.statSync(file);
+  const length = Math.min(size, CHROMIUM_TAIL_BYTES);
+  const buffer = Buffer.alloc(length);
+  const fd = fs.openSync(file, 'r');
+  try {
+    fs.readSync(fd, buffer, 0, length, size - length);
+  } finally {
+    fs.closeSync(fd);
+  }
+  return buffer.toString('utf8');
+}
+
+function trimChromiumLog() {
+  const file = path.join(app.getPath('userData'), CHROMIUM_LOG);
+  try {
+    if (fs.statSync(file).size > CHROMIUM_LOG_MAX_BYTES) fs.truncateSync(file, 0);
+  } catch {
+    // no log, or not ours to cut
+  }
+}
+
+/** Whether this is the app's one running copy (a second one hands over to it and quits: see the end of the file). */
+const primary = app.requestSingleInstanceLock();
+/**
+ * How this launch draws (graphicsMode.js): the mode's switches are set here, before the app is ready,
+ * and the start is counted against a mode that has yet to come up. A mode asked for by the environment
+ * (GRG_GRAPHICS_MODE: tests) is this launch's only.
+ */
+let launch = { mode: 'default', forced: false, note: null };
+if (primary) {
+  state = readState();
+  launch = startPlan(state.graphics, process.env.GRG_GRAPHICS_MODE);
+  if (!launch.forced && JSON.stringify(launch.graphics) !== JSON.stringify(state.graphics)) {
+    state.graphics = launch.graphics;
+    writeState();
+  }
+  for (const [name, value] of MODES[launch.mode]) app.commandLine.appendSwitch(name, value);
+  keepChromiumLog();
+  // a process of the app that crashes leaves a dump beside the logs (crashDump.js reads where it stopped);
+  // nothing is sent anywhere
+  try {
+    crashReporter.start({ uploadToServer: false });
+  } catch (e) {
+    console.error('could not start the crash reporter:', e);
   }
 }
 
@@ -247,9 +333,109 @@ function cardMemory() {
   });
 }
 
+/** A command's output as { ok: true, text } or { ok: false, error } (its exit code, or why it did not run): never rejects. */
+function commandText(cmd, args, timeout = 6000) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+      resolve(error ? { ok: false, error: String(error.code ?? error.message).slice(0, 60) } : { ok: true, text: String(stdout) });
+    });
+  });
+}
+
+/** Windows' settings that change how a window gets to the screen (graphicsLog.js's registryFields reads them). */
+async function registryAnswers() {
+  const answers = await Promise.all(Object.entries(REGISTRY_KEYS).map(async ([name, key]) => [name, await commandText('reg', ['query', key], 4000)]));
+  return Object.fromEntries(answers);
+}
+
+/** The game's window as it is: in full screen or not, with the keyboard or not, its size. */
+function windowFields() {
+  const win = gameWindow;
+  if (!win || win.isDestroyed()) return {};
+  const { width, height } = win.getBounds();
+  const yes = (on) => (on ? 'yes' : 'no');
+  return { fullScreen: yes(win.isFullScreen()), maximized: win.isMaximized() ? 'yes' : undefined, minimized: win.isMinimized() ? 'yes' : undefined, focused: yes(win.isFocused()), size: `${width}x${height}` };
+}
+
+/** The GPU process as it was last looked at (every few seconds: once it is gone there is nothing to look at). */
+let gpuSample = null;
+function sampleGpuProcess() {
+  const mb = (kb) => (Number.isFinite(kb) ? Math.round(kb / 1024) : undefined);
+  // (Chromium may run a second, short-lived one to ask the card something: the one that draws is the larger)
+  const [gpu] = app
+    .getAppMetrics()
+    .filter((m) => m.type === 'GPU')
+    .sort((a, b) => (b.memory?.workingSetSize ?? 0) - (a.memory?.workingSetSize ?? 0));
+  if (gpu) gpuSample = { at: Date.now(), pid: gpu.pid, workingSetMB: mb(gpu.memory?.workingSetSize), peakMB: mb(gpu.memory?.peakWorkingSetSize), privateMB: mb(gpu.memory?.privateBytes) };
+}
+
+function gpuProcessFields() {
+  if (!gpuSample) return {};
+  const { at, ...fields } = gpuSample;
+  return { ...fields, seenMsAgo: Date.now() - at };
+}
+
+/**
+ * The crash dump written since `sinceMs` (Crashpad's, beside the logs), as { file, summary }: the newest
+ * one, with where the process stopped (crashDump.js), or null when there is none.
+ */
+function newestDump(sinceMs) {
+  const root = app.getPath('crashDumps');
+  let newest = null;
+  const look = (dir, depth) => {
+    for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        if (depth < 2) look(file, depth + 1);
+      } else if (item.name.endsWith('.dmp')) {
+        const { mtimeMs, size } = fs.statSync(file);
+        if (mtimeMs >= sinceMs && (!newest || mtimeMs > newest.mtimeMs)) newest = { file, mtimeMs, size };
+      }
+    }
+  };
+  try {
+    look(root, 0);
+  } catch {
+    return null;
+  }
+  if (!newest) return null;
+  const name = path.relative(app.getPath('userData'), newest.file).replace(/\\/g, '/');
+  let summary = null;
+  try {
+    if (newest.size <= MAX_DUMP_BYTES) summary = dumpSummary(fs.readFileSync(newest.file));
+  } catch {
+    // not to be read: the file's name is told all the same
+  }
+  return { file: name, summary };
+}
+
+/**
+ * The renderer a WebGL canvas of the game's page gets (the card and ANGLE's backend, as the page is
+ * given them: "ANGLE (NVIDIA, … Direct3D11 …)"), 'none' when it gets no context; undefined while the
+ * window does not show the game. The canvas is the question's own and is let go at once.
+ */
+async function pageRenderer() {
+  const win = gameWindow;
+  if (!win || win.isDestroyed() || gameOrigin === null || !win.webContents.getURL().startsWith(`${gameOrigin}/`)) return undefined;
+  const ask = `(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) return 'none';
+      const names = gl.getExtension('WEBGL_debug_renderer_info');
+      const renderer = String(names ? gl.getParameter(names.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return renderer;
+    } catch (e) {
+      return 'none';
+    }
+  })()`;
+  return within(win.webContents.executeJavaScript(ask), 4000).catch(() => undefined);
+}
+
 /** A picture of the window as it is now, saved beside the logs under `name` (the newest few are kept). */
 async function pictureWindow(name) {
-  const [win] = BrowserWindow.getAllWindows();
+  const win = gameWindow;
   if (!win || win.isDestroyed()) throw new Error('no window');
   let image = await within(win.webContents.capturePage(), 5000);
   if (image.isEmpty()) throw new Error('an empty picture');
@@ -283,6 +469,21 @@ const graphics = graphicsWatch({
   memory: cardMemory,
   features: () => app.getGPUFeatureStatus(),
   shot: pictureWindow,
+  // how Chromium draws: the renderer and the way to the screen (some PCs never answer the whole of it)
+  info: () => within(app.getGPUInfo('complete'), 10_000),
+  page: pageRenderer,
+  displays: () => screen.getAllDisplays(),
+  window: windowFields,
+  gpuProcess: gpuProcessFields,
+  chromium: async () => chromiumTail(),
+  dump: async (sinceMs) => newestDump(sinceMs),
+  // what Windows keeps: its settings for the graphics drivers, and its logs of them and of crashed programs
+  ...(isWindows
+    ? {
+        registry: registryAnswers,
+        events: (log, query) => commandText('wevtutil', ['qe', log, `/q:${query}`, '/f:xml', '/c:8', '/rd:true']),
+      }
+    : {}),
 });
 
 /** The first line of a run: the versions, the graphics cards, and whether they draw the game. */
@@ -296,6 +497,11 @@ async function noteStart() {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     os: `${process.platform} ${os.release()}`,
+    // the graphics compatibility mode this launch runs in, with the switches it started Chromium with
+    mode: launch.mode,
+    switches: MODES[launch.mode].map((s) => s.join('=')),
+    asked: launch.forced ? 'for this launch' : undefined,
+    pid: process.pid,
     // vendor:device of each card, the one in use starred, with its name and driver where Chromium knows
     // them; NVIDIA's by name with their memory (the server lists them)
     cards: Array.isArray(gpu?.gpuDevice)
@@ -308,6 +514,121 @@ async function noteStart() {
     vram: Array.isArray(memory.vram) ? memory.vram : undefined,
     ...featureFields(app.getGPUFeatureStatus()),
   });
+  if (launch.note) graphics.note('graphics-mode', { givenUp: launch.note.from, why: launch.note.why });
+  // how Chromium draws under that mode (the renderer, the way to the screen, every GPU feature), the screens, Windows' settings
+  sampleGpuProcess();
+  await graphics.config();
+  await graphics.windows();
+}
+
+/** What the settings' 그래픽 호환 모드 shows: the mode kept (the next start's), the one running, and one given up. */
+function graphicsModeInfo() {
+  return { mode: state.graphics.mode, running: launch.mode, modes: MODE_IDS, reverted: state.graphics.reverted ?? null };
+}
+
+/** The app again, from its start: in the graphics mode kept. */
+function restartApp() {
+  // (the new process reads Chromium's log file from its own start: not from this one's environment)
+  delete process.env.ELECTRON_ENABLE_LOGGING;
+  delete process.env.ELECTRON_LOG_FILE;
+  app.relaunch();
+  app.quit();
+}
+
+/**
+ * A mode other than default has to come up: the game drawn by the graphics card for a while, the GPU
+ * process staying. Once it has, nothing is counted against it any more. Should the game be drawn in
+ * software under it (the driver has no such renderer), or the GPU process go twice before that, the mode
+ * is given up: default from the next start on, and the player is told and offered the restart.
+ */
+function watchGraphicsMode(win) {
+  if (launch.note) {
+    void dialog.showMessageBox(win, {
+      type: 'warning',
+      title: 'Generative Rhythm',
+      buttons: ['확인'],
+      message: '그래픽 호환 모드를 기본으로 되돌렸습니다',
+      detail: `"${MODE_LABELS[launch.note.from]}" 모드로는 앱이 두 번 이어서 끝까지 뜨지 못해, 이번에는 기본 모드로 열었습니다. 다른 모드는 설정 → 연출·배경 → 그래픽 호환 모드에서 고를 수 있습니다.`,
+    });
+  }
+  if (launch.forced || launch.mode === 'default') return;
+  let settled = false;
+  let losses = 0;
+  const giveUp = (why, told) => {
+    if (settled) return;
+    settled = true;
+    // (the player picked another one in the meantime: that one is not this one's to give up)
+    if (state.graphics.mode !== launch.mode) return;
+    state.graphics = givenUp(state.graphics, why);
+    writeState();
+    graphics.note('graphics-mode', { mode: launch.mode, givenUp: why });
+    if (win.isDestroyed()) return;
+    void dialog
+      .showMessageBox(win, {
+        type: 'warning',
+        title: 'Generative Rhythm',
+        buttons: ['지금 다시 시작', '나중에'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        message: '그래픽 호환 모드를 기본으로 되돌립니다',
+        detail: `"${MODE_LABELS[launch.mode]}" 모드에서는 ${told} 앱을 다시 시작하면 기본 모드로 열립니다.`,
+      })
+      .then(({ response }) => {
+        if (response === 0) restartApp();
+      });
+  };
+  app.on('child-process-gone', (_event, details) => {
+    if (settled || details.type !== 'GPU' || details.reason === 'clean-exit') return;
+    losses += 1;
+    if (losses >= EARLY_LOSSES) giveUp(`the GPU process went ${losses} times before the mode had come up`, '앱이 뜨는 동안 그래픽 프로세스가 두 번 끊겼습니다.');
+  });
+  // (a page that gets no WebGL at all has no track: not waited out)
+  setTimeout(async () => {
+    if ((await pageRenderer()) === 'none') giveUp('the game gets no WebGL under it', '게임이 그래픽(WebGL)을 받지 못해 기어를 그릴 수 없습니다(이 PC의 드라이버가 이 방식을 지원하지 않는 것으로 보입니다).');
+  }, NO_WEBGL_MS);
+  setTimeout(async () => {
+    const renderer = await pageRenderer();
+    if (settled) return;
+    if (!drawnByCard(app.getGPUFeatureStatus(), renderer)) {
+      giveUp(
+        renderer === 'none' ? 'the game gets no WebGL under it' : 'the game is drawn in software under it',
+        '게임을 그래픽 카드로 그리지 못합니다(이 PC의 드라이버가 이 방식을 지원하지 않는 것으로 보입니다).',
+      );
+      return;
+    }
+    settled = true;
+    if (state.graphics.mode === launch.mode) {
+      state.graphics = confirmed(state.graphics);
+      writeState();
+    }
+    graphics.note('graphics-mode', { mode: launch.mode, cameUp: 'yes', webgl: renderer });
+  }, CONFIRM_MS);
+}
+
+/**
+ * What the window and the screens do is kept for a while (graphicsLog.js's `seen`): a loss of the graphics
+ * that follows a screen changing its mode, or the window losing the keyboard, is told with it. A screen
+ * that changes is written down at once: no one asks for that in play.
+ */
+function watchWindowAndScreens(win) {
+  for (const event of ['blur', 'focus', 'minimize', 'restore', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'show', 'hide', 'resize', 'move']) {
+    win.on(event, () => graphics.seen(event));
+  }
+  screen.on('display-metrics-changed', (_event, _display, changed) => graphics.seen(`display-metrics-changed ${(changed ?? []).join('+')}`, true));
+  screen.on('display-added', () => graphics.seen('display-added', true));
+  screen.on('display-removed', () => graphics.seen('display-removed', true));
+  for (const event of ['suspend', 'resume', 'lock-screen', 'unlock-screen', 'on-ac', 'on-battery']) {
+    powerMonitor.on(event, () => graphics.seen(event));
+  }
+  let ticks = 0;
+  const timer = setInterval(() => {
+    sampleGpuProcess();
+    ticks += 1;
+    if (ticks % 12 === 0) trimChromiumLog();
+  }, GPU_SAMPLE_MS);
+  // (the app does not stay for it)
+  timer.unref();
 }
 
 /**
@@ -368,8 +689,10 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
     },
   });
+  gameWindow = win;
   if (saved.maximized && !saved.fullScreen) win.maximize();
   keepWindowState(win);
+  watchWindowAndScreens(win);
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent('<body style="background:#05070f;color:#8d98c4;font:16px sans-serif;display:grid;place-items:center;height:100vh">분석 서버를 시작하는 중…</body>')}`);
   try {
     const { port, home } = await startServer();
@@ -404,6 +727,7 @@ async function createWindow() {
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<body style="background:#05070f;color:#ff8fa3;font:16px sans-serif;padding:40px">${message}<br><br>로그: ${path.join(app.getPath('userData'), 'server.log')}</body>`)}`);
   }
   void noteStart().catch((e) => console.error('could not note the start in the graphics log:', e));
+  watchGraphicsMode(win);
   // the page holds the window over unsaved edits (the chart editor's beforeunload): the player picks
   // here, as Electron otherwise keeps the window open without a word (the same event for a close
   // and a reload, so the button names neither)
@@ -444,12 +768,12 @@ async function createWindow() {
   });
 }
 
-if (!app.requestSingleInstanceLock()) {
+if (!primary) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const [win] = BrowserWindow.getAllWindows();
-    if (win) {
+    const win = gameWindow;
+    if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
@@ -460,7 +784,6 @@ if (!app.requestSingleInstanceLock()) {
   // (how the game is drawn after it: by the graphics card still, or in software from then on)
   app.on('gpu-info-update', () => graphics.featuresMayHaveChanged());
   app.whenReady().then(() => {
-    state = readState();
     // the settings' 화면 모드: the window of the page that asks
     ipcMain.handle('grg:set-full-screen', (event, on) => {
       const win = BrowserWindow.fromWebContents(event.sender);
@@ -475,6 +798,20 @@ if (!app.requestSingleInstanceLock()) {
     // a WebGL canvas of the game losing its context, or getting it back (preload.js)
     ipcMain.on('grg:graphics', (event, record) => {
       if (fromGame(event)) graphics.page(record);
+    });
+    // the settings' 그래픽 호환 모드: the mode kept is the next start's (Chromium's switches cannot change while it runs)
+    ipcMain.handle('grg:graphics-mode', (event) => (fromGame(event) ? graphicsModeInfo() : null));
+    ipcMain.handle('grg:set-graphics-mode', (event, mode) => {
+      if (!fromGame(event)) return null;
+      state.graphics = picked(mode);
+      writeState();
+      graphics.note('graphics-mode', { picked: state.graphics.mode, running: launch.mode });
+      return graphicsModeInfo();
+    });
+    ipcMain.handle('grg:restart', (event) => {
+      if (!fromGame(event)) return false;
+      restartApp();
+      return true;
     });
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([

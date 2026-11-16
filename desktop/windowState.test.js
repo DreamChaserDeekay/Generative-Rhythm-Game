@@ -7,13 +7,15 @@ const MAIN = { x: 0, y: 0, width: 1920, height: 1040 };
 const RIGHT = { x: 1920, y: 0, width: 2560, height: 1400 };
 
 test('a state file that is missing, broken or of an older kind opens the default window', () => {
-  assert.deepEqual(sanitizeState(null), { window: {}, port: null, token: null });
-  assert.deepEqual(sanitizeState('x'), { window: {}, port: null, token: null });
-  assert.deepEqual(sanitizeState({ window: { x: '1', width: 1.5, maximized: 'yes', fullScreen: 1 }, port: 80, token: '<script>' }), { window: {}, port: null, token: null });
+  const none = { window: {}, port: null, token: null, graphics: { mode: 'default' } };
+  assert.deepEqual(sanitizeState(null), none);
+  assert.deepEqual(sanitizeState('x'), none);
+  assert.deepEqual(sanitizeState({ window: { x: '1', width: 1.5, maximized: 'yes', fullScreen: 1 }, port: 80, token: '<script>', graphics: { mode: 'vulkan' } }), none);
   assert.deepEqual(sanitizeState({ window: { x: -8, y: 20, width: 1400, height: 900, fullScreen: true }, port: 51234, token: 'a1b2c3d4e5f60718' }), {
     window: { x: -8, y: 20, width: 1400, height: 900, fullScreen: true },
     port: 51234,
     token: 'a1b2c3d4e5f60718',
+    graphics: { mode: 'default' },
   });
   assert.deepEqual(restoredBounds({}, [MAIN]), DEFAULT_SIZE);
 });
@@ -47,6 +49,9 @@ test('what is kept of a window: its place out of maximized and full screen, and 
   assert.deepEqual(windowState({ x: 10, y: 20, width: 1300, height: 820 }, false, false), { x: 10, y: 20, width: 1300, height: 820 });
   assert.deepEqual(windowState({ x: 10, y: 20, width: 1300, height: 820 }, true, true), { x: 10, y: 20, width: 1300, height: 820, maximized: true, fullScreen: true });
   // kept and read back, it is the same
-  const kept = { window: windowState({ x: 10, y: 20, width: 1300, height: 820 }, false, true), port: 40123, token: '0123456789abcdef0123456789abcdef' };
+  const kept = { window: windowState({ x: 10, y: 20, width: 1300, height: 820 }, false, true), port: 40123, token: '0123456789abcdef0123456789abcdef', graphics: { mode: 'default' } };
   assert.deepEqual(sanitizeState(JSON.parse(JSON.stringify(kept))), kept);
+  // and the graphics compatibility mode with it (graphicsMode.js): the mode, its starts yet to come up, one given up
+  const mode = { ...kept, graphics: { mode: 'gl', trial: { mode: 'gl', starts: 1 }, reverted: { from: 'no-dcomp', why: 'the game is drawn in software under it' } } };
+  assert.deepEqual(sanitizeState(JSON.parse(JSON.stringify(mode))), mode);
 });

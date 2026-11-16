@@ -25,7 +25,9 @@
     "files": [
       "main.js",
       "preload.js",
+      "crashDump.js",
       "graphicsLog.js",
+      "graphicsMode.js",
       "windowState.js",
       "package.json"
     ],

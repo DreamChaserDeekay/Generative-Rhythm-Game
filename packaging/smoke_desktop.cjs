@@ -3,9 +3,12 @@
 // up (the workflow's CPU step leaves one in GRG_MAPPER_HOME; the runner has no NVIDIA GPU otherwise) it also
 // has a chart made, previews it and starts an autoplay (the default hit's flipbooks); else it checks that the
 // chart is refused with a reason.
-// Last, it kills the app's GPU process and prints what the app wrote down of it (graphics.log): informational.
+// It then kills the app's GPU process and prints what the app wrote down of it (graphics.log): informational.
+// Last, the app is started once in each graphics compatibility mode (desktop/graphicsMode.js): it has to come
+// up in every one; how it draws there (the renderer the game's page gets, should it get one) is printed.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
 // GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes).
+// GRG_SMOKE_MODES_ONLY=1: the graphics modes' part alone.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -13,6 +16,11 @@ const path = require('node:path');
 const [clientDir, exe, outDir] = process.argv.slice(2);
 const analysisMs = Number(process.env.GRG_SMOKE_ANALYSIS_MS) || 180000;
 const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/playwright'));
+
+const until = async (ok, ms) => {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (ok()) return true;
+  return false;
+};
 
 /**
  * The app's GPU process is killed, as a driver reset or a crash of it takes it away: the app writes it
@@ -24,10 +32,6 @@ async function graphicsLoss(app, win) {
   const userData = await app.evaluate(({ app: a }) => a.getPath('userData'));
   const logFile = path.join(userData, 'graphics.log');
   const log = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '');
-  const until = async (ok, ms) => {
-    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (ok()) return true;
-    return false;
-  };
   if (!(await until(() => /  start  /.test(log()), 15000))) console.warn('graphics.log: no start line');
   const before = log().length;
   const gpu = await app.evaluate(({ app: a }) => a.getAppMetrics().filter((m) => m.type === 'GPU').map((m) => m.pid));
@@ -43,8 +47,103 @@ async function graphicsLoss(app, win) {
   for (const name of fs.readdirSync(userData).filter((n) => /^graphics(-lost-.*\.jpg|\.log)$/.test(n))) fs.copyFileSync(path.join(userData, name), path.join(outDir, `desktop-${name}`));
 }
 
+/**
+ * The app once more, in the graphics compatibility mode `mode` (asked for this launch only: nothing is
+ * kept). It has to come up: the game's page in its window, the run's first line in graphics.log with
+ * the mode. How it draws there is printed, and is not the build's matter: a runner has no graphics
+ * card, and under a mode whose renderer its software one lacks the page gets no WebGL at all. In one of
+ * the modes (`crash`) the GPU process is made to crash as a driver's fault would, for the lines the app
+ * writes of a crash (Chromium's log, Windows' events, the crash dump): printed, informational.
+ * `switches`: Chromium switches of the test's own, given on the command line beside the mode's (to see one
+ * mode's switch take effect where this machine's usual way of drawing would not show it).
+ */
+async function modeRun(mode, { crash = false, switches = [] } = {}) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grg-desktop-'));
+  const app = await electron.launch({
+    executablePath: exe,
+    args: [...(process.platform === 'linux' ? ['--no-sandbox'] : []), ...switches],
+    // (everything Chromium's processes log, to see which of them reach the log file here)
+    env: { ...process.env, GRG_DATA_DIR: dataDir, GRG_GRAPHICS_MODE: mode, GRG_CHROMIUM_LOG_LEVEL: '0' },
+    timeout: 180000,
+  });
+  try {
+    const win = await app.firstWindow();
+    await win.waitForURL(/127\.0\.0\.1:\d+\//, { timeout: 180000 });
+    await win.getByTestId('hint-menu').waitFor({ timeout: 60000 });
+    const userData = await app.evaluate(({ app: a }) => a.getPath('userData'));
+    const read = (name) => (fs.existsSync(path.join(userData, name)) ? fs.readFileSync(path.join(userData, name), 'utf8') : '');
+    // this launch's lines: from its own first one on (the log holds the earlier launches' too)
+    const mine = () => {
+      const log = read('graphics.log');
+      const at = log.lastIndexOf('  start  ');
+      return at < 0 ? '' : log.slice(log.lastIndexOf('\n', at) + 1);
+    };
+    const started = await until(() => new RegExp(`  start  .* mode=${mode} `).test(mine()) && /  gpu-config  when=start/.test(mine()), 30000);
+    if (!started) throw new Error(`mode ${mode}: graphics.log has no first line of this launch with the mode:\n${mine()}`);
+    const renderer = await win.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) return 'none';
+      const names = gl.getExtension('WEBGL_debug_renderer_info');
+      return String(names ? gl.getParameter(names.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    });
+    const name = [mode, ...switches].join(' ');
+    console.log(`graphics mode ${name}: the app came up; the page's WebGL renderer: ${renderer}`);
+    await win.screenshot({ path: path.join(outDir, `5-mode-${[mode, ...switches].join('').replace(/[^\w-]/g, '')}.png`) }).catch(() => {});
+    const processes = await app.evaluate(({ app: a }) => a.getAppMetrics().map((m) => [m.pid, m.type]));
+    if (crash) {
+      await app.evaluate(({ BrowserWindow }) => {
+        const side = new BrowserWindow({ show: false });
+        side.loadURL('chrome://gpucrash').catch(() => {});
+        setTimeout(() => side.destroy(), 1500);
+      });
+      const written = await until(() => /  crash-dump  /.test(mine()) && /  picture  /.test(mine()), 25000);
+      console.log(`graphics mode ${name}: the GPU process was crashed; ${written ? 'the app wrote down the crash and pictured its window' : 'no crash-dump and picture lines within 25 s'}`);
+      // the dump itself beside the screenshots: what the app read of it can be read again from it
+      const dump = / {2}crash-dump {2}file=(\S+\.dmp)/.exec(mine());
+      if (dump) fs.copyFileSync(path.join(userData, dump[1]), path.join(outDir, 'desktop-gpu-crash.dmp'));
+      fs.copyFileSync(path.join(userData, 'chromium.log'), path.join(outDir, 'desktop-chromium.log'));
+    }
+    // which of the app's processes reach Chromium's log file here (the GPU process's own lines are the ones wanted
+    // of a loss: a process started since the list was taken is told by its number)
+    const kinds = Object.fromEntries(processes);
+    const kind = (line) => {
+      const pid = /^\[(\d+):/.exec(line);
+      return pid ? kinds[pid[1]] || `pid ${pid[1]}` : null;
+    };
+    const lines = read('chromium.log').split(/\r?\n/);
+    const counts = {};
+    for (const line of lines) if (kind(line)) counts[kind(line)] = (counts[kind(line)] || 0) + 1;
+    console.log(`chromium.log, mode ${name}: ${lines.length} lines, by process: ${JSON.stringify(counts)}`);
+    const others = lines.filter((line) => kind(line) && kind(line) !== 'Browser');
+    if (others.length) console.log(`--- chromium.log, the lines of processes other than the window's own (the first 12 of ${others.length})\n${others.slice(0, 12).join('\n')}`);
+    console.log(`--- graphics.log, mode ${name}\n${mine()}`);
+  } finally {
+    await app.close().catch(() => {});
+    fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
+  }
+}
+
+/**
+ * The graphics modes' runs: each mode once (default is the run before them), the GPU process crashed in the
+ * first. The last is Direct3D 11 on 12 without DirectComposition: a runner draws in software, where
+ * DirectComposition is off whatever is asked, and only under Direct3D 11 on 12 does its software adapter say
+ * that it has it; so there the first mode's switch is seen to take it away.
+ */
+const MODE_RUNS = [
+  ['no-dcomp', { crash: true }],
+  ['gl', {}],
+  ['d3d11on12', {}],
+  ['d3d11on12', { switches: ['--disable-direct-composition'] }],
+];
+
 (async () => {
   fs.mkdirSync(outDir, { recursive: true });
+  if (process.env.GRG_SMOKE_MODES_ONLY === '1') {
+    for (const [mode, how] of MODE_RUNS) await modeRun(mode, how);
+    console.log('desktop smoke test (graphics modes only): ok');
+    return;
+  }
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grg-desktop-'));
   const app = await electron.launch({
     executablePath: exe,
@@ -110,6 +209,8 @@ async function graphicsLoss(app, win) {
   }
   await graphicsLoss(app, win).catch((e) => console.warn('graphics-loss check skipped:', e.message));
   await app.close();
+  // the graphics compatibility modes: the app comes up in each (default is the run above)
+  for (const [mode, how] of MODE_RUNS) await modeRun(mode, how);
   console.log('desktop smoke test: ok');
 })().catch((e) => {
   console.error(e);

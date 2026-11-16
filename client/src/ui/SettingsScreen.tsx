@@ -45,6 +45,7 @@ import {
 } from '../settings/settings';
 import type { CalibrationStep } from './CalibrationScreen';
 import { desktopShell, heldEscLeaves } from './displayMode';
+import { GRAPHICS_MODE_NAMES, graphicsModeHelp, graphicsShell, parseGraphicsModeInfo, type GraphicsMode, type GraphicsModeInfo } from './graphicsMode';
 import { GearPreview } from './GearPreview';
 import { KeyGhostTest } from './KeyGhostTest';
 import { NoteColorsPanel } from './NoteColorsPanel';
@@ -713,6 +714,7 @@ export function SettingsScreen({
       content = (
         <>
           <DisplayModeRow {...row} settings={settings} onSettingsChange={onSettingsChange} />
+          <GraphicsModeRows {...row} />
           <NumberOption
             {...row}
             label="카메라 연출"
@@ -1835,6 +1837,62 @@ function DisplayModeRow({
           : `전체 화면은 브라우저 테두리 없이 게임만 보여 줍니다. ${heldEscLeaves() ? '나가려면 Esc를 길게 누르세요' : 'Esc를 누르면 나갑니다'} (F11은 브라우저의 전체 화면입니다).`
       }
     />
+  );
+}
+
+/**
+ * The desktop app's graphics compatibility mode (설정 → 연출·배경, under 화면 모드; ui/graphicsMode.ts): the
+ * mode kept for the next start, and, while that is not the one running, the restart that applies it. The
+ * window keeps the mode (it is set before the page is read): none of it is in the game's settings, and a
+ * browser, or an app older than the modes, shows no row.
+ */
+function GraphicsModeRows({ onHelp, onDefault }: { onHelp: (help: string) => void; onDefault: (text: string | null) => void }) {
+  const [info, setInfo] = useState<GraphicsModeInfo | null>(null);
+  useEffect(() => {
+    let live = true;
+    void graphicsShell()
+      ?.graphicsMode()
+      .then((raw) => {
+        if (live) setInfo(parseGraphicsModeInfo(raw));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!info) return null;
+  const pick = (mode: GraphicsMode) => {
+    // shown at once; the window's answer (what it kept) follows
+    setInfo({ ...info, mode, reverted: null });
+    void graphicsShell()
+      ?.setGraphicsMode(mode)
+      .then((raw) => setInfo((now) => parseGraphicsModeInfo(raw) ?? now))
+      .catch(() => undefined);
+  };
+  return (
+    <>
+      <Choice
+        onHelp={onHelp}
+        onDefault={onDefault}
+        label="그래픽 호환 모드"
+        testId="opt-graphics-mode"
+        value={info.mode}
+        defaultValue="default"
+        options={info.modes.map((id): [GraphicsMode, string] => [id, GRAPHICS_MODE_NAMES[id]])}
+        onChange={pick}
+        help={graphicsModeHelp(info)}
+      />
+      {info.mode !== info.running && (
+        <ActionOption
+          onHelp={onHelp}
+          label="다시 시작해서 적용"
+          testId="graphics-mode-restart"
+          action="지금 다시 시작"
+          onPress={() => void graphicsShell()?.restart()}
+          help={`앱을 닫고 '${GRAPHICS_MODE_NAMES[info.mode]}' 모드로 다시 엽니다. 저장하지 않은 채보 편집이 있으면 먼저 묻습니다.`}
+        />
+      )}
+    </>
   );
 }
 

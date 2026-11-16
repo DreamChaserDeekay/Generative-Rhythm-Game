@@ -30,9 +30,10 @@ async function launch(type: BrowserType, options: LaunchOptions, software: boole
 
 /**
  * Kills the browser's graphics process, as a driver reset or a crash of it does, and waits until the
- * WebGL context of `canvas` (a selector) was lost and given back.
+ * WebGL context of `canvas` (a selector) was lost and given back; or, with `back`, lost and until `back`
+ * says so (the play's track does not wait for its canvas to be given a context back: see recovered).
  */
-async function loseGraphics(browser: Browser, page: Page, canvas: string) {
+async function loseGraphics(browser: Browser, page: Page, canvas: string, back?: () => Promise<boolean>) {
   await page.evaluate((selector) => {
     const seen = window as unknown as { __lost?: boolean; __restored?: boolean };
     [seen.__lost, seen.__restored] = [false, false];
@@ -44,8 +45,21 @@ async function loseGraphics(browser: Browser, page: Page, canvas: string) {
   await cdp.send('Browser.crashGpuProcess');
   const seen = (key: '__lost' | '__restored') => page.evaluate((k) => (window as unknown as Record<string, boolean | undefined>)[k] === true, key);
   await expect.poll(() => seen('__lost'), { timeout: 15_000 }).toBe(true);
-  await expect.poll(() => seen('__restored'), { timeout: 30_000 }).toBe(true);
+  await expect.poll(back ?? (() => seen('__restored')), { timeout: 30_000 }).toBe(true);
 }
+
+/**
+ * How long the play's track was gone at its last loss (ms, from its canvas losing its context to the first
+ * frame drawn again), once it is back: the track says so on the page's canvas (TrackRenderer, tellRecovered);
+ * null until then. `forget` first, before a loss.
+ */
+const recovered = async (page: Page): Promise<number | null> => {
+  const ms = await page.locator('canvas.play-canvas').getAttribute('data-recovered-ms');
+  return ms === null ? null : Number(ms);
+};
+const forget = (page: Page) => page.locator('canvas.play-canvas').evaluate((canvas) => delete (canvas as HTMLCanvasElement).dataset.recoveredMs);
+/** Of that time, how long it was until a canvas of the track's own could have a WebGL context (ms). */
+const contextAfter = async (page: Page): Promise<number> => Number(/context=(\d+)/.exec((await page.locator('canvas.play-canvas').getAttribute('data-recovered')) ?? '')?.[1] ?? NaN);
 
 /**
  * How bright the screen is where the gear's deck lies and over its lanes (0 … 1), from a screenshot: after the
@@ -102,7 +116,28 @@ for (const mode of MODES) {
       await expect.poll(async () => (await trackBrightness(page)).deck, { timeout: 10_000 }).toBeGreaterThan(0.4);
       const before = await trackBrightness(page);
 
-      await loseGraphics(browser, page, 'canvas.play-canvas');
+      await loseGraphics(browser, page, 'canvas.play-canvas', async () => (await recovered(page)) !== null);
+
+      // what the track did in its last seconds is on the canvas for the desktop app's log (render/trail.ts):
+      // its frames (how many, the usual one's length, the last ones) and what happened in them
+      const trail = await page.locator('canvas.play-canvas').evaluate((canvas) => ({ ...(canvas as HTMLCanvasElement).dataset }));
+      expect(trail.trailFrames).toMatch(/^n=\d+ med=[\d.]+ max=[\d.]+ .*last=[\d.,]+ ago=[\d.]+ .*page=visible focus=[01]$/);
+      expect(Number(/^n=(\d+)/.exec(trail.trailFrames ?? '')?.[1])).toBeGreaterThan(5);
+      expect(typeof trail.trailEvents).toBe('string');
+
+      // the track did not wait for the browser to give the lost canvas a context back (a second, at the least):
+      // it went on on a canvas of its own, laid over the page's, as soon as the graphics were there again
+      const own = page.locator('canvas.track-canvas');
+      await expect(own).toHaveCount(1);
+      const gone = (await recovered(page)) ?? 0;
+      expect(gone).toBeGreaterThan(0);
+      // (a new context was had well before the browser would have given the old canvas one back; how long the whole
+      // of it takes is the machine's matter: here every picture is handed over by software)
+      expect(await contextAfter(page)).toBeLessThan(900);
+      const [pageBox, ownBox] = [await page.locator('canvas.play-canvas').boundingBox(), await own.boundingBox()];
+      expect(ownBox).toEqual(pageBox);
+      // (nothing of the pointer's is taken from the page's canvas under it)
+      expect(await own.evaluate((canvas) => getComputedStyle(canvas).pointerEvents)).toBe('none');
 
       // the play went on meanwhile, and the track is drawn again as it was: not a black deck under bare lanes
       await expect.poll(async () => (await trackBrightness(page)).deck, { timeout: 10_000 }).toBeGreaterThan(before.deck * 0.75);
@@ -110,9 +145,15 @@ for (const mode of MODES) {
       expect(after.lanes).toBeGreaterThan(before.lanes * 0.75);
       await expect(page.getByTestId('play-screen')).toBeVisible();
 
-      // and a second loss a few seconds after the first is got over as well
-      await loseGraphics(browser, page, 'canvas.play-canvas');
+      // and a second loss a few seconds after the first is got over as well: the track's canvas of the first
+      // gives way to another
+      // (the canvas that loses its context this time is the track's own: the page's was left at the first loss)
+      await forget(page);
+      await loseGraphics(browser, page, 'canvas.track-canvas', async () => (await recovered(page)) !== null);
       await expect.poll(async () => (await trackBrightness(page)).deck, { timeout: 10_000 }).toBeGreaterThan(before.deck * 0.75);
+      await expect(own).toHaveCount(1);
+      expect(await contextAfter(page)).toBeLessThan(900);
+      console.log(`the track was gone ${gone} ms at the first loss, ${await recovered(page)} ms at the second (${mode.name})`);
       expect(errors).toEqual([]);
     } finally {
       await browser.close();

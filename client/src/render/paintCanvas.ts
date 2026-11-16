@@ -44,6 +44,14 @@ export function paintCanvas(): PaintCanvas {
   return typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(300, 150) : document.createElement('canvas');
 }
 
+/**
+ * A canvas of the page for the track itself to be drawn on with WebGL (after a loss of the graphics the track
+ * goes on on one of its own: TrackRenderer, recover). Never a texture's picture: those are paintCanvas's.
+ */
+export function drawingCanvas(): HTMLCanvasElement {
+  return document.createElement('canvas');
+}
+
 /** The 2D context of a canvas painted once and kept: in the page's own memory, whatever else is asked of it. */
 export function context2d(canvas: PaintCanvas, settings: CanvasRenderingContext2DSettings = {}): CanvasRenderingContext2D {
   // (the two kinds of canvas hand out the same context but for what it says its canvas is)

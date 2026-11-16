@@ -1,23 +1,38 @@
 // The game page's way to its desktop window (the page is isolated: only these calls cross over):
-// full screen, which the settings' 화면 모드 sets and F11 changes as well. The window is also told,
-// for its log (graphics.log, see main.js), when a WebGL canvas of the page loses its context or gets
-// it back: the page itself has no part in that.
+// full screen, which the settings' 화면 모드 sets and F11 changes as well, and the graphics
+// compatibility mode (the settings' 그래픽 호환 모드: kept by the window, the next start's). The
+// window is also told, for its log (graphics.log, see main.js), when a WebGL canvas of the page loses
+// its context or gets it back.
 const { contextBridge, ipcRenderer } = require('electron');
 
-// the events do not bubble, but every event of the document passes the window on its way down
-for (const type of ['webglcontextlost', 'webglcontextrestored']) {
+// the events do not bubble, but every event of the document passes the window on its way down.
+// After a loss the play's track does not wait for its canvas to be given a context back: it goes on on a
+// canvas of its own as soon as one can be had (client/src/render/TrackRenderer.ts, recover), marks the
+// canvas it left (data-retired: what the browser does with that one later is no loss of the game's) and
+// says when the track is drawn again (grg-track-recovered: written down as the graphics coming back).
+for (const [type, told] of [
+  ['webglcontextlost', 'webglcontextlost'],
+  ['webglcontextrestored', 'webglcontextrestored'],
+  ['grg-track-recovered', 'webglcontextrestored'],
+]) {
   window.addEventListener(
     type,
     (event) => {
       const canvas = event.target;
-      // which canvas (the play's is play-canvas), what the page keeps on it for this log (its data-
-      // attributes: the stage of the play, the song's time, the skin, what the renderer holds) and
-      // the kind of video behind the play, should there be one (ui/PlayBackground's elements)
-      const bga = document.querySelector('.bg-youtube') ? 'youtube' : document.querySelector('.bg-video') ? 'file' : 'none';
-      // and what the play's HUD shows of the song: its title, its tier and key mode, how far into it the play is
-      const shown = (selector) => document.querySelector(selector)?.textContent?.trim() ?? '';
-      const about = { ...canvas?.dataset, bga, song: shown('.hud-title'), tier: shown('.hud-diff'), mode: shown('.hud-keymode'), at: shown('.hud-elapsed') };
-      ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), about });
+      if (canvas?.dataset?.retired) return;
+      // a moment later: the page's own listener, which runs after this one, has by then put on the canvas
+      // what it did in the seconds before the loss (render/trail.ts: data-trail-frames, data-trail-events)
+      setTimeout(() => {
+        // which canvas (the play's is play-canvas), what the page keeps on it for this log (its data-
+        // attributes: the stage of the play, the song's time, the skin, what the renderer holds) and
+        // the kind of video behind the play, should there be one (ui/PlayBackground's elements)
+        const bga = document.querySelector('.bg-youtube') ? 'youtube' : document.querySelector('.bg-video') ? 'file' : 'none';
+        // and what the play's HUD shows of the song: its title, its tier and key mode, how far into it the play is
+        const shown = (selector) => document.querySelector(selector)?.textContent?.trim() ?? '';
+        const about = { ...canvas?.dataset, bga, song: shown('.hud-title'), tier: shown('.hud-diff'), mode: shown('.hud-keymode'), at: shown('.hud-elapsed') };
+        if (type !== told) about.how = 'canvas';
+        ipcRenderer.send('grg:graphics', { type: told, canvas: String(canvas?.className ?? ''), about });
+      }, 0);
     },
     true,
   );
@@ -33,4 +48,10 @@ contextBridge.exposeInMainWorld('grgDesktop', {
     ipcRenderer.on('grg:full-screen', handler);
     return () => ipcRenderer.removeListener('grg:full-screen', handler);
   },
+  /** The graphics compatibility mode: { mode (kept: the next start's), running, modes, reverted: { from, why } | null }. */
+  graphicsMode: () => ipcRenderer.invoke('grg:graphics-mode'),
+  /** Keeps `mode` for the next start; resolves with the same as graphicsMode. */
+  setGraphicsMode: (mode) => ipcRenderer.invoke('grg:set-graphics-mode', String(mode)),
+  /** Closes the app and opens it again. */
+  restart: () => ipcRenderer.invoke('grg:restart'),
 });
