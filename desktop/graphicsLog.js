@@ -333,6 +333,8 @@ const SEEN_BEFORE_MS = 15_000;
 const SEEN_KEPT = 24;
 /** A line that is one long list (the GPU features, the return addresses of a crash) may be this long. */
 const LONG_VALUE = 1600;
+/** The crashed thread's stack is longer still: up to 64 places of some thirty characters. */
+const STACK_VALUE = 2600;
 
 /**
  * The log of one run of the app. `io` is the world it works in:
@@ -438,7 +440,7 @@ function graphicsWatch(io) {
       }
       const { summary } = found;
       log('crash-dump', { file: found.file, code: summary.code, at: summary.at, ip: summary.ip, thread: summary.thread });
-      if (summary.frames.length) log('crash-stack', { frames: summary.frames }, LONG_VALUE);
+      if (summary.frames.length) log('crash-stack', { frames: summary.frames }, STACK_VALUE);
       for (const m of summary.modules) log('crash-module', m);
     });
   };

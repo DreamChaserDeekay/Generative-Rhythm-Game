@@ -30,7 +30,7 @@ const CHROMIUM_LOG_MAX_BYTES = 16 * 1024 * 1024;
 /** How often the GPU process is looked at (its memory, for the line written should it go). */
 const GPU_SAMPLE_MS = 5000;
 /** The graphics compatibility modes as the app's own messages name them (the settings name them the same). */
-const MODE_LABELS = { default: '기본', 'no-dcomp': 'DirectComposition 끄기', gl: 'OpenGL', d3d11on12: 'Direct3D 11on12' };
+const MODE_LABELS = { default: '기본', 'no-dcomp': 'DirectComposition 끄기', gl: 'OpenGL', d3d11on12: 'Direct3D 11on12', 'gpu-raster': 'GPU 래스터' };
 const isWindows = process.platform === 'win32';
 
 // keep timers and audio steady when the window is in the background, allow audio before a click

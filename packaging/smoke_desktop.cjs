@@ -80,6 +80,13 @@ async function modeRun(mode, { crash = false, switches = [] } = {}) {
     };
     const started = await until(() => new RegExp(`  start  .* mode=${mode} `).test(mine()) && /  gpu-config  when=start/.test(mine()), 30000);
     if (!started) throw new Error(`mode ${mode}: graphics.log has no first line of this launch with the mode:\n${mine()}`);
+    // every mode but the one that keeps the old way starts Chromium with the page rasterized on the CPU (Skia's
+    // text drawing on the graphics card is where a player's GPU process stopped); what Chromium makes of it is
+    // printed (a runner rasterizes in software whatever is asked)
+    const first = mine().split('\n')[0];
+    const cpuRaster = /\bswitches="?[^" ]*disable-gpu-rasterization/.test(first);
+    if (cpuRaster !== (mode !== 'gpu-raster')) throw new Error(`mode ${mode}: the page should ${mode !== 'gpu-raster' ? '' : 'not '}be rasterized on the CPU, by its switches:\n${first}`);
+    console.log(`graphics mode ${mode}: ${(/ switches=("[^"]*"|\S+)/.exec(first) || ['', 'no switches'])[1]}, ${(/ rasterization=\S+/.exec(first) || [' rasterization unknown'])[0].trim()}`);
     const renderer = await win.evaluate(() => {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
@@ -125,15 +132,17 @@ async function modeRun(mode, { crash = false, switches = [] } = {}) {
 }
 
 /**
- * The graphics modes' runs: each mode once (default is the run before them), the GPU process crashed in the
- * first. The last is Direct3D 11 on 12 without DirectComposition: a runner draws in software, where
- * DirectComposition is off whatever is asked, and only under Direct3D 11 on 12 does its software adapter say
- * that it has it; so there the first mode's switch is seen to take it away.
+ * The graphics modes' runs: each mode once (default again, asked for by name, for its switches), the GPU
+ * process crashed in the second. The last is Direct3D 11 on 12 without DirectComposition: a runner draws in
+ * software, where DirectComposition is off whatever is asked, and only under Direct3D 11 on 12 does its
+ * software adapter say that it has it; so there the first mode's switch is seen to take it away.
  */
 const MODE_RUNS = [
+  ['default', {}],
   ['no-dcomp', { crash: true }],
   ['gl', {}],
   ['d3d11on12', {}],
+  ['gpu-raster', {}],
   ['d3d11on12', { switches: ['--disable-direct-composition'] }],
 ];
 

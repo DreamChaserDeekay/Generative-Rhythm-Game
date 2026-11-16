@@ -41,6 +41,11 @@ describe('the desktop app’s graphics compatibility mode', () => {
     expect(at({ mode: 'gl' })).toContain('OpenGL은 그래픽 카드의 OpenGL 드라이버로 그립니다.');
     expect(at({ mode: 'gl' })).toContain("지금은 '기본' 모드로 실행 중이고, 앱을 다시 시작하면 'OpenGL' 모드로 열립니다.");
     expect(at({ mode: 'no-dcomp', running: 'no-dcomp' })).toContain("지금 'DirectComposition 끄기' 모드로 실행 중입니다.");
+    // what the default draws on the CPU, and the mode that keeps the old way (the last of the choices)
+    expect(at({})).toContain('글자와 버튼 같은 나머지 화면은 CPU로 그립니다');
+    expect(GRAPHICS_MODES[GRAPHICS_MODES.length - 1]).toBe('gpu-raster');
+    expect(at({ mode: 'gpu-raster' })).toContain('GPU 래스터는 글자와 버튼 같은 화면까지 그래픽 카드로 그립니다(2026-11-16까지의 기본).');
+    expect(at({ mode: 'gpu-raster' })).toContain("앱을 다시 시작하면 'GPU 래스터' 모드로 열립니다.");
     // a mode the app gave up, with the reason in the player's words
     expect(at({ reverted: { from: 'gl', why: 'the game gets no WebGL under it' } })).toContain("'OpenGL' 모드는 게임이 그래픽을 받지 못했습니다: 앱이 기본으로 되돌렸습니다.");
     expect(at({ reverted: { from: 'd3d11on12', why: 'the game is drawn in software under it' } })).toContain("'Direct3D 11on12' 모드는 그래픽 카드로 그리지 못했습니다");

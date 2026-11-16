@@ -3,13 +3,20 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { FAILED_STARTS, MODES, MODE_IDS, confirmed, drawnByCard, givenUp, modeOf, picked, sanitizeGraphics, startPlan } = require('./graphicsMode');
 
-test('the modes: default changes nothing, each other one starts Chromium with switches of its own', () => {
-  assert.deepEqual(MODE_IDS, ['default', 'no-dcomp', 'gl', 'd3d11on12']);
-  assert.deepEqual(MODES.default, []);
-  const switches = MODE_IDS.filter((id) => id !== 'default').map((id) => JSON.stringify(MODES[id]));
+test('the modes: every one but the old way rasterizes the page on the CPU, each starts Chromium with switches of its own', () => {
+  assert.deepEqual(MODE_IDS, ['default', 'no-dcomp', 'gl', 'd3d11on12', 'gpu-raster']);
+  // default keeps Skia's text drawing off the graphics card (where the GPU process stopped); the old way is a mode
+  assert.deepEqual(MODES.default, [['disable-gpu-rasterization']]);
+  assert.deepEqual(MODES['gpu-raster'], []);
+  for (const id of MODE_IDS) assert.equal(MODES[id].some(([name]) => name === 'disable-gpu-rasterization'), id !== 'gpu-raster', id);
+  assert.deepEqual(MODES['no-dcomp'].slice(1), [['disable-direct-composition']]);
+  assert.deepEqual(MODES.gl.slice(1), [['use-angle', 'gl']]);
+  assert.deepEqual(MODES.d3d11on12.slice(1), [['use-angle', 'd3d11on12']]);
+  const switches = MODE_IDS.map((id) => JSON.stringify(MODES[id]));
   assert.equal(new Set(switches).size, switches.length);
   for (const id of MODE_IDS) for (const s of MODES[id]) assert.ok(s.length >= 1 && s.length <= 2 && s.every((part) => /^[a-z0-9-]+$/.test(part)), id);
   assert.equal(modeOf('gl'), 'gl');
+  assert.equal(modeOf('gpu-raster'), 'gpu-raster');
   for (const not of ['', 'GL', 'constructor', '__proto__', 'toString', null, undefined, 3, {}]) assert.equal(modeOf(not), 'default');
 });
 

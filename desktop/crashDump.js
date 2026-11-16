@@ -18,9 +18,13 @@ const MODULE_SIZE = 108;
  * the one that says x64, and where the stack pointer and the instruction pointer are in it.
  */
 const CONTEXT_X64 = { size: 1232, flags: 0x30, amd64: 0x00100000, rsp: 0x98, rip: 0xf8 };
-/** How far up the crashed thread's stack is looked through, and how many return addresses are kept. */
+/**
+ * How far up the crashed thread's stack is looked through, and how many return addresses are kept: enough to
+ * reach from the check that stopped the process, through its logging, down to what asked for the drawing (a
+ * player's first dumps, at 24, ended a few calls short of that).
+ */
 const STACK_SLOTS = 4096;
-const FRAMES = 24;
+const FRAMES = 64;
 const MODULES = 6;
 /** A dump larger than this is not read (a GPU process's is a few MB). */
 const MAX_DUMP_BYTES = 64 * 1024 * 1024;
@@ -48,8 +52,9 @@ const baseName = (name) => String(name).replace(/^.*[\\/]/, '');
  *   at       where: "module+0xoffset" (the address itself when it lies in no module)
  *   ip       the instruction the thread was at, in the same form, when the dump has it and it is another
  *            place (an access to memory that is not there is "at" that memory, not at an instruction)
- *   frames   the return addresses found on that thread's stack from its top, in the same form (a scan: an
- *            address a function left behind earlier may be among them)
+ *   frames   the return addresses found on that thread's stack from its top, in the same form, each place
+ *            once (a scan: an address a function left behind earlier, or one of the module's data, may be
+ *            among them)
  *   modules  the modules named in `at` and `frames`: { name, version, id, pdb }, `id` being the identifier
  *            its symbols are published under
  */
@@ -131,7 +136,7 @@ function dumpSummary(buffer) {
       const value = r.u64(rva + offset);
       if (value === undefined) break;
       const where = place(value);
-      if (where && where !== frames[frames.length - 1] && where !== at && where !== ip) frames.push(where);
+      if (where && where !== at && where !== ip && !frames.includes(where)) frames.push(where);
     }
     break;
   }

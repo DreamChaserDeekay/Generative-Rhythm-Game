@@ -1,23 +1,32 @@
 // The graphics compatibility modes (설정 → 연출·배경 → 그래픽 호환 모드): other ways for Chromium to draw
-// the game, for a PC whose graphics driver trips on the usual one. What a player saw (2026-11-16, an RTX
-// 2060 on driver 32.0.16.1714): the whole monitor blinks, the app's GPU process is gone (0x80000003) and
-// the gear with it for a second or two, in the same places of a song. The app cannot stop a driver from
-// resetting; it can keep off the path the driver resets on:
-//   default     as Chromium does it: ANGLE on Direct3D 11, shown through DirectComposition
-//   no-dcomp    Direct3D 11, shown without DirectComposition (no overlay planes of the app's own)
+// the game, for a PC on which the usual one fails. What a player saw (2026-11-16, an RTX 2060 on driver
+// 32.0.16.1714): the whole monitor blinks, the app's GPU process is gone (0x80000003) and the gear with it
+// for a moment, in the same places of a song. What the app wrote down of it (graphics.log) says where: not
+// the driver but Chromium's own check, in Skia's text drawing on the graphics card (AtlasTextOp.cpp:570,
+// "stride mismatch": a check added in June 2026 that stops the GPU process where the two sizes of a
+// glyph's vertices disagree). That drawing is the page's own text rasterized on the card; the one mode
+// under which Chromium rasterized the page on the CPU (OpenGL) did not stop. So every mode rasterizes the
+// page on the CPU now (the track is WebGL's, drawn by the card as before), but the one that keeps the old way:
+//   default     ANGLE on Direct3D 11, shown through DirectComposition; the page rasterized on the CPU
+//   no-dcomp    the same, shown without DirectComposition (no overlay planes of the app's own)
 //   gl          ANGLE on the driver's OpenGL
 //   d3d11on12   ANGLE's Direct3D 11 on top of Direct3D 12
+//   gpu-raster  default as it was until 2026-11-16: the page rasterized on the card (where the stop was)
 // A mode is kept in desktop-state.json and its switches are set as the app starts (they cannot change
 // while it runs). A mode that does not come up (the app gone before the game was drawn by the graphics
 // card, twice in a row), or under which the game is drawn in software, goes back to default.
 // Kept apart from main.js so that it runs under node --test.
 
+/** The page's own pictures (its text, boxes and shadows) are rasterized on the CPU, not by Skia on the graphics card. */
+const CPU_RASTER = ['disable-gpu-rasterization'];
+
 /** id → the Chromium switches it starts with ([name] or [name, value]). */
 const MODES = {
-  default: [],
-  'no-dcomp': [['disable-direct-composition']],
-  gl: [['use-angle', 'gl']],
-  d3d11on12: [['use-angle', 'd3d11on12']],
+  default: [CPU_RASTER],
+  'no-dcomp': [CPU_RASTER, ['disable-direct-composition']],
+  gl: [CPU_RASTER, ['use-angle', 'gl']],
+  d3d11on12: [CPU_RASTER, ['use-angle', 'd3d11on12']],
+  'gpu-raster': [],
 };
 const MODE_IDS = Object.keys(MODES);
 /** A start under a mode other than default counts as come up once the game has been drawn by the card this long. */
