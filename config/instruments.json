@@ -3,9 +3,16 @@
   "laneMapping": {
     "strength": 0.6,
     "weight": 3.0,
-    "drums": { "low": 0.2, "mid": 0.5, "high": 0.8 },
+    "drums": {
+      "low": 0.2,
+      "mid": 0.5,
+      "high": 0.8
+    },
     "bass": 0.2,
-    "dominance": [0.4, 0.7]
+    "dominance": [
+      0.4,
+      0.7
+    ]
   },
   "rhythmSource": {
     "base": 0.4,
@@ -13,23 +20,138 @@
     "autoBase": 0.8,
     "autoGain": 0.4,
     "sources": {
-      "drum": { "drums": 1.0 },
-      "bass": { "bass": 1.0 }
+      "drum": {
+        "drums": 1.0
+      },
+      "bass": {
+        "bass": 1.0
+      }
     },
-    "melody": { "salience": 0.7, "base": 0.3, "gain": 2.7, "auto": 0.25, "offbeat": 0.5, "note": 0.6, "shareFloor": 0.15, "shareFull": 0.35,
-      "split": { "tonalDrumsBelow": 0.35, "tonalHarmonic": 0.4, "withinBeats": 0.25, "attackBelow": [[0.5, 0.6], [0.75, 0.9], [1.0, 0.7]], "insideAttackBelow": 0.45, "scale": 0.35 },
-      "echo": { "withinBeats": 1.5, "strengthRatio": 0.65, "attackBelow": 0.7, "scale": 0.25 },
-      "quiet": { "songDrumsAtLeast": 0.2, "sectionShare": 0.4, "sectionFloor": 0.12, "attackBelow": 0.45 },
-      "solo": { "leaders": ["other", "vocals"], "minMelodyShare": 0.55, "melodyBoost": 2.0, "offBeatScale": 0.3, "instrumentLeads": ["guitar", "piano"], "minLeadShare": 0.3, "leadQuantile": 0.5, "leadBoost": 3.0 } },
-    "attack": { "floor": 0.0, "power": 2.0 }
+    "melody": {
+      "salience": 0.7,
+      "base": 0.3,
+      "gain": 2.7,
+      "auto": 0.25,
+      "offbeat": 0.5,
+      "note": 0.6,
+      "shareFloor": 0.15,
+      "shareFull": 0.35,
+      "split": {
+        "tonalDrumsBelow": 0.35,
+        "tonalHarmonic": 0.4,
+        "withinBeats": 0.25,
+        "attackBelow": [
+          [
+            0.5,
+            0.6
+          ],
+          [
+            0.75,
+            0.9
+          ],
+          [
+            1.0,
+            0.7
+          ]
+        ],
+        "insideAttackBelow": 0.45,
+        "scale": 0.35
+      },
+      "echo": {
+        "withinBeats": 1.5,
+        "strengthRatio": 0.65,
+        "attackBelow": 0.7,
+        "scale": 0.25
+      },
+      "quiet": {
+        "songDrumsAtLeast": 0.2,
+        "sectionShare": 0.4,
+        "sectionFloor": 0.12,
+        "attackBelow": 0.45
+      },
+      "solo": {
+        "leaders": [
+          "other",
+          "vocals"
+        ],
+        "minMelodyShare": 0.55,
+        "melodyBoost": 2.0,
+        "offBeatScale": 0.3,
+        "instrumentLeads": [
+          "guitar",
+          "piano"
+        ],
+        "minLeadShare": 0.3,
+        "leadQuantile": 0.5,
+        "leadBoost": 3.0
+      }
+    },
+    "attack": {
+      "floor": 0.0,
+      "power": 2.0
+    }
   },
-  "repeat": { "strength": 1.0, "bonus": 3.0, "variant": "same", "passes": 1 },
-  "effects": { "energyJump": 0.25, "highEnergy": 0.7, "zoomBeats": 2, "tiltBeats": 2,
-    "view": { "quiet": -1.0, "quietEnergy": 0.25, "quietDrumShare": 0.4, "songDrumsAtLeast": 0.2, "easeBeats": 2, "buildUp": 1.0, "buildUpRollBeats": 4, "buildUpLandingBeats": 8, "releaseBeats": 0.25, "releasePulse": 0.8 },
-    "beatPulse": { "onBeat": 0.08, "strongPercentile": 70, "minGapBeats": 1, "value": 0.35, "durationBeats": 0.5 },
-    "tiltFollow": { "spanBars": 4, "minNotes": 8, "handShare": 0.58, "melodyAtLeast": 0.6, "minMelodyNotes": 6, "melodySlope": 1.5 } },
-  "keysound": { "minShare": 0.15,
+  "repeat": {
+    "strength": 1.0,
+    "bonus": 3.0,
+    "variant": "same",
+    "passes": 1
+  },
+  "effects": {
+    "energyJump": 0.25,
+    "highEnergy": 0.7,
+    "zoomBeats": 2,
+    "tiltBeats": 2,
+    "view": {
+      "quiet": -1.0,
+      "quietEnergy": 0.25,
+      "quietDrumShare": 0.4,
+      "songDrumsAtLeast": 0.2,
+      "easeBeats": 2,
+      "buildUp": 1.0,
+      "buildUpRollBeats": 4,
+      "buildUpLandingBeats": 8,
+      "releaseBeats": 0.25,
+      "releasePulse": 0.8,
+      "quietEaseBeats": 8
+    },
+    "beatPulse": {
+      "onBeat": 0.08,
+      "strongPercentile": 70,
+      "minGapBeats": 1,
+      "value": 0.18,
+      "durationBeats": 0.5,
+      "minEnergy": 0.9
+    },
+    "tiltFollow": {
+      "spanBars": 4,
+      "minNotes": 8,
+      "handShare": 0.58,
+      "melodyAtLeast": 0.6,
+      "minMelodyNotes": 6,
+      "melodySlope": 1.5
+    },
+    "motion": {
+      "phraseBars": 4,
+      "phrasePulse": 0.5,
+      "swingBeats": 4,
+      "diveBeats": 4,
+      "dense": {
+        "from": 6,
+        "to": 14,
+        "reduce": 0.6
+      }
+    }
+  },
+  "keysound": {
+    "minShare": 0.15,
     "chordShare": 0.2,
-    "ghostMs": 300, "stemShare": 0.1, "maxSliceMs": 4000, "chordMs": 30, "fadeMs": 3,
-    "soundShare": 0.2, "soundAttack": 0.5 }
+    "ghostMs": 300,
+    "stemShare": 0.1,
+    "maxSliceMs": 4000,
+    "chordMs": 30,
+    "fadeMs": 3,
+    "soundShare": 0.2,
+    "soundAttack": 0.5
+  }
 }

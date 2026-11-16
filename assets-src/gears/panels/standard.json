@@ -1,0 +1,65 @@
+{
+ "gear": "standard",
+ "name": "기본",
+ "picture": "standard.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "9bb8b5c2fd7af727906f7810372718017fc15c60755014479c830462f21af300",
+ "chosen": "chosen/standard.png (2048 x 876): the user's choice ('시안 2로 진행할게'): draft 2, a plain slab of matte graphite with one cyan light strip near its near edge",
+ "steps": [
+  "p6/layout-standard.py <p4 dir> -> p4/standard-a2/layout.png (chosen/standard-layout.png)",
+  "NOTE=flat HIT=flash p6/tmpl-plain.sh standard 876 standard-a1 standard-a2 (this skin's notes are 'flat', its hit effect 'flash'); PANEL_H=876 p4/tools.py calib standard-a1 (reprojection mean 0.24 px)",
+  "p4/gen30.py standard-a2 2 -> p4/standard-a2/try-2.png (chosen/standard-generation.png, .json); one picture given: the game's own frame",
+  "p4/tools.py flat standard-a2 2 (correlation 0.915, scale 1.004) -> chosen/standard-before-tone.png",
+  "p6/tone-standard.py standard-a2:2 standard-b2 mean=62 -> chosen/standard.png (the metal's mean brightness 97 -> 62, the cyan light and its glow kept; nothing generated)"
+ ],
+ "sources": "none but the game's own frame: this skin has no reference picture",
+ "told to the user": "the metal's brightness was brought down to the gear's graphite; the light strip lies at the screen's bottom edge on every camera (it can be moved up)",
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "standard-a2",
+   "prompt": "One picture comes with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Dark note lanes run away from the camera, a glowing cyan judge line crosses them (with a white burst on it), under it lies a row of eight low, dark matte key caps (one of them is lit cyan), and under that row, between the two dark side rails with a thin cyan line, lies the gear's lower panel: a wide slab that runs down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING: a plain dark-grey slab with one thin, straight cyan line across its middle, close to the bottom edge. The drawing shows exactly where that line lies and how long and thick it is.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the row of key caps, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the note, the judge line and the burst on it, the row of key caps, the rails, the dark background.\n\nThe panel becomes ONE PLAIN SLAB OF MATTE GRAPHITE METAL with a single light strip: the top of a minimal, precise machine, as a photorealistic 3D render at the finish of a commercial console game, seen exactly from this camera.\n\n1. THE SLAB: bead-blasted, anodised dark graphite aluminium (close to #33363D): perfectly plain and calm, with an extremely fine, even grain and no gloss, only a soft, broad sheen from the studio light, a little lighter toward its far edge. Its far edge, under the key caps, is a thin, crisp chamfer that catches a line of light. There are no seams, no screws, no vents, no grilles, no knobs, no dials, no patterns: nothing but the metal.\n\n2. THE LIGHT STRIP: exactly where the cyan line is drawn, and exactly as long and as thick: one slim slot with round ends recessed into the slab, glowing cyan from inside, evenly bright along its whole length. It lays a soft cyan glow on the metal on both sides of it. Do not move it, lengthen it, double it or add other lights.\n\nThe panel runs on down past the bottom edge of the image (no front edge is seen); nothing rises over the rails or above the row of key caps. Clean, precise and new: no dirt, no scratches, no fingerprints.\n\nNo text, letters or numbers anywhere, no logos, no watermark, and nothing over the lanes. Colours: graphite greys only; the one light is cyan (close to #39D4FF).",
+   "made": "2026-11-13 02:23:32 +0000",
+   "bytes": 4848426,
+   "sha256": "14f184fd3746b7796c280c44c28a2156ccb9faf01545c82ec30242328b8b705a",
+   "usage": {
+    "promptTokenCount": 1786,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 3874,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1120
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 666
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 408
+   },
+   "pictures": [
+    "p4/standard-a2/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows; the panel: a flat layout drawing)"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "standard-generation.json"
+  }
+ ]
+}

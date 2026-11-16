@@ -1,6 +1,6 @@
 # 에셋 출처 (PROVENANCE)
 
-게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 하나: 컨셉 세트(메카 · 클럽 · 크리스털 · 네온 · 피아노)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터).
+게임에 들어가는 그림과 영상은 모두 이 저장소를 위해 새로 만든 것입니다. 다른 게임의 에셋 · 로고 · 폰트 · UI는 쓰지 않았고, 생성 프롬프트에도 게임 · 회사 · 아티스트 이름을 넣지 않았습니다. 예외 둘: ① 컨셉 세트(메카 · 클럽 · 크리스털 · 네온 · 피아노)의 부위별 시트가 기준으로 삼은 스타일 프레임의 프롬프트에는 완성도 기준으로 상용 게임 이름을 적었습니다(맨 아래 [메카 세트](#메카-세트-stylesmecha-2026-11)부터). ② 스킨의 기어 하단 그림(2026-11-12 ~ 13, 맨 끝의 [스킨의 기어 하단 그림을 입체로 다시](#스킨의-기어-하단-그림을-입체로-다시-gearspanels-2026-11-12--13))은 사용자의 결정으로 이 원칙 밖에서 만들었습니다: 사용자가 올린 레퍼런스 그림(다른 리듬 게임의 화면으로 보이는 그림), 회사 로고, K/DA FIRESTARTER 공식 그림, 다른 사람의 그림 한 장을 기준 그림으로 이미지 모델에 보냈고, 로고 · 문장 · 그 그림은 게임에 들어간 그림 안에 있으며, 프롬프트 몇 곳에 이름이 있습니다(그림에 넣을 글자 FIRESTARTER · Gemini · Claude, 그리고 SpaceX · Starship · Doge; 권리자와 출처: `client/public/licenses/GEAR-PANELS.md`). 기어 양옆의 그림과 노트의 로고(`client/public/stage/`)는 이 저장소를 위해 만든 그림이 아니라 다른 이의 그림이어서 이 문서가 아니라 `client/public/licenses/STAGE-PICTURES.md`에 적혀 있습니다. 그 가운데 이미지 모델이 그린 부분이 있는 것(파이어스타터의 두 그림에서 배경을 빼며 이어 그린 곳, 2026-11-13)은 맨 끝의 [기어 양옆 그림에서 배경 빼기](#기어-양옆-그림에서-배경-빼기-stagefire-2026-11-13)에 적었습니다.
 
 아래 P0 세트(ElevenLabs, 지움: 기록만 남김)의 기록이 먼저, 그다음 컨셉 세트와 세트에 속하지 않는 타격 효과, 맨 끝에 기어(모두 Gemini)의 기록입니다.
 
@@ -1167,6 +1167,8 @@
 
 ## 기어 (`gears/`, 2026-11)
 
+(2026-11-13: 이 절의 기어 가운데 오락실 기체 · 빈티지 리시버 · 나전칠기 · 커스텀 키보드 · 레이싱 휠 · 우주선 계기판과 아래의 달을 사용자의 결정으로 게임에서 뺐습니다. 기록은 그대로 두었습니다: 맨 끝의 [없앤 기어](#없앤-기어-오락실-기체--빈티지-리시버--나전칠기--커스텀-키보드--레이싱-휠--우주선-계기판--달-2026-11-13).)
+
 세트마다 있던 기어 다섯(아케이드 · 믹서 · 크리스털 · 네온 · 그랜드 피아노)을 지우고, 이름 붙일 수 있는 사물 하나씩으로 다시 만든 기어입니다: 기본(STANDARD), 오락실 기체(GRG-2000), 빈티지 리시버(SR-7), 나전칠기(자개함), 그리고 2026-11-05에 더한 커스텀 키보드(TKL-08) · 레이싱 휠 · 우주선 계기판(아래 "기어 셋 더")과 2026-11-06에 더한 피아노(아래 "피아노 기어") · 달(아래 "달 기어"). 판정선 아래 받침의 꾸밈, 트랙 양옆 테두리, 게이지 · 점수판 · 숫자 글꼴까지 기어가 정합니다(`client/src/render/deckArt.ts`, `styleArt.ts`, `gearHud.ts`, 그림이 없는 부위는 코드 그림). 처음에는 받침에 레인마다의 건반(패드 · 아크릴 버튼 · 스위치 · 자개 판)과 스크래치 모듈을 두었고, 2026-11-05에 레인마다의 건반을 빼고 사물의 꾸밈(조이스틱 · 버튼 여섯 · 동전 투입구, 노브 · 셀렉터 스위치, 학 뚜껑 둘 · 자물쇠 판 등)으로 바꾸며 부위 그림 2장(조이스틱 · 동전 투입구)을 더 만들고 3장(패드 · 턴테이블 · 자개 판)을 지웠습니다(기록은 아래에 남김). 같은 날 기어 일곱의 받침 전체를 게임 카메라의 원근으로 그린 그림 7장도 더했습니다(아래 "받침 그림": 부품이 받침에서 서 있게).
 
 - 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 2K) · 사용자의 Google Cloud 프로젝트 · 장당 약 $0.06(토큰 사용량으로 계산한 추정치)
@@ -1314,7 +1316,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the turntable of an arcade rhythm-game cabinet: a round black rubber slip mat with fine concentric grooves on a polished silver platter, a ring of small strobe dots around the platter's edge, a small silver spindle in the centre, inside a thin black outer ring. No tonearm. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/joystick.jpg`
+### `gears/cabinet/joystick.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 조이스틱(받침 왼쪽) → `gears/cabinet/joystick.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1325,7 +1327,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the joystick of an arcade cabinet's control panel: a glossy red ball top on a short black shaft, seen from straight above so that the ball hides the shaft, sitting in the middle of a round black plastic dust washer, a thin polished chrome ring around the washer's edge. A perfect circle overall. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/coin.jpg`
+### `gears/cabinet/coin.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 동전 투입구(받침 오른쪽) → `gears/cabinet/coin.png` 558×384
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1336,7 +1338,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the coin entry of an arcade cabinet set into its control panel: a horizontal brushed stainless steel plate about 1.7 times as wide as it is tall, softly rounded corners, a small screw in each corner; on it two coin slots side by side, each a narrow vertical slot with a small square coin-return button glowing amber beside it. No currency symbols. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/cabinet/button.jpg`
+### `gears/cabinet/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체 조종판의 아크릴 버튼(여섯) → `gears/cabinet/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `cabinet-a1.png`
@@ -1347,7 +1349,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one large round convex arcade push button: a translucent milky-white acrylic dome, unlit, inside a polished chrome bezel ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/receiver/knob.jpg`
+### `gears/receiver/knob.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 튜닝 노브와 볼륨 노브 → `gears/receiver/knob.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
@@ -1358,7 +1360,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the big tuning knob of a 1970s stereo receiver: a knurled aluminium knob with a polished top face of fine concentric machining rings and a shallow finger dimple near its edge, around it a thin flywheel ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/receiver/switch.jpg`
+### `gears/receiver/switch.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 피아노 키 셀렉터 스위치(다섯) → `gears/receiver/switch.png` 320×368
 - 크기 · 기준 이미지: 1:1 · 2K · `receiver-a1.png`
@@ -1369,7 +1371,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one piano-key style push switch of a 1970s stereo receiver: a rectangular brushed silver aluminium key, two units wide and three units long (the long side runs up and down the image), softly rounded corners, a fine bevel along its edges; near its top end a small round lamp window of clear glass in a thin black bezel, unlit. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/band.jpg`
+### `gears/najeon/band.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 측면 기둥과 받침의 자개 당초문 → `gears/najeon/band.png` 128×2048
 - 크기 · 기준 이미지: 9:16 · 2K · `najeon-a1.png`
@@ -1391,7 +1393,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one rounded-rectangle mother-of-pearl inlay tablet, a little taller than wide, cut from abalone shell with natural layered patterns, iridescent white with soft pink, green and blue sheens, polished, with a very thin brass rim. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/lid.jpg`
+### `gears/najeon/lid.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 학 문양 칠기 뚜껑(받침 양쪽에 둘, 오른쪽은 뒤집어 학이 가운데를 향함) → `gears/najeon/lid.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
@@ -1402,7 +1404,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a round black lacquer lid inlaid with a mother-of-pearl crane in flight among small clouds, edged with a thin polished brass ring. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/najeon/lock.jpg`
+### `gears/najeon/lock.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 황동 앞바탕(받침 가운데의 자물쇠 판) → `gears/najeon/lock.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `najeon-a1.png`
@@ -1498,7 +1500,7 @@
   >
   > Finish: one key light from the top-left on every part; crisp edges with painted material detail; three value steps on every element (dark rim, mid body, bright highlight); visible construction (seams, screws, bevels) where the object has them; one accent colour on its neutral materials. No bloom haze, no lens flares, no motion blur, no gradients inside the lanes, no purple-blue-pink gradient wash, no glassmorphism, no neon outlines on everything. Outside the gear the screen is a plain very dark background.
 
-### `gears/keyboard/knob.jpg`
+### `gears/keyboard/knob.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 볼륨 노브(받침 왼쪽) → `gears/keyboard/knob.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
@@ -1509,7 +1511,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the volume knob of a premium custom mechanical keyboard: a knurled, bead-blasted dark charcoal aluminium rotary knob whose polished top face shows fine concentric machining rings, set in a thin ring of soft warm orange light around its base. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/keyboard/keycap.jpg`
+### `gears/keyboard/keycap.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 방향키 캡(역T자로 넷) → `gears/keyboard/keycap.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `keyboard-a2.png`
@@ -1520,7 +1522,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one sculpted thick PBT keycap of a custom mechanical keyboard, warm off-white ivory, square, with a gently concave dished top, softly rounded corners, crisp edges and a fine matte texture; blank, with no legend. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/keyboard/brass.jpg`
+### `gears/keyboard/brass.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 황동 명판(OLED 창 아래, 'TKL-08'은 코드로 새김) → `gears/keyboard/brass.png` 912×192
 - 크기 · 기준 이미지: 16:9 · 2K · `keyboard-a2.png`
@@ -1531,7 +1533,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a small rectangular weight plate of a custom keyboard case: brushed polished brass, about four and a half times as wide as it is tall, with a fine bevel along its edges and one tiny hex screw near each end; blank, with no engraving. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/racing/rotary.jpg`
+### `gears/racing/rotary.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 로터리(받침 왼쪽의 큰 것과 오른쪽의 작은 것) → `gears/racing/rotary.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
@@ -1542,7 +1544,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): the big rotary selector of a racing car's steering wheel: a knurled black anodised aluminium knob with one white pointer line on its top face, inside a ring of evenly spaced small white tick marks on a black carbon-fibre disc. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/racing/button.jpg`
+### `gears/racing/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 고무 버튼(넷) → `gears/racing/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `racing-a1.png`
@@ -1553,7 +1555,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one round push button of a racing car's steering wheel: a matte black soft-touch rubber cap, slightly domed, inside a thin glossy white plastic ring, in a black bezel. A perfect circle. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/selector.jpg`
+### `gears/orbital/selector.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 보호 덮개 셀렉터(받침 왼쪽) → `gears/orbital/selector.png` 512×512
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1564,7 +1566,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded rotary selector switch of a spacecraft instrument panel: a black fluted knob with a white pointer line, between two short U-shaped polished steel guard bars that stand on its left and right, on a small round light-grey base plate with four tiny screws. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/toggle.jpg`
+### `gears/orbital/toggle.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 보호 덮개 토글(PWR · COMM · NAV 셋) → `gears/orbital/toggle.png` 495×512
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1575,7 +1577,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): a guarded toggle switch of a spacecraft instrument panel: a short chrome bat-handle toggle lever on a round black base, between two polished steel guard rails on its left and right, the rails joined by a small bar at the bottom. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/button.jpg`
+### `gears/orbital/button.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 사각 버튼(ARM · ABORT) → `gears/orbital/button.png` 384×384
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1586,7 +1588,7 @@
 
   > Image 1 is a play screen of a rhythm game, given only for the materials and the finish of its gear. Draw ONE object seen exactly from straight above (top-down, orthographic, no perspective, no tilt): one square lighted pushbutton of a spacecraft instrument panel: a white translucent square face, unlit, inside a black square bezel with slightly rounded corners and a thin metal edge. It is centred in the image and fills about 82 % of its width, on a flat, pure magenta (#FF00FF) background that has nothing else on it. One soft key light from the top-left; crisp edges; fine material detail. No text, no letters, no numbers, no logos, no shadow cast on the background, no glow spilling onto the background.
 
-### `gears/orbital/foil.jpg`
+### `gears/orbital/foil.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판 테두리의 금박 단열재 → `gears/orbital/foil.png` 128×768
 - 크기 · 기준 이미지: 1:1 · 2K · `orbital-a1.png`
@@ -1630,7 +1632,7 @@
 
   > the round smoked-glass jog disc at the left stands a little proud of the glass inside its thin cyan light ring, its rim and edge visible from this angle; the 'GENERATIVE RHYTHM' lettering is printed flat on the glass in one single line of thin light-grey letters, with no shadow, no outline, no second copy and no raised edge, so it reads cleanly; the cyan light strip under it is set into the glass; the speaker grille at the right is sunk into the panel, its holes showing depth.
 
-### `gears/cabinet/deck.jpg`
+### `gears/cabinet/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 오락실 기체의 받침 전체 → `gears/cabinet/deck.webp` 2048×541(115,892바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 오락실 기체를 얹은 실제 화면의 아래쪽(위)
@@ -1646,7 +1648,7 @@
 
   > the joystick at the left stands up from the middle of the round mark image 1 has there, on a short black shaft with its dust washer; it is short enough that its whole red ball top stays inside the deck, below the chrome moulding, with dark panel showing between the ball and the deck's top edge; the six convex acrylic push buttons (red, amber and milky white) stand up from the panel in chrome bezels; the two amber start buttons stand up a little; the two small smoked credit windows with dim red seven-segment digits are sunk into the panel; the silk-screened 'GRG-2000' stays flat; the metal coin entry plate at the right is fixed on the panel with its two coin slots sunk into it.
 
-### `gears/receiver/deck.jpg`
+### `gears/receiver/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 빈티지 리시버의 받침 전체 → `gears/receiver/deck.webp` 2048×541(66,180바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 빈티지 리시버를 얹은 실제 화면의 아래쪽(위)
@@ -1661,7 +1663,7 @@
 
   > the large knurled aluminium tuning knob at the left stands up out of the plate, its top face and the knurled side that faces the camera both visible; the long black-glass tuning dial window with its warm amber backlight, fine tick marks and thin red pointer is sunk into the plate; the five silver piano-key selector switches under it stand up from the plate, their tops and the faces toward the camera visible; the two small VU meters with amber faces are sunk behind glass; the small aluminium volume knob near the right end stands up; the engraved label 'STEREO RECEIVER SR-7' stays flat.
 
-### `gears/najeon/deck.jpg`
+### `gears/najeon/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 나전칠기의 받침 전체 → `gears/najeon/deck.webp` 2048×541(68,698바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 나전칠기를 얹은 실제 화면의 아래쪽(위)
@@ -1676,7 +1678,7 @@
 
   > the brass corner fittings at the top corners stand slightly proud with their pins; the two round lacquer lids with the mother-of-pearl crane are slightly domed and stand a little out of the lacquer, their brass rims catching the light; the round brass lock plate in the middle stands out with its small vertical latch; the iridescent mother-of-pearl vines between thin gold lines stay inlaid flush in the lacquer.
 
-### `gears/keyboard/deck.jpg`
+### `gears/keyboard/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 커스텀 키보드의 받침 전체 → `gears/keyboard/deck.webp` 2048×541(235,678바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 커스텀 키보드를 얹은 실제 화면의 아래쪽(위)
@@ -1691,7 +1693,7 @@
 
   > the knurled volume knob at the left stands up inside its orange light ring, its knurled side visible from this angle; the black OLED window with its white bar graph is sunk into the case; the small brass name plate 'TKL-08' is fixed on the case, standing a hair proud; the three tiny lock lights are set into the case; the four arrow-key keycaps (an inverted T, the up key orange, the others ivory) stand tall with their sculpted sides and the small arrow legends on their tops.
 
-### `gears/racing/deck.jpg`
+### `gears/racing/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 레이싱 휠의 받침 전체 → `gears/racing/deck.webp` 2048×541(89,808바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 레이싱 휠을 얹은 실제 화면의 아래쪽(위)
@@ -1706,7 +1708,7 @@
 
   > the row of small round shift lights across the top (the five green ones lit, then red, then blue) sits in small bezels; the big rotary switch at the left and the small one at the right stand up, their knurled sides and tick rings visible; the four rubber push buttons with yellow, blue, white and green rings stand up from the carbon; the black dash LCD in the middle, showing an idle lap timer, is sunk into the panel.
 
-### `gears/orbital/deck.jpg`
+### `gears/orbital/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 우주선 계기판의 받침 전체 → `gears/orbital/deck.webp` 2048×541(87,992바이트)
 - 크기 · 기준 이미지: 16:9 · 2K · 우주선 계기판을 얹은 실제 화면의 아래쪽(위)
@@ -1826,13 +1828,13 @@
 - `piano-e1`(13:42 KST, 약 $0.064, PNG 4,405,872바이트): 위 프롬프트 그대로 · 역시 틀을 다시 잡음
 - 비용: 쓴 1장 약 $0.066, 시안 2장 약 $0.130, 쓰지 않은 시도 3장 약 $0.186, 합해 약 $0.382
 
-## 달 기어 (`gears/rawglass`, 2026-11-06)
+## 달 기어 (`gears/rawglass`, 2026-11-06; 2026-11-13에 지움, 기록만 남김)
 
 사용자가 참고로 준 다른 게임 노트의 컨셉(사방을 비스듬히 깎은 은빛 거울 유리)에서 시작해, 사용자와 시안을 주고받으며 새로 디자인한 아홉째 기어입니다(그 게임의 그림이나 이름은 쓰지 않음). 크롬 판에 검은 거울 셋을 박은 첫 시안(`mirror-*`)에는 "SG-701 이랑 너무 다른데, 유리질감의 은색 기어 컨셉으로 만들어줘", 은색 판에 은도금 유리 막대 셋을 박은 둘째 시안(`silver-a*`)에는 "기어 하단에 네모 들은 넣지 마. 기어 디자인을 처음부터 하고, 첨부 이미지처럼 유리 '결정' 질감이 느껴지도록"(청록색 유리 덩어리 사진을 함께 줌), 그 사진처럼 청록색으로 칠한 셋째 시안(`rawglass-*`)에는 "SG-701 색깔로 바꿔줘", 은빛으로 칠한 넷째 시안(`silver-s3a`)에는 "이 시안을 기반으로 유리 결정 질감을 리얼하게 표현해줘"라고 했고, 그렇게 다시 칠한 그림(`flat-r*`)을 보고는 넷째 시안의 후보 넷 가운데 마지막(`silver-s2b`)을 골라 "곡선들만 안보이도록 처리하고 입체감만 좀더", 이어서 "곡선만 지워주고 선명하게 하는건 빼줘"라고 해, `silver-s2b`에서 곡선만 지운 그림을 실었습니다. 이름은 사용자가 "기어 명칭은 '달'로 해주고"라고 해 달로 정했습니다(코드의 id는 재료를 따라 `rawglass`).
 
 받침에는 아무것도 박지 않은, 깨뜨린 은빛 크리스털 유리 덩어리 한 장입니다(곧은 결정 면 사이로 유리 속의 결과 기포가 비침). 테두리 · HUD는 코드이고, 글꼴은 이미 넣은 Orbitron입니다. 평면 카메라의 받침은 같은 결정 면을 코드로 그립니다(`deckArt.ts`의 `rawGlassPlate`). 같은 날 더한 질감 노트 여섯(크롬 베벨 · 헤어라인 · 유리 · 에나멜 · 펄 · 카본)은 생성한 그림 없이 코드로 그립니다(`tintArt.ts`).
 
-### `gears/rawglass/deck.jpg`
+### `gears/rawglass/deck.jpg` (2026-11-13에 지움, 기록만 남김)
 
 - 용도: 달의 받침 전체 → `gears/rawglass/deck.webp` 2048×541(93,160바이트)
 - 만든 방법: 아래 `silver-s2b`를 받침 평면으로 펼친 그림(2048×541)에서 곡선이 있던 자리(그 그림이 다시 칠한 코드 받침의 조개껍데기 모양 단면 셋, 테두리와 그 안의 물결선: 같은 코드로 다시 그린 마스크를 7px 굵게)만, 곡선을 빼고 다시 칠한 `edit-2`를 펼친 그림 위에 되맞춘 것(ECC, 아핀, 상관 0.74)의 같은 자리로 바꿔 경계에서 색을 맞춰 이음(OpenCV `seamlessClone`, Poisson). 기준 화면에서 누르고 있던 롱노트의 빛이 위 끝(x 600–900, 위에서 12px까지)에 남긴 하늘색 번짐은 줄마다 양옆 색을 곧게 이어 지움. 나머지 픽셀은 `silver-s2b` 그대로이고, 선명하게 하거나 대비를 바꾸지 않음
@@ -1887,3 +1889,1020 @@
 - `silver-a1`(16:31, 약 $0.059, 4,319,618바이트 · `3eb339183d1db7a5`) · `silver-a2`(16:31, 약 $0.067, 4,384,502바이트 · `72e0cba1b75d351f`): 둘째 시안 실버 글라스(은색 위 두꺼운 유리판에 베벨로 깎은 은도금 유리 막대 셋) · 받침의 네모를 빼고 처음부터 다시 디자인하라 해서 쓰지 않음(a2는 틀도 맞지 않음)
 - `mirror-a1`(16:05, 약 $0.058, 4,297,684바이트 · `d96b073f85483e86`) · `mirror-a2`(16:06, 약 $0.057, 4,344,918바이트 · `39018505bff38b41`): 첫 시안 베벨 미러(크롬 판에 베벨로 깎은 검은 거울 셋) · SG-701과 너무 다르다 해서 쓰지 않음(a2는 그 전에도 판정선 바로 아래 밝은 크롬 띠가 두 번째 판정선처럼 보여 빼 둠)
 - 비용: 쓴 2장 약 $0.122, 쓰지 않은 25장 약 $1.510, 합해 약 $1.632
+
+## 하늘 스킨의 받침 그림과 깃털 (`gears/sky`, 2026-11-11)
+
+'하늘' 스킨(기어 · 노트 · 타격 효과 · 글자)은 코드로 그리지만, 받침의 하늘 · 구름과 점수 왼쪽의 깃털은 그림입니다. 사용자의 물음("에셋을 gemini로 뽑아서 그걸 적용시킬수는 없는거야?")과 요청("깃털도 gemini 그림으로 바꾸고, 기어 하단에 구름도 시안처럼 더 뭉게뭉게하게 바꿔줘")에 따라 넣었습니다. 그림을 읽지 못하면 받침은 코드로 그립니다(`deckArt.ts`의 `skyDrawn`, `feather`). 키 표시선 · 수치 자리 · 레일 · 레인의 그림 · 노트 · 타격 효과 · 글자는 모두 코드입니다.
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`) · 사용자의 Google Cloud 프로젝트 · 2K 한 장 약 $0.06, 1K 한 장 약 $0.04(토큰 사용량으로 계산한 추정치)
+- 보낸 그림: 받침 그림에는 이 스킨의 시안(`design-mockups/gear-concepts/r2-skin-sky-c3.jpg`, 같은 모델로 글만으로 만든 그림)에서 구름 두 군데만 잘라 이어 붙인 견본 한 장(924×196, 수치 · 깃털 · 레일은 들어가지 않게 자름: `make_sky_pictures.py`의 `swatch`)을 "구름을 이렇게 그려 달라"는 견본으로 함께 보냈습니다. 깃털은 글로만 설명했습니다. 사용자가 참고로 준 다른 게임의 스킨 그림은 어디에도 보내지 않았고, 프롬프트에 게임 · 회사 · 아티스트 이름이 없습니다.
+- 만드는 도구: `scripts/assets/make_sky_pictures.py plate feather` (받은 그대로는 `assets-src/gears/sky/_tries/`에 두고 저장소에는 넣지 않음)
+- 비용: 쓴 2장 약 $0.10, 쓰지 않은 2장 약 $0.12, 합해 약 $0.22
+
+### `gears/sky/plate.jpg`
+
+- 용도: 하늘 기어 받침의 하늘과 구름 → `gears/sky/plate.webp` 2048×886(58,934바이트)
+- 날짜: 2026-11-11 08:22 UTC · 두 장 중 첫째 `plate-2` · 21:9 · 2K → 3168×1344 PNG 4,319,306바이트 · sha256 앞 16자리 `337a3a20e77a6801`
+- 저장: 받은 그림 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 708,319바이트
+- 게임용으로: `scripts/assets/build_gears.py`가 위에 빈 하늘을 그림 높이의 2%만큼 덧대고(맨 윗줄을 이어서: 구름이 시안만큼 받침 아래쪽에 서도록) 2048×886으로 줄여 WebP(품질 90)로 저장합니다.
+- 게임에서: 키 표시선 띠 아래에 받침 폭 그대로, 카메라가 받침을 납작하게 보는 만큼 트랙 방향으로 늘여 깔아 그린 그대로 보이게 합니다(`deckArt.ts`의 `skyPainting`). 기본 카메라에서는 그림의 위쪽 절반 남짓(하늘과 양끝 뭉게구름의 윗부분, 가운데는 점수 자리로 비어 있음)이 보이고, 받침이 더 깊이 보이는 화면(평면 카메라, 설정의 미리보기)에서는 그 아래 구름 바다까지 보입니다. 그림보다 더 깊이 보이는 곳은 마지막 줄을 이어 그늘로 가라앉힙니다.
+- 프롬프트(견본이 image 1):
+
+  > Image 1 is a small swatch that shows the look wanted: soft, fluffy, billowing cumulus clouds painted as an anime film's background art paints them, and the blue of the sky behind them. Take nothing from it but that look: how the clouds are painted (their soft volume, the many small round billows piled on one another, their feathered edges, their pale blue shading) and the sky's blue. Its framing and its composition do not matter.
+  >
+  > Paint a wide background painting of a clear daytime sky with white cumulus clouds in that same manner. The clouds have real volume: each is built of many soft, rounded billows heaped on one another, big ones and small ones, their sunlit tops a clean bright white, their folds and undersides shaded softly in pale blue and blue-grey, their edges soft and feathered, with small wisps drifting off them. Soft brushwork, as in a hand-painted anime film background. They are not flat shapes: no outlines, no hard-edged cel shading, no vector look, no cartoon clouds.
+  >
+  > It is used as a flat texture inside a game's interface, so it must be a straight-on, undistorted picture: no horizon line, no ground, no sea, no sun, no lens flare, no rays of light, no stars, no birds, no aircraft, no text.
+  >
+  > Composition, exactly:
+  > - The top fifth of the picture is plain clear sky, a deep clear blue (#2f7fd6), nothing in it.
+  > - Going down, the sky's blue eases lighter: a mid blue (#4a98e2) across the middle of the picture, a pale sky blue (#86c6f2) by two thirds of the way down.
+  > - A large cumulus rises from the lower-left corner. It fills the left 30% of the width; its highest billow, at the far left edge, reaches up to about 20% of the way down from the top; from there it comes down toward the middle of the picture in big soft steps and ends by a third of the width.
+  > - A second cumulus, a little lower, rises from the lower-right corner. It fills the right quarter of the width; its highest billow, at the far right edge, reaches up to about 30% of the way down from the top; it comes down toward the middle in the same way.
+  > - The middle 40% of the width is completely clear sky from the top of the picture down to 60% of its height: no cloud, no wisp, nothing there at all (the game writes white text there).
+  > - One or two small soft tufts of cloud sit low beside the two big ones, below the half-way line, never in the middle.
+  > - Two or three very thin, faint white wind trails cross the whole width in long, gentle arcs, hairline thin, behind the clouds.
+  > - The bottom third of the picture is a continuous sea of the same soft cumulus seen from the side, its top edge billowing and joining the two big clouds; below its top edge it falls evenly into soft pale-blue shade toward the bottom edge of the picture.
+  >
+  > Colours: only these blues and white, the shading pale blue and blue-grey; no yellow, no orange, no pink, no purple, no dark storm cloud. Calm, even daylight from the upper left. No vignette, no frame, no border, no watermark, no text, no letters, no numbers.
+
+### `gears/sky/feather.jpg`
+
+- 용도: 점수 왼쪽의 깃털 → `gears/sky/feather.png` 256×256(29,719바이트, 투명 배경)
+- 날짜: 2026-11-11 08:22 UTC · 한 장을 받아 그대로 씀(`feather-1`) · 1:1 · 1K → 1024×1024 PNG 846,575바이트 · sha256 앞 16자리 `8b154558e8add95d`
+- 저장: 받은 그림 그대로 JPEG(품질 95, 색 정보 줄이지 않음) 132,139바이트
+- 게임용으로: `build_gears.py`의 `cut_white`가 자홍 바탕에서 깃털을 따냅니다. 흰 물체라 다른 부품의 방식(바탕색이 비친 붉은 · 파란 기운을 초록에 맞춰 깎음)을 쓰면 흰색이 초록빛으로 물들어서, 바탕에 없는 초록 채널만으로 색을 다시 만듭니다(초록이 가득한 곳은 흰색, 그늘진 곳은 옅은 하늘색 `#bcd7f3`).
+- 게임에서: SCORE 글자 왼쪽, 같은 줄에 점수 줄보다 조금 크게 놓습니다(`deckArt.ts`의 `skyPlate`; 시안에서는 점수 위였으나 사용자 요청 "기어 하단에 깃털 위치만 score 왼쪽으로 옮겨줘"로 옮김). 그림이 없으면 코드로 그린 깃털이 나옵니다.
+- 프롬프트:
+
+  > One single white bird's feather, seen flat from directly above, centred, on a perfectly flat, uniform, pure magenta (#ff00ff) background.
+  >
+  > The feather leans to the right, about 30 degrees from upright, its tip at the upper right. Its vane is full and softly curved, widest a little above its middle, tapering to a soft point at the tip; one clear split opens in its right edge about two thirds of the way up, and a smaller one lower on its left edge. A fine quill runs up through the vane as a thin pale-blue line and comes out below it as a short, bare, slightly curved shaft pointing to the lower left.
+  >
+  > A clean, elegant illustration, as a game's interface icon is drawn: the feather a clean white, with only the faintest pale-blue (#cfe6fb) shading along the quill and toward the vane's lower edge; smooth, crisp edges.
+  >
+  > No outline round it, no shadow on the background, no glow, no gradient or texture in the background, nothing else in the picture: no second feather, no down, no text, no letters, no frame. The feather, shaft and all, fills about 70% of the picture's height; the flat magenta shows all round it.
+
+### 쓰지 않은 시도
+
+- `plate-1`(07:50 UTC, 약 $0.06, PNG 3,988,599바이트 · `4f0ab4df783e515c`): 견본 없이 글만으로, "평평한 셀 셰이딩"으로 그리라는 프롬프트 · 구도는 맞았고 잠시 받침으로 깔았으나(커밋 271431c ~ c6baae2) 구름이 납작한 만화 구름이라, 사용자가 시안처럼 더 뭉게뭉게하게 바꿔 달라고 해 바꿈. 프롬프트는 그 커밋들의 이 파일과 `make_sky_pictures.py`에 있습니다.
+- `plate-3`(08:22 UTC, 약 $0.06, PNG 4,279,980바이트 · `e82155c5b853fe71`): `plate-2`와 같은 프롬프트와 견본 · 오른쪽 구름이 그림 맨 위까지 닿아, 받침에 깔면 키 표시선 띠 바로 아래부터 구름이 됨
+
+## 스킨의 타격 효과: 프레임 애니메이션 시트 (`styles/skinfx`, 2026-11-11)
+
+스킨 15종(기본 · 크리스털 · 하늘 · 파이어스타터 · GPT · Gemini · Grok · Claude · 아쿠아 · 스틸 · 무지개 · 레드라인 · 크림슨 · 화이트 라인 · 별밤)의 타격 효과를 코드 그림에서 그림으로 바꾼 것입니다. 사용자의 요청(2026-11-11): "이펙트에 단순 도형 (원, 선)으로 이루어진 티가 너무 나고, 애니메이션도 너무 밋밋", "이펙트의 지속시간은 길면 안 돼. 0.4초 이하가 이상적", "GEMINI API 우선으로 이미지 생성 방식으로 다시 작성해줘", "후보에 없는 스킨들도 이펙트를 코드로 작성했다면 이미지로 다시 만들어서 진행해줘", Grok은 "트위터 X 표시가 반짝이면서 터지는 느낌으로".
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 1:1 · 2K → 2048×2048 PNG) · 사용자의 Google Cloud 프로젝트 · 한 장 약 $0.06(토큰 사용량으로 계산한 추정치)
+- 방식: 효과마다 한 장에 **16프레임(4×4, 검은 바탕)의 프레임별 애니메이션**을 그리게 했습니다. 치는 순간(`<효과>_burst`)과 롱노트를 누르는 동안(`<효과>_hold`, 반복) 두 장씩입니다. 예전 세트의 효과(`styles/hits`)처럼 낱장 조각을 코드로 움직인 것이 아니라, 프레임마다 다른 그림입니다.
+- 보낸 그림: 없음(글로만). 다른 게임의 화면, 사용자가 올린 레퍼런스 그림, 로고는 보내지 않았습니다. 회사 스킨은 색과 분위기만 글로 적었고, Grok은 "굵은 획과 가는 획이 엇갈린 X"라고 적었습니다.
+- 만드는 도구: `scripts/assets/make_skin_fx.py make <효과> burst|hold` (받은 그대로는 `assets-src/styles/skinfx/_tries/`에 두고 저장소에는 넣지 않음) → `pick`이 고른 것을 1536×1536 JPEG(품질 92, 색 정보 줄이지 않음)으로 저장
+- 게임용으로: `scripts/assets/build_skin_fx.py`가 검정을 검정으로 만들고(모델의 검정과 JPEG 잡음 제거), 프레임마다 칸 가장자리로 흐려지게 하고, 빛이 사라진 뒤의 프레임과 거의 빈 첫 프레임을 뺀 다음 `client/public/media/fx/<효과>_burst.webp`(1536×1536, 프레임 384px)와 `_hold.webp`(1024×1024, 프레임 256px)로 만듭니다. 치는 순간은 프레임 수와 상관없이 **0.32초**에 끝나고(프레임 수 ÷ 0.32 = fps), 누르는 동안은 24fps 반복입니다. 기본 스킨의 플래시(`basic`)만 흰빛으로 만들어 게임이 레인 색을 입히고, 나머지는 제 색 그대로 더합니다(매니페스트의 `plain`).
+- 고르기: 효과마다 한 장씩 받아 모두 그대로 썼습니다(파이어스타터의 치는 순간은 방식을 시험한 첫 장). 누르는 동안 5장(파이어스타터 · 아쿠아 · 스틸 · 무지개 · 레드라인)은 분당 한도(HTTP 429)로 실패해 다시 요청했습니다(실패한 요청은 그림이 없고 비용도 없음).
+- 비용: 30장 약 $1.80
+- 2026-11-13: 무지개와 크림슨 스킨을 없애며 그 두 스킨의 효과 4장(`rainbow_burst.jpg` · `rainbow_hold.jpg` · `magenta_burst.jpg` · `magenta_hold.jpg`)과 게임용 파일을 지웠습니다([없앤 스킨](#없앤-스킨-무지개--크림슨-2026-11-13)). 아래의 두 스킨 기록과 위의 장수 · 비용은 만든 때 그대로 둡니다. 게임에 남은 것은 13종 26장입니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 공통 프롬프트
+
+치는 순간(`burst`)의 머리말과 꼬리말(사이에 효과별 `THE EFFECT` · `THE ANIMATION`이 들어감):
+
+  > A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE hit impact effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks.
+  >
+  > LAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom (frame 1 top-left, frame 16 bottom-right). Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell and stays inside its cell with black space around it; nothing touches a cell edge.
+  >
+  > (THE EFFECT … / THE ANIMATION, one continuous motion across the 16 frames: …)
+  > Every frame is a different drawing of the same event a moment later: shapes change, break up and travel outward, they are not one picture scaled up. Painterly, energetic, asymmetric, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.
+
+누르는 동안(`hold`)의 머리말과 꼬리말:
+
+  > A sprite sheet for a game VFX artist: the frame-by-frame animation of ONE small looping effect for a commercial PC rhythm game, at the finish level of a top commercial action game's hand-painted VFX flipbooks: the light that burns steadily at the spot where a long note is being held down.
+  >
+  > LAYOUT: exactly 16 frames in a 4 x 4 grid of equal square cells, read left to right, top to bottom. Pure black background (#000000) everywhere. NO grid lines, NO borders, NO frame numbers, NO text. The effect is centred on the same point in every cell, about the same size and the same brightness in every frame (it fills about half of the cell's width), and stays inside its cell with plenty of black space around it; nothing touches a cell edge.
+  >
+  > (THE EFFECT … / THE ANIMATION: in every frame …, while ….)
+  > It is a seamless loop: there is no start and no end, no frame is empty and none is much bigger or brighter than the others; frame 16 flows back into frame 1. Every frame is a different drawing of the same steady effect a moment later: the flickering parts change shape and place from frame to frame, they are not one picture turned or scaled. Painterly, energetic, with sharp bright edges and soft glow. It is light only, on black, to be added onto the screen. No ground, no objects, no characters, no logos, no letters, no numbers.
+
+
+### `styles/skinfx/basic_burst.jpg` · `basic_hold.jpg` (기본(플래시))
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,783,289바이트 · sha256 앞 16자리 `bd3da103f10eceb4` · 저장한 JPEG 287,410바이트 → `fx/basic_burst.webp` 1536×1536(110,090바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 3,725,456바이트 · sha256 앞 16자리 `ab451112d3a6c06e` · 저장한 JPEG 254,098바이트 → `fx/basic_hold.webp` 1024×1024(47,022바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a clean, punchy burst of pure light with a crackle of electric energy. Every element is white and grey light only, with no colour at all, because the game colours it itself.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a blinding star-shaped flash with long sharp rays;
+  > - frames 3-5: the flash blows outward into a bright shockwave ring with short crackling arcs of energy on it and sharp glints shooting out in all directions;
+  > - frames 6-10: the ring keeps expanding and breaks into separate thin arcs, the glints fly further and stretch into fine streaks, small four-ray sparkles twinkle;
+  > - frames 11-14: only a few thin arcs and tiny fading sparkles are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint sparkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a steady crackle of pure energy. Every element is white and grey light only, with no colour at all, because the game colours it itself.
+  >
+  > THE ANIMATION: in every frame a small white-hot round core with a soft bloom stays in the centre, while short crackling electric arcs dance around the core, jumping to new places every frame, and tiny sharp sparks and four-ray glints pop off it in all directions.
+
+### `styles/skinfx/prism_burst.jpg` · `prism_hold.jpg` (크리스털)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,762,746바이트 · sha256 앞 16자리 `574de33947ae5a20` · 저장한 JPEG 318,583바이트 → `fx/prism_burst.webp` 1536×1536(113,136바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 3,717,017바이트 · sha256 앞 16자리 `143a926d3efe9690` · 저장한 JPEG 314,906바이트 → `fx/prism_hold.webp` 1024×1024(64,736바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of cut crystal and prismatic light: ice-white and pale-blue shards of clear faceted glass, with thin rainbow dispersion (a fine spectrum of red, yellow, green, blue, violet) along their cut edges.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white glint snaps open into a blinding diamond-shaped flash with a thin rainbow halo;
+  > - frames 3-5: a crystal shatters outward from the centre: many sharp, faceted, translucent shards of different sizes shoot out in all directions, each facet catching white light, thin spectral streaks between them;
+  > - frames 6-10: the shards fly further, tumble and turn so that different facets flash, tiny rainbow glints sparkle among them, the centre is only a pale blue glow;
+  > - frames 11-14: only a few small shards and tiny prismatic sparkles are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint glints; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small point of prismatic light in ice white and pale blue with thin rainbow dispersion (red, yellow, green, blue, violet).
+  >
+  > THE ANIMATION: in every frame a small bright diamond-shaped white core with a pale blue glow stays in the centre, while thin rainbow glints and tiny faceted shards of crystal light flick out from the core at different angles every frame, and small spectral sparkles twinkle around it.
+
+### `styles/skinfx/sky_burst.jpg` · `sky_hold.jpg` (하늘)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,928,577바이트 · sha256 앞 16자리 `3cf8c1d5dd5933b2` · 저장한 JPEG 365,702바이트 → `fx/sky_burst.webp` 1536×1536(137,228바이트), 12프레임 · 37.5fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 4,203,941바이트 · sha256 앞 16자리 `417aa52b73090a84` · 저장한 JPEG 359,087바이트 → `fx/sky_hold.webp` 1024×1024(76,790바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a soft, bright burst of white cloud, sunlight and white feathers in a clear sky-blue glow: white, pale cyan and sky blue.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright sunburst with soft rays;
+  > - frames 3-5: a puff of white cloud bursts open into a ring of billowing cloud wisps, and several white feathers are thrown out from the centre in different directions, with a few sparkling glints;
+  > - frames 6-10: the cloud ring spreads and thins into separate drifting wisps, the feathers whirl outward, turning and curling as they fly, small sparkles twinkle;
+  > - frames 11-14: only two or three small feathers and thin wisps are left, drifting and fading into pale blue;
+  > - frames 15-16: almost nothing, the last faint wisp; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small ball of warm sunlight in white, pale cyan and sky blue.
+  >
+  > THE ANIMATION: in every frame a soft, bright, round white core with a sky-blue glow stays in the centre, while small wisps of white cloud curl and drift around the core, short soft sun rays turn slowly, and one or two tiny white feathers and sparkles float up and away in every frame.
+
+### `styles/skinfx/fire_burst.jpg` · `fire_hold.jpg` (파이어스타터)
+
+- 치는 순간: 2026-11-11 15:56 UTC · PNG 4,030,333바이트 · sha256 앞 16자리 `aaa00b658bbb8bc4` · 저장한 JPEG 487,615바이트 → `fx/fire_burst.webp` 1536×1536(210,256바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 15:56 UTC · PNG 5,159,266바이트 · sha256 앞 16자리 `d860f482dd0fa855` · 저장한 JPEG 725,038바이트 → `fx/fire_hold.webp` 1024×1024(185,972바이트), 16프레임 · 24fps 반복
+- 두 번째 그림입니다. 처음 것(치는 순간 2026-11-11 14:06 UTC · sha256 앞 16자리 `4889d098a6893898`, 누르는 동안 14:17 UTC · `02e9dc3be826a192`)은 "a fiery impact burst, white-hot at its core, molten orange and deep red toward its edges"와 "a small roaring flame"으로 뽑은 녹은 주황색 불덩이와 불길이었고, 사용자가 "Firestarter는 불꽃놀이 느낌이 나야하는데 용암같다"고 해서 버렸습니다. 불꽃놀이로 프롬프트를 다시 써서 치는 순간 2장 · 누르는 동안 2장을 뽑았고, 치는 순간은 둘째 장(시작에 흰 섬광이 있고 반짝이가 네 갈래 별 모양), 누르는 동안은 첫째 장(불티가 가늘고 많아 스파클러에 더 가까움)을 골랐습니다.
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a FIREWORK shell bursting in a black night sky, as a firework looks in a short-exposure photograph: it is made ONLY of thin straight streaks of light and tiny points of light. Crimson red and hot magenta-pink streaks with brilliant white-gold heads, and gold glitter. There is NO flame, NO fire tongue, NO fireball, NO blob, NO cloud, NO smoke and NO lava anywhere: every element is a fine line or a small sparkling dot, bright and crisp enough to read when the picture is shown small.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white-gold point snaps open into a small blinding star with a first circle of very short thin streaks around it;
+  > - frames 3-5: the shell bursts: sixty or more thin straight streaks shoot out radially in every direction and fill a round chrysanthemum, each streak with a brilliant white-gold bead at its head and a fine tapering crimson or hot-pink tail behind it, streaks of different lengths; the white core shrinks to a small glint;
+  > - frames 6-10: the streaks reach their full length and their tails fade from the centre outward, so the middle of the burst is empty and black and the firework is a hollow sphere of bright heads; the heads slow down, begin to droop very slightly, and start to crackle, each breaking into a cluster of tiny twinkling gold and white glitter sparks;
+  > - frames 11-14: only the crackling glitter is left, in a broken ring: tiny gold and white four-ray twinkles and pin-point sparks that blink on and off at different places in every frame, fewer and dimmer in each frame, a few of them falling a little;
+  > - frames 15-16: almost nothing, the last two or three faint twinkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: the burning tip of a hand-held SPARKLER firework seen up close: a spray of thin sparks, made ONLY of fine straight lines and tiny points of light, white-gold at the centre and crimson red and hot magenta-pink toward the ends. There is NO flame, NO fire tongue, NO fireball, NO blob, NO smoke and NO lava anywhere.
+  >
+  > THE ANIMATION: in every frame a small brilliant white-gold core stays in the centre, while dozens of hair-thin straight sparks spray out from it in all directions, many of them forking at their ends into two or three tiny branches as a sparkler's sparks do, with different directions and lengths in every frame, and tiny gold glitter points twinkle on and off around it.
+
+### `styles/skinfx/gpt_burst.jpg` · `gpt_hold.jpg` (GPT)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,755,139바이트 · sha256 앞 16자리 `389cbb1b5cd5e503` · 저장한 JPEG 336,084바이트 → `fx/gpt_burst.webp` 1536×1536(119,006바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 4,968,930바이트 · sha256 앞 16자리 `8be1fb97d40c76f2` · 저장한 JPEG 585,012바이트 → `fx/gpt_hold.webp` 1024×1024(136,022바이트), 13프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of liquid light in emerald-teal green (#10a37f) and white, like a drop hitting still water: white at its core, bright teal green around it.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright round bloom of white and teal light;
+  > - frames 3-5: a crown-shaped splash of glowing teal liquid light leaps up and outward from the centre with round droplets flying off its tips, and a bright ripple ring opens around it;
+  > - frames 6-10: the splash collapses and tears into separate ribbons and beads of light, the round droplets fly further and stretch into short streaks, a second, thinner ripple ring follows the first;
+  > - frames 11-14: only thin broken ripple arcs and a few small round droplets are left, getting smaller and darker green;
+  > - frames 15-16: almost nothing, the last one or two faint droplets; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a bead of liquid light in emerald-teal green (#10a37f) and white, seen from above.
+  >
+  > THE ANIMATION: in every frame a bright round white bead with a teal glow stays in the centre, while thin ripple rings pulse outward from the bead one after another, and small round droplets of teal light hop around it at different places in every frame.
+
+### `styles/skinfx/gemini_burst.jpg` · `gemini_hold.jpg` (Gemini)
+
+- 치는 순간: 2026-11-11 14:09 UTC · PNG 3,367,793바이트 · sha256 앞 16자리 `31442c68eeef5065` · 저장한 JPEG 262,516바이트 → `fx/gemini_burst.webp` 1536×1536(83,488바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:12 UTC · PNG 3,858,287바이트 · sha256 앞 16자리 `a7cdb1870051e66c` · 저장한 JPEG 355,550바이트 → `fx/gemini_hold.webp` 1024×1024(72,170바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of four-pointed sparkle stars (each with four long, thin, tapering points and concave sides) in a smooth gradient of blue, violet and pink with white-hot cores.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into one large four-pointed sparkle star with long thin points, white with a blue-to-pink gradient glow;
+  > - frames 3-5: the large star flares to its biggest, turns a little and throws off many smaller four-pointed sparkles in blue, violet and pink that shoot outward in all directions, each leaving a short soft trail;
+  > - frames 6-10: the large star shrinks to a thin cross of light and fades while the small sparkles fly further, each one twinkling (growing and shrinking) at a different moment, with tiny dots of light among them;
+  > - frames 11-14: only a few small sparkles are left, twinkling out one by one;
+  > - frames 15-16: almost nothing, the last one faint sparkle; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a four-pointed sparkle star (four long thin tapering points, concave sides) with a white core and a smooth blue, violet and pink gradient glow.
+  >
+  > THE ANIMATION: in every frame the sparkle star stays in the centre, while its four points lengthen and shorten so that it twinkles, a faint second star turned 45 degrees pulses behind it, and tiny four-pointed sparkles in blue, violet and pink appear and vanish around it.
+
+### `styles/skinfx/grok_burst.jpg` · `grok_hold.jpg` (Grok)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,790,062바이트 · sha256 앞 16자리 `fcb6bad18c637895` · 저장한 JPEG 308,027바이트 → `fx/grok_burst.webp` 1536×1536(112,912바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 3,800,277바이트 · sha256 앞 16자리 `4a9e3ee072fa74e1` · 저장한 JPEG 285,329바이트 → `fx/grok_hold.webp` 1024×1024(57,094바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a bold X mark made of two crossing diagonal strokes, one thick and one thin, in pure white and silver light, monochrome with no colour at all, that flashes, glints and bursts apart.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: two fast diagonal slashes of white light cross each other with motion streaks and form a bold, sharp X, one stroke thick and one thin;
+  > - frames 3-5: the X flares blinding white, a bright star-shaped glint flashes at its crossing point and smaller glints sparkle along its edges and at its four tips;
+  > - frames 6-10: the X cracks and bursts apart: its strokes break into angular shards and splinters that shoot outward along the four diagonal directions, with sharp sparks and four-ray sparkles between them;
+  > - frames 11-14: only a few small shards and twinkling sparkles are left, flying outward, getting smaller and dimmer grey;
+  > - frames 15-16: almost nothing, the last one or two faint sparkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small bold X-shaped spark made of two crossing diagonal strokes, one thick and one thin, in pure white and silver light, monochrome with no colour at all.
+  >
+  > THE ANIMATION: in every frame the X stays in the centre, while its strokes flicker in length and brightness, a sharp star-shaped glint flashes at its crossing point, and tiny angular shards and four-ray sparkles jump off its four tips at different places in every frame.
+
+### `styles/skinfx/claude_burst.jpg` · `claude_hold.jpg` (Claude)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,460,798바이트 · sha256 앞 16자리 `0620f60916cfea5c` · 저장한 JPEG 309,356바이트 → `fx/claude_burst.webp` 1536×1536(113,434바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:13 UTC · PNG 4,044,550바이트 · sha256 앞 16자리 `d7d515c538db853c` · 저장한 JPEG 432,263바이트 → `fx/claude_hold.webp` 1024×1024(98,098바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a hand-painted starburst in warm terracotta orange (#d97757) and cream, like a sunburst made of uneven tapered brush strokes with a dry-brush texture: cream-white at the centre, terracotta at the tips.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a small cream-white dab of paint snaps open into a bright asterisk-like burst of short tapered brush strokes;
+  > - frames 3-5: the strokes shoot outward as a full sunburst of a dozen uneven, tapered, textured brush strokes of different lengths, with small flecks and droplets of paint thrown out between them;
+  > - frames 6-10: the strokes detach from the centre and fly outward, thinning into dry-brush streaks, the flecks and droplets scatter further, the centre is only a warm glow;
+  > - frames 11-14: only a few thin streaks and small flecks are left, getting smaller and darker terracotta;
+  > - frames 15-16: almost nothing, the last one or two faint flecks; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small hand-painted starburst in warm terracotta orange (#d97757) and cream, made of uneven tapered brush strokes with a dry-brush texture.
+  >
+  > THE ANIMATION: in every frame a cream-white dab stays in the centre, while about ten short brush strokes radiate from it and pulse in and out unevenly, each a different length in every frame, with small flecks of paint hopping between them.
+
+### `styles/skinfx/aqua_burst.jpg` · `aqua_hold.jpg` (아쿠아)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,548,974바이트 · sha256 앞 16자리 `46120db6f7e8f094` · 저장한 JPEG 333,348바이트 → `fx/aqua_burst.webp` 1536×1536(117,716바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 3,991,646바이트 · sha256 앞 16자리 `4b5112d791fffbb9` · 저장한 JPEG 391,404바이트 → `fx/aqua_hold.webp` 1024×1024(85,392바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a holographic energy burst in aqua cyan (#22e0e6) with hot pink (#ff3f93) accents and a white core, the feel of a mecha's targeting display.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright cyan plasma flash inside a thin hexagonal ring of light;
+  > - frames 3-5: the hexagonal ring snaps wide and breaks at its corners while the plasma flash blows outward into jagged cyan energy tongues, and sharp pink shards and small hexagonal fragments shoot out in all directions;
+  > - frames 6-10: the energy tongues tear into separate cyan wisps and arcs, the pink shards fly further and stretch into thin streaks, small hexagon fragments tumble and flicker like a hologram breaking up;
+  > - frames 11-14: only a few thin cyan arcs, small fragments and pink streaks are left, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two faint fragments; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small holographic core of energy in aqua cyan (#22e0e6) with hot pink (#ff3f93) accents.
+  >
+  > THE ANIMATION: in every frame a bright white-cyan plasma core stays in the centre inside a thin hexagonal ring of light, while the hexagonal ring turns step by step and flickers like a hologram, jagged little cyan energy tongues flare off the core, and short pink sparks shoot off at different angles in every frame.
+
+### `styles/skinfx/steel_burst.jpg` · `steel_hold.jpg` (스틸)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,608,490바이트 · sha256 앞 16자리 `f18bcdb3a562d504` · 저장한 JPEG 318,372바이트 → `fx/steel_burst.webp` 1536×1536(114,336바이트), 9프레임 · 28.1fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 4,241,345바이트 · sha256 앞 16자리 `d76a251f8a179b43` · 저장한 JPEG 416,353바이트 → `fx/steel_hold.webp` 1024×1024(102,042바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a cold, hard burst of white-hot welding light and metal sparks in steel blue: a cross-shaped flare with four long rays, white at the core, icy steel blue (#58aaf0) around it.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a blinding cross-shaped flare with four long thin rays and a hot round core;
+  > - frames 3-5: the cross flare is at its biggest and a shower of white-hot metal sparks sprays out from the centre in all directions as long thin streaks, with a thin, sharp shockwave ring opening around it;
+  > - frames 6-10: the flare shrinks to a small hot core, the sparks fly further on slightly curved paths, some split into two, cooling from white to steel blue, the ring thins and breaks into arcs;
+  > - frames 11-14: only a few fading sparks and thin broken arcs are left, getting shorter and darker blue;
+  > - frames 15-16: almost nothing, the last one or two dying sparks; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a white-hot welding point in icy steel blue (#58aaf0).
+  >
+  > THE ANIMATION: in every frame a small blinding white core with a cross-shaped flare of four thin rays stays in the centre, while the rays flicker in length, and a steady spray of small white and steel-blue metal sparks flies off in all directions as thin streaks, different in every frame.
+
+### `styles/skinfx/rainbow_burst.jpg` · `rainbow_hold.jpg` (무지개; 2026-11-13에 지움, 기록만 남김)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,860,364바이트 · sha256 앞 16자리 `23ae83b01c97da79` · 저장한 JPEG 435,897바이트 → `fx/rainbow_burst.webp` 1536×1536(171,686바이트), 12프레임 · 37.5fps
+- 누르는 동안: 2026-11-11 14:18 UTC · PNG 4,192,909바이트 · sha256 앞 16자리 `439158ad2e9f74e7` · 저장한 JPEG 519,722바이트 → `fx/rainbow_hold.webp` 1024×1024(126,708바이트), 15프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a joyful candy-coloured confetti pop: glossy confetti pieces, curled streamers, small stars and round dots in bright red, orange, yellow, green, sky blue, purple and pink, around a white pop flash.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into a bright white pop flash with short rays, a few coloured dots at its edge;
+  > - frames 3-5: confetti bursts out of the flash in all directions: glossy rectangular pieces, curled streamers, small five-pointed stars and round dots in every colour, the flash already shrinking;
+  > - frames 6-10: the pieces fly further, tumbling and turning so they show different sides, the streamers uncurl, small sparkles twinkle between them, the flash is gone;
+  > - frames 11-14: only a few small pieces, one streamer and a star are left, drifting outward and fading;
+  > - frames 15-16: almost nothing, the last one or two small pieces; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small fizzing sparkle of candy colours: bright red, orange, yellow, green, sky blue, purple and pink around white.
+  >
+  > THE ANIMATION: in every frame a bright white sparkling core stays in the centre, while tiny confetti pieces, round dots and small five-pointed stars in every colour pop out around it and tumble, at different places in every frame.
+
+### `styles/skinfx/noir_burst.jpg` · `noir_hold.jpg` (레드라인)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 1,217,944바이트 · sha256 앞 16자리 `f24094be8b63ae15` · 저장한 JPEG 263,896바이트 → `fx/noir_burst.webp` 1536×1536(78,972바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:17 UTC · PNG 3,122,125바이트 · sha256 앞 16자리 `3e292c07e3eb2fd7` · 저장한 JPEG 303,640바이트 → `fx/noir_hold.webp` 1024×1024(34,408바이트), 13프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a digital glitch burst in pure red (#ff1a2b) and white on black: horizontal slices, blocky pixels and torn scanlines, like a corrupted video signal. Only red, white and black.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a thin white horizontal bar of light snaps open at the centre with a red ghost of itself shifted to one side;
+  > - frames 3-5: the bar tears into several horizontal slices that jump left and right out of line, and blocks of red and white pixels of different sizes burst outward from the centre with torn scanline fragments;
+  > - frames 6-10: the slices break up further into small rectangles, the pixel blocks fly outward and split into smaller pixels, some flicker as hollow outlines, with thin red scanlines between them;
+  > - frames 11-14: only a few small pixels and short red dashes are left, scattered wide, getting smaller and dimmer;
+  > - frames 15-16: almost nothing, the last one or two pixels; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small digital glitch in pure red (#ff1a2b) and white on black, like a corrupted video signal. Only red, white and black.
+  >
+  > THE ANIMATION: in every frame a short bright white horizontal bar stays in the centre, while red and white horizontal slices jitter left and right above and below it, different in every frame, and small red pixel blocks flicker on and off around it.
+
+### `styles/skinfx/magenta_burst.jpg` · `magenta_hold.jpg` (크림슨; 2026-11-13에 지움, 기록만 남김)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,650,690바이트 · sha256 앞 16자리 `9e08ead26fdd1ef2` · 저장한 JPEG 350,673바이트 → `fx/magenta_burst.webp` 1536×1536(122,912바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:15 UTC · PNG 4,124,655바이트 · sha256 앞 16자리 `cbe916c1997a1a58` · 저장한 JPEG 482,974바이트 → `fx/magenta_hold.webp` 1024×1024(110,140바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a razor-sharp burst of blade-like light in crimson (#f0145a) and hot pink with a white core: angular shards and splinters, the feel of a sword slash.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: two thin white slashes of light cross at the centre as a sharp X-shaped flash with a crimson glow;
+  > - frames 3-5: the flash blows outward into long, angular, blade-like shards of crimson and pink light pointing away from the centre in all directions, with triangular splinters and a few white sparks between them;
+  > - frames 6-10: the shards detach and fly outward, spinning and narrowing, the splinters scatter further, thin curved pink slash arcs sweep around the centre, the core dims to crimson;
+  > - frames 11-14: only a few thin shards, small splinters and fading arcs are left, getting smaller and darker crimson;
+  > - frames 15-16: almost nothing, the last one or two faint splinters; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small core of blade-like light in crimson (#f0145a) and hot pink with a white centre.
+  >
+  > THE ANIMATION: in every frame a white-hot core with a crimson glow stays in the centre, while sharp, thin, blade-like spikes of crimson and pink light stab outward from it at different angles and lengths in every frame, with tiny triangular splinters flying off.
+
+### `styles/skinfx/wire_burst.jpg` · `wire_hold.jpg` (화이트 라인)
+
+- 치는 순간: 2026-11-11 14:10 UTC · PNG 3,713,098바이트 · sha256 앞 16자리 `e261fb1c8e61f8b6` · 저장한 JPEG 312,217바이트 → `fx/wire_burst.webp` 1536×1536(126,340바이트), 11프레임 · 34.4fps
+- 누르는 동안: 2026-11-11 14:15 UTC · PNG 4,247,035바이트 · sha256 앞 16자리 `c24014ee0f603834` · 저장한 JPEG 398,292바이트 → `fx/wire_hold.webp` 1024×1024(102,042바이트), 16프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: an elegant firework sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled shapes, pure white with a faint soft glow, monochrome.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny line-drawn star of a few short pen strokes snaps open at the centre;
+  > - frames 3-5: it bursts into a ring of many fine radiating pen strokes of uneven length, like a dandelion or a firework, with a hand-drawn circle around it and tiny line-drawn four-point twinkles at some stroke ends;
+  > - frames 6-10: the strokes fly outward and curve a little like falling firework trails, the circle widens and breaks into short dashes, a second ring of finer strokes opens inside, small twinkles drift;
+  > - frames 11-14: only a few short fading strokes, dashes and tiny twinkles are left, scattered wide;
+  > - frames 15-16: almost nothing, the last one or two faint twinkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small star sketched in fine luminous white lines on black, as if drawn with a thin glowing pen: line art only, no filled shapes, pure white, monochrome.
+  >
+  > THE ANIMATION: in every frame a small line-drawn star stays in the centre, while its pen strokes are redrawn at slightly different lengths and angles in every frame so that it shimmers, a thin hand-drawn circle wobbles around it, and tiny line-drawn four-point twinkles appear and vanish near it.
+
+### `styles/skinfx/astral_burst.jpg` · `astral_hold.jpg` (별밤)
+
+- 치는 순간: 2026-11-11 14:11 UTC · PNG 3,876,347바이트 · sha256 앞 16자리 `627fedf8e78dc66c` · 저장한 JPEG 350,014바이트 → `fx/astral_burst.webp` 1536×1536(146,444바이트), 10프레임 · 31.2fps
+- 누르는 동안: 2026-11-11 14:16 UTC · PNG 5,902,337바이트 · sha256 앞 16자리 `4fdd3837010a18ec` · 저장한 JPEG 785,023바이트 → `fx/astral_hold.webp` 1024×1024(208,396바이트), 15프레임 · 24fps 반복
+- 치는 순간의 효과와 움직임:
+
+  > THE EFFECT: a burst of golden starlight and glittering stardust over a soft moon-blue glow: warm gold (#f2c14e) and white stars, pale blue haze, the feel of a night sky.
+  >
+  > THE ANIMATION, one continuous motion across the 16 frames:
+  > - frames 1-2: a tiny white point snaps open into one bright golden star with long thin rays;
+  > - frames 3-5: the star flares and throws out a spray of glittering gold stardust and many small four- and five-pointed stars in all directions, each with a short sparkling trail, inside a faint ring of moon-blue haze;
+  > - frames 6-10: the central star shrinks to a soft glow while the small stars fly further, twinkling at different moments, the stardust spreads into drifting swirls of glitter, the blue haze thins;
+  > - frames 11-14: only a few small twinkling stars and specks of glitter are left, drifting outward and fading;
+  > - frames 15-16: almost nothing, the last one or two faint twinkles; frame 16 is black.
+
+- 누르는 동안의 효과와 움직임:
+
+  > THE EFFECT: a small golden star over a soft moon-blue glow: warm gold (#f2c14e) and white, pale blue haze.
+  >
+  > THE ANIMATION: in every frame a bright golden star with four long thin rays stays in the centre, while its rays lengthen and shorten so that it twinkles, glittering gold stardust swirls slowly around it, and tiny stars appear and vanish at different places in every frame.
+
+## 스킨의 기어 하단 그림 (`gears/panels`, 2026-11-11)
+
+> 2026-11-13: 이 절의 그림 15장은 게임에서 빠졌습니다. 13장은 맨 끝 절([스킨의 기어 하단 그림을 입체로 다시](#스킨의-기어-하단-그림을-입체로-다시-gearspanels-2026-11-12--13))의 그림으로 바뀌었고(`assets-src/gears/panels/<gear>.jpg`와 `client/public/media/panels/<gear>.webp`를 같은 이름으로 덮어씀), 무지개와 크림슨의 2장은 스킨째 지웠습니다([없앤 스킨](#없앤-스킨-무지개--크림슨-2026-11-13)). 이 그림들을 만들던 `scripts/assets/make_skin_panels.py`도 지웠습니다(고른 그림을 같은 자리에 저장하는 도구라 새 그림을 덮어쓸 수 있어서; git 기록에 있음). `build_skin_panels.py`는 이제 표시창 자리를 재지 않습니다. 아래는 만든 때 그대로의 기록입니다.
+
+스킨 15종의 기어 하단(키 줄 아래)을 코드 그림에서 그림 한 장씩으로 바꾼 것입니다. 사용자의 요청(2026-11-11): 판정선을 올려 기어 하단을 넓힌 뒤 "확장된 기어 하단에 맞게 스킨마다 하단 영역 이미지를 새로 생성해서 적용해줘", "RATE는 … 판정 아래에 작게 표시하도록 위치를 변경해. 그러면 하단 영역이 여유가 있어지니까 컨셉에 맞는 디자인, 꾸밈 요소를 더 넣을 수 있겠지?".
+
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 21:9 · 2K → 3168×1344 PNG) · 사용자의 Google Cloud 프로젝트 · 한 장 약 $0.06(토큰 사용량으로 계산한 추정치)
+- 구성: 위에서 똑바로 내려다본 평면 그림. 위쪽 가운데에 넓고 어두운 **표시창**(게임이 SCORE와 SPEED를 그 위에 씀), 양옆에 컨셉 장식을 담은 **날개**, 표시창 바로 아래에 큰 **문장**, 그 아래는 차분한 몸통.
+- 보낸 그림(둘 다 이 프로젝트의 것): ① 그 스킨의 받침을 게임 코드가 그린 그대로 평면으로 뽑은 그림(`flat-<gear>.png`: `deckArt.ts`의 `paintDeck`을 stretch 1, 7K+1S, 단위당 3px로) — 색 · 재질 · 무늬만 참고하라고 적음, ② 배치 안내 그림(`make_skin_panels.py`의 `guide()`가 그림: 표시창 자리는 검정, 날개는 빗금, 문장은 흰 원, 나머지는 회색). 다른 게임의 화면, 사용자가 올린 레퍼런스 그림, 로고는 보내지 않았습니다.
+- 만드는 도구: `scripts/assets/make_skin_panels.py make <평면 그림 폴더> <gear>` (받은 그대로는 `assets-src/gears/panels/_tries/`에 두고 저장소에는 넣지 않음) → `pick`이 고른 것을 2048×869 JPEG(품질 93, 색 정보 줄이지 않음)으로 저장
+- 게임용으로: `scripts/assets/build_skin_panels.py`가 `client/public/media/panels/<gear>.webp`(2048×869, 품질 90)로 만들고, 그림마다 표시창 유리의 자리(가로 · 세로 비율)를 재서 `client/src/render/deckPanels.json`에 적습니다(위쪽 가운데의 어둡고 고른 직사각형을 한 줄씩 넓혀 가며 찾음; 기본 스킨은 유리 위쪽에 반사광이 그려져 손으로 잰 값을 씀).
+- 게임에서: 키 줄은 레인을 따라야 하므로 코드로 그리고, 그 아래에 이 그림을 받침 폭 그대로 깝니다(`deckArt.ts`의 `panelPainting`; 카메라가 받침을 납작하게 보는 만큼 트랙 방향으로 늘여 그린 그대로 보이게). SCORE와 SPEED는 표시창 유리 위 두 줄(`deckReadouts`). 기본 카메라는 그림의 위쪽 45%쯤(표시창 · 날개 · 문장의 윗부분)을 보여 주고, 받침이 더 깊이 보이는 카메라(약한 원근 · 평면)는 문장과 몸통까지 보여 줍니다. 그림을 못 읽으면 예전 코드 그림이 나옵니다.
+- 고르기: 처음 시험 5장(기본 2 · 아쿠아 2 · 별밤 1: 배치 안내 그림 없이, 그리고 표시창을 40% 깊이로)은 쓰지 않았고, 안내 그림을 넣고 표시창을 35% 깊이로 한 15장을 그대로 썼습니다.
+- 비용: 쓴 15장 약 $0.90, 쓰지 않은 5장 약 $0.30
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 공통 프롬프트
+
+머리말:
+
+  > Image 1 is the current, plain version of one part of our own PC rhythm game's interface: the 'gear deck', the wide control panel that lies under the note lanes, drawn flat from straight above. Use image 1 ONLY for its colour palette, materials and motifs. Ignore its layout: the row of key caps along its top edge and its display windows are NOT part of the new picture.
+  >
+  > Paint a new, far richer and more detailed version of this panel's surface as production game art, at the finish level of the interface art of a top commercial rhythm game. It is used as a flat texture, so it must be a strictly top-down, orthographic, undistorted picture that fills the whole 21:9 frame edge to edge: no perspective, no horizon, no camera angle, no vignette, no frame or border round the picture, no background behind the panel. Mirror-symmetrical about the vertical centre line.
+  >
+  > Image 2 is a LAYOUT GUIDE only (never copy its greys or its hatching): its black rectangle is where the DISPLAY BAY goes, its two hatched areas are the WINGS, its white disc is where the EMBLEM goes, and the plain grey area is the LOWER BODY. Your picture has the same proportions as image 2 and follows its layout exactly.
+
+배치(`{bay}`에는 스킨별 표시창의 유리, `{wings}`와 `{body}`에는 스킨별 날개 · 몸통 설명이 들어감)와 꼬리말:
+
+  > COMPOSITION, exactly (the game depends on it):
+  > - The TOP EDGE of the picture is where the panel meets the row of keys; players see the upper half of the picture most, so the finest design is there.
+  > - DISPLAY BAY (the black rectangle of image 2): in the top centre, one wide display set into the panel, exactly as wide as the black rectangle (from 24 % to 76 % of the picture's width, a little over half of it) and reaching from the top edge down to 35 % of the height, no deeper. {bay} The game writes its score and speed on it, so its inside must stay completely empty and even: no text, no digits, no icons, no ornament, no reflections, no gradients, only a thin frame round it.
+  > - WINGS (the hatched areas of image 2): left and right of the display bay, from the top edge down to about 41 % of the height, the two wings (each about a fifth of the width) carry the richest decoration: {wings}
+  > - EMBLEM (the white disc of image 2): one large emblem centred directly under the display bay, its top almost touching the bay's lower frame, about 40 % of the picture's height across.
+  > - LOWER BODY (the plain grey area of image 2): the rest of the lower part of the picture is the same panel continuing toward the player, with larger and calmer forms: {body} It grows gradually darker and plainer toward the bottom edge, and the bottom tenth is almost plain.
+  > - Keep ornaments out of the outer 3 % at the left and right edges (the game's rails cover them).
+  > No text, no letters, no numbers, no labels, no logos, no brand marks, no watermark, no people, no characters. Crisp, clean, high-resolution; even, soft lighting from the top edge; no strong cast shadows.
+
+### `gears/panels/standard.jpg` (기본)
+
+- 2026-11-11 14:32 UTC · PNG 4,885,575바이트 · sha256 앞 16자리 `5fb576d86f70bb2c` · 저장한 JPEG 384,842바이트 → `panels/standard.webp` 2048×869(132,000바이트) · 표시창 유리: 가로 26.5~73.5%, 세로 3.9~30.6%
+- 스킨별 문구:
+
+  > CONCEPT: a modern professional DJ controller in dark graphite: anodised anthracite metal (#111216 to #2c2e35) with fine machined lines, crisp bevels and chamfers, satin and brushed finishes, thin cyan (#37e2ff) light lines as the only colour, restrained and precise.
+  >
+  > DISPLAY BAY: It is a pane of dark smoked glass, near black (#0b0c10).
+  >
+  > WINGS: rows of fine machined grooves, a small perforated speaker grille, two knurled metal knobs with a cyan index line, tiny hex screws, a thin cyan light guide tracing the wing's edge.
+  >
+  > LOWER BODY: a large jog-wheel ring machined into the metal in the centre under the display bay with a thin cyan light ring, long vent slots to both sides, chamfered panel seams.
+
+### `gears/panels/prism.jpg` (크리스털)
+
+- 2026-11-11 14:32 UTC · PNG 5,368,373바이트 · sha256 앞 16자리 `e824e39800f7d11f` · 저장한 JPEG 541,516바이트 → `panels/prism.webp` 2048×869(246,662바이트) · 표시창 유리: 가로 27.3~72.8%, 세로 4.8~36.6%
+- 스킨별 문구:
+
+  > CONCEPT: cut crystal and light: faceted clear crystal planes in ice white, pale lavender and pale blue, deep sapphire-blue gem insets with silver bezels, thin silver edges, fine rainbow dispersion (a hairline spectrum) where facets meet, the feel of jewellery.
+  >
+  > DISPLAY BAY: It is a plate of deep sapphire-blue glass (#16245a), dark and even.
+  >
+  > WINGS: fans of long crystal facets radiating from the bay, a brilliant-cut sapphire gem in a silver ring on each wing, small hexagonal crystal studs, hairline light guides with rainbow glints.
+  >
+  > LOWER BODY: a large brilliant-cut crystal medallion in the centre under the display bay, wide facet planes spreading from it like a chandelier, a few small gem studs.
+
+### `gears/panels/sky.jpg` (하늘)
+
+- 2026-11-11 14:37 UTC · PNG 4,850,436바이트 · sha256 앞 16자리 `0192b6d38edaccb1` · 저장한 JPEG 438,496바이트 → `panels/sky.webp` 2048×869(165,560바이트) · 표시창 유리: 가로 27.6~72.4%, 세로 5.8~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a clear daytime sky as an anime film's background art paints it: deep clear blue at the top easing to pale sky blue, soft, fluffy, billowing white cumulus clouds with real volume, thin white wind trails, white feathers; only blues and white.
+  >
+  > DISPLAY BAY: It is a pane of clear dark-blue glass (#123a6e) through which a darker, calm sky shows, even in tone.
+  >
+  > WINGS: a tall, billowing cumulus cloud rising on each wing with soft pale-blue shading, one or two white feathers drifting beside it, tiny sparkles of sunlight, hairline white wind trails crossing in long gentle arcs.
+  >
+  > LOWER BODY: a continuous sea of soft cumulus seen from the side, its top edge billowing up into the two clouds of the wings, with a few feathers floating over it; below its top edge it falls evenly into soft pale blue.
+
+### `gears/panels/fire.jpg` (파이어스타터)
+
+- 2026-11-11 14:35 UTC · PNG 5,137,740바이트 · sha256 앞 16자리 `ef2005819a4e8413` · 저장한 JPEG 464,240바이트 → `panels/fire.webp` 2048×869(180,702바이트) · 표시창 유리: 가로 32.3~67.7%, 세로 6.2~34.8%
+- 스킨별 문구:
+
+  > CONCEPT: a rock tour's stage gear: glossy deep-red lacquer (#c8102e) with black angular inlays, mirror chrome trim, the attitude of a muscle car and a tour poster; red, black, chrome and a little white-hot orange.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#0b0b0d) in a chrome frame.
+  >
+  > WINGS: sharp black inlays cut like blades into the red lacquer, chrome edge trim with rivets, a chrome-ringed speaker cone with a black grille on each wing, short hazard stripes, thin orange heat lines.
+  >
+  > LOWER BODY: a large chrome emblem shaped like a stylised flame in a black shield in the centre under the display bay, long black vents raked back like exhausts to both sides, reflections sliding across the red lacquer.
+
+### `gears/panels/gpt.jpg` (GPT)
+
+- 2026-11-11 14:33 UTC · PNG 4,151,688바이트 · sha256 앞 16자리 `c1c601e3d6f97411` · 저장한 JPEG 278,789바이트 → `panels/gpt.webp` 2048×869(74,152바이트) · 표시창 유리: 가로 26.9~73.1%, 세로 5.3~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a calm, friendly chat assistant's interface made physical: a flat surface in emerald-teal green (#10a37f) with soft rounded white shapes, generous spacing, tiny minimal line icons; flat design with gentle depth, no gloss.
+  >
+  > DISPLAY BAY: It is a flat plate of dark green-black (#0d1f1a), even and matt.
+  >
+  > WINGS: soft rounded white pill and bubble shapes of different lengths stacked like lines of a conversation, rows of three small round dots, thin white outline rings, a few tiny abstract line icons (a plus, an arrow, a spark).
+  >
+  > LOWER BODY: one large ornament of interlaced rounded loops (an abstract knot of six soft petals, drawn in thin white lines) in the centre under the display bay, wide soft rounded bands to both sides in slightly darker and lighter teal.
+
+### `gears/panels/gemini.jpg` (Gemini)
+
+- 2026-11-11 14:33 UTC · PNG 5,576,698바이트 · sha256 앞 16자리 `4d2b66c25a9c2fa1` · 저장한 JPEG 444,088바이트 → `panels/gemini.webp` 2048×869(171,850바이트) · 표시창 유리: 가로 26.9~73.1%, 세로 4.8~37.6%
+- 스킨별 문구:
+
+  > CONCEPT: a deep night-dark surface (#131314) lit by a soft aurora of blue (#4285f4), violet (#9b72cb) and pink (#d96570): smooth gradients, four-pointed sparkle stars (four long thin points, concave sides), fine starfield, elegant and airy.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#0b0b0c), even and matt.
+  >
+  > WINGS: ribbons of blue-violet-pink gradient light sweeping up each wing, several four-pointed sparkle stars of different sizes, hairline arcs, a fine dust of tiny stars.
+  >
+  > LOWER BODY: one large four-pointed sparkle star with a soft gradient glow in the centre under the display bay, wide aurora ribbons flowing out to both sides, sparse tiny stars.
+
+### `gears/panels/grok.jpg` (Grok)
+
+- 2026-11-11 14:34 UTC · PNG 4,458,870바이트 · sha256 앞 16자리 `77d9245202c93690` · 저장한 JPEG 333,368바이트 → `panels/grok.webp` 2048×869(139,198바이트) · 표시창 유리: 가로 26.7~73.3%, 세로 3.9~33.4%
+- 스킨별 문구:
+
+  > CONCEPT: deep space in pure black and white: a black void with a fine starfield, thin white technical lines, orbits and trajectories, the feel of an observatory's chart; monochrome, no colour at all.
+  >
+  > DISPLAY BAY: It is pure black (#000000), even and matt.
+  >
+  > WINGS: thin white orbit ellipses and trajectory lines crossing each wing, small bracket marks, tick scales, a few bright stars with fine cross flares, dotted constellation lines.
+  >
+  > LOWER BODY: a large black-hole motif in the centre under the display bay: a black disc with a thin bright ring and a fine accretion ring drawn in white lines, long diagonal slash lines and sparse stars to both sides.
+
+### `gears/panels/claude.jpg` (Claude)
+
+- 2026-11-11 14:36 UTC · PNG 5,193,159바이트 · sha256 앞 16자리 `d94487d4f79f8141` · 저장한 JPEG 470,378바이트 → `panels/claude.webp` 2048×869(190,366바이트) · 표시창 유리: 가로 25.1~74.9%, 세로 4.4~34.3%
+- 스킨별 문구:
+
+  > CONCEPT: warm cream paper (#f4efe6) with hand-drawn ink in terracotta (#d97757): the feel of a thoughtful notebook: soft paper grain, loose pen doodles, gentle and literary; cream, terracotta and a little warm brown.
+  >
+  > DISPLAY BAY: It is a sheet of dark warm-brown ink-coloured paper (#2a211c), even and matt.
+  >
+  > WINGS: hand-drawn terracotta doodles on each wing: a sunburst of uneven pen strokes, a loose spiral scribble with a trailing line, small stars and dashes, a pressed-paper stamp ring, faint ruled lines.
+  >
+  > LOWER BODY: one large hand-drawn sunburst of a dozen uneven tapered brush strokes in terracotta in the centre under the display bay, long loose pen flourishes to both sides, a few scattered ink dots, the paper's grain showing.
+
+### `gears/panels/aqua.jpg` (아쿠아)
+
+- 2026-11-11 14:38 UTC · PNG 4,360,011바이트 · sha256 앞 16자리 `43044bc084d77319` · 저장한 JPEG 341,620바이트 → `panels/aqua.webp` 2048×869(101,370바이트) · 표시창 유리: 가로 26.5~73.5%, 세로 4.4~33.0%
+- 스킨별 문구:
+
+  > CONCEPT: a white mecha's console: glossy white armour panels with 45-degree cut corners over dark teal glass (#06262b), aqua-cyan (#22e0e6) light lines, small hot-pink (#ff3f93) accents; clean science-fiction hardware.
+  >
+  > DISPLAY BAY: It is a pane of very dark teal glass (#04191d), even and matt.
+  >
+  > WINGS: white armour plates with cut corners and panel seams on each wing, a row of slanted aqua vent slits, small pink hazard chevrons, hex bolts, thin aqua light guides.
+  >
+  > LOWER BODY: a large circular reactor emblem in the centre under the display bay: a white ring cut by three arrow-like notches around an aqua glowing core, white shoulder plates to both sides over dark teal glass, a few pink accent lines.
+
+### `gears/panels/steel.jpg` (스틸)
+
+- 2026-11-11 14:39 UTC · PNG 5,839,194바이트 · sha256 앞 16자리 `92c7832f075a1185` · 저장한 JPEG 406,427바이트 → `panels/steel.webp` 2048×869(148,886바이트) · 표시창 유리: 가로 26.3~73.7%, 세로 3.0~31.1%
+- 스킨별 문구:
+
+  > CONCEPT: professional studio hardware in dark slate and gunmetal: brushed and bead-blasted metal panels, countersunk screws, embossed plus and cross marks, a cool steel-blue (#58aaf0) light glowing from recessed slots; calm, heavy, industrial.
+  >
+  > DISPLAY BAY: It is a pane of near-black glass (#0c0f13), even and matt.
+  >
+  > WINGS: a milled panel on each wing with a recessed slot glowing steel blue, two knurled knobs, a small grid of embossed plus marks, countersunk screws, fine brushed grain.
+  >
+  > LOWER BODY: a wide recessed plate in the centre under the display bay with a large embossed cross mark and a thin blue light slot, long ventilation louvres to both sides, heavy chamfered edges.
+
+### `gears/panels/rainbow.jpg` (무지개; 2026-11-13에 지움, 기록만 남김)
+
+- 2026-11-11 14:37 UTC · PNG 4,173,597바이트 · sha256 앞 16자리 `fb2b74d8d5bed939` · 저장한 JPEG 296,001바이트 → `panels/rainbow.webp` 2048×869(88,034바이트) · 표시창 유리: 가로 26.3~73.7%, 세로 6.2~33.0%
+- 스킨별 문구:
+
+  > CONCEPT: a cheerful toy console of glossy white plastic and cut paper with candy colours: red, orange, yellow, green, sky blue, purple and pink capsules, sprinkles and round buttons, soft pastel shadows; bright, sweet, playful.
+  >
+  > DISPLAY BAY: It is a plate of deep navy blue (#15155c), even and matt.
+  >
+  > WINGS: candy-coloured capsule shapes lying at playful angles on each wing, round glossy buttons in different colours, tiny sprinkle dots and small five-pointed stars, soft paper-cut layers.
+  >
+  > LOWER BODY: a navy-blue half dome with a rainbow capsule inside it in the centre under the display bay, big soft rounded white shapes and long pastel candy stripes to both sides, a scatter of sprinkles.
+
+### `gears/panels/noir.jpg` (레드라인)
+
+- 2026-11-11 14:44 UTC · PNG 3,906,833바이트 · sha256 앞 16자리 `0b28b444f529a849` · 저장한 JPEG 418,895바이트 → `panels/noir.webp` 2048×869(140,840바이트) · 표시창 유리: 가로 30.0~70.0%, 세로 5.8~30.6%
+- 스킨별 문구:
+
+  > CONCEPT: flat graphic design in black and pure red (#ff1a2b) with a little white: bold diagonal red bands, halftone dot clusters, glitch blocks and thin technical lines, the feel of a cyberpunk poster. Only black, red and white, completely flat.
+  >
+  > DISPLAY BAY: It is pure black (#000000), even and matt.
+  >
+  > WINGS: bold diagonal red bands cutting across each wing, clusters of halftone dots, small glitch blocks of red and white rectangles, rows of chevron arrows, thin white corner brackets.
+  >
+  > LOWER BODY: wide dark-red diagonal bands and a long thin red curve sweeping through the lower body, one large glitch-block ornament in the centre under the display bay, sparse dot clusters and thin lines.
+
+### `gears/panels/magenta.jpg` (크림슨; 2026-11-13에 지움, 기록만 남김)
+
+- 2026-11-11 14:41 UTC · PNG 5,129,510바이트 · sha256 앞 16자리 `0eb1726a335d1912` · 저장한 JPEG 474,795바이트 → `panels/magenta.webp` 2048×869(182,626바이트) · 표시창 유리: 가로 27.6~72.4%, 세로 5.3~34.3%
+- 스킨별 문구:
+
+  > CONCEPT: a black war machine with crimson light: matt black angular armour, razor-thin crimson (#f0145a) and hot-pink light lines, polished silver bars, pointed hexagonal panels; aggressive and sharp.
+  >
+  > DISPLAY BAY: It is a pane of black glass (#08080a), even and matt.
+  >
+  > WINGS: pointed hexagonal armour panels outlined in crimson light on each wing, slanted crimson hazard bars, a small crimson lamp, silver bars, sharp chamfers.
+  >
+  > LOWER BODY: a large pointed emblem like a blade's guard in silver and crimson in the centre under the display bay, long angular armour plates swept back to both sides with thin crimson light seams.
+
+### `gears/panels/wire.jpg` (화이트 라인)
+
+- 2026-11-11 14:40 UTC · PNG 4,391,237바이트 · sha256 앞 16자리 `a123fb2448e74659` · 저장한 JPEG 269,331바이트 → `panels/wire.webp` 2048×869(89,148바이트) · 표시창 유리: 가로 28.8~71.2%, 세로 3.9~33.4%
+- 스킨별 문구:
+
+  > CONCEPT: line art in thin white lines on near-black (#0b0b0d): a draughtsman's technical drawing: orbits, circles, tray outlines, dotted grids and tick scales, with one soft white glow; monochrome, elegant, airy.
+  >
+  > DISPLAY BAY: It is near-black (#070708), even and matt, outlined by one thin white line.
+  >
+  > WINGS: thin white line drawings on each wing: concentric arcs and an orbit ellipse, a small dotted grid, tick scales, tiny line-drawn four-point stars, short dashed lines.
+  >
+  > LOWER BODY: a large open ring with two small dots drawn in thin white lines in the centre under the display bay over a soft white glow, long orbit ellipses sweeping out to both sides, a sparse dotted grid.
+
+### `gears/panels/astral.jpg` (별밤)
+
+- 2026-11-11 14:42 UTC · PNG 4,807,497바이트 · sha256 앞 16자리 `115704d729a55adc` · 저장한 JPEG 511,106바이트 → `panels/astral.webp` 2048×869(203,702바이트) · 표시창 유리: 가로 27.3~72.8%, 세로 4.8~38.9%
+- 스킨별 문구:
+
+  > CONCEPT: a night sky as an old star atlas: deep navy (#0a1230 to #16245a) with gold (#f2c14e) filigree lines, constellations, moon phases and small sparkling stars; rich, calm and precious.
+  >
+  > DISPLAY BAY: It is a pane of very dark navy (#070d24), even and matt.
+  >
+  > WINGS: gold constellation lines with star points on each wing, a small row of moon phases, a gold compass-like ring with tick marks, tiny sparkling stars, fine gold filigree corners.
+  >
+  > LOWER BODY: a large winged four-pointed star emblem in gold and white in the centre under the display bay, wide thin gold orbit arcs of a star chart sweeping to both sides, a dusting of small stars.
+
+## 없앤 스킨: 무지개 · 크림슨 (2026-11-13)
+
+기어 하단을 입체 그림으로 바꾸려고 스킨마다 시안을 보던 중 사용자가 두 스킨을 없애기로 했습니다(무지개: 시안 둘을 본 뒤 "이 스킨은 아예 없애자"; 크림슨: "이 스킨도 건너뛸게", 이어서 "크림슨도 삭제해"). 게임에서 두 스킨의 기어 · 노트 · 타격 효과 · 글자 · 설정 항목을 뺐고 아래 파일을 지웠습니다. 생성 기록은 위의 두 절([스킨의 타격 효과](#스킨의-타격-효과-프레임-애니메이션-시트-stylesskinfx-2026-11-11), [스킨의 기어 하단 그림](#스킨의-기어-하단-그림-gearspanels-2026-11-11))에 그대로 있고, 거기 적힌 비용 합계도 만든 때 그대로입니다.
+
+| 지운 파일 | 무엇 |
+|---|---|
+| `assets-src/styles/skinfx/rainbow_burst.jpg` · `rainbow_hold.jpg` · `magenta_burst.jpg` · `magenta_hold.jpg` | 두 스킨의 타격 효과 시트(고른 원본) |
+| `client/public/media/fx/rainbow_burst.webp` · `rainbow_hold.webp` · `magenta_burst.webp` · `magenta_hold.webp` | 그 게임용 파일. 매니페스트의 `rainbow/hitBurst` · `rainbow/hitHold` · `magenta/hitBurst` · `magenta/hitHold`도 뺌 |
+| `assets-src/gears/panels/rainbow.jpg` · `magenta.jpg` | 두 스킨의 기어 하단 그림(2026-11-11의 평면 그림) |
+| `client/public/media/panels/rainbow.webp` · `magenta.webp` | 그 게임용 파일. 매니페스트의 `rainbow/panel` · `magenta/panel`도 뺌 |
+| `client/src/assets/fonts/Fredoka-Bold.woff2` · `client/public/licenses/fonts/OFL-Fredoka.txt` | 무지개 스킨만 쓰던 글꼴(Fredoka Bold, OFL 1.1)과 그 라이선스 문서 |
+| `docs/screenshots/65-rainbow-7k.png` · `67-magenta-7k.png` | 두 스킨의 스크린샷 |
+
+- 무지개 스킨의 입체 하단 시안으로 2026-11-13에 4회 생성했고 쓰지 않았습니다(아래 절의 생성 횟수에 들어 있음). 크림슨의 입체 시안은 만들지 않았습니다.
+- 생성 도구(`make_skin_fx.py`)와 빌드 도구(`build_skin_fx.py`, `build_skin_panels.py`)의 목록에서 두 스킨을 뺐습니다. 두 스킨의 프롬프트는 위 두 절에 남아 있습니다.
+
+## 스킨의 기어 하단 그림을 입체로 다시 (`gears/panels`, 2026-11-12 ~ 13)
+
+스킨 13종의 기어 하단 그림을 모두 다시 만들었습니다. 앞의 절([스킨의 기어 하단 그림](#스킨의-기어-하단-그림-gearspanels-2026-11-11))의 그림을 대신합니다. 그 그림들과 그것을 만들던 `scripts/assets/make_skin_panels.py`는 지웠고, 그 절은 기록으로 남깁니다. 무지개와 크림슨 두 스킨은 하단 시안을 보던 중에 사용자가 스킨째 없애기로 했습니다("이 스킨은 아예 없애자", "크림슨도 삭제해").
+
+달라진 점은 둘입니다. 하나, 그림이 위에서 내려다본 평면도가 아니라 **게임 카메라가 보는 그대로의 입체 렌더**입니다. 둘, 표시창이 없습니다. SCORE · MAX COMBO · SPEED는 게임이 기어 옆에 따로 쓰고, 하단은 통째로 그림입니다.
+
+- 사용자의 요청과 결정: 하단을 스킨마다 하나씩 시안으로 보고 고름("스킨 하나 새로 만들때마다 검수요청해줘"). 스킨 1 · 2 · 5 ~ 11은 사용자가 올린 레퍼런스 그림을 따름("1, 2, 5, 6, 7, 8, 9, 10, 11는 레퍼런스랑 최대한 비슷한 컨셉이면 좋겠어", 그림을 모델에 보내는 것도 허락: "사진 보내도 되도록 허용해"). 파이어스타터와 AI 회사 스킨 넷은 사용자가 직접 디렉션을 줌("ai 부터는 내가 디렉션을 줄테니까 미리 진행하지 말고..", "firestarter도 내가 디렉션을 줄게", "난 이 리듬게임을 상업용으로 배포하지 않고 혼자만 즐길거니까 firestarter 관련 이미지를 가져와서 꾸며도 돼"). 고른 것을 게임에 넣은 것은 사용자가 "진행해줘"라고 한 2026-11-13입니다.
+- 만든 곳: Google Cloud Vertex AI 의 Gemini 이미지 생성(`gemini-nano-banana-2.1`, 16:9 · 2K → 2752×1536 PNG; Gemini 하단의 금속 바탕과 Claude 하단의 손글씨 두 장만 21:9) · 사용자의 Google Cloud 프로젝트
+- 만드는 순서(도구는 `scripts/assets/deck_panels/`, 그 폴더의 README에 명령이 있음):
+  1. 하단의 **평면 배치도**를 코드로 그립니다(스킨마다 `layout_<gear>.py`: 무엇이 어디에 얼마나 크게 놓이는지). 먼저 만든 크리스털과 하늘은 배치도 없이 평평한 자리표시 그림을 넣었습니다.
+  2. 그 배치도를 하단 그림으로 넣은 채 게임을 띄워 **화면 한 장**을 찍습니다(판정선을 화면의 43%로 올려 하단이 다 보이게). 같은 자리에서 보정용 점 격자도 한 장 찍습니다.
+  3. 점 격자로 평면 그림과 화면 사이의 변환(호모그래피)을 구합니다(221점; 오차를 기록해 둔 다섯 스킨, 곧 스틸 · 레드라인 · 화이트 라인 · 별밤 · 기본은 평균 0.23 ~ 0.24px).
+  4. 이미지 모델에 그 화면을 주고 **하단만** 입체 렌더로 다시 그리게 합니다(`prompt_<gear>.py`, 호출은 `generate.py`). 판정선 · 키 줄 · 레일은 그대로 두라고 적습니다. 화면 틀이 어긋난 결과(배율이 0.99 ~ 1.01 밖이거나 틀의 맞음새가 낮은 것)는 버립니다.
+  5. 결과를 변환을 거꾸로 써서 평면 그림(2048px 폭)으로 폅니다.
+  6. 필요한 스킨은 평면 그림에서 생성 없이 손봅니다(위치 옮기기, 인쇄물 다시 얹기, 가장자리 정리, 밝기 맞추기). 스킨별 기록에 적었습니다.
+- 모델에 보낸 그림: ① 이 게임의 화면(위 2의 것), ② 스킨에 따라 기준 그림. 기준 그림은 스킨별 기록에 적었고, 사용자의 레퍼런스 그림 · 회사 로고 · 공식 그림 · 다른 사람의 그림이 있습니다(권리자와 출처: `client/public/licenses/GEAR-PANELS.md`). 기준 그림과 내려받은 원본은 저장소에 넣지 않았습니다.
+- 프롬프트: 스킨마다 한 쪽 안팎이라 여기에 옮기지 않고, 그림 옆의 기록 `assets-src/gears/panels/<gear>.json`의 `generations[].prompt`에 전문을 두었습니다(보낸 그림 목록, 만든 시각, sha256, 토큰 사용량, 뒤처리 순서도 같은 파일에 있음).
+- 저장: 고른 평면 그림을 JPEG(품질 93, 색 정보 줄이지 않음)으로 `assets-src/gears/panels/<gear>.jpg`에 둡니다. 크기는 2048×876이고, 먼저 만든 크리스털(2048×869)과 하늘(2048×977)만 다릅니다.
+- 게임용으로: `scripts/assets/build_skin_panels.py`가 `client/public/media/panels/<gear>.webp`(품질 90)로 만들고 크기를 `client/src/render/deckPanels.json`에 적습니다. 표시창이 없으므로 유리 자리는 재지 않습니다.
+- 게임에서: 키 줄 아래부터 화면 맨 아래까지 그림 전체가 보이도록 깝니다(`deckArt.ts`의 `panelSpan` · `panelPainting`). 받침을 덜 보여 주는 카메라에서는 그림이 그만큼 눌립니다. 기어 조명이 비추는 자리(문장, 조명 창, 점 무리 등)는 `deckArt.ts`의 `PANEL_MARKS`에 스킨별로 적었습니다.
+- 입체로 그린 물건은 기본 카메라(SDVX) 시점으로 그려진 것이라, 다른 카메라에서는 조금 기울어져 보입니다.
+- 생성 횟수: 기록이 남은 생성은 모두 115회(2026-11-12 01:49 ~ 11-13 02:23 UTC, 토큰 합계 약 71만)이고, 그중 게임에 들어간 그림을 이룬 것이 17회입니다. 나머지는 사용자가 고르지 않은 시안, 같은 시안의 다른 장, 화면 틀이 어긋나 버린 것입니다(무지개 4회 포함). 비용은 따로 계산하지 않았습니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다.
+
+### 스킨별 기록
+
+#### `gears/panels/standard.jpg` (기본)
+
+- 그림: 무광 그래파이트 판, 앞쪽 가장자리 가까이에 시안 조명 띠 한 줄
+- 사용자가 고른 것: 시안 2("시안 2로 진행할게")
+- 게임 화면과 함께 보낸 그림: 없음(게임 화면만)
+- 생성: 2026-11-13 02:23 UTC · 16:9 · PNG 4,848,426바이트 · sha256 앞 16자리 `14f184fd3746b779`
+- 뒤처리: 편 그림에서 금속의 평균 밝기를 97에서 62로 낮췄습니다(기어의 그래파이트에 맞춤; 시안 조명과 그 번짐은 그대로, 생성 없음).
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `9bb8b5c2fd7af727`) → 저장한 JPEG 209,401바이트 → `panels/standard.webp` 2048×876(40,778바이트)
+- 이 스킨은 레퍼런스 그림이 없습니다. 조명 띠가 어느 카메라에서나 화면 맨 아래 가장자리 가까이에 놓인다고 사용자에게 알렸습니다.
+
+#### `gears/panels/prism.jpg` (크리스털)
+
+- 그림: 통째로 깎은 수정 덩어리
+- 사용자가 고른 것: 크리스털 시안 중 후보 1
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 1(통째로)
+- 생성: 2026-11-12 01:49 UTC · 16:9 · PNG 4,581,804바이트 · sha256 앞 16자리 `9cdedc9455e4ec90`
+- 편 그림 2048×869(PNG의 sha256 앞 16자리 `33c09d74b8289971`) → 저장한 JPEG 259,830바이트 → `panels/prism.webp` 2048×869(73,744바이트)
+- 입체 하단의 첫 시도여서 배치도 없이 평평한 자리표시 판을 넣은 화면을 보냈습니다. 그림 깊이 869px는 앞 절의 그림과 같은 크기입니다.
+
+#### `gears/panels/sky.jpg` (하늘)
+
+- 그림: 유리 너머의 뭉게구름과 흰 바람 궤적
+- 사용자가 고른 것: 하늘 시안 중 후보 3
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 2(통째로)
+- 생성: 2026-11-12 02:20 UTC · 16:9 · PNG 4,677,000바이트 · sha256 앞 16자리 `ef010f95ec045e06`
+- 편 그림 2048×977(PNG의 sha256 앞 16자리 `fd1d7cb38431f2d1`) → 저장한 JPEG 336,244바이트 → `panels/sky.webp` 2048×977(106,168바이트)
+- 하늘 스킨은 키 줄(대시 띠)이 다른 스킨의 3분의 1 깊이라서, 그만큼 하단이 깊습니다(977px).
+
+#### `gears/panels/fire.jpg` (파이어스타터)
+
+- 그림: 분홍 조명의 무대, 네 멤버의 실루엣, 맨 앞의 FIRESTARTER 글자
+- 사용자가 고른 것: 시안 6-2(멤버들의 실루엣을 가운데에, 더 큰 FIRESTARTER 글자를 맨 앞에)
+- 게임 화면과 함께 보낸 그림: K/DA FIRESTARTER 공식 그림 두 장(콘서트 장면, 표지)
+- 생성: 2026-11-12 04:42 UTC · 16:9 · PNG 5,331,217바이트 · sha256 앞 16자리 `b3ba8600f9d3e4f7`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `63117581d3ceb924`) → 저장한 JPEG 405,483바이트 → `panels/fire.webp` 2048×876(149,298바이트)
+- 키캡의 문장은 아래 "키캡의 문장"에 따로 적었습니다.
+
+#### `gears/panels/gpt.jpg` (GPT)
+
+- 그림: 유백색 판, 가운데의 검은 입체 로고, 오른쪽 아래의 RESET 버튼과 링 게이지
+- 사용자가 고른 것: 시안 9
+- 게임 화면과 함께 보낸 그림: OpenAI 로고 그림 두 장(엠블럼, 아이콘)
+- 생성: 2026-11-12 06:14 UTC · 16:9 · PNG 4,374,739바이트 · sha256 앞 16자리 `576f82876e33d235`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `c9bdd4e4ef4f0991`) → 저장한 JPEG 209,928바이트 → `panels/gpt.webp` 2048×876(60,474바이트)
+- 양옆의 스티커를 끈 화면을 보냈습니다. 이 기어의 판정선 · 게이지 · 타격 효과 색은 사용자의 결정으로 청록 그대로입니다("GPT 기어의 판정선 게이지 타격효과는 청록으로 유지해줘").
+
+#### `gears/panels/gemini.jpg` (Gemini)
+
+- 그림: 옅은 파스텔 금속판, 스파크와 왕관을 쓴 입체 워드마크, 오른쪽 아래의 바나나
+- 사용자가 고른 것: 시안 6("이대로 확정")
+- 게임 화면과 함께 보낸 그림: (첫 생성) 앞선 시안 3-A의 렌더와 바뀐 배치도를 넣은 게임 화면, (둘째 생성) 코드로 그린 바탕 한 장
+- 생성 1: 2026-11-12 07:46 UTC · 16:9 · PNG 4,387,733바이트 · sha256 앞 16자리 `d4579ba7d67d157f`
+- 생성 2: 2026-11-12 08:10 UTC · 21:9 · PNG 5,778,144바이트 · sha256 앞 16자리 `f389e9be5533ffc6`
+- 뒤처리: 생성 두 번을 합쳤습니다. ① 시안 3-A의 렌더를 이미지 모델이 고쳐 그림(구슬 넷을 없애고 색을 옅게, 오른쪽 아래에 바나나): 여기서 스파크 · 왕관 · 워드마크 · 바나나를 떼어 씁니다. ② 바탕(옅은 하늘색 → 라벤더 → 분홍, 비스듬한 빛 띠)을 코드로 그리고, 그것을 이미지 모델이 반광 금속판으로 다시 칠함(21:9, 평면 질감, 위에 아무것도 없음). ③ 떼어 낸 것들을 금속판 위에 얹음: 로고는 시안 4-A의 자리에서 왼쪽으로 300px(워드마크의 가운데가 판의 가운데에서 오른쪽 70px) · 위로 45px, 바나나는 제자리, 각각 금속에 옅게 비침.
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `a9fe124fff668018`) → 저장한 JPEG 283,029바이트 → `panels/gemini.webp` 2048×876(75,494바이트)
+- 색은 사용자가 올린 파스텔 Gemini 로고 그림을 따랐고, 사용자의 말에 따라 두 번 더 옅게 했습니다. 시안 3-A의 렌더(①의 입력)도 같은 모델로 만든 것입니다.
+
+#### `gears/panels/grok.jpg` (Grok)
+
+- 그림: 무광 검정 판, 왼쪽 아래의 Grok Bot, 오른쪽 위의 화성색 마크, 은색 X 앞을 나는 로켓과 시바견
+- 사용자가 고른 것: 시안 5-A, X 로고 90%("5-A로 하고, X 로고 크기를 90%로 줄여서 확정해줘")
+- 게임 화면과 함께 보낸 그림: (첫 생성) 시안 2의 로켓 그림과 SpaceX 로고, (둘째 생성) 시안 4의 완성 그림을 넣은 게임 화면 두 장(로고를 로켓 아래에 평면으로 그린 것 포함)과 X 로고
+- 생성 1: 2026-11-12 09:15 UTC · 16:9 · PNG 5,036,111바이트 · sha256 앞 16자리 `6c8a2f3525be0162`
+- 생성 2: 2026-11-13 00:06 UTC · 16:9 · PNG 4,570,702바이트 · sha256 앞 16자리 `34fa75a55378aa70`
+- 뒤처리: 생성 두 번을 합쳤습니다. ① Grok Bot(사용자가 올린 X 프로필 그림에서 치수를 재어 다시 그림) · 화성색 마크 · 자리표시 로켓을 그린 배치도로 로켓과 탄 것을 생성. ② 편 뒤 로켓 무리를 판의 가운데 깊이로 옮기고(왼쪽 60px, 위 214px) Bot과 마크는 그린 인쇄물을 다시 얹고 맨 금속을 어둡게 함(시안 4). ③ 그 그림 위에 이미지 모델이 로켓 뒤의 은색 X 로고를 더 그림. ④ 편 뒤 인쇄물을 다시 얹음.
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `5f5f981bc1fdb2f3`) → 저장한 JPEG 286,261바이트 → `panels/grok.webp` 2048×876(87,024바이트)
+
+#### `gears/panels/claude.jpg` (Claude)
+
+- 그림: 아이보리 종이, 왼쪽 위 모서리의 해, 검정 손글씨, 자전거를 탄 펠리컨, Clawd
+- 사용자가 고른 것: 시안 5("이대로 확정")
+- 게임 화면과 함께 보낸 그림: (첫 생성) Claude 스파크와 Clawd 그림, (둘째 생성) 시안 2-B의 렌더와 바뀐 배치도를 넣은 게임 화면, 스파크 그림, (셋째 생성) 없음
+- 생성 1: 2026-11-12 06:47 UTC · 16:9 · PNG 4,683,908바이트 · sha256 앞 16자리 `9ea16bd19ab669db`
+- 생성 2: 2026-11-12 06:56 UTC · 16:9 · PNG 4,710,279바이트 · sha256 앞 16자리 `f2ed0f4f2546e774`
+- 생성 3: 2026-11-12 07:01 UTC · 21:9 · PNG 4,655,825바이트 · sha256 앞 16자리 `0c9d99d0dc9305a3`
+- 뒤처리: 생성 세 번과 인쇄 두 번을 합쳤습니다. ① 시안 2-B의 렌더. ② 그것을 이미지 모델이 고쳐 그림(해를 왼쪽 위 모서리에 크게, 4분의 1만 종이 위에; 붓 자국은 그 둘레에만; 검은 속도선은 없앰) → 편 것이 종이. ③ "Claude" 손글씨를 따로 생성(21:9)해 맨 종이에 인쇄. ④ 펠리컨 그림을 그 위에 인쇄(종이의 빛을 글씨를 얹기 전에 읽어 맞춤).
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `f051ec106d484681`) → 저장한 JPEG 439,858바이트 → `panels/claude.webp` 2048×876(155,980바이트)
+- 펠리컨은 Simon Willison's Weblog의 2026-11-09 글 "llm-anthropic 0.31"에 실린 SVG에서 배경을 떼고 1.25배 깊게 옮긴 것입니다. 손글씨는 새로 쓴 것이고 공식 손글씨 워드마크가 아닙니다(찾지 못함).
+
+#### `gears/panels/aqua.jpg` (아쿠아)
+
+- 그림: 청록 수면 위의 흰 마크(서로 쫓는 화살 셋)와 물결, 모서리의 흰 장갑판과 분홍 표식
+- 사용자가 고른 것: 시안 3("시안 3으로 진행할게"): 유리를 물로 바꾼 것
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 5의 아랫부분(확대)
+- 생성: 2026-11-13 00:15 UTC · 16:9 · PNG 4,658,322바이트 · sha256 앞 16자리 `8cbedcc3b9b42def`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `c361f27fca772a4e`) → 저장한 JPEG 390,501바이트 → `panels/aqua.webp` 2048×876(130,652바이트)
+- 레퍼런스의 MAX COMBO · SCORE 숫자 칸은 뺐습니다. 가운데 마크가 레퍼런스(작은 화살촉 셋이 달린 온전한 고리)와 달리 서로 쫓는 화살 셋으로 나왔고, 사용자에게 알린 뒤 그대로 골랐습니다. 이 기어는 분홍이 있어 보정 점을 초록으로 찍었습니다.
+
+#### `gears/panels/steel.jpg` (스틸)
+
+- 그림: 청회색 헤어라인 금속 2단, 파란 조명 창, LED 레벨 미터 둘
+- 사용자가 고른 것: 시안 3("시안 3으로 진행할게"): 캡슐 둘을 레벨 미터로, 글자는 비움("글자는 비워두고")
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 6의 아랫부분(확대, 노트와 왼쪽 레일은 뺌)
+- 생성: 2026-11-13 00:34 UTC · 16:9 · PNG 4,224,491바이트 · sha256 앞 16자리 `cbcf6b821df6f5c9`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `4e253d685d39d0ed`) → 저장한 JPEG 252,903바이트 → `panels/steel.webp` 2048×876(61,958바이트)
+- 레퍼런스의 글자와 숫자 표시 둘은 뺐습니다. 파란 조명이 레퍼런스보다 밝게 나왔고, 레벨 미터는 움직이지 않는 그림이라고 사용자에게 알렸습니다.
+
+#### `gears/panels/noir.jpg` (레드라인)
+
+- 그림: LED 도트 전광판(128×55 도트)에 켜진 검정 · 빨강 그래픽, 가운데는 비움
+- 사용자가 고른 것: 시안 3("시안 3로 진행할게"), 가운데는 비움(사용자가 고른 1안: "가운데 숫자 자리는 1로 진행해줘")
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 8의 아랫부분(확대; 색과 분위기의 기준)
+- 생성: 2026-11-13 01:04 UTC · 16:9 · PNG 5,069,687바이트 · sha256 앞 16자리 `053e418d201ed20a`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `50ccf0340d6f5023`) → 저장한 JPEG 634,772바이트 → `panels/noir.webp` 2048×876(308,464바이트)
+- 배치도는 도트 격자 위의 픽셀 그림으로 그렸습니다. 레퍼런스의 SCORE · COMBO 글자와 숫자는 뺐습니다. 기어가 좁게 보이는 카메라에서는 도트가 뭉쳐 선처럼 보이고, 전광판은 움직이지 않는 그림이라고 사용자에게 알렸습니다.
+
+#### `gears/panels/wire.jpg` (화이트 라인)
+
+- 그림: 검은 투영판 위에 뜬 흰 홀로그램 마크와 궤도선, 아래에서 올라오는 투영 빛
+- 사용자가 고른 것: 시안 2("시안 2로 진행할게")
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 10의 아랫부분(확대하고 밝게 함)
+- 생성: 2026-11-13 01:43 UTC · 16:9 · PNG 5,446,964바이트 · sha256 앞 16자리 `14f476cfdc9072b7`
+- 뒤처리: 편 그림의 왼쪽 가장자리(96px보다 왼쪽, 470px보다 위)에 렌더가 칠한 옅은 띠를 옆의 어두운 바탕으로 덮었습니다(생성 없음).
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `7e046cb187a463c8`) → 저장한 JPEG 338,530바이트 → `panels/wire.webp` 2048×876(116,446바이트)
+- 레퍼런스의 마크 좌우 작은 글자와 숫자는 뺐습니다. 홀로그램이 판에서 떠 있는 높이는 기본 카메라 시점으로 그려진 것이라 평면 카메라에서는 마크와 비친 상이 어긋나 보일 수 있다고 사용자에게 알렸습니다.
+
+#### `gears/panels/astral.jpg` (별밤)
+
+- 그림: 밤 호수의 수면 위에 뜬 흰 별과 깃털 날개, 달의 위상, 물에 뜬 꽃
+- 사용자가 고른 것: 시안 3("3번으로 할게")
+- 게임 화면과 함께 보낸 그림: 사용자의 레퍼런스 11의 아랫부분(확대)
+- 생성: 2026-11-13 02:03 UTC · 16:9 · PNG 4,651,440바이트 · sha256 앞 16자리 `7314093e8be1568d`
+- 편 그림 2048×876(PNG의 sha256 앞 16자리 `0ff53e658e855f75`) → 저장한 JPEG 331,787바이트 → `panels/astral.webp` 2048×876(111,252바이트)
+- 레퍼런스의 SCORE · COMBO 글자와 숫자는 뺐습니다. 레퍼런스에서 트랙 바깥에 있던 꽃과 리본은 하단의 양 끝 안쪽에 놓았습니다.
+
+### 키캡의 문장 (`gears/fire/crests.png`, 파이어스타터)
+
+- 파이어스타터 시안을 보던 중 사용자의 제안("KDA 로고를 기어 하단 정 중앙에 3D 로 배치하고, 그 위 키 영역에 각 캐릭터 로고를 순서대로 넣는건 어때?")에서 나온 것으로, 하단이 시안 6-2로 바뀐 뒤에도 키캡의 문장은 남겼습니다.
+- 생성한 그림이 아닙니다. League of Legends의 K/DA FIRESTARTER 공식 문장 그림(Riot Games, League of Legends 위키에서 받음)에서 네 멤버의 문장을 잘라, 크롬 키캡 위에서 읽히도록 검은 크롬에 원래의 분홍 테두리로 다시 칠해 256×256 네 칸짜리 띠(1024×256, 투명 바탕)로 만들었습니다(`scripts/assets/deck_panels/crests_fire.py`; 원본 `assets-src/gears/fire/crests.png` 187,118바이트 → `build_gears.py`가 `client/public/media/gears/fire/crests.png`로).
+- 게임은 키캡마다 왼쪽부터 차례로 하나씩 그립니다(`deckArt.ts`의 `firePlate`). 권리자와 고지: `client/public/licenses/GEAR-PANELS.md`.
+
+## 기어 양옆 그림에서 배경 빼기 (`stage/fire`, 2026-11-13)
+
+파이어스타터 스킨의 기어 양옆 그림 두 장(`client/public/stage/fire/1-left.webp` · `2-right.webp`)은 Riot Games의 K/DA FIRESTARTER 일러스트 조각입니다(권리자와 출처: `client/public/licenses/STAGE-PICTURES.md`). 사용자가 "KDA 스킨에서 기어 왼쪽 오른쪽에 캐릭터들만 남기고 배경은 삭제해줘. 아리는 귀랑 꼬리는 남아야하고, 카이사도 어깨 위 장치는 살아있어야 해"라고 해서(2026-11-13) 인물만 남긴 판으로 바꿨습니다. 그림의 크기와 인물이 서는 자리는 그 전 판과 같습니다(867×1126, 891×1126).
+
+- 방법: 조각마다 일러스트의 그 자리를 그림의 2배 크기 캔버스에 놓고(일러스트의 위 가장자리 너머는 초록), 이미지 모델에 "두 사람만 그대로 두고 나머지를 순수한 초록으로 바꾸고, 위 가장자리에 잘린 부분만 이어 그리라"고 요청했습니다. 돌려준 그림을 캔버스에 맞추고(인물 안쪽 패치들의 대응으로 구한 아핀 변환, 어긋남 중앙값 약 0.3 px) 초록을 빼서 인물의 모양을 얻은 뒤, **색은 일러스트의 화소를 그대로** 썼습니다. 모델의 화소는 일러스트에 화소가 없는 곳(위 가장자리 너머), 모델이 인물 위에 걸친 불꽃 · 빛 번짐을 뺀 곳(둘의 차이가 큰 곳)에만 들어갑니다. 윤곽선은 인물 안쪽 색을 밖으로 늘여 칠했습니다(원래 배경이나 초록이 섞인 화소라서). 그림의 바깥쪽 가장자리 5 %는 흐리게 사라집니다(넓은 화면 · 평면 카메라에서 그 가장자리가 화면 안에 들어올 때를 위해).
+- 모델: Vertex AI `gemini-nano-banana-2.1`, 4:5 · 2K. 보낸 그림은 일러스트의 조각(Riot Games의 그림)과, 보정 요청 때는 그 조각으로 만든 누끼 한 장입니다. 프롬프트에는 게임 · 회사 · 인물의 이름을 넣지 않았습니다(생김새로만 가리킴).
+- 생성 9회(2026-11-13, 토큰 합계 약 4.4만), 그 가운데 그림을 이룬 것이 5회입니다. 비용은 따로 계산하지 않았습니다.
+  - 왼쪽(아리 · 이블린): 1차는 버림. 요청문이 그림에 없는 뿔과 채찍을 적어 놓아서 모델이 그것을 그렸고, 인물에 비친 불빛(은색 상의의 주황빛 등)도 걷어 냈습니다. 2차(그림에 있는 것만 적고, 덧붙이지 말 것과 조명을 그대로 둘 것을 적음)를 썼습니다. 아리의 귀 끝과 꼬리 윗부분은 모델이 이어 그린 것입니다. 이 그림의 인물 화소 가운데 일러스트 그대로인 것이 약 85 %, 위 가장자리 너머가 약 12.5 %입니다.
+  - 왼쪽의 불꽃 둘: 그림을 본 사용자가 "아리 어깨랑 손가락하트 위에 있는 불꽃은 살려줘"라고 해서 되살렸습니다. 2차 요청문에 그 두 불꽃을 남길 것으로 더한 3차를 받아, 그 누끼에서 **불꽃의 자리와 모양만** 썼습니다(캔버스의 두 구역 x 640 ~ 890 · y 1020 ~ 1220, x 1150 ~ 1360 · y 1080 ~ 1330 안에서, 빨강이 초록보다 약하지 않은 화소만: 초록 바탕에서는 불꽃의 빛 번짐이 연두색으로 돌아오기 때문). 불꽃의 색은 일러스트의 화소 그대로이고, 인물 뒤에는 불꽃 자신의 색을 넓게(캔버스 14 px) 흐려 주황 쪽으로 데운 빛을 깔았습니다(일러스트의 불꽃은 밝은 벽 앞에서 옅은 주황 번짐에 싸여 있는데, 벽을 빼면 그 번짐도 사라지기 때문). 불꽃 둘만 검은 바탕에 따로 그리게 한 1회는 모델이 어깨 위 불꽃을 다른 모양으로 크게 새로 그려서 버렸습니다.
+  - 오른쪽(카이사 · 아칼리): 1차를 썼습니다(위쪽 장치의 윗부분은 모델이 이어 그린 것). 가려진 곳까지 그리라고 한 2차는 그림 전체를 새로 구성해서(인물과 장치가 옮겨지고 다시 그려짐), 덧붙이지 말 것 · 조명 유지를 적은 3차는 머리색이 달라지고 위쪽 장치의 수정 빛이 사라져서 버렸습니다. 1차는 이블린의 어깨가 있던 자리(카이사의 허리 아래)를 초록으로 비워 두어, 만든 누끼를 다시 주고 그 자리만 이어 그리게 한 보정 1회를 캔버스의 그 구역(x 200 ~ 840, y 1480 ~ 2252)에만 썼습니다. 요청문은 손을 그리지 말라고 했으나 모델이 소매 끝을 손으로 맺었고, 그대로 두었습니다. 이 그림의 인물 화소 가운데 일러스트 그대로인 것이 약 66 %, 보정으로 그린 것(허리 아래와 장치의 덮개)이 약 25 %입니다.
+  - 오른쪽의 장치 윗부분: 1차는 일러스트의 위 가장자리에 잘린 위쪽 장치를 길게 솟은 발톱 모양으로 이어 그렸고, 그림을 본 사용자가 "카이사 어깨 장치가 너무 크게 그려졌는데, 카이사 어깨 장치 다른 이미지들 확인해보고 다시 그려줘"라고 했습니다. 장치가 온전히 보이는 그림을 찾아보니(같은 일러스트에서 머리 옆에 있는 다른 장치, League of Legends 위키의 인게임 모델 그림 `Kai'Sa KDAFIRESTARTER (Base).png`, 콘셉트 아트 `KDA FIRESTARTER Group Concept 01 ~ 05`) 장치는 수정을 감싼 낮고 둥근 껍데기에 작은 볏이 하나 있는 모양이었습니다(일러스트의 다른 판 `Loading` · `Centered`도 같은 자리에서 잘려 있음). 그래서 발톱을 일러스트의 위 가장자리에서 잘라 내고, 장치 둘레만 자른 누끼(800×800)에 앞의 두 그림을 참고로 붙여 "낮고 둥근 덮개로 닫으라"고 한 1회를 받아 캔버스의 그 구역(x 300 ~ 820, y 530 ~ 680)에만 썼습니다. 참고로 보낸 것은 Riot Games의 그림 둘(일러스트의 조각, 인게임 모델 그림)입니다.
+- 그림별 기록(생성마다 프롬프트 전문, 보낸 그림과 결과의 sha256, 토큰, 합성에 쓴 값): `assets-src/stage/fire/1-left.json` · `2-right.json`. 스크립트: `scripts/assets/stage_cutout/`(순서는 그 폴더의 README). 옮긴 스크립트로 같은 입력에서 게임의 두 그림이 그대로 다시 나오는 것을 확인했습니다(PNG의 sha256 일치; 불꽃을 더한 왼쪽 그림은 옮긴 스크립트로 만들었습니다). 일러스트 원본과 모델이 돌려준 그림은 저장소에 없습니다.
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다.
+
+## 없앤 기어: 오락실 기체 · 빈티지 리시버 · 나전칠기 · 커스텀 키보드 · 레이싱 휠 · 우주선 계기판 · 달 (2026-11-13)
+
+사용자가 "예전 기존 스킨 중 피아노만 빼고 나머지는 삭제해줘."라고 해서(2026-11-13), 스킨의 기어가 아닌 예전 기어 여덟 가운데 피아노만 남기고 일곱을 게임에서 뺐습니다(받침 · 키캡 · 레일 · 판정선 · 조명 · HUD의 글자와 차림 · 설정 항목까지). 예전 노트(크롬 베벨 등)와 예전 타격 효과(플레어 · 메카 섬광 등)는 사용자의 결정으로 그대로 둡니다("예전 노트랑 타격효과는 유지해줘."). 생성 기록은 위의 [기어](#기어-gears-2026-11) 절(그 안의 "기어 셋 더" · "받침 그림")과 [달 기어](#달-기어-gearsrawglass-2026-11-06-2026-11-13에-지움-기록만-남김) 절에 그대로 있고(지운 그림의 제목에 "2026-11-13에 지움, 기록만 남김"이라고 적음), 거기 적힌 장수와 비용 합계도 만든 때 그대로입니다.
+
+| 지운 파일 | 무엇 |
+|---|---|
+| `assets-src/gears/cabinet/` (`button.jpg` · `coin.jpg` · `joystick.jpg` · `deck.jpg` · `deck.json`) | 오락실 기체의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/receiver/` (`knob.jpg` · `switch.jpg` · `deck.jpg` · `deck.json`) | 빈티지 리시버의 부위 그림 둘, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/najeon/` (`band.jpg` · `lid.jpg` · `lock.jpg` · `deck.jpg` · `deck.json`) | 나전칠기의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/keyboard/` (`knob.jpg` · `keycap.jpg` · `brass.jpg` · `deck.jpg` · `deck.json`) | 커스텀 키보드의 부위 그림 셋, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/racing/` (`rotary.jpg` · `button.jpg` · `deck.jpg` · `deck.json`) | 레이싱 휠의 부위 그림 둘, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/orbital/` (`selector.jpg` · `toggle.jpg` · `button.jpg` · `foil.jpg` · `deck.jpg` · `deck.json`) | 우주선 계기판의 부위 그림 넷, 받침 그림과 그 맞춤 값 |
+| `assets-src/gears/rawglass/` (`deck.jpg` · `deck.json`) | 달 기어의 받침 그림과 그 맞춤 값 |
+| `client/public/media/gears/cabinet/` · `receiver/` · `najeon/` · `keyboard/` · `racing/` · `orbital/` · `rawglass/` | 그 게임용 파일 32개: 부위 그림(PNG), 받침 그림(`deck.webp`), 빛 마스크(`glow.png`: 커스텀 키보드 · 나전칠기), `build_gears.py`가 잡음으로 만들던 재질(`abs` · `silver` · `walnut` · `alu` · `carbon` · `paint`). 매니페스트의 해당 항목도 뺌 |
+| `client/src/assets/fonts/DSEG7Classic-Bold.woff2` · `Silkscreen-Regular.woff2` · `SairaStencilOne-Regular.woff2` · `NotoSerifKR-Bold-subset.woff2`, `client/public/licenses/fonts/OFL-DSEG.txt` · `OFL-Silkscreen.txt` · `OFL-SairaStencilOne.txt` · `OFL-NotoSerifKR.txt` | 지운 기어만 쓰던 글꼴 넷(7세그 숫자, 픽셀 글꼴, 스텐실, 나전칠기 게이지의 "흥" 한 글자)과 그 라이선스 문서. 남은 기어도 쓰는 글꼴(Exo 2 · Chakra Petch · Orbitron · Cinzel · Barlow Condensed)은 그대로 |
+| `docs/screenshots/34-gear-cabinet.png` · `35-gear-receiver.png` · `36-gear-najeon.png` · `37-gear-keyboard.png` · `38-gear-racing.png` · `39-gear-orbital.png` · `41-gear-rawglass.png` | 일곱 기어의 스크린샷 |
+
+- `scripts/assets/build_gears.py`에서 일곱 기어의 빌드 단계와 그 기어들만 쓰던 코드(잡음으로 만들던 재질: 엠보싱 ABS · 비드 블라스트 알루미늄 · 트윌 카본 · 회색 도장 · 월넛, 부위 그림을 모양대로 자르는 단계, 나전칠기 · 커스텀 키보드의 빛 마스크)를 뺐습니다. 고친 스크립트를 저장소 밖 사본에서 돌려 남은 기어의 파일 9개와 매니페스트가 저장소의 것과 똑같이 나오는 것을 확인했습니다.
+- 게임 쪽에서는 그 기어들만 쓰던 것도 함께 뺐습니다: 받침의 OLED 화면과 빛 마스크, 바늘 미터(빈티지 리시버의 게이지), 콤보만 다른 글꼴로 쓰는 기능.
+- 저장된 설정이 지운 기어를 가리키면 기본 기어로 열립니다.
+
+## 곡 종료 연출의 글자 · 도장 · 효과 (`end/`, 2026-11-13)
+
+사용자: "관련 텍스트, 이펙트 등은 퀄리티 좋게 gemini api로 만들어줘"(곡 시작 · 종료 연출을 두고, 2026-11-13). 곡이 끝날 때 화면 가운데에 나오는 등급 글자와 클리어 도장, 도장이 찍힐 때의 충격파, HARD 계열 도장이 맞물릴 때의 불꽃, 중간 FAIL 때 레인에 가는 금입니다. 그 전에는 모두 코드와 CSS로 그렸고, 그 그림은 이 그림을 읽지 못할 때의 대체로 남아 있습니다.
+
+- 모델: Vertex AI `gemini-nano-banana-2.1`(사용자의 `GOOGLE_API_KEY`), 2K, 글자는 21:9 · 도장과 시트는 1:1 · 금은 9:16
+- 만드는 도구: `scripts/assets/make_end_fx.py make <이름>`(받은 그대로는 `assets-src/end/_tries/`에 두고 저장소에는 넣지 않음) → `pick <이름> <번호>`가 고른 것을 긴 변 2048 JPEG(품질 92, 색 정보 줄이지 않음)으로 `assets-src/end/`에 저장하고 `picks.json`에 그 생성의 프롬프트 전문 · 사용량 · 받은 파일의 SHA-256을 적음
+- 게임 그림: `scripts/assets/build_end_fx.py` → `client/public/end/*.webp`와 `index.json`. 하는 일은 검정을 검정으로 만든 뒤 밝기만큼 불투명하게 바꾸는 것뿐입니다(검정 위에서는 원본과 똑같이 보임). 글자와 도장은 그려진 부분만 잘라 크기를 맞추고, 시트는 프레임을 한 줄로 늘어놓으며 효과가 사라진 뒤의 프레임은 버립니다(충격파 12프레임, 불꽃 10프레임). 충격파는 흰색으로 두고 게임이 등급 색을 입힙니다.
+- 프롬프트에 그림은 하나도 보내지 않았습니다. 다른 게임의 화면, 사용자의 레퍼런스, 로고 모두 없이 말로만 묘사했습니다(프롬프트는 `make_end_fx.py`에 그대로 있습니다).
+- 생성 18회, 합계 55,255토큰. 처음 12회(11종 + 다시 뽑기 1회, 38,441토큰). 쓰지 않은 것: `seal-assist` 1번(도장 바깥이 흰색으로 나와, "그림의 네 모서리까지 검정"이라는 문장을 넣고 다시 뽑음). 같은 날 더한 6회(3종을 2번씩, 16,814토큰): 등급 없는 플레이의 글자 둘(AUTO PLAY · PRACTICE END)과 시작에 레인이 켜질 때의 빛. 쓰지 않은 것: `words-autoplay` 1번(2번이 베벨이 또렷함), `words-practice` 2번(1번이 다른 글자와 입체감이 맞음), `lane-light` 1번(양옆이 어두워 레인 폭을 다 채우지 못함). 넷 다 철자는 맞았습니다.
+
+| 파일 | 무엇 | 고른 것 / 시도 | 요청 → 저장 | 토큰 | 받은 파일 SHA-256 |
+|---|---|---|---|---|---|
+| `end/words-perfect.jpg` | PERFECT PLAY 글자 | 1 / 1 | 21:9 · 2K → 2048×869 | 2933 | `55b889b1d811377f…` |
+| `end/words-maxcombo.jpg` | MAX COMBO 글자 | 1 / 1 | 21:9 · 2K → 2048×869 | 2926 | `5938d4b5e3bae2b1…` |
+| `end/words-failed.jpg` | FAILED 글자 | 1 / 1 | 21:9 · 2K → 2048×869 | 2995 | `704f0aa843b6aa0b…` |
+| `end/seal-clear.jpg` | CLEAR 도장 | 1 / 1 | 1:1 · 2K → 2048×2048 | 2784 | `3b93e2dca95941d1…` |
+| `end/seal-easy.jpg` | EASY CLEAR 도장 | 1 / 1 | 1:1 · 2K → 2048×2048 | 3346 | `aac54ce8b47f9f53…` |
+| `end/seal-assist.jpg` | ASSIST CLEAR 도장 | 2 / 2 | 1:1 · 2K → 2048×2048 | 2973 | `54503f29017b4520…` |
+| `end/seal-hard.jpg` | HARD CLEAR 도장 | 1 / 1 | 1:1 · 2K → 2048×2048 | 3087 | `790e63d61ecfd1b9…` |
+| `end/seal-exhard.jpg` | EX-HARD CLEAR 도장 | 1 / 1 | 1:1 · 2K → 2048×2048 | 3342 | `0abaf2e0276ed970…` |
+| `end/ring.jpg` | 도장이 찍힐 때의 충격파(16프레임 시트) | 1 / 1 | 1:1 · 2K → 2048×2048 | 4576 | `9128937b57ca8eed…` |
+| `end/sparks.jpg` | HARD 계열의 반쪽이 맞물릴 때의 불꽃(16프레임 시트) | 1 / 1 | 1:1 · 2K → 2048×2048 | 3434 | `140d52c870cac54a…` |
+| `end/cracks.jpg` | 중간 FAIL 때 레인의 금 | 1 / 1 | 9:16 · 2K → 1143×2048 | 2737 | `fd668f81b05fb097…` |
+| `end/words-autoplay.jpg` | AUTO PLAY 글자(자동 플레이의 끝) | 2 / 2 | 21:9 · 2K → 2048×869 | 2302 | `37c06ac6f721e649…` |
+| `end/words-practice.jpg` | PRACTICE END 글자(연습의 끝) | 1 / 2 | 21:9 · 2K → 2048×869 | 3223 | `e518a64ecebae505…` |
+| `end/lane-light.jpg` | 시작에 레인이 켜질 때 판정선에서 솟는 빛(흰 빛, 게임이 레인 색을 입힘) | 2 / 2 | 9:16 · 2K → 1143×2048 | 2999 | `77b0a49a909e08ae…` |
+
+도장의 가운데 모양은 게임이 등급마다 쓰는 표식 그대로입니다(CLEAR 원, EASY 오른쪽 반이 찬 원, ASSIST 오른쪽 위 1/4이 찬 원, HARD 사각형, EX-HARD 테 안의 작은 사각형). 도장에는 글자가 없습니다(사용자: "READY, CLEAR 텍스트는 없애주고").
+
+## 스킨의 타격 효과를 첫 프레임이 가장 밝게 다시 그림 (`styles/skinfx/*_burst.jpg`, 2026-11-16)
+
+스킨 13종의 치는 순간 시트(`<효과>_burst.jpg`)를 다시 그렸습니다. 사용자가 승인한 타격감 개선("1, 2, 4, 5 진행해줘", 2026-11-16) 가운데 5번("시트를 60 fps로, 첫 1~2 프레임이 가장 밝게 다시 만듭니다")입니다. 처음 시트(위 "스킨의 타격 효과: 프레임 애니메이션 시트", 2026-11-11)는 작은 점에서 서너 프레임에 걸쳐 커져서, 맞힌 프레임에는 가장 밝은 프레임의 9 ~ 59 %만 보였고 가장 밝은 때는 29 ~ 116 ms 뒤였습니다. 누르는 동안의 시트(`_hold`)는 그대로입니다.
+
+- 만든 곳: 위와 같음(Google Cloud Vertex AI 의 Gemini 이미지 생성 `gemini-nano-banana-2.1`, 1:1 · 2K → 2048×2048 PNG · 사용자의 Google Cloud 프로젝트)
+- 보낸 그림: 효과마다 **그 효과의 처음 시트 한 장**(`assets-src/styles/skinfx/<효과>_burst.jpg`, 2026-11-11에 같은 모델로 만든 이 게임의 그림. 지금은 git 기록에만 남음)을 "지킬 모습"으로 글과 함께 보냈습니다. 그 밖의 그림(다른 게임의 화면, 사용자가 올린 레퍼런스, 로고)은 보내지 않았습니다.
+- 만드는 도구: `scripts/assets/make_skin_fx.py make --redraw [--from 폴더] <효과> burst` → `pick` (받은 그대로는 `_tries/`에 두고 저장소에는 넣지 않음). 받을 때마다 16프레임의 빛(칸마다 알파 × 밝기의 평균)을 재서 기록합니다(`scripts/assets/flipbook_light.py`).
+- 두 번 받았습니다. 1차 13장은 모두 첫 프레임이 가장 밝았지만 빛이 8 ~ 12프레임에서 끝나서, "16프레임을 모두 쓰라"고 고쳐 2차 13장을 받았습니다. 2차도 더 길어지지 않았습니다(모델이 마지막 줄을 비워 둠). **고른 것: 1차 12장, 아쿠아만 2차**(첫 프레임에 스킨의 육각 고리가 더 또렷함). 고르지 않은 13장은 쓰지 않습니다.
+- 게임용으로: `scripts/assets/build_skin_fx.py`. 프레임 수와 상관없이 **0.27초**(60fps의 16프레임만큼, 예전 세트의 효과와 같은 길이)에 끝나게 fps를 정합니다(프레임 8 ~ 12장 → 30 ~ 45fps. 프레임 사이는 게임이 화면 주사율로 섞어 그립니다). 시트마다 가장 밝은 프레임에 가까운 첫 프레임(`flipbook.peak`: 13장 모두 0)과 그 프레임의 빛 색(`tone`)을 매니페스트에 적습니다.
+- 비용: 26장 약 $1.7(위와 같은 방법의 추정치: 토큰 사용량 128,376)
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 프롬프트
+
+맨 앞에 붙인 글(처음 시트와 함께):
+
+  > The attached picture is the current sprite sheet of this effect. Keep its look exactly: the same colours, the same kinds of shapes and strokes, the same level of detail, the same size of the effect in its cell. Only its timing is wrong: it starts with a tiny point and takes three or four frames to grow to its brightest. Draw the sheet again with the timing described below.
+
+머리말(LAYOUT)과 꼬리말은 위 "공통 프롬프트"의 치는 순간 것과 같고, `THE ANIMATION` 뒤에 아래 문단이 들어갑니다(1차):
+
+  > BRIGHTNESS, the most important rule: this effect answers a key press, so it must be at its strongest the instant the key goes down. FRAME 1 IS THE BRIGHTEST AND FULLEST FRAME OF THE WHOLE SHEET: it holds more light than any other frame, with the largest white-hot core, and the effect is already at its full size in it. There is NO build-up: no tiny first frame, no small point that grows. From frame 2 on every frame holds clearly less light than the frame before it; by frame 9 less than a quarter of frame 1's light is left.
+
+2차는 마지막 문장만 다릅니다:
+
+  > … From frame 2 on every frame holds less light than the frame before it, and the fade uses ALL 16 frames: about half of frame 1's light is left in frame 5, about a fifth in frame 9, and frames 12 to 16 still show the last small pieces, fewer and fainter in each. No frame is empty: frame 16 holds the last faint trace.
+
+`THE ANIMATION`의 박자는 `frame 1` · `frames 2-4` · `frames 5-9`(2차는 `5-10`) · `frames 10-14`(2차는 `11-14`) · `frames 15-16`입니다. 뒤의 세 박자는 처음 시트의 `frames 6-10` · `11-14` · `15-16`의 글 그대로이고(2차는 "frame 16 is black"을 "frame 16 is the faintest"로), 앞의 두 박자를 아래처럼 새로 썼습니다. `THE EFFECT`는 처음과 같습니다.
+
+- 기본(플래시) (`basic`)
+  - frame 1: the impact: a blinding star-shaped flash with long sharp rays at its full size, with a bright shockwave ring already open around it and short crackling arcs of energy on the ring;
+  - frames 2-4: the star flash shrinks and dims fast while the ring blows outward and sharp glints shoot out in all directions;
+- 크리스털 (`prism`)
+  - frame 1: the impact: a blinding diamond-shaped flash with a thin rainbow halo at its full size, and the crystal already shattering: sharp, faceted, translucent shards of different sizes bursting out of it in all directions, each facet catching white light;
+  - frames 2-4: the flash dims fast while the shards shoot outward, thin spectral streaks between them;
+- 하늘 (`sky`)
+  - frame 1: the impact: a bright sunburst with soft rays at its full size, inside a puff of white cloud that is already bursting open into a ring of billowing wisps, with several white feathers thrown out from the centre in different directions;
+  - frames 2-4: the sunburst fades fast while the cloud ring spreads and the feathers whirl outward with a few sparkling glints;
+  - frames 5-9: the cloud ring thins into separate drifting wisps, the feathers whirl further, turning and curling as they fly, small sparkles twinkle;
+- 파이어스타터 (`fire`)
+  - frame 1: the shell has just burst: a small blinding white-gold star at the centre and sixty or more thin straight streaks already shot out radially in every direction, filling a round chrysanthemum at its full size, each streak with a brilliant white-gold bead at its head and a fine tapering crimson or hot-pink tail behind it, streaks of different lengths;
+  - frames 2-4: the white core shrinks to a small glint and is gone while the streaks reach their full length;
+  - frames 5-9: the tails fade from the centre outward, so the middle of the burst is empty and black and the firework is a hollow sphere of bright heads; the heads slow down, begin to droop very slightly, and start to crackle, each breaking into a cluster of tiny twinkling gold and white glitter sparks;
+- GPT (`gpt`)
+  - frame 1: the impact: a bright round bloom of white and teal light at its full size, with a crown-shaped splash of glowing teal liquid light already leaping up and outward from it and a bright ripple ring open around it;
+  - frames 2-4: the bloom dims fast while the crown splash rises higher with round droplets flying off its tips and the ripple ring widens;
+- Gemini (`gemini`)
+  - frame 1: the impact: one large four-pointed sparkle star with long thin points at its biggest and brightest, white with a blue-to-pink gradient glow, with many smaller four-pointed sparkles in blue, violet and pink already thrown off around it;
+  - frames 2-4: the large star shrinks fast and turns a little while the smaller sparkles shoot outward in all directions, each leaving a short soft trail;
+  - frames 5-9: the large star is only a thin cross of light and fades while the small sparkles fly further, each one twinkling (growing and shrinking) at a different moment, with tiny dots of light among them;
+- Grok (`grok`)
+  - frame 1: the impact: a bold, sharp X of two crossing diagonal slashes of white light, one stroke thick and one thin, at its full size and blinding white, with a bright star-shaped glint at its crossing point and smaller glints along its edges and at its four tips;
+  - frames 2-4: the X dims a little and cracks: its strokes start to break into angular shards, with motion streaks along the four diagonal directions;
+  - frames 5-9: the X bursts apart: the shards and splinters shoot outward along the four diagonal directions, with sharp sparks and four-ray sparkles between them;
+- Claude (`claude`)
+  - frame 1: the impact: a full sunburst of a dozen uneven, tapered, textured brush strokes of different lengths at its full size, cream-white and brightest at the centre, with small flecks and droplets of paint thrown out between the strokes;
+  - frames 2-4: the centre dims fast while the strokes shoot further outward and begin to detach from it;
+  - frames 5-9: the strokes fly outward, thinning into dry-brush streaks, the flecks and droplets scatter further, the centre is only a warm glow;
+- 아쿠아 (`aqua`)
+  - frame 1: the impact: a bright cyan plasma flash at its full size inside a thin hexagonal ring of light that is already snapping wide and breaking at its corners, with jagged cyan energy tongues and sharp pink shards bursting out of it;
+  - frames 2-4: the flash dims fast while the energy tongues blow outward and the pink shards and small hexagonal fragments shoot out in all directions;
+- 스틸 (`steel`)
+  - frame 1: the impact: a blinding cross-shaped flare with four long thin rays and a hot round core at its biggest, with a shower of white-hot metal sparks already spraying out from the centre in all directions as long thin streaks and a thin, sharp shockwave ring around it;
+  - frames 2-4: the flare shrinks fast while the sparks fly outward and the ring widens;
+  - frames 5-9: the flare is only a small hot core, the sparks fly further on slightly curved paths, some split into two, cooling from white to steel blue, the ring thins and breaks into arcs;
+- 레드라인 (`noir`)
+  - frame 1: the impact: a thick white horizontal bar of light at its full width with a red ghost of itself shifted to one side, already tearing into several horizontal slices that jump left and right out of line, with blocks of red and white pixels of different sizes bursting out of it;
+  - frames 2-4: the bar dims fast while the slices jump further apart and the pixel blocks burst outward from the centre with torn scanline fragments;
+- 화이트 라인 (`wire`)
+  - frame 1: the impact: a full ring of many fine radiating pen strokes of uneven length, like a dandelion or a firework at its biggest, drawn with its brightest and thickest lines, with a hand-drawn circle around it and tiny line-drawn four-point twinkles at some stroke ends;
+  - frames 2-4: the lines thin a little while the strokes fly outward and the circle widens;
+  - frames 5-9: the strokes curve a little like falling firework trails, the circle breaks into short dashes, a second ring of finer strokes opens inside, small twinkles drift;
+- 별밤 (`astral`)
+  - frame 1: the impact: one bright golden star with long thin rays at its biggest and brightest, with a spray of glittering gold stardust and many small four- and five-pointed stars already thrown out around it, inside a faint ring of moon-blue haze;
+  - frames 2-4: the central star shrinks fast while the small stars shoot outward in all directions, each with a short sparkling trail;
+  - frames 5-9: the central star is only a soft glow while the small stars fly further, twinkling at different moments, the stardust spreads into drifting swirls of glitter, the blue haze thins;
+
+### 받은 것과 고른 것
+
+빛은 프레임별로 가장 밝은 프레임에 대한 %(받은 PNG에서 잰 것, 16프레임)입니다.
+
+| 효과 | 시도 | 만든 시각 (UTC) | PNG 바이트 | sha256 앞 16자리 | 프레임별 빛 | |
+|---|---|---|---|---|---|---|
+| 기본(플래시) | 2 | 03:19 | 4,402,521 | `0fa761aaa161c99d` | 100 84 39 33 13 9 10 7 5 4 3 4 3 3 2 2 | **고름** |
+| 기본(플래시) | 3 | 03:28 | 4,901,610 | `f6d7ffcb26e81049` | 100 68 86 62 81 40 14 8 6 4 3 3 2 2 2 2 |  |
+| 크리스털 | 2 | 03:20 | 4,404,842 | `bf17c9931e8a8b74` | 100 95 87 70 73 61 51 33 36 19 8 3 2 2 2 2 | **고름** |
+| 크리스털 | 3 | 03:28 | 4,495,296 | `dc16fb04eec05a3c` | 100 72 62 59 66 60 43 29 30 16 7 4 3 2 2 2 |  |
+| 하늘 | 2 | 03:20 | 4,608,885 | `05bd7f5d42fea6d8` | 100 70 63 69 77 57 36 18 13 10 5 3 3 2 2 2 | **고름** |
+| 하늘 | 3 | 03:29 | 4,639,595 | `592e17a35adc922b` | 100 95 74 82 90 67 43 20 15 10 4 3 2 3 2 2 |  |
+| 파이어스타터 | 4 | 03:21 | 5,193,446 | `6f21d6394509696c` | 100 46 22 29 33 32 52 35 21 14 6 4 4 4 4 4 | **고름** |
+| 파이어스타터 | 5 | 03:30 | 4,671,948 | `87051307c2dca31b` | 100 59 39 24 39 31 38 52 24 12 9 7 6 5 5 5 |  |
+| GPT | 2 | 03:21 | 4,437,240 | `93ffdd9602ee87ef` | 100 91 51 49 50 51 38 10 8 9 6 3 3 2 2 2 | **고름** |
+| GPT | 3 | 03:31 | 4,470,307 | `8a78f721450ea905` | 100 99 63 57 60 66 43 33 13 8 6 2 2 2 2 2 |  |
+| Gemini | 2 | 03:21 | 4,118,795 | `fa3d75854fac580e` | 100 89 39 27 24 23 11 9 8 7 7 7 7 7 7 6 | **고름** |
+| Gemini | 3 | 03:31 | 3,788,743 | `e558d206d1b270d3` | 100 66 31 12 15 11 11 8 8 7 6 6 6 6 6 6 |  |
+| Grok | 2 | 03:22 | 4,790,028 | `d66d51b875971712` | 100 50 63 67 69 41 45 23 16 9 4 2 2 2 1 1 | **고름** |
+| Grok | 3 | 03:32 | 4,297,794 | `a66b0391723edb6b` | 100 59 46 26 26 10 6 6 5 5 6 4 3 3 3 3 |  |
+| Claude | 2 | 03:19 | 4,525,089 | `9387691c0a2334c7` | 100 96 81 54 64 46 38 14 13 5 3 3 3 3 3 3 | **고름** |
+| Claude | 3 | 03:33 | 4,421,878 | `c777146d8f3f41e2` | 100 100 73 58 42 34 14 11 7 5 3 3 3 3 3 3 |  |
+| 아쿠아 | 2 | 03:22 | 4,403,818 | `7350a088dacdb3d7` | 100 67 42 41 41 40 10 7 6 5 4 4 3 3 2 2 |  |
+| 아쿠아 | 3 | 03:34 | 4,428,713 | `9a14a81f9c7bf850` | 100 80 55 44 39 30 42 11 6 4 4 2 2 2 2 2 | **고름** |
+| 스틸 | 2 | 03:23 | 4,434,354 | `a50f44adb12cafb8` | 100 81 44 24 20 14 9 6 7 4 4 3 3 3 3 3 | **고름** |
+| 스틸 | 3 | 03:35 | 4,332,823 | `563d30704a8eef20` | 100 65 35 19 19 14 9 6 8 5 4 4 4 4 4 4 |  |
+| 레드라인 | 2 | 03:23 | 3,400,967 | `dbcb4d8518cd1bdc` | 100 88 54 30 27 11 9 10 3 4 3 3 2 2 3 2 | **고름** |
+| 레드라인 | 3 | 03:36 | 3,657,078 | `94eff89ecb178ee8` | 100 58 57 79 83 29 16 10 10 4 3 3 3 3 3 3 |  |
+| 화이트 라인 | 2 | 03:24 | 4,581,439 | `72b2b937da122b76` | 100 81 33 21 31 48 33 16 12 8 7 6 6 5 5 5 | **고름** |
+| 화이트 라인 | 3 | 03:37 | 4,462,999 | `52fa9adc6850e47a` | 100 94 61 31 32 72 47 26 14 8 8 7 6 6 6 6 |  |
+| 별밤 | 2 | 03:25 | 4,311,173 | `9aca2912599ffd87` | 100 100 80 37 40 35 23 13 12 10 5 4 4 4 3 3 | **고름** |
+| 별밤 | 3 | 03:38 | 4,616,263 | `2e454874e871c26e` | 100 74 42 65 61 48 28 20 16 10 6 4 4 4 4 4 |  |
+
+### 저장한 것
+
+| 효과 | 저장한 JPEG (`assets-src/styles/skinfx/`) | 게임용 (`client/public/media/fx/`) | 시작 프레임 · 빛 색 |
+|---|---|---|---|
+| 기본(플래시) | `basic_burst.jpg` 286,329바이트 | `basic_burst.webp` 1536×1536(99,660바이트), 9프레임 · 33.8fps | 0 · (흰빛: 게임이 색을 입힘) |
+| 크리스털 | `prism_burst.jpg` 363,165바이트 | `prism_burst.webp` 1536×1536(139,686바이트), 12프레임 · 45fps | 0 · #dcf2ff |
+| 하늘 | `sky_burst.jpg` 392,877바이트 | `sky_burst.webp` 1536×1536(150,158바이트), 12프레임 · 45fps | 0 · #cff3ff |
+| 파이어스타터 | `fire_burst.jpg` 596,044바이트 | `fire_burst.webp` 1536×1536(273,724바이트), 11프레임 · 41.2fps | 0 · #ff9e9a |
+| GPT | `gpt_burst.jpg` 366,452바이트 | `gpt_burst.webp` 1536×1536(134,574바이트), 12프레임 · 45fps | 0 · #68ffee |
+| Gemini | `gemini_burst.jpg` 271,104바이트 | `gemini_burst.webp` 1536×1536(78,964바이트), 8프레임 · 30fps | 0 · #b98bff |
+| Grok | `grok_burst.jpg` 399,461바이트 | `grok_burst.webp` 1536×1536(171,374바이트), 11프레임 · 41.2fps | 0 · #fffffe |
+| Claude | `claude_burst.jpg` 396,686바이트 | `claude_burst.webp` 1536×1536(165,840바이트), 10프레임 · 37.5fps | 0 · #ffa57b |
+| 아쿠아 | `aqua_burst.jpg` 397,657바이트 | `aqua_burst.webp` 1536×1536(144,284바이트), 10프레임 · 37.5fps | 0 · #7cf2ff |
+| 스틸 | `steel_burst.jpg` 338,267바이트 | `steel_burst.webp` 1536×1536(125,460바이트), 10프레임 · 37.5fps | 0 · #bedfff |
+| 레드라인 | `noir_burst.jpg` 303,770바이트 | `noir_burst.webp` 1536×1536(92,980바이트), 11프레임 · 41.2fps | 0 · #ff5d66 |
+| 화이트 라인 | `wire_burst.jpg` 335,679바이트 | `wire_burst.webp` 1536×1536(129,610바이트), 10프레임 · 37.5fps | 0 · #fffbfa |
+| 별밤 | `astral_burst.jpg` 348,200바이트 | `astral_burst.webp` 1536×1536(146,992바이트), 11프레임 · 41.2fps | 0 · #ffeebc |
+
+## 예전 타격 효과 9장의 시작을 가장 밝게 (2026-11-16)
+
+같은 타격감 개선으로, 낱장 조각을 코드로 움직여 만드는 타격 효과 9장(메카 · 클럽 · 크리스털(예전 세트) · 네온 · 피아노 음표의 `hit_burst.png`와 플래시 · 플레어 · 거품 · LED 그리드의 `<이름>_burst.png`)을 같은 원본에서 다시 만들었습니다(새로 생성한 그림은 없음, `scripts/assets/build_styles.py`). 누르는 동안의 시트(`hit_hold` · `_hold`)와 노트 · 롱노트 · 사이드 노트 그림은 바이트까지 그대로입니다.
+
+- 전: 섬광이 작게 시작해 두세 프레임에 걸쳐 커지고 고리와 잔광은 둘째 프레임부터 나와서, 첫 프레임의 빛이 가장 밝은 프레임의 22 ~ 82 %였고 가장 밝은 때는 33 ~ 133 ms 뒤였습니다.
+- 후: 섬광이 첫 프레임부터 예전에 가장 밝던 때의 크기 이상으로 나오고(`HIT_FLASH`), 고리와 잔광도 첫 프레임부터 있습니다. LED 그리드를 뺀 여덟은 **셋째 프레임부터 예전 시트와 같은 그림**입니다(아래의 선에 걸린 프레임만 그만큼 어둡고, 롱노트를 누를 때 밑에 깔리는 14번째 프레임은 그대로). 첫 프레임의 빛은 예전 가장 밝은 프레임의 1.0 ~ 1.26배입니다.
+- 뒤 프레임이 첫 프레임보다 밝아지지 않게, 프레임마다 첫 프레임의 빛에서 4 %씩 내려가는 선을 넘으면 그 프레임 전체를 그만큼 어둡게 합니다(`HIT_FADE`). 걸리는 것: 메카(2 ~ 6번째 프레임, 최대 7 %), 피아노(4 ~ 8번째, 최대 10 %), 네온(7 · 8 · 9 · 11번째, 최대 20 %: 관의 깜빡임은 남음), LED 그리드(5번째, 1 %). 나머지 다섯은 걸리지 않습니다.
+- 네온과 피아노는 빛의 대부분이 고리(와 음표)라서 섬광을 더 크게 시작합니다(`pop` 1.06 · 0.98, 나머지 세트는 0.84).
+- LED 그리드는 물결이 넓어질수록 켜진 칸이 늘어 예전에는 133 ms 뒤가 가장 밝았습니다. 이제 첫 프레임에 건반 둘레 5×5칸이 모두 켜지고, 물결은 그 가장자리에서 출발해 넓어지며 빨리 어두워집니다. 물결 뒤에서 깜빡이는 낱칸은 예전 속도로 사라져, 14번째 프레임의 빛은 예전과 같은 양입니다.
+- 길이는 그대로 16프레임 · 60fps(0.27초)이고, 매니페스트에 시작 프레임(`flipbook.peak`: 9장 모두 0)을 적습니다.
+

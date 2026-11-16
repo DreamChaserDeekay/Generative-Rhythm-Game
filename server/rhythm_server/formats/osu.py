@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-from ..generator.tempo import TempoMap
+from ..chart.tempo import TempoMap
 from .common import (
     FormatError,
     ParsedChart,
@@ -178,19 +178,11 @@ def _key_mode(keys: int, special_style: bool, tags: str) -> tuple[str, list[int]
     raise FormatError(f"osu!mania {keys}K는 지원하지 않습니다 (4·5·6·7·8키만)")
 
 
-def parse_osu(text: str, source_name: str = "") -> ParsedChart:
-    if not text.lstrip("﻿").startswith("osu file format"):
-        raise FormatError("osu! 비트맵 파일이 아닙니다")
-    sec = _sections(text.lstrip("﻿"))
-    general, metadata, difficulty = _pairs(sec.get("General", [])), _pairs(sec.get("Metadata", [])), _pairs(sec.get("Difficulty", []))
-    if general.get("Mode", "0") != "3":
-        raise FormatError("osu!mania(모드 3) 비트맵만 가져올 수 있습니다")
-    keys = int(round(float(difficulty.get("CircleSize", "4"))))
-    key_mode, column_lane = _key_mode(keys, general.get("SpecialStyle", "0") == "1", metadata.get("Tags", ""))
-
-    # uninherited timing points only (inherited ones change the scroll speed, which we do not use)
+def red_lines(text: str) -> list[tuple[float, float, int]]:
+    """The uninherited timing points of an .osu, by time: (ms, beat length in ms, beats a bar).
+    Inherited ones change the scroll speed, which we do not use."""
     reds: list[tuple[float, float, int]] = []
-    for line in sec.get("TimingPoints", []):
+    for line in _sections(text.lstrip("﻿")).get("TimingPoints", []):
         f = line.split(",")
         if len(f) < 2:
             continue
@@ -198,9 +190,11 @@ def parse_osu(text: str, source_name: str = "") -> ParsedChart:
         uninherited = f[6].strip() != "0" if len(f) > 6 else True
         if uninherited and beat_len > 0:
             reds.append((float(f[0]), beat_len, int(f[2]) if len(f) > 2 and f[2].strip() else 4))
-    if not reds:
-        raise FormatError("타이밍 포인트가 없습니다")
-    reds.sort()
+    return sorted(reds)
+
+
+def timing_from_reds(reds: list[tuple[float, float, int]]) -> dict[str, Any]:
+    """Our timing of red lines (ms, beat length, beats a bar), sorted, at least one."""
     offset = reds[0][0]
     tempo_map: list[dict[str, Any]] = []
     lengths: list[float] = []
@@ -223,7 +217,23 @@ def parse_osu(text: str, source_name: str = "") -> ParsedChart:
             start += length
             if seg_end is None:
                 break
-    timing = {"offsetMs": offset, "tempoMap": tempo_map, "meter": meter_from_lengths(lengths)}
+    return {"offsetMs": offset, "tempoMap": tempo_map, "meter": meter_from_lengths(lengths)}
+
+
+def parse_osu(text: str, source_name: str = "") -> ParsedChart:
+    if not text.lstrip("﻿").startswith("osu file format"):
+        raise FormatError("osu! 비트맵 파일이 아닙니다")
+    sec = _sections(text.lstrip("﻿"))
+    general, metadata, difficulty = _pairs(sec.get("General", [])), _pairs(sec.get("Metadata", [])), _pairs(sec.get("Difficulty", []))
+    if general.get("Mode", "0") != "3":
+        raise FormatError("osu!mania(모드 3) 비트맵만 가져올 수 있습니다")
+    keys = int(round(float(difficulty.get("CircleSize", "4"))))
+    key_mode, column_lane = _key_mode(keys, general.get("SpecialStyle", "0") == "1", metadata.get("Tags", ""))
+
+    reds = red_lines(text)
+    if not reds:
+        raise FormatError("타이밍 포인트가 없습니다")
+    timing = timing_from_reds(reds)
     tempo = TempoMap(timing)
 
     notes: list[dict[str, Any]] = []

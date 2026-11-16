@@ -29,7 +29,7 @@ test('charts are generated on the five tiers, and settings saved on a removed di
   const classic = page.waitForRequest(
     (r) => r.method() === 'POST' && new URL(r.url()).pathname.endsWith('/charts') && (r.postData() ?? '').includes('"patternEngine":"classic"'),
   );
-  await playOptions(page, 'generation');
+  await playOptions(page);
   await page.getByTestId('pattern-engine-classic').click();
   await classic;
   await expect(page.getByTestId('toggle-generation')).toContainText('이전 배치');

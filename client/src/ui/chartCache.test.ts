@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, type ServerChart } from '../api/client';
 import { difficultyTiers, tierUpTo } from '../engine/config';
-import { analysisStamp, BRIEFS_STORAGE_KEY, BRIEFS_STORED, ChartStore, chartKey, savedChartKey, tierAbsent, type ChartSpec } from './chartCache';
+import { aiMakingLabel, analysisStamp, BRIEFS_STORAGE_KEY, BRIEFS_STORED, ChartStore, chartKey, savedChartKey, tierAbsent, type ChartSpec } from './chartCache';
 
 const spec = (extra: Partial<ChartSpec> = {}): ChartSpec => ({
   songId: '0123456789abcdef',
@@ -46,6 +46,36 @@ function store(fail = new Map<string, Error>()) {
 
 const cannot = () => new ApiError(422, 'nope');
 const down = () => new ApiError(503, 'down');
+
+describe('Mapperatorinator charts (the briefs of tiers not made yet)', () => {
+  it('asks again for a brief until its chart is made, and tells the generator apart', async () => {
+    let state: 'waiting' | 'making' | 'made' = 'waiting';
+    const s = new ChartStore({
+      chart: async (x) => chartOf(x),
+      meta: async (x) =>
+        state === 'made'
+          ? chartOf(x).meta
+          : ({ ...chartOf(x).meta, noteCount: 0, predicted: true, making: state === 'making', queued: state === 'waiting' } as unknown as ServerChart['meta']),
+      saved: async () => {
+        throw new Error('unused');
+      },
+    });
+    expect(s.aiCharts).toBe(false);
+    s.remember('0.9.53+mapper-v32-1');
+    expect(s.aiCharts).toBe(true);
+    const x = spec({ difficulty: 'ELITE' });
+    expect(await s.loadBrief(x)).toMatchObject({ predicted: true, queued: true });
+    state = 'making';
+    expect(await s.refreshBrief(x)).toMatchObject({ predicted: true, making: true });
+    state = 'made';
+    const made = await s.refreshBrief(x);
+    expect(made?.predicted).toBeUndefined();
+    expect(made?.noteCount).toBe(120);
+    // a made chart's brief is not asked for again
+    state = 'waiting';
+    expect((await s.refreshBrief(x))?.noteCount).toBe(120);
+  });
+});
 
 describe('the song select chart store', () => {
   it('keys a chart by all it is made of', () => {
@@ -301,5 +331,19 @@ describe('a tier a song does not have', () => {
     expect(tierUpTo(noTop, 'HARD')).toBe('HARD');
     expect(tierUpTo(difficultyTiers, 'MASTER')).toBe('MASTER');
     expect(tierUpTo(difficultyTiers.slice(1), 'NORMAL')).toBe('HARD');
+  });
+});
+
+describe('what the chart info says about how an AI chart was made', () => {
+  it('names the model, the precision (with the encoder when it differs) and the seconds', () => {
+    const meta = (generator: Record<string, unknown>) => ({ chartId: 'c', level: 9, noteCount: 1, generator }) as unknown as ServerChart['meta'];
+    expect(aiMakingLabel(meta({ name: 'grg', seed: 1 }))).toBeNull();
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp32', seconds: 83.4 }))).toBe('v32 · fp32 · 83초');
+    // fp16 runs the encoder in fp32 (worker.encoder_fp32); the label tells such a chart from an older fp16 one
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp16', encoder: 'fp32', seconds: 20.6 }))).toBe('v32 · fp16(인코더 fp32) · 21초');
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32-mini', precision: 'fp16', encoder: 'fp16' }))).toBe('v32-mini · fp16');
+    // the app's timing is the default and goes unsaid; the model's own timing is named
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp32', timing: 'app', seconds: 120 }))).toBe('v32 · fp32 · 120초');
+    expect(aiMakingLabel(meta({ name: 'mapperatorinator', model: 'v32', precision: 'fp32', timing: 'model', seconds: 120 }))).toBe('v32 · fp32 · 모델 박자 · 120초');
   });
 });

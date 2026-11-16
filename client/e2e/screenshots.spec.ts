@@ -86,8 +86,13 @@ async function settings(page: Page, values: Record<string, unknown>): Promise<vo
 
 async function selectShowcase(page: Page, keyMode: string, difficulty: string): Promise<void> {
   await page.goto('/');
-  await page.getByTestId('song-item').filter({ hasText: SHOWCASE }).click();
-  await expect(page.getByTestId('song-title')).toHaveText(SHOWCASE);
+  const item = page.getByTestId('song-item').filter({ hasText: SHOWCASE });
+  await expect(item).toBeVisible();
+  await page.waitForTimeout(500);
+  // the cursor may be on the song already (the song a play was last started with): a click on it then would start a play
+  const title = page.getByTestId('song-title');
+  if (!((await title.count()) > 0 && (await title.textContent()) === SHOWCASE)) await item.click();
+  await expect(title).toHaveText(SHOWCASE);
   await expect(page.getByTestId('analysis-status')).toHaveCount(0, { timeout: 90_000 });
   await page.getByRole('button', { name: keyMode, exact: true }).click();
   await page.getByRole('button', { name: new RegExp(difficulty) }).first().click();
@@ -100,8 +105,8 @@ async function levelsKnown(page: Page): Promise<void> {
 }
 
 async function autoplayFor(page: Page, ms: number): Promise<void> {
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  await page.getByTestId('play-button').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(ms);
 }
@@ -129,19 +134,26 @@ async function watchSources(page: Page): Promise<void> {
 
 const startsSoFar = (page: Page) => page.evaluate(() => (window as unknown as { __starts: unknown[] }).__starts.length);
 
+/** The play that was started is on the screen and its loading card has gone. */
+async function playShown(page: Page): Promise<void> {
+  await expect(page.getByTestId('play-screen')).toBeVisible();
+  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+}
+
 /** Starts the play and waits for its loading card to go. */
 async function startPlay(page: Page): Promise<number> {
   const before = await startsSoFar(page);
-  await page.getByTestId('play-button').click();
-  await expect(page.getByTestId('play-screen')).toBeVisible();
-  await expect(page.getByTestId('play-loading')).toHaveCount(0, { timeout: 90_000 });
+  await page.getByTestId('hint-enter').click();
+  await playShown(page);
   return before;
 }
 
 /** Autoplay until the song heard is `ms` in (the song's sources are the first long ones the play starts). */
 async function autoplayAt(page: Page, ms: number): Promise<void> {
+  const before = await startsSoFar(page);
+  // Shift+Enter starts the play in AUTO
   await autoplay(page);
-  const before = await startPlay(page);
+  await playShown(page);
   await page.waitForFunction(
     ({ before, ms }) => {
       type Start = { when: number; offset: number; length: number; ctx: AudioContext };
@@ -290,7 +302,7 @@ test('play: background video and camera effects', async ({ page }) => {
 async function sideNotesShot(page: Page, side: 'bar' | 'dots', name: string): Promise<void> {
   await watchSources(page);
   // an earlier version's saved 별도 레인 is drawn over half the keys too
-  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'receiver', hit: 'club' } });
+  await settings(page, { lastKeyMode: '6K+FX', cameraPreset: 'FLAT', sudden: 0.18, hiSpeed: 3.2, sideNotes: 'lanes', parts: { note: 'round', side, deck: 'piano', hit: 'club' } });
   await selectShowcase(page, '6K+FX', 'EXPERT');
   const notes = await showcaseChart(page, '6K+FX', 'EXPERT');
   const held = notes.find((n) => (n.lane === 0 || n.lane === 7) && n.type === 'hold' && n.t > 8000 && (n.endT ?? 0) - n.t >= 700)!;
@@ -321,12 +333,12 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   // each set's notes and hit, on a gear that suits them (FEVER off: its tint would cover the lanes' colours)
   for (const [parts, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'mecha' }, '28-set-mecha'],
-    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'club' }, '29-set-club'],
+    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'mecha' }, '28-set-mecha'],
+    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'club' }, '29-set-club'],
     [{ note: 'star4', side: 'bar', deck: 'standard', hit: 'crystal' }, '30-set-crystal'],
     [{ note: 'star5', side: 'bar', deck: 'standard', hit: 'neon' }, '31-set-neon'],
-    // the piano set's notes are gone: its hit with the plain notes
-    [{ note: 'flat', side: 'bar', deck: 'najeon', hit: 'piano' }, '32-hit-piano'],
+    // the piano set's notes are gone: its hit with the plain notes, on the piano
+    [{ note: 'flat', side: 'bar', deck: 'piano', hit: 'piano' }, '32-hit-piano'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
     await selectShowcase(page, '7K+1S', 'EXPERT');
@@ -335,18 +347,160 @@ test('play: the four sets, and the piano hit', async ({ page }) => {
   }
 });
 
+test('play: the default skin, what a player starts with', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "default skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // its row of keys over the plain panel with its light strip, the score, MAX COMBO and SPEED beside the
+  // gear and the rate under the judgement: the keys and the scratch; the side notes over half the keys;
+  // four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '47-default-7k'],
+    ['6K+FX', { fever: 'OFF' }, '48-default-6kfx'],
+    ['4K', {}, '49-default-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the crystal skin', async ({ page }) => {
+  test.setTimeout(420_000);
+  // (its parts are saved as 'prism') also runs on its own (-g "crystal skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  const parts = { note: 'prism', side: 'bar', deck: 'prism', hit: 'prism' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '50-crystal-7k'],
+    ['6K+FX', { fever: 'OFF' }, '51-crystal-6kfx'],
+    ['4K', {}, '52-crystal-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the sky skin', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "sky skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  const parts = { note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '53-sky-7k'],
+    ['6K+FX', { fever: 'OFF' }, '54-sky-6kfx'],
+    ['4K', {}, '55-sky-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the Firestarter skin', async ({ page }) => {
+  test.setTimeout(420_000);
+  // also runs on its own (-g "Firestarter skin"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  const parts = { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' };
+  // the keys and the scratch; the side notes over half the keys; four keys in FEVER
+  for (const [keyMode, more, name] of [
+    ['7K+1S', { fever: 'OFF' }, '56-fire-7k'],
+    ['6K+FX', { fever: 'OFF' }, '57-fire-6kfx'],
+    ['4K', {}, '58-fire-4k-fever'],
+  ] as const) {
+    await settings(page, { lastKeyMode: keyMode, parts, cameraPreset: 'SDVX', hiSpeed: 3, ...more });
+    await selectShowcase(page, keyMode, 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    // the build's two pictures stand at the gear's sides
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the AI companies’ skins', async ({ page }) => {
+  test.setTimeout(480_000);
+  // also runs on its own (-g "AI companies"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  // the stickers over the gear's near corners and the mark the notes are cut in are the build's pictures
+  for (const [skin, name] of [
+    ['gpt', '59-gpt-7k'],
+    ['gemini', '60-gemini-7k'],
+    ['grok', '61-grok-7k'],
+    ['claude', '62-claude-7k'],
+  ] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
+    await expect(page.locator('.play-canvas')).toHaveAttribute('data-mark', '1', { timeout: 30_000 });
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('play: the skins after the reference panels', async ({ page }) => {
+  test.setTimeout(600_000);
+  // also runs on its own (-g "reference panels"): makes the showcase song when it is missing
+  await page.goto('/');
+  const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
+  if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
+  for (const [skin, name] of [['aqua', '63-aqua-7k'], ['steel', '64-steel-7k'], ['noir', '66-noir-7k'], ['wire', '68-wire-7k'], ['astral', '69-astral-7k']] as const) {
+    await settings(page, { lastKeyMode: '7K+1S', parts: { note: skin, side: 'bar', deck: skin, hit: skin }, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
+    await selectShowcase(page, '7K+1S', 'EXPERT');
+    // Shift+Enter starts the play in AUTO
+    await autoplay(page);
+    await expect(page.getByTestId('play-screen')).toBeVisible();
+    await page.waitForTimeout(18_000);
+    await shot(page, name);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('play: the bar in its finishes', async ({ page }) => {
   // also runs on its own (-g "the bar in its finishes"): makes the showcase song when it is missing
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
-  // a finish on a gear of the same make: chrome bevels on the raw glass in its silvers, carbon on the racing wheel
+  // two of the finishes, on the default gear
   for (const [parts, name] of [
-    [{ note: 'chrome', side: 'bar', deck: 'rawglass', hit: 'flash' }, '42-note-chrome'],
-    [{ note: 'carbon', side: 'bar', deck: 'racing', hit: 'flash' }, '43-note-carbon'],
+    [{ note: 'chrome', side: 'bar', deck: 'standard', hit: 'flash' }, '42-note-chrome'],
+    [{ note: 'carbon', side: 'bar', deck: 'standard', hit: 'flash' }, '43-note-carbon'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts, cameraPreset: 'SDVX', hiSpeed: 3, fever: 'OFF' });
-    await selectShowcase(page, '7K+1S', 'MAXIMUM');
+    await selectShowcase(page, '7K+1S', 'ELITE');
     await autoplayFor(page, 14_200);
     await shot(page, name);
   }
@@ -358,10 +512,10 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [parts, keyMode, name] of [
-    [{ note: 'chamfer', side: 'bar', deck: 'cabinet', hit: 'flash' }, '7K+1S', '22-hit-flash'],
-    [{ note: 'round', side: 'bar', deck: 'receiver', hit: 'flare' }, '8K', '23-hit-flare'],
+    [{ note: 'chamfer', side: 'bar', deck: 'standard', hit: 'flash' }, '7K+1S', '22-hit-flash'],
+    [{ note: 'round', side: 'bar', deck: 'piano', hit: 'flare' }, '8K', '23-hit-flare'],
     [{ note: 'star4', side: 'dots', deck: 'standard', hit: 'bubbles' }, '6K+FX', '24-hit-bubbles'],
-    [{ note: 'star5', side: 'dots', deck: 'najeon', hit: 'grid' }, '6K+FX', '25-hit-grid'],
+    [{ note: 'star5', side: 'dots', deck: 'piano', hit: 'grid' }, '6K+FX', '25-hit-grid'],
   ] as const) {
     await watchSources(page);
     await settings(page, { lastKeyMode: keyMode, parts, hiSpeed: 3, fever: 'OFF' });
@@ -375,22 +529,15 @@ test('play: the four hits of no set, each with notes, side notes and a gear pick
   }
 });
 
-test('play: the gears a player picks, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
-  // also runs on its own (-g "gears a player picks"): makes the showcase song when it is missing
+test('play: the default gear and the piano, each with its HUD (gauge, score panel, digits)', async ({ page }) => {
+  // also runs on its own (-g "default gear and the piano"): makes the showcase song when it is missing
   test.setTimeout(300_000);
   await page.goto('/');
   const songs = (await (await page.request.get('/api/songs')).json()).songs as { title: string }[];
   if (!songs.some((s) => s.title === SHOWCASE)) await page.request.post('/api/songs/demo', { data: { bpm: 150, bars: 24, seed: 21 } });
   for (const [deck, name] of [
     ['standard', '33-gear-standard'],
-    ['cabinet', '34-gear-cabinet'],
-    ['receiver', '35-gear-receiver'],
-    ['najeon', '36-gear-najeon'],
-    ['keyboard', '37-gear-keyboard'],
-    ['racing', '38-gear-racing'],
-    ['orbital', '39-gear-orbital'],
     ['piano', '40-gear-piano'],
-    ['rawglass', '41-gear-rawglass'],
   ] as const) {
     await settings(page, { lastKeyMode: '7K+1S', parts: { note: 'flat', side: 'bar', deck, hit: 'flash' }, cameraPreset: 'SDVX', hiSpeed: 3.2 });
     await selectShowcase(page, '7K+1S', 'EXPERT');
@@ -417,7 +564,7 @@ test('result of a good play: a record beaten, the offset fix', async ({ page }) 
   // then a good one, a little late
   await playByHand(page, notes, keys, { meanMs: 9, sdMs: 16, missRate: 0.012, seed: 20261022 });
   await expect(result).toHaveAttribute('data-settled', 'true', { timeout: 120_000 });
-  await expect(page.getByTestId('record-tag')).toHaveText('최고 기록 갱신');
+  await expect(page.getByTestId('record-tag')).toHaveText('NEW RECORD');
   await page.waitForTimeout(1500);
   await shot(page, '06-result');
   await page.getByTestId('result-details').click();
@@ -462,7 +609,7 @@ test('settings and calibration', async ({ page }) => {
   await shot(page, '10-settings');
   // the 기어 tab: a gear in the preview
   await settingsTab(page, 'gear');
-  await chooseSetting(page, 'opt-deck-style', 'najeon');
+  await chooseSetting(page, 'opt-deck-style', 'piano');
   await page.getByTestId('opt-deck-style').focus();
   await page.waitForTimeout(1500);
   await shot(page, '11-settings-gear');

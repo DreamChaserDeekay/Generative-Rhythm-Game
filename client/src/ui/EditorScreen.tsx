@@ -8,6 +8,7 @@ import { EditorView, formatMs, type EditorViewState } from '../editor/EditorView
 import { keyModes } from '../engine/config';
 import type { Chart } from '../engine/types';
 import { hexString } from '../render/noteColors';
+import { whenRestored } from '../render/paintCanvas';
 import { bindingsFor, keyLabel, laneColorsOf, secondBindingsFor, type Settings } from '../settings/settings';
 import { HintBar, TopBar, type KeyHint } from './shell';
 import { useTwoPress } from './twoPress';
@@ -167,13 +168,18 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     const view = new EditorView(canvas);
     viewRef.current = view;
     const lay = () => {
-      const { laneX, laneW } = view.layout(laneUnits);
+      const laid = view.layout(laneUnits);
+      // (the lane heads are on the page: the layout's places at the view's scale)
+      const [laneX, laneW] = [laid.laneX.map((v) => v * view.scale), laid.laneW.map((v) => v * view.scale)];
       setHeads((was) => (was && was.x.join() === laneX.join() && was.w.join() === laneW.join() ? was : { x: laneX, w: laneW }));
       draw();
     };
     lay();
     const observer = new ResizeObserver(lay);
     observer.observe(canvas);
+    // the view is drawn when something changes, not every frame: laid out and drawn again when the
+    // browser hands its canvas back empty (a lost graphics process, see render/paintCanvas)
+    const stopRestoring = whenRestored(canvas, lay);
     let alive = true;
     if (song.status === 'ready') {
       api
@@ -189,6 +195,7 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
     return () => {
       alive = false;
       observer.disconnect();
+      stopRestoring();
       viewRef.current = null;
     };
     // the canvas lives as long as the screen
@@ -351,7 +358,8 @@ export function EditorScreen({ session, settings, onExit, onTestPlay, onSaved }:
 
   const local = (e: { clientX: number; clientY: number }) => {
     const rect = (canvasRef.current as HTMLCanvasElement).getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const k = viewRef.current?.scale ?? 1;
+    return { x: (e.clientX - rect.left) / k, y: (e.clientY - rect.top) / k };
   };
 
   const onMouseDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {

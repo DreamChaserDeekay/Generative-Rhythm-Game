@@ -3,7 +3,7 @@ import { cameraConfig } from '../engine/config';
 import { MAX_TILT_DEG, ZOOM_DEPTH } from '../render/cameraFx';
 import { cameraPose } from '../render/layout';
 import { frameCamera, HUD_UNIT, planeHomography, poseCamera } from '../render/TrackRenderer';
-import { type ErrorBar, errorBarAt, gaugeCells, gaugeShown, infoRoom, markError, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
+import { type ErrorBar, errorBarAt, gaugeCells, gaugeShown, infoRoom, judgementHtml, lampSpark, markError, planeMatrix, planePoint, planeScale, planeYAt, stretchFor, uprightAt } from './Hud';
 
 /** Where a homography (row-major 3×3) puts a plane point on the screen. */
 const project = (h: number[], x: number, y: number) => {
@@ -18,6 +18,19 @@ describe('HUD lying on the track', () => {
     expect(planeMatrix([1, 0, 5, 0, 1, 7, 0, 0, 1])).toBe('matrix3d(1,0,0,0,0,1,0,0,0,0,1,0,5,7,0,1)');
     // perspective (w changing across the plane) sits in the fourth row
     expect(planeMatrix([2, 0, 640, 0, 2, 360, 0, 0.004, 1])).toBe('matrix3d(2,0,0,0,0,2,0,0.004,0,0,1,0,640,360,0,1)');
+  });
+
+  it('writes a judgement whole, its first word apart for a split type, and word by word for a cut type, each carrying its text', () => {
+    expect(judgementHtml('MAX 100%', false)).toBe('MAX 100%');
+    expect(judgementHtml('MAX 100%', true)).toBe('<span class="hud-split">MAX</span> 100%');
+    expect(judgementHtml('BREAK', true)).toBe('BREAK');
+    // a cut type (the crystal skin's): the styles lay the planes over each word from its data-text
+    expect(judgementHtml('MAX 100%', true, true)).toBe('<span class="hud-fill hud-split" data-text="MAX">MAX</span> <span class="hud-fill" data-text="100%">100%</span>');
+    expect(judgementHtml('MAX 100%', false, true)).toBe('<span class="hud-fill" data-text="MAX">MAX</span> <span class="hud-fill" data-text="100%">100%</span>');
+    expect(judgementHtml('BREAK', true, true)).toBe('<span class="hud-fill" data-text="BREAK">BREAK</span>');
+    // a label is text, in the attribute too
+    expect(judgementHtml('A<B "C"&', false)).toBe('A&lt;B &quot;C&quot;&amp;');
+    expect(judgementHtml('A<B "C"', false, true)).toBe('<span class="hud-fill" data-text="A&lt;B">A&lt;B</span> <span class="hud-fill" data-text="&quot;C&quot;">&quot;C&quot;</span>');
   });
 
   it('measures how large and how flattened the plane looks where text lies', () => {
@@ -176,5 +189,24 @@ describe('HUD lying on the track', () => {
     expect(stretchFor(0.35, 0.7)).toBeCloseTo(2, 9);
     expect(stretchFor(0.1, 0.7)).toBe(2.6);
     expect(stretchFor(0.2, 0.7, 1.8)).toBe(1.8);
+  });
+});
+
+describe('the sparks of a hard clear\'s seal closing', () => {
+  it('fly out along the seam both ways, each a little up or down, soon after the halves meet, the same every time', () => {
+    const sparks = Array.from({ length: 22 }, (_, i) => lampSpark(i, 22));
+    // every other one to the other side
+    sparks.forEach((s, i) => expect(Math.sign(s.dx)).toBe(i % 2 === 0 ? 1 : -1));
+    for (const s of sparks) {
+      // out of the seal (1.7 em wide), no further than a few of its widths, more along the seam than off it
+      expect(Math.abs(s.dx)).toBeGreaterThan(0.6);
+      expect(Math.abs(s.dx)).toBeLessThanOrEqual(3.4);
+      expect(Math.abs(s.dy)).toBeLessThan(Math.abs(s.dx));
+      expect(s.delayMs).toBeGreaterThanOrEqual(0);
+      expect(s.delayMs).toBeLessThanOrEqual(70);
+    }
+    // no two the same way
+    expect(new Set(sparks.map((s) => `${s.dx.toFixed(2)},${s.dy.toFixed(2)}`)).size).toBe(22);
+    expect(Array.from({ length: 22 }, (_, i) => lampSpark(i, 22))).toEqual(sparks);
   });
 });

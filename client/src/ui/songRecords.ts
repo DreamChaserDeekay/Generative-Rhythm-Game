@@ -2,20 +2,14 @@ import type { ScoreRecord, Song } from '../api/client';
 import { difficultyTiers, lampOrder, type ClearLamp } from '../engine/config';
 import { gradeOf, rulesetConfigs, type RulesetId } from '../engine/ruleset';
 import type { KeyModeId } from '../engine/types';
-import type { SongFolder, SongSort } from '../settings/settings';
+import type { SongFolder, SongSort, SongSortKey } from '../settings/settings';
 import type { ChartBrief } from './chartCache';
 
-export const FOLDER_LABELS: Record<SongFolder, string> = { all: '전체', favorites: '즐겨찾기', unplayed: '미플레이', uncleared: '미클리어', noFullCombo: '풀콤 미달' };
-export const SORT_LABELS: Record<SongSort, string> = {
-  added: '추가순',
-  title: '제목순',
-  artist: '아티스트순',
-  bpm: 'BPM순',
-  level: '레벨순',
-  lamp: '램프순',
-  rate: 'RATE순',
-  recent: '최근 플레이순',
-};
+/** The song select's filters, in the order of their keys (1 to 5): which songs, and the names that order them. */
+export const SONG_FILTERS = ['all', 'title', 'artist', 'album', 'favorites'] as const;
+export type SongFilter = (typeof SONG_FILTERS)[number];
+export const FILTER_LABELS: Record<SongFilter, string> = { all: '전체', title: '곡명', artist: '아티스트명', album: '앨범명', favorites: '즐겨찾기' };
+export const SORT_DIR_LABELS: Record<SongSort['dir'], string> = { desc: '내림차순', asc: '오름차순' };
 
 /** A record of an edited or imported chart (its own entry, on no tier). */
 export const isSaved = (r: ScoreRecord) => r.kind !== undefined && r.kind !== 'generated';
@@ -54,36 +48,23 @@ function bestLamp(records: ScoreRecord[]): string | null {
   return records.reduce<string | null>((best, r) => (best === null || lampRank(r.lamp) > lampRank(best) ? r.lamp : best), null);
 }
 
-/** The best lamp reached on each group among `records`: a tier (on any of its charts), or a saved chart. */
-function lampByGroup(records: ScoreRecord[]): Map<string, number> {
-  const lamps = new Map<string, number>();
-  for (const r of records) {
-    const group = isSaved(r) ? r.chartId : r.difficulty;
-    lamps.set(group, Math.max(lamps.get(group) ?? -1, lampRank(r.lamp)));
-  }
-  return lamps;
+/** Whether a song is among the ones the song select lists: every song, or the favourites. */
+export function inFolder(song: Song, folder: SongFolder, favorites: ReadonlySet<string>): boolean {
+  return folder !== 'favorites' || favorites.has(song.id);
 }
 
 /**
- * Whether a song is in a folder of the song select. 미플레이, 미클리어 and 풀콤 미달 look at the
- * selected key mode (and the saved charts on the key mode, each its own), never at the selected
- * tier, so ←→ never changes the list: 미클리어 has a tier or a saved chart whose every play
- * failed, 풀콤 미달 one cleared without MAX COMBO.
+ * A press on one of the three names: its order downward (내림차순), a second press upward
+ * (오름차순), a third no order (the library's own). Another name's order ends as this one begins.
  */
-export function inFolder(song: Song, folder: SongFolder, keyMode: KeyModeId, favorites: ReadonlySet<string>): boolean {
-  const played = () => [...recordsOn(song, keyMode), ...savedRecordsOn(song, keyMode)];
-  switch (folder) {
-    case 'favorites':
-      return favorites.has(song.id);
-    case 'unplayed':
-      return played().length === 0;
-    case 'uncleared':
-      return [...lampByGroup(played()).values()].some((rank) => rank === lampRank('FAILED'));
-    case 'noFullCombo':
-      return [...lampByGroup(played()).values()].some((rank) => rank > lampRank('FAILED') && rank < lampRank('MAX COMBO'));
-    default:
-      return true;
-  }
+export function nextSongSort(sort: SongSort | null, key: SongSortKey): SongSort | null {
+  if (sort?.key !== key) return { key, dir: 'desc' };
+  return sort.dir === 'desc' ? { key, dir: 'asc' } : null;
+}
+
+/** What a press on a filter says it did (the status line). */
+export function sortSaid(key: SongSortKey, sort: SongSort | null): string {
+  return sort ? `${FILTER_LABELS[key]} ${SORT_DIR_LABELS[sort.dir]}` : `${FILTER_LABELS[key]} 정렬 해제 · 추가한 순서`;
 }
 
 /** A tier's cell on the song list: its level and lamp (null: not known, never played). */
@@ -166,46 +147,22 @@ export function recordHeadline(r: Pick<ScoreRecord, 'rate' | 'exScore' | 'weight
   return { label: 'RATE', value: `${r.rate.toFixed(2)}%` };
 }
 
-/** What the record orders read: the key mode and tier selected. */
-export interface SortTier {
-  keyMode: KeyModeId;
-  difficulty: string;
-  /** The level of the chart Enter plays on a song's selected tier, once known (as its cell shows it). */
-  knownLevel?: (song: Song) => number | null;
-}
-
-const collator = new Intl.Collator('ko', { numeric: true, sensitivity: 'base' });
+const collator = new Intl.Collator(['ko', 'en'], { numeric: true, sensitivity: 'base' });
 
 /**
- * A song's number in a record order (null: not known, it goes last): the selected tier's level
- * (lowest first: the chart Enter plays once known, else its best play's), lamp and RATE (worst
- * first, the work still to do), the last play (newest first, on any key mode). A song never
- * played on the tier is ordered by its edited and imported charts' records (an imported library
- * by its own charts).
+ * The song list in the order chosen: by one name, downward or upward (Hangul before Latin, numbers
+ * by their value), or as the library gives it (newest first). A song without the name it is
+ * ordered by stays at the end whichever way the order runs; songs of one name keep the library's order.
  */
-function recordKey(song: Song, sort: SongSort, on: SortTier): number | null {
-  if (sort === 'recent') {
-    const times = (song.records ?? []).map((r) => r.lastPlayedAt ?? 0).filter((t) => t > 0);
-    return times.length > 0 ? -Math.max(...times) : null;
-  }
-  const known = sort === 'level' ? (on.knownLevel?.(song) ?? null) : null;
-  if (known !== null) return known;
-  const onTier = recordsOn(song, on.keyMode).filter((r) => r.difficulty === on.difficulty);
-  const records = onTier.length > 0 ? onTier : savedRecordsOn(song, on.keyMode);
-  if (records.length === 0) return null;
-  if (sort === 'lamp') return Math.max(...records.map((r) => lampRank(r.lamp)));
-  if (sort === 'rate') return Math.max(...records.map((r) => r.rate));
-  // the level of its best play's chart (a saved chart's as its cell shows it)
-  return onTier.length > 0 ? (bestByTier(onTier).get(on.difficulty)?.level ?? null) : (savedMark(records)?.level ?? null);
-}
-
-/** The song list in an order of the song select (추가순 is the library's own: newest first). */
-export function sortSongs(songs: Song[], sort: SongSort, on: SortTier): Song[] {
-  if (sort === 'added') return songs;
-  const byTitle = (a: Song, b: Song) => collator.compare(a.title, b.title);
-  if (sort === 'title' || sort === 'artist') return [...songs].sort((a, b) => collator.compare(a[sort], b[sort]) || byTitle(a, b));
-  const key = (s: Song) => (sort === 'bpm' ? s.bpm : recordKey(s, sort, on)) ?? Infinity;
-  const keys = new Map(songs.map((s) => [s.id, key(s)]));
-  // songs without the number (not analysed, never played) go last, in title order
-  return [...songs].sort((a, b) => (keys.get(a.id) as number) - (keys.get(b.id) as number) || byTitle(a, b));
+export function sortSongs(songs: Song[], sort: SongSort | null): Song[] {
+  if (!sort) return songs;
+  const { key, dir } = sort;
+  const sign = dir === 'asc' ? 1 : -1;
+  const at = new Map(songs.map((s, i) => [s.id, i]));
+  const order = (s: Song) => at.get(s.id) as number;
+  return [...songs].sort((a, b) => {
+    const [x, y] = [a[key].trim(), b[key].trim()];
+    if (!x || !y) return x ? -1 : y ? 1 : order(a) - order(b);
+    return sign * collator.compare(x, y) || order(a) - order(b);
+  });
 }

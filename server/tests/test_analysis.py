@@ -5,7 +5,7 @@ import pytest
 
 from conftest import analysis_of, synth
 from rhythm_server.analysis.analyzer import analyze
-from rhythm_server.generator.tempo import TempoMap
+from rhythm_server.chart.tempo import TempoMap
 from rhythm_server.synth import make_drum_song
 
 GRID_LIMIT_MS = 10.0

@@ -1,0 +1,278 @@
+{
+ "c7b45c868634e2eb": {
+  "title": "Fighting Stance",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A boxer's taped fist frozen mid-punch, chalk dust bursting off the knuckles, shot from below against a pure black background, one hard crimson rim light from the left. Photorealistic, high contrast, razor-sharp detail. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 70,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 2191,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 70
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 1001
+  },
+  "made": "2026-11-10"
+ },
+ "71aaa757a77f5ca7": {
+  "title": "Path of the Neutron",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A cloud-chamber photograph of particle tracks: fine white spirals and straight streaks branching from one bright collision point, on a deep petrol-teal background with soft film grain. Scientific, elegant, minimal. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 63,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 1962,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 63
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 779
+  },
+  "made": "2026-11-10"
+ },
+ "ef26589e066cc2f6": {
+  "title": "Newer Wave",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A calm sea at dusk seen through half-open horizontal window blinds, bands of peach and coral light falling across a dark room wall, the silhouette of one potted palm. Grainy 35mm film photograph, soft and nostalgic. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 70,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 2024,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 70
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 834
+  },
+  "made": "2026-11-10"
+ },
+ "048f03a2118b317b": {
+  "title": "Raving Energy (faster)",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. Hundreds of raised hands in a dark hall caught in a burst of white strobe light and falling yellow confetti, long-exposure light trails, seen from the stage. Euphoric, saturated yellow and black. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 63,
+   "candidatesTokenCount": 1262,
+   "totalTokenCount": 2293,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 63
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 142
+    }
+   ],
+   "thoughtsTokenCount": 968
+  },
+  "made": "2026-11-10"
+ },
+ "d9169be3f95ad456": {
+  "title": "The Cannery",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. An endless row of dented bare tin cans riding a steel conveyor belt inside an old factory, warm tungsten work lamps, drifting steam, shallow depth of field, one can painted bright red. Cinematic photograph. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 64,
+   "candidatesTokenCount": 1198,
+   "totalTokenCount": 2386,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 64
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 78
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 1124
+  },
+  "made": "2026-11-10"
+ },
+ "053fa0e9dbb9a9ad": {
+  "title": "Chibi Ninja",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art in crisp pixel art with a limited palette of indigo, magenta and cream. A tiny round ninja leaps between tiled rooftops in front of an enormous full moon, a few pixel stars. Clean hard pixels, no anti-aliasing. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 68,
+   "candidatesTokenCount": 1144,
+   "totalTokenCount": 2375,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 68
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    },
+    {
+     "modality": "TEXT",
+     "tokenCount": 24
+    }
+   ],
+   "thoughtsTokenCount": 1163
+  },
+  "made": "2026-11-10"
+ },
+ "50be286d170f5a08": {
+  "title": "Juggernaut",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A colossal armoured siege machine on tank treads emerging from a dust storm at dawn, tiny soldiers with plain banners in the foreground for scale, a low golden sun behind it. Epic matte painting in muted ochre and steel blue. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 68,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 2103,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 68
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 915
+  },
+  "made": "2026-11-10"
+ },
+ "2abb268a451c6b58": {
+  "title": "Funky Junky",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A drum kit built from junkyard scrap, hubcap cymbals, oil-drum toms and a chrome bumper, set on cracked asphalt under hard midday sun. Saturated 1970s colour photograph in orange and turquoise. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 73,
+   "candidatesTokenCount": 1186,
+   "totalTokenCount": 2198,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 73
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 66
+    },
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 939
+  },
+  "made": "2026-11-10"
+ },
+ "eb4d53bbf9a87461": {
+  "title": "Griphop",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A violin leaning against stacked milk crates full of records in a bare concrete stairwell, lit by a harsh on-camera flash with deep shadows, slightly tilted framing. Gritty documentary photograph, desaturated with a touch of green. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 69,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 2029,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 69
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 840
+  },
+  "made": "2026-11-10"
+ },
+ "441d1b594a15b0ac": {
+  "title": "Exit the Premises",
+  "model": "gemini-nano-banana-2.1",
+  "prompt": "Square album cover art. A long dark corridor with a glossy floor, at its end a single open door flooding the frame with white light, one lone silhouette walking out, a faint green glow on the walls. Symmetrical, minimal architectural photograph. No text, no letters, no numbers, no signs, no logos, no watermark.",
+  "imageSize": "1K",
+  "usage": {
+   "promptTokenCount": 67,
+   "candidatesTokenCount": 1120,
+   "totalTokenCount": 2299,
+   "trafficType": "ON_DEMAND",
+   "promptTokensDetails": [
+    {
+     "modality": "TEXT",
+     "tokenCount": 67
+    }
+   ],
+   "candidatesTokensDetails": [
+    {
+     "modality": "IMAGE",
+     "tokenCount": 1120
+    }
+   ],
+   "thoughtsTokenCount": 1112
+  },
+  "made": "2026-11-10"
+ }
+}

@@ -1,0 +1,58 @@
+{
+ "gear": "fire",
+ "name": "파이어스타터",
+ "picture": "fire.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "63117581d3ceb92484498450f7646f4de43ff74fd45d2cdb8ae5d6238b84b2ed",
+ "chosen": "draft 6-2 (the members' silhouettes, the larger FIRESTARTER lettering in front)",
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "fire-c2",
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Note lanes run away from the camera, a glowing red judge line crosses them, under it lies a row of eight mirror-chrome key caps, each with a small dark emblem in its middle and a thin red line along its lower edge, and under that row, between the two chrome side rails, lies the gear's lower panel: a wide slab that runs from the key caps down to the bottom edge of the image, widening toward the camera. Two illustrated figures stand outside the rails, at the left and at the right: they are no part of the panel. In image 1 the panel is a FLAT LAYOUT DRAWING: a concert picture: an explosion of pink-white light, in front of it four performers standing side by side, drawn tall and slender, and in front of them, large, the word FIRESTARTER. The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE for the four performers: the official concert picture, in which they stand on a stage against an explosion of pink-white light. From left to right: a woman in a huge wide-brimmed hat with long hair, one hand raised with spread fingers beside the hat; a woman in a round cap and dark glasses, in loose trousers, with a skateboard held upright at her side; a woman with two pointed fox ears and short hair, a hand on her hip; a woman with long pale hair who raises one arm straight up. Reproduce these four figures faithfully (their outlines, their poses, their order, their proportions). Copy NOTHING else of image 2: NO audience, NO raised hands, NO light sticks, NO phone, NO city, NO scaffolding.\nIMAGE 3 is the DESIGN REFERENCE for the word FIRESTARTER: the single's cover, with the word in tall, narrow, high-contrast serif capitals whose letters touch and run into one another. Reproduce that lettering faithfully; copy nothing else of image 3.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel, and do not move the picture toward the other images' compositions. Repaint ONLY the panel: the area under the row of key caps, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the judge line and the flash on it, the row of key caps with their emblems, the rails, the two figures outside the rails, the dark background.\n\nThe panel becomes a stage floor of thick, perfectly clear glass over a glowing picture seen exactly from this camera, as a photorealistic 3D render at the finish of a commercial console game: the floor is lit from within and shows, exactly as the layout drawing has it, a great explosion of pink-white light at its middle (white-hot at its heart, hot pink round it) with thin straight beams fanning outward and a few dark petals drifting, deepening to crimson and then to black toward the two rails and the bottom edge. Against that light stand the four performers of image 2 as SILHOUETTES: near-black figures with only a thin hot-pink line of light along their edges and the faintest hint of detail inside, standing side by side exactly where the layout drawing has them and exactly as large (the same places, the same heights, the same poses). The figures are tall and slender, exactly as tall as the layout drawing has them (taller than in image 2). In front of the figures, at the middle, lying as a real object, the word FIRESTARTER in the letterforms of image 3, cut from thick polished chrome with a warm rose sheen, exactly where the layout drawing has it and exactly as large (it crosses the figures' legs: it is in front of them), with crisp bevelled edges, a soft shadow under it and a faint pink glow round it. The glass's top surface carries a faint, soft reflection.\n\nThe top edge of the panel under the key caps is a bevelled lip of mirror chrome. Everything stays inside the rails; nothing rises over the rails or above the key caps, and the panel runs on down past the bottom edge of the image (no front edge is seen). NO windows, NO display frames, NO dark plates, NO sockets, NO speakers, NO grilles, NO rivets.\n\nThe only lettering anywhere is FIRESTARTER, spelled exactly so (F, I, R, E, S, T, A, R, T, E, R). No other text, no logos, no numbers, no watermark, and nothing over the lanes. Colours: black, crimson, hot pink and pink-white for the light; mirror chrome with a rose sheen for the word.",
+   "made": "2026-11-12 04:42:15 +0000",
+   "bytes": 5331217,
+   "sha256": "b3ba8600f9d3e4f7a3d63411949e0e3c6bfd7f9541a20f13c04160fd6955c4cb",
+   "usage": {
+    "promptTokenCount": 4446,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6591,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 1086
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 465
+   },
+   "pictures": [
+    "p4/fire-c2/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows, the panel a flat layout drawing)",
+    "p4/refs/concert.jpg",
+    "p4/refs/cover.jpg"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "fire-generation.json"
+  }
+ ]
+}

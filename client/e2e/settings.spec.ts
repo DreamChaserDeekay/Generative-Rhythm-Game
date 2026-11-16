@@ -22,11 +22,249 @@ async function openSettings(page: Page) {
   await expect(page.getByTestId('settings-screen')).toBeVisible();
 }
 
+test('three columns: the tabs, the rows over the help of the row under the cursor, and the gear with the visible time on every tab', async ({ page }) => {
+  const errors = trackErrors(page);
+  await startWith(page, { lastKeyMode: '5K' });
+  await openSettings(page);
+  const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
+  const [tabs, main, side] = [await box('.settings-nav'), await box('.settings-main'), await box('.settings-side')];
+  expect(tabs.x + tabs.width).toBeLessThanOrEqual(main.x);
+  expect(main.x + main.width).toBeLessThanOrEqual(side.x);
+  // the tab's name and what its rows are about over the rows, the help under them, all in the middle column
+  await expect(page.locator('.settings-head h2')).toHaveText('속도·커버');
+  await expect(page.locator('.settings-head span')).toHaveText('움직이는 미리보기에 바로 보입니다');
+  await expect(page.getByTestId('opt-hi-speed')).toBeFocused();
+  const [rows, help] = [await box('.settings-rows'), await box('[data-testid="settings-help"]')];
+  expect(help.y).toBeGreaterThanOrEqual(rows.y + rows.height);
+  expect(help.x).toBeGreaterThanOrEqual(main.x);
+  expect(help.x + help.width).toBeLessThanOrEqual(main.x + main.width + 1);
+  // nothing of the screen is cut off by the window
+  expect(help.y + help.height).toBeLessThanOrEqual(side.y + side.height + 1);
+  expect(side.y + side.height).toBeLessThanOrEqual((await box('.hintbar')).y);
+  // the gear on the tabs that had none before, under the line with its key mode and the green number
+  const head = page.locator('.settings-side-head');
+  for (const tab of ['judge', 'keys', 'pad', 'mapper', 'sound'] as const) {
+    await settingsTab(page, tab);
+    await expect(page.getByTestId('gear-preview')).toBeVisible();
+    await expect(head).toContainText('미리보기');
+    await expect(head).toContainText('5K');
+    await expect(head).toContainText('보이는 시간');
+  }
+  // one green number, in that line: it follows the note speed
+  const green = page.getByTestId('green-number');
+  await expect(green).toHaveText('1250ms');
+  await settingsTab(page, 'speed');
+  await page.getByTestId('opt-hi-speed').focus();
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(page.getByTestId('opt-hi-speed')).toHaveAttribute('data-value', '4.5');
+  await expect(green).not.toHaveText('1250ms');
+  await expect(green).toHaveText(/^\d+ms$/);
+  expect(errors).toEqual([]);
+});
+
+test('the help names the picked gear only, and the default of a row whose value is another', async ({ page }) => {
+  const errors = trackErrors(page);
+  await openSettings(page);
+  await settingsTab(page, 'gear');
+  const help = page.getByTestId('settings-help');
+  const picked = help.locator('.help-picked');
+  const was = help.locator('.help-default');
+  const gear = page.getByTestId('opt-deck-style');
+  // the gear's help goes through every gear: what stands before the list, the picked gear's words, what follows
+  await gear.focus();
+  await expect(help).toContainText('트랙을 담는 기어입니다.');
+  await expect(picked).toHaveText('기본 그래파이트에 레인마다 낮은 키캡(누르면 하늘색 불), 그 아래 아무 꾸밈 없는 무광 판과 앞쪽의 하늘색 불빛 띠 한 줄');
+  await expect(picked.locator('b')).toHaveText('기본');
+  await expect(help).toContainText('받침은 그보다 조금 아래에서 시작합니다.');
+  await expect(help).not.toContainText('피아노');
+  await expect(was).toHaveCount(0);
+  // another gear: its words, and the default named under the help (the crystal skin's gear comes after the default one)
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'prism');
+  await expect(picked).toHaveText('크리스털 레인마다 젖빛 크리스털 키캡(누르면 얼음빛), 통째로 깎은 수정 덩어리 받침, 레인을 따라 맑은 유리 테두리');
+  await expect(help).not.toContainText('그래파이트');
+  await expect(was).toHaveText('기본값 기본');
+  // the sky skin's gear after it: its name is the start of a colour's (하늘색) in other gears' words, and only its own are shown
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'sky');
+  await expect(picked).toHaveText('하늘 레인마다 가는 표시선(누르면 청록빛 불), 유리 너머로 뭉게구름과 흰 바람 궤적이 보이는 받침, 옅은 하늘빛 유리 테두리, 레인에 아주 옅게 깔린 같은 하늘과 양 가장자리의 눈금');
+  await expect(help).not.toContainText('그래파이트');
+  // the Firestarter skin's gear after it
+  await page.keyboard.press('ArrowRight');
+  await expect(gear).toHaveAttribute('data-value', 'fire');
+  await expect(picked).toHaveText('파이어스타터 레인마다 크롬 키캡(누르면 주황빛으로 달아오름)과 그 위의 멤버 문장, 분홍 조명의 무대에 네 멤버의 실루엣과 FIRESTARTER 글자가 선 받침, 붉은 줄이 난 크롬 테두리, 기어 양옆에는 멤버들의 일러스트');
+  // the four AI companies' gears after it
+  for (const [id, words] of [
+    ['gpt', 'GPT 레인마다 흰 타일(누르면 검은 바탕에 흰 점), 유백색 받침 가운데의 검은 입체 로고'],
+    ['gemini', 'Gemini 레인마다 파랑·빨강·노랑·초록이 은은한 알약(누르면 그 색으로 켜짐)'],
+    ['grok', 'Grok 레인마다 흰 선으로 그린 네모 칸(누르면 흰색으로 참)'],
+    ['claude', 'Claude 레인마다 따뜻한 회색 둥근 네모(누르면 테라코타에 크림 점)'],
+  ] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(gear).toHaveAttribute('data-value', id);
+    await expect(picked).toContainText(words);
+    await expect(picked).toContainText(`하단 양옆에는 ${words.split(' ')[0]} 콘 둘`);
+    await expect(help).not.toContainText('그래파이트');
+  }
+  // the gears of the skins after the reference panels
+  for (const [id, words] of [['aqua', '아쿠아 흰 테 안의 유광 키캡(파란 레인은 청록, 누르면 청록빛)'], ['steel', '스틸 더하기·엑스가 찍힌 무광 슬레이트 키캡(누르면 강철빛 파랑)'], ['noir', '레드라인 가는 육각 칸(누르면 빨갛게 참)'], ['wire', '화이트 라인 흰 선으로 그린 쟁반 모양 칸(누르면 흰빛으로 참)'], ['astral', '별밤 금색 네 갈래 별이 박힌 모따기 남색 키캡(누르면 금빛)']] as const) {
+    await page.keyboard.press('ArrowRight');
+    await expect(gear).toHaveAttribute('data-value', id);
+    await expect(picked).toContainText(words);
+    await expect(help).not.toContainText('그래파이트');
+  }
+  await page.keyboard.press('ArrowRight');
+  // the piano after the skins' gears, the last of the list
+  await expect(gear).toHaveAttribute('data-value', 'piano');
+  await expect(picked).toHaveText('피아노 흑단 래커에 레인마다 상아색 흰 건반과 그 사이 검은 건반, 스크래치 아래 높은음자리표 황동 메달');
+  await expect(help).not.toContainText('그래파이트');
+  await expect(was).toHaveText('기본값 기본');
+  // the judgement and combo type's help is cut to the gear picked too (the row's own default is 기어)
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('opt-hud-type')).toBeFocused();
+  await expect(picked).toHaveText('피아노 악보의 셈여림 글씨 같은 굵은 이탤릭 세리프');
+  await expect(help).toContainText('기본은 기어와 상관없이');
+  await expect(was).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await expect(was).toHaveText('기본값 기어');
+  await page.keyboard.press('ArrowRight');
+  await expect(was).toHaveCount(0);
+  // a number and a switch name theirs as they show it; a row back on its default names none
+  await page.getByTestId('opt-lane-width').focus();
+  await expect(help).toHaveText('트랙의 폭입니다.');
+  await page.keyboard.press('ArrowRight');
+  await expect(was).toHaveText('기본값 100%');
+  await page.keyboard.press('ArrowLeft');
+  await expect(was).toHaveCount(0);
+  await page.getByTestId('bar-lines').focus();
+  await page.keyboard.press('Enter');
+  await expect(was).toHaveText('기본값 켬');
+  // a row that only does something has none, whatever the row before it showed
+  await page.getByTestId('opt-deck-style').focus();
+  await expect(was).toHaveText('기본값 기본');
+  await settingsTab(page, 'judge');
+  await page.getByTestId('open-calibration-settings').focus();
+  await expect(help).toContainText('메트로놈 소리에 맞춰');
+  await expect(was).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('채보 생성기 is the last tab: its setup on its name line by the preview, its rows, the cursor on the first once the server has answered', async ({ page }) => {
+  const errors = trackErrors(page);
+  // a PC with the generator set up, as the server would report it (this one has no NVIDIA GPU)
+  const settings: Record<string, unknown> = { enabled: true, model: 'v32', precision: 'auto', starsScale: 1, holdNoteRatio: null, temperature: null, useAppTiming: true, hitsounds: true, lookback: 0.5, lookahead: 0.4, parallel: false };
+  const status = {
+    enabled: true,
+    state: 'ready',
+    model: 'v32',
+    gpus: [{ name: 'E2E GPU', memoryMB: 8192 }],
+    home: '/tmp/e2e-mapper',
+    runtime: { device: 'cuda', gpu: 'E2E GPU', memoryMB: 8192, capability: [8, 9], bf16: true },
+    lastError: null,
+    settings,
+  };
+  const saved: Record<string, unknown>[] = [];
+  await page.route(
+    (url) => url.pathname === '/api/mapper',
+    async (route) => {
+      // (late enough for the tab to have opened without its rows)
+      await new Promise((r) => setTimeout(r, 300));
+      await route.fulfill({ json: status });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === '/api/mapper/settings',
+    (route) => {
+      const patch = JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>;
+      saved.push(patch);
+      Object.assign(settings, patch);
+      return route.fulfill({ json: status });
+    },
+  );
+  await openSettings(page);
+  await expect(page.locator('.settings-nav button')).toHaveText(['플레이', '판정·싱크', '속도·커버', '기어', '노트', '연출·배경', '소리', '키 설정', '게임패드', '채보 생성기']);
+  // E from 게임패드 (its tab clicked: the focus on it): the tab, and its first control once it is there
+  await settingsTab(page, 'pad');
+  await page.keyboard.press('KeyE');
+  await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.settings-head h2')).toHaveText('채보 생성기');
+  // no state line (it is always in use), the GPU and the model
+  await expect(page.getByTestId('mapper-status')).not.toContainText('사용 중');
+  await expect(page.getByTestId('mapper-status')).toContainText('E2E GPU');
+  // the rows take the cursor; 다시 설치 is on the tab's name line, at its end beside the preview, ↑ from the first row
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
+  await expect(page.locator('[data-testid="mapper-settings"] .opt-name')).toHaveText(['모델', '연산 정밀도', '난이도 배율', '롱노트 비율', '다양성', '히트사운드 생성', '이전 문맥', '앞 미리보기', '병렬 생성']);
+  const install = page.getByTestId('mapper-install');
+  await expect(install).toHaveText('다시 설치');
+  await expect(page.locator('.settings-head [data-testid="mapper-install"]')).toBeVisible();
+  const [installBox, mainBox, sideBox] = [await install.boundingBox(), await page.locator('.settings-main').boundingBox(), await page.locator('.settings-side').boundingBox()];
+  expect(installBox!.x + installBox!.width).toBeGreaterThan(mainBox!.x + mainBox!.width - 24);
+  expect(installBox!.x + installBox!.width).toBeLessThanOrEqual(sideBox!.x);
+  await page.keyboard.press('ArrowUp');
+  await expect(install).toBeFocused();
+  await expect(page.getByTestId('settings-help')).toContainText('PyTorch CUDA');
+  await expect(page.locator('.hintbar')).toContainText('누르기');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
+  // ←→ change a row and the server keeps it
+  await expect(page.getByTestId('mapper-precision')).toContainText('자동 (bf16)');
+  const stars = page.getByTestId('mapper-stars');
+  await stars.focus();
+  await expect(page.getByTestId('settings-help')).toContainText('osu! 별점에 곱합니다');
+  await expect(page.locator('.help-default')).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await expect(stars).toHaveAttribute('data-value', '1.05');
+  await expect.poll(() => saved).toEqual([{ starsScale: 1.05 }]);
+  await expect(page.locator('.help-default')).toHaveText('기본값 ×1.00');
+  await page.getByTestId('mapper-holds').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('mapper-holds')).toHaveAttribute('data-value', '0.2');
+  await expect(page.locator('.help-default')).toHaveText('기본값 자동');
+  // the gear plays on beside it, and E goes round to 플레이 (no 고급 any more), Q back
+  await expect(page.getByTestId('gear-preview')).toBeVisible();
+  await page.keyboard.press('KeyE');
+  await expect(page.getByTestId('settings-tab-play')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('mapper-status')).toHaveCount(0);
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('mapper-model')).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+test('채보 생성기 on a PC without an NVIDIA GPU says so and has no rows; Q / E pass through it', async ({ page }) => {
+  const errors = trackErrors(page);
+  // as the server answers there: the built-in generator makes the charts, whatever the settings kept
+  const status = {
+    enabled: true,
+    state: 'unsupported',
+    model: 'v32',
+    gpus: [],
+    home: '/tmp/e2e-mapper',
+    reason: 'NVIDIA GPU가 없어 Mapperatorinator를 쓸 수 없습니다.',
+    lastError: null,
+    settings: { enabled: true, model: 'v32', precision: 'auto', starsScale: 1, holdNoteRatio: null, temperature: null, useAppTiming: true, hitsounds: true, lookback: 0.5, lookahead: 0.4, parallel: false },
+  };
+  await page.route((url) => url.pathname === '/api/mapper', (route) => route.fulfill({ json: status }));
+  await openSettings(page);
+  await settingsTab(page, 'play');
+  await page.getByTestId('opt-ruleset').focus();
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('settings-tab-mapper')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('mapper-status')).toContainText('찾지 못함');
+  await expect(page.getByTestId('mapper-status')).toContainText('NVIDIA GPU가 없어');
+  await expect(page.getByTestId('mapper-settings')).toHaveCount(0);
+  await expect(page.getByTestId('mapper-install')).toHaveCount(0);
+  await page.keyboard.press('KeyQ');
+  await expect(page.getByTestId('settings-tab-pad')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('opt-tt-steps')).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test('모두 초기화 takes a second press within 3 s, keeps the favourites, and can be undone', async ({ page }) => {
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5, inputOffsetMs: 12, favorites: ['00000000000000aa'], songOffsets: { '00000000000000aa': 7 } });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   const reset = page.getByTestId('reset-all');
   await reset.click();
   await expect(reset).toHaveText('한 번 더 누르면 초기화');
@@ -57,7 +295,7 @@ test('a held Enter on 모두 초기화 arms it once: its repeats are no second p
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5 });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   const reset = page.getByTestId('reset-all');
   await reset.focus();
   // held: the first keydown, then the key's repeats
@@ -85,14 +323,14 @@ test('a reset can be undone after leaving the settings, until its time is up', a
   const errors = trackErrors(page);
   await startWith(page, { hiSpeed: 6.5 });
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   await page.getByTestId('reset-all').click();
   await page.getByTestId('reset-all').click();
   await expect.poll(async () => (await stored(page)).hiSpeed).toBe(4);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('song-list')).toBeVisible();
   await page.getByTestId('open-settings').click();
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'play');
   await page.getByTestId('reset-undo').click();
   await expect.poll(async () => (await stored(page)).hiSpeed).toBe(6.5);
   await expect(page.getByTestId('reset-undo')).toHaveCount(0);
@@ -148,8 +386,8 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-judgement')).toBeFocused();
   await expect(help).toContainText('HARD JUDGEMENT');
-  // 고급 starts on 화면 모드 (Q / E still change the tab: the focus is in no text field)
-  await settingsTab(page, 'advanced');
+  // 연출·배경 starts on 화면 모드 (Q / E still change the tab: the focus is in no text field)
+  await settingsTab(page, 'fx');
   await page.keyboard.press('KeyQ');
   await page.keyboard.press('KeyE');
   await expect(page.getByTestId('opt-display-mode')).toBeFocused();
@@ -162,7 +400,7 @@ test('Q / E keep the help on the row the focus lands on, and the custom skin hel
 test('화면 모드 puts the page in full screen with Esc kept for the game, and back; full screen left the setting follows', async ({ page }) => {
   const errors = trackErrors(page);
   await openSettings(page);
-  await settingsTab(page, 'advanced');
+  await settingsTab(page, 'fx');
   const row = page.getByTestId('opt-display-mode');
   await row.focus();
   await page.keyboard.press('ArrowRight');

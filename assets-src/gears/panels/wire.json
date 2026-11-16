@@ -1,0 +1,69 @@
+{
+ "gear": "wire",
+ "name": "화이트 라인",
+ "picture": "wire.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "7e046cb187a463c86a39d4dc15c1601fc31c68be9811b1c568af05b5f0cdfffd",
+ "chosen": "chosen/wire.png (2048 x 876): the user's choice ('시안 2로 진행할게'): draft 2, the reference's line drawing as a white hologram floating over a black plate",
+ "steps": [
+  "p6/layout-wire.py <p4 dir> -> p4/wire-a2/layout.png (chosen/wire-layout.png): the reference's drawing made again in this panel's shape",
+  "p6/tmpl-plain.sh wire 876 wire-a1 (the frame and the calibration dots; magenta dots); PANEL_H=876 p4/tools.py calib wire-a1 (reprojection mean 0.23 px); the same frame and calib.json for wire-a2",
+  "p4/gen28.py wire-a2 1 -> p4/wire-a2/try-1.png (chosen/wire-generation.png, .json)",
+  "p4/tools.py flat wire-a2 1 (correlation 0.838, scale 0.996) -> chosen/wire-before-edge-fix.png",
+  "p6/dim-edge.py wire-a2:1 wire-b2 96 470 -> chosen/wire.png (the pale band the render painted along the left edge, left of 96 px and above 470 px, made the dark ground beside it; nothing generated)"
+ ],
+ "sources": {
+  "reference": "the user's own reference picture for skin 10 (session upload images/13.webp; its lower part enlarged and brightened was given to the image model; not kept in the repository)"
+ },
+ "left out": "the reference's small lettering and numbers at the left and right of the mark (the game writes its numbers beside the gear now)",
+ "told to the user": "the pale band at the left edge was taken out by compositing; the hologram's lift over the plate is painted for the default camera, so on the flat camera the mark and its reflection may look out of line",
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "wire-a2",
+   "prompt": "Two pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Dark note lanes run away from the camera, a glowing white judge line crosses them (with a small white burst on it), under it lies a strip of eight thin white outlines shaped as shallow trays over a white hairline, and under that, between the two thin white side rails, lies the gear's lower panel: a wide slab that runs down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING, a line drawing in white on near-black: a soft white light rises from the middle of its near edge; at the middle is THE MARK in thick white lines: an open ring (a circle whose upper right part is missing), inside it two round dots side by side, and under them an upright trapezoid (narrower at its top) drawn in outline; behind the mark a faint large dial (two thin rings with tick marks); three thin tilted oval orbit lines sweep across; a small lens (three concentric rings) at the right; a white chevron at each side, pointing inward; near the bottom at each side a cluster of nine small white dots in two rows; two small groups of upright grey bars; a few white bars lying slanted (two at the left, three at the lower right); and faint grey traces of a circuit board (thin right-angled lines ending in small rings, a few small outlined chips). The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE: a small concept picture of this very panel, brightened and enlarged (so it is blurry), in the style the panel must have: line art in white light on black: the white ring mark, thin orbit lines, small bars, a white light rising from the bottom, faint circuitry. Match its design language and its cool, quiet, monochrome mood. Its small lettering and numbers (at the left and right of the mark) are NOT wanted: leave them out, and write no text at all.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the strip of trays, the white hairline and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the white hairline, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the note, the judge line and the burst on it, the strip of trays, the hairline, the rails, the dark background.\n\nThe panel becomes a black projection plate with that drawing floating over it as a WHITE HOLOGRAM, as a photorealistic 3D render at the finish of a commercial console game, seen exactly from this camera. Every thing of the layout drawing keeps its place and its size: seen from this camera it covers exactly its drawn footprint, foreshortened exactly as in image 1: do not move, enlarge or shrink anything, do not turn anything to face the camera, and add nothing.\n\n1. THE PLATE: a slab of polished black glass (a holographic projection table): smooth and glossy. Faint circuit traces with small rings and a few outlined chips lie under the glass (as drawn), dim grey.\n\n2. THE HOLOGRAM: THE MARK (its open ring, its two dots each with a small dark centre, its trapezoid in outline), the large dial behind it, the three orbit lines and the lens at the right float in the air a little above the plate, parallel to it, made of pure white light: slightly translucent, with very fine scan lines in them and a soft bloom round them, as a hologram has; the mark is the brightest and thickest, the dial and the lens fainter. The glossy plate mirrors them: a dim, soft reflection of each lies on the glass right under it.\n\n3. THE SMALL SOLID THINGS: the slanted white bars (two at the left, three at the lower right) are small solid blocks of frosted white acrylic lying on the plate, about as high as a finger is thick and lit from inside, each with a soft reflection in the glass. The two clusters of dots are small round white lamps set flush in the plate; the upright bars (dimmer, grey) and the two chevrons are flat white lights in the plate.\n\n4. THE PROJECTOR'S LIGHT: the soft white light rising from the middle of the near edge (as drawn) is the projector's beam: a bright, soft fan of white light with a hint of haze in it, fading upward toward the mark.\n\nClean, precise and quiet: no dirt, no scratches, no fingerprints. Everything stays inside the rails; nothing rises over the rails or above the strip of trays, and the panel runs on down past the bottom edge of the image (no front edge is seen). Nothing else is on the panel: no screens, no number boxes, no buttons, no knobs, no cables, no people, no hands.\n\nNo text, letters or numbers anywhere, no logos, no watermark, and nothing over the lanes. Colours: black and white only (a cool, very slightly bluish white, and greys); no other colour.",
+   "made": "2026-11-13 01:43:04 +0000",
+   "bytes": 5446964,
+   "sha256": "14f476cfdc9072b7619573dd26f8b4d69f6b39eb2163bb51d3a606d75fc81522",
+   "usage": {
+    "promptTokenCount": 3390,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5613,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 1150
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 2240
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 543
+   },
+   "pictures": [
+    "p4/wire-a2/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows, the panel a flat layout drawing)",
+    "p4/refs/wire-console.png (the lower part of the user's reference picture for this skin, enlarged and brightened; not kept in the repository)"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "wire-generation.json"
+  }
+ ]
+}

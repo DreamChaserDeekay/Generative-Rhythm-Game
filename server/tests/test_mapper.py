@@ -1,0 +1,506 @@
+"""Mapperatorinator as the chart generator (docs/MAPPERATORINATOR.md): the request a chart makes,
+the .osu it gives back as one of our charts, and the server's flow with a stand-in worker (the real
+model needs its own Python and a GPU; it is not run here)."""
+
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import sys
+import textwrap
+import threading
+import time
+import zipfile
+from functools import lru_cache
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from rhythm_server.analysis.analyzer import analyze
+from rhythm_server.api.app import create_app
+from rhythm_server.formats.osu import parse_osu
+from rhythm_server.chart.tempo import TempoMap
+from rhythm_server.mapper import Mapper, charts, runtime as rt
+from rhythm_server.mapper.runtime import Runtime, mapper_config
+from rhythm_server.synth import make_structured_song
+
+from fakes import onset_osu, osu, x_of
+
+
+@lru_cache(maxsize=None)
+def _analysis() -> dict:
+    s = make_structured_song(bpm=128.0, seed=2)
+    return analyze(s.pcm, s.sample_rate, "sha256:mapper", backends={})
+
+
+def test_the_song_timing_goes_to_mapperatorinator_as_red_lines() -> None:
+    timing = {"offsetMs": 250.0, "tempoMap": [{"beat": 0, "bpm": 120.0}, {"beat": 16, "bpm": 150.0}],
+              "meter": [{"measure": 0, "beatsPerMeasure": 4}, {"measure": 4, "beatsPerMeasure": 3}]}
+    text = charts.timing_osu(timing, 8, "song.wav", "Title", "Artist")
+    parsed = parse_osu(text)
+    assert parsed.key_mode == "8K" and parsed.notes == []
+    back = TempoMap(parsed.timing)
+    ours = TempoMap(timing)
+    for beat in (0.0, 8.0, 16.0, 20.0, 30.0):
+        assert abs(back.beat_to_ms(beat) - ours.beat_to_ms(beat)) < 0.01
+    assert [p["bpm"] for p in parsed.timing["tempoMap"]] == [120.0, 150.0]
+    assert "Mode: 3" in text and "CircleSize:8" in text
+
+
+def test_columns_are_the_lanes_but_fx_and_7k1s_takes_the_first_as_scratch() -> None:
+    assert charts.columns("7K+1S") == list(range(8))  # column 0 is the scratch lane
+    assert charts.columns("6K+FX") == [1, 2, 3, 4, 5, 6]  # FX lanes stay empty
+    assert charts.columns("4K") == [0, 1, 2, 3]
+    objects = [f"{x_of(c, 8)},192,{1000 + 200 * c},1,0,0:0:0:0:" for c in range(8)]
+    objects.append(f"{x_of(3, 8)},192,3000,128,0,3600:0:0:0:0:")
+    objects.append(f"{x_of(5, 8)},192,4000,128,0,4030:0:0:0:0:")  # a 30 ms hold is a tap
+    notes = charts.notes_from_osu(osu(8, objects), charts.columns("7K+1S"))
+    assert [n["lane"] for n in notes[:8]] == list(range(8))
+    holds = [n for n in notes if n["type"] == "hold"]
+    assert len(holds) == 1 and holds[0]["lane"] == 3 and holds[0]["endT"] == 3600
+    six = charts.notes_from_osu(osu(6, [f"{x_of(c, 6)},192,{1000 + 100 * c},1,0,0:0:0:0:" for c in range(6)]), charts.columns("6K+FX"))
+    assert sorted(n["lane"] for n in six) == [1, 2, 3, 4, 5, 6]
+
+
+def test_tiers_aim_at_the_middle_of_their_levels_in_stars() -> None:
+    table = mapper_config()["starsForLevel"]
+    levels = [charts.target_level("6K", t, None) for t in ("NORMAL", "HARD", "EXPERT", "ELITE", "MASTER")]
+    assert levels == sorted(levels) and levels[0] < levels[-1]
+    stars = [charts.stars_for(lv, table) for lv in levels]
+    assert stars == sorted(stars) and 0.5 < stars[0] < stars[-1] <= 8.0
+    assert charts.target_level("6K", "HARD", 9) == 9
+
+
+def test_the_osu_it_makes_becomes_a_chart_rated_by_our_estimate() -> None:
+    a = _analysis()
+    cfg = dict(mapper_config())
+    level, seed = 12, 1234
+    cid = charts.chart_id(a, "7K+1S", "EXPERT", level, seed, cfg)
+    chart = charts.make_chart(a, "7K+1S", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0, "device": "cuda"})
+    meta = chart["meta"]
+    assert meta["chartId"] == cid and meta["keyMode"] == "7K+1S" and meta["noteCount"] == len(chart["notes"]) == 61
+    assert meta["generator"]["name"] == "mapperatorinator" and meta["generator"]["keycount"] == 8 and meta["generator"]["timing"] == "model"
+    assert 1 <= meta["level"] <= 20 and meta["generator"]["stars"] == charts.stars_for(level, cfg["starsForLevel"])
+    assert {n["lane"] for n in chart["notes"]} == set(range(8))
+    # the timing is the .osu's own (the model's), and the analysed sections sit on its beats
+    assert chart["timing"] == parse_osu(onset_osu(a, 8)).timing and all("beat" in n for n in chart["notes"])
+    tempo = TempoMap(chart["timing"])
+    kept = [s for s in a["sections"] if s["endT"] > chart["timing"]["offsetMs"]]
+    assert len(chart["sections"]) == len(kept) and all(abs(tempo.beat_to_ms(c["startBeat"]) - s["t"]) < 1.0 for c, s in zip(chart["sections"], kept))
+    # given the song's timing (a later tier), the chart carries exactly that
+    given = {"offsetMs": 250.0, "tempoMap": [{"beat": 0, "bpm": 100.0}], "meter": [{"measure": 0, "beatsPerMeasure": 4}]}
+    later = charts.make_chart(a, "7K+1S", "EXPERT", level, seed, cid, cfg, {"songId": None, "title": "T"}, onset_osu(a, 8), {"seconds": 3.0}, None, given)
+    assert later["timing"] == given and later["meta"]["generator"]["timing"] == "song"
+    assert sum(1 for n in chart["notes"] if n.get("src")) > 40  # notes on onsets follow their stems
+    assert charts.chart_id(a, "7K+1S", "EXPERT", level, seed + 1, cfg) != cid
+
+
+def test_uv_comes_from_its_wheel_checked(tmp_path) -> None:
+    name = "uv.exe" if sys.platform == "win32" else "uv"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr(f"uv-9.9.data/scripts/{name}", b"#!/bin/sh\necho uv\n")
+    wheel = tmp_path / "uv.whl"
+    wheel.write_bytes(buf.getvalue())
+    r = Runtime(tmp_path / "home")
+    key = "win32" if sys.platform == "win32" else "linux"
+    r._fetch_uv({"wheels": {key: {"url": wheel.as_uri(), "sha256": hashlib.sha256(buf.getvalue()).hexdigest()}}})
+    assert r.uv.read_bytes().startswith(b"#!/bin/sh")
+    with pytest.raises(ValueError, match="sha256"):
+        Runtime(tmp_path / "other")._fetch_uv({"wheels": {key: {"url": wheel.as_uri(), "sha256": "0" * 64}}})
+
+
+def test_without_an_nvidia_gpu_mapperatorinator_is_not_offered(tmp_path, monkeypatch) -> None:
+    monkeypatch.undo()  # the real runtime's paths, not the stand-in's
+    monkeypatch.setattr(rt, "nvidia_gpus", lambda: [])
+    r = Runtime(tmp_path)
+    assert r.status()["state"] == "unsupported" and "NVIDIA" in r.status()["reason"]
+    monkeypatch.setattr(rt, "nvidia_gpus", lambda: [{"name": "NVIDIA GeForce RTX 2060", "memoryMB": 6144}])
+    r = Runtime(tmp_path)
+    assert r.status()["state"] == "missing" and not r.ready()
+
+
+@pytest.fixture()
+def mapped(tmp_path):
+    app = create_app(tmp_path / "data", client_dist=None, synchronous_jobs=True)
+    with TestClient(app) as c:
+        yield c
+
+
+def test_charts_come_from_mapperatorinator_once_its_runtime_is_set_up(mapped: TestClient) -> None:
+    health = mapped.get("/api/health").json()
+    assert health["mapper"]["state"] == "ready" and "+mapper-" in health["generator"]
+    assert mapped.get("/api/songs").json()["songs"] == []
+    song = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]
+    sid = song["id"]
+    assert song["bpm"] is None  # no beat analysis: the BPM comes with the song's first chart
+    brief = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT", "brief": True}).json()["meta"]
+    assert brief["predicted"] is True and brief["noteCount"] == 0 and brief["level"] == charts.target_level("7K+1S", "EXPERT", None)
+    made = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).json()
+    chart = made["chart"]
+    assert made["cached"] is False and chart["meta"]["chartId"] == brief["chartId"]
+    assert chart["meta"]["generator"]["name"] == "mapperatorinator" and chart["meta"]["noteCount"] == 48
+    assert {n["lane"] for n in chart["notes"]} == set(range(8))
+    # the song's first chart: the model found the timing, the song keeps it and shows its BPM
+    assert chart["meta"]["generator"]["timing"] == "model" and chart["timing"]["tempoMap"] == [{"beat": 0, "bpm": 128.0}]
+    listed = mapped.get(f"/api/songs/{sid}").json()["song"]
+    assert (listed["bpm"], listed["bpmMin"], listed["bpmMax"]) == (128.0, 128.0, 128.0)
+    again = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).json()
+    assert again["cached"] is True and again["chart"]["meta"]["chartId"] == chart["meta"]["chartId"]
+    brief2 = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT", "brief": True}).json()["meta"]
+    assert "predicted" not in brief2 and brief2["noteCount"] == 48  # the made chart's own meta now
+    # the other tiers of the key mode follow in the background, one at a time, and are saved
+    others = [t for t in ("NORMAL", "HARD", "ELITE", "MASTER")]
+    deadline = time.time() + 30
+    made: dict[str, dict] = {}
+    while time.time() < deadline and len(made) < len(others):
+        for tier in others:
+            m = mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": tier, "brief": True}).json()["meta"]
+            if m.get("predicted"):
+                assert m["queued"] or m["making"]  # waiting its turn, or being made
+            else:
+                made[tier] = m
+        time.sleep(0.2)
+    assert set(made) == set(others) and all(m["generator"]["name"] == "mapperatorinator" for m in made.values())
+    # every other tier was made on the song's timing: the same beats and bar lines, no timing pass
+    for tier in others:
+        other = mapped.get(f"/api/charts/{made[tier]['chartId']}").json()["chart"]
+        assert other["timing"] == chart["timing"] and other["meta"]["generator"]["timing"] == "song"
+
+
+def test_a_chart_it_cannot_make_is_an_error_to_try_again_on(mapped: TestClient, fake_mapper_runtime, monkeypatch) -> None:
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    req = {"keyMode": "6K", "difficulty": "HARD", "seed": 13}
+    failed = mapped.post(f"/api/songs/{sid}/charts", json=req)
+    assert failed.status_code == 502 and "CUDA out of memory" in failed.json()["detail"] and "다시 시도" in failed.json()["detail"]
+    assert "CUDA out of memory" in mapped.get("/api/mapper").json()["lastError"]["error"]
+    # nothing was saved, and the same request is simply made again
+    assert mapped.post(f"/api/songs/{sid}/charts", json=req).status_code == 502
+    assert mapped.post(f"/api/songs/{sid}/charts", json={**req, "seed": 14}).status_code == 200
+    # before the runtime is set up there is no chart either: an error that says what to do
+    (fake_mapper_runtime / "state.json").unlink()
+    missing = mapped.post(f"/api/songs/{sid}/charts", json={**req, "seed": 15})
+    assert missing.status_code == 503 and "설치" in missing.json()["detail"]
+    # the song select's brief still answers (the level the tier aims at)
+    brief = mapped.post(f"/api/songs/{sid}/charts", json={**req, "seed": 15, "brief": True})
+    assert brief.status_code == 200 and brief.json()["meta"]["predicted"] is True
+    # and without an NVIDIA GPU: the error says so
+    monkeypatch.setattr(rt, "nvidia_gpus", lambda: [])
+    mapped.app.state.mapper.runtime._gpus = None
+    no_gpu = mapped.post(f"/api/songs/{sid}/charts", json={**req, "seed": 15})
+    assert no_gpu.status_code == 503 and "NVIDIA" in no_gpu.json()["detail"]
+
+
+def test_the_queue_makes_the_opened_chart_first_then_the_background_ones() -> None:
+    from rhythm_server.mapper.queue import BACKGROUND, OPENED, MapperQueue
+
+    gate = threading.Event()
+    order: list[str] = []
+
+    def run(name: str) -> dict:
+        if name == "first":
+            gate.wait(5)
+        order.append(name)
+        return {"name": name}
+
+    q = MapperQueue(run)
+    first, _ = q.submit("first", OPENED, ("first",))
+    deadline = time.time() + 5
+    while q.state("first") != "making" and time.time() < deadline:
+        time.sleep(0.01)
+    bg1, _ = q.submit("bg1", BACKGROUND, ("bg1",))
+    bg2, _ = q.submit("bg2", BACKGROUND, ("bg2",))
+    again, new = q.submit("bg2", OPENED, ("bg2",))  # opened while it waited: it moves up, same job
+    assert again is bg2 and not new and q.state("bg1") == "queued"
+    gate.set()
+    assert first.result(5)["name"] == "first" and bg1.result(5) and bg2.result(5)
+    assert order == ["first", "bg2", "bg1"]
+    q.close()
+
+
+def _wait_for(done, seconds: float = 5) -> None:
+    deadline = time.time() + seconds
+    while not done() and time.time() < deadline:
+        time.sleep(0.01)
+
+
+def test_the_queue_says_what_it_is_making_and_how_many_wait() -> None:
+    from rhythm_server.mapper.queue import BACKGROUND, OPENED, MapperQueue
+
+    idle = {"making": None, "waiting": 0}
+    gate = threading.Event()
+    q = MapperQueue(lambda name: gate.wait(5) and {"name": name})
+    assert q.snapshot() == idle
+    first, _ = q.submit("first", OPENED, ("first",))
+    _wait_for(lambda: q.state("first") == "making")
+    q.submit("bg1", BACKGROUND, ("bg1",))
+    last, _ = q.submit("bg2", BACKGROUND, ("bg2",))
+    assert q.snapshot() == {"making": "first", "waiting": 2}
+    gate.set()
+    assert first.result(5) and last.result(5)
+    _wait_for(lambda: q.snapshot() == idle)
+    assert q.snapshot() == idle
+    q.close()
+
+
+def test_the_server_tells_what_chart_is_being_made_and_whether_the_model_is_loaded(mapped: TestClient) -> None:
+    # before the first chart: nothing made, and no worker holding the model
+    assert mapped.get("/api/mapper/queue").json() == {"making": None, "waiting": 0, "loaded": False}
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    assert mapped.post(f"/api/songs/{sid}/charts", json={"keyMode": "7K+1S", "difficulty": "EXPERT"}).status_code == 200
+    # the other four tiers follow in the background: named here until the last is made
+    seen = mapped.get("/api/mapper/queue").json()
+    assert set(seen) == {"making", "waiting", "loaded"} and 0 <= seen["waiting"] <= 4 and seen["loaded"] is True
+    # and with nothing left to make the worker stays up, the model with it
+    idle = {"making": None, "waiting": 0, "loaded": True}
+    _wait_for(lambda: mapped.get("/api/mapper/queue").json() == idle, 30)
+    assert mapped.get("/api/mapper/queue").json() == idle
+
+
+def test_the_settings_screen_settings_are_kept_and_make_other_charts(mapped: TestClient) -> None:
+    before = mapped.get("/api/mapper").json()
+    assert before["settings"]["starsScale"] == 1.0 and before["settings"]["model"] == "v32"
+    tag = mapped.get("/api/health").json()["generator"]
+    sid = mapped.post("/api/songs/demo", json={"bpm": 128, "bars": 12, "seed": 2}).json()["song"]["id"]
+    req = {"keyMode": "6K", "difficulty": "EXPERT", "brief": True}
+    old = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    r = mapped.put("/api/mapper/settings", json={"starsScale": 1.25, "holdNoteRatio": 0.3, "precision": "fp16"})
+    assert r.status_code == 200 and r.json()["settings"] == {**before["settings"], "starsScale": 1.25, "holdNoteRatio": 0.3, "precision": "fp16"}
+    assert json.loads(rt.settings_path().read_text(encoding="utf-8"))["starsScale"] == 1.25  # kept in the runtime folder
+    new = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    assert new["chartId"] != old["chartId"] and new["generator"]["stars"] == round(old["generator"]["stars"] * 1.25, 2)
+    assert mapped.get("/api/health").json()["generator"] != tag  # the song select drops its old briefs
+    for bad in ({"model": "v99"}, {"starsScale": 9}, {"nope": 1}, {"lookback": 0.6, "lookahead": 0.4}):
+        assert mapped.put("/api/mapper/settings", json=bad).status_code == 400
+    # settings of earlier builds (the old generator's switch, the app's beats) are taken and ignored
+    retired = mapped.put("/api/mapper/settings", json={"enabled": False, "useAppTiming": True})
+    assert retired.status_code == 200 and (retired.json()["settings"]["enabled"], retired.json()["settings"]["useAppTiming"]) == (True, False)
+    assert "enabled" not in json.loads(rt.settings_path().read_text(encoding="utf-8")) and mapped.get("/api/mapper").json()["state"] == "ready"
+    assert mapped.put("/api/mapper/settings", json={"holdNoteRatio": None}).json()["settings"]["holdNoteRatio"] is None
+    # the speed settings reach the worker's request and make other charts
+    s = mapped.put("/api/mapper/settings", json={"hitsounds": False, "lookback": 0.4, "lookahead": 0.2, "parallel": True}).json()["settings"]
+    assert (s["hitsounds"], s["lookback"], s["lookahead"], s["parallel"]) == (False, 0.4, 0.2, True)
+    faster = mapped.post(f"/api/songs/{sid}/charts", json=req).json()["meta"]
+    assert faster["chartId"] not in (old["chartId"], new["chartId"])
+    cfg = mapped.app.state.mapper.config()
+    request = charts.request_for("6K", 10, 1, cfg, Path("a.wav"), Path("out"), None, {})
+    assert (request["hitsounds"], request["lookback"], request["lookahead"], request["parallel"]) == (False, 0.4, 0.2, True)
+
+
+def test_fp16_encoder_stand_in_routes_the_encoder_precompute(monkeypatch):
+    """worker.encoder_fp32 (fp16 models: the encoder side in fp32) runs only in Mapperatorinator's
+    Python; what can be checked here is its plumbing: the stand-in exposes every name osuT5's
+    server.precompute_encoder_outputs reads of a model, and the patched precompute routes a fp16
+    model through its stand-in (hidden states cast to fp16) and other models through untouched."""
+    import types
+
+    from rhythm_server.mapper import worker
+
+    class Tensor:
+        def __init__(self, tag):
+            self.tag = tag
+
+        def to(self, dtype):
+            return Tensor((self.tag, dtype))
+
+    class Module:
+        def float(self):
+            return self
+
+        def eval(self):
+            return self
+
+    model = types.SimpleNamespace(
+        device="cuda:0", spectrogram="mel", num_classes=7, do_style_embed=True, do_difficulty_embed=True, do_mapper_embed=False,
+        do_song_position_embed=True, project_encoder_input=True,
+    )
+    encoder32 = Module()
+    parts = {name: Module() for name in ("style_embedder", "difficulty_embedder", "song_pos_embedder", "encoder_embedder")}
+    shadow = worker.encoder_shadow(model, encoder32, parts, "fp32")
+    read_by_precompute = (
+        "device", "eval", "spectrogram", "num_classes", "do_style_embed", "do_difficulty_embed", "do_mapper_embed",
+        "do_song_position_embed", "project_encoder_input", "style_embedder", "difficulty_embedder", "song_pos_embedder", "encoder_embedder",
+    )
+    assert all(hasattr(shadow, name) for name in read_by_precompute)
+    assert shadow.transformer.dtype == "fp32" and shadow.transformer.model.encoder is encoder32
+    assert shadow.style_embedder is parts["style_embedder"] and shadow.eval() is None
+
+    calls = []
+
+    def original(m, frames, cond_kwargs, song_positions=None, batch_size=16):
+        calls.append((m, frames, song_positions, batch_size))
+        return Tensor("hidden")
+
+    server = types.SimpleNamespace(precompute_encoder_outputs=original)
+    processor = types.SimpleNamespace(precompute_encoder_outputs=original)
+    monkeypatch.setattr(worker, "_PRECOMPUTE_PATCHED", False)
+    monkeypatch.setattr(worker, "_ENCODERS32", {id(model): shadow})
+    worker._patch_precompute(server, processor, "fp16")
+    assert processor.precompute_encoder_outputs is server.precompute_encoder_outputs is not original
+    other = object()
+    assert processor.precompute_encoder_outputs(model, "frames", {}, "positions", batch_size=4).tag == ("hidden", "fp16")
+    assert server.precompute_encoder_outputs(other, "frames", {}).tag == "hidden"
+    assert calls == [(shadow, "frames", "positions", 4), (other, "frames", None, 16)]
+    # patched once: a second call keeps the first wrapper
+    worker._patch_precompute(server, processor, "fp16")
+    assert len(calls) == 2 and processor.precompute_encoder_outputs(other, "f", {}).tag == "hidden"
+
+
+def test_the_worker_lets_the_model_go_when_no_chart_comes_and_starts_again_for_the_next(tmp_path) -> None:
+    """The worker keeps the model on the GPU between charts; once no chart has come for its idle
+    time it ends, and the game has the card's memory to itself (config: idleUnloadSeconds)."""
+    from rhythm_server.mapper.service import MapperError, MapperService
+
+    svc = MapperService(Runtime(), idle_unload_s=1.0)
+    ask = lambda **extra: svc.generate({"keycount": 4, "out": str(tmp_path), **extra}, 30)  # noqa: E731
+    try:
+        assert ask()["ok"] and svc.loaded()
+        # a timer armed before the last chart, or one that fires while a chart is made, leaves it
+        svc._unload_if_idle(svc._used_at - 1.0)
+        assert svc.loaded()
+        with svc._lock:
+            svc._unload_if_idle(svc._used_at)
+        assert svc.loaded()
+        _wait_for(lambda: not svc.loaded(), 15)
+        assert not svc.loaded()
+        # the next chart starts the worker again; a chart that fails counts as a use too
+        with pytest.raises(MapperError, match="CUDA out of memory"):
+            ask(seed=13)
+        assert svc.loaded()
+        _wait_for(lambda: not svc.loaded(), 15)
+        assert not svc.loaded()
+        assert ask()["ok"] and svc.loaded()
+    finally:
+        svc.close()
+    assert not svc.loaded() and svc._idle_timer is None
+
+
+def test_with_no_idle_time_the_worker_keeps_the_model_and_the_config_lets_go_after_two_minutes(tmp_path) -> None:
+    from rhythm_server.mapper.service import MapperService
+
+    assert MapperService(Runtime()).idle_unload_s() == 120.0  # config/mapper.json idleUnloadSeconds
+    svc = MapperService(Runtime(), idle_unload_s=0)
+    try:
+        assert svc.generate({"keycount": 4, "out": str(tmp_path)}, 30)["ok"]
+        time.sleep(0.5)
+        assert svc.loaded() and svc._idle_timer is None
+    finally:
+        svc.close()
+
+
+def _eighths(start_ms: float, end_ms: float, bpm: float) -> list[dict]:
+    """Onsets on every eighth of a tempo, as the analysis gives them."""
+    step = 30000.0 / bpm
+    return [{"t": start_ms + i * step} for i in range(int((end_ms - start_ms) / step))]
+
+
+def test_a_tempo_the_song_does_not_follow_is_taken_out_and_the_one_before_runs_on() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+
+    beat = 60000.0 / 180
+    onsets = _eighths(100.0, 300_000.0, 180.0)
+    # the timing pass lost the beat from 160 s: 120 BPM (the song's eighths are not on it), then 2.9 and
+    # 29.5 (outside 30-400, and under 0.4 of the tempo held longest), and 67 BPM from 280 s: under 0.4
+    # of 180, taken out though only a few onsets lie under it
+    lost = timing_from_reds([(100.0, beat, 4), (160_000.0, 500.0, 4), (200_000.0, 60000.0 / 2.9, 4), (250_000.0, 60000.0 / 29.5, 4),
+                             (280_000.0, 60000.0 / 67, 4)])
+    fixed, dropped = charts.checked_timing(lost, onsets[:-100], 300_000.0)
+    assert [(d["why"], round(d["bpm"], 1)) for d in dropped] == [("onsets", 120.0), ("bounds", 2.9), ("bounds", 29.5), ("bounds", 67.0)]
+    assert dropped[0]["gain"] > charts.TIMING_GAIN and dropped[0]["spanMs"] == 40_000.0
+    assert [p["bpm"] for p in fixed["tempoMap"]] == [180.0] and fixed["offsetMs"] == 100.0
+    # a lost stretch of two seconds is left as it was: its few notes are not worth a chart made again
+    short = timing_from_reds([(100.0, beat, 4), (100_000.0, 60000.0 / 2.9, 4), (102_000.0 + 100.0 / 3, beat, 4)])
+    assert charts.checked_timing(short, onsets, 300_000.0) == (short, [])
+
+
+def test_a_real_tempo_change_a_meter_change_and_a_tempo_with_few_onsets_stay() -> None:
+    from rhythm_server.formats.osu import timing_from_reds
+
+    # 176 -> 185 BPM at 103.6 s: the song's onsets follow the new tempo, not the old one run on, also
+    # when they lie 25 ms after the model's grid (the analysis's onsets came 18-33 ms after it)
+    real = timing_from_reds([(0.0, 60000.0 / 176, 4), (103_600.0, 60000.0 / 185, 4)])
+    for late in (0.0, 25.0):
+        onsets = [{"t": o["t"] + late} for o in _eighths(0.0, 103_600.0, 176.0) + _eighths(103_600.0, 200_000.0, 185.0)]
+        assert charts.onset_lag(charts.timing_red_lines(real), onsets, 200_000.0) == pytest.approx(late, abs=0.5)
+        assert charts.checked_timing(real, onsets, 200_000.0) == (real, [])
+    # 4/4 then 3/4 at the same tempo
+    meter = timing_from_reds([(0.0, 500.0, 4), (64_000.0, 500.0, 3)])
+    assert charts.checked_timing(meter, _eighths(0.0, 128_000.0, 120.0), 128_000.0) == (meter, [])
+    # an outro of five onsets at another tempo: nothing to judge it by
+    outro = timing_from_reds([(0.0, 500.0, 4), (280_000.0, 60000.0 / 90, 4)])
+    onsets = _eighths(0.0, 280_000.0, 120.0) + [{"t": 281_000.0 + 1000.0 * i} for i in range(5)]
+    assert charts.checked_timing(outro, onsets, 300_000.0) == (outro, [])
+    # a single tempo is never taken out
+    one = timing_from_reds([(0.0, 500.0, 4)])
+    assert charts.checked_timing(one, [], 10_000.0) == (one, [])
+
+
+def test_v32s_last_column_goes_on_the_7k1s_scratch_and_v32_minis_first() -> None:
+    cfg = dict(mapper_config())
+    assert cfg["scratchColumn"]["v32"] == "last" and cfg["scratchColumn"]["v32-mini"] == "first"
+    v32, mini = {**cfg, "model": "v32"}, {**cfg, "model": "v32-mini"}
+    assert charts.column_lanes("7K+1S", v32) == [1, 2, 3, 4, 5, 6, 7, 0]
+    assert charts.column_lanes("7K+1S", mini) == list(range(8))
+    assert charts.column_lanes("8K", v32) == list(range(8)) and charts.column_lanes("6K+FX", v32) == charts.columns("6K+FX")
+    # a note in the model's last column is on the scratch, one in its first on the first key
+    text = osu(8, [f"{x_of(7, 8)},192,1000,1,0,0:0:0:0:", f"{x_of(0, 8)},192,1500,1,0,0:0:0:0:"])
+    assert [(n["t"], n["lane"]) for n in charts.notes_from_osu(text, charts.column_lanes("7K+1S", v32))] == [(1000.0, 0), (1500.0, 1)]
+    # v32's 7K+1S charts are new ones (made again when asked for); the others keep their ids
+    a, first = _analysis(), {**v32, "scratchColumn": {"v32": "first"}}
+    assert charts.chart_id(a, "7K+1S", "HARD", 8, 1, v32) != charts.chart_id(a, "7K+1S", "HARD", 8, 1, first)
+    assert charts.chart_id(a, "8K", "HARD", 8, 1, v32) == charts.chart_id(a, "8K", "HARD", 8, 1, first)
+
+
+LOST_BEAT_WORKER = textwrap.dedent('''
+    import json, sys
+    from pathlib import Path
+    for line in sys.stdin:
+        req = json.loads(line)
+        # its own timing loses the beat at 20 s (3 BPM); given a timing, it keeps it
+        reds = ["100,468.75,4,1,0,60,1,0", "20000,20000,4,1,0,60,1,0"]
+        if req.get("beatmap"):
+            text = Path(req["beatmap"]).read_text(encoding="utf-8")
+            reds = [l for l in text.split("[TimingPoints]")[1].splitlines() if l.strip() and not l.startswith("[")]
+        t0, beat = float(reds[0].split(",")[0]), float(reds[0].split(",")[1])
+        keys = int(req["keycount"])
+        objs = [f"{int((i % keys + 0.5) * 512 / keys)},192,{int(round(t0 + i * beat))},1,0,0:0:0:0:" for i in range(48)]
+        out = Path(req["out"]) / "beatmap.osu"
+        head = "osu file format v14\\n[General]\\nMode: 3\\n[Difficulty]\\nCircleSize:%d\\n[TimingPoints]\\n%s\\n[HitObjects]\\n" % (keys, "\\n".join(reds))
+        out.write_text(head + "\\n".join(objs) + "\\n", encoding="utf-8")
+        print(json.dumps({"id": req["id"], "ok": True, "osu": str(out), "seconds": 0.1, "device": "cuda", "precision": "fp32"}), flush=True)
+''')
+
+
+def test_a_first_chart_whose_timing_lost_the_beat_is_made_again_without_it(tmp_path, fake_mapper_runtime, monkeypatch) -> None:
+    import soundfile as sf
+
+    from rhythm_server.formats.osu import timing_from_reds
+
+    (fake_mapper_runtime / "fake_worker.py").write_text(LOST_BEAT_WORKER, encoding="utf-8")
+    s = make_structured_song(bpm=128.0, seed=2)
+    wav = tmp_path / "song.wav"
+    sf.write(wav, s.pcm, s.sample_rate)
+    meta = {"songId": None, "title": "T", "artist": "A"}
+    mapper = Mapper()
+    try:
+        # with mapper.json timingCheck off the model's timing is kept as it came
+        assert mapper.config()["timingCheck"] is True
+        config = Mapper.config
+        monkeypatch.setattr(Mapper, "config", lambda self: {**config(self), "timingCheck": False})
+        kept = mapper.generate(_analysis(), "4K", "HARD", None, 1, meta, wav)
+        assert "timingFixed" not in kept["meta"]["generator"] and [p["bpm"] for p in kept["timing"]["tempoMap"]] == [128.0, 3.0]
+        monkeypatch.setattr(Mapper, "config", config)
+        chart = mapper.generate(_analysis(), "4K", "HARD", None, 1, meta, wav)
+        gen = chart["meta"]["generator"]
+        assert gen["timing"] == "model" and [(d["why"], d["ms"]) for d in gen["timingFixed"]] == [("bounds", 20000.0)]
+        assert [p["bpm"] for p in chart["timing"]["tempoMap"]] == [128.0]
+        assert gen["seconds"] == pytest.approx(0.2)  # made twice: again on the timing without the lost beat
+        # a song's timing kept from before this check, with the lost beat, is checked as its next chart is made
+        lost = timing_from_reds([(100.0, 468.75, 4), (20000.0, 20000.0, 4)])
+        again = mapper.generate(_analysis(), "4K", "NORMAL", None, 1, meta, wav, lambda: lost)
+        assert again["meta"]["generator"]["timing"] == "song" and again["meta"]["generator"]["timingFixed"]
+        assert [p["bpm"] for p in again["timing"]["tempoMap"]] == [128.0] and again["meta"]["generator"]["seconds"] == pytest.approx(0.1)
+    finally:
+        mapper.close()

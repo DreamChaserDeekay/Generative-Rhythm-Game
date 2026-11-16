@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   activeCovers,
   bindingLabel,
@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   greenNumber,
   liftShare,
+  loadSettings,
   MAX_JUDGE_LINE,
   MIN_JUDGE_LINE,
   laneColorsOf,
@@ -21,6 +22,7 @@ import {
   rebindKey,
   resetSettings,
   sanitizeSettings,
+  saveSettings,
   skinOf,
   secondBindingsFor,
   songOffsetOf,
@@ -36,13 +38,16 @@ import { cameraConfig, difficultyTiers, keyModes } from '../engine/config';
 
 describe('settings', () => {
   it('drops unknown values and clamps numbers', () => {
-    const s = sanitizeSettings({ ruleset: 'NOPE' as never, hiSpeed: 99, sudden: 3, placement: 'X' as never, generation: { density: 9 } as never });
+    const s = sanitizeSettings({ ruleset: 'NOPE' as never, hiSpeed: 99, sudden: 3, placement: 'X' as never });
     expect(s.ruleset).toBe(DEFAULT_SETTINGS.ruleset);
     expect(s.hiSpeed).toBe(10);
     expect(s.sudden).toBeLessThanOrEqual(0.85);
     expect(s.placement).toBe('OFF');
-    expect(s.generation.density).toBe(1.5);
-    expect(s.generation.style).toBe('balanced');
+  });
+
+  it('drops the generation options of settings saved when the play options had them', () => {
+    const s = sanitizeSettings({ generation: { style: 'chord', density: 1.2 } } as never);
+    expect('generation' in s).toBe(false);
   });
 
   it('keeps the key beam length between off and twice the usual (settings saved before the option: the usual)', () => {
@@ -116,20 +121,72 @@ describe('settings', () => {
 
   it('keeps the parts picked and draws the track with them', () => {
     expect(DEFAULT_SETTINGS.parts).toEqual({ note: 'flat', side: 'bar', deck: 'standard', hit: 'flash' });
-    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'najeon', hit: 'nope' as never, side2: 1 } as never });
-    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
-    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'najeon', hit: 'flash' });
+    const s = sanitizeSettings({ parts: { note: 'star5', side: 'dots', deck: 'piano', hit: 'nope' as never, side2: 1 } as never });
+    expect(s.parts).toEqual({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
+    expect(skinOf(s).style).toMatchObject({ note: 'star5', side: 'dots', deck: 'piano', hit: 'flash' });
     // the track keeps its colours
     expect(skinOf(s).colors).toBe(BASE_SKIN.colors);
-    // the piano note taken out: the flat notes, the piano hit kept
+    // the piano note taken out: the default notes, the piano hit kept
     expect(sanitizeSettings({ parts: { note: 'piano', hit: 'piano' } as never }).parts).toMatchObject({ note: 'flat', hit: 'piano' });
-    // a gear colour an earlier version saved is dropped, and its gear, taken out, is the standard one
+    // a gear colour an earlier version saved is dropped, and its gear, taken out, is the default one
     const old = sanitizeSettings({ parts: { deck: 'arcade', deckColour: 'white' } as never });
     expect(old.parts).not.toHaveProperty('deckColour');
     expect(skinOf(old).style).toMatchObject({ deck: 'standard' });
     expect(skinOf(old).style).not.toHaveProperty('deckColour');
     for (const deck of ['mixer', 'crystal', 'neon', 'grand', 'line', 'stem']) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck, deck).toBe('standard');
-    for (const deck of ['standard', 'cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'piano', 'rawglass'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+    for (const deck of ['standard', 'prism', 'piano'] as const) expect(sanitizeSettings({ parts: { deck } as never }).parts.deck).toBe(deck);
+  });
+
+  it('starts a player whose saved settings have a gear that was taken out (the seven old gears but the piano) on the default gear, the rest of the settings as saved', () => {
+    // the browser's storage, as a map
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      for (const gone of ['cabinet', 'receiver', 'najeon', 'keyboard', 'racing', 'orbital', 'rawglass']) {
+        // as the version that had the gear saved it: picked part by part with notes and a hit of other sets, the lettering the gear's
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: 'round', side: 'dots', deck: gone, hit: 'club' } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: 'round', side: 'dots', deck: gone, hit: 'club' });
+        const s = loadSettings();
+        // the gear alone is the default one: the notes, the side notes and the hit as picked
+        expect(s.parts, gone).toEqual({ note: 'round', side: 'dots', deck: 'standard', hit: 'club' });
+        expect(skinOf(s).style, gone).toEqual({ note: 'round', side: 'dots', deck: DEFAULT_SETTINGS.parts.deck, hit: 'club' });
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        // saved again, it is the default gear that is kept
+        saveSettings(s);
+        expect(JSON.parse([...items.values()][0]).parts.deck, gone).toBe('standard');
+        // the gear picked with nothing else changed: the default skin
+        expect(sanitizeSettings({ parts: { deck: gone } as never }).parts, gone).toEqual(DEFAULT_SETTINGS.parts);
+      }
+      expect(items.size).toBe(1);
+      // the piano, the old gear that stays, opens as saved
+      saveSettings({ ...DEFAULT_SETTINGS, parts: { note: 'round', side: 'dots', deck: 'piano', hit: 'club' } });
+      expect(loadSettings().parts).toEqual({ note: 'round', side: 'dots', deck: 'piano', hit: 'club' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('starts a player whose saved settings have a skin that was taken out (rainbow, magenta) on the default skin, the rest of the settings as saved', () => {
+    // the browser's storage, as a map
+    const items = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) });
+    try {
+      for (const gone of ['rainbow', 'magenta']) {
+        // as the version that had the skin saved it: its notes, its gear and its hit, the lettering the gear's
+        saveSettings({ ...DEFAULT_SETTINGS, hiSpeed: 2.5, lastKeyMode: '7K+1S', hudType: 'gear', parts: { note: gone, side: 'dots', deck: gone, hit: gone } as never });
+        expect(JSON.parse([...items.values()][0]).parts, gone).toEqual({ note: gone, side: 'dots', deck: gone, hit: gone });
+        const s = loadSettings();
+        // each part the default one (the side notes are none of a skin's parts: as picked)
+        expect(s.parts, gone).toEqual({ ...DEFAULT_SETTINGS.parts, side: 'dots' });
+        expect(skinOf(s).style, gone).toEqual({ note: 'flat', side: 'dots', deck: 'standard', hit: 'flash' });
+        expect([s.hiSpeed, s.lastKeyMode, s.hudType], gone).toEqual([2.5, '7K+1S', 'gear']);
+        // one of its parts picked among others: that part alone is the default one
+        expect(sanitizeSettings({ parts: { note: 'star4', side: 'bar', deck: gone, hit: 'grid' } as never }).parts, gone).toEqual({ note: 'star4', side: 'bar', deck: 'standard', hit: 'grid' });
+      }
+      expect(items.size).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('writes the judgement and combo in the gear’s type unless the player keeps the track’s own (기본)', () => {
@@ -138,21 +195,19 @@ describe('settings', () => {
     expect(sanitizeSettings({ hudType: 'nope' as never }).hudType).toBe('gear');
   });
 
-  it('keeps the song select favourites, folder and order, dropping unknown ones', () => {
-    expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
-    const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: 'bpm' });
-    expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: 'bpm' });
-    expect(sanitizeSettings({ songFolder: 'noFullCombo', songSort: 'recent' })).toMatchObject({ songFolder: 'noFullCombo', songSort: 'recent' });
-    expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: 'y' as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: 'added' });
+  it('keeps the song select favourites, which songs it lists and its order, dropping unknown ones', () => {
+    expect(sanitizeSettings({})).toMatchObject({ favorites: [], songFolder: 'all', songSort: null });
+    const s = sanitizeSettings({ favorites: ['a', 'b', 'a', 3 as never], songFolder: 'favorites', songSort: { key: 'album', dir: 'asc' } });
+    expect(s).toMatchObject({ favorites: ['a', 'b'], songFolder: 'favorites', songSort: { key: 'album', dir: 'asc' } });
+    expect(sanitizeSettings({ songSort: { key: 'title', dir: 'sideways' } as never }).songSort).toEqual({ key: 'title', dir: 'desc' });
+    expect(sanitizeSettings({ favorites: 'a' as never, songFolder: 'x' as never, songSort: { key: 'bpm', dir: 'asc' } as never })).toMatchObject({ favorites: [], songFolder: 'all', songSort: null });
   });
 
-  it('keeps the pattern engine choice, dropping unknown ones', () => {
-    expect(sanitizeSettings({}).generation.patternEngine).toBe('sectioned');
-    expect(sanitizeSettings({ generation: { patternEngine: 'classic' } as never }).generation.patternEngine).toBe('classic');
-    expect(sanitizeSettings({ generation: { patternEngine: 'random' } as never }).generation.patternEngine).toBe('sectioned');
-    // "designer" was the default before the sectioned engine; only a picked one stays
-    expect(sanitizeSettings({ generation: { patternEngine: 'designer' } as never }).generation.patternEngine).toBe('sectioned');
-    expect(sanitizeSettings({ generation: { patternEngine: 'designer', engineSet: true } as never }).generation.patternEngine).toBe('designer');
+  it('reads the folders and orders of an earlier version: its record folders are every song, its title and artist orders stay', () => {
+    expect(sanitizeSettings({ songFolder: 'noFullCombo' as never, songSort: 'recent' as never })).toMatchObject({ songFolder: 'all', songSort: null });
+    expect(sanitizeSettings({ songSort: 'title' as never }).songSort).toEqual({ key: 'title', dir: 'asc' });
+    expect(sanitizeSettings({ songSort: 'artist' as never }).songSort).toEqual({ key: 'artist', dir: 'asc' });
+    expect(sanitizeSettings({ songSort: 'added' as never }).songSort).toBeNull();
   });
 
   it('drops the difficulty system of settings saved when there were three, and a tier gone with it or with EASY', () => {

@@ -1,0 +1,120 @@
+{
+ "gear": "grok",
+ "name": "Grok",
+ "picture": "grok.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "5f5f981bc1fdb2f32537bfcc36a3842e81d475832b13365dff02b0d89ebd313a",
+ "chosen": "chosen/grok.png (2048 x 876): the user's choice ('5-A로 하고, X 로고 크기를 90%로 줄여서 확정해줘')",
+ "steps": [
+  "p6/layout-grok2.py <scratchpad> grok-e1 (and grok-f1 for the two prints' layers): the Bot's print from the measures of the user's picture (grok/ref/bot-avatar.json), the mark's print, a place-holder rocket",
+  "p6/synth.py grok-e1 p4/grok-a1/tmpl-0.png; p4/gen21.py grok-e1 3 -> p4/grok-e1/try-3.png (chosen/grok-rocket-generation.png): the rocket and its rider (reference: draft 2's rocket, p4/refs/grok-doge-ship-2.png; the SpaceX logo)",
+  "p4/tools.py flat grok-e1 3",
+  "p6/shiftparts.py grok-e1:3 grok-g0 1130,620:-60,-214 still=grok-f1/bot.png,grok-f1/icon.png: the rocket group up to the panel's middle depth (and 60 px to the left)",
+  "p6/reprint-grok.py grok-g0 1 grok-g1 rim=0 dark=0.62: the drawn prints laid back, the bare metal darker (draft 4)",
+  "p6/layout-grok-x.py <scratchpad> grok-g1 grok-j1 1075 594; p6/synth.py for grok-j1 and grok-j1-g; p4/gen22.py grok-j1 a silver -> p4/grok-j1/try-a.png (chosen/grok-generation.png): the X logo added behind the rocket by the image model",
+  "p4/tools.py flat grok-j1 a; p6/reprint-grok.py grok-j1 a grok-k1 rim=0 dark=1.0 -> chosen/grok.png"
+ ],
+ "sources": {
+  "bot": "the user's picture of the Grok Bot (its profile picture on X), chosen/grok-bot-reference.png; drawn again from its measures",
+  "mark": "the Grok mark (ai/dl/lobe-grok.svg)",
+  "x logo": "Wikimedia Commons, X_logo_2023.svg",
+  "spacex logo": "Wikimedia Commons, SpaceX-Logo.svg (the lettering on the rocket's hull, by the image model after it)",
+  "doge, starship": "made by the image model (the Doge meme's Shiba Inu; SpaceX's Starship)"
+ },
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "grok-j1",
+   "metal": "silver",
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the FINISHED PICTURE you change: the lower part of a frame of our own rhythm game's play screen. Note lanes run away from the camera, a glowing white judge line crosses them, under it lies a row of eight black key caps outlined in white, and under that row, between the two thin white side rails, lies the gear's lower panel: a wide slab of matte black metal that runs down to the bottom edge of the image. On the slab: a big flat white ball with two black eyes printed in its lower left corner; a flat rust-orange emblem printed in its upper right corner; and, at the middle, a steel rocket flying to the upper right with a Shiba Inu dog riding it, the word SPACEX on its hull, a flame out of its tail and thin speed streaks behind it.\n\nIMAGE 2 is a GUIDE: the same picture with ONE thing added as a flat grey drawing: a large X-shaped mark on the slab, UNDER the rocket, the dog and the flame. It shows exactly where the new thing lies and how large it is. The guide is rough: where the grey mark has holes or ragged edges beside the rocket, ignore them; the mark is whole and runs on under the rocket.\n\nIMAGE 3 is the DESIGN REFERENCE for that mark: the X logo: two diagonal strokes that cross: a slim solid bar from the upper right to the lower left, and a broad bar from the upper left to the lower right that is HOLLOW (only its outline, a thin frame). Reproduce this shape faithfully.\n\nCHANGE ONLY THIS: add the X logo of image 3 to the slab as a large, solid THREE-DIMENSIONAL emblem, exactly at the place and at the size of image 2's grey mark: the logo cut from thick plate of SILVER STEEL: satin-brushed top faces and polished, bright bevelled edges, like the stainless steel of the rocket; it stands out clearly from the black slab. It is set into the matte black slab and lies flat on it, raised about as high as two fingers are thick, with crisp bevelled edges, seen from this camera and foreshortened by it exactly as the guide's mark is; it throws a soft shadow on the slab.\n\nIt lies BEHIND the rocket: the rocket, the dog, the flame, the sparks and the streaks are in front of it (above it) and hide the parts of it they pass over; the rocket and the dog throw their soft shadow onto it, and the flame's blue-white light glints on the bevels near it.\n\nKEEP EVERYTHING ELSE EXACTLY AS IMAGE 1 HAS IT: the framing (the same camera, zoom and crop: your picture must overlay image 1 pixel for pixel), the lanes, the judge line, the key caps, the rails; the white ball print with its two black eyes and the orange emblem print (flat prints: same shapes, places, sizes and colours); the rocket (the same place, size and angle), the dog (the same pose and face), the SPACEX lettering, the flame, the sparks and the streaks; and the darkness of the slab. Do not move, resize, redraw or restyle any of them, and add nothing else: no other logo, no text, no other objects, no watermark.",
+   "made": "2026-11-13 00:06:09 +0000",
+   "bytes": 4570702,
+   "sha256": "34fa75a55378aa70503a50674411bdb5589b9f45b60bcf70c5361716a62461c6",
+   "usage": {
+    "promptTokenCount": 4059,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6704,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 699
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 965
+   },
+   "pictures": [
+    "p4/grok-j1/tmpl-crop.png (draft 4's finished picture in this game's own frame)",
+    "p4/grok-j1-g/tmpl-crop.png (the same with the logo drawn flat under the rocket)",
+    "p4/refs/x-logo.png"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "grok-generation.json"
+  },
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "grok-e1",
+   "prompt": "Three pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Note lanes run away from the camera, a glowing white judge line crosses them (with a white burst on it), under it lies a row of eight black key caps outlined in white, and under that row, between the two thin white side rails, lies the gear's lower panel: a wide slab that runs from the key caps down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING: a near-black slab with two large flat GRAPHICS printed on it, (a) in its lower left CORNER a big pearl-white ball with two black slanted eyes, cut off by the panel's left side and by the bottom edge of the image, so that only its upper right part shows, and (b) in its upper right CORNER a big emblem in the rust-orange colours of the planet Mars, a ring cut by a long diagonal blade; and, between the two, (c) a steel rocket seen from above, its nose pointing to the upper right, toward the emblem, with a tan dog sitting on it, a word on its hull, a short flame out of its tail and a few thin speed lines behind it. The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE for the rocket and its rider, a crop of the previous render of this scene: a miniature of SpaceX's Starship in polished stainless steel with the word SPACEX on its hull, and riding it a Shiba Inu dog, the DOGE of the famous internet meme, looking back over its shoulder with its well-known sideways glance. Reproduce THIS dog and THIS rocket as exactly as you can: the same character, the same pose, the same face and expression, the same fur blown back, the same steel, flaps and black heat-shield tiles, the same lettering at the same place, the same size compared with one another. Take only the rocket and the dog from image 2 (not the orange shape or the rail behind them). Image 1 says where they are and how large.\n\nIMAGE 3 is the DESIGN REFERENCE for the lettering on the rocket: the SpaceX logo, the word SPACEX in wide, bold capitals whose X is drawn with one long, thin swoosh that sweeps up to the right. Reproduce it faithfully.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the row of key caps, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the notes, the judge line and the burst on it, the row of key caps, the rails, the dark background.\n\nThe panel becomes one slab of MATTE BLACK METAL seen exactly from this camera, as a photorealistic 3D render at the finish of a commercial console game: bead-blasted, anodised black aluminium that swallows the light. It is DARK: almost black, clearly darker than charcoal grey, with an extremely fine, even grain, no gloss, and only a very faint, broad sheen. It stays that dark everywhere, from its far edge to its near edge: no grey haze, no bright patch, no light band. Plain and calm: no pattern, no seams, no screws, no lines, no vents, no scratches.\n\nTHE TWO PRINTED GRAPHICS, (a) the white ball and (b) the Mars-coloured emblem, are part of the slab's surface: completely flat prints, like silk-screen printing on the metal, with no relief, no thickness, no gloss of their own and no shadow of their own. KEEP THEM EXACTLY AS IMAGE 1 SHOWS THEM: the same shapes, the same places and sizes, the same colours and the same soft shading, the ball's two black eyes exactly as drawn (two thick slanted strokes with round ends), the ball cut off by the panel's edges exactly as drawn. Do not turn them into solid objects, do not redraw or restyle them, do not move or resize them, do not add a face, a mouth, a highlight or an outline.\n\nTHE ROCKET AND ITS RIDER are the only solid, three-dimensional things, and they are OVER the prints (where they overlap a print, they hide it and throw their soft shadow on it):\n\n1. THE ROCKET: the Starship of image 2, flying low along the slab, a hair above it and parallel to it, exactly along the drawn rocket and exactly as LARGE as it is drawn (it is big: about a third of the panel's width), not larger: its tail to the RIGHT of the white ball, with a wide gap of bare black metal between the ball and the engine bells, its nose pointing to the upper right and ending just under the lower left of the Mars-coloured emblem, as if it were about to fly into that ring. The rocket does not cover the emblem and does not cover the ball. Polished stainless steel with fine weld seams, two small forward flaps and two larger aft flaps covered with small black heat-shield tiles, a cluster of engine bells at its tail.\n\n2. THE WORD ON ITS HULL: the SpaceX logo of image 3, the word SPACEX with its long swoosh, painted along the rocket's hull on the side that faces the camera, between the dog and the nose, in dark navy on the bright steel, as large as the hull allows and clearly legible. Spell it exactly: S, P, A, C, E, X.\n\n3. THE DOG: the Doge of image 2, riding the rocket astride, just behind the lettering, its front paws holding the hull, looking back over its shoulder toward the camera with the same sideways glance and calm, smug little smile; as big compared with the rocket as in image 2.\n\n4. SPEED: they are flying FAST, and the picture shows it. A fierce rocket flame streams back from the engine bells toward the lower left over the bare black metal, exactly along the drawn flame and NOT LONGER than it (about a third of the rocket's length; it ends before it reaches the white ball): white-hot and pale blue at the engines with a row of shock diamonds, turning violet and then orange, fraying into glowing wisps; a stream of sparks races back with it, each spark drawn out into a short streak. Thin, straight streaks of white light trail back from the tips of the flaps and from the dog's ears, all parallel to the flight path. The dog's ears, cheek fur and tail are blown straight back by the wind. The rocket and the dog themselves stay sharp; only the far end of the flame, the sparks and the streaks are blurred by the motion. IMPORTANT: the flame, the sparks and the streaks stay on the black metal, between the ball and the rocket; NOTHING crosses the white ball: the ball stays completely clear.\n\n5. LIGHT: the flame is the brightest thing in the picture and it glows: it lays a soft pool of blue-violet and orange light on the matte black metal under and round it and a faint warm tint on the rim of the white ball next to it, and warm rim light on the rocket's tail and on the dog's back. The rocket and the dog throw a soft shadow on the slab and on the prints under them.\n\nThe top edge of the panel under the key caps is a thin bevelled lip. Everything stays inside the rails; nothing rises over the rails or above the key caps, and the panel runs on down past the bottom edge of the image (no front edge is seen). Nothing else is on the slab: no other logo, no silver lettering, no buttons, no knobs, no screens, no stars, no planets, no people, no hands.\n\nNo other text, letters or numbers than the word SPACEX on the rocket, no watermark, and nothing over the lanes. Colours: black and charcoal; the ball's pearl white; the emblem's Mars rust-orange; steel; the dog's tan and cream; the flame's pale blue, violet and orange with its glow.",
+   "made": "2026-11-12 09:15:31 +0000",
+   "bytes": 5036111,
+   "sha256": "6c8a2f3525be0162d86c46c5b5766dfa48c63a1b065a779cdaa68acfb1e10bd5",
+   "usage": {
+    "promptTokenCount": 5169,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 6907,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 1809
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 3360
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 58
+   },
+   "pictures": [
+    "p4/grok-e1/tmpl-crop.png (this game's own frame, the panel a flat layout drawing laid in by p6/synth.py: the Bot print drawn from the user's picture, the Mars-coloured mark, a place-holder rocket)",
+    "p4/refs/grok-doge-ship-2.png",
+    "p4/refs/spacex-logo.png"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "grok-rocket-generation.json"
+  }
+ ]
+}

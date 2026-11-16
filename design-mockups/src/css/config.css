@@ -1,0 +1,120 @@
+/* ── settings ─────────────────────────────────────────────────────────────────────────────── */
+.cfg {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  top: calc(var(--top-h) + 1.25rem);
+  bottom: calc(var(--hint-h) + 0.75rem);
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr) 20.5rem;
+  gap: 2.5rem;
+}
+.cfg-side {
+  display: flex;
+  flex-direction: column;
+}
+.cfg-tabs {
+  display: flex;
+  flex-direction: column;
+}
+.cfg-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.cfg-rows {
+  margin-top: 0;
+}
+.cfg-aside {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.cfg-preview-head .green {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.cfg-preview-head .green b {
+  color: var(--ok);
+}
+/* what the picked row means, under the rows */
+.cfg-help {
+  flex: none;
+  min-height: 3.5rem;
+  max-height: 11.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hair);
+  overflow: hidden;
+  font-size: var(--t-15);
+  line-height: 1.55;
+  color: var(--text-2);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.cfg-help p + p {
+  margin-top: 0.25rem;
+}
+.cfg-help .of {
+  color: var(--text);
+}
+.cfg-help .of b {
+  margin-right: 0.5rem;
+  font-weight: 800;
+}
+.cfg-help .was {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid var(--hair-2);
+  font-size: var(--t-13);
+  font-weight: 700;
+  color: var(--text);
+}
+.cfg-help .warn-text {
+  margin-bottom: 0.375rem;
+  color: var(--warn);
+  font-weight: 600;
+}
+/* tables the rows carry (the analysis backends, the generator's state) */
+.rl-block table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-15);
+}
+.rl-block td {
+  padding: 0.3125rem 0.75rem 0.3125rem 0;
+  border-bottom: 1px solid var(--hair);
+  color: var(--text);
+}
+.rl-block td:first-child {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.rl-block td.ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+.rl-block td.lic {
+  color: var(--text-2);
+  font-size: var(--t-13);
+}
+.rl-block table.backends td:nth-child(3) {
+  white-space: nowrap;
+}
+.rl-block table.kv td:first-child {
+  width: 6rem;
+}
+.rl-block pre {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 0.875rem;
+  background: var(--bg-1);
+  font-size: var(--t-13);
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

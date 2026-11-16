@@ -53,8 +53,11 @@ export function PadInputTest({
 }) {
   const [state, setState] = useState(PAD_TEST_START);
   const box = useRef<HTMLDivElement>(null);
-  // it opens under its row: in sight, without moving the focus
-  useEffect(() => box.current?.scrollIntoView({ block: 'nearest' }), []);
+  // it opens under its row: in sight, without moving the focus (the effect returns nothing:
+  // scrollIntoView answers with a promise in newer browsers, which is no clean-up)
+  useEffect(() => {
+    box.current?.scrollIntoView({ block: 'nearest' });
+  }, []);
 
   const bound = lanes.join(' ');
   const { steps, releaseMs } = turntable;

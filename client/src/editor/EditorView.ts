@@ -1,4 +1,5 @@
 import type { EditNote, EditorDoc } from './editorModel';
+import { uiScale } from '../ui/uiScale';
 
 /** What the editor canvas shows; the editor screen owns it and redraws on change. */
 export interface EditorViewState {
@@ -63,6 +64,12 @@ export class EditorView {
   private readonly ctx: CanvasRenderingContext2D;
   private layoutValue: EditorLayout | null = null;
   private laneUnits: readonly number[] = [];
+  /**
+   * How much larger than laid out the view shows (the menus grow with the window): a point of the
+   * page is divided by it before it is asked about, a place of the layout multiplied by it before
+   * it is put on the page.
+   */
+  scale = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -77,9 +84,11 @@ export class EditorView {
    */
   layout(laneUnits: readonly number[]): EditorLayout {
     this.laneUnits = laneUnits;
-    const dpr = window.devicePixelRatio || 1;
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
+    // the view is laid out in the menus' own pixels and drawn at their scale, as the screen around it
+    const k = (this.scale = uiScale());
+    const dpr = (window.devicePixelRatio || 1) * k;
+    const width = this.canvas.clientWidth / k;
+    const height = this.canvas.clientHeight / k;
     if (this.canvas.width !== Math.round(width * dpr) || this.canvas.height !== Math.round(height * dpr)) {
       this.canvas.width = Math.round(width * dpr);
       this.canvas.height = Math.round(height * dpr);

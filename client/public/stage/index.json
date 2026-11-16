@@ -1,0 +1,26 @@
+{
+ "fire": [
+  "1-left.webp",
+  "2-right.webp"
+ ],
+ "gpt": [
+  "1.webp",
+  "2.png",
+  "note.png"
+ ],
+ "gemini": [
+  "1.webp",
+  "2.png",
+  "note.png"
+ ],
+ "grok": [
+  "1.webp",
+  "2.png",
+  "note.png"
+ ],
+ "claude": [
+  "1.webp",
+  "2.png",
+  "note.png"
+ ]
+}

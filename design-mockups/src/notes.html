@@ -1,0 +1,144 @@
+<h1>디자인 시안 2</h1>
+<p class="lede">첫 시안의 "판정선 한 줄" 구상은 버리고, 화면에 올리는 정보를 덜어 낸 새 디자인입니다. 곡은 커버로 보이고, 고른 것은 흰 판 하나로 표시되며, 색은 뜻이 있는 곳(난이도 · 램프)에만 씁니다.</p>
+<p class="dim">이 쪽은 시안의 설명입니다. <kbd>↑</kbd><kbd>↓</kbd> <kbd>PgUp</kbd><kbd>PgDn</kbd>으로 읽고 <kbd>F1</kbd> 또는 <kbd>Esc</kbd>로 돌아갑니다. 게임 소스(<code>client/</code> · <code>server/</code> · <code>config/</code>)는 고치지 않았습니다. 효과음은 이번 시안에서 뺐고, 곡 미리듣기와 플레이 음악만 납니다.</p>
+
+<h2>둘러보는 법</h2>
+<div class="tablebox">
+  <table>
+    <thead><tr><th>화면</th><th>키</th></tr></thead>
+    <tbody>
+      <tr><td>곡 선택</td><td class="wrap"><kbd>↑</kbd><kbd>↓</kbd> 곡 · <kbd>←</kbd><kbd>→</kbd> 난이도 · <kbd>Tab</kbd> 키 모드 · <kbd>1</kbd>–<kbd>5</kbd> 필터 · <kbd>/</kbd> 검색 · <kbd>Space</kbd> 플레이 옵션 · <kbd>I</kbd> 곡 정보·도구 · <kbd>C</kbd> 커버 · <kbd>V</kbd> 배경 영상 · <kbd>Esc</kbd> 메뉴 · <kbd>Enter</kbd> 플레이 (<kbd>Shift+Enter</kbd> 오토)</td></tr>
+      <tr><td>플레이 옵션</td><td class="wrap"><kbd>Space</kbd>로 열고 닫음 · <kbd>↑</kbd><kbd>↓</kbd> 항목 · <kbd>←</kbd><kbd>→</kbd> 값 (<kbd>Shift</kbd> 큰 단계) · <kbd>Enter</kbd> 플레이</td></tr>
+      <tr><td>곡 정보·도구</td><td class="wrap"><kbd>I</kbd>로 열고 닫음 · <kbd>Q</kbd><kbd>E</kbd> 탭 · 채보 · 기록 탭에서 <kbd>←</kbd><kbd>→</kbd> 난이도 · 도구 · 곡 설정 탭에서 <kbd>↑</kbd><kbd>↓</kbd> <kbd>←</kbd><kbd>→</kbd> <kbd>Enter</kbd></td></tr>
+      <tr><td>설정</td><td class="wrap"><kbd>F10</kbd> · <kbd>Q</kbd><kbd>E</kbd> 탭 · <kbd>↑</kbd><kbd>↓</kbd> 항목 · <kbd>←</kbd><kbd>→</kbd> 값 · <kbd>Enter</kbd> 누르기 · <kbd>Esc</kbd> 완료</td></tr>
+      <tr><td>플레이</td><td class="wrap">레인 키는 시작 카드에 나옵니다 · <kbd>Esc</kbd> 일시정지 · 나머지 키(노트 속도, 커버, FEVER…)는 게임 그대로</td></tr>
+      <tr><td>시안 전용</td><td class="wrap"><kbd>F1</kbd> 이 설명 · <kbd>F7</kbd> 배경 후보 (커버 색 / 단색) · <kbd>F8</kbd> 목록 후보 (휠 / 직선)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>주신 피드백이 들어간 곳</h2>
+<div class="tablebox">
+  <table>
+    <thead><tr><th>피드백</th><th>시안</th></tr></thead>
+    <tbody>
+      <tr><td class="wrap">1-1. 필터는 전체 · 곡명 · 아티스트명 · 앨범명 · 즐겨찾기. 가운데 셋은 누를 때마다 내림차순 → 오름차순 → 해제</td><td class="wrap">목록 위 한 줄, 숫자 키 <kbd>1</kbd>–<kbd>5</kbd>. 전체 · 즐겨찾기는 <b>어떤 곡을</b> 보일지, 곡명 · 아티스트명 · 앨범명은 그 안에서 <b>어떤 순서로</b> 보일지를 정합니다(정렬은 한 번에 하나). 켜진 정렬에는 ↓(내림차순) · ↑(오름차순) 화살표가 붙고, 해제하면 추가한 순서로 돌아갑니다. 앨범명으로 정렬하면 목록의 둘째 줄이 아티스트 대신 앨범명이 됩니다. 이름이 없는 곡은 어느 방향이든 끝에 모입니다.</td></tr>
+      <tr><td class="wrap">2-1. 곡 구성 · 채보 · 악기별 채보 정보 삭제 (곡 정보/도구에서)</td><td class="wrap">곡 선택에서 뺐습니다. <kbd>I</kbd> 곡 정보·도구의 <b>채보</b> 탭 한 장에 모았습니다: 구간, 음량, 초당 노트 수, 악기별 온셋, 패턴 · 스킬 비율.</td></tr>
+      <tr><td class="wrap">2-2. '롱노트' 삭제</td><td class="wrap">곡 선택에는 노트 · 평균 / 최대 NPS · 세부 난이도만 있습니다. 롱노트 수는 곡 정보·도구의 채보 탭에 남겼습니다.</td></tr>
+      <tr><td class="wrap">2-3. '게이지' 삭제</td><td class="wrap">곡 선택과 플레이 옵션에서 뺐습니다. 설정 → 플레이에는 그대로 있습니다.</td></tr>
+      <tr><td class="wrap">2-4. 노트 속도 · 배치 · FEVER를 그 화면에서 조정</td><td class="wrap">왼쪽 아래에 세 값이 늘 보이고, <kbd>Space</kbd>를 누르면 화면을 떠나지 않고 그 자리에서 바뀝니다(곡은 한 줄로 줄고, 세 값이 맨 위 세 줄이 됩니다).</td></tr>
+      <tr><td class="wrap">3. 오른쪽 미리보기 삭제 (곡 정보/도구에서)</td><td class="wrap">곡 선택에서 뺐습니다. 곡 정보·도구의 오른쪽에서 고른 채보가 미리듣기에 맞춰 흐릅니다. 채보 탭에서 <kbd>←</kbd><kbd>→</kbd>로 난이도를 바꿔 가며 볼 수 있습니다.</td></tr>
+      <tr><td class="wrap">4-1. '생성 옵션' 삭제</td><td class="wrap">탭을 없앴습니다. 채보 생성은 설정의 <b>AI 채보</b> 탭(mapper 모델 옵션)에서만 정합니다.</td></tr>
+      <tr><td class="wrap">4-2. '속도/기어' 삭제</td><td class="wrap">탭을 없앴습니다. 노트 속도는 플레이 옵션의 첫 줄로, 나머지(등장 · 사라짐 위치, 판정선 위치, 카메라, 키 빔)는 설정에 그대로 있습니다.</td></tr>
+      <tr><td class="wrap">4-3. 페이스메이커 · 오토 플레이 · 목표 레벨 · 게이지 삭제</td><td class="wrap">플레이 옵션에 남은 것: 노트 속도 · 배치 · FEVER · 판정 · 점수 규칙 · 연습 모드(구간 · 재생 속도 · 구간 반복). 탭이 하나뿐이라 탭 줄도 없습니다.</td></tr>
+      <tr><td class="wrap">5-1. 플레이 오른쪽의 곡 구조 · 악기 영역 삭제</td><td class="wrap">뺐습니다. 시작 카드의 "레인이 따라가는 악기" 표시도 함께 뺐습니다.</td></tr>
+      <tr><td class="wrap">5-2. FEVER 때 위아래 테두리 색 효과 삭제</td><td class="wrap">뺐습니다. FEVER는 게임의 HUD가 보여 주는 그대로입니다.</td></tr>
+      <tr><td class="wrap">효과음 없이 진행</td><td class="wrap">효과음과 소리 고르기 쪽을 껐습니다(파일과 코드는 다음 차례를 위해 저장소에 남겨 두었습니다). 타격음도 나지 않습니다.</td></tr>
+      <tr><td class="wrap">앨범 커버 등록을 커버 위 수정 아이콘으로</td><td class="wrap">커버 오른쪽 아래의 연필 <kbd>C</kbd>. 그림을 고르거나 지웁니다. 시안에서 실제로 동작합니다: 고른 그림이 목록 · 시작 카드 · 플레이 배경에 바로 쓰입니다(이 브라우저 안에서만, 새로 고치면 사라집니다).</td></tr>
+      <tr><td class="wrap">뮤직비디오 등록도 곡 선택으로</td><td class="wrap">커버 왼쪽 아래의 <kbd>V</kbd>. 영상 파일 또는 유튜브 링크, 등록한 뒤에는 영상 싱크와 지우기. 영상 파일은 시안에서 실제로 플레이 배경에 나옵니다(게임의 배경 층 그대로). 유튜브 링크는 등록 표시까지만 됩니다.</td></tr>
+      <tr><td class="wrap">판정선 구상 폐기, UI 디자인 자체를 새로, 꼭 필요한 정보만</td><td class="wrap">아래 "디자인"에 적었습니다.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>디자인</h2>
+<p>리듬게임의 선곡 화면이 대대로 써 온 뼈대(큰 커버, 곡 목록, 난이도 판, 맨 아래 키 안내)는 그대로 따르고, 그 위에 올리는 것을 줄였습니다. 특정 게임의 화면 · 글꼴 · 로고 · 색은 가져오지 않았습니다.</p>
+<ul>
+  <li><b>곡은 커버입니다.</b> 화면에서 가장 큰 것이 고른 곡의 커버이고, 목록의 줄마다 작은 커버가 붙습니다. 커버가 없는 곡은 지금 게임처럼 그 곡을 이끄는 악기 색의 디스크입니다.</li>
+  <li><b>고른 것은 흰 판 하나입니다.</b> 고른 곡, 고른 키 모드, 고른 항목, 플레이 버튼이 모두 같은 방식(흰 판에 검은 글자)으로 표시됩니다. 테두리 · 빛 · 그림자로 강조하지 않습니다.</li>
+  <li><b>색은 뜻이 있을 때만 씁니다.</b> 난이도 다섯 단계의 색, 클리어 램프의 색(램프마다 모양도 다릅니다), 악기 색. 그 밖은 먹색 바탕과 흰 글자입니다. 화면 전체의 색감은 고른 곡의 커버에서 옵니다(<kbd>F7</kbd>로 단색 바탕과 비교).</li>
+  <li><b>기울기 하나.</b> 판(키 모드, 난이도, 목록의 줄, 플레이 버튼)은 모두 같은 12° 기울기입니다. 목록은 고른 곡에서 멀어질수록 조금씩 물러나는 휠입니다(<kbd>F8</kbd>로 직선 목록과 비교).</li>
+  <li><b>움직임은 상태가 바뀔 때만.</b> 곡을 옮기면 휠이 돌고 커버가 자리를 잡습니다. 플레이로 들어갈 때 커버가 시작 카드로 건너갑니다. BPM 옆의 점은 미리듣기의 박에 맞춰 깜빡입니다. 그 밖에 스스로 움직이는 장식은 없습니다.</li>
+</ul>
+
+<h3>곡 선택에 남긴 것</h3>
+<div class="tablebox">
+  <table>
+    <thead><tr><th>자리</th><th>보이는 것</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr><td>위</td><td class="wrap">키 모드 일곱 개, 설정</td><td class="wrap">곡 목록의 레벨이 키 모드마다 달라서 늘 보여야 합니다.</td></tr>
+      <tr><td>왼쪽 위</td><td class="wrap">커버(수정 · 배경 영상), 앨범명, 곡명, 아티스트, BPM, 길이, 즐겨찾기</td><td class="wrap">곡 자체에 대한 것. BPM은 노트 속도를 정할 때 봅니다.</td></tr>
+      <tr><td>왼쪽 가운데</td><td class="wrap">난이도 다섯 판(레벨 · 램프), 고른 채보의 노트 · 평균 / 최대 NPS · 세부 난이도 · 최고 기록</td><td class="wrap">난이도를 바꾸면 함께 바뀌는 것만 판 바로 아래에 둡니다.</td></tr>
+      <tr><td>왼쪽 아래</td><td class="wrap">노트 속도 · 배치 · FEVER</td><td class="wrap">플레이 직전에 확인하고 바꾸는 값.</td></tr>
+      <tr><td>오른쪽</td><td class="wrap">필터 한 줄, 곡 목록(커버 · 곡명 · 아티스트 · 즐겨찾기 · 고른 난이도의 램프와 레벨)</td><td class="wrap">목록은 곡을 찾는 데 필요한 것만.</td></tr>
+      <tr><td>아래</td><td class="wrap">키 다섯 개와 메뉴 · 플레이</td><td class="wrap">자주 쓰는 키만 늘 보이고, 나머지는 <kbd>Esc</kbd> 메뉴에 키 이름과 함께 있습니다.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>곡 정보·도구</h3>
+<p>곡 선택에서 덜어 낸 것이 모이는 곳이라, 네 탭으로 나눴습니다: <b>채보</b>(곡 구성 · 채보 · 악기별 정보와 미리보기), <b>기록</b>, <b>도구</b>(채보 편집 · 내보내기 · 싱크 테스트 · 오프셋 측정), <b>곡 설정</b>(분석 · BPM 보정 · 곡 오프셋 · 첫 박 위치 · 구간 · 분석 보기 · 삭제). 커버와 배경 영상은 곡 선택으로 옮겨서 곡 설정에는 없습니다.</p>
+
+<h3>설정</h3>
+<p>탭 · 항목 · 값 · 범위 · 도움말은 지금 게임 그대로이고 생김새만 바꿨습니다. 왼쪽에 탭, 가운데에 항목, 오른쪽에 지금 설정대로 움직이는 트랙(게임의 렌더러), 항목 아래에 고른 항목의 설명입니다. 고른 항목에는 값이 범위나 선택지의 어디쯤인지가 작은 눈금으로 나오고, 기본값과 다른 항목에는 점이 붙습니다. 기어처럼 값마다 설명이 긴 항목은 고른 값의 설명만 보여 줍니다(문구는 게임의 것 그대로).</p>
+<ul>
+  <li><b>AI 채보 탭</b>: <code>claude/mapperatorinator</code> 브랜치의 설정 → 고급 안에 있는 "AI 채보 (Mapperatorinator)" 묶음을 항목 · 순서 · 범위 · 도움말 그대로 옮겼습니다. 플레이 옵션의 생성 옵션이 없어지면 채보 생성을 정하는 곳이 여기 하나라서 탭으로 올렸습니다(<span class="ask">제안</span>). 상태 표의 값(사용 중 · GPU 이름)은 표본입니다.</li>
+  <li><b>난이도 기준</b>(기본 · DJMAX · EZ2ON) 항목은 뺐습니다. 최신 브랜치에서 이미 없어진 항목입니다.</li>
+</ul>
+
+<h3>플레이</h3>
+<p>트랙 · 기어 · 노트 · 판정 · 게이지 · 점수판 · FEVER는 게임의 것 그대로이고(게임의 플레이 코드가 그대로 돕니다), 시안이 그린 것은 네 가지뿐입니다: 시작 카드(커버 · 곡 · 난이도 · BPM · 노트 · 길이 · 노트 속도 · 기본값과 다른 규칙 · 레인 키), 왼쪽 위의 곡 이름, 일시정지 메뉴, 끝난 뒤의 요약 카드. 배경은 게임의 배경 층이 커버(와 등록한 영상)로 그립니다.</p>
+
+<h2>정해 주시면 좋은 것</h2>
+<ul>
+  <li><b>빠진 폴더와 정렬.</b> 필터를 다섯 개로 정하면서 지금 게임의 폴더 세 개(미플레이 · 미클리어 · 풀콤 미달)와 정렬 다섯 개(BPM · 레벨 · 램프 · RATE · 최근 플레이순)가 화면에서 빠졌습니다. 필요한 것이 있으면 필터 줄에 더하거나 메뉴에 둘 수 있습니다.</li>
+  <li><b>오토 플레이 · 목표 레벨.</b> 둘 다 플레이 옵션에만 있던 항목입니다. 오토 플레이는 <kbd>Shift+Enter</kbd>(메뉴에도 있음)로 남겼습니다. 목표 레벨은 시안에서 사라졌습니다.</li>
+  <li><b>메뉴 <kbd>Esc</kbd>.</b> 아래 키 안내를 줄이려고, 덜 쓰는 기능(곡 추가 <kbd>+</kbd>, 무작위 선곡 <kbd>F2</kbd>, 즐겨찾기 <kbd>F3</kbd>, 새 패턴 <kbd>F5</kbd>, 오토 플레이, 설정 <kbd>F10</kbd>)을 한 목록에 모았습니다(<span class="ask">제안</span>). 원래 키는 그대로 듣습니다.</li>
+  <li><b>노트 속도를 바로 바꾸는 키.</b> 지금은 <kbd>Space</kbd> 다음 <kbd>←</kbd><kbd>→</kbd> 두 번입니다. 선곡에서도 한 번에 바꾸는 전용 키를 원하시면 정해 주세요.</li>
+  <li><b>난이도 단계.</b> 시안의 곡 데이터는 기준 브랜치(<code>claude/jolly-ritchie-spgpd1</code>)의 서버로 만들어서 EASY – MASTER, Lv.1–15입니다. 최신 브랜치의 NORMAL – MASTER(ELITE 포함), Lv.1–20과 이름 · 숫자가 다릅니다. 디자인은 단계 이름과 수에 묶여 있지 않습니다.</li>
+  <li><b>후보 둘.</b> <kbd>F7</kbd> 배경(커버 색 / 단색), <kbd>F8</kbd> 목록(휠 / 직선).</li>
+</ul>
+<div class="try">
+  <button data-choice="backdrop"><kbd>F7</kbd><span>배경</span></button>
+  <button data-choice="wheel"><kbd>F8</kbd><span>목록</span></button>
+</div>
+
+<h2>구현할 때</h2>
+<ul>
+  <li><b>앨범명</b>: 서버가 이미 태그에서 읽어 저장하고(<code>songs.album</code>) 곡 응답에 넣습니다. 클라이언트의 <code>Song.album</code>도 있습니다. 정렬 키와 표시만 더하면 됩니다. 검색은 지금처럼 제목 · 아티스트만 봅니다.</li>
+  <li><b>커버 · 배경 영상</b>: 등록 · 삭제 · 유튜브 링크 · 영상 싱크는 지금 API 그대로이고 자리만 곡 선택으로 옮깁니다.</li>
+  <li><b>커버 색 배경</b>: 커버를 6px로 줄인 그림 한 장을 화면 크기로 늘린 것입니다. blur 필터나 backdrop-filter는 쓰지 않았습니다. 플레이 화면에는 시안이 더한 효과가 없습니다.</li>
+  <li><b>휠</b>: 줄마다 transform과 opacity만 바꿉니다. 시안은 12곡이라 줄을 모두 그리지만, 곡이 많으면 보이는 줄만 그려야 합니다.</li>
+  <li><b>플레이 옵션</b>: 설정과 같은 값을 씁니다(지금 게임과 같음). 연습 모드의 구간은 시안에서 한 줄로 줄였습니다(<kbd>←</kbd><kbd>→</kbd> 한 마디씩 옮김, <kbd>Shift</kbd> 늘이거나 줄임). 지금 게임의 채보 미니맵과 구간 이름 버튼 줄을 대신한 것이라 확인이 필요합니다.</li>
+  <li><b>AI 채보 상태</b>: mapper 브랜치의 "AI · 만드는 중 / 대기 중 / 열면 만듦"은 난이도 판의 레벨 자리에, 진행 안내는 화면 아래 알림 자리에 들어갈 수 있습니다. 시안에는 넣지 않았습니다(기준 브랜치에 없는 상태라 실제 값이 없습니다).</li>
+  <li><b>게임패드</b>: 필터는 숫자 키라서 패드에서는 다른 버튼이 필요합니다(예: LB · RB로 필터를 옮기고 X로 누름). 시안은 키보드만 다룹니다.</li>
+</ul>
+
+<h2>지금 게임의 화면</h2>
+<p>시안에 쓴 것과 같은 곡을 넣고 찍은 지금 게임의 화면입니다(1280 × 720, 기준 브랜치).</p>
+<div class="pair">
+  <figure><img loading="lazy" src="./notes/before-select.jpg" alt="지금의 곡 선택 화면" /><figcaption>곡 선택</figcaption></figure>
+  <figure><img loading="lazy" src="./notes/before-settings.jpg" alt="지금의 설정 화면" /><figcaption>설정</figcaption></figure>
+</div>
+<div class="pair">
+  <figure><img loading="lazy" src="./notes/before-play.jpg" alt="지금의 플레이 화면" /><figcaption>플레이</figcaption></figure>
+  <figure><img loading="lazy" src="./notes/before-loading.jpg" alt="지금의 로딩 카드" /><figcaption>로딩 카드</figcaption></figure>
+</div>
+
+<h2>쓴 것과 출처</h2>
+<h3>곡</h3>
+<p>자유 라이선스(CC BY 4.0) 곡을 이 게임의 분석 서버에 넣어 분석하고 채보를 만들었습니다. BPM · 길이 · 레벨 · 노트 수 · NPS · 세부 난이도는 모두 그 결과입니다. 앨범명은 음원 파일의 태그에 적힌 그대로입니다(없는 곡은 비어 있습니다).</p>
+<div class="tablebox">
+  <table>
+    <thead><tr><th>곡</th><th>아티스트</th><th>앨범 (태그)</th><th>라이선스</th><th>표기</th></tr></thead>
+    <tbody data-music></tbody>
+  </table>
+</div>
+<h3>커버</h3>
+<p>곡 파일에 들어 있던 그림은 남의 것이라 쓰지 않았습니다. 아래 열 장은 시안을 위해 이미지 생성 모델로 새로 만든 <b>표본 커버</b>이고, 그 곡의 실제 커버가 아닙니다. 두 곡(Hover Pit, Arpanauts)은 커버 없는 곡의 모습을 보이려고 비워 두었습니다. 모델 · 프롬프트 전문 · 비용은 저장소의 <code>design-mockups/PROVENANCE.md</code>에 있습니다.</p>
+<div class="covers" data-covers></div>
+<h3>그 밖</h3>
+<ul>
+  <li><b>글꼴</b>: 게임에 이미 들어 있는 Pretendard와 Barlow Condensed(둘 다 SIL OFL 1.1). 새로 받은 글꼴은 없습니다.</li>
+  <li><b>아이콘 · 램프 · 디스크</b>: 시안에서 SVG로 새로 그렸습니다.</li>
+  <li><b>기어 · 노트 · 타격 효과 · HUD</b>: 게임의 것을 고치지 않고 불러 씁니다.</li>
+  <li><b>표본</b>: 기록(램프 · RATE · BREAK · 플레이 수), 즐겨찾기 네 곡, AI 채보 탭의 상태 표는 화면을 보이기 위한 표본입니다.</li>
+</ul>
+
+<h2>확인하지 못한 것</h2>
+<ul>
+  <li>소리: 이 환경에는 스피커가 없어 미리듣기와 플레이 음악을 듣지 못했습니다. 미리듣기와 박 점 · 미리보기 채보의 맞음은 계산으로만 맞췄습니다.</li>
+  <li>움직임의 느낌과 실제 GPU에서의 속도: 화면은 소프트웨어 렌더러로 찍은 정지 화면으로 확인했습니다.</li>
+  <li>Chromium 밖의 브라우저, 게임패드, 터치.</li>
+  <li>유튜브 배경 영상: 등록 표시까지만 만들었고 재생은 넣지 않았습니다.</li>
+</ul>

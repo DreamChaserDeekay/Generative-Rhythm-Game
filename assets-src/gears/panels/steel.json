@@ -1,0 +1,68 @@
+{
+ "gear": "steel",
+ "name": "스틸",
+ "picture": "steel.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "4e253d685d39d0ed80a41e921ff4f0ced6b941cd26ae074e865f33396ef121ef",
+ "chosen": "chosen/steel.png (2048 x 876): the user's choice ('시안 3으로 진행할게'): draft 3, the reference's console with its two capsules as LED level meters; the face's lettering left blank (the user: '글자는 비워두고')",
+ "steps": [
+  "p6/layout-steel.py <p4 dir> -> p4/steel-a3/layout.png (chosen/steel-layout.png): the reference's console drawn again in this panel's shape",
+  "p6/tmpl-plain.sh steel 876 steel-a3 steel-a4 (the frames and the calibration dots; magenta dots: this gear has no pink); PANEL_H=876 p4/tools.py calib steel-a3 (reprojection mean 0.23 px)",
+  "p4/gen25.py steel-a3 1 -> p4/steel-a3/try-1.png (chosen/steel-generation.png, .json)",
+  "p4/tools.py flat steel-a3 1 (correlation 0.849, scale 0.992) -> chosen/steel.png"
+ ],
+ "sources": {
+  "reference": "the user's own reference picture for skin 6 (session upload images/9.webp; its lower part enlarged, without the notes and the left rail, was given to the image model; not kept in the repository)"
+ },
+ "left out": "the reference's lettering (the user: blank) and its two number readouts (the game writes its numbers beside the gear now)",
+ "told to the user": "the blue light on the face came out brighter than the reference's (it can be brought down); the level meters are a picture and do not move (moving them with the beat would be separate work)",
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "steel-a3",
+   "prompt": "Two pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Note lanes run away from the camera, a glowing pale-blue judge line crosses them (with a white burst on it), under it lies a row of eight flush, dark matte key caps, each embossed with a small plus or cross (one of them is lit blue), under that row a narrow dark band with a slot that glows blue at its middle, and under that band, between the two thin slate-grey side rails, lies the gear's lower panel: a wide slab that runs down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING of a machine's front. Its far part is a plain blue-grey face with a soft blue light in its right half. Then comes a step across the whole width: a thin light edge with a dark line under it. Its near part is a darker shelf, and drawn on the shelf are: a thin dark rule that runs from the left and ends in two dots and a dash; at the right corner, right under the step, a window cut at a slant that glows blue; two long capsule-shaped windows side by side, at the left and in the middle, each holding a row of upright bars (green in the left one, blue in the right one); and at the right, near the bottom, three circles (one above, two below). The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE: a small concept picture of this very machine (it is enlarged, so it is blurry), in the style the panel must have: precision hardware in dark blue-grey brushed metal, like the front of a high-end audio amplifier or a workstation: calm, plain and dark, with one cool blue light. Match its materials, its colours and its mood. Its lettering (the italic word at the right) and its numbers (in the two capsules) are NOT wanted: leave them out, and write no text at all. Its row of keys with plus and cross marks and the lit slot under them are in image 1 already: do not paint them again on the panel.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps, the band with the slot and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the dark band with the glowing slot, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the note, the judge line and the burst on it, the row of key caps, the band with the slot, the rails, the dark background.\n\nThe panel becomes that machine's front as a photorealistic 3D render at the finish of a commercial console game, seen exactly from this camera. Every thing of the layout drawing stays exactly at its place and at its size (the same footprint, the same angle), foreshortened by the camera exactly as in image 1: do not move, enlarge or shrink anything, do not stand anything upright, and add nothing.\n\n1. THE FACE, the far part: one plate of dark blue-grey anodised aluminium (gunmetal) with a fine, straight hairline brushing that runs across it from left to right; satin, not glossy. It is completely plain: no lettering, no logo, no marks, no screws, no seams. A soft cool-blue light lies on its right half, strongest along its near edge at the right, where the shelf's light window shines up onto it (as drawn), and fades to nothing toward the left.\n\n2. THE STEP: the face ends in a crisp, straight, chamfered edge that catches a thin line of light; under it the body steps down about a finger's thickness to the shelf, and that small drop lies in shadow (the drawn dark line). The step runs straight across the whole width.\n\n3. THE SHELF, the near part: a plate of the same brushed metal, a shade darker than the face and set lower. A fine straight rule is engraved into it (as drawn: from the left to about two thirds of the width): a sharp groove, dark inside, with a thin lit lower edge, ending in two small drilled dots and one short milled dash.\n\n4. THE LIGHT WINDOW, at the shelf's right corner right under the step (as drawn, its left edge cut at a slant): a pane of smoked dark-blue glass set flush into the metal and lit from inside by a cool blue lamp: brightest at the middle of its near edge, falling off softly to deep navy toward its corners. Its light spills softly onto the shelf under it and onto the face above it.\n\n5. THE TWO LEVEL METERS, on the shelf at the left and in the middle (the two drawn capsules): each is a long capsule-shaped window (a stadium shape with fully round ends) of black glass, set flush into the metal inside a thin bevelled metal rim. Behind the glass of each stands a row of upright LED bars, as on the level meter of a studio amplifier: in the left capsule 13 bars, the first 9 from the left lit bright green and the last 4 unlit (very dark green); in the right capsule 16 bars, the first 12 from the left lit bright blue and the last 4 unlit (very dark blue). The lit bars glow softly through the glass and lay a faint sheen of their colour on the rim. No numbers, no letters, no scale marks.\n\n6. THE THREE CIRCLES, at the shelf's right, near the bottom (as drawn: one above, two below, just touching): three shallow round dimples pressed into the metal, tone on tone, the same brushed metal inside, each with a fine chamfered rim that catches a thin crescent of light. Subtle: an embossed mark without any letter.\n\nEach raised thing throws a soft shadow. Clean, precise and new: no dirt, no scratches, no wear, no fingerprints. The top edge of the panel under the band is a thin bevelled lip. Everything stays inside the rails; nothing rises over the rails or above the key caps, and the panel runs on down past the bottom edge of the image (no front edge is seen). Nothing else is on the panel: no screens, no number boxes, no sliders, no switches, no cables, no screws, no stickers, no people, no hands.\n\nNo text, letters or numbers anywhere, no logos, no watermark, and nothing over the lanes. Colours: dark blue-grey gunmetal (close to #2B333F on the face and #1A1F27 on the shelf); one cool blue light (close to #46AAF0); the meters' green (close to #54EC5C) and blue (close to #4896FF).",
+   "made": "2026-11-13 00:34:23 +0000",
+   "bytes": 4224491,
+   "sha256": "cbcf6b821df6f5c9c7f0105a947b5353f1ee517317876dbc109497830b1a1949",
+   "usage": {
+    "promptTokenCount": 3772,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5852,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "TEXT",
+      "tokenCount": 1532
+     },
+     {
+      "modality": "IMAGE",
+      "tokenCount": 2240
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ],
+    "thoughtsTokenCount": 400
+   },
+   "pictures": [
+    "p4/steel-a3/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows, the panel a flat layout drawing)",
+    "p4/refs/steel-console.png (the lower part of the user's reference picture for this skin, enlarged; not kept in the repository)"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "steel-generation.json"
+  }
+ ]
+}

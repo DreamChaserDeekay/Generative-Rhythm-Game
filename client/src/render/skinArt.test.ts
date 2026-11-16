@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { disposeSkinArt, flipbookOffset, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
+import { disposeSkinArt, flipbookBlend, flipbookOffset, hitFrame, loadSkinArt, parseManifest, parseMediaTexture, type MediaManifest } from './skinArt';
 import type { ArtImage } from './styleArt';
 import { BASE_SKIN } from './skins';
 
@@ -22,6 +22,9 @@ describe('media manifest', () => {
     // what the game reads no more (the old texture sets' tiling and sizes) is left out
     expect(parseMediaTexture({ ...NOTE, tile: 2.4, gain: 2, scale: 1.7 })).toEqual(NOTE);
     expect(parseMediaTexture({ ...burst, flipbook: { ...BOOK, loop: 'yes' } })?.flipbook?.loop).toBe(false);
+    // a flipbook in colours of its own, and a hold flipbook with a core of its own: said with true, and nothing else
+    expect(parseMediaTexture({ ...burst, plain: true, cored: true })).toEqual({ ...burst, plain: true, cored: true });
+    expect(parseMediaTexture({ ...burst, plain: 'yes', cored: 1 })).toEqual(burst);
   });
 
   it('rejects paths that leave /media/, odd sizes and bad numbers', () => {
@@ -58,6 +61,38 @@ describe('media manifest', () => {
     const [u, v] = flipbookOffset({ ...BOOK, cols: 2, rows: 3, frames: 6 }, 3);
     expect(u).toBe(0.5);
     expect(v).toBeCloseTo(1 / 3, 12);
+  });
+
+  it('keeps where a hit starts and the colour of its light, when they are a frame of the sheet and a colour', () => {
+    const book = { ...BOOK, frames: 9, fps: 28.1 };
+    const burst = { file: 'fx/claude_burst.webp', bundle: 'effects', size: [1536, 1536], flipbook: { ...book, peak: 3 }, plain: true, tone: '#ffa980' };
+    const parsed = parseMediaTexture(burst);
+    expect(parsed?.flipbook).toEqual({ ...book, peak: 3 });
+    expect(parsed?.tone).toBe(0xffa980);
+    // a start that is no later frame of the sheet (past its last, a part of one, its first) is left out: it plays from its first
+    for (const peak of [9, 12, 2.5, -1, 0, '3']) expect(parseMediaTexture({ ...burst, flipbook: { ...book, peak } })?.flipbook, String(peak)).toEqual(book);
+    // a colour that is not one is left out: the flash drawn with the hit is white
+    for (const tone of ['ffa980', '#ffa98', 'orange', 0xffa980]) expect(parseMediaTexture({ ...burst, tone }), String(tone)).toEqual({ ...burst, tone: undefined });
+  });
+
+  it('starts a hit where its sheet says, and shows it between two frames as a mix of them', () => {
+    const book = { ...BOOK, frames: 9, fps: 28.1, peak: 3 };
+    expect(hitFrame(book, 0)).toBe(3);
+    // (a hit drawn in the frame it was judged in, a moment before its own time)
+    expect(hitFrame(book, -4)).toBe(3);
+    expect(hitFrame(book, 1000 / 28.1)).toBeCloseTo(4, 9);
+    expect(hitFrame(BOOK, 50)).toBeCloseTo(3, 9);
+    // between two frames: the earlier one's place, the step to the next one's, and the share of the way there
+    const at = flipbookBlend(BOOK, 5.25);
+    expect(at.offset).toEqual([0.25, 0.5]);
+    expect(at.step).toEqual([0.25, 0]);
+    expect(at.mix).toBeCloseTo(0.25, 12);
+    // from the end of a row to the start of the next
+    expect(flipbookBlend(BOOK, 3.5).step).toEqual([-0.75, -0.25]);
+    // a sheet played once ends on its last frame; a loop goes on to its first
+    expect(flipbookBlend(BOOK, 15.5)).toEqual({ offset: [0.75, 0], step: [0, 0], mix: 0 });
+    expect(flipbookBlend({ ...BOOK, loop: true }, 15.5)).toEqual({ offset: [0.75, 0], step: [-0.75, 0.75], mix: 0.5 });
+    expect(flipbookBlend({ ...BOOK, loop: true }, 16.25).offset).toEqual([0, 0.75]);
   });
 });
 
@@ -115,10 +150,8 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
         'mecha/notes': entry('styles/mecha/notes.png', [1024, 1024]),
         'mecha/long': entry('styles/mecha/long.png', [512, 256]),
         'mecha/side': entry('styles/mecha/side.png', [1024, 512]),
-        'cabinet/abs': entry('gears/cabinet/abs.webp', [512, 512]),
-        'cabinet/joystick': entry('gears/cabinet/joystick.png', [512, 512]),
-        'cabinet/button': entry('gears/cabinet/button.png', [384, 384]),
-        'cabinet/coin': entry('gears/cabinet/coin.png', [558, 384]),
+        'piano/deck': entry('gears/piano/deck.webp', [2048, 541]),
+        'piano/medallion': entry('gears/piano/medallion.png', [256, 265]),
         'mecha/hitBurst': entry('styles/mecha/hit_burst.png', [1024, 1024], { flipbook: BOOK, anchorY: 0.7 }),
         'mecha/hitHold': entry('styles/mecha/hit_hold.png', [1024, 1024], { flipbook: { ...BOOK, loop: true } }),
       },
@@ -135,10 +168,10 @@ describe('loading the parts’ pictures and the hit’s flipbooks', () => {
         return { width, height } as unknown as ArtImage;
       },
     };
-    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'cabinet' as const, hit: 'mecha' as const } };
+    const mechaSkin = { ...BASE_SKIN, style: { ...BASE_SKIN.style, note: 'chamfer' as const, side: 'bar' as const, deck: 'piano' as const, hit: 'mecha' as const } };
     const art = await loadSkinArt(mechaSkin, sources);
-    expect(asked.sort()).toEqual(['gears/cabinet/abs.webp', 'gears/cabinet/button.png', 'gears/cabinet/coin.png', 'gears/cabinet/joystick.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
-    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['cabinet/abs', 'cabinet/button', 'cabinet/coin', 'cabinet/joystick', 'mecha/notes']);
+    expect(asked.sort()).toEqual(['gears/piano/deck.webp', 'gears/piano/medallion.png', 'styles/mecha/long.png', 'styles/mecha/notes.png', 'styles/mecha/side.png']);
+    expect(Object.keys(art?.images ?? {}).sort()).toEqual(['mecha/notes', 'piano/deck', 'piano/medallion']);
     expect(Object.keys(art?.slots ?? {}).sort()).toEqual(['hitBurst', 'hitHold']);
     expect(art?.slots.hitBurst?.spec.anchorY).toBe(0.7);
     // no pictures without a way to decode them, and nothing for parts the manifest has none of

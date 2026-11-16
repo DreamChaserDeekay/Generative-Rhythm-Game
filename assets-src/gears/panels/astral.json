@@ -1,0 +1,66 @@
+{
+ "gear": "astral",
+ "name": "별밤",
+ "picture": "astral.jpg",
+ "size": [
+  2048,
+  876
+ ],
+ "sha256 of the flat picture (PNG, before the JPEG)": "0ff53e658e855f751de0684b0f0085d96d5001371cd7d8a8ca45ae1052218d69",
+ "chosen": "chosen/astral.png (2048 x 876): the user's choice ('3번으로 할게'): draft 3, the reference's night sky on the still water of a lake at night",
+ "steps": [
+  "p6/layout-astral.py <p4 dir> -> p4/astral-a3/layout.png (chosen/astral-layout.png): the reference's drawing made again in this panel's shape",
+  "p6/tmpl-plain.sh astral 876 astral-a1 astral-a4 (the frames and the calibration dots; magenta dots); PANEL_H=876 p4/tools.py calib astral-a1 (reprojection mean 0.24 px); astral-a3 uses astral-a1's frame and calib.json",
+  "p4/gen29.py astral-a3 1 -> p4/astral-a3/try-1.png (chosen/astral-generation.png, .json)",
+  "p4/tools.py flat astral-a3 1 (correlation 0.944, scale 0.996) -> chosen/astral.png"
+ ],
+ "sources": {
+  "reference": "the user's own reference picture for skin 11 (session upload images/14.webp; its lower part enlarged was given to the image model; not kept in the repository)"
+ },
+ "left out": "the reference's SCORE and COMBO lettering and numbers (the game writes its numbers beside the gear now); its flowers and ribbons outside the track (here the flowers lie inside the panel's side edges)",
+ "generations": [
+  {
+   "model": "gemini-nano-banana-2.1",
+   "aspect": "16:9",
+   "size": "2K",
+   "variant": "astral-a3",
+   "prompt": "Two pictures come with this request.\n\nIMAGE 1 is the picture you edit: the lower part of a frame of our own rhythm game's play screen. Dark note lanes run away from the camera, a glowing pale-blue judge line crosses them (with a golden-white burst on it), under it lies a row of eight navy key caps with cut corners in a pale rim, each with a small gold four-pointed star (one of them is lit gold), and under that row, between the two navy side rails with a moon-blue line, lies the gear's lower panel: a wide slab that runs down to the bottom edge of the image, widening toward the camera. In image 1 the panel is a FLAT LAYOUT DRAWING: a night sky in deep navy with a blue light at its middle and in its two near corners; at the middle a large white four-pointed star with long points; behind it a pair of pale blue wings (at each side a fan of long feathers, and shorter, paler ones over their roots); round them a thin tilted oval orbit line with two small rings on it; above the star a row of five moon phases (crescent, half, full, half, crescent) and under it a second, dimmer row (its middle one a ring); at each side edge a cluster of three pale blue-white five-petalled flowers with four long, narrow, pale lavender leaves fanning toward the middle; in each near corner three larger, dim blue flowers; small four-pointed sparkles and tiny stars scattered over the sky. Behind everything is a faint large circle with tick marks. The drawing shows exactly where each thing lies and how large it is.\n\nIMAGE 2 is the DESIGN REFERENCE: a small concept picture of this very panel (it is enlarged, so it is blurry), in the style the panel must have: a dreamy night sky in deep navy and luminous pale blue: the white star with its wings, the orbit, the moon phases, pale flowers with feathery leaves, soft blue glows. Match its design language, its colours and its gentle, magical mood. Its lettering and numbers (SCORE and COMBO, at the left and right of the star) are NOT wanted: leave them out, and write no text at all. Its row of navy key caps with gold stars is in image 1 already: do not paint key caps on the panel.\n\nKeep image 1's framing EXACTLY: the same camera, the same zoom, the same crop; your picture must overlay image 1 pixel for pixel, so the judge line, the row of key caps and the two side rails stay at exactly the same places and sizes. Do not zoom in, do not crop, do not widen, do not recompose, do not enlarge or shrink the panel. Repaint ONLY the panel: the area under the row of key caps, between the inner edges of the two side rails, down to the bottom edge of the image. Keep every other pixel exactly as it is: the lanes, the note, the judge line and the burst on it, the row of key caps, the rails, the dark background.\n\nThe panel becomes the STILL WATER OF A LAKE AT NIGHT with that night sky lying on it, as a photorealistic 3D render at the finish of a commercial console game, seen exactly from this camera. Every thing of the layout drawing stays exactly at its place and at its size (the same footprint, the same angle), foreshortened by the camera exactly as in image 1: do not move, enlarge or shrink anything, do not stand anything upright, and add nothing.\n\n1. THE WATER: dark, deep navy water, calm as glass, with only very gentle, long ripples. Deep blue light glows up from under the water at its middle and in the two near corners (as drawn).\n\n2. THE STAR, at the middle: the four-pointed star lies on the surface as a shape of pure white light (not a solid thing): the brightest thing on the panel, with crisp, long points (exactly the drawn shape). Its light spreads softly over the water round it, and a few fine rings of ripples go out from it (the faint large circle of the drawing is the widest of them).\n\n3. THE WINGS, behind the star: real feathers floating on the water, pale blue and blue-white: every long feather with a fine shaft and soft barbs, slightly translucent, lying flat on the surface with a soft reflection under it; the shorter feathers over the roots are paler, almost white. Arranged exactly as the drawn fans.\n\n4. THE ORBIT: a thin line of pale light lying on the water along the drawn tilted oval, like a ring of moonlight; its two small rings are two small rings of light floating on the surface.\n\n5. THE MOONS: the moon phases are small moons mirrored in the water: the row above the star bright, the row under it dimmer (its middle one a ring), each softened a little by the ripples.\n\n6. THE FLOWERS: at each side edge the three pale blue-white flowers are real blossoms floating on the water (five round petals, a pale blue heart), and their four long, narrow, lavender-white leaves float beside them (as drawn), each with a soft reflection; one or two single petals drift close by. In the two near corners the larger dim blue flowers lie UNDER the water: they glow softly blue and are blurred by the depth.\n\n7. THE SPARKLES AND TINY STARS: stars mirrored in the water: small bright four-pointed glints and pin-points of light, as drawn.\n\nClean, delicate and precise. Everything stays inside the rails; nothing rises over the rails or above the row of key caps, and the panel runs on down past the bottom edge of the image (no front edge is seen). Nothing else is on the panel: no screens, no number boxes, no buttons, no knobs, no people, no hands, no animals.\n\nNo text, letters or numbers anywhere, no logos, no watermark, and nothing over the lanes. Colours: deep navy and royal blue; pale moon blue and lavender-white; pure white for the star and the moons. No gold and no other colour on the panel.",
+   "made": "2026-11-13 02:03:59 +0000",
+   "bytes": 4651440,
+   "sha256": "7314093e8be1568dd04bdf903c4dd33f4553c3af6b8c766149f9a56b8fc5e87d",
+   "usage": {
+    "promptTokenCount": 3539,
+    "candidatesTokenCount": 1680,
+    "totalTokenCount": 5219,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 2240
+     },
+     {
+      "modality": "TEXT",
+      "tokenCount": 1299
+     }
+    ],
+    "candidatesTokensDetails": [
+     {
+      "modality": "IMAGE",
+      "tokenCount": 1680
+     }
+    ]
+   },
+   "pictures": [
+    "p4/astral-a3/tmpl-crop.png (this game's own frame, the judge line at 43 % of the screen so that the whole panel shows, the panel a flat layout drawing)",
+    "p4/refs/astral-console.png (the lower part of the user's reference picture for this skin, enlarged; not kept in the repository)"
+   ],
+   "crop": [
+    160,
+    180,
+    1760,
+    1080
+   ],
+   "record": "astral-generation.json"
+  }
+ ]
+}

@@ -14,6 +14,14 @@ const LIMIT_KNEE = 0.9;
 /** The limiter's curve covers inputs up to this many times full scale. */
 const LIMIT_RANGE = 4;
 const LIMIT_POINTS = 4097;
+/** A song going out muffled (muffleOut): the low-pass starts open here and ends down here (Hz). */
+const MUFFLE_OPEN_HZ = 18000;
+const MUFFLE_FLOOR_HZ = 220;
+/** The share of a muffled way out the low-pass takes to come down to its cutoff, and the share the song keeps its level for. */
+const MUFFLE_CLOSE = 0.35;
+const MUFFLE_HOLD = 0.25;
+/** A song running down like a tape (tapeStop) keeps its level for this share of the way, then falls silent as it stands still. */
+const TAPE_HOLD = 0.55;
 
 /**
  * The output limiter's curve over inputs from -LIMIT_RANGE to LIMIT_RANGE: the input itself up to
@@ -84,7 +92,11 @@ export class AudioEngine implements SongClock {
   private placement: BufferPlacement = { originMs: 0, rate: 1 };
   private source: AudioBufferSourceNode | null = null;
   private cutSources: AudioBufferSourceNode[] = [];
+  /** The gains that take the stems out of the mix over their keysound ranges. */
+  private cutGains: GainNode[] = [];
   private sourceGain: GainNode | null = null;
+  /** The low-pass over a song on its muffled way out (muffleOut): there only then, so that a play's music is the buffer as it is. */
+  private sourceFilter: BiquadFilterNode | null = null;
   private anchorSec = 0;
   private pausedSongMs: number | null = 0;
 
@@ -169,18 +181,65 @@ export class AudioEngine implements SongClock {
       cutGain.connect(gain);
       stem.start(at, offsetSec);
       this.cutSources.push(stem);
+      this.cutGains.push(cutGain);
     }
   }
 
-  /** Fade the music out (failed play) and stop it. */
-  fadeOut(ms: number): void {
+  /**
+   * The song goes out at a play's end as if a door closed on it: a low-pass comes down over it, to `cutoffHz`
+   * and on down, while it fades over `ms`, and it stops. The note keysounds are not under it.
+   */
+  muffleOut(ms: number, cutoffHz: number): void {
+    if (!this.source || !this.sourceGain || this.sourceFilter) return;
+    const t = this.ctx.currentTime;
+    const end = t + ms / 1000;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(MUFFLE_OPEN_HZ, t);
+    filter.frequency.exponentialRampToValueAtTime(cutoffHz, t + (MUFFLE_CLOSE * ms) / 1000);
+    filter.frequency.exponentialRampToValueAtTime(MUFFLE_FLOOR_HZ, end);
+    this.sourceGain.disconnect();
+    this.sourceGain.connect(filter);
+    filter.connect(this.musicGain);
+    this.sourceFilter = filter;
+    const gain = this.sourceGain.gain;
+    gain.setValueAtTime(gain.value, t);
+    gain.linearRampToValueAtTime(gain.value, t + (MUFFLE_HOLD * ms) / 1000);
+    gain.linearRampToValueAtTime(0, end);
+    this.stopAt(end + 0.05);
+  }
+
+  /**
+   * A failed play: the song runs down as a tape does when its motor stops, slower and lower to a standstill
+   * over `ms`, and stops. Only what is heard changes: the song clock runs on as it was.
+   */
+  tapeStop(ms: number): void {
     if (!this.source || !this.sourceGain) return;
     const t = this.ctx.currentTime;
-    this.sourceGain.gain.setValueAtTime(this.sourceGain.gain.value, t);
-    this.sourceGain.gain.linearRampToValueAtTime(0, t + ms / 1000);
+    const end = t + ms / 1000;
+    // the stems left to the keysounds come back into the mix (their keysounds end with the play): all of the song runs down
+    for (const cut of this.cutGains) {
+      cut.gain.cancelScheduledValues(t);
+      cut.gain.setValueAtTime(cut.gain.value, t);
+      cut.gain.linearRampToValueAtTime(0, t + CUT_FADE_SEC);
+    }
+    // (they run down with it, so whatever of them is still taken out cancels to the end)
+    for (const node of [this.source, ...this.cutSources]) {
+      node.playbackRate.setValueAtTime(1, t);
+      node.playbackRate.linearRampToValueAtTime(0.001, end);
+    }
+    const gain = this.sourceGain.gain;
+    gain.setValueAtTime(gain.value, t);
+    gain.linearRampToValueAtTime(gain.value, t + (TAPE_HOLD * ms) / 1000);
+    gain.linearRampToValueAtTime(0, end);
+    this.stopAt(end + 0.05);
+  }
+
+  /** The song's sources stop at context time `when`. */
+  private stopAt(when: number): void {
     for (const node of [this.source, ...this.cutSources]) {
       try {
-        node?.stop(t + ms / 1000 + 0.05);
+        node?.stop(when);
       } catch {
         // already stopped
       }
@@ -257,8 +316,11 @@ export class AudioEngine implements SongClock {
       node.disconnect();
     }
     this.sourceGain?.disconnect();
+    this.sourceFilter?.disconnect();
+    this.sourceFilter = null;
     this.source = null;
     this.cutSources = [];
+    this.cutGains = [];
     this.sourceGain = null;
   }
 }

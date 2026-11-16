@@ -7,8 +7,10 @@ from __future__ import annotations
 from functools import lru_cache
 
 from rhythm_server.analysis.analyzer import analyze
-from rhythm_server.generator.core import generate_chart, mark_sound_ends
+from rhythm_server.chart.keysounds import mark_sound_ends
 from rhythm_server.synth import make_structured_song
+
+from fakes import made_chart
 
 
 def _onset(t: float, stem: str, share: float = 0.9, attack: float = 0.9) -> dict:
@@ -57,7 +59,7 @@ def _analysis() -> dict:
 
 def test_generated_charts_carry_the_end_of_each_notes_sound() -> None:
     a = _analysis()
-    chart = generate_chart(a, "6K", "EXPERT", None)
+    chart = made_chart(a, "6K", "EXPERT", count=400)
     followed = [n for n in chart["notes"] if n.get("src")]
     assert followed and all("srcEnd" in n for n in followed)
     for n in followed:

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Song, type SongSketch } from '../api/client';
+import { context2d, keepPainted, paintCanvas } from '../render/paintCanvas';
 import { token } from './theme';
+import { uiScale } from './uiScale';
 
 /** Colour token of the stem that leads a section. */
 const STEM_TOKENS: Record<string, string> = { drums: '--stem-drums', bass: '--stem-bass', vocals: '--stem-vocals', other: '--stem-other' };
@@ -50,10 +52,11 @@ export function leadingStem(sketch: SongSketch): string | null {
  * on it and the clear hub round the hole.
  */
 export function drawDisc(canvas: HTMLCanvasElement, size: number, colour: string): void {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  // (drawn for the size it shows at: the menus grow with the window)
+  const dpr = Math.min(4, (window.devicePixelRatio || 1) * uiScale());
   canvas.width = Math.round(size * dpr);
   canvas.height = Math.round(size * dpr);
-  const g = canvas.getContext('2d');
+  const g = context2d(canvas) as CanvasRenderingContext2D | null;
   if (!g) return;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const surface = token('--surface');
@@ -113,30 +116,41 @@ export function drawDisc(canvas: HTMLCanvasElement, size: number, colour: string
   g.globalAlpha = 1;
 }
 
-/** A disc cover (see drawDisc): a song's without a picture of its own, or a play's without a song. */
-export function Disc({ size, stem = null, className = '' }: { size: number; stem?: string | null; className?: string }) {
+/** A picture's side as the page sizes it: `size` is in the menus' own pixels (16 to the rem), so it grows with them. */
+const side = (size: number) => ({ width: `${size / 16}rem`, height: `${size / 16}rem` });
+
+/**
+ * A disc cover (see drawDisc): a song's without a picture of its own, or a play's without a song.
+ * `size` is how large it is drawn (and shown, unless `fit`: then the style sheet sizes it).
+ */
+export function Disc({ size, stem = null, className = '', fit = false }: { size: number; stem?: string | null; className?: string; fit?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    if (canvas.current) drawDisc(canvas.current, size, token(stem ? stemToken(stem) : '--text-dim'));
+    const c = canvas.current;
+    // (drawn again whenever the browser hands the canvas back empty: a lost graphics process)
+    return c ? keepPainted(c, () => drawDisc(c, size, token(stem ? stemToken(stem) : '--text-dim'))) : undefined;
   }, [size, stem]);
-  return <canvas ref={canvas} className={`song-art ${className}`} style={{ width: size, height: size }} aria-hidden="true" />;
+  return <canvas ref={canvas} className={`song-art ${className}`} style={fit ? undefined : side(size)} aria-hidden="true" />;
 }
 
 /** The song's picture: its own cover when it has one, else its disc. */
-export function SongArt({ song, size, className = '' }: { song: Song; size: number; className?: string }) {
+export function SongArt({ song, size, className = '', fit = false }: { song: Song; size: number; className?: string; fit?: boolean }) {
   // a cover that fails to load leaves the disc, until another cover comes
   const [failed, setFailed] = useState<string | null>(null);
   const cover = api.coverUrl(song);
   const covered = song.hasCover && failed !== cover;
   const sketch = useSketch(covered ? null : song);
   // (the song list is not cut to what shows: a cover loads as its row comes into view, a large BMP off the main thread)
-  if (covered) return <img className={`song-art ${className}`} style={{ width: size, height: size }} src={cover} alt="" loading="lazy" decoding="async" onError={() => setFailed(cover)} />;
-  return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} />;
+  if (covered) return <img className={`song-art ${className}`} style={fit ? undefined : side(size)} src={cover} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(cover)} />;
+  return <Disc size={size} stem={sketch ? leadingStem(sketch) : null} className={className} fit={fit} />;
 }
 
+/** The side of the picture the backdrop is stretched from: a few pixels, so it is a wash of colour with no shape left in it. */
+const WASH_SIDE = 6;
+
 /**
- * The selected song's picture read into 24 px and stretched over the screen: a soft field of its
- * colours behind the menus, with no blur filter (a disc cover's colour, evenly).
+ * The selected song's picture read into a few pixels and stretched over the screen: a soft field
+ * of its colours behind the menus, with no blur filter (a disc cover's colour, evenly).
  */
 export function Backdrop({ song }: { song: Song | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -145,26 +159,28 @@ export function Backdrop({ song }: { song: Song | null }) {
   useEffect(() => {
     const c = canvas.current;
     if (!c || !song) return;
-    const small = c.getContext('2d');
+    const small = context2d(c) as CanvasRenderingContext2D | null;
     if (!small) return;
     let alive = true;
     const paint = (source: CanvasImageSource) => {
       if (!alive) return;
       small.clearRect(0, 0, c.width, c.height);
+      small.imageSmoothingQuality = 'high';
       small.drawImage(source, 0, 0, c.width, c.height);
       setDrawn(song.id);
     };
-    if (song.hasCover) {
-      const img = new Image();
-      img.onload = () => paint(img);
-      img.src = api.coverUrl(song);
-    } else if (sketch) {
-      // a disc cover tints the screen evenly in its colour (its round shape stretched would be a blob)
-      const lead = leadingStem(sketch);
-      const field = document.createElement('canvas');
-      field.width = field.height = 4;
-      const g = field.getContext('2d');
-      if (g) {
+    // (again whenever the browser hands the canvas back empty: a lost graphics process)
+    const stop = keepPainted(c, () => {
+      if (song.hasCover) {
+        const img = new Image();
+        img.onload = () => paint(img);
+        img.src = api.coverUrl(song);
+      } else if (sketch) {
+        // a disc cover tints the screen evenly in its colour (its round shape stretched would be a blob)
+        const lead = leadingStem(sketch);
+        const field = paintCanvas();
+        field.width = field.height = 4;
+        const g = context2d(field);
         g.fillStyle = token('--surface');
         g.fillRect(0, 0, 4, 4);
         g.globalAlpha = 0.45;
@@ -172,14 +188,15 @@ export function Backdrop({ song }: { song: Song | null }) {
         g.fillRect(0, 0, 4, 4);
         paint(field);
       }
-    }
+    });
     return () => {
       alive = false;
+      stop();
     };
   }, [song?.id, song?.hasCover, song?.coverAt, sketch]);
   return (
     <div className="backdrop" aria-hidden="true">
-      <canvas ref={canvas} width={24} height={24} className={drawn && drawn === song?.id ? 'shown' : ''} />
+      <canvas ref={canvas} width={WASH_SIDE} height={WASH_SIDE} className={drawn && drawn === song?.id ? 'shown' : ''} />
     </div>
   );
 }

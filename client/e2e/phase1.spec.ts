@@ -38,7 +38,7 @@ test('upload a song, wait for analysis, generate a chart and autoplay it to PERF
   await expect(page.getByTestId('analysis-view')).toBeVisible();
 
   await autoplay(page);
-  await page.getByTestId('play-button').click();
+  await page.getByTestId('hint-enter').click();
   await expect(page.getByTestId('play-screen')).toBeVisible();
   await page.waitForTimeout(12000);
   await page.screenshot({ path: 'test-results/play-generated.png' });

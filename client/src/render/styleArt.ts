@@ -43,12 +43,26 @@ const SET_IDS = Object.keys(SET_NOTES) as ArtSet[];
 const setOf = (note: string): ArtSet | undefined => SET_IDS.find((s) => SET_NOTES[s] === note);
 
 /**
- * The hits drawn from flipbooks (client/public/media/styles/<set>/ and styles/hits/), by their name in
- * the manifest: the sets' and four of no set (FLASH, FLARE, BUBBLES, GRID). Each is drawn in code
- * while its flipbooks are missing (tintArt.ts: effectSheet).
+ * The hits drawn from flipbooks, by their name in the manifest: the sets' and three of no set (FLARE,
+ * BUBBLES, GRID: client/public/media/styles/<set>/ and styles/hits/), and the skins' (client/public/media/fx/:
+ * each a frame-by-frame animation made with the image model, scripts/assets/build_skin_fx.py; the default
+ * skin's FLASH is "basic" there, "flash" being an older sheet nothing plays). Each is drawn in code while its
+ * flipbooks are missing (tintArt.ts: effectSheet).
  */
 const HIT_ART: Readonly<Partial<Record<HitStyle, string>>> = {
-  flash: 'flash',
+  flash: 'basic',
+  prism: 'prism',
+  sky: 'sky',
+  fire: 'fire',
+  gpt: 'gpt',
+  gemini: 'gemini',
+  grok: 'grok',
+  claude: 'claude',
+  aqua: 'aqua',
+  steel: 'steel',
+  noir: 'noir',
+  wire: 'wire',
+  astral: 'astral',
   flare: 'flare',
   bubbles: 'bubbles',
   grid: 'grid',
@@ -73,21 +87,30 @@ const artId = (set: ArtSet, part: 'notes' | 'long' | 'side') => `${set}/${part}`
 
 /**
  * The gears' pictures (manifest ids) by part: the whole deck painted in the camera's perspective (on
- * the perspective cameras), the materials of the plate and the frame, and the things on the deck
- * (the deck drawn in code: the plane camera's, or where the deck's picture is missing), and where its
- * lights may shine from inside a part (glow: gearLights.ts). A part whose picture is missing is drawn
- * in code (deckArt.ts).
+ * the perspective cameras) and the things on the deck (the deck drawn in code: the plane camera's,
+ * or where the deck's picture is missing). A part whose picture is missing is drawn in code
+ * (deckArt.ts).
  */
 const GEAR_PICTURES: Record<GearStyle, Readonly<Partial<Record<GearPart, string>>>> = {
-  standard: { deck: 'standard/deck', glow: 'standard/glow', frame: 'standard/graphite', jog: 'standard/jog' },
-  cabinet: { deck: 'cabinet/deck', plate: 'cabinet/abs', joystick: 'cabinet/joystick', button: 'cabinet/button', coin: 'cabinet/coin' },
-  receiver: { deck: 'receiver/deck', plate: 'receiver/silver', frame: 'receiver/walnut', knob: 'receiver/knob', switch: 'receiver/switch' },
-  najeon: { deck: 'najeon/deck', glow: 'najeon/glow', frame: 'najeon/band', lid: 'najeon/lid', lock: 'najeon/lock' },
-  keyboard: { deck: 'keyboard/deck', glow: 'keyboard/glow', plate: 'keyboard/alu', knob: 'keyboard/knob', keycap: 'keyboard/keycap', brass: 'keyboard/brass' },
-  racing: { deck: 'racing/deck', plate: 'racing/carbon', rotary: 'racing/rotary', button: 'racing/button' },
-  orbital: { deck: 'orbital/deck', plate: 'orbital/paint', frame: 'orbital/foil', selector: 'orbital/selector', toggle: 'orbital/toggle', button: 'orbital/button' },
+  // the skins' gears: the row of keys drawn in code (it follows the lanes), the lower part a painting (panel: the
+  // readouts are written on its display), in code where the painting is missing
+  prism: { panel: 'prism/panel' },
+  // (the sky skin's deck in code lays an older painting of its sky and a feather over its score)
+  sky: { panel: 'sky/panel', plate: 'sky/plate', feather: 'sky/feather' },
+  // (its key caps carry the four members' crests in their order, one strip of four cells)
+  fire: { panel: 'fire/panel', crests: 'fire/crests' },
+  gpt: { panel: 'gpt/panel' },
+  gemini: { panel: 'gemini/panel' },
+  grok: { panel: 'grok/panel' },
+  claude: { panel: 'claude/panel' },
+  aqua: { panel: 'aqua/panel' },
+  steel: { panel: 'steel/panel' },
+  noir: { panel: 'noir/panel' },
+  wire: { panel: 'wire/panel' },
+  astral: { panel: 'astral/panel' },
+  // the default skin's gear, as the skins': its key caps light with the lanes and its panel's display houses the HUD's readouts
+  standard: { panel: 'standard/panel' },
   piano: { deck: 'piano/deck', medallion: 'piano/medallion' },
-  rawglass: { deck: 'rawglass/deck' },
 };
 
 /** The pictures (manifest ids) a style's parts draw from. */

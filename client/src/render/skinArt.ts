@@ -9,6 +9,12 @@ export interface Flipbook {
   frames: number;
   fps: number;
   loop: boolean;
+  /**
+   * A hit's flipbook: the frame it starts at, the first about as bright as its brightest (measured from the sheet
+   * when it is built: scripts/assets/flipbook_light.py). The frames before it, in which the effect swells, are not
+   * played: the answer to a key is at its brightest in the first frame on the screen. 0 without it.
+   */
+  peak?: number;
 }
 
 /** One texture of client/public/media/manifest.json (written by scripts/assets/build_styles.py and build_gears.py). */
@@ -22,6 +28,18 @@ export interface MediaTexture {
   anchorY?: number;
   /** Hit flipbooks: how much larger a frame is than the effect drawn in it (room all round the whole effect). */
   span?: number;
+  /**
+   * Hit flipbooks: light in colours of its own, added to the screen as it is (the skins' hits, drawn frame by frame:
+   * scripts/assets/build_skin_fx.py); without it the light is white and takes the lane's colour.
+   */
+  plain?: boolean;
+  /** A hold flipbook with a core of its own: no frame of the burst glows under it. */
+  cored?: boolean;
+  /**
+   * A hit flipbook in colours of its own: the colour of its light where it starts (flipbook_light.py), for the flash
+   * drawn on the judge line with it (0xrrggbb).
+   */
+  tone?: number;
 }
 
 /** "Reduce flashing" for the textured hit effects. */
@@ -77,10 +95,16 @@ export function parseMediaTexture(raw: unknown): MediaTexture | null {
     if (typeof raw.anchorY !== 'number' || !(raw.anchorY >= 0 && raw.anchorY <= 1)) return null;
     out.anchorY = raw.anchorY;
   }
+  if (raw.plain === true) out.plain = true;
+  if (raw.cored === true) out.cored = true;
+  // (a colour that is not one is left out: the flash is then white)
+  if (typeof raw.tone === 'string' && /^#[0-9a-f]{6}$/i.test(raw.tone)) out.tone = Number.parseInt(raw.tone.slice(1), 16);
   if (raw.flipbook !== undefined) {
     const b = raw.flipbook;
     if (!isObject(b) || !count(b.cols, 16) || !count(b.rows, 16) || !count(b.frames, (b.cols as number) * (b.rows as number)) || !positive(b.fps)) return null;
     out.flipbook = { cols: b.cols, rows: b.rows, frames: b.frames, fps: b.fps, loop: b.loop === true };
+    // a start past the sheet's last frame, or not a whole frame, is no start: the sheet plays from its first
+    if (count(b.peak, b.frames - 1)) out.flipbook.peak = b.peak;
   }
   return out;
 }
@@ -116,6 +140,29 @@ export function loadManifest(): Promise<MediaManifest | null> {
 export function flipbookOffset(book: Flipbook, frame: number): [number, number] {
   const f = Math.min(book.frames - 1, Math.max(0, Math.floor(frame)));
   return [(f % book.cols) / book.cols, 1 - (Math.floor(f / book.cols) + 1) / book.rows];
+}
+
+/**
+ * Where a flipbook is between two of its frames at `frame` (a frame and a share of the way to the next): the
+ * frame's UV offset, the step from it to the next frame's, and how much of the next shows (0..1). The sheets hold
+ * 24 to 60 frames a second and the screen shows 60 to 240: drawn frame by frame an effect stands still for two
+ * or three screen frames, then jumps; with each pair of frames mixed it moves on every one. A loop's last frame
+ * is followed by its first; a sheet played once ends on its last frame.
+ */
+export function flipbookBlend(book: Flipbook, frame: number): { offset: [number, number]; step: [number, number]; mix: number } {
+  const whole = Math.floor(frame);
+  const wrap = (f: number) => (book.loop ? ((f % book.frames) + book.frames) % book.frames : Math.min(book.frames - 1, Math.max(0, f)));
+  const from = wrap(whole);
+  const to = wrap(whole + 1);
+  const offset = flipbookOffset(book, from);
+  const next = flipbookOffset(book, to);
+  const mix = from === to ? 0 : Math.min(1, Math.max(0, frame - whole));
+  return { offset, step: [next[0] - offset[0], next[1] - offset[1]], mix };
+}
+
+/** A hit's flipbook `ms` after the hit: its frame (with the share of the way to the next), from where it starts. */
+export function hitFrame(book: Flipbook, ms: number): number {
+  return (book.peak ?? 0) + (Math.max(0, ms) / 1000) * book.fps;
 }
 
 export interface ArtSources {

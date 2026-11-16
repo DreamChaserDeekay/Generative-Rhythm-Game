@@ -28,3 +28,5 @@ Thumbs.db
 .idea/
 # packaging/build_natten.sh's work folder
 .natten-build/
+# Mapperatorinator and slider sources the desktop build bundles (fetched by the workflow)
+packaging/vendor/

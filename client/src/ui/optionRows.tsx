@@ -1,7 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { GEAR_STYLES, type GearStyle } from '../render/deckArt';
 import type { HudTypeSource } from '../render/gearHud';
-import type { SkinParts } from '../render/skins';
+import { SKIN_IDS, type SkinId, type SkinParts } from '../render/skins';
 import { HIT_STYLES, NOTE_STYLES, SIDE_STYLES, type HitStyle, type NoteStyle, type SideStyle } from '../render/tintArt';
 
 /** The option rows of the settings and the song select's play options. */
@@ -10,6 +10,18 @@ export const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** The parts by name (설정 → 노트 and 기어). */
 export const NOTE_NAMES: Record<NoteStyle, string> = {
+  prism: '크리스털',
+  sky: '하늘',
+  fire: '파이어스타터',
+  gpt: 'GPT',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  claude: 'Claude',
+  aqua: '아쿠아',
+  steel: '스틸',
+  noir: '레드라인',
+  wire: '화이트 라인',
+  astral: '별밤',
   flat: '기본',
   chrome: '크롬 베벨',
   hairline: '헤어라인',
@@ -24,17 +36,34 @@ export const NOTE_NAMES: Record<NoteStyle, string> = {
 };
 export const SIDE_NAMES: Record<SideStyle, string> = { bar: '기본', dots: '도트 매트릭스' };
 export const DECK_NAMES: Record<GearStyle, string> = {
+  prism: '크리스털',
+  sky: '하늘',
+  fire: '파이어스타터',
+  gpt: 'GPT',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  claude: 'Claude',
+  aqua: '아쿠아',
+  steel: '스틸',
+  noir: '레드라인',
+  wire: '화이트 라인',
+  astral: '별밤',
   standard: '기본',
-  cabinet: '오락실 기체',
-  receiver: '빈티지 리시버',
-  najeon: '나전칠기',
-  keyboard: '커스텀 키보드',
-  racing: '레이싱 휠',
-  orbital: '우주선 계기판',
   piano: '피아노',
-  rawglass: '달',
 };
 export const HIT_NAMES: Record<HitStyle, string> = {
+  prism: '크리스털 분광',
+  sky: '구름 깃털',
+  fire: '불꽃놀이',
+  gpt: '물방울 왕관',
+  gemini: '반짝임',
+  grok: '엑스 섬광',
+  claude: '붓 빛살',
+  aqua: '록온',
+  steel: '십자 섬광',
+  noir: '글리치',
+  wire: '선 불꽃',
+  astral: '별빛',
   flash: '플래시',
   flare: '플레어',
   bubbles: '거품',
@@ -45,6 +74,17 @@ export const HIT_NAMES: Record<HitStyle, string> = {
   neon: '네온 아크',
   piano: '피아노 음표',
 };
+
+/** The skins by name (설정 → 기어 → 스킨), and what the row reads while the parts are no skin's (picked one by one). */
+export const SKIN_NAMES: Record<SkinId, string> = { default: '기본', crystal: '크리스털', sky: '하늘', fire: '파이어스타터', gpt: 'GPT', gemini: 'Gemini', grok: 'Grok', claude: 'Claude', aqua: '아쿠아', steel: '스틸', noir: '레드라인', wire: '화이트 라인', astral: '별밤' };
+export const CUSTOM_SKIN = 'custom';
+export const CUSTOM_SKIN_NAME = '직접 고름';
+
+/** The skin row's choices: the skins, and 직접 고름 only while it is what the row reads (it is not something to pick). */
+export function skinChoices(current: SkinId | null): [SkinId | typeof CUSTOM_SKIN, string][] {
+  const skins = SKIN_IDS.map((id): [SkinId | typeof CUSTOM_SKIN, string] => [id, SKIN_NAMES[id]]);
+  return current === null ? [...skins, [CUSTOM_SKIN, CUSTOM_SKIN_NAME]] : skins;
+}
 
 /** Whose type writes the judgement and the combo (설정 → 기어 → 판정·콤보 글꼴): the gear's, or the track's own (기본). */
 export const HUD_TYPE_CHOICES: [HudTypeSource, string][] = [
@@ -67,12 +107,22 @@ export interface RowProps {
   testId?: string;
   /** Enter is the screen's, not the row's (the song select's panels: Enter plays). */
   passEnter?: boolean;
+  /**
+   * The setting's default, where it is one stored value (a choice's id, a number, on or off, null
+   * for 자동). A row given it tells `onDefault`, right after each `onHelp`, how it would show the
+   * default, or null while its value is the default (the settings' "기본값" under the help).
+   */
+  defaultValue?: string | number | boolean | null;
+  onDefault?: (text: string | null) => void;
 }
+
+/** A choice of more than this many shows no squares: they would say less than the value's name. */
+const PIPS_MOST = 12;
 
 /**
  * A setting as an arcade option row: its name, and its value between ‹ ›. ←→ (or the arrows)
- * change it, Shift by a bigger step; Enter moves a choice on or flips a switch, and a click on a
- * switch flips it.
+ * change it, Shift by a bigger step; Enter moves a choice on or flips a switch. A click on the row
+ * only puts the cursor on it: a switch flips under the pointer on its 켬 / 끔 (or its arrows) alone.
  */
 export function OptionRow(
   props: RowProps & {
@@ -82,6 +132,12 @@ export function OptionRow(
     onPress?: () => void;
     /** A switch's state (on / off rows). */
     checked?: boolean;
+    /** Where the value stands among its choices: shown as a square each while the row has the cursor. */
+    pips?: { count: number; at: number };
+    /** Where a number stands in its range, 0 to 1: shown as a mark on a line while the row has the cursor. */
+    meter?: number;
+    /** The default as the row shows it, while its value is another (see RowProps.defaultValue). */
+    defaultText?: string | null;
   },
 ) {
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -93,12 +149,17 @@ export function OptionRow(
       if (!e.repeat) props.onPress?.();
     }
   };
-  // the help follows the value (some rows explain the value chosen) while the row has the focus
+  // the help follows the value (some rows explain the value chosen) while the row has the focus,
+  // and so does the default: it is named only while the value is another
   const row = useRef<HTMLDivElement>(null);
-  const { onHelp, help } = props;
+  const { onHelp, help, onDefault, defaultText = null } = props;
+  const tell = () => {
+    onHelp(help);
+    onDefault?.(defaultText);
+  };
   useEffect(() => {
-    if (row.current && document.activeElement === row.current) onHelp(help);
-  }, [help]);
+    if (row.current && document.activeElement === row.current) tell();
+  }, [help, defaultText]);
   // the arrows change the value and leave the focus on the row
   const arrow = (dir: 1 | -1) => ({
     onMouseDown: (e: ReactMouseEvent) => e.preventDefault(),
@@ -119,18 +180,33 @@ export function OptionRow(
       data-testid={props.testId}
       data-value={props.value}
       onKeyDown={onKeyDown}
-      onClick={(e) => {
-        // a switch flips under the pointer anywhere but on its arrows (they flip it themselves)
-        if (props.checked !== undefined && !(e.target as HTMLElement).closest('.opt-step')) props.onPress?.();
-      }}
-      onFocus={() => props.onHelp(props.help)}
+      onFocus={tell}
     >
       <span className="opt-name">{props.label}</span>
       <span className="opt-value">
+        {props.pips && props.pips.count > 2 && props.pips.count <= PIPS_MOST && (
+          <span className="opt-pips" aria-hidden="true">
+            {Array.from({ length: props.pips.count }, (_, i) => (
+              <i key={i} className={i === props.pips?.at ? 'at' : undefined} />
+            ))}
+          </span>
+        )}
+        {props.meter !== undefined && (
+          <span className="opt-meter" aria-hidden="true">
+            <i style={{ left: `${Math.min(1, Math.max(0, props.meter)) * 100}%` }} />
+          </span>
+        )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(-1)}>
           ‹
         </button>
-        <b>{props.text}</b>
+        {props.checked === undefined ? (
+          <b>{props.text}</b>
+        ) : (
+          // a switch's 켬 / 끔 flips it under the pointer (the row around it only takes the cursor)
+          <b className="opt-flip" data-testid={props.testId ? `${props.testId}-flip` : undefined} onClick={() => props.onPress?.()}>
+            {props.text}
+          </b>
+        )}
         <button type="button" className="opt-step" tabIndex={-1} aria-hidden="true" {...arrow(1)}>
           ›
         </button>
@@ -139,11 +215,27 @@ export function OptionRow(
   );
 }
 
+/** How a row names its default: not at all where it has none, or where the value now reads the same. */
+function defaultShown(text: string | null, shown: string): string | null {
+  return text === shown ? null : text;
+}
+
 /** One of a list; the ends wrap around. */
 export function Choice<T extends string>(props: RowProps & { value: T; options: [T, string][]; onChange: (v: T) => void }) {
   const at = Math.max(0, props.options.findIndex(([id]) => id === props.value));
   const move = (dir: 1 | -1) => props.onChange(props.options[(at + dir + props.options.length) % props.options.length][0]);
-  return <OptionRow {...props} text={props.options[at]?.[1] ?? String(props.value)} value={props.value} onStep={(dir) => move(dir)} onPress={() => move(1)} />;
+  const text = props.options[at]?.[1] ?? String(props.value);
+  return (
+    <OptionRow
+      {...props}
+      text={text}
+      value={props.value}
+      onStep={(dir) => move(dir)}
+      onPress={() => move(1)}
+      pips={{ count: props.options.length, at }}
+      defaultText={defaultShown(props.options.find(([id]) => id === props.defaultValue)?.[1] ?? null, text)}
+    />
+  );
 }
 
 /** A number between min and max, in steps (Shift: bigger steps). */
@@ -156,7 +248,10 @@ export function NumberOption(
     const clamped = Math.min(props.max, Math.max(props.min, next));
     if (clamped !== props.value) props.onChange(clamped);
   };
-  return <OptionRow {...props} text={props.format(props.value)} value={String(props.value)} onStep={step} />;
+  const meter = props.max > props.min ? (props.value - props.min) / (props.max - props.min) : undefined;
+  const text = props.format(props.value);
+  const defaultText = defaultShown(typeof props.defaultValue === 'number' ? props.format(props.defaultValue) : null, text);
+  return <OptionRow {...props} text={text} value={String(props.value)} onStep={step} meter={meter} defaultText={defaultText} />;
 }
 
 export interface OptionalRange {
@@ -183,13 +278,18 @@ export function optionalStep(value: number | null, dir: 1 | -1, big: boolean, r:
 /** A number, or 자동 (null: the generator or the difficulty decides). */
 export function OptionalNumberOption(props: RowProps & OptionalRange & { value: number | null; format: (v: number) => string; onChange: (v: number | null) => void }) {
   const step = (dir: 1 | -1, big: boolean) => props.onChange(optionalStep(props.value, dir, big, props));
-  return <OptionRow {...props} text={props.value === null ? '자동' : props.format(props.value)} value={props.value === null ? 'auto' : String(props.value)} onStep={step} />;
+  const shown = (v: number | null) => (v === null ? '자동' : props.format(v));
+  const text = shown(props.value);
+  const defaultText = defaultShown(props.defaultValue === null || typeof props.defaultValue === 'number' ? shown(props.defaultValue) : null, text);
+  return <OptionRow {...props} text={text} value={props.value === null ? 'auto' : String(props.value)} onStep={step} defaultText={defaultText} />;
 }
 
 /** On or off; ←, → and Enter all flip it. */
 export function Toggle(props: RowProps & { value: boolean; onChange: (v: boolean) => void }) {
   const flip = () => props.onChange(!props.value);
-  return <OptionRow {...props} text={props.value ? '켬' : '끔'} value={String(props.value)} checked={props.value} onStep={flip} onPress={flip} />;
+  const shown = (v: boolean) => (v ? '켬' : '끔');
+  const defaultText = defaultShown(typeof props.defaultValue === 'boolean' ? shown(props.defaultValue) : null, shown(props.value));
+  return <OptionRow {...props} text={shown(props.value)} value={String(props.value)} checked={props.value} onStep={flip} onPress={flip} defaultText={defaultText} />;
 }
 
 /** A row that does something (Enter or a click). */

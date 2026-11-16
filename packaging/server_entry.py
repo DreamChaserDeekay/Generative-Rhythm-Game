@@ -20,7 +20,6 @@ import multiprocessing  # noqa: E402
 from rhythm_server.__main__ import main  # noqa: E402  (after the environment is set)
 
 if __name__ == "__main__":
-    # the chart workers (rhythm_server/generator/workers.py) are spawned processes; in the bundled
-    # exe they start as the exe itself, and this hands them over to multiprocessing
+    # a process spawned by multiprocessing starts as the bundled exe itself; this hands it over
     multiprocessing.freeze_support()
     main()

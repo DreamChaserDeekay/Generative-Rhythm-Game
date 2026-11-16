@@ -1,6 +1,9 @@
 import { cameraConfig, type CameraPreset, type KeyModeConfig, type LaneColor, type LaneConfig, type LaneKind } from '../engine/config';
 
-/** Where the judge line sits on the screen: this share of the height from the top (the view moves, not the camera). */
+/**
+ * Where the judge line sits on the screen: this share of the height from the top (the view moves, not the
+ * camera). A preset may have its own (CameraPreset.judgeLineY: the plane camera's gear sits lower), see cameraPose.
+ */
 export const JUDGE_LINE_Y = cameraConfig.judgeLineY;
 
 /**
@@ -56,6 +59,8 @@ export interface CameraPose {
   fov: number;
   /** Parallel rays (the plane preset): the view is as large everywhere as `fov` makes it at the target. */
   orthographic: boolean;
+  /** Where the judge line sits on the screen with this camera (a share of the height from the top): JUDGE_LINE_Y, or the preset's own. */
+  lineY: number;
 }
 
 /** A note's near edge (toward the camera) and far edge on the track (z). */
@@ -96,5 +101,6 @@ export function cameraPose(preset: CameraPreset): CameraPose {
     target: [0, 0, -preset.lookAhead],
     fov: preset.fov,
     orthographic: preset.projection === 'orthographic',
+    lineY: preset.judgeLineY ?? JUDGE_LINE_Y,
   };
 }

@@ -1,3 +1,4 @@
+import { context2d, whenRestored } from '../render/paintCanvas';
 import { token } from './theme';
 import { YouTubeBackground } from './youtubeBga';
 
@@ -8,6 +9,10 @@ export interface BackgroundOptions {
   bgaUrl: string | null;
   /** Or a YouTube video, played muted by YouTube's embedded player on song time. */
   bgaYoutube: string | null;
+  /**
+   * The video's shift against the song: + starts it that many ms into the song (the cover shows
+   * until then), - skips that many ms of its start (it is already that far in as the song starts).
+   */
   bgaOffsetMs: number;
   /** Practice playback rate (the video plays at the same speed). */
   rate: number;
@@ -24,6 +29,26 @@ const BARS = 48;
 const VISUALIZER_FPS = 30;
 const VIDEO_DRIFT_S = 0.12;
 const VIDEO_RESYNC_MS = 500;
+/** The video shows once it plays this close (s) to song time. */
+const VIDEO_SHOW_WITHIN_S = 0.5;
+
+/** Largest shift of the background video against the song (ms, either way; as the server allows). */
+export const BGA_OFFSET_MAX_MS = 60000;
+
+/** `ms` as a shift the server takes: whole ms within ±BGA_OFFSET_MAX_MS (null: not a number). */
+export function clampBgaOffset(ms: number): number | null {
+  if (!Number.isFinite(ms)) return null;
+  return Math.min(BGA_OFFSET_MAX_MS, Math.max(-BGA_OFFSET_MAX_MS, Math.round(ms)));
+}
+
+const seconds = (ms: number) => `${Number((Math.abs(ms) / 1000).toFixed(3))}초`;
+
+/** What a shift does, in words: which way and how far. */
+export function describeBgaOffset(ms: number): string {
+  if (ms > 0) return `영상을 ${seconds(ms)} 늦게 시작 (그동안 커버가 보입니다)`;
+  if (ms < 0) return `영상 앞부분 ${seconds(ms)} 건너뛰기`;
+  return '곡과 영상을 같이 시작';
+}
 
 /**
  * Layer behind the track: the jacket as a soft colour field, optional user video synced to song
@@ -40,8 +65,9 @@ export class PlayBackground {
   private readonly options: BackgroundOptions;
   private lastDraw = 0;
   private lastSeek = 0;
+  private videoShown = false;
   /** Spectrum colour (the accent token). */
-  private readonly color = token('--accent');
+  private readonly color = token('--field-accent');
 
   constructor(options: BackgroundOptions) {
     this.options = options;
@@ -53,7 +79,12 @@ export class PlayBackground {
       cover.width = COVER_PX;
       cover.height = COVER_PX;
       const image = new Image();
-      image.onload = () => cover.getContext('2d')?.drawImage(image, 0, 0, COVER_PX, COVER_PX);
+      const paint = () => {
+        if (image.complete && image.naturalWidth > 0) context2d(cover).drawImage(image, 0, 0, COVER_PX, COVER_PX);
+      };
+      image.onload = paint;
+      // (again whenever the browser hands the canvas back empty: a lost graphics process)
+      whenRestored(cover, paint);
       image.src = options.coverUrl;
       this.root.appendChild(cover);
     }
@@ -65,6 +96,9 @@ export class PlayBackground {
       video.playsInline = true;
       video.preload = 'auto';
       video.playbackRate = options.rate;
+      // hidden until it plays on song time (the cover shows through meanwhile)
+      video.style.opacity = '0';
+      video.style.transition = 'opacity 0.4s ease';
       this.root.appendChild(video);
       this.video = video;
     } else if (options.bgaYoutube) {
@@ -80,6 +114,7 @@ export class PlayBackground {
       canvas.className = 'bg-visualizer';
       this.root.appendChild(canvas);
       this.canvas = canvas;
+      // drawn afresh many times a second while the song plays: on the graphics card, and by itself again after it was lost
       this.ctx = canvas.getContext('2d');
     }
     const dim = document.createElement('div');
@@ -113,9 +148,13 @@ export class PlayBackground {
     if (!video || video.readyState < 2) return;
     const target = (songMs - this.options.bgaOffsetMs) / 1000;
     const inside = target >= 0 && (!Number.isFinite(video.duration) || target < video.duration);
+    if (!inside) this.showVideo(video, false);
+    else if (playing && !video.paused && !video.seeking && Math.abs(video.currentTime - target) <= VIDEO_SHOW_WITHIN_S * this.options.rate) this.showVideo(video, true);
     if (!playing || !inside) {
       if (!video.paused) video.pause();
-      if (!inside && target < 0 && video.currentTime !== 0) video.currentTime = 0;
+      // waiting at the point it starts from (a - shift: already some way in), loaded there
+      const at = Math.max(0, Number.isFinite(video.duration) ? Math.min(target, video.duration) : target);
+      if (!video.seeking && Math.abs(video.currentTime - at) > VIDEO_DRIFT_S) video.currentTime = at;
       return;
     }
     if (video.paused) {
@@ -126,6 +165,12 @@ export class PlayBackground {
       video.currentTime = target;
       this.lastSeek = perfNow;
     }
+  }
+
+  private showVideo(video: HTMLVideoElement, on: boolean): void {
+    if (on === this.videoShown) return;
+    this.videoShown = on;
+    video.style.opacity = on ? '1' : '0';
   }
 
   private drawSpectrum(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, analyser: AnalyserNode): void {

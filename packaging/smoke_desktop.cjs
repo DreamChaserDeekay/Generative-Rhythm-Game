@@ -1,9 +1,11 @@
 // Launches a packaged desktop app with Playwright's Electron driver: waits for the game, checks its
-// media, analyzes a demo song, previews a chart, starts an autoplay (the default hit's flipbooks) and saves
-// screenshots along the way.
+// media, analyzes a demo song and saves screenshots along the way. Where Mapperatorinator's runtime is set
+// up (the workflow's CPU step leaves one in GRG_MAPPER_HOME; the runner has no NVIDIA GPU otherwise) it also
+// has a chart made, previews it and starts an autoplay (the default hit's flipbooks); else it checks that the
+// chart is refused with a reason.
+// Last, it kills the app's GPU process and prints what the app wrote down of it (graphics.log): informational.
 //   node packaging/smoke_desktop.cjs <client dir with node_modules> <app executable> <screenshot dir>
-// GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes; the structure
-// edition's allin1 takes longer on a CI runner).
+// GRG_SMOKE_ANALYSIS_MS: how long the demo song's analysis may take (default 3 minutes).
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -11,6 +13,35 @@ const path = require('node:path');
 const [clientDir, exe, outDir] = process.argv.slice(2);
 const analysisMs = Number(process.env.GRG_SMOKE_ANALYSIS_MS) || 180000;
 const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/playwright'));
+
+/**
+ * The app's GPU process is killed, as a driver reset or a crash of it takes it away: the app writes it
+ * down in graphics.log beside server.log, with a picture of the window afterwards (desktop/graphicsLog.js).
+ * Informational: what it wrote is printed and copied beside the screenshots, and nothing here fails the
+ * test (a runner has no graphics card, and how its software one takes the kill is not the build's matter).
+ */
+async function graphicsLoss(app, win) {
+  const userData = await app.evaluate(({ app: a }) => a.getPath('userData'));
+  const logFile = path.join(userData, 'graphics.log');
+  const log = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '');
+  const until = async (ok, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (ok()) return true;
+    return false;
+  };
+  if (!(await until(() => /  start  /.test(log()), 15000))) console.warn('graphics.log: no start line');
+  const before = log().length;
+  const gpu = await app.evaluate(({ app: a }) => a.getAppMetrics().filter((m) => m.type === 'GPU').map((m) => m.pid));
+  if (!gpu.length) {
+    console.log('graphics-loss check: the app has no GPU process here');
+  } else {
+    await app.evaluate((_electron, pid) => process.kill(pid), gpu[0]);
+    const pictured = await until(() => /  picture  /.test(log().slice(before)), 20000);
+    console.log(`graphics-loss check: the GPU process (${gpu[0]}) was killed; ${pictured ? 'the app wrote it down and pictured its window' : 'no picture line within 20 s'}`);
+    await win.screenshot({ path: path.join(outDir, '4-after-graphics-loss.png') }).catch(() => {});
+  }
+  console.log(`--- graphics.log\n${log()}`);
+  for (const name of fs.readdirSync(userData).filter((n) => /^graphics(-lost-.*\.jpg|\.log)$/.test(n))) fs.copyFileSync(path.join(userData, name), path.join(outDir, `desktop-${name}`));
+}
 
 (async () => {
   fs.mkdirSync(outDir, { recursive: true });
@@ -32,30 +63,52 @@ const { _electron: electron } = require(path.resolve(clientDir, 'node_modules/pl
   });
   if (!media.textures || media.burst !== 200) throw new Error(`game media missing: ${JSON.stringify(media)}`);
   console.log('media:', media.textures, 'textures');
-  // the demo song is in the add (+) menu
-  await win.getByTestId('add-menu').click();
+  // the demo song is in the menu (Esc), under 곡 추가
+  await win.getByTestId('hint-menu').click();
+  await win.getByTestId('menu-add').click();
   await win.getByTestId('demo-button').click();
   await win.getByTestId('song-title').waitFor({ timeout: 60000 });
   await win.waitForFunction(() => !document.querySelector('[data-testid="analysis-status"]'), null, { timeout: analysisMs });
   await win.screenshot({ path: path.join(outDir, '1-song-select.png') });
-  // the chart's numbers are in the song info (I), which gets the default pattern's chart by itself
-  // (F5, the button that made the chart before, now makes a new pattern)
-  await win.getByTestId('hint-info').click();
-  await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
-  await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
-  console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
-  // a play needs an audio device for the song clock; take a picture whatever happens
-  try {
-    // autoplay is a play option (Space)
-    await win.getByTestId('hint-options').click();
-    await win.getByTestId('autoplay-toggle').check();
-    await win.getByTestId('play-button').click();
-    await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
-    await win.waitForTimeout(7000);
-    await win.screenshot({ path: path.join(outDir, '3-play.png') });
-  } catch (e) {
-    console.warn('play screenshot skipped:', e.message);
+  // Mapperatorinator is the only generator: the chart is asked of the server as the song select does
+  // on Enter (it answers when the chart is made: the model's timing pass and the notes, on the CPU here)
+  const made = await win.evaluate(async () => {
+    const health = await (await fetch('/api/health')).json();
+    const song = (await (await fetch('/api/songs')).json()).songs[0];
+    const res = await fetch(`/api/songs/${song.id}/charts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyMode: '7K+1S', difficulty: 'NORMAL' }),
+    });
+    const body = await res.json();
+    return { mapper: health.mapper && health.mapper.state, status: res.status, detail: body.detail, notes: body.chart && body.chart.meta.noteCount };
+  });
+  console.log('chart request:', JSON.stringify(made));
+  if (made.mapper !== 'ready') {
+    if (made.status !== 503 || !made.detail) throw new Error(`a chart without Mapperatorinator answered ${made.status}, not 503 with its reason`);
+    console.log('no Mapperatorinator runtime here: the chart was refused with its reason');
+  } else {
+    if (made.status !== 200 || !made.notes) throw new Error(`Mapperatorinator made no chart: ${JSON.stringify(made)}`);
+    // the screens are another matter than the build: a picture of the chart and of a play where they come up
+    try {
+      await win.getByTestId('hint-info').click();
+      await win.getByTestId('chart-preview').waitFor({ timeout: 60000 });
+      await win.screenshot({ path: path.join(outDir, '2-chart-preview.png') });
+      console.log('chart notes:', await win.getByTestId('chart-notes').textContent());
+      // the song info closed (its Esc hint), Shift+Enter plays the chart on autoplay (a play needs an
+      // audio device for the song clock)
+      await win.getByTestId('hint-info').click();
+      await win.getByTestId('song-info').waitFor({ state: 'detached', timeout: 10000 });
+      await win.keyboard.press('Shift+Enter');
+      await win.getByTestId('play-screen').waitFor({ timeout: 30000 });
+      await win.waitForTimeout(7000);
+      await win.screenshot({ path: path.join(outDir, '3-play.png') });
+    } catch (e) {
+      console.warn('chart and play screenshots skipped:', e.message);
+      await win.screenshot({ path: path.join(outDir, '2-after-chart.png') }).catch(() => {});
+    }
   }
+  await graphicsLoss(app, win).catch((e) => console.warn('graphics-loss check skipped:', e.message));
   await app.close();
   console.log('desktop smoke test: ok');
 })().catch((e) => {

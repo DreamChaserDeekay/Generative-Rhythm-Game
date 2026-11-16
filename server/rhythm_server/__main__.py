@@ -1,4 +1,4 @@
-"""Command line: run the server, or analyze / generate / synthesize from the terminal."""
+"""Command line: run the server, or analyze / synthesize / try Mapperatorinator from the terminal."""
 
 from __future__ import annotations
 
@@ -50,22 +50,6 @@ def _analyze(args: argparse.Namespace) -> None:
     Path(args.output).write_text(out, encoding="utf-8") if args.output else print(out)
 
 
-def _generate(args: argparse.Namespace) -> None:
-    from .generator import generate_chart
-
-    analysis = json.loads(Path(args.file).read_text(encoding="utf-8")) if args.file.endswith(".json") else _analyze_file(Path(args.file))
-    t = time.time()
-    chart = generate_chart(analysis, args.mode, args.difficulty, args.level, args.seed, meta={"title": Path(args.file).stem})
-    m = chart["meta"]
-    print(
-        f"{m['keyMode']} {m['difficulty']} Lv.{m['level']} (rating {m['rating']}) · 노트 {m['noteCount']} · "
-        f"평균 {m['nps']['avg']} NPS · 최대 {m['nps']['peak']} NPS · {time.time() - t:.2f}s",
-        file=sys.stderr,
-    )
-    out = json.dumps(chart, ensure_ascii=False)
-    Path(args.output).write_text(out, encoding="utf-8") if args.output else print(out)
-
-
 def _synth(args: argparse.Namespace) -> None:
     import soundfile as sf
 
@@ -74,6 +58,102 @@ def _synth(args: argparse.Namespace) -> None:
     song = make_song(bpm=args.bpm, bars=args.bars, seed=args.seed)
     sf.write(args.output, song.pcm, song.sample_rate)
     print(f"{args.output}: {song.duration:.1f}s, {args.bpm} BPM, {args.bars}마디", file=sys.stderr)
+
+
+def _mapper(args: argparse.Namespace) -> None:
+    """Mapperatorinator's runtime from the command line: its status, its setup (what the settings'
+    install button does), and one chart of a synthetic song made with it."""
+    import tempfile
+
+    from . import audio_io
+    from .analysis.analyzer import analyze
+    from .mapper import Mapper
+    from .synth import make_structured_song
+
+    mapper = Mapper()
+    if args.action == "status":
+        print(json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str))
+        return
+    if args.action == "setup":
+        t = time.time()
+        state = mapper.runtime.setup(lambda step, f: print(f"  {f * 100:5.1f}% {step}", file=sys.stderr, flush=True))
+        print(json.dumps({"ok": True, "seconds": round(time.time() - t, 1), **state}, ensure_ascii=False, default=str))
+        return
+    if not mapper.active():
+        sys.exit(f"Mapperatorinator is not set up: {json.dumps(mapper.runtime.status(), ensure_ascii=False, default=str)}")
+    if args.action == "probe":
+        _mapper_probe(mapper, args)
+        return
+    song = make_structured_song(bpm=128.0, seed=2)
+    pcm = song.pcm[: int(song.sample_rate * args.seconds)]
+    analysis = analyze(pcm, song.sample_rate, "sha256:mapper-try", backends={})
+    with tempfile.TemporaryDirectory() as tmp:
+        audio = Path(tmp) / "audio.flac"
+        audio_io.write_canonical(audio, pcm, song.sample_rate)
+        t = time.time()
+        try:
+            chart = mapper.generate(analysis, args.mode, args.difficulty, None, 1, {"title": "synthetic"}, audio)
+        finally:
+            mapper.close()
+    meta = chart["meta"]
+    print(json.dumps({"ok": True, "seconds": round(time.time() - t, 1), "keyMode": meta["keyMode"], "level": meta["level"],
+                      "noteCount": meta["noteCount"], "generator": meta["generator"]}, ensure_ascii=False, default=str))
+
+
+def _mapper_probe(mapper, args: argparse.Namespace) -> None:
+    """Mapperatorinator's raw .osu of an audio file with `--pad` seconds of silence after it, with
+    the model's own timing: once as it is and once stopped at the music's end (mapper/silence.py).
+    Writes <out>/<name>.map.osu, <name>.end.osu and <name>.json: the seconds of each, the silences
+    found, and how many notes each run put past the music's end and in any silence."""
+    import shutil
+    import tempfile
+
+    import numpy as np
+    import soundfile as sf
+
+    from . import audio_io
+    from .mapper import charts
+    from .mapper.silence import music_end, quiet_spans
+
+    src = Path(args.audio)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    cfg = mapper.config()
+    level = charts.target_level(args.mode, args.difficulty, None)
+    pcm = audio_io.decode_audio(src)
+    pcm = np.concatenate([pcm, np.zeros((int(44100 * args.pad), *pcm.shape[1:]), dtype=pcm.dtype)])
+    duration = len(pcm) * 1000.0 / 44100
+    quiet = quiet_spans(pcm, 44100, cfg["silence"])
+    end = music_end(quiet, duration)
+    report: dict = {"audio": src.name, "seconds": round(duration / 1000, 1), "padSeconds": args.pad, "model": cfg.get("model"), "mode": args.mode,
+                    "difficulty": args.difficulty, "stars": charts.stars_of(level, cfg), "quiet": quiet, "musicEndMs": end, "runs": {}}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = Path(tmp) / "song.wav"
+            sf.write(wav, pcm, 44100, subtype="PCM_16")
+            for name, end_ms in (("map", None), ("end", end)):
+                made = Path(tmp) / name
+                made.mkdir()
+                request = charts.request_for(args.mode, level, 1, cfg, wav, made, None, {"title": src.stem}, end_ms)
+                t = time.time()
+                try:
+                    answer = mapper.service.generate(request, 3 * 3600.0)
+                    shutil.copyfile(answer["osu"], out / f"{src.stem}.{name}.osu")
+                    notes = charts.notes_from_osu(Path(answer["osu"]).read_text(encoding="utf-8-sig"), charts.columns(args.mode))
+                    kept, dropped = charts.drop_silent(notes, [*quiet, (duration, float("inf"))], float(cfg["silence"]["marginMs"]))
+                    report["runs"][name] = {
+                        "ok": True, "seconds": round(time.time() - t, 1), "worker": answer.get("seconds"), "endTime": request["endTime"],
+                        "notes": len(notes), "lastNoteMs": max(n.get("endT", n["t"]) for n in notes) if notes else None,
+                        "afterMusicEnd": sum(1 for n in notes if end is not None and n["t"] > end + float(cfg["silence"]["marginMs"])),
+                        "inSilence": dropped,
+                    }
+                except Exception as e:  # noqa: BLE001  (the other run still counts)
+                    report["runs"][name] = {"ok": False, "seconds": round(time.time() - t, 1), "error": str(e)}
+                print(json.dumps({name: report["runs"][name]}, ensure_ascii=False), file=sys.stderr, flush=True)
+    finally:
+        mapper.close()
+    (out / f"{src.stem}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False))
 
 
 def _selftest(_args: argparse.Namespace) -> None:
@@ -98,14 +178,6 @@ def main(argv: list[str] | None = None) -> None:
     analyze.add_argument("file")
     analyze.add_argument("-o", "--output")
 
-    generate = sub.add_parser("generate", help="오디오(또는 분석 JSON) → 채보 JSON")
-    generate.add_argument("file")
-    generate.add_argument("--mode", default="4K")
-    generate.add_argument("--difficulty", default="NORMAL")
-    generate.add_argument("--level", type=int)
-    generate.add_argument("--seed", type=int)
-    generate.add_argument("-o", "--output")
-
     synth = sub.add_parser("synth", help="테스트용 합성 곡 WAV 만들기")
     synth.add_argument("-o", "--output", default="demo.wav")
     synth.add_argument("--bpm", type=float, default=128.0)
@@ -114,8 +186,17 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("selftest", help="BS-RoFormer의 ONNX · DirectML 경로 점검 (ML판)")
 
+    mapper = sub.add_parser("mapper", help="Mapperatorinator 실행 환경: 상태 · 설치 · 시험 생성 (docs/MAPPERATORINATOR.md)")
+    mapper.add_argument("action", choices=["status", "setup", "generate", "probe"])
+    mapper.add_argument("--audio", help="probe: 오디오 파일")
+    mapper.add_argument("--out", default="mapper-probe", help="probe: .osu를 둘 폴더")
+    mapper.add_argument("--pad", type=float, default=10.0, help="probe: 곡 뒤에 붙일 무음(초)")
+    mapper.add_argument("--seconds", type=float, default=30.0, help="generate: 합성 곡의 길이(초)")
+    mapper.add_argument("--mode", default="7K+1S")
+    mapper.add_argument("--difficulty", default="HARD")
+
     args = parser.parse_args(argv)
-    {"analyze": _analyze, "generate": _generate, "synth": _synth, "selftest": _selftest}.get(args.command or "serve", _serve)(args)
+    {"analyze": _analyze, "synth": _synth, "selftest": _selftest, "mapper": _mapper}.get(args.command or "serve", _serve)(args)
 
 
 if __name__ == "__main__":
