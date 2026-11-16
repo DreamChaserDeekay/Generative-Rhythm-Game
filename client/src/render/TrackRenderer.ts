@@ -210,6 +210,9 @@ const FLASH_MS = 100;
 const FLASH_DEPTH = 2.4;
 const FLASH_LINE = 0.78;
 const FLASH_GAIN = 0.9;
+/** The flash's picture at its brightest (of 1), and the light from which its material would draw it white: over that. */
+const FLASH_PEAK = 0.8;
+const FLASH_CORE = 0.9;
 /**
  * The light flowing down a held long note into the judge line (drawFlows), from the note's far end
  * (or the track's, where the note reaches past it): how fast it runs (track units a second), how long
@@ -2204,7 +2207,7 @@ export class TrackRenderer {
 
   /** A lane's flash on the judge line (lineFlash): one picture for all, no frames. */
   private lineFlashQuad(texture: THREE.Texture): EffectQuad {
-    const material = lightMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, fog: false }, 0.8);
+    const material = lightMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, fog: false }, FLASH_CORE);
     const mesh = new THREE.Mesh(this.flatGeometry, material);
     mesh.renderOrder = 9.95;
     mesh.visible = false;
@@ -3108,7 +3111,9 @@ function lineFlashTexture(): THREE.Texture {
       // the bar reaches the lane's sides; the light rising from it is a little brighter up the lane's middle
       const bar = 1 - Math.max(0, (u - 0.88) / 0.12) ** 2;
       const mid = 0.8 + 0.2 * Math.exp(-((u / 0.6) ** 2));
-      const level = Math.round(255 * Math.min(1, (core + glow + rise * mid) * bar) * ends);
+      // (never as bright as the light that stays white in lightMaterial: the flash keeps its colour, and the
+      // hit's own white core over it does not grow into a white bar as wide as the lane)
+      const level = Math.round(255 * Math.min(FLASH_PEAK, (core + glow + rise * mid) * bar) * ends);
       const i = (y * w + x) * 4;
       image.data[i] = image.data[i + 1] = image.data[i + 2] = level;
       image.data[i + 3] = 255;

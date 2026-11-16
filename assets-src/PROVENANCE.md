@@ -2767,3 +2767,142 @@
 | `end/lane-light.jpg` | 시작에 레인이 켜질 때 판정선에서 솟는 빛(흰 빛, 게임이 레인 색을 입힘) | 2 / 2 | 9:16 · 2K → 1143×2048 | 2999 | `77b0a49a909e08ae…` |
 
 도장의 가운데 모양은 게임이 등급마다 쓰는 표식 그대로입니다(CLEAR 원, EASY 오른쪽 반이 찬 원, ASSIST 오른쪽 위 1/4이 찬 원, HARD 사각형, EX-HARD 테 안의 작은 사각형). 도장에는 글자가 없습니다(사용자: "READY, CLEAR 텍스트는 없애주고").
+
+## 스킨의 타격 효과를 첫 프레임이 가장 밝게 다시 그림 (`styles/skinfx/*_burst.jpg`, 2026-11-16)
+
+스킨 13종의 치는 순간 시트(`<효과>_burst.jpg`)를 다시 그렸습니다. 사용자가 승인한 타격감 개선("1, 2, 4, 5 진행해줘", 2026-11-16) 가운데 5번("시트를 60 fps로, 첫 1~2 프레임이 가장 밝게 다시 만듭니다")입니다. 처음 시트(위 "스킨의 타격 효과: 프레임 애니메이션 시트", 2026-11-11)는 작은 점에서 서너 프레임에 걸쳐 커져서, 맞힌 프레임에는 가장 밝은 프레임의 9 ~ 59 %만 보였고 가장 밝은 때는 29 ~ 116 ms 뒤였습니다. 누르는 동안의 시트(`_hold`)는 그대로입니다.
+
+- 만든 곳: 위와 같음(Google Cloud Vertex AI 의 Gemini 이미지 생성 `gemini-nano-banana-2.1`, 1:1 · 2K → 2048×2048 PNG · 사용자의 Google Cloud 프로젝트)
+- 보낸 그림: 효과마다 **그 효과의 처음 시트 한 장**(`assets-src/styles/skinfx/<효과>_burst.jpg`, 2026-11-11에 같은 모델로 만든 이 게임의 그림. 지금은 git 기록에만 남음)을 "지킬 모습"으로 글과 함께 보냈습니다. 그 밖의 그림(다른 게임의 화면, 사용자가 올린 레퍼런스, 로고)은 보내지 않았습니다.
+- 만드는 도구: `scripts/assets/make_skin_fx.py make --redraw [--from 폴더] <효과> burst` → `pick` (받은 그대로는 `_tries/`에 두고 저장소에는 넣지 않음). 받을 때마다 16프레임의 빛(칸마다 알파 × 밝기의 평균)을 재서 기록합니다(`scripts/assets/flipbook_light.py`).
+- 두 번 받았습니다. 1차 13장은 모두 첫 프레임이 가장 밝았지만 빛이 8 ~ 12프레임에서 끝나서, "16프레임을 모두 쓰라"고 고쳐 2차 13장을 받았습니다. 2차도 더 길어지지 않았습니다(모델이 마지막 줄을 비워 둠). **고른 것: 1차 12장, 아쿠아만 2차**(첫 프레임에 스킨의 육각 고리가 더 또렷함). 고르지 않은 13장은 쓰지 않습니다.
+- 게임용으로: `scripts/assets/build_skin_fx.py`. 프레임 수와 상관없이 **0.27초**(60fps의 16프레임만큼, 예전 세트의 효과와 같은 길이)에 끝나게 fps를 정합니다(프레임 8 ~ 12장 → 30 ~ 45fps. 프레임 사이는 게임이 화면 주사율로 섞어 그립니다). 시트마다 가장 밝은 프레임에 가까운 첫 프레임(`flipbook.peak`: 13장 모두 0)과 그 프레임의 빛 색(`tone`)을 매니페스트에 적습니다.
+- 비용: 26장 약 $1.7(위와 같은 방법의 추정치: 토큰 사용량 128,376)
+- 사용자의 곡 · 채보는 생성에 쓰지 않았습니다. 프롬프트에 게임 · 아티스트 이름은 없습니다.
+
+### 프롬프트
+
+맨 앞에 붙인 글(처음 시트와 함께):
+
+  > The attached picture is the current sprite sheet of this effect. Keep its look exactly: the same colours, the same kinds of shapes and strokes, the same level of detail, the same size of the effect in its cell. Only its timing is wrong: it starts with a tiny point and takes three or four frames to grow to its brightest. Draw the sheet again with the timing described below.
+
+머리말(LAYOUT)과 꼬리말은 위 "공통 프롬프트"의 치는 순간 것과 같고, `THE ANIMATION` 뒤에 아래 문단이 들어갑니다(1차):
+
+  > BRIGHTNESS, the most important rule: this effect answers a key press, so it must be at its strongest the instant the key goes down. FRAME 1 IS THE BRIGHTEST AND FULLEST FRAME OF THE WHOLE SHEET: it holds more light than any other frame, with the largest white-hot core, and the effect is already at its full size in it. There is NO build-up: no tiny first frame, no small point that grows. From frame 2 on every frame holds clearly less light than the frame before it; by frame 9 less than a quarter of frame 1's light is left.
+
+2차는 마지막 문장만 다릅니다:
+
+  > … From frame 2 on every frame holds less light than the frame before it, and the fade uses ALL 16 frames: about half of frame 1's light is left in frame 5, about a fifth in frame 9, and frames 12 to 16 still show the last small pieces, fewer and fainter in each. No frame is empty: frame 16 holds the last faint trace.
+
+`THE ANIMATION`의 박자는 `frame 1` · `frames 2-4` · `frames 5-9`(2차는 `5-10`) · `frames 10-14`(2차는 `11-14`) · `frames 15-16`입니다. 뒤의 세 박자는 처음 시트의 `frames 6-10` · `11-14` · `15-16`의 글 그대로이고(2차는 "frame 16 is black"을 "frame 16 is the faintest"로), 앞의 두 박자를 아래처럼 새로 썼습니다. `THE EFFECT`는 처음과 같습니다.
+
+- 기본(플래시) (`basic`)
+  - frame 1: the impact: a blinding star-shaped flash with long sharp rays at its full size, with a bright shockwave ring already open around it and short crackling arcs of energy on the ring;
+  - frames 2-4: the star flash shrinks and dims fast while the ring blows outward and sharp glints shoot out in all directions;
+- 크리스털 (`prism`)
+  - frame 1: the impact: a blinding diamond-shaped flash with a thin rainbow halo at its full size, and the crystal already shattering: sharp, faceted, translucent shards of different sizes bursting out of it in all directions, each facet catching white light;
+  - frames 2-4: the flash dims fast while the shards shoot outward, thin spectral streaks between them;
+- 하늘 (`sky`)
+  - frame 1: the impact: a bright sunburst with soft rays at its full size, inside a puff of white cloud that is already bursting open into a ring of billowing wisps, with several white feathers thrown out from the centre in different directions;
+  - frames 2-4: the sunburst fades fast while the cloud ring spreads and the feathers whirl outward with a few sparkling glints;
+  - frames 5-9: the cloud ring thins into separate drifting wisps, the feathers whirl further, turning and curling as they fly, small sparkles twinkle;
+- 파이어스타터 (`fire`)
+  - frame 1: the shell has just burst: a small blinding white-gold star at the centre and sixty or more thin straight streaks already shot out radially in every direction, filling a round chrysanthemum at its full size, each streak with a brilliant white-gold bead at its head and a fine tapering crimson or hot-pink tail behind it, streaks of different lengths;
+  - frames 2-4: the white core shrinks to a small glint and is gone while the streaks reach their full length;
+  - frames 5-9: the tails fade from the centre outward, so the middle of the burst is empty and black and the firework is a hollow sphere of bright heads; the heads slow down, begin to droop very slightly, and start to crackle, each breaking into a cluster of tiny twinkling gold and white glitter sparks;
+- GPT (`gpt`)
+  - frame 1: the impact: a bright round bloom of white and teal light at its full size, with a crown-shaped splash of glowing teal liquid light already leaping up and outward from it and a bright ripple ring open around it;
+  - frames 2-4: the bloom dims fast while the crown splash rises higher with round droplets flying off its tips and the ripple ring widens;
+- Gemini (`gemini`)
+  - frame 1: the impact: one large four-pointed sparkle star with long thin points at its biggest and brightest, white with a blue-to-pink gradient glow, with many smaller four-pointed sparkles in blue, violet and pink already thrown off around it;
+  - frames 2-4: the large star shrinks fast and turns a little while the smaller sparkles shoot outward in all directions, each leaving a short soft trail;
+  - frames 5-9: the large star is only a thin cross of light and fades while the small sparkles fly further, each one twinkling (growing and shrinking) at a different moment, with tiny dots of light among them;
+- Grok (`grok`)
+  - frame 1: the impact: a bold, sharp X of two crossing diagonal slashes of white light, one stroke thick and one thin, at its full size and blinding white, with a bright star-shaped glint at its crossing point and smaller glints along its edges and at its four tips;
+  - frames 2-4: the X dims a little and cracks: its strokes start to break into angular shards, with motion streaks along the four diagonal directions;
+  - frames 5-9: the X bursts apart: the shards and splinters shoot outward along the four diagonal directions, with sharp sparks and four-ray sparkles between them;
+- Claude (`claude`)
+  - frame 1: the impact: a full sunburst of a dozen uneven, tapered, textured brush strokes of different lengths at its full size, cream-white and brightest at the centre, with small flecks and droplets of paint thrown out between the strokes;
+  - frames 2-4: the centre dims fast while the strokes shoot further outward and begin to detach from it;
+  - frames 5-9: the strokes fly outward, thinning into dry-brush streaks, the flecks and droplets scatter further, the centre is only a warm glow;
+- 아쿠아 (`aqua`)
+  - frame 1: the impact: a bright cyan plasma flash at its full size inside a thin hexagonal ring of light that is already snapping wide and breaking at its corners, with jagged cyan energy tongues and sharp pink shards bursting out of it;
+  - frames 2-4: the flash dims fast while the energy tongues blow outward and the pink shards and small hexagonal fragments shoot out in all directions;
+- 스틸 (`steel`)
+  - frame 1: the impact: a blinding cross-shaped flare with four long thin rays and a hot round core at its biggest, with a shower of white-hot metal sparks already spraying out from the centre in all directions as long thin streaks and a thin, sharp shockwave ring around it;
+  - frames 2-4: the flare shrinks fast while the sparks fly outward and the ring widens;
+  - frames 5-9: the flare is only a small hot core, the sparks fly further on slightly curved paths, some split into two, cooling from white to steel blue, the ring thins and breaks into arcs;
+- 레드라인 (`noir`)
+  - frame 1: the impact: a thick white horizontal bar of light at its full width with a red ghost of itself shifted to one side, already tearing into several horizontal slices that jump left and right out of line, with blocks of red and white pixels of different sizes bursting out of it;
+  - frames 2-4: the bar dims fast while the slices jump further apart and the pixel blocks burst outward from the centre with torn scanline fragments;
+- 화이트 라인 (`wire`)
+  - frame 1: the impact: a full ring of many fine radiating pen strokes of uneven length, like a dandelion or a firework at its biggest, drawn with its brightest and thickest lines, with a hand-drawn circle around it and tiny line-drawn four-point twinkles at some stroke ends;
+  - frames 2-4: the lines thin a little while the strokes fly outward and the circle widens;
+  - frames 5-9: the strokes curve a little like falling firework trails, the circle breaks into short dashes, a second ring of finer strokes opens inside, small twinkles drift;
+- 별밤 (`astral`)
+  - frame 1: the impact: one bright golden star with long thin rays at its biggest and brightest, with a spray of glittering gold stardust and many small four- and five-pointed stars already thrown out around it, inside a faint ring of moon-blue haze;
+  - frames 2-4: the central star shrinks fast while the small stars shoot outward in all directions, each with a short sparkling trail;
+  - frames 5-9: the central star is only a soft glow while the small stars fly further, twinkling at different moments, the stardust spreads into drifting swirls of glitter, the blue haze thins;
+
+### 받은 것과 고른 것
+
+빛은 프레임별로 가장 밝은 프레임에 대한 %(받은 PNG에서 잰 것, 16프레임)입니다.
+
+| 효과 | 시도 | 만든 시각 (UTC) | PNG 바이트 | sha256 앞 16자리 | 프레임별 빛 | |
+|---|---|---|---|---|---|---|
+| 기본(플래시) | 2 | 03:19 | 4,402,521 | `0fa761aaa161c99d` | 100 84 39 33 13 9 10 7 5 4 3 4 3 3 2 2 | **고름** |
+| 기본(플래시) | 3 | 03:28 | 4,901,610 | `f6d7ffcb26e81049` | 100 68 86 62 81 40 14 8 6 4 3 3 2 2 2 2 |  |
+| 크리스털 | 2 | 03:20 | 4,404,842 | `bf17c9931e8a8b74` | 100 95 87 70 73 61 51 33 36 19 8 3 2 2 2 2 | **고름** |
+| 크리스털 | 3 | 03:28 | 4,495,296 | `dc16fb04eec05a3c` | 100 72 62 59 66 60 43 29 30 16 7 4 3 2 2 2 |  |
+| 하늘 | 2 | 03:20 | 4,608,885 | `05bd7f5d42fea6d8` | 100 70 63 69 77 57 36 18 13 10 5 3 3 2 2 2 | **고름** |
+| 하늘 | 3 | 03:29 | 4,639,595 | `592e17a35adc922b` | 100 95 74 82 90 67 43 20 15 10 4 3 2 3 2 2 |  |
+| 파이어스타터 | 4 | 03:21 | 5,193,446 | `6f21d6394509696c` | 100 46 22 29 33 32 52 35 21 14 6 4 4 4 4 4 | **고름** |
+| 파이어스타터 | 5 | 03:30 | 4,671,948 | `87051307c2dca31b` | 100 59 39 24 39 31 38 52 24 12 9 7 6 5 5 5 |  |
+| GPT | 2 | 03:21 | 4,437,240 | `93ffdd9602ee87ef` | 100 91 51 49 50 51 38 10 8 9 6 3 3 2 2 2 | **고름** |
+| GPT | 3 | 03:31 | 4,470,307 | `8a78f721450ea905` | 100 99 63 57 60 66 43 33 13 8 6 2 2 2 2 2 |  |
+| Gemini | 2 | 03:21 | 4,118,795 | `fa3d75854fac580e` | 100 89 39 27 24 23 11 9 8 7 7 7 7 7 7 6 | **고름** |
+| Gemini | 3 | 03:31 | 3,788,743 | `e558d206d1b270d3` | 100 66 31 12 15 11 11 8 8 7 6 6 6 6 6 6 |  |
+| Grok | 2 | 03:22 | 4,790,028 | `d66d51b875971712` | 100 50 63 67 69 41 45 23 16 9 4 2 2 2 1 1 | **고름** |
+| Grok | 3 | 03:32 | 4,297,794 | `a66b0391723edb6b` | 100 59 46 26 26 10 6 6 5 5 6 4 3 3 3 3 |  |
+| Claude | 2 | 03:19 | 4,525,089 | `9387691c0a2334c7` | 100 96 81 54 64 46 38 14 13 5 3 3 3 3 3 3 | **고름** |
+| Claude | 3 | 03:33 | 4,421,878 | `c777146d8f3f41e2` | 100 100 73 58 42 34 14 11 7 5 3 3 3 3 3 3 |  |
+| 아쿠아 | 2 | 03:22 | 4,403,818 | `7350a088dacdb3d7` | 100 67 42 41 41 40 10 7 6 5 4 4 3 3 2 2 |  |
+| 아쿠아 | 3 | 03:34 | 4,428,713 | `9a14a81f9c7bf850` | 100 80 55 44 39 30 42 11 6 4 4 2 2 2 2 2 | **고름** |
+| 스틸 | 2 | 03:23 | 4,434,354 | `a50f44adb12cafb8` | 100 81 44 24 20 14 9 6 7 4 4 3 3 3 3 3 | **고름** |
+| 스틸 | 3 | 03:35 | 4,332,823 | `563d30704a8eef20` | 100 65 35 19 19 14 9 6 8 5 4 4 4 4 4 4 |  |
+| 레드라인 | 2 | 03:23 | 3,400,967 | `dbcb4d8518cd1bdc` | 100 88 54 30 27 11 9 10 3 4 3 3 2 2 3 2 | **고름** |
+| 레드라인 | 3 | 03:36 | 3,657,078 | `94eff89ecb178ee8` | 100 58 57 79 83 29 16 10 10 4 3 3 3 3 3 3 |  |
+| 화이트 라인 | 2 | 03:24 | 4,581,439 | `72b2b937da122b76` | 100 81 33 21 31 48 33 16 12 8 7 6 6 5 5 5 | **고름** |
+| 화이트 라인 | 3 | 03:37 | 4,462,999 | `52fa9adc6850e47a` | 100 94 61 31 32 72 47 26 14 8 8 7 6 6 6 6 |  |
+| 별밤 | 2 | 03:25 | 4,311,173 | `9aca2912599ffd87` | 100 100 80 37 40 35 23 13 12 10 5 4 4 4 3 3 | **고름** |
+| 별밤 | 3 | 03:38 | 4,616,263 | `2e454874e871c26e` | 100 74 42 65 61 48 28 20 16 10 6 4 4 4 4 4 |  |
+
+### 저장한 것
+
+| 효과 | 저장한 JPEG (`assets-src/styles/skinfx/`) | 게임용 (`client/public/media/fx/`) | 시작 프레임 · 빛 색 |
+|---|---|---|---|
+| 기본(플래시) | `basic_burst.jpg` 286,329바이트 | `basic_burst.webp` 1536×1536(99,660바이트), 9프레임 · 33.8fps | 0 · (흰빛: 게임이 색을 입힘) |
+| 크리스털 | `prism_burst.jpg` 363,165바이트 | `prism_burst.webp` 1536×1536(139,686바이트), 12프레임 · 45fps | 0 · #dcf2ff |
+| 하늘 | `sky_burst.jpg` 392,877바이트 | `sky_burst.webp` 1536×1536(150,158바이트), 12프레임 · 45fps | 0 · #cff3ff |
+| 파이어스타터 | `fire_burst.jpg` 596,044바이트 | `fire_burst.webp` 1536×1536(273,724바이트), 11프레임 · 41.2fps | 0 · #ff9e9a |
+| GPT | `gpt_burst.jpg` 366,452바이트 | `gpt_burst.webp` 1536×1536(134,574바이트), 12프레임 · 45fps | 0 · #68ffee |
+| Gemini | `gemini_burst.jpg` 271,104바이트 | `gemini_burst.webp` 1536×1536(78,964바이트), 8프레임 · 30fps | 0 · #b98bff |
+| Grok | `grok_burst.jpg` 399,461바이트 | `grok_burst.webp` 1536×1536(171,374바이트), 11프레임 · 41.2fps | 0 · #fffffe |
+| Claude | `claude_burst.jpg` 396,686바이트 | `claude_burst.webp` 1536×1536(165,840바이트), 10프레임 · 37.5fps | 0 · #ffa57b |
+| 아쿠아 | `aqua_burst.jpg` 397,657바이트 | `aqua_burst.webp` 1536×1536(144,284바이트), 10프레임 · 37.5fps | 0 · #7cf2ff |
+| 스틸 | `steel_burst.jpg` 338,267바이트 | `steel_burst.webp` 1536×1536(125,460바이트), 10프레임 · 37.5fps | 0 · #bedfff |
+| 레드라인 | `noir_burst.jpg` 303,770바이트 | `noir_burst.webp` 1536×1536(92,980바이트), 11프레임 · 41.2fps | 0 · #ff5d66 |
+| 화이트 라인 | `wire_burst.jpg` 335,679바이트 | `wire_burst.webp` 1536×1536(129,610바이트), 10프레임 · 37.5fps | 0 · #fffbfa |
+| 별밤 | `astral_burst.jpg` 348,200바이트 | `astral_burst.webp` 1536×1536(146,992바이트), 11프레임 · 41.2fps | 0 · #ffeebc |
+
+## 예전 타격 효과 9장의 시작을 가장 밝게 (2026-11-16)
+
+같은 타격감 개선으로, 낱장 조각을 코드로 움직여 만드는 타격 효과 9장(메카 · 클럽 · 크리스털(예전 세트) · 네온 · 피아노 음표의 `hit_burst.png`와 플래시 · 플레어 · 거품 · LED 그리드의 `<이름>_burst.png`)을 같은 원본에서 다시 만들었습니다(새로 생성한 그림은 없음, `scripts/assets/build_styles.py`). 누르는 동안의 시트(`hit_hold` · `_hold`)와 노트 · 롱노트 · 사이드 노트 그림은 바이트까지 그대로입니다.
+
+- 전: 섬광이 작게 시작해 두세 프레임에 걸쳐 커지고 고리와 잔광은 둘째 프레임부터 나와서, 첫 프레임의 빛이 가장 밝은 프레임의 22 ~ 82 %였고 가장 밝은 때는 33 ~ 133 ms 뒤였습니다.
+- 후: 섬광이 첫 프레임부터 예전에 가장 밝던 때의 크기 이상으로 나오고(`HIT_FLASH`), 고리와 잔광도 첫 프레임부터 있습니다. LED 그리드를 뺀 여덟은 **셋째 프레임부터 예전 시트와 같은 그림**입니다(아래의 선에 걸린 프레임만 그만큼 어둡고, 롱노트를 누를 때 밑에 깔리는 14번째 프레임은 그대로). 첫 프레임의 빛은 예전 가장 밝은 프레임의 1.0 ~ 1.26배입니다.
+- 뒤 프레임이 첫 프레임보다 밝아지지 않게, 프레임마다 첫 프레임의 빛에서 4 %씩 내려가는 선을 넘으면 그 프레임 전체를 그만큼 어둡게 합니다(`HIT_FADE`). 걸리는 것: 메카(2 ~ 6번째 프레임, 최대 7 %), 피아노(4 ~ 8번째, 최대 10 %), 네온(7 · 8 · 9 · 11번째, 최대 20 %: 관의 깜빡임은 남음), LED 그리드(5번째, 1 %). 나머지 다섯은 걸리지 않습니다.
+- 네온과 피아노는 빛의 대부분이 고리(와 음표)라서 섬광을 더 크게 시작합니다(`pop` 1.06 · 0.98, 나머지 세트는 0.84).
+- LED 그리드는 물결이 넓어질수록 켜진 칸이 늘어 예전에는 133 ms 뒤가 가장 밝았습니다. 이제 첫 프레임에 건반 둘레 5×5칸이 모두 켜지고, 물결은 그 가장자리에서 출발해 넓어지며 빨리 어두워집니다. 물결 뒤에서 깜빡이는 낱칸은 예전 속도로 사라져, 14번째 프레임의 빛은 예전과 같은 양입니다.
+- 길이는 그대로 16프레임 · 60fps(0.27초)이고, 매니페스트에 시작 프레임(`flipbook.peak`: 9장 모두 0)을 적습니다.
+
