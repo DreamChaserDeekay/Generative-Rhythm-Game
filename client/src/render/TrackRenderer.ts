@@ -55,7 +55,7 @@ import {
   type Paint,
   type SidePart,
 } from './tintArt';
-import { context2d, type PaintCanvas, paintCanvas, type PaintTexture } from './paintCanvas';
+import { context2d, type PaintCanvas, paintCanvas, type PaintTexture, drawingCanvas } from './paintCanvas';
 
 const MISSED_COLOR = 0x4a5068;
 const WHITE = new THREE.Color(0xffffff);
@@ -244,6 +244,14 @@ const DECK_SETTLE_FRAMES = 20;
 const TELL_EVERY_MS = 1000;
 /** While a chart's camera move goes on, its pose is noted on the trail this often (trace). */
 const CAMERA_TOLD_MS = 400;
+/**
+ * After the canvas has lost its WebGL context a canvas of the track's own is tried for a new one this often,
+ * for this long (recover); past that the browser's own restore of the lost canvas is what brings the track back.
+ */
+const RECOVER_EVERY_MS = 50;
+const RECOVER_FOR_MS = 4000;
+/** The event the track's own canvas sends once the track is drawn on it (the desktop app's log: desktop/preload.js). */
+export const TRACK_RECOVERED = 'grg-track-recovered';
 /**
  * The hit effects' quads, made when the renderer is built: so many a lane. An effect lasts 0.4 s at
  * most, so three a lane are not used up but by a run no hand plays; should they be, the one that began
@@ -744,7 +752,18 @@ export class TrackRenderer {
   readonly geometry: TrackGeometry;
   /** The parts drawn from art (render/styleArt.ts), e.g. "notes long side gear hit"; empty when all are drawn in code. */
   readonly artParts: string;
-  private readonly renderer: THREE.WebGLRenderer;
+  /** Not for good: after a loss of the graphics the track goes on on a renderer of a new canvas (recover). */
+  private renderer: THREE.WebGLRenderer;
+  /** The canvas the page gave: its place in the page, its data- attributes and classes. The track is drawn on it until its context is lost. */
+  private readonly pageCanvas: HTMLCanvasElement;
+  /** The classes it came with (the ones put on it later, a failed play's, are the look the track's own canvas takes as well). */
+  private readonly pageClasses: ReadonlySet<string>;
+  /** After a loss: the track's own canvas, laid over the page's and drawn on since. */
+  private ownCanvas: HTMLCanvasElement | null = null;
+  private classWatch: MutationObserver | null = null;
+  /** The try for a new context that is under way, and, once one is had, when the loss was (until the first frame on it is drawn). */
+  private recoverTimer: number | null = null;
+  private recoveredFrom: { since: number; context: number; warm: number; frames: number } | null = null;
   private readonly scene = new THREE.Scene();
   /** Made afresh for each preset (setCamera): the plane one is of another kind. */
   private camera!: TrackCamera;
@@ -1007,18 +1026,12 @@ export class TrackRenderer {
       sparks: fit(SPARKS_SIZE * FX_SCALE),
     };
     this.flashDepth = SIDE_FLASH * (options.hitEffectSize === 'small' ? SMALL_SIDE_FLASH : options.hitEffectSize === 'large' ? LARGE_HIT : 1);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-    // (a frame's draw calls are counted over all of its scenes: tell, trace)
-    this.renderer.info.autoReset = false;
+    this.pageCanvas = canvas;
+    this.pageClasses = new Set(canvas.classList);
+    this.renderer = this.makeRenderer(canvas);
     // (for the desktop app's log of a lost graphics process, with what tell keeps here)
     canvas.dataset.skin = `${this.style.deck}/${this.style.note}/${this.style.hit}`;
     setActiveTrail(this.trail);
-    canvas.addEventListener('webglcontextlost', this.onContextLost);
-    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
-    this.renderer.setClearColor(0x000000, 0);
-    this.renderer.localClippingEnabled = true;
-    // the stage's figures are drawn first and the track over them (draw)
-    this.renderer.autoClear = false;
     this.stageGroup.matrixAutoUpdate = false;
     this.stageScene.add(this.stageGroup);
     this.setCamera(options.camera);
@@ -1220,6 +1233,7 @@ export class TrackRenderer {
     this.trail.note(`resize ${Math.round(cssWidth)}x${Math.round(cssHeight)}`);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.cssWidth, this.cssHeight, false);
+    this.layOwnCanvas();
     this.aspect = this.cssWidth / this.cssHeight;
     this.camera.aspect = this.aspect;
     this.frame = null;
@@ -1432,6 +1446,32 @@ export class TrackRenderer {
     }
     this.trace(frame, perfNow);
     if (perfNow - this.toldAt >= TELL_EVERY_MS) this.tell(frame, perfNow);
+    if (this.recoveredFrom !== null) this.tellRecovered(frame, perfNow);
+  }
+
+  /**
+   * The track is drawn on its own canvas after a loss: how long it was gone, for the log and the trail. Told
+   * at the second frame: the first is then on the screen (its drawing is only asked for when it is drawn).
+   */
+  private tellRecovered(frame: TrackFrame, perfNow: number): void {
+    const from = this.recoveredFrom;
+    if (!from || ++from.frames < 2) return;
+    const gone = Math.round(perfNow - from.since);
+    this.recoveredFrom = null;
+    this.tell(frame, perfNow);
+    this.pageCanvas.dataset.recoveredMs = String(gone);
+    // (of that time: until a new context could be had, and the handing of every picture and program to it)
+    this.pageCanvas.dataset.recovered = `context=${from.context} warm=${from.warm}`;
+    this.trail.note(`recovered ${gone}ms`);
+    this.tellOwnCanvas();
+    this.ownCanvas?.dispatchEvent(new CustomEvent(TRACK_RECOVERED, { bubbles: true }));
+  }
+
+  /** The track's own canvas is told what the page's is (its data- attributes, for the log), but not that it was left. */
+  private tellOwnCanvas(): void {
+    if (!this.ownCanvas) return;
+    const { retired: _retired, ...data } = { ...this.pageCanvas.dataset };
+    Object.assign(this.ownCanvas.dataset, data);
   }
 
   /**
@@ -1461,16 +1501,115 @@ export class TrackRenderer {
    * the track did in the seconds before is put on the canvas, where the desktop app reads it for its log
    * (desktop/preload.js reads the canvas's data- attributes a moment after the loss).
    */
-  private readonly onContextLost = (): void => {
+  private readonly onContextLost = (event: Event): void => {
+    const lost = event.target as HTMLCanvasElement;
+    // (a canvas the track has left: the browser's doings with it are no loss of the track's)
+    if (lost !== this.renderer.domElement) return;
     const now = performance.now();
     const heap = (performance as Performance & { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize;
-    const data = this.renderer.domElement.dataset;
+    const data = this.pageCanvas.dataset;
     data.trailFrames = [this.trail.frames(now), heap ? `heapMB=${Math.round(heap / 1048576)}` : '', `page=${document.visibilityState}`, `focus=${document.hasFocus() ? 1 : 0}`].filter(Boolean).join(' ');
     data.trailEvents = this.trail.told(now);
+    // (the log reads the canvas that lost its context: the track's own is told what the page's is)
+    if (lost !== this.pageCanvas) this.tellOwnCanvas();
     this.trail.note('context:lost', now);
+    this.recover(now);
   };
 
   private readonly onContextRestored = (): void => this.trail.note('context:restored');
+
+  /** A renderer on `canvas` (with `context` when the canvas has one already), set up as the track draws. */
+  private makeRenderer(canvas: HTMLCanvasElement, context?: WebGL2RenderingContext): THREE.WebGLRenderer {
+    const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // (a frame's draw calls are counted over all of its scenes: tell, trace)
+    renderer.info.autoReset = false;
+    renderer.setClearColor(0x000000, 0);
+    renderer.localClippingEnabled = true;
+    // the stage's figures are drawn first and the track over them (draw)
+    renderer.autoClear = false;
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
+    return renderer;
+  }
+
+  /**
+   * The canvas the track is drawn on lost its WebGL context (the graphics process went). The browser gives a
+   * lost canvas a context back no sooner than a second later, a wait of its own that nothing shortens, and only
+   * then is the track handed to the card again: the gear is gone for all of that. A canvas that never had a
+   * context gets one as soon as the graphics process is up again, a tenth of a second or two. So a canvas of
+   * the track's own is tried for one every few frames; once it has one it is laid over the page's canvas and
+   * the track is drawn on it from then on (adopt). Should the browser be first, or none be had in a few
+   * seconds, the lost canvas's own restore brings the track back as before.
+   */
+  private recover(since: number): void {
+    if (this.recoverTimer !== null) window.clearTimeout(this.recoverTimer);
+    const lostRenderer = this.renderer;
+    const attempt = (): void => {
+      this.recoverTimer = null;
+      if (this.disposed || this.renderer !== lostRenderer) return;
+      const now = performance.now();
+      if (!lostRenderer.getContext().isContextLost() || now - since > RECOVER_FOR_MS) return;
+      const canvas = drawingCanvas();
+      // (as the renderer asks for its own)
+      const context = canvas.getContext('webgl2', { alpha: true, depth: true, stencil: false, antialias: true, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+      if (!context || context.isContextLost() || !this.adopt(canvas, context, since)) this.recoverTimer = window.setTimeout(attempt, RECOVER_EVERY_MS);
+    };
+    this.recoverTimer = window.setTimeout(attempt, RECOVER_EVERY_MS);
+  }
+
+  /**
+   * The track moves onto `canvas`, which has a WebGL context: a renderer is made on it, the canvas is laid
+   * over the page's (its box, nothing of the pointer's), and every picture and program is handed to the card
+   * at once (warm) so that the next frame is whole. The renderer of the lost canvas lets go; a canvas of the
+   * track's own that was lost in its turn leaves the page. False when the renderer could not be made.
+   */
+  private adopt(canvas: HTMLCanvasElement, context: WebGL2RenderingContext, since: number): boolean {
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = this.makeRenderer(canvas, context);
+    } catch {
+      return false;
+    }
+    const left = this.renderer;
+    const leftCanvas = left.domElement;
+    canvas.className = 'track-canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    this.pageCanvas.after(canvas);
+    this.renderer = renderer;
+    this.ownCanvas = canvas;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(this.cssWidth, this.cssHeight, false);
+    this.layOwnCanvas();
+    this.classWatch ??= new MutationObserver(() => this.layOwnCanvas());
+    this.classWatch.observe(this.pageCanvas, { attributes: true, attributeFilter: ['class'] });
+    // the canvas left behind: told to the log as left (its context coming back, or going again, is not the track's),
+    // its listeners off, and, the page's, kept in its place with next to nothing behind it
+    leftCanvas.dataset.retired = '1';
+    leftCanvas.removeEventListener('webglcontextlost', this.onContextLost);
+    leftCanvas.removeEventListener('webglcontextrestored', this.onContextRestored);
+    left.dispose();
+    if (leftCanvas !== this.pageCanvas) leftCanvas.remove();
+    else {
+      // (where the page lays it by its own size, not the picture's: else it is left as large as it was)
+      const [width, height, box] = [leftCanvas.width, leftCanvas.height, `${leftCanvas.offsetWidth}x${leftCanvas.offsetHeight}`];
+      [leftCanvas.width, leftCanvas.height] = [1, 1];
+      if (`${leftCanvas.offsetWidth}x${leftCanvas.offsetHeight}` !== box) [leftCanvas.width, leftCanvas.height] = [width, height];
+    }
+    this.trail.note('canvas:new');
+    // (how long the graphics took to be there again, and how long the handing over took: for the log)
+    const before = performance.now();
+    this.warm();
+    this.recoveredFrom = { since, context: Math.round(before - since), warm: Math.round(performance.now() - before), frames: 0 };
+    return true;
+  }
+
+  /** The track's own canvas over the page's: the same box, and the look the page's was given since it came (a failed play's). */
+  private layOwnCanvas(): void {
+    const [own, page] = [this.ownCanvas, this.pageCanvas];
+    if (!own) return;
+    own.style.cssText = `position:absolute;display:block;margin:0;pointer-events:none;left:${page.offsetLeft}px;top:${page.offsetTop}px;width:${page.offsetWidth}px;height:${page.offsetHeight}px`;
+    own.className = ['track-canvas', ...[...page.classList].filter((name) => !this.pageClasses.has(name))].join(' ');
+  }
 
   /**
    * Keeps on the canvas, once a second, where the song is and what the renderer holds: the desktop app
@@ -1482,7 +1621,7 @@ export class TrackRenderer {
     this.toldAt = perfNow;
     const { memory, render, programs } = this.renderer.info;
     const fx = this.appliedFx;
-    const data = this.renderer.domElement.dataset;
+    const data = this.pageCanvas.dataset;
     data.songMs = String(Math.round(frame.timeMs));
     data.gfx = [
       `tex=${memory.textures}`,
@@ -1710,7 +1849,7 @@ export class TrackRenderer {
       return;
     }
     setNoteEmblem(style, picture);
-    this.renderer.domElement.dataset.mark = picture ? '1' : '0';
+    this.pageCanvas.dataset.mark = picture ? '1' : '0';
     this.dropNotePictures();
   }
 
@@ -1783,7 +1922,7 @@ export class TrackRenderer {
         mesh.renderOrder = box.front ? 2 : 1;
       });
       // how many stand (not shown: for tests; the canvas's data-stage is the play's own, see PlayController)
-      this.renderer.domElement.dataset.standees = String(this.standeeCount);
+      this.pageCanvas.dataset.standees = String(this.standeeCount);
       this.stageCamera.right = W;
       this.stageCamera.top = H;
       this.stageCamera.updateProjectionMatrix();
@@ -1805,8 +1944,11 @@ export class TrackRenderer {
   dispose(): void {
     this.disposed = true;
     if (activeTrail() === this.trail) setActiveTrail(null);
+    if (this.recoverTimer !== null) window.clearTimeout(this.recoverTimer);
+    this.classWatch?.disconnect();
     this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this.onContextRestored);
+    this.ownCanvas?.remove();
     this.clearStandees();
     this.gearLights.dispose();
     this.layPressKeys([], [], 0);

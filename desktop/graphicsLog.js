@@ -70,7 +70,7 @@ function goneFields(details) {
 
 const word = (value) => (typeof value === 'string' ? value.replace(/[^\w -]/g, '').slice(0, 40) : '');
 /** How much of what the page says of its canvas is written down: so many values, each so long. */
-const PAGE_VALUES = 16;
+const PAGE_VALUES = 24;
 const PAGE_VALUE_LENGTH = 120;
 /**
  * What the page did in the seconds before a loss (client/src/render/trail.ts keeps it on the canvas): its

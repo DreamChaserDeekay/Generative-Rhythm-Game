@@ -5,12 +5,21 @@
 // its context or gets it back.
 const { contextBridge, ipcRenderer } = require('electron');
 
-// the events do not bubble, but every event of the document passes the window on its way down
-for (const type of ['webglcontextlost', 'webglcontextrestored']) {
+// the events do not bubble, but every event of the document passes the window on its way down.
+// After a loss the play's track does not wait for its canvas to be given a context back: it goes on on a
+// canvas of its own as soon as one can be had (client/src/render/TrackRenderer.ts, recover), marks the
+// canvas it left (data-retired: what the browser does with that one later is no loss of the game's) and
+// says when the track is drawn again (grg-track-recovered: written down as the graphics coming back).
+for (const [type, told] of [
+  ['webglcontextlost', 'webglcontextlost'],
+  ['webglcontextrestored', 'webglcontextrestored'],
+  ['grg-track-recovered', 'webglcontextrestored'],
+]) {
   window.addEventListener(
     type,
     (event) => {
       const canvas = event.target;
+      if (canvas?.dataset?.retired) return;
       // a moment later: the page's own listener, which runs after this one, has by then put on the canvas
       // what it did in the seconds before the loss (render/trail.ts: data-trail-frames, data-trail-events)
       setTimeout(() => {
@@ -21,7 +30,8 @@ for (const type of ['webglcontextlost', 'webglcontextrestored']) {
         // and what the play's HUD shows of the song: its title, its tier and key mode, how far into it the play is
         const shown = (selector) => document.querySelector(selector)?.textContent?.trim() ?? '';
         const about = { ...canvas?.dataset, bga, song: shown('.hud-title'), tier: shown('.hud-diff'), mode: shown('.hud-keymode'), at: shown('.hud-elapsed') };
-        ipcRenderer.send('grg:graphics', { type, canvas: String(canvas?.className ?? ''), about });
+        if (type !== told) about.how = 'canvas';
+        ipcRenderer.send('grg:graphics', { type: told, canvas: String(canvas?.className ?? ''), about });
       }, 0);
     },
     true,

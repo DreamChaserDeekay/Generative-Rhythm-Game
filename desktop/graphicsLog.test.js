@@ -127,16 +127,16 @@ test('the page is taken at its word only for a WebGL canvas losing or getting ba
   });
   assert.deepEqual(told, { type: 'webglcontextrestored', canvas: 'a bscript', about: { stage: 'end', gfx: 'tex=112 geo=45 prog=18', long: 'y'.repeat(120), title: '하늘 기어' }, trail: {} });
   const many = pageRecord({ type: 'webglcontextlost', canvas: 'c', about: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, 'v'])) });
-  assert.equal(Object.keys(many.about).length, 16);
+  assert.equal(Object.keys(many.about).length, 24);
   assert.equal(pageRecord({ type: 'webglcontextlost', canvas: 'x'.repeat(500) }).canvas.length, 40);
   assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'c', about: 'play' }).about, {});
   for (const not of [null, 'webglcontextlost', {}, { type: 'click' }, { type: 'contextlost' }]) assert.equal(pageRecord(not), null);
 });
 
 test('what the page did before a loss is kept apart from the rest: two long values, not counted among the short ones', () => {
-  const about = { ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`k${i}`, 'v'])), trailFrames: `n=420 ${'7 '.repeat(2000)}`, trailEvents: '-2100 fever:on\n-35 tex:41>42' };
+  const about = { ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`k${i}`, 'v'])), trailFrames: `n=420 ${'7 '.repeat(2000)}`, trailEvents: '-2100 fever:on\n-35 tex:41>42' };
   const record = pageRecord({ type: 'webglcontextlost', canvas: 'play-canvas', about });
-  assert.equal(Object.keys(record.about).length, 16);
+  assert.equal(Object.keys(record.about).length, 24);
   assert.equal(record.trail.trailFrames.length, TRAIL_LENGTH);
   assert.equal(record.trail.trailEvents, '-2100 fever:on -35 tex:41>42');
   assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'c', about: { trailFrames: 7, trailEvents: '' } }).trail, {});
