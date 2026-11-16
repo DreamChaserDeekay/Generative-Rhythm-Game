@@ -1,7 +1,10 @@
 // What the desktop app keeps between launches (desktop-state.json in its user data folder): the
-// window's size and place, whether it was maximized or full screen, and the home port the game is
+// window's size and place, whether it was maximized or full screen, the home port the game is
 // served on (the page's origin: the game's settings are kept in that origin's storage) with the
-// token its server stops on (a later launch stops a server an earlier one left on that port).
+// token its server stops on (a later launch stops a server an earlier one left on that port), and
+// the graphics compatibility mode (graphicsMode.js: Chromium's switches are set before the page,
+// and with it the game's own settings, can be read).
+const { sanitizeGraphics } = require('./graphicsMode');
 
 const DEFAULT_SIZE = { width: 1280, height: 800 };
 const MIN_SIZE = { width: 960, height: 600 };
@@ -18,7 +21,7 @@ function usablePort(port) {
 
 /** The state as kept, with anything missing or of the wrong kind left out. */
 function sanitizeState(raw) {
-  const state = { window: {}, port: null, token: null };
+  const state = { window: {}, port: null, token: null, graphics: sanitizeGraphics(raw && typeof raw === 'object' ? raw.graphics : null) };
   if (!raw || typeof raw !== 'object') return state;
   const w = raw.window && typeof raw.window === 'object' ? raw.window : {};
   for (const key of ['x', 'y', 'width', 'height']) if (Number.isInteger(w[key])) state.window[key] = w[key];

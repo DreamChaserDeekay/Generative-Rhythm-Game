@@ -5,29 +5,42 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const {
+  AFTERMATH_MS,
   GIVE_UP_MS,
   PAGE_LINES_PER_MINUTE,
   QUIET_MS,
   SETTLE_MS,
+  TRAIL_LENGTH,
   appendLine,
+  chromiumLines,
+  configFields,
+  crashEventQuery,
+  displayList,
+  driverEventQuery,
   entry,
   featureFields,
   goneFields,
   graphicsWatch,
+  logEvents,
   memoryFields,
   pageRecord,
   pruneShots,
   queueFields,
+  registryFields,
   shotName,
   staleShots,
   stamp,
+  statusList,
 } = require('./graphicsLog');
 
 const NIGHT = new Date(2026, 10, 13, 21, 4, 5, 78);
 const GPU_GONE = { type: 'GPU', reason: 'crashed', exitCode: -1073741819, name: 'GPU Process' };
 
-/** A world for the watcher: a clock moved by hand, the lines written, the server's answer and the window's picture as the test sets them. */
-function world() {
+/**
+ * A world for the watcher: a clock moved by hand, the lines written, the server's answer and the window's
+ * picture as the test sets them; `more`: what else of the world it is given (the parts it does without).
+ */
+function world(more = {}) {
   let t = NIGHT.getTime();
   const timers = [];
   const w = {
@@ -71,6 +84,7 @@ function world() {
       w.shots.push(name);
       return name;
     },
+    ...more,
   });
   return w;
 }
@@ -102,6 +116,7 @@ test('the page is taken at its word only for a WebGL canvas losing or getting ba
     type: 'webglcontextlost',
     canvas: 'play-canvas',
     about: { stage: 'play', songMs: '83210', bga: 'youtube' },
+    trail: {},
   });
   // what it says of the canvas is written down as it comes, a line's worth of it: text values under plain names
   const told = pageRecord({
@@ -110,12 +125,21 @@ test('the page is taken at its word only for a WebGL canvas losing or getting ba
     more: 'x'.repeat(999),
     about: { stage: 'end', gfx: 'tex=112 geo=45\nprog=18', 'bad key': 'x', __proto__x: 'y', count: 5, empty: '', long: 'y'.repeat(999), title: '하늘 기어' },
   });
-  assert.deepEqual(told, { type: 'webglcontextrestored', canvas: 'a bscript', about: { stage: 'end', gfx: 'tex=112 geo=45 prog=18', long: 'y'.repeat(120), title: '하늘 기어' } });
+  assert.deepEqual(told, { type: 'webglcontextrestored', canvas: 'a bscript', about: { stage: 'end', gfx: 'tex=112 geo=45 prog=18', long: 'y'.repeat(120), title: '하늘 기어' }, trail: {} });
   const many = pageRecord({ type: 'webglcontextlost', canvas: 'c', about: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, 'v'])) });
   assert.equal(Object.keys(many.about).length, 16);
   assert.equal(pageRecord({ type: 'webglcontextlost', canvas: 'x'.repeat(500) }).canvas.length, 40);
   assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'c', about: 'play' }).about, {});
   for (const not of [null, 'webglcontextlost', {}, { type: 'click' }, { type: 'contextlost' }]) assert.equal(pageRecord(not), null);
+});
+
+test('what the page did before a loss is kept apart from the rest: two long values, not counted among the short ones', () => {
+  const about = { ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`k${i}`, 'v'])), trailFrames: `n=420 ${'7 '.repeat(2000)}`, trailEvents: '-2100 fever:on\n-35 tex:41>42' };
+  const record = pageRecord({ type: 'webglcontextlost', canvas: 'play-canvas', about });
+  assert.equal(Object.keys(record.about).length, 16);
+  assert.equal(record.trail.trailFrames.length, TRAIL_LENGTH);
+  assert.equal(record.trail.trailEvents, '-2100 fever:on -35 tex:41>42');
+  assert.deepEqual(pageRecord({ type: 'webglcontextlost', canvas: 'c', about: { trailFrames: 7, trailEvents: '' } }).trail, {});
 });
 
 test('what the server was making: a chart’s id, none, or unknown with the reason; and whether the model was loaded', () => {
@@ -319,4 +343,237 @@ test('the log starts over past its size with the old one kept, and the five newe
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// what a Windows PC with an NVIDIA card answers, cut down to what is read
+const GPU_INFO = {
+  auxAttributes: {
+    glRenderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 (0x00001F08) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.1714)',
+    glVersion: 'OpenGL ES 3.0.0 (ANGLE 2.1.26000)',
+    glExtensions: 'GL_ANGLE_base_vertex_base_instance '.repeat(40),
+    displayType: 'ANGLE_D3D11',
+    skiaBackendType: 'GraphiteDawnD3D11',
+    directComposition: true,
+    supportsOverlays: true,
+    nv12OverlaySupport: 'SCALING',
+    yuy2OverlaySupport: 'NONE',
+    bgra8OverlaySupport: 'DIRECT',
+    passthroughCmdDecoder: true,
+    sandboxed: true,
+    d3d12FeatureLevel: 49664,
+    dxDiagnostics: { children: {} },
+  },
+  gpuDevice: [{ vendorId: 4318, deviceId: 7944, active: true }],
+};
+
+test('how Chromium draws: the renderer, the way to the screen, and every other plain value as it comes', () => {
+  assert.deepEqual(configFields(GPU_INFO), {
+    gl: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 (0x00001F08) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.1714)',
+    glVersion: 'OpenGL ES 3.0.0 (ANGLE 2.1.26000)',
+    display: 'ANGLE_D3D11',
+    skia: 'GraphiteDawnD3D11',
+    dcomp: 'yes',
+    overlays: 'yes',
+    planes: ['nv12:SCALING', 'yuy2:NONE', 'bgra8:DIRECT'],
+    aux: ['passthroughCmdDecoder:yes', 'sandboxed:yes', 'd3d12FeatureLevel:49664'],
+  });
+  // the overlay planes in a part of their own, inside the rest or beside it (the names moved between Chromium versions)
+  const nested = { auxAttributes: { glRenderer: 'ANGLE (OpenGL)', overlayInfo: { directComposition: false, supportsOverlays: false, nv12OverlaySupport: 'NONE' } } };
+  assert.deepEqual([configFields(nested).dcomp, configFields(nested).overlays, configFields(nested).planes], ['no', 'no', ['nv12:NONE']]);
+  assert.equal(configFields({ auxAttributes: {}, overlayInfo: { directComposition: true } }).dcomp, 'yes');
+  // nothing to go by: a line with no fields
+  for (const none of [null, undefined, {}, { failed: 'timeout' }]) assert.deepEqual(Object.values(configFields(none)).filter((v) => v !== undefined && v.length !== 0), []);
+});
+
+test('the GPU features as they come, the screens by size, refresh rate and depth', () => {
+  assert.deepEqual(statusList({ gpu_compositing: 'enabled', skia_graphite: 'enabled_on', webgl: 'enabled', odd: 3 }), ['gpu_compositing:enabled', 'skia_graphite:enabled_on', 'webgl:enabled']);
+  assert.deepEqual(statusList(null), []);
+  const screens = [
+    { size: { width: 2560, height: 1440 }, displayFrequency: 143.99, depthPerComponent: 10, scaleFactor: 1, colorSpace: '{primaries:BT2020, transfer:PQ, matrix:RGB, range:FULL}' },
+    { size: { width: 1920, height: 1080 }, displayFrequency: 60, depthPerComponent: 8, scaleFactor: 1.25, colorSpace: '{primaries:BT709, transfer:SRGB, matrix:RGB, range:FULL}' },
+    { size: { width: 1280, height: 1024 }, displayFrequency: 0 },
+  ];
+  assert.deepEqual(displayList(screens), ['2560x1440@144Hz 10bit primaries:BT2020,transfer:PQ,matrix:RGB,range:FULL', '1920x1080@60Hz 8bit x1.25', '1280x1024']);
+  assert.deepEqual(displayList(undefined), []);
+});
+
+test('Windows’ settings from reg’s answers: the values set, a key that is not there as nothing set', () => {
+  const drivers = { ok: true, text: '\r\nHKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers\r\n    DxgKrnlVersion    REG_DWORD    0x5023\r\n    HwSchMode    REG_DWORD    0x2\r\n    TdrDelay    REG_DWORD    0xa\r\n\r\nHKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers\\Configuration\r\n' };
+  const game = { ok: true, text: '    GameDVR_Enabled    REG_DWORD    0x0\r\n    GameDVR_FSEBehaviorMode    REG_DWORD    0x2\r\n' };
+  assert.deepEqual(registryFields({ drivers, dwm: { ok: true, text: '    OverlayTestMode    REG_DWORD    0x5\r\n' }, game }), {
+    HwSchMode: '2',
+    TdrDelay: '10',
+    TdrDdiDelay: undefined,
+    TdrLevel: undefined,
+    OverlayTestMode: '5',
+    GameDVR: '0',
+    FSEBehavior: '2',
+    why: undefined,
+  });
+  // the key not there (reg ends with 1): nothing set under it, and nothing wrong
+  const unset = registryFields({ drivers, dwm: { ok: false, error: '1' }, game });
+  assert.deepEqual([unset.OverlayTestMode, unset.why], [undefined, undefined]);
+  // reg not there, or not answering
+  assert.equal(registryFields({ drivers: { ok: false, error: 'ENOENT' }, dwm: { ok: false, error: 'ENOENT' }, game }).why, 'ENOENT');
+  assert.equal(registryFields(null).why, 'no answer');
+});
+
+test('Windows’ event log: asked for the graphics drivers’ and the crashed programs’ events of late, read from its XML', () => {
+  assert.match(driverEventQuery(120_000), /^\*\[System\[Provider\[@Name='Display' or @Name='nvlddmkm' or .*\] and TimeCreated\[timediff\(@SystemTime\) <= 120000\]\]\]$/);
+  assert.match(crashEventQuery(60_000.4), /@Name='Application Error'.*<= 60000\]\]\]$/);
+  const xml =
+    "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Display'/><EventID Qualifiers='0'>4101</EventID><Level>3</Level>" +
+    "<TimeCreated SystemTime='2026-11-16T10:03:58.1234567Z'/><Channel>System</Channel></System><EventData><Data>nvlddmkm</Data><Data></Data></EventData></Event>\r\n" +
+    "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Application Error' Guid='{a0e9b465}'/><EventID>1000</EventID>" +
+    "<TimeCreated SystemTime='2026-11-16T10:03:59.5000000Z'/></System><EventData><Data Name='AppName'>Generative Rhythm.exe</Data><Data Name='AppVersion'>44.5.1.0</Data>" +
+    "<Data Name='ModuleName'>nvwgf2umx.dll</Data><Data Name='ExceptionCode'>80000003</Data><Data Name='FaultingOffset'>00000000001a2b3c</Data><Data>a &amp; b</Data></EventData></Event>";
+  assert.deepEqual(logEvents(xml), [
+    { source: 'Display', id: 4101, at: '2026-11-16T10:03:58.123Z', data: 'nvlddmkm' },
+    { source: 'Application Error', id: 1000, at: '2026-11-16T10:03:59.500Z', data: 'Generative Rhythm.exe | 44.5.1.0 | nvwgf2umx.dll | 80000003 | 00000000001a2b3c | a b' },
+  ]);
+  assert.equal(logEvents(xml, 1).length, 1);
+  assert.deepEqual(logEvents(''), []);
+  assert.deepEqual(logEvents(undefined), []);
+});
+
+test('Chromium’s own log: the lines of the seconds asked for, whichever build wrote them', () => {
+  const at = (h, m, sec, ms) => new Date(2026, 10, 16, h, m, sec, ms).getTime();
+  const tail = [
+    '[4321:1116/190350.100:WARNING:gpu\\command_buffer\\service\\x.cc:10] long before',
+    'and its second line',
+    '[4321:1116/190358.900:ERROR:third_party\\angle\\src\\libANGLE\\renderer\\d3d\\d3d11\\Renderer11.cpp:1234] Device lost reason code 0x887A0006',
+    '[4321:7788:1116/190359.010123:ERROR:gpu/ipc/service/gpu_service_impl.cc(1021)] Exiting GPU process because some drivers can\'t recover from errors. GPU process will restart shortly.',
+    '  a second line of it',
+    '  a third',
+    '[1200:1116/190359.250:ERROR:content\\browser\\gpu\\gpu_process_host.cc:1035] GPU process exited unexpectedly: exit_code=-2147483645',
+    'not a line of the log',
+    '[1200:1116/190410.000:WARNING:x.cc:1] long after',
+    'and what follows it',
+  ].join('\r\n');
+  assert.deepEqual(chromiumLines(tail, at(19, 3, 55, 0), at(19, 4, 1, 0)), [
+    { pid: 4321, level: 'ERROR', at: '19:03:58.900', src: 'Renderer11.cpp:1234', text: 'Device lost reason code 0x887A0006' },
+    { pid: 4321, level: 'ERROR', at: '19:03:59.010', src: 'gpu_service_impl.cc(1021)', text: "Exiting GPU process because some drivers can't recover from errors. GPU process will restart shortly. / a second line of it" },
+    { pid: 1200, level: 'ERROR', at: '19:03:59.250', src: 'gpu_process_host.cc:1035', text: 'GPU process exited unexpectedly: exit_code=-2147483645 / not a line of the log' },
+  ]);
+  // the newest of them when there are many
+  assert.deepEqual(
+    chromiumLines(tail, at(19, 3, 55, 0), at(19, 4, 1, 0), 1).map((line) => line.pid),
+    [1200],
+  );
+  assert.deepEqual(chromiumLines('', 0, 1), []);
+  assert.deepEqual(chromiumLines(undefined, 0, 1), []);
+});
+
+/** The rest of the world a desktop gives the watcher: the GPU's information, the screens, the window, Windows' logs, Chromium's log, the crash dump. */
+function desktop(w) {
+  return {
+    info: async () => w.info,
+    page: async () => w.page,
+    displays: () => [{ size: { width: 2560, height: 1440 }, displayFrequency: 144, depthPerComponent: 8, scaleFactor: 1 }],
+    window: () => ({ fullScreen: 'yes', focused: 'yes' }),
+    gpuProcess: () => ({ pid: 4321, workingSetMB: 412 }),
+    registry: async () => w.registry,
+    events: async (log) => (log === 'System' ? w.system : w.application),
+    chromium: async () => w.chromium,
+    dump: async (since) => {
+      w.dumpSince = since;
+      return w.dump;
+    },
+  };
+}
+
+test('a run’s start: how Chromium draws, the screens, and Windows’ settings, each a line', async () => {
+  const d = {};
+  const w = world(desktop(d));
+  d.info = GPU_INFO;
+  d.page = 'ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 (0x00001F08) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.1714)';
+  d.registry = { drivers: { ok: true, text: '    HwSchMode    REG_DWORD    0x2\r\n' }, dwm: { ok: false, error: '1' }, game: { ok: false, error: '1' } };
+  await w.watch.config();
+  await w.watch.windows();
+  w.watch.note('graphics-mode', { mode: 'no-dcomp', cameUp: 'yes' });
+  const lines = w.events();
+  assert.match(lines[0], /^gpu-config {2}when=start gl="ANGLE \(NVIDIA, NVIDIA GeForce RTX 2060 \(0x00001F08\) Direct3D11 vs_5_0 ps_5_0, D3D11-32\.0\.16\.1714\)" glVersion="OpenGL ES 3\.0\.0 \(ANGLE 2\.1\.26000\)" display=ANGLE_D3D11 skia=GraphiteDawnD3D11 dcomp=yes overlays=yes planes=nv12:SCALING,yuy2:NONE,bgra8:DIRECT aux=passthroughCmdDecoder:yes,sandboxed:yes,d3d12FeatureLevel:49664 webgl="ANGLE \(NVIDIA, NVIDIA GeForce RTX 2060 \(0x00001F08\) Direct3D11 vs_5_0 ps_5_0, D3D11-32\.0\.16\.1714\)" gpuPid=4321$/);
+  assert.equal(lines[1], 'gpu-status  when=start status=gpu_compositing:enabled,webgl:enabled,webgl2:enabled,2d_canvas:enabled,rasterization:enabled,video_decode:enabled');
+  assert.equal(lines[2], 'screens  when=start screens="2560x1440@144Hz 8bit" fullScreen=yes focused=yes');
+  assert.equal(lines[3], 'windows  HwSchMode=2');
+  assert.equal(lines[4], 'graphics-mode  mode=no-dcomp cameUp=yes');
+  // the GPU's information not to be had: the line says so, the rest is written all the same
+  const slow = {};
+  const s = world({ ...desktop(slow), info: async () => Promise.reject(new Error('timeout')) });
+  await s.watch.config();
+  assert.deepEqual(s.events().slice(0, 2), ['gpu-config  when=start gpuPid=4321 why=timeout', 'gpu-status  when=start status=gpu_compositing:enabled,webgl:enabled,webgl2:enabled,2d_canvas:enabled,rasterization:enabled,video_decode:enabled']);
+});
+
+test('a loss on a desktop: what the window saw before it, then what Chromium, Windows and the crash dump say of it', async () => {
+  const d = {
+    info: GPU_INFO,
+    system: { ok: true, text: "<Event><System><Provider Name='Display'/><EventID>4101</EventID><TimeCreated SystemTime='2026-11-13T12:04:04.9000000Z'/></System><EventData><Data>nvlddmkm</Data></EventData></Event>" },
+    application: { ok: true, text: '' },
+    chromium:
+      '[4321:1113/210300.000:ERROR:x.cc:1] a minute before\n[4321:1113/210425.100:ERROR:Renderer11.cpp:1234] Device lost reason code 0x887A0006\n' +
+      // (what the page says on its console is left out)
+      '[1200:1113/210425.200:INFO:CONSOLE:1] "a word from the page", source: http://127.0.0.1:40000/ (1)',
+    dump: {
+      file: 'reports/abc.dmp',
+      summary: { code: '0x80000003', thread: 77, at: 'Generative Rhythm.exe+0x3a4f21c', ip: undefined, frames: ['Generative Rhythm.exe+0x3a4f000', 'd3d11.dll+0x1234'], modules: [{ name: 'Generative Rhythm.exe', version: '44.5.1.0', id: 'ABCDEF1', pdb: 'electron.exe.pdb' }] },
+    },
+  };
+  const w = world(desktop(d));
+  w.watch.seen('blur');
+  await w.advance(20_000);
+  w.watch.seen('display-metrics-changed 2560x1440@144Hz', true);
+  await w.advance(310);
+  w.watch.childGone(GPU_GONE);
+  w.watch.page({ type: 'webglcontextlost', canvas: 'play-canvas', about: { stage: 'play', songMs: '83210', trailFrames: 'n=432 med=6.9 max=41.7', trailEvents: '-2100 fever:on; -35 tex:41>42' } });
+  await w.advance(0);
+  const first = w.events();
+  assert.equal(first[0], 'screen  what="display-metrics-changed 2560x1440@144Hz" screens="2560x1440@144Hz 8bit"');
+  assert.equal(first[1], 'child-process-gone  type=GPU reason=crashed exitCode=-1073741819 exitHex=0xC0000005 name="GPU Process" pid=4321 workingSetMB=412');
+  // (what happened longer ago than a few seconds is not told again)
+  assert.equal(first[2], 'window  fullScreen=yes focused=yes before="-310ms display-metrics-changed 2560x1440@144Hz"');
+  assert.deepEqual(first.slice(3, 6), [
+    'webglcontextlost  canvas=play-canvas stage=play songMs=83210',
+    'page-frames  frames="n=432 med=6.9 max=41.7"',
+    'page-events  events="-2100 fever:on; -35 tex:41>42"',
+  ]);
+  await w.advance(AFTERMATH_MS);
+  const after = w.events().slice(first.length);
+  assert.deepEqual(after, [
+    'chromium  pid=4321 level=ERROR at=21:04:25.100 src=Renderer11.cpp:1234 text="Device lost reason code 0x887A0006"',
+    'driver-event  source=Display id=4101 at=2026-11-13T12:04:04.900Z data=nvlddmkm',
+    'crash-events  found=none sinceMs=120000',
+    'crash-dump  file=reports/abc.dmp code=0x80000003 at="Generative Rhythm.exe+0x3a4f21c" thread=77',
+    'crash-stack  frames="Generative Rhythm.exe+0x3a4f000,d3d11.dll+0x1234"',
+    'crash-module  name="Generative Rhythm.exe" version=44.5.1.0 id=ABCDEF1 pdb=electron.exe.pdb',
+  ]);
+  // (a dump written a moment before the process was seen to go is the one)
+  assert.equal(d.dumpSince, NIGHT.getTime() + 20_310 - 2000);
+  // how it is drawn afterwards, with the picture
+  await w.advance(GIVE_UP_MS);
+  const end = w.events().slice(first.length + after.length);
+  assert.equal(end.length, 5);
+  for (const line of [/^gpu-features {2}/, /^gpu-config {2}when=after-loss gl="ANGLE/, /^gpu-status {2}when=after-loss /, /^screens {2}when=after-loss /, /^picture {2}/]) {
+    assert.ok(end.some((e) => line.test(e)), String(line));
+  }
+});
+
+test('what cannot be read of a loss is a line that says so', async () => {
+  const d = { system: { ok: false, error: 'ENOENT' }, application: undefined, chromium: '', dump: null };
+  const w = world({ ...desktop(d), chromium: async () => Promise.reject(new Error('EBUSY: locked')) });
+  w.watch.childGone(GPU_GONE);
+  await w.advance(AFTERMATH_MS);
+  // (each as it is answered: in no order of their own)
+  assert.deepEqual(
+    w.events().filter((line) => /^(chromium|driver|crash)/.test(line)).sort(),
+    ['chromium  why="EBUSY: locked"', 'crash-dump  found=none', 'crash-events  why="no answer"', 'driver-events  why=ENOENT'],
+  );
+  // a dump that is there but could not be read
+  const unread = { system: { ok: true, text: '' }, application: { ok: true, text: '' }, chromium: '', dump: { file: 'reports/x.dmp', summary: null } };
+  const u = world(desktop(unread));
+  u.watch.childGone(GPU_GONE);
+  await u.advance(AFTERMATH_MS);
+  assert.deepEqual(
+    u.events().filter((line) => /^(chromium|driver|crash)/.test(line)).sort(),
+    ['chromium  found=none', 'crash-dump  file=reports/x.dmp why="not read"', 'crash-events  found=none sinceMs=120000', 'driver-events  found=none sinceMs=120000'],
+  );
 });
