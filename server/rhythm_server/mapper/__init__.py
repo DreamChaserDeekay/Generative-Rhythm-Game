@@ -69,8 +69,12 @@ class Mapper:
         level, seed, cid = self.plan(analysis, key_mode, difficulty, target_level, seed)
         timing = song_timing() if song_timing is not None else None
         onsets, duration = analysis.get("onsets", []), float(analysis["durationMs"])
+        # off unless mapper.json timingCheck: on the runner's 24 real timings it changed 19 and fitted
+        # 14 worse in places (the analysis's onsets lie 17-31 ms after the model's grid, and a re-set
+        # line of the same tempo was taken for a lost beat), docs/MAPPERATORINATOR.md
+        check = bool(cfg.get("timingCheck", False))
         fixed: list[dict[str, Any]] = []
-        if timing is not None:
+        if timing is not None and check:
             # a song's timing kept from before this check: it may have lost the beat
             timing, fixed = charts.checked_timing(timing, onsets, duration)
         keycount = len(charts.columns(key_mode))
@@ -98,7 +102,7 @@ class Mapper:
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
             found = None
             try:
-                if timing is None:
+                if timing is None and check:
                     found, fixed = charts.checked_timing(parse_osu(osu_text).timing, onsets, duration)
                     if fixed:
                         # its notes followed the lost beat: made again on the timing without it
