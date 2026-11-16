@@ -12,6 +12,11 @@
   "temperature": null,
   "timeoutSeconds": 1800,
   "idleUnloadSeconds": 120,
+  "scratchColumn": {
+    "_comment": "Which of the model's 8 columns goes on 7K+1S's scratch, by model: the one it leaves nearly empty (v32 its last, 4-10 % of the notes on the runner; v32-mini its first). The others go in order on the keys (server/rhythm_server/mapper/charts.py column_lanes).",
+    "v32": "last",
+    "v32-mini": "first"
+  },
   "silence": {
     "_comment": "Silences of the song's audio (server/rhythm_server/mapper/silence.py): a stretch of minMs or more under the song's loud level by belowLoudDb (or under floorDb dBFS), measured in frames of frameMs. Mapperatorinator is asked to stop at the music's end plus endPadMs when the song ends in one, and a note more than marginMs into a silence is dropped (a hold reaching into one ends there).",
     "frameMs": 50,

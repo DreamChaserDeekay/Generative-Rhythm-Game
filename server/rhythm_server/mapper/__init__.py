@@ -8,18 +8,22 @@ before the runtime is set up, or when a chart fails, the request is an error to 
 
 from __future__ import annotations
 
+import logging
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
 from ..chart.keysounds import default_seed
+from ..formats.osu import parse_osu
 from . import charts
 from .runtime import Runtime, mapper_config
 from .service import MapperError, MapperService
 from .silence import music_end, quiet_spans
 
 __all__ = ["Mapper", "MapperError", "Runtime", "mapper_config"]
+
+log = logging.getLogger("rhythm_server.mapper")
 
 
 class Mapper:
@@ -54,13 +58,23 @@ class Mapper:
         audio_path: Path, song_timing: Callable[[], dict[str, Any] | None] | None = None,
     ) -> dict[str, Any]:
         """`song_timing`: asked when the chart's turn comes, for the timing the song's first chart
-        found (None: this is the first, and the model finds it)."""
+        found (None: this is the first, and the model finds it). The timing is checked against the
+        song's onsets (charts.checked_timing): a tempo the song does not follow is taken out, and a
+        first chart made on one is made again on the timing without it; the chart says what was
+        taken out (generator.timingFixed), and the song keeps that timing."""
         from .. import audio_io
         import soundfile as sf
 
         cfg = self.config()
         level, seed, cid = self.plan(analysis, key_mode, difficulty, target_level, seed)
         timing = song_timing() if song_timing is not None else None
+        onsets, duration = analysis.get("onsets", []), float(analysis["durationMs"])
+        fixed: list[dict[str, Any]] = []
+        if timing is not None:
+            # a song's timing kept from before this check: it may have lost the beat
+            timing, fixed = charts.checked_timing(timing, onsets, duration)
+        keycount = len(charts.columns(key_mode))
+        timeout = float(cfg.get("timeoutSeconds", 1800))
         jobs = self.runtime.root / "jobs"
         jobs.mkdir(parents=True, exist_ok=True)
         tmp = Path(tempfile.mkdtemp(prefix="chart-", dir=jobs))
@@ -68,19 +82,37 @@ class Mapper:
             pcm, sr = audio_io.read_canonical(audio_path)
             wav = tmp / "song.wav"
             sf.write(wav, pcm, sr, subtype="PCM_16")
-            beatmap = None
-            if timing is not None:
-                beatmap = tmp / "timing.osu"
-                text = charts.timing_osu(timing, len(charts.columns(key_mode)), wav.name, meta.get("title", ""), meta.get("artist", ""))
-                beatmap.write_text(text, encoding="utf-8")
-            out = tmp / "out"
-            out.mkdir()
             quiet = quiet_spans(pcm, sr, cfg["silence"]) if cfg.get("silence") else []
-            request = charts.request_for(key_mode, level, seed, cfg, wav, out, beatmap, meta, music_end(quiet, len(pcm) * 1000.0 / sr))
-            answer = self.service.generate(request, float(cfg.get("timeoutSeconds", 1800)))
+            end = music_end(quiet, len(pcm) * 1000.0 / sr)
+
+            def make(on_timing: dict[str, Any] | None, name: str) -> dict[str, Any]:
+                beatmap = None
+                if on_timing is not None:
+                    beatmap = tmp / f"{name}-timing.osu"
+                    beatmap.write_text(charts.timing_osu(on_timing, keycount, wav.name, meta.get("title", ""), meta.get("artist", "")), encoding="utf-8")
+                out = tmp / name
+                out.mkdir()
+                return self.service.generate(charts.request_for(key_mode, level, seed, cfg, wav, out, beatmap, meta, end), timeout)
+
+            answer = make(timing, "out")
             osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
+            found = None
             try:
-                return charts.make_chart(analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing, quiet)
+                if timing is None:
+                    found, fixed = charts.checked_timing(parse_osu(osu_text).timing, onsets, duration)
+                    if fixed:
+                        # its notes followed the lost beat: made again on the timing without it
+                        log.warning("Mapperatorinator's timing lost the beat (%s): the chart is made again without those tempos", fixed)
+                        first = answer
+                        answer = make(found, "again")
+                        answer = {**answer, "seconds": float(first.get("seconds") or 0.0) + float(answer.get("seconds") or 0.0)}
+                        osu_text = Path(answer["osu"]).read_text(encoding="utf-8-sig")
+                    else:
+                        found = None
+                return charts.make_chart(
+                    analysis, key_mode, difficulty, level, seed, cid, cfg, meta, osu_text, answer, target_level, timing, quiet,
+                    found_timing=found, timing_fixed=fixed or None,
+                )
             except ValueError as e:
                 raise MapperError(str(e)) from e
         finally:

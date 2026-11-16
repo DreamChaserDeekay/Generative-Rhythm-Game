@@ -2,12 +2,15 @@
 an .osu file), and the .osu it gives back as one of our charts (docs/MAPPERATORINATOR.md).
 
 Key modes: Mapperatorinator makes osu!mania charts of 1 to 18 columns. Every lane but the FX ones
-is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 7K+1S as 8 columns whose first is the
-scratch, 4K+FX and 6K+FX as 4K and 6K with their FX lanes left empty.
+is a column, in our lane order: 4K, 5K, 6K, 8K as they are, 7K+1S as 8 columns, the one the model
+leaves nearly empty on the scratch (v32 its last, v32-mini its first: mapper.json scratchColumn)
+and the others in order on the keys, 4K+FX and 6K+FX as 4K and 6K with their FX lanes left empty.
 
 Timing: the model's own. A song's first chart finds it (Mapperatorinator's timing pass); the
 song keeps it (`song_timing`) and its other charts are given it as timing context, so every tier
-of a song has the same beats and bar lines and skips the timing pass.
+of a song has the same beats and bar lines and skips the timing pass. The timing pass can lose the
+beat late in a song (a tempo of 2.9 BPM from 160 s on), so a tempo the song's onsets do not follow
+is taken out first (checked_timing), and a first chart made on such a beat is made again.
 
 Difficulty: a tier aims at the middle of its level range (or the level asked for), turned into an
 osu! star rating by mapper.json starsForLevel; the chart's level is then our own estimate of the
@@ -29,7 +32,7 @@ from ..difficulty.consistency import chart_consistency
 from ..difficulty.estimator import estimate
 from ..difficulty.patterns import pattern_summary
 from ..formats.common import drop_conflicts, measures, normalize_notes, structural_problems
-from ..formats.osu import OSU_WIDTH, _pairs, _sections, parse_osu
+from ..formats.osu import OSU_WIDTH, _pairs, _sections, parse_osu, timing_from_reds
 from ..chart.camera_notes import camera_from_notes
 from ..chart.effects import camera_effects
 from ..chart.keysounds import keysound_meta, mark_sound_ends
@@ -48,6 +51,28 @@ MIN_HOLD_MS = 60.0
 def columns(key_mode: str) -> list[int]:
     """Our lane of each column Mapperatorinator is asked for (every lane but FX ones)."""
     return [l.index for l in lane_infos(key_mode) if l.kind != "side"]
+
+
+def scratch_column(cfg: dict[str, Any]) -> str:
+    """Which column of the model's goes on a scratch: "first" or "last" (mapper.json scratchColumn,
+    by model). v32 leaves its last of 8 nearly empty (4-10 % of the notes, the least used column of
+    14 of 18 charts on the runner, docs/MAPPERATORINATOR.md); v32-mini its first."""
+    by_model = cfg.get("scratchColumn") or {}
+    choice = by_model.get(str(cfg.get("model", "v32")), "first") if isinstance(by_model, dict) else by_model
+    return "last" if choice == "last" else "first"
+
+
+def column_lanes(key_mode: str, cfg: dict[str, Any]) -> list[int]:
+    """Our lane of each column of the chart the model made: columns(), but where the key mode has a
+    scratch and the model leaves its last column for it, that column goes on the scratch and the
+    others, in order, on the keys."""
+    lanes = columns(key_mode)
+    infos = lane_infos(key_mode)
+    scratch = [k for k, lane in enumerate(lanes) if infos[lane].kind == "scratch"]
+    if scratch and scratch_column(cfg) == "last":
+        k = scratch[0]
+        lanes = lanes[:k] + lanes[k + 1:] + [lanes[k]]
+    return lanes
 
 
 def target_level(key_mode: str, difficulty: str, level: int | None) -> int:
@@ -104,12 +129,15 @@ def chart_id(analysis: dict[str, Any], key_mode: str, difficulty: str, level: in
         "parallel": bool(cfg.get("parallel", False)),
         "camera": cfg.get("cameraFrom", "notes"),
     }
+    if any(l.kind == "scratch" for l in lane_infos(key_mode)) and scratch_column(cfg) == "last":
+        # the last column on the scratch: these charts are not those that had the first there
+        payload["scratch"] = "last"
     return "c" + hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
 
 
-def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: str = "", artist: str = "") -> str:
-    """An osu!mania file with the song's timing points only (red lines at every tempo and meter
-    change), for Mapperatorinator's timing context."""
+def timing_red_lines(timing: dict[str, Any]) -> list[tuple[float, float, int]]:
+    """Our timing as osu! red lines: (ms, beat length in ms, beats a bar) at every tempo and meter
+    change, by time."""
     tempo = TempoMap(timing)
     points = sorted(timing["tempoMap"], key=lambda p: p["beat"])
     last_beat = max([float(p["beat"]) for p in points] + [0.0]) + 1.0
@@ -128,17 +156,87 @@ def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: st
         k = bisect.bisect_right([b for b, _ in meter_at], beat + 1e-9) - 1
         return max(1, int(round(meter_at[k][1]))) if k >= 0 else 4
 
+    return [(tempo.beat_to_ms(beat), 60000.0 / bpm_at(beat), meter_of(beat)) for beat in beats]
+
+
+def timing_osu(timing: dict[str, Any], keycount: int, audio_name: str, title: str = "", artist: str = "") -> str:
+    """An osu!mania file with the song's timing points only (red lines at every tempo and meter
+    change), for Mapperatorinator's timing context."""
     lines = [
         "osu file format v14", "", "[General]", f"AudioFilename: {audio_name}", "AudioLeadIn: 0", "PreviewTime: -1", "Mode: 3",
         "SpecialStyle: 0", "", "[Metadata]", f"Title:{title or 'Untitled'}", f"Artist:{artist}", "Creator:Generative Rhythm",
         "Version:timing", "", "[Difficulty]", "HPDrainRate:8", f"CircleSize:{keycount}", "OverallDifficulty:8",
         "ApproachRate:5", "SliderMultiplier:1.4", "SliderTickRate:1", "", "[TimingPoints]",
     ]
-    for beat in beats:
-        t = tempo.beat_to_ms(beat)
-        lines.append(f"{t:.3f},{60000.0 / bpm_at(beat):.9f},{meter_of(beat)},1,0,60,1,0")
+    for t, beat_len, meter in timing_red_lines(timing):
+        lines.append(f"{t:.3f},{beat_len:.9f},{meter},1,0,60,1,0")
     lines += ["", "[HitObjects]", ""]
     return "\n".join(lines)
+
+
+# A tempo of the model's timing is believed where the song's onsets follow its grid about as well as
+# they follow the tempo before it, run on (TIMING_MARGIN less at most); none outside these bounds
+TEMPO_MIN_BPM, TEMPO_MAX_BPM = 30.0, 400.0
+TIMING_MARGIN = 0.1
+# fewer onsets than this under a tempo: nothing to judge it by, it stays (within the bounds)
+TIMING_MIN_ONSETS = 8
+# an onset is on a grid within this of one of its sixteenths (and a sixth of a sixteenth at most)
+TIMING_TOL_MS = 20.0
+
+
+def grid_fit(onsets: list[float], start: float, beat_len: float) -> float:
+    """How much better than chance onsets fall on the sixteenths of a grid with a beat at `start`:
+    the share on it, less the share chance would put there."""
+    sub = beat_len / 4.0
+    tol = min(TIMING_TOL_MS, sub / 6.0)
+    on = sum(1 for t in onsets if abs((t - start) / sub - round((t - start) / sub)) * sub <= tol)
+    return on / len(onsets) - 2.0 * tol / sub
+
+
+def checked_timing(timing: dict[str, Any], onsets: list[dict[str, Any]], duration_ms: float) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The timing without the tempos the song does not follow, the tempo before each running on.
+    Mapperatorinator's timing pass can lose the beat late in a song (6.5-67 BPM from 226.7 s in one
+    song, 2.9 and 29.5 BPM from 160 s in another; 2 of 20 runs on the runner,
+    docs/MAPPERATORINATOR.md), and a song's first chart's timing serves all its charts. A real change stays: its own grid
+    fits the onsets after it better than the old one run on (176 -> 185 BPM at 103.6 s).
+    Returns the timing (the same object when nothing is taken out) and what was taken out."""
+    # red lines at one time: the last holds, as in osu!
+    reds = list({round(t, 3): (t, beat_len, meter) for t, beat_len, meter in timing_red_lines(timing)}.values())
+    if len(reds) < 2:
+        return timing, []
+    times = sorted(float(o["t"]) for o in onsets if "t" in o)
+    kept = [reds[0]]
+    dropped: list[dict[str, Any]] = []
+    lost = False  # the tempo of the red line before was taken out
+    for i, (t, beat_len, meter) in enumerate(reds[1:], start=1):
+        if abs(beat_len - reds[i - 1][1]) < 1e-6:
+            # a bar restarted within a tempo: kept or taken out with it
+            if not lost:
+                kept.append((t, beat_len, meter))
+            continue
+        # the tempo holds until the next red line of another tempo
+        j = i + 1
+        while j < len(reds) and abs(reds[j][1] - beat_len) < 1e-6:
+            j += 1
+        end = reds[j][0] if j < len(reds) else float(duration_ms)
+        bpm = 60000.0 / beat_len
+        why = None
+        if not TEMPO_MIN_BPM <= bpm <= TEMPO_MAX_BPM:
+            why = "bounds"
+        else:
+            under = times[bisect.bisect_left(times, t):bisect.bisect_left(times, end)]
+            if len(under) >= TIMING_MIN_ONSETS:
+                prev_t, prev_len, _ = kept[-1]
+                if grid_fit(under, t, beat_len) + TIMING_MARGIN < grid_fit(under, prev_t, prev_len):
+                    why = "onsets"
+        lost = why is not None
+        if lost:
+            dropped.append({"ms": round(t, 1), "bpm": round(bpm, 3), "why": why})
+        else:
+            kept.append((t, beat_len, meter))
+    if not dropped:
+        return timing, []
+    return timing_from_reds(kept), dropped
 
 
 def song_bpm(timing: dict[str, Any], duration_ms: float) -> dict[str, float]:
@@ -278,16 +376,19 @@ def predicted_meta(
 def make_chart(
     analysis: dict[str, Any], key_mode: str, difficulty: str, level: int, seed: int, cid: str, cfg: dict[str, Any], meta: dict[str, Any],
     osu_text: str, info: dict[str, Any], target_level: int | None = None, song_timing: dict[str, Any] | None = None,
-    quiet: list[tuple[float, float]] | None = None,
+    quiet: list[tuple[float, float]] | None = None, found_timing: dict[str, Any] | None = None,
+    timing_fixed: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """One of our charts from the .osu Mapperatorinator made (`target_level`: the level asked for,
     None for a tier's default chart; `song_timing`: the timing it was given, None when it found
-    its own; `quiet`: the song's silences, whose notes are dropped)."""
+    its own; `quiet`: the song's silences, whose notes are dropped; `found_timing`: the timing it
+    found, checked, when the .osu was made again on it; `timing_fixed`: the tempos checked_timing
+    took out of the timing, which the song keeps from now on)."""
     params = resolve_tier(key_mode, difficulty, level)
     lanes = lane_infos(key_mode)
-    timing = song_timing or parse_osu(osu_text).timing
+    timing = song_timing or found_timing or parse_osu(osu_text).timing
     tempo = TempoMap(timing)
-    notes = notes_from_osu(osu_text, columns(key_mode))
+    notes = notes_from_osu(osu_text, column_lanes(key_mode, cfg))
     duration = float(analysis["durationMs"])
     # nothing is played in a silence, nor past the song's end
     notes, silent = drop_silent(notes, [*(quiet or []), (duration, float("inf"))], float((cfg.get("silence") or {}).get("marginMs", 100.0)))
@@ -339,6 +440,9 @@ def make_chart(
                 "keycount": len(columns(key_mode)),
                 # "song": the timing of the song's first chart, given; "model": found for this chart
                 "timing": "song" if song_timing else "model",
+                # the tempos taken out of it, the song not following them (checked_timing)
+                **({"timingFixed": timing_fixed} if timing_fixed else {}),
+                **({"scratchColumn": scratch_column(cfg)} if any(l.kind == "scratch" for l in lanes) else {}),
                 "camera": "structure" if cfg.get("cameraFrom") == "structure" else "notes",
                 # notes the model put in a silence of the song (or past its end), dropped
                 "silentDropped": silent,
