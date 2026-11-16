@@ -555,9 +555,11 @@ def create_app(
                 if e is None:
                     chart = j.result()
                     library.save_chart(chart, sid)
-                    if chart["meta"]["generator"].get("timing") == "model":
+                    generator = chart["meta"]["generator"]
+                    if generator.get("timing") == "model" or generator.get("timingFixed"):
                         # the song's first chart: its timing is the song's from now on (the other
-                        # tiers are made on it), and the song list's BPM
+                        # tiers are made on it), and the song list's BPM; or a song's timing kept
+                        # from before, with the tempos it lost the beat on taken out
                         library.save_mapper_timing(sid, model, chart["timing"])
                         library.update_song(sid, **{k: v for k, v in zip(("bpm", "bpm_min", "bpm_max"), song_bpm(chart["timing"], chart["meta"]["durationMs"]).values())})
                 else:
