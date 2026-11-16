@@ -796,7 +796,7 @@ test('the Firestarter skin in play: drawn in code, its lettering tall and slante
   await tool(page, 'sync-auto');
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-style', 'fire fire bar fire fire');
   // drawn in code, as the default skin is
-  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'gear hit');
+  await expect(page.locator('.play-canvas')).toHaveAttribute('data-art', 'long gear hit');
   // the two stand by the gear, one a side
   await expect(page.locator('.play-canvas')).toHaveAttribute('data-standees', '2', { timeout: 30_000 });
   const hud = page.locator('.hud');

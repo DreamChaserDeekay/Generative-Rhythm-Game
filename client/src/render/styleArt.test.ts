@@ -6,6 +6,7 @@ import { plateWindows, GEAR_STYLES, gearBorderLook, type DeckSpec, type GearStyl
 import { parseManifest } from './skinArt';
 import { BASE_SKIN, withParts, type SkinStyle } from './skins';
 import {
+  ART_LONGS,
   artPartsOf,
   borderLookOf,
   gearArtOf,
@@ -90,7 +91,7 @@ describe('the concept sets drawn from art', () => {
     expect(styleImageIds({ note: 'sky', side: 'bar', deck: 'sky', hit: 'sky' })).toEqual(['sky/panel', 'sky/plate', 'sky/feather']);
     // the Firestarter skin's parts are drawn in code too, but for its panel and the crests its key caps carry (the
     // figures at its sides come with the build)
-    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual(['fire/panel', 'fire/crests']);
+    expect(styleImageIds({ note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' })).toEqual(['longs/fire', 'fire/panel', 'fire/crests']);
     expect(styleTextures(mecha)).toEqual({ hitBurst: 'mecha/hitBurst', hitHold: 'mecha/hitHold' });
     // three hits of no set have flipbooks of their own, as the sets' hits do; the default skin's FLASH plays "basic"
     expect(styleTextures(BASE_SKIN.style)).toEqual({ hitBurst: 'basic/hitBurst', hitHold: 'basic/hitHold' });
@@ -410,12 +411,12 @@ describe('the fire gear, drawn in code, the crests on its key caps a picture', (
   const style = withParts(BASE_SKIN, { note: 'fire', side: 'bar', deck: 'fire', hit: 'fire' }).style;
 
   it('has the strip of its four crests in the media, four square cells, beside its panel', () => {
-    expect(styleImageIds(style)).toEqual(['fire/panel', 'fire/crests']);
+    expect(styleImageIds(style)).toEqual(['longs/fire', 'fire/panel', 'fire/crests']);
     const crests = manifest.textures['fire/crests'];
     expect(crests.file).toBe('gears/fire/crests.png');
     expect(crests.size).toEqual([1024, 256]);
     expect(Object.keys(gearArtOf('fire', loaded(style)))).toEqual(['panel', 'crests']);
-    expect(artPartsOf(style, loaded(style))).toEqual(['gear']);
+    expect(artPartsOf(style, loaded(style))).toEqual(['long', 'gear']);
     // not loaded (yet): its caps are bare, and the gear is drawn in code alone
     expect(Object.keys(gearArtOf('fire', {}))).toEqual([]);
     expect(artPartsOf(style, {})).toEqual([]);
@@ -608,6 +609,35 @@ describe('the AI companies’ long notes', () => {
       expect([mine.width, mine.tile, mine.endDepth, mine.endWidth, mine.px], note).toEqual([coin.width, coin.tile, coin.endDepth, coin.endWidth, coin.px]);
       // without the pictures, the coin's long note in code
       expect(longPaintOf(note, {}).body, note).toBe(longPaintOf('round', {}).body);
+    }
+  });
+});
+
+describe('the long notes drawn in code, drawn again with the image model', () => {
+
+  it('are in the media as the sets’ long notes are (512 × 256), for code long notes only', () => {
+    for (const long of Object.keys(ART_LONGS) as (keyof typeof ART_LONGS)[]) {
+      expect(manifest.textures[`longs/${long}`]?.size, long).toEqual([512, 256]);
+      expect(['rail', 'capsule', 'ray'], long).not.toContain(long);
+    }
+  });
+
+  it('draw a long note from its picture where it loaded, from code where it did not (so taking one out of the list brings its code drawing back)', () => {
+    for (const long of Object.keys(ART_LONGS) as (keyof typeof ART_LONGS)[]) {
+      const note = (Object.keys(LONG_OF) as (keyof typeof LONG_OF)[]).find((n) => LONG_OF[n] === long && !['gpt', 'gemini', 'grok', 'claude'].includes(n))!;
+      expect(longPaintOf(note, {}), long).toBe(LONG_PAINT[long]);
+      const art = longPaintOf(note, { [`longs/${long}`]: { id: `longs/${long}`, width: 512, height: 256 } } as never);
+      expect(art.px, long).toBe(128);
+      expect(art.width, long).toBe(LONG_PAINT[long].width);
+      expect(art.endDepth, long).toBeCloseTo((ART_LONGS[long]! / 128) * NOTE_STRETCH, 9);
+      const { g, draws } = recorder();
+      art.end(g, 128, 50);
+      art.held!.end(g, 128, 50);
+      expect(draws.map((d) => [d.sx, d.sh])).toEqual([
+        [256, ART_LONGS[long]],
+        [384, ART_LONGS[long]],
+      ]);
+      expect(styleImageIds(withParts(BASE_SKIN, { note, side: 'bar', deck: 'standard', hit: 'flash' }).style)).toContain(`longs/${long}`);
     }
   });
 });

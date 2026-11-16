@@ -15,6 +15,7 @@ import {
   tone,
   type HitStyle,
   type LongPaint,
+  type LongStyle,
   type NoteMark,
   type NotePaint,
   type NoteStyle,
@@ -124,6 +125,8 @@ export function styleImageIds(style: SkinStyle): string[] {
   if (notes) ids.push(artId(notes, 'notes'), artId(notes, 'long'), ...(style.side === 'dots' ? [] : [artId(notes, 'side')]));
   // the AI companies' marks play the coin's long note: its pictures (the record for its ends)
   else if (isLogoNote(style.note)) ids.push(artId('club', 'notes'), artId('club', 'long'));
+  // a code long note drawn again with the image model
+  else if (ART_LONGS[LONG_OF[style.note]] !== undefined) ids.push(`longs/${LONG_OF[style.note]}`);
   ids.push(...Object.values(GEAR_PICTURES[style.deck]));
   return ids;
 }
@@ -383,8 +386,28 @@ export function longPaintOf(style: NoteStyle, images: StyleImages): LongPaint {
   const long = set && images[artId(set, 'long')];
   // the AI companies' marks play the coin's long note, as the coin's own (its ends the record's)
   if (isLogoNote(style)) return longPaintOf('round', images);
+  // a code long note drawn again with the image model, where its picture loaded
+  const drawn = set ? undefined : artLongOf(LONG_OF[style], images);
+  if (drawn) return drawn;
   const paint = set && long ? artLong(long, LONG_END[set], code.width) : code;
   return SHAPED_ENDS.includes(style) ? withTapEnds(style, paint, images) : paint;
+}
+
+/**
+ * The long notes that were drawn in code, drawn again with the image model (scripts/assets/make_long_notes.py and
+ * build_long_notes.py: media/longs/<long>.png, "longs/<long>" in the manifest, the layout of the sets' long.png),
+ * each with its end's depth in that picture (px of 128 across: build_long_notes.py's end_px). The code draws a long
+ * note left out of this list, or whose picture did not load: take a name out to have its code drawing back.
+ */
+export const ART_LONGS: Partial<Record<LongStyle, number>> = {
+  fire: 44,
+};
+
+/** A long note drawn from its picture (ART_LONGS), as wide as its code's; undefined where it has none loaded. */
+function artLongOf(long: LongStyle, images: StyleImages): LongPaint | undefined {
+  const end = ART_LONGS[long];
+  const picture = end === undefined ? undefined : images[`longs/${long}`];
+  return picture ? artLong(picture, end!, LONG_PAINT[long].width) : undefined;
 }
 
 /** The note styles whose taps are no bar (the coin, the stars): their long notes' ends are cut in the tap's outline. The AI companies' marks play the coin's. */
@@ -495,7 +518,7 @@ export function artPartsOf(style: SkinStyle, images: StyleImages): string[] {
     if (images[artId(set, 'notes')]) parts.push('notes');
     if (images[artId(set, 'long')]) parts.push('long');
     if (images[artId(set, 'side')] && style.side !== 'dots') parts.push('side');
-  } else if (isLogoNote(style.note) && images[artId('club', 'long')]) parts.push('long');
+  } else if (isLogoNote(style.note) ? images[artId('club', 'long')] : images[`longs/${LONG_OF[style.note]}`]) parts.push('long');
   if (Object.keys(gearArtOf(style.deck, images)).length === Object.keys(GEAR_PICTURES[style.deck]).length) parts.push('gear');
   return parts;
 }

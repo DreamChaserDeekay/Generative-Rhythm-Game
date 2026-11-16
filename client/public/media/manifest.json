@@ -632,6 +632,14 @@
         876
       ]
     },
+    "longs/fire": {
+      "file": "longs/fire.png",
+      "bundle": "notes",
+      "size": [
+        512,
+        256
+      ]
+    },
     "mecha/hitBurst": {
       "file": "styles/mecha/hit_burst.png",
       "bundle": "effects",

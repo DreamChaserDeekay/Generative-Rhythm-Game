@@ -2906,3 +2906,25 @@
 - LED 그리드는 물결이 넓어질수록 켜진 칸이 늘어 예전에는 133 ms 뒤가 가장 밝았습니다. 이제 첫 프레임에 건반 둘레 5×5칸이 모두 켜지고, 물결은 그 가장자리에서 출발해 넓어지며 빨리 어두워집니다. 물결 뒤에서 깜빡이는 낱칸은 예전 속도로 사라져, 14번째 프레임의 빛은 예전과 같은 양입니다.
 - 길이는 그대로 16프레임 · 60fps(0.27초)이고, 매니페스트에 시작 프레임(`flipbook.peak`: 9장 모두 0)을 적습니다.
 
+## 코드로 그리던 롱노트를 그림으로 (`styles/longs`, 2026-11-16)
+
+사용자 요청(조정 세션 경유): "롱노트도 코드로 만든거 있으면 제미나이로 다시 뽑아줘". 코드로 그리던 롱노트(아래 목록)를, 지금의 코드 그림을 "지킬 모습"으로 보내 질감만 그림 수준으로 올려 다시 그립니다. 세트의 롱노트(`styles/<set>/long.jpg`)와 같은 꼴: 검은 바탕에 선 레일 둘(왼쪽 대기, 오른쪽 누르는 중), 양끝이 몸통 자신의 끝으로 닫힘.
+
+- 만드는 법: `scripts/assets/make_long_notes.py make <long>`(모델 `gemini-nano-banana-2.1`, 1:1 · 2K), 고르기 `pick <long> <번호>` → `assets-src/styles/longs/<long>.jpg`(1536 px JPEG), 게임 그림 `scripts/assets/build_long_notes.py` → `client/public/media/longs/<long>.png`(512×256, 세트의 long.png와 같은 배치) · 매니페스트 `longs/<long>`.
+- 보낸 그림: `assets-src/styles/longs/refs/<long>.jpg`. 게임의 코드 롱노트(대기 · 누르는 중)를 옅은 회색 레인으로 그린 것과, 그 스킨의 단노트(작게, 재질만 보라고). `design-mockups/note-skins/lab/refs.mjs`로 만듦. 다른 게임의 그림이나 로고는 보내지 않음.
+- 프롬프트: 스킨마다 한 줄의 설명(`make_long_notes.py`의 `LONGS`)을 공통 머리(`KEEP`: 같은 배치 · 폭 · 끝 모양 · 띠와 선의 자리 · 부분마다의 밝기와 비침을 지키고 질감만 올림, 없는 부품을 더하지 않음)와 꼬리(`RULES`: 끝 외에는 길이 방향으로 같아 이음매 없이 반복, 무채색, 정사영, 검은 바탕) 사이에 넣음. 전문은 `assets-src/styles/longs/_tries/record.json`(저장소 밖)과 스크립트.
+- 후처리(`build_long_notes.py`): 레일을 밝게 차 있는 행 · 열로 찾아 둘레의 빛은 버림, 몸통은 레일 가운데를 위아래 겹쳐 섞어 이음매 없이 128×256, 끝은 레일 위쪽을 코드 끝과 같은 깊이 비율로 128×`end`. 값 ÷ 0.72(옅은 회색 레인으로 그린 것)를 레인 색의 양으로, 밝은 부분을 흰색 쪽으로(대기 0.74부터 0.75까지, 누르는 중 0.6부터 0.9까지).
+
+### `styles/longs/fire.jpg` (파이어스타터)
+
+- 시도 1: 2026-11-16 12:37:46 +0000 · 4,286,046바이트 · sha256 앞 16자리 `75d85d54e4a491d5` · 버림(단단한 래커가 어두운 유리관과 고리 마개로 바뀜). 이 뒤 공통 머리에 "부분마다의 밝기 · 비침을 지키고 없는 부품을 더하지 않음"을 넣음.
+- 시도 2(고름): 2026-11-16 12:38:33 +0000 · 3,015,747바이트 · sha256 앞 16자리 `cb5a0a15c2c0a19b` · 저장한 JPEG 255,624바이트
+- 프롬프트:
+
+  > The attached picture shows two long notes of one skin of a commercial PC keyboard rhythm game, as the game draws them now in flat code-drawn graphics, for a lane whose colour is a light neutral grey: the left one idle, the right one held. Under them, small, is the same skin's tap note, shown only so you can see the skin's material: do NOT draw it.
+  >
+  > Draw the two long notes again as production game art at the finish level of a top commercial rhythm game: the SAME design, with real material detail. Keep exactly: the layout (two upright rails at the same places and sizes, the left idle, the right held), each rail's width and its outline, the shape of its two ends (square, rounded or cut corners, as shown), the bands, lines, grooves and marks running down it and where they are across its width, and HOW BRIGHT EACH PART IS: match the grey value of every part of the attached picture (a light grey part stays light grey, a near-white line stays near white, a dark part stays dark), and keep it as opaque as shown: a part is see-through only where the picture shows the black through it. Add nothing: no rings, collars, caps, screws or parts that are not in the picture. Only raise the finish: material texture, crisp bevels and edge highlights, subtle depth.
+  >
+  > THE LONG NOTE: the Firestarter skin: an opaque, solid bar of glossy hot lacquer, light grey, darker toward its two sides as a rounded bar is, a white-hot wire glowing down its middle, ends cut straight across with a thin bright rim.
+  >
+  > RULES: A long note is one continuous body only, with no tap note at either end: each end is closed by the body's own end, drawn the same at the top and the bottom. Along its whole length between its ends the body looks exactly the same, so any stretch of it repeats seamlessly: no gradient from top to bottom, no one-off details, any mark down it evenly spaced. The held one is the same note, brighter, its inner light stronger. Colour: neutral greys and white only, with no hue at all, because the game tints it with the lane colour; glowing parts are near white. Strictly orthographic, straight top-down, no perspective, every edge straight and vertical. Pure black background (#000000) around and between the rails, no shadow cast onto it, nothing under the rails (the area where the small tap note was stays black). No text, letters, numbers, logos or watermarks.

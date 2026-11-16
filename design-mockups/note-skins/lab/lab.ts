@@ -70,3 +70,66 @@ let current: TrackRenderer | null = null;
     );
 };
 (window as unknown as { labReady: boolean }).labReady = true;
+
+// ---------- the references sent to the image model (scripts/assets/make_long_notes.py) ----------
+import { LONG_OF, LONG_PAINT, NOTE_PAINT, type LongStyle, type NoteStyle as NS } from '../../../client/src/render/tintArt';
+
+/** A tint picture as a light grey lane shows it, over black (red is how much of the grey, green lifts it toward white). */
+function asWhite(src: HTMLCanvasElement): HTMLCanvasElement {
+  const g = src.getContext('2d')!;
+  const img = g.getImageData(0, 0, src.width, src.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const [r, gr, a] = [d[i] / 255, d[i + 1] / 255, d[i + 3] / 255];
+    // a light grey lane (0.72): a white one would wash the shading out
+    const k = r * 0.72;
+    const v = (k + (1 - k) * gr) * a;
+    d[i] = d[i + 1] = d[i + 2] = Math.round(v * 255);
+    d[i + 3] = 255;
+  }
+  const out = document.createElement('canvas');
+  [out.width, out.height] = [src.width, src.height];
+  out.getContext('2d')!.putImageData(img, 0, 0);
+  return out;
+}
+
+/**
+ * The long note of `long` as its code draws it, for a white lane, idle (left) and held (right): two rails standing
+ * upright on black, each closed at its top and its bottom by its end, and the tap of `note` small at the bottom middle.
+ */
+(window as unknown as { labLongRef: (long: LongStyle, note: NS) => string }).labLongRef = (long, note) => {
+  const S = 1024;
+  const paint = LONG_PAINT[long];
+  const rw = 200;
+  const tile = Math.round(rw * paint.tile * 1.7);
+  const end = Math.max(8, Math.round(rw * paint.endDepth * 1.7));
+  const [top, bottom] = [60, 820];
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [S, S];
+  const g = canvas.getContext('2d')!;
+  const piece = (w: number, h: number, p: (c: CanvasRenderingContext2D, w: number, h: number) => void) => {
+    const c = document.createElement('canvas');
+    [c.width, c.height] = [w, h];
+    p(c.getContext('2d')!, w, h);
+    return asWhite(c);
+  };
+  [false, true].forEach((held, i) => {
+    const x = i === 0 ? 232 : 592;
+    const body = held && paint.held ? paint.held.body : paint.body;
+    const cap = held && paint.held ? paint.held.end : paint.end;
+    const b = piece(rw, tile, body);
+    for (let y = top + end; y < bottom - end; y += tile) g.drawImage(b, 0, 0, rw, Math.min(tile, bottom - end - y), x, y, rw, Math.min(tile, bottom - end - y));
+    const e = piece(rw, end, cap);
+    g.drawImage(e, x, top);
+    g.save();
+    g.translate(x, bottom);
+    g.scale(1, -1);
+    g.drawImage(e, 0, 0);
+    g.restore();
+  });
+  // the tap, as wide as a rail, at the bottom
+  const tapH = 70;
+  g.drawImage(piece(rw, tapH, (c, w, h) => NOTE_PAINT[note](c, w, h, 'white')), (S - rw) / 2, 900);
+  return canvas.toDataURL('image/png');
+};
+void LONG_OF;
