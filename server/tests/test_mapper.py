@@ -401,20 +401,30 @@ def test_a_tempo_the_song_does_not_follow_is_taken_out_and_the_one_before_runs_o
 
     beat = 60000.0 / 180
     onsets = _eighths(100.0, 300_000.0, 180.0)
-    # the timing pass lost the beat from 160 s: 67 BPM (the song's eighths are not on it), then 2.9 and 29.5
-    lost = timing_from_reds([(100.0, beat, 4), (160_000.0, 60000.0 / 67, 4), (200_000.0, 60000.0 / 2.9, 4), (250_000.0, 60000.0 / 29.5, 4)])
-    fixed, dropped = charts.checked_timing(lost, onsets, 300_000.0)
-    assert [(d["why"], round(d["bpm"], 1)) for d in dropped] == [("onsets", 67.0), ("bounds", 2.9), ("bounds", 29.5)]
+    # the timing pass lost the beat from 160 s: 120 BPM (the song's eighths are not on it), then 2.9 and
+    # 29.5 (outside 30-400, and under 0.4 of the tempo held longest), and 67 BPM from 280 s: under 0.4
+    # of 180, taken out though only a few onsets lie under it
+    lost = timing_from_reds([(100.0, beat, 4), (160_000.0, 500.0, 4), (200_000.0, 60000.0 / 2.9, 4), (250_000.0, 60000.0 / 29.5, 4),
+                             (280_000.0, 60000.0 / 67, 4)])
+    fixed, dropped = charts.checked_timing(lost, onsets[:-100], 300_000.0)
+    assert [(d["why"], round(d["bpm"], 1)) for d in dropped] == [("onsets", 120.0), ("bounds", 2.9), ("bounds", 29.5), ("bounds", 67.0)]
+    assert dropped[0]["gain"] > charts.TIMING_GAIN and dropped[0]["spanMs"] == 40_000.0
     assert [p["bpm"] for p in fixed["tempoMap"]] == [180.0] and fixed["offsetMs"] == 100.0
+    # a lost stretch of two seconds is left as it was: its few notes are not worth a chart made again
+    short = timing_from_reds([(100.0, beat, 4), (100_000.0, 60000.0 / 2.9, 4), (102_000.0 + 100.0 / 3, beat, 4)])
+    assert charts.checked_timing(short, onsets, 300_000.0) == (short, [])
 
 
 def test_a_real_tempo_change_a_meter_change_and_a_tempo_with_few_onsets_stay() -> None:
     from rhythm_server.formats.osu import timing_from_reds
 
-    # 176 -> 185 BPM at 103.6 s: the song's onsets follow the new tempo, not the old one run on
-    onsets = _eighths(0.0, 103_600.0, 176.0) + _eighths(103_600.0, 200_000.0, 185.0)
+    # 176 -> 185 BPM at 103.6 s: the song's onsets follow the new tempo, not the old one run on, also
+    # when they lie 25 ms after the model's grid (the analysis's onsets came 18-33 ms after it)
     real = timing_from_reds([(0.0, 60000.0 / 176, 4), (103_600.0, 60000.0 / 185, 4)])
-    assert charts.checked_timing(real, onsets, 200_000.0) == (real, [])
+    for late in (0.0, 25.0):
+        onsets = [{"t": o["t"] + late} for o in _eighths(0.0, 103_600.0, 176.0) + _eighths(103_600.0, 200_000.0, 185.0)]
+        assert charts.onset_lag(charts.timing_red_lines(real), onsets, 200_000.0) == pytest.approx(late, abs=0.5)
+        assert charts.checked_timing(real, onsets, 200_000.0) == (real, [])
     # 4/4 then 3/4 at the same tempo
     meter = timing_from_reds([(0.0, 500.0, 4), (64_000.0, 500.0, 3)])
     assert charts.checked_timing(meter, _eighths(0.0, 128_000.0, 120.0), 128_000.0) == (meter, [])
