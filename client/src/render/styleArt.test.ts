@@ -329,7 +329,7 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
       for (const note of ['flat', 'chamfer', 'round', 'star5'] as const) expect(noteWidthOf(note)).toBe(0.9);
     });
 
-  it('draws its long note’s body from art, lit while held, and cuts its ends in the tap’s outline: the outer half of the tap as drawn, the body running into it', () => {
+  it('draws its long note’s body from art, lit while held, and cuts its ends in the tap’s outline: the tap as drawn beyond its widest row, the body running into it', () => {
     const long = longPaintOf(c.note, images);
     expect(long.held).toBeDefined();
     expect(long.px).toBe(128);
@@ -337,11 +337,14 @@ describe.each(SETS)('the $set set drawn from art', (c) => {
     // as wide as the tap, half as deep as it looks at the judge line
     const endWidth = noteWidthOf(c.note) / long.width;
     expect(long.endWidth).toBeCloseTo(endWidth, 9);
-    expect(long.endDepth).toBeCloseTo(0.5 * NOTE_STRETCH * noteShapeOf(c.note, images)! * endWidth, 9);
+    // as deep as the tap's part beyond its widest row: its middle, the five-pointed star's arms
+    const widest = c.note === 'star5' ? 0.36 : 0.5;
+    expect(long.endDepth).toBeCloseTo(widest * NOTE_STRETCH * noteShapeOf(c.note, images)! * endWidth, 9);
     const { g, draws } = recorder();
     long.end(g, 128, 100);
-    // the tap's picture over twice the end's depth (its outer half shows), then the body's (the long picture's body, not its end)
-    expect([draws[0].dx, draws[0].dy, draws[0].dw, draws[0].dh]).toEqual([0, 0, 128, 200]);
+    // the tap's picture its widest row on the end's inner edge (its outer part shows), then the body's (the long picture's body, not its end)
+    expect([draws[0].dx, draws[0].dy, draws[0].dw]).toEqual([0, 0, 128]);
+    expect(draws[0].dh).toBeCloseTo(100 / widest, 9);
     expect(draws.slice(1).every((d) => d.sx === 0 && d.sh === 256)).toBe(true);
     const held = recorder();
     long.held!.end(held.g, 128, 100);

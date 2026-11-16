@@ -8,6 +8,7 @@
 |---|---|
 | `longs-and-taps-before.jpg` / `-after.jpg` | 23개 노트 스타일, 4K SDVX: 왼쪽부터 단노트(가까이 · 멀리), 롱노트, 누르는 중, 놓침 |
 | `taps-play-size-before.jpg` / `-after.jpg` | 7K+1S SDVX 1920×1080의 단노트: 스크래치(분홍) · 흰 · 파랑 · 노랑 |
+| `heads-shaped.jpg` | 모양 노트 7종(코인 · 두 별 · AI 회사 넷)의 롱노트 머리와 꼬리 확대: 롱노트(짧은 것의 꼬리 포함) · 긴 것 · 누르는 중 · 놓침. 전은 `c137573`(직사각형 음영이 남던 것) |
 | `close-ups-1.jpg`, `close-ups-2.jpg` | 판정선 근처 확대, 왼쪽 전 · 오른쪽 후 |
 | `play-<스킨>-<키 모드>-<카메라>.jpg` | 실제 플레이 화면(스킨의 기어까지), 왼쪽 전 · 오른쪽 후 |
 
@@ -18,7 +19,7 @@
 ```
 cd design-mockups/note-skins/lab
 node ../../../client/node_modules/vite/bin/vite.js --config vite.config.mjs &   # :5199
-node shoot.mjs <출력 폴더> sheet|taps|zoom|play [스타일,…]
+node shoot.mjs <출력 폴더> sheet|taps|zoom|heads|play [스타일,…]
 python3 sheet.py <출력 폴더> longs.png      # sheet-*.png를 한 장으로
 python3 tapsheet.py <출력 폴더> taps.png    # taps-*.png를 한 장으로
 ```

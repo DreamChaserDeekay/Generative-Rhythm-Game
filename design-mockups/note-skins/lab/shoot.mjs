@@ -70,6 +70,19 @@ if (what === 'taps') {
     await shot({ note, deck: 'standard', hit: 'flash', mode: '7K+1S', camera: 'SDVX', width: 1920, height: 1080, notes, timeMs: T, visibleMs: 1000 }, `taps-${note}`, { x: 480, y: 330, width: 960, height: 470 });
   }
 }
+if (what === 'heads') {
+  // the heads (near the judge line) and the tails (a short note's far end) of the long notes, close up: 4K SDVX
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  for (const note of STYLES.filter((s) => !only || only.includes(s))) {
+    const notes = [
+      { lane: 0, t: T + 60, endT: T + 260 },
+      { lane: 1, t: T + 40, endT: T + 700 },
+      { lane: 2, t: T - 300, endT: T + 450, state: 'held' },
+      { lane: 3, t: T + 60, endT: T + 600, state: 'missed' },
+    ];
+    await shot({ note, deck: 'standard', hit: 'flash', mode: '4K', camera: 'SDVX', width: 1920, height: 1080, notes, timeMs: T, visibleMs: 1000 }, `heads-${note}`, { x: 420, y: 330, width: 1080, height: 480 });
+  }
+}
 if (what === 'play' || what === 'all') {
   const plays = [
     ['default', 'flat', '7K+1S', 'SDVX'], ['fire', 'fire', '7K+1S', 'SDVX'], ['gemini', 'gemini', '6K', 'LOW'], ['claude', 'claude', '4K', 'PLANE'],

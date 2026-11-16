@@ -1,5 +1,6 @@
 import { gearBorderLook, paintDeck, type DeckSpec, type GearArt, type GearPart, type GearStyle, type SideLook } from './deckArt';
 import type { SkinStyle } from './skins';
+import { context2d, paintCanvas } from './paintCanvas';
 import {
   ink,
   LONG_OF,
@@ -390,22 +391,71 @@ export function longPaintOf(style: NoteStyle, images: StyleImages): LongPaint {
 export const SHAPED_ENDS: readonly NoteStyle[] = ['round', 'star4', 'star5'];
 
 /**
+ * Where a long note's end is cut from its tap, as a share of the tap's depth from its far edge, where it
+ * cannot be measured (no canvas: the tests): the coin and the four-pointed star across their middle, the
+ * five-pointed star across its arms.
+ */
+const TAP_WIDEST: Partial<Record<NoteStyle, number>> = { star5: 0.36 };
+
+/**
+ * The rows of `tap`, drawn `aspect` times deeper than wide, from its far edge, that are as wide as the body
+ * (`share` of it), or as its widest where none is, and the middle of the first band of them: there the end
+ * meets the body, with no square shoulder of the body beside the shape and nothing of the shape cut through
+ * along its length (`row`, as a share of the tap's depth); and how wide the tap is at its widest
+ * (`across`, of its picture's width). Null where there is no canvas to draw it on.
+ */
+function bodyRow(tap: NotePaint, aspect: number, share: number): { row: number; across: number } | null {
+  if (typeof OffscreenCanvas !== 'function' && typeof document === 'undefined') return null;
+  const canvas = paintCanvas();
+  canvas.width = 96;
+  canvas.height = Math.max(16, Math.round(96 * aspect));
+  const g = context2d(canvas);
+  tap(g, canvas.width, canvas.height, 'white');
+  const data = g.getImageData(0, 0, canvas.width, canvas.height).data;
+  const widths: number[] = [];
+  for (let y = 0; y < canvas.height; y++) {
+    let [first, last] = [-1, -1];
+    for (let x = 0; x < canvas.width; x++) {
+      if (data[(y * canvas.width + x) * 4 + 3] > 40) {
+        if (first < 0) first = x;
+        last = x;
+      }
+    }
+    widths.push(first < 0 ? 0 : last - first + 1);
+  }
+  const widest = Math.max(...widths);
+  const target = Math.min(widest, share * canvas.width * 0.97);
+  // the middle of the band of rows that wide: the coin's and the four-pointed star's middle, the five-pointed star's arms whole
+  const first = widths.findIndex((wd) => wd >= target);
+  if (first < 0) return null;
+  let last = first;
+  while (last + 1 < widths.length && widths[last + 1] >= target) last++;
+  return { row: Math.min(0.6, Math.max(0.15, (first + last + 1) / 2 / canvas.height)), across: widest / canvas.width };
+}
+
+/**
  * `long` with its ends cut in the outline of the style's tap (shapedEnd): each end the outer half of the
- * tap as it is drawn (from art where its picture loaded, the mark where it is given), as wide as the tap
- * and half as deep as it looks at the judge line, the body running on into it.
+ * tap as it is drawn (from art where its picture loaded), as wide as the tap and as deep as its part beyond
+ * its widest row looks at the judge line (TAP_WIDEST), the body running on into it inside its outline.
  */
 function withTapEnds(style: NoteStyle, long: LongPaint, images: StyleImages): LongPaint {
   const tap = notePaintOf(style, images);
   const shape = noteShapeOf(style, images) ?? NOTE_SHAPE[style] ?? 1;
-  const endWidth = noteWidthOf(style) / long.width;
+  const tapWidth = noteWidthOf(style);
+  const measured = bodyRow(tap, NOTE_STRETCH * shape, long.width / tapWidth);
+  // the body no wider than the tap at its widest (the neon star is drawn well inside its picture)
+  const width = measured ? Math.min(long.width, tapWidth * measured.across) : long.width;
+  const endWidth = tapWidth / width;
   const share = 1 / endWidth;
   const plain = long.plain ?? { idle: long.body, held: long.held?.body ?? long.body };
+  const widest = (measured && width < long.width ? bodyRow(tap, NOTE_STRETCH * shape, share)?.row : measured?.row) ?? TAP_WIDEST[style] ?? 0.5;
   return {
     ...long,
-    end: shapedEnd(tap, plain.idle, share),
-    held: { body: long.held?.body ?? long.body, end: shapedEnd(tap, plain.held, share) },
-    endDepth: 0.5 * NOTE_STRETCH * shape * endWidth,
+    end: shapedEnd(tap, plain.idle, share, widest),
+    held: { body: long.held?.body ?? long.body, end: shapedEnd(tap, plain.held, share, widest) },
+    endDepth: widest * NOTE_STRETCH * shape * endWidth,
     endWidth,
+    width,
   };
 }
 

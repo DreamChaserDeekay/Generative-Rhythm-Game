@@ -260,7 +260,7 @@ describe('the notes told apart by their build', () => {
     }
   });
 
-  it('cuts an end in a tap’s outline: the tap drawn twice the end’s depth (its outer half shows), the body running into it from its inner edge', () => {
+  it('cuts an end in a tap’s outline: the coin’s drawn twice the end’s depth (its outer half shows), the body running into it from its inner edge', () => {
     const taps: number[][] = [];
     const necks: number[][] = [];
     const g = new Proxy({} as Record<string | symbol, unknown>, { get: () => () => undefined, set: () => true }) as unknown as CanvasRenderingContext2D;
@@ -272,5 +272,32 @@ describe('the notes told apart by their build', () => {
     expect(taps).toEqual([[100, 80]]);
     expect(necks.length).toBeGreaterThan(1);
     for (const n of necks) expect(n).toEqual([80, 40]);
+  });
+
+  it('cuts it at the tap’s widest row, and paints the body only inside the tap’s outline (no square shoulder, no square shading)', () => {
+    const taps: number[][] = [];
+    const ops: string[] = [];
+    const g = new Proxy({} as Record<string | symbol, unknown>, {
+      get: () => () => undefined,
+      set: (_, k, v) => (k === 'globalCompositeOperation' && ops.push(v), true),
+    }) as unknown as CanvasRenderingContext2D;
+    shapedEnd(
+      (_, w, h) => taps.push([w, h]),
+      () => undefined,
+      1,
+      0.36,
+    )(g, 100, 36);
+    // cut above its middle (the five-pointed star's arms): the shape alone, the body run into none of it
+    expect(taps[0][1]).toBeCloseTo(100, 9);
+    expect(ops).toEqual([]);
+    // cut across its middle: the body over the mark, only inside the tap's outline
+    shapedEnd(
+      () => undefined,
+      () => undefined,
+      1,
+      0.5,
+    )(g, 100, 36);
+    expect(ops.length).toBeGreaterThan(0);
+    expect(new Set(ops)).toEqual(new Set(['source-atop']));
   });
 });

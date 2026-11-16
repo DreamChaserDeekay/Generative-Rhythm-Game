@@ -2060,15 +2060,21 @@ function barEnd(body: Paint, rim: string, corner: Corner = 'square', t = 3, r = 
 }
 
 /**
- * A long note's end cut in its tap's outline (the stars', the coin's, the AI companies' marks): the outer
- * half of the tap, as the tap is drawn (its walls the renderer's), its middle on the end's inner edge, and
- * the body (`neck`: as wide as `share` of the end) running on into it and fading out toward its outer
- * edge, so the end is the body's own end widening into the note's outline: one piece with the body,
- * not one more note lying on it.
+ * A long note's end cut in its tap's outline (the stars', the coin's): the tap as it is drawn (its walls the
+ * renderer's), from its outer edge to its widest row (`widest`: the share of the tap's depth from its top;
+ * a half for the coin and the four-pointed star, less for the five-pointed star, whose arms are above its
+ * middle), that row on the end's inner edge, where the body meets it: nothing of the body is wider there
+ * than the shape, so no square shoulder of it shows. Where the cut is at the tap's middle (its lane mark on the
+ * end's inner edge) the body (`neck`, as wide as `share` of the end) runs on into it over the mark, fading out
+ * toward its outer edge, painted only inside the tap's outline: whatever shading the end has follows the shape, and the end is the body's own end widening into the note's outline, not one
+ * more note lying on it.
  */
-export function shapedEnd(tap: NotePaint, neck: Paint, share: number): Paint {
+export function shapedEnd(tap: NotePaint, neck: Paint, share: number, widest = 0.5): Paint {
   return (g, w, h) => {
-    tap(g, w, 2 * h, 'white');
+    tap(g, w, h / widest, 'white');
+    // cut above the tap's middle, its lane mark is not in the end: the shape is all there is (the five-pointed
+    // star's arms meet the body; a body run into them would cover them)
+    if (widest < 0.45) return;
     const bw = w * share;
     const x0 = (w - bw) / 2;
     const [from, solid] = [h * 0.5, h * 0.84];
@@ -2078,6 +2084,8 @@ export function shapedEnd(tap: NotePaint, neck: Paint, share: number): Paint {
       g.beginPath();
       g.rect(x0, y0, bw, y1 - y0);
       g.clip();
+      // within the tap's outline only
+      g.globalCompositeOperation = 'source-atop';
       g.globalAlpha = alpha;
       g.translate(x0, 0);
       neck(g, bw, h);
