@@ -433,6 +433,8 @@ export class Hud {
   /** The judgement's words as last written (showJudge writes them only when they change). */
   private lastJudge = '';
   private lastJudgeSub = '';
+  /** Whether the judgement shows (see showJudge: it comes at once and goes slowly). */
+  private judgeShown = false;
   private judgeAt = -Infinity;
   private toastAt = -Infinity;
   private hudScale = 1;
@@ -1125,8 +1127,23 @@ export class Hud {
       this.judgeBump?.cancel();
       this.judgeBump = this.judgePop.animate(JUDGE_POP, { duration: JUDGE_POP_MS, easing: 'ease-out' });
     }
-    this.judgeBox.style.opacity = this.judgeOpacity;
+    if (!this.judgeShown) {
+      // there at once, whole: the box's transition (0.15 s) is for its going. Coming in with it, the judgement of
+      // the first note after a rest showed nothing of itself in the frame of the hit, half 50 ms later and all of it
+      // only after 0.15 s
+      this.judgeShown = true;
+      this.judgeBox.style.transition = 'none';
+      this.judgeBox.style.opacity = this.judgeOpacity;
+    }
     this.setCombo(e.combo);
+  }
+
+  /** The judgement goes, fading out (the box's own transition again). */
+  private hideJudge(): void {
+    if (!this.judgeShown) return;
+    this.judgeShown = false;
+    this.judgeBox.style.transition = '';
+    this.judgeBox.style.opacity = '0';
   }
 
   setCombo(combo: number): void {
@@ -1162,7 +1179,7 @@ export class Hud {
     this.judgeBump = null;
     this.setCombo(0);
     this.judgeAt = -Infinity;
-    this.judgeBox.style.opacity = '0';
+    this.hideJudge();
     this.toastAt = -Infinity;
     this.toast.style.opacity = '0';
     const eb = this.errorBar;
@@ -1188,7 +1205,7 @@ export class Hud {
   }
 
   update(perfNow: number, stats: HudStats): void {
-    if (perfNow - this.judgeAt > JUDGE_VISIBLE_MS) this.judgeBox.style.opacity = '0';
+    if (perfNow - this.judgeAt > JUDGE_VISIBLE_MS) this.hideJudge();
     if (perfNow - this.toastAt > TOAST_MS) this.toast.style.opacity = '0';
     if (stats.score !== this.lastScore) {
       const text = stats.score.toLocaleString('en-US');
