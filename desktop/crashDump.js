@@ -13,8 +13,11 @@ const MODULE_LIST = 4;
 const EXCEPTION = 6;
 const THREAD_SIZE = 48;
 const MODULE_SIZE = 108;
-/** The x64 CONTEXT: its size, and where the stack pointer and the instruction pointer are in it. */
-const CONTEXT_X64 = { size: 1232, rsp: 0x98, rip: 0xf8 };
+/**
+ * The x64 CONTEXT: its size (a dump may keep more after it: the extended registers), where its flags are and
+ * the one that says x64, and where the stack pointer and the instruction pointer are in it.
+ */
+const CONTEXT_X64 = { size: 1232, flags: 0x30, amd64: 0x00100000, rsp: 0x98, rip: 0xf8 };
 /** How far up the crashed thread's stack is looked through, and how many return addresses are kept. */
 const STACK_SLOTS = 4096;
 const FRAMES = 24;
@@ -105,7 +108,8 @@ function dumpSummary(buffer) {
   };
 
   const at = place(address) ?? hex(address);
-  const x64 = contextSize === CONTEXT_X64.size;
+  const flags = contextSize !== undefined && contextSize >= CONTEXT_X64.size ? r.u32(contextRva + CONTEXT_X64.flags) : undefined;
+  const x64 = flags !== undefined && (flags & CONTEXT_X64.amd64) !== 0;
   const rip = x64 ? r.u64(contextRva + CONTEXT_X64.rip) : undefined;
   const ip = rip === undefined ? undefined : (place(rip) ?? hex(rip));
   const frames = [];

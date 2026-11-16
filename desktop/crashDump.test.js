@@ -7,7 +7,7 @@ const { dumpSummary } = require('./crashDump');
  * A minidump as Crashpad writes one, of what the summary reads: an exception on `thread` at `address`, the
  * modules, and the thread's stack (`stack`: the 64-bit values on it from the stack pointer up).
  */
-function minidump({ code = 0x80000003, thread = 77, address, rip = address, modules, stack = [], x64 = true }) {
+function minidump({ code = 0x80000003, thread = 77, address, rip = address, modules, stack = [], x64 = true, extended = 0 }) {
   const parts = [];
   let at = 32 + 3 * 12;
   /** Places `bytes` in the file; answers where. */
@@ -31,8 +31,10 @@ function minidump({ code = 0x80000003, thread = 77, address, rip = address, modu
   const stackBytes = Buffer.concat(stack.map(u64));
   const stackStart = 0x1000_0000n;
   const stackRva = put(stackBytes);
-  const context = Buffer.alloc(x64 ? 1232 : 716);
+  // (an x64 context says so in its flags; Crashpad on Windows keeps the extended registers after it)
+  const context = Buffer.alloc(x64 ? 1232 + extended : 716);
   if (x64) {
+    context.writeUInt32LE(0x0010005f, 0x30);
     context.writeBigUInt64LE(stackStart, 0x98);
     context.writeBigUInt64LE(BigInt(rip), 0xf8);
   }
@@ -97,6 +99,9 @@ test('a crash at no instruction of a module, and the instruction the thread was 
   const dump = minidump({ code: 0xc0000005, address: 0n, rip: DRIVER.base + 0x99n, modules: [APP, DRIVER], stack: [APP.base + 0x20n] });
   const s = dumpSummary(dump);
   assert.deepEqual([s.code, s.at, s.ip, s.frames], ['0xC0000005', '0x0', 'nvwgf2umx.dll+0x99', ['Generative Rhythm.exe+0x20']]);
+  // a context with the extended registers after it (as Windows' dumps have): the stack is read all the same
+  const wide = dumpSummary(minidump({ address: APP.base + 0x30n, modules: [APP, DRIVER], stack: [DRIVER.base + 0x40n, APP.base + 0x20n], extended: 2048 }));
+  assert.deepEqual(wide.frames, ['nvwgf2umx.dll+0x40', 'Generative Rhythm.exe+0x20']);
   // a process of another kind (not x64): where it crashed, and no stack
   const other = dumpSummary(minidump({ address: APP.base + 0x30n, modules: [APP], stack: [APP.base + 0x20n], x64: false }));
   assert.deepEqual([other.at, other.ip, other.frames], ['Generative Rhythm.exe+0x30', undefined, []]);

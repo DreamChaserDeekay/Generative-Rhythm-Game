@@ -533,7 +533,11 @@ function graphicsWatch(io) {
     /** Windows' settings (registryFields), as the run starts. */
     windows() {
       if (!has('registry')) return Promise.resolve();
-      return ask('registry').then((answers) => log('windows', answers && answers.failed ? { why: answers.failed } : registryFields(answers)));
+      return ask('registry').then((answers) => {
+        const fields = answers && answers.failed ? { why: answers.failed } : registryFields(answers);
+        // (none of them set: Windows' own defaults)
+        log('windows', Object.values(fields).some((v) => v !== undefined) ? fields : { set: 'none' });
+      });
     },
     /**
      * Something the window or a screen did (it lost the keyboard, went into full screen; a screen changed
